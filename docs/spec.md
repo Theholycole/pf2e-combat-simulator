@@ -131,7 +131,8 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
   - 200 fights ran through the worker with no fallback.
 - **PC class features** (the user's choice after B28): Sneak Attack, Rage, Hunt Prey, Flurry of Blows, Double Slice and the champion's reactions, read through PF2e in the snapshot (C1–C6, confirmed). The live check also fixed PC weapon traits (agile weapons had taken the full multiple attack penalty).
 - More class features (C7–C12, confirmed): Battle Medicine, Vicious Swing and other feats, Exploit Vulnerability, Devise a Stratagem, panache and finishers, Intercept Attack and Taunt, Overdrive.
-- 125 Node tests.
+- Still more (C13–C15, confirmed): actions that put an effect on the PC (stances such as Tiger Stance, with the Strikes they add), reload for crossbows and firearms, and PCs' feat actions that are checks or saves against a creature (Bon Mot, Dirty Trick), with their penalties.
+- 128 Node tests.
 
 ### Real-fight logger (built 2026-10-08, at the user's request)
 

@@ -8,13 +8,14 @@
 // same way, weighted by self-preservation.
 
 import { degreeDistribution, CRITICAL_SUCCESS, SUCCESS, CRITICAL_FAILURE } from "./checks.js";
+import { effectBenefit } from "./effects.js";
 import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, flankChance, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken } from "./morale.js";
 import { chargeStrike, multiStrikeOrder, strikeNamed } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
-import { battleMedicineOdds, canCast, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets } from "./spells.js";
+import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets } from "./spells.js";
 import { levelDC } from "./abilities.js";
 
 export const ROLE_PROFILES = Object.freeze({
@@ -398,6 +399,14 @@ function child(node, action, cost, value, changes = {}) {
     };
 }
 
+// Is a reload weapon empty at this point of the plan? Fired since its last reload in the plan, or empty when the turn began.
+function emptyNow(c, node, index, strike) {
+    const fired = node.casts.lastIndexOf(`fired${index}`);
+    const loaded = node.casts.lastIndexOf(`loaded${index}`);
+    if (fired === -1 && loaded === -1) return !!c.unloaded?.has(strike.name);
+    return fired > loaded;
+}
+
 function expand(ctx, node, actionsLeft) {
     const { state, c } = ctx;
     const children = [];
@@ -422,16 +431,34 @@ function expand(ctx, node, actionsLeft) {
             }
             options.sort((a, b) => b.expectation.damage - a.expectation.damage);
             for (const { index, strike, expectation } of options.slice(0, 2)) {
+                // A crossbow or firearm fired already (before this turn, or earlier in this plan): reload first (C14).
+                const reload = strike.reload && emptyNow(c, node, index, strike) ? strike.reload : 0;
+                if (1 + reload > remaining) continue;
                 const before = node.damage[target.id] ?? 0;
                 const hp = remainingHp(target);
                 // A venom or Improved Grab the hit delivers for free.
                 const gain = targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp)) + ctx.freeRiderGain(strike, target, expectation.hitChance);
-                const next = child(node, { type: "strike", targetId: target.id, strikeIndex: index }, 1, ctx.profile.aggression * gain, {
+                const next = child(node, { type: "strike", targetId: target.id, strikeIndex: index, ...(reload ? { reload } : {}) }, 1 + reload, ctx.profile.aggression * gain, {
                     attack: true,
-                    damage: { ...node.damage, [target.id]: before + expectation.damage }
+                    damage: { ...node.damage, [target.id]: before + expectation.damage },
+                    ...(strike.reload ? { cast: `fired${index}` } : {})
                 });
                 if (!strike.melee && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                 children.push(next);
+            }
+        }
+        // Reloading on its own (the last action of a turn, so the next one starts with a shot):
+        // worth part of the shot it makes ready.
+        if (!restrained) {
+            for (const [index, strike] of (c.strikes ?? []).entries()) {
+                if (!strike.reload || strike.reload > remaining || !emptyNow(c, node, index, strike) || !strikeUsable(c, strike)) continue;
+                let best = 0;
+                for (const target of ctx.enemies) {
+                    if (target.status !== "active") continue;
+                    const expectation = ctx.strikeExpectation(strike, index, target, 0, node.pos, node.prone);
+                    if (expectation?.damage > 0) best = Math.max(best, targetValue(state, target, c) * Math.min(1, expectation.damage / remainingHp(target)));
+                }
+                if (best > 0) children.push(child(node, { type: "reload", strikeIndex: index, actions: strike.reload }, strike.reload, 0.6 * ctx.profile.aggression * best, { cast: `loaded${index}` }));
             }
         }
         // Spells: each action variant and target set in reach, valued like
@@ -479,7 +506,7 @@ function expand(ctx, node, actionsLeft) {
                         if (!ally) damage[target.id] = before + expected;
                     }
                     // A swashbuckler's bravado action also brings panache: Precise Strike's damage for the fight and a finisher.
-                    if (!c.panache && c.panacheStyle?.bravado.includes(spell.plan?.source?.slug)) {
+                    if (!c.panache && c.panacheStyle && (c.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
                         const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
                         gain += 0.6 * ctx.ownValue * ROUND_TO_KILL * (3 * c.panacheStyle.precise + c.panacheStyle.finisherDice * 3.5 * 0.6) / threat;
                     }
@@ -623,6 +650,24 @@ function expand(ctx, node, actionsLeft) {
             }
             const gain = ctx.ownValue * (ROUND_TO_KILL * 3 * perRound / threat + 0.5 * (buff.tempHp ?? 0) / Math.max(1, c.hp.max));
             if (gain > 0) children.push(child(node, { type: "selfBuff", index: buffIndex, actions: buff.actions }, buff.actions, gain, { cast: `buff${buffIndex}` }));
+        }
+        // A stance or another action that puts an effect on itself (C13): the
+        // effect's benefit, as a spell's on itself, and a better Strike it brings.
+        for (const [index, entry] of (c.selfEffects ?? []).entries()) {
+            if (entry.actions > remaining || (c.effects ?? []).some((effect) => effect.key === `self:${entry.name}`) || node.casts.includes(`self${index}`)) continue;
+            let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1);
+            if (entry.strikes?.length && ctx.enemies.length) {
+                const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
+                const expected = (strike) => {
+                    const hit = Math.min(0.95, Math.max(0.05, (21 - (ac - strike.bonus)) / 20));
+                    return hit * strike.damage.reduce((sum, part) => sum + ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1), 0);
+                };
+                const best = (list) => Math.max(0, ...list.filter((strike) => strike.melee && strikeUsable(c, strike)).map(expected));
+                // About three rounds of the better Strike, twice a round.
+                benefit += 3 * 2 * Math.max(0, best(entry.strikes) - best(c.strikes ?? [])) / Math.max(1, state.threat?.get(c.id) ?? 1);
+            }
+            const gain = ctx.ownValue * benefit * ROUND_TO_KILL;
+            if (gain > 0) children.push(child(node, { type: "selfEffect", index, actions: entry.actions }, entry.actions, gain, { cast: `self${index}` }));
         }
         const threatOf = Math.max(1, state.threat?.get(c.id) ?? 1);
         // Exploit Vulnerability (once a round): the weakness it'd bring on about three rounds of hits.

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createFightState, performAction, simulate } from "../src/engine/fight.js";
+import { saveModifier } from "../src/engine/combatant.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, expectedHitDamage, performStrike } from "../src/engine/actions.js";
@@ -298,4 +299,76 @@ test("a caster with spell slots and a once-only option (Battle Medicine) plans w
         const result = simulate({ combatants: [{ ...fighter, engagement: 1, hp: { value: 30, max: 80 } }, cleric, { ...moderateCreature(5, "foe", "Foe"), engagement: 1 }] }, {}, seed, { log: true });
         assert.ok(result.outcome);
     }
+});
+
+test("C13 stances: the effect's bonus and a better Strike, taken once; a new stance ends the old; going down ends it", () => {
+    const [, , , monk] = martialParty(5);
+    const fist = monk.strikes[0];
+    const claw = { ...fist, name: "Tiger Claw", unarmed: true, agile: true, damage: [{ dice: 2, die: 8, bonus: 4, multiplier: 1, type: "slashing" }] };
+    const mountain = { name: "Mountain Stance", actions: 1, stance: true, model: { name: "Mountain Stance", rounds: Infinity, modifiers: [{ on: "ac", type: "item", value: 4 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, strikes: [] };
+    const tiger = { name: "Tiger Stance", actions: 1, stance: true, model: { name: "Tiger Stance", rounds: Infinity, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, strikes: [claw] };
+    const spec = { ...monk, id: "sajan", name: "Sajan", engagement: 1, selfEffects: [tiger, mountain] };
+    const state = createFightState({ combatants: [spec, { ...moderateCreature(5, "foe", "Foe"), engagement: 1 }] }, {}, 1);
+    const c = state.byId.get("sajan");
+    c.actionsLeft = 3;
+    const options = scoreOptions(state, c).options.filter((option) => option.action.type === "selfEffect");
+    assert.deepEqual(options.map((option) => c.selfEffects[option.action.index].name).sort(), ["Mountain Stance", "Tiger Stance"]);
+    assert.ok(options.every((option) => option.value > 0));
+    const acBefore = c.ac + 0;
+    performAction(state, c, { type: "selfEffect", index: 0, actions: 1 });
+    assert.ok(c.strikes.some((strike) => strike.name === "Tiger Claw" && strike.fromEffect === "self:Tiger Stance"));
+    assert.ok(!scoreOptions(state, c).options.some((option) => option.action.type === "selfEffect" && option.action.index === 0), "not again while in it");
+    performAction(state, c, { type: "selfEffect", index: 1, actions: 1 });
+    assert.ok(!c.strikes.some((strike) => strike.name === "Tiger Claw"), "Mountain Stance ends Tiger Stance");
+    assert.deepEqual(c.effects.map((effect) => effect.key), ["self:Mountain Stance"]);
+    assert.equal(c.ac, acBefore, "the snapshot's AC stays; the effect adds its own");
+    applyDamage(state, c, [{ type: "slashing", amount: c.hp.value + c.hp.temp + 1, persistent: false, precision: false }], { source: state.byId.get("foe") });
+    assert.deepEqual(c.effects.map((effect) => effect.key), [], "a stance ends when it drops");
+});
+
+test("C14 reload: a crossbow's first shot is one action; after it, the next costs its reload too", () => {
+    const [, , ranger] = martialParty(5);
+    const crossbow = { ...ranger.strikes.find((strike) => !strike.melee) ?? ranger.strikes[0], name: "Crossbow", melee: false, increment: 120, reload: 1, held: true, damage: [{ dice: 1, die: 8, bonus: 0, multiplier: 1, type: "piercing" }] };
+    const spec = { ...ranger, id: "shooter", name: "Shooter", band: "near", strikes: [crossbow] };
+    const state = createFightState({ combatants: [spec, { ...moderateCreature(5, "foe", "Foe"), band: "near" }] }, {}, 1);
+    const c = state.byId.get("shooter");
+    c.actionsLeft = 3;
+    const first = scoreOptions(state, c).options.find((option) => option.action.type === "strike");
+    assert.ok(first && !first.action.reload, "loaded at the start of the fight");
+    performAction(state, c, { type: "strike", targetId: "foe", strikeIndex: 0 });
+    assert.ok(c.unloaded.has("Crossbow"));
+    c.actionsLeft = 3;
+    const again = scoreOptions(state, c).options.find((option) => option.action.type === "strike");
+    assert.equal(again?.action.reload, 1, "reload, then shoot: two actions");
+    c.actionsLeft = 1;
+    assert.ok(!scoreOptions(state, c).options.some((option) => option.action.type === "strike"), "one action left: no time to reload and shoot");
+    state.log = [];
+    performAction(state, c, { type: "strike", targetId: "foe", strikeIndex: 0, reload: 1 });
+    assert.ok(state.log.some((line) => /reloads Crossbow/.test(line)));
+    assert.ok(c.unloaded.has("Crossbow"), "empty again after the shot");
+    // Its last action: reload on its own, so the next turn starts with a shot.
+    c.actionsLeft = 1;
+    const reload = scoreOptions(state, c).options.find((option) => option.action.type === "reload");
+    assert.ok(reload && reload.value > 0);
+    performAction(state, c, reload.action);
+    assert.ok(!c.unloaded.has("Crossbow"));
+});
+
+test("C15 a PC's feat action as an ability: Bon Mot's -2 status to Will lands on the foe; a bravado feat gives panache", () => {
+    const [, , , rogue] = martialParty(5);
+    const minute = { mode: "fixed", value: 1, unit: "minutes", expiry: "turn-start", anchor: "effect-start" };
+    const penalty = (value) => [{ selector: "perception", value, type: "status", duration: minute }, { selector: "will", value, type: "status", duration: minute }];
+    const bonMot = { modelVersion: 13, source: { name: "Bon Mot", slug: "bon-mot" }, rank: 1, traits: ["bravado", "mental"], activation: { time: "1" }, targeting: { target: "1 creature", range: "30 feet" },
+        resolution: { kind: "check", check: { roll: "skill", statistic: "diplomacy", against: { dc: "target", statistic: "will" } }, outcomes: { criticalSuccess: { effects: [], modifiers: penalty(-3) }, success: { effects: [], modifiers: penalty(-2) }, failure: { effects: [] }, criticalFailure: { effects: [], modifiers: penalty(-2).map((modifier) => ({ ...modifier, recipient: "self" })) } } } };
+    const wit = { ...rogue, id: "wit", name: "Wit", skills: { diplomacy: 14 }, panacheStyle: { bravado: [], precise: 3, finisherDice: 3 }, spells: [{ name: "Bon Mot", plan: bonMot, castRank: 1, pool: null, kind: "ability" }] };
+    const state = createFightState({ combatants: [wit, { ...moderateCreature(5, "foe", "Foe"), engagement: 1, hp: { value: 999, max: 999 } }] }, {}, 1);
+    const c = state.byId.get("wit");
+    const foe = state.byId.get("foe");
+    const willBefore = saveModifier(foe, "will");
+    c.actionsLeft = 3;
+    assert.ok(scoreOptions(state, c).options.some((option) => option.action.type === "cast" && option.value > 0), "worth using on the foe");
+    state.rng.d20 = dice(15);
+    castSpell(state, c, 0, ["foe"]);
+    assert.equal(saveModifier(foe, "will"), willBefore - 2, "success: -2 status to Will");
+    assert.equal(c.panache, true, "the bravado trait gives panache");
 });

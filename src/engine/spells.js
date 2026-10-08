@@ -13,7 +13,7 @@
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
-import { applyEffect, effectBenefit, removeEffect } from "./effects.js";
+import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effects.js";
 import { applyDamage, expectedHitDamage, increaseDying, killCreature, log, releaseSwallowed, stride } from "./actions.js";
 import { levelDC, saveBonusAgainst, sizeRank } from "./abilities.js";
 import { adjustDamage, adjustInstance } from "./damage.js";
@@ -513,11 +513,18 @@ export function applyHeal(state, target, amount) {
     return target.hp.value - before;
 }
 
+// A PF2e effect the plan names (Bless), or a penalty an outcome gives (Bon Mot's -2 to Will).
+function outcomeEffect(spell, change) {
+    if (change.effect?.kind === "native") return { model: spell.effects?.[change.effect.uuid] ?? null, key: change.effect.uuid };
+    if (change.effect?.kind === "modifier") return { model: modifierModel(spell.name, change.effect.modifier), key: `${spell.name}:${change.effect.modifier?.selector}` };
+    return { model: null, key: null };
+}
+
 function applyNativeEffect(state, caster, spell, target, change) {
-    const model = change.effect?.kind === "native" ? spell.effects?.[change.effect.uuid] : null;
+    const { model, key } = outcomeEffect(spell, change);
     if (model && isActive(target)) {
-        applyEffect(state, target, model, caster, { applyCondition, key: change.effect.uuid });
-        log(state, `  ${target.name} gains ${model.name.replace(/^Spell Effect: /, "")}`);
+        applyEffect(state, target, model, caster, { applyCondition, key });
+        log(state, `  ${target.name} gains ${model.name.replace(/^Spell Effect: /, "")}${change.effect?.kind === "modifier" ? ` (${change.effect.modifier.value} ${change.effect.modifier.type} to ${change.effect.modifier.selector})` : ""}`);
     }
 }
 
@@ -819,7 +826,7 @@ export function castPlan(state, caster, spell, targetIds, actions) {
     }
     applyChanges(state, caster, spell, result.changes, context, io);
     // A swashbuckler's bravado action: panache on a success, until the end of the turn on a failure.
-    if (caster.panacheStyle?.bravado.includes(spell.plan?.source?.slug)) {
+    if (caster.panacheStyle && (caster.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
         const degrees = targets.map((target) => result.degrees[target.id]).filter(Boolean);
         if (degrees.some((degree) => degree === "success" || degree === "criticalSuccess")) {
             if (caster.panache !== true) log(state, `  ${caster.name} gains panache`);
@@ -947,7 +954,7 @@ export function canCast(c, spell) {
 }
 
 // How much a condition is worth, as a share of one round of the target's threat.
-function conditionWorth(slug, value, duration) {
+export function conditionWorth(slug, value, duration) {
     const rounds = Math.min(3, durationRounds(duration));
     const n = Number.isFinite(value) ? value : 1;
     switch (slug) {
@@ -1105,8 +1112,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     entry.damage += chance * Math.max(1, target.hp.value + target.hp.temp);
                 } else if (change.op === "heal") {
                     entry.heal += chance * Math.min(change.amount, Math.max(0, target.hp.max - Math.max(0, target.hp.value)));
-                } else if (change.op === "effect" && change.effect?.kind === "native") {
-                    const model = spell.effects?.[change.effect.uuid];
+                } else if (change.op === "effect" && ["native", "modifier"].includes(change.effect?.kind)) {
+                    const { model } = outcomeEffect(spell, change);
                     if (model) entry.benefit += chance * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1);
                 }
             }
@@ -1248,6 +1255,8 @@ export function spellGaps(spell) {
             else if (change.op === "effect" && change.effect?.kind === "native" && spell.effects?.[change.effect.uuid]) {
                 const model = spell.effects[change.effect.uuid];
                 if (model.unsupported.length) missing.add(`${model.name.replace(/^Spell Effect: /, "")}: ${model.unsupported.join(", ")}`);
+            } else if (change.op === "effect" && change.effect?.kind === "modifier") {
+                if (!modifierModel(spell.name, change.effect.modifier)) missing.add(`modifier to ${change.effect.modifier?.selector}`);
             } else if (change.op === "effect") missing.add(change.effect?.kind === "note" ? `note: ${change.effect.note?.label ?? "effect"}` : change.effect?.kind === "native" ? `effect: ${change.effect.label ?? change.effect.uuid}` : `effect: ${change.effect?.kind}`);
             else if (change.op === "note" && change.manual) missing.add("manual step");
             else if (!["damage", "condition", "move", "death", "followUp", "note", "heal"].includes(change.op)) missing.add(change.op);

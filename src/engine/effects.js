@@ -69,6 +69,16 @@ function roundsOf(duration) {
     return Infinity;
 }
 
+// A penalty or bonus an outcome gives ({ selector, value, type, duration } in
+// PF2e's FlatModifier terms, as the core passes it: Bon Mot's -2 status to Will),
+// as an effect model. null when the engine reads none of its selectors (Perception, skill checks).
+export function modifierModel(name, modifier) {
+    const on = SELECTORS[modifier?.selector] ?? [];
+    if (!on.length || !Number.isFinite(Number(modifier.value))) return null;
+    const rounds = modifier.duration?.mode === "fixed" ? roundsOf(modifier.duration) : Infinity;
+    return { name, rounds, modifiers: on.map((stat) => ({ on: stat, type: modifier.type ?? "untyped", value: Number(modifier.value) })), tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
+}
+
 // item: a PF2e effect item (or its source). conditionSlug(uuid): the slug of a
 // condition item a GrantItem points at, or null.
 export function effectModel(item, { rank = 1, conditionSlug = () => null } = {}) {
@@ -199,6 +209,8 @@ function withDefences(target, effect, add) {
 export function removeEffect(target, effect) {
     target.effects = (target.effects ?? []).filter((other) => other !== effect);
     withDefences(target, effect, false);
+    // A Strike the effect gave (Tiger Stance's tiger claw) goes with it.
+    if ((target.strikes ?? []).some((strike) => strike.fromEffect === effect.key)) target.strikes = target.strikes.filter((strike) => strike.fromEffect !== effect.key);
 }
 
 // Puts an effect on a creature; the same effect again replaces it. A finite

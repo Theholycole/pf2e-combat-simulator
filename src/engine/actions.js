@@ -8,6 +8,7 @@ import { adjustDamage, expectedStrikeDamage, adjustInstance, rollStrikeDamage } 
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
+import { removeEffect } from "./effects.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -540,8 +541,9 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         kill(state, target);
         return;
     }
-    // Rage ends when the creature falls unconscious, and its temporary HP with it.
+    // Rage ends when the creature falls unconscious, and its temporary HP with it; so does a stance.
     if (target.activeBuffs?.length) target.activeBuffs = [];
+    for (const entry of (target.selfEffects ?? []).filter((self) => self.stance)) for (const effect of (target.effects ?? []).filter((active) => active.key === `self:${entry.name}`)) removeEffect(target, effect);
     if (target.kind === "pc") {
         target.status = DOWN;
         target.everDown = true;

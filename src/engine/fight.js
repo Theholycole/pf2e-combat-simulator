@@ -11,7 +11,8 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyHeal, applyStrikeRider, battleMedicine, castSpell, describeSpell, expireTimers, exploitVulnerability, hasTimer, overdrive, retch, rollInstances, triggerRiders } from "./spells.js";
+import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castSpell, describeSpell, expireTimers, exploitVulnerability, hasTimer, overdrive, retch, rollInstances, triggerRiders } from "./spells.js";
+import { applyEffect, removeEffect } from "./effects.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -327,7 +328,20 @@ function act(state, c, action) {
     switch (action.type) {
         case "strike": {
             const target = state.byId.get(action.targetId);
-            performStrike(state, c, target, c.strikes[action.strikeIndex]);
+            const strike = c.strikes[action.strikeIndex];
+            // Reloading it first (Interact, the weapon's reload actions), then the shot empties it again.
+            if (action.reload) {
+                state.log?.push(`  ${c.name} reloads ${strike.name}`);
+                c.unloaded?.delete(strike.name);
+            }
+            performStrike(state, c, target, strike);
+            if (strike?.reload) (c.unloaded ??= new Set()).add(strike.name);
+            break;
+        }
+        case "reload": {
+            const strike = c.strikes[action.strikeIndex];
+            state.log?.push(`  ${c.name} reloads ${strike?.name}`);
+            if (strike) c.unloaded?.delete(strike.name);
             break;
         }
         case "stride":
@@ -427,6 +441,18 @@ function act(state, c, action) {
             if (buff.tempHp) c.hp.temp = Math.max(c.hp.temp ?? 0, buff.tempHp);
             break;
         }
+        // A stance or another action that puts an effect on itself (Tiger Stance):
+        // the effect, a Strike it gives, and a new stance ends the old one.
+        case "selfEffect": {
+            const entry = c.selfEffects[action.index];
+            state.log?.push(`  ${c.name} uses ${entry.name}`);
+            if (entry.stance) {
+                for (const other of c.selfEffects.filter((self) => self.stance && self !== entry)) for (const effect of (c.effects ?? []).filter((active) => active.key === `self:${other.name}`)) removeEffect(c, effect);
+            }
+            const effect = applyEffect(state, c, entry.model, c, { applyCondition, key: `self:${entry.name}` });
+            if (entry.strikes?.length) c.strikes = [...(c.strikes ?? []).filter((strike) => strike.fromEffect !== effect.key), ...entry.strikes.map((strike) => ({ ...strike, fromEffect: effect.key }))];
+            break;
+        }
         // Exploit Vulnerability, Devise a Stratagem, Taunt, Overdrive.
         case "exploit": {
             const target = state.byId.get(action.targetId);
@@ -480,7 +506,9 @@ export function performAction(state, c, action) {
 }
 
 function actionCost(c, action) {
-    if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff") return action.actions;
+    if (action.type === "strike") return 1 + (action.reload ?? 0);
+    if (action.type === "reload") return action.actions;
+    if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect") return action.actions;
     if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
     return action.type === "task" ? 2 : 1;
 }

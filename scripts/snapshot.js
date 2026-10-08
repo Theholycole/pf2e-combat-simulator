@@ -124,6 +124,10 @@ async function readStrike(actor, action, gaps) {
     const melee = !ranged || item?.isMelee === true;
     const increment = ranged ? (item?.range?.increment ?? null) : null;
     const reachTrait = traits.find((trait) => /^reach-\d+$/.test(trait));
+    // Reload N: the actions to load it again after each shot (PF2e's weapon reload,
+    // or an NPC's "reload-1" trait). "-" needs none; "1 min" can't be done in a fight.
+    const reloadValue = String(item?.reload ?? item?.system?.reload?.value ?? traits.find((trait) => /^reload-\d+$/.test(trait))?.split("-")[1] ?? "-");
+    const reload = /^\d+$/.test(reloadValue) ? Number(reloadValue) : reloadValue === "-" || !reloadValue ? 0 : 99;
     let damage = [];
     let critDamage = null;
     try {
@@ -178,6 +182,7 @@ async function readStrike(actor, action, gaps) {
         // (PF2e's own off-guard damage already has it for a PC.)
         backstabber: traits.includes("backstabber") && !offGuardExtra.length,
         volley: Number(traits.find((trait) => /^volley-\d+$/.test(trait))?.split("-")[1] ?? 0) || null,
+        ...(reload > 0 ? { reload } : {}),
         damage,
         critDamage
     };
@@ -393,18 +398,28 @@ async function readAbilities(actor, { fresh = false } = {}) {
     const core = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api : null;
     const abilityModule = game.modules.get(ABILITY_MODULE_ID);
     if (!core || !abilityModule?.active) return result;
-    const items = actorKind(actor) === "npc" ? [...(actor.itemTypes?.action ?? [])] : [];
+    const pc = actorKind(actor) === "pc";
+    // A monster's abilities; a PC's feat actions that are a check or a save against a creature (Bon Mot, Dirty Trick; C15).
+    const items = pc
+        ? [...(actor.itemTypes?.action ?? []), ...(actor.itemTypes?.feat ?? [])].filter((item) => item.system?.actionType?.value === "action" && !BASIC_ACTION_SKILLS[item.slug] && item.slug !== "escape")
+        : [...(actor.itemTypes?.action ?? [])];
     const prepared = items.length ? await core.registry.preparePlans(items) : [];
+    result.pools = {};
     for (const { item, result: compiled } of prepared) {
         const plan = compiled?.plan;
         if (!plan) continue;
         if (plan.builtin) {
-            if (addBuiltin(result.builtins, plan, item.name)) result.handled.add(item);
+            if (!pc && addBuiltin(result.builtins, plan, item.name)) result.handled.add(item);
             continue;
         }
         if (!plan.resolution) continue;
+        if (pc && !(["check", "save"].includes(plan.resolution.kind) && (plan.trigger?.event ?? "use") === "use")) continue;
+        // "Frequency once per minute" and longer: once a fight.
+        const frequency = item.system?.frequency;
+        const pool = frequency?.max && !["turn", "round"].includes(frequency.per) ? `frequency:${item.id}` : null;
+        if (pool) result.pools[pool] = frequency.value ?? frequency.max;
         result.handled.add(item);
-        result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool: null, kind: "ability" });
+        result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item });
     }
     // Basic actions: every PC; a monster only those it's trained for (its stat block lists the skill). Anyone can Escape.
     const basics = abilityModule.api?.basicActions ?? {};
@@ -528,6 +543,59 @@ async function readSpells(actor, gaps, { fresh = false } = {}) {
     return { spells, spellPools };
 }
 
+// Actions that put an effect on the PC (stances such as Tiger Stance or
+// Mountain Stance, Bespell Strikes): the effect's rules as the engine's effect
+// model, as for spells, and any Strike it adds (Tiger Stance's tiger claw)
+// read from PF2e with the effect on a copy of the PC. Raise a Shield, Rage,
+// Hunt Prey and Devise a Stratagem have rules of their own. A free action with
+// a trigger or a requirement isn't the planner's to choose; nor is a reaction.
+const OWN_RULES = new Set(["raise-a-shield", "rage", "hunt-prey", "devise-a-stratagem"]);
+
+async function readSelfEffects(actor, strikes, handled, gaps) {
+    if (actorKind(actor) !== "pc") return [];
+    const found = [];
+    const level = actor.level ?? 1;
+    for (const item of [...(actor.itemTypes?.action ?? []), ...(actor.itemTypes?.feat ?? [])]) {
+        const uuid = item.system?.selfEffect?.uuid;
+        const type = item.system?.actionType?.value;
+        if (!uuid || handled.has(item) || OWN_RULES.has(item.slug) || !["action", "free"].includes(type)) continue;
+        if (type === "free" && /<strong>\s*(?:Trigger|Requirements?)\s*<\/strong>/i.test(item.system?.description?.value ?? "")) continue;
+        const effect = await effectItem(uuid);
+        if (!effect) continue;
+        const model = effectModel(effect, { rank: level, conditionSlug });
+        let added = [];
+        if (model.unsupported.includes("Strike")) {
+            added = await strikesWithEffect(actor, effect, strikes, gaps);
+            model.unsupported = model.unsupported.filter((key) => key !== "Strike");
+        }
+        const helps = model.modifiers.length || added.length || model.tempHp || model.fastHealing || model.resistances.length || model.conditions.length;
+        if (!helps) continue;
+        handled.add(item);
+        if (model.unsupported.length) gaps.push({ kind: "class feature, partly simulated", name: `${item.name}: ${model.unsupported.join(", ")}` });
+        found.push({ name: item.name, actions: type === "free" ? 0 : Number(item.system?.actions?.value) || 1, stance: (item.system?.traits?.value ?? []).includes("stance"), model, strikes: added });
+    }
+    return found;
+}
+
+// The Strikes PF2e gives the PC with an effect on that it doesn't have without it.
+async function strikesWithEffect(actor, effect, strikes, gaps) {
+    let copy;
+    try {
+        copy = actor.clone({ items: [...actor._source.items, { ...effect.toObject(), _id: foundry.utils.randomID() }] }, { keepId: true });
+    } catch (error) {
+        gaps.push({ kind: "class feature, partly simulated", name: `${effect.name}: its Strike (${error.message})` });
+        return [];
+    }
+    const known = new Set(strikes.map((strike) => strike.name));
+    const added = [];
+    for (const action of copy.system?.actions ?? []) {
+        if ((action.type && action.type !== "strike") || known.has(action.label)) continue;
+        const strike = await readStrike(copy, action, gaps);
+        if (strike) added.push({ ...strike, reach: strike.reach ?? copy.getReach?.({ action: "attack" }) ?? 5 });
+    }
+    return added;
+}
+
 function hasItemSlug(actor, slugs) {
     return [...(actor.itemTypes?.action ?? []), ...(actor.itemTypes?.feat ?? [])].some((item) => slugs.has(item.slug));
 }
@@ -577,6 +645,10 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     const abilities = await readAbilities(actor, { fresh });
     const features = readClassFeatures(actor, strikes);
     for (const item of features.handled) abilities.handled.add(item);
+    // A PC feat a class feature already plays (Battle Medicine) isn't also an ability; the item itself stays out of the snapshot.
+    abilities.abilities = abilities.abilities.filter((ability) => !(ability.sourceItem && features.handled.has(ability.sourceItem)));
+    for (const ability of abilities.abilities) delete ability.sourceItem;
+    const selfEffects = await readSelfEffects(actor, strikes, abilities.handled, gaps);
     readGaps(actor, gaps, abilities.handled);
     const { spells, spellPools } = await readSpells(actor, gaps, { fresh });
     spells.push(...abilities.abilities);
@@ -622,6 +694,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         ...abilities.builtins,
         ...features.fields,
         multiStrikes: [...(abilities.builtins.multiStrikes ?? []), ...(features.fields.multiStrikes ?? [])],
+        ...(selfEffects.length ? { selfEffects } : {}),
         reactions: { aoo: hasItemSlug(actor, AOO_SLUGS), shieldBlock: hasItemSlug(actor, new Set(["shield-block"])), ...abilities.builtins.reactions },
         size: actor.size ?? actor.system?.traits?.size?.value ?? "med",
         resistances: readIwr(actor.attributes?.resistances),
@@ -630,7 +703,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         voidHealing: !!(actor.system?.attributes?.hp?.negativeHealing ?? actor.attributes?.hp?.negativeHealing),
         strikes,
         spells,
-        spellPools,
+        spellPools: { ...spellPools, ...(abilities.pools ?? {}) },
         conditions,
         gaps
     };
