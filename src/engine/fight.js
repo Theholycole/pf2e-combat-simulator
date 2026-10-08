@@ -14,6 +14,7 @@ import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.
 import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castSpell, describeSpell, expireTimers, exploitVulnerability, hasTimer, overdrive, retch, rollInstances, triggerRiders } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
+import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -141,6 +142,8 @@ function initiativeDeeds(state) {
             state.log?.push(`  ${c.name} uses Living Fortification (+${c.livingFortification} AC until the end of its first turn)`);
         }
         if (c.firstShot && state.stealthInitiative?.has(c.id)) c.firstShotReady = c.firstShot.dice;
+        // An exemplar's free Shift Immanence (C25).
+        if (c.exemplar) sparkAtInitiative(state, c);
         if (c.energyShots) c.energyShotsLeft = c.energyShots;
     }
 }
@@ -236,6 +239,9 @@ function startTurn(state, c) {
     c.withdrewThisTurn = false;
     // Flourishes (Flurry of Blows): once a turn. A finisher ends Strikes for the turn.
     c.usedThisTurn = new Set();
+    // Actions this turn, and its last hit (Strike, Breathe, Rend needs one just before).
+    c.actionCount = 0;
+    c.lastHit = null;
     c.noAttacksThisTurn = false;
     c.turnAttacks = [];
     if (c.shield) c.shield.raised = false;
@@ -363,6 +369,13 @@ function act(state, c, action) {
             if (strike) c.unloaded?.delete(strike.name);
             break;
         }
+        // An exemplar's spark (C25–C27).
+        case "shiftImmanence":
+            shiftImmanence(state, c, action.slug);
+            break;
+        case "transcend":
+            transcend(state, c, c.exemplar.transcendences[action.index], action.targetId);
+            break;
         // A commander's tactics (C21–C24).
         case "strikeHard":
             strikeHard(state, c, action);
@@ -583,7 +596,7 @@ function actionCost(c, action) {
     if (action.type === "reload") return action.actions;
     if (action.type === "slingersReload" || action.type === "rechargeSpellstrike") return 1;
     if (action.type === "spellstrike" || action.type === "strikeHard") return 2;
-    if (action.type === "pincerAttack" || action.type === "bannersInspiration") return 1;
+    if (action.type === "pincerAttack" || action.type === "bannersInspiration" || action.type === "shiftImmanence" || action.type === "transcend") return 1;
     if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect") return action.actions;
     if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
     return action.type === "task" ? 2 : 1;
@@ -643,6 +656,7 @@ function takeTurn(state, c) {
             if (!action) break;
             c.actionsLeft -= actionCost(c, action);
             act(state, c, action);
+            c.actionCount = (c.actionCount ?? 0) + 1;
             processMorale(state);
             if (checkEnd(state)) return;
         }

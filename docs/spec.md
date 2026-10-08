@@ -132,10 +132,11 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
 - **PC class features** (the user's choice after B28): Sneak Attack, Rage, Hunt Prey, Flurry of Blows, Double Slice and the champion's reactions, read through PF2e in the snapshot (C1–C6, confirmed). The live check also fixed PC weapon traits (agile weapons had taken the full multiple attack penalty).
 - More class features (C7–C12, confirmed): Battle Medicine, Vicious Swing and other feats, Exploit Vulnerability, Devise a Stratagem, panache and finishers, Intercept Attack and Taunt, Overdrive.
 - Still more (C13–C15, confirmed): actions that put an effect on the PC (stances such as Tiger Stance, with the Strikes they add), reload for crossbows and firearms, and PCs' feat actions that are checks or saves against a creature (Bon Mot, Dirty Trick), with their penalties.
+- Exemplar ikons (C25–C27, confirmed): the divine spark's immanence read from PF2e, Shift Immanence, Strike, Breathe, Rend and No Scar but This.
 - Commander tactics (C21–C24, confirmed): Strike Hard!, Pincer Attack, Set-Up Strike, Banner's Inspiration, Drilled Reactions; and the flourish trait (one a turn).
 - Spellstrike (C20, confirmed): a melee Strike carrying a spell, recharged by an action or a conflux spell; stances' changes to existing Strikes measured in PF2e.
 - Firearms and gunslingers (C16–C19, confirmed): concussive and splash (bombs and scatter weapons, allies included), slinger's reloads, the deeds when initiative is rolled, and Cover Fire.
-- 140 Node tests.
+- 143 Node tests.
 
 ### Real-fight logger (built 2026-10-08, at the user's request)
 

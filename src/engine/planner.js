@@ -10,6 +10,7 @@
 import { degreeDistribution, CRITICAL_SUCCESS, SUCCESS, CRITICAL_FAILURE } from "./checks.js";
 import { effectBenefit } from "./effects.js";
 import { allyStrike, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
+import { ikonOf, rendReady } from "./exemplar.js";
 import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, flankChance, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
@@ -729,6 +730,45 @@ function expand(ctx, node, actionsLeft) {
             }
             const gain = ctx.ownValue * (ROUND_TO_KILL * 3 * perRound / threat + 0.5 * (buff.tempHp ?? 0) / Math.max(1, c.hp.max));
             if (gain > 0) children.push(child(node, { type: "selfBuff", index: buffIndex, actions: buff.actions }, buff.actions, gain, { cast: `buff${buffIndex}` }));
+        }
+        // An exemplar (C25–C27): Shift Immanence into a better ikon (once a round), and a
+        // transcendence while the spark is in its ikon (it casts the spark out).
+        if (c.exemplar && node.used === 0) {
+            const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);
+            const ikonWorth = (ikon) => {
+                if (!ikon) return 0;
+                let perRound = 0;
+                for (const strike of c.strikes ?? []) {
+                    const extra = (ikon.model.strikeDeltas?.[strike.name] ?? []).reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
+                    perRound = Math.max(perRound, extra * 1.3);
+                }
+                return effectBenefit(ikon.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1) + 3 * perRound / threatHere;
+            };
+            if (!c.usedThisTurn?.has("shift-immanence") && remaining >= 1) {
+                const current = ikonWorth(ikonOf(c, c.spark));
+                for (const ikon of c.exemplar.ikons) {
+                    if (ikon.slug === c.spark) continue;
+                    const gain = ctx.ownValue * (ikonWorth(ikon) - current) * ROUND_TO_KILL;
+                    if (gain > 0) children.push(child(node, { type: "shiftImmanence", slug: ikon.slug, actions: 1 }, 1, gain, { cast: "shift" }));
+                }
+            }
+            for (const [index, entry] of c.exemplar.transcendences.entries()) {
+                if (remaining < 1 || c.spark !== entry.ikon) continue;
+                if (entry.kind === "rend" && rendReady(state, c, entry)) {
+                    const target = state.byId.get(c.lastHit.targetId);
+                    if (!target || target.status !== "active") continue;
+                    const expected = entry.dice * (entry.die + 1) / 2;
+                    // The spark comes back with a Shift (an action, once a round): about a round of immanence lost.
+                    const gain = targetValue(state, target, c) * Math.min(1, expected / remainingHp(target)) - ctx.ownValue * ROUND_TO_KILL * ikonWorth(ikonOf(c, c.spark)) / 3;
+                    if (gain > 0) children.push(child(node, { type: "transcend", index, targetId: target.id, actions: 1 }, 1, ctx.profile.aggression * gain, { cast: "transcend" }));
+                }
+                if (entry.kind === "heal" && c.hp.value < c.hp.max) {
+                    const heal = Math.min(entry.dice * 4.5, c.hp.max - c.hp.value);
+                    const urgency = 2.5 * (1 - hpFraction(c)) ** 1.5;
+                    const gain = ctx.ownValue * (heal / c.hp.max) * urgency;
+                    if (gain > 0) children.push(child(node, { type: "transcend", index, targetId: c.id, actions: 1 }, 1, gain, { cast: "transcend" }));
+                }
+            }
         }
         // A commander's tactics (C21–C24): Strike Hard! (an ally's Strike), Pincer Attack
         // (off-guard to melee from the commander and the allies who answer), Banner's Inspiration.

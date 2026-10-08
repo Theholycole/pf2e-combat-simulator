@@ -691,6 +691,60 @@ async function strikesWithEffect(actor, effect, strikes, gaps) {
     return result;
 }
 
+// An exemplar's ikons (C25–C27). Its divine spark sits in one ikon at a time
+// (PF2e's toggle roll option "divine-spark:<ikon>"). Each ikon's immanence is
+// read from PF2e with that option on: extra damage on the PC's Strikes, and
+// numeric bonuses its rules give under the option (Scar of the Survivor's +1
+// Fortitude). Transcendence actions: Strike, Breathe, Rend (the ikon weapon's
+// dice as spirit damage after a hit with it) and No Scar but This (healing).
+async function readExemplar(actor, actions, strikes, handled) {
+    if (actorKind(actor) !== "pc") return null;
+    const items = [...(actor.itemTypes?.action ?? []), ...(actor.itemTypes?.feat ?? [])];
+    const ikons = [];
+    for (const item of items) {
+        const spark = (item.system?.rules ?? []).find((rule) => rule?.key === "RollOption" && rule.option === "divine-spark");
+        const slug = spark?.suboptions?.[0]?.value;
+        if (!slug) continue;
+        const option = `divine-spark:${slug}`;
+        const strikeDeltas = {};
+        for (const action of actions) {
+            const base = strikes.find((strike) => strike.name === action.label);
+            if (!base) continue;
+            const extra = await situationalParts(action, base.damage, [option]);
+            if (extra.length) strikeDeltas[base.name] = extra;
+        }
+        // Numeric bonuses its rules give with the spark in it (saves, AC).
+        const modifiers = [];
+        for (const rule of item.system?.rules ?? []) {
+            if (rule?.key !== "FlatModifier" || !Number.isFinite(Number(rule.value))) continue;
+            const predicate = JSON.stringify(rule.predicate ?? []);
+            if (!predicate.includes(option)) continue;
+            for (const selector of [].concat(rule.selector ?? [])) {
+                const on = { ac: ["ac"], "saving-throw": ["fortitude", "reflex", "will"], fortitude: ["fortitude"], reflex: ["reflex"], will: ["will"] }[selector] ?? [];
+                for (const stat of on) modifiers.push({ on: stat, type: rule.type ?? "untyped", value: Number(rule.value) });
+            }
+        }
+        handled.add(item);
+        ikons.push({ slug, name: item.name, model: { name: item.name, rounds: Infinity, modifiers, tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, attackDeltas: {}, strikeDeltas } });
+    }
+    if (!ikons.length) return null;
+    const level = actor.level ?? 1;
+    const transcendences = [];
+    for (const item of items) {
+        if (!(item.system?.traits?.value ?? []).includes("transcendence")) continue;
+        const ikonItem = item.grantedBy ?? actor.items.get(item.flags?.pf2e?.grantedBy?.id ?? "");
+        const ikon = ikons.find((entry) => entry.name === ikonItem?.name)?.slug ?? null;
+        if (item.slug === "strike-breathe-rend") {
+            const weapon = strikes.find((strike) => Object.keys(ikons.find((entry) => entry.slug === ikon)?.model.strikeDeltas ?? {}).includes(strike.name)) ?? null;
+            if (weapon) transcendences.push({ kind: "rend", name: item.name, ikon, strike: weapon.name, dice: weapon.damage[0]?.dice ?? 1, die: weapon.damage[0]?.die ?? 6 });
+        } else if (item.slug === "no-scar-but-this") transcendences.push({ kind: "heal", name: item.name, ikon, dice: Math.ceil(level / 2), die: 8 });
+        else continue;
+        handled.add(item);
+    }
+    for (const item of items) if (["shift-immanence", "divine-spark-and-ikons"].includes(item.slug)) handled.add(item);
+    return { ikons, transcendences };
+}
+
 function hasItemSlug(actor, slugs) {
     return [...(actor.itemTypes?.action ?? []), ...(actor.itemTypes?.feat ?? [])].some((item) => slugs.has(item.slug));
 }
@@ -744,6 +798,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     abilities.abilities = abilities.abilities.filter((ability) => !(ability.sourceItem && features.handled.has(ability.sourceItem)));
     for (const ability of abilities.abilities) delete ability.sourceItem;
     const selfEffects = await readSelfEffects(actor, strikes, abilities.handled, gaps);
+    const exemplar = await readExemplar(actor, (actor.system?.actions ?? []).filter((action) => !action.type || action.type === "strike"), strikes, abilities.handled);
     readGaps(actor, gaps, abilities.handled);
     const { spells, spellPools } = await readSpells(actor, gaps, { fresh });
     spells.push(...abilities.abilities);
@@ -790,6 +845,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         ...features.fields,
         multiStrikes: [...(abilities.builtins.multiStrikes ?? []), ...(features.fields.multiStrikes ?? [])],
         ...(selfEffects.length ? { selfEffects } : {}),
+        ...(exemplar ? { exemplar } : {}),
         reactions: { aoo: hasItemSlug(actor, AOO_SLUGS), shieldBlock: hasItemSlug(actor, new Set(["shield-block"])), ...abilities.builtins.reactions },
         size: actor.size ?? actor.system?.traits?.size?.value ?? "med",
         resistances: readIwr(actor.attributes?.resistances),

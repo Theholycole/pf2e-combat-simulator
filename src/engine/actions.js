@@ -278,6 +278,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         return { degree, damage: 0, trigger };
     }
     const critical = degree === CRITICAL_SUCCESS;
+    // A hit on its own turn, for Strike, Breathe, Rend's "last action was a successful Strike" (C26).
+    if (!reaction) attacker.lastHit = { strike: strike.name, targetId: target.id, action: attacker.actionCount ?? 0, round: state.round };
     const earlier = history.filter((entry) => entry.strike === strike.name).length;
     const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage");
     const instances = rollStrikeDamage(state.rng, strike, { critical, penalty });
