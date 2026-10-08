@@ -1,6 +1,6 @@
-# Spellcasting: open decisions
+# Spellcasting: decisions
 
-Milestone 2, step 4: creatures cast spells in the simulation through the resolution core (`src/engine/spells.js`). The core's `save` family resolves saves and spell attacks into changes, and the engine applies the ones it models. Where PF2e has no single answer for an abstract, gridless fight, each question below has a default, so the engine can run. **Each default is the user's to confirm or change.**
+Milestone 2, step 4: creatures cast spells in the simulation through the resolution core (`src/engine/spells.js`). The core's `save` family resolves saves and spell attacks into changes, and the engine applies the ones it models. Where PF2e has no single answer for an abstract, gridless fight, each question below has a default, so the engine can run. **The user confirmed every default (S1–S21) on 2026-10-08.** Tune the weights if results look off.
 
 | # | Question | Default chosen | Why |
 |---|---|---|---|

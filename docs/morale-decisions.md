@@ -1,6 +1,6 @@
-# Morale: open decisions
+# Morale: decisions
 
-Places where `Improved Morale.md` and `Morale.md` disagree, are silent, or can't be applied literally by a simulator. Each has a default so the engine can run. **Each default is the user's to confirm or change.** Every default is a data entry in `src/engine/morale-rules.js`, so changing it is a one-line edit or a world-setting override.
+Places where `Improved Morale.md` and `Morale.md` disagree, are silent, or can't be applied literally by a simulator. Each has a default so the engine can run. **The user confirmed every default on 2026-10-08** (M2 and M19 were already their own decisions). Every default is a data entry in `src/engine/morale-rules.js`, so changing it is a one-line edit or a world-setting override.
 
 | # | Question | Default chosen | Why |
 |---|---|---|---|

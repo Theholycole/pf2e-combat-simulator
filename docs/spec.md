@@ -219,7 +219,7 @@ The outcomes are decisive, rout, defeat, retreat, survived and timeout (round ca
 
 - **Rules:** `Improved Morale.md` (in the user's PF2e Notes, `03 Combat and Encounter Design/Combat Systems/`) is the engine. Every trigger, modifier, threshold and template is a data entry with an id and an enabled flag, and can be overridden in the world settings.
 - **AD&D modifiers:** the extras from the old `Morale.md` table are optional and disabled by default.
-- **Defaults chosen in conflicts:** [morale-decisions.md](morale-decisions.md) lists them for the user to confirm.
+- **Defaults chosen in conflicts:** [morale-decisions.md](morale-decisions.md) lists them; the user confirmed them on 2026-10-08.
 
 **Design goal:** morale is meant to speed up fights the party is already winning, not to decide them.
 
