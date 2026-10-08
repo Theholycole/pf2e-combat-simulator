@@ -900,12 +900,15 @@ export function triggerRiders(state, attacker, target, strike) {
 }
 
 // Auras (Frightful Presence): when the fight starts, each enemy in range is
-// affected once. Bands: from 60 feet everyone; nearer, not those far away.
+// affected once (the user's rule for live play too: being inside when combat
+// starts counts as entering). Bands: from 60 feet everyone; nearer, not those far away.
 export function applyAuras(state) {
     for (const c of state.list) {
         if (!isActive(c)) continue;
         for (const [index, spell] of (c.spells ?? []).entries()) {
-            if (spell.plan?.trigger?.event !== "aura") continue;
+            const trigger = spell.plan?.trigger;
+            // Not one that acts on its own when entered or at a turn (Magic-Warping Aura), nor one that runs only after another ability (Miasma).
+            if (trigger?.event !== "aura" || (Array.isArray(trigger.when) && !trigger.when.length) || trigger.activeAfter) continue;
             const radius = describeSpell(spell.plan).area?.value ?? 30;
             const targets = state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone" && (radius >= 60 || other.band !== "far" || c.band === "far"));
             if (targets.length) castSpell(state, c, index, targets.map((target) => target.id));

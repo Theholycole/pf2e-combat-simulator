@@ -67,3 +67,5 @@ The Foundry snapshot reads a PC's class features through PF2e itself: each Strik
 **Not yet for PCs:** a magus's Spellstrike, a gunslinger's, commander's and exemplar's features, stances (Tiger Stance, Jotun's Battle Stance), Tumble Through, Bon Mot, and the many other feats with actions.
 
 **Checked live (pftest, 2026-10-08):** with PFTEST SIM copies of the level-5 iconics, every feature above is read and used in fights through the worker. The check also found and fixed a planner error with spell slots alongside a once-only option.
+
+**Auras, 2026-10-08 (with live play's aura cards):** only real auras (PF2e's aura trait or Aura rule) are saved against at the start of a fight, as B2 says. Passives that aren't auras (Death Throes, Defensive Quills) had been played as auras by mistake; they now count as passive abilities. An aura that acts on another trigger (Magic-Warping Aura, when a creature Casts a Spell) or only after another ability (Miasma, after Poison Breath) isn't played at the start either. The bestiary sweep still runs 1,106 creatures with no errors.
