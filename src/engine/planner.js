@@ -12,11 +12,12 @@ import { effectBenefit } from "./effects.js";
 import { allyStrike, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
 import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
-import { canStepOut, flankChance, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
+import { canStepOut, flankChance, mapGap, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken } from "./morale.js";
 import { chargeStrike, ducksFromCoverFire, multiStrikeOrder, strikeNamed } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
+import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets } from "./spells.js";
 import { levelDC } from "./abilities.js";
 
@@ -132,7 +133,14 @@ function objectiveBonus(state, target, attacker) {
     if (attacker.side === "foes") {
         if (objective.kind === "protect" && objective.protectId === target.id) return weight * state.meanThreat.party * 1.5;
         if (objective.kind === "task" && target.taskRound >= state.round - 1) return weight * state.meanThreat.party * 0.5;
+        // The escorted creature and the item's carrier, as a protected creature (O2, O3).
+        if (objective.kind === "escort" && objective.escortId === target.id) return weight * state.meanThreat.party * 1.5;
+        if (objective.kind === "retrieve" && objective.item.carrierId === target.id) return weight * state.meanThreat.party * 1.5;
+        if (objective.kind === "hold" && inArea(target)) return weight * state.meanThreat.party * 0.5;
     } else if (objective.kind === "target" && objective.targetId === target.id) {
+        return weight * state.meanThreat.foes;
+    } else if (objective.kind === "hold" && inArea(target)) {
+        // A foe in the area stops the party holding it (O1).
         return weight * state.meanThreat.foes;
     }
     return 0;
@@ -158,10 +166,11 @@ function inMelee(pos, other) {
     return other.meleeId === pos.melee;
 }
 
-function distanceTo(pos, other) {
+// place: where the position is on the map (map objectives), or null.
+function distanceTo(pos, other, place = null) {
     if (inMelee(pos, other)) return DISTANCE_FEET.engaged;
-    if (pos.band === "far" || other.band === "far") return DISTANCE_FEET.far;
-    return DISTANCE_FEET.near;
+    const band = pos.band === "far" || other.band === "far" ? DISTANCE_FEET.far : DISTANCE_FEET.near;
+    return place ? Math.max(band, mapGap({ areaFeet: place.area, exitFeet: place.exit }, other)) : band;
 }
 
 class PlanContext {
@@ -181,6 +190,58 @@ class PlanContext {
         this.spellCache = new Map();
         this.ownValue = Math.max(targetValue(state, c, this.enemies[0] ?? c), 0.5);
         this.wavering = c.moraleState.wavering || c.groupState === "wavering";
+        this.map = mapPlan(state, c, this.profile);
+        this.rootPlace = c.areaFeet !== undefined ? { area: c.areaFeet, exit: c.exitFeet } : null;
+    }
+
+    // Where a position is on the map (map objectives; null without one): a map
+    // move's place, the creature it engaged (it's where that creature is), or where it began.
+    placeOf(pos) {
+        if (!this.rootPlace) return null;
+        if (pos.place) return pos.place;
+        if (pos.melee !== null && pos.melee !== this.c.meleeId) {
+            const target = pos.melee === "new" ? this.state.byId.get(pos.newWith) : this.enemies.find((enemy) => enemy.meleeId === pos.melee);
+            if (target?.areaFeet !== undefined) return { area: target.areaFeet, exit: target.exitFeet };
+        }
+        return this.rootPlace;
+    }
+
+    // A position out of any Melee in a band, staying where it is on the map.
+    away(node, band) {
+        const place = this.placeOf(node.pos);
+        return place ? { band, melee: null, newWith: null, place } : { band, melee: null, newWith: null };
+    }
+
+    // The creature at a position, for stridesToEngage.
+    mover(pos) {
+        const place = this.placeOf(pos);
+        return { band: pos.band, meleeId: null, speed: this.c.speed, reach: this.c.reach, ...(place ? { areaFeet: place.area, exitFeet: place.exit } : {}) };
+    }
+
+    // Strides to the objective's item from a plan's end (0 at it).
+    itemStrides(node) {
+        const item = this.state.objective.item;
+        if (node.atItem) return 0;
+        if (item.dropped) return stridesToItem(item, node.pos.band, this.c.speed, this.placeOf(node.pos));
+        return stridesFor(this.c, this.placeOf(node.pos).area);
+    }
+
+    // A map objective's worth at a plan's end (O1–O3): a potential that grows as
+    // the creature gets closer to doing its part, 1/(1 + Strides) of the worth.
+    mapValue(node) {
+        const map = this.map;
+        if (!map) return 0;
+        const { c } = this;
+        const near = (strides) => 1 / (1 + strides);
+        if (map.kind === "hold") {
+            // Only one creature of a side needs to be inside.
+            const value = map.worth * Math.max(map.others, near(stridesFor(c, this.placeOf(node.pos).area)));
+            // Foes block the party: worth most when the party is there too.
+            return c.side === "party" ? value : value * (0.5 + 0.5 * map.partyPresence);
+        }
+        if (node.carrying) return map.worth * (0.5 + 0.5 * near(stridesFor(c, this.placeOf(node.pos).exit)));
+        // Picking it up is one more action.
+        return map.worth * 0.5 * Math.max(map.others, near(this.itemStrides(node) + 1));
     }
 
     // Numeric key for a hypothetical position, for the terminal cache.
@@ -189,7 +250,11 @@ class PlanContext {
         let melee = 0;
         if (pos.melee === "new") melee = 1_000_000 + (this.enemyIndex.get(pos.newWith) ?? 0);
         else if (pos.melee !== null) melee = pos.melee + 1;
-        return ((melee * 4 + (BAND_CODES[pos.band] ?? 3)) * 2 + (node.shield ? 1 : 0)) * 2 + (node.prone ? 1 : 0);
+        const key = ((melee * 4 + (BAND_CODES[pos.band] ?? 3)) * 2 + (node.shield ? 1 : 0)) * 2 + (node.prone ? 1 : 0);
+        const place = this.placeOf(pos);
+        if (!place) return key;
+        const map = ((Math.min(15, stridesFor(this.c, place.area)) * 16 + Math.min(15, stridesFor(this.c, place.exit))) * 2 + (node.carrying ? 1 : 0)) * 2 + (node.atItem ? 1 : 0);
+        return key * 1024 + map;
     }
 
     // roundDamage for an enemy against this creature, cached for the decision.
@@ -210,7 +275,8 @@ class PlanContext {
             perTarget = new Map();
             this.strikeCache.set(target, perTarget);
         }
-        const key = (((strikeIndex * 8 + Math.min(attacks, 7)) * 4 + (BAND_CODES[pos.band] ?? 3)) * 2 + (inMelee(pos, target) ? 1 : 0)) * 2 + (prone ? 1 : 0);
+        const distance = distanceTo(pos, target, this.placeOf(pos));
+        const key = (((strikeIndex * 8 + Math.min(attacks, 7)) * 64 + Math.min(63, Math.ceil(distance / 5))) * 2 + (inMelee(pos, target) ? 1 : 0)) * 2 + (prone ? 1 : 0);
         const cached = perTarget.get(key);
         if (cached !== undefined) return cached;
         const { state, c } = this;
@@ -222,7 +288,7 @@ class PlanContext {
         if (nonlethalAgainst(state, c, target) && !strike.nonlethal) circumstance = Math.max(circumstance, 2);
         modifier -= circumstance;
         if (!strike.melee) {
-            const penalty = rangePenalty(strike, distanceTo(pos, target));
+            const penalty = rangePenalty(strike, distance);
             if (penalty === null) {
                 perTarget.set(key, null);
                 return null;
@@ -339,7 +405,8 @@ class PlanContext {
             const engagedHere = inMelee(pos, enemy);
             // A melee enemy that must Stride first keeps its remaining Strikes, so
             // stepping back only costs it its weakest attacks.
-            const strides = engagedHere ? 0 : stridesToEngage({ band: enemy.band, meleeId: null, speed: enemy.speed }, { band: pos.band, meleeId: null });
+            const here = this.mover(pos);
+            const strides = engagedHere ? 0 : stridesToEngage({ band: enemy.band, meleeId: null, speed: enemy.speed, reach: enemy.reach, areaFeet: enemy.areaFeet, exitFeet: enemy.exitFeet }, { band: pos.band, meleeId: null, areaFeet: here.areaFeet, exitFeet: here.exitFeet });
             const melee = this.enemyRound(enemy, ac, Math.max(0, 3 - strides), "melee");
             const ranged = engagedHere ? 0 : this.enemyRound(enemy, ac + cover, 3, "ranged") * (pos.band === "far" ? 0.9 : 1);
             total += share * Math.max(melee, ranged);
@@ -372,12 +439,13 @@ class PlanContext {
         const { c } = this;
         let best = 0;
         for (const [index, strike] of (c.strikes ?? []).entries()) {
-            if (!strikeUsable(c, strike)) continue;
+            if (!strikeUsable(c, strike) || (node.carrying && strike.hands === 2)) continue;
             for (const target of this.enemies) {
                 let factor = 1;
                 if (strike.melee && !inMelee(node.pos, target)) {
-                    const strides = stridesToEngage({ band: node.pos.band, meleeId: null, speed: c.speed }, target);
-                    factor = strides === 1 ? 0.6 : 0.25;
+                    const strides = stridesToEngage(this.mover(node.pos), target);
+                    // Further off on the map: less and less (0.25 at 2 Strides, as before).
+                    factor = strides === 1 ? 0.6 : 0.25 / Math.max(1, strides - 1);
                 }
                 const pos = strike.melee ? { band: "engaged", melee: "new", newWith: target.id } : node.pos;
                 const expectation = this.strikeExpectation(strike, index, target, 0, pos, false);
@@ -394,7 +462,7 @@ class PlanContext {
         let cached = this.terminalCache.get(key);
         if (cached === undefined) {
             const exposureValue = this.ownValue * Math.min(1.5, this.exposure(node) / remainingHp(this.c));
-            cached = NEXT_TURN_WEIGHT * this.profile.aggression * this.offenseNext(node) - this.profile.selfPreservation * exposureValue;
+            cached = NEXT_TURN_WEIGHT * this.profile.aggression * this.offenseNext(node) - this.profile.selfPreservation * exposureValue + this.mapValue(node);
             this.terminalCache.set(key, cached);
         }
         return cached;
@@ -413,8 +481,36 @@ function child(node, action, cost, value, changes = {}) {
         provoked: node.provoked,
         moved: node.moved || !!changes.moved,
         casts: changes.cast !== undefined ? [...node.casts, ...[].concat(changes.cast)] : node.casts,
+        // Map objectives (the place is on pos: see placeOf).
+        carrying: changes.carrying ?? node.carrying,
+        atItem: changes.atItem ?? (changes.pos && changes.pos !== node.pos && changes.pos.melee !== null ? false : node.atItem),
         first: node.first ?? action
     };
+}
+
+// What a map objective is worth to this creature (O1–O3), or null when it plays no part.
+function mapPlan(state, c, profile) {
+    const objective = state.objective;
+    if (!isMapObjective(objective) || objective.status !== "open" || c.kind === "object" || c.areaFeet === undefined) return null;
+    const near = (strides) => 1 / (1 + strides);
+    const other = c.side === "party" ? "foes" : "party";
+    const worth = (state.setup.objectivePriority ?? 1) * profile.objective * Math.max(state.meanThreat?.[other] ?? 0, 1) * 3;
+    const able = (list) => list.filter((o) => o.kind !== "object" && canAct(o) && !o.swallowedBy);
+    if (objective.kind === "hold") {
+        const presence = (list) => Math.max(0, ...list.map((o) => near(stridesFor(o, o.areaFeet))));
+        const allies = able(state.list.filter((o) => o !== c && o.side === c.side));
+        // Worth two of the rounds it needs.
+        return { kind: "hold", worth: worth * 2 / Math.max(1, objective.needed), others: presence(allies), partyPresence: presence(able(state.list.filter((o) => o.side === "party"))) };
+    }
+    if (objective.kind === "retrieve" && canCarry(state, c)) {
+        const item = objective.item;
+        if (item.carrierId && item.carrierId !== c.id) return null;
+        // Another PC closer to the item does that part.
+        const reach = (o) => (atItem(state, o) ? 0 : item.dropped ? stridesToItem(item, o.band, o.speed) : stridesFor(o, o.areaFeet));
+        const others = able(state.list.filter((o) => o !== c && canCarry(state, o))).map((o) => near(reach(o) + 1));
+        return { kind: "retrieve", worth, others: Math.max(0, ...others) };
+    }
+    return null;
 }
 
 // The flourish trait: one flourish action a turn (this turn, or earlier in this plan).
@@ -552,7 +648,7 @@ function expand(ctx, node, actionsLeft) {
                     enemies: ctx.enemies,
                     allies: ctx.alliesAndDown,
                     inMelee: (other) => inMelee(node.pos, other),
-                    distance: (other) => distanceTo(node.pos, other),
+                    distance: (other) => distanceTo(node.pos, other, ctx.placeOf(node.pos)),
                     meleeId: typeof node.pos.melee === "number" ? node.pos.melee : null
                 }, actions);
                 for (const set of sets) {
@@ -638,7 +734,7 @@ function expand(ctx, node, actionsLeft) {
             const candidates = named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
             for (const target of ctx.enemies) {
                 if (target.status !== "active" || inMelee(node.pos, target)) continue;
-                if (stridesToEngage({ band: node.pos.band, meleeId: null, speed: c.speed }, target) > ability.strides) continue;
+                if (stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
                 const pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
                 let best = null;
                 for (const index of candidates) {
@@ -683,7 +779,7 @@ function expand(ctx, node, actionsLeft) {
                 if (activity.requires === "free-hand" && state.list.some((other) => other.grabbedBy === c.id && (other.cond.grabbed || other.cond.restrained))) continue;
                 let pos = node.pos;
                 if (activity.strides) {
-                    if (inMelee(node.pos, target) || stridesToEngage({ band: node.pos.band, meleeId: null, speed: c.speed }, target) > activity.strides) continue;
+                    if (inMelee(node.pos, target) || stridesToEngage(ctx.mover(node.pos), target) > activity.strides) continue;
                     pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
                 }
                 let best = null;
@@ -924,7 +1020,15 @@ function expand(ctx, node, actionsLeft) {
         if (!ctx.wavering && mobile) {
             for (const target of ctx.enemies) {
                 if (inMelee(node.pos, target)) continue;
-                if (stridesToEngage({ band: node.pos.band, meleeId: null, speed: c.speed }, target) !== 1) continue;
+                const strides = stridesToEngage(ctx.mover(node.pos), target);
+                // Too far on the map to engage with one Stride: a Stride toward it.
+                if (strides > 1 && ctx.rootPlace && stridesToEngage({ ...ctx.mover(node.pos), areaFeet: undefined }, target) <= 1) {
+                    const moved = approachPlace(ctx.placeOf(node.pos), { area: target.areaFeet, exit: target.exitFeet }, Math.max(5, c.speed ?? 25));
+                    const next = child(node, { type: "stride", move: { kind: "approach", targetId: target.id } }, 1, 0, { pos: { ...ctx.away(node, node.pos.band === "engaged" ? "near" : node.pos.band), place: moved }, atItem: false });
+                    if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    children.push(next);
+                }
+                if (strides !== 1) continue;
                 const pos = target.meleeId !== null
                     ? { band: "engaged", melee: target.meleeId, newWith: null }
                     : { band: "engaged", melee: "new", newWith: target.id };
@@ -933,7 +1037,7 @@ function expand(ctx, node, actionsLeft) {
                 children.push(next);
             }
             if (node.pos.band === "far") {
-                children.push(child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: { band: "near", melee: null, newWith: null } }));
+                children.push(child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: ctx.away(node, "near") }));
             }
         }
         // A dropped weapon (Disarm): picking it up gives back its Strikes; a weakened grip, its -2.
@@ -947,7 +1051,7 @@ function expand(ctx, node, actionsLeft) {
             }
             for (const [name] of c.weakGrip ?? []) children.push(child(node, { type: "interact", what: "regrip", strikeName: name }, 1, 0.1 * ctx.ownValue));
         }
-        if (c.shield && !c.shield.broken && !node.shield) {
+        if (c.shield && !c.shield.broken && !node.shield && !node.carrying) {
             children.push(child(node, { type: "raiseShield" }, 1, 0, { shield: true }));
         }
         // Battle Medicine: on a hurt ally in reach (or a downed one, or itself), once
@@ -978,6 +1082,39 @@ function expand(ctx, node, actionsLeft) {
             if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
             children.push(next);
         }
+        // Map objectives (O1–O3): toward the area, the item or the exit, and picking the item up.
+        if (ctx.map && mobile) {
+            const place = ctx.placeOf(node.pos);
+            const band = inAnyMelee ? "near" : node.pos.band;
+            const toward = (where) => {
+                const moved = strideToward(place, where, Math.max(5, c.speed ?? 25), state.objective.areaToExit);
+                const next = child(node, { type: "stride", move: { kind: where === "area" ? "toArea" : "toExit" } }, 1, 0, { pos: { band, melee: null, newWith: null, place: moved }, atItem: false });
+                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                children.push(next);
+            };
+            const item = state.objective.item;
+            if (place.area > 0 && (ctx.map.kind === "hold" || (!node.carrying && !item.dropped))) toward("area");
+            if (node.carrying && place.exit > 0) toward("exit");
+            const toItem = ctx.map.kind === "retrieve" && !node.carrying && item.dropped && !node.atItem ? stridesToItem(item, node.pos.band, c.speed, place) : 0;
+            if (toItem === 1) {
+                const there = item.meleeId !== null && [...(state.melees.get(item.meleeId) ?? [])].some((id) => state.byId.get(id).side !== c.side && isActive(state.byId.get(id)));
+                const spot = { area: item.area, exit: item.exit };
+                const next = child(node, { type: "stride", move: { kind: "toItem" } }, 1, 0, { pos: there ? { band: "engaged", melee: item.meleeId, newWith: null, place: spot } : { band: item.band, melee: null, newWith: null, place: spot }, atItem: true });
+                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                children.push(next);
+            } else if (toItem > 1 && stridesToItem(item, node.pos.band, c.speed) <= 1) {
+                // Further than a Stride on the map: toward it.
+                const next = child(node, { type: "stride", move: { kind: "approach", targetId: "item" } }, 1, 0, { pos: { band, melee: null, newWith: null, place: approachPlace(place, { area: item.area, exit: item.exit }, Math.max(5, c.speed ?? 25)) }, atItem: false });
+                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                children.push(next);
+            }
+        }
+        if (ctx.map?.kind === "retrieve" && !node.carrying && !restrained && (state.objective.item.dropped ? node.atItem : ctx.placeOf(node.pos).area <= 0)) {
+            const item = state.objective.item;
+            const next = child(node, { type: "pickUp" }, 1, 0, { carrying: true, shield: false, ...(item.dropped ? { pos: { ...node.pos, place: { area: item.area, exit: item.exit } }, atItem: true } : {}) });
+            if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+            children.push(next);
+        }
         if (remaining >= 2 && canDoTask(state, c) && node.pos.band !== "far") {
             const objective = state.objective;
             const modifier = taskModifier(objective, c);
@@ -995,14 +1132,14 @@ function expand(ctx, node, actionsLeft) {
     } else if (inAnyMelee) {
         const realMelee = node.pos.melee === c.meleeId && c.meleeId !== null;
         const stepOk = realMelee ? canStepOut(state, c) : (node.pos.melee === "new" && (state.byId.get(node.pos.newWith)?.reach ?? 5) <= 5);
-        if (stepOk) children.push(child(node, { type: "step" }, 1, 0, { pos: { band: "near", melee: null, newWith: null }, moved: true }));
+        if (stepOk) children.push(child(node, { type: "step" }, 1, 0, { pos: ctx.away(node, "near"), moved: true }));
         else {
-            const next = child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: { band: "near", melee: null, newWith: null }, moved: true });
+            const next = child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: ctx.away(node, "near"), moved: true });
             next.value -= ctx.aooLoss(node.pos, next);
             children.push(next);
         }
     } else if (node.pos.band === "near") {
-        children.push(child(node, { type: "stride", move: { kind: "toFar" } }, 1, 0, { pos: { band: "far", melee: null, newWith: null }, moved: true }));
+        children.push(child(node, { type: "stride", move: { kind: "toFar" } }, 1, 0, { pos: ctx.away(node, "far"), moved: true }));
     }
     return children;
 }
@@ -1010,7 +1147,7 @@ function expand(ctx, node, actionsLeft) {
 // The scored one-step options for the creature right now (for tests and tuning).
 export function scoreOptions(state, c) {
     const ctx = new PlanContext(state, c);
-    const root = { value: 0, pos: { band: c.band, melee: c.meleeId, newWith: null }, shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], first: null };
+    const root = { value: 0, pos: { band: c.band, melee: c.meleeId, newWith: null }, shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, atItem: ctx.map?.kind === "retrieve" && !!state.objective.item.dropped && atItem(state, c), first: null };
     const rootTerminal = ctx.terminal(root);
     return {
         stay: rootTerminal,
@@ -1032,6 +1169,8 @@ export function chooseAction(state, c) {
         provoked: 0,
         moved: false,
         casts: [],
+        carrying: !!c.carrying,
+        atItem: ctx.map?.kind === "retrieve" && !!state.objective.item.dropped && atItem(state, c),
         first: null
     };
     const rootScore = ctx.terminal(root);

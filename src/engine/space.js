@@ -61,6 +61,8 @@ export function leaveMelee(state, c, band = "near") {
         const meleeId = c.meleeId;
         state.melees.get(meleeId)?.delete(c.id);
         c.meleeId = null;
+        // Where an item carrier fell (map objectives).
+        c.lastMeleeId = meleeId;
         dissolveIfOneSided(state, meleeId);
     }
     c.band = band;
@@ -86,11 +88,18 @@ export function removeFromSpace(state, c, band) {
     leaveMelee(state, c, band ?? (c.band === "engaged" ? "near" : c.band));
 }
 
+// Map objectives: how far apart two creatures are at least, from their
+// distances to the area and the exit (0 without a map objective).
+export function mapGap(a, b) {
+    if (a.areaFeet === undefined || b.areaFeet === undefined) return 0;
+    return Math.max(Math.abs(a.areaFeet - b.areaFeet), Math.abs(a.exitFeet - b.exitFeet));
+}
+
 // Distance in feet between two creatures for range increments.
 export function distanceBetween(a, b) {
     if (sameMelee(a, b)) return DISTANCE_FEET.engaged;
-    if (a.band === "far" || b.band === "far") return DISTANCE_FEET.far;
-    return DISTANCE_FEET.near;
+    const band = a.band === "far" || b.band === "far" ? DISTANCE_FEET.far : DISTANCE_FEET.near;
+    return Math.max(band, mapGap(a, b));
 }
 
 // Range increments, plus volley's −2 against close targets. null: out of range.
@@ -109,13 +118,15 @@ export function strikeReaches(strike, attacker, target) {
     return rangePenalty(strike, distanceBetween(attacker, target)) !== null;
 }
 
-// Strides needed to engage the target from the attacker's current band.
+// Strides needed to engage the target from the attacker's current band; with
+// a map objective, at least those its distance on the map takes.
 export function stridesToEngage(attacker, target) {
     if (sameMelee(attacker, target)) return 0;
     const attackerFar = attacker.band === "far";
     const targetFar = target.band === "far";
-    if (attackerFar === targetFar) return 1;
-    return (attacker.speed ?? 25) >= 50 ? 1 : 2;
+    const bands = attackerFar === targetFar || (attacker.speed ?? 25) >= 50 ? 1 : 2;
+    const gap = mapGap(attacker, target) - Math.max(5, attacker.reach ?? 5);
+    return gap > 0 ? Math.max(bands, Math.ceil(gap / Math.max(5, attacker.speed ?? 25))) : bands;
 }
 
 // Flanking chance by the number of able enemies engaged with the target.

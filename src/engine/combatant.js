@@ -111,9 +111,10 @@ export function isOffGuard(c) {
     return k.offGuard || k.prone || k.unconscious || k.paralyzed || k.asleep || k.blinded || k.restrained || k.grabbed || k.confused || c.status === DOWN;
 }
 
-// A Strike a disarmed creature can't make until it picks its weapon up (Disarm).
+// A Strike a disarmed creature can't make until it picks its weapon up (Disarm),
+// or a two-handed one while a hand carries an objective's item.
 export function strikeUsable(c, strike) {
-    return !c.dropped?.has(strike.name);
+    return !c.dropped?.has(strike.name) && !(c.carrying && strike.hands === 2);
 }
 
 // The circumstance penalty a weakened grip gives a Strike (Disarm's success).

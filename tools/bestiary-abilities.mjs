@@ -5,7 +5,10 @@
 // it's trained for, and fights a martial party of its level three times.
 // Reports what the creatures used, what was left out, and any errors.
 //
-//   node tools/bestiary-abilities.mjs [pack …]
+//   node tools/bestiary-abilities.mjs [--map] [pack …]
+//
+// --map: each fight also has a map objective, in turn hold an area, escort a
+// creature to the exit, and retrieve an item and escape (O1–O3).
 
 const { readDocuments } = await import(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs", import.meta.url).href);
 const { compileBasicActions, compileMonsterAbility } = await import(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/src/compiler/index.js", import.meta.url).href);
@@ -15,7 +18,15 @@ const { parseReadableDamage } = await import("../src/adapter/formula.js");
 const { addBuiltin } = await import("../src/engine/abilities.js");
 
 const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
-const PACKS = process.argv.slice(2).length ? process.argv.slice(2) : ["pathfinder-monster-core", "pathfinder-monster-core-2", "pathfinder-npc-core"];
+const MAP = process.argv.includes("--map");
+const ARGS = process.argv.slice(2).filter((arg) => arg !== "--map");
+const PACKS = ARGS.length ? ARGS : ["pathfinder-monster-core", "pathfinder-monster-core-2", "pathfinder-npc-core"];
+// A map objective for each seed, with a merchant to escort.
+const MAP_OBJECTIVES = [
+    { kind: "hold", needed: 2, strides: { party: { area: 2, exit: 4 }, foes: { area: 1, exit: 4 } } },
+    { kind: "escort", escortId: "merchant", strides: { party: { area: 2, exit: 3 }, foes: { area: 1, exit: 2 } } },
+    { kind: "retrieve", strides: { party: { area: 2, exit: 4 }, foes: { area: 0, exit: 3 }, areaToExit: 3 } }
+];
 const basicActions = compileBasicActions(readDocuments(`${PACK_ROOT}/actions`).filter((doc) => doc.collection === "items"));
 const SKILL_OF = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics", disarm: "athletics", reposition: "athletics", feint: "deception", "create-a-diversion": "deception", "administer-first-aid": "medicine" };
 const NATURAL_ATTACK = /\b(?:jaws?|bite|claws?|talons?|tail|tusks?|horns?|hoof|hooves|slam|fist|tentacles?|wings?|sting|stinger|pincers?|mandibles?|beak|foot|feet|body|antlers?|spines?|quills?|fangs?|tongue|tendrils?|vines?|branch|roots?|pseudopods?)\b/i;
@@ -109,7 +120,9 @@ for (const pack of PACKS) {
         const party = martialParty(Math.min(20, level)).map((pc) => ({ ...pc, spells: Object.values(basicActions).map((plan) => ({ name: plan.source.name, plan, castRank: 1, pool: null, kind: "basic" })) }));
         for (let seed = 1; seed <= 3; seed++) {
             try {
-                const result = simulate({ combatants: [...party, monster] }, {}, seed, { log: true });
+                const objective = MAP ? MAP_OBJECTIVES[(seed - 1) % MAP_OBJECTIVES.length] : null;
+                const merchant = objective?.kind === "escort" ? [{ ...party[3], id: "merchant", name: "Merchant", kind: "npc", acts: false }] : [];
+                const result = simulate({ combatants: [...party, ...merchant, monster], ...(objective ? { setup: { objective } } : {}) }, {}, seed, { log: true });
                 stats.fights++;
                 for (const line of result.log) {
                     const cast = / casts (.+?)(?: \(\d actions\))?(?: at |$)/.exec(line)?.[1];

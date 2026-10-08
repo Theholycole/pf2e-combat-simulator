@@ -6,8 +6,9 @@ import { listRuleIds, mergeMoraleRules, withLosingGate, withRulesDisabled } from
 import { adjustmentVariants, applyAdjustments } from "./adjust.js";
 import { reliability, threatRating } from "./encounter.js";
 
-export const WIN_OUTCOMES = new Set(["decisive", "rout", "survived"]);
-const OUTCOMES = ["decisive", "rout", "survived", "defeat", "retreat", "timeout"];
+// Held and escaped: a map objective's success ended the fight (O1–O3).
+export const WIN_OUTCOMES = new Set(["decisive", "rout", "survived", "held", "escaped"]);
+const OUTCOMES = ["decisive", "rout", "survived", "held", "escaped", "defeat", "retreat", "timeout"];
 
 function interval(successes, runs) {
     if (!runs) return [0, 0];

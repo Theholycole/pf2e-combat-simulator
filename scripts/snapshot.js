@@ -6,6 +6,7 @@ import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
 import { effectModel } from "../src/engine/effects.js";
 import { addBuiltin } from "../src/engine/abilities.js";
+import { MAP_KINDS, readMapFeet, roundsHeld } from "./map.js";
 
 export const MODULE_ID = "pf2e-combat-simulator";
 
@@ -165,6 +166,8 @@ async function readStrike(actor, action, gaps) {
         attackEffects: [...(item?.system?.attackEffects?.value ?? [])],
         // A weapon in hand (Disarm can knock it away); fists, jaws and claws can't be.
         held: !unarmed && (item?.type === "weapon" || (item?.type === "melee" && !NATURAL_ATTACK.test(action.label ?? item?.name ?? ""))),
+        // Two hands to wield: not while a hand carries an objective's item (O3).
+        ...(item?.type === "weapon" && item.system?.usage?.value === "held-in-two-hands" ? { hands: 2 } : {}),
         // Light Bulk or less: usable from inside a swallower.
         light: item?.type === "weapon" && Number(item?.system?.bulk?.value ?? 1) <= 0.1,
         unarmed,
@@ -989,6 +992,17 @@ export async function buildSnapshot(entries, { setup = {}, overrides = {}, fresh
     }
     if (canvas?.ready) placeFromTokens(placed.filter((entry) => tokenObject(entry.token)));
     const snapshot = { combatants, setup, moraleRules };
+    // Map objectives (O1–O3): each creature's distance to the area and the exit, from the
+    // scene's Regions; in play, the rounds already held.
+    if (MAP_KINDS.has(setup.objective?.kind)) {
+        const scene = combat?.scene ?? placed.find((entry) => entry.token?.parent)?.token.parent ?? canvas?.scene;
+        const { feet, areaToExit } = readMapFeet(scene, setup.objective, placed);
+        for (const c of combatants) if (feet.has(c.id)) c.mapFeet = feet.get(c.id);
+        const objective = { ...setup.objective };
+        if (areaToExit !== null) objective.areaToExit = areaToExit;
+        if (objective.kind === "hold" && combat?.started) objective.held = roundsHeld(combat);
+        snapshot.setup = { ...setup, objective };
+    }
     const pcs = combatants.filter((c) => c.kind === "pc");
     if (pcs.length) snapshot.partyLevel = Math.round(pcs.reduce((sum, c) => sum + c.level, 0) / pcs.length);
     if (combat && combat.started && combat.round > 0) {

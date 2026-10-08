@@ -1,9 +1,11 @@
 // Secondary objectives: protect, target (kill or capture), survive N rounds,
-// and task (a progress tracker from the Dynamic Encounter Framework).
+// task (a progress tracker from the Dynamic Encounter Framework), and the map
+// objectives hold, escort and retrieve (map-objectives.js).
 
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, SUCCESS, levelDC, rollCheck } from "./checks.js";
 import { DEAD, DOWN, FLED, SURRENDERED, canAct, isActive, statusPenalty } from "./combatant.js";
 import { provoke } from "./actions.js";
+import { createMapObjective, endOfRoundMap, isMapObjective, settleMapAfterWin, updateMapObjective } from "./map-objectives.js";
 
 export function createObjective(definition, partyLevel) {
     if (!definition?.kind) return null;
@@ -19,6 +21,7 @@ export function createObjective(definition, partyLevel) {
     }
     if (definition.kind === "target") objective.mode = definition.mode ?? "either";
     if (definition.kind === "survive") objective.rounds = definition.rounds ?? 5;
+    if (isMapObjective(definition)) createMapObjective(objective, definition);
     return objective;
 }
 
@@ -83,6 +86,8 @@ export function updateObjective(state) {
     } else if (objective.kind === "task") {
         if (objective.progress >= objective.needed) objective.status = "success";
         else if (objective.danger >= objective.dangerLimit) objective.status = "failed";
+    } else if (isMapObjective(objective)) {
+        updateMapObjective(state);
     }
 }
 
@@ -90,6 +95,7 @@ export function endOfRoundObjective(state) {
     const objective = state.objective;
     if (!objective || objective.status !== "open") return;
     if (objective.kind === "task" && objective.deadline && state.round >= objective.deadline) objective.status = "failed";
+    if (isMapObjective(objective)) endOfRoundMap(state);
 }
 
 // After a won fight, PCs keep working an unfinished task unopposed until the
@@ -120,6 +126,10 @@ export function settleObjectiveAfterWin(state) {
                 break;
             }
         }
+        return;
+    }
+    if (isMapObjective(objective)) {
+        settleMapAfterWin(state);
         return;
     }
     if (objective.kind === "target") {

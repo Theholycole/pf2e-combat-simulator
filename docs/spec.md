@@ -34,7 +34,7 @@ Logic moves out of the spell module into the core one rule family at a time, whe
 2. **Build the core and connect the spell module.** Attack-roll and basic-save damage, healing and condition riders come first, then the most common gaps. *(Saves and spell attacks: built 2026-10-08, see below.)*
 3. **The ability module.** Basic actions (Demoralize, Trip, Grapple, Shove, Escape) come first, then class features and monster abilities by rule family.
 
-**Later:** map-based objectives (hold an area, escort, retrieve and escape), escalations, morale target fitting, and a logger that compares predictions with real fights.
+**Later:** escalations, morale target fitting, and a logger that compares predictions with real fights. *(Map-based objectives: built 2026-10-08, see "Map objectives" below.)*
 
 ## Milestone 1 status (2026-10-07)
 
@@ -285,6 +285,43 @@ An optional **losing gate** in the rules data limits checks to fights the party 
 
 Foes' planning includes the objective, so they attack the protected creature and the task-doer.
 
+## Map objectives (O1–O3, 2026-10-08)
+
+Three objectives about places: **hold an area**, **escort a creature to the exit**, and **retrieve an item and escape**. The user's decisions (2026-10-08):
+
+1. **Strides to reach.** Fights stay on range bands. Each creature also keeps its distance in feet to the area and to the exit. A Stride toward one brings it a Speed closer. Its distance to the other comes from the triangle the three distances make (Stewart's theorem), using the area-to-exit distance. Leaving a Melee to move still takes a Step or a provoking Stride.
+2. **Regions.** In the setup you pick a scene Region for the area and one for the exit. Feet are counted from each token to the Region's nearest square, using PF2e's diagonals. With no Region, you type Strides for each side, and the area-to-exit distance in Strides of 25 feet.
+3. **Hold.** A round counts when, at its end, at least one able party creature is inside and no able foe is. It needs 3 rounds by default, and they don't have to be in a row.
+4. **Escort.** You pick a party-side creature that isn't a PC. On its turn it Steps out of a Melee if it can (otherwise its Stride provokes), then Strides toward the exit. It never attacks. It gets away when a Stride ends inside the exit Region, and it fails if it drops to 0 HP.
+5. **Retrieve.** The item starts in the area.
+   - Picking it up takes 1 Interact action (manipulate, so it provokes; a critical hit disrupts it) and a free hand.
+   - A two-handed weapon and a shield are let go while carrying: no two-handed Strikes, no Raise a Shield.
+   - If the carrier goes down, the item drops where it fell. The PCs in its Melee are beside the item; anyone else reaches it as they would reach a creature there.
+   - Foes never take the item.
+   - Success comes when the carrier reaches the exit.
+6. **Success ends the fight**, like Survive N rounds. The new outcomes are **held** and **escaped**, and both count as party wins.
+7. **After a won fight**, the party finishes the objective unopposed, in turns of 3 actions starting next round. It fails only if the deadline round comes first.
+8. **Deadlines.** Every map objective takes an optional deadline round.
+9. **Foes contest it.** Foes value standing in the area, and they attack the escorted creature and the carrier as they would a protected creature. A creature in the area is worth more as a target to the other side.
+10. **Live play.** At each new round, the active GM counts who is in the area Region and saves the record to the combat (`mapProgress`). Going back a round drops the rounds from it on. The Odds check starts from the rounds held so far. Who carries the item is a choice in the setup.
+
+How it plays:
+
+- **Engaging a creature moves you to where it is.** Two creatures are always at least as far apart as their distances to the area and the exit differ. A Stride to engage costs at least the Strides that distance takes. A creature too far away gets a Stride toward it (an "approach"), and range increments use the same distance.
+- **The planner** values a map objective as a potential, 1/(1 + Strides) of its worth, so each Stride closer is worth something.
+  - Holding is worth two of the rounds it needs. Only one creature per side needs to be inside, so a creature whose ally is already in gains little from going.
+  - Retrieve is worth half its value up to the pickup, which counts as an extra action, and the other half on the way to the exit.
+  - All of it is weighted by the objective's Low/Normal/High priority.
+- **Speed:** the bands stay, so a fight costs about 1.4× as much with a map objective as without one (2–3.5 ms at level 5).
+
+Measured on the level-5 benchmark party, typed Strides:
+
+- Hold rarely ends a fight as "held", because the party usually wins first and then holds the area unopposed.
+- Escort is hard when foes reach the merchant: 18% at severe threat.
+- Retrieve usually ends as "escaped" within about 2 rounds.
+
+The bestiary sweep with `--map` (1,106 creatures, each with hold, escort and retrieve) has 0 errors.
+
 ## Setup and results
 
 - **Input:** the Combat Tracker encounter, or the selected tokens.
@@ -293,7 +330,7 @@ Foes' planning includes the objective, so they attack the protected creature and
   - ambush for a side (Stealth initiative; the other side is surprised)
   - cover for each side
   - reinforcements ("arrives at round N in band X")
-  - an objective
+  - an objective (with Regions on the scene for a map objective)
   - per-creature overrides
 - **Report:**
   - outcome %, win % with a 95% interval, and objective success %

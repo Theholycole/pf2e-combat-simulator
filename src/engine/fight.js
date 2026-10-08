@@ -4,7 +4,7 @@ import { createRng } from "./rng.js";
 import { flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
-import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
 import { chargeStrike, ducksFromCoverFire, multiStrikeOrder, regenerating } from "./abilities.js";
 import { adjustInstance, rollPersistent } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
@@ -15,6 +15,7 @@ import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine
 import { applyEffect, removeEffect } from "./effects.js";
 import { bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
 import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
+import { isMapObjective, mapOutcome, pickUpItem, placeOnMap } from "./map-objectives.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -80,6 +81,7 @@ function createState(snapshot, options, seed, withLog) {
     // Grab, Knockdown and Push after a hit (spells.js resolves them).
     state.onStrikeHit = (attacker, target, strike, degree) => triggerRiders(state, attacker, target, strike, degree);
     placeCombatants(state);
+    placeOnMap(state);
     initMorale(state);
     const strongest = list.filter((c) => c.side === "foes" && c.kind !== "object").sort((a, b) => b.level - a.level || b.hp.max - a.hp.max)[0];
     state.strongestFoeId = strongest?.id ?? null;
@@ -175,6 +177,11 @@ function pcs(state) {
 function checkEnd(state) {
     if (state.outcome) return true;
     updateObjective(state);
+    // Holding the area, or getting away with the escort or the item, ends the fight.
+    if (isMapObjective(state.objective) && state.objective.status === "success") {
+        finish(state, mapOutcome(state.objective));
+        return true;
+    }
     if (!pcs(state).some(isActive)) {
         finish(state, "defeat");
         return true;
@@ -225,7 +232,7 @@ function pursuit(state, surviving) {
 
 function finish(state, outcome) {
     state.outcome = outcome;
-    if (outcome === "decisive" || outcome === "rout" || outcome === "survived") settleObjectiveAfterWin(state);
+    if (["decisive", "rout", "survived", "held", "escaped"].includes(outcome)) settleObjectiveAfterWin(state);
     else settleObjectiveAfterLoss(state);
     state.log?.push(`Outcome: ${outcome}${state.objective ? `; objective ${state.objective.status}` : ""}`);
 }
@@ -435,6 +442,9 @@ function act(state, c, action) {
         case "task":
             performTask(state, c);
             break;
+        case "pickUp":
+            pickUpItem(state, c, provoke);
+            break;
         case "cast":
             if (action.rider && !(rider && rider.index === action.spellIndex)) break;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions);
@@ -602,6 +612,22 @@ function actionCost(c, action) {
     return action.type === "task" ? 2 : 1;
 }
 
+// The escorted creature (O2) spends its actions getting to the exit: out of a
+// Melee (a Step if it can), then Strides. It never attacks.
+function escortTurn(state, c) {
+    let guard = 0;
+    while (c.actionsLeft > 0 && canAct(c) && state.objective.status === "open" && guard++ < 8) {
+        if (c.cond.prone) stand(state, c);
+        else if (!canMove(c)) break;
+        else if (c.meleeId !== null && step(state, c)) {
+            // stepped out
+        } else stride(state, c, { kind: "toExit" });
+        c.actionsLeft--;
+        processMorale(state);
+        if (checkEnd(state)) return;
+    }
+}
+
 // A fleeing creature spends its actions getting away.
 function fleeTurn(state, c) {
     while (c.actionsLeft > 0 && canAct(c) && c.status === ACTIVE && canMove(c)) {
@@ -649,6 +675,8 @@ function takeTurn(state, c) {
         if (state.outcome) return;
     } else if (c.cond.fleeing) {
         fleeTurn(state, c);
+    } else if (state.objective?.kind === "escort" && state.objective.escortId === c.id && state.objective.status === "open") {
+        escortTurn(state, c);
     } else {
         let guard = 0;
         while (c.actionsLeft > 0 && canAct(c) && !c.cond.fleeing && guard++ < 8) {
@@ -710,6 +738,10 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
             if (state.outcome) break;
             turnIndex = 0;
             endOfRoundObjective(state);
+            if (isMapObjective(state.objective) && state.objective.status === "success") {
+                finish(state, mapOutcome(state.objective));
+                break;
+            }
             if (state.objective?.kind === "survive" && state.objective.status === "open" && state.round >= state.objective.rounds) {
                 state.objective.status = "success";
                 finish(state, "survived");

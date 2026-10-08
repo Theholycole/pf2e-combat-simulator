@@ -35,6 +35,9 @@ The abstract distance of a combatant: **engaged** (in a **Melee**), **near** (on
 **Melee**:
 A set of combatants from both sides who can reach each other. Joining one is a Stride; leaving one is a Step or a Stride.
 
+**Area** and **exit**:
+The places of a map objective: scene Regions, or Strides typed by hand. Each combatant keeps its distance in feet to both, alongside its band. Engaging a creature puts you where it is.
+
 **Plan**:
 Up to three actions a creature intends this turn. It is re-planned after every action because outcomes change the situation.
 
@@ -59,11 +62,11 @@ Cowardly, Typical, Disciplined, Fanatical, Bestial, Mercenary or None (never che
 Three or more foes with the same name, checking morale once together and moving through Steady, Shaken, Wavering and Broken.
 
 **Outcome**:
-How a run ended: **decisive** (no foe active and none escaped), **rout** (no foe active and at least one escaped, or a group rout ended the fight), **defeat** (no PC active), **retreat** (the party gave up), **survived** (a Survive-N objective ended the fight), or **timeout** (the round cap was reached).
-A **win** is decisive, rout or survived.
+How a run ended: **decisive** (no foe active and none escaped), **rout** (no foe active and at least one escaped, or a group rout ended the fight), **defeat** (no PC active), **retreat** (the party gave up), **survived** (a Survive-N objective ended the fight), **held** (the party held the area long enough), **escaped** (the escorted creature or the item reached the exit), or **timeout** (the round cap was reached).
+A **win** is decisive, rout, survived, held or escaped.
 
 **Objective**:
-A secondary goal scored separately from the outcome: **protect**, **target** (kill or capture), **survive** N rounds, or **task** (progress tracker).
+A secondary goal scored separately from the outcome: **protect**, **target** (kill or capture), **survive** N rounds, **task** (progress tracker), or a map objective: **hold** an area, **escort** a creature to the exit, **retrieve** an item and escape.
 
 **Gap**:
 Something on an actor the engine could not use, such as a spell, feat, action or strike trait. Every report lists gaps with counts.

@@ -3,6 +3,7 @@
 // hero points.
 
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatCheck } from "./checks.js";
+import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
 import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, concussiveType, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
@@ -727,6 +728,31 @@ export function stride(state, c, move) {
         if (!target || !isActive(target)) return;
         engage(state, c, target);
         log(state, `  ${c.name} Strides to engage ${target.name}`);
+        // Map objectives: it's where the target is now.
+        if (isMapObjective(state.objective)) {
+            moveTo(c, target);
+            leftItem(state, c);
+        }
+    } else if (move.kind === "approach") {
+        // Toward a creature, or a dropped item (targetId "item"), too far to reach this Stride.
+        const item = state.objective?.item;
+        const target = move.targetId === "item" ? (item?.dropped ? { name: "the item", areaFeet: item.area, exitFeet: item.exit } : null) : state.byId.get(move.targetId);
+        if (!target || (move.targetId !== "item" && !isActive(target))) return;
+        leaveMelee(state, c, c.band === "engaged" ? "near" : c.band);
+        approach(state, c, target);
+        leftItem(state, c);
+    } else if (move.kind === "toArea" || move.kind === "toExit") {
+        leaveMelee(state, c, c.band === "engaged" ? "near" : c.band);
+        moveToward(state, c, move.kind === "toArea" ? "area" : "exit");
+        leftItem(state, c);
+    } else if (move.kind === "toItem") {
+        const item = state.objective?.item;
+        if (!item?.dropped) return;
+        // The Melee where the item fell, if it's still there; otherwise its band.
+        const foe = item.meleeId !== null ? [...(state.melees.get(item.meleeId) ?? [])].map((id) => state.byId.get(id)).find((other) => other.side !== c.side && isActive(other)) : null;
+        if (foe) engage(state, c, foe);
+        else leaveMelee(state, c, item.band);
+        reachItem(state, c);
     } else if (move.kind === "toNear") {
         leaveMelee(state, c, "near");
         log(state, `  ${c.name} Strides to near`);

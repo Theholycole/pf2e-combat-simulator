@@ -10,6 +10,9 @@ import { predictOdds } from "./odds.js";
 import { OUTCOMES, guessOutcome } from "../src/engine/calibration.js";
 import { escape } from "./render.js";
 
+// Outcomes only some objectives can end a fight with.
+const OBJECTIVE_OUTCOMES = { survived: ["survive"], held: ["hold"], escaped: ["escort", "retrieve"] };
+
 function enabled() {
     try {
         return game.settings.get(MODULE_ID, "logRealFights");
@@ -119,7 +122,8 @@ function dialogContent(state, guess) {
         ? `<p>Predicted when it began: the party wins <strong>${Math.round(state.prediction.winRate * 100)}%</strong>, a PC goes down ${Math.round(state.prediction.anyPcDown * 100)}%${state.prediction.threat ? ` (PF2e: ${escape(state.prediction.threat.label)})` : ""}.</p>`
         : `<p class="muted">No prediction was made when this encounter began, so it will be logged without one.</p>`;
     const outcomes = OUTCOMES
-        .filter(([key]) => key !== "survived" || state.setup.objective?.kind === "survive")
+        // An outcome only its own objective can end a fight with.
+        .filter(([key]) => (OBJECTIVE_OUTCOMES[key] ?? [state.setup.objective?.kind]).includes(state.setup.objective?.kind))
         .map(([key, label]) => `<label class="check"><input type="radio" name="outcome" value="${key}" ${key === guess ? "checked" : ""}> ${escape(label)}</label>`).join("");
     const objective = state.setup.objective?.kind
         ? `<fieldset><legend>Secondary objective</legend>

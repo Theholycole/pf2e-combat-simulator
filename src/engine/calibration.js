@@ -8,11 +8,13 @@ export const OUTCOMES = Object.freeze([
     ["decisive", "Victory: every foe beaten"],
     ["rout", "Victory: the rest fled or surrendered"],
     ["survived", "Survived until the objective ended it"],
+    ["held", "Held the area until the objective ended it"],
+    ["escaped", "Got away: the escorted creature or the item reached the exit"],
     ["retreat", "The party retreated"],
     ["defeat", "The party was defeated"]
 ]);
 
-const WINS = new Set(["decisive", "rout", "survived"]);
+const WINS = new Set(["decisive", "rout", "survived", "held", "escaped"]);
 
 export function isWin(outcome) {
     return WINS.has(outcome);

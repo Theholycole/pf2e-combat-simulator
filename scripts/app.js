@@ -6,10 +6,11 @@ import { FightLogApp } from "./log-app.js";
 import { MORALE_RULES } from "../src/engine/morale-rules.js";
 import { ROLE_PROFILES } from "../src/engine/planner.js";
 import { renderAdjustments, renderReport, renderCompare, renderMoraleImpact, escape } from "./render.js";
+import { MAP_KINDS, regionChoices, roundsHeld } from "./map.js";
 
 const { ApplicationV2 } = foundry.applications.api;
 
-const OBJECTIVE_KINDS = [["", "None"], ["protect", "Protect a creature or object"], ["target", "Kill or capture a target"], ["survive", "Survive N rounds"], ["task", "Do a task"]];
+const OBJECTIVE_KINDS = [["", "None"], ["protect", "Protect a creature or object"], ["target", "Kill or capture a target"], ["survive", "Survive N rounds"], ["task", "Do a task"], ["hold", "Hold an area"], ["escort", "Escort a creature to the exit"], ["retrieve", "Retrieve an item and escape"]];
 const COMPARE_CHOICES = [["adjust", "What would change the odds (Weak, Elite, remove)"], ["morale", "Morale on / off"], ["heroPoints", "Hero points on / off"], ["objective", "Objective on / off"], ["retreat", "Party retreat on / off"]];
 const SITUATIONAL = [["defendingHome", "Foes defend their home (+1)"], ["noRetreat", "Foes have no retreat, surrender means death (+2)"], ["defendingLair", "Bestial foes defend young or lair (+2)"], ["unpaid", "Mercenaries unpaid or betrayed (−2)"], ["hatedEnemy", "Foes fight a hated enemy (+4, if enabled)"]];
 
@@ -105,10 +106,13 @@ export class SimulatorApp extends ApplicationV2 {
 
     _replaceHTML(result, content) {
         content.innerHTML = result;
-        content.querySelector("[name=objectiveKind]")?.addEventListener("change", () => {
-            this.#readForm();
-            this.render();
-        });
+        // Choices that change which fields show.
+        for (const name of ["objectiveKind", "areaRegion", "exitRegion"]) {
+            content.querySelector(`[name=${name}]`)?.addEventListener("change", () => {
+                this.#readForm();
+                this.render();
+            });
+        }
     }
 
     #sourceLabel() {
@@ -152,6 +156,7 @@ export class SimulatorApp extends ApplicationV2 {
             <label>Danger limit <input type="number" name="dangerLimit" min="1" value="${escape(objective.dangerLimit ?? 3)}"></label>
             <label>DC <input type="number" name="dc" value="${escape(objective.dc ?? "")}" placeholder="level DC"></label>
             <label>Skills <input type="text" name="skills" value="${escape((objective.skills ?? ["athletics", "crafting", "thievery"]).join(", "))}"></label>`;
+        if (MAP_KINDS.has(objective.kind)) objectiveFields = this.#mapFields(objective);
         const situational = SITUATIONAL.map(([key, label]) => `<label class="check"><input type="checkbox" name="situational.${key}" ${setup.situational?.[key] ? "checked" : ""}> ${escape(label)}</label>`).join("");
         return `
         <form class="sim-setup" autocomplete="off">
@@ -183,6 +188,45 @@ export class SimulatorApp extends ApplicationV2 {
             </div>
             ${this.progress ? `<div class="sim-progress"><progress value="${this.progress.done}" max="${this.progress.total}"></progress> ${this.progress.done} / ${this.progress.total}</div>` : ""}
         </form>`;
+    }
+
+    // The scene the encounter is on, for its Regions.
+    get #scene() {
+        return this.source.combat?.scene ?? canvas?.scene ?? null;
+    }
+
+    // Hold an area, escort, retrieve and escape (O1–O3): Regions for the area and the
+    // exit, or Strides typed by hand when there's no Region to pick.
+    #mapFields(objective) {
+        const regions = regionChoices(this.#scene);
+        const regionSelect = (name, label) => `<label>${label} <select name="${name}">${option("", regions.length ? "— type Strides —" : "— no Regions on the scene: type Strides —", objective[name] ?? "")}${regions.map((region) => option(region.id, region.name, objective[name])).join("")}</select></label>`;
+        const strides = objective.strides ?? {};
+        const typed = (key, label) => `<label>${label}: party <input type="number" name="strides.party.${key}" min="0" value="${escape(strides.party?.[key] ?? (key === "area" ? 1 : 2))}"> foes <input type="number" name="strides.foes.${key}" min="0" value="${escape(strides.foes?.[key] ?? (key === "area" ? 1 : 2))}"></label>`;
+        const usesArea = objective.kind !== "escort";
+        const usesExit = objective.kind !== "hold";
+        let fields = "";
+        if (objective.kind === "escort") {
+            const escorts = this.rows.filter((row) => row.side === "party" && row.kind !== "pc");
+            fields += escorts.length
+                ? `<label>Escort <select name="escortId">${escorts.map((row) => option(row.id, row.name, objective.escortId)).join("")}</select></label>`
+                : `<p class="muted">Put a creature that isn't a PC on the party side to escort it.</p>`;
+        }
+        if (usesArea) fields += regionSelect("areaRegion", objective.kind === "retrieve" ? "Item's area" : "Area");
+        if (usesExit) fields += regionSelect("exitRegion", "Exit");
+        if (usesArea && !objective.areaRegion) fields += typed("area", "Strides to the area");
+        if (usesExit && !objective.exitRegion) fields += typed("exit", "Strides to the exit");
+        if (objective.kind === "retrieve" && !(objective.areaRegion && objective.exitRegion)) fields += `<label>From the area to the exit <input type="number" name="strides.areaToExit" min="0" value="${escape(strides.areaToExit ?? 2)}"> Strides</label>`;
+        if (objective.kind === "hold") {
+            fields += `<label>Rounds to hold <input type="number" name="needed" min="1" value="${escape(objective.needed ?? 3)}"></label>`;
+            const combat = this.source.combat;
+            if (combat?.started && objective.areaRegion) fields += `<p class="muted">Held so far: ${roundsHeld(combat)} rounds (counted at each new round).</p>`;
+        }
+        if (objective.kind === "retrieve") {
+            const pcs = this.rows.filter((row) => row.side === "party" && row.kind === "pc");
+            fields += `<label>Item <select name="carrierId">${option("", "In the area", objective.carrierId ?? "")}${pcs.map((row) => option(row.id, `Carried by ${row.name}`, objective.carrierId)).join("")}</select></label>`;
+        }
+        fields += `<label>Deadline round <input type="number" name="deadline" min="0" value="${escape(objective.deadline ?? "")}" placeholder="none"></label>`;
+        return fields;
     }
 
     #resultHTML() {
@@ -232,6 +276,7 @@ export class SimulatorApp extends ApplicationV2 {
                 const skills = value("skills") || (previous.skills ?? []).join(",");
                 objective.skills = skills ? skills.split(",").map((skill) => skill.trim().toLowerCase()).filter(Boolean) : ["athletics", "crafting", "thievery"];
             }
+            if (MAP_KINDS.has(kind)) Object.assign(objective, this.#readMapFields(kind, previous, value));
         }
         this.setup = {
             ambush: value("ambush") || null,
@@ -255,6 +300,36 @@ export class SimulatorApp extends ApplicationV2 {
             arrivesBand: row.arrivesBand,
             adjust: row.adjust || undefined
         }]));
+    }
+
+    // A map objective's fields; a field not shown keeps its earlier value. Just after the
+    // objective changes, the form still shows the old one's fields: those don't count.
+    #readMapFields(kind, previous, value) {
+        const same = MAP_KINDS.has(previous.kind) ? previous : {};
+        const shown = (name) => previous.kind === kind && !!this.element.querySelector(`form.sim-setup [name="${name}"]`);
+        const pick = (name, fallback) => (shown(name) ? value(name) : same[name] ?? fallback);
+        const number = (name, fallback) => {
+            const raw = pick(name, null);
+            return raw === "" || raw === null || raw === undefined ? fallback : Number(raw);
+        };
+        const typedStride = (key, side, fallback) => {
+            const name = `strides.${side}.${key}`;
+            return shown(name) ? Number(value(name) || 0) : same.strides?.[side]?.[key] ?? fallback;
+        };
+        const fields = {
+            areaRegion: kind === "escort" ? null : pick("areaRegion", "") || null,
+            exitRegion: kind === "hold" ? null : pick("exitRegion", "") || null,
+            strides: {
+                party: { area: typedStride("area", "party", 1), exit: typedStride("exit", "party", 2) },
+                foes: { area: typedStride("area", "foes", 1), exit: typedStride("exit", "foes", 2) },
+                areaToExit: shown("strides.areaToExit") ? Number(value("strides.areaToExit") || 0) : same.strides?.areaToExit ?? 2
+            },
+            deadline: number("deadline", null)
+        };
+        if (kind === "hold") fields.needed = number("needed", 3);
+        if (kind === "escort") fields.escortId = pick("escortId", "") || this.rows.find((row) => row.side === "party" && row.kind !== "pc")?.id || null;
+        if (kind === "retrieve") fields.carrierId = pick("carrierId", "") || null;
+        return fields;
     }
 
     async #snapshot() {

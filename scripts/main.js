@@ -3,6 +3,7 @@ import { SimulatorApp } from "./app.js";
 import { oddsCheck } from "./odds.js";
 import { registerLogger } from "./logger.js";
 import { FightLogApp } from "./log-app.js";
+import { setUpMapTracking } from "./map.js";
 
 function openSimulator({ combat = null, tokens = null } = {}) {
     if (!game.user.isGM) return ui.notifications.warn("Combat Simulator is for the GM.");
@@ -63,6 +64,8 @@ Hooks.once("init", () => {
         restricted: true
     });
     registerLogger();
+    // Rounds the party holds a map objective's area, counted at each new round (active GM).
+    setUpMapTracking();
 });
 
 function openLog() {

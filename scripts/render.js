@@ -17,6 +17,8 @@ const OUTCOME_LABELS = {
     decisive: "Victory (decisive)",
     rout: "Victory (rout)",
     survived: "Survived (objective)",
+    held: "Held the area (objective)",
+    escaped: "Got away (objective)",
     retreat: "Party retreat",
     defeat: "Defeat",
     timeout: "Timeout (20 rounds)"
@@ -118,7 +120,7 @@ export function renderAdjustments(data) {
     <p class="muted">With ${data.runs} fights a change, differences under about 8 points can be noise.</p>`;
 }
 
-const OUTCOME_SHORT = { decisive: "Won", rout: "Won (rout)", survived: "Survived", retreat: "Retreated", defeat: "Defeated" };
+const OUTCOME_SHORT = { decisive: "Won", rout: "Won (rout)", survived: "Survived", held: "Held the area", escaped: "Got away", retreat: "Retreated", defeat: "Defeated" };
 
 const MIN_FIGHTS_FOR_SKILL = 5;
 
