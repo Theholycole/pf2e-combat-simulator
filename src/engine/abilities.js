@@ -1,7 +1,8 @@
 // Monster abilities the engine plays as its own rules. The ability module
 // compiles them as { builtin } (no plan to resolve): Ferocity, Rend, Sneak
 // Attack, Pack Attack, Regeneration, Fast Healing, Draconic Frenzy, Pounce,
-// Draconic Momentum and bonuses to saves against magic.
+// Draconic Momentum, bonuses to saves against magic, and reactions (Nimble
+// Dodge, Challenge Fate, Twisting Tail, Death Frenzy).
 
 const SIZES = ["tiny", "small", "medium", "large", "huge", "gargantuan"];
 const SIZE_WORDS = { tiny: "tiny", sm: "small", med: "medium", lg: "large", huge: "huge", grg: "gargantuan" };
@@ -50,10 +51,23 @@ export function addBuiltin(spec, plan, name) {
             spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes] }];
             return true;
         case "charge":
-            spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null }];
+            spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null }];
             return true;
         case "momentum":
             spec.momentum = { recharges: [...(plan.recharges ?? [])] };
+            return true;
+        // Reactions: Nimble Dodge and Retract Body, Challenge Fate, Twisting Tail, Death Frenzy.
+        case "ac-reaction":
+            spec.acReaction = { value: plan.value, when: plan.when, name };
+            return true;
+        case "attack-misfortune":
+            spec.misfortuneReaction = { name };
+            return true;
+        case "reaction-strike":
+            spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: !!plan.disrupts }];
+            return true;
+        case "death-strike":
+            spec.deathStrike = { name, strike: plan.strike ?? null };
             return true;
         default:
             return false;
@@ -78,6 +92,19 @@ export function multiStrikeOrder(c, ability) {
     const indices = ability.strikes.map((name) => strikeNamed(c, name));
     if (indices.some((index) => index < 0)) return null;
     return indices.sort((a, b) => (c.strikes[a].agile ? 1 : 0) - (c.strikes[b].agile ? 1 : 0));
+}
+
+// The Strike a charge makes: its bonus to the attack roll for moving 20 feet, or
+// its bigger damage ("the Strike's damage is increased to 3d10+20").
+export function chargeStrike(strike, charge) {
+    if (!charge.attackBonus && !charge.damage) return strike;
+    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + (charge.attackBonus ?? 0) };
+    const dice = charge.damage ? /(\d+)d(\d+)\s*(?:([+-])\s*(\d+))?/.exec(charge.damage) : null;
+    if (dice) {
+        const type = /\[([a-z]+)\]/.exec(charge.damage)?.[1] ?? strike.damage[0]?.type ?? "untyped";
+        changed.damage = [{ dice: Number(dice[1]), die: Number(dice[2]), bonus: (dice[3] === "-" ? -1 : 1) * Number(dice[4] ?? 0), multiplier: 1, type, persistent: false, precision: false }, ...strike.damage.slice(1)];
+    }
+    return changed;
 }
 
 // Roll options of a spell or ability, for predicates such as "item:magical" or "item:trait:mental".
@@ -150,4 +177,9 @@ export function extraApplies(extra, target, { offGuard, packAllies }) {
 // Regeneration works unless damage of a listed type turned it off.
 export function regenerating(c) {
     return !!c.regeneration && !c.regenerationOff;
+}
+
+// Whether a creature can use a reaction now (confused creatures can't).
+export function canReact(c) {
+    return c.status === "active" && !c.reactionUsed && !c.cond.confused && !c.cond.unconscious && !c.cond.paralyzed && !c.cond.asleep && c.acts !== false;
 }

@@ -154,8 +154,8 @@ test("target sets: single targets in range, areas by Melee and loose enemies", (
 
 test("gaps: what of a spell the simulation can't model", () => {
     assert.deepEqual(spellGaps(fireball()), []);
-    const confusing = plan("Confusion", 4, { target: "1 creature" }, { check: { statistic: "will" }, outcomes: rows({ failure: { effects: [condition("confused", null)], noteEffects: [{ label: "Glare" }] } }) });
-    assert.deepEqual(spellGaps({ plan: confusing, castRank: 4 }), ["condition: confused", "note: Glare"]);
+    const fascinating = plan("Hypnotic Pattern", 3, { target: "1 creature" }, { check: { statistic: "will" }, outcomes: rows({ failure: { effects: [condition("fascinated", null)], noteEffects: [{ label: "Glare" }] } }) });
+    assert.deepEqual(spellGaps({ plan: fascinating, castRank: 3 }), ["condition: fascinated", "note: Glare"]);
     assert.deepEqual(spellGaps({ plan: { ...FIREBALL, resolution: { kind: "summon" } }, castRank: 3 }), ['resolution kind "summon" isn\'t resolved yet']);
 });
 

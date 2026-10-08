@@ -2,16 +2,16 @@
 
 import { createRng } from "./rng.js";
 import { flatCheck, SUCCESS } from "./checks.js";
-import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive } from "./combatant.js";
+import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
-import { multiStrikeOrder, regenerating } from "./abilities.js";
+import { chargeStrike, multiStrikeOrder, regenerating } from "./abilities.js";
 import { adjustInstance, rollPersistent } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyHeal, castSpell, describeSpell, expireTimers, hasTimer, rollInstances, triggerRiders } from "./spells.js";
+import { applyAuras, applyHeal, castSpell, describeSpell, expireTimers, hasTimer, retch, rollInstances, triggerRiders } from "./spells.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -244,6 +244,26 @@ function regenerateUp(state, c) {
     state.log?.push(`${c.name} regenerates and wakes (${c.hp.value}/${c.hp.max})`);
 }
 
+// Confused: every action is a Strike at a random creature it can reach, friend
+// or foe; with no one in reach it Strides to a random creature (or babbles, unable to move).
+function confusedTurn(state, c) {
+    let guard = 0;
+    while (c.actionsLeft > 0 && canAct(c) && c.cond.confused && guard++ < 8) {
+        const others = state.list.filter((other) => other !== c && isActive(other));
+        const near = others.filter((other) => sameMelee(c, other));
+        const melee = (c.strikes ?? []).filter((strike) => strike.melee && strikeUsable(c, strike));
+        const ranged = (c.strikes ?? []).filter((strike) => !strike.melee && strikeUsable(c, strike));
+        const pick = (list) => list[Math.floor(state.rng.next() * list.length)];
+        c.actionsLeft--;
+        if (near.length && melee.length) performStrike(state, c, pick(near), pick(melee));
+        else if (others.length && ranged.length) performStrike(state, c, pick(others), pick(ranged));
+        else if (others.length && canMove(c)) stride(state, c, { kind: "engage", targetId: pick(others).id });
+        else state.log?.push(`  ${c.name} babbles, confused`);
+        processMorale(state);
+        if (checkEnd(state)) return;
+    }
+}
+
 // Swallowed: it can only Escape or attack its swallower with an unarmed attack
 // or a light weapon. It attacks when a hit would cut it free (Rupture), and
 // otherwise tries to Escape.
@@ -329,6 +349,9 @@ function act(state, c, action) {
         case "interact":
             interact(state, c, action.what, action.strikeName);
             break;
+        case "retch":
+            retch(state, c);
+            break;
         case "rend": {
             const target = state.byId.get(action.targetId);
             if (target && isActive(target)) performRend(state, c, target, c.strikes[action.strikeIndex]);
@@ -353,7 +376,7 @@ function act(state, c, action) {
             const target = state.byId.get(action.targetId);
             state.log?.push(`  ${c.name} uses ${c.charges[action.ability].name}`);
             stride(state, c, { kind: "engage", targetId: action.targetId });
-            if (canAct(c) && target && isActive(target) && sameMelee(c, target)) performStrike(state, c, target, c.strikes[action.strikeIndex]);
+            if (canAct(c) && target && isActive(target) && sameMelee(c, target)) performStrike(state, c, target, chargeStrike(c.strikes[action.strikeIndex], c.charges[action.ability]));
             break;
         }
         default:
@@ -408,6 +431,9 @@ function takeTurn(state, c) {
     }
     if (c.swallowedBy) {
         swallowedTurn(state, c);
+        if (state.outcome) return;
+    } else if (c.cond.confused) {
+        confusedTurn(state, c);
         if (state.outcome) return;
     } else if (c.cond.fleeing) {
         fleeTurn(state, c);

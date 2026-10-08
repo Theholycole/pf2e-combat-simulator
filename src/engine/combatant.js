@@ -20,7 +20,7 @@ const EMPTY_CONDITIONS = Object.freeze({
     slowed: 0, stunned: 0, quickened: false, offGuard: false, prone: false,
     fleeing: false, dying: 0, wounded: 0, doomed: 0, unconscious: false,
     stupefied: 0, fatigued: false, paralyzed: false, asleep: false, blinded: false, dazzled: false,
-    immobilized: false, restrained: false, grabbed: false
+    immobilized: false, restrained: false, grabbed: false, confused: false
 });
 
 export function createCombatant(spec) {
@@ -106,7 +106,7 @@ export function statusPenalty(c, kind) {
 
 export function isOffGuard(c) {
     const k = c.cond;
-    return k.offGuard || k.prone || k.unconscious || k.paralyzed || k.asleep || k.blinded || k.restrained || k.grabbed || c.status === DOWN;
+    return k.offGuard || k.prone || k.unconscious || k.paralyzed || k.asleep || k.blinded || k.restrained || k.grabbed || k.confused || c.status === DOWN;
 }
 
 // A Strike a disarmed creature can't make until it picks its weapon up (Disarm).

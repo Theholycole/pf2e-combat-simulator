@@ -28,7 +28,7 @@ const VALUED = new Set(["frightened", "sickened", "clumsy", "enfeebled", "draine
 const FLAGS = {
     "off-guard": "offGuard", prone: "prone", fleeing: "fleeing", quickened: "quickened", fatigued: "fatigued",
     paralyzed: "paralyzed", unconscious: "asleep", blinded: "blinded", dazzled: "dazzled",
-    immobilized: "immobilized", restrained: "restrained", grabbed: "grabbed"
+    immobilized: "immobilized", restrained: "restrained", grabbed: "grabbed", confused: "confused"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -306,6 +306,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     }
     const flag = FLAGS[slug];
     if (!VALUED.has(slug) && !flag) return false;
+    // "As long as it's sickened" (Stench): ends when that condition does.
+    if (duration?.mode === "while" && duration.condition) (target.whileConditions ??= []).push({ slug, value, while: duration.condition });
     const rounds = durationRounds(duration);
     if (flag) target.cond[flag] = true;
     else target.cond[slug] = Math.max(target.cond[slug] ?? 0, Number.isFinite(value) ? value : 1);
@@ -429,7 +431,10 @@ function setAfflictionStage(state, target, entry, stage) {
     }
     if (!isActive(target)) return;
     for (const { slug, value } of current.conditions ?? []) {
-        if (applyCondition(state, target, slug, value ?? null, null, source)) entry.conditions.push({ slug, value });
+        if (applyCondition(state, target, slug, value ?? null, null, source)) {
+            entry.conditions.push({ slug, value });
+            if (slug === "sickened") target.sickenedDC = Math.max(target.sickenedDC ?? 0, entry.data.dc ?? 0) || null;
+        }
     }
     const rounds = spanRounds(current.duration);
     if (Number.isFinite(rounds)) (target.timers ??= []).push({ affliction: entry, round: state.round + Math.max(1, rounds), turnOf: entry.source, at: "start" });
@@ -541,6 +546,38 @@ function applySwallow(state, swallower, target, effect) {
     log(state, `  ${swallower.name} swallows ${target.name}`);
 }
 
+// The DC of a spell or ability's save or check (a monster ability's fixed DC, or the caster's spell DC).
+function effectDC(spell) {
+    const check = describeSpell(spell?.plan)?.check;
+    if (check?.against?.dc === "fixed") return check.against.value;
+    return spell?.dc ?? null;
+}
+
+// Retch: a sickened creature spends an action on a Fortitude save against
+// the DC that sickened it; a success lowers sickened by 1, a critical success by 2.
+export function retch(state, c) {
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + saveModifier(c, "fortitude"), c.sickenedDC ?? 10, natural);
+    const drop = degree === 3 ? 2 : degree === 2 ? 1 : 0;
+    c.cond.sickened = Math.max(0, (c.cond.sickened ?? 0) - drop);
+    if (!c.cond.sickened) {
+        c.sickenedDC = null;
+        // Conditions that lasted as long as it was sickened end with it.
+        for (const entry of (c.whileConditions ?? []).filter((other) => other.while === "sickened")) {
+            if (VALUED.has(entry.slug)) c.cond[entry.slug] = Math.max(0, (c.cond[entry.slug] ?? 0) - (entry.value ?? 1));
+            else if (FLAGS[entry.slug]) c.cond[FLAGS[entry.slug]] = false;
+        }
+        c.whileConditions = (c.whileConditions ?? []).filter((other) => other.while !== "sickened");
+    }
+    log(state, `  ${c.name} retches: ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}${drop ? ` (sickened ${c.cond.sickened})` : ""}`);
+}
+
+// The chance a Retch lowers sickened: [success, critical success].
+export function retchOdds(c) {
+    const odds = degreeDistribution(saveModifier(c, "fortitude"), c.sickenedDC ?? 10);
+    return [odds[2], odds[3]];
+}
+
 // Rolls parsed damage ({ type, dice, constant }) as damage instances.
 export function rollInstances(state, parsed) {
     return parsed.map((instance) => {
@@ -603,7 +640,11 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 // First Aid's critical failure: dying +1.
                 else if (change.slug === "dying") {
                     if (target.status === DOWN) increaseDying(state, target, change.value ?? 1);
-                } else if (isActive(target) && applyCondition(state, target, change.slug, change.value, change.duration, caster, change.scope ?? null)) log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${change.value}` : ""}`);
+                } else if (isActive(target) && applyCondition(state, target, change.slug, change.value, change.duration, caster, change.scope ?? null)) {
+                    log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${change.value}` : ""}`);
+                    // Retching: a Fortitude save against the DC of what made it sickened.
+                    if (change.slug === "sickened") target.sickenedDC = Math.max(target.sickenedDC ?? 0, effectDC(spell) ?? 0) || null;
+                }
                 break;
             case "move":
                 applyMove(state, target, change);
@@ -792,6 +833,9 @@ function conditionWorth(slug, value, duration) {
             return 0.15;
         case "paralyzed":
             return rounds === Infinity ? 3 : rounds;
+        // It loses its turns to random attacks, which may hit its allies.
+        case "confused":
+            return 0.8 * (rounds === Infinity ? 2 : rounds);
         case "unconscious":
             // Asleep until damaged: worth less than paralysis.
             return 0.7 * (rounds === Infinity ? 3 : rounds);

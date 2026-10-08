@@ -5,10 +5,10 @@ import { existsSync } from "node:fs";
 import { createFightState, simulate } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
-import { applyDamage, dealDamage, expectedHitDamage, performStrike } from "../src/engine/actions.js";
-import { isActive } from "../src/engine/combatant.js";
-import { addBuiltin, saveBonusAgainst } from "../src/engine/abilities.js";
-import { applyAuras, castSpell, expireTimers, triggerRiders } from "../src/engine/spells.js";
+import { applyDamage, dealDamage, expectedHitDamage, performStrike, stride } from "../src/engine/actions.js";
+import { isActive, isOffGuard } from "../src/engine/combatant.js";
+import { addBuiltin, chargeStrike, saveBonusAgainst } from "../src/engine/abilities.js";
+import { applyAuras, applyCondition, castSpell, expireTimers, retch, triggerRiders } from "../src/engine/spells.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
 // ones compiled from PF2e's packs (Swallow Whole, Trample, Stench).
@@ -368,4 +368,141 @@ test("Afflictions in fights: a scorpion Strikes with the venomous Stinger rather
     c.actionsLeft = 3;
     const best = scoreOptions(state, c).options.filter((option) => option.action.type === "strike").sort((a, b) => b.value - a.value)[0];
     assert.equal(c.strikes[best.action.strikeIndex].name, "Stinger", "the venom outweighs 2 damage");
+});
+
+// d20 results in turn, for exact rolls.
+const dice = (...rolls) => () => rolls.shift() ?? 10;
+
+test("Nimble Dodge: +2 AC as the attack comes; Retract Body: +2 AC once it hits, only when that turns it aside", () => {
+    const [fighter] = martialParty(5);
+    const wererat = withBuiltins({ ...moderateCreature(5, "rat", "Rat"), engagement: 1, ac: 20 }, ["Nimble Dodge", { builtin: "ac-reaction", value: 2, when: "targeted" }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, wererat] }, {}, 1);
+    state.log = [];
+    const pc = state.byId.get("fighter");
+    const rat = state.byId.get("rat");
+    const strike = { ...pc.strikes[0], bonus: 10 };
+    state.rng.d20 = dice(11);
+    assert.equal(performStrike(state, pc, rat, strike).degree, 1, "21 against AC 22: a miss");
+    assert.ok(state.log.some((line) => /Rat uses Nimble Dodge/.test(line)));
+    pc.attacksThisTurn = 0;
+    state.rng.d20 = dice(11);
+    assert.equal(performStrike(state, pc, rat, strike).degree, 2, "the reaction is spent");
+
+    const dragon = withBuiltins({ ...moderateCreature(5, "dragon", "Dragon"), engagement: 1, ac: 20 }, ["Retract Body", { builtin: "ac-reaction", value: 2, when: "hit" }]);
+    const other = createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, 1);
+    const d = other.byId.get("dragon");
+    const attacker = other.byId.get("fighter");
+    other.rng.d20 = dice(15);
+    assert.equal(performStrike(other, attacker, d, { ...strike, bonus: 10 }).degree, 2, "25 against AC 22: still a hit, so it's kept");
+    assert.equal(d.reactionUsed, false);
+    attacker.attacksThisTurn = 0;
+    other.rng.d20 = dice(11);
+    assert.equal(performStrike(other, attacker, d, strike).degree, 1, "21 against 20 + 2: turned aside");
+    assert.equal(d.reactionUsed, true);
+});
+
+test("Challenge Fate: the attacker rolls twice and takes the worse", () => {
+    const [fighter] = martialParty(5);
+    const dragon = withBuiltins({ ...moderateCreature(5, "dragon", "Dragon"), engagement: 1, ac: 20 }, ["Challenge Fate", { builtin: "attack-misfortune" }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, 1);
+    const pc = state.byId.get("fighter");
+    state.rng.d20 = dice(20, 3);
+    assert.equal(performStrike(state, pc, state.byId.get("dragon"), { ...pc.strikes[0], bonus: 10 }).degree, 1, "13 against AC 20: the 3, not the 20");
+});
+
+test("Twisting Tail: a Strike at a creature moving away, which stops the move when it hits; Death Frenzy: a last Strike at 0 HP", () => {
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "dragon", "Dragon");
+    const dragon = withBuiltins({ ...base, engagement: 1, strikes: [{ ...base.strikes[0], name: "Jaws" }, { ...base.strikes[0], name: "Tail", bonus: 40 }] },
+        ["Twisting Tail", { builtin: "reaction-strike", triggers: ["move"], strike: "tail", penalty: 2, disrupts: true }],
+        ["Death Frenzy", { builtin: "death-strike", strike: "jaws" }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, dragon] }, {}, 1);
+    state.log = [];
+    const pc = state.byId.get("fighter");
+    const c = state.byId.get("dragon");
+    stride(state, pc, { kind: "toNear" });
+    assert.ok(state.log.some((line) => /Dragon uses Twisting Tail/.test(line)));
+    assert.ok(state.log.some((line) => /Dragon Tail → Fighter: .* vs AC \d+, (?:critically )?hits/.test(line)), "with the Tail, at -2");
+    assert.equal(pc.meleeId, c.meleeId, "the move is disrupted");
+    c.reactionUsed = false;
+    dealDamage(state, c, c.hp.value + 5, { source: pc });
+    assert.ok(state.log.some((line) => /Dragon uses Death Frenzy/.test(line)));
+    assert.ok(state.log.some((line) => /Dragon Jaws → Fighter/.test(line)));
+    assert.equal(c.status, "dead");
+});
+
+test("Confused: off-guard, no reactions, its actions Strike random creatures (allies too); damage gives a DC 11 flat check to end it", () => {
+    const [fighter] = martialParty(5);
+    const brute = { ...moderateCreature(5, "brute", "Brute"), engagement: 1 };
+    const ally = { ...moderateCreature(5, "ally", "Ally"), engagement: 1, hp: { value: 999, max: 999 } };
+    let allyHit = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, brute, ally] }, {}, seed);
+        const c = state.byId.get("brute");
+        applyCondition(state, c, "confused", null, { mode: "fixed", value: 3, unit: "rounds" }, null);
+        assert.ok(isOffGuard(c));
+        const { log } = simulate({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, { ...brute, conditions: { confused: true } }, ally] }, { roundCap: 1, morale: false }, seed, { log: true });
+        allyHit += log.filter((line) => /Brute .* → Ally/.test(line)).length;
+    }
+    assert.ok(allyHit > 0, "it hits its own side");
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...brute, reactions: { aoo: true } }] }, {}, 1);
+    const c = state.byId.get("brute");
+    c.cond.confused = true;
+    state.rng.d20 = dice(20);
+    dealDamage(state, c, 1, { source: state.byId.get("fighter") });
+    assert.equal(c.cond.confused, false, "a 20 on the flat check");
+});
+
+test("Retch: a sickened creature's Fortitude save against the DC that sickened it", async () => {
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, saves: { fortitude: 10, reflex: 0, will: 0 } }, { ...moderateCreature(5, "ghoul", "Ghoul"), engagement: 1 }] }, {}, 1);
+    const pc = state.byId.get("fighter");
+    pc.cond.sickened = 2;
+    pc.sickenedDC = 20;
+    pc.actionsLeft = 3;
+    assert.ok(scoreOptions(state, pc).options.some((option) => option.action.type === "retch"));
+    // Fortitude 10, -2 for sickened 2: 12 + 8 against DC 20 is a success.
+    state.rng.d20 = dice(12);
+    retch(state, pc);
+    assert.equal(pc.cond.sickened, 1);
+    state.rng.d20 = dice(20);
+    retch(state, pc);
+    assert.deepEqual([pc.cond.sickened, pc.sickenedDC], [0, null]);
+    // The DC comes from what sickened it (Stench's fixed DC).
+    if (skip) return;
+    const { stench } = await packAbilities();
+    const other = createFightState({ combatants: [{ ...fighter, band: "near", saves: { fortitude: -40, reflex: 0, will: 0 } }, { ...moderateCreature(3, "g", "G"), band: "near", spells: [entry("Stench", stench)] }] });
+    applyAuras(other);
+    const sick = other.byId.get("fighter");
+    assert.equal(sick.sickenedDC, stench.resolution.check.against.value);
+    // A critical failure's slowed 1 lasts as long as it's sickened.
+    assert.deepEqual([sick.cond.sickened, sick.cond.slowed], [1, 1]);
+    other.rng.d20 = dice(20);
+    sick.saves.fortitude = 40;
+    retch(other, sick);
+    assert.deepEqual([sick.cond.sickened, sick.cond.slowed], [0, 0]);
+});
+
+test("Charges: Boar Charge's +2 to the attack roll, Powerful Charge's bigger damage", () => {
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "boar", "Boar");
+    const boar = withBuiltins({ ...base, band: "near", strikes: [{ ...base.strikes[0], name: "Tusk" }] }, ["Boar Charge", { builtin: "charge", actions: 2, strides: 2, strike: "tusk", attackBonus: 2 }]);
+    const state = createFightState({ combatants: [{ ...fighter, band: "near" }, boar] }, {}, 1);
+    state.log = [];
+    const c = state.byId.get("boar");
+    c.actionsLeft = 2;
+    const option = scoreOptions(state, c).options.find((entry) => entry.action.type === "charge");
+    assert.equal(option?.action.actions, 2);
+    const charged = chargeStrike(c.strikes[0], c.charges[0]);
+    assert.deepEqual([charged.name, charged.bonus], ["Tusk (Boar Charge)", c.strikes[0].bonus + 2]);
+    const powerful = chargeStrike({ ...c.strikes[0], name: "Horn" }, { name: "Powerful Charge", damage: "3d10+20" });
+    assert.deepEqual(powerful.damage[0], { dice: 3, die: 10, bonus: 20, multiplier: 1, type: c.strikes[0].damage[0].type, persistent: false, precision: false });
+    // In fights against an archer who keeps away, it charges.
+    const ranger = martialParty(5)[2];
+    let charges = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+        const result = simulate({ combatants: [{ ...ranger, band: "near", hp: { value: 999, max: 999 } }, boar] }, { roundCap: 2, morale: false }, seed, { log: true });
+        charges += result.log.filter((entry) => /Boar Tusk \(Boar Charge\) →/.test(entry)).length;
+    }
+    assert.ok(charges > 0, "the charge's own Strike in a fight");
 });

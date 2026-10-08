@@ -122,14 +122,14 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
   - dropped weapons and weakened grips (Disarm), and Interact to pick up or regrip
   - stabilizing a dying PC (Administer First Aid)
 - **Planner:** conditions and buffs now count a third against damage (B6), so Strikes aren't swapped for Grapples.
-- **Defaults:** [ability-decisions.md](ability-decisions.md). The user confirmed B1–B6 and B7–B11 (the other skill actions) on 2026-10-08; B12–B21 (more monster abilities) confirmed the same day.
+- **Defaults:** [ability-decisions.md](ability-decisions.md). The user confirmed B1–B6 and B7–B11 (the other skill actions) on 2026-10-08; B12–B21 (more monster abilities) confirmed the same day; B22–B26 (reactions, confused, Retch, charges) confirmed too.
 - **Bestiary check** (`tools/bestiary-abilities.mjs`): 1,106 creatures with their real stat blocks, 3,318 fights, no errors.
 - **Live check** (pftest, after a Foundry restart the user approved):
   - The ability module is enabled, and all 10 basic actions compile live.
   - A PFTEST SIM Giant Anaconda against the iconics: Grab, then Greater Constrict only on held targets.
   - First Aid stabilized Valeros.
   - 200 fights ran through the worker with no fallback.
-- 104 Node tests.
+- 110 Node tests.
 
 ### Real-fight logger (built 2026-10-08, at the user's request)
 

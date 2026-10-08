@@ -114,7 +114,7 @@ for (const pack of PACKS) {
                     if (/ rends /.test(line)) uses.set("Rend", (uses.get("Rend") ?? 0) + 1);
                     const used = / uses (.+)$/.exec(line)?.[1];
                     if (used && used !== "Ferocity and stays up at 1 HP") uses.set(used, (uses.get(used) ?? 0) + 1);
-                    for (const [pattern, name] of [[/swallows /, "(swallowed)"], [/regenerates and wakes/, "(regenerated up)"], [/regeneration stops/, "(regeneration stopped)"], [/recharges$/, "(momentum recharge)"], [/cuts itself free|escapes from/, "(out of a swallower)"], [/: [^:]+, stage \d+$/, "(affliction stage)"], [/ saves against /, "(affliction save)"], [/ recovers from /, "(affliction ended)"]]) {
+                    for (const [pattern, name] of [[/swallows /, "(swallowed)"], [/regenerates and wakes/, "(regenerated up)"], [/regeneration stops/, "(regeneration stopped)"], [/recharges$/, "(momentum recharge)"], [/cuts itself free|escapes from/, "(out of a swallower)"], [/: [^:]+, stage \d+$/, "(affliction stage)"], [/ saves against /, "(affliction save)"], [/ recovers from /, "(affliction ended)"], [/ retches: /, "(retch)"], [/ is confused/, "(confused)"], [/ is no longer confused/, "(confusion ended)"], [/ move is disrupted| fails to stand/, "(move disrupted)"]]) {
                         if (pattern.test(line)) uses.set(name, (uses.get(name) ?? 0) + 1);
                     }
                 }

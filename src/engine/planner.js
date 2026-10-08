@@ -12,9 +12,9 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken } from "./morale.js";
-import { multiStrikeOrder, strikeNamed } from "./abilities.js";
+import { chargeStrike, multiStrikeOrder, strikeNamed } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
-import { canCast, describeSpell, spellExpectation, spellVariants, targetSets } from "./spells.js";
+import { canCast, describeSpell, retchOdds, spellExpectation, spellVariants, targetSets } from "./spells.js";
 
 export const ROLE_PROFILES = Object.freeze({
     soldier: { aggression: 1, selfPreservation: 0.8, objective: 1 },
@@ -523,7 +523,9 @@ function expand(ctx, node, actionsLeft) {
                 let best = null;
                 for (const index of candidates) {
                     if (!strikeUsable(c, c.strikes[index])) continue;
-                    const expectation = ctx.strikeExpectation(c.strikes[index], index, target, node.attacks, pos, node.prone);
+                    // A charge's own Strike (its bonus or bigger damage) has a cache slot of its own.
+                    const charged = chargeStrike(c.strikes[index], ability);
+                    const expectation = ctx.strikeExpectation(charged, charged === c.strikes[index] ? index : 1000 + abilityIndex * 64 + index, target, node.attacks, pos, node.prone);
                     if (expectation && (!best || expectation.damage > best.damage)) best = { index, damage: expectation.damage };
                 }
                 if (!best || best.damage <= 0) continue;
@@ -568,6 +570,13 @@ function expand(ctx, node, actionsLeft) {
         }
         if (c.shield && !c.shield.broken && !node.shield) {
             children.push(child(node, { type: "raiseShield" }, 1, 0, { shield: true }));
+        }
+        // Retch: a sickened creature's Fortitude save to shake it off. Each point
+        // of sickened is about a quarter of a round of its threat over the fight.
+        if (node.used === 0 && c.cond.sickened > 0 && c.sickenedDC) {
+            const [success, critical] = retchOdds(c);
+            const points = success + critical * Math.min(2, c.cond.sickened);
+            children.push(child(node, { type: "retch" }, 1, ctx.ownValue * 0.24 * points * ROUND_TO_KILL));
         }
         if (node.prone) {
             const next = child(node, { type: "stand" }, 1, 0, { prone: false });

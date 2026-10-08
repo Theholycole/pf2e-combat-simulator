@@ -7,7 +7,7 @@ import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBo
 import { adjustDamage, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
-import { extraApplies, regenerating } from "./abilities.js";
+import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -158,15 +158,39 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // A one-attack feint or diversion is used up by this attack.
     const scoped = (target.offGuardTo ?? []).find((entry) => entry.attacker === attacker.id && (entry.attacks !== "melee" || strike.melee) && entry.uses);
     if (scoped && --scoped.uses <= 0) target.offGuardTo = target.offGuardTo.filter((entry) => entry !== scoped);
-    let natural = state.rng.d20();
-    let degree = degreeOf(natural + modifier, ac, natural);
+    // Defensive reactions as the attack comes: the attacker rolls twice (Challenge
+    // Fate), or +AC (Nimble Dodge); kept for Attacks of Opportunity when it has them.
+    let defence = 0;
+    let misfortune = false;
+    if (target.misfortuneReaction && canReact(target)) {
+        misfortune = true;
+        target.reactionUsed = true;
+        log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
+    } else if (target.acReaction?.when === "targeted" && canReact(target) && !target.reactions?.aoo) {
+        defence = target.acReaction.value;
+        target.reactionUsed = true;
+        log(state, `  ${target.name} uses ${target.acReaction.name}`);
+    }
+    const roll = () => (misfortune ? Math.min(state.rng.d20(), state.rng.d20()) : state.rng.d20());
+    let natural = roll();
+    let degree = degreeOf(natural + modifier, ac + defence, natural);
+    // Retract Body: +AC once the attack hits, when that turns it aside.
+    if (degree >= SUCCESS && target.acReaction?.when === "hit" && canReact(target)) {
+        const lower = degreeOf(natural + modifier, ac + target.acReaction.value, natural);
+        if (lower < degree) {
+            defence = target.acReaction.value;
+            degree = lower;
+            target.reactionUsed = true;
+            log(state, `  ${target.name} uses ${target.acReaction.name}`);
+        }
+    }
     if (degree <= FAILURE && attacker.kind === "pc" && state.options.heroPoints && attacker.heroPoints >= 2) {
         const wouldDrop = expectedHitDamage(attacker, strike, target, false) >= target.hp.value + target.hp.temp;
         if (wouldDrop) {
             attacker.heroPoints--;
             state.stats.heroPointsSpent++;
-            natural = state.rng.d20();
-            degree = degreeOf(natural + modifier, ac, natural);
+            natural = roll();
+            degree = degreeOf(natural + modifier, ac + defence, natural);
             log(state, `  ${attacker.name} spends a hero point to reroll`);
         }
     }
@@ -176,7 +200,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     const label = ["critically misses", "misses", "hits", "critically hits"][degree];
     if (degree < SUCCESS) {
-        log(state, `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier} vs AC ${ac}, ${label}`);
+        log(state, `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier} vs AC ${ac + defence}, ${label}`);
         return { degree, damage: 0, trigger };
     }
     const critical = degree === CRITICAL_SUCCESS;
@@ -204,7 +228,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         nonlethal: strike.nonlethal || nonlethalAgainst(state, attacker, target),
         physical: true
     });
-    if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier} vs AC ${ac}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
+    if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier} vs AC ${ac + defence}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
     // Draconic Momentum: a critical hit recharges the breath weapon.
     if (critical && attacker.momentum) rechargeOnCritical(state, attacker);
     // Grab, Knockdown and Push follow a hit (free ones at once, the others as the next action).
@@ -225,7 +249,7 @@ function rechargeOnCritical(state, c) {
 function shouldShieldBlock(defender, total) {
     const shield = defender.shield;
     if (!shield || shield.broken || !shield.raised) return false;
-    if (!defender.reactions?.shieldBlock || defender.reactionUsed || !canAct(defender)) return false;
+    if (!defender.reactions?.shieldBlock || !canReact(defender)) return false;
     // Not worth the reaction for a hit the shield would mostly ignore anyway.
     if (total < Math.max(1, shield.hardness)) return false;
     const taken = Math.max(0, total - shield.hardness);
@@ -303,6 +327,12 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
         log(state, `  ${target.name} wakes up`);
     }
     if (target.status === DEAD) return 0;
+    // Confused: damage from an attack or spell gives a DC 11 flat check to snap out of it.
+    if (target.cond.confused && source && flatCheck(state.rng, 11) >= SUCCESS) {
+        target.cond.confused = false;
+        target.timers = (target.timers ?? []).filter((timer) => timer.key !== "confused");
+        log(state, `  ${target.name} is no longer confused`);
+    }
     if (target.status === DOWN) {
         if (target.kind === "pc") increaseDying(state, target, critical ? 2 : 1);
         // Regeneration: dying never goes past 3 while it works.
@@ -348,12 +378,23 @@ export function releaseGrabs(state, grabber) {
 
 function knockOut(state, target, { source, critical, nonlethal, overwhelming, massive }) {
     // Ferocity (a monster's reaction): it stays at 1 HP, wounded +1, until wounded 3.
-    if (target.kind !== "pc" && target.reactions?.ferocity && !target.reactionUsed && (target.cond.wounded ?? 0) < 3 && !massive) {
+    if (target.kind !== "pc" && target.reactions?.ferocity && canReact(target) && (target.cond.wounded ?? 0) < 3 && !massive) {
         target.hp.value = 1;
         target.cond.wounded = (target.cond.wounded ?? 0) + 1;
         target.reactionUsed = true;
         log(state, `  ${target.name} uses Ferocity and stays up at 1 HP`);
         return;
+    }
+    // Death Frenzy: a last Strike as it drops.
+    if (target.deathStrike && target.kind !== "pc" && canReact(target)) {
+        const foe = (source && source.side !== target.side && isActive(source) && sameMelee(source, target) ? source : null) ?? engagedEnemies(state, target)[0] ?? null;
+        const named = strikeNamed(target, target.deathStrike.strike);
+        const strike = named >= 0 ? target.strikes[named] : foe ? bestMeleeStrike(target, foe) : null;
+        if (foe && strike) {
+            target.reactionUsed = true;
+            log(state, `  ${target.name} uses ${target.deathStrike.name}`);
+            performStrike(state, target, foe, strike, { reaction: true });
+        }
     }
     releaseGrabs(state, target);
     releaseAllSwallowed(state, target, "is freed");
@@ -442,18 +483,32 @@ export function recoveryCheck(state, c) {
 
 // Attack of Opportunity from every engaged enemy that has it.
 // kind: "move" | "ranged" | "manipulate". Returns true if a manipulate action was disrupted.
+// Also the Strikes some monsters make when a creature moves by them (Twisting
+// Tail), which disrupt the move when they hit.
 export function provoke(state, mover, kind) {
     let disrupted = false;
     for (const enemy of engagedEnemies(state, mover)) {
         if (!canAct(mover)) break;
-        if (!enemy.reactions?.aoo || enemy.reactionUsed || !canAct(enemy) || enemy.cond.fleeing) continue;
-        const strike = bestMeleeStrike(enemy, mover);
-        if (!strike) continue;
+        if (!canReact(enemy) || enemy.cond.fleeing) continue;
+        if (enemy.reactions?.aoo) {
+            const strike = bestMeleeStrike(enemy, mover);
+            if (!strike) continue;
+            enemy.reactionUsed = true;
+            state.stats.reactions++;
+            log(state, `  ${enemy.name} Attack of Opportunity`);
+            const result = performStrike(state, enemy, mover, strike, { reaction: true, trigger: kind });
+            if (result?.degree === CRITICAL_SUCCESS && kind === "manipulate") disrupted = true;
+            continue;
+        }
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes(kind));
+        const index = reaction ? strikeNamed(enemy, reaction.strike) : -1;
+        if (index < 0 || !strikeUsable(enemy, enemy.strikes[index])) continue;
         enemy.reactionUsed = true;
         state.stats.reactions++;
-        log(state, `  ${enemy.name} Attack of Opportunity`);
-        const result = performStrike(state, enemy, mover, strike, { reaction: true, trigger: kind });
-        if (result?.degree === CRITICAL_SUCCESS && kind === "manipulate") disrupted = true;
+        log(state, `  ${enemy.name} uses ${reaction.name}`);
+        const strike = enemy.strikes[index];
+        const result = performStrike(state, enemy, mover, reaction.penalty ? { ...strike, bonus: strike.bonus - reaction.penalty } : strike, { reaction: true, trigger: kind });
+        if (reaction.disrupts && result?.degree >= SUCCESS) disrupted = true;
     }
     return disrupted;
 }
@@ -479,8 +534,12 @@ export function stride(state, c, move) {
     releaseGrabs(state, c);
     const leavingMelee = c.meleeId !== null && !(move.kind === "engage" && state.byId.get(move.targetId)?.meleeId === c.meleeId);
     if (leavingMelee) {
-        provoke(state, c, "move");
+        const disrupted = provoke(state, c, "move");
         if (!canAct(c)) return;
+        if (disrupted) {
+            log(state, `  ${c.name}'s move is disrupted`);
+            return;
+        }
     }
     if (move.kind === "engage") {
         const target = state.byId.get(move.targetId);
@@ -516,8 +575,12 @@ export function step(state, c) {
 }
 
 export function stand(state, c) {
-    provoke(state, c, "move");
+    const disrupted = provoke(state, c, "move");
     if (!canAct(c)) return;
+    if (disrupted) {
+        log(state, `  ${c.name} fails to stand`);
+        return;
+    }
     c.cond.prone = false;
     log(state, `  ${c.name} Stands`);
 }
