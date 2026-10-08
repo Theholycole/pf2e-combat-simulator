@@ -34,7 +34,7 @@ Logic moves out of the spell module into the core one rule family at a time, whe
 2. **Build the core and connect the spell module.** Attack-roll and basic-save damage, healing and condition riders come first, then the most common gaps. *(Saves and spell attacks: built 2026-10-08, see below.)*
 3. **The ability module.** Basic actions (Demoralize, Trip, Grapple, Shove, Escape) come first, then class features and monster abilities by rule family.
 
-**Later:** escalations, morale target fitting, and a logger that compares predictions with real fights. *(Map-based objectives: built 2026-10-08, see "Map objectives" below.)*
+**Later:** morale target fitting. *(Map-based objectives and escalations: built 2026-10-08, see "Map objectives" and "Escalations" below. The real-fight logger is built too.)*
 
 ## Milestone 1 status (2026-10-07)
 
@@ -322,6 +322,57 @@ Measured on the level-5 benchmark party, typed Strides:
 
 The bestiary sweep with `--map` (1,106 creatures, each with hold, escort and retrieve) has 0 errors.
 
+## Escalations (E1–E4, 2026-10-08)
+
+Rules that change a fight partway: **when** something happens, **then** creatures arrive, a hazard starts, or danger starts. The user's decisions (2026-10-08):
+
+1. **All four kinds:** triggered reinforcements, raising the alarm, hazards that switch on, and rising danger.
+2. **"When → then" rules** in the Simulate window. Each rule fires once.
+   - **When:**
+     - round N (as it begins)
+     - the alarm is raised
+     - a creature you pick falls (drops, dies, flees, surrenders or is captured)
+     - the foes are down to half their total HP (fled foes count as none)
+     - the first foe flees
+     - a party creature enters a Region
+   - **Then:**
+     - creatures arrive: picked from the encounter, after a delay (0 means the start of the next round; a round-N rule's start that round), near, far or at a Region
+     - a hazard starts
+     - danger starts
+3. **Morale:**
+   - when foe reinforcements arrive, wavering foes steady, and a shaken or wavering group too (`triggers.helpArrives`)
+   - while the alarm's help is on its way, foes get +1 to morale checks (`modifiers.helpComing`)
+4. **The alarm:** you mark foes as raisers in the creature table.
+   - A **gong** raiser reaches its spot (a Region, or typed Strides) and spends 1 Interact action. That provokes, and a critical hit disrupts it.
+   - A **runner** leaves the battlefield like a fleeing foe, and the alarm is raised once it's gone. A runner isn't counted as a loss for morale.
+   - The alarm is raised once. Dropping the raiser stops it, and pinning it makes leaving provoke.
+5. **When it's worth it.** The planner values raising the alarm as two rounds of the help's damage to the party, discounted by its delay. A runner also gives up its own two rounds. The PCs value the raiser more, by the damage the help would add.
+6. **Hazards** (PF2e hazard actors on the foes' side):
+   - A complex hazard takes a turn in initiative, rolled with its Stealth, using its routine's actions. It has its Strikes (no multiple attack penalty when its text says so) and its compiled actions.
+   - A simple hazard fires its reaction once when a rule triggers it, at the creature that set it off: its compiled reactions, and its Strikes when the reaction says it Strikes. It is then spent.
+   - A hazard can't move, and its Strikes reach anyone on the field.
+7. **Disable or smash.**
+   - Disable uses the hazard's own skill and DC. It takes 2 actions and provokes, like a task: success +1, critical success +2. It needs several successes when the text says "twice" or "three times". A critical failure sets it off at the one tampering with it.
+   - Smashing it is attacking its AC, Hardness and HP. It's immune to critical hits, and one that has no HP can only be disabled.
+   - The planner picks whichever is worth more, or ignores the hazard.
+8. **Danger:** damage of a type you pick at the end of each round, rolled once a round, with an optional basic save that each creature makes. It hits everyone, one side, or everyone in a Region (downed PCs too, whose dying goes up). It can grow each round, and it lasts until the fight ends.
+9. **Getting out of danger:** creatures weigh leaving a danger Region against fighting. The distance to its nearest edge is read from the scene, and a Stride toward the edge gets them out once it's covered.
+10. **Hazard with no rule:** a complex hazard is on from round 1; a simple one waits for a rule.
+11. **Live play** (`escalationProgress` on the combat):
+   - At each new round the active GM checks the rules against the fight as it stands and notes the round each one fired. A round-N rule fires in round N; anything else in the round just ended.
+   - Going back a round drops what fired from it on.
+   - The alarm is a tick in the setup ("raised in round N").
+   - A rule's creatures sit in the encounter with hidden tokens, and they count as arrived once their tokens are visible.
+
+How it plays:
+
+- **Creatures waiting on a rule that hasn't fired don't hold a fight open:** they may never come. Creatures already scheduled to arrive do.
+- **Hazards don't hold a fight open** once the creatures are beaten, unless the encounter has nothing but hazards.
+- **The reliability note** lists only hazards with neither Strikes nor reactions the simulator reads.
+- **Reading hazards:** the ability module now compiles hazard actions too (its registry handles hazard actors). 27 of the 68 actions in PF2e's hazards pack compile: save-based reactions, and poisons that ride on Strikes.
+- **Measured** (level-5 benchmark party; a sentry 2 Strides from a gong bringing two moderate guards): it raised the alarm in 48% of fights, and the party's win rate dropped from 100% to 78%. A runner left to fetch help in 72%.
+- **Sweeps:** the bestiary sweep with `--escalate` (1,106 creatures × a round-2 arrival, fire with a Reflex save, and a gong alarm) and with `--map --escalate` both have 0 errors. So does a sweep of all 53 hazards in PF2e's pack.
+
 ## Setup and results
 
 - **Input:** the Combat Tracker encounter, or the selected tokens.
@@ -331,6 +382,7 @@ The bestiary sweep with `--map` (1,106 creatures, each with hold, escort and ret
   - cover for each side
   - reinforcements ("arrives at round N in band X")
   - an objective (with Regions on the scene for a map objective)
+  - escalation rules, and alarm-raisers in the creature table
   - per-creature overrides
 - **Report:**
   - outcome %, win % with a 95% interval, and objective success %

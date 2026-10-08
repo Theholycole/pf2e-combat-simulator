@@ -246,3 +246,32 @@
     white-space: pre-wrap;
     font-size: 0.85em;
 }
+
+/* Escalation rules (E1–E4): one rule a line, its fields wrapping. */
+.pf2e-combat-sim .sim-rule {
+    flex: 1 1 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    padding: 4px 0;
+    border-bottom: 1px dashed var(--color-border-light-tertiary, #999);
+}
+.pf2e-combat-sim .sim-rule select,
+.pf2e-combat-sim .sim-rule input[type="text"] {
+    width: auto;
+    flex: 0 1 auto;
+    max-width: 220px;
+}
+.pf2e-combat-sim .sim-rule input[type="number"] { width: 48px; }
+.pf2e-combat-sim .sim-escalations > p { flex: 1 1 100%; margin: 0; }
+.pf2e-combat-sim .sim-combatants td:nth-child(12) select { min-width: 70px; }
+.pf2e-combat-sim .sim-rule-creatures {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+}
+.pf2e-combat-sim .sim-rule button {
+    width: auto;
+    flex: 0 0 auto;
+}

@@ -98,6 +98,8 @@ export function adjustDamage(defender, instances) {
     }
     let total = 0;
     for (const entry of immediate.values()) total += adjustInstance(defender, entry.type, entry.amount, entry.precision);
+    // Hardness (hazards, objects) comes off the damage.
+    if (defender.hardness) total -= defender.hardness;
     return { total: Math.max(0, total), persistent };
 }
 

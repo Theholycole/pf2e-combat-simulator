@@ -5,10 +5,13 @@
 // it's trained for, and fights a martial party of its level three times.
 // Reports what the creatures used, what was left out, and any errors.
 //
-//   node tools/bestiary-abilities.mjs [--map] [pack …]
+//   node tools/bestiary-abilities.mjs [--map] [--escalate] [pack …]
 //
 // --map: each fight also has a map objective, in turn hold an area, escort a
 // creature to the exit, and retrieve an item and escape (O1–O3).
+// --escalate: each fight also has an escalation, in turn a second one arriving
+// in round 2, fire from round 1 (Reflex DC by level), and the monster raising
+// the alarm at a gong for a second one (E1–E3).
 
 const { readDocuments } = await import(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs", import.meta.url).href);
 const { compileBasicActions, compileMonsterAbility } = await import(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/src/compiler/index.js", import.meta.url).href);
@@ -19,7 +22,8 @@ const { addBuiltin } = await import("../src/engine/abilities.js");
 
 const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 const MAP = process.argv.includes("--map");
-const ARGS = process.argv.slice(2).filter((arg) => arg !== "--map");
+const ESCALATE = process.argv.includes("--escalate");
+const ARGS = process.argv.slice(2).filter((arg) => arg !== "--map" && arg !== "--escalate");
 const PACKS = ARGS.length ? ARGS : ["pathfinder-monster-core", "pathfinder-monster-core-2", "pathfinder-npc-core"];
 // A map objective for each seed, with a merchant to escort.
 const MAP_OBJECTIVES = [
@@ -122,7 +126,15 @@ for (const pack of PACKS) {
             try {
                 const objective = MAP ? MAP_OBJECTIVES[(seed - 1) % MAP_OBJECTIVES.length] : null;
                 const merchant = objective?.kind === "escort" ? [{ ...party[3], id: "merchant", name: "Merchant", kind: "npc", acts: false }] : [];
-                const result = simulate({ combatants: [...party, ...merchant, monster], ...(objective ? { setup: { objective } } : {}) }, {}, seed, { log: true });
+                const second = ESCALATE && seed !== 2 ? [{ ...monster, id: "second", name: `${monster.name} 2` }] : [];
+                const escalations = !ESCALATE ? null : seed === 1
+                    ? { rules: [{ when: { kind: "round", round: 2 }, then: { kind: "arrive", creatureIds: ["second"], delay: 0, band: "near" } }] }
+                    : seed === 2
+                        ? { rules: [{ when: { kind: "round", round: 1 }, then: { kind: "danger", damage: `${Math.ceil(level / 2)}d6`, type: "fire", save: { type: "reflex", dc: 15 + level }, targets: "all" } }] }
+                        : { rules: [{ when: { kind: "alarm" }, then: { kind: "arrive", creatureIds: ["second"], delay: 1, band: "far" } }] };
+                const raiser = ESCALATE && seed === 3 ? { ...monster, alarm: "gong", gongFeet: 30 } : monster;
+                const setup = { ...(objective ? { objective } : {}), ...(escalations ? { escalations } : {}) };
+                const result = simulate({ combatants: [...party, ...merchant, raiser, ...second], setup }, {}, seed, { log: true });
                 stats.fights++;
                 for (const line of result.log) {
                     const cast = / casts (.+?)(?: \(\d actions\))?(?: at |$)/.exec(line)?.[1];

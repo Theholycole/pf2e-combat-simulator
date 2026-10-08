@@ -4,6 +4,7 @@ import { oddsCheck } from "./odds.js";
 import { registerLogger } from "./logger.js";
 import { FightLogApp } from "./log-app.js";
 import { setUpMapTracking } from "./map.js";
+import { setUpEscalationTracking } from "./escalation-tracking.js";
 
 function openSimulator({ combat = null, tokens = null } = {}) {
     if (!game.user.isGM) return ui.notifications.warn("Combat Simulator is for the GM.");
@@ -66,6 +67,8 @@ Hooks.once("init", () => {
     registerLogger();
     // Rounds the party holds a map objective's area, counted at each new round (active GM).
     setUpMapTracking();
+    // The round each escalation rule fires in play (active GM).
+    setUpEscalationTracking();
 });
 
 function openLog() {

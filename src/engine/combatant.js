@@ -74,9 +74,9 @@ export function canAct(c) {
     return c.status === ACTIVE && !c.cond.unconscious && !c.cond.paralyzed && !c.cond.asleep && c.acts !== false;
 }
 
-// Immobilized, restrained and grabbed creatures can't Stride or Step.
+// Immobilized, restrained and grabbed creatures can't Stride or Step; nor can a hazard.
 export function canMove(c) {
-    return !c.cond.immobilized && !c.cond.restrained && !c.cond.grabbed;
+    return !c.cond.immobilized && !c.cond.restrained && !c.cond.grabbed && c.kind !== "hazard";
 }
 
 // The chance a creature's targeted attack or spell finds its target: blinded,
@@ -129,7 +129,8 @@ export function offGuardTo(target, attacker, melee) {
 }
 
 export function multipleAttackPenalty(strike, attacksMade) {
-    if (attacksMade <= 0) return 0;
+    // A hazard's Strike: "No multiple attack penalty".
+    if (attacksMade <= 0 || strike.noMap) return 0;
     if (attacksMade === 1) return strike.agile ? 4 : 5;
     return strike.agile ? 8 : 10;
 }

@@ -6,7 +6,8 @@ import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
 import { effectModel } from "../src/engine/effects.js";
 import { addBuiltin } from "../src/engine/abilities.js";
-import { MAP_KINDS, readMapFeet, roundsHeld } from "./map.js";
+import { MAP_KINDS, readMapFeet, readRegionFeet, regionToRegions, roundsHeld } from "./map.js";
+import { hazardSpec } from "./hazards.js";
 
 export const MODULE_ID = "pf2e-combat-simulator";
 
@@ -490,7 +491,7 @@ async function readAbilities(actor, { fresh = false } = {}) {
         const pool = frequency?.max && !["turn", "round"].includes(frequency.per) ? `frequency:${item.id}` : null;
         if (pool) result.pools[pool] = frequency.value ?? frequency.max;
         result.handled.add(item);
-        result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item });
+        result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null });
     }
     // Basic actions: every PC; a monster only those it's trained for (its stat block lists the skill). Anyone can Escape.
     const basics = abilityModule.api?.basicActions ?? {};
@@ -775,7 +776,8 @@ function readIwr(list) {
 
 export function actorKind(actor) {
     if (actor.type === "character") return "pc";
-    if (["hazard", "vehicle", "loot", "party"].includes(actor.type)) return "object";
+    if (actor.type === "hazard") return "hazard";
+    if (["vehicle", "loot", "party"].includes(actor.type)) return "object";
     return "npc";
 }
 
@@ -808,7 +810,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     // A Strike's riders are gaps unless an ability plays them.
     const riders = new Set(abilities.abilities.flatMap((ability) => (ability.plan?.trigger?.event === "strike" ? [ability.plan.trigger.attackEffect, ability.plan.source?.slug] : [])).filter(Boolean));
     for (const strike of strikes) for (const effect of strike.attackEffects ?? []) if (!riders.has(effect)) gaps.push({ kind: "attack effect", name: effect });
-    if (!strikes.length && !spells.length && actorKind(actor) !== "object") {
+    if (!strikes.length && !spells.length && !["object", "hazard"].includes(actorKind(actor))) {
         // Swarms and troops attack with area abilities, which aren't simulated yet.
         gaps.push({ kind: "no Strikes", name: "can't attack in the simulation" });
     }
@@ -821,7 +823,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     const kind = actorKind(actor);
     const conditions = fresh ? {} : readConditions(actor);
     const shield = readShield(actor);
-    return {
+    const spec = {
         id: id ?? actor.id,
         actorId: actor.id,
         actorUuid: actor.uuid,
@@ -861,6 +863,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         conditions,
         gaps
     };
+    // A hazard (E4): its routine, Disable options and reactions.
+    return kind === "hazard" ? hazardSpec(actor, spec) : spec;
 }
 
 // Default side from the actor and token disposition.
@@ -967,6 +971,8 @@ function applyProfile(c, actorProfile, override) {
     const morale = {};
     for (const key of ["template", "boss", "leader", "group"]) if (merged[key] !== undefined && merged[key] !== "") morale[key] = merged[key];
     if (Object.keys(morale).length) c.morale = morale;
+    // An alarm-raiser (escalations): "gong" or "runner".
+    if (merged.alarm) c.alarm = merged.alarm;
     if (merged.arrivesRound) {
         c.arrivesRound = Number(merged.arrivesRound);
         c.arrivesBand = merged.arrivesBand ?? "near";
@@ -1003,6 +1009,7 @@ export async function buildSnapshot(entries, { setup = {}, overrides = {}, fresh
         if (objective.kind === "hold" && combat?.started) objective.held = roundsHeld(combat);
         snapshot.setup = { ...setup, objective };
     }
+    if (setup.escalations?.rules?.length || combatants.some((c) => c.alarm)) readEscalations(snapshot, placed, combat);
     const pcs = combatants.filter((c) => c.kind === "pc");
     if (pcs.length) snapshot.partyLevel = Math.round(pcs.reduce((sum, c) => sum + c.level, 0) / pcs.length);
     if (combat && combat.started && combat.round > 0) {
@@ -1013,6 +1020,42 @@ export async function buildSnapshot(entries, { setup = {}, overrides = {}, fresh
         snapshot.turn = Math.max(0, snapshot.order.indexOf(current));
     }
     return snapshot;
+}
+
+// Escalations (E1–E4) from the scene and the tracker: each creature's place
+// relative to the rules' Regions, the gong's distance, which of a rule's
+// creatures are here already (visible tokens), and what has fired in play.
+function readEscalations(snapshot, placed, combat) {
+    const escalations = snapshot.setup.escalations ?? {};
+    const scene = combat?.scene ?? placed.find((entry) => entry.token?.parent)?.token.parent ?? canvas?.scene;
+    const rules = (escalations.rules ?? []).map((rule) => ({ ...rule, when: { ...rule.when }, then: { ...rule.then } }));
+    const regions = new Set();
+    for (const rule of rules) {
+        if (rule.when.kind === "enters" && rule.when.region) regions.add(rule.when.region);
+        if (rule.then.kind === "danger" && rule.then.targets === "region" && rule.then.region) regions.add(rule.then.region);
+    }
+    const gongRegion = escalations.gong?.region ?? null;
+    const feet = readRegionFeet(scene, [...regions, ...(gongRegion ? [gongRegion] : [])], placed);
+    for (const { combatant: c, token } of placed) {
+        const own = feet.get(c.id) ?? {};
+        if (regions.size) c.regionFeet = Object.fromEntries([...regions].map((region) => [region, own[region] ?? { to: Infinity, edge: 0 }]));
+        if (c.alarm === "gong") c.gongFeet = gongRegion && own[gongRegion] ? own[gongRegion].to : (escalations.gong?.strides ?? 2) * (c.speed || 25);
+        // A rule's creature whose token is showing is here already.
+        if (rules.some((rule) => rule.then.kind === "arrive" && (rule.then.creatureIds ?? []).includes(c.id)) && token && !token.hidden) c.arrived = true;
+    }
+    // Coming in at a Region, with a map objective: that Region's distances to the area and the exit.
+    const objective = snapshot.setup.objective;
+    if (MAP_KINDS.has(objective?.kind)) {
+        for (const rule of rules) {
+            if (rule.then.kind !== "arrive" || !rule.then.placeRegion) continue;
+            rule.then.placeFeet = regionToRegions(scene, rule.then.placeRegion, objective);
+        }
+    }
+    // In play: the rounds the rules fired, and the alarm the GM ticked.
+    const fired = combat?.started ? readFlag(combat, "escalationProgress")?.fired ?? {} : {};
+    for (const rule of rules) if (rule.id && fired[rule.id] !== undefined) rule.fired = fired[rule.id];
+    const alarm = combat?.started && escalations.alarm?.raisedRound ? { raisedRound: Number(escalations.alarm.raisedRound) } : null;
+    snapshot.setup = { ...snapshot.setup, escalations: { ...escalations, rules, alarm } };
 }
 
 export function entriesFromCombat(combat) {

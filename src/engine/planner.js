@@ -18,6 +18,8 @@ import { isShaken } from "./morale.js";
 import { chargeStrike, ducksFromCoverFire, multiStrikeOrder, strikeNamed } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
+import { alarmOpen, expectedDanger } from "./escalations.js";
+import { bestDisable, isHazard } from "./hazards.js";
 import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets } from "./spells.js";
 import { levelDC } from "./abilities.js";
 
@@ -151,6 +153,8 @@ function targetValue(state, target, attacker) {
     // A creature the simulator can't make attack (a swarm with only area
     // attacks) still has to be beaten to end the fight, so it's never worthless.
     if (target.kind !== "object") threat = Math.max(threat, 0.5 * (state.meanThreat?.[target.side] ?? 0), 1);
+    // An alarm-raiser (E1): dropping it keeps the help away, worth what the help would deal.
+    if (target.alarm && attacker.side !== target.side && alarmOpen(state)) threat += state.escalation.helpThreat ?? 0;
     return threat + objectiveBonus(state, target, attacker);
 }
 
@@ -191,6 +195,9 @@ class PlanContext {
         this.ownValue = Math.max(targetValue(state, c, this.enemies[0] ?? c), 0.5);
         this.wavering = c.moraleState.wavering || c.groupState === "wavering";
         this.map = mapPlan(state, c, this.profile);
+        this.alarm = alarmPlan(state, c, this);
+        // Danger Regions (E3): what staying in each would cost at the round's end.
+        this.dangers = (state.dangers ?? []).filter((danger) => danger.targets === "region" && c.regionFeet?.[danger.region]).map((danger) => ({ region: danger.region, cost: this.profile.selfPreservation * this.ownValue * Math.min(1.5, expectedDanger(danger, c) / remainingHp(c)) }));
         this.rootPlace = c.areaFeet !== undefined ? { area: c.areaFeet, exit: c.exitFeet } : null;
     }
 
@@ -206,10 +213,37 @@ class PlanContext {
         return this.rootPlace;
     }
 
+    // Where a position is relative to escalation Regions: a move's own record, the
+    // creature it engaged (in or out of them as it is), or where it began.
+    regionsOf(pos) {
+        if (pos.regions) return pos.regions;
+        if (pos.melee !== null && pos.melee !== this.c.meleeId) {
+            const target = pos.melee === "new" ? this.state.byId.get(pos.newWith) : this.enemies.find((enemy) => enemy.meleeId === pos.melee);
+            if (target?.regionFeet) return target.regionFeet;
+        }
+        return this.c.regionFeet ?? {};
+    }
+
+    // Staying in danger: its cost, a little less the closer the edge.
+    dangerValue(node) {
+        if (!this.dangers.length) return 0;
+        const regions = this.regionsOf(node.pos);
+        let cost = 0;
+        for (const danger of this.dangers) {
+            const place = regions[danger.region];
+            if (!place || place.to > 0) continue;
+            const strides = stridesFor(this.c, place.edge);
+            cost += danger.cost * (1 + 0.5 * strides / (1 + strides));
+        }
+        return -cost;
+    }
+
     // A position out of any Melee in a band, staying where it is on the map.
     away(node, band) {
         const place = this.placeOf(node.pos);
-        return place ? { band, melee: null, newWith: null, place } : { band, melee: null, newWith: null };
+        const pos = place ? { band, melee: null, newWith: null, place } : { band, melee: null, newWith: null };
+        if (this.dangers.length) pos.regions = this.regionsOf(node.pos);
+        return pos;
     }
 
     // The creature at a position, for stridesToEngage.
@@ -251,10 +285,19 @@ class PlanContext {
         if (pos.melee === "new") melee = 1_000_000 + (this.enemyIndex.get(pos.newWith) ?? 0);
         else if (pos.melee !== null) melee = pos.melee + 1;
         const key = ((melee * 4 + (BAND_CODES[pos.band] ?? 3)) * 2 + (node.shield ? 1 : 0)) * 2 + (node.prone ? 1 : 0);
+        let alarmKey = this.alarm ? Math.min(15, stridesFor(this.c, node.gong ?? 0)) * 2 + (node.alarmRaised ? 1 : 0) : 0;
+        // In or out of each danger Region, and how far from its edge.
+        if (this.dangers.length) {
+            const regions = this.regionsOf(pos);
+            for (const danger of this.dangers.slice(0, 3)) {
+                const place = regions[danger.region];
+                alarmKey = alarmKey * 8 + (!place || place.to > 0 ? 0 : 1 + Math.min(6, stridesFor(this.c, place.edge)));
+            }
+        }
         const place = this.placeOf(pos);
-        if (!place) return key;
+        if (!place) return key * 32 * 512 + alarmKey;
         const map = ((Math.min(15, stridesFor(this.c, place.area)) * 16 + Math.min(15, stridesFor(this.c, place.exit))) * 2 + (node.carrying ? 1 : 0)) * 2 + (node.atItem ? 1 : 0);
-        return key * 1024 + map;
+        return (key * 1024 + map) * 32 * 512 + alarmKey;
     }
 
     // roundDamage for an enemy against this creature, cached for the decision.
@@ -458,14 +501,28 @@ class PlanContext {
     }
 
     terminal(node) {
+        // A runner that left: what its help is worth, and no more fighting.
+        if (node.left) return this.alarmValue(node);
         const key = this.positionKey(node);
         let cached = this.terminalCache.get(key);
         if (cached === undefined) {
             const exposureValue = this.ownValue * Math.min(1.5, this.exposure(node) / remainingHp(this.c));
-            cached = NEXT_TURN_WEIGHT * this.profile.aggression * this.offenseNext(node) - this.profile.selfPreservation * exposureValue + this.mapValue(node);
+            cached = NEXT_TURN_WEIGHT * this.profile.aggression * this.offenseNext(node) - this.profile.selfPreservation * exposureValue + this.mapValue(node) + this.alarmValue(node) + this.dangerValue(node);
             this.terminalCache.set(key, cached);
         }
         return cached;
+    }
+
+    // Raising the alarm (E1), as a potential like a map objective's: a gong's
+    // worth grows as the raiser gets closer; a runner's as it gets off the field.
+    alarmValue(node) {
+        const alarm = this.alarm;
+        if (!alarm) return 0;
+        const near = (strides) => 1 / (1 + strides);
+        if (node.alarmRaised || node.left) return alarm.worth;
+        if (alarm.kind === "gong") return alarm.worth * near(stridesFor(this.c, node.gong) + 1);
+        const toLeave = node.pos.melee !== null ? 3 : node.pos.band === "far" ? 1 : 2;
+        return alarm.worth * near(toLeave);
     }
 }
 
@@ -483,9 +540,27 @@ function child(node, action, cost, value, changes = {}) {
         casts: changes.cast !== undefined ? [...node.casts, ...[].concat(changes.cast)] : node.casts,
         // Map objectives (the place is on pos: see placeOf).
         carrying: changes.carrying ?? node.carrying,
+        gong: changes.gong ?? node.gong,
+        alarmRaised: changes.alarmRaised ?? node.alarmRaised,
+        left: changes.left ?? node.left,
         atItem: changes.atItem ?? (changes.pos && changes.pos !== node.pos && changes.pos.melee !== null ? false : node.atItem),
         first: node.first ?? action
     };
+}
+
+// What raising the alarm is worth to a raiser (E1), or null: two rounds of
+// the help's damage to the party, in the planner's units (like a share of a
+// kill); a runner also gives up its own two rounds.
+function alarmPlan(state, c, ctx) {
+    if (c.side !== "foes" || !c.alarm || !alarmOpen(state)) return null;
+    const party = state.list.filter((o) => o.side === "party" && isActive(o) && o.kind !== "object");
+    if (!party.length) return null;
+    const hp = party.reduce((sum, o) => sum + remainingHp(o), 0) / party.length;
+    const perDamage = (state.meanThreat?.party ?? 1) / hp;
+    let worth = 2 * perDamage * (state.escalation.helpThreat ?? 0);
+    if (c.alarm === "runner") worth -= 2 * perDamage * (state.threat.get(c.id) ?? 0);
+    if (worth <= 0) return null;
+    return { kind: c.alarm, worth: worth * ctx.profile.objective };
 }
 
 // What a map objective is worth to this creature (O1–O3), or null when it plays no part.
@@ -536,7 +611,7 @@ function expand(ctx, node, actionsLeft) {
     const { state, c } = ctx;
     const children = [];
     const remaining = actionsLeft - node.used;
-    if (remaining <= 0) return children;
+    if (remaining <= 0 || node.left) return children;
     const mustWithdraw = c.mustWithdraw && !node.moved && !c.withdrewThisTurn && canMove(c);
     const inAnyMelee = node.pos.melee !== null;
     const mobile = canMove(c);
@@ -1115,6 +1190,50 @@ function expand(ctx, node, actionsLeft) {
             if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
             children.push(next);
         }
+        // Out of a danger Region (E3): a Stride toward its nearest edge.
+        if (mobile && ctx.dangers.length) {
+            const regions = ctx.regionsOf(node.pos);
+            for (const danger of ctx.dangers) {
+                const place = regions[danger.region];
+                if (!place || place.to > 0) continue;
+                const edge = Math.max(0, place.edge - Math.max(5, c.speed ?? 25));
+                const pos = ctx.away(node, inAnyMelee ? "near" : node.pos.band);
+                pos.regions = { ...regions, [danger.region]: { to: edge > 0 ? 0 : 5, edge } };
+                const next = child(node, { type: "stride", move: { kind: "outOf", region: danger.region } }, 1, 0, { pos });
+                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                children.push(next);
+            }
+        }
+        // The alarm (E1): toward the gong and sound it, or (a runner) off the battlefield.
+        if (ctx.alarm && !node.alarmRaised) {
+            if (ctx.alarm.kind === "gong" && node.gong > 0 && mobile) {
+                const next = child(node, { type: "stride", move: { kind: "toGong" } }, 1, 0, { pos: ctx.away(node, inAnyMelee ? "near" : node.pos.band), gong: Math.max(0, node.gong - Math.max(5, c.speed ?? 25)) });
+                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                children.push(next);
+            }
+            if (ctx.alarm.kind === "gong" && node.gong <= 0 && !restrained) {
+                const next = child(node, { type: "soundGong" }, 1, 0, { alarmRaised: true });
+                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                children.push(next);
+            }
+            if (ctx.alarm.kind === "runner" && mobile && !inAnyMelee && node.pos.band === "far") children.push(child(node, { type: "stride", move: { kind: "leave" } }, 1, 0, { left: true, moved: true }));
+        }
+        // Disable a hazard (E4): 2 actions, valued as its share of putting the hazard out of the fight.
+        if (remaining >= 2 && c.kind === "pc" && !restrained && node.pos.band !== "far") {
+            for (const hazard of ctx.enemies) {
+                if (!isHazard(hazard) || node.casts.includes(`disable${hazard.id}`)) continue;
+                const pick = bestDisable(c, hazard);
+                if (!pick) continue;
+                const odds = degreeDistribution(pick.modifier, pick.option.dc);
+                const done = hazard.hazard.progress?.[`${pick.option.skill}:${pick.option.dc}`] ?? 0;
+                const left = Math.max(1, pick.option.needed - done);
+                const progress = Math.min(1, (odds[SUCCESS] + 2 * odds[CRITICAL_SUCCESS]) / left) - odds[CRITICAL_FAILURE] * 0.25;
+                if (progress <= 0) continue;
+                const next = child(node, { type: "disableHazard", targetId: hazard.id }, 2, targetValue(state, hazard, c) * progress, { cast: `disable${hazard.id}` });
+                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                children.push(next);
+            }
+        }
         if (remaining >= 2 && canDoTask(state, c) && node.pos.band !== "far") {
             const objective = state.objective;
             const modifier = taskModifier(objective, c);
@@ -1147,7 +1266,7 @@ function expand(ctx, node, actionsLeft) {
 // The scored one-step options for the creature right now (for tests and tuning).
 export function scoreOptions(state, c) {
     const ctx = new PlanContext(state, c);
-    const root = { value: 0, pos: { band: c.band, melee: c.meleeId, newWith: null }, shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, atItem: ctx.map?.kind === "retrieve" && !!state.objective.item.dropped && atItem(state, c), first: null };
+    const root = { value: 0, pos: { band: c.band, melee: c.meleeId, newWith: null }, shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, gong: c.gongFeet ?? 0, alarmRaised: false, left: false, atItem: ctx.map?.kind === "retrieve" && !!state.objective.item.dropped && atItem(state, c), first: null };
     const rootTerminal = ctx.terminal(root);
     return {
         stay: rootTerminal,
@@ -1170,6 +1289,9 @@ export function chooseAction(state, c) {
         moved: false,
         casts: [],
         carrying: !!c.carrying,
+        gong: c.gongFeet ?? 0,
+        alarmRaised: false,
+        left: false,
         atItem: ctx.map?.kind === "retrieve" && !!state.objective.item.dropped && atItem(state, c),
         first: null
     };

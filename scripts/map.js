@@ -2,7 +2,7 @@
 // Regions; each creature's distance to them is measured from its token, and
 // in live play the active GM counts the rounds the party holds the area.
 
-import { heldRounds, nearestFeet, recordRound, squareFeet } from "../src/adapter/map.js";
+import { edgeFeet, heldRounds, nearestFeet, recordRound, squareFeet } from "../src/adapter/map.js";
 import { MODULE_ID, readFlag, savedSetup, sideOf } from "./snapshot.js";
 
 export const MAP_KINDS = new Set(["hold", "escort", "retrieve"]);
@@ -54,6 +54,36 @@ export function readMapFeet(scene, objective, placed) {
     let areaToExit = null;
     if (area?.length && exit?.length) areaToExit = scene.grid.isSquare ? nearestFeet(area, exit, scene.grid.distance ?? 5) : null;
     return { feet, areaToExit };
+}
+
+// Each combatant's place relative to some Regions: Map(id → { [region]: { to, edge } }):
+// feet to the Region (0 inside), and from inside, feet to its nearest edge.
+export function readRegionFeet(scene, regionIds, placed) {
+    const result = new Map();
+    const squaresOf = new Map(regionIds.map((id) => [id, regionSquares(scene, id)]));
+    for (const { combatant, token } of placed) {
+        const entry = {};
+        for (const [id, squares] of squaresOf) {
+            if (!squares?.length || !token) continue;
+            const to = feetTo(scene, token, squares);
+            if (to === null) continue;
+            entry[id] = { to, edge: to > 0 ? 0 : edgeFeet(tokenSquares(token), squares, scene.grid.distance ?? 5) };
+        }
+        result.set(combatant.id, entry);
+    }
+    return result;
+}
+
+// From one Region to a map objective's area and exit: { area?, exit? } feet.
+export function regionToRegions(scene, regionId, objective) {
+    const from = regionSquares(scene, regionId);
+    if (!from?.length || !scene.grid.isSquare) return null;
+    const result = {};
+    for (const [key, id] of [["area", objective.areaRegion], ["exit", objective.exitRegion]]) {
+        const squares = regionSquares(scene, id);
+        if (squares?.length) result[key] = nearestFeet(from, squares, scene.grid.distance ?? 5);
+    }
+    return Object.keys(result).length ? result : null;
 }
 
 // Rounds the party has held the area in this encounter (live play).

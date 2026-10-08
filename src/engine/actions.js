@@ -4,6 +4,7 @@
 
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatCheck } from "./checks.js";
 import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
+import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
 import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, concussiveType, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
@@ -99,13 +100,15 @@ function defenceId(target) {
 // bonus: a circumstance damage bonus (forceful); offGuardChance: for backstabber
 // and Sneak Attack; packAllies: the attacker's allies within reach of the target (Pack Attack).
 export function expectedHitDamage(attacker, strike, target, critical, { bonus = 0, offGuardChance = 0, packAllies = 0 } = {}) {
+    // Hazards and objects: immune to critical hits, and Hardness off each hit.
+    if (critical && target.immunities?.includes("critical-hits")) critical = false;
     let total = baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance);
     if (attacker.strikeExtras?.length) total += expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies);
     for (const part of featureParts(attacker, strike, target, { offGuard: offGuardChance })) {
         const amount = ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (critical && !part.noCrit ? 2 : 1);
         total += part.chance * adjustInstance(target, part.type ?? strike.damage[0]?.type ?? "untyped", amount, !!part.precision);
     }
-    return total;
+    return target.hardness ? Math.max(0, total - target.hardness) : total;
 }
 
 // Extra damage parts a PC's class features add to a Strike, each with the
@@ -278,7 +281,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         }
         return { degree, damage: 0, trigger };
     }
-    const critical = degree === CRITICAL_SUCCESS;
+    // A hazard's or an object's immunity to critical hits: a hit's damage.
+    const critical = degree === CRITICAL_SUCCESS && !target.immunities?.includes("critical-hits");
     // A hit on its own turn, for Strike, Breathe, Rend's "last action was a successful Strike" (C26).
     if (!reaction) attacker.lastHit = { strike: strike.name, targetId: target.id, action: attacker.actionCount ?? 0, round: state.round };
     const earlier = history.filter((entry) => entry.strike === strike.name).length;
@@ -733,6 +737,8 @@ export function stride(state, c, move) {
             moveTo(c, target);
             leftItem(state, c);
         }
+        // Escalation Regions (E1, E3): in or out of them as the target is.
+        if (c.regionFeet && target.regionFeet) c.regionFeet = structuredClone(target.regionFeet);
     } else if (move.kind === "approach") {
         // Toward a creature, or a dropped item (targetId "item"), too far to reach this Stride.
         const item = state.objective?.item;
@@ -741,6 +747,12 @@ export function stride(state, c, move) {
         leaveMelee(state, c, c.band === "engaged" ? "near" : c.band);
         approach(state, c, target);
         leftItem(state, c);
+    } else if (move.kind === "outOf") {
+        leaveMelee(state, c, c.band === "engaged" ? "near" : c.band);
+        strideOutOf(state, c, move.region);
+    } else if (move.kind === "toGong") {
+        leaveMelee(state, c, c.band === "engaged" ? "near" : c.band);
+        strideToGong(state, c);
     } else if (move.kind === "toArea" || move.kind === "toExit") {
         leaveMelee(state, c, c.band === "engaged" ? "near" : c.band);
         moveToward(state, c, move.kind === "toArea" ? "area" : "exit");
@@ -770,6 +782,11 @@ export function leaveField(state, c) {
     leaveMelee(state, c, "gone");
     c.status = FLED;
     log(state, `  ${c.name} leaves the battlefield`);
+    // A runner (E1): gone to fetch help.
+    if (c.alarm === "runner" && state.escalation && !state.escalation.alarm.raised) {
+        c.ranForHelp = true;
+        raiseAlarm(state, c);
+    }
     state.pendingEvents.push({ type: "fled", who: c });
 }
 

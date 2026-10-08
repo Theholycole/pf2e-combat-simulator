@@ -63,10 +63,11 @@ export function reliability(snapshot) {
         reasons.push(`Foes have ${foeAbilities} special abilities or Strike effects (such as Grab) that aren't simulated: results lean towards the party.`);
     }
     const protectedId = snapshot.setup?.objective?.kind === "protect" ? snapshot.setup.objective.protectId : null;
-    const hazards = snapshot.combatants.filter((c) => c.side === "foes" && c.kind === "object" && c.id !== protectedId);
+    // Hazards are played (E4) when they have Strikes or reactions the simulator reads; objects never are.
+    const hazards = snapshot.combatants.filter((c) => c.side === "foes" && c.id !== protectedId && (c.kind === "object" || (c.kind === "hazard" && !(c.strikes ?? []).length && !(c.hazard?.trigger?.abilities ?? []).length)));
     if (hazards.length) {
         foeMissing += hazards.length;
-        reasons.push(`${hazards.map((c) => c.name).join(", ")} ${hazards.length > 1 ? "are hazards or objects" : "is a hazard or object"} on the foes' side; their routines aren't simulated: results favour the party.`);
+        reasons.push(`${hazards.map((c) => c.name).join(", ")} ${hazards.length > 1 ? "are hazards or objects" : "is a hazard or object"} on the foes' side the simulation can't play: results favour the party.`);
     }
     const pcCasters = pcs.filter((c) => spellsMissing(c) >= SPELL_HEAVY);
     if (pcCasters.length) {

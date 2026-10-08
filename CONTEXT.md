@@ -35,6 +35,12 @@ The abstract distance of a combatant: **engaged** (in a **Melee**), **near** (on
 **Melee**:
 A set of combatants from both sides who can reach each other. Joining one is a Stride; leaving one is a Step or a Stride.
 
+**Escalation**:
+A rule that changes a fight partway: **when** something happens (a round, the alarm, a creature falling, the foes at half HP, a foe fleeing, the party entering a Region), **then** creatures arrive, a **hazard** starts, or **danger** starts. Each rule fires once.
+
+**Hazard**:
+A PF2e hazard on the foes' side (kind `hazard`). A complex one takes turns with its routine; a simple one fires once when a rule sets it off. It can't move. PCs Disable it or smash it.
+
 **Area** and **exit**:
 The places of a map objective: scene Regions, or Strides typed by hand. Each combatant keeps its distance in feet to both, alongside its band. Engaging a creature puts you where it is.
 

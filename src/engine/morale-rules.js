@@ -28,7 +28,9 @@ export const MORALE_RULES = Object.freeze({
         halfHp: { enabled: true, label: "Falls to half HP", oncePerCreature: true },
         strongestAllyDown: { enabled: true, label: "Sees its strongest ally destroyed", oncePerCreature: true },
         frightenedByEnemy: { enabled: true, label: "Becomes frightened from an enemy effect" },
-        surprised: { enabled: true, label: "Surprised (first round)", source: "Morale.md" }
+        surprised: { enabled: true, label: "Surprised (first round)", source: "Morale.md" },
+        // Escalations (user, 2026-10-08): not a check; foe reinforcements arriving steady wavering foes.
+        helpArrives: { enabled: true, label: "Help arrives: wavering foes steady" }
     },
 
     modifiers: {
@@ -45,6 +47,8 @@ export const MORALE_RULES = Object.freeze({
         alreadyFailed: { enabled: true, value: -2, label: "Already failed a morale check this encounter" },
         quarterStrength: { enabled: true, value: -4, label: "Side reduced to one-quarter strength" },
         isolated: { enabled: true, value: -4, label: "Isolated from allies" },
+        // Escalations (user, 2026-10-08): the alarm was raised and its help hasn't come yet.
+        helpComing: { enabled: true, value: 1, label: "Help is on its way (the alarm was raised)" },
         // Morale.md (AD&D), off by default (M3).
         hatedEnemy: { enabled: false, value: 4, label: "Fighting a hated enemy", situational: true, source: "Morale.md" },
         outnumber3to1: { enabled: false, value: 2, label: "Outnumbers opponents 3:1", source: "Morale.md" },

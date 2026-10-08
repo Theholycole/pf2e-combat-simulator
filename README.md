@@ -11,6 +11,10 @@ A GM-only Foundry VTT module (Foundry 14, PF2e 8.5) that plays an encounter in m
 - **Real-fight log**: when an encounter with a player-owned PC begins, the odds are predicted quietly. When it ends, you're asked how it went. The log window (module settings, or the Simulate window) shows how well predictions matched reality. You can switch it off with the "Log real fights" setting.
 - Macro API: `game.modules.get("pf2e-combat-simulator").api.open()`, `.oddsCheck()` and `.openLog()`.
 - **Map objectives**: hold an area, escort a creature to the exit, or retrieve an item and escape. You pick the area and the exit from the scene's Regions, or type Strides by hand. In play, the rounds the party holds the area are counted at each new round, and the Odds check starts from there. See [docs/spec.md](docs/spec.md#map-objectives-o1o3-2026-10-08).
+- **Escalations**: rules that change a fight partway. **When** a round comes, the alarm is raised, a creature falls, the foes are at half HP, a foe flees, or the party enters a Region, **then** creatures arrive, a PF2e hazard starts, or danger (damage each round, with an optional basic save) starts.
+  - Foes marked as alarm-raisers head for a gong or run off to fetch help when the help is worth it.
+  - Hazards take their turns or fire once, and the PCs can Disable or smash them.
+  - In play, the round each rule fires is noted at each new round. See [docs/spec.md](docs/spec.md#escalations-e1e4-2026-10-08).
 - **Spells** (milestone 2): creatures cast the spells the resolution core can resolve: saves and spell attacks, with their damage, conditions and push or pull. Everything else is listed as a gap. It needs the `pf2e-resolution-core` module, and the spell module for the plans.
 
 The design is in [docs/spec.md](docs/spec.md) and the vocabulary in [CONTEXT.md](CONTEXT.md). The rules choices the user confirmed are in [docs/morale-decisions.md](docs/morale-decisions.md) (morale) and [docs/spell-decisions.md](docs/spell-decisions.md) (spellcasting).
@@ -20,7 +24,7 @@ The design is in [docs/spec.md](docs/spec.md) and the vocabulary in [CONTEXT.md]
 - `node --test` runs the engine, rules, benchmark and adapter tests.
 - `src/engine/` is pure JavaScript with no Foundry dependency. It runs in a Web Worker in Foundry and in Node for tests.
 - `scripts/` is the Foundry layer:
-  - `snapshot.js` is the only file that reads PF2e documents (`map.js` reads the scene's Regions and tracks rounds held)
+  - `snapshot.js` is the only file that reads PF2e documents (`map.js` reads the scene's Regions and tracks rounds held; `hazards.js` reads hazard actors; `escalation-tracking.js` notes when rules fire in play)
   - `app.js` and `odds.js` are the UI
   - `runner.js` handles the worker
 - `src/adapter/formula.js` parses PF2e's readable damage formulas. It has been checked against all 1,027 Monster Core Strike formulas.

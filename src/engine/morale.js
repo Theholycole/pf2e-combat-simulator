@@ -4,6 +4,7 @@
 import { SURRENDERED, baseWill, canAct, hpFraction, isActive, statusPenalty } from "./combatant.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf } from "./checks.js";
 import { engagedAllies, engagedEnemies, removeFromSpace } from "./space.js";
+import { helpPending } from "./escalations.js";
 
 export const GROUP_STATES = ["steady", "shaken", "wavering", "broken"];
 
@@ -24,8 +25,9 @@ export function defaultMoraleProfile(spec, { foes, partyLevel, objective }) {
     return profile;
 }
 
+// A runner gone to fetch help (escalations) isn't a loss.
 function fighters(state, side) {
-    return state.list.filter((c) => c.side === side && c.kind !== "object" && c.status !== "pending");
+    return state.list.filter((c) => c.side === side && c.kind !== "object" && c.kind !== "hazard" && c.status !== "pending" && !c.ranForHelp);
 }
 
 // Lanchester's square law: a side's fighting strength is its remaining HP
@@ -36,7 +38,7 @@ export function partyAdvantage(state) {
     let foeHp = 0;
     let foeDamage = 0;
     for (const c of state.list) {
-        if (!isActive(c) || c.kind === "object") continue;
+        if (!isActive(c) || c.kind === "object" || c.kind === "hazard") continue;
         const threat = state.threat?.get(c.id) ?? 0;
         if (c.side === "party") {
             partyHp += Math.max(0, c.hp.value);
@@ -62,7 +64,7 @@ function activeCount(state, side) {
 }
 
 function eligible(state, c) {
-    if (c.side !== "foes" || c.kind === "pc" || c.kind === "object") return false;
+    if (c.side !== "foes" || c.kind === "pc" || c.kind === "object" || c.kind === "hazard") return false;
     if (!canAct(c)) return false;
     if (c.morale?.template === "none" || !c.morale) return false;
     if (c.cond.fleeing || c.moraleState.broken) return false;
@@ -233,7 +235,28 @@ function sharedModifiers(state, c) {
     if (state.moraleFlags.strongestDown) push("mostPowerfulAllyKilled", modifierValue(state, "mostPowerfulAllyKilled"));
     if (!state.list.some((other) => other.side === "party" && other.kind === "pc" && other.everDown)) push("noEnemySlain", modifierValue(state, "noEnemySlain"));
     if (state.round === 1 && state.surprisedSide === "foes") push("surprisedPenalty", modifierValue(state, "surprisedPenalty"));
+    if (helpPending(state)) push("helpComing", modifierValue(state, "helpComing"));
     return parts;
+}
+
+// Foe reinforcements arrive (escalations): wavering foes steady, and a shaken or wavering group too.
+export function helpArrives(state) {
+    if (!state.options.morale || !triggerEnabled(state, "helpArrives")) return;
+    let steadied = 0;
+    for (const c of state.list) {
+        if (!eligible(state, c) || !c.moraleState.wavering || c.morale.group) continue;
+        c.moraleState.wavering = false;
+        c.mustWithdraw = false;
+        c.dropAggression = false;
+        steadied++;
+    }
+    for (const group of state.groups?.values() ?? []) {
+        if (group.state <= 0 || group.state >= 3) continue;
+        group.state = 0;
+        applyGroupState(state, group, state.list.filter((c) => c.morale?.group === group.key && isActive(c)));
+        steadied++;
+    }
+    if (steadied) state.log?.push("  Help arrives: the foes steady");
 }
 
 function personalModifiers(state, c) {

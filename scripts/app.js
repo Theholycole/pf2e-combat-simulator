@@ -12,6 +12,10 @@ const { ApplicationV2 } = foundry.applications.api;
 
 const OBJECTIVE_KINDS = [["", "None"], ["protect", "Protect a creature or object"], ["target", "Kill or capture a target"], ["survive", "Survive N rounds"], ["task", "Do a task"], ["hold", "Hold an area"], ["escort", "Escort a creature to the exit"], ["retrieve", "Retrieve an item and escape"]];
 const COMPARE_CHOICES = [["adjust", "What would change the odds (Weak, Elite, remove)"], ["morale", "Morale on / off"], ["heroPoints", "Hero points on / off"], ["objective", "Objective on / off"], ["retreat", "Party retreat on / off"]];
+// Escalation rules (E1–E4): "when → then".
+const WHEN_KINDS = [["round", "Round"], ["alarm", "The alarm is raised"], ["falls", "A creature falls"], ["foesHalf", "The foes are at half their HP"], ["firstFlee", "A foe flees"], ["enters", "A party creature enters a Region"]];
+const THEN_KINDS = [["arrive", "Creatures arrive"], ["hazard", "A hazard starts"], ["danger", "Danger starts"]];
+const DAMAGE_TYPES = ["fire", "cold", "acid", "electricity", "sonic", "force", "poison", "piercing", "slashing", "bludgeoning", "mental", "spirit", "vitality", "void", "bleed", "untyped"];
 const SITUATIONAL = [["defendingHome", "Foes defend their home (+1)"], ["noRetreat", "Foes have no retreat, surrender means death (+2)"], ["defendingLair", "Bestial foes defend young or lair (+2)"], ["unpaid", "Mercenaries unpaid or betrayed (−2)"], ["hatedEnemy", "Foes fight a hated enemy (+4, if enabled)"]];
 
 function moraleRulesSetting() {
@@ -41,7 +45,9 @@ export class SimulatorApp extends ApplicationV2 {
             moraleImpact: SimulatorApp.#onMoraleImpact,
             saveProfiles: SimulatorApp.#onSaveProfiles,
             openLog: () => new FightLogApp().render(true),
-            back: SimulatorApp.#onBack
+            back: SimulatorApp.#onBack,
+            addRule: SimulatorApp.#onAddRule,
+            removeRule: SimulatorApp.#onRemoveRule
         }
     };
 
@@ -88,6 +94,7 @@ export class SimulatorApp extends ApplicationV2 {
                 acts: override.acts ?? profile.acts ?? base.kind !== "object",
                 arrivesRound: override.arrivesRound ?? "",
                 arrivesBand: override.arrivesBand ?? "near",
+                alarm: override.alarm ?? "",
                 adjust: override.adjust ?? ""
             });
         }
@@ -113,6 +120,12 @@ export class SimulatorApp extends ApplicationV2 {
                 this.render();
             });
         }
+        content.addEventListener("change", (event) => {
+            const name = event.target?.name ?? "";
+            if (!/^rule\.\d+\.(when\.kind|then\.kind|then\.targets)$|^alarm$/.test(name)) return;
+            this.#readForm();
+            this.render();
+        });
     }
 
     #sourceLabel() {
@@ -141,6 +154,7 @@ export class SimulatorApp extends ApplicationV2 {
                 <td><input type="checkbox" name="acts" ${row.acts ? "checked" : ""}></td>
                 <td><input type="number" name="arrivesRound" min="0" value="${escape(row.arrivesRound)}" placeholder="—"></td>
                 <td><select name="arrivesBand">${option("near", "Near", row.arrivesBand)}${option("far", "Far", row.arrivesBand)}</select></td>
+                <td>${row.side === "foes" && row.kind !== "pc" && row.kind !== "hazard" ? `<select name="alarm" title="Raises the alarm: at a gong (1 action there), or by running off the battlefield">${option("", "—", row.alarm)}${option("gong", "Gong", row.alarm)}${option("runner", "Runner", row.alarm)}</select>` : "—"}</td>
                 <td>${row.kind === "pc" ? "—" : `<select name="adjust">${option("", "—", row.adjust)}${option("weak", "Weak", row.adjust)}${option("elite", "Elite", row.adjust)}</select>`}</td>
             </tr>`).join("");
         const partyOptions = this.rows.filter((row) => row.side === "party").map((row) => option(row.id, row.name, objective.protectId)).join("");
@@ -162,7 +176,7 @@ export class SimulatorApp extends ApplicationV2 {
         <form class="sim-setup" autocomplete="off">
             <p class="muted">${escape(this.#sourceLabel())}. Nothing on the canvas changes: fights are played in memory.</p>
             <table class="sim-combatants">
-                <thead><tr><th></th><th>Creature</th><th>Side</th><th>Role</th><th>Morale</th><th>Boss</th><th>Leader</th><th>Acts</th><th>Arrives rd</th><th>From</th><th title="PF2e's Elite or Weak adjustment, for this run only">Adjust</th></tr></thead>
+                <thead><tr><th></th><th>Creature</th><th>Side</th><th>Role</th><th>Morale</th><th>Boss</th><th>Leader</th><th>Acts</th><th>Arrives rd</th><th>From</th><th title="An alarm-raiser for the escalation rules">Alarm</th><th title="PF2e's Elite or Weak adjustment, for this run only">Adjust</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>
             <fieldset><legend>Encounter</legend>
@@ -173,6 +187,7 @@ export class SimulatorApp extends ApplicationV2 {
                 <label>Runs <input type="number" name="runs" min="20" max="5000" value="${escape(this.runs)}"></label>
             </fieldset>
             <fieldset><legend>Morale situation</legend>${situational}</fieldset>
+            ${this.#escalationFields()}
             <fieldset><legend>Secondary objective</legend>
                 <label>Objective <select name="objectiveKind">${OBJECTIVE_KINDS.map(([value, label]) => option(value, label, objective.kind ?? "")).join("")}</select></label>
                 ${objectiveFields}
@@ -193,6 +208,114 @@ export class SimulatorApp extends ApplicationV2 {
     // The scene the encounter is on, for its Regions.
     get #scene() {
         return this.source.combat?.scene ?? canvas?.scene ?? null;
+    }
+
+    // Escalations (E1–E4): the rules, the gong for alarm-raisers, and (in play) the round the alarm was raised.
+    #escalationFields() {
+        const escalations = this.setup.escalations ?? {};
+        const rules = escalations.rules ?? [];
+        const regions = regionChoices(this.#scene);
+        const regionOptions = (value) => regions.length ? regions.map((region) => option(region.id, region.name, value)).join("") : option("", "— no Regions on the scene —", "");
+        const rows = (filter, value) => this.rows.filter(filter).map((row) => option(row.id, row.name, value)).join("");
+        const ruleHTML = (rule, index) => {
+            const name = (key) => `rule.${index}.${key}`;
+            const when = rule.when ?? { kind: "round" };
+            const then = rule.then ?? { kind: "arrive" };
+            let whenFields = "";
+            if (when.kind === "round") whenFields = `<input type="number" name="${name("when.round")}" min="1" value="${escape(when.round ?? 2)}">`;
+            if (when.kind === "falls") whenFields = `<select name="${name("when.creatureId")}">${rows(() => true, when.creatureId)}</select>`;
+            if (when.kind === "enters") whenFields = `<select name="${name("when.region")}">${regionOptions(when.region)}</select>`;
+            let thenFields = "";
+            if (then.kind === "arrive") {
+                const creatures = this.rows.filter((row) => row.kind !== "pc" && row.kind !== "hazard").map((row) => `<label class="check"><input type="checkbox" name="${name("then.creature")}" value="${escape(row.id)}" ${(then.creatureIds ?? []).includes(row.id) ? "checked" : ""}> ${escape(row.name)}</label>`).join("");
+                const place = then.placeRegion ? `region:${then.placeRegion}` : then.band ?? "near";
+                thenFields = `<span class="sim-rule-creatures">${creatures}</span>
+                    <label>after <input type="number" name="${name("then.delay")}" min="0" value="${escape(then.delay ?? 0)}"> more rounds</label>
+                    <label>at <select name="${name("then.place")}">${option("near", "Near", place)}${option("far", "Far", place)}${regions.map((region) => option(`region:${region.id}`, region.name, place)).join("")}</select></label>`;
+            }
+            if (then.kind === "hazard") {
+                const hazards = rows((row) => row.kind === "hazard", then.hazardId);
+                thenFields = hazards ? `<select name="${name("then.hazardId")}">${hazards}</select>` : `<span class="muted">No hazard in the encounter.</span>`;
+            }
+            if (then.kind === "danger") {
+                thenFields = `<label>damage <input type="text" name="${name("then.damage")}" value="${escape(then.damage ?? "2d6")}" size="6"></label>
+                    <select name="${name("then.type")}">${DAMAGE_TYPES.map((type) => option(type, type, then.type ?? "fire")).join("")}</select>
+                    <label>basic save <select name="${name("then.saveType")}">${option("", "none", then.save?.type ?? "")}${["fortitude", "reflex", "will"].map((save) => option(save, save, then.save?.type)).join("")}</select></label>
+                    <label>DC <input type="number" name="${name("then.saveDc")}" value="${escape(then.save?.dc ?? "")}"></label>
+                    <label>hits <select name="${name("then.targets")}">${option("all", "everyone", then.targets ?? "all")}${option("party", "the party", then.targets)}${option("foes", "the foes", then.targets)}${option("region", "everyone in a Region", then.targets)}</select></label>
+                    ${then.targets === "region" ? `<select name="${name("then.region")}">${regionOptions(then.region)}</select>` : ""}
+                    <label>grows by <input type="text" name="${name("then.grow")}" value="${escape(then.grow ?? "")}" size="5" placeholder="0"> a round</label>`;
+            }
+            return `<div class="sim-rule" data-index="${index}">
+                <label>When <select name="${name("when.kind")}">${WHEN_KINDS.map(([value, label]) => option(value, label, when.kind)).join("")}</select></label> ${whenFields}
+                <label>→ then <select name="${name("then.kind")}">${THEN_KINDS.map(([value, label]) => option(value, label, then.kind)).join("")}</select></label> ${thenFields}
+                <button type="button" data-action="removeRule" data-index="${index}" title="Remove this rule"><i class="fa-solid fa-xmark"></i></button>
+            </div>`;
+        };
+        const raisers = this.rows.filter((row) => row.alarm);
+        const gong = escalations.gong ?? {};
+        const gongFields = raisers.some((row) => row.alarm === "gong")
+            ? `<label>Gong <select name="gong.region">${option("", regions.length ? "— type Strides —" : "— no Regions: type Strides —", gong.region ?? "")}${regions.map((region) => option(region.id, region.name, gong.region)).join("")}</select></label>
+               ${gong.region ? "" : `<label>Strides from the raisers to the gong <input type="number" name="gong.strides" min="0" value="${escape(gong.strides ?? 2)}"></label>`}`
+            : "";
+        const combat = this.source.combat;
+        const alarmTick = combat?.started && (raisers.length || rules.some((rule) => rule.when?.kind === "alarm"))
+            ? `<label>Alarm raised in round <input type="number" name="alarm.raisedRound" min="1" value="${escape(escalations.alarm?.raisedRound ?? "")}" placeholder="not yet"></label>` : "";
+        return `<fieldset class="sim-escalations"><legend>Escalations</legend>
+            <p class="muted">When something happens, then creatures arrive, a hazard starts, or danger starts. Each rule fires once. Hide the tokens of creatures a rule brings: once visible, they count as arrived.</p>
+            ${rules.map(ruleHTML).join("")}
+            <button type="button" data-action="addRule"><i class="fa-solid fa-plus"></i> Add rule</button>
+            ${gongFields}${alarmTick}
+        </fieldset>`;
+    }
+
+    // The rules as the form shows them; ids stay, so live play's record of what fired still matches.
+    #readEscalations(form, value) {
+        const previous = this.setup.escalations ?? {};
+        const rules = [];
+        for (const element of form.querySelectorAll(".sim-rule[data-index]")) {
+            const index = Number(element.dataset.index);
+            const field = (key) => element.querySelector(`[name="rule.${index}.${key}"]`)?.value ?? "";
+            const when = { kind: field("when.kind") || "round" };
+            if (when.kind === "round") when.round = Number(field("when.round") || 2);
+            if (when.kind === "falls") when.creatureId = field("when.creatureId") || this.rows[0]?.id;
+            if (when.kind === "enters") when.region = field("when.region") || null;
+            const kind = field("then.kind") || "arrive";
+            const before = previous.rules?.[index] ?? {};
+            const sameKind = before.then?.kind === kind;
+            let then = { kind };
+            if (kind === "arrive") {
+                const place = field("then.place") || "near";
+                then = { kind, creatureIds: sameKind ? [...element.querySelectorAll(`[name="rule.${index}.then.creature"]:checked`)].map((input) => input.value) : [], delay: Number(field("then.delay") || 0), band: place.startsWith("region:") ? "near" : place, placeRegion: place.startsWith("region:") ? place.slice(7) : null };
+            }
+            if (kind === "hazard") then = { kind, hazardId: field("then.hazardId") || this.rows.find((row) => row.kind === "hazard")?.id || null };
+            if (kind === "danger") {
+                const saveType = field("then.saveType");
+                then = { kind, damage: field("then.damage") || "2d6", type: field("then.type") || "fire", save: saveType ? { type: saveType, dc: Number(field("then.saveDc") || 0) || null } : null, targets: field("then.targets") || "all", region: field("then.region") || null, grow: field("then.grow") || null };
+            }
+            rules.push({ id: before.id ?? foundry.utils.randomID(), when, then });
+        }
+        const raisedRound = value("alarm.raisedRound");
+        return {
+            rules,
+            gong: { region: value("gong.region") || (form.querySelector("[name='gong.region']") ? null : previous.gong?.region ?? null), strides: Number(value("gong.strides") || previous.gong?.strides || 2) },
+            alarm: { raisedRound: raisedRound ? Number(raisedRound) : (form.querySelector("[name='alarm.raisedRound']") ? null : previous.alarm?.raisedRound ?? null) }
+        };
+    }
+
+    static #onAddRule() {
+        this.#readForm();
+        const escalations = this.setup.escalations ?? { rules: [] };
+        escalations.rules = [...(escalations.rules ?? []), { id: foundry.utils.randomID(), when: { kind: "round", round: 2 }, then: { kind: "arrive", creatureIds: [], delay: 0, band: "near" } }];
+        this.setup.escalations = escalations;
+        this.render();
+    }
+
+    static #onRemoveRule(event, target) {
+        this.#readForm();
+        const index = Number(target.dataset.index);
+        this.setup.escalations.rules = (this.setup.escalations.rules ?? []).filter((rule, position) => position !== index);
+        this.render();
     }
 
     // Hold an area, escort, retrieve and escape (O1–O3): Regions for the area and the
@@ -256,6 +379,7 @@ export class SimulatorApp extends ApplicationV2 {
             row.arrivesRound = field("arrivesRound").value;
             row.arrivesBand = field("arrivesBand").value;
             row.adjust = field("adjust")?.value ?? "";
+            row.alarm = field("alarm")?.value ?? "";
         }
         const kind = value("objectiveKind");
         const previous = this.setup.objective ?? {};
@@ -283,7 +407,8 @@ export class SimulatorApp extends ApplicationV2 {
             cover: { party: Number(value("cover.party") || 0), foes: Number(value("cover.foes") || 0) },
             situational: Object.fromEntries(SITUATIONAL.map(([key]) => [key, checked(`situational.${key}`)])),
             objective,
-            objectivePriority: Number(value("objectivePriority") || this.setup.objectivePriority || 1)
+            objectivePriority: Number(value("objectivePriority") || this.setup.objectivePriority || 1),
+            escalations: this.#readEscalations(form, value)
         };
         this.fresh = checked("fresh");
         this.runs = Math.max(20, Number(value("runs") || this.runs));
@@ -298,7 +423,8 @@ export class SimulatorApp extends ApplicationV2 {
             acts: row.acts,
             arrivesRound: row.arrivesRound ? Number(row.arrivesRound) : undefined,
             arrivesBand: row.arrivesBand,
-            adjust: row.adjust || undefined
+            adjust: row.adjust || undefined,
+            alarm: row.alarm || undefined
         }]));
     }
 

@@ -11,11 +11,14 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castSpell, describeSpell, expireTimers, exploitVulnerability, hasTimer, overdrive, retch, rollInstances, triggerRiders } from "./spells.js";
+import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castPlan, castSpell, describeSpell, expireTimers, exploitVulnerability, hasTimer, overdrive, retch, rollInstances, triggerRiders } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
 import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
 import { isMapObjective, mapOutcome, pickUpItem, placeOnMap } from "./map-objectives.js";
+import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startDanger } from "./escalations.js";
+import { helpArrives } from "./morale.js";
+import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -80,6 +83,9 @@ function createState(snapshot, options, seed, withLog) {
     if (!options.heroPoints) for (const c of list) c.heroPoints = 0;
     // Grab, Knockdown and Push after a hit (spells.js resolves them).
     state.onStrikeHit = (attacker, target, strike, degree) => triggerRiders(state, attacker, target, strike, degree);
+    // Before placing: an escalation's creatures wait off the field, and so do hazards not yet set off.
+    setUpEscalations(state, snapshot.setup?.escalations);
+    setUpHazards(state, snapshot.setup?.escalations);
     placeCombatants(state);
     placeOnMap(state);
     initMorale(state);
@@ -160,15 +166,30 @@ function insertArrival(state, c) {
 }
 
 function arrivals(state) {
+    let foesArrived = false;
     for (const c of state.list) {
         if (c.status === PENDING && c.arrivesRound <= state.round) {
             c.status = ACTIVE;
             c.band = c.arrivesBand === "engaged" ? "near" : (c.arrivesBand ?? "near");
+            // At a Region (an escalation's arrival): its place on the map.
+            if (c.arrivePlace && c.areaFeet !== undefined) {
+                c.areaFeet = c.arrivePlace.area ?? c.areaFeet;
+                c.exitFeet = c.arrivePlace.exit ?? c.exitFeet;
+            }
             insertArrival(state, c);
             state.log?.push(`  ${c.name} arrives (${c.band})`);
+            if (c.side === "foes" && c.kind !== "object") foesArrived = true;
         }
     }
+    // Help arriving steadies wavering foes (E2).
+    if (foesArrived) helpArrives(state);
 }
+
+// What a rule does besides bringing creatures (danger, hazards: E3, E4).
+const ESCALATION_EFFECTS = {
+    danger: startDanger,
+    hazard: (state, rule) => activateHazard(state, state.byId.get(rule.then.hazardId), triggererOf(state, rule), { castPlan, describeSpell, performStrike, joinInitiative: insertArrival })
+};
 
 function pcs(state) {
     return state.list.filter((c) => c.side === "party" && c.kind === "pc");
@@ -177,6 +198,7 @@ function pcs(state) {
 function checkEnd(state) {
     if (state.outcome) return true;
     updateObjective(state);
+    checkEscalations(state, ESCALATION_EFFECTS);
     // Holding the area, or getting away with the escort or the item, ends the fight.
     if (isMapObjective(state.objective) && state.objective.status === "success") {
         finish(state, mapOutcome(state.objective));
@@ -186,8 +208,12 @@ function checkEnd(state) {
         finish(state, "defeat");
         return true;
     }
-    const foes = state.list.filter((c) => c.side === "foes" && c.kind !== "object");
-    const remaining = foes.filter((c) => c.status === ACTIVE || c.status === PENDING);
+    // Hazards don't hold a fight open once the creatures are beaten, unless they're all there is.
+    const creatures = state.list.filter((c) => c.side === "foes" && c.kind !== "object" && !isHazard(c));
+    const foes = creatures.length ? creatures : state.list.filter((c) => c.side === "foes" && isHazard(c));
+    // Creatures waiting on an escalation rule that hasn't fired may never come: they don't hold a fight open.
+    const coming = (c) => c.status === PENDING && c.arrivesRound != null;
+    const remaining = foes.filter((c) => c.status === ACTIVE || coming(c));
     if (!remaining.length) {
         finish(state, foes.some((c) => c.status === FLED) ? "rout" : "decisive");
         return true;
@@ -195,7 +221,7 @@ function checkEnd(state) {
     if (state.options.morale) {
         const surviving = foes.filter((c) => c.status === ACTIVE);
         const broken = surviving.filter((c) => c.cond.fleeing || c.moraleState.broken);
-        if (surviving.length && !foes.some((c) => c.status === PENDING) && broken.length >= surviving.length / 2 && broken.length > 0) {
+        if (surviving.length && !foes.some(coming) && broken.length >= surviving.length / 2 && broken.length > 0) {
             pursuit(state, surviving);
             finish(state, "rout");
             return true;
@@ -252,14 +278,15 @@ function startTurn(state, c) {
     c.noAttacksThisTurn = false;
     c.turnAttacks = [];
     if (c.shield) c.shield.raised = false;
-    let actions = 3 + (c.cond.quickened ? 1 : 0);
+    // A complex hazard: its routine's actions.
+    let actions = isHazard(c) ? (c.hazard?.routineActions ?? 1) : 3 + (c.cond.quickened ? 1 : 0);
     if (c.cond.stunned > 0) {
         const lost = Math.min(c.cond.stunned, actions);
         c.cond.stunned -= lost;
         actions -= lost;
     }
     actions -= Math.min(actions, c.cond.slowed);
-    c.actionsLeft = Math.min(actions, MAX_ACTIONS_PER_TURN);
+    c.actionsLeft = Math.min(actions, isHazard(c) ? 9 : MAX_ACTIONS_PER_TURN);
     // Fast healing (the creature's own, or from spell effects) and regeneration.
     const fastHealing = Math.max(c.fastHealing ?? 0, ...(c.effects ?? []).map((effect) => effect.model.fastHealing ?? 0));
     if (fastHealing > 0) applyHeal(state, c, fastHealing);
@@ -445,6 +472,12 @@ function act(state, c, action) {
         case "pickUp":
             pickUpItem(state, c, provoke);
             break;
+        case "soundGong":
+            soundGong(state, c, provoke);
+            break;
+        case "disableHazard":
+            disableHazard(state, c, state.byId.get(action.targetId), { provoke, performStrike });
+            break;
         case "cast":
             if (action.rider && !(rider && rider.index === action.spellIndex)) break;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions);
@@ -596,6 +629,11 @@ function act(state, c, action) {
     }
 }
 
+// The escalation rules as the turn loop checks them after each action and as a round begins, for tests.
+export function escalate(state) {
+    checkEscalations(state, ESCALATION_EFFECTS);
+}
+
 // One action as the turn loop takes it, for tests that set up exact situations.
 export function performAction(state, c, action) {
     act(state, c, action);
@@ -607,6 +645,7 @@ function actionCost(c, action) {
     if (action.type === "slingersReload" || action.type === "rechargeSpellstrike") return 1;
     if (action.type === "spellstrike" || action.type === "strikeHard") return 2;
     if (action.type === "pincerAttack" || action.type === "bannersInspiration" || action.type === "shiftImmanence" || action.type === "transcend") return 1;
+    if (action.type === "disableHazard") return 2;
     if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect") return action.actions;
     if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
     return action.type === "task" ? 2 : 1;
@@ -725,6 +764,8 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
         while (!state.outcome) {
             if (turnIndex === 0) {
                 state.log?.push(`— Round ${state.round} —`);
+                // Rules for this round fire as it begins, before arrivals.
+                checkEscalations(state, ESCALATION_EFFECTS);
                 arrivals(state);
             }
             computeThreats(state);
@@ -737,6 +778,12 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
             }
             if (state.outcome) break;
             turnIndex = 0;
+            // Danger hurts whoever it covers as the round ends (E3).
+            if (state.dangers?.length) {
+                dangerAtRoundEnd(state);
+                processMorale(state);
+                if (checkEnd(state)) break;
+            }
             endOfRoundObjective(state);
             if (isMapObjective(state.objective) && state.objective.status === "success") {
                 finish(state, mapOutcome(state.objective));
@@ -779,7 +826,8 @@ function summarize(state) {
         foes: state.list.filter((c) => c.side === "foes").map((c) => ({
             id: c.id,
             name: c.name,
-            status: c.captured && c.status !== SURRENDERED ? "captured" : c.status,
+            // A simple hazard that fired is spent, not killed.
+            status: c.spent ? "spent" : c.captured && c.status !== SURRENDERED ? "captured" : c.status,
             damageDealt: c.damageDealt,
             pcsDowned: c.downedCount
         })),
