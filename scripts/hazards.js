@@ -1,7 +1,7 @@
 // PF2e hazards (E4): a hazard actor read into an engine combatant on the foes' side.
 
 import { parseReadableDamage } from "../src/adapter/formula.js";
-import { mentionsStrike, noMultipleAttackPenalty, parseDisable, routineActions } from "../src/adapter/hazard.js";
+import { mentionsStrike, noMultipleAttackPenalty, parseDisable, routineActions } from "../../pf2e-resolution-core/src/text/hazard-text.js";
 
 const TRIGGER_TYPES = new Set(["reaction", "free"]);
 

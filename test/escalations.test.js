@@ -225,16 +225,9 @@ test("E4 a fight with only a hazard ends when it's disabled or destroyed", () =>
     assert.equal(result.outcome, "decisive", result.log.slice(-6).join("\n"));
 });
 
-test("hazard text: Disable options and successes, routine actions, no multiple attack penalty; a Region's edge", async () => {
-    const { parseDisable, routineActions, noMultipleAttackPenalty, mentionsStrike } = await import("../src/adapter/hazard.js");
+// (The hazard text readers are the core's: its test/hazard-text.test.js.)
+test("a Region's edge: from inside, the feet to the nearest square outside", async () => {
     const { edgeFeet } = await import("../src/adapter/map.js");
-    assert.deepEqual(parseDisable("<p>@Check[thievery|dc:21|name:Disable Pillar|traits:action:disable-a-device] (trained) twice on the pillar, or @Check[thievery|dc:19|name:Disable Trap (Control Panel)] (expert) once on the control panel</p>"),
-        [{ skill: "thievery", dc: 21, needed: 2 }, { skill: "thievery", dc: 19, needed: 1 }]);
-    assert.deepEqual(parseDisable("@Check[thievery|dc:37]{Thievery (master)} to jam a mannequin or a @Check[religion|dc:35]{Religion (expert)} twice to exorcise"), [{ skill: "thievery", dc: 37, needed: 1 }, { skill: "religion", dc: 35, needed: 2 }]);
-    assert.equal(routineActions("<p>(3 actions) The trap uses its first action…</p>"), 3);
-    assert.equal(routineActions(""), 1);
-    assert.ok(noMultipleAttackPenalty("<p>No multiple attack penalty</p>") && noMultipleAttackPenalty("This trap doesn't take a multiple attack penalty."));
-    assert.ok(mentionsStrike("The trap makes a poisoned dart Strike against the triggering creature") && !mentionsStrike("Each creature must attempt a DC 20 Reflex save"));
     // A 5×5 Region from (0,0): from its middle square, 3 squares to the outside.
     const region = [];
     for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) region.push({ i, j });
