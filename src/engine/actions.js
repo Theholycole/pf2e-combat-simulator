@@ -39,8 +39,15 @@ export function forcefulBonus(strike, earlierAttacks) {
 }
 
 // Attack modifier for a Strike, excluding the target's AC.
+// The multiple attack penalty, with the Flurry hunter's edge against the prey (−3/−6, agile −2/−4).
+export function attackPenalty(attacker, strike, target, attacksMade) {
+    const penalty = multipleAttackPenalty(strike, attacksMade);
+    if (attacker.huntPrey?.edge !== "flurry" || attacker.prey !== target?.id || attacksMade <= 0) return penalty;
+    return attacksMade === 1 ? (strike.agile ? 2 : 3) : strike.agile ? 4 : 6;
+}
+
 export function attackModifier(state, attacker, target, strike, attacksMade, { prone, history = attacker.turnAttacks ?? [] } = {}) {
-    let modifier = strike.bonus - multipleAttackPenalty(strike, attacksMade) + effectBonus(attacker, "attack") - gripPenalty(attacker, strike);
+    let modifier = strike.bonus - attackPenalty(attacker, strike, target, attacksMade) + effectBonus(attacker, "attack") - gripPenalty(attacker, strike);
     modifier -= statusPenalty(attacker, strike.melee ? "melee" : "ranged");
     let circumstance = 0;
     if (prone ?? attacker.cond.prone) circumstance = Math.max(circumstance, 2);
@@ -64,7 +71,9 @@ function berserkPenalty(state, c) {
 export function targetAC(state, attacker, target, strike, flanked) {
     // Feinted or diverted: off-guard to this attacker alone.
     const feinted = !isOffGuard(target) && offGuardTo(target, attacker, strike.melee);
-    return armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: flanked || feinted }) - berserkPenalty(state, target);
+    // The Outwit hunter's edge: +1 AC against the prey.
+    const outwit = target.huntPrey?.edge === "outwit" && target.prey === attacker.id ? 1 : 0;
+    return armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: flanked || feinted }) - berserkPenalty(state, target) + outwit;
 }
 
 // Cache of expected hit damage per Strike object (shared by every run of a
@@ -86,8 +95,24 @@ function defenceId(target) {
 // bonus: a circumstance damage bonus (forceful); offGuardChance: for backstabber
 // and Sneak Attack; packAllies: the attacker's allies within reach of the target (Pack Attack).
 export function expectedHitDamage(attacker, strike, target, critical, { bonus = 0, offGuardChance = 0, packAllies = 0 } = {}) {
-    const base = baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance);
-    return attacker.strikeExtras?.length ? base + expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies) : base;
+    let total = baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance);
+    if (attacker.strikeExtras?.length) total += expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies);
+    for (const part of featureParts(attacker, strike, target, { offGuard: offGuardChance })) {
+        const amount = ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (critical ? 2 : 1);
+        total += part.chance * adjustInstance(target, part.type ?? strike.damage[0]?.type ?? "untyped", amount, !!part.precision);
+    }
+    return total;
+}
+
+// Extra damage parts a PC's class features add to a Strike, each with the
+// chance it applies: the off-guard dice PF2e gives the Strike (Sneak Attack),
+// an active buff's (Rage), and the Precision hunter's edge on the first hit on the prey.
+export function featureParts(attacker, strike, target, { offGuard = 0, firstPreyHit = true } = {}) {
+    const parts = [];
+    if (offGuard && strike.offGuardExtra?.length) for (const part of strike.offGuardExtra) parts.push({ ...part, chance: offGuard });
+    for (const buff of attacker.activeBuffs ?? []) for (const part of buff.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
+    if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id && firstPreyHit) parts.push({ dice: attacker.huntPrey.precisionDice ?? 1, die: 8, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
+    return parts;
 }
 
 // The extra dice of abilities such as Sneak Attack, on average (doubled on a critical hit).
@@ -210,7 +235,15 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (strike.backstabber && offGuard) {
         instances.push({ type: strike.damage[0].type, amount: critical ? 2 : 1, precision: true, persistent: false });
     }
-    // Sneak Attack, Pack Attack and the like.
+    // Class features: Sneak Attack's off-guard dice, Rage, the Precision edge.
+    const firstPreyHit = attacker.preyHitRound !== state.round;
+    for (const part of featureParts(attacker, strike, target, { offGuard: offGuard ? 1 : 0, firstPreyHit })) {
+        let amount = part.bonus ?? 0;
+        for (let die = 0; die < (part.dice ?? 0); die++) amount += state.rng.die(part.die);
+        instances.push({ type: part.type ?? strike.damage[0].type, amount: Math.max(0, critical ? amount * 2 : amount), precision: !!part.precision, persistent: !!part.persistent });
+    }
+    if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id) attacker.preyHitRound = state.round;
+    // Sneak Attack, Pack Attack and the like (monsters).
     if (attacker.strikeExtras?.length) {
         const packAllies = engagedEnemies(state, target).filter((other) => other !== attacker).length;
         for (const extra of attacker.strikeExtras) {
@@ -261,6 +294,28 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // Regeneration turns off before damage of a listed type is dealt.
     if (target.regeneration && instances.some((instance) => instance.amount > 0 && target.regeneration.deactivatedBy.includes(instance.type))) turnOffRegeneration(state, target);
     const adjusted = adjustDamage(target, instances);
+    // A champion's reaction: resistance 2 + its level against the triggering damage, and more.
+    const champion = adjusted.total > 0 ? championFor(state, target, source) : null;
+    let retribution = null;
+    if (champion) {
+        const reaction = champion.championReaction;
+        champion.reactionUsed = true;
+        state.stats.reactions++;
+        log(state, `  ${champion.name} uses ${reaction.name}`);
+        if (reaction.slug === "glimpse-of-redemption" && adjusted.total <= reaction.resistance) {
+            // The enemy repents: the ally is unharmed.
+            log(state, `  ${source.name} repents: ${target.name} is unharmed`);
+            return 0;
+        }
+        adjusted.total = Math.max(0, adjusted.total - reaction.resistance);
+        if (reaction.slug === "glimpse-of-redemption") {
+            source.cond.enfeebled = Math.max(source.cond.enfeebled ?? 0, 2);
+            (source.timers ??= []).push({ key: "enfeebled", value: 2, round: source.round === state.round ? state.round + 1 : state.round, turnOf: source.id, at: "end" });
+            log(state, `  ${source.name} refuses and is enfeebled 2`);
+        }
+        if (reaction.slug === "retributive-strike") retribution = champion;
+        if (reaction.slug === "iron-command") retribution = { ironCommand: champion };
+    }
     // Swallow Whole: piercing or slashing damage of at least the Rupture value from one attack frees who's inside.
     if (state.list.some((other) => other.swallowedBy === target.id)) {
         const cutting = instances.filter((instance) => instance.type === "piercing" || instance.type === "slashing").reduce((sum, instance) => sum + adjustInstance(target, instance.type, instance.amount, instance.precision), 0);
@@ -280,7 +335,38 @@ export function applyDamage(state, target, instances, { source = null, critical 
         log(state, `  ${target.name} Shield Blocks (${blocked} prevented${shield.broken ? ", shield broken" : ""})`);
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance);
-    return dealDamage(state, target, total, { source, critical, nonlethal });
+    const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
+    // Retributive Strike: a melee Strike at the enemy within reach. Iron Command: the enemy kneels (prone) or takes mental damage.
+    if (retribution?.ironCommand && isActive(source)) {
+        const dice = (retribution.ironCommand.championReaction.dice ?? 1);
+        if (dice * 3.5 >= source.hp.value * 0.1) {
+            source.cond.prone = true;
+            log(state, `  ${source.name} kneels (prone)`);
+        } else {
+            let mental = 0;
+            for (let die = 0; die < dice; die++) mental += state.rng.die(6);
+            log(state, `  ${source.name} refuses and takes ${dealDamage(state, source, adjustInstance(source, "mental", mental), { source: retribution.ironCommand })} mental`);
+        }
+    } else if (retribution && isActive(source) && canAct(retribution) && sameMelee(retribution, source)) {
+        const strike = bestMeleeStrike(retribution, source);
+        if (strike) performStrike(state, retribution, source, strike, { reaction: true });
+    }
+    return dealt;
+}
+
+// The champion (of the target's side) whose reaction this damage triggers:
+// an enemy damaging its ally (or, for Selfish Shield and Iron Command, itself),
+// all in its aura (taken as in the same Melee).
+function championFor(state, target, source) {
+    if (!source || source.side === target.side) return null;
+    for (const c of state.list) {
+        const reaction = c.championReaction;
+        if (!reaction || c.side !== target.side || !canReact(c)) continue;
+        if (reaction.self ? c !== target : c === target) continue;
+        if (!sameMelee(c, source) || (c !== target && !sameMelee(c, target))) continue;
+        return c;
+    }
+    return null;
 }
 
 // "Deactivates until the end of its next turn": this turn's end if it hasn't acted this round.
@@ -405,6 +491,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         kill(state, target);
         return;
     }
+    // Rage ends when the creature falls unconscious, and its temporary HP with it.
+    if (target.activeBuffs?.length) target.activeBuffs = [];
     if (target.kind === "pc") {
         target.status = DOWN;
         target.everDown = true;

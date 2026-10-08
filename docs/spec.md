@@ -129,7 +129,8 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
   - A PFTEST SIM Giant Anaconda against the iconics: Grab, then Greater Constrict only on held targets.
   - First Aid stabilized Valeros.
   - 200 fights ran through the worker with no fallback.
-- 112 Node tests.
+- **PC class features** (the user's choice after B28): Sneak Attack, Rage, Hunt Prey, Flurry of Blows, Double Slice and the champion's reactions, read through PF2e in the snapshot (C1–C6, confirmed). The live check also fixed PC weapon traits (agile weapons had taken the full multiple attack penalty).
+- 118 Node tests.
 
 ### Real-fight logger (built 2026-10-08, at the user's request)
 

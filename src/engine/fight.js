@@ -214,6 +214,8 @@ function startTurn(state, c) {
     c.riderReady = null;
     c.rendUsed = false;
     c.withdrewThisTurn = false;
+    // Flourishes (Flurry of Blows): once a turn.
+    c.usedThisTurn = new Set();
     c.turnAttacks = [];
     if (c.shield) c.shield.raised = false;
     let actions = 3 + (c.cond.quickened ? 1 : 0);
@@ -372,17 +374,42 @@ function act(state, c, action) {
             if (target && isActive(target)) performRend(state, c, target, c.strikes[action.strikeIndex]);
             break;
         }
-        // Draconic Frenzy: its Strikes in turn, at another enemy within reach if the first drops.
+        // Draconic Frenzy, Flurry of Blows, Double Slice: its Strikes in turn, at another
+        // enemy within reach if the first drops. Double Slice: both at the current
+        // multiple attack penalty (then it counts as two), the second -2 unless agile.
         case "multiStrike": {
             const ability = c.multiStrikes[action.ability];
             state.log?.push(`  ${c.name} uses ${ability.name}`);
+            if (ability.oncePerTurn) c.usedThisTurn?.add(ability.name);
             let target = state.byId.get(action.targetId);
-            for (const index of multiStrikeOrder(c, ability) ?? []) {
+            const attacks = c.attacksThisTurn;
+            for (const [step, index] of (multiStrikeOrder(c, ability) ?? []).entries()) {
                 if (!canAct(c)) break;
-                const strike = c.strikes[index];
-                if (!target || !isActive(target) || (strike.melee && !sameMelee(c, target))) target = engagedEnemies(state, c)[0] ?? null;
+                let strike = c.strikes[index];
+                if (ability.sameTarget ? !target || !isActive(target) : !target || !isActive(target) || (strike.melee && !sameMelee(c, target))) target = ability.sameTarget ? null : engagedEnemies(state, c)[0] ?? null;
                 if (!target) break;
+                if (ability.sameMap) c.attacksThisTurn = attacks;
+                if (ability.sameMap && step > 0 && !strike.agile) strike = { ...strike, bonus: strike.bonus - 2 };
                 performStrike(state, c, target, strike);
+            }
+            if (ability.sameMap) c.attacksThisTurn = attacks + (multiStrikeOrder(c, ability)?.length ?? 0);
+            break;
+        }
+        // Rage and the like: a buff on itself for the rest of the fight.
+        case "selfBuff": {
+            const buff = c.selfBuffs[action.index];
+            state.log?.push(`  ${c.name} uses ${buff.name}`);
+            (c.activeBuffs ??= []).push(buff);
+            c.buffsUsed = new Set([...(c.buffsUsed ?? []), buff.name]);
+            if (buff.tempHp) c.hp.temp = Math.max(c.hp.temp ?? 0, buff.tempHp);
+            break;
+        }
+        // Hunt Prey: the creature its hunter's edge works against.
+        case "huntPrey": {
+            const target = state.byId.get(action.targetId);
+            if (target && isActive(target)) {
+                c.prey = target.id;
+                state.log?.push(`  ${c.name} hunts ${target.name} as its prey`);
             }
             break;
         }
@@ -399,8 +426,13 @@ function act(state, c, action) {
     }
 }
 
+// One action as the turn loop takes it, for tests that set up exact situations.
+export function performAction(state, c, action) {
+    act(state, c, action);
+}
+
 function actionCost(c, action) {
-    if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity") return action.actions;
+    if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff") return action.actions;
     if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
     return action.type === "task" ? 2 : 1;
 }

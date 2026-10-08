@@ -1,7 +1,7 @@
 // Builds an engine snapshot from Foundry: a Combat in progress, or tokens.
 // This is the only place that reads PF2e documents.
 
-import { parseReadableDamage } from "../src/adapter/formula.js";
+import { extraDamageParts, parseReadableDamage } from "../src/adapter/formula.js";
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
 import { effectModel } from "../src/engine/effects.js";
@@ -28,7 +28,10 @@ const MODELLED_TRAITS = new Set([
     "thrown", "reload", "range", "versatile", "light", "holy", "unholy", "adamantine", "cold-iron", "silver",
     "two-hand", "propulsive", "concealable", "monk", "free-hand", "orichalcum", "mithral", "dawnsilver", "duskwood",
     "acid", "bludgeoning", "cold", "electricity", "fire", "force", "mental", "piercing", "poison", "slashing", "sonic",
-    "spirit", "vitality", "void", "air", "earth", "metal", "water", "wood", "arcane", "divine", "occult", "primal"
+    "spirit", "vitality", "void", "air", "earth", "metal", "water", "wood", "arcane", "divine", "occult", "primal",
+    // Weapon traits that change nothing about a Strike in range bands, and labels
+    "staff", "parry", "disarm", "trip", "shove", "grapple", "alchemical", "consumable", "bomb", "uncommon", "rare", "unique",
+    "dwarf", "elf", "gnome", "goblin", "halfling", "human", "orc", "catfolk", "kobold", "leshy", "ratfolk", "tengu", "kitsune", "lizardfolk", "fetchling", "nagaji", "vanara", "vishkanya", "hobgoblin"
 ]);
 
 function traitRoot(trait) {
@@ -114,7 +117,9 @@ function traitList(source) {
 
 async function readStrike(actor, action, gaps) {
     const item = action.item;
-    const traits = traitList(action.traits);
+    // A character's weapon traits are on weaponTraits; an NPC's are among its Strike's traits.
+    const traits = [...new Set([...traitList(action.traits), ...traitList(action.weaponTraits)])];
+    const unarmed = traits.includes("unarmed") || (item?.category ?? item?.system?.category) === "unarmed";
     const ranged = item?.isRanged ?? !!item?.range?.increment;
     const melee = !ranged || item?.isMelee === true;
     const increment = ranged ? (item?.range?.increment ?? null) : null;
@@ -129,6 +134,16 @@ async function readStrike(actor, action, gaps) {
         return null;
     }
     if (!damage.length) return null;
+    // A PC's damage that depends on the situation, read through PF2e itself with a
+    // roll option on: against an off-guard target (Sneak Attack), and while raging.
+    let offGuardExtra = [];
+    let rageDelta = [];
+    if (actorKind(actor) === "pc") {
+        // PF2e's readable formula drops "precision"; damage only against an off-guard
+        // target is precision damage (Sneak Attack, backstabber).
+        offGuardExtra = (await situationalParts(action, damage, ["target:condition:off-guard"])).map((part) => ({ ...part, precision: true }));
+        if (hasItemSlug(actor, new Set(["rage"])) && !actor.itemTypes?.effect?.some((effect) => effect.slug === "effect-rage")) rageDelta = await situationalParts(action, damage, ["self:effect:rage", "rage"]);
+    }
     const enfeebled = conditionValue(actor, "enfeebled");
     if (enfeebled && melee && damage[0]) {
         // PF2e's formula already has the enfeebled penalty; the engine applies its own.
@@ -136,16 +151,19 @@ async function readStrike(actor, action, gaps) {
         if (critDamage?.[0]) critDamage[0] = { ...critDamage[0], bonus: critDamage[0].bonus + enfeebled };
     }
     for (const trait of traits) {
-        if (!MODELLED_TRAITS.has(traitRoot(trait))) gaps.push({ kind: "strike trait", name: trait });
+        if (!MODELLED_TRAITS.has(traitRoot(trait)) && !trait.startsWith("attached")) gaps.push({ kind: "strike trait", name: trait });
     }
     return {
         name: action.label,
         // Riders the Strike lists (grab, knockdown, push); a gap unless an ability plays them.
         attackEffects: [...(item?.system?.attackEffects?.value ?? [])],
-        // A weapon in hand (Disarm can knock it away); jaws and claws can't be.
-        held: !traits.includes("unarmed") && (item?.type === "weapon" || (item?.type === "melee" && !NATURAL_ATTACK.test(action.label ?? item?.name ?? ""))),
+        // A weapon in hand (Disarm can knock it away); fists, jaws and claws can't be.
+        held: !unarmed && (item?.type === "weapon" || (item?.type === "melee" && !NATURAL_ATTACK.test(action.label ?? item?.name ?? ""))),
         // Light Bulk or less: usable from inside a swallower.
         light: item?.type === "weapon" && Number(item?.system?.bulk?.value ?? 1) <= 0.1,
+        unarmed,
+        ...(offGuardExtra.length ? { offGuardExtra } : {}),
+        ...(rageDelta.length ? { rageDelta } : {}),
         bonus: stripConditions(action.totalModifier, action.modifiers),
         melee: melee && !increment,
         increment,
@@ -155,11 +173,80 @@ async function readStrike(actor, action, gaps) {
         forceful: traits.includes("forceful"),
         sweep: traits.includes("sweep"),
         backswing: traits.includes("backswing"),
-        backstabber: traits.includes("backstabber"),
+        // (PF2e's own off-guard damage already has it for a PC.)
+        backstabber: traits.includes("backstabber") && !offGuardExtra.length,
         volley: Number(traits.find((trait) => /^volley-\d+$/.test(trait))?.split("-")[1] ?? 0) || null,
         damage,
         critDamage
     };
+}
+
+// The extra damage parts of a Strike with roll options on, or [] when PF2e can't say.
+async function situationalParts(action, damage, options) {
+    try {
+        return extraDamageParts(parseReadableDamage(await action.damage({ getFormula: true, options })), damage);
+    } catch {
+        return [];
+    }
+}
+
+const CHAMPION_REACTIONS = new Set(["retributive-strike", "glimpse-of-redemption", "liberating-step", "flash-of-grandeur", "selfish-shield", "iron-command"]);
+
+// A PC's class features the engine plays: Rage, Hunt Prey with its hunter's
+// edge, Flurry of Blows, Double Slice and a champion's reaction. Returns
+// combatant fields, and the items they cover (not gaps).
+function readClassFeatures(actor, strikes) {
+    const result = { fields: {}, handled: new Set() };
+    if (actorKind(actor) !== "pc") return result;
+    const items = [...(actor.itemTypes?.action ?? []), ...(actor.itemTypes?.feat ?? [])];
+    const find = (slug) => items.find((item) => item.slug === slug) ?? null;
+    const has = (slug) => items.some((item) => item.slug === slug);
+    const level = actor.level ?? 1;
+    const fields = result.fields;
+    const rage = items.find((item) => item.slug === "rage" && item.type === "action");
+    if (rage) {
+        // The class feature that grants it too.
+        for (const item of items) if (item.slug === "rage") result.handled.add(item);
+        const buff = { name: "Rage", actions: 1, tempHp: level + (actor.abilities?.con?.mod ?? actor.system?.abilities?.con?.mod ?? 0), noConcentrate: true, strikeDeltas: Object.fromEntries(strikes.filter((strike) => strike.rageDelta?.length).map((strike) => [strike.name, strike.rageDelta])) };
+        // Raging already: its damage is in the Strikes; it can't rage again this fight.
+        if (actor.itemTypes?.effect?.some((effect) => effect.slug === "effect-rage")) fields.activeBuffs = [{ ...buff, strikeDeltas: {} }];
+        else fields.selfBuffs = [buff];
+    }
+    const hunt = find("hunt-prey");
+    if (hunt && hunt.type === "action") {
+        result.handled.add(hunt);
+        fields.huntPrey = { edge: has("flurry") ? "flurry" : has("precision") ? "precision" : has("outwit") ? "outwit" : null, precisionDice: level >= 19 ? 3 : level >= 11 ? 2 : 1 };
+    }
+    const value = (strike) => strike.bonus * 2 + strike.damage.reduce((sum, part) => sum + ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1), 0);
+    const flurry = find("flurry-of-blows");
+    const unarmed = strikes.filter((strike) => strike.unarmed && strike.melee).sort((a, b) => value(b) - value(a))[0];
+    if (flurry && unarmed) {
+        result.handled.add(flurry);
+        (fields.multiStrikes ??= []).push({ name: "Flurry of Blows", actions: 1, strikes: [unarmed.name.toLowerCase(), unarmed.name.toLowerCase()], oncePerTurn: true });
+    }
+    const doubleSlice = find("double-slice");
+    const weapons = strikes.filter((strike) => strike.held && strike.melee && !strike.name.includes("(")).sort((a, b) => value(b) - value(a));
+    if (doubleSlice && weapons.length >= 2) {
+        result.handled.add(doubleSlice);
+        (fields.multiStrikes ??= []).push({ name: "Double Slice", actions: 2, strikes: [weapons[0].name.toLowerCase(), weapons[1].name.toLowerCase()], sameMap: true, sameTarget: true });
+    }
+    // Sneak Attack and the like: their dice are read with each Strike.
+    if (strikes.some((strike) => strike.offGuardExtra?.length)) for (const item of items) if (item.slug === "sneak-attack") result.handled.add(item);
+    const reaction = items.find((item) => CHAMPION_REACTIONS.has(item.slug) && item.type === "action");
+    if (reaction) {
+        result.handled.add(reaction);
+        // Its aura is where the reaction reaches.
+        for (const item of items) if (item.slug === "champions-aura") result.handled.add(item);
+        const slug = reaction.slug;
+        fields.championReaction = {
+            slug,
+            name: reaction.name,
+            self: slug === "selfish-shield" || slug === "iron-command",
+            resistance: slug === "iron-command" ? 0 : slug === "selfish-shield" ? 2 + Math.floor(level / 2) : 2 + level,
+            dice: level >= 19 ? 6 : level >= 16 ? 5 : level >= 12 ? 4 : level >= 9 ? 3 : level >= 5 ? 2 : 1
+        };
+    }
+    return result;
 }
 
 function readGaps(actor, gaps, handled = new Set()) {
@@ -177,7 +264,7 @@ function readGaps(actor, gaps, handled = new Set()) {
     for (const item of actor.itemTypes?.feat ?? []) {
         const type = item.system?.actionType?.value;
         const slug = item.slug ?? "";
-        if (BUILT_IN_ACTIONS.has(slug)) continue;
+        if (BUILT_IN_ACTIONS.has(slug) || handled.has(item)) continue;
         if (!type || type === "passive") {
             if (NOTABLE_PASSIVE.test(slug)) gaps.push({ kind: "passive ability", name: item.name });
             continue;
@@ -387,6 +474,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         }
     }
     const abilities = await readAbilities(actor, { fresh });
+    const features = readClassFeatures(actor, strikes);
+    for (const item of features.handled) abilities.handled.add(item);
     readGaps(actor, gaps, abilities.handled);
     const { spells, spellPools } = await readSpells(actor, gaps, { fresh });
     spells.push(...abilities.abilities);
@@ -430,6 +519,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         heroPoints: actor.system?.resources?.heroPoints?.value ?? 0,
         shield: fresh && shield ? { ...shield, broken: false, raised: false } : shield,
         ...abilities.builtins,
+        ...features.fields,
+        multiStrikes: [...(abilities.builtins.multiStrikes ?? []), ...(features.fields.multiStrikes ?? [])],
         reactions: { aoo: hasItemSlug(actor, AOO_SLUGS), shieldBlock: hasItemSlug(actor, new Set(["shield-block"])), ...abilities.builtins.reactions },
         size: actor.size ?? actor.system?.traits?.size?.value ?? "med",
         resistances: readIwr(actor.attributes?.resistances),

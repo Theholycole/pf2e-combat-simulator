@@ -46,3 +46,11 @@ test("condition modifiers are removed and displaced ones restored", () => {
     assert.equal(stripConditions(6, modifiers), 7);
     assert.equal(stripConditions(8, [{ slug: "base", type: "untyped", modifier: 8, enabled: true }]), 8);
 });
+
+test("extra damage parts: a Strike's damage with a roll option on, against without it", async () => {
+    const { extraDamageParts, parseReadableDamage } = await import("../src/adapter/formula.js");
+    const base = parseReadableDamage("(1d6 + 4) piercing");
+    assert.deepEqual(extraDamageParts(parseReadableDamage("(1d6 + 4) piercing + 2d6 precision"), base), [{ dice: 2, die: 6, bonus: 0, multiplier: 1, type: "piercing", persistent: false, precision: true }], "Sneak Attack");
+    assert.deepEqual(extraDamageParts(parseReadableDamage("(1d6 + 6) piercing"), base), [{ dice: 0, die: 0, bonus: 2, multiplier: 1, type: "piercing", precision: false, persistent: false }], "Rage's +2");
+    assert.deepEqual(extraDamageParts(base, base), []);
+});

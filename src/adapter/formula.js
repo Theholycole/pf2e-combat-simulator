@@ -144,6 +144,24 @@ export function parseReadableDamage(text) {
         .map((entry) => entry.part);
 }
 
+// The damage parts one formula has beyond another: the same Strike's damage with
+// a roll option on (an off-guard target, Rage) against without it. Extra dice
+// come as they are; a bigger flat bonus as a flat part.
+export function extraDamageParts(withOption, base) {
+    const remaining = base.map((part) => ({ ...part }));
+    const extra = [];
+    for (const part of withOption) {
+        const same = remaining.findIndex((other) => other.dice === part.dice && other.die === part.die && other.type === part.type && other.precision === part.precision && other.persistent === part.persistent && other.multiplier === part.multiplier);
+        if (same < 0) {
+            extra.push({ ...part });
+            continue;
+        }
+        const [other] = remaining.splice(same, 1);
+        if (part.bonus !== other.bonus) extra.push({ dice: 0, die: 0, bonus: part.bonus - other.bonus, multiplier: part.multiplier, type: part.type, precision: part.precision, persistent: part.persistent });
+    }
+    return extra.filter((part) => part.dice || part.bonus);
+}
+
 export function averageOf(parts) {
     return parts.reduce((sum, part) => sum + (part.dice * (part.die + 1) / 2 + part.bonus) * part.multiplier, 0);
 }

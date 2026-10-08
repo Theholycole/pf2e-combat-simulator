@@ -10,7 +10,7 @@
 import { degreeDistribution, CRITICAL_SUCCESS, SUCCESS, CRITICAL_FAILURE } from "./checks.js";
 import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, flankChance, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
-import { coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
+import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken } from "./morale.js";
 import { chargeStrike, multiStrikeOrder, strikeNamed } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
@@ -210,7 +210,7 @@ class PlanContext {
         const cached = perTarget.get(key);
         if (cached !== undefined) return cached;
         const { state, c } = this;
-        let modifier = strike.bonus - multipleAttackPenalty(strike, attacks) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack") - gripPenalty(c, strike);
+        let modifier = strike.bonus - attackPenalty(c, strike, target, attacks) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack") - gripPenalty(c, strike);
         let circumstance = prone ? 2 : 0;
         if (isShaken(c)) circumstance = Math.max(circumstance, state.moraleRules.group.shakenAttackPenalty);
         if (nonlethalAgainst(state, c, target) && !strike.nonlethal) circumstance = Math.max(circumstance, 2);
@@ -435,8 +435,11 @@ function expand(ctx, node, actionsLeft) {
         // Healing an ally is worth its threat times the share of HP restored,
         // more the closer it is to dropping, and most when it's down. Allies
         // caught by damage, and foes healed, count against the cast.
+        // Raging: no actions with the concentrate trait unless they have the rage trait.
+        const raging = (c.activeBuffs ?? []).some((buff) => buff.noConcentrate);
         for (const [index, spell] of (c.spells ?? []).entries()) {
             if (!canCast(c, spell) || node.casts.includes(index)) continue;
+            if (raging && (spell.plan?.traits ?? []).includes("concentrate") && !(spell.plan?.traits ?? []).includes("rage")) continue;
             if (spell.pool && node.casts.filter((other) => c.spells[other].pool === spell.pool).length >= (c.spellPools[spell.pool] ?? 0)) continue;
             // A rider (Grab, Knockdown, Push) only as the action straight after the Strike that allows it.
             const rider = spell.plan?.trigger?.event === "strike";
@@ -495,19 +498,26 @@ function expand(ctx, node, actionsLeft) {
         // Draconic Frenzy and the like: several Strikes for fewer actions, at one target.
         for (const [abilityIndex, ability] of (c.multiStrikes ?? []).entries()) {
             if (restrained || ability.actions > remaining) continue;
+            // A flourish (Flurry of Blows): once a turn.
+            if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ms${abilityIndex}`))) continue;
             const order = multiStrikeOrder(c, ability);
             if (!order || order.some((index) => !strikeUsable(c, c.strikes[index]))) continue;
             for (const target of ctx.enemies) {
                 if (target.status !== "active" || order.some((index) => c.strikes[index].melee && !inMelee(node.pos, target))) continue;
                 let expected = 0;
-                for (const [step, index] of order.entries()) expected += ctx.strikeExpectation(c.strikes[index], index, target, node.attacks + step, node.pos, node.prone)?.damage ?? 0;
+                for (const [step, index] of order.entries()) {
+                    // Double Slice: both at the current penalty, the second -2 unless agile.
+                    const strike = ability.sameMap && step > 0 && !c.strikes[index].agile ? { ...c.strikes[index], bonus: c.strikes[index].bonus - 2 } : c.strikes[index];
+                    expected += ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone)?.damage ?? 0;
+                }
                 if (expected <= 0) continue;
                 const before = node.damage[target.id] ?? 0;
                 const hp = remainingHp(target);
                 const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
                 children.push(child(node, { type: "multiStrike", ability: abilityIndex, targetId: target.id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
                     attacks: order.length,
-                    damage: { ...node.damage, [target.id]: before + expected }
+                    damage: { ...node.damage, [target.id]: before + expected },
+                    ...(ability.oncePerTurn ? { cast: `ms${abilityIndex}` } : {})
                 }));
             }
         }
@@ -580,6 +590,30 @@ function expand(ctx, node, actionsLeft) {
                 });
                 if (activity.strides && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                 children.push(next);
+            }
+        }
+        // Rage and the like: once a fight, for its temporary HP and the damage it adds
+        // over the rest of the fight (about three rounds of Strikes).
+        for (const [buffIndex, buff] of (c.selfBuffs ?? []).entries()) {
+            if (buff.actions > remaining || c.buffsUsed?.has(buff.name) || (c.activeBuffs ?? []).includes(buff) || node.casts.includes(`buff${buffIndex}`)) continue;
+            const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
+            let perRound = 0;
+            for (const strike of c.strikes ?? []) {
+                const parts = buff.strikeDeltas?.[strike.name] ?? [];
+                const average = parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
+                perRound = Math.max(perRound, average * 1.3);
+            }
+            const gain = ctx.ownValue * (ROUND_TO_KILL * 3 * perRound / threat + 0.5 * (buff.tempHp ?? 0) / Math.max(1, c.hp.max));
+            if (gain > 0) children.push(child(node, { type: "selfBuff", index: buffIndex, actions: buff.actions }, buff.actions, gain, { cast: `buff${buffIndex}` }));
+        }
+        // Hunt Prey: a new prey when the current one is gone or a better target is in reach.
+        if (c.huntPrey && node.used === 0 && !raging) {
+            const current = c.prey ? state.byId.get(c.prey) : null;
+            if (!current || !isActive(current)) {
+                const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
+                const perRound = c.huntPrey.edge === "precision" ? 0.65 * 4.5 * (c.huntPrey.precisionDice ?? 1) : c.huntPrey.edge === "flurry" ? 0.25 * threat : 0.05 * threat;
+                const prey = ctx.enemies.filter((enemy) => enemy.status === "active").sort((a, b) => targetValue(state, b, c) - targetValue(state, a, c))[0];
+                if (prey) children.push(child(node, { type: "huntPrey", targetId: prey.id }, 1, ctx.ownValue * ROUND_TO_KILL * 3 * perRound / threat));
             }
         }
         // Engage a target.
