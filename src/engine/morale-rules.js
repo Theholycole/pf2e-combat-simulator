@@ -18,7 +18,8 @@ export const MORALE_RULES = Object.freeze({
     extraCheckOnLeaderDeath: true,
 
     triggers: {
-        firstMemberOverwhelmed: { enabled: true, label: "Side loses its first member to a critical hit or overwhelming attack" },
+        // Off (user, 2026-10-08, M22): it decided close fights (+2.1 points there) for 0.11 rounds.
+        firstMemberOverwhelmed: { enabled: false, label: "Side loses its first member to a critical hit or overwhelming attack" },
         halfStrength: { enabled: true, label: "Side falls to half its starting creatures" },
         quarterStrength: { enabled: true, label: "Side falls to one-quarter its starting creatures" },
         leaderDown: { enabled: true, label: "Leader dropped or fled" },
