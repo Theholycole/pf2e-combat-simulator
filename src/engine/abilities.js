@@ -116,9 +116,14 @@ export function multiStrikeOrder(c, ability) {
 // ("the Strike's damage is increased to 3d10+20"), or a bonus to damage.
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus) return strike;
-    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus };
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher) return strike;
+    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
+    // Vicious Swing: extra dice of the weapon's own damage (PF2e's critical formula would leave them out).
+    if (charge.extraWeaponDice) {
+        changed.damage = changed.damage.map((part, index) => (index === 0 ? { ...part, dice: (part.dice ?? 0) + charge.extraWeaponDice } : part));
+        delete changed.critDamage;
+    }
     const dice = charge.damage ? /(\d+)d(\d+)\s*(?:([+-])\s*(\d+))?/.exec(charge.damage) : null;
     if (dice) {
         const type = /\[([a-z]+)\]/.exec(charge.damage)?.[1] ?? strike.damage[0]?.type ?? "untyped";
@@ -197,6 +202,12 @@ export function extraApplies(extra, target, { offGuard, packAllies }) {
 // Regeneration works unless damage of a listed type turned it off.
 export function regenerating(c) {
     return !!c.regeneration && !c.regenerationOff;
+}
+
+// PF2e's standard DC for a level (level −1 to 25).
+const LEVEL_DCS = [13, 14, 15, 16, 18, 19, 20, 22, 23, 24, 26, 27, 28, 30, 31, 32, 34, 35, 36, 38, 39, 40, 42, 44, 46, 48, 50];
+export function levelDC(level) {
+    return LEVEL_DCS[Math.max(0, Math.min(LEVEL_DCS.length - 1, (level ?? 0) + 1))];
 }
 
 // Whether a creature can use a reaction now (confused creatures can't).

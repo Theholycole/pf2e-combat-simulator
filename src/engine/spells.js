@@ -15,7 +15,7 @@ import { degreeDistribution, degreeOf, flatCheck, DEGREE_NAMES, SUCCESS } from "
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, removeEffect } from "./effects.js";
 import { applyDamage, expectedHitDamage, increaseDying, killCreature, log, releaseSwallowed, stride } from "./actions.js";
-import { saveBonusAgainst, sizeRank } from "./abilities.js";
+import { levelDC, saveBonusAgainst, sizeRank } from "./abilities.js";
 import { adjustDamage, adjustInstance } from "./damage.js";
 import { leaveMelee } from "./space.js";
 
@@ -364,6 +364,10 @@ export function expireTimers(state, c, phase = "start") {
                 other.regenerationOff = false;
                 return false;
             }
+            if (timer.taunt) {
+                if (other.tauntedBy === timer.taunt) other.tauntedBy = null;
+                return false;
+            }
             const current = other.cond[timer.key];
             if (timer.value === true) other.cond[timer.key] = false;
             else if (current <= timer.value) other.cond[timer.key] = 0;
@@ -578,6 +582,34 @@ export function retch(state, c) {
     log(state, `  ${c.name} retches: ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}${drop ? ` (sickened ${c.cond.sickened})` : ""}`);
 }
 
+// Battle Medicine on an ally (or itself): Medicine against a Treat Wounds DC.
+// Success: 2d8 HP (+ the DC's bonus), critical success 4d8; critical failure:
+// 1d8 damage. The target is then immune to this creature's Battle Medicine.
+export function battleMedicine(state, c, target, tierIndex = 0) {
+    const medicine = c.battleMedicine;
+    const tier = medicine.tiers[tierIndex] ?? medicine.tiers[0];
+    (c.battleMedicineGiven ??= new Set()).add(target.id);
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + medicine.modifier - statusPenalty(c, "skill"), tier.dc, natural);
+    log(state, `  ${c.name} uses ${medicine.name} on ${target.name} (DC ${tier.dc}): ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}`);
+    if (degree >= 2) {
+        let amount = tier.bonus;
+        for (let die = 0; die < (degree === 3 ? 4 : 2); die++) amount += state.rng.die(8);
+        applyHeal(state, target, amount);
+    } else if (degree === 0 && target.status === "active") {
+        applyDamage(state, target, [{ type: "untyped", amount: state.rng.die(8), persistent: false, precision: false }], { source: c });
+    }
+}
+
+// The expected HP of Battle Medicine at each of its DCs: [{ tier, heal }].
+export function battleMedicineOdds(c) {
+    const medicine = c.battleMedicine;
+    return medicine.tiers.map((tier, index) => {
+        const odds = degreeDistribution(medicine.modifier - statusPenalty(c, "skill"), tier.dc);
+        return { tier: index, heal: odds[2] * (9 + tier.bonus) + odds[3] * (18 + tier.bonus) - odds[0] * 4.5 };
+    });
+}
+
 // The chance a Retch lowers sickened: [success, critical success].
 export function retchOdds(c) {
     const odds = degreeDistribution(saveModifier(c, "fortitude"), c.sickenedDC ?? 10);
@@ -786,6 +818,63 @@ export function castPlan(state, caster, spell, targetIds, actions) {
         if (degree) log(state, `  ${target.name}: ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
     }
     applyChanges(state, caster, spell, result.changes, context, io);
+    // A swashbuckler's bravado action: panache on a success, until the end of the turn on a failure.
+    if (caster.panacheStyle?.bravado.includes(spell.plan?.source?.slug)) {
+        const degrees = targets.map((target) => result.degrees[target.id]).filter(Boolean);
+        if (degrees.some((degree) => degree === "success" || degree === "criticalSuccess")) {
+            if (caster.panache !== true) log(state, `  ${caster.name} gains panache`);
+            caster.panache = true;
+        } else if (degrees.includes("failure") && !caster.panache) {
+            caster.panache = "turn";
+            log(state, `  ${caster.name} gains panache until the end of its turn`);
+        }
+    }
+}
+
+// Exploit Vulnerability: an Esoteric Lore check against the target's level DC.
+// A success uses its highest weakness or a personal antithesis (2 + half the
+// thaumaturge's level), whichever is bigger; a failure, the antithesis; a
+// critical failure, nothing, and the thaumaturge is off-guard until its next turn.
+export function exploitVulnerability(state, c, target) {
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + c.exploit.modifier - statusPenalty(c, "skill"), levelDC(target.level), natural);
+    log(state, `  ${c.name} uses ${c.exploit.name} on ${target.name}: ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}`);
+    if (degree === 0) {
+        c.cond.offGuard = true;
+        (c.timers ??= []).push({ key: "offGuard", value: true, round: state.round + 1, turnOf: c.id, at: "start" });
+        return;
+    }
+    const weakest = Math.max(0, ...(target.weaknesses ?? []).map((entry) => entry.value ?? 0));
+    c.exploited = { targetId: target.id, value: degree >= 2 ? Math.max(weakest, c.exploit.antithesis) : c.exploit.antithesis };
+}
+
+// The weakness Exploit Vulnerability would most likely give against a target, on average.
+export function exploitValue(c, target) {
+    const odds = degreeDistribution(c.exploit.modifier - statusPenalty(c, "skill"), levelDC(target.level));
+    const weakest = Math.max(0, ...(target.weaknesses ?? []).map((entry) => entry.value ?? 0));
+    return (odds[2] + odds[3]) * Math.max(weakest, c.exploit.antithesis) + odds[1] * c.exploit.antithesis;
+}
+
+// Overdrive: a Crafting check against the inventor's level DC; its Strikes deal
+// its Intelligence modifier more on a critical success, half on a success, 1
+// fire on a failure; a critical failure burns it (1d6 fire per 2 levels, at least 1d6).
+export function overdrive(state, c) {
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + c.overdrive.modifier - statusPenalty(c, "skill"), levelDC(c.overdrive.level), natural);
+    log(state, `  ${c.name} uses ${c.overdrive.name}: ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}`);
+    c.activeBuffs = (c.activeBuffs ?? []).filter((buff) => buff.name !== c.overdrive.name);
+    if (degree === 0) {
+        let amount = 0;
+        for (let die = 0; die < Math.max(1, Math.floor(c.overdrive.level / 2)); die++) amount += state.rng.die(6);
+        applyDamage(state, c, [{ type: "fire", amount, persistent: false, precision: false }], { source: c });
+        c.overdriveDone = true;
+        return;
+    }
+    const bonus = degree === 3 ? c.overdrive.intMod : degree === 2 ? Math.floor(c.overdrive.intMod / 2) : 1;
+    const type = degree === 1 ? "fire" : null;
+    const strikeDeltas = Object.fromEntries((c.strikes ?? []).map((strike) => [strike.name, [{ dice: 0, die: 0, bonus, multiplier: 1, type: type ?? strike.damage[0]?.type, precision: false, persistent: false }]]));
+    c.activeBuffs.push({ name: c.overdrive.name, strikeDeltas });
+    if (degree >= 2) c.overdriveDone = true;
 }
 
 // "1d4" or "3" → a number of rounds.

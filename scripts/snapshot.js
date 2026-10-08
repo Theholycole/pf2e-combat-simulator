@@ -162,6 +162,8 @@ async function readStrike(actor, action, gaps) {
         // Light Bulk or less: usable from inside a swallower.
         light: item?.type === "weapon" && Number(item?.system?.bulk?.value ?? 1) <= 0.1,
         unarmed,
+        finesse: traits.includes("finesse"),
+        thrown: traits.some((trait) => trait.startsWith("thrown")),
         ...(offGuardExtra.length ? { offGuardExtra } : {}),
         ...(rageDelta.length ? { rageDelta } : {}),
         bonus: stripConditions(action.totalModifier, action.modifiers),
@@ -229,6 +231,105 @@ function readClassFeatures(actor, strikes) {
     if (doubleSlice && weapons.length >= 2) {
         result.handled.add(doubleSlice);
         (fields.multiStrikes ??= []).push({ name: "Double Slice", actions: 2, strikes: [weapons[0].name.toLowerCase(), weapons[1].name.toLowerCase()], sameMap: true, sameTarget: true });
+    }
+    // Feats with actions, as the engine's Strike activities, charges and multi-Strikes.
+    const activity = (item, fields) => {
+        result.handled.add(item);
+        (result.fields.strikeActivities ??= []).push({ name: item.name, actions: Number(item.system?.actions?.value) || 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: null, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null, ...fields });
+    };
+    const meleeWeapons = strikes.filter((strike) => strike.melee && !strike.name.includes("(")).sort((a, b) => value(b) - value(a));
+    const rangedWeapons = strikes.filter((strike) => !strike.melee && strike.held && !strike.name.includes("(")).sort((a, b) => value(b) - value(a));
+    for (const item of items) {
+        switch (item.slug) {
+            case "vicious-swing":
+                activity(item, { countsAs: 2, extraWeaponDice: level >= 18 ? 3 : level >= 10 ? 2 : 1 });
+                break;
+            case "intimidating-strike":
+                activity(item, { onHit: { conditions: [{ slug: "frightened", value: 1, duration: null }], critical: [{ slug: "frightened", value: 2, duration: null }], push: null, damage: [], save: null, size: null } });
+                break;
+            case "snagging-strike":
+                activity(item, { onHit: { conditions: [{ slug: "off-guard", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" } }], critical: null, push: null, damage: [], save: null, size: null } });
+                break;
+            case "exacting-strike":
+                activity(item, { exacting: true });
+                break;
+            case "sudden-charge":
+                result.handled.add(item);
+                (result.fields.charges ??= []).push({ name: item.name, actions: 2, strides: 2, strike: null, attackBonus: 0, damage: null, oncePerTurn: true });
+                break;
+            case "hunted-shot":
+                if (rangedWeapons[0]) {
+                    result.handled.add(item);
+                    (result.fields.multiStrikes ??= []).push({ name: item.name, actions: 1, strikes: [rangedWeapons[0].name.toLowerCase(), rangedWeapons[0].name.toLowerCase()], oncePerTurn: true, preyOnly: true, sameTarget: true });
+                }
+                break;
+            case "twin-takedown":
+                if (meleeWeapons.filter((strike) => strike.held).length >= 2) {
+                    const [first, second] = meleeWeapons.filter((strike) => strike.held);
+                    result.handled.add(item);
+                    (result.fields.multiStrikes ??= []).push({ name: item.name, actions: 1, strikes: [first.name.toLowerCase(), second.name.toLowerCase()], oncePerTurn: true, preyOnly: true, sameTarget: true });
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    // Battle Medicine: needs a healer's toolkit; the Treat Wounds DCs its Medicine rank allows.
+    const medicine = find("battle-medicine");
+    if (medicine && actor.items.some((item) => /^healers-toolkit/.test(item.slug ?? ""))) {
+        const rank = actor.skills?.medicine?.rank ?? 1;
+        result.handled.add(medicine);
+        fields.battleMedicine = { name: medicine.name, modifier: statValue(actor.skills?.medicine), tiers: [{ dc: 15, bonus: 0 }, { dc: 20, bonus: 10 }, { dc: 30, bonus: 30 }, { dc: 40, bonus: 50 }].slice(0, Math.max(1, rank)) };
+    }
+    const ability = (key) => actor.abilities?.[key]?.mod ?? actor.system?.abilities?.[key]?.mod ?? 0;
+    const steps = [5, 9, 13, 17].filter((step) => level >= step).length;
+    // Thaumaturge: Exploit Vulnerability (an Esoteric Lore check against the target's level DC).
+    const exploit = items.find((item) => item.slug === "exploit-vulnerability" && item.type === "action");
+    if (exploit) {
+        for (const item of items) if (item.slug === "exploit-vulnerability") result.handled.add(item);
+        const lore = Object.values(actor.skills ?? {}).find((skill) => /esoteric/i.test(skill.slug ?? skill.label ?? ""));
+        fields.exploit = { name: exploit.name, modifier: statValue(lore ?? actor.skills?.occultism), antithesis: 2 + Math.floor(level / 2) };
+    }
+    // Investigator: Devise a Stratagem (Intelligence for agile, finesse and ranged Strikes; Strategic Strike's precision dice).
+    const stratagem = items.find((item) => item.slug === "devise-a-stratagem" && item.type === "action");
+    if (stratagem) {
+        for (const item of items) if (item.slug === "devise-a-stratagem" || item.slug === "strategic-strike") result.handled.add(item);
+        const bonus = {};
+        for (const strike of strikes) {
+            const eligible = strike.melee ? strike.agile || strike.finesse : !strike.thrown;
+            if (eligible) bonus[strike.name] = Math.max(0, ability("int") - (strike.melee ? Math.max(ability("str"), ability("dex")) : ability("dex")));
+        }
+        fields.stratagemFeature = { name: stratagem.name, dice: 1 + steps, strikeBonus: bonus };
+    }
+    // Swashbuckler: panache from its style's bravado actions, Precise Strike, finishers and Opportune Riposte.
+    if (has("panache")) {
+        for (const item of items) if (["panache", "precise-strike", "confident-finisher"].includes(item.slug)) result.handled.add(item);
+        const styles = { fencer: ["feint", "create-a-diversion"], braggart: ["demoralize"], gymnast: ["grapple", "reposition", "shove", "trip"], wit: ["bon-mot"], rascal: ["dirty-trick"], battledancer: ["perform"] };
+        const style = Object.keys(styles).find((slug) => has(slug));
+        fields.panacheStyle = { bravado: style ? styles[style] : [], precise: 2 + steps, finisherDice: 2 + steps };
+        if (style) for (const item of items) if (item.slug === style) result.handled.add(item);
+        for (const item of items) {
+            if (item.type !== "action" && item.system?.actionType?.value !== "action") continue;
+            if (item.slug === "confident-finisher") activity(item, { finisher: "confident" });
+            if (item.slug === "unbalancing-finisher") activity(item, { finisher: "unbalancing", onHit: { conditions: [{ slug: "off-guard", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } }], critical: null, push: null, damage: [], save: null, size: null } });
+        }
+        const riposte = items.find((item) => item.slug === "opportune-riposte" && item.type === "action");
+        if (riposte) {
+            for (const item of items) if (item.slug === "opportune-riposte") result.handled.add(item);
+            fields.opportuneRiposte = true;
+        }
+    }
+    // Guardian: Intercept Attack and Taunt.
+    for (const item of items) {
+        if (item.slug === "intercept-attack" && item.type === "action") fields.interceptAttack = true;
+        if (item.slug === "taunt" && item.type === "action") fields.taunt = { name: item.name };
+        if (["intercept-attack", "taunt"].includes(item.slug)) result.handled.add(item);
+    }
+    // Inventor: Overdrive (a Crafting check against its level's DC; extra damage on its Strikes).
+    const overdrive = items.find((item) => item.slug === "overdrive" && item.type === "action");
+    if (overdrive) {
+        for (const item of items) if (item.slug === "overdrive") result.handled.add(item);
+        fields.overdrive = { name: overdrive.name, modifier: statValue(actor.skills?.crafting), intMod: ability("int"), level };
     }
     // Sneak Attack and the like: their dice are read with each Strike.
     if (strikes.some((strike) => strike.offGuardExtra?.length)) for (const item of items) if (item.slug === "sneak-attack") result.handled.add(item);

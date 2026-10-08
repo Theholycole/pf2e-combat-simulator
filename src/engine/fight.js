@@ -11,7 +11,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyHeal, applyStrikeRider, castSpell, describeSpell, expireTimers, hasTimer, retch, rollInstances, triggerRiders } from "./spells.js";
+import { applyAuras, applyHeal, applyStrikeRider, battleMedicine, castSpell, describeSpell, expireTimers, exploitVulnerability, hasTimer, overdrive, retch, rollInstances, triggerRiders } from "./spells.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -214,8 +214,9 @@ function startTurn(state, c) {
     c.riderReady = null;
     c.rendUsed = false;
     c.withdrewThisTurn = false;
-    // Flourishes (Flurry of Blows): once a turn.
+    // Flourishes (Flurry of Blows): once a turn. A finisher ends Strikes for the turn.
     c.usedThisTurn = new Set();
+    c.noAttacksThisTurn = false;
     c.turnAttacks = [];
     if (c.shield) c.shield.raised = false;
     let actions = 3 + (c.cond.quickened ? 1 : 0);
@@ -298,6 +299,8 @@ function swallowedTurn(state, c) {
 }
 
 function endTurn(state, c) {
+    // Panache from a failed bravado action lasts only this turn.
+    if (c.panache === "turn") c.panache = false;
     // Swallow Whole's damage at the end of each of the swallowed creature's turns.
     if (c.swallowedBy && c.swallow?.damage?.length) {
         state.log?.push(`  ${c.name} is crushed inside ${state.byId.get(c.swallowedBy)?.name}`);
@@ -366,7 +369,27 @@ function act(state, c, action) {
                 if (!canAct(c) || !isActive(target) || !sameMelee(c, target)) break;
             }
             const result = performStrike(state, c, target, chargeStrike(c.strikes[action.strikeIndex], activity));
+            // A finisher spends panache, and no more attacks this turn; Confident Finisher's miss still deals half its dice.
+            if (activity.finisher) {
+                c.panache = false;
+                c.noAttacksThisTurn = true;
+                if (activity.finisher === "confident" && result?.degree === 1 && isActive(target)) {
+                    let amount = 0;
+                    for (let die = 0; die < (c.panacheStyle?.finisherDice ?? 2); die++) amount += state.rng.die(6);
+                    const dealt = applyDamage(state, target, [{ type: c.strikes[action.strikeIndex].damage[0].type, amount: Math.floor(amount / 2), persistent: false, precision: true }], { source: c });
+                    state.log?.push(`  ${target.name} takes ${dealt} from the finisher's miss`);
+                }
+            }
+            // Vicious Swing counts as two attacks; Exacting Strike's miss doesn't count.
+            if (result && activity.countsAs > 1) c.attacksThisTurn += activity.countsAs - 1;
+            if (result && activity.exacting && result.degree === 1) c.attacksThisTurn = Math.max(0, c.attacksThisTurn - 1);
             if (result && result.degree >= SUCCESS && isActive(target)) applyStrikeRider(state, c, target, activity, result.degree === 3);
+            break;
+        }
+        // Battle Medicine: a Medicine check against the Treat Wounds DC it chose.
+        case "battleMedicine": {
+            const target = state.byId.get(action.targetId);
+            if (target) battleMedicine(state, c, target, action.tier);
             break;
         }
         case "rend": {
@@ -404,6 +427,30 @@ function act(state, c, action) {
             if (buff.tempHp) c.hp.temp = Math.max(c.hp.temp ?? 0, buff.tempHp);
             break;
         }
+        // Exploit Vulnerability, Devise a Stratagem, Taunt, Overdrive.
+        case "exploit": {
+            const target = state.byId.get(action.targetId);
+            c.usedThisTurn?.add("exploit");
+            if (target && isActive(target)) exploitVulnerability(state, c, target);
+            break;
+        }
+        case "stratagem":
+            c.stratagem = { targetId: action.targetId, natural: state.rng.d20(), round: state.round, used: false };
+            state.log?.push(`  ${c.name} uses ${c.stratagemFeature.name} on ${state.byId.get(action.targetId)?.name} (rolls ${c.stratagem.natural})`);
+            break;
+        case "taunt": {
+            const target = state.byId.get(action.targetId);
+            if (!target || !isActive(target)) break;
+            for (const other of state.list) if (other.tauntedBy === c.id) other.tauntedBy = null;
+            target.tauntedBy = c.id;
+            (target.timers ??= []).push({ taunt: c.id, round: state.round + 1, turnOf: c.id, at: "start" });
+            state.log?.push(`  ${c.name} taunts ${target.name}`);
+            break;
+        }
+        case "overdrive":
+            c.usedThisTurn?.add("overdrive");
+            overdrive(state, c);
+            break;
         // Hunt Prey: the creature its hunter's edge works against.
         case "huntPrey": {
             const target = state.byId.get(action.targetId);
@@ -417,6 +464,7 @@ function act(state, c, action) {
         case "charge": {
             const target = state.byId.get(action.targetId);
             state.log?.push(`  ${c.name} uses ${c.charges[action.ability].name}`);
+            if (c.charges[action.ability].oncePerTurn) c.usedThisTurn?.add(c.charges[action.ability].name);
             stride(state, c, { kind: "engage", targetId: action.targetId });
             if (canAct(c) && target && isActive(target) && sameMelee(c, target)) performStrike(state, c, target, chargeStrike(c.strikes[action.strikeIndex], c.charges[action.ability]));
             break;

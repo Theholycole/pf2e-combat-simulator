@@ -2,7 +2,7 @@
 // reactions Attack of Opportunity and Shield Block. Also damage, dying and
 // hero points.
 
-import { CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatCheck } from "./checks.js";
+import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatCheck } from "./checks.js";
 import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
@@ -98,7 +98,7 @@ export function expectedHitDamage(attacker, strike, target, critical, { bonus = 
     let total = baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance);
     if (attacker.strikeExtras?.length) total += expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies);
     for (const part of featureParts(attacker, strike, target, { offGuard: offGuardChance })) {
-        const amount = ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (critical ? 2 : 1);
+        const amount = ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (critical && !part.noCrit ? 2 : 1);
         total += part.chance * adjustInstance(target, part.type ?? strike.damage[0]?.type ?? "untyped", amount, !!part.precision);
     }
     return total;
@@ -112,6 +112,12 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
     if (offGuard && strike.offGuardExtra?.length) for (const part of strike.offGuardExtra) parts.push({ ...part, chance: offGuard });
     for (const buff of attacker.activeBuffs ?? []) for (const part of buff.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
     if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id && firstPreyHit) parts.push({ dice: attacker.huntPrey.precisionDice ?? 1, die: 8, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
+    // Panache: Precise Strike's damage on agile or finesse melee Strikes; a finisher's dice instead.
+    const precise = attacker.panacheStyle && strike.melee && (strike.agile || strike.finesse);
+    if (precise && strike.finisher) parts.push({ dice: attacker.panacheStyle.finisherDice, die: 6, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
+    else if (precise && attacker.panache) parts.push({ dice: 0, die: 0, bonus: attacker.panacheStyle.precise, type: strike.damage[0]?.type, precision: true, chance: 1 });
+    // Exploit Vulnerability: the weakness it found or imposed, once per hit (not doubled).
+    if (attacker.exploited?.targetId === target.id) parts.push({ dice: 0, die: 0, bonus: attacker.exploited.value, type: "untyped", precision: false, noCrit: true, chance: 1 });
     return parts;
 }
 
@@ -198,7 +204,24 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     const roll = () => (misfortune ? Math.min(state.rng.d20(), state.rng.d20()) : state.rng.d20());
     let natural = roll();
-    let degree = degreeOf(natural + modifier, ac + defence, natural);
+    let bonus = 0;
+    // Taunted: attacking someone other than the guardian costs −1, and leaves it off-guard.
+    const taunter = attacker.tauntedBy ? state.byId.get(attacker.tauntedBy) : null;
+    if (taunter && isActive(taunter) && taunter.id !== target.id && !reaction) {
+        bonus -= 1;
+        attacker.cond.offGuard = true;
+        (attacker.timers ??= []).push({ key: "offGuard", value: true, round: attacker.round === state.round ? state.round + 1 : state.round, turnOf: attacker.id, at: "start" });
+    }
+    // Devise a Stratagem: the d20 rolled in advance, and Intelligence, for the first Strike at that creature.
+    const stratagem = attacker.stratagem;
+    const strategic = !reaction && stratagem && !stratagem.used && stratagem.targetId === target.id && stratagem.round === state.round && (attacker.stratagemFeature?.strikeBonus?.[strike.name] !== undefined);
+    if (strategic) {
+        natural = stratagem.natural;
+        bonus += attacker.stratagemFeature.strikeBonus[strike.name];
+        stratagem.used = true;
+        log(state, `  ${attacker.name} uses its stratagem (${natural})`);
+    }
+    let degree = degreeOf(natural + modifier + bonus, ac + defence, natural);
     // Retract Body: +AC once the attack hits, when that turns it aside.
     if (degree >= SUCCESS && target.acReaction?.when === "hit" && canReact(target)) {
         const lower = degreeOf(natural + modifier, ac + target.acReaction.value, natural);
@@ -215,7 +238,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
             attacker.heroPoints--;
             state.stats.heroPointsSpent++;
             natural = roll();
-            degree = degreeOf(natural + modifier, ac + defence, natural);
+            degree = degreeOf(natural + modifier + bonus, ac + defence, natural);
             log(state, `  ${attacker.name} spends a hero point to reroll`);
         }
     }
@@ -225,7 +248,16 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     const label = ["critically misses", "misses", "hits", "critically hits"][degree];
     if (degree < SUCCESS) {
-        log(state, `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier} vs AC ${ac + defence}, ${label}`);
+        log(state, `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label}`);
+        // Opportune Riposte: a Strike back at a foe in reach that critically fails against it.
+        if (degree === CRITICAL_FAILURE && !reaction && target.opportuneRiposte && canReact(target) && sameMelee(target, attacker)) {
+            const riposte = bestMeleeStrike(target, attacker);
+            if (riposte) {
+                target.reactionUsed = true;
+                log(state, `  ${target.name} uses Opportune Riposte`);
+                performStrike(state, target, attacker, riposte, { reaction: true });
+            }
+        }
         return { degree, damage: 0, trigger };
     }
     const critical = degree === CRITICAL_SUCCESS;
@@ -237,10 +269,12 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     // Class features: Sneak Attack's off-guard dice, Rage, the Precision edge.
     const firstPreyHit = attacker.preyHitRound !== state.round;
-    for (const part of featureParts(attacker, strike, target, { offGuard: offGuard ? 1 : 0, firstPreyHit })) {
+    const parts = featureParts(attacker, strike, target, { offGuard: offGuard ? 1 : 0, firstPreyHit });
+    if (strategic) parts.push({ dice: attacker.stratagemFeature.dice ?? 1, die: 6, bonus: 0, type: strike.damage[0].type, precision: true });
+    for (const part of parts) {
         let amount = part.bonus ?? 0;
         for (let die = 0; die < (part.dice ?? 0); die++) amount += state.rng.die(part.die);
-        instances.push({ type: part.type ?? strike.damage[0].type, amount: Math.max(0, critical ? amount * 2 : amount), precision: !!part.precision, persistent: !!part.persistent });
+        instances.push({ type: part.type ?? strike.damage[0].type, amount: Math.max(0, critical && !part.noCrit ? amount * 2 : amount), precision: !!part.precision, persistent: !!part.persistent });
     }
     if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id) attacker.preyHitRound = state.round;
     // Sneak Attack, Pack Attack and the like (monsters).
@@ -261,7 +295,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         nonlethal: strike.nonlethal || nonlethalAgainst(state, attacker, target),
         physical: true
     });
-    if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier} vs AC ${ac + defence}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
+    if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
     // Draconic Momentum: a critical hit recharges the breath weapon.
     if (critical && attacker.momentum) rechargeOnCritical(state, attacker);
     // Grab, Knockdown and Push follow a hit (free ones at once, the others as the next action).
@@ -290,7 +324,22 @@ function shouldShieldBlock(defender, total) {
     return total >= defender.hp.value + defender.hp.temp;
 }
 
-export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false } = {}) {
+export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false } = {}) {
+    // Intercept Attack: a guardian next to the ally takes physical damage meant for it,
+    // when the ally would drop or is the more hurt of the two.
+    if (!intercepted && source && source.side !== target.side && instances.some((instance) => ["bludgeoning", "piercing", "slashing"].includes(instance.type))) {
+        const guardian = state.list.find((c) => c.interceptAttack && c !== target && c.side === target.side && canReact(c) && sameMelee(c, target));
+        if (guardian) {
+            const total = adjustDamage(target, instances).total;
+            const fraction = (c) => Math.max(0, c.hp.value) / Math.max(1, c.hp.max);
+            if (total >= target.hp.value + (target.hp.temp ?? 0) || fraction(guardian) > fraction(target) + 0.2) {
+                guardian.reactionUsed = true;
+                state.stats.reactions++;
+                log(state, `  ${guardian.name} uses Intercept Attack for ${target.name}`);
+                return applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
+            }
+        }
+    }
     // Regeneration turns off before damage of a listed type is dealt.
     if (target.regeneration && instances.some((instance) => instance.amount > 0 && target.regeneration.deactivatedBy.includes(instance.type))) turnOffRegeneration(state, target);
     const adjusted = adjustDamage(target, instances);
