@@ -12,6 +12,7 @@ const { compileBasicActions, compileMonsterAbility } = await import(new URL("../
 const { simulate } = await import("../src/engine/fight.js");
 const { martialParty } = await import("../src/engine/benchmarks.js");
 const { parseReadableDamage } = await import("../src/adapter/formula.js");
+const { addBuiltin } = await import("../src/engine/abilities.js");
 
 const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 const PACKS = process.argv.slice(2).length ? process.argv.slice(2) : ["pathfinder-monster-core", "pathfinder-monster-core-2", "pathfinder-npc-core"];
@@ -41,18 +42,17 @@ function combatant(npc) {
         });
     }
     const spells = [];
-    const reactions = { aoo: false, shieldBlock: false };
-    let rend = null;
+    const builtins = { reactions: { aoo: false, shieldBlock: false } };
     const used = new Set();
     for (const item of npc.items.filter((entry) => entry.type === "action")) {
-        const plan = compileMonsterAbility(item, { basicActions });
+        const plan = compileMonsterAbility(item, { basicActions, actor: npc });
         if (!plan) continue;
-        used.add(item.name);
-        if (plan.builtin === "ferocity") reactions.ferocity = true;
-        else if (plan.builtin === "rend") rend = { strike: plan.strike };
-        else if (plan.builtin === "attack-of-opportunity" || plan.builtin === "reactive-strike") reactions.aoo = true;
-        else if (plan.builtin === "shield-block") reactions.shieldBlock = true;
-        else if (plan.resolution) spells.push({ name: item.name, plan, castRank: 1, pool: null, kind: "ability" });
+        if (plan.builtin) {
+            if (addBuiltin(builtins, plan, item.name)) used.add(item.name);
+        } else if (plan.resolution) {
+            used.add(item.name);
+            spells.push({ name: item.name, plan, castRank: 1, pool: null, kind: "ability" });
+        }
     }
     const skills = Object.fromEntries(Object.entries(system.skills ?? {}).map(([slug, value]) => [slug, value.base ?? 0]));
     for (const [slug, plan] of Object.entries(basicActions)) {
@@ -76,8 +76,8 @@ function combatant(npc) {
         reach: Math.max(5, ...strikes.filter((strike) => strike.melee).map((strike) => strike.reach)),
         strikes,
         spells,
-        reactions,
-        rend,
+        ...builtins,
+        size: system.traits.size?.value ?? "med",
         resistances: (system.attributes.resistances ?? []).map((entry) => ({ type: entry.type, value: entry.value ?? 0, exceptions: entry.exceptions ?? [] })),
         weaknesses: (system.attributes.weaknesses ?? []).map((entry) => ({ type: entry.type, value: entry.value ?? 0, exceptions: entry.exceptions ?? [] })),
         immunities: (system.attributes.immunities ?? []).map((entry) => entry.type),
@@ -112,6 +112,11 @@ for (const pack of PACKS) {
                     if (cast) uses.set(cast, (uses.get(cast) ?? 0) + 1);
                     if (/uses Ferocity/.test(line)) uses.set("Ferocity", (uses.get("Ferocity") ?? 0) + 1);
                     if (/ rends /.test(line)) uses.set("Rend", (uses.get("Rend") ?? 0) + 1);
+                    const used = / uses (.+)$/.exec(line)?.[1];
+                    if (used && used !== "Ferocity and stays up at 1 HP") uses.set(used, (uses.get(used) ?? 0) + 1);
+                    for (const [pattern, name] of [[/swallows /, "(swallowed)"], [/regenerates and wakes/, "(regenerated up)"], [/regeneration stops/, "(regeneration stopped)"], [/recharges$/, "(momentum recharge)"], [/cuts itself free|escapes from/, "(out of a swallower)"], [/: [^:]+, stage \d+$/, "(affliction stage)"], [/ saves against /, "(affliction save)"], [/ recovers from /, "(affliction ended)"]]) {
+                        if (pattern.test(line)) uses.set(name, (uses.get(name) ?? 0) + 1);
+                    }
                 }
             } catch (error) {
                 stats.errors.push(`${npc.name} seed ${seed}: ${error.message}\n${error.stack.split("\n").slice(1, 3).join("\n")}`);
@@ -121,4 +126,4 @@ for (const pack of PACKS) {
 }
 console.log({ creatures: stats.creatures, withAbilities: stats.withAbilities, fights: stats.fights, errors: stats.errors.length, seconds: (Date.now() - started) / 1000 });
 console.log(stats.errors.slice(0, 6).join("\n"));
-console.log([...uses].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([name, count]) => `${count}\t${name}`).join("\n"));
+console.log([...uses].sort((a, b) => b[1] - a[1]).slice(0, 60).map(([name, count]) => `${count}\t${name}`).join("\n"));

@@ -10,11 +10,12 @@
 // pool: a key into the creature's spellPools (slots, focus points, innate
 // uses), or null for cantrips and at-will spells.
 
-import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
+import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, DEGREE_NAMES, SUCCESS } from "./checks.js";
-import { ACTIVE, DOWN, armorClass, effectBonus, hpFraction, isActive, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
+import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, removeEffect } from "./effects.js";
-import { applyDamage, expectedHitDamage, increaseDying, killCreature, log } from "./actions.js";
+import { applyDamage, expectedHitDamage, increaseDying, killCreature, log, releaseSwallowed, stride } from "./actions.js";
+import { saveBonusAgainst, sizeRank } from "./abilities.js";
 import { adjustDamage, adjustInstance } from "./damage.js";
 import { leaveMelee } from "./space.js";
 
@@ -125,6 +126,9 @@ function readSpell(base, actions) {
         recharge: plan?.trigger?.recharge?.formula ?? null,
         immunity: Boolean(plan?.trigger?.immunity),
         grabbedTargets: Boolean(targeting.grabbed),
+        // Swallow Whole: the largest size it can swallow; Trample: { size, strides }.
+        swallow: Object.values(plan?.resolution?.outcomes ?? {}).some((outcome) => outcome?.effects?.some((effect) => effect.kind === "swallow")) ? targeting.size ?? "medium" : null,
+        trample: targeting.trample ?? null,
         // Administer First Aid: dying allies.
         dying: Boolean(targeting.dying),
         escape: plan?.source?.slug === "escape",
@@ -201,8 +205,12 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
             // Spell attacks have the attack trait, so the multiple attack penalty applies.
             if (slug === "spell") return { modifier: (spell.attack ?? 0) - checkPenalty - mapPenalty() + effectBonus(c, "spell") + effectBonus(c, "attack"), dc: (spell.dc ?? 10) - checkPenalty + effectBonus(c, "spell") };
             if (slug === "strike") return { modifier: Math.max(0, ...(c.strikes ?? []).map((strike) => strike.bonus)) - checkPenalty - mapPenalty() + effectBonus(c, "attack") };
-            if (slug === "reflex" && c !== caster && disarmBonus(spell, c)) return { modifier: saveModifier(c, slug), dc: 10 + saveModifier(c, slug) - disarmBonus(spell, c) };
-            if (slug === "fortitude" || slug === "reflex" || slug === "will") return { modifier: saveModifier(c, slug) };
+            if (slug === "fortitude" || slug === "reflex" || slug === "will") {
+                // +1 status to all saves vs. magic and the like, against this spell or ability.
+                const modifier = saveModifier(c, slug) + (c !== caster ? saveBonusAgainst(c, slug, spell) : 0);
+                if (slug === "reflex" && c !== caster && disarmBonus(spell, c)) return { modifier, dc: 10 + saveModifier(c, slug) - disarmBonus(spell, c) };
+                return { modifier };
+            }
             if (slug === "stabilize") return { modifier: 0, dc: defenceDC(c, slug) };
             // A skill check: the actor's roll (with the multiple attack penalty
             // for an attack-trait action), or another creature's DC.
@@ -325,10 +333,16 @@ export function endConditions(target, slugs) {
 // At the start (or, for "until the end of …", the end) of a creature's turn:
 // the conditions and effects it timed run out.
 export function expireTimers(state, c, phase = "start") {
+    const afflictions = [];
     for (const other of state.list) {
         if (!other.timers?.length) continue;
         other.timers = other.timers.filter((timer) => {
             if (timer.turnOf !== c.id || state.round < timer.round || (timer.at ?? "start") !== phase) return true;
+            // An affliction's stage has run its course: a new save (after the filter, since it sets new timers).
+            if (timer.affliction) {
+                afflictions.push([other, timer.affliction]);
+                return false;
+            }
             if ((timer.key === "grabbed" || timer.key === "restrained") && !other.cond.grabbed && !other.cond.restrained) other.grabbedBy = null;
             if (timer.effect) {
                 removeEffect(other, timer.effect);
@@ -338,6 +352,10 @@ export function expireTimers(state, c, phase = "start") {
                 other.offGuardTo = (other.offGuardTo ?? []).filter((entry) => entry !== timer.offGuardTo);
                 return false;
             }
+            if (timer.regenerationOff) {
+                other.regenerationOff = false;
+                return false;
+            }
             const current = other.cond[timer.key];
             if (timer.value === true) other.cond[timer.key] = false;
             else if (current <= timer.value) other.cond[timer.key] = 0;
@@ -345,6 +363,114 @@ export function expireTimers(state, c, phase = "start") {
             return false;
         });
     }
+    for (const [target, entry] of afflictions) afflictionSave(state, target, entry);
+}
+
+// --- Afflictions (poisons, diseases): stages and their saves ------------------
+
+const SPAN_ROUNDS = { rounds: 1, minutes: 10 };
+// A span in rounds; Infinity for hours and days (beyond any fight).
+function spanRounds(span) {
+    return span && SPAN_ROUNDS[span.unit] ? span.value * SPAN_ROUNDS[span.unit] : Infinity;
+}
+
+// Exposure: a failed save afflicts the creature at stage 1 (2 on a critical
+// failure). A creature already afflicted by the same poison goes up that many
+// stages; a disease or curse it already has does nothing.
+function applyAffliction(state, source, target, data) {
+    if (!isActive(target) || (data.traits ?? []).some((trait) => (target.immunities ?? []).includes(trait))) return;
+    const existing = (target.afflictions ??= []).find((entry) => entry.name === data.name);
+    if (existing) {
+        if ((data.traits ?? []).includes("poison")) setAfflictionStage(state, target, existing, Math.min(existing.stages.length, existing.stage + data.stage));
+        return;
+    }
+    const maximum = spanRounds(data.maximumDuration);
+    const entry = { name: data.name, source: source.id, data, stages: data.stages, stage: 0, endRound: state.round + maximum, conditions: [] };
+    target.afflictions.push(entry);
+    // An onset longer than the fight: nothing happens yet.
+    const onset = data.onset ? spanRounds(data.onset) : 0;
+    if (onset === Infinity) return;
+    if (onset > 0) {
+        entry.pending = Math.min(data.stage, data.stages.length);
+        (target.timers ??= []).push({ affliction: entry, round: state.round + onset, turnOf: source.id, at: "start" });
+        log(state, `  ${target.name} is exposed to ${data.name}`);
+        return;
+    }
+    setAfflictionStage(state, target, entry, Math.min(data.stage, data.stages.length));
+}
+
+// Moves an affliction to a stage: the old stage's conditions end, the new
+// stage's damage and conditions apply, and its save comes when it runs out.
+function setAfflictionStage(state, target, entry, stage) {
+    for (const { slug, value } of entry.conditions) {
+        const flag = FLAGS[slug];
+        if (flag) target.cond[flag] = false;
+        else if (VALUED.has(slug) && (target.cond[slug] ?? 0) <= (value ?? 1)) target.cond[slug] = 0;
+    }
+    entry.conditions = [];
+    target.timers = (target.timers ?? []).filter((timer) => timer.affliction !== entry);
+    if (stage <= 0) {
+        target.afflictions = target.afflictions.filter((other) => other !== entry);
+        log(state, `  ${target.name} recovers from ${entry.name}`);
+        return;
+    }
+    entry.stage = stage;
+    const current = entry.stages[stage - 1];
+    log(state, `  ${target.name}: ${entry.name}, stage ${stage}`);
+    if (current.death) {
+        killCreature(state, target);
+        return;
+    }
+    const source = state.byId.get(entry.source) ?? null;
+    for (const formula of current.damage ?? []) {
+        const instances = rollInstances(state, parseDamage(formula));
+        const dealt = applyDamage(state, target, instances, { source });
+        log(state, `  ${target.name} takes ${dealt} ${instances.map((instance) => instance.type).join("/")} (${entry.name})`);
+    }
+    if (!isActive(target)) return;
+    for (const { slug, value } of current.conditions ?? []) {
+        if (applyCondition(state, target, slug, value ?? null, null, source)) entry.conditions.push({ slug, value });
+    }
+    const rounds = spanRounds(current.duration);
+    if (Number.isFinite(rounds)) (target.timers ??= []).push({ affliction: entry, round: state.round + Math.max(1, rounds), turnOf: entry.source, at: "start" });
+}
+
+// The save when a stage runs out: a critical success lowers the stage by 2, a
+// success by 1, a failure raises it by 1, a critical failure by 2. Past the
+// maximum duration, it ends.
+function afflictionSave(state, target, entry) {
+    if (target.status === "dead" || target.status === "fled" || !target.afflictions?.includes(entry)) return;
+    if (entry.pending) {
+        const stage = entry.pending;
+        entry.pending = null;
+        setAfflictionStage(state, target, entry, stage);
+        return;
+    }
+    if (state.round >= entry.endRound) {
+        setAfflictionStage(state, target, entry, 0);
+        return;
+    }
+    const statistic = entry.data.statistic ?? "fortitude";
+    const modifier = saveModifier(target, statistic) + saveBonusAgainst(target, statistic, { kind: "ability", plan: { traits: entry.data.traits ?? [] } });
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + modifier, entry.data.dc, natural);
+    const change = [2, 1, -1, -2][degree];
+    log(state, `  ${target.name} saves against ${entry.name}: ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}`);
+    setAfflictionStage(state, target, entry, Math.min(entry.stages.length, entry.stage + change));
+}
+
+// About what an affliction does to a creature in a fight: its first stage's
+// damage and conditions, about twice when its stages last rounds.
+function afflictionValue(target, data) {
+    if ((data.traits ?? []).some((trait) => (target.immunities ?? []).includes(trait))) return { damage: 0, worth: 0 };
+    if (data.onset && spanRounds(data.onset) >= 3) return { damage: 0, worth: 0 };
+    const stage = data.stages?.[(data.stage ?? 1) - 1];
+    if (!stage) return { damage: 0, worth: 0 };
+    if (stage.death) return { damage: Math.max(1, target.hp.value), worth: 0 };
+    const repeats = Number.isFinite(spanRounds(stage.duration)) ? 2 : 1;
+    const damage = (stage.damage ?? []).flatMap((formula) => parseDamage(formula)).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
+    const worth = (stage.conditions ?? []).reduce((sum, { slug, value }) => sum + conditionWorth(slug, value, { mode: "fixed", value: repeats, unit: "rounds" }), 0);
+    return { damage: damage * repeats, worth };
 }
 
 export function hasTimer(c, key) {
@@ -396,6 +522,59 @@ function applyDisarm(state, target, effect) {
     }
 }
 
+// Swallow Whole: the creature is inside the swallower, grabbed (until it
+// Escapes) and slowed 1, out of everyone else's reach. The swallower is
+// off-guard to its attacks.
+function applySwallow(state, swallower, target, effect) {
+    if (!isActive(target) || !isActive(swallower)) return;
+    target.timers = (target.timers ?? []).filter((timer) => timer.key !== "grabbed" && timer.key !== "restrained");
+    target.cond.restrained = false;
+    target.cond.grabbed = true;
+    target.grabbedBy = swallower.id;
+    const slowed = (target.cond.slowed ?? 0) < 1;
+    if (slowed) target.cond.slowed = 1;
+    const offGuard = { attacker: target.id, attacks: "melee", uses: null };
+    swallower.offGuardTo = [...(swallower.offGuardTo ?? []), offGuard];
+    leaveMelee(state, target, "near");
+    target.swallowedBy = swallower.id;
+    target.swallow = { damage: parseDamage(effect.damage ?? ""), rupture: effect.rupture ?? null, slowed, offGuard };
+    log(state, `  ${swallower.name} swallows ${target.name}`);
+}
+
+// Rolls parsed damage ({ type, dice, constant }) as damage instances.
+export function rollInstances(state, parsed) {
+    return parsed.map((instance) => {
+        let amount = instance.constant ?? 0;
+        for (const term of instance.dice ?? []) for (let index = 0; index < term.count; index++) amount += (term.factor ?? 1) * state.rng.die(term.die);
+        return { type: instance.type ?? "untyped", amount: Math.max(0, Math.floor(amount)), persistent: false, precision: false };
+    });
+}
+
+const averageOf = (instance) => (instance.constant ?? 0) + (instance.dice ?? []).reduce((sum, term) => sum + (term.factor ?? 1) * term.count * (term.die + 1) / 2, 0);
+
+// How many more creatures a swallower can take: one of its listed size fills
+// it; one size smaller, two; smaller still, four.
+function swallowRoom(state, swallower, size, target) {
+    const max = sizeRank(size);
+    if (sizeRank(target.size) > max) return false;
+    const inside = state.list.filter((other) => other.swallowedBy === swallower.id);
+    if (inside.some((other) => sizeRank(other.size) >= max)) return false;
+    const room = max - sizeRank(target.size) >= 2 ? 4 : max - sizeRank(target.size) === 1 ? 2 : 1;
+    return inside.length < room;
+}
+
+// About how many rounds a creature stays swallowed: it tries to Escape with each action.
+function swallowedRounds(target, swallower) {
+    const roll = Math.max(skillValue(target, "athletics"), skillValue(target, "acrobatics"), skillValue(target, "unarmed")) - statusPenalty(target, "skill");
+    const dc = defenceDC(swallower, "athletics");
+    let stays = 1;
+    for (const map of [0, 5, 10]) {
+        const odds = degreeDistribution(roll - map, dc);
+        stays *= 1 - odds[2] - odds[3];
+    }
+    return Math.min(3, 1 / Math.max(1 - stays, 1 / 3));
+}
+
 function applyMove(state, target, change) {
     if (!isActive(target)) return;
     if (change.kind === "push" && change.distance >= 5 && target.meleeId !== null) {
@@ -437,6 +616,10 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     applyDisarm(state, target, change.effect);
                     break;
                 }
+                if (change.effect?.kind === "swallow") {
+                    applySwallow(state, caster, target, change.effect);
+                    break;
+                }
                 applyNativeEffect(state, caster, spell, target, change);
                 break;
 
@@ -451,10 +634,15 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 }
                 if (slugs.some((slug) => target.cond[FLAGS[slug] ?? slug])) log(state, `  ${target.name} is free of ${slugs.filter((slug) => target.cond[FLAGS[slug] ?? slug]).join(", ")}`);
                 endConditions(target, slugs);
+                // Escaping Swallow Whole's grab: out through the mouth.
+                if (target.swallowedBy && !target.cond.grabbed) releaseSwallowed(state, target, "escapes");
                 break;
             }
             case "death":
                 if (target.status !== "dead" && (change.ifReducedTo === undefined || target.hp.value <= change.ifReducedTo)) killCreature(state, target);
+                break;
+            case "affliction":
+                if (Array.isArray(change.data?.stages)) applyAffliction(state, caster, target, change.data);
                 break;
             case "followUp":
                 if (isActive(target) && change.plan?.resolution?.kind && registry.familyFor(change.plan.resolution.kind)) {
@@ -499,6 +687,13 @@ export function castSpell(state, caster, spellIndex, targetIds, actions) {
         caster.immuneTargets.set(spell, immune);
     }
     if (!targets.length) return;
+    // Trample: the creature moves through them, ending beside them.
+    if (info.trample) {
+        stride(state, caster, { kind: "engage", targetId: targets[0].id });
+        if (!canAct(caster)) return;
+        targets.splice(0, targets.length, ...targets.filter((target) => isActive(target)));
+        if (!targets.length) return;
+    }
     const context = simContext(state, caster, spell, targets, caster.attacksThisTurn - (info.attack ? 1 : 0), actions);
     const io = { ...liveRoller(state), choose: chooser(caster, targets) };
     const result = registry.resolveSync(spell.plan, context, io);
@@ -523,7 +718,9 @@ function rollCount(state, formula) {
 export function triggerRiders(state, attacker, target, strike) {
     for (const [index, spell] of (attacker.spells ?? []).entries()) {
         const trigger = spell.plan?.trigger;
-        if (trigger?.event !== "strike" || !(strike.attackEffects ?? []).includes(trigger.attackEffect)) continue;
+        // The Strike lists the rider by its own slug ("improved-grab") or its base one ("grab").
+        const listed = strike.attackEffects ?? [];
+        if (trigger?.event !== "strike" || !(listed.includes(trigger.attackEffect) || listed.includes(spell.plan.source?.slug))) continue;
         if (trigger.cost === "free") castSpell(state, attacker, index, [target.id]);
         else attacker.riderReady = { index, targetId: target.id };
     }
@@ -643,7 +840,7 @@ function oddsFor(caster, spell, target, attacks, actions) {
         return degreeDistribution(roll, dc);
     }
     const slugs = check.saveChoice?.statistics?.length ? check.saveChoice.statistics : [check.statistic];
-    const save = Math.max(...slugs.map((slug) => saveModifier(target, slug)));
+    const save = Math.max(...slugs.map((slug) => saveModifier(target, slug) + saveBonusAgainst(target, slug, spell)));
     const dc = check.against?.dc === "fixed" ? check.against.value : (spell.dc ?? 10) - penalty + effectBonus(caster, "spell");
     return degreeDistribution(save, dc);
 }
@@ -709,6 +906,16 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     if (change.scope.attacker === caster.id) entry.damage += chance * 0.1 * bestHit(caster, target, change.scope.attacks === "melee") * (change.scope.uses ?? 3);
                 } else if (change.op === "condition") {
                     entry.worth += chance * conditionWorth(change.slug, change.value, change.duration);
+                } else if (change.op === "affliction" && Array.isArray(change.data?.stages)) {
+                    const value = afflictionValue(target, change.data);
+                    entry.damage += chance * value.damage;
+                    entry.worth += chance * value.worth;
+                } else if (change.op === "effect" && change.effect?.kind === "swallow") {
+                    // Out of the fight while inside, taking the damage at the end of each of its turns.
+                    const rounds = swallowedRounds(target, caster);
+                    const perRound = parseDamage(change.effect.damage ?? "").reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
+                    entry.damage += chance * perRound * rounds;
+                    entry.worth += chance * 0.9 * rounds;
                 } else if (change.op === "effect" && change.effect?.kind === "disarm") {
                     // Worth something only against a weapon in hand: a dropped one costs an action to pick up.
                     if ((target.strikes ?? []).some((strike) => strike.held && strikeUsable(target, strike))) entry.worth += chance * (change.effect.what === "drop" ? 0.5 : 0.25);
@@ -741,6 +948,23 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     if (info.escape) {
         const grabber = caster.grabbedBy ? state.byId.get(caster.grabbedBy) : null;
         return grabber && isActive(grabber) && (caster.cond.grabbed || caster.cond.restrained) ? [{ targets: [grabber] }] : [];
+    }
+    // Swallow Whole: one creature it holds, small enough and with room inside.
+    if (info.grabbedTargets && info.swallow) {
+        return enemies.filter((enemy) => enemy.grabbedBy === caster.id && isActive(enemy) && swallowRoom(state, caster, info.swallow, enemy)).map((enemy) => ({ targets: [enemy] }));
+    }
+    // Trample: the enemies of the listed size or smaller in one Melee, or standing apart nearby.
+    if (info.trample) {
+        if (!canMove(caster)) return [];
+        const fits = (enemy) => isActive(enemy) && enemy.side !== caster.side && sizeRank(enemy.size) <= sizeRank(info.trample.size);
+        const sets = [];
+        for (const members of state.melees.values()) {
+            const group = [...members].map((id) => state.byId.get(id)).filter((other) => other && fits(other) && enemies.includes(other));
+            if (group.length) sets.push({ targets: group });
+        }
+        const loose = enemies.filter((enemy) => fits(enemy) && enemy.meleeId === null && enemy.band !== "far");
+        if (loose.length) sets.push({ targets: loose.slice(0, Math.max(1, Math.ceil(loose.length / 2))) });
+        return sets;
     }
     // Constrict: everyone the creature is holding.
     if (info.grabbedTargets) {

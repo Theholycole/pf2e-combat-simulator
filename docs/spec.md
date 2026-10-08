@@ -111,6 +111,7 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
   - Constrict and Frightful Presence
   - breath weapons and other one-off save abilities, with their recharge
   - Ferocity and Rend
+  - since the user asked to keep going on monster abilities: Swallow Whole, Trample, Regeneration, Fast Healing, Sneak Attack, Pack Attack, Draconic Frenzy, Draconic Momentum, Pounce, Stench, bonuses to saves against magic, and creature afflictions (poisons and diseases with stages)
 - **Engine:**
   - who holds whom, released when the holder moves, drops or dies, and Escape
   - "until the end of your next turn"
@@ -121,14 +122,14 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
   - dropped weapons and weakened grips (Disarm), and Interact to pick up or regrip
   - stabilizing a dying PC (Administer First Aid)
 - **Planner:** conditions and buffs now count a third against damage (B6), so Strikes aren't swapped for Grapples.
-- **Defaults:** [ability-decisions.md](ability-decisions.md). The user confirmed B1–B6 and B7–B11 (the other skill actions) on 2026-10-08.
+- **Defaults:** [ability-decisions.md](ability-decisions.md). The user confirmed B1–B6 and B7–B11 (the other skill actions) on 2026-10-08; B12–B21 (more monster abilities) confirmed the same day.
 - **Bestiary check** (`tools/bestiary-abilities.mjs`): 1,106 creatures with their real stat blocks, 3,318 fights, no errors.
 - **Live check** (pftest, after a Foundry restart the user approved):
   - The ability module is enabled, and all 10 basic actions compile live.
   - A PFTEST SIM Giant Anaconda against the iconics: Grab, then Greater Constrict only on held targets.
   - First Aid stabilized Valeros.
   - 200 fights ran through the worker with no fallback.
-- 88 Node tests.
+- 104 Node tests.
 
 ### Real-fight logger (built 2026-10-08, at the user's request)
 

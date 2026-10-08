@@ -5,6 +5,7 @@ import { parseReadableDamage } from "../src/adapter/formula.js";
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
 import { effectModel } from "../src/engine/effects.js";
+import { addBuiltin } from "../src/engine/abilities.js";
 
 export const MODULE_ID = "pf2e-combat-simulator";
 
@@ -143,6 +144,8 @@ async function readStrike(actor, action, gaps) {
         attackEffects: [...(item?.system?.attackEffects?.value ?? [])],
         // A weapon in hand (Disarm can knock it away); jaws and claws can't be.
         held: !traits.includes("unarmed") && (item?.type === "weapon" || (item?.type === "melee" && !NATURAL_ATTACK.test(action.label ?? item?.name ?? ""))),
+        // Light Bulk or less: usable from inside a swallower.
+        light: item?.type === "weapon" && Number(item?.system?.bulk?.value ?? 1) <= 0.1,
         bonus: stripConditions(action.totalModifier, action.modifiers),
         melee: melee && !increment,
         increment,
@@ -195,9 +198,10 @@ const NATURAL_ATTACK = /\b(?:jaws?|bite|claws?|talons?|tail|tusks?|horns?|hoof|h
 
 // A creature's abilities with their plans (the ability module registers its
 // compiler with the core), the basic actions it uses, and the rules the engine
-// plays itself (Ferocity, Rend). Returns { abilities, handled, reactions, rend }.
+// plays itself (Ferocity, Rend, Sneak Attack, Regeneration …). Returns
+// { abilities, handled, builtins }, builtins being combatant fields (abilities.js addBuiltin).
 async function readAbilities(actor, { fresh = false } = {}) {
-    const result = { abilities: [], handled: new Set(), reactions: {}, rend: null };
+    const result = { abilities: [], handled: new Set(), builtins: { reactions: {}, rend: null } };
     const core = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api : null;
     const abilityModule = game.modules.get(ABILITY_MODULE_ID);
     if (!core || !abilityModule?.active) return result;
@@ -207,9 +211,7 @@ async function readAbilities(actor, { fresh = false } = {}) {
         const plan = compiled?.plan;
         if (!plan) continue;
         if (plan.builtin) {
-            result.handled.add(item);
-            if (plan.builtin === "ferocity") result.reactions.ferocity = true;
-            if (plan.builtin === "rend") result.rend = { strike: plan.strike ?? null };
+            if (addBuiltin(result.builtins, plan, item.name)) result.handled.add(item);
             continue;
         }
         if (!plan.resolution) continue;
@@ -309,7 +311,7 @@ async function readSpells(actor, gaps, { fresh = false } = {}) {
                     spellPools[pool] = fresh ? active.uses.max : active.uses.value ?? 0;
                 }
                 const castRank = active.castRank ?? (spell.isCantrip || spell.isFocusSpell ? cantripRank : groupRank);
-                listed.push({ spell, name: spell.name, castRank, dc, attack, pool });
+                listed.push({ spell, name: spell.name, castRank, dc, attack, pool, tradition: entry.tradition ?? entry.system?.tradition?.value ?? null });
             }
         }
     }
@@ -323,7 +325,7 @@ async function readSpells(actor, gaps, { fresh = false } = {}) {
     for (const entry of listed) {
         const { result, error } = prepared.get(entry.spell.uuid) ?? {};
         const plan = result?.plan ? leanPlan(result.plan) : null;
-        const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, effects: plan ? await effectModels(plan, entry.castRank) : {} };
+        const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, effects: plan ? await effectModels(plan, entry.castRank) : {} };
         if (!plan || !canCast({ spellPools: { [entry.pool]: 1 } }, spec)) {
             // Detect Magic, Translocate and the like: listed, but they don't count against the result.
             // (On the full plan: the slimmed one may have lost its effect references.)
@@ -389,7 +391,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     const { spells, spellPools } = await readSpells(actor, gaps, { fresh });
     spells.push(...abilities.abilities);
     // A Strike's riders are gaps unless an ability plays them.
-    const riders = new Set(abilities.abilities.map((ability) => ability.plan?.trigger?.attackEffect).filter(Boolean));
+    const riders = new Set(abilities.abilities.flatMap((ability) => (ability.plan?.trigger?.event === "strike" ? [ability.plan.trigger.attackEffect, ability.plan.source?.slug] : [])).filter(Boolean));
     for (const strike of strikes) for (const effect of strike.attackEffects ?? []) if (!riders.has(effect)) gaps.push({ kind: "attack effect", name: effect });
     if (!strikes.length && !spells.length && actorKind(actor) !== "object") {
         // Swarms and troops attack with area abilities, which aren't simulated yet.
@@ -427,8 +429,9 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         reach: actorReach,
         heroPoints: actor.system?.resources?.heroPoints?.value ?? 0,
         shield: fresh && shield ? { ...shield, broken: false, raised: false } : shield,
-        reactions: { aoo: hasItemSlug(actor, AOO_SLUGS), shieldBlock: hasItemSlug(actor, new Set(["shield-block"])), ...abilities.reactions },
-        rend: abilities.rend,
+        ...abilities.builtins,
+        reactions: { aoo: hasItemSlug(actor, AOO_SLUGS), shieldBlock: hasItemSlug(actor, new Set(["shield-block"])), ...abilities.builtins.reactions },
+        size: actor.size ?? actor.system?.traits?.size?.value ?? "med",
         resistances: readIwr(actor.attributes?.resistances),
         weaknesses: readIwr(actor.attributes?.weaknesses),
         immunities: (actor.attributes?.immunities ?? []).map((entry) => entry.type),

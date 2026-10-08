@@ -7,6 +7,7 @@ import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBo
 import { adjustDamage, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
+import { extraApplies, regenerating } from "./abilities.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -82,8 +83,26 @@ function defenceId(target) {
 }
 
 // Expected damage of one hit or critical hit after the defender's adjustments.
-// bonus: a circumstance damage bonus (forceful); offGuardChance: for backstabber.
-export function expectedHitDamage(attacker, strike, target, critical, { bonus = 0, offGuardChance = 0 } = {}) {
+// bonus: a circumstance damage bonus (forceful); offGuardChance: for backstabber
+// and Sneak Attack; packAllies: the attacker's allies within reach of the target (Pack Attack).
+export function expectedHitDamage(attacker, strike, target, critical, { bonus = 0, offGuardChance = 0, packAllies = 0 } = {}) {
+    const base = baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance);
+    return attacker.strikeExtras?.length ? base + expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies) : base;
+}
+
+// The extra dice of abilities such as Sneak Attack, on average (doubled on a critical hit).
+function expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies) {
+    let total = 0;
+    for (const extra of attacker.strikeExtras) {
+        const chance = extra.when === "off-guard" ? offGuardChance : extraApplies(extra, target, { offGuard: false, packAllies }) ? 1 : 0;
+        if (!chance) continue;
+        const amount = extra.dice * (extra.die + 1) / 2 * (critical ? 2 : 1);
+        total += chance * adjustInstance(target, extra.type ?? strike.damage[0]?.type ?? "untyped", amount, extra.precision);
+    }
+    return total;
+}
+
+function baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance) {
     const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - bonus - effectBonus(attacker, "damage");
     let cache = hitDamageCache.get(strike);
     if (!cache) {
@@ -134,6 +153,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     const history = reaction ? [] : (attacker.turnAttacks ?? []);
     const modifier = attackModifier(state, attacker, target, strike, attacksMade, { history });
     const ac = targetAC(state, attacker, target, strike, flanked);
+    // Off-guard to this attack: for Sneak Attack and backstabber.
+    const offGuard = flanked || isOffGuard(target) || offGuardTo(target, attacker, strike.melee);
     // A one-attack feint or diversion is used up by this attack.
     const scoped = (target.offGuardTo ?? []).find((entry) => entry.attacker === attacker.id && (entry.attacks !== "melee" || strike.melee) && entry.uses);
     if (scoped && --scoped.uses <= 0) target.offGuardTo = target.offGuardTo.filter((entry) => entry !== scoped);
@@ -162,8 +183,18 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     const earlier = history.filter((entry) => entry.strike === strike.name).length;
     const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage");
     const instances = rollStrikeDamage(state.rng, strike, { critical, penalty });
-    if (strike.backstabber && (flanked || isOffGuard(target))) {
+    if (strike.backstabber && offGuard) {
         instances.push({ type: strike.damage[0].type, amount: critical ? 2 : 1, precision: true, persistent: false });
+    }
+    // Sneak Attack, Pack Attack and the like.
+    if (attacker.strikeExtras?.length) {
+        const packAllies = engagedEnemies(state, target).filter((other) => other !== attacker).length;
+        for (const extra of attacker.strikeExtras) {
+            if (!extraApplies(extra, target, { offGuard, packAllies })) continue;
+            let amount = 0;
+            for (let die = 0; die < extra.dice; die++) amount += state.rng.die(extra.die);
+            instances.push({ type: extra.type ?? strike.damage[0].type, amount: critical ? amount * 2 : amount, precision: !!extra.precision, persistent: false });
+        }
     }
     // Logged before the damage so consequences (Shield Block, going down) follow it.
     const line = state.log ? state.log.push("") - 1 : -1;
@@ -174,9 +205,21 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         physical: true
     });
     if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier} vs AC ${ac}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
+    // Draconic Momentum: a critical hit recharges the breath weapon.
+    if (critical && attacker.momentum) rechargeOnCritical(state, attacker);
     // Grab, Knockdown and Push follow a hit (free ones at once, the others as the next action).
     if (!reaction && isActive(target)) state.onStrikeHit?.(attacker, target, strike, degree);
     return { degree, damage: dealt, trigger };
+}
+
+function rechargeOnCritical(state, c) {
+    if (!c.rechargeUntil?.size) return;
+    const names = (c.momentum.recharges ?? []).map((name) => name.toLowerCase());
+    for (const spell of [...c.rechargeUntil.keys()]) {
+        if (names.length && !names.includes(String(spell.name).toLowerCase())) continue;
+        c.rechargeUntil.delete(spell);
+        log(state, `  ${c.name}'s ${spell.name} recharges`);
+    }
 }
 
 function shouldShieldBlock(defender, total) {
@@ -191,7 +234,16 @@ function shouldShieldBlock(defender, total) {
 }
 
 export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false } = {}) {
+    // Regeneration turns off before damage of a listed type is dealt.
+    if (target.regeneration && instances.some((instance) => instance.amount > 0 && target.regeneration.deactivatedBy.includes(instance.type))) turnOffRegeneration(state, target);
     const adjusted = adjustDamage(target, instances);
+    // Swallow Whole: piercing or slashing damage of at least the Rupture value from one attack frees who's inside.
+    if (state.list.some((other) => other.swallowedBy === target.id)) {
+        const cutting = instances.filter((instance) => instance.type === "piercing" || instance.type === "slashing").reduce((sum, instance) => sum + adjustInstance(target, instance.type, instance.amount, instance.precision), 0);
+        for (const other of state.list) {
+            if (other.swallowedBy === target.id && other.swallow?.rupture && cutting >= other.swallow.rupture) releaseSwallowed(state, other, "cuts itself free");
+        }
+    }
     let total = adjusted.total;
     if (physical && shouldShieldBlock(target, total)) {
         const shield = target.shield;
@@ -205,6 +257,34 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance);
     return dealDamage(state, target, total, { source, critical, nonlethal });
+}
+
+// "Deactivates until the end of its next turn": this turn's end if it hasn't acted this round.
+function turnOffRegeneration(state, c) {
+    c.regenerationOff = true;
+    const round = c.round === state.round ? state.round + 1 : state.round;
+    c.timers = (c.timers ?? []).filter((timer) => !timer.regenerationOff);
+    c.timers.push({ regenerationOff: true, round, turnOf: c.id, at: "end" });
+    log(state, `  ${c.name}'s regeneration stops`);
+}
+
+// Swallow Whole: the creature comes out (Escape, Rupture, or the swallower dropping or leaving).
+export function releaseSwallowed(state, c, how) {
+    const swallower = state.byId.get(c.swallowedBy);
+    const swallow = c.swallow;
+    c.swallowedBy = null;
+    c.swallow = null;
+    c.cond.grabbed = false;
+    c.grabbedBy = null;
+    if (swallow?.slowed) c.cond.slowed = Math.max(0, (c.cond.slowed ?? 0) - 1);
+    if (swallower) swallower.offGuardTo = (swallower.offGuardTo ?? []).filter((entry) => entry !== swallow?.offGuard);
+    if (c.status === "active" && swallower && isActive(swallower)) engage(state, c, swallower);
+    else c.band = "near";
+    log(state, `  ${c.name} ${how} from ${swallower?.name ?? "the swallower"}`);
+}
+
+function releaseAllSwallowed(state, swallower, how) {
+    for (const other of state.list) if (other.swallowedBy === swallower.id) releaseSwallowed(state, other, how);
 }
 
 function addPersistent(target, instance) {
@@ -225,6 +305,8 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
     if (target.status === DEAD) return 0;
     if (target.status === DOWN) {
         if (target.kind === "pc") increaseDying(state, target, critical ? 2 : 1);
+        // Regeneration: dying never goes past 3 while it works.
+        else if (regenerating(target)) target.cond.dying = Math.min(3, (target.cond.dying ?? 0) + (critical ? 2 : 1));
         else if (!nonlethal) kill(state, target);
         return 0;
     }
@@ -255,7 +337,8 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
 // Who a creature is grabbing or restraining lets go when it moves, drops or dies.
 export function releaseGrabs(state, grabber) {
     for (const other of state.list) {
-        if (other.grabbedBy !== grabber.id) continue;
+        // A swallowed creature stays inside when its swallower moves.
+        if (other.grabbedBy !== grabber.id || other.swallowedBy) continue;
         other.grabbedBy = null;
         other.cond.grabbed = false;
         other.cond.restrained = false;
@@ -273,6 +356,7 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         return;
     }
     releaseGrabs(state, target);
+    releaseAllSwallowed(state, target, "is freed");
     target.hp.value = 0;
     if (source && target.kind === "pc") source.downedCount++;
     state.pendingEvents.push({ type: "dropped", victim: target, by: source, critical, overwhelming });
@@ -290,6 +374,16 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         increaseDying(state, target, (critical ? 2 : 1) + target.cond.wounded);
         return;
     }
+    // Regeneration: a monster at 0 HP is dying (at most 3) and gets back up at the start of its turn.
+    if (regenerating(target) && !nonlethal) {
+        target.status = DOWN;
+        target.cond.unconscious = true;
+        target.cond.prone = true;
+        target.cond.dying = Math.min(3, (critical ? 2 : 1) + (target.cond.wounded ?? 0));
+        removeFromSpace(state, target);
+        log(state, `  ${target.name} is down (regenerating)`);
+        return;
+    }
     if (nonlethal) {
         target.status = DOWN;
         target.captured = true;
@@ -303,6 +397,7 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
 
 function kill(state, target) {
     releaseGrabs(state, target);
+    releaseAllSwallowed(state, target, "is freed");
     target.status = DEAD;
     target.cond.unconscious = true;
     removeFromSpace(state, target);
@@ -405,6 +500,7 @@ export function stride(state, c, move) {
 
 export function leaveField(state, c) {
     releaseGrabs(state, c);
+    releaseAllSwallowed(state, c, "is freed");
     leaveMelee(state, c, "gone");
     c.status = FLED;
     log(state, `  ${c.name} leaves the battlefield`);

@@ -58,8 +58,9 @@ export function createCombatant(spec) {
     };
 }
 
+// Swallowed creatures (Swallow Whole) are still fighting, but out of everyone else's reach.
 export function isActive(c) {
-    return c.status === ACTIVE;
+    return c.status === ACTIVE && !c.swallowedBy;
 }
 
 export function isPresent(c) {

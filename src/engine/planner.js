@@ -12,6 +12,7 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken } from "./morale.js";
+import { multiStrikeOrder, strikeNamed } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { canCast, describeSpell, spellExpectation, spellVariants, targetSets } from "./spells.js";
 
@@ -237,11 +238,29 @@ class PlanContext {
         const hitChance = finds * ((1 - flank) * plain[SUCCESS] + flank * flanked[SUCCESS]);
         const critChance = finds * ((1 - flank) * plain[CRITICAL_SUCCESS] + flank * flanked[CRITICAL_SUCCESS]);
         // Earlier attacks in the plan stand in for earlier attacks with this weapon.
-        const extras = { bonus: forcefulBonus(strike, attacks), offGuardChance: target.cond.offGuard || target.cond.prone ? 1 : flank };
+        // Pack Attack: allies within reach of the target (those in its Melee).
+        const packAllies = c.strikeExtras?.length && target.meleeId !== null ? this.allies.filter((ally) => ally.meleeId === target.meleeId).length : 0;
+        const extras = { bonus: forcefulBonus(strike, attacks), offGuardChance: isOffGuard(target) || feinted ? 1 : flank, packAllies };
         const damage = hitChance * expectedHitDamage(c, strike, target, false, extras) + critChance * expectedHitDamage(c, strike, target, true, extras);
         const result = { damage, hitChance: hitChance + critChance };
         perTarget.set(key, result);
         return result;
+    }
+
+    // What the free riders a Strike lists (a venom, Improved Grab) add to a hit, times the chance to hit.
+    freeRiderGain(strike, target, hitChance) {
+        if (!strike.attackEffects?.length || !hitChance) return 0;
+        let gain = 0;
+        for (const [index, spell] of (this.c.spells ?? []).entries()) {
+            const trigger = spell.plan?.trigger;
+            if (trigger?.event !== "strike" || trigger.cost !== "free") continue;
+            if (!strike.attackEffects.includes(trigger.attackEffect) && !strike.attackEffects.includes(spell.plan.source?.slug)) continue;
+            for (const { target: affected, damage, worth } of this.spellEffect(index, spell, [target], 0)) {
+                if (affected !== target) continue;
+                gain += targetValue(this.state, target, this.c) * (Math.min(1, damage / remainingHp(target)) + worth * ROUND_TO_KILL);
+            }
+        }
+        return hitChance * gain;
     }
 
     // spellExpectation, cached for the decision.
@@ -366,7 +385,7 @@ function child(node, action, cost, value, changes = {}) {
         pos: changes.pos ?? node.pos,
         shield: changes.shield ?? node.shield,
         prone: changes.prone ?? node.prone,
-        attacks: node.attacks + (changes.attack ? 1 : 0),
+        attacks: node.attacks + (changes.attacks ?? (changes.attack ? 1 : 0)),
         used: node.used + cost,
         damage: changes.damage ?? node.damage,
         provoked: node.provoked,
@@ -401,7 +420,8 @@ function expand(ctx, node, actionsLeft) {
             for (const { index, strike, expectation } of options.slice(0, 2)) {
                 const before = node.damage[target.id] ?? 0;
                 const hp = remainingHp(target);
-                const gain = targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp));
+                // A venom or Improved Grab the hit delivers for free.
+                const gain = targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp)) + ctx.freeRiderGain(strike, target, expectation.hitChance);
                 const next = child(node, { type: "strike", targetId: target.id, strikeIndex: index }, 1, ctx.profile.aggression * gain, {
                     attack: true,
                     damage: { ...node.damage, [target.id]: before + expectation.damage }
@@ -470,6 +490,53 @@ function expand(ctx, node, actionsLeft) {
                 const before = node.damage[target.id] ?? 0;
                 const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
                 children.push(child(node, { type: "rend", targetId: target.id, strikeIndex }, 1, ctx.profile.aggression * gain, { damage: { ...node.damage, [target.id]: before + expected } }));
+            }
+        }
+        // Draconic Frenzy and the like: several Strikes for fewer actions, at one target.
+        for (const [abilityIndex, ability] of (c.multiStrikes ?? []).entries()) {
+            if (restrained || ability.actions > remaining) continue;
+            const order = multiStrikeOrder(c, ability);
+            if (!order || order.some((index) => !strikeUsable(c, c.strikes[index]))) continue;
+            for (const target of ctx.enemies) {
+                if (target.status !== "active" || order.some((index) => c.strikes[index].melee && !inMelee(node.pos, target))) continue;
+                let expected = 0;
+                for (const [step, index] of order.entries()) expected += ctx.strikeExpectation(c.strikes[index], index, target, node.attacks + step, node.pos, node.prone)?.damage ?? 0;
+                if (expected <= 0) continue;
+                const before = node.damage[target.id] ?? 0;
+                const hp = remainingHp(target);
+                const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
+                children.push(child(node, { type: "multiStrike", ability: abilityIndex, targetId: target.id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
+                    attacks: order.length,
+                    damage: { ...node.damage, [target.id]: before + expected }
+                }));
+            }
+        }
+        // Pounce: Stride to an enemy and Strike, as one action.
+        for (const [abilityIndex, ability] of (c.charges ?? []).entries()) {
+            if (restrained || !mobile || ctx.wavering || ability.actions > remaining) continue;
+            const named = strikeNamed(c, ability.strike);
+            const candidates = named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
+            for (const target of ctx.enemies) {
+                if (target.status !== "active" || inMelee(node.pos, target)) continue;
+                if (stridesToEngage({ band: node.pos.band, meleeId: null, speed: c.speed }, target) > ability.strides) continue;
+                const pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
+                let best = null;
+                for (const index of candidates) {
+                    if (!strikeUsable(c, c.strikes[index])) continue;
+                    const expectation = ctx.strikeExpectation(c.strikes[index], index, target, node.attacks, pos, node.prone);
+                    if (expectation && (!best || expectation.damage > best.damage)) best = { index, damage: expectation.damage };
+                }
+                if (!best || best.damage <= 0) continue;
+                const before = node.damage[target.id] ?? 0;
+                const hp = remainingHp(target);
+                const gain = targetValue(state, target, c) * (Math.min(1, (before + best.damage) / hp) - Math.min(1, before / hp));
+                const next = child(node, { type: "charge", ability: abilityIndex, targetId: target.id, strikeIndex: best.index, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
+                    attack: true,
+                    pos,
+                    damage: { ...node.damage, [target.id]: before + best.damage }
+                });
+                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                children.push(next);
             }
         }
         // Engage a target.

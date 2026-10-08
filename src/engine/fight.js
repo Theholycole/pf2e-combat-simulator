@@ -3,14 +3,15 @@
 import { createRng } from "./rng.js";
 import { flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive } from "./combatant.js";
-import { engage, engagedEnemies, leaveMelee } from "./space.js";
-import { dealDamage, interact, leaveField, performRend, performStrike, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
+import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
+import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
+import { multiStrikeOrder, regenerating } from "./abilities.js";
 import { adjustInstance, rollPersistent } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyHeal, castSpell, describeSpell, expireTimers, hasTimer, triggerRiders } from "./spells.js";
+import { applyAuras, applyHeal, castSpell, describeSpell, expireTimers, hasTimer, rollInstances, triggerRiders } from "./spells.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -223,12 +224,63 @@ function startTurn(state, c) {
     }
     actions -= Math.min(actions, c.cond.slowed);
     c.actionsLeft = Math.min(actions, MAX_ACTIONS_PER_TURN);
-    // Fast healing from spell effects.
-    const fastHealing = Math.max(0, ...(c.effects ?? []).map((effect) => effect.model.fastHealing ?? 0));
+    // Fast healing (the creature's own, or from spell effects) and regeneration.
+    const fastHealing = Math.max(c.fastHealing ?? 0, ...(c.effects ?? []).map((effect) => effect.model.fastHealing ?? 0));
     if (fastHealing > 0) applyHeal(state, c, fastHealing);
+    if (regenerating(c) && c.regeneratedRound !== state.round) applyHeal(state, c, c.regeneration.value);
+}
+
+// Regeneration: a downed monster regains its HP at the start of its turn, loses
+// dying (wounded +1) and gets back into the fight, prone.
+function regenerateUp(state, c) {
+    c.status = ACTIVE;
+    c.hp.value = Math.min(c.hp.max, c.regeneration.value);
+    c.cond.dying = 0;
+    c.cond.wounded = (c.cond.wounded ?? 0) + 1;
+    c.cond.unconscious = false;
+    c.cond.prone = true;
+    c.band = "near";
+    c.regeneratedRound = state.round;
+    state.log?.push(`${c.name} regenerates and wakes (${c.hp.value}/${c.hp.max})`);
+}
+
+// Swallowed: it can only Escape or attack its swallower with an unarmed attack
+// or a light weapon. It attacks when a hit would cut it free (Rupture), and
+// otherwise tries to Escape.
+function swallowedTurn(state, c) {
+    const escape = (c.spells ?? []).findIndex((spell) => describeSpell(spell.plan).escape);
+    let guard = 0;
+    while (c.actionsLeft > 0 && canAct(c) && c.swallowedBy && guard++ < 8) {
+        const swallower = state.byId.get(c.swallowedBy);
+        let strikeIndex = -1;
+        let best = 0;
+        for (const [index, strike] of (c.strikes ?? []).entries()) {
+            if (!strike.melee || (strike.held && !strike.light)) continue;
+            const damage = expectedHitDamage(c, strike, swallower, false);
+            if (damage > best) {
+                best = damage;
+                strikeIndex = index;
+            }
+        }
+        const cutting = strikeIndex >= 0 && ["piercing", "slashing"].includes(c.strikes[strikeIndex].damage[0]?.type) && best >= (c.swallow?.rupture ?? Infinity);
+        if (strikeIndex >= 0 && (cutting || escape < 0)) {
+            c.actionsLeft--;
+            performStrike(state, c, swallower, c.strikes[strikeIndex]);
+        } else if (escape >= 0) {
+            c.actionsLeft--;
+            castSpell(state, c, escape, [swallower.id]);
+        } else break;
+        processMorale(state);
+        if (checkEnd(state)) return;
+    }
 }
 
 function endTurn(state, c) {
+    // Swallow Whole's damage at the end of each of the swallowed creature's turns.
+    if (c.swallowedBy && c.swallow?.damage?.length) {
+        state.log?.push(`  ${c.name} is crushed inside ${state.byId.get(c.swallowedBy)?.name}`);
+        applyDamage(state, c, rollInstances(state, c.swallow.damage), { source: state.byId.get(c.swallowedBy) });
+    }
     for (const entry of [...c.persistent]) {
         if (c.status === DEAD || c.status === FLED || c.status === SURRENDERED) break;
         const amount = adjustInstance(c, entry.type, rollPersistent(state.rng, entry));
@@ -282,12 +334,35 @@ function act(state, c, action) {
             if (target && isActive(target)) performRend(state, c, target, c.strikes[action.strikeIndex]);
             break;
         }
+        // Draconic Frenzy: its Strikes in turn, at another enemy within reach if the first drops.
+        case "multiStrike": {
+            const ability = c.multiStrikes[action.ability];
+            state.log?.push(`  ${c.name} uses ${ability.name}`);
+            let target = state.byId.get(action.targetId);
+            for (const index of multiStrikeOrder(c, ability) ?? []) {
+                if (!canAct(c)) break;
+                const strike = c.strikes[index];
+                if (!target || !isActive(target) || (strike.melee && !sameMelee(c, target))) target = engagedEnemies(state, c)[0] ?? null;
+                if (!target) break;
+                performStrike(state, c, target, strike);
+            }
+            break;
+        }
+        // Pounce: Stride, then Strike.
+        case "charge": {
+            const target = state.byId.get(action.targetId);
+            state.log?.push(`  ${c.name} uses ${c.charges[action.ability].name}`);
+            stride(state, c, { kind: "engage", targetId: action.targetId });
+            if (canAct(c) && target && isActive(target) && sameMelee(c, target)) performStrike(state, c, target, c.strikes[action.strikeIndex]);
+            break;
+        }
         default:
             break;
     }
 }
 
 function actionCost(c, action) {
+    if (action.type === "multiStrike" || action.type === "charge") return action.actions;
     if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
     return action.type === "task" ? 2 : 1;
 }
@@ -311,6 +386,7 @@ function fleeTurn(state, c) {
 function takeTurn(state, c) {
     // Conditions this creature's spells timed end at the start of its turn, whatever its state.
     expireTimers(state, c);
+    if (c.status === DOWN && c.kind !== "pc" && regenerating(c)) regenerateUp(state, c);
     if (c.status === DOWN) {
         state.log?.push(`${c.name} (down)`);
         if (c.kind === "pc" && c.cond.dying > 0) recoveryCheck(state, c);
@@ -330,7 +406,10 @@ function takeTurn(state, c) {
         checkCantAffect(state, c, offense.hit, offense.damage);
         processMorale(state);
     }
-    if (c.cond.fleeing) {
+    if (c.swallowedBy) {
+        swallowedTurn(state, c);
+        if (state.outcome) return;
+    } else if (c.cond.fleeing) {
         fleeTurn(state, c);
     } else {
         let guard = 0;

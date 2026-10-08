@@ -1,0 +1,371 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+
+import { createFightState, simulate } from "../src/engine/fight.js";
+import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
+import { scoreOptions } from "../src/engine/planner.js";
+import { applyDamage, dealDamage, expectedHitDamage, performStrike } from "../src/engine/actions.js";
+import { isActive } from "../src/engine/combatant.js";
+import { addBuiltin, saveBonusAgainst } from "../src/engine/abilities.js";
+import { applyAuras, castSpell, expireTimers, triggerRiders } from "../src/engine/spells.js";
+
+// Monster abilities the engine plays as its own rules ({ builtin }), and the
+// ones compiled from PF2e's packs (Swallow Whole, Trample, Stench).
+const ABILITIES = "../../PF2e AUTOMATIC ABILITY RESOLUTION/src/compiler/index.js";
+const PACKS = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
+const available = existsSync(new URL(ABILITIES, import.meta.url)) && existsSync(`${PACKS}/pathfinder-monster-core`);
+const skip = !available && "the ability module or PF2e's packs not found";
+
+let compiled = null;
+async function packAbilities() {
+    if (compiled) return compiled;
+    const { readDocuments } = await import("../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs");
+    const { compileBasicActions, compileMonsterAbility } = await import(ABILITIES);
+    const basicActions = compileBasicActions(readDocuments(`${PACKS}/actions`).filter((doc) => doc.collection === "items"));
+    const npcs = readDocuments(`${PACKS}/pathfinder-monster-core`).filter((doc) => doc.collection === "actors" && doc.type === "npc");
+    const npc = (name) => npcs.find((entry) => entry.name === name);
+    const monster = (creature, name) => compileMonsterAbility(npc(creature).items.find((item) => item.name.startsWith(name)), { basicActions, actor: npc(creature) });
+    compiled = {
+        basic: basicActions,
+        improvedGrab: monster("Megalodon", "Improved Grab"),
+        swallow: monster("Megalodon", "Swallow Whole"),
+        trample: monster("Elephant", "Trample"),
+        stench: monster("Ghoul Soldier", "Stench"),
+        venom: monster("Giant Scorpion", "Giant Scorpion Venom")
+    };
+    return compiled;
+}
+const entry = (name, plan, kind = "ability") => ({ name, plan, castRank: 1, dc: null, attack: null, pool: null, kind });
+const withBuiltins = (spec, ...builtins) => {
+    for (const [name, plan] of builtins) assert.ok(addBuiltin(spec, plan, name), name);
+    return spec;
+};
+
+test("Sneak Attack adds its dice against an off-guard target; Pack Attack with two allies by the target", () => {
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "wolf", "Wolf");
+    const wolf = withBuiltins({ ...base, engagement: 1 }, ["Sneak Attack", { builtin: "strike-extra", extras: [{ when: "off-guard", dice: 2, die: 6, precision: true, type: null }] }], ["Pack Attack", { builtin: "strike-extra", extras: [{ when: "pack", dice: 1, die: 8, precision: false, type: null }] }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, wolf] });
+    const c = state.byId.get("wolf");
+    const target = state.byId.get("fighter");
+    const strike = c.strikes[0];
+    const plain = expectedHitDamage(c, strike, target, false);
+    assert.equal(expectedHitDamage(c, strike, target, false, { offGuardChance: 1 }), plain + 7, "2d6 precision");
+    assert.equal(expectedHitDamage(c, strike, target, true, { offGuardChance: 1 }) - expectedHitDamage(c, strike, target, true), 14, "doubled on a critical hit");
+    assert.equal(expectedHitDamage(c, strike, target, false, { packAllies: 2 }), plain + 4.5);
+    assert.equal(expectedHitDamage(c, strike, target, false, { packAllies: 1 }), plain);
+    // Precision immunity ignores Sneak Attack.
+    target.immunities = ["precision"];
+    target.defenceId = undefined;
+    assert.equal(expectedHitDamage(c, strike, target, false, { offGuardChance: 1 }), expectedHitDamage(c, strike, target, false));
+});
+
+test("Regeneration: a monster at 0 HP is dying (never past 3), not dead; damage of a listed type turns it off, and then it can die", () => {
+    const [fighter] = martialParty(5);
+    const troll = withBuiltins({ ...moderateCreature(5, "troll", "Troll"), engagement: 1 }, ["Regeneration 20", { builtin: "regeneration", value: 20, deactivatedBy: ["fire"] }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, troll, { ...moderateCreature(5, "ogre", "Ogre"), engagement: 1 }] });
+    state.round = 1;
+    const c = state.byId.get("troll");
+    dealDamage(state, c, c.hp.value + 5);
+    assert.deepEqual([c.status, c.cond.dying], ["down", 1], "dying, not dead");
+    dealDamage(state, c, 30, { critical: true });
+    dealDamage(state, c, 30, { critical: true });
+    assert.deepEqual([c.status, c.cond.dying], ["down", 3], "never past dying 3");
+    // Fire turns it off; then damage while down kills it.
+    applyDamage(state, c, [{ type: "fire", amount: 5, persistent: false, precision: false }]);
+    assert.equal(c.regenerationOff, true);
+    dealDamage(state, c, 5);
+    assert.equal(c.status, "dead");
+});
+
+test("Regeneration in a fight: a downed troll gets back up while another monster fights on", () => {
+    const troll = withBuiltins({ ...moderateCreature(5, "troll", "Troll") }, ["Regeneration 20", { builtin: "regeneration", value: 20, deactivatedBy: ["fire"] }]);
+    let ups = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+        const party = martialParty(5).map((pc) => ({ ...pc }));
+        const result = simulate({ combatants: [...party, troll, { ...moderateCreature(7, "boss", "Boss") }] }, {}, seed, { log: true });
+        ups += result.log.filter((line) => /regenerates and wakes/.test(line)).length;
+    }
+    assert.ok(ups > 0, "it gets back up");
+});
+
+test("Regeneration timing: turned off before the troll's turn, it's back at the end of that turn", () => {
+    const [fighter] = martialParty(5);
+    const troll = withBuiltins({ ...moderateCreature(5, "troll", "Troll"), engagement: 1 }, ["Regeneration 20", { builtin: "regeneration", value: 20, deactivatedBy: ["fire", "acid"] }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, troll] });
+    state.round = 2;
+    const c = state.byId.get("troll");
+    c.round = 1;
+    applyDamage(state, c, [{ type: "acid", amount: 3, persistent: false, precision: false }]);
+    assert.equal(c.regenerationOff, true);
+    expireTimers(state, c, "start");
+    assert.equal(c.regenerationOff, true, "still off during its turn");
+    expireTimers(state, c, "end");
+    assert.equal(c.regenerationOff, false, "back at the end of it");
+    // Damaged during its own turn: off through its next one.
+    c.round = 2;
+    applyDamage(state, c, [{ type: "fire", amount: 3, persistent: false, precision: false }]);
+    expireTimers(state, c, "end");
+    assert.equal(c.regenerationOff, true);
+    state.round = 3;
+    expireTimers(state, c, "end");
+    assert.equal(c.regenerationOff, false);
+});
+
+test("Fast Healing heals at the start of the monster's turn", () => {
+    const [fighter] = martialParty(5);
+    const imp = withBuiltins({ ...moderateCreature(5, "imp", "Imp"), band: "far" }, ["Fast Healing 5", { builtin: "fast-healing", value: 5 }]);
+    const result = simulate({ combatants: [{ ...fighter }, { ...imp, hp: { value: 10, max: imp.hp.max } }] }, {}, 1, { log: true });
+    assert.ok(result.log.some((line) => /Imp regains 5 HP/.test(line)));
+});
+
+test("Draconic Frenzy: three Strikes for two actions, agile ones last; Draconic Momentum recharges the breath on a critical hit", () => {
+    const [fighter] = martialParty(8);
+    const base = moderateCreature(8, "dragon", "Dragon");
+    const strike = base.strikes[0];
+    const dragon = withBuiltins({
+        ...base,
+        engagement: 1,
+        strikes: [{ ...strike, name: "Jaws" }, { ...strike, name: "Claw", agile: true, bonus: strike.bonus }, { ...strike, name: "Tail", bonus: strike.bonus - 2 }]
+    }, ["Draconic Frenzy", { builtin: "multi-strike", actions: 2, strikes: ["claw", "claw", "tail"] }], ["Draconic Momentum", { builtin: "momentum", recharges: ["Breath"] }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 9999, max: 9999 } }, dragon] });
+    const c = state.byId.get("dragon");
+    c.actionsLeft = 3;
+    const frenzy = scoreOptions(state, c).options.find((option) => option.action.type === "multiStrike");
+    assert.deepEqual([frenzy?.action.targetId, frenzy?.action.actions], ["fighter", 2]);
+    const strike2 = scoreOptions(state, c).options.find((option) => option.action.type === "strike" && option.action.strikeIndex === 0);
+    assert.ok(frenzy.value > strike2.value, "three Strikes are worth more than one");
+    // Three Strikes, the multiple attack penalty rising; a critical hit recharges the breath.
+    const breath = { name: "Breath" };
+    c.rechargeUntil = new Map([[breath, 99]]);
+    state.rng.d20 = () => 20;
+    c.strikes.forEach((s) => (s.bonus = 30));
+    for (const index of [1, 1, 2]) performStrike(state, c, state.byId.get("fighter"), c.strikes[index]);
+    assert.equal(c.attacksThisTurn, 3);
+    assert.equal(c.rechargeUntil.has(breath), false, "a critical hit recharged it");
+    // In whole fights, the action makes its three Strikes (fewer when the target drops and no one else is in reach).
+    let complete = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+        const { log } = simulate({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, seed, { log: true });
+        for (const [index, line] of log.entries()) {
+            if (!/Dragon uses Draconic Frenzy/.test(line)) continue;
+            const strikes = log.slice(index + 1, index + 4).map((next) => /Dragon (Claw|Tail) →/.exec(next)?.[1]).filter(Boolean);
+            assert.deepEqual(strikes, ["Tail", "Claw", "Claw"].slice(0, strikes.length));
+            if (strikes.length === 3) complete++;
+        }
+    }
+    assert.ok(complete > 0);
+});
+
+test("Pounce: Stride and Strike as one action, from the near band", () => {
+    const [fighter] = martialParty(5);
+    const cat = withBuiltins({ ...moderateCreature(5, "cat", "Cat"), band: "near" }, ["Pounce", { builtin: "charge", actions: 1, strides: 1, strike: null }]);
+    const state = createFightState({ combatants: [{ ...fighter, band: "near" }, cat] });
+    const c = state.byId.get("cat");
+    c.actionsLeft = 1;
+    const pounce = scoreOptions(state, c).options.find((option) => option.action.type === "charge");
+    assert.equal(pounce?.action.targetId, "fighter");
+    const result = simulate({ combatants: [{ ...fighter, band: "near", hp: { value: 9999, max: 9999 } }, cat] }, { morale: false, roundCap: 1 }, 1, { log: true });
+    const turn = result.log.slice(result.log.findIndex((line) => line.startsWith("Cat (")));
+    assert.ok(turn.some((line) => /Cat uses Pounce/.test(line)));
+});
+
+test("+1 status to all saves vs. magic: against spells and magical abilities, not a plain monster ability", () => {
+    const yamaraj = withBuiltins({ ...moderateCreature(5, "y", "Y") }, ["+1 Status to All Saves vs. Magic", { builtin: "save-bonus", bonuses: [{ saves: ["fortitude", "reflex", "will"], value: 1, type: "status", predicate: ["item:magical"] }] }], ["+2 Status vs. Mental", { builtin: "save-bonus", bonuses: [{ saves: ["will"], value: 2, type: "status", predicate: ["item:trait:mental"] }] }]);
+    const fireball = { name: "Fireball", kind: undefined, plan: { traits: ["fire"] }, tradition: "arcane" };
+    const breath = { name: "Breath", kind: "ability", plan: { traits: ["poison"] } };
+    const charm = { name: "Charm", plan: { traits: ["mental", "incapacitation"] } };
+    assert.equal(saveBonusAgainst(yamaraj, "reflex", fireball), 1);
+    assert.equal(saveBonusAgainst(yamaraj, "fortitude", breath), 0, "not magical");
+    assert.equal(saveBonusAgainst(yamaraj, "fortitude", { ...breath, plan: { traits: ["arcane", "poison"] } }), 1, "a tradition's trait makes it magical");
+    assert.equal(saveBonusAgainst(yamaraj, "will", charm), 2, "status bonuses don't stack: the higher");
+});
+
+test("Improved Grab from a real stat block: the Strike lists improved-grab", { skip }, async () => {
+    const { improvedGrab } = await packAbilities();
+    const [fighter] = martialParty(10);
+    const shark = { ...moderateCreature(10, "shark", "Shark"), engagement: 1, skills: { athletics: 60 } };
+    shark.strikes = [{ ...shark.strikes[0], name: "Jaws", attackEffects: ["improved-grab"] }];
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...shark, spells: [entry("Improved Grab", improvedGrab)] }] });
+    const c = state.byId.get("shark");
+    triggerRiders(state, c, state.byId.get("fighter"), c.strikes[0]);
+    assert.equal(state.byId.get("fighter").grabbedBy, "shark");
+});
+
+test("Swallow Whole: inside the swallower, crushed each turn, out by Escape, a Rupture cut, or the swallower dying", { skip }, async () => {
+    const { swallow, basic } = await packAbilities();
+    const [fighter, champion] = martialParty(10);
+    const shark = { ...moderateCreature(10, "shark", "Shark"), engagement: 1, size: "grg", skills: { athletics: 60 }, spells: [entry("Swallow Whole", swallow)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, size: "med", spells: [entry("Escape", basic.escape, "basic")] }, { ...champion, engagement: 1 }, shark] });
+    state.round = 1;
+    const c = state.byId.get("shark");
+    const pc = state.byId.get("fighter");
+    const other = state.byId.get("champion");
+    c.actionsLeft = 3;
+    assert.equal(scoreOptions(state, c).options.filter((option) => option.action.type === "cast").length, 0, "only a creature it holds");
+    pc.cond.grabbed = true;
+    pc.grabbedBy = "shark";
+    const option = scoreOptions(state, c).options.find((entry) => entry.action.type === "cast");
+    assert.deepEqual(option?.action.targetIds, ["fighter"]);
+    const hp = pc.hp.value;
+    castSpell(state, c, 0, ["fighter"]);
+    assert.equal(pc.swallowedBy, "shark");
+    assert.ok(pc.hp.value < hp, "the damage when first swallowed");
+    assert.deepEqual([pc.cond.grabbed, pc.cond.slowed, isActive(pc)], [true, 1, false]);
+    assert.ok(!scoreOptions(state, other).options.some((entry) => entry.action.targetId === "fighter" || entry.action.targetIds?.includes("fighter")), "nobody else can reach it");
+    // The swallower moving doesn't let it out.
+    const { stride } = await import("../src/engine/actions.js");
+    stride(state, c, { kind: "toNear" });
+    assert.equal(pc.swallowedBy, "shark");
+    // A hit of at least Rupture 20 piercing or slashing cuts it free.
+    applyDamage(state, c, [{ type: "slashing", amount: 25, persistent: false, precision: false }]);
+    assert.deepEqual([pc.swallowedBy, pc.cond.grabbed, pc.cond.slowed, isActive(pc)], [null, false, 0, true]);
+    // Escape: the grabbed condition ends, and it comes out through the mouth.
+    pc.cond.grabbed = true;
+    pc.grabbedBy = "shark";
+    castSpell(state, c, 0, ["fighter"]);
+    assert.equal(pc.swallowedBy, "shark");
+    pc.skills = { ...pc.skills, athletics: 80 };
+    castSpell(state, pc, 0, ["shark"]);
+    assert.equal(pc.swallowedBy, null, "escaped");
+    // The swallower dies: free.
+    pc.cond.grabbed = true;
+    pc.grabbedBy = "shark";
+    castSpell(state, c, 0, ["fighter"]);
+    dealDamage(state, c, c.hp.max * 3);
+    assert.equal(pc.swallowedBy, null);
+});
+
+test("Swallow Whole in whole fights: the swallowed creature is crushed at the end of its turns and gets out", { skip }, async () => {
+    const { swallow, improvedGrab, basic } = await packAbilities();
+    const party = martialParty(10).map((pc) => ({ ...pc, spells: Object.entries(basic).map(([name, plan]) => entry(name, plan, "basic")) }));
+    const base = moderateCreature(10, "shark", "Shark");
+    const shark = { ...base, size: "grg", skills: { athletics: 22 }, strikes: [{ ...base.strikes[0], name: "Jaws", attackEffects: ["improved-grab"] }], spells: [entry("Improved Grab", improvedGrab), entry("Swallow Whole", swallow)] };
+    let swallowed = 0;
+    let crushed = 0;
+    let out = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+        const result = simulate({ combatants: [...party, shark] }, {}, seed, { log: true });
+        swallowed += result.log.filter((line) => /swallows/.test(line)).length;
+        crushed += result.log.filter((line) => /is crushed inside/.test(line)).length;
+        out += result.log.filter((line) => /escapes from|cuts itself free|is freed from/.test(line)).length;
+    }
+    assert.ok(swallowed > 0 && crushed > 0 && out > 0, `${swallowed} swallowed, ${crushed} crushed, ${out} out`);
+});
+
+test("Trample: the enemies of the listed size or smaller in one Melee save against the Strike's damage", { skip }, async () => {
+    const { trample } = await packAbilities();
+    const [fighter, champion] = martialParty(7);
+    const elephant = { ...moderateCreature(7, "elephant", "Elephant"), band: "near", size: "huge", spells: [entry("Trample", trample)] };
+    const ogre = { ...moderateCreature(7, "ogre", "Ogre"), engagement: 1 };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, size: "med" }, { ...champion, engagement: 1, size: "huge" }, elephant, ogre] });
+    const c = state.byId.get("elephant");
+    c.actionsLeft = 3;
+    const option = scoreOptions(state, c).options.find((entry) => entry.action.type === "cast");
+    assert.deepEqual(option?.action.targetIds, ["fighter"], "Large or smaller: not the Huge champion, nor its own ally");
+    const hp = state.byId.get("fighter").hp.value;
+    state.byId.get("fighter").saves = { fortitude: 0, reflex: -40, will: 0 };
+    castSpell(state, c, 0, ["fighter"]);
+    assert.ok(state.byId.get("fighter").hp.value < hp);
+    assert.equal(c.meleeId, state.byId.get("fighter").meleeId, "it ends beside them");
+});
+
+test("Stench: each enemy in the aura saves as the fight starts; a critical failure also slows", { skip }, async () => {
+    const { stench } = await packAbilities();
+    const party = martialParty(3).map((pc) => ({ ...pc, band: "near", saves: { ...pc.saves, fortitude: -40 } }));
+    const ghoul = { ...moderateCreature(3, "ghoul", "Ghoul"), band: "near", spells: [entry("Stench", stench)] };
+    const state = createFightState({ combatants: [...party, ghoul] });
+    applyAuras(state);
+    for (const pc of party) assert.deepEqual([state.byId.get(pc.id).cond.sickened, state.byId.get(pc.id).cond.slowed], [1, 1]);
+});
+
+// A poison as the ability module compiles one (Giant Scorpion Venom, DC 18):
+// stage 1 1d10 poison and enfeebled 1, stage 2 2d10, stage 3 2d10 and enfeebled 2; 1 round each, 6 rounds at most.
+test("Afflictions: a failed save afflicts at stage 1 (2 on a critical failure); each stage's save moves it; a poison again raises the stage", { skip }, async () => {
+    const { venom } = await packAbilities();
+    const [fighter] = martialParty(3);
+    const scorpion = { ...moderateCreature(3, "scorpion", "Scorpion"), engagement: 1, spells: [entry("Giant Scorpion Venom", venom)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 500, max: 500 } }, scorpion] });
+    state.round = 1;
+    const c = state.byId.get("scorpion");
+    const pc = state.byId.get("fighter");
+    // Saves: d20 10 + Fortitude 0 against DC 18 is a failure; -10 a critical failure; +10 a success.
+    state.rng.d20 = () => 10;
+    pc.saves = { ...pc.saves, fortitude: 0 };
+    let hp = pc.hp.value;
+    castSpell(state, c, 0, ["fighter"]);
+    assert.deepEqual([pc.afflictions[0].stage, pc.cond.enfeebled], [1, 1]);
+    assert.ok(pc.hp.value < hp, "stage 1's poison damage");
+    // Exposed again (a poison): up one stage, the maximum duration unchanged.
+    castSpell(state, c, 0, ["fighter"]);
+    assert.deepEqual([pc.afflictions.length, pc.afflictions[0].stage, pc.cond.enfeebled], [1, 2, 1], "stage 2: more damage, enfeebled 1");
+    // The stage runs out at the start of the scorpion's next turn: a failed save, stage 3.
+    state.round = 2;
+    hp = pc.hp.value;
+    expireTimers(state, c, "start");
+    assert.deepEqual([pc.afflictions[0].stage, pc.cond.enfeebled], [3, 2]);
+    assert.ok(pc.hp.value < hp);
+    // A critical success lowers it by 2, a success by 1: cured.
+    pc.saves.fortitude = 20;
+    state.round = 3;
+    expireTimers(state, c, "start");
+    assert.deepEqual([pc.afflictions[0].stage, pc.cond.enfeebled], [1, 1]);
+    pc.saves.fortitude = 10;
+    state.round = 4;
+    expireTimers(state, c, "start");
+    assert.deepEqual([pc.afflictions.length, pc.cond.enfeebled], [0, 0], "recovered");
+    // A critical failure: stage 2 at once.
+    pc.saves.fortitude = -10;
+    castSpell(state, c, 0, ["fighter"]);
+    assert.equal(pc.afflictions[0].stage, 2);
+    // Past the maximum duration (6 rounds), it ends.
+    state.round = 99;
+    expireTimers(state, c, "start");
+    assert.equal(pc.afflictions.length, 0);
+});
+
+test("Afflictions: immunity to poison, a disease measured in days, a stage that kills", () => {
+    const [fighter, champion] = martialParty(3);
+    const plan = (data) => ({
+        modelVersion: 13, source: { name: data.name, slug: data.name }, rank: 1, traits: data.traits,
+        targeting: { target: "a creature", range: "touch" },
+        trigger: { event: "strike", attackEffect: data.name, cost: "free" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 20 } }, outcomes: { criticalSuccess: { effects: [] }, success: { effects: [] }, failure: { effects: [], affliction: { stage: 1 } }, criticalFailure: { effects: [], affliction: { stage: 2 } } }, afflictionHandoff: data }
+    });
+    const disease = { name: "rot", traits: ["disease"], statistic: "fortitude", dc: 20, maximumDuration: null, onset: null, stages: [{ stage: 1, damage: [], conditions: [{ slug: "sickened", value: 1 }], duration: { value: 1, unit: "days" } }, { stage: 2, damage: [], conditions: [], duration: null, death: true }] };
+    const poison = { name: "venom", traits: ["poison"], statistic: "fortitude", dc: 20, maximumDuration: { value: 6, unit: "rounds" }, onset: null, stages: [{ stage: 1, damage: ["2d6[poison]"], conditions: [], duration: { value: 1, unit: "rounds" } }] };
+    const monster = { ...moderateCreature(3, "m", "M"), engagement: 1, spells: [entry("rot", plan(disease)), entry("venom", plan(poison))] };
+    // d20 10 + Fortitude 5 against DC 20: a failure; a natural 1, a critical failure.
+    const fortitude = { fortitude: 5, reflex: 5, will: 5 };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, saves: fortitude }, { ...champion, engagement: 1, saves: fortitude, immunities: ["poison"] }, monster] });
+    state.rng.d20 = () => 10;
+    state.round = 1;
+    const c = state.byId.get("m");
+    castSpell(state, c, 1, ["champion"]);
+    assert.equal(state.byId.get("champion").afflictions?.length ?? 0, 0, "immune to poison");
+    castSpell(state, c, 0, ["fighter"]);
+    const pc = state.byId.get("fighter");
+    assert.deepEqual([pc.afflictions[0].stage, pc.cond.sickened], [1, 1]);
+    assert.equal(pc.timers.some((timer) => timer.affliction), false, "a day-long stage has no save in the fight");
+    castSpell(state, c, 0, ["fighter"]);
+    assert.equal(pc.afflictions[0].stage, 1, "a disease it already has does nothing more");
+    // A critical failure straight to the final stage: dead.
+    state.rng.d20 = () => 1;
+    const other = createFightState({ combatants: [{ ...fighter, engagement: 1, saves: fortitude }, monster] });
+    other.rng.d20 = () => 1;
+    castSpell(other, other.byId.get("m"), 0, ["fighter"]);
+    assert.equal(other.byId.get("fighter").status, "dead");
+});
+
+test("Afflictions in fights: a scorpion Strikes with the venomous Stinger rather than its Pincer", { skip }, async () => {
+    const { venom } = await packAbilities();
+    const [fighter] = martialParty(3);
+    const base = moderateCreature(3, "scorpion", "Scorpion");
+    const scorpion = { ...base, engagement: 1, strikes: [{ ...base.strikes[0], name: "Pincer" }, { ...base.strikes[0], name: "Stinger", damage: base.strikes[0].damage.map((part) => ({ ...part, bonus: part.bonus - 2 })), attackEffects: ["giant-scorpion-venom"] }], spells: [entry("Giant Scorpion Venom", venom)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, scorpion] });
+    const c = state.byId.get("scorpion");
+    c.actionsLeft = 3;
+    const best = scoreOptions(state, c).options.filter((option) => option.action.type === "strike").sort((a, b) => b.value - a.value)[0];
+    assert.equal(c.strikes[best.action.strikeIndex].name, "Stinger", "the venom outweighs 2 damage");
+});
