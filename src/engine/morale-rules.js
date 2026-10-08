@@ -25,8 +25,10 @@ export const MORALE_RULES = Object.freeze({
         cantAffect: { enabled: true, label: "Can't meaningfully affect an opponent" },
         surrounded: { enabled: true, label: "Surrounded" },
         // oncePerCreature (user, 2026-10-07): a creature checks for these at most once per fight.
-        halfHp: { enabled: true, label: "Falls to half HP", oncePerCreature: true },
-        strongestAllyDown: { enabled: true, label: "Sees its strongest ally destroyed", oncePerCreature: true },
+        // Off (user, 2026-10-08, M20): it decided close fights more than it shortened won ones.
+        halfHp: { enabled: false, label: "Falls to half HP", oncePerCreature: true },
+        // Off (user, 2026-10-08, M21): +1 point of win rate for 0.03 rounds.
+        strongestAllyDown: { enabled: false, label: "Sees its strongest ally destroyed", oncePerCreature: true },
         frightenedByEnemy: { enabled: true, label: "Becomes frightened from an enemy effect" },
         surprised: { enabled: true, label: "Surprised (first round)", source: "Morale.md" },
         // Escalations (user, 2026-10-08): not a check; foe reinforcements arriving steady wavering foes.
@@ -41,12 +43,13 @@ export const MORALE_RULES = Object.freeze({
         frightened: { enabled: true, value: -1, label: "Currently frightened" },
         halfHp: { enabled: true, value: -1, label: "At half HP" },
         allyDroppedBySingleAttack: { enabled: true, value: -2, label: "Witnessed an ally dropped by a single attack" },
-        outnumbered2to1: { enabled: true, value: -2, label: "Side outnumbered 2:1 or worse" },
+        // −4 and −6 (user, 2026-10-08, M21): they save the most rounds for the least win rate.
+        outnumbered2to1: { enabled: true, value: -4, label: "Side outnumbered 2:1 or worse" },
         leaderDown: { enabled: true, value: -2, label: "Leader down or fled" },
         cantBypassDefense: { enabled: true, value: -2, label: "Can't bypass the enemy's main defence" },
         alreadyFailed: { enabled: true, value: -2, label: "Already failed a morale check this encounter" },
         quarterStrength: { enabled: true, value: -4, label: "Side reduced to one-quarter strength" },
-        isolated: { enabled: true, value: -4, label: "Isolated from allies" },
+        isolated: { enabled: true, value: -6, label: "Isolated from allies" },
         // Escalations (user, 2026-10-08): the alarm was raised and its help hasn't come yet.
         helpComing: { enabled: true, value: 1, label: "Help is on its way (the alarm was raised)" },
         // Morale.md (AD&D), off by default (M3).

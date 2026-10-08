@@ -57,9 +57,10 @@ test("persistent damage is set aside and recorded on the target", () => {
     assert.equal(c.persistent[0].type, "fire");
 });
 
+// The half-HP trigger (off by default since M20) is switched on here: these tests use it to start a check.
 function moraleState(foes, rules = {}) {
     const party = martialParty(3);
-    const state = createFightState({ combatants: [...party, ...foes] }, { moraleRules: mergeMoraleRules(rules) });
+    const state = createFightState({ combatants: [...party, ...foes] }, { moraleRules: mergeMoraleRules({ ...rules, triggers: { halfHp: { enabled: true }, ...(rules.triggers ?? {}) } }) });
     return state;
 }
 
