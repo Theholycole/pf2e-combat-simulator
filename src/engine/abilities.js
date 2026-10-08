@@ -69,6 +69,23 @@ export function addBuiltin(spec, plan, name) {
         case "death-strike":
             spec.deathStrike = { name, strike: plan.strike ?? null };
             return true;
+        // Wrestle, Intimidating Strike, Rhinoceros Charge: a Strike (after Strides) with more on a hit.
+        case "strike-activity":
+            spec.strikeActivities = [...(spec.strikeActivities ?? []), {
+                name,
+                actions: plan.actions,
+                strides: plan.strides,
+                strike: plan.strike ?? null,
+                attackBonus: plan.attackBonus ?? 0,
+                damageBonus: plan.damageBonus ?? 0,
+                damage: plan.damage ?? null,
+                offGuard: !!plan.offGuard,
+                requires: plan.requires ?? null,
+                oncePerFight: !!plan.oncePerFight,
+                onHit: plan.onHit,
+                riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
+            }];
+            return true;
         default:
             return false;
     }
@@ -94,11 +111,14 @@ export function multiStrikeOrder(c, ability) {
     return indices.sort((a, b) => (c.strikes[a].agile ? 1 : 0) - (c.strikes[b].agile ? 1 : 0));
 }
 
-// The Strike a charge makes: its bonus to the attack roll for moving 20 feet, or
-// its bigger damage ("the Strike's damage is increased to 3d10+20").
+// The Strike a charge or Strike activity makes: its bonus to the attack roll
+// (for moving 20 feet, or against a target off-guard to it), its bigger damage
+// ("the Strike's damage is increased to 3d10+20"), or a bonus to damage.
 export function chargeStrike(strike, charge) {
-    if (!charge.attackBonus && !charge.damage) return strike;
-    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + (charge.attackBonus ?? 0) };
+    const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard ? 2 : 0);
+    if (!attackBonus && !charge.damage && !charge.damageBonus) return strike;
+    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus };
+    if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
     const dice = charge.damage ? /(\d+)d(\d+)\s*(?:([+-])\s*(\d+))?/.exec(charge.damage) : null;
     if (dice) {
         const type = /\[([a-z]+)\]/.exec(charge.damage)?.[1] ?? strike.damage[0]?.type ?? "untyped";

@@ -14,7 +14,7 @@ import { coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./
 import { isShaken } from "./morale.js";
 import { chargeStrike, multiStrikeOrder, strikeNamed } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
-import { canCast, describeSpell, retchOdds, spellExpectation, spellVariants, targetSets } from "./spells.js";
+import { canCast, describeSpell, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets } from "./spells.js";
 
 export const ROLE_PROFILES = Object.freeze({
     soldier: { aggression: 1, selfPreservation: 0.8, objective: 1 },
@@ -538,6 +538,47 @@ function expand(ctx, node, actionsLeft) {
                     damage: { ...node.damage, [target.id]: before + best.damage }
                 });
                 if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                children.push(next);
+            }
+        }
+        // Strike activities (Wrestle, Intimidating Strike, Rhinoceros Charge): the Strike,
+        // plus what a hit adds times the chance to hit; with Strides, only from outside the target's Melee.
+        for (const [activityIndex, activity] of (c.strikeActivities ?? []).entries()) {
+            if (restrained || activity.actions > remaining || (activity.oncePerFight && c.activitiesUsed?.has(activityIndex))) continue;
+            if (activity.strides && (!mobile || ctx.wavering)) continue;
+            const named = strikeNamed(c, activity.strike);
+            const candidates = named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
+            for (const target of ctx.enemies) {
+                if (target.status !== "active") continue;
+                if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
+                if (activity.requires === "prone" && !target.cond.prone) continue;
+                if (activity.requires === "free-hand" && state.list.some((other) => other.grabbedBy === c.id && (other.cond.grabbed || other.cond.restrained))) continue;
+                let pos = node.pos;
+                if (activity.strides) {
+                    if (inMelee(node.pos, target) || stridesToEngage({ band: node.pos.band, meleeId: null, speed: c.speed }, target) > activity.strides) continue;
+                    pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
+                }
+                let best = null;
+                for (const index of candidates) {
+                    const strike = c.strikes[index];
+                    if (!strikeUsable(c, strike) || (strike.melee && !inMelee(pos, target))) continue;
+                    const changed = chargeStrike(strike, activity);
+                    const expectation = ctx.strikeExpectation(changed, changed === strike ? index : 2000 + activityIndex * 64 + index, target, node.attacks, pos, node.prone);
+                    if (expectation && (!best || expectation.damage > best.expectation.damage)) best = { index, expectation };
+                }
+                if (!best) continue;
+                const rider = strikeRiderValue(state, c, target, activity);
+                const before = node.damage[target.id] ?? 0;
+                const hp = remainingHp(target);
+                const expected = best.expectation.damage + best.expectation.hitChance * rider.damage;
+                const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + best.expectation.hitChance * rider.worth * ROUND_TO_KILL);
+                if (gain <= 0) continue;
+                const next = child(node, { type: "strikeActivity", index: activityIndex, targetId: target.id, strikeIndex: best.index, actions: activity.actions }, activity.actions, ctx.profile.aggression * gain, {
+                    attack: true,
+                    pos,
+                    damage: { ...node.damage, [target.id]: before + expected }
+                });
+                if (activity.strides && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                 children.push(next);
             }
         }

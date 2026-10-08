@@ -8,7 +8,7 @@ import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, stride } from "../src/engine/actions.js";
 import { isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeStrike, saveBonusAgainst } from "../src/engine/abilities.js";
-import { applyAuras, applyCondition, castSpell, expireTimers, retch, triggerRiders } from "../src/engine/spells.js";
+import { applyAuras, applyCondition, applyStrikeRider, castSpell, expireTimers, retch, triggerRiders } from "../src/engine/spells.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
 // ones compiled from PF2e's packs (Swallow Whole, Trample, Stench).
@@ -505,4 +505,50 @@ test("Charges: Boar Charge's +2 to the attack roll, Powerful Charge's bigger dam
         charges += result.log.filter((entry) => /Boar Tusk \(Boar Charge\) →/.test(entry)).length;
     }
     assert.ok(charges > 0, "the charge's own Strike in a fight");
+});
+
+test("Strike activities: Wrestle knocks a grabbed creature prone on a hit; a save rider only for creatures small enough", () => {
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "tiger", "Tiger");
+    const tiger = withBuiltins({ ...base, engagement: 1, strikes: [{ ...base.strikes[0], name: "Claw", bonus: 40 }] },
+        ["Wrestle", { builtin: "strike-activity", actions: 1, strides: 0, strike: "claw", attackBonus: 0, damageBonus: 0, offGuard: false, requires: "grabbed", oncePerFight: false, onHit: { conditions: [{ slug: "prone", value: null, duration: null }], critical: null, push: null, damage: [], save: null, size: null } }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, tiger] }, {}, 1);
+    const c = state.byId.get("tiger");
+    const pc = state.byId.get("fighter");
+    c.actionsLeft = 1;
+    assert.equal(scoreOptions(state, c).options.some((option) => option.action.type === "strikeActivity"), false, "only on a creature it holds");
+    pc.cond.grabbed = true;
+    pc.grabbedBy = "tiger";
+    const option = scoreOptions(state, c).options.find((entry) => entry.action.type === "strikeActivity");
+    assert.equal(option?.action.targetId, "fighter");
+    applyStrikeRider(state, c, pc, c.strikeActivities[0], false);
+    assert.equal(pc.cond.prone, true);
+    // A save rider for a Medium or smaller creature: not for a Large one.
+    const shove = { ...c.strikeActivities[0], onHit: { conditions: [{ slug: "frightened", value: 1, duration: null }], critical: null, push: null, damage: [], save: null, size: "medium" } };
+    pc.size = "large";
+    applyStrikeRider(state, c, pc, shove, false);
+    assert.equal(pc.cond.frightened, 0);
+    pc.size = "med";
+    applyStrikeRider(state, c, pc, shove, false);
+    assert.equal(pc.cond.frightened, 1);
+});
+
+test("Engulf: an engulfed creature Escapes against the listed DC, not the monster's Athletics DC", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const { readDocuments } = await import("../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs");
+    const { compileMonsterAbility } = await import(ABILITIES);
+    const tarData = readDocuments(`${PACKS}/pathfinder-monster-core`).find((doc) => doc.collection === "actors" && doc.name === "Living Tar");
+    const engulf = compileMonsterAbility(tarData.items.find((item) => item.name === "Engulf"), { actor: tarData });
+    const [fighter] = martialParty(7);
+    const tar = { ...moderateCreature(7, "tar", "Tar"), band: "near", size: "huge", skills: { athletics: 60 }, spells: [entry("Engulf", engulf)] };
+    const state = createFightState({ combatants: [{ ...fighter, band: "near", saves: { fortitude: 0, reflex: -40, will: 0 }, skills: { athletics: 12 }, spells: [entry("Escape", basic.escape, "basic")] }, tar] }, {}, 1);
+    const c = state.byId.get("tar");
+    const pc = state.byId.get("fighter");
+    castSpell(state, c, 0, ["fighter"]);
+    assert.equal(pc.swallowedBy, "tar");
+    assert.equal(pc.swallow.escapeDC, 22);
+    // 10 + 12 = 22 against DC 22 (the tar's Athletics DC would be 70): out.
+    state.rng.d20 = dice(10);
+    castSpell(state, pc, 0, ["tar"]);
+    assert.equal(pc.swallowedBy, null);
 });

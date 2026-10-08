@@ -11,7 +11,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyHeal, castSpell, describeSpell, expireTimers, hasTimer, retch, rollInstances, triggerRiders } from "./spells.js";
+import { applyAuras, applyHeal, applyStrikeRider, castSpell, describeSpell, expireTimers, hasTimer, retch, rollInstances, triggerRiders } from "./spells.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -352,6 +352,21 @@ function act(state, c, action) {
         case "retch":
             retch(state, c);
             break;
+        // Wrestle, Rhinoceros Charge: Stride if it must, Strike, then what a hit adds.
+        case "strikeActivity": {
+            const activity = c.strikeActivities[action.index];
+            const target = state.byId.get(action.targetId);
+            state.log?.push(`  ${c.name} uses ${activity.name}`);
+            if (activity.oncePerFight) (c.activitiesUsed ??= new Set()).add(action.index);
+            if (!target || !isActive(target)) break;
+            if (activity.strides && !sameMelee(c, target)) {
+                stride(state, c, { kind: "engage", targetId: action.targetId });
+                if (!canAct(c) || !isActive(target) || !sameMelee(c, target)) break;
+            }
+            const result = performStrike(state, c, target, chargeStrike(c.strikes[action.strikeIndex], activity));
+            if (result && result.degree >= SUCCESS && isActive(target)) applyStrikeRider(state, c, target, activity, result.degree === 3);
+            break;
+        }
         case "rend": {
             const target = state.byId.get(action.targetId);
             if (target && isActive(target)) performRend(state, c, target, c.strikes[action.strikeIndex]);
@@ -385,7 +400,7 @@ function act(state, c, action) {
 }
 
 function actionCost(c, action) {
-    if (action.type === "multiStrike" || action.type === "charge") return action.actions;
+    if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity") return action.actions;
     if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
     return action.type === "task" ? 2 : 1;
 }

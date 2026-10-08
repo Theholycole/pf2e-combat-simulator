@@ -180,6 +180,12 @@ export function defenceDC(c, slug) {
     return 10 + skillValue(c, slug) - statusPenalty(c, "skill");
 }
 
+// Escaping an Engulf: its listed Escape DC rather than the monster's Athletics DC.
+function escapeDCAgainst(caster, target, spell, actions) {
+    if (caster?.swallowedBy !== target?.id || !caster.swallow?.escapeDC) return null;
+    return describeSpell(spell?.plan, actions)?.escape ? caster.swallow.escapeDC : null;
+}
+
 // Disarm against a creature whose grip it already weakened: +2 (as a DC 2 lower).
 function disarmBonus(spell, target) {
     if (!target.weakGrip?.size) return 0;
@@ -216,7 +222,7 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
             // for an attack-trait action), or another creature's DC.
             if (isCheckStatistic(slug)) {
                 if (c === caster) return { modifier: skillValue(c, slug) - statusPenalty(c, "skill") - (describeSpell(spell.plan, actions).attack ? mapPenalty() : 0) };
-                return { modifier: skillValue(c, slug) - statusPenalty(c, "skill"), dc: defenceDC(c, slug) };
+                return { modifier: skillValue(c, slug) - statusPenalty(c, "skill"), dc: escapeDCAgainst(caster, c, spell, actions) ?? defenceDC(c, slug) };
             }
             return null;
         },
@@ -542,7 +548,7 @@ function applySwallow(state, swallower, target, effect) {
     swallower.offGuardTo = [...(swallower.offGuardTo ?? []), offGuard];
     leaveMelee(state, target, "near");
     target.swallowedBy = swallower.id;
-    target.swallow = { damage: parseDamage(effect.damage ?? ""), rupture: effect.rupture ?? null, slowed, offGuard };
+    target.swallow = { damage: parseDamage(effect.damage ?? ""), rupture: effect.rupture ?? null, escapeDC: effect.escapeDC ?? null, slowed, offGuard };
     log(state, `  ${swallower.name} swallows ${target.name}`);
 }
 
@@ -601,15 +607,48 @@ function swallowRoom(state, swallower, size, target) {
 }
 
 // About how many rounds a creature stays swallowed: it tries to Escape with each action.
-function swallowedRounds(target, swallower) {
+function swallowedRounds(target, swallower, escapeDC = null) {
     const roll = Math.max(skillValue(target, "athletics"), skillValue(target, "acrobatics"), skillValue(target, "unarmed")) - statusPenalty(target, "skill");
-    const dc = defenceDC(swallower, "athletics");
+    const dc = escapeDC ?? defenceDC(swallower, "athletics");
     let stays = 1;
     for (const map of [0, 5, 10]) {
         const odds = degreeDistribution(roll - map, dc);
         stays *= 1 - odds[2] - odds[3];
     }
     return Math.min(3, 1 / Math.max(1 - stays, 1 / 3));
+}
+
+// An activity's Strike hit (Wrestle, Intimidating Strike, Rhinoceros Charge):
+// its conditions (the critical ones on a critical hit), push, extra damage
+// (doubled on a critical hit) and save.
+export function applyStrikeRider(state, attacker, target, activity, critical) {
+    const rider = activity.onHit;
+    if (rider.size && sizeRank(target.size) > sizeRank(rider.size)) return;
+    for (const { slug, value, duration } of critical && rider.critical ? rider.critical : rider.conditions) {
+        if (isActive(target) && applyCondition(state, target, slug, value ?? null, duration ?? null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
+    }
+    if (rider.push && isActive(target)) applyMove(state, target, { kind: "push", distance: rider.push });
+    for (const formula of rider.damage ?? []) {
+        const instances = rollInstances(state, parseDamage(formula)).map((instance) => ({ ...instance, amount: critical ? instance.amount * 2 : instance.amount }));
+        const dealt = applyDamage(state, target, instances, { source: attacker });
+        log(state, `  ${target.name} takes ${dealt} more ${instances.map((instance) => instance.type).join("/")}`);
+    }
+    if (activity.riderSpell && isActive(target)) castPlan(state, attacker, activity.riderSpell, [target.id]);
+}
+
+// What an activity's hit adds, on average: { damage, worth }.
+export function strikeRiderValue(state, attacker, target, activity) {
+    const rider = activity.onHit;
+    if (rider.size && sizeRank(target.size) > sizeRank(rider.size)) return { damage: 0, worth: 0 };
+    let worth = rider.conditions.reduce((sum, { slug, value, duration }) => sum + conditionWorth(slug, value, duration), 0);
+    if (rider.push && target.meleeId !== null) worth += 0.1;
+    let damage = (rider.damage ?? []).flatMap((formula) => parseDamage(formula)).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
+    if (activity.riderSpell) {
+        const entry = spellExpectation(state, attacker, activity.riderSpell, [target]).find((item) => item.target === target);
+        damage += entry?.damage ?? 0;
+        worth += entry?.worth ?? 0;
+    }
+    return { damage, worth };
 }
 
 function applyMove(state, target, change) {
@@ -700,7 +739,11 @@ function applyChanges(state, caster, spell, changes, context, io) {
 
 // Casts spell spellIndex at the targets (ids). Spends its pool.
 export function castSpell(state, caster, spellIndex, targetIds, actions) {
-    const spell = caster.spells[spellIndex];
+    castPlan(state, caster, caster.spells[spellIndex], targetIds, actions);
+}
+
+// Resolves a spell or ability (one of the creature's, or a rider's plan) at the targets.
+export function castPlan(state, caster, spell, targetIds, actions) {
     const info = describeSpell(spell.plan, actions);
     const reachable = (target) => isActive(target) || target === caster || ((info.healing || info.dying) && target.status === DOWN);
     const targets = targetIds.map((id) => state.byId.get(id)).filter((target) => target && reachable(target));
@@ -880,7 +923,7 @@ function oddsFor(caster, spell, target, attacks, actions) {
     if (check.roll === "skill" || check.roll === "perception") {
         const map = describeSpell(spell.plan, actions).attack ? (attacks <= 0 ? 0 : attacks === 1 ? 5 : 10) : 0;
         const roll = Math.max(...[].concat(check.statistic).map((slug) => skillValue(caster, slug))) - statusPenalty(caster, "skill") - map;
-        const dc = check.against?.dc === "fixed" ? check.against.value : defenceDC(target, check.against?.statistic ?? "will") - disarmBonus(spell, target);
+        const dc = check.against?.dc === "fixed" ? check.against.value : escapeDCAgainst(caster, target, spell, actions) ?? defenceDC(target, check.against?.statistic ?? "will") - disarmBonus(spell, target);
         return degreeDistribution(roll, dc);
     }
     const slugs = check.saveChoice?.statistics?.length ? check.saveChoice.statistics : [check.statistic];
@@ -956,7 +999,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     entry.worth += chance * value.worth;
                 } else if (change.op === "effect" && change.effect?.kind === "swallow") {
                     // Out of the fight while inside, taking the damage at the end of each of its turns.
-                    const rounds = swallowedRounds(target, caster);
+                    const rounds = swallowedRounds(target, caster, change.effect.escapeDC ?? null);
                     const perRound = parseDamage(change.effect.damage ?? "").reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
                     entry.damage += chance * perRound * rounds;
                     entry.worth += chance * 0.9 * rounds;
