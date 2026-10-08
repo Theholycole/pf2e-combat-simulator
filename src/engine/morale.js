@@ -1,0 +1,449 @@
+// Morale engine for "Improved Morale.md". Rules come from morale-rules.js;
+// the Mn notes refer to docs/morale-decisions.md.
+
+import { SURRENDERED, baseWill, canAct, hpFraction, isActive, statusPenalty } from "./combatant.js";
+import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf } from "./checks.js";
+import { engagedAllies, engagedEnemies, removeFromSpace } from "./space.js";
+
+export const GROUP_STATES = ["steady", "shaken", "wavering", "broken"];
+
+// Default morale profile for a foe, before per-actor and per-run overrides.
+export function defaultMoraleProfile(spec, { foes, partyLevel, objective }) {
+    const traits = new Set(spec.traits ?? []);
+    const profile = { template: "typical", boss: false, group: null, leader: false };
+    if (traits.has("mindless") || traits.has("construct") || traits.has("ooze")) profile.template = "none";
+    else if (traits.has("animal")) profile.template = "bestial";
+    const sameName = foes.filter((other) => other.name === spec.name).length;
+    if (sameName >= 3) profile.group = spec.name;
+    if (sameName === 1 && spec.level >= partyLevel + 2) profile.boss = true;
+    if (foes.length > 1) {
+        const leader = [...foes].sort((a, b) => (b.level - a.level) || (b.hp.max - a.hp.max))[0];
+        if (leader.id === spec.id && foes.some((other) => other.level < spec.level)) profile.leader = true;
+    }
+    if (objective?.kind === "target" && objective.targetId === spec.id && profile.template !== "none") profile.template = "cowardly";
+    return profile;
+}
+
+function fighters(state, side) {
+    return state.list.filter((c) => c.side === side && c.kind !== "object" && c.status !== "pending");
+}
+
+// Lanchester's square law: a side's fighting strength is its remaining HP
+// times its damage per round. Above 1 the party is ahead.
+export function partyAdvantage(state) {
+    let partyHp = 0;
+    let partyDamage = 0;
+    let foeHp = 0;
+    let foeDamage = 0;
+    for (const c of state.list) {
+        if (!isActive(c) || c.kind === "object") continue;
+        const threat = state.threat?.get(c.id) ?? 0;
+        if (c.side === "party") {
+            partyHp += Math.max(0, c.hp.value);
+            partyDamage += threat;
+        } else {
+            foeHp += Math.max(0, c.hp.value);
+            foeDamage += threat;
+        }
+    }
+    const partyStrength = partyHp * partyDamage;
+    const foeStrength = foeHp * foeDamage;
+    if (foeStrength <= 0) return Infinity;
+    return partyStrength / foeStrength;
+}
+
+// The losing gate (M2): the party is clearly winning.
+export function foesLosing(state) {
+    return partyAdvantage(state) >= state.moraleRules.losingGateRatio;
+}
+
+function activeCount(state, side) {
+    return fighters(state, side).filter(isActive).length;
+}
+
+function eligible(state, c) {
+    if (c.side !== "foes" || c.kind === "pc" || c.kind === "object") return false;
+    if (!canAct(c)) return false;
+    if (c.morale?.template === "none" || !c.morale) return false;
+    if (c.cond.fleeing || c.moraleState.broken) return false;
+    return true;
+}
+
+function groupOf(state, c) {
+    const key = c.morale?.group;
+    if (!key) return null;
+    return state.groups.get(key) ?? null;
+}
+
+// Called once when the fight starts.
+export function initMorale(state) {
+    state.groups = new Map();
+    const counts = new Map();
+    for (const c of state.list) {
+        if (c.side === "foes" && c.morale?.group) counts.set(c.morale.group, (counts.get(c.morale.group) ?? 0) + 1);
+    }
+    for (const [key, count] of counts) {
+        if (count < state.moraleRules.group.minSize) {
+            for (const c of state.list) if (c.morale?.group === key) c.morale = { ...c.morale, group: null };
+            continue;
+        }
+        state.groups.set(key, { key, state: 0, failed: 0, checkedRound: -1, extraUsed: false });
+    }
+    state.moraleFlags = {
+        firstDropSeen: false,
+        halfStrength: false,
+        quarterStrength: false,
+        leaderDownRound: -1,
+        allyDroppedSingleRound: -1,
+        strongestDown: false
+    };
+    state.foeStartCount = fighters(state, "foes").length;
+}
+
+function leaderOf(state) {
+    return state.list.find((c) => c.side === "foes" && c.morale?.leader) ?? null;
+}
+
+function triggerEnabled(state, id) {
+    return state.moraleRules.triggers[id]?.enabled !== false;
+}
+
+function modifierValue(state, id) {
+    const entry = state.moraleRules.modifiers[id];
+    return entry && entry.enabled ? entry.value : 0;
+}
+
+// Collects morale triggers from the events of the last action, then rolls the
+// checks they cause.
+export function processMorale(state) {
+    const events = state.pendingEvents;
+    state.pendingEvents = [];
+    if (!state.options.morale) return;
+    const triggered = new Map();
+    const add = (c, reason) => {
+        if (!eligible(state, c)) return;
+        if (!triggerEnabled(state, reason)) return;
+        if (state.moraleRules.triggers[reason]?.oncePerCreature) {
+            const used = (c.moraleState.usedTriggers ??= new Set());
+            if (used.has(reason)) return;
+            used.add(reason);
+        }
+        if (!triggered.has(c.id)) triggered.set(c.id, reason);
+    };
+    const foes = () => state.list.filter((c) => c.side === "foes");
+    const flags = state.moraleFlags;
+    for (const event of events) {
+        if (event.type === "dropped" && event.victim.side === "foes") {
+            const victim = event.victim;
+            if (event.overwhelming) flags.allyDroppedSingleRound = state.round;
+            if (!flags.firstDropSeen) {
+                flags.firstDropSeen = true;
+                if (event.critical || event.overwhelming) for (const c of foes()) add(c, "firstMemberOverwhelmed");
+            }
+            if (victim.morale?.leader) {
+                flags.leaderDownRound = state.round;
+                for (const c of foes()) add(c, "leaderDown");
+            }
+            if (!flags.strongestDown && victim.id === state.strongestFoeId) {
+                flags.strongestDown = true;
+                for (const c of foes()) if (c !== victim) add(c, "strongestAllyDown");
+            }
+        }
+        if (event.type === "fled" && event.who.side === "foes" && event.who.morale?.leader) {
+            flags.leaderDownRound = state.round;
+            for (const c of foes()) add(c, "leaderDown");
+        }
+        if (event.type === "halfHp" && event.victim.side === "foes") add(event.victim, "halfHp");
+        if (event.type === "frightened" && event.victim.side === "foes" && event.byEnemy) {
+            event.victim.moraleState.fearThisRound = true;
+            add(event.victim, "frightenedByEnemy");
+        }
+        if (event.type === "surprised") for (const c of foes()) add(c, "surprised");
+        if (event.type === "cantAffect") add(event.who, "cantAffect");
+    }
+    // Side strength crossings.
+    const start = state.foeStartCount;
+    const removed = fighters(state, "foes").filter((c) => !isActive(c)).length;
+    if (!flags.halfStrength && start > 1 && removed >= start / 2) {
+        flags.halfStrength = true;
+        for (const c of foes()) add(c, "halfStrength");
+    }
+    if (!flags.quarterStrength && start > 1 && start - removed <= start / 4) {
+        flags.quarterStrength = true;
+        for (const c of foes()) add(c, "quarterStrength");
+    }
+    // Surrounded is edge-triggered.
+    for (const c of foes()) {
+        if (!isActive(c)) continue;
+        const surrounded = isSurrounded(state, c);
+        if (surrounded && !c.wasSurrounded) add(c, "surrounded");
+        c.wasSurrounded = surrounded;
+    }
+    if (!triggered.size) return;
+    if (state.moraleRules.losingGate && !foesLosing(state)) {
+        state.stats.moraleGated += triggered.size;
+        return;
+    }
+    const doneGroups = new Set();
+    for (const [id, reason] of triggered) {
+        const c = state.byId.get(id);
+        if (!eligible(state, c)) continue;
+        const group = groupOf(state, c);
+        if (group) {
+            if (doneGroups.has(group.key)) continue;
+            doneGroups.add(group.key);
+            groupCheck(state, group, reason);
+        } else {
+            individualCheck(state, c, reason);
+        }
+    }
+}
+
+function mayCheck(state, holder) {
+    if (holder.checkedRound !== state.round) return true;
+    if (state.moraleRules.extraCheckOnLeaderDeath && state.moraleFlags.leaderDownRound === state.round && !holder.extraUsed) {
+        holder.extraUsed = true;
+        return true;
+    }
+    return false;
+}
+
+function situational(state, key) {
+    return !!state.setup.situational?.[key];
+}
+
+function sharedModifiers(state, c) {
+    const parts = [];
+    const push = (id, value) => {
+        if (value) parts.push({ id, value });
+    };
+    const foesActive = activeCount(state, "foes");
+    const partyActive = activeCount(state, "party");
+    if (situational(state, "defendingHome")) push("defendingHome", modifierValue(state, "defendingHome"));
+    if (situational(state, "noRetreat")) push("noRetreat", modifierValue(state, "noRetreat"));
+    if (situational(state, "hatedEnemy")) push("hatedEnemy", modifierValue(state, "hatedEnemy"));
+    if (foesActive > partyActive) push("outnumbersEnemies", modifierValue(state, "outnumbersEnemies"));
+    if (partyActive >= 2 * foesActive) push("outnumbered2to1", modifierValue(state, "outnumbered2to1"));
+    if (foesActive >= 3 * partyActive) push("outnumber3to1", modifierValue(state, "outnumber3to1"));
+    if (partyActive >= 3 * foesActive) push("outnumbered3to1", modifierValue(state, "outnumbered3to1"));
+    const leader = leaderOf(state);
+    if (leader && leader !== c && !isActive(leader)) push("leaderDown", modifierValue(state, "leaderDown"));
+    if (state.moraleFlags.allyDroppedSingleRound === state.round) push("allyDroppedBySingleAttack", modifierValue(state, "allyDroppedBySingleAttack"));
+    if (state.foeStartCount > 1 && foesActive <= state.foeStartCount / 4) push("quarterStrength", modifierValue(state, "quarterStrength"));
+    if (state.moraleFlags.strongestDown) push("mostPowerfulAllyKilled", modifierValue(state, "mostPowerfulAllyKilled"));
+    if (!state.list.some((other) => other.side === "party" && other.kind === "pc" && other.everDown)) push("noEnemySlain", modifierValue(state, "noEnemySlain"));
+    if (state.round === 1 && state.surprisedSide === "foes") push("surprisedPenalty", modifierValue(state, "surprisedPenalty"));
+    return parts;
+}
+
+function personalModifiers(state, c) {
+    const parts = [];
+    const push = (id, value) => {
+        if (value) parts.push({ id, value });
+    };
+    const template = state.moraleRules.templates[c.morale.template] ?? state.moraleRules.templates.typical;
+    push(`template.${c.morale.template}`, template.modifier ?? 0);
+    if (c.hp.value >= c.hp.max) push("undamaged", modifierValue(state, "undamaged"));
+    if (c.cond.frightened > 0) push("frightened", modifierValue(state, "frightened"));
+    if (hpFraction(c) <= 0.5) push("halfHp", modifierValue(state, "halfHp"));
+    if (c.cantAffect) push("cantBypassDefense", modifierValue(state, "cantBypassDefense"));
+    if (c.moraleState.failed > 0) push("alreadyFailed", modifierValue(state, "alreadyFailed"));
+    if (isIsolated(state, c)) push("isolated", modifierValue(state, "isolated"));
+    const allies = state.list.filter((other) => other.side === "foes" && other !== c && other.kind !== "object");
+    if (allies.some((other) => other.status === "fled") && !allies.some(isActive)) push("abandoned", modifierValue(state, "abandoned"));
+    if (c.morale.template === "bestial") {
+        if (situational(state, "defendingLair")) push("template.bestial.lair", template.defendingLair ?? 0);
+        if (hpFraction(c) <= state.moraleRules.measures.bloodiedFraction && !isSurrounded(state, c)) push("template.bestial.bloodied", template.bloodied ?? 0);
+    }
+    if (c.morale.template === "mercenary") {
+        if (partyAdvantage(state) < 1) push("template.mercenary.winning", template.winning ?? 0);
+        if (situational(state, "unpaid")) push("template.mercenary.unpaid", template.unpaid ?? 0);
+    }
+    return parts;
+}
+
+// M12: in an abstract Melee everyone is engaged with everyone, so a big brawl
+// alone doesn't count; the enemies must also clearly outnumber the creature's side.
+export function isSurrounded(state, c) {
+    const measures = state.moraleRules.measures;
+    const enemies = engagedEnemies(state, c).length;
+    const friends = 1 + engagedAllies(state, c).length;
+    return enemies >= measures.surroundedCount && enemies - friends >= (measures.surroundedMargin ?? 0);
+}
+
+// M13
+function isIsolated(state, c) {
+    const allies = state.list.filter((other) => other.side === c.side && other !== c && isActive(other) && other.kind !== "object");
+    if (c.band === "far") return !allies.some((other) => other.band === "far");
+    return !allies.some((other) => other.band === "engaged" || other.band === "near");
+}
+
+function rollMorale(state, will, penalty, parts) {
+    const modifier = parts.reduce((sum, part) => sum + part.value, 0);
+    const natural = state.rng.d20();
+    const total = natural + will - penalty + modifier;
+    const dc = state.moraleRules.thresholdBase + will;
+    return { natural, total, dc, degree: degreeOf(total, dc, natural), modifier };
+}
+
+function individualCheck(state, c, reason) {
+    if (!mayCheck(state, c.moraleState)) return;
+    c.moraleState.checkedRound = state.round;
+    state.stats.moraleChecks++;
+    if (c.morale.boss && !c.moraleState.autoPassed) {
+        c.moraleState.autoPassed = true;
+        state.log?.push(`  ${c.name} morale (${reason}): Boss Resolve, holds`);
+        return;
+    }
+    const parts = [...sharedModifiers(state, c), ...personalModifiers(state, c)];
+    // M1: the threshold uses Will without condition penalties; the check takes them.
+    const roll = rollMorale(state, baseWill(c), statusPenalty(c, "will"), parts);
+    let degree = roll.degree;
+    const template = state.moraleRules.templates[c.morale.template] ?? state.moraleRules.templates.typical;
+    if (degree <= FAILURE && template.ignoreFirstFailure && !c.moraleState.ignoredFirstFailure) {
+        c.moraleState.ignoredFirstFailure = true;
+        degree = SUCCESS;
+    }
+    if (c.morale.boss && degree <= FAILURE && !bossMayBreak(state, c)) degree = FAILURE;
+    state.log?.push(`  ${c.name} morale (${reason}): ${roll.total} vs ${roll.dc} → ${["critical failure", "failure", "success", "critical success"][degree]}`);
+    applyIndividualResult(state, c, degree, template);
+}
+
+function bossMayBreak(state, c) {
+    if (hpFraction(c) < state.moraleRules.boss.breakBelowHp) return true;
+    const guards = state.list.filter((other) => other.side === "foes" && other !== c && other.kind !== "object");
+    if (guards.length && !guards.some(isActive)) return true;
+    if (state.objective?.status === "success") return true; // M15
+    return false;
+}
+
+function applyIndividualResult(state, c, degree, template) {
+    if (degree === CRITICAL_SUCCESS) {
+        c.cond.frightened = Math.max(0, c.cond.frightened - 1);
+        return;
+    }
+    if (degree === SUCCESS) return;
+    c.moraleState.failed++;
+    state.stats.moraleFailures++;
+    if (degree === FAILURE) {
+        waver(state, c, template.waver);
+        return;
+    }
+    breakCreature(state, c, template.break);
+}
+
+function waver(state, c, kind) {
+    c.moraleState.wavering = true;
+    if (c.cond.frightened === 0) c.cond.frightened = 1;
+    c.mustWithdraw = kind === "withdraw";
+    c.dropAggression = kind === "defensive";
+}
+
+function breakKind(c, kind) {
+    if (c.morale.boss) return "rout";
+    if (kind !== "auto") return kind;
+    return (c.traits ?? []).includes("humanoid") ? "collapse" : "rout";
+}
+
+export function breakCreature(state, c, kind) {
+    const resolved = breakKind(c, kind);
+    state.stats.moraleBreaks++;
+    if (resolved === "berserk") {
+        c.cond.frightened = Math.max(c.cond.frightened, 1);
+        c.berserkUntilRound = state.round + 1;
+        c.moraleState.wavering = false;
+        return;
+    }
+    c.moraleState.broken = true;
+    c.moraleState.wavering = false;
+    if (resolved === "collapse") {
+        surrender(state, c);
+        return;
+    }
+    c.cond.fleeing = true;
+    if (resolved === "rout") c.cond.frightened = Math.max(c.cond.frightened, 2);
+    state.log?.push(`  ${c.name} breaks and flees`);
+}
+
+export function surrender(state, c) {
+    c.status = SURRENDERED;
+    c.captured = true;
+    removeFromSpace(state, c);
+    state.log?.push(`  ${c.name} surrenders`);
+    state.pendingEvents.push({ type: "removed", who: c });
+}
+
+function groupCheck(state, group, reason) {
+    if (!mayCheck(state, group)) return;
+    group.checkedRound = state.round;
+    state.stats.moraleChecks++;
+    const members = state.list.filter((c) => c.morale?.group === group.key && isActive(c));
+    if (!members.length) return;
+    const best = members.reduce((a, b) => (baseWill(b) > baseWill(a) ? b : a));
+    const parts = [...sharedModifiers(state, best), ...personalModifiers(state, best)].filter((part) => part.id !== "alreadyFailed");
+    const leader = leaderOf(state);
+    if (leader && isActive(leader) && leader.morale?.group !== group.key) {
+        const difference = leader.level - best.level;
+        const entry = state.moraleRules.group.leaderBonus.find(([minimum]) => difference >= minimum);
+        if (entry) parts.push({ id: "group.leader", value: entry[1] });
+    }
+    if (group.failed > 0) parts.push({ id: "alreadyFailed", value: modifierValue(state, "alreadyFailed") });
+    const roll = rollMorale(state, baseWill(best), statusPenalty(best, "will"), parts);
+    const before = group.state;
+    if (roll.degree === CRITICAL_SUCCESS) group.state = Math.max(0, group.state - 1);
+    else if (roll.degree === FAILURE) group.state = Math.min(3, group.state + 1);
+    else if (roll.degree === CRITICAL_FAILURE) group.state = Math.min(3, group.state + state.moraleRules.group.criticalFailureSteps);
+    if (roll.degree <= FAILURE) {
+        group.failed++;
+        state.stats.moraleFailures++;
+    }
+    state.log?.push(`  ${group.key} group morale (${reason}): ${roll.total} vs ${roll.dc} → ${GROUP_STATES[group.state]}`);
+    if (group.state !== before) applyGroupState(state, group, members);
+}
+
+function applyGroupState(state, group, members) {
+    const name = GROUP_STATES[group.state];
+    for (const c of members) {
+        c.groupState = name;
+        c.moraleState.wavering = name === "wavering";
+        if (name === "broken") {
+            const template = state.moraleRules.templates[c.morale.template] ?? state.moraleRules.templates.typical;
+            breakCreature(state, c, template.break);
+        }
+    }
+}
+
+// Recovery at the end of a creature's turn (M16).
+export function moraleRecovery(state, c) {
+    if (!state.options.morale || !state.moraleRules.recovery.enabled) return;
+    if (!eligible(state, c) || !c.moraleState.wavering || c.morale.group) return;
+    if (c.moraleState.fearThisRound) return;
+    const allies = state.list.filter((other) => other.side === c.side && other !== c && other.kind !== "object");
+    if (!allies.some((other) => isActive(other) && !other.moraleState.wavering && !other.cond.fleeing)) return;
+    const leader = leaderOf(state);
+    if (leader && leader !== c && !isActive(leader)) return;
+    const roll = rollMorale(state, baseWill(c), statusPenalty(c, "will"), personalModifiers(state, c));
+    state.stats.moraleRecoveries++;
+    if (roll.degree >= SUCCESS) {
+        c.moraleState.wavering = false;
+        c.mustWithdraw = false;
+        c.dropAggression = false;
+        if (roll.degree === CRITICAL_SUCCESS) c.cond.frightened = Math.max(0, c.cond.frightened - 1);
+        state.log?.push(`  ${c.name} steadies`);
+    }
+}
+
+// Start-of-turn check for "can't meaningfully affect an opponent" (M11).
+export function checkCantAffect(state, c, bestHitChance, bestDamage) {
+    if (c.side !== "foes" || c.cantAffect) return;
+    const measures = state.moraleRules.measures;
+    if (bestHitChance <= measures.cantAffectHitChance || bestDamage < measures.cantAffectDamage) {
+        c.cantAffect = true;
+        state.pendingEvents.push({ type: "cantAffect", who: c });
+    }
+}
+
+export function isShaken(c) {
+    return c.groupState === "shaken";
+}
+

@@ -1,0 +1,33 @@
+{
+  "id": "pf2e-combat-simulator",
+  "title": "PF2e Combat Simulator",
+  "description": "Plays PF2e encounters in memory many times and reports the odds: win rate, objective success, PC danger and morale. A balance tester for GMs, with an in-play odds check.",
+  "version": "0.1.0",
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14"
+  },
+  "authors": [
+    {
+      "name": "TheHolyCole"
+    }
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "pf2e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "8.5.0",
+          "verified": "8.5.0"
+        }
+      }
+    ]
+  },
+  "esmodules": [
+    "scripts/main.js"
+  ],
+  "styles": [
+    "styles/simulator.css"
+  ]
+}

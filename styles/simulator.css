@@ -1,0 +1,248 @@
+.pf2e-combat-sim-bar {
+    display: flex;
+    gap: 4px;
+    padding: 4px 8px;
+}
+
+.pf2e-combat-sim-bar button {
+    flex: 1;
+    font-size: var(--font-size-12, 12px);
+    line-height: 24px;
+    height: 26px;
+}
+
+.pf2e-combat-sim .window-content {
+    overflow-y: auto;
+}
+
+.pf2e-combat-sim h3 {
+    font-size: 1.1em;
+    margin: 8px 0 2px;
+    border-bottom: none;
+}
+
+.pf2e-combat-sim .muted {
+    opacity: 0.7;
+    font-size: 0.9em;
+}
+
+.pf2e-combat-sim table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 4px 0 8px;
+}
+
+.pf2e-combat-sim th,
+.pf2e-combat-sim td {
+    padding: 2px 4px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.pf2e-combat-sim td.num,
+.pf2e-combat-sim th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.pf2e-combat-sim .sim-combatants select,
+.pf2e-combat-sim .sim-combatants input[type="number"] {
+    width: 100%;
+    min-width: 0;
+}
+
+.pf2e-combat-sim .sim-combatants td.name {
+    min-width: 150px;
+}
+
+.pf2e-combat-sim .sim-combatants td:nth-child(3) select { min-width: 74px; }
+.pf2e-combat-sim .sim-combatants td:nth-child(4) select { min-width: 96px; }
+.pf2e-combat-sim .sim-combatants td:nth-child(5) select { min-width: 110px; }
+.pf2e-combat-sim .sim-combatants td:nth-child(6) select,
+.pf2e-combat-sim .sim-combatants td:nth-child(7) select { min-width: 62px; }
+.pf2e-combat-sim .sim-combatants td:nth-child(9) input { width: 48px; }
+.pf2e-combat-sim .sim-combatants td:nth-child(10) select { min-width: 62px; }
+.pf2e-combat-sim .sim-combatants td:nth-child(11) select { min-width: 66px; }
+.pf2e-combat-sim .sim-combatants th { white-space: nowrap; font-size: 0.9em; }
+
+.pf2e-combat-sim fieldset {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    align-items: center;
+    margin: 6px 0;
+}
+
+.pf2e-combat-sim fieldset label {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.pf2e-combat-sim fieldset input[type="number"] {
+    width: 64px;
+}
+
+.pf2e-combat-sim .sim-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 8px 0;
+}
+
+.pf2e-combat-sim .sim-buttons button {
+    flex: 0 0 auto;
+    width: auto;
+    padding: 0 10px;
+}
+
+.pf2e-combat-sim .sim-buttons select {
+    width: auto;
+}
+
+.pf2e-combat-sim .sim-progress {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.pf2e-combat-sim .sim-progress progress {
+    flex: 1;
+}
+
+.pf2e-combat-sim .sim-headline {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border-left: 6px solid currentColor;
+    background: rgba(0, 0, 0, 0.06);
+    margin-bottom: 8px;
+}
+
+.pf2e-combat-sim .sim-headline .big {
+    font-size: 2.2em;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Mid-brightness tones so the headline reads on both light and dark themes. */
+.pf2e-combat-sim .tone-safe { color: #43a047; }
+.pf2e-combat-sim .tone-fair { color: #7cb342; }
+.pf2e-combat-sim .tone-risky { color: #f59e0b; }
+.pf2e-combat-sim .tone-deadly { color: #ef5350; }
+.pf2e-combat-sim .tone-lethal { color: #f44336; }
+
+.pf2e-combat-sim .sim-headline div:not(.big) {
+    color: var(--color-text-primary, inherit);
+}
+
+.pf2e-combat-sim .sim-threat {
+    font-size: 0.8em;
+    padding: 0 6px;
+    border-radius: 3px;
+    background: rgba(127, 127, 127, 0.2);
+    white-space: nowrap;
+}
+
+.pf2e-combat-sim .sim-reliability {
+    padding: 4px 10px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    border-left: 4px solid #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    font-size: 0.9em;
+}
+
+.pf2e-combat-sim .sim-reliability.level-low {
+    border-left-color: #ef5350;
+    background: rgba(239, 83, 80, 0.1);
+}
+
+.pf2e-combat-sim .sim-reliability ul {
+    margin: 2px 0 0;
+    padding-left: 18px;
+}
+
+.pf2e-combat-sim .sim-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.pf2e-combat-sim .sim-stats > div {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.pf2e-combat-sim .sim-stats .label {
+    font-size: 0.85em;
+    opacity: 0.75;
+}
+
+.pf2e-combat-sim .sim-stats .value {
+    font-size: 1.4em;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+}
+
+.pf2e-combat-sim .sim-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.pf2e-combat-sim tr.danger td:first-child {
+    font-weight: bold;
+}
+
+.pf2e-combat-sim .badge,
+.pf2e-combat-sim .gap-badge {
+    font-size: 0.75em;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: rgba(198, 40, 40, 0.15);
+    white-space: nowrap;
+}
+
+.pf2e-combat-sim .gap-badge {
+    background: rgba(178, 106, 0, 0.15);
+}
+
+.pf2e-combat-sim .delta {
+    font-size: 0.85em;
+    opacity: 0.75;
+}
+
+.pf2e-combat-sim .sim-fight-log button {
+    width: auto;
+    padding: 0 6px;
+    line-height: 20px;
+}
+
+/* Foundry's dark theme hides unchecked checkboxes on striped rows, so tables
+   with checkboxes use plain rows with dividers instead. */
+.pf2e-combat-sim.sim-log-dialog tbody tr,
+.pf2e-combat-sim .sim-combatants tbody tr {
+    background: transparent;
+    border-bottom: 1px solid rgba(127, 127, 127, 0.25);
+}
+
+.pf2e-combat-sim.sim-log-dialog fieldset,
+.pf2e-combat-sim .sim-log-dialog fieldset {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.pf2e-combat-sim .sim-log pre {
+    max-height: 320px;
+    overflow: auto;
+    white-space: pre-wrap;
+    font-size: 0.85em;
+}
