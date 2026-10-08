@@ -777,17 +777,27 @@ function applyChanges(state, caster, spell, changes, context, io) {
 }
 
 // Casts spell spellIndex at the targets (ids). Spends its pool.
-export function castSpell(state, caster, spellIndex, targetIds, actions) {
-    castPlan(state, caster, caster.spells[spellIndex], targetIds, actions);
+export function castSpell(state, caster, spellIndex, targetIds, actions, options = {}) {
+    castPlan(state, caster, caster.spells[spellIndex], targetIds, actions, options);
 }
 
 // Resolves a spell or ability (one of the creature's, or a rider's plan) at the targets.
-export function castPlan(state, caster, spell, targetIds, actions) {
+// Spellstrike (C20): forcedDegree is the Strike's result for a spell attack; disrupted, a spell lost to a critically missed Strike.
+export function castPlan(state, caster, spell, targetIds, actions, { forcedDegree = null, disrupted = false } = {}) {
     const info = describeSpell(spell.plan, actions);
     const reachable = (target) => isActive(target) || target === caster || ((info.healing || info.dying) && target.status === DOWN);
     const targets = targetIds.map((id) => state.byId.get(id)).filter((target) => target && reachable(target));
     if (spell.pool) caster.spellPools[spell.pool] = Math.max(0, (caster.spellPools[spell.pool] ?? 0) - 1);
     log(state, `  ${caster.name} casts ${spell.name}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
+    // A magus's conflux spell recharges Spellstrike.
+    if (caster.spellstrike && !caster.spellstrikeCharged && (spell.plan?.traits ?? []).includes("conflux") && (info.actions ?? 0) >= 1) {
+        caster.spellstrikeCharged = true;
+        log(state, `  ${caster.name}'s Spellstrike recharges`);
+    }
+    if (disrupted) {
+        log(state, `  ${spell.name} is disrupted`);
+        return;
+    }
     if (info.attack) caster.attacksThisTurn++;
     // Stupefied: a DC 5 + value flat check, or the spell is lost.
     const stupefied = caster.cond.stupefied ?? 0;
@@ -818,7 +828,10 @@ export function castPlan(state, caster, spell, targetIds, actions) {
         if (!targets.length) return;
     }
     const context = simContext(state, caster, spell, targets, caster.attacksThisTurn - (info.attack ? 1 : 0), actions);
-    const io = { ...liveRoller(state), choose: chooser(caster, targets) };
+    const live = liveRoller(state);
+    // Spellstrike: the spell attack takes the Strike's result.
+    const roll = forcedDegree !== null ? (statistic, options) => (statistic === "spell-attack" ? { natural: null, total: null, dc: options?.dc, degree: DEGREE_NAMES[forcedDegree] } : live.roll(statistic, options)) : live.roll;
+    const io = { ...live, roll, choose: chooser(caster, targets) };
     const result = registry.resolveSync(spell.plan, context, io);
     for (const target of targets) {
         const degree = result.degrees[target.id];

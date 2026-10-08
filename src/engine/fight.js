@@ -362,6 +362,26 @@ function act(state, c, action) {
             if (strike) c.unloaded?.delete(strike.name);
             break;
         }
+        // Spellstrike (C20): the Strike, then the spell it carries; two attacks for the penalty.
+        case "spellstrike": {
+            const target = state.byId.get(action.targetId);
+            const spell = c.spells[action.spellIndex];
+            state.log?.push(`  ${c.name} uses ${c.spellstrike.name} with ${spell?.name}`);
+            c.spellstrikeCharged = false;
+            if (!target || !spell) break;
+            const result = performStrike(state, c, target, c.strikes[action.strikeIndex]);
+            const attackSpell = spell.plan?.resolution?.check?.statistic === "spell-attack";
+            // A save spell doesn't add to the penalty by itself; the Spellstrike still counts as two attacks.
+            if (!attackSpell) c.attacksThisTurn++;
+            if (!result) break;
+            if (attackSpell) castSpell(state, c, action.spellIndex, [target.id], undefined, { forcedDegree: result.degree });
+            else castSpell(state, c, action.spellIndex, [target.id], undefined, { disrupted: result.degree === 0 });
+            break;
+        }
+        case "rechargeSpellstrike":
+            c.spellstrikeCharged = true;
+            state.log?.push(`  ${c.name} recharges ${c.spellstrike?.name ?? "Spellstrike"}`);
+            break;
         // A slinger's reload (C17): reloading, and a Shove, a melee Strike, or Demoralize or Create a Diversion.
         case "slingersReload": {
             const strike = c.strikes[action.strikeIndex];
@@ -544,7 +564,8 @@ export function performAction(state, c, action) {
 function actionCost(c, action) {
     if (action.type === "strike") return 1 + (action.reload ?? 0);
     if (action.type === "reload") return action.actions;
-    if (action.type === "slingersReload") return 1;
+    if (action.type === "slingersReload" || action.type === "rechargeSpellstrike") return 1;
+    if (action.type === "spellstrike") return 2;
     if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect") return action.actions;
     if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
     return action.type === "task" ? 2 : 1;

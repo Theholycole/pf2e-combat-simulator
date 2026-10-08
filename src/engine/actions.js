@@ -49,6 +49,8 @@ export function attackPenalty(attacker, strike, target, attacksMade) {
 
 export function attackModifier(state, attacker, target, strike, attacksMade, { prone, history = attacker.turnAttacks ?? [] } = {}) {
     let modifier = strike.bonus - attackPenalty(attacker, strike, target, attacksMade) + effectBonus(attacker, "attack") - gripPenalty(attacker, strike);
+    // A stance's change to this Strike, as PF2e made it (C13).
+    for (const effect of attacker.effects ?? []) modifier += effect.model?.attackDeltas?.[strike.name] ?? 0;
     modifier -= statusPenalty(attacker, strike.melee ? "melee" : "ranged");
     let circumstance = 0;
     if (prone ?? attacker.cond.prone) circumstance = Math.max(circumstance, 2);
@@ -112,6 +114,7 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
     const parts = [];
     if (offGuard && strike.offGuardExtra?.length) for (const part of strike.offGuardExtra) parts.push({ ...part, chance: offGuard });
     for (const buff of attacker.activeBuffs ?? []) for (const part of buff.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
+    for (const effect of attacker.effects ?? []) for (const part of effect.model?.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
     if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id && firstPreyHit) parts.push({ dice: attacker.huntPrey.precisionDice ?? 1, die: 8, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
     // Panache: Precise Strike's damage on agile or finesse melee Strikes; a finisher's dice instead.
     const precise = attacker.panacheStyle && strike.melee && (strike.agile || strike.finesse);

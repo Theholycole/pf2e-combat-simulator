@@ -379,6 +379,12 @@ function readClassFeatures(actor, strikes) {
         }
         if (item.slug === "cover-fire" && strikes.some((strike) => strike.firearm && !strike.melee)) activity(item, { coverFire: true, oncePerRound: true });
     }
+    // Magus (C20): Spellstrike, with the PC's own spells; Arcane Cascade is a stance (C13).
+    const spellstrike = items.find((item) => item.slug === "spellstrike" && item.type === "action");
+    if (spellstrike) {
+        for (const item of items) if (["spellstrike", "recharge-spellstrike"].includes(item.slug)) result.handled.add(item);
+        fields.spellstrike = { name: spellstrike.name };
+    }
     // Sneak Attack and the like: their dice are read with each Strike.
     if (strikes.some((strike) => strike.offGuardExtra?.length)) for (const item of items) if (item.slug === "sneak-attack") result.handled.add(item);
     const reaction = items.find((item) => CHAMPION_REACTIONS.has(item.slug) && item.type === "action");
@@ -606,12 +612,19 @@ async function readSelfEffects(actor, strikes, handled, gaps) {
         const effect = await effectItem(uuid);
         if (!effect) continue;
         const model = effectModel(effect, { rank: level, conditionSlug });
-        let added = [];
-        if (model.unsupported.includes("Strike")) {
-            added = await strikesWithEffect(actor, effect, strikes, gaps);
-            model.unsupported = model.unsupported.filter((key) => key !== "Strike");
+        // The PC's Strikes read from PF2e with the effect on: Strikes it adds (Tiger Claw), and how it
+        // changes the others (Arcane Cascade's force damage, through rules the model can't read).
+        const { added, attackDeltas, strikeDeltas } = await strikesWithEffect(actor, effect, strikes, gaps);
+        const measured = Object.keys(attackDeltas).length || Object.keys(strikeDeltas).length;
+        if (measured) {
+            // PF2e's own numbers replace the model's attack and damage modifiers (counted once).
+            model.modifiers = model.modifiers.filter((modifier) => !["attack", "damage"].includes(modifier.on));
+            model.attackDeltas = attackDeltas;
+            model.strikeDeltas = strikeDeltas;
+            model.unsupported = model.unsupported.filter((key) => !["AdjustStrike", "ActiveEffectLike", "DamageDice", "FlatModifier"].includes(key));
         }
-        const helps = model.modifiers.length || added.length || model.tempHp || model.fastHealing || model.resistances.length || model.conditions.length;
+        model.unsupported = model.unsupported.filter((key) => key !== "Strike");
+        const helps = model.modifiers.length || added.length || measured || model.tempHp || model.fastHealing || model.resistances.length || model.conditions.length;
         if (!helps) continue;
         handled.add(item);
         if (model.unsupported.length) gaps.push({ kind: "class feature, partly simulated", name: `${item.name}: ${model.unsupported.join(", ")}` });
@@ -620,23 +633,43 @@ async function readSelfEffects(actor, strikes, handled, gaps) {
     return found;
 }
 
-// The Strikes PF2e gives the PC with an effect on that it doesn't have without it.
+// The PC's Strikes as PF2e makes them with an effect on: those it doesn't have
+// without it (added), and for the others the change to the attack bonus
+// (attackDeltas) and the extra damage parts (strikeDeltas), by Strike name.
 async function strikesWithEffect(actor, effect, strikes, gaps) {
+    const result = { added: [], attackDeltas: {}, strikeDeltas: {} };
+    // A choice the effect asks for when it's used (Arcane Cascade's damage type) is made
+    // here: force, the stance's own, when offered, otherwise the first option.
+    const source = effect.toObject();
+    for (const rule of source.system?.rules ?? []) {
+        if (rule?.key === "ChoiceSet" && rule.selection === undefined && Array.isArray(rule.choices) && rule.choices.length) rule.selection = (rule.choices.find((choice) => choice?.value === "force") ?? rule.choices[0])?.value;
+    }
     let copy;
     try {
-        copy = actor.clone({ items: [...actor._source.items, { ...effect.toObject(), _id: foundry.utils.randomID() }] }, { keepId: true });
+        copy = actor.clone({ items: [...actor._source.items, { ...source, _id: foundry.utils.randomID() }] }, { keepId: true });
     } catch (error) {
-        gaps.push({ kind: "class feature, partly simulated", name: `${effect.name}: its Strike (${error.message})` });
-        return [];
+        gaps.push({ kind: "class feature, partly simulated", name: `${effect.name}: its Strikes (${error.message})` });
+        return result;
     }
-    const known = new Set(strikes.map((strike) => strike.name));
-    const added = [];
+    const known = new Map(strikes.map((strike) => [strike.name, strike]));
     for (const action of copy.system?.actions ?? []) {
-        if ((action.type && action.type !== "strike") || known.has(action.label)) continue;
-        const strike = await readStrike(copy, action, gaps);
-        if (strike) added.push({ ...strike, reach: strike.reach ?? copy.getReach?.({ action: "attack" }) ?? 5 });
+        if (action.type && action.type !== "strike") continue;
+        const base = known.get(action.label);
+        if (!base) {
+            const strike = await readStrike(copy, action, gaps);
+            if (strike) result.added.push({ ...strike, reach: strike.reach ?? copy.getReach?.({ action: "attack" }) ?? 5 });
+            continue;
+        }
+        const bonus = stripConditions(action.totalModifier, action.modifiers) - base.bonus;
+        if (bonus) result.attackDeltas[base.name] = bonus;
+        try {
+            const extra = extraDamageParts(parseReadableDamage(await action.damage({ getFormula: true })), base.damage);
+            if (extra.length) result.strikeDeltas[base.name] = extra;
+        } catch {
+            // Its damage unreadable with the effect on: left as it is.
+        }
     }
-    return added;
+    return result;
 }
 
 function hasItemSlug(actor, slugs) {

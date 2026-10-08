@@ -415,6 +415,14 @@ function child(node, action, cost, value, changes = {}) {
     };
 }
 
+// A spell a magus can Spellstrike with: 1 or 2 actions, one target, a spell attack or a save, and castable now.
+function spellstrikeSpell(c, spell) {
+    if (spell.kind === "basic" || spell.kind === "ability" || !canCast(c, spell)) return false;
+    const info = describeSpell(spell.plan);
+    const check = info.check;
+    return (info.actions === 1 || info.actions === 2) && info.targets === 1 && !info.area && (check?.statistic === "spell-attack" || check?.roll === "save");
+}
+
 // Is a reload weapon empty at this point of the plan? Fired since its last reload in the plan, or empty when the turn began.
 function emptyNow(c, node, index, strike) {
     const fired = node.casts.lastIndexOf(`fired${index}`);
@@ -713,11 +721,72 @@ function expand(ctx, node, actionsLeft) {
             const gain = ctx.ownValue * (ROUND_TO_KILL * 3 * perRound / threat + 0.5 * (buff.tempHp ?? 0) / Math.max(1, c.hp.max));
             if (gain > 0) children.push(child(node, { type: "selfBuff", index: buffIndex, actions: buff.actions }, buff.actions, gain, { cast: `buff${buffIndex}` }));
         }
+        // Spellstrike (C20): a melee Strike carrying a 1- or 2-action spell with a spell
+        // attack (it hits as the Strike does) or a save (the target saves; a critical miss
+        // loses it); two attacks for the penalty. Then Recharge Spellstrike, an action, or a conflux spell.
+        if (c.spellstrike && !restrained && !noAttacks && !raging) {
+            if (c.spellstrikeCharged && !node.casts.includes("spellstrike") && remaining >= 2) {
+                for (const target of ctx.enemies) {
+                    if (target.status !== "active" || !inMelee(node.pos, target)) continue;
+                    let strikeBest = null;
+                    for (const [index, strike] of (c.strikes ?? []).entries()) {
+                        if (!strike.melee || !strikeUsable(c, strike)) continue;
+                        const expectation = ctx.strikeExpectation(strike, index, target, node.attacks, node.pos, node.prone);
+                        if (expectation && (!strikeBest || expectation.damage > strikeBest.expectation.damage)) strikeBest = { index, expectation };
+                    }
+                    if (!strikeBest) continue;
+                    const hp = remainingHp(target);
+                    const value = targetValue(state, target, c);
+                    const before = node.damage[target.id] ?? 0;
+                    for (const [spellIndex, spell] of (c.spells ?? []).entries()) {
+                        if (!spellstrikeSpell(c, spell) || node.casts.includes(spellIndex)) continue;
+                        let spellDamage = 0;
+                        let spellWorth = 0;
+                        for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, spell, [target], node.attacks)) {
+                            if (affected !== target) continue;
+                            spellDamage += damage;
+                            spellWorth += worth;
+                        }
+                        const expected = strikeBest.expectation.damage + spellDamage;
+                        const gain = value * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + spellWorth * ROUND_TO_KILL);
+                        if (gain <= 0) continue;
+                        children.push(child(node, { type: "spellstrike", targetId: target.id, strikeIndex: strikeBest.index, spellIndex, actions: 2 }, 2, ctx.profile.aggression * gain, {
+                            attacks: 2,
+                            damage: { ...node.damage, [target.id]: before + expected },
+                            cast: ["spellstrike", ...(spell.pool ? [spellIndex] : [])]
+                        }));
+                    }
+                }
+            }
+            // Recharge Spellstrike: worth part of the Spellstrike it makes ready.
+            if (!c.spellstrikeCharged && !node.casts.includes("recharge-spellstrike") && remaining >= 1) {
+                let best = 0;
+                for (const [spellIndex, spell] of (c.spells ?? []).entries()) {
+                    if (!spellstrikeSpell(c, spell)) continue;
+                    for (const target of ctx.enemies) {
+                        if (target.status !== "active") continue;
+                        for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, spell, [target], 0)) {
+                            if (affected === target) best = Math.max(best, targetValue(state, target, c) * (Math.min(1, damage / remainingHp(target)) + worth * ROUND_TO_KILL));
+                        }
+                    }
+                }
+                if (best > 0) children.push(child(node, { type: "rechargeSpellstrike", actions: 1 }, 1, 0.5 * ctx.profile.aggression * best, { cast: "recharge-spellstrike" }));
+            }
+        }
         // A stance or another action that puts an effect on itself (C13): the
         // effect's benefit, as a spell's on itself, and a better Strike it brings.
         for (const [index, entry] of (c.selfEffects ?? []).entries()) {
             if (entry.actions > remaining || (c.effects ?? []).some((effect) => effect.key === `self:${entry.name}`) || node.casts.includes(`self${index}`)) continue;
             let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1);
+            // Its measured change to the Strikes (Arcane Cascade's force damage): about three rounds of it.
+            const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);
+            let perRound = 0;
+            for (const strike of c.strikes ?? []) {
+                const parts = entry.model.strikeDeltas?.[strike.name] ?? [];
+                const extra = parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
+                perRound = Math.max(perRound, extra * 1.3 + 0.05 * (entry.model.attackDeltas?.[strike.name] ?? 0) * 10);
+            }
+            benefit += 3 * perRound / threatHere;
             if (entry.strikes?.length && ctx.enemies.length) {
                 const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
                 const expected = (strike) => {
