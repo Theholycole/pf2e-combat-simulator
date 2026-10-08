@@ -137,9 +137,10 @@ async function readStrike(actor, action, gaps) {
     for (const trait of traits) {
         if (!MODELLED_TRAITS.has(traitRoot(trait))) gaps.push({ kind: "strike trait", name: trait });
     }
-    for (const effect of item?.system?.attackEffects?.value ?? []) gaps.push({ kind: "attack effect", name: effect });
     return {
         name: action.label,
+        // Riders the Strike lists (grab, knockdown, push); a gap unless an ability plays them.
+        attackEffects: [...(item?.system?.attackEffects?.value ?? [])],
         bonus: stripConditions(action.totalModifier, action.modifiers),
         melee: melee && !increment,
         increment,
@@ -156,10 +157,10 @@ async function readStrike(actor, action, gaps) {
     };
 }
 
-function readGaps(actor, gaps) {
+function readGaps(actor, gaps, handled = new Set()) {
     for (const item of actor.itemTypes?.action ?? []) {
         const slug = item.slug ?? item.name.slugify?.() ?? item.name;
-        if (BUILT_IN_ACTIONS.has(slug)) continue;
+        if (BUILT_IN_ACTIONS.has(slug) || handled.has(item)) continue;
         const type = item.system?.actionType?.value;
         if (type === "passive") {
             if (NOTABLE_PASSIVE.test(slug) || (item.system?.traits?.value ?? []).includes("aura")) gaps.push({ kind: "passive ability", name: item.name });
@@ -184,6 +185,43 @@ function readGaps(actor, gaps) {
 }
 
 const CORE_ID = "pf2e-resolution-core";
+const ABILITY_MODULE_ID = "pf2e-automatic-ability-resolution";
+const BASIC_ACTION_SKILLS = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics" };
+
+// A creature's abilities with their plans (the ability module registers its
+// compiler with the core), the basic actions it uses, and the rules the engine
+// plays itself (Ferocity, Rend). Returns { abilities, handled, reactions, rend }.
+async function readAbilities(actor, { fresh = false } = {}) {
+    const result = { abilities: [], handled: new Set(), reactions: {}, rend: null };
+    const core = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api : null;
+    const abilityModule = game.modules.get(ABILITY_MODULE_ID);
+    if (!core || !abilityModule?.active) return result;
+    const items = actorKind(actor) === "npc" ? [...(actor.itemTypes?.action ?? [])] : [];
+    const prepared = items.length ? await core.registry.preparePlans(items) : [];
+    for (const { item, result: compiled } of prepared) {
+        const plan = compiled?.plan;
+        if (!plan) continue;
+        if (plan.builtin) {
+            result.handled.add(item);
+            if (plan.builtin === "ferocity") result.reactions.ferocity = true;
+            if (plan.builtin === "rend") result.rend = { strike: plan.strike ?? null };
+            continue;
+        }
+        if (!plan.resolution) continue;
+        result.handled.add(item);
+        result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool: null, kind: "ability" });
+    }
+    // Basic actions: every PC; a monster only those it's trained for (its stat block lists the skill). Anyone can Escape.
+    const basics = abilityModule.api?.basicActions ?? {};
+    const trained = actorKind(actor) === "pc" ? null : new Set(Object.keys(actor.system?.skills ?? {}));
+    for (const [slug, plan] of Object.entries(basics)) {
+        if (!plan) continue;
+        const skill = BASIC_ACTION_SKILLS[slug];
+        if (skill && trained && !trained.has(skill)) continue;
+        result.abilities.push({ name: plan.source?.name ?? slug, plan, castRank: 1, dc: null, attack: null, pool: null, kind: "basic" });
+    }
+    return result;
+}
 // Plan fields the engine never reads: left out of the snapshot sent to the worker.
 const PLAN_EXTRAS = new Set(["compilerEvidence", "diagnostics", "delegations", "semanticCoverage", "rawText", "sourceText", "raw"]);
 
@@ -336,8 +374,13 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
             if (altStrike) strikes.push({ ...altStrike, name: `${altStrike.name} (${alt.item?.isThrown ? "thrown" : "alt"})` });
         }
     }
-    readGaps(actor, gaps);
+    const abilities = await readAbilities(actor, { fresh });
+    readGaps(actor, gaps, abilities.handled);
     const { spells, spellPools } = await readSpells(actor, gaps, { fresh });
+    spells.push(...abilities.abilities);
+    // A Strike's riders are gaps unless an ability plays them.
+    const riders = new Set(abilities.abilities.map((ability) => ability.plan?.trigger?.attackEffect).filter(Boolean));
+    for (const strike of strikes) for (const effect of strike.attackEffects ?? []) if (!riders.has(effect)) gaps.push({ kind: "attack effect", name: effect });
     if (!strikes.length && !spells.length && actorKind(actor) !== "object") {
         // Swarms and troops attack with area abilities, which aren't simulated yet.
         gaps.push({ kind: "no Strikes", name: "can't attack in the simulation" });
@@ -374,7 +417,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         reach: actorReach,
         heroPoints: actor.system?.resources?.heroPoints?.value ?? 0,
         shield: fresh && shield ? { ...shield, broken: false, raised: false } : shield,
-        reactions: { aoo: hasItemSlug(actor, AOO_SLUGS), shieldBlock: hasItemSlug(actor, new Set(["shield-block"])) },
+        reactions: { aoo: hasItemSlug(actor, AOO_SLUGS), shieldBlock: hasItemSlug(actor, new Set(["shield-block"])), ...abilities.reactions },
+        rend: abilities.rend,
         resistances: readIwr(actor.attributes?.resistances),
         weaknesses: readIwr(actor.attributes?.weaknesses),
         immunities: (actor.attributes?.immunities ?? []).map((entry) => entry.type),

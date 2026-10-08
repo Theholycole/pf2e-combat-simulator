@@ -119,7 +119,13 @@ function readSpell(base, actions) {
         touch: /touch/i.test(String(targeting.range ?? "")),
         area,
         targets: area ? 0 : targetCount(targeting.target),
-        attack: statistic === "spell-attack" || statistic === "strike",
+        attack: statistic === "spell-attack" || statistic === "strike" || (check?.roll === "skill" && (plan?.traits ?? []).includes("attack") && plan?.trigger?.map !== false),
+        // Abilities: when they're used, how often, and on whom.
+        event: plan?.trigger?.event ?? "use",
+        recharge: plan?.trigger?.recharge?.formula ?? null,
+        immunity: Boolean(plan?.trigger?.immunity),
+        grabbedTargets: Boolean(targeting.grabbed),
+        escape: plan?.source?.slug === "escape",
         manipulate: (plan?.activation?.traits ?? plan?.traits ?? []).includes("manipulate"),
         nonlethal: (plan?.traits ?? []).includes("nonlethal"),
         check,
@@ -148,6 +154,29 @@ export function areaCapacity(area) {
 
 // --- Resolving through the core ----------------------------------------------
 
+const SKILLS = new Set(["acrobatics", "arcana", "athletics", "crafting", "deception", "diplomacy", "intimidation", "medicine", "nature", "occultism", "performance", "religion", "society", "stealth", "survival", "thievery"]);
+
+// A creature's modifier for a skill, Perception or its unarmed attack (its
+// stat block's; an unlisted skill falls back on the nearest save, −2).
+export function skillValue(c, slug) {
+    if (slug === "perception") return c.perception ?? 0;
+    if (slug === "unarmed") return Math.max(0, ...(c.strikes ?? []).filter((strike) => strike.melee).map((strike) => strike.bonus));
+    const listed = c.skills?.[slug];
+    if (Number.isFinite(listed)) return listed;
+    return (c.saves?.[{ athletics: "fortitude", acrobatics: "reflex" }[slug] ?? "will"] ?? 0) - 2;
+}
+
+// A creature's DC for a statistic a check is made against (its Fortitude, Reflex, Will, Perception or a skill).
+export function defenceDC(c, slug) {
+    if (slug === "fortitude" || slug === "reflex" || slug === "will") return 10 + saveModifier(c, slug);
+    if (slug === "ac") return armorClass(c);
+    return 10 + skillValue(c, slug) - statusPenalty(c, "skill");
+}
+
+function isCheckStatistic(slug) {
+    return SKILLS.has(slug) || slug === "perception" || slug === "unarmed";
+}
+
 // attacks: Strikes and spell attacks made earlier this turn (planned or real).
 function simContext(state, caster, spell, targets, attacks = caster.attacksThisTurn ?? 0, actions = undefined) {
     const checkPenalty = statusPenalty(caster, "spell");
@@ -164,6 +193,12 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
             if (slug === "spell") return { modifier: (spell.attack ?? 0) - checkPenalty - mapPenalty() + effectBonus(c, "spell") + effectBonus(c, "attack"), dc: (spell.dc ?? 10) - checkPenalty + effectBonus(c, "spell") };
             if (slug === "strike") return { modifier: Math.max(0, ...(c.strikes ?? []).map((strike) => strike.bonus)) - checkPenalty - mapPenalty() + effectBonus(c, "attack") };
             if (slug === "fortitude" || slug === "reflex" || slug === "will") return { modifier: saveModifier(c, slug) };
+            // A skill check: the actor's roll (with the multiple attack penalty
+            // for an attack-trait action), or another creature's DC.
+            if (isCheckStatistic(slug)) {
+                if (c === caster) return { modifier: skillValue(c, slug) - statusPenalty(c, "skill") - (describeSpell(spell.plan, actions).attack ? mapPenalty() : 0) };
+                return { modifier: skillValue(c, slug) - statusPenalty(c, "skill"), dc: defenceDC(c, slug) };
+            }
             return null;
         },
         traits: (c) => c.traits ?? [],
@@ -223,7 +258,7 @@ function persistentInstance(damage) {
 
 function durationRounds(duration) {
     if (!duration || duration.mode !== "fixed") return Infinity;
-    const value = Number(duration.value) || 1;
+    const value = Number.isFinite(Number(duration.value)) ? Number(duration.value) : 1;
     if (duration.unit === "rounds") return value;
     if (duration.unit === "minutes") return value * 10;
     return Infinity;
@@ -237,18 +272,35 @@ export function applyCondition(state, target, slug, value, duration, source) {
     const rounds = durationRounds(duration);
     if (flag) target.cond[flag] = true;
     else target.cond[slug] = Math.max(target.cond[slug] ?? 0, Number.isFinite(value) ? value : 1);
+    // Who's holding it, for Escape, Constrict and letting go.
+    if ((slug === "grabbed" || slug === "restrained") && source && source !== target) target.grabbedBy = source.id;
     if (Number.isFinite(rounds)) {
-        (target.timers ??= []).push({ key: flag ?? slug, value: flag ? true : target.cond[slug], round: state.round + rounds, turnOf: source?.id ?? target.id });
+        // "Until the end of your next turn" ends at the end of that turn; the rest at its start.
+        (target.timers ??= []).push({ key: flag ?? slug, value: flag ? true : target.cond[slug], round: state.round + rounds, turnOf: source?.id ?? target.id, at: duration?.expiry === "turn-end" ? "end" : "start" });
     }
     return true;
 }
 
-// At the start of a creature's turn: the conditions it timed run out.
-export function expireTimers(state, c) {
+// Ends conditions (Escape): grabbed and restrained also free the creature from its grabber.
+export function endConditions(target, slugs) {
+    for (const slug of slugs) {
+        const flag = FLAGS[slug];
+        if (flag) target.cond[flag] = false;
+        else if (VALUED.has(slug)) target.cond[slug] = 0;
+    }
+    if (slugs.includes("grabbed") || slugs.includes("restrained")) target.grabbedBy = null;
+    const keys = new Set(slugs.map((slug) => FLAGS[slug] ?? slug));
+    target.timers = (target.timers ?? []).filter((timer) => !keys.has(timer.key));
+}
+
+// At the start (or, for "until the end of …", the end) of a creature's turn:
+// the conditions and effects it timed run out.
+export function expireTimers(state, c, phase = "start") {
     for (const other of state.list) {
         if (!other.timers?.length) continue;
         other.timers = other.timers.filter((timer) => {
-            if (timer.turnOf !== c.id || state.round < timer.round) return true;
+            if (timer.turnOf !== c.id || state.round < timer.round || (timer.at ?? "start") !== phase) return true;
+            if ((timer.key === "grabbed" || timer.key === "restrained") && !other.cond.grabbed && !other.cond.restrained) other.grabbedBy = null;
             if (timer.effect) {
                 removeEffect(other, timer.effect);
                 return false;
@@ -256,6 +308,7 @@ export function expireTimers(state, c) {
             const current = other.cond[timer.key];
             if (timer.value === true) other.cond[timer.key] = false;
             else if (current <= timer.value) other.cond[timer.key] = 0;
+            if ((timer.key === "grabbed" || timer.key === "restrained") && !other.cond.grabbed && !other.cond.restrained) other.grabbedBy = null;
             return false;
         });
     }
@@ -327,6 +380,12 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 }
                 break;
             }
+            case "end": {
+                const slugs = change.what?.conditions ?? [];
+                if (slugs.some((slug) => target.cond[FLAGS[slug] ?? slug])) log(state, `  ${target.name} is free of ${slugs.filter((slug) => target.cond[FLAGS[slug] ?? slug]).join(", ")}`);
+                endConditions(target, slugs);
+                break;
+            }
             case "death":
                 if (target.status !== "dead" && (change.ifReducedTo === undefined || target.hp.value <= change.ifReducedTo)) killCreature(state, target);
                 break;
@@ -365,6 +424,13 @@ export function castSpell(state, caster, spellIndex, targetIds, actions) {
         if (found.length < targets.length) log(state, `  ${caster.name} fails to find ${targets.length - found.length} target(s)`);
         targets.splice(0, targets.length, ...found);
     }
+    // A recharge ("can't use it again for 1d4 rounds") and immunity (Demoralize, Frightful Presence).
+    if (info.recharge) (caster.rechargeUntil ??= new Map()).set(spell, state.round + rollCount(state, info.recharge));
+    if (info.immunity) {
+        const immune = (caster.immuneTargets ??= new Map()).get(spell) ?? new Set();
+        for (const target of targets) immune.add(target.id);
+        caster.immuneTargets.set(spell, immune);
+    }
     if (!targets.length) return;
     const context = simContext(state, caster, spell, targets, caster.attacksThisTurn - (info.attack ? 1 : 0), actions);
     const io = { ...liveRoller(state), choose: chooser(caster, targets) };
@@ -374,6 +440,40 @@ export function castSpell(state, caster, spellIndex, targetIds, actions) {
         if (degree) log(state, `  ${target.name}: ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
     }
     applyChanges(state, caster, spell, result.changes, context, io);
+}
+
+// "1d4" or "3" → a number of rounds.
+function rollCount(state, formula) {
+    const dice = /^(\d+)d(\d+)$/.exec(String(formula).trim());
+    if (!dice) return Number(formula) || 1;
+    let total = 0;
+    for (let index = 0; index < Number(dice[1]); index++) total += state.rng.die(Number(dice[2]));
+    return total;
+}
+
+// After a Strike hits: riders its Strike lists (Grab, Knockdown, Push). Free
+// ones (Improved Grab) happen at once; the others can be the creature's next action.
+export function triggerRiders(state, attacker, target, strike) {
+    for (const [index, spell] of (attacker.spells ?? []).entries()) {
+        const trigger = spell.plan?.trigger;
+        if (trigger?.event !== "strike" || !(strike.attackEffects ?? []).includes(trigger.attackEffect)) continue;
+        if (trigger.cost === "free") castSpell(state, attacker, index, [target.id]);
+        else attacker.riderReady = { index, targetId: target.id };
+    }
+}
+
+// Auras (Frightful Presence): when the fight starts, each enemy in range is
+// affected once. Bands: from 60 feet everyone; nearer, not those far away.
+export function applyAuras(state) {
+    for (const c of state.list) {
+        if (!isActive(c)) continue;
+        for (const [index, spell] of (c.spells ?? []).entries()) {
+            if (spell.plan?.trigger?.event !== "aura") continue;
+            const radius = describeSpell(spell.plan).area?.value ?? 30;
+            const targets = state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone" && (radius >= 60 || other.band !== "far" || c.band === "far"));
+            if (targets.length) castSpell(state, c, index, targets.map((target) => target.id));
+        }
+    }
 }
 
 // --- Planning ----------------------------------------------------------------
@@ -397,6 +497,8 @@ export function isUtility(plan) {
 
 export function canCast(c, spell) {
     if (!registry.familyFor(spell.plan?.resolution?.kind) || castsNothing(spell.plan)) return false;
+    // Recharging (a breath weapon used a round ago).
+    if ((c.rechargeUntil?.get(spell) ?? -Infinity) > (c.round ?? 0)) return false;
     if (!spellVariants(spell).some((actions) => {
         const info = describeSpell(spell.plan, actions);
         return info.area || info.targets || info.self;
@@ -465,6 +567,12 @@ function oddsFor(caster, spell, target, attacks, actions) {
         const base = check.statistic === "strike" ? Math.max(0, ...(caster.strikes ?? []).map((strike) => strike.bonus)) : (spell.attack ?? 0) + effectBonus(caster, "spell");
         return degreeDistribution(base + effectBonus(caster, "attack") - penalty - map, armorClass(target));
     }
+    if (check.roll === "skill" || check.roll === "perception") {
+        const map = describeSpell(spell.plan, actions).attack ? (attacks <= 0 ? 0 : attacks === 1 ? 5 : 10) : 0;
+        const roll = Math.max(...[].concat(check.statistic).map((slug) => skillValue(caster, slug))) - statusPenalty(caster, "skill") - map;
+        const dc = check.against?.dc === "fixed" ? check.against.value : defenceDC(target, check.against?.statistic ?? "will");
+        return degreeDistribution(roll, dc);
+    }
     const slugs = check.saveChoice?.statistics?.length ? check.saveChoice.statistics : [check.statistic];
     const save = Math.max(...slugs.map((slug) => saveModifier(target, slug)));
     const dc = check.against?.dc === "fixed" ? check.against.value : (spell.dc ?? 10) - penalty + effectBonus(caster, "spell");
@@ -486,7 +594,7 @@ function outcomesFor(state, caster, spell, target, actions) {
         const context = simContext(state, caster, spell, [target], 0, actions);
         try {
             const choose = chooser(caster, [target]);
-            outcomes = DEGREE_NAMES.map((degree) => registry.resolveSync(spell.plan, context, { roll: () => ({ degree }), choose }).changes.filter((change) => change.target === target.id));
+            outcomes = DEGREE_NAMES.map((degree) => registry.resolveSync(spell.plan, context, { roll: () => ({ degree }), choose }).changes.filter((change) => change.target === target.id || change.target === caster.id));
         } catch {
             outcomes = null;
         }
@@ -504,6 +612,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     const casts = stupefied ? Math.max(0, 16 - stupefied) / 20 : 1;
     const finds = casts * (describeSpell(spell.plan, actions).area ? 1 : targetingChance(caster));
     const result = [];
+    // What happens to the caster itself (Trip's critical failure, Escape's success).
+    let self = null;
     for (const target of targets) {
         const entry = { target, damage: 0, worth: 0, heal: 0, benefit: 0 };
         result.push(entry);
@@ -514,6 +624,12 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
             const chance = finds * odds[degreeIndex];
             if (!chance) continue;
             for (const change of changes) {
+                if (change.target === caster.id && target !== caster) {
+                    self ??= { target: caster, damage: 0, worth: 0, heal: 0, benefit: 0 };
+                    if (change.op === "condition") self.worth += chance * conditionWorth(change.slug, change.value, change.duration);
+                    else if (change.op === "end") self.benefit += chance * (change.what?.conditions ?? []).reduce((sum, slug) => sum + (caster.cond[FLAGS[slug] ?? slug] ? conditionWorth(slug, null, null) : 0), 0);
+                    continue;
+                }
                 if (change.op === "damage") {
                     entry.damage += chance * adjustDamage(target, change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision" }))).total;
                 } else if (change.op === "condition" && change.slug === "persistent-damage") {
@@ -531,6 +647,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
             }
         }
     }
+    if (self) result.push(self);
     return result;
 }
 
@@ -539,6 +656,19 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
 // caster's (possibly hypothetical) position.
 export function targetSets(state, caster, spell, { enemies, allies = [], inMelee, distance, meleeId }, actions = undefined) {
     const info = describeSpell(spell.plan, actions);
+    // Escape: from whoever is holding the creature.
+    if (info.escape) {
+        const grabber = caster.grabbedBy ? state.byId.get(caster.grabbedBy) : null;
+        return grabber && isActive(grabber) && (caster.cond.grabbed || caster.cond.restrained) ? [{ targets: [grabber] }] : [];
+    }
+    // Constrict: everyone the creature is holding.
+    if (info.grabbedTargets) {
+        const held = enemies.filter((enemy) => enemy.grabbedBy === caster.id && isActive(enemy));
+        return held.length ? [{ targets: held }] : [];
+    }
+    // Demoralize: not those already immune to it.
+    const immune = caster.immuneTargets?.get(spell);
+    if (immune?.size) enemies = enemies.filter((enemy) => !immune.has(enemy.id));
     const reaches = (other) => other === caster || (info.touch ? inMelee(other) : info.range === null || distance(other) <= info.range);
     if (!info.area) {
         const sets = [];
@@ -612,7 +742,7 @@ export function spellGaps(spell) {
     if (!family) return [`resolution kind "${kind}" isn't resolved yet`];
     const info = describeSpell(plan);
     const missing = new Set();
-    if (!info.actions) missing.add(`cast as ${plan.activation?.time ?? "?"}`);
+    if (!info.actions && info.event === "use") missing.add(`cast as ${plan.activation?.time ?? "?"}`);
     if (!info.area && !info.targets && !info.self) missing.add("no creature targets");
     // Heal and Harm compiled before their healing payload: the healing half is missing.
     if (!healingOf(plan) && (plan.resolution?.sharedDamage?.components ?? []).some((component) => (component.kinds ?? []).includes("healing"))) missing.add("healing");

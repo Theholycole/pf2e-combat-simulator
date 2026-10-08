@@ -52,8 +52,8 @@ function caster(spells, pools = {}, extra = {}) {
 const fireball = (pool = "slot3") => ({ name: "Fireball", plan: FIREBALL, castRank: 3, dc: 22, attack: 12, pool });
 
 test("a spell's actions, range, targets and area come from its plan", () => {
-    const { check, ...fireball } = describeSpell(FIREBALL);
-    assert.deepEqual(fireball, { actions: 2, range: 500, touch: false, area: { type: "burst", value: 20 }, targets: 0, attack: false, manipulate: true, nonlethal: false, healing: null, helpful: false, self: false });
+    const { check, actions, range, touch, area, targets, attack, manipulate, nonlethal, healing, helpful, self } = describeSpell(FIREBALL);
+    assert.deepEqual({ actions, range, touch, area, targets, attack, manipulate, nonlethal, healing, helpful, self }, { actions: 2, range: 500, touch: false, area: { type: "burst", value: 20 }, targets: 0, attack: false, manipulate: true, nonlethal: false, healing: null, helpful: false, self: false });
     assert.equal(check.roll, "save", "read in version-13 form");
     assert.equal(describeSpell(IGNITION).attack, true);
     assert.equal(describeSpell(plan("x", 1, { time: "reaction", target: "1 creature" }, {})).actions, null);

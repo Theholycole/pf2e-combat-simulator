@@ -24,6 +24,11 @@ export const ROLE_PROFILES = Object.freeze({
 
 const BEAM_WIDTH = 5;
 const NEXT_TURN_WEIGHT = 0.5;
+// Conditions and spell effects are weighed in rounds of a creature's threat;
+// damage as the share of its HP removed, where a kill (all of its threat for
+// the rest of the fight) counts once. A fight has about three rounds left, so
+// a round of threat is worth about a third of a kill.
+const ROUND_TO_KILL = 1 / 3;
 const BAND_CODES = Object.freeze({ engaged: 0, near: 1, far: 2, gone: 3 });
 
 export function guessRole(spec) {
@@ -410,10 +415,14 @@ function expand(ctx, node, actionsLeft) {
         for (const [index, spell] of (c.spells ?? []).entries()) {
             if (!canCast(c, spell) || node.casts.includes(index)) continue;
             if (spell.pool && node.casts.filter((other) => c.spells[other].pool === spell.pool).length >= (c.spellPools[spell.pool] ?? 0)) continue;
+            // A rider (Grab, Knockdown, Push) only as the action straight after the Strike that allows it.
+            const rider = spell.plan?.trigger?.event === "strike";
+            const riderTarget = rider && c.riderReady?.index === index && node.used === 0 ? state.byId.get(c.riderReady.targetId) : null;
+            if (rider && !(riderTarget && isActive(riderTarget))) continue;
             for (const actions of spellVariants(spell)) {
                 const info = describeSpell(spell.plan, actions);
                 if (!info.actions || info.actions > remaining || (restrained && (info.manipulate || info.attack))) continue;
-                const sets = targetSets(state, c, spell, {
+                const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, c, spell, {
                     enemies: ctx.enemies,
                     allies: ctx.alliesAndDown,
                     inMelee: (other) => inMelee(node.pos, other),
@@ -429,22 +438,35 @@ function expand(ctx, node, actionsLeft) {
                         const before = damage[target.id] ?? 0;
                         const hp = remainingHp(target);
                         const value = target.status === "active" ? targetValue(state, target, c) : Math.max(1, state.meanThreat?.[target.side] ?? 1);
-                        gain += sign * value * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + worth);
+                        gain += sign * value * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + worth * ROUND_TO_KILL);
                         if (heal > 0 && target.hp.max > 0) {
                             // Topping up a barely hurt ally is worth little; saving one near 0 HP, a lot.
                             const urgency = target.status !== "active" ? 3 : 2.5 * (1 - hpFraction(target)) ** 1.5;
                             gain += (ally ? 1 : -1) * value * (heal / target.hp.max) * urgency;
                         }
                         // A spell effect: good for an ally, bad for a foe (and the reverse for hindrances).
-                        if (benefit) gain += (ally ? 1 : -1) * value * benefit;
+                        if (benefit) gain += (ally ? 1 : -1) * value * benefit * ROUND_TO_KILL;
                         if (!ally) damage[target.id] = before + expected;
                     }
                     if (gain <= 0) continue;
-                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions }, info.actions, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...(rider ? { rider: true } : {}) }, info.actions, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
                     // Casting is a manipulate action: it provokes Attacks of Opportunity.
                     if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }
+            }
+        }
+        // Rend: after two hits with the listed Strike on the same enemy this round, its damage again.
+        if (c.rend && !c.rendUsed && node.used === 0) {
+            const hits = (c.turnAttacks ?? []).slice(-2);
+            const strikeIndex = (c.strikes ?? []).findIndex((strike) => strike.name.toLowerCase().includes(String(c.rend.strike ?? "").toLowerCase()));
+            const target = hits.length === 2 && hits.every((hit) => hit.hit && hit.targetId === hits[0].targetId && hit.strike === c.strikes[strikeIndex]?.name) ? state.byId.get(hits[0].targetId) : null;
+            if (strikeIndex >= 0 && target && isActive(target) && inMelee(node.pos, target)) {
+                const expected = expectedHitDamage(c, c.strikes[strikeIndex], target, false);
+                const hp = remainingHp(target);
+                const before = node.damage[target.id] ?? 0;
+                const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
+                children.push(child(node, { type: "rend", targetId: target.id, strikeIndex }, 1, ctx.profile.aggression * gain, { damage: { ...node.damage, [target.id]: before + expected } }));
             }
         }
         // Engage a target.

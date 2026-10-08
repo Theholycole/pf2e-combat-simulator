@@ -168,6 +168,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         physical: true
     });
     if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier} vs AC ${ac}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
+    // Grab, Knockdown and Push follow a hit (free ones at once, the others as the next action).
+    if (!reaction && isActive(target)) state.onStrikeHit?.(attacker, target, strike, degree);
     return { degree, damage: dealt, trigger };
 }
 
@@ -244,7 +246,27 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
     return dealt;
 }
 
+// Who a creature is grabbing or restraining lets go when it moves, drops or dies.
+export function releaseGrabs(state, grabber) {
+    for (const other of state.list) {
+        if (other.grabbedBy !== grabber.id) continue;
+        other.grabbedBy = null;
+        other.cond.grabbed = false;
+        other.cond.restrained = false;
+        other.timers = (other.timers ?? []).filter((timer) => timer.key !== "grabbed" && timer.key !== "restrained");
+    }
+}
+
 function knockOut(state, target, { source, critical, nonlethal, overwhelming, massive }) {
+    // Ferocity (a monster's reaction): it stays at 1 HP, wounded +1, until wounded 3.
+    if (target.kind !== "pc" && target.reactions?.ferocity && !target.reactionUsed && (target.cond.wounded ?? 0) < 3 && !massive) {
+        target.hp.value = 1;
+        target.cond.wounded = (target.cond.wounded ?? 0) + 1;
+        target.reactionUsed = true;
+        log(state, `  ${target.name} uses Ferocity and stays up at 1 HP`);
+        return;
+    }
+    releaseGrabs(state, target);
     target.hp.value = 0;
     if (source && target.kind === "pc") source.downedCount++;
     state.pendingEvents.push({ type: "dropped", victim: target, by: source, critical, overwhelming });
@@ -274,6 +296,7 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
 }
 
 function kill(state, target) {
+    releaseGrabs(state, target);
     target.status = DEAD;
     target.cond.unconscious = true;
     removeFromSpace(state, target);
@@ -351,6 +374,8 @@ export function bestMeleeStrike(attacker, target) {
 // Movement. move: { kind: "engage", targetId } | { kind: "toNear" } | { kind: "toFar" } | { kind: "leave" }
 export function stride(state, c, move) {
     if (!canMove(c)) return;
+    // Grapple: "unless you move".
+    releaseGrabs(state, c);
     const leavingMelee = c.meleeId !== null && !(move.kind === "engage" && state.byId.get(move.targetId)?.meleeId === c.meleeId);
     if (leavingMelee) {
         provoke(state, c, "move");
@@ -373,6 +398,7 @@ export function stride(state, c, move) {
 }
 
 export function leaveField(state, c) {
+    releaseGrabs(state, c);
     leaveMelee(state, c, "gone");
     c.status = FLED;
     log(state, `  ${c.name} leaves the battlefield`);
@@ -381,6 +407,7 @@ export function leaveField(state, c) {
 
 export function step(state, c) {
     if (!canMove(c) || !canStepOut(state, c)) return false;
+    releaseGrabs(state, c);
     leaveMelee(state, c, "near");
     log(state, `  ${c.name} Steps away`);
     return true;
@@ -401,3 +428,11 @@ export function raiseShield(state, c) {
 }
 
 export { kill as killCreature, log };
+
+// Rend: the listed Strike's damage again, automatically, after two hits with it on the same enemy this round.
+export function performRend(state, attacker, target, strike) {
+    const instances = rollStrikeDamage(state.rng, strike, { critical: false, penalty: (strike.melee ? attacker.cond.enfeebled : 0) - effectBonus(attacker, "damage") });
+    const dealt = applyDamage(state, target, instances, { source: attacker, physical: true });
+    log(state, `  ${attacker.name} rends ${target.name} for ${dealt}`);
+    attacker.rendUsed = true;
+}

@@ -4,13 +4,13 @@ import { createRng } from "./rng.js";
 import { flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee } from "./space.js";
-import { dealDamage, leaveField, performStrike, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
+import { dealDamage, leaveField, performRend, performStrike, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
 import { adjustInstance, rollPersistent } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyHeal, castSpell, describeSpell, expireTimers, hasTimer } from "./spells.js";
+import { applyAuras, applyHeal, castSpell, describeSpell, expireTimers, hasTimer, triggerRiders } from "./spells.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -73,6 +73,8 @@ function createState(snapshot, options, seed, withLog) {
         surprisedSide: null
     };
     if (!options.heroPoints) for (const c of list) c.heroPoints = 0;
+    // Grab, Knockdown and Push after a hit (spells.js resolves them).
+    state.onStrikeHit = (attacker, target, strike, degree) => triggerRiders(state, attacker, target, strike, degree);
     placeCombatants(state);
     initMorale(state);
     const strongest = list.filter((c) => c.side === "foes" && c.kind !== "object").sort((a, b) => b.level - a.level || b.hp.max - a.hp.max)[0];
@@ -207,6 +209,9 @@ function finish(state, outcome) {
 function startTurn(state, c) {
     c.reactionUsed = false;
     c.attacksThisTurn = 0;
+    c.round = state.round;
+    c.riderReady = null;
+    c.rendUsed = false;
     c.withdrewThisTurn = false;
     c.turnAttacks = [];
     if (c.shield) c.shield.raised = false;
@@ -239,6 +244,9 @@ function endTurn(state, c) {
 }
 
 function act(state, c, action) {
+    // A rider (Grab, Knockdown) must follow the Strike straight away.
+    const rider = c.riderReady;
+    c.riderReady = null;
     switch (action.type) {
         case "strike": {
             const target = state.byId.get(action.targetId);
@@ -263,8 +271,14 @@ function act(state, c, action) {
             performTask(state, c);
             break;
         case "cast":
+            if (action.rider && !(rider && rider.index === action.spellIndex)) break;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions);
             break;
+        case "rend": {
+            const target = state.byId.get(action.targetId);
+            if (target && isActive(target)) performRend(state, c, target, c.strikes[action.strikeIndex]);
+            break;
+        }
         default:
             break;
     }
@@ -354,6 +368,8 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
         rollInitiative(state, snapshot);
         state.round = 1;
     }
+    // Frightful Presence and other auras: each enemy in range saves when the fight starts.
+    if (!resuming) applyAuras(state);
     let turnIndex = resuming ? Math.max(0, snapshot.turn ?? 0) : 0;
     if (!checkEnd(state)) {
         while (!state.outcome) {
@@ -365,6 +381,8 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
             for (; turnIndex < state.order.length && !state.outcome; turnIndex++) {
                 const c = state.byId.get(state.order[turnIndex]);
                 takeTurn(state, c);
+                // "Until the end of your next turn" runs out here.
+                expireTimers(state, c, "end");
                 if (!state.outcome) checkEnd(state);
             }
             if (state.outcome) break;

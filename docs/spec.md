@@ -103,6 +103,25 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
   - The fights showed two planner fixes. Buffs are weighed by the share of the target's threat that comes from Strikes, so Ezren hastes Valeros, not himself. Healing urgency is 2.5 × (1 − HP share)^1.5, so no topping up at 82% HP.
 - 78 Node tests.
 
+## Milestone 3 status (2026-10-08): monster abilities and basic actions
+
+- **Creatures use their abilities** through the ability module (`pf2e-automatic-ability-resolution`) and the core:
+  - the basic actions (Demoralize, Trip, Grapple, Shove, Escape)
+  - Strike riders (Grab, Improved Grab, Knockdown, Push)
+  - Constrict and Frightful Presence
+  - breath weapons and other one-off save abilities, with their recharge
+  - Ferocity and Rend
+- **Engine:**
+  - who holds whom, released when the holder moves, drops or dies, and Escape
+  - "until the end of your next turn"
+  - riders as the action straight after a hit
+  - auras when the fight starts
+  - immunity to repeats (Demoralize)
+- **Planner:** conditions and buffs now count a third against damage (B6), so Strikes aren't swapped for Grapples.
+- **Defaults**, confirmed by the user on 2026-10-08: [ability-decisions.md](ability-decisions.md) (B1–B6).
+- **Bestiary check** (`tools/bestiary-abilities.mjs`): 1,106 creatures with their real stat blocks, 3,318 fights, no errors.
+- 84 Node tests.
+
 ### Real-fight logger (built 2026-10-08, at the user's request)
 
 Compares predictions with what happens at the table. It only acts on real fights: at least one player-owned PC and one foe, the "Log real fights" setting on (the default), and only on the active GM's client.
