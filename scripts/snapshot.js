@@ -141,6 +141,8 @@ async function readStrike(actor, action, gaps) {
         name: action.label,
         // Riders the Strike lists (grab, knockdown, push); a gap unless an ability plays them.
         attackEffects: [...(item?.system?.attackEffects?.value ?? [])],
+        // A weapon in hand (Disarm can knock it away); jaws and claws can't be.
+        held: !traits.includes("unarmed") && (item?.type === "weapon" || (item?.type === "melee" && !NATURAL_ATTACK.test(action.label ?? item?.name ?? ""))),
         bonus: stripConditions(action.totalModifier, action.modifiers),
         melee: melee && !increment,
         increment,
@@ -160,7 +162,8 @@ async function readStrike(actor, action, gaps) {
 function readGaps(actor, gaps, handled = new Set()) {
     for (const item of actor.itemTypes?.action ?? []) {
         const slug = item.slug ?? item.name.slugify?.() ?? item.name;
-        if (BUILT_IN_ACTIONS.has(slug) || handled.has(item)) continue;
+        // (A sheet's own copy of a basic action, such as Demoralize, is played as the basic action.)
+        if (BUILT_IN_ACTIONS.has(slug) || handled.has(item) || (handled.basicSlugs?.has(slug))) continue;
         const type = item.system?.actionType?.value;
         if (type === "passive") {
             if (NOTABLE_PASSIVE.test(slug) || (item.system?.traits?.value ?? []).includes("aura")) gaps.push({ kind: "passive ability", name: item.name });
@@ -186,7 +189,9 @@ function readGaps(actor, gaps, handled = new Set()) {
 
 const CORE_ID = "pf2e-resolution-core";
 const ABILITY_MODULE_ID = "pf2e-automatic-ability-resolution";
-const BASIC_ACTION_SKILLS = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics" };
+const BASIC_ACTION_SKILLS = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics", disarm: "athletics", reposition: "athletics", feint: "deception", "create-a-diversion": "deception", "administer-first-aid": "medicine" };
+// Natural attacks that lack PF2e's "unarmed" trait on some stat blocks: not held, so not disarmable.
+const NATURAL_ATTACK = /\b(?:jaws?|bite|claws?|talons?|tail|tusks?|horns?|hoof|hooves|slam|fist|tentacles?|wings?|sting|stinger|pincers?|mandibles?|beak|foot|feet|body|antlers?|spines?|quills?|fangs?|tongue|tendrils?|vines?|branch|roots?|pseudopods?)\b/i;
 
 // A creature's abilities with their plans (the ability module registers its
 // compiler with the core), the basic actions it uses, and the rules the engine
@@ -213,11 +218,16 @@ async function readAbilities(actor, { fresh = false } = {}) {
     }
     // Basic actions: every PC; a monster only those it's trained for (its stat block lists the skill). Anyone can Escape.
     const basics = abilityModule.api?.basicActions ?? {};
-    const trained = actorKind(actor) === "pc" ? null : new Set(Object.keys(actor.system?.skills ?? {}));
+    result.handled.basicSlugs = new Set(Object.keys(basics));
+    // (A monster's prepared data lists every skill; its source lists only the ones in its stat block.)
+    const trained = actorKind(actor) === "pc" ? null : new Set(Object.keys(actor._source?.system?.skills ?? {}));
+    // Administer First Aid needs a healer's toolkit: a PC's inventory shows it (a monster trained in Medicine is assumed to carry one).
+    const toolkit = !trained && actor.items.some((item) => /^healers-toolkit/.test(item.slug ?? item.system?.slug ?? ""));
     for (const [slug, plan] of Object.entries(basics)) {
         if (!plan) continue;
         const skill = BASIC_ACTION_SKILLS[slug];
         if (skill && trained && !trained.has(skill)) continue;
+        if (slug === "administer-first-aid" && !trained && !toolkit) continue;
         result.abilities.push({ name: plan.source?.name ?? slug, plan, castRank: 1, dc: null, attack: null, pool: null, kind: "basic" });
     }
     return result;

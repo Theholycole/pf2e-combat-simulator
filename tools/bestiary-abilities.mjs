@@ -16,7 +16,8 @@ const { parseReadableDamage } = await import("../src/adapter/formula.js");
 const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 const PACKS = process.argv.slice(2).length ? process.argv.slice(2) : ["pathfinder-monster-core", "pathfinder-monster-core-2", "pathfinder-npc-core"];
 const basicActions = compileBasicActions(readDocuments(`${PACK_ROOT}/actions`).filter((doc) => doc.collection === "items"));
-const SKILL_OF = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics" };
+const SKILL_OF = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics", disarm: "athletics", reposition: "athletics", feint: "deception", "create-a-diversion": "deception", "administer-first-aid": "medicine" };
+const NATURAL_ATTACK = /\b(?:jaws?|bite|claws?|talons?|tail|tusks?|horns?|hoof|hooves|slam|fist|tentacles?|wings?|sting|stinger|pincers?|mandibles?|beak|foot|feet|body|antlers?|spines?|quills?|fangs?|tongue|tendrils?|vines?|branch|roots?|pseudopods?)\b/i;
 
 // A raw NPC (pack data) as an engine combatant.
 function combatant(npc) {
@@ -35,7 +36,8 @@ function combatant(npc) {
             agile: traits.includes("agile"),
             reach: Number(traits.find((trait) => /^reach-\d+$/.test(trait))?.split("-")[1]) || 5,
             damage,
-            attackEffects: item.system.attackEffects?.value ?? []
+            attackEffects: item.system.attackEffects?.value ?? [],
+            held: !traits.includes("unarmed") && !NATURAL_ATTACK.test(item.name)
         });
     }
     const spells = [];

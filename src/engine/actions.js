@@ -3,7 +3,7 @@
 // hero points.
 
 import { CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatCheck } from "./checks.js";
-import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, isActive, isOffGuard, multipleAttackPenalty, statusPenalty } from "./combatant.js";
+import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
@@ -39,7 +39,7 @@ export function forcefulBonus(strike, earlierAttacks) {
 
 // Attack modifier for a Strike, excluding the target's AC.
 export function attackModifier(state, attacker, target, strike, attacksMade, { prone, history = attacker.turnAttacks ?? [] } = {}) {
-    let modifier = strike.bonus - multipleAttackPenalty(strike, attacksMade) + effectBonus(attacker, "attack");
+    let modifier = strike.bonus - multipleAttackPenalty(strike, attacksMade) + effectBonus(attacker, "attack") - gripPenalty(attacker, strike);
     modifier -= statusPenalty(attacker, strike.melee ? "melee" : "ranged");
     let circumstance = 0;
     if (prone ?? attacker.cond.prone) circumstance = Math.max(circumstance, 2);
@@ -61,7 +61,9 @@ function berserkPenalty(state, c) {
 }
 
 export function targetAC(state, attacker, target, strike, flanked) {
-    return armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked }) - berserkPenalty(state, target);
+    // Feinted or diverted: off-guard to this attacker alone.
+    const feinted = !isOffGuard(target) && offGuardTo(target, attacker, strike.melee);
+    return armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: flanked || feinted }) - berserkPenalty(state, target);
 }
 
 // Cache of expected hit damage per Strike object (shared by every run of a
@@ -109,6 +111,7 @@ function computeHitDamage(strike, target, critical, penalty, offGuardChance) {
 }
 
 export function performStrike(state, attacker, target, strike, { reaction = false, trigger = null } = {}) {
+    if (!strikeUsable(attacker, strike)) return null;
     const attacksMade = reaction ? 0 : attacker.attacksThisTurn;
     if (!reaction) attacker.attacksThisTurn++;
     if (!reaction && !strike.melee && attacker.meleeId !== null) {
@@ -131,6 +134,9 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     const history = reaction ? [] : (attacker.turnAttacks ?? []);
     const modifier = attackModifier(state, attacker, target, strike, attacksMade, { history });
     const ac = targetAC(state, attacker, target, strike, flanked);
+    // A one-attack feint or diversion is used up by this attack.
+    const scoped = (target.offGuardTo ?? []).find((entry) => entry.attacker === attacker.id && (entry.attacks !== "melee" || strike.melee) && entry.uses);
+    if (scoped && --scoped.uses <= 0) target.offGuardTo = target.offGuardTo.filter((entry) => entry !== scoped);
     let natural = state.rng.d20();
     let degree = degreeOf(natural + modifier, ac, natural);
     if (degree <= FAILURE && attacker.kind === "pc" && state.options.heroPoints && attacker.heroPoints >= 2) {
@@ -361,7 +367,7 @@ export function bestMeleeStrike(attacker, target) {
     let best = null;
     let bestValue = -Infinity;
     for (const strike of attacker.strikes ?? []) {
-        if (!strike.melee) continue;
+        if (!strike.melee || !strikeUsable(attacker, strike)) continue;
         const value = strike.bonus * 2 + expectedHitDamage(attacker, strike, target, false);
         if (value > bestValue) {
             bestValue = value;
@@ -435,4 +441,17 @@ export function performRend(state, attacker, target, strike) {
     const dealt = applyDamage(state, target, instances, { source: attacker, physical: true });
     log(state, `  ${attacker.name} rends ${target.name} for ${dealt}`);
     attacker.rendUsed = true;
+}
+
+// Interact to pick up a dropped weapon, or to change grip after a Disarm weakened it.
+export function interact(state, c, what, strikeName) {
+    provoke(state, c, "manipulate");
+    if (!canAct(c)) return;
+    if (what === "pickup") {
+        c.dropped?.delete(strikeName);
+        log(state, `  ${c.name} picks up its ${strikeName}`);
+    } else if (what === "regrip") {
+        c.weakGrip?.delete(strikeName);
+        log(state, `  ${c.name} gets a firm grip on its ${strikeName}`);
+    }
 }

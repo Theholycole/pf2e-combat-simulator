@@ -108,6 +108,22 @@ export function isOffGuard(c) {
     return k.offGuard || k.prone || k.unconscious || k.paralyzed || k.asleep || k.blinded || k.restrained || k.grabbed || c.status === DOWN;
 }
 
+// A Strike a disarmed creature can't make until it picks its weapon up (Disarm).
+export function strikeUsable(c, strike) {
+    return !c.dropped?.has(strike.name);
+}
+
+// The circumstance penalty a weakened grip gives a Strike (Disarm's success).
+export function gripPenalty(c, strike) {
+    return c.weakGrip?.get(strike.name) ?? 0;
+}
+
+// Off-guard to one attacker only (Feint, Create a Diversion): the target is
+// off-guard against that creature's attacks (melee ones, for Feint).
+export function offGuardTo(target, attacker, melee) {
+    return (target.offGuardTo ?? []).some((entry) => entry.attacker === attacker?.id && (entry.attacks !== "melee" || melee) && (entry.uses ?? 1) > 0);
+}
+
 export function multipleAttackPenalty(strike, attacksMade) {
     if (attacksMade <= 0) return 0;
     if (attacksMade === 1) return strike.agile ? 4 : 5;

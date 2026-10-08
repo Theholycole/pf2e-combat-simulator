@@ -8,7 +8,7 @@
 // same way, weighted by self-preservation.
 
 import { degreeDistribution, CRITICAL_SUCCESS, SUCCESS, CRITICAL_FAILURE } from "./checks.js";
-import { canAct, canMove, effectBonus, hpFraction, isActive, multipleAttackPenalty, statusPenalty, armorClass, targetingChance } from "./combatant.js";
+import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, flankChance, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken } from "./morale.js";
@@ -104,6 +104,7 @@ function spellThreat(state, c, target) {
 function roundDamage(c, target, ac, attacks = 3, { meleeOnly = false, rangedOnly = false } = {}) {
     let best = 0;
     for (const strike of c.strikes ?? []) {
+        if (!strikeUsable(c, strike)) continue;
         if (meleeOnly && !strike.melee) continue;
         if (rangedOnly && strike.melee) continue;
         const hit = expectedHitDamage(c, strike, target, false);
@@ -208,7 +209,7 @@ class PlanContext {
         const cached = perTarget.get(key);
         if (cached !== undefined) return cached;
         const { state, c } = this;
-        let modifier = strike.bonus - multipleAttackPenalty(strike, attacks) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack");
+        let modifier = strike.bonus - multipleAttackPenalty(strike, attacks) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack") - gripPenalty(c, strike);
         let circumstance = prone ? 2 : 0;
         if (isShaken(c)) circumstance = Math.max(circumstance, state.moraleRules.group.shakenAttackPenalty);
         if (nonlethalAgainst(state, c, target) && !strike.nonlethal) circumstance = Math.max(circumstance, 2);
@@ -228,7 +229,8 @@ class PlanContext {
                 : 0;
             flank = flankChance(state, others + 1);
         }
-        const ac = armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target) });
+        const feinted = !isOffGuard(target) && offGuardTo(target, c, strike.melee);
+        const ac = armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: feinted });
         const plain = degreeDistribution(modifier, ac);
         const flanked = flank > 0 ? degreeDistribution(modifier, ac - (target.cond.offGuard || target.cond.prone ? 0 : 2)) : plain;
         const finds = targetingChance(c);
@@ -271,7 +273,7 @@ class PlanContext {
         const { c } = this;
         let best = 0;
         for (const strike of enemy.strikes ?? []) {
-            if (!strike.melee) continue;
+            if (!strike.melee || !strikeUsable(enemy, strike)) continue;
             const modifier = strike.bonus - multipleAttackPenalty(strike, attacks) - statusPenalty(enemy, "melee") + effectBonus(enemy, "attack");
             const ac = armorClass(c, { shieldRaised });
             const dist = degreeDistribution(modifier, ac);
@@ -308,7 +310,7 @@ class PlanContext {
     // Damage one hit of the enemy's best Strike does to this creature.
     typicalHit(enemy) {
         let best = 0;
-        for (const strike of enemy.strikes ?? []) best = Math.max(best, expectedHitDamage(enemy, strike, this.c, false));
+        for (const strike of enemy.strikes ?? []) if (strikeUsable(enemy, strike)) best = Math.max(best, expectedHitDamage(enemy, strike, this.c, false));
         return best;
     }
 
@@ -329,6 +331,7 @@ class PlanContext {
         const { c } = this;
         let best = 0;
         for (const [index, strike] of (c.strikes ?? []).entries()) {
+            if (!strikeUsable(c, strike)) continue;
             for (const target of this.enemies) {
                 let factor = 1;
                 if (strike.melee && !inMelee(node.pos, target)) {
@@ -390,7 +393,7 @@ function expand(ctx, node, actionsLeft) {
             if (target.status !== "active" || restrained) continue;
             const options = [];
             for (const [index, strike] of (c.strikes ?? []).entries()) {
-                if (strike.melee && !inMelee(node.pos, target)) continue;
+                if (!strikeUsable(c, strike) || (strike.melee && !inMelee(node.pos, target))) continue;
                 const expectation = ctx.strikeExpectation(strike, index, target, node.attacks, node.pos, node.prone);
                 if (expectation && expectation.damage > 0) options.push({ index, strike, expectation });
             }
@@ -484,6 +487,17 @@ function expand(ctx, node, actionsLeft) {
             if (node.pos.band === "far") {
                 children.push(child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: { band: "near", melee: null, newWith: null } }));
             }
+        }
+        // A dropped weapon (Disarm): picking it up gives back its Strikes; a weakened grip, its -2.
+        if (node.used === 0) {
+            const best = (list) => Math.max(0, ...list.map((strike) => strike.bonus * 2 + strike.damage.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0)));
+            for (const name of c.dropped ?? []) {
+                const all = best(c.strikes ?? []);
+                const usable = best((c.strikes ?? []).filter((strike) => strikeUsable(c, strike)));
+                const gain = all > 0 ? (all - usable) / all : 0;
+                if (gain > 0) children.push(child(node, { type: "interact", what: "pickup", strikeName: name }, 1, 0.5 * ctx.ownValue * gain));
+            }
+            for (const [name] of c.weakGrip ?? []) children.push(child(node, { type: "interact", what: "regrip", strikeName: name }, 1, 0.1 * ctx.ownValue));
         }
         if (c.shield && !c.shield.broken && !node.shield) {
             children.push(child(node, { type: "raiseShield" }, 1, 0, { shield: true }));
@@ -583,6 +597,7 @@ export function bestOffense(state, c) {
     let hit = 0;
     let damage = 0;
     for (const [index, strike] of (c.strikes ?? []).entries()) {
+        if (!strikeUsable(c, strike)) continue;
         for (const target of ctx.enemies) {
             const pos = strike.melee ? { band: "engaged", melee: "new", newWith: target.id } : { band: c.band, melee: c.meleeId, newWith: null };
             const expectation = ctx.strikeExpectation(strike, index, target, 0, pos, false);

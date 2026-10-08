@@ -106,7 +106,7 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
 ## Milestone 3 status (2026-10-08): monster abilities and basic actions
 
 - **Creatures use their abilities** through the ability module (`pf2e-automatic-ability-resolution`) and the core:
-  - the basic actions (Demoralize, Trip, Grapple, Shove, Escape)
+  - the basic actions (Demoralize, Trip, Grapple, Shove, Escape), and since the user's request after the restart, the other skill actions: Disarm, Feint, Create a Diversion and Administer First Aid (Reposition compiles but changes nothing in bands)
   - Strike riders (Grab, Improved Grab, Knockdown, Push)
   - Constrict and Frightful Presence
   - breath weapons and other one-off save abilities, with their recharge
@@ -116,11 +116,19 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
   - "until the end of your next turn"
   - riders as the action straight after a hit
   - auras when the fight starts
-  - immunity to repeats (Demoralize)
+  - immunity to repeats (Demoralize, Create a Diversion)
+  - off-guard to one creature's attacks only (Feint, Create a Diversion), with a number of uses
+  - dropped weapons and weakened grips (Disarm), and Interact to pick up or regrip
+  - stabilizing a dying PC (Administer First Aid)
 - **Planner:** conditions and buffs now count a third against damage (B6), so Strikes aren't swapped for Grapples.
-- **Defaults**, confirmed by the user on 2026-10-08: [ability-decisions.md](ability-decisions.md) (B1–B6).
+- **Defaults:** [ability-decisions.md](ability-decisions.md). The user confirmed B1–B6 and B7–B11 (the other skill actions) on 2026-10-08.
 - **Bestiary check** (`tools/bestiary-abilities.mjs`): 1,106 creatures with their real stat blocks, 3,318 fights, no errors.
-- 84 Node tests.
+- **Live check** (pftest, after a Foundry restart the user approved):
+  - The ability module is enabled, and all 10 basic actions compile live.
+  - A PFTEST SIM Giant Anaconda against the iconics: Grab, then Greater Constrict only on held targets.
+  - First Aid stabilized Valeros.
+  - 200 fights ran through the worker with no fallback.
+- 88 Node tests.
 
 ### Real-fight logger (built 2026-10-08, at the user's request)
 

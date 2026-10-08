@@ -106,7 +106,8 @@ function pc({ id, name, level, hpPerLevel, acBonus, strike, shield = null, aoo =
         heroPoints: 1,
         shield,
         reactions: { aoo, shieldBlock: !!shield },
-        strikes: [strike(attribute)]
+        // A held weapon: Disarm can knock it away.
+        strikes: [{ ...strike(attribute), held: true }]
     };
 }
 

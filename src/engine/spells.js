@@ -12,9 +12,9 @@
 
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, DEGREE_NAMES, SUCCESS } from "./checks.js";
-import { ACTIVE, DOWN, armorClass, effectBonus, hpFraction, isActive, saveModifier, statusPenalty, targetingChance } from "./combatant.js";
+import { ACTIVE, DOWN, armorClass, effectBonus, hpFraction, isActive, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, removeEffect } from "./effects.js";
-import { applyDamage, killCreature, log } from "./actions.js";
+import { applyDamage, expectedHitDamage, increaseDying, killCreature, log } from "./actions.js";
 import { adjustDamage, adjustInstance } from "./damage.js";
 import { leaveMelee } from "./space.js";
 
@@ -125,6 +125,8 @@ function readSpell(base, actions) {
         recharge: plan?.trigger?.recharge?.formula ?? null,
         immunity: Boolean(plan?.trigger?.immunity),
         grabbedTargets: Boolean(targeting.grabbed),
+        // Administer First Aid: dying allies.
+        dying: Boolean(targeting.dying),
         escape: plan?.source?.slug === "escape",
         manipulate: (plan?.activation?.traits ?? plan?.traits ?? []).includes("manipulate"),
         nonlethal: (plan?.traits ?? []).includes("nonlethal"),
@@ -168,9 +170,16 @@ export function skillValue(c, slug) {
 
 // A creature's DC for a statistic a check is made against (its Fortitude, Reflex, Will, Perception or a skill).
 export function defenceDC(c, slug) {
+    if (slug === "stabilize") return 20 + (c.cond.dying ?? 0);
     if (slug === "fortitude" || slug === "reflex" || slug === "will") return 10 + saveModifier(c, slug);
     if (slug === "ac") return armorClass(c);
     return 10 + skillValue(c, slug) - statusPenalty(c, "skill");
+}
+
+// Disarm against a creature whose grip it already weakened: +2 (as a DC 2 lower).
+function disarmBonus(spell, target) {
+    if (!target.weakGrip?.size) return 0;
+    return Object.values(spell.plan?.resolution?.outcomes ?? {}).some((outcome) => outcome?.effects?.some((effect) => effect.kind === "disarm")) ? 2 : 0;
 }
 
 function isCheckStatistic(slug) {
@@ -192,7 +201,9 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
             // Spell attacks have the attack trait, so the multiple attack penalty applies.
             if (slug === "spell") return { modifier: (spell.attack ?? 0) - checkPenalty - mapPenalty() + effectBonus(c, "spell") + effectBonus(c, "attack"), dc: (spell.dc ?? 10) - checkPenalty + effectBonus(c, "spell") };
             if (slug === "strike") return { modifier: Math.max(0, ...(c.strikes ?? []).map((strike) => strike.bonus)) - checkPenalty - mapPenalty() + effectBonus(c, "attack") };
+            if (slug === "reflex" && c !== caster && disarmBonus(spell, c)) return { modifier: saveModifier(c, slug), dc: 10 + saveModifier(c, slug) - disarmBonus(spell, c) };
             if (slug === "fortitude" || slug === "reflex" || slug === "will") return { modifier: saveModifier(c, slug) };
+            if (slug === "stabilize") return { modifier: 0, dc: defenceDC(c, slug) };
             // A skill check: the actor's roll (with the multiple attack penalty
             // for an attack-trait action), or another creature's DC.
             if (isCheckStatistic(slug)) {
@@ -247,6 +258,16 @@ function liveRoller(state) {
     };
 }
 
+// The damage of a creature's best hit on a target (melee only, if asked).
+function bestHit(c, target, meleeOnly) {
+    let best = 0;
+    for (const strike of c.strikes ?? []) {
+        if ((meleeOnly && !strike.melee) || !strikeUsable(c, strike)) continue;
+        best = Math.max(best, expectedHitDamage(c, strike, target, false));
+    }
+    return best;
+}
+
 // A persistent-damage change as the engine's persistent instance.
 function persistentInstance(damage) {
     const terms = damage.dice ?? [];
@@ -266,7 +287,15 @@ function durationRounds(duration) {
 
 // Sets a condition from a spell; a fixed duration ends it at the start of the
 // caster's turn that many rounds later. false when the engine doesn't model it.
-export function applyCondition(state, target, slug, value, duration, source) {
+export function applyCondition(state, target, slug, value, duration, source, scope = null) {
+    // Off-guard to one creature's attacks only (Feint, Create a Diversion).
+    if (slug === "off-guard" && scope?.attacker) {
+        const entry = { attacker: scope.attacker, attacks: scope.attacks ?? "any", uses: scope.uses ?? null };
+        target.offGuardTo = [...(target.offGuardTo ?? []), entry];
+        const rounds = durationRounds(duration);
+        if (Number.isFinite(rounds)) (target.timers ??= []).push({ offGuardTo: entry, round: state.round + rounds, turnOf: source?.id ?? target.id, at: duration?.expiry === "turn-end" ? "end" : "start" });
+        return true;
+    }
     const flag = FLAGS[slug];
     if (!VALUED.has(slug) && !flag) return false;
     const rounds = durationRounds(duration);
@@ -305,6 +334,10 @@ export function expireTimers(state, c, phase = "start") {
                 removeEffect(other, timer.effect);
                 return false;
             }
+            if (timer.offGuardTo) {
+                other.offGuardTo = (other.offGuardTo ?? []).filter((entry) => entry !== timer.offGuardTo);
+                return false;
+            }
             const current = other.cond[timer.key];
             if (timer.value === true) other.cond[timer.key] = false;
             else if (current <= timer.value) other.cond[timer.key] = 0;
@@ -339,6 +372,30 @@ export function applyHeal(state, target, amount) {
     return target.hp.value - before;
 }
 
+function applyNativeEffect(state, caster, spell, target, change) {
+    const model = change.effect?.kind === "native" ? spell.effects?.[change.effect.uuid] : null;
+    if (model && isActive(target)) {
+        applyEffect(state, target, model, caster, { applyCondition, key: change.effect.uuid });
+        log(state, `  ${target.name} gains ${model.name.replace(/^Spell Effect: /, "")}`);
+    }
+}
+
+// The target's best held weapon: it falls (until picked up), or its grip weakens (-2 until it regrips).
+function applyDisarm(state, target, effect) {
+    if (!isActive(target)) return;
+    const held = (target.strikes ?? []).filter((strike) => strike.held && strikeUsable(target, strike));
+    if (!held.length) return;
+    const weapon = held.reduce((best, strike) => (strike.bonus > best.bonus ? strike : best));
+    if (effect.what === "drop") {
+        (target.dropped ??= new Set()).add(weapon.name);
+        target.weakGrip?.delete(weapon.name);
+        log(state, `  ${target.name} drops its ${weapon.name}`);
+    } else {
+        (target.weakGrip ??= new Map()).set(weapon.name, effect.penalty || 2);
+        log(state, `  ${target.name}'s grip on its ${weapon.name} weakens`);
+    }
+}
+
 function applyMove(state, target, change) {
     if (!isActive(target)) return;
     if (change.kind === "push" && change.distance >= 5 && target.meleeId !== null) {
@@ -364,7 +421,10 @@ function applyChanges(state, caster, spell, changes, context, io) {
             }
             case "condition":
                 if (change.slug === "persistent-damage") applyDamage(state, target, [persistentInstance(change.damage)], { source: caster });
-                else if (isActive(target) && applyCondition(state, target, change.slug, change.value, change.duration, caster)) log(state, `  ${target.name} is ${change.slug}${Number.isFinite(change.value) ? ` ${change.value}` : ""}`);
+                // First Aid's critical failure: dying +1.
+                else if (change.slug === "dying") {
+                    if (target.status === DOWN) increaseDying(state, target, change.value ?? 1);
+                } else if (isActive(target) && applyCondition(state, target, change.slug, change.value, change.duration, caster, change.scope ?? null)) log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${change.value}` : ""}`);
                 break;
             case "move":
                 applyMove(state, target, change);
@@ -372,16 +432,23 @@ function applyChanges(state, caster, spell, changes, context, io) {
             case "heal":
                 applyHeal(state, target, change.amount);
                 break;
-            case "effect": {
-                const model = change.effect?.kind === "native" ? spell.effects?.[change.effect.uuid] : null;
-                if (model && isActive(target)) {
-                    applyEffect(state, target, model, caster, { applyCondition, key: change.effect.uuid });
-                    log(state, `  ${target.name} gains ${model.name.replace(/^Spell Effect: /, "")}`);
+            case "effect":
+                if (change.effect?.kind === "disarm") {
+                    applyDisarm(state, target, change.effect);
+                    break;
                 }
+                applyNativeEffect(state, caster, spell, target, change);
                 break;
-            }
+
             case "end": {
                 const slugs = change.what?.conditions ?? [];
+                // First Aid: the dying creature is stable (still unconscious at 0 HP).
+                if (change.what?.stabilize && target.status === DOWN && target.cond.dying > 0) {
+                    target.cond.dying = 0;
+                    target.stable = true;
+                    log(state, `  ${target.name} is stabilized`);
+                    break;
+                }
                 if (slugs.some((slug) => target.cond[FLAGS[slug] ?? slug])) log(state, `  ${target.name} is free of ${slugs.filter((slug) => target.cond[FLAGS[slug] ?? slug]).join(", ")}`);
                 endConditions(target, slugs);
                 break;
@@ -406,7 +473,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
 export function castSpell(state, caster, spellIndex, targetIds, actions) {
     const spell = caster.spells[spellIndex];
     const info = describeSpell(spell.plan, actions);
-    const reachable = (target) => isActive(target) || target === caster || (info.healing && target.status === DOWN);
+    const reachable = (target) => isActive(target) || target === caster || ((info.healing || info.dying) && target.status === DOWN);
     const targets = targetIds.map((id) => state.byId.get(id)).filter((target) => target && reachable(target));
     if (spell.pool) caster.spellPools[spell.pool] = Math.max(0, (caster.spellPools[spell.pool] ?? 0) - 1);
     log(state, `  ${caster.name} casts ${spell.name}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
@@ -544,6 +611,8 @@ function conditionWorth(slug, value, duration) {
             return 0.05 * n * 2;
         case "fatigued":
             return 0.1;
+        case "dying":
+            return 1.5 * n;
         case "off-guard":
             return 0.1 * Math.min(rounds === Infinity ? 3 : rounds, 3);
         default:
@@ -570,7 +639,7 @@ function oddsFor(caster, spell, target, attacks, actions) {
     if (check.roll === "skill" || check.roll === "perception") {
         const map = describeSpell(spell.plan, actions).attack ? (attacks <= 0 ? 0 : attacks === 1 ? 5 : 10) : 0;
         const roll = Math.max(...[].concat(check.statistic).map((slug) => skillValue(caster, slug))) - statusPenalty(caster, "skill") - map;
-        const dc = check.against?.dc === "fixed" ? check.against.value : defenceDC(target, check.against?.statistic ?? "will");
+        const dc = check.against?.dc === "fixed" ? check.against.value : defenceDC(target, check.against?.statistic ?? "will") - disarmBonus(spell, target);
         return degreeDistribution(roll, dc);
     }
     const slugs = check.saveChoice?.statistics?.length ? check.saveChoice.statistics : [check.statistic];
@@ -634,8 +703,18 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     entry.damage += chance * adjustDamage(target, change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision" }))).total;
                 } else if (change.op === "condition" && change.slug === "persistent-damage") {
                     entry.damage += chance * 2 * adjustInstance(target, change.damage.type, change.damage.amount);
+                } else if (change.op === "condition" && change.scope) {
+                    // Feint, Create a Diversion: the attacker's own attacks hit more often (+2): about a
+                    // tenth of a hit's damage per attack (one for a single use, three otherwise).
+                    if (change.scope.attacker === caster.id) entry.damage += chance * 0.1 * bestHit(caster, target, change.scope.attacks === "melee") * (change.scope.uses ?? 3);
                 } else if (change.op === "condition") {
                     entry.worth += chance * conditionWorth(change.slug, change.value, change.duration);
+                } else if (change.op === "effect" && change.effect?.kind === "disarm") {
+                    // Worth something only against a weapon in hand: a dropped one costs an action to pick up.
+                    if ((target.strikes ?? []).some((strike) => strike.held && strikeUsable(target, strike))) entry.worth += chance * (change.effect.what === "drop" ? 0.5 : 0.25);
+                } else if (change.op === "end" && change.what?.stabilize && target.status === DOWN) {
+                    // First Aid: the chance it would otherwise die.
+                    entry.benefit += chance * 3 * Math.min(1, ((target.cond.dying ?? 0) + 1) / (4 - (target.cond.doomed ?? 0)));
                 } else if (change.op === "death" && change.ifReducedTo === undefined) {
                     entry.damage += chance * Math.max(1, target.hp.value + target.hp.temp);
                 } else if (change.op === "heal") {
@@ -656,6 +735,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
 // caster's (possibly hypothetical) position.
 export function targetSets(state, caster, spell, { enemies, allies = [], inMelee, distance, meleeId }, actions = undefined) {
     const info = describeSpell(spell.plan, actions);
+    // Administer First Aid: each dying ally (a downed PC lies in the near band).
+    if (info.dying) return allies.filter((ally) => ally.status === DOWN && ally.kind === "pc" && (ally.cond.dying ?? 0) > 0).map((ally) => ({ targets: [ally] }));
     // Escape: from whoever is holding the creature.
     if (info.escape) {
         const grabber = caster.grabbedBy ? state.byId.get(caster.grabbedBy) : null;

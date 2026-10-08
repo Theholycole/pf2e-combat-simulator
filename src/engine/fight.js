@@ -4,7 +4,7 @@ import { createRng } from "./rng.js";
 import { flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee } from "./space.js";
-import { dealDamage, leaveField, performRend, performStrike, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
+import { dealDamage, interact, leaveField, performRend, performStrike, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
 import { adjustInstance, rollPersistent } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -273,6 +273,9 @@ function act(state, c, action) {
         case "cast":
             if (action.rider && !(rider && rider.index === action.spellIndex)) break;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions);
+            break;
+        case "interact":
+            interact(state, c, action.what, action.strikeName);
             break;
         case "rend": {
             const target = state.byId.get(action.targetId);

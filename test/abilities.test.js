@@ -5,8 +5,8 @@ import { existsSync } from "node:fs";
 import { createFightState, simulate } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
-import { performStrike, stride } from "../src/engine/actions.js";
-import { canMove } from "../src/engine/combatant.js";
+import { interact, performStrike, stride } from "../src/engine/actions.js";
+import { DOWN, canMove, gripPenalty, offGuardTo, strikeUsable } from "../src/engine/combatant.js";
 import { applyAuras, canCast, castSpell, expireTimers, spellExpectation } from "../src/engine/spells.js";
 
 // Abilities compiled by the ability module from PF2e's own packs (read only).
@@ -166,4 +166,128 @@ test("Ferocity keeps a monster up once; whole fights with monster abilities run"
         grabs += result.log.filter((line) => /casts Grab/.test(line)).length;
     }
     assert.ok(grabs > 0, "the snake grabs");
+});
+
+// A level-5 foe with a sword in hand and a fist, every defence DC 20.
+function swordsman() {
+    const base = moderateCreature(5, "foe", "Foe");
+    return {
+        ...base,
+        engagement: 1,
+        saves: { fortitude: 10, reflex: 10, will: 10 },
+        perception: 10,
+        strikes: [{ ...base.strikes[0], name: "Longsword", held: true }, { ...base.strikes[0], name: "Fist", bonus: base.strikes[0].bonus - 4, held: false }]
+    };
+}
+const cast = (state, c) => scoreOptions(state, c).options.filter((option) => option.action.type === "cast");
+
+test("Disarm: a success weakens the grip (-2, +2 to the next Disarm), a critical success drops the weapon; it's picked up again", { skip }, async () => {
+    const { basic } = await abilities();
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, skills: { athletics: 18 }, spells: [entry("Disarm", basic.disarm, "basic")] }, swordsman()] });
+    state.rng.d20 = () => 10;
+    const pc = state.byId.get("fighter");
+    const foe = state.byId.get("foe");
+    const [sword, fist] = foe.strikes;
+    const [first] = spellExpectation(state, pc, pc.spells[0], [foe]);
+    assert.ok(first.worth > 0, "worth something against a weapon in hand");
+    // 10 + 18 = 28 against Reflex DC 20: a success.
+    castSpell(state, pc, 0, ["foe"]);
+    assert.equal(gripPenalty(foe, sword), 2);
+    assert.equal(gripPenalty(foe, fist), 0);
+    assert.equal(pc.attacksThisTurn, 1, "Disarm has the attack trait");
+    foe.actionsLeft = 3;
+    assert.ok(scoreOptions(state, foe).options.some((option) => option.action.type === "interact" && option.action.what === "regrip"));
+    // The same 28 against DC 20 - 2: a critical success.
+    pc.attacksThisTurn = 0;
+    castSpell(state, pc, 0, ["foe"]);
+    assert.equal(strikeUsable(foe, sword), false, "dropped");
+    assert.equal(gripPenalty(foe, sword), 0, "a dropped weapon has no grip to weaken");
+    assert.equal(strikeUsable(foe, fist), true);
+    const [none] = spellExpectation(state, pc, pc.spells[0], [foe]);
+    assert.equal(none.worth, 0, "nothing left in hand: the fist can't be disarmed");
+    assert.ok(scoreOptions(state, foe).options.some((option) => option.action.type === "interact" && option.action.what === "pickup"));
+    interact(state, foe, "pickup", "Longsword");
+    assert.equal(strikeUsable(foe, sword), true);
+});
+
+test("Feint: off-guard to the feinter's melee attacks only; one attack on a success; the feinter on a critical failure", { skip }, async () => {
+    const { basic } = await abilities();
+    const [fighter, champion] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, skills: { deception: 20 }, spells: [entry("Feint", basic.feint, "basic")] }, { ...champion, engagement: 1 }, swordsman()] });
+    state.rng.d20 = () => 10;
+    state.round = 1;
+    const pc = state.byId.get("fighter");
+    const other = state.byId.get("champion");
+    const foe = state.byId.get("foe");
+    pc.actionsLeft = 3;
+    assert.ok(cast(state, pc).some((option) => option.action.targetIds?.[0] === "foe"), "Feint is on offer in melee");
+    // 30 against Perception DC 20: a critical success, until the end of the fighter's next turn.
+    castSpell(state, pc, 0, ["foe"]);
+    assert.equal(pc.attacksThisTurn, 0, "Feint has no attack trait");
+    assert.equal(offGuardTo(foe, pc, true), true);
+    assert.equal(offGuardTo(foe, pc, false), false, "not to ranged attacks");
+    assert.equal(offGuardTo(foe, other, true), false, "not to anyone else");
+    expireTimers(state, pc, "end");
+    assert.equal(offGuardTo(foe, pc, true), true, "still this turn and the next");
+    state.round = 2;
+    expireTimers(state, pc, "end");
+    assert.equal(offGuardTo(foe, pc, true), false);
+    // 20 against 20: a success, for the next melee attack only.
+    pc.skills.deception = 10;
+    castSpell(state, pc, 0, ["foe"]);
+    assert.deepEqual(foe.offGuardTo.map((entry) => entry.uses), [1]);
+    performStrike(state, pc, foe, pc.strikes[0]);
+    assert.equal(offGuardTo(foe, pc, true), false, "used up");
+    // 0 against 20: a critical failure; the fighter is off-guard to the foe's melee attacks.
+    pc.skills.deception = -10;
+    castSpell(state, pc, 0, ["foe"]);
+    assert.equal(offGuardTo(pc, foe, true), true);
+    assert.equal(offGuardTo(foe, pc, true), false);
+});
+
+test("Create a Diversion: each watcher whose Perception DC it beats is off-guard to the next attack; one try per creature", { skip }, async () => {
+    const { basic } = await abilities();
+    const [, , , rogue] = martialParty(5);
+    const sharp = { ...swordsman(), id: "sharp", name: "Sharp", perception: 25 };
+    const state = createFightState({ combatants: [{ ...rogue, engagement: 1, skills: { deception: 15 }, spells: [entry("Create a Diversion", basic["create-a-diversion"], "basic")] }, swordsman(), sharp] });
+    state.rng.d20 = () => 10;
+    const pc = state.byId.get("rogue");
+    const foe = state.byId.get("foe");
+    pc.actionsLeft = 3;
+    const option = cast(state, pc)[0];
+    assert.deepEqual(option?.action.targetIds?.sort(), ["foe", "sharp"], "everyone around it at once");
+    // 25 against DCs 20 and 35.
+    castSpell(state, pc, 0, ["foe", "sharp"]);
+    assert.deepEqual(foe.offGuardTo, [{ attacker: "rogue", attacks: "any", uses: 1 }]);
+    assert.equal(state.byId.get("sharp").offGuardTo?.length ?? 0, 0);
+    assert.equal(cast(state, pc).length, 0, "both now know the trick");
+});
+
+test("Administer First Aid: stabilizes a dying ally on a success; dying +1 on a critical failure", { skip }, async () => {
+    const { basic } = await abilities();
+    const [fighter, champion] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...champion, skills: { medicine: 11 }, spells: [entry("Administer First Aid", basic["administer-first-aid"], "basic")] }, fighter, swordsman()] });
+    state.rng.d20 = () => 10;
+    const medic = state.byId.get("champion");
+    const pc = state.byId.get("fighter");
+    medic.actionsLeft = 3;
+    assert.equal(cast(state, medic).length, 0, "nobody is dying");
+    Object.assign(pc, { status: DOWN, band: "near" });
+    pc.hp.value = 0;
+    pc.cond.dying = 1;
+    pc.cond.unconscious = true;
+    const option = cast(state, medic)[0];
+    assert.deepEqual(option?.action.targetIds, ["fighter"]);
+    const [aid] = spellExpectation(state, medic, medic.spells[0], [pc]);
+    assert.ok(aid.benefit > 0);
+    // 21 against 5 + 15 + dying 1: a success.
+    castSpell(state, medic, 0, ["fighter"]);
+    assert.deepEqual([pc.status, pc.cond.dying, pc.stable, pc.cond.unconscious], [DOWN, 0, true, true]);
+    // 1 against 21: a critical failure.
+    pc.cond.dying = 1;
+    pc.stable = false;
+    medic.skills.medicine = -9;
+    castSpell(state, medic, 0, ["fighter"]);
+    assert.equal(pc.cond.dying, 2);
 });
