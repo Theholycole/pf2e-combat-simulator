@@ -9,6 +9,7 @@
 
 import { degreeDistribution, CRITICAL_SUCCESS, SUCCESS, CRITICAL_FAILURE } from "./checks.js";
 import { effectBenefit } from "./effects.js";
+import { allyStrike, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, flankChance, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
@@ -415,6 +416,9 @@ function child(node, action, cost, value, changes = {}) {
     };
 }
 
+// The flourish trait: one flourish action a turn (this turn, or earlier in this plan).
+const flourishUsed = (c, node) => !!c.usedThisTurn?.has("flourish") || node.casts.includes("flourish");
+
 // A spell a magus can Spellstrike with: 1 or 2 actions, one target, a spell attack or a save, and castable now.
 function spellstrikeSpell(c, spell) {
     if (spell.kind === "basic" || spell.kind === "ability" || !canCast(c, spell)) return false;
@@ -600,6 +604,7 @@ function expand(ctx, node, actionsLeft) {
             if (restrained || noAttacks || ability.actions > remaining) continue;
             // A flourish (Flurry of Blows): once a turn.
             if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ms${abilityIndex}`))) continue;
+            if (ability.flourish && flourishUsed(c, node)) continue;
             const order = multiStrikeOrder(c, ability);
             if (!order || order.some((index) => !strikeUsable(c, c.strikes[index]))) continue;
             for (const target of ctx.enemies) {
@@ -619,7 +624,7 @@ function expand(ctx, node, actionsLeft) {
                 children.push(child(node, { type: "multiStrike", ability: abilityIndex, targetId: target.id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
                     attacks: order.length,
                     damage: { ...node.damage, [target.id]: before + expected },
-                    ...(ability.oncePerTurn ? { cast: `ms${abilityIndex}` } : {})
+                    ...(ability.oncePerTurn || ability.flourish ? { cast: [...(ability.oncePerTurn ? [`ms${abilityIndex}`] : []), ...(ability.flourish ? ["flourish"] : [])] } : {})
                 }));
             }
         }
@@ -627,6 +632,7 @@ function expand(ctx, node, actionsLeft) {
         for (const [abilityIndex, ability] of (c.charges ?? []).entries()) {
             if (restrained || noAttacks || !mobile || ctx.wavering || ability.actions > remaining) continue;
             if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ch${abilityIndex}`))) continue;
+            if (ability.flourish && flourishUsed(c, node)) continue;
             const named = strikeNamed(c, ability.strike);
             const candidates = named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
             for (const target of ctx.enemies) {
@@ -649,7 +655,7 @@ function expand(ctx, node, actionsLeft) {
                     attack: true,
                     pos,
                     damage: { ...node.damage, [target.id]: before + best.damage },
-                    ...(ability.oncePerTurn ? { cast: `ch${abilityIndex}` } : {})
+                    ...(ability.oncePerTurn || ability.flourish ? { cast: [...(ability.oncePerTurn ? [`ch${abilityIndex}`] : []), ...(ability.flourish ? ["flourish"] : [])] } : {})
                 });
                 if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                 children.push(next);
@@ -659,6 +665,7 @@ function expand(ctx, node, actionsLeft) {
         // plus what a hit adds times the chance to hit; with Strides, only from outside the target's Melee.
         for (const [activityIndex, activity] of (c.strikeActivities ?? []).entries()) {
             if (restrained || noAttacks || activity.actions > remaining || (activity.oncePerFight && c.activitiesUsed?.has(activityIndex))) continue;
+            if (activity.flourish && flourishUsed(c, node)) continue;
             // A finisher needs panache.
             if (activity.finisher && !c.panache) continue;
             if (activity.strides && (!mobile || ctx.wavering)) continue;
@@ -693,7 +700,9 @@ function expand(ctx, node, actionsLeft) {
                 const before = node.damage[target.id] ?? 0;
                 const hp = remainingHp(target);
                 const expected = best.expectation.damage + best.expectation.hitChance * rider.damage;
-                const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + best.expectation.hitChance * rider.worth * ROUND_TO_KILL);
+                // Set-Up Strike: off-guard for an ally's next attack, about a tenth more of its damage.
+                const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * 0.12 / hp : 0;
+                const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + best.expectation.hitChance * rider.worth * ROUND_TO_KILL + setUpWorth);
                 if (gain <= 0) continue;
                 // Exacting Strike: a miss doesn't raise the penalty for what follows (worth a little).
                 const exacting = activity.exacting ? 0.15 * (1 - best.expectation.hitChance) * gain : 0;
@@ -701,7 +710,7 @@ function expand(ctx, node, actionsLeft) {
                     attacks: activity.countsAs ?? 1,
                     pos,
                     damage: { ...node.damage, [target.id]: before + expected },
-                    ...(activity.finisher ? { cast: "finisher" } : activity.coverFire ? { cast: ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] } : {})
+                    ...(activity.finisher || activity.coverFire || activity.flourish ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : [])] } : {})
                 });
                 if (activity.strides && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                 children.push(next);
@@ -720,6 +729,35 @@ function expand(ctx, node, actionsLeft) {
             }
             const gain = ctx.ownValue * (ROUND_TO_KILL * 3 * perRound / threat + 0.5 * (buff.tempHp ?? 0) / Math.max(1, c.hp.max));
             if (gain > 0) children.push(child(node, { type: "selfBuff", index: buffIndex, actions: buff.actions }, buff.actions, gain, { cast: `buff${buffIndex}` }));
+        }
+        // A commander's tactics (C21–C24): Strike Hard! (an ally's Strike), Pincer Attack
+        // (off-guard to melee from the commander and the allies who answer), Banner's Inspiration.
+        if (c.commander) {
+            if (c.commander.strikeHard && remaining >= 2 && !node.casts.includes("strikeHard")) {
+                const best = bestStrikeHard(state, c, ctx.enemies);
+                const target = best ? state.byId.get(best.targetId) : null;
+                if (target) {
+                    const before = node.damage[target.id] ?? 0;
+                    const hp = remainingHp(target);
+                    const gain = targetValue(state, target, c) * (Math.min(1, (before + best.expected) / hp) - Math.min(1, before / hp));
+                    if (gain > 0) children.push(child(node, { type: "strikeHard", allyId: best.allyId, targetId: best.targetId, strikeIndex: best.strikeIndex, actions: 2 }, 2, ctx.profile.aggression * gain, { cast: "strikeHard", damage: { ...node.damage, [target.id]: before + best.expected } }));
+                }
+            }
+            if (c.commander.pincerAttack && remaining >= 1 && !node.casts.includes("pincer")) {
+                const { responders, foes } = pincerPlan(state, c);
+                let gain = 0;
+                for (const foe of foes) {
+                    // +2 for about a round of melee attacks at it: roughly a tenth more of each one's damage.
+                    const expected = [c, ...responders].filter((attacker) => attacker.meleeId === foe.meleeId).reduce((sum, attacker) => sum + (allyStrike(state, attacker, foe)?.expected ?? 0), 0);
+                    gain += targetValue(state, foe, c) * Math.min(1, 0.15 * expected / remainingHp(foe));
+                }
+                if (responders.length && gain > 0) children.push(child(node, { type: "pincerAttack", actions: 1 }, 1, ctx.profile.aggression * gain, { cast: "pincer" }));
+            }
+            if (c.commander.bannersInspiration && remaining >= 1 && !node.casts.includes("banners") && !(c.commander.inspirationFlourish && flourishUsed(c, node))) {
+                const allies = inspirable(state, c);
+                const gain = allies.reduce((sum, ally) => sum + targetValue(state, ally, c) * (conditionWorth("frightened", ally.cond.frightened, null) - conditionWorth("frightened", ally.cond.frightened - 1, null)) * ROUND_TO_KILL, 0);
+                if (gain > 0) children.push(child(node, { type: "bannersInspiration", actions: 1 }, 1, gain, { cast: ["banners", ...(c.commander.inspirationFlourish ? ["flourish"] : [])] }));
+            }
         }
         // Spellstrike (C20): a melee Strike carrying a 1- or 2-action spell with a spell
         // attack (it hits as the Strike does) or a save (the target saves; a critical miss

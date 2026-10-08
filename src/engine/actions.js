@@ -200,7 +200,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     const offGuard = flanked || isOffGuard(target) || offGuardTo(target, attacker, strike.melee);
     // A one-attack feint or diversion is used up by this attack.
     const scoped = (target.offGuardTo ?? []).find((entry) => entry.attacker === attacker.id && (entry.attacks !== "melee" || strike.melee) && entry.uses);
-    if (scoped && --scoped.uses <= 0) target.offGuardTo = target.offGuardTo.filter((entry) => entry !== scoped);
+    // Spent by this attack; Set-Up Strike's off-guard is shared by the allies and spent by the first (its group).
+    if (scoped && --scoped.uses <= 0) target.offGuardTo = target.offGuardTo.filter((entry) => entry !== scoped && (!scoped.group || entry.group !== scoped.group));
     // Defensive reactions as the attack comes: the attacker rolls twice (Challenge
     // Fate), or +AC (Nimble Dodge); kept for Attacks of Opportunity when it has them.
     let defence = 0;

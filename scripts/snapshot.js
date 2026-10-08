@@ -214,6 +214,9 @@ async function situationalParts(action, damage, options) {
     }
 }
 
+// The flourish trait: one flourish action a turn.
+const flourish = (item) => (item?.system?.traits?.value ?? []).includes("flourish");
+
 const CHAMPION_REACTIONS = new Set(["retributive-strike", "glimpse-of-redemption", "liberating-step", "flash-of-grandeur", "selfish-shield", "iron-command"]);
 
 // A PC's class features the engine plays: Rage, Hunt Prey with its hunter's
@@ -246,7 +249,7 @@ function readClassFeatures(actor, strikes) {
     const unarmed = strikes.filter((strike) => strike.unarmed && strike.melee).sort((a, b) => value(b) - value(a))[0];
     if (flurry && unarmed) {
         result.handled.add(flurry);
-        (fields.multiStrikes ??= []).push({ name: "Flurry of Blows", actions: 1, strikes: [unarmed.name.toLowerCase(), unarmed.name.toLowerCase()], oncePerTurn: true });
+        (fields.multiStrikes ??= []).push({ name: "Flurry of Blows", actions: 1, strikes: [unarmed.name.toLowerCase(), unarmed.name.toLowerCase()], oncePerTurn: true, ...(flourish(flurry) ? { flourish: true } : {}) });
     }
     const doubleSlice = find("double-slice");
     const weapons = strikes.filter((strike) => strike.held && strike.melee && !strike.name.includes("(")).sort((a, b) => value(b) - value(a));
@@ -257,7 +260,7 @@ function readClassFeatures(actor, strikes) {
     // Feats with actions, as the engine's Strike activities, charges and multi-Strikes.
     const activity = (item, fields) => {
         result.handled.add(item);
-        (result.fields.strikeActivities ??= []).push({ name: item.name, actions: Number(item.system?.actions?.value) || 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: null, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null, ...fields });
+        (result.fields.strikeActivities ??= []).push({ name: item.name, actions: Number(item.system?.actions?.value) || 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: null, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null, ...(flourish(item) ? { flourish: true } : {}), ...fields });
     };
     const meleeWeapons = strikes.filter((strike) => strike.melee && !strike.name.includes("(")).sort((a, b) => value(b) - value(a));
     const rangedWeapons = strikes.filter((strike) => !strike.melee && strike.held && !strike.name.includes("(")).sort((a, b) => value(b) - value(a));
@@ -277,19 +280,19 @@ function readClassFeatures(actor, strikes) {
                 break;
             case "sudden-charge":
                 result.handled.add(item);
-                (result.fields.charges ??= []).push({ name: item.name, actions: 2, strides: 2, strike: null, attackBonus: 0, damage: null, oncePerTurn: true });
+                (result.fields.charges ??= []).push({ name: item.name, actions: 2, strides: 2, strike: null, attackBonus: 0, damage: null, oncePerTurn: true, ...(flourish(item) ? { flourish: true } : {}) });
                 break;
             case "hunted-shot":
                 if (rangedWeapons[0]) {
                     result.handled.add(item);
-                    (result.fields.multiStrikes ??= []).push({ name: item.name, actions: 1, strikes: [rangedWeapons[0].name.toLowerCase(), rangedWeapons[0].name.toLowerCase()], oncePerTurn: true, preyOnly: true, sameTarget: true });
+                    (result.fields.multiStrikes ??= []).push({ name: item.name, actions: 1, strikes: [rangedWeapons[0].name.toLowerCase(), rangedWeapons[0].name.toLowerCase()], oncePerTurn: true, preyOnly: true, sameTarget: true, ...(flourish(item) ? { flourish: true } : {}) });
                 }
                 break;
             case "twin-takedown":
                 if (meleeWeapons.filter((strike) => strike.held).length >= 2) {
                     const [first, second] = meleeWeapons.filter((strike) => strike.held);
                     result.handled.add(item);
-                    (result.fields.multiStrikes ??= []).push({ name: item.name, actions: 1, strikes: [first.name.toLowerCase(), second.name.toLowerCase()], oncePerTurn: true, preyOnly: true, sameTarget: true });
+                    (result.fields.multiStrikes ??= []).push({ name: item.name, actions: 1, strikes: [first.name.toLowerCase(), second.name.toLowerCase()], oncePerTurn: true, preyOnly: true, sameTarget: true, ...(flourish(item) ? { flourish: true } : {}) });
                 }
                 break;
             default:
@@ -384,6 +387,22 @@ function readClassFeatures(actor, strikes) {
     if (spellstrike) {
         for (const item of items) if (["spellstrike", "recharge-spellstrike"].includes(item.slug)) result.handled.add(item);
         fields.spellstrike = { name: spellstrike.name };
+    }
+    // Commander (C21–C24): tactics answered by allies in the banner's aura (30 feet):
+    // Strike Hard!, Pincer Attack; Set-Up Strike; Banner's Inspiration; Drilled Reactions.
+    if (has("commanders-banner") || items.some((item) => (item.system?.traits?.value ?? []).includes("tactic"))) {
+        const commander = { banner: 30, drilled: has("drilled-reactions") };
+        for (const item of items) {
+            if (item.slug === "strike-hard") commander.strikeHard = item.name;
+            if (item.slug === "pincer-attack") commander.pincerAttack = item.name;
+            if (item.slug === "banners-inspiration") {
+                commander.bannersInspiration = item.name;
+                commander.inspirationFlourish = flourish(item);
+            }
+            if (item.slug === "set-up-strike") activity(item, { setUp: true });
+            if (["strike-hard", "pincer-attack", "banners-inspiration", "drilled-reactions", "commanders-banner", "tactics"].includes(item.slug)) result.handled.add(item);
+        }
+        fields.commander = commander;
     }
     // Sneak Attack and the like: their dice are read with each Strike.
     if (strikes.some((strike) => strike.offGuardExtra?.length)) for (const item of items) if (item.slug === "sneak-attack") result.handled.add(item);

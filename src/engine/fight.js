@@ -13,6 +13,7 @@ import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfter
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
 import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castSpell, describeSpell, expireTimers, exploitVulnerability, hasTimer, overdrive, retch, rollInstances, triggerRiders } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
+import { bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -362,6 +363,17 @@ function act(state, c, action) {
             if (strike) c.unloaded?.delete(strike.name);
             break;
         }
+        // A commander's tactics (C21–C24).
+        case "strikeHard":
+            strikeHard(state, c, action);
+            break;
+        case "pincerAttack":
+            pincerAttack(state, c);
+            break;
+        case "bannersInspiration":
+            if (c.commander?.inspirationFlourish) c.usedThisTurn?.add("flourish");
+            bannersInspiration(state, c);
+            break;
         // Spellstrike (C20): the Strike, then the spell it carries; two attacks for the penalty.
         case "spellstrike": {
             const target = state.byId.get(action.targetId);
@@ -426,6 +438,7 @@ function act(state, c, action) {
             const target = state.byId.get(action.targetId);
             state.log?.push(`  ${c.name} uses ${activity.name}`);
             if (activity.oncePerFight) (c.activitiesUsed ??= new Set()).add(action.index);
+            if (activity.flourish) c.usedThisTurn?.add("flourish");
             if (!target || !isActive(target)) break;
             if (activity.strides && !sameMelee(c, target)) {
                 stride(state, c, { kind: "engage", targetId: action.targetId });
@@ -454,6 +467,8 @@ function act(state, c, action) {
             if (result && activity.countsAs > 1) c.attacksThisTurn += activity.countsAs - 1;
             if (result && activity.exacting && result.degree === 1) c.attacksThisTurn = Math.max(0, c.attacksThisTurn - 1);
             if (result && result.degree >= SUCCESS && isActive(target)) applyStrikeRider(state, c, target, activity, result.degree === 3);
+            // Set-Up Strike: its hit leaves the target off-guard to an ally's next attack.
+            if (activity.setUp && result && result.degree >= SUCCESS && isActive(target)) setUp(state, c, target);
             break;
         }
         // Battle Medicine: a Medicine check against the Treat Wounds DC it chose.
@@ -474,6 +489,7 @@ function act(state, c, action) {
             const ability = c.multiStrikes[action.ability];
             state.log?.push(`  ${c.name} uses ${ability.name}`);
             if (ability.oncePerTurn) c.usedThisTurn?.add(ability.name);
+            if (ability.flourish) c.usedThisTurn?.add("flourish");
             let target = state.byId.get(action.targetId);
             const attacks = c.attacksThisTurn;
             for (const [step, index] of (multiStrikeOrder(c, ability) ?? []).entries()) {
@@ -547,6 +563,7 @@ function act(state, c, action) {
             const target = state.byId.get(action.targetId);
             state.log?.push(`  ${c.name} uses ${c.charges[action.ability].name}`);
             if (c.charges[action.ability].oncePerTurn) c.usedThisTurn?.add(c.charges[action.ability].name);
+            if (c.charges[action.ability].flourish) c.usedThisTurn?.add("flourish");
             stride(state, c, { kind: "engage", targetId: action.targetId });
             if (canAct(c) && target && isActive(target) && sameMelee(c, target)) performStrike(state, c, target, chargeStrike(c.strikes[action.strikeIndex], c.charges[action.ability]));
             break;
@@ -565,7 +582,8 @@ function actionCost(c, action) {
     if (action.type === "strike") return 1 + (action.reload ?? 0);
     if (action.type === "reload") return action.actions;
     if (action.type === "slingersReload" || action.type === "rechargeSpellstrike") return 1;
-    if (action.type === "spellstrike") return 2;
+    if (action.type === "spellstrike" || action.type === "strikeHard") return 2;
+    if (action.type === "pincerAttack" || action.type === "bannersInspiration") return 1;
     if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect") return action.actions;
     if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
     return action.type === "task" ? 2 : 1;
