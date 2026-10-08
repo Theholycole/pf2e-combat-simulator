@@ -3,6 +3,8 @@
 
 import { parseReadableDamage } from "../src/adapter/formula.js";
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
+import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
+import { effectModel } from "../src/engine/effects.js";
 
 export const MODULE_ID = "pf2e-combat-simulator";
 
@@ -90,6 +92,14 @@ function readConditions(actor) {
         prone: hasCondition(actor, "prone"),
         fleeing: hasCondition(actor, "fleeing"),
         unconscious: hasCondition(actor, "unconscious"),
+        stupefied: conditionValue(actor, "stupefied"),
+        fatigued: hasCondition(actor, "fatigued"),
+        paralyzed: hasCondition(actor, "paralyzed"),
+        blinded: hasCondition(actor, "blinded"),
+        dazzled: hasCondition(actor, "dazzled"),
+        immobilized: hasCondition(actor, "immobilized"),
+        restrained: hasCondition(actor, "restrained"),
+        grabbed: hasCondition(actor, "grabbed"),
         dying: attributes.dying?.value ?? conditionValue(actor, "dying"),
         wounded: attributes.wounded?.value ?? conditionValue(actor, "wounded"),
         doomed: attributes.doomed?.value ?? conditionValue(actor, "doomed"),
@@ -167,15 +177,117 @@ function readGaps(actor, gaps) {
         }
         gaps.push({ kind: type === "reaction" ? "reaction" : "feat action", name: item.name });
     }
-    const spells = actor.itemTypes?.spell ?? [];
-    for (const spell of spells) {
-        if (spell.isRitual) continue;
-        gaps.push({ kind: "spell", name: spell.name });
-    }
     for (const item of actor.itemTypes?.consumable ?? []) {
         const category = item.system?.category;
         if (["potion", "elixir", "scroll", "wand", "bomb", "oil", "talisman", "poison"].includes(category)) gaps.push({ kind: "consumable", name: item.name });
     }
+}
+
+const CORE_ID = "pf2e-resolution-core";
+// Plan fields the engine never reads: left out of the snapshot sent to the worker.
+const PLAN_EXTRAS = new Set(["compilerEvidence", "diagnostics", "delegations", "semanticCoverage", "rawText", "sourceText", "raw"]);
+
+function leanPlan(plan) {
+    return JSON.parse(JSON.stringify(plan, (key, value) => (PLAN_EXTRAS.has(key) ? undefined : value)));
+}
+
+// PF2e spell effects a plan applies, read once per session.
+const effectItems = new Map();
+
+async function effectItem(uuid) {
+    if (!effectItems.has(uuid)) effectItems.set(uuid, await fromUuid(uuid).catch(() => null));
+    return effectItems.get(uuid);
+}
+
+function conditionSlug(uuid) {
+    const entry = fromUuidSync?.(uuid);
+    return entry?.system?.slug ?? entry?.slug ?? entry?.name?.slugify?.() ?? null;
+}
+
+// The engine's models of the PF2e spell effects a plan applies, at the cast rank.
+async function effectModels(plan, castRank) {
+    const uuids = [...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}/g) ?? [])];
+    const models = {};
+    for (const uuid of uuids) {
+        const item = await effectItem(uuid);
+        if (item) models[uuid] = effectModel(item, { rank: castRank, conditionSlug });
+    }
+    return models;
+}
+
+// The creature's spells with their compiled plans, from its spellcasting
+// entries (PF2e's own sheet data: prepared slots, spontaneous slots per rank,
+// innate uses, focus points, cantrips). Plans come from the resolution core's
+// registry; without it, or for a spell no family resolves, the spell is a gap.
+async function readSpells(actor, gaps, { fresh = false } = {}) {
+    const spells = [];
+    const spellPools = {};
+    const entries = (actor.spellcasting?.regular ?? actor.spellcasting?.contents ?? []).filter((entry) => !entry.isRitual);
+    const registry = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api?.registry : null;
+    const cantripRank = Math.min(10, Math.max(1, Math.ceil((actor.level ?? 1) / 2)));
+    const listed = [];
+    for (const entry of entries) {
+        let data;
+        try {
+            data = await entry.getSheetData?.();
+        } catch (error) {
+            console.warn(`${MODULE_ID} | Couldn't read ${entry.name} on ${actor.name}.`, error);
+        }
+        if (!data?.groups) continue;
+        const statistic = entry.statistic;
+        const dc = stripConditions(statistic?.dc?.value ?? 10, statistic?.dc?.modifiers ?? statistic?.modifiers ?? []);
+        const attack = stripConditions(statistic?.check?.mod ?? statistic?.mod ?? 0, statistic?.check?.modifiers ?? statistic?.modifiers ?? []);
+        for (const group of data.groups) {
+            const cantrips = group.id === "cantrips";
+            const groupRank = cantrips ? cantripRank : Number(group.id) || 1;
+            // Spontaneous casters share a rank's slots among its spells.
+            const sharedPool = !cantrips && entry.isSpontaneous && group.uses ? `${entry.id}:${group.id}` : null;
+            if (sharedPool) spellPools[sharedPool] = fresh ? group.uses.max ?? 0 : group.uses.value ?? 0;
+            for (const [index, active] of (group.active ?? []).entries()) {
+                const spell = active?.spell;
+                if (!spell || spell.isRitual) continue;
+                let pool = null;
+                if (cantrips || spell.isCantrip) pool = null;
+                else if (entry.isFocusPool || spell.isFocusSpell) {
+                    pool = "focus";
+                    spellPools.focus = fresh ? actor.system?.resources?.focus?.max ?? 0 : actor.system?.resources?.focus?.value ?? 0;
+                } else if (sharedPool) pool = sharedPool;
+                else if (entry.isPrepared) {
+                    pool = `${entry.id}:${group.id}:${index}`;
+                    spellPools[pool] = !fresh && active.expended ? 0 : 1;
+                } else if (active.uses?.max) {
+                    // Innate spells with a number of uses a day; without one, at will.
+                    pool = `${entry.id}:${spell.id}`;
+                    spellPools[pool] = fresh ? active.uses.max : active.uses.value ?? 0;
+                }
+                const castRank = active.castRank ?? (spell.isCantrip || spell.isFocusSpell ? cantripRank : groupRank);
+                listed.push({ spell, name: spell.name, castRank, dc, attack, pool });
+            }
+        }
+    }
+    if (!listed.length) return { spells, spellPools };
+    if (!registry) {
+        for (const entry of listed) gaps.push({ kind: "spell", name: entry.name });
+        return { spells, spellPools };
+    }
+    const unique = [...new Map(listed.map((entry) => [entry.spell.uuid, entry.spell])).values()];
+    const prepared = new Map((await registry.preparePlans(unique)).map(({ item, result, error }) => [item.uuid, { result, error }]));
+    for (const entry of listed) {
+        const { result, error } = prepared.get(entry.spell.uuid) ?? {};
+        const plan = result?.plan ? leanPlan(result.plan) : null;
+        const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, effects: plan ? await effectModels(plan, entry.castRank) : {} };
+        if (!plan || !canCast({ spellPools: { [entry.pool]: 1 } }, spec)) {
+            // Detect Magic, Translocate and the like: listed, but they don't count against the result.
+            // (On the full plan: the slimmed one may have lost its effect references.)
+            const utility = isUtility(result?.plan ?? plan);
+            gaps.push({ kind: utility ? "utility spell" : "spell", name: error ? `${entry.name} (${error.message})` : entry.name });
+            continue;
+        }
+        const missing = spellGaps(spec);
+        if (missing.length) gaps.push({ kind: "spell, partly simulated", name: `${entry.name}: ${missing.join(", ")}` });
+        spells.push(spec);
+    }
+    return { spells, spellPools };
 }
 
 function hasItemSlug(actor, slugs) {
@@ -225,7 +337,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         }
     }
     readGaps(actor, gaps);
-    if (!strikes.length && actorKind(actor) !== "object") {
+    const { spells, spellPools } = await readSpells(actor, gaps, { fresh });
+    if (!strikes.length && !spells.length && actorKind(actor) !== "object") {
         // Swarms and troops attack with area abilities, which aren't simulated yet.
         gaps.push({ kind: "no Strikes", name: "can't attack in the simulation" });
     }
@@ -265,7 +378,10 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         resistances: readIwr(actor.attributes?.resistances),
         weaknesses: readIwr(actor.attributes?.weaknesses),
         immunities: (actor.attributes?.immunities ?? []).map((entry) => entry.type),
+        voidHealing: !!(actor.system?.attributes?.hp?.negativeHealing ?? actor.attributes?.hp?.negativeHealing),
         strikes,
+        spells,
+        spellPools,
         conditions,
         gaps
     };

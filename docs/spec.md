@@ -31,7 +31,7 @@ Logic moves out of the spell module into the core one rule family at a time, whe
    - benchmark tests
 
    It has no spells and no healing.
-2. **Build the core and connect the spell module.** Attack-roll and basic-save damage, healing and condition riders come first, then the most common gaps.
+2. **Build the core and connect the spell module.** Attack-roll and basic-save damage, healing and condition riders come first, then the most common gaps. *(Saves and spell attacks: built 2026-10-08, see below.)*
 3. **The ability module.** Basic actions (Demoralize, Trip, Grapple, Shove, Escape) come first, then class features and monster abilities by rule family.
 
 **Later:** map-based objectives (hold an area, escort, retrieve and escape), escalations, morale target fitting, and a logger that compares predictions with real fights.
@@ -81,6 +81,27 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
   - foes that can't attack (swarms, troops), spell-reliant foes, many foe special abilities, and hazards → the party is favoured
   - spell-reliant PCs → the foes are favoured
   - the party's healing → deaths are overstated
+
+## Milestone 2 status (2026-10-08)
+
+**Creatures cast spells**, through the resolution core. The open decisions and their defaults are in [spell-decisions.md](spell-decisions.md).
+
+- **Snapshot** (`scripts/snapshot.js`): reads each creature's spellcasting entries through PF2e's sheet data (prepared and spontaneous slots, innate uses, focus points, cantrips), with the spell DC and attack without condition penalties. Plans come from `registry.preparePlans` (the spell module registers its compiler with the core). Without the core, every spell is a gap, as before.
+- **Engine** (`src/engine/spells.js`): resolves a cast with the core's families (`registry.resolveSync`), and applies damage, persistent damage, conditions with durations, push and pull, death effects and follow-up saves. It picks targets in range bands, with areas by Melee and a capacity for each template.
+- **Planner:** values a cast by resolving it once per degree with average damage, weighted by each target's odds, in the same units as Strikes. Allies caught in an area count against it. Spell attacks take the multiple attack penalty, and casting in a Melee provokes. Threat includes a creature's best spell.
+- **Healing** (S15–S17): heals restore HP and wake downed PCs (wounded +1). Healing spells can target hurt or downed allies, and the planner values them by how close the ally is to dropping. Spells with PF2e action variants (Heal 1/2/3) are planned once per variant. Force Barrage puts its missiles on one target.
+- **Buffs and debuffs** (S18): PF2e spell effects' rules become modifiers to AC, saves, attacks, damage and spells, along with temporary HP, fast healing, resistances, weaknesses, immunities and granted conditions. The snapshot reads the effect items; `src/engine/effects.js` interprets them.
+- **New conditions in the engine:** stupefied, fatigued, paralyzed, asleep (from Sleep; damage wakes it), blinded and dazzled (flat checks to find a target), immobilized, restrained and grabbed.
+- **Gap list:** a spell the core can't resolve is a "spell" gap. One it casts in part is "spell, partly simulated", with its missing parts listed. The reliability note counts both.
+- **Bestiary check** (`tools/bestiary-casters.mjs`, compiled as the spell module's official compile does, native numbers included): 1,208 creatures from Monster Core 1–2 and NPC Core. 501 are casters; 2,392 of their 5,038 spells are cast (1,453 fully modelled), and 1,492 are utility spells. 1,503 fights, 3,293 casts, no errors.
+- **Vitality and void damage** follow PF2e's rule: vitality harms only creatures with void healing (`hp.negativeHealing`, or undead), void only those without. Before this, a monster's Heal damaged living PCs.
+- **The manifest requires** `pf2e-resolution-core`; the engine imports its pure code (`/modules/pf2e-resolution-core/src/index.js`) in the Web Worker.
+- **Live check in `pftest` (2026-10-08):**
+  - Setup: the spell module's compiler is registered with the core, and the casters are PFTEST SIM copies of NPC Core's Watchmage and Spirit Priest, against the level-5 iconics Valeros, Seelah, Ezren and Merisiel.
+  - Spells, slots, focus points and spell effects read correctly, and Bless is listed as a gap, not a utility spell.
+  - The Web Worker imports the core: 200 fights in 0.9 s, with no fallback to the main thread.
+  - The fights showed two planner fixes. Buffs are weighed by the share of the target's threat that comes from Strikes, so Ezren hastes Valeros, not himself. Healing urgency is 2.5 × (1 − HP share)^1.5, so no topping up at 82% HP.
+- 78 Node tests.
 
 ### Real-fight logger (built 2026-10-08, at the user's request)
 
@@ -144,7 +165,7 @@ The log is stored in a hidden world setting. The scoring is pure (`src/engine/ca
 - hero points
 - conditions: frightened, sickened, clumsy, enfeebled, drained, off-guard, prone, slowed, stunned, quickened, fleeing, persistent damage
 
-Everything whose effect comes from text (spells, feats, Demoralize, monster abilities, consumables) comes from the plan modules and is a gap until then.
+Everything whose effect comes from text (spells, feats, Demoralize, monster abilities, consumables) comes from the plan modules and is a gap until then. Spells resolved by the core's `save` family are cast from milestone 2 (see the milestone 2 status).
 
 ### Space: range bands
 

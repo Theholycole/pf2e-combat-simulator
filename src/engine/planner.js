@@ -8,11 +8,12 @@
 // same way, weighted by self-preservation.
 
 import { degreeDistribution, CRITICAL_SUCCESS, SUCCESS, CRITICAL_FAILURE } from "./checks.js";
-import { canAct, isActive, multipleAttackPenalty, statusPenalty, armorClass } from "./combatant.js";
+import { canAct, canMove, effectBonus, hpFraction, isActive, multipleAttackPenalty, statusPenalty, armorClass, targetingChance } from "./combatant.js";
 import { canStepOut, flankChance, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken } from "./morale.js";
 import { canDoTask, taskModifier } from "./objectives.js";
+import { canCast, describeSpell, spellExpectation, spellVariants, targetSets } from "./spells.js";
 
 export const ROLE_PROFILES = Object.freeze({
     soldier: { aggression: 1, selfPreservation: 0.8, objective: 1 },
@@ -51,25 +52,46 @@ function profileOf(c) {
 // Per-round threat: expected damage per round against a typical enemy.
 export function computeThreats(state) {
     state.threat = new Map();
+    state.strikeShare = new Map();
     for (const c of state.list) {
         if (!isActive(c)) {
             state.threat.set(c.id, 0);
             continue;
         }
         const enemies = state.list.filter((other) => other.side !== c.side && isActive(other));
-        if (!enemies.length || !c.strikes?.length || c.acts === false) {
+        if (!enemies.length || (!c.strikes?.length && !c.spells?.length) || c.acts === false) {
             state.threat.set(c.id, 0);
             continue;
         }
         const sample = enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / enemies.length;
         const target = enemies[0];
-        state.threat.set(c.id, roundDamage(c, target, sample));
+        const strikes = roundDamage(c, target, sample);
+        const spells = spellThreat(state, c, target);
+        state.threat.set(c.id, Math.max(strikes, spells));
+        // How much of its threat comes from Strikes: what an extra action or an attack bonus helps.
+        state.strikeShare.set(c.id, strikes + spells > 0 ? strikes / Math.max(strikes, spells) : 1);
     }
     const mean = (side) => {
         const values = state.list.filter((c) => c.side === side && isActive(c) && c.kind !== "object").map((c) => state.threat.get(c.id) ?? 0);
         return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
     };
     state.meanThreat = { party: mean("party"), foes: mean("foes") };
+}
+
+// Expected damage of the creature's best spell it can still cast, against one
+// target (two for an area).
+function spellThreat(state, c, target) {
+    let best = 0;
+    for (const spell of c.spells ?? []) {
+        if (!canCast(c, spell)) continue;
+        for (const actions of spellVariants(spell)) {
+            const info = describeSpell(spell.plan, actions);
+            const copies = info.area ? 2 : Math.max(1, Math.min(info.targets, 2));
+            const [expected] = spellExpectation(state, c, spell, [target], 0, actions);
+            if (expected) best = Math.max(best, expected.damage * copies);
+        }
+    }
+    return best;
 }
 
 // Expected damage from a round of Strikes (the third at half weight).
@@ -83,11 +105,11 @@ function roundDamage(c, target, ac, attacks = 3, { meleeOnly = false, rangedOnly
         const crit = expectedHitDamage(c, strike, target, true);
         let total = 0;
         for (let attack = 0; attack < attacks; attack++) {
-            const modifier = strike.bonus - multipleAttackPenalty(strike, attack) - statusPenalty(c, strike.melee ? "melee" : "ranged");
+            const modifier = strike.bonus - multipleAttackPenalty(strike, attack) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack");
             const dist = degreeDistribution(modifier, ac);
             total += (dist[SUCCESS] * hit + dist[CRITICAL_SUCCESS] * crit) * (attack === 2 ? 0.5 : 1);
         }
-        best = Math.max(best, total);
+        best = Math.max(best, total * targetingChance(c));
     }
     return best;
 }
@@ -139,10 +161,13 @@ class PlanContext {
         this.enemies = state.list.filter((other) => other.side !== c.side && isActive(other));
         this.enemyIndex = new Map(this.enemies.map((enemy, index) => [enemy.id, index]));
         this.allies = state.list.filter((other) => other.side === c.side && isActive(other) && other !== c);
+        // Healing reaches downed PCs too.
+        this.alliesAndDown = state.list.filter((other) => other.side === c.side && other !== c && (isActive(other) || (other.status === "down" && other.kind === "pc")));
         this.defenders = this.allies.length + 1;
         this.strikeCache = new Map();
         this.terminalCache = new Map();
         this.roundCache = new Map();
+        this.spellCache = new Map();
         this.ownValue = Math.max(targetValue(state, c, this.enemies[0] ?? c), 0.5);
         this.wavering = c.moraleState.wavering || c.groupState === "wavering";
     }
@@ -178,7 +203,7 @@ class PlanContext {
         const cached = perTarget.get(key);
         if (cached !== undefined) return cached;
         const { state, c } = this;
-        let modifier = strike.bonus - multipleAttackPenalty(strike, attacks) - statusPenalty(c, strike.melee ? "melee" : "ranged");
+        let modifier = strike.bonus - multipleAttackPenalty(strike, attacks) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack");
         let circumstance = prone ? 2 : 0;
         if (isShaken(c)) circumstance = Math.max(circumstance, state.moraleRules.group.shakenAttackPenalty);
         if (nonlethalAgainst(state, c, target) && !strike.nonlethal) circumstance = Math.max(circumstance, 2);
@@ -201,14 +226,26 @@ class PlanContext {
         const ac = armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target) });
         const plain = degreeDistribution(modifier, ac);
         const flanked = flank > 0 ? degreeDistribution(modifier, ac - (target.cond.offGuard || target.cond.prone ? 0 : 2)) : plain;
-        const hitChance = (1 - flank) * plain[SUCCESS] + flank * flanked[SUCCESS];
-        const critChance = (1 - flank) * plain[CRITICAL_SUCCESS] + flank * flanked[CRITICAL_SUCCESS];
+        const finds = targetingChance(c);
+        const hitChance = finds * ((1 - flank) * plain[SUCCESS] + flank * flanked[SUCCESS]);
+        const critChance = finds * ((1 - flank) * plain[CRITICAL_SUCCESS] + flank * flanked[CRITICAL_SUCCESS]);
         // Earlier attacks in the plan stand in for earlier attacks with this weapon.
         const extras = { bonus: forcefulBonus(strike, attacks), offGuardChance: target.cond.offGuard || target.cond.prone ? 1 : flank };
         const damage = hitChance * expectedHitDamage(c, strike, target, false, extras) + critChance * expectedHitDamage(c, strike, target, true, extras);
         const result = { damage, hitChance: hitChance + critChance };
         perTarget.set(key, result);
         return result;
+    }
+
+    // spellExpectation, cached for the decision.
+    spellEffect(index, spell, targets, attacks, actions) {
+        const key = `${index}|${actions ?? 0}|${Math.min(attacks, 2)}|${targets.map((target) => target.id).join(",")}`;
+        let cached = this.spellCache.get(key);
+        if (cached === undefined) {
+            cached = spellExpectation(this.state, this.c, spell, targets, attacks, actions);
+            this.spellCache.set(key, cached);
+        }
+        return cached;
     }
 
     // Expected damage this creature takes from one enemy's Attack of Opportunity.
@@ -230,10 +267,10 @@ class PlanContext {
         let best = 0;
         for (const strike of enemy.strikes ?? []) {
             if (!strike.melee) continue;
-            const modifier = strike.bonus - multipleAttackPenalty(strike, attacks) - statusPenalty(enemy, "melee");
+            const modifier = strike.bonus - multipleAttackPenalty(strike, attacks) - statusPenalty(enemy, "melee") + effectBonus(enemy, "attack");
             const ac = armorClass(c, { shieldRaised });
             const dist = degreeDistribution(modifier, ac);
-            best = Math.max(best, dist[SUCCESS] * expectedHitDamage(enemy, strike, c, false) + dist[CRITICAL_SUCCESS] * expectedHitDamage(enemy, strike, c, true));
+            best = Math.max(best, targetingChance(enemy) * (dist[SUCCESS] * expectedHitDamage(enemy, strike, c, false) + dist[CRITICAL_SUCCESS] * expectedHitDamage(enemy, strike, c, true)));
         }
         return best;
     }
@@ -326,6 +363,7 @@ function child(node, action, cost, value, changes = {}) {
         damage: changes.damage ?? node.damage,
         provoked: node.provoked,
         moved: node.moved || !!changes.moved,
+        casts: changes.cast !== undefined ? [...node.casts, changes.cast] : node.casts,
         first: node.first ?? action
     };
 }
@@ -335,13 +373,16 @@ function expand(ctx, node, actionsLeft) {
     const children = [];
     const remaining = actionsLeft - node.used;
     if (remaining <= 0) return children;
-    const mustWithdraw = c.mustWithdraw && !node.moved && !c.withdrewThisTurn;
+    const mustWithdraw = c.mustWithdraw && !node.moved && !c.withdrewThisTurn && canMove(c);
     const inAnyMelee = node.pos.melee !== null;
+    const mobile = canMove(c);
+    // Restrained: no actions with the attack or manipulate traits.
+    const restrained = !!c.cond.restrained;
 
     if (!mustWithdraw) {
         // Strikes: only the two best weapons against each target are worth planning with.
         for (const target of ctx.enemies) {
-            if (target.status !== "active") continue;
+            if (target.status !== "active" || restrained) continue;
             const options = [];
             for (const [index, strike] of (c.strikes ?? []).entries()) {
                 if (strike.melee && !inMelee(node.pos, target)) continue;
@@ -361,8 +402,53 @@ function expand(ctx, node, actionsLeft) {
                 children.push(next);
             }
         }
+        // Spells: each action variant and target set in reach, valued like
+        // Strikes (damage as a share of HP, conditions as rounds of threat).
+        // Healing an ally is worth its threat times the share of HP restored,
+        // more the closer it is to dropping, and most when it's down. Allies
+        // caught by damage, and foes healed, count against the cast.
+        for (const [index, spell] of (c.spells ?? []).entries()) {
+            if (!canCast(c, spell) || node.casts.includes(index)) continue;
+            if (spell.pool && node.casts.filter((other) => c.spells[other].pool === spell.pool).length >= (c.spellPools[spell.pool] ?? 0)) continue;
+            for (const actions of spellVariants(spell)) {
+                const info = describeSpell(spell.plan, actions);
+                if (!info.actions || info.actions > remaining || (restrained && (info.manipulate || info.attack))) continue;
+                const sets = targetSets(state, c, spell, {
+                    enemies: ctx.enemies,
+                    allies: ctx.alliesAndDown,
+                    inMelee: (other) => inMelee(node.pos, other),
+                    distance: (other) => distanceTo(node.pos, other),
+                    meleeId: typeof node.pos.melee === "number" ? node.pos.melee : null
+                }, actions);
+                for (const set of sets) {
+                    let gain = 0;
+                    const damage = { ...node.damage };
+                    for (const { target, damage: expected, worth, heal, benefit } of ctx.spellEffect(index, spell, set.targets, node.attacks, actions)) {
+                        const ally = target.side === c.side;
+                        const sign = ally ? -1 : 1;
+                        const before = damage[target.id] ?? 0;
+                        const hp = remainingHp(target);
+                        const value = target.status === "active" ? targetValue(state, target, c) : Math.max(1, state.meanThreat?.[target.side] ?? 1);
+                        gain += sign * value * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + worth);
+                        if (heal > 0 && target.hp.max > 0) {
+                            // Topping up a barely hurt ally is worth little; saving one near 0 HP, a lot.
+                            const urgency = target.status !== "active" ? 3 : 2.5 * (1 - hpFraction(target)) ** 1.5;
+                            gain += (ally ? 1 : -1) * value * (heal / target.hp.max) * urgency;
+                        }
+                        // A spell effect: good for an ally, bad for a foe (and the reverse for hindrances).
+                        if (benefit) gain += (ally ? 1 : -1) * value * benefit;
+                        if (!ally) damage[target.id] = before + expected;
+                    }
+                    if (gain <= 0) continue;
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions }, info.actions, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
+                    // Casting is a manipulate action: it provokes Attacks of Opportunity.
+                    if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    children.push(next);
+                }
+            }
+        }
         // Engage a target.
-        if (!ctx.wavering) {
+        if (!ctx.wavering && mobile) {
             for (const target of ctx.enemies) {
                 if (inMelee(node.pos, target)) continue;
                 if (stridesToEngage({ band: node.pos.band, meleeId: null, speed: c.speed }, target) !== 1) continue;
@@ -397,7 +483,9 @@ function expand(ctx, node, actionsLeft) {
         }
     }
     // Moving away.
-    if (inAnyMelee) {
+    if (!mobile) {
+        // Immobilized, restrained or grabbed: nowhere to go.
+    } else if (inAnyMelee) {
         const realMelee = node.pos.melee === c.meleeId && c.meleeId !== null;
         const stepOk = realMelee ? canStepOut(state, c) : (node.pos.melee === "new" && (state.byId.get(node.pos.newWith)?.reach ?? 5) <= 5);
         if (stepOk) children.push(child(node, { type: "step" }, 1, 0, { pos: { band: "near", melee: null, newWith: null }, moved: true }));
@@ -415,7 +503,7 @@ function expand(ctx, node, actionsLeft) {
 // The scored one-step options for the creature right now (for tests and tuning).
 export function scoreOptions(state, c) {
     const ctx = new PlanContext(state, c);
-    const root = { value: 0, pos: { band: c.band, melee: c.meleeId, newWith: null }, shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, first: null };
+    const root = { value: 0, pos: { band: c.band, melee: c.meleeId, newWith: null }, shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], first: null };
     const rootTerminal = ctx.terminal(root);
     return {
         stay: rootTerminal,
@@ -436,6 +524,7 @@ export function chooseAction(state, c) {
         damage: {},
         provoked: 0,
         moved: false,
+        casts: [],
         first: null
     };
     const rootScore = ctx.terminal(root);

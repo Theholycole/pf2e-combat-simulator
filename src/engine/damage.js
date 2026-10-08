@@ -99,7 +99,15 @@ export function adjustDamage(defender, instances) {
     return { total: Math.max(0, total), persistent };
 }
 
+// Void healing (PF2e's hp.negativeHealing; undead without the flag read):
+// vitality damage harms only creatures that have it, void damage only those that don't.
+export function hasVoidHealing(defender) {
+    return defender.voidHealing ?? (defender.traits ?? []).includes("undead");
+}
+
 export function adjustInstance(defender, type, amount, precision = false) {
+    if (type === "vitality" && !hasVoidHealing(defender)) return 0;
+    if (type === "void" && hasVoidHealing(defender)) return 0;
     const immunities = defender.immunities ?? [];
     if (immunities.includes(type) || (precision && immunities.includes("precision"))) return 0;
     if (PHYSICAL.has(type) && immunities.includes("physical")) return 0;

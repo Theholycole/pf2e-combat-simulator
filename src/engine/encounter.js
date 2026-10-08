@@ -39,21 +39,23 @@ export function reliability(snapshot) {
     const foes = snapshot.combatants.filter((c) => c.side === "foes" && c.kind !== "object");
     const pcs = snapshot.combatants.filter((c) => c.side === "party" && c.kind === "pc");
     const count = (c, kind) => (c.gaps ?? []).filter((gap) => gap.kind === kind).length;
+    // Spells the simulation can't cast, plus half of those it casts only in part.
+    const spellsMissing = (c) => count(c, "spell") + 0.5 * count(c, "spell, partly simulated");
     // Rough share of each side's offense the simulation leaves out: all of it
     // for a creature that can't attack, about half for a spellcaster (it still
     // swings a weapon).
     let foeMissing = 0;
     let partyMissing = 0;
 
-    const harmless = foes.filter((c) => !(c.strikes ?? []).length);
+    const harmless = foes.filter((c) => !(c.strikes ?? []).length && !(c.spells ?? []).length);
     if (harmless.length) {
         foeMissing += harmless.length;
         reasons.push(`${harmless.length} foe${harmless.length > 1 ? "s" : ""} can't attack here (area attacks such as swarms' and troops' aren't simulated yet): results favour the party.`);
     }
-    const foeCasters = foes.filter((c) => (c.strikes ?? []).length && count(c, "spell") >= SPELL_HEAVY);
+    const foeCasters = foes.filter((c) => ((c.strikes ?? []).length || (c.spells ?? []).length) && spellsMissing(c) >= SPELL_HEAVY);
     if (foeCasters.length) {
         foeMissing += 0.5 * foeCasters.length;
-        reasons.push(`${foeCasters.length} foe${foeCasters.length > 1 ? "s rely" : " relies"} on spells, which aren't simulated yet: results favour the party.`);
+        reasons.push(`${foeCasters.length} foe${foeCasters.length > 1 ? "s rely" : " relies"} on spells the simulation can't cast yet: results favour the party.`);
     }
     const foeAbilities = foes.reduce((sum, c) => sum + count(c, "ability") + count(c, "attack effect"), 0);
     if (foeAbilities >= Math.max(2, foes.length)) {
@@ -66,13 +68,15 @@ export function reliability(snapshot) {
         foeMissing += hazards.length;
         reasons.push(`${hazards.map((c) => c.name).join(", ")} ${hazards.length > 1 ? "are hazards or objects" : "is a hazard or object"} on the foes' side; their routines aren't simulated: results favour the party.`);
     }
-    const pcCasters = pcs.filter((c) => count(c, "spell") >= SPELL_HEAVY);
+    const pcCasters = pcs.filter((c) => spellsMissing(c) >= SPELL_HEAVY);
     if (pcCasters.length) {
         partyMissing += 0.5 * pcCasters.length;
-        reasons.push(`${pcCasters.map((c) => c.name).join(", ")} rel${pcCasters.length > 1 ? "y" : "ies"} on spells, which aren't simulated yet: results favour the foes.`);
+        reasons.push(`${pcCasters.map((c) => c.name).join(", ")} rel${pcCasters.length > 1 ? "y" : "ies"} on spells the simulation can't cast yet: results favour the foes.`);
     }
+    // Healing spells the core resolves are cast; feats, skills and consumables that heal aren't yet.
+    const healingGaps = pcs.flatMap((c) => (c.gaps ?? []).filter((gap) => /heal|medicine|elixir of life|healing potion/i.test(gap.name)).map((gap) => gap.name.replace(/:.*/, "")));
     const healers = pcs.filter((c) => (c.gaps ?? []).some((gap) => /heal|medicine|elixir of life|healing potion/i.test(gap.name)));
-    if (healers.length) reasons.push("The party's healing isn't simulated yet: PC deaths and defeats are overstated.");
+    if (healers.length) reasons.push(`Some of the party's healing isn't simulated yet (${[...new Set(healingGaps)].slice(0, 4).join(", ")}): PC deaths and defeats are overstated.`);
 
     const foeShare = Math.min(1, foeMissing / Math.max(1, foes.length + hazards.length));
     const partyShare = Math.min(1, partyMissing / Math.max(1, pcs.length));

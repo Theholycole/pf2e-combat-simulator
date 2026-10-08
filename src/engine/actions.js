@@ -3,7 +3,7 @@
 // hero points.
 
 import { CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatCheck } from "./checks.js";
-import { DEAD, DOWN, FLED, armorClass, canAct, deathThreshold, isActive, isOffGuard, multipleAttackPenalty, statusPenalty } from "./combatant.js";
+import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, isActive, isOffGuard, multipleAttackPenalty, statusPenalty } from "./combatant.js";
 import { adjustDamage, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
@@ -39,7 +39,7 @@ export function forcefulBonus(strike, earlierAttacks) {
 
 // Attack modifier for a Strike, excluding the target's AC.
 export function attackModifier(state, attacker, target, strike, attacksMade, { prone, history = attacker.turnAttacks ?? [] } = {}) {
-    let modifier = strike.bonus - multipleAttackPenalty(strike, attacksMade);
+    let modifier = strike.bonus - multipleAttackPenalty(strike, attacksMade) + effectBonus(attacker, "attack");
     modifier -= statusPenalty(attacker, strike.melee ? "melee" : "ranged");
     let circumstance = 0;
     if (prone ?? attacker.cond.prone) circumstance = Math.max(circumstance, 2);
@@ -82,7 +82,7 @@ function defenceId(target) {
 // Expected damage of one hit or critical hit after the defender's adjustments.
 // bonus: a circumstance damage bonus (forceful); offGuardChance: for backstabber.
 export function expectedHitDamage(attacker, strike, target, critical, { bonus = 0, offGuardChance = 0 } = {}) {
-    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - bonus;
+    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - bonus - effectBonus(attacker, "damage");
     let cache = hitDamageCache.get(strike);
     if (!cache) {
         cache = new Map();
@@ -121,6 +121,12 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         const chance = flankChance(state, flankersAgainst(state, target, attacker));
         if (chance > 0) flanked = state.rng.chance(chance);
     }
+    // Blinded or dazzled: a flat check to find the target first.
+    const findDC = attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0;
+    if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
+        log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
+        return { degree: FAILURE, damage: 0, trigger };
+    }
     // Reactions happen outside the attacker's turn, so this turn's history doesn't apply.
     const history = reaction ? [] : (attacker.turnAttacks ?? []);
     const modifier = attackModifier(state, attacker, target, strike, attacksMade, { history });
@@ -148,7 +154,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     const critical = degree === CRITICAL_SUCCESS;
     const earlier = history.filter((entry) => entry.strike === strike.name).length;
-    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier);
+    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage");
     const instances = rollStrikeDamage(state.rng, strike, { critical, penalty });
     if (strike.backstabber && (flanked || isOffGuard(target))) {
         instances.push({ type: strike.damage[0].type, amount: critical ? 2 : 1, precision: true, persistent: false });
@@ -204,6 +210,10 @@ function addPersistent(target, instance) {
 // Applies already-adjusted damage.
 export function dealDamage(state, target, amount, { source = null, critical = false, nonlethal = false } = {}) {
     if (amount <= 0) return 0;
+    if (target.cond.asleep) {
+        target.cond.asleep = false;
+        log(state, `  ${target.name} wakes up`);
+    }
     if (target.status === DEAD) return 0;
     if (target.status === DOWN) {
         if (target.kind === "pc") increaseDying(state, target, critical ? 2 : 1);
@@ -340,6 +350,7 @@ export function bestMeleeStrike(attacker, target) {
 
 // Movement. move: { kind: "engage", targetId } | { kind: "toNear" } | { kind: "toFar" } | { kind: "leave" }
 export function stride(state, c, move) {
+    if (!canMove(c)) return;
     const leavingMelee = c.meleeId !== null && !(move.kind === "engage" && state.byId.get(move.targetId)?.meleeId === c.meleeId);
     if (leavingMelee) {
         provoke(state, c, "move");
@@ -369,7 +380,7 @@ export function leaveField(state, c) {
 }
 
 export function step(state, c) {
-    if (!canStepOut(state, c)) return false;
+    if (!canMove(c) || !canStepOut(state, c)) return false;
     leaveMelee(state, c, "near");
     log(state, `  ${c.name} Steps away`);
     return true;
@@ -389,3 +400,4 @@ export function raiseShield(state, c) {
     }
 }
 
+export { kill as killCreature, log };

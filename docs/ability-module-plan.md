@@ -68,6 +68,14 @@ Work that is safe now, without touching the spell module:
 2. **A plan-model design** for the shapes spells don't have: checks against a target's DC (Trip uses Athletics against Reflex DC), Strike riders, stances, once-per-round and per-target limits. This should be agreed with the spell-automation session so that it becomes part of the core rather than a second model.
 3. **Tests from rules text** for family 1, ready for when the core lands.
 
+## Kineticist: its own module (decided 2026-10-08)
+
+The user chose to automate the Kineticist as **its own new module**, built on the spell automation and started in a separate session.
+
+- Why Kineticist first: a probe of the spell compiler (`PF2e AUTOMATIC ABILITY RESOLUTION/tools/spell-compiler-probe.mjs`) found that impulses are the most spell-like non-spell content. 36% of the 118 compiled into rule plans with no changes, against 23% for monster abilities, 12% for consumables and 7% for PC feats.
+- The user's instruction: build all of it, then test in Foundry.
+- Kineticist content therefore leaves this module's scope.
+
 ## Decided (2026-10-08)
 
 - Healing moves up to family 2.

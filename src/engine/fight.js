@@ -2,7 +2,7 @@
 
 import { createRng } from "./rng.js";
 import { flatCheck, SUCCESS } from "./checks.js";
-import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, createCombatant, isActive } from "./combatant.js";
+import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee } from "./space.js";
 import { dealDamage, leaveField, performStrike, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
 import { adjustInstance, rollPersistent } from "./damage.js";
@@ -10,6 +10,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
+import { applyHeal, castSpell, describeSpell, expireTimers, hasTimer } from "./spells.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -217,6 +218,9 @@ function startTurn(state, c) {
     }
     actions -= Math.min(actions, c.cond.slowed);
     c.actionsLeft = Math.min(actions, MAX_ACTIONS_PER_TURN);
+    // Fast healing from spell effects.
+    const fastHealing = Math.max(0, ...(c.effects ?? []).map((effect) => effect.model.fastHealing ?? 0));
+    if (fastHealing > 0) applyHeal(state, c, fastHealing);
 }
 
 function endTurn(state, c) {
@@ -229,7 +233,8 @@ function endTurn(state, c) {
     }
     if (c.cond.frightened > 0) c.cond.frightened--;
     if (isActive(c)) moraleRecovery(state, c);
-    if (c.cond.fleeing && isActive(c) && c.band === "far") leaveField(state, c);
+    // A spell's fleeing (Fear) runs out; only morale's makes a creature leave.
+    if (c.cond.fleeing && isActive(c) && c.band === "far" && !hasTimer(c, "fleeing")) leaveField(state, c);
     processMorale(state);
 }
 
@@ -257,18 +262,22 @@ function act(state, c, action) {
         case "task":
             performTask(state, c);
             break;
+        case "cast":
+            castSpell(state, c, action.spellIndex, action.targetIds, action.actions);
+            break;
         default:
             break;
     }
 }
 
-function actionCost(action) {
+function actionCost(c, action) {
+    if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
     return action.type === "task" ? 2 : 1;
 }
 
 // A fleeing creature spends its actions getting away.
 function fleeTurn(state, c) {
-    while (c.actionsLeft > 0 && canAct(c) && c.status === ACTIVE) {
+    while (c.actionsLeft > 0 && canAct(c) && c.status === ACTIVE && canMove(c)) {
         if (c.band === "engaged") {
             if (!step(state, c)) stride(state, c, { kind: "toNear" });
         } else if (c.band === "near") {
@@ -283,6 +292,8 @@ function fleeTurn(state, c) {
 }
 
 function takeTurn(state, c) {
+    // Conditions this creature's spells timed end at the start of its turn, whatever its state.
+    expireTimers(state, c);
     if (c.status === DOWN) {
         state.log?.push(`${c.name} (down)`);
         if (c.kind === "pc" && c.cond.dying > 0) recoveryCheck(state, c);
@@ -309,7 +320,7 @@ function takeTurn(state, c) {
         while (c.actionsLeft > 0 && canAct(c) && !c.cond.fleeing && guard++ < 8) {
             const action = chooseAction(state, c);
             if (!action) break;
-            c.actionsLeft -= actionCost(action);
+            c.actionsLeft -= actionCost(c, action);
             act(state, c, action);
             processMorale(state);
             if (checkEnd(state)) return;

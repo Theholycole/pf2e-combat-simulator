@@ -80,7 +80,7 @@ export function renderReport(report) {
     <section><h3>Foes</h3><table><thead><tr><th></th><th>Damage / fight</th><th>PCs downed</th><th>Killed</th><th>Fled</th><th>Gave up</th></tr></thead>${foes}</table></section>
     ${renderGaps(report.gaps)}
     ${report.sampleLog ? `<details class="sim-log"><summary>Sample fight</summary><pre>${escape(report.sampleLog.join("\n"))}</pre></details>` : ""}
-    <p class="muted">Simulated in ${Math.round(report.elapsedMs ?? 0)} ms. Milestone 1 has no spells, healing or class features; see gaps.</p>`;
+    <p class="muted">Simulated in ${Math.round(report.elapsedMs ?? 0)} ms. Spells are cast where the resolution core can resolve them (saves and spell attacks so far); healing and class features aren't simulated yet. See gaps.</p>`;
 }
 
 export function renderGaps(gaps) {

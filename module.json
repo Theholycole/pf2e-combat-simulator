@@ -22,6 +22,13 @@
           "verified": "8.5.0"
         }
       }
+    ],
+    "requires": [
+      {
+        "id": "pf2e-resolution-core",
+        "type": "module",
+        "reason": "Spells and abilities are resolved by the core's families; the simulator's engine imports the core's pure code."
+      }
     ]
   },
   "esmodules": [

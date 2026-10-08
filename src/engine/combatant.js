@@ -1,8 +1,12 @@
-// Runtime combatants and the PF2e numbers derived from their conditions.
+// Runtime combatants and the PF2e numbers derived from their conditions and effects.
 //
 // Snapshot values (AC, Strike bonuses, saves) are base values without
 // condition penalties; the engine applies conditions itself so they can change
 // during a fight.
+
+import { effectBonus, effectStatusPenalty } from "./effects.js";
+
+export { effectBonus };
 
 export const ACTIVE = "active";
 export const DOWN = "down";
@@ -14,7 +18,9 @@ export const PENDING = "pending";
 const EMPTY_CONDITIONS = Object.freeze({
     frightened: 0, sickened: 0, clumsy: 0, enfeebled: 0, drained: 0,
     slowed: 0, stunned: 0, quickened: false, offGuard: false, prone: false,
-    fleeing: false, dying: 0, wounded: 0, doomed: 0, unconscious: false
+    fleeing: false, dying: 0, wounded: 0, doomed: 0, unconscious: false,
+    stupefied: 0, fatigued: false, paralyzed: false, asleep: false, blinded: false, dazzled: false,
+    immobilized: false, restrained: false, grabbed: false
 });
 
 export function createCombatant(spec) {
@@ -44,7 +50,11 @@ export function createCombatant(spec) {
         damageDealt: 0,
         downedCount: 0,
         moraleState: { failed: 0, wavering: false, broken: false, checkedRound: -1, extraUsed: false, ignoredFirstFailure: false, autoPassed: false, fearThisRound: false },
-        taskRound: -1
+        taskRound: -1,
+        spells: spec.spells ?? [],
+        effects: [],
+        spellPools: { ...(spec.spellPools ?? {}) },
+        timers: []
     };
 }
 
@@ -56,8 +66,22 @@ export function isPresent(c) {
     return c.status === ACTIVE || c.status === DOWN;
 }
 
+// asleep: a spell's unconsciousness (Sleep), which damage ends; the creature stays in the fight.
 export function canAct(c) {
-    return c.status === ACTIVE && !c.cond.unconscious && c.acts !== false;
+    return c.status === ACTIVE && !c.cond.unconscious && !c.cond.paralyzed && !c.cond.asleep && c.acts !== false;
+}
+
+// Immobilized, restrained and grabbed creatures can't Stride or Step.
+export function canMove(c) {
+    return !c.cond.immobilized && !c.cond.restrained && !c.cond.grabbed;
+}
+
+// The chance a creature's targeted attack or spell finds its target: blinded,
+// everything is hidden to it (DC 11 flat check); dazzled, concealed (DC 5).
+export function targetingChance(c) {
+    if (c.cond.blinded) return 0.5;
+    if (c.cond.dazzled) return 0.8;
+    return 1;
 }
 
 export function isDown(c) {
@@ -65,18 +89,23 @@ export function isDown(c) {
 }
 
 // The single worst status penalty that applies to a roll or DC.
-// kind: "melee" | "ranged" | "ac" | "fortitude" | "reflex" | "will" | "perception" | "skill"
+// kind: "melee" | "ranged" | "ac" | "fortitude" | "reflex" | "will" | "perception" | "skill" | "spell"
 export function statusPenalty(c, kind) {
     const k = c.cond;
     let penalty = Math.max(k.frightened, k.sickened);
     if (kind === "ranged" || kind === "ac" || kind === "reflex") penalty = Math.max(penalty, k.clumsy);
     if (kind === "melee") penalty = Math.max(penalty, k.enfeebled);
     if (kind === "fortitude") penalty = Math.max(penalty, k.drained);
+    if (kind === "will" || kind === "spell") penalty = Math.max(penalty, k.stupefied ?? 0);
+    if (k.fatigued && (kind === "ac" || kind === "fortitude" || kind === "reflex" || kind === "will")) penalty = Math.max(penalty, 1);
+    // Status penalties from spell effects don't stack with the conditions' either.
+    if (c.effects?.length) penalty = Math.max(penalty, effectStatusPenalty(c, kind === "melee" || kind === "ranged" ? "attack" : kind));
     return penalty;
 }
 
 export function isOffGuard(c) {
-    return c.cond.offGuard || c.cond.prone || c.cond.unconscious || c.status === DOWN;
+    const k = c.cond;
+    return k.offGuard || k.prone || k.unconscious || k.paralyzed || k.asleep || k.blinded || k.restrained || k.grabbed || c.status === DOWN;
 }
 
 export function multipleAttackPenalty(strike, attacksMade) {
@@ -87,7 +116,7 @@ export function multipleAttackPenalty(strike, attacksMade) {
 
 // AC against a specific attack. flanked: whether the attacker is flanking.
 export function armorClass(defender, { ranged = false, coverBonus = 0, flanked = false, shieldRaised } = {}) {
-    let ac = defender.ac - statusPenalty(defender, "ac");
+    let ac = defender.ac - statusPenalty(defender, "ac") + effectBonus(defender, "ac");
     const raised = shieldRaised ?? defender.shield?.raised;
     const shieldBonus = raised && defender.shield && !defender.shield.broken ? defender.shield.ac : 0;
     const cover = ranged && defender.band !== "engaged" ? coverBonus : 0;
@@ -97,7 +126,7 @@ export function armorClass(defender, { ranged = false, coverBonus = 0, flanked =
 }
 
 export function saveModifier(c, save) {
-    return (c.saves?.[save] ?? 0) - statusPenalty(c, save);
+    return (c.saves?.[save] ?? 0) - statusPenalty(c, save) + effectBonus(c, save);
 }
 
 // The Will modifier used for the morale threshold: no condition penalties.
