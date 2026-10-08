@@ -5,7 +5,7 @@ import { flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
-import { chargeStrike, multiStrikeOrder, regenerating } from "./abilities.js";
+import { chargeStrike, ducksFromCoverFire, multiStrikeOrder, regenerating } from "./abilities.js";
 import { adjustInstance, rollPersistent } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -116,14 +116,32 @@ function rollInitiative(state, snapshot) {
     const ambush = snapshot.setup?.ambush ?? null;
     if (ambush === "party") state.surprisedSide = "foes";
     else if (ambush === "foes") state.surprisedSide = "party";
+    state.stealthInitiative = new Set();
     const rolled = state.list.map((c) => {
         const useStealth = ambush && ambush === c.side && typeof c.stealth === "number";
-        const modifier = useStealth ? c.stealth : (c.perception ?? 0);
+        if (useStealth) state.stealthInitiative.add(c.id);
+        // Ten Paces: +2 circumstance to the initiative roll (C18).
+        const modifier = (useStealth ? c.stealth : (c.perception ?? 0)) + (c.initiativeBonus ?? 0);
         return { c, total: state.rng.d20() + modifier, modifier };
     });
     rolled.sort((a, b) => (b.total - a.total) || ((a.c.side === "foes" ? 0 : 1) - (b.c.side === "foes" ? 0 : 1)) || (b.modifier - a.modifier));
     state.order = rolled.map((entry) => entry.c.id);
     state.initiative = new Map(rolled.map((entry) => [entry.c.id, entry.total]));
+}
+
+// Gunslinger deeds when initiative is rolled (C18): Living Fortification's AC until
+// the end of its first turn; One Shot, One Kill after a Stealth initiative; Energy Shot's three Strikes.
+function initiativeDeeds(state) {
+    for (const c of state.list) {
+        if (c.status !== ACTIVE) continue;
+        if (c.livingFortification) {
+            const effect = applyEffect(state, c, { name: "Living Fortification", rounds: Infinity, modifiers: [{ on: "ac", type: "circumstance", value: c.livingFortification }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { key: "living-fortification" });
+            (c.timers ??= []).push({ effect, round: state.round, turnOf: c.id, at: "end" });
+            state.log?.push(`  ${c.name} uses Living Fortification (+${c.livingFortification} AC until the end of its first turn)`);
+        }
+        if (c.firstShot && state.stealthInitiative?.has(c.id)) c.firstShotReady = c.firstShot.dice;
+        if (c.energyShots) c.energyShotsLeft = c.energyShots;
+    }
 }
 
 function insertArrival(state, c) {
@@ -344,6 +362,17 @@ function act(state, c, action) {
             if (strike) c.unloaded?.delete(strike.name);
             break;
         }
+        // A slinger's reload (C17): reloading, and a Shove, a melee Strike, or Demoralize or Create a Diversion.
+        case "slingersReload": {
+            const strike = c.strikes[action.strikeIndex];
+            state.log?.push(`  ${c.name} uses ${c.slingersReload.name}, reloading ${strike?.name}`);
+            if (strike) c.unloaded?.delete(strike.name);
+            const target = action.targetId ? state.byId.get(action.targetId) : null;
+            if (!target || !isActive(target)) break;
+            if (action.side === "strike") performStrike(state, c, target, c.strikes[action.sideIndex]);
+            else if (action.side) castSpell(state, c, action.sideIndex, [target.id]);
+            break;
+        }
         case "stride":
             stride(state, c, action.move);
             if (action.move.kind !== "engage") c.withdrewThisTurn = true;
@@ -382,7 +411,14 @@ function act(state, c, action) {
                 stride(state, c, { kind: "engage", targetId: action.targetId });
                 if (!canAct(c) || !isActive(target) || !sameMelee(c, target)) break;
             }
-            const result = performStrike(state, c, target, chargeStrike(c.strikes[action.strikeIndex], activity));
+            // Cover Fire (C19): the target ducks (+2 AC against it) unless its best attack is ranged; then +1 to hit.
+            const fired = c.strikes[action.strikeIndex];
+            if (activity.coverFire) {
+                c.usedThisTurn?.add("cover-fire");
+                state.log?.push(`  ${target.name} ${ducksFromCoverFire(target) ? "ducks" : "stands firm"}`);
+            }
+            const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...activity, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : activity));
+            if (fired?.reload) (c.unloaded ??= new Set()).add(fired.name);
             // A finisher spends panache, and no more attacks this turn; Confident Finisher's miss still deals half its dice.
             if (activity.finisher) {
                 c.panache = false;
@@ -508,6 +544,7 @@ export function performAction(state, c, action) {
 function actionCost(c, action) {
     if (action.type === "strike") return 1 + (action.reload ?? 0);
     if (action.type === "reload") return action.actions;
+    if (action.type === "slingersReload") return 1;
     if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect") return action.actions;
     if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
     return action.type === "task" ? 2 : 1;
@@ -601,6 +638,7 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
     }
     // Frightful Presence and other auras: each enemy in range saves when the fight starts.
     if (!resuming) applyAuras(state);
+    if (!resuming) initiativeDeeds(state);
     let turnIndex = resuming ? Math.max(0, snapshot.turn ?? 0) : 0;
     if (!checkEnd(state)) {
         while (!state.outcome) {

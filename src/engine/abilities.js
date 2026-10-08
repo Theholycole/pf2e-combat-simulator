@@ -114,6 +114,14 @@ export function multiStrikeOrder(c, ability) {
 // The Strike a charge or Strike activity makes: its bonus to the attack roll
 // (for moving 20 feet, or against a target off-guard to it), its bigger damage
 // ("the Strike's damage is increased to 3d10+20"), or a bonus to damage.
+// Cover Fire: a creature ducks (+2 AC against the shot, then −2 to its own ranged
+// attacks) unless its best attack is ranged, when the penalty would cost it more.
+export function ducksFromCoverFire(target) {
+    const average = (strike) => (strike.damage ?? []).reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0) + (strike.bonus ?? 0) / 2;
+    const best = [...(target.strikes ?? [])].sort((a, b) => average(b) - average(a))[0];
+    return !best || best.melee;
+}
+
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard ? 2 : 0);
     if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher) return strike;

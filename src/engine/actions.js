@@ -4,7 +4,7 @@
 
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatCheck } from "./checks.js";
 import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, strikeUsable } from "./combatant.js";
-import { adjustDamage, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
+import { adjustDamage, concussiveType, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
@@ -119,8 +119,15 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
     else if (precise && attacker.panache) parts.push({ dice: 0, die: 0, bonus: attacker.panacheStyle.precise, type: strike.damage[0]?.type, precision: true, chance: 1 });
     // Exploit Vulnerability: the weakness it found or imposed, once per hit (not doubled).
     if (attacker.exploited?.targetId === target.id) parts.push({ dice: 0, die: 0, bonus: attacker.exploited.value, type: "untyped", precision: false, noCrit: true, chance: 1 });
+    // Gunslinger deeds (C18): One Shot, One Kill's precision dice on the first hit with a
+    // firearm or crossbow; Energy Shot's 1 per weapon die, of the energy the target resists least.
+    if (strike.firearm && attacker.firstShotReady) parts.push({ dice: attacker.firstShotReady, die: 6, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
+    if (strike.firearm && attacker.energyShotsLeft > 0) parts.push({ dice: 0, die: 0, bonus: strike.damage[0]?.dice ?? 1, type: bestEnergy(target), precision: false, chance: 1 });
     return parts;
 }
+
+const ENERGIES = ["fire", "cold", "electricity", "acid"];
+const bestEnergy = (target) => ENERGIES.reduce((best, type) => (adjustInstance(target, type, 4) > adjustInstance(target, best, 4) ? type : best), ENERGIES[0]);
 
 // The extra dice of abilities such as Sneak Attack, on average (doubled on a critical hit).
 function expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies) {
@@ -153,7 +160,8 @@ function baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance
 function computeHitDamage(strike, target, critical, penalty, offGuardChance) {
     let total = 0;
     for (const instance of expectedStrikeDamage(strike, { critical, penalty })) {
-        const amount = adjustInstance(target, instance.type, instance.amount, instance.precision);
+        const type = strike.concussive ? concussiveType(target, instance.type, instance.amount, instance.precision) : instance.type;
+        const amount = adjustInstance(target, type, instance.amount, instance.precision);
         // Persistent damage is counted for about two rounds.
         total += instance.persistent ? amount * 2 : amount;
     }
@@ -250,6 +258,10 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     const label = ["critically misses", "misses", "hits", "critically hits"][degree];
     if (degree < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label}`);
+        // Energy Shot counts its first three Strikes, hit or miss.
+        if (strike.firearm && attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;
+        // A bomb that misses (not critically) still splashes the target and those around it.
+        if (degree === FAILURE && strike.splashKind === "bomb") splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false })), { includeTarget: true });
         // Opportune Riposte: a Strike back at a foe in reach that critically fails against it.
         if (degree === CRITICAL_FAILURE && !reaction && target.opportuneRiposte && canReact(target) && sameMelee(target, attacker)) {
             const riposte = bestMeleeStrike(target, attacker);
@@ -271,6 +283,10 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // Class features: Sneak Attack's off-guard dice, Rage, the Precision edge.
     const firstPreyHit = attacker.preyHitRound !== state.round;
     const parts = featureParts(attacker, strike, target, { offGuard: offGuard ? 1 : 0, firstPreyHit });
+    if (strike.firearm) {
+        attacker.firstShotReady = 0;
+        if (attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;
+    }
     if (strategic) parts.push({ dice: attacker.stratagemFeature.dice ?? 1, die: 6, bonus: 0, type: strike.damage[0].type, precision: true });
     for (const part of parts) {
         let amount = part.bonus ?? 0;
@@ -288,6 +304,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
             instances.push({ type: extra.type ?? strike.damage[0].type, amount: critical ? amount * 2 : amount, precision: !!extra.precision, persistent: false });
         }
     }
+    if (strike.concussive) for (const instance of instances) instance.type = concussiveType(target, instance.type, instance.amount, instance.precision);
     // Logged before the damage so consequences (Shield Block, going down) follow it.
     const line = state.log ? state.log.push("") - 1 : -1;
     const dealt = applyDamage(state, target, instances, {
@@ -297,11 +314,30 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         physical: true
     });
     if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
+    // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
+    if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances), { includeTarget: false });
     // Draconic Momentum: a critical hit recharges the breath weapon.
     if (critical && attacker.momentum) rechargeOnCritical(state, attacker);
     // Grab, Knockdown and Push follow a hit (free ones at once, the others as the next action).
     if (!reaction && isActive(target)) state.onStrikeHit?.(attacker, target, strike, degree);
     return { degree, damage: dealt, trigger };
+}
+
+// A Strike's splash: its known amount (the snapshot reads it from the item), or its parts flagged splash.
+const splashOf = (strike, instances) => (strike.splashAmount ? [{ type: strike.damage[0]?.type ?? "untyped", amount: strike.splashAmount, persistent: false, precision: false, splash: true }] : instances.filter((instance) => instance.splash));
+
+// Splash damage (the instances flagged splash) on the creatures in the target's
+// Melee (within the splash's few feet in range bands), and the target itself after a bomb's miss.
+function splashAround(state, attacker, target, splash, { includeTarget }) {
+    if (!splash.length || target.meleeId === null || target.meleeId === undefined) {
+        if (includeTarget && splash.length && isActive(target)) applyDamage(state, target, splash.map((instance) => ({ ...instance })), { source: attacker });
+        return;
+    }
+    const around = state.list.filter((other) => isActive(other) && other.meleeId === target.meleeId && (includeTarget || other !== target));
+    for (const other of around) {
+        const dealt = applyDamage(state, other, splash.map((instance) => ({ ...instance })), { source: attacker });
+        if (dealt > 0) log(state, `  ${other.name} takes ${dealt} splash (${Math.max(0, other.hp.value)}/${other.hp.max})`);
+    }
 }
 
 function rechargeOnCritical(state, c) {

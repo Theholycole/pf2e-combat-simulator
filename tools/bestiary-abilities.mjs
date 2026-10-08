@@ -26,7 +26,7 @@ function combatant(npc) {
     const strikes = [];
     for (const item of npc.items.filter((entry) => entry.type === "melee")) {
         const traits = item.system.traits?.value ?? [];
-        const damage = Object.values(item.system.damageRolls ?? {}).flatMap((roll) => parseReadableDamage(`${roll.damage} ${roll.damageType ?? "untyped"}${roll.category === "persistent" ? " persistent" : ""}`));
+        const damage = Object.values(item.system.damageRolls ?? {}).flatMap((roll) => parseReadableDamage(`${roll.damage} ${roll.damageType ?? "untyped"}${roll.category === "persistent" ? " persistent" : roll.category === "splash" ? " splash" : ""}`));
         if (!damage.length) continue;
         const increment = Number(traits.find((trait) => /^range-increment-\d+$/.test(trait))?.split("-").pop()) || Number(traits.find((trait) => /^range-\d+$/.test(trait))?.split("-").pop()) || null;
         strikes.push({
@@ -38,7 +38,11 @@ function combatant(npc) {
             reach: Number(traits.find((trait) => /^reach-\d+$/.test(trait))?.split("-")[1]) || 5,
             damage,
             attackEffects: item.system.attackEffects?.value ?? [],
-            held: !traits.includes("unarmed") && !NATURAL_ATTACK.test(item.name)
+            held: !traits.includes("unarmed") && !NATURAL_ATTACK.test(item.name),
+            // As the live snapshot reads them (C14, C16).
+            ...(Number(traits.find((trait) => /^reload-\d+$/.test(trait))?.split("-")[1]) > 0 ? { reload: Number(traits.find((trait) => /^reload-\d+$/.test(trait)).split("-")[1]) } : {}),
+            ...(traits.includes("concussive") ? { concussive: true } : {}),
+            ...(traits.includes("splash") ? { splashKind: "bomb" } : traits.some((trait) => /^scatter-\d+$/.test(trait)) ? { splashKind: "scatter" } : {})
         });
     }
     const spells = [];

@@ -128,8 +128,10 @@ export function parseReadableDamage(text) {
         const type = words[words.length - 1];
         const persistent = words.includes("persistent") || ALWAYS_PERSISTENT.has(type);
         const precision = type === "precision" || words.includes("precision");
+        // Splash (a bomb's, or a scatter weapon's): it also lands on creatures around the target.
+        const splash = words.includes("splash");
         for (const part of fold(parseExpression(expression))) {
-            parts.push({ ...part, type: precision && type === "precision" ? null : type, persistent, precision });
+            parts.push({ ...part, type: precision && type === "precision" ? null : type, persistent, precision, ...(splash ? { splash: true } : {}) });
         }
     }
     if (pending.length) throw new Error(`Damage formula without a type: ${text}`);

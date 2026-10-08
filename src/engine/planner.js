@@ -13,7 +13,7 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken } from "./morale.js";
-import { chargeStrike, multiStrikeOrder, strikeNamed } from "./abilities.js";
+import { chargeStrike, ducksFromCoverFire, multiStrikeOrder, strikeNamed } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets } from "./spells.js";
 import { levelDC } from "./abilities.js";
@@ -252,6 +252,22 @@ class PlanContext {
     }
 
     // What the free riders a Strike lists (a venom, Improved Grab) add to a hit, times the chance to hit.
+    // Splash on the creatures around the target (a bomb's, a scatter weapon's; C16):
+    // good on foes, bad on allies and on itself. A bomb splashes on a miss too.
+    splashGain(strike, target, hitChance) {
+        if (!strike.splashKind || target.meleeId === null || target.meleeId === undefined) return 0;
+        const amount = strike.splashAmount ?? (strike.damage ?? []).filter((part) => part.splash).reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
+        if (amount <= 0) return 0;
+        const chance = strike.splashKind === "bomb" ? Math.min(0.95, hitChance + 0.35) : hitChance;
+        let gain = 0;
+        for (const other of this.state.list) {
+            if (other === target || other.status !== "active" || other.meleeId !== target.meleeId) continue;
+            const value = targetValue(this.state, other, this.c);
+            gain += (other.side === this.c.side ? -1 : 1) * value * Math.min(1, amount / remainingHp(other));
+        }
+        return chance * gain;
+    }
+
     freeRiderGain(strike, target, hitChance) {
         if (!strike.attackEffects?.length || !hitChance) return 0;
         let gain = 0;
@@ -394,7 +410,7 @@ function child(node, action, cost, value, changes = {}) {
         damage: changes.damage ?? node.damage,
         provoked: node.provoked,
         moved: node.moved || !!changes.moved,
-        casts: changes.cast !== undefined ? [...node.casts, changes.cast] : node.casts,
+        casts: changes.cast !== undefined ? [...node.casts, ...[].concat(changes.cast)] : node.casts,
         first: node.first ?? action
     };
 }
@@ -437,7 +453,7 @@ function expand(ctx, node, actionsLeft) {
                 const before = node.damage[target.id] ?? 0;
                 const hp = remainingHp(target);
                 // A venom or Improved Grab the hit delivers for free.
-                const gain = targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp)) + ctx.freeRiderGain(strike, target, expectation.hitChance);
+                const gain = targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp)) + ctx.freeRiderGain(strike, target, expectation.hitChance) + ctx.splashGain(strike, target, expectation.hitChance);
                 const next = child(node, { type: "strike", targetId: target.id, strikeIndex: index, ...(reload ? { reload } : {}) }, 1 + reload, ctx.profile.aggression * gain, {
                     attack: true,
                     damage: { ...node.damage, [target.id]: before + expectation.damage },
@@ -459,6 +475,46 @@ function expand(ctx, node, actionsLeft) {
                     if (expectation?.damage > 0) best = Math.max(best, targetValue(state, target, c) * Math.min(1, expectation.damage / remainingHp(target)));
                 }
                 if (best > 0) children.push(child(node, { type: "reload", strikeIndex: index, actions: strike.reload }, strike.reload, 0.6 * ctx.profile.aggression * best, { cast: `loaded${index}` }));
+            }
+            // A gunslinger's slinger's reload (C17): one action that reloads (a reload-1 weapon)
+            // and, with it, a Shove or a melee Strike at a foe in reach, or Demoralize or Create a Diversion.
+            if (c.slingersReload && remaining >= 1 && !noAttacks) {
+                for (const [index, strike] of (c.strikes ?? []).entries()) {
+                    if (strike.reload !== 1 || !emptyNow(c, node, index, strike) || !strikeUsable(c, strike)) continue;
+                    let shot = 0;
+                    for (const target of ctx.enemies) {
+                        if (target.status !== "active") continue;
+                        const expectation = ctx.strikeExpectation(strike, index, target, 0, node.pos, node.prone);
+                        if (expectation?.damage > 0) shot = Math.max(shot, targetValue(state, target, c) * Math.min(1, expectation.damage / remainingHp(target)));
+                    }
+                    let side = { gain: 0, side: null, sideIndex: null, targetId: null };
+                    const then = c.slingersReload.then;
+                    for (const target of ctx.enemies) {
+                        if (target.status !== "active") continue;
+                        const hp = remainingHp(target);
+                        const value = targetValue(state, target, c);
+                        if (then === "strike" && inMelee(node.pos, target)) {
+                            for (const [meleeIndex, melee] of (c.strikes ?? []).entries()) {
+                                if (!melee.melee || !strikeUsable(c, melee)) continue;
+                                const expectation = ctx.strikeExpectation(melee, meleeIndex, target, node.attacks, node.pos, node.prone);
+                                const gain = expectation ? value * Math.min(1, expectation.damage / hp) : 0;
+                                if (gain > side.gain) side = { gain, side: "strike", sideIndex: meleeIndex, targetId: target.id };
+                            }
+                        }
+                        const slugs = then === "shove" && inMelee(node.pos, target) ? ["shove"] : then === "demoralize-or-diversion" ? ["demoralize", "create-a-diversion"] : [];
+                        for (const slug of slugs) {
+                            const spellIndex = (c.spells ?? []).findIndex((spell) => spell.plan?.source?.slug === slug);
+                            if (spellIndex < 0) continue;
+                            let gain = 0;
+                            for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, c.spells[spellIndex], [target], node.attacks)) {
+                                if (affected === target) gain += value * (Math.min(1, damage / hp) + worth * ROUND_TO_KILL);
+                            }
+                            if (gain > side.gain) side = { gain, side: slug, sideIndex: spellIndex, targetId: target.id };
+                        }
+                    }
+                    const value = 0.6 * ctx.profile.aggression * shot + ctx.profile.aggression * side.gain;
+                    if (value > 0) children.push(child(node, { type: "slingersReload", strikeIndex: index, side: side.side, sideIndex: side.sideIndex, targetId: side.targetId }, 1, value, { cast: `loaded${index}`, attack: side.side === "strike" || side.side === "shove" }));
+                }
             }
         }
         // Spells: each action variant and target set in reach, valued like
@@ -598,8 +654,12 @@ function expand(ctx, node, actionsLeft) {
             // A finisher needs panache.
             if (activity.finisher && !c.panache) continue;
             if (activity.strides && (!mobile || ctx.wavering)) continue;
+            // Cover Fire (C19): a loaded firearm or crossbow, once a round.
+            if (activity.coverFire && (c.usedThisTurn?.has("cover-fire") || node.casts.includes("coverFire"))) continue;
             const named = strikeNamed(c, activity.strike);
-            const candidates = named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
+            const candidates = activity.coverFire
+                ? (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].firearm && !c.strikes[index].melee && !emptyNow(c, node, index, c.strikes[index]))
+                : named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
             for (const target of ctx.enemies) {
                 if (target.status !== "active") continue;
                 if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
@@ -611,10 +671,12 @@ function expand(ctx, node, actionsLeft) {
                     pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
                 }
                 let best = null;
+                // Cover Fire: the target ducks (+2 AC against it) unless its best attack is ranged; then +1 to hit.
+                const used = activity.coverFire ? { ...activity, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : activity;
                 for (const index of candidates) {
                     const strike = c.strikes[index];
                     if (!strikeUsable(c, strike) || (strike.melee && !inMelee(pos, target))) continue;
-                    const changed = chargeStrike(strike, activity);
+                    const changed = chargeStrike(strike, used);
                     const expectation = ctx.strikeExpectation(changed, changed === strike ? index : 2000 + activityIndex * 64 + index, target, node.attacks, pos, node.prone);
                     if (expectation && (!best || expectation.damage > best.expectation.damage)) best = { index, expectation };
                 }
@@ -631,7 +693,7 @@ function expand(ctx, node, actionsLeft) {
                     attacks: activity.countsAs ?? 1,
                     pos,
                     damage: { ...node.damage, [target.id]: before + expected },
-                    ...(activity.finisher ? { cast: "finisher" } : {})
+                    ...(activity.finisher ? { cast: "finisher" } : activity.coverFire ? { cast: ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] } : {})
                 });
                 if (activity.strides && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                 children.push(next);

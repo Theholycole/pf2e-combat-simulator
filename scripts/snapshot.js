@@ -26,6 +26,8 @@ const MODELLED_TRAITS = new Set([
     "attack", "agile", "finesse", "magical", "unarmed", "deadly", "fatal", "nonlethal", "brutal", "reach",
     "forceful", "sweep", "backswing", "backstabber", "volley",
     "thrown", "reload", "range", "versatile", "light", "holy", "unholy", "adamantine", "cold-iron", "silver",
+    // Firearms (C16): kickback is in PF2e's own numbers; concussive, scatter and splash are played.
+    "concussive", "kickback", "scatter", "splash",
     "two-hand", "propulsive", "concealable", "monk", "free-hand", "orichalcum", "mithral", "dawnsilver", "duskwood",
     "acid", "bludgeoning", "cold", "electricity", "fire", "force", "mental", "piercing", "poison", "slashing", "sonic",
     "spirit", "vitality", "void", "air", "earth", "metal", "water", "wood", "arcane", "divine", "occult", "primal",
@@ -183,9 +185,24 @@ async function readStrike(actor, action, gaps) {
         backstabber: traits.includes("backstabber") && !offGuardExtra.length,
         volley: Number(traits.find((trait) => /^volley-\d+$/.test(trait))?.split("-")[1] ?? 0) || null,
         ...(reload > 0 ? { reload } : {}),
+        // C16: firearms' and bombs' traits; the group for gunslinger deeds.
+        ...(traits.includes("concussive") ? { concussive: true } : {}),
+        ...(traits.includes("splash") ? { splashKind: "bomb" } : traits.some((trait) => /^scatter-\d+$/.test(trait)) ? { splashKind: "scatter" } : {}),
+        // How much splash: PF2e's readable formula folds it into the total, so it's read from the item
+        // (a scatter weapon's 1 per weapon die; a bomb's listed splash; an NPC's splash damage roll).
+        ...(splashAmount(item, traits) > 0 ? { splashAmount: splashAmount(item, traits) } : {}),
+        ...(["firearm", "crossbow"].includes(item?.group ?? item?.system?.group) ? { firearm: true } : {}),
+        ...(traits.includes("parry") ? { parry: true } : {}),
         damage,
         critDamage
     };
+}
+
+function splashAmount(item, traits) {
+    if (traits.some((trait) => /^scatter-\d+$/.test(trait))) return Number(item?.system?.damage?.dice ?? 1) || 1;
+    if (!traits.includes("splash")) return 0;
+    const npcSplash = Object.values(item?.system?.damageRolls ?? {}).filter((roll) => roll?.category === "splash").reduce((sum, roll) => sum + (Number(roll.damage) || 0), 0);
+    return npcSplash || Number(item?.system?.splashDamage?.value ?? 0) || 0;
 }
 
 // The extra damage parts of a Strike with roll options on, or [] when PF2e can't say.
@@ -335,6 +352,32 @@ function readClassFeatures(actor, strikes) {
     if (overdrive) {
         for (const item of items) if (item.slug === "overdrive") result.handled.add(item);
         fields.overdrive = { name: overdrive.name, modifier: statValue(actor.skills?.crafting), intMod: ability("int"), level };
+    }
+    // Gunslinger (C17–C19): its slinger's reload (one action that reloads and does
+    // something else), its deed when initiative is rolled, and Cover Fire.
+    const SLINGERS_RELOADS = { "clear-a-path": "shove", "reloading-strike": "strike", "raconteurs-reload": "demoralize-or-diversion", "covered-reload": null, "thoughtful-reload": null, "touch-and-go": null };
+    for (const item of items) {
+        if (item.type === "action" && Object.hasOwn(SLINGERS_RELOADS, item.slug)) {
+            fields.slingersReload = { name: item.name, then: SLINGERS_RELOADS[item.slug] };
+            result.handled.add(item);
+        }
+        if (item.slug === "living-fortification") {
+            fields.livingFortification = strikes.some((strike) => strike.firearm && strike.parry) ? 2 : 1;
+            result.handled.add(item);
+        }
+        if (item.slug === "one-shot-one-kill") {
+            fields.firstShot = { dice: level >= 15 ? 3 : level >= 9 ? 2 : 1 };
+            result.handled.add(item);
+        }
+        if (item.slug === "energy-shot") {
+            fields.energyShots = 3;
+            result.handled.add(item);
+        }
+        if (item.slug === "ten-paces") {
+            fields.initiativeBonus = 2;
+            result.handled.add(item);
+        }
+        if (item.slug === "cover-fire" && strikes.some((strike) => strike.firearm && !strike.melee)) activity(item, { coverFire: true, oncePerRound: true });
     }
     // Sneak Attack and the like: their dice are read with each Strike.
     if (strikes.some((strike) => strike.offGuardExtra?.length)) for (const item of items) if (item.slug === "sneak-attack") result.handled.add(item);

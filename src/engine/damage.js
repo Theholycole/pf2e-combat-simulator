@@ -33,7 +33,8 @@ function build(strike, critical, penalty, roll) {
     const result = [];
     let first = true;
     for (const part of parts) {
-        const multiplier = (part.multiplier ?? 1) * factor;
+        // Splash damage isn't doubled on a critical hit.
+        const multiplier = (part.multiplier ?? 1) * (part.splash ? 1 : factor);
         let base = (part.dice ? roll(part.dice, part.die) : 0) + (part.bonus ?? 0);
         if (first && penalty) base -= penalty;
         if (first) base = Math.max(1, base);
@@ -43,6 +44,7 @@ function build(strike, critical, penalty, roll) {
             amount: base * multiplier,
             persistent: !!part.persistent,
             precision: !!part.precision,
+            ...(part.splash ? { splash: true } : {}),
             dice: part.dice,
             die: part.die,
             bonus: part.bonus ?? 0,
@@ -97,6 +99,13 @@ export function adjustDamage(defender, instances) {
     let total = 0;
     for (const entry of immediate.values()) total += adjustInstance(defender, entry.type, entry.amount, entry.precision);
     return { total: Math.max(0, total), persistent };
+}
+
+// A concussive weapon (firearms): piercing or bludgeoning, whichever the
+// defender resists less. Other types stay as they are.
+export function concussiveType(defender, type, amount, precision = false) {
+    if (type !== "piercing" && type !== "bludgeoning") return type;
+    return adjustInstance(defender, "bludgeoning", amount, precision) > adjustInstance(defender, "piercing", amount, precision) ? "bludgeoning" : "piercing";
 }
 
 // Void healing (PF2e's hp.negativeHealing; undead without the flag read):
