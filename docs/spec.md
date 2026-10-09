@@ -200,7 +200,9 @@ The log is stored in a hidden world setting. The scoring is pure (`src/engine/ca
 - hero points
 - conditions: frightened, sickened, clumsy, enfeebled, drained, off-guard, prone, slowed, stunned, quickened, fleeing, persistent damage
 
-Everything whose effect comes from text (spells, feats, Demoralize, monster abilities, consumables) comes from the plan modules and is a gap until then. Spells resolved by the core's `save` family are cast from milestone 2 (see the milestone 2 status).
+Everything whose effect comes from text (spells, feats, Demoralize, monster abilities, consumables) comes from the plan modules and is a gap until then.
+
+**Temporary immunity** ("temporarily immune for 1 minute", "is then immune to its Terrifying Cry"): a creature that rolled one of the results the text names can't be targeted by that creature's ability again in the fight, areas included (fixed 2026-10-08: emanations and bursts used to catch immune creatures again, so 146 bestiary creatures could repeat a screech or a captivating display on the same PCs every action). Spells resolved by the core's `save` family are cast from milestone 2 (see the milestone 2 status).
 
 ### Space: range bands
 
@@ -239,8 +241,9 @@ The outcomes are decisive, rout, defeat, retreat, survived and timeout (round ca
 
 ### Fleeing, pursuit and surrender
 
-- A fleeing creature leaves the fight once it reaches *far*.
-- If half or more of the surviving foes are broken, the fight stops. Each active PC gets one pursuit Strike against a fleeing foe they can reach. Downed foes are caught; the rest escape.
+- A creature that gave up on a morale check flees and leaves the fight once it reaches *far*.
+- A creature fleeing from a spell or an ability (a PC too) runs to *far* and stays out of the fight until its fleeing ends, then comes back. Fleeing with no stated end ("for as long as it's frightened", or no duration at all, as in Vision of Death's critical failure) lasts while it's frightened, or else its next turn (user, 2026-10-08; before, such a creature left for good).
+- If half or more of the surviving foes are broken, the fight stops. A foe fleeing from a spell or an ability counts as broken here (user, 2026-10-08). Each active PC gets one pursuit Strike against a fleeing foe they can reach. Downed foes are caught; the rest escape.
 - A surrendered foe counts as captured, and PCs always accept.
 - PCs use nonlethal attacks only against a capture target (−2 unless the weapon is nonlethal).
 
@@ -253,13 +256,13 @@ The outcomes are decisive, rout, defeat, retreat, survived and timeout (round ca
 ## Morale
 
 - **Rules:** "cleanup morale" (M24, 2026-10-08), the user's system inspired by `Morale.md` and `Improved Morale.md` (in the user's PF2e Notes, `03 Combat and Encounter Design/Combat Systems/`). Every trigger, modifier, DC setting and template is a data entry with an id and an enabled flag, and can be overridden in the world settings. Improved Morale's waver stage, group checks and recovery are still there, switched off.
-- **Decisions:** [morale-decisions.md](morale-decisions.md) M1–M31.
+- **Decisions:** [morale-decisions.md](morale-decisions.md) M1–M32.
 
 **Design goal** (the user, 2026-10-08): morale should shorten fights the party is winning as much as it can, with little effect on the win rate. The rules are the same whether or not the players play for morale (M26).
 
-**How it works (M24–M31):**
-- **When:** foes check only once their side is losing: 25%, 50% and 75% of the side fallen; a companion slain after half have fallen; the leader slain or fled; can't harm the enemy; surrounded; outnumbered 3:1; retreat becomes reasonable, when the party's HP share first reaches 3×, 4× and 6× the foes' (not solo bosses, M31). Fear from the party that takes a foe to frightened 2 or more counts too (M25); on that check a failure only raises frightened by 1, and a critical failure gives up (M29).
-- **The gate:** checks happen only while the party is clearly winning. The party's HP left, as a share of what it started with, must be at least 1.25× the foes' share; foes down, fled or surrendered count as none (M28). Fear from the party (frightened 2+) counts anyway. A check the gate blocks is lost, not saved for later (M27).
+**How it works (M24–M32):**
+- **When:** foes check only once their side is losing: 25%, 50% and 75% of the side fallen; a companion slain after half have fallen; the leader slain or fled; can't harm the enemy; surrounded; outnumbered 3:1; retreat becomes reasonable, when the party's HP share first reaches 3×, 4× and 6× the foes' (not solo bosses, M31). Fear from the party that takes a foe to frightened 2 or more counts too (M25), and so does fleeing for any reason, as it begins and at the start of each of its turns while it lasts (M32); on those checks a failure only raises frightened by 1, and a critical failure gives up (M29).
+- **The gate:** checks happen only while the party is clearly winning. The party's HP left, as a share of what it started with, must be at least 1.25× the foes' share; foes down, fled or surrendered count as none (M28). Fear from the party (frightened 2+) and fleeing count anyway. A check the gate blocks is lost, not saved for later (M27).
 - **The check:** d20 + its Will + modifiers against PF2e's DC for the party's level, −1 per level the creature is below the party (+1 above); −2 once a quarter of its side has fallen, −4 from half. Weaker foes give up sooner; bosses (Boss Resolve) and stronger foes hold.
 - **A failure means it gives up:** it flees or surrenders by its template; fanatics fight recklessly instead. When half the surviving foes have given up (those who surrendered or fled on a failed check count, M30), the rest flee and the fight ends with a pursuit Strike for each PC.
 - **Simulated PCs play for morale** (a setup tick, M23): it changes how the simulated PCs act, not the rules (M26). They value fear by the chance it makes a foe give up, and the foes' leader by the breaks its fall brings.

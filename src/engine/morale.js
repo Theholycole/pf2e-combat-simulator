@@ -96,8 +96,14 @@ function eligible(state, c) {
     if (c.side !== "foes" || c.kind === "pc" || c.kind === "object" || c.kind === "hazard") return false;
     if (!canAct(c)) return false;
     if (c.morale?.template === "none" || !c.morale) return false;
-    if (c.cond.fleeing || c.moraleState.broken) return false;
+    // Fleeing from a spell or an ability, it still checks (M32); one that broke has given up.
+    if (c.moraleState.broken) return false;
     return true;
+}
+
+// Fear and fleeing (M24, M32) count before the party is ahead.
+function ignoresGate(state, reason) {
+    return !!state.moraleRules.triggers[reason]?.ignoresGate;
 }
 
 function groupOf(state, c) {
@@ -195,6 +201,8 @@ export function processMorale(state) {
             // M25: only from frightened 2 or more (a Demoralize's critical success, stronger fear).
             if ((event.value ?? Infinity) >= (state.moraleRules.triggers.frightenedByEnemy?.minValue ?? 0)) add(event.victim, "frightenedByEnemy");
         }
+        // M32: fleeing for any reason, as it begins and each round it lasts (fight.js raises the turn's).
+        if (event.type === "fleeing" && event.victim.side === "foes") add(event.victim, "fleeing");
         if (event.type === "surprised") for (const c of foes()) add(c, "surprised");
         if (event.type === "cantAffect") add(event.who, "cantAffect");
     }
@@ -243,7 +251,7 @@ export function processMorale(state) {
     const held = (state.moraleHeld ??= new Map());
     if (gated(state)) {
         for (const [id, reason] of [...triggered]) {
-            if (reason === "frightenedByEnemy") continue;
+            if (ignoresGate(state, reason)) continue;
             triggered.delete(id);
             state.stats.moraleGated++;
             if (state.moraleRules.holdGatedChecks && !held.has(id)) held.set(id, reason);
@@ -427,7 +435,7 @@ function individualCheck(state, c, reason) {
 export function moraleOdds(state, c, { trigger, frightened = 0, extra = 0 }) {
     const none = { breaks: 0, wavers: 0 };
     if (!state.options.morale || !triggerEnabled(state, trigger) || !eligible(state, c)) return none;
-    if (trigger !== "frightenedByEnemy" && gated(state)) return none;
+    if (!ignoresGate(state, trigger) && gated(state)) return none;
     if (trigger === "frightenedByEnemy" && frightened < (state.moraleRules.triggers.frightenedByEnemy?.minValue ?? 0)) return none;
     const group = groupOf(state, c);
     if ((group ?? c.moraleState).checkedRound === state.round) return none;
@@ -519,6 +527,9 @@ export function breakCreature(state, c, kind) {
     }
     c.moraleState.broken = true;
     c.moraleState.wavering = false;
+    // Morale's fleeing lasts: a spell's that ends would bring it back (M32).
+    c.timers = (c.timers ?? []).filter((timer) => timer.key !== "fleeing");
+    c.whileConditions = (c.whileConditions ?? []).filter((entry) => entry.slug !== "fleeing");
     if (resolved === "collapse") {
         surrender(state, c);
         return;
@@ -594,6 +605,13 @@ export function moraleRecovery(state, c) {
         if (roll.degree === CRITICAL_SUCCESS) c.cond.frightened = Math.max(0, c.cond.frightened - 1);
         state.log?.push(`  ${c.name} steadies`);
     }
+}
+
+// M32: still fleeing from a spell or an ability (not its own broken morale) as its turn starts, it checks again.
+export function fleeingAtTurnStart(state, c) {
+    if (!state.options.morale || c.side !== "foes" || !c.cond.fleeing || c.moraleState.broken || !isActive(c)) return;
+    state.pendingEvents.push({ type: "fleeing", victim: c });
+    processMorale(state);
 }
 
 // Start-of-turn check for "can't meaningfully affect an opponent" (M11).

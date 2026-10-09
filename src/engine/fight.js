@@ -8,10 +8,10 @@ import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, perfo
 import { chargeStrike, ducksFromCoverFire, multiStrikeOrder, regenerating } from "./abilities.js";
 import { adjustInstance, rollPersistent } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
-import { checkCantAffect, defaultMoraleProfile, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
+import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castPlan, castSpell, describeSpell, expireTimers, exploitVulnerability, hasTimer, overdrive, retch, rollInstances, triggerRiders } from "./spells.js";
+import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castPlan, castSpell, describeSpell, endWhileConditions, expireTimers, exploitVulnerability, overdrive, retch, rollInstances, triggerRiders } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
 import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
@@ -383,9 +383,12 @@ function endTurn(state, c) {
         if (flatCheck(state.rng, 15) >= SUCCESS) c.persistent.splice(c.persistent.indexOf(entry), 1);
     }
     if (c.cond.frightened > 0) c.cond.frightened--;
+    // "Fleeing for as long as it's frightened" ends with the frightened.
+    endWhileConditions(c);
     if (isActive(c)) moraleRecovery(state, c);
-    // A spell's fleeing (Fear) runs out; only morale's makes a creature leave.
-    if (c.cond.fleeing && isActive(c) && c.band === "far" && !hasTimer(c, "fleeing")) leaveField(state, c);
+    // Fleeing from a spell or an ability runs out, and the creature comes back; only one that gave up
+    // on a morale check leaves the field.
+    if (c.cond.fleeing && isActive(c) && c.band === "far" && c.moraleState?.broken) leaveField(state, c);
     processMorale(state);
 }
 
@@ -643,6 +646,11 @@ export function escalate(state) {
     checkEscalations(state, ESCALATION_EFFECTS);
 }
 
+// The end of a creature's turn as the turn loop runs it, for tests.
+export function turnEnd(state, c) {
+    endTurn(state, c);
+}
+
 // Whether the fight is over (state.outcome says how), checked as after each action, for tests.
 export function fightOver(state) {
     return checkEnd(state);
@@ -715,6 +723,7 @@ function takeTurn(state, c) {
         state.pendingEvents.push({ type: "surprised" });
         processMorale(state);
     }
+    fleeingAtTurnStart(state, c);
     if (c.side === "foes" && !c.cantAffect && state.options.morale) {
         const offense = bestOffense(state, c);
         checkCantAffect(state, c, offense.hit, offense.damage);

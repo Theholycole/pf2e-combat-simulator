@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createFightState, fightOver, prepareSnapshot, simulate } from "../src/engine/fight.js";
+import { createFightState, fightOver, prepareSnapshot, simulate, turnEnd } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { applyDamage, attackModifier, expectedHitDamage, forcefulBonus, stride } from "../src/engine/actions.js";
-import { canStepOut, rangePenalty } from "../src/engine/space.js";
-import { processMorale, surrender } from "../src/engine/morale.js";
+import { canStepOut, leaveMelee, rangePenalty } from "../src/engine/space.js";
+import { breakCreature, fleeingAtTurnStart, processMorale, surrender } from "../src/engine/morale.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { benchmarkEncounter } from "../src/engine/benchmarks.js";
 import { mergeMoraleRules } from "../src/engine/morale-rules.js";
@@ -320,3 +320,74 @@ test("the rout counts foes who gave up as surviving and broken (M30)", () => {
     const before = fight({ routCountsGivenUp: false });
     assert.equal(fightOver(before), false);
 });
+
+test("fleeing from any effect sets off a check as it begins and each round it lasts, before the party is ahead too (M32)", async () => {
+    const { applyCondition } = await import("../src/engine/spells.js");
+    const setUp = (natural) => {
+        const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { losingGate: true });
+        // Close: the foes as strong as the party, so the gate is shut.
+        for (const c of state.list.filter((other) => other.side === "foes")) c.hp.value = c.hp.max = 400;
+        state.rng.d20 = () => natural;
+        const guard = state.byId.get("g");
+        const caster = state.list.find((c) => c.kind === "pc");
+        applyCondition(state, guard, "fleeing", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start" }, caster);
+        processMorale(state);
+        return { state, guard };
+    };
+    // DC = level 3's 18 against Will +9 (moderate level 3), +2 not yet damaged, −4 outnumbered 2:1: a 15 passes, a 5 fails, a 1 critically fails.
+    const { state, guard } = setUp(15);
+    assert.equal(state.stats.moraleChecks, 1);
+    assert.ok(state.log.some((line) => /Guard morale \(fleeing\)/.test(line)));
+    // Its turn the same round: no second check.
+    fleeingAtTurnStart(state, guard);
+    assert.equal(state.stats.moraleChecks, 1);
+    // Still fleeing as its turn starts the next round: another.
+    state.round = 2;
+    fleeingAtTurnStart(state, guard);
+    assert.equal(state.stats.moraleChecks, 2);
+    // Once the fleeing ends, no more.
+    guard.cond.fleeing = false;
+    state.round = 3;
+    fleeingAtTurnStart(state, guard);
+    assert.equal(state.stats.moraleChecks, 2);
+    // Like fear (M29): a failure raises frightened; a critical failure gives up for good, the spell's end no longer stops it.
+    const failed = setUp(5);
+    assert.equal(failed.guard.status, "active");
+    assert.equal(failed.guard.cond.frightened, 1);
+    const crit = setUp(1);
+    assert.ok(crit.guard.moraleState.broken || crit.guard.status === "surrendered");
+    assert.ok(!(crit.guard.timers ?? []).some((timer) => timer.key === "fleeing"));
+});
+
+test("fleeing with no stated end lasts while the creature is frightened; one fleeing from an effect comes back, one that gave up leaves", async () => {
+    const { applyCondition } = await import("../src/engine/spells.js");
+    const party = martialParty(5);
+    const state = createFightState({ combatants: [...party, moderateCreature(5, "m", "Monster")] });
+    const monster = state.byId.get("m");
+    // Vision of Death's critical failure: frightened 4 and fleeing for as long as it's frightened (no end in its plan).
+    const pc = state.byId.get(party[0].id);
+    applyCondition(state, pc, "frightened", 2, null, monster);
+    applyCondition(state, pc, "fleeing", null, null, monster);
+    leaveMelee(state, pc, "far");
+    turnEnd(state, pc);
+    assert.deepEqual([pc.cond.frightened, pc.cond.fleeing, pc.status], [1, true, "active"], "still frightened: still fleeing, and still on the field");
+    turnEnd(state, pc);
+    assert.deepEqual([pc.cond.frightened, pc.cond.fleeing], [0, false]);
+    // "As long as it's frightened", as the ability module reads it: the same.
+    const other = state.byId.get(party[1].id);
+    applyCondition(state, other, "frightened", 1, null, monster);
+    applyCondition(state, other, "fleeing", null, { mode: "while", condition: "frightened" }, monster);
+    turnEnd(state, other);
+    assert.equal(other.cond.fleeing, false);
+    // Not frightened at all: it flees for its next turn only.
+    const third = state.byId.get(party[2].id);
+    applyCondition(state, third, "fleeing", null, null, monster);
+    turnEnd(state, third);
+    assert.equal(third.cond.fleeing, false);
+    // A foe that gave up on a morale check leaves the field.
+    breakCreature(state, monster, "rout");
+    leaveMelee(state, monster, "far");
+    turnEnd(state, monster);
+    assert.equal(monster.status, "fled");
+});
+

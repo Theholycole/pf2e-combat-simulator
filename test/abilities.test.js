@@ -7,7 +7,7 @@ import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { interact, performStrike, stride } from "../src/engine/actions.js";
 import { DOWN, canMove, gripPenalty, offGuardTo, strikeUsable } from "../src/engine/combatant.js";
-import { applyAuras, canCast, castSpell, expireTimers, spellExpectation } from "../src/engine/spells.js";
+import { applyAuras, canCast, castSpell, expireTimers, spellExpectation, targetSets } from "../src/engine/spells.js";
 
 // Abilities compiled by the ability module from PF2e's own packs (read only).
 const ABILITIES = "../../PF2e AUTOMATIC ABILITY RESOLUTION/src/compiler/index.js";
@@ -29,7 +29,9 @@ async function abilities() {
         improvedGrab: monster("Tor Linnorm", "Improved Grab"),
         constrict: monster("Sargassum Heap", "Constrict"),
         presence: monster("Adamantine Dragon (Adult)", "Frightful Presence"),
-        breath: monster("Adamantine Dragon (Adult)", "Avalanche Breath")
+        breath: monster("Adamantine Dragon (Adult)", "Avalanche Breath"),
+        captivating: monster("Mirage Dragon (Adult)", "Captivating Display"),
+        frightening: monster("Gorilla", "Frightening Display")
     };
     return compiled;
 }
@@ -291,3 +293,25 @@ test("Administer First Aid: stabilizes a dying ally on a success; dying +1 on a 
     castSpell(state, medic, 0, ["fighter"]);
     assert.equal(pc.cond.dying, 2);
 });
+
+test("an area ability's temporary immunity keeps creatures out of its next use, after the results it names", { skip }, async () => {
+    const { captivating, frightening } = await abilities();
+    const run = (plan, natural) => {
+        const party = martialParty(8).map((pc) => ({ ...pc, engagement: 1 }));
+        const state = createFightState({ combatants: [...party, { ...moderateCreature(10, "m", "Monster"), engagement: 1, spells: [entry("Display", plan)] }] });
+        state.rng.d20 = () => natural;
+        const m = state.byId.get("m");
+        const pcs = () => targetSets(state, m, m.spells[0], { enemies: state.list.filter((c) => c.side === "party"), inMelee: () => true, distance: () => 5, meleeId: m.meleeId }).flatMap((set) => set.targets.filter((c) => c.side === "party").map((c) => c.id));
+        const before = pcs();
+        castSpell(state, m, 0, before);
+        return { before, after: pcs() };
+    };
+    // Captivating Display: immune for 1 minute whatever the result (before, an area reached them again).
+    const captivated = run(captivating, 10);
+    assert.equal(captivated.before.length, 4);
+    assert.deepEqual(captivated.after, []);
+    // Frightening Display: immune only after a critical success.
+    assert.equal(run(frightening, 2).after.length, 4, "after failures it can display again");
+    assert.deepEqual(run(frightening, 20).after, [], "after critical successes they're immune");
+});
+

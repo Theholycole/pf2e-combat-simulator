@@ -67,7 +67,12 @@ export const MORALE_RULES = Object.freeze({
         strongestAllyDown: { enabled: false, label: "Sees its strongest ally destroyed", oncePerCreature: true },
         // minValue (user, 2026-10-08, M25): only when an enemy's effect takes it to frightened 2 or more.
         // onFailure "frighten" (M29): a failure raises frightened by 1; only a critical failure gives up.
-        frightenedByEnemy: { enabled: true, label: "Becomes frightened 2+ from an enemy effect", minValue: 2, onFailure: "frighten" },
+        // ignoresGate (M24): fear counts before the party is ahead.
+        frightenedByEnemy: { enabled: true, label: "Becomes frightened 2+ from an enemy effect", minValue: 2, onFailure: "frighten", ignoresGate: true },
+        // M32 (user, 2026-10-08): fleeing for any reason (a spell, an ability; not its own broken morale) sets off a
+        // check as it begins and at the start of each of its turns while it lasts. Like fear, a failure raises
+        // frightened by 1, only a critical failure gives up, and it counts before the party is ahead.
+        fleeing: { enabled: true, label: "Fleeing from any effect, each round it lasts", onFailure: "frighten", ignoresGate: true },
         // Off (M24): an early check that decides fights.
         surprised: { enabled: false, label: "Surprised (first round)", source: "Morale.md" },
         // Escalations (user, 2026-10-08): not a check; foe reinforcements arriving steady wavering foes

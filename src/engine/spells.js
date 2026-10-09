@@ -126,6 +126,8 @@ function readSpell(base, actions) {
         event: plan?.trigger?.event ?? "use",
         recharge: plan?.trigger?.recharge?.formula ?? null,
         immunity: Boolean(plan?.trigger?.immunity),
+        // The results that make a target immune ("Critical Success … temporarily immune"); null: all of them.
+        immunityDegrees: plan?.trigger?.immunity?.degrees ?? null,
         grabbedTargets: Boolean(targeting.grabbed),
         // Swallow Whole: the largest size it can swallow; Trample: { size, strides }.
         swallow: Object.values(plan?.resolution?.outcomes ?? {}).some((outcome) => outcome?.effects?.some((effect) => effect.kind === "swallow")) ? targeting.size ?? "medium" : null,
@@ -313,12 +315,16 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     }
     const flag = FLAGS[slug];
     if (!VALUED.has(slug) && !flag) return false;
-    // "As long as it's sickened" (Stench): ends when that condition does.
+    // "As long as it's sickened" (Stench), "fleeing as long as it's frightened": ends when that condition does.
     if (duration?.mode === "while" && duration.condition) (target.whileConditions ??= []).push({ slug, value, while: duration.condition });
+    // Fleeing with no stated end (Vision of Death, Aversion Beam): while it's frightened, or else its next turn (user, 2026-10-08).
+    else if (slug === "fleeing" && !duration) (target.whileConditions ??= []).push({ slug, value, while: "frightened" });
     const rounds = durationRounds(duration);
     const before = target.cond[slug] ?? 0;
     if (flag) target.cond[flag] = true;
     else target.cond[slug] = Math.max(target.cond[slug] ?? 0, Number.isFinite(value) ? value : 1);
+    // Fleeing for any reason is a morale trigger (M32).
+    if (slug === "fleeing" && !before) state.pendingEvents?.push({ type: "fleeing", victim: target });
     // Frightened by an enemy's effect (Demoralize, fear) is a morale trigger.
     if (slug === "frightened" && target.cond.frightened > before && source && source.side !== target.side) state.pendingEvents?.push({ type: "frightened", victim: target, byEnemy: true, value: target.cond.frightened });
     // Who's holding it, for Escape, Constrict and letting go.
@@ -574,6 +580,20 @@ function effectDC(spell) {
     return spell?.dc ?? null;
 }
 
+// Conditions that last as long as another one (sickened, frightened) end once it's gone.
+export function endWhileConditions(c) {
+    const left = [];
+    for (const entry of c.whileConditions ?? []) {
+        if (c.cond[FLAGS[entry.while] ?? entry.while]) {
+            left.push(entry);
+            continue;
+        }
+        if (VALUED.has(entry.slug)) c.cond[entry.slug] = Math.max(0, (c.cond[entry.slug] ?? 0) - (entry.value ?? 1));
+        else if (FLAGS[entry.slug]) c.cond[FLAGS[entry.slug]] = false;
+    }
+    c.whileConditions = left;
+}
+
 // Retch: a sickened creature spends an action on a Fortitude save against
 // the DC that sickened it; a success lowers sickened by 1, a critical success by 2.
 export function retch(state, c) {
@@ -584,11 +604,7 @@ export function retch(state, c) {
     if (!c.cond.sickened) {
         c.sickenedDC = null;
         // Conditions that lasted as long as it was sickened end with it.
-        for (const entry of (c.whileConditions ?? []).filter((other) => other.while === "sickened")) {
-            if (VALUED.has(entry.slug)) c.cond[entry.slug] = Math.max(0, (c.cond[entry.slug] ?? 0) - (entry.value ?? 1));
-            else if (FLAGS[entry.slug]) c.cond[FLAGS[entry.slug]] = false;
-        }
-        c.whileConditions = (c.whileConditions ?? []).filter((other) => other.while !== "sickened");
+        endWhileConditions(c);
     }
     log(state, `  ${c.name} retches: ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}${drop ? ` (sickened ${c.cond.sickened})` : ""}`);
 }
@@ -818,11 +834,12 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     // A recharge ("can't use it again for 1d4 rounds") and immunity (Demoralize, Frightful Presence).
     if (info.recharge) (caster.rechargeUntil ??= new Map()).set(spell, state.round + rollCount(state, info.recharge));
-    if (info.immunity) {
+    const markImmune = (list) => {
         const immune = (caster.immuneTargets ??= new Map()).get(spell) ?? new Set();
-        for (const target of targets) immune.add(target.id);
+        for (const target of list) immune.add(target.id);
         caster.immuneTargets.set(spell, immune);
-    }
+    };
+    if (info.immunity && !info.immunityDegrees) markImmune(targets);
     if (!targets.length) return;
     // Trample: the creature moves through them, ending beside them.
     if (info.trample) {
@@ -841,6 +858,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         const degree = result.degrees[target.id];
         if (degree) log(state, `  ${target.name}: ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
     }
+    if (info.immunity && info.immunityDegrees) markImmune(targets.filter((target) => !result.degrees[target.id] || info.immunityDegrees.includes(result.degrees[target.id])));
     applyChanges(state, caster, spell, result.changes, context, io);
     // A swashbuckler's bravado action: panache on a success, until the end of the turn on a failure.
     if (caster.panacheStyle && (caster.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
@@ -1181,9 +1199,10 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         const held = enemies.filter((enemy) => enemy.grabbedBy === caster.id && isActive(enemy));
         return held.length ? [{ targets: held }] : [];
     }
-    // Demoralize: not those already immune to it.
+    // Not those already immune to it (Demoralize, a screech's "temporarily immune for 1 minute"), areas included.
     const immune = caster.immuneTargets?.get(spell);
-    if (immune?.size) enemies = enemies.filter((enemy) => !immune.has(enemy.id));
+    const notImmune = (other) => !immune?.has(other.id);
+    if (immune?.size) enemies = enemies.filter(notImmune);
     const reaches = (other) => other === caster || (info.touch ? inMelee(other) : info.range === null || distance(other) <= info.range);
     if (!info.area) {
         const sets = [];
@@ -1211,7 +1230,7 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     }
     const capacity = areaCapacity(info.area);
     const sets = [];
-    const members = (id) => [...(state.melees.get(id) ?? [])].map((memberId) => state.byId.get(memberId)).filter((other) => other && isActive(other));
+    const members = (id) => [...(state.melees.get(id) ?? [])].map((memberId) => state.byId.get(memberId)).filter((other) => other && isActive(other) && notImmune(other));
     if (info.area.type === "emanation" && info.range === null) {
         // Around the caster: whoever shares its Melee. From 30 feet, also those
         // standing apart in the near band (and, for healing, downed PCs there).
@@ -1222,7 +1241,7 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         const apart = (other) => other !== caster && !around.includes(other) && other.meleeId === null;
         if (info.area.value >= 30) {
             const reached = (other) => isActive(other) || (info.healing && other.status === DOWN && other.kind === "pc");
-            around.push(...state.list.filter((other) => apart(other) && other.band === "near" && reached(other)));
+            around.push(...state.list.filter((other) => apart(other) && other.band === "near" && reached(other) && notImmune(other)));
         } else if (info.helpful && info.area.value >= 10) {
             around.push(...state.list.filter((other) => apart(other) && other.side === caster.side && other.band === band && isActive(other)));
         }
