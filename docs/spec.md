@@ -47,7 +47,7 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
 | Full simulation | 500 fights in about 2.3 s, on a Web Worker |
 | Odds check | 200 fights in 0.5 s |
 | Morale rule impact | about 30 variants × 200 fights in 26 s |
-| Morale effect (cleanup morale, M24–M28, the default) | +0.5 points on the equal-level benchmarks (+1.1 in close fights); won fights 1.53 rounds shorter |
+| Morale effect (cleanup morale, M24–M31, the default) | +0.5 points on the equal-level benchmarks (+1.0 in close fights); won fights 1.70 rounds shorter |
 | Morale effect (Improved Morale, always active, before M20–M24) | +5.2 points; 0.72 rounds shorter |
 
 **Choices made while building:**
@@ -253,15 +253,15 @@ The outcomes are decisive, rout, defeat, retreat, survived and timeout (round ca
 ## Morale
 
 - **Rules:** "cleanup morale" (M24, 2026-10-08), the user's system inspired by `Morale.md` and `Improved Morale.md` (in the user's PF2e Notes, `03 Combat and Encounter Design/Combat Systems/`). Every trigger, modifier, DC setting and template is a data entry with an id and an enabled flag, and can be overridden in the world settings. Improved Morale's waver stage, group checks and recovery are still there, switched off.
-- **Decisions:** [morale-decisions.md](morale-decisions.md) M1–M24.
+- **Decisions:** [morale-decisions.md](morale-decisions.md) M1–M31.
 
 **Design goal** (the user, 2026-10-08): morale should shorten fights the party is winning as much as it can, with little effect on the win rate. The rules are the same whether or not the players play for morale (M26).
 
-**How it works (M24–M28):**
-- **When:** foes check only once their side is losing: 25%, 50% and 75% of the side fallen; a companion slain after half have fallen; the leader slain or fled; can't harm the enemy; surrounded; outnumbered 3:1. Fear from the party that takes a foe to frightened 2 or more counts too (M25); on that check a failure only raises frightened by 1, and a critical failure gives up (M29).
+**How it works (M24–M31):**
+- **When:** foes check only once their side is losing: 25%, 50% and 75% of the side fallen; a companion slain after half have fallen; the leader slain or fled; can't harm the enemy; surrounded; outnumbered 3:1; retreat becomes reasonable, when the party's HP share first reaches 3×, 4× and 6× the foes' (not solo bosses, M31). Fear from the party that takes a foe to frightened 2 or more counts too (M25); on that check a failure only raises frightened by 1, and a critical failure gives up (M29).
 - **The gate:** checks happen only while the party is clearly winning. The party's HP left, as a share of what it started with, must be at least 1.25× the foes' share; foes down, fled or surrendered count as none (M28). Fear from the party (frightened 2+) counts anyway. A check the gate blocks is lost, not saved for later (M27).
 - **The check:** d20 + its Will + modifiers against PF2e's DC for the party's level, −1 per level the creature is below the party (+1 above); −2 once a quarter of its side has fallen, −4 from half. Weaker foes give up sooner; bosses (Boss Resolve) and stronger foes hold.
-- **A failure means it gives up:** it flees or surrenders by its template; fanatics fight recklessly instead. When half of the foes still standing have given up, the fight ends with a pursuit Strike for each PC.
+- **A failure means it gives up:** it flees or surrenders by its template; fanatics fight recklessly instead. When half the surviving foes have given up (those who surrendered or fled on a failed check count, M30), the rest flee and the fight ends with a pursuit Strike for each PC.
 - **Simulated PCs play for morale** (a setup tick, M23): it changes how the simulated PCs act, not the rules (M26). They value fear by the chance it makes a foe give up, and the foes' leader by the breaks its fall brings.
 
 **Automatic creature settings** (saved on the actor, changeable per run):

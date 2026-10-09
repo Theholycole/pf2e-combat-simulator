@@ -128,7 +128,8 @@ export function initMorale(state) {
         quarterStrength: false,
         leaderDownRound: -1,
         allyDroppedSingleRound: -1,
-        strongestDown: false
+        strongestDown: false,
+        hopelessStep: 0
     };
     state.foeStartCount = fighters(state, "foes").length;
 }
@@ -211,6 +212,18 @@ export function processMorale(state) {
     if (!flags.quarterStrength && start > 1 && start - removed <= start / 4) {
         flags.quarterStrength = true;
         for (const c of foes()) add(c, "quarterStrength");
+    }
+    // Retreat becomes reasonable (M31): the party's share of its HP left first reaches each ratio
+    // times the foes' (one check for each ratio crossed, however many at once).
+    const hopeless = state.moraleRules.triggers.hopeless;
+    if (hopeless && triggerEnabled(state, "hopeless")) {
+        const shares = hpShares(state);
+        const ratio = shares.foes > 0 ? shares.party / shares.foes : Infinity;
+        const ratios = hopeless.ratios ?? [];
+        const step = flags.hopelessStep ?? 0;
+        flags.hopelessStep = step;
+        while (flags.hopelessStep < ratios.length && ratio >= ratios[flags.hopelessStep]) flags.hopelessStep++;
+        if (flags.hopelessStep > step) for (const c of foes()) if (hopeless.bosses !== false || !c.morale?.boss) add(c, "hopeless");
     }
     // Outnumbered 3:1 (Morale.md) is edge-triggered too.
     const partyUp = activeCount(state, "party");

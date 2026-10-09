@@ -37,6 +37,9 @@ export const MORALE_RULES = Object.freeze({
     dcMode: "partyLevel",
     levelOffset: 0,
     checksPerRound: 1,
+    // The rout ends the fight once half the surviving foes are broken ("Improved Morale.md"). M30 (user,
+    // 2026-10-08): those who surrendered or fled on a failed check count as surviving and broken too.
+    routCountsGivenUp: true,
     extraCheckOnLeaderDeath: true,
     // M24: a failed check means the creature gives up (no wavering stage); false is Improved Morale's waver-then-break.
     failureGivesUp: true,
@@ -53,6 +56,10 @@ export const MORALE_RULES = Object.freeze({
         leaderDown: { enabled: true, label: "Leader dropped or fled" },
         cantAffect: { enabled: true, label: "Can't meaningfully affect an opponent" },
         surrounded: { enabled: true, label: "Surrounded" },
+        // M31 (user, 2026-10-08; "Improved Morale.md": retreat or surrender becomes reasonable): each foe checks
+        // when the party's share of its HP left first reaches each ratio times the foes'. Not solo bosses
+        // (bosses: false): one hits as hard at 20% HP, so the party still loses some of those fights.
+        hopeless: { enabled: true, label: "Retreat becomes reasonable (the party far ahead on HP share)", ratios: [3, 4, 6], bosses: false },
         // oncePerCreature (user, 2026-10-07): a creature checks for these at most once per fight.
         // Off (user, 2026-10-08, M20): it decided close fights more than it shortened won ones.
         halfHp: { enabled: false, label: "Falls to half HP", oncePerCreature: true },

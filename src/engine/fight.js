@@ -222,8 +222,15 @@ function checkEnd(state) {
     }
     if (state.options.morale) {
         const surviving = foes.filter((c) => c.status === ACTIVE);
-        const broken = surviving.filter((c) => c.cond.fleeing || c.moraleState.broken);
-        if (surviving.length && !foes.some(coming) && broken.length >= surviving.length / 2 && broken.length > 0) {
+        let broken = surviving.filter((c) => c.cond.fleeing || c.moraleState.broken).length;
+        let survivors = surviving.length;
+        // M30: those who already gave up (surrendered, or fled on a failed check) are surviving and broken too.
+        if (state.moraleRules.routCountsGivenUp) {
+            const gaveUp = foes.filter((c) => c.status === SURRENDERED || (c.status === FLED && c.moraleState?.broken)).length;
+            broken += gaveUp;
+            survivors += gaveUp;
+        }
+        if (surviving.length && !foes.some(coming) && broken >= survivors / 2 && broken > 0) {
             pursuit(state, surviving);
             finish(state, "rout");
             return true;
@@ -634,6 +641,11 @@ function act(state, c, action) {
 // The escalation rules as the turn loop checks them after each action and as a round begins, for tests.
 export function escalate(state) {
     checkEscalations(state, ESCALATION_EFFECTS);
+}
+
+// Whether the fight is over (state.outcome says how), checked as after each action, for tests.
+export function fightOver(state) {
+    return checkEnd(state);
 }
 
 // One action as the turn loop takes it, for tests that set up exact situations.

@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createFightState, prepareSnapshot, simulate } from "../src/engine/fight.js";
+import { createFightState, fightOver, prepareSnapshot, simulate } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { applyDamage, attackModifier, expectedHitDamage, forcefulBonus, stride } from "../src/engine/actions.js";
 import { canStepOut, rangePenalty } from "../src/engine/space.js";
-import { processMorale } from "../src/engine/morale.js";
+import { processMorale, surrender } from "../src/engine/morale.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { benchmarkEncounter } from "../src/engine/benchmarks.js";
 import { mergeMoraleRules } from "../src/engine/morale-rules.js";
@@ -58,10 +58,11 @@ test("persistent damage is set aside and recorded on the target", () => {
 });
 
 // These tests check the morale mechanisms one by one: the half-HP trigger (off since M20) starts a
-// check, and the gate (on since M24) is off so the check happens at the start of a fight.
+// check, the gate (on since M24) is off so the check happens at the start of a fight, and the
+// HP-share trigger (M31) is off so moving HP around sets off no checks of its own.
 function moraleState(foes, rules = {}) {
     const party = martialParty(3);
-    const state = createFightState({ combatants: [...party, ...foes] }, { moraleRules: mergeMoraleRules({ losingGate: false, ...rules, triggers: { halfHp: { enabled: true }, ...(rules.triggers ?? {}) } }) });
+    const state = createFightState({ combatants: [...party, ...foes] }, { moraleRules: mergeMoraleRules({ losingGate: false, ...rules, triggers: { halfHp: { enabled: true }, hopeless: { enabled: false }, ...(rules.triggers ?? {}) } }) });
     return state;
 }
 
@@ -267,4 +268,55 @@ test("fear only cracks morale (M29): a failed check fear set off raises frighten
     assert.equal(failed.frightened, 3);
     assert.equal(failed.checks, 1, "raising frightened itself sets off no new check");
     assert.notEqual(outcome(1).status, "active");
+});
+
+test("retreat becomes reasonable (M31): each foe checks as the party's HP share first reaches 3×, 4× and 6× the foes'; not a solo boss", () => {
+    const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { triggers: { hopeless: { enabled: true } } });
+    state.rng.d20 = () => 20;
+    const foes = state.list.filter((c) => c.side === "foes");
+    const setShare = (share) => {
+        for (const c of foes) c.hp.value = Math.round(c.hp.max * share);
+    };
+    // The party is unhurt: foes at 40% leave it 2.5× ahead, no check.
+    setShare(0.4);
+    processMorale(state);
+    assert.equal(state.stats.moraleChecks, 0);
+    // 30%: past 3×, both check once.
+    setShare(0.3);
+    processMorale(state);
+    assert.equal(state.stats.moraleChecks, 2);
+    // Still past 3× the next round: no new check.
+    state.round = 2;
+    processMorale(state);
+    assert.equal(state.stats.moraleChecks, 2);
+    // 10%: past 4× and 6× at once, one check each.
+    setShare(0.1);
+    processMorale(state);
+    assert.equal(state.stats.moraleChecks, 4);
+    assert.ok(state.log.some((line) => /Guard morale \(hopeless\)/.test(line)));
+    // A solo boss keeps Boss Resolve and isn't asked (four against one sets off "outnumbered 3:1" though).
+    const boss = moraleState([moderateCreature(6, "boss", "Boss")], { triggers: { hopeless: { enabled: true } } });
+    boss.byId.get("boss").hp.value = 1;
+    for (let round = 1; round <= 3; round++) {
+        boss.round = round;
+        processMorale(boss);
+    }
+    assert.ok(!boss.log.some((line) => /\(hopeless\)/.test(line)));
+});
+
+test("the rout counts foes who gave up as surviving and broken (M30)", () => {
+    const fight = (rules) => {
+        const state = createFightState({ combatants: [...martialParty(3), ...["a", "b", "c"].map((id) => moderateCreature(3, id, `Foe ${id}`))] }, { moraleRules: mergeMoraleRules(rules) });
+        state.byId.get("a").status = "dead";
+        surrender(state, state.byId.get("b"));
+        return state;
+    };
+    // One dead, one surrendered, one fighting: one of the two survivors gave up, so the last one routs.
+    const counted = fight({});
+    assert.equal(fightOver(counted), true);
+    assert.equal(counted.outcome, "rout");
+    assert.equal(counted.byId.get("c").status, "fled");
+    // Counting only those still on the field (before M30): the fight goes on.
+    const before = fight({ routCountsGivenUp: false });
+    assert.equal(fightOver(before), false);
 });
