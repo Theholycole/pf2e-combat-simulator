@@ -83,8 +83,8 @@ export const MORALE_RULES = Object.freeze({
         // Off (M24): a failed check takes the creature out, so there's no second one.
         alreadyFailed: { enabled: false, value: -2, label: "Already failed a morale check this encounter" },
         // M24 (Morale.md): its side's losses.
-        sideLost25: { enabled: true, value: -2, label: "A quarter of its side has fallen" },
-        sideLost50: { enabled: true, value: -4, label: "Half its side has fallen" },
+        sideLost25: { enabled: true, value: -2, label: "Its side's losses: a quarter fallen" },
+        sideLost50: { enabled: true, value: -4, label: "Its side's losses: half fallen" },
         quarterStrength: { enabled: true, value: -4, label: "Side reduced to one-quarter strength" },
         isolated: { enabled: true, value: -6, label: "Isolated from allies" },
         // Per level the creature is above the party (below: negative), M24.
