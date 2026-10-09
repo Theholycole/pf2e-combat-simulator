@@ -5,6 +5,7 @@ import { createFightState, escalate, performAction, simulate } from "../src/engi
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { checkEscalations, helpPending } from "../src/engine/escalations.js";
+import { mergeMoraleRules } from "../src/engine/morale-rules.js";
 
 // Escalations (E1–E2): "when → then" rules, arrivals, the alarm and morale.
 const tough = (id, name, extra = {}) => ({ ...moderateCreature(5, id, name), hp: { value: 300, max: 300 }, ...extra });
@@ -95,7 +96,8 @@ test("E1 the PCs go after an alarm-raiser before an equal foe", () => {
 test("E2 help arriving steadies wavering foes", async () => {
     const { helpArrives } = await import("../src/engine/morale.js");
     const [fighter] = martialParty(5);
-    const state = createFightState({ combatants: [fighter, tough("foe", "Foe")] }, {}, 1);
+    // Improved Morale's wavering (before M24, when this trigger was on).
+    const state = createFightState({ combatants: [fighter, tough("foe", "Foe")] }, { moraleRules: mergeMoraleRules({ triggers: { helpArrives: { enabled: true } } }) }, 1);
     const foe = state.byId.get("foe");
     foe.moraleState.wavering = true;
     foe.mustWithdraw = true;

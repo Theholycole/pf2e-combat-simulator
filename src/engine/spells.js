@@ -320,7 +320,7 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if (flag) target.cond[flag] = true;
     else target.cond[slug] = Math.max(target.cond[slug] ?? 0, Number.isFinite(value) ? value : 1);
     // Frightened by an enemy's effect (Demoralize, fear) is a morale trigger.
-    if (slug === "frightened" && target.cond.frightened > before && source && source.side !== target.side) state.pendingEvents?.push({ type: "frightened", victim: target, byEnemy: true });
+    if (slug === "frightened" && target.cond.frightened > before && source && source.side !== target.side) state.pendingEvents?.push({ type: "frightened", victim: target, byEnemy: true, value: target.cond.frightened });
     // Who's holding it, for Escape, Constrict and letting go.
     if ((slug === "grabbed" || slug === "restrained") && source && source !== target) target.grabbedBy = source.id;
     if (Number.isFinite(rounds)) {
@@ -1111,7 +1111,9 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     entry.worth += chance * conditionWorth(change.slug, change.value, change.duration);
                     // The party plays for morale (M23): fear may break the foe, which takes it out of the fight.
                     if (change.slug === "frightened" && caster.side === "party" && target.side !== caster.side && state.setup.situational?.playsForMorale) {
-                        const odds = moraleOdds(state, target, { trigger: "frightenedByEnemy", frightened: change.value ?? 1 });
+                        // Only a rise in frightened sets off a check (and only to the trigger's minimum value: M25).
+                        const after = Math.max(target.cond.frightened ?? 0, change.value ?? 1);
+                        const odds = after > (target.cond.frightened ?? 0) ? moraleOdds(state, target, { trigger: "frightenedByEnemy", frightened: after }) : { breaks: 0, wavers: 0 };
                         entry.breaks = (entry.breaks ?? 0) + chance * (odds.breaks + 0.3 * odds.wavers);
                     }
                 } else if (change.op === "affliction" && Array.isArray(change.data?.stages)) {

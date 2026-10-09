@@ -1,8 +1,9 @@
-// Morale engine for "Improved Morale.md". Rules come from morale-rules.js;
-// the Mn notes refer to docs/morale-decisions.md.
+// Morale engine: cleanup morale (M24), from "Morale.md" and "Improved
+// Morale.md". Rules come from morale-rules.js; the Mn notes refer to
+// docs/morale-decisions.md.
 
 import { SURRENDERED, baseWill, canAct, hpFraction, isActive, statusPenalty } from "./combatant.js";
-import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistribution, degreeOf } from "./checks.js";
+import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistribution, degreeOf, levelDC } from "./checks.js";
 import { engagedAllies, engagedEnemies, removeFromSpace } from "./space.js";
 import { helpPending } from "./escalations.js";
 
@@ -54,10 +55,38 @@ export function partyAdvantage(state) {
     return partyStrength / foeStrength;
 }
 
-// The losing gate (M2): the party is clearly winning.
+// The losing gate (M2, on since M24): the party is clearly winning.
 export function foesLosing(state) {
     return partyAdvantage(state) >= state.moraleRules.losingGateRatio;
 }
+
+// Each side's HP left, as a share of what it started with (creatures down, fled or
+// surrendered count as none; those still to arrive aren't counted).
+export function hpShares(state) {
+    const share = (side) => {
+        let now = 0;
+        let max = 0;
+        for (const c of state.list) {
+            if (c.side !== side || c.kind === "object" || c.kind === "hazard" || c.status === "pending") continue;
+            max += c.hp.max;
+            if (isActive(c)) now += Math.max(0, c.hp.value);
+        }
+        return max ? now / max : 0;
+    };
+    return { party: share("party"), foes: share("foes") };
+}
+
+// Whether the party is clearly winning, by the gate's measure.
+function partyWinning(state) {
+    const rules = state.moraleRules;
+    if (rules.gateMode !== "hpShare") return foesLosing(state);
+    const { party, foes } = hpShares(state);
+    if (rules.hpGate?.kind === "margin") return party - foes >= rules.hpGate.value;
+    return foes <= 0 || party / foes >= (rules.hpGate?.value ?? 2);
+}
+
+// Whether the gate holds checks back now: it's on and the party isn't clearly winning.
+const gated = (state) => state.moraleRules.losingGate && !partyWinning(state);
 
 function activeCount(state, side) {
     return fighters(state, side).filter(isActive).length;
@@ -80,6 +109,8 @@ function groupOf(state, c) {
 // Called once when the fight starts.
 export function initMorale(state) {
     state.groups = new Map();
+    // M24: each creature checks for itself.
+    if (state.moraleRules.group.enabled === false) for (const c of state.list) if (c.morale?.group) c.morale = { ...c.morale, group: null };
     const counts = new Map();
     for (const c of state.list) {
         if (c.side === "foes" && c.morale?.group) counts.set(c.morale.group, (counts.get(c.morale.group) ?? 0) + 1);
@@ -137,6 +168,8 @@ export function processMorale(state) {
     for (const event of events) {
         if (event.type === "dropped" && event.victim.side === "foes") {
             const victim = event.victim;
+            // Morale.md: a companion slain after half the side has fallen.
+            if (flags.halfStrength) for (const c of foes()) if (c !== victim) add(c, "companionAfterHalf");
             if (event.overwhelming) flags.allyDroppedSingleRound = state.round;
             if (!flags.firstDropSeen) {
                 flags.firstDropSeen = true;
@@ -158,7 +191,8 @@ export function processMorale(state) {
         if (event.type === "halfHp" && event.victim.side === "foes") add(event.victim, "halfHp");
         if (event.type === "frightened" && event.victim.side === "foes" && event.byEnemy) {
             event.victim.moraleState.fearThisRound = true;
-            add(event.victim, "frightenedByEnemy");
+            // M25: only from frightened 2 or more (a Demoralize's critical success, stronger fear).
+            if ((event.value ?? Infinity) >= (state.moraleRules.triggers.frightenedByEnemy?.minValue ?? 0)) add(event.victim, "frightenedByEnemy");
         }
         if (event.type === "surprised") for (const c of foes()) add(c, "surprised");
         if (event.type === "cantAffect") add(event.who, "cantAffect");
@@ -166,6 +200,10 @@ export function processMorale(state) {
     // Side strength crossings.
     const start = state.foeStartCount;
     const removed = fighters(state, "foes").filter((c) => !isActive(c)).length;
+    if (!flags.quarterFallen && start > 1 && removed >= start / 4) {
+        flags.quarterFallen = true;
+        for (const c of foes()) add(c, "quarterFallen");
+    }
     if (!flags.halfStrength && start > 1 && removed >= start / 2) {
         flags.halfStrength = true;
         for (const c of foes()) add(c, "halfStrength");
@@ -174,6 +212,12 @@ export function processMorale(state) {
         flags.quarterStrength = true;
         for (const c of foes()) add(c, "quarterStrength");
     }
+    // Outnumbered 3:1 (Morale.md) is edge-triggered too.
+    const partyUp = activeCount(state, "party");
+    const foesUp = activeCount(state, "foes");
+    const outnumbered = foesUp > 0 && partyUp >= 3 * foesUp;
+    if (outnumbered && !flags.outnumbered3to1) for (const c of foes()) add(c, "outnumbered3to1");
+    flags.outnumbered3to1 = outnumbered;
     // Surrounded is edge-triggered.
     for (const c of foes()) {
         if (!isActive(c)) continue;
@@ -181,11 +225,30 @@ export function processMorale(state) {
         if (surrounded && !c.wasSurrounded) add(c, "surrounded");
         c.wasSurrounded = surrounded;
     }
-    if (!triggered.size) return;
-    if (state.moraleRules.losingGate && !foesLosing(state)) {
-        state.stats.moraleGated += triggered.size;
-        return;
+    // The gate (M24): only while the party is clearly winning, except fear from the party. A check it
+    // blocks is lost, unless holdGatedChecks (off, M27) keeps it for when the gate opens; one per creature.
+    const held = (state.moraleHeld ??= new Map());
+    if (gated(state)) {
+        for (const [id, reason] of [...triggered]) {
+            if (reason === "frightenedByEnemy") continue;
+            triggered.delete(id);
+            state.stats.moraleGated++;
+            if (state.moraleRules.holdGatedChecks && !held.has(id)) held.set(id, reason);
+        }
+    } else {
+        for (const [id, reason] of [...held]) {
+            const c = state.byId.get(id);
+            if (!c || !eligible(state, c)) {
+                held.delete(id);
+                continue;
+            }
+            // Already checked this round: it waits for the next.
+            if (triggered.has(id) || (groupOf(state, c) ?? c.moraleState).checkedRound === state.round) continue;
+            triggered.set(id, reason);
+            held.delete(id);
+        }
     }
+    if (!triggered.size) return;
     const doneGroups = new Set();
     for (const [id, reason] of triggered) {
         const c = state.byId.get(id);
@@ -232,10 +295,15 @@ function sharedModifiers(state, c) {
     if (leader && leader !== c && !isActive(leader)) push("leaderDown", modifierValue(state, "leaderDown"));
     if (state.moraleFlags.allyDroppedSingleRound === state.round) push("allyDroppedBySingleAttack", modifierValue(state, "allyDroppedBySingleAttack"));
     if (state.foeStartCount > 1 && foesActive <= state.foeStartCount / 4) push("quarterStrength", modifierValue(state, "quarterStrength"));
+    // M24 (Morale.md): the side's losses, −2 from a quarter fallen and −4 from half.
+    const lost = state.foeStartCount - foesActive;
+    if (state.foeStartCount > 1 && lost >= state.foeStartCount / 2) push("sideLost50", modifierValue(state, "sideLost50"));
+    else if (state.foeStartCount > 1 && lost >= state.foeStartCount / 4) push("sideLost25", modifierValue(state, "sideLost25"));
     if (state.moraleFlags.strongestDown) push("mostPowerfulAllyKilled", modifierValue(state, "mostPowerfulAllyKilled"));
     if (!state.list.some((other) => other.side === "party" && other.kind === "pc" && other.everDown)) push("noEnemySlain", modifierValue(state, "noEnemySlain"));
     if (state.round === 1 && state.surprisedSide === "foes") push("surprisedPenalty", modifierValue(state, "surprisedPenalty"));
     if (helpPending(state)) push("helpComing", modifierValue(state, "helpComing"));
+    if (state.partyLevel && c.level !== undefined) push("levelDifference", modifierValue(state, "levelDifference") * (c.level - state.partyLevel));
     return parts;
 }
 
@@ -301,11 +369,18 @@ function isIsolated(state, c) {
     return !allies.some((other) => other.band === "engaged" || other.band === "near");
 }
 
+// The morale check's DC (see dcMode in morale-rules.js).
+function moraleDC(state, will) {
+    const rules = state.moraleRules;
+    if (rules.dcMode === "partyLevel") return levelDC(state.partyLevel ?? 1) + (rules.levelOffset ?? 0);
+    return rules.thresholdBase + will;
+}
+
 function rollMorale(state, will, penalty, parts) {
     const modifier = parts.reduce((sum, part) => sum + part.value, 0);
     const natural = state.rng.d20();
     const total = natural + will - penalty + modifier;
-    const dc = state.moraleRules.thresholdBase + will;
+    const dc = moraleDC(state, will);
     return { natural, total, dc, degree: degreeOf(total, dc, natural), modifier };
 }
 
@@ -327,30 +402,33 @@ function individualCheck(state, c, reason) {
         c.moraleState.ignoredFirstFailure = true;
         degree = SUCCESS;
     }
-    if (c.morale.boss && degree <= FAILURE && !bossMayBreak(state, c)) degree = FAILURE;
+    // Boss Resolve: it can't break yet. Under M24 (a failure gives up) it holds; before, it wavered.
+    if (c.morale.boss && degree <= FAILURE && !bossMayBreak(state, c)) degree = state.moraleRules.failureGivesUp ? SUCCESS : FAILURE;
     state.log?.push(`  ${c.name} morale (${reason}): ${roll.total} vs ${roll.dc} → ${["critical failure", "failure", "success", "critical success"][degree]}`);
     applyIndividualResult(state, c, degree, template);
 }
 
-// The party plays for morale (a setup tick, M23): what a check set off now would
-// likely do to a foe, for the planner. extra: modifiers the cause adds (a leader
+// Simulated PCs who play for morale (a setup tick, M23; it changes how they act,
+// not the rules, M26): what a check set off now would likely do to a foe, for the planner. extra: modifiers the cause adds (a leader
 // down); frightened: the value fear would give it. { breaks, wavers } chances.
 export function moraleOdds(state, c, { trigger, frightened = 0, extra = 0 }) {
     const none = { breaks: 0, wavers: 0 };
     if (!state.options.morale || !triggerEnabled(state, trigger) || !eligible(state, c)) return none;
+    if (trigger !== "frightenedByEnemy" && gated(state)) return none;
+    if (trigger === "frightenedByEnemy" && frightened < (state.moraleRules.triggers.frightenedByEnemy?.minValue ?? 0)) return none;
     const group = groupOf(state, c);
     if ((group ?? c.moraleState).checkedRound === state.round) return none;
     if (c.morale.boss && !c.moraleState.autoPassed) return none;
     let modifier = [...sharedModifiers(state, c), ...personalModifiers(state, c)].reduce((sum, part) => sum + part.value, 0) + extra;
     if (frightened > 0 && !(c.cond.frightened > 0)) modifier += modifierValue(state, "frightened");
     const penalty = Math.max(statusPenalty(c, "will"), frightened);
-    const odds = degreeDistribution(modifier - penalty, state.moraleRules.thresholdBase);
+    const odds = degreeDistribution(baseWill(c) + modifier - penalty, moraleDC(state, baseWill(c)));
     const template = state.moraleRules.templates[c.morale.template] ?? state.moraleRules.templates.typical;
     if (template.ignoreFirstFailure && !c.moraleState.ignoredFirstFailure) return none;
-    let breaks = odds[CRITICAL_FAILURE];
-    let wavers = odds[FAILURE];
+    let breaks = odds[CRITICAL_FAILURE] + (state.moraleRules.failureGivesUp ? odds[FAILURE] : 0);
+    let wavers = state.moraleRules.failureGivesUp ? 0 : odds[FAILURE];
     if (c.morale.boss && !bossMayBreak(state, c)) {
-        wavers += breaks;
+        wavers = state.moraleRules.failureGivesUp ? 0 : wavers + breaks;
         breaks = 0;
     }
     // A berserk break keeps it fighting.
@@ -387,7 +465,8 @@ function applyIndividualResult(state, c, degree, template) {
     if (degree === SUCCESS) return;
     c.moraleState.failed++;
     state.stats.moraleFailures++;
-    if (degree === FAILURE) {
+    // M24: a failure gives up too; before, it wavered and only a critical failure broke.
+    if (degree === FAILURE && !state.moraleRules.failureGivesUp) {
         waver(state, c, template.waver);
         return;
     }

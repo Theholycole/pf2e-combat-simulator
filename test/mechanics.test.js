@@ -57,10 +57,11 @@ test("persistent damage is set aside and recorded on the target", () => {
     assert.equal(c.persistent[0].type, "fire");
 });
 
-// The half-HP trigger (off by default since M20) is switched on here: these tests use it to start a check.
+// These tests check the morale mechanisms one by one: the half-HP trigger (off since M20) starts a
+// check, and the gate (on since M24) is off so the check happens at the start of a fight.
 function moraleState(foes, rules = {}) {
     const party = martialParty(3);
-    const state = createFightState({ combatants: [...party, ...foes] }, { moraleRules: mergeMoraleRules({ ...rules, triggers: { halfHp: { enabled: true }, ...(rules.triggers ?? {}) } }) });
+    const state = createFightState({ combatants: [...party, ...foes] }, { moraleRules: mergeMoraleRules({ losingGate: false, ...rules, triggers: { halfHp: { enabled: true }, ...(rules.triggers ?? {}) } }) });
     return state;
 }
 
@@ -74,7 +75,8 @@ test("Boss Resolve: a solo boss passes its first morale check automatically", ()
 });
 
 test("triggers marked once per creature fire only once", () => {
-    const state = moraleState([moderateCreature(3, "a", "Alpha"), moderateCreature(3, "b", "Beta")]);
+    // Improved Morale's waver (before M24): a failure doesn't take Alpha out, so its side's losses don't trigger more.
+    const state = moraleState([moderateCreature(3, "a", "Alpha"), moderateCreature(3, "b", "Beta")], { failureGivesUp: false });
     const alpha = state.byId.get("a");
     for (let round = 1; round <= 3; round++) {
         state.round = round;
@@ -84,8 +86,8 @@ test("triggers marked once per creature fire only once", () => {
     assert.equal(state.stats.moraleChecks, 1);
 });
 
-test("a group of three with the same name checks morale once, together", () => {
-    const state = moraleState([1, 2, 3].map((n) => moderateCreature(2, `b${n}`, "Bandit")));
+test("a group of three with the same name checks morale once, together (groups are off since M24)", () => {
+    const state = moraleState([1, 2, 3].map((n) => moderateCreature(2, `b${n}`, "Bandit")), { group: { enabled: true } });
     state.pendingEvents.push({ type: "halfHp", victim: state.byId.get("b1") });
     state.pendingEvents.push({ type: "halfHp", victim: state.byId.get("b2") });
     processMorale(state);
@@ -161,23 +163,33 @@ test("weapon traits: forceful, sweep, backswing, volley and backstabber", () => 
     assert.equal(expectedHitDamage(fighter, dagger, foe, false, { offGuardChance: 1 }) - expectedHitDamage(fighter, dagger, foe, false), 1);
 });
 
-test("frightened by an enemy's effect sets off a morale check (the trigger was never raised before 2026-10-08)", async () => {
+test("frightened 2+ from an enemy's effect sets off a morale check (M25; never raised before 2026-10-08)", async () => {
     const { applyCondition } = await import("../src/engine/spells.js");
     // Steady foes (they never fail, so nothing else follows from the check).
     const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { templates: { typical: { modifier: 30 } } });
     const guard = state.byId.get("g");
     const pc = state.list.find((c) => c.kind === "pc");
+    // Frightened 1 (a Demoralize's success) doesn't.
     applyCondition(state, guard, "frightened", 1, null, pc);
+    processMorale(state);
+    assert.equal(state.stats.moraleChecks, 0);
+    // Frightened 2 (its critical success) does.
+    applyCondition(state, guard, "frightened", 2, null, pc);
     processMorale(state);
     assert.ok(state.log.some((line) => /Guard morale \(frightenedByEnemy\)/.test(line)), state.log.join("\n"));
     // Frightened again at the same value, or by an ally, doesn't (the check may have changed it: set it back).
     state.round = 2;
-    guard.cond.frightened = 1;
+    guard.cond.frightened = 2;
     const checks = state.stats.moraleChecks;
-    applyCondition(state, guard, "frightened", 1, null, pc);
-    applyCondition(state, guard, "frightened", 1, null, state.byId.get("o"));
+    applyCondition(state, guard, "frightened", 2, null, pc);
+    applyCondition(state, guard, "frightened", 3, null, state.byId.get("o"));
     processMorale(state);
     assert.equal(state.stats.moraleChecks, checks);
+    // Raised to 3 by an enemy, it checks again.
+    guard.cond.frightened = 2;
+    applyCondition(state, guard, "frightened", 3, null, pc);
+    processMorale(state);
+    assert.equal(state.stats.moraleChecks, checks + 1);
 });
 
 test("the party plays for morale (M23): fear is worth the chance it breaks a foe, and the foes' leader the breaks its fall brings", () => {
@@ -190,11 +202,50 @@ test("the party plays for morale (M23): fear is worth the chance it breaks a foe
         return scoreOptions(state, pc).options.find((option) => option.action.type === "cast")?.value ?? 0;
     };
     assert.ok(value(true) > value(false) * 1.5, `${value(true)} > 1.5 × ${value(false)}`);
-    // A chief two levels above its guards leads them.
+    // A chief two levels above its guards leads them. (The gate, M24, is off here: the party isn't
+    // ahead at the start of this fight, so the chief's fall would set off no checks yet.)
     const leader = (plays) => {
-        const state = createFightState({ combatants: [fighter, moderateCreature(5, "chief", "Chief"), moderateCreature(3, "g1", "Guard"), moderateCreature(3, "g2", "Guard")], setup: { situational: { playsForMorale: plays } } });
+        const state = createFightState({ combatants: [fighter, moderateCreature(5, "chief", "Chief"), moderateCreature(3, "g1", "Guard"), moderateCreature(3, "g2", "Guard")], setup: { situational: { playsForMorale: plays } } }, { moraleRules: mergeMoraleRules({ losingGate: false }) });
         return state.leaderDownWorth.get("chief") ?? 0;
     };
     assert.ok(leader(true) > 0);
     assert.equal(leader(false), 0);
+});
+
+test("held (a setting, off since M27), a check the gate blocks waits and is rolled once the party pulls ahead", () => {
+    const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { losingGate: true, holdGatedChecks: true });
+    const guard = state.byId.get("g");
+    // Close: the foes as strong as the party.
+    for (const c of state.list.filter((other) => other.side === "foes")) c.hp.value = c.hp.max = 400;
+    state.pendingEvents.push({ type: "halfHp", victim: guard });
+    processMorale(state);
+    assert.equal(state.stats.moraleChecks, 0, "blocked");
+    assert.equal(state.moraleHeld.get("g"), "halfHp");
+    // The party pulls ahead: the held check is rolled with no new trigger.
+    for (const c of state.list.filter((other) => other.side === "foes")) c.hp.value = 5;
+    processMorale(state);
+    assert.equal(state.stats.moraleChecks, 1);
+    assert.ok(state.log.some((line) => /Guard morale \(halfHp\)/.test(line)));
+    // By default (M27), a blocked check is lost.
+    const lost = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { losingGate: true });
+    for (const c of lost.list.filter((other) => other.side === "foes")) c.hp.value = c.hp.max = 400;
+    lost.pendingEvents.push({ type: "halfHp", victim: lost.byId.get("g") });
+    processMorale(lost);
+    for (const c of lost.list.filter((other) => other.side === "foes")) c.hp.value = 5;
+    processMorale(lost);
+    assert.equal(lost.stats.moraleChecks, 0);
+});
+
+test("the gate by HP share: each side's HP left as a share of what it started with", async () => {
+    const { hpShares } = await import("../src/engine/morale.js");
+    const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { losingGate: true, gateMode: "hpShare", hpGate: { kind: "ratio", value: 2 } });
+    const [guard, other] = [state.byId.get("g"), state.byId.get("o")];
+    assert.deepEqual(hpShares(state), { party: 1, foes: 1 });
+    guard.hp.value = guard.hp.max / 2;
+    other.status = "fled";
+    assert.ok(Math.abs(hpShares(state).foes - 0.25) < 1e-9, "a fled foe counts as none");
+    // Ratio 2: the party at 100% against the foes' 25% is winning; a guard's check goes ahead.
+    state.pendingEvents.push({ type: "halfHp", victim: guard });
+    processMorale(state);
+    assert.equal(state.stats.moraleChecks, 1);
 });

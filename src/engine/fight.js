@@ -78,7 +78,9 @@ function createState(snapshot, options, seed, withLog) {
         damageBy: { party: 0, foes: 0 },
         stats: { moraleChecks: 0, moraleFailures: 0, moraleBreaks: 0, moraleRecoveries: 0, moraleGated: 0, heroPointsSpent: 0, reactions: 0 },
         outcome: null,
-        surprisedSide: null
+        surprisedSide: null,
+        // The party's level (the morale DC in "partyLevel" mode).
+        partyLevel: snapshot.partyLevel ?? Math.max(1, Math.round(list.filter((c) => c.kind === "pc").reduce((sum, c, _, pcs) => sum + c.level / pcs.length, 0)))
     };
     if (!options.heroPoints) for (const c of list) c.heroPoints = 0;
     // Grab, Knockdown and Push after a hit (spells.js resolves them).

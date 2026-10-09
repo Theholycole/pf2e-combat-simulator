@@ -21,9 +21,9 @@ test("default morale profiles follow the agreed guesses", () => {
     assert.equal(targeted.template, "cowardly");
 });
 
-test("the optional losing gate keeps morale from deciding fights: at most 5 points", () => {
+test("the losing gate at 3× keeps morale from deciding fights: at most 5 points in each", () => {
     for (const [level, threat] of [[1, "extreme"], [3, "severe"], [5, "extreme"], [5, "extremeBoss"]]) {
-        const snapshot = { ...benchmarkEncounter(level, threat), moraleRules: { losingGate: true } };
+        const snapshot = { ...benchmarkEncounter(level, threat), moraleRules: { losingGate: true, gateMode: "strength", losingGateRatio: 3 } };
         const [on, off] = runCompare(snapshot, COMPARE_PRESETS.morale(), { runs: 600 });
         assert.ok(Math.abs(off.delta.winRate) <= 0.05, `L${level} ${threat}: morale moved win rate by ${(off.delta.winRate * 100).toFixed(1)} points`);
         if (on.report.averageWinRounds && off.report.averageWinRounds) {

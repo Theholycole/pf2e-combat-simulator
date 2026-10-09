@@ -6,22 +6,50 @@
 // switched off per compare variant, which is how the per-rule impact report
 // measures each rule.
 
+// Cleanup morale (the user's system, 2026-10-08, M24; inspired by "Morale.md"
+// and "Improved Morale.md"): shorten fights the party is winning without
+// changing who wins. Foes check only once their side is losing (losses, the
+// leader, hopelessness) or the party frightens them; a failed check means the
+// creature gives up (flees or surrenders by its template); the DC is PF2e's
+// for the party's level, so weaker foes give up sooner and stronger ones hold.
 export const MORALE_RULES = Object.freeze({
-    // M2: morale is always active (user, 2026-10-07): the triggers themselves
-    // are the signs of losing. The optional gate limits checks to fights the
-    // party is clearly winning: party HP × damage per round at least
-    // losingGateRatio times the foes' (Lanchester's square law).
-    losingGate: false,
-    losingGateRatio: 3,
+    // The gate (user, 2026-10-08, M24; M2 had it off): checks happen only while the
+    // party is clearly winning, party HP × damage per round at least
+    // losingGateRatio times the foes' (Lanchester's square law). Fear from the
+    // party (frightened 2+, M25) counts anyway. The rules are the same whether
+    // or not the players play for morale (user, 2026-10-08, M26).
+    losingGate: true,
+    losingGateRatio: 2,
+    // How the gate tells the party is winning (user, 2026-10-08, M28): "hpShare", the share of
+    // its starting HP each side has left, the party's at least hpGate.value times the foes'
+    // ("ratio") or that many points above it ("margin"); simple to judge at the table. "strength"
+    // (before M28): HP × a forecast of damage per round (Lanchester), at least losingGateRatio times the foes'.
+    gateMode: "hpShare",
+    hpGate: { kind: "ratio", value: 1.25 },
+    // Whether a check the gate blocks waits to be rolled once the gate opens. Off (user,
+    // 2026-10-08, M27): held checks piled up in close fights and fired together.
+    holdGatedChecks: false,
     thresholdBase: 10,
+    // The check's DC. "partyLevel" (user, 2026-10-08, M24): PF2e's DC for the party's level +
+    // levelOffset, against the creature's own Will, so foes weaker than the party give up more easily
+    // and stronger ones less. "threshold" (M1, before): thresholdBase + its own Will, so its Will
+    // cancelled and only the modifiers counted.
+    dcMode: "partyLevel",
+    levelOffset: 0,
     checksPerRound: 1,
     extraCheckOnLeaderDeath: true,
+    // M24: a failed check means the creature gives up (no wavering stage); false is Improved Morale's waver-then-break.
+    failureGivesUp: true,
 
     triggers: {
         // Off (user, 2026-10-08, M22): it decided close fights (+2.1 points there) for 0.11 rounds.
         firstMemberOverwhelmed: { enabled: false, label: "Side loses its first member to a critical hit or overwhelming attack" },
+        // M24 (Morale.md): 25%, 50% and 75% of its side fallen; a companion slain after half have fallen.
+        quarterFallen: { enabled: true, label: "A quarter of its side has fallen" },
         halfStrength: { enabled: true, label: "Side falls to half its starting creatures" },
         quarterStrength: { enabled: true, label: "Side falls to one-quarter its starting creatures" },
+        companionAfterHalf: { enabled: true, label: "A companion falls after half the side has" },
+        outnumbered3to1: { enabled: true, label: "Side outnumbered 3:1" },
         leaderDown: { enabled: true, label: "Leader dropped or fled" },
         cantAffect: { enabled: true, label: "Can't meaningfully affect an opponent" },
         surrounded: { enabled: true, label: "Surrounded" },
@@ -30,10 +58,13 @@ export const MORALE_RULES = Object.freeze({
         halfHp: { enabled: false, label: "Falls to half HP", oncePerCreature: true },
         // Off (user, 2026-10-08, M21): +1 point of win rate for 0.03 rounds.
         strongestAllyDown: { enabled: false, label: "Sees its strongest ally destroyed", oncePerCreature: true },
-        frightenedByEnemy: { enabled: true, label: "Becomes frightened from an enemy effect" },
-        surprised: { enabled: true, label: "Surprised (first round)", source: "Morale.md" },
-        // Escalations (user, 2026-10-08): not a check; foe reinforcements arriving steady wavering foes.
-        helpArrives: { enabled: true, label: "Help arrives: wavering foes steady" }
+        // minValue (user, 2026-10-08, M25): only when an enemy's effect takes it to frightened 2 or more.
+        frightenedByEnemy: { enabled: true, label: "Becomes frightened 2+ from an enemy effect", minValue: 2 },
+        // Off (M24): an early check that decides fights.
+        surprised: { enabled: false, label: "Surprised (first round)", source: "Morale.md" },
+        // Escalations (user, 2026-10-08): not a check; foe reinforcements arriving steady wavering foes
+        // (off with M24: nothing wavers).
+        helpArrives: { enabled: false, label: "Help arrives: wavering foes steady" }
     },
 
     modifiers: {
@@ -48,9 +79,15 @@ export const MORALE_RULES = Object.freeze({
         outnumbered2to1: { enabled: true, value: -4, label: "Side outnumbered 2:1 or worse" },
         leaderDown: { enabled: true, value: -2, label: "Leader down or fled" },
         cantBypassDefense: { enabled: true, value: -2, label: "Can't bypass the enemy's main defence" },
-        alreadyFailed: { enabled: true, value: -2, label: "Already failed a morale check this encounter" },
+        // Off (M24): a failed check takes the creature out, so there's no second one.
+        alreadyFailed: { enabled: false, value: -2, label: "Already failed a morale check this encounter" },
+        // M24 (Morale.md): its side's losses.
+        sideLost25: { enabled: true, value: -2, label: "A quarter of its side has fallen" },
+        sideLost50: { enabled: true, value: -4, label: "Half its side has fallen" },
         quarterStrength: { enabled: true, value: -4, label: "Side reduced to one-quarter strength" },
         isolated: { enabled: true, value: -6, label: "Isolated from allies" },
+        // Per level the creature is above the party (below: negative), M24.
+        levelDifference: { enabled: true, value: 1, label: "Its level against the party's (per level)" },
         // Escalations (user, 2026-10-08): the alarm was raised and its help hasn't come yet.
         helpComing: { enabled: true, value: 1, label: "Help is on its way (the alarm was raised)" },
         // Morale.md (AD&D), off by default (M3).
@@ -75,6 +112,8 @@ export const MORALE_RULES = Object.freeze({
     },
 
     group: {
+        // Off (M24): each creature checks for itself; one roll would take whole groups out at once.
+        enabled: false,
         minSize: 3,                       // M5
         criticalFailureSteps: 2,          // M4
         leaderBonus: [[5, 3], [3, 2], [1, 1]], // M6: [level difference, bonus]
@@ -95,7 +134,8 @@ export const MORALE_RULES = Object.freeze({
         bloodiedFraction: 0.5             // M18
     },
 
-    recovery: { enabled: true }
+    // Off (M24): a creature that fails has given up.
+    recovery: { enabled: false }
 });
 
 function isPlainObject(value) {
