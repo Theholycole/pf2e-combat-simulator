@@ -18,6 +18,7 @@ import { applyDamage, expectedHitDamage, increaseDying, killCreature, log, relea
 import { levelDC, saveBonusAgainst, sizeRank } from "./abilities.js";
 import { adjustDamage, adjustInstance } from "./damage.js";
 import { leaveMelee } from "./space.js";
+import { moraleOdds } from "./morale.js";
 
 const registry = createRegistry();
 for (const family of CORE_FAMILIES) registry.registerFamily(family);
@@ -315,8 +316,11 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     // "As long as it's sickened" (Stench): ends when that condition does.
     if (duration?.mode === "while" && duration.condition) (target.whileConditions ??= []).push({ slug, value, while: duration.condition });
     const rounds = durationRounds(duration);
+    const before = target.cond[slug] ?? 0;
     if (flag) target.cond[flag] = true;
     else target.cond[slug] = Math.max(target.cond[slug] ?? 0, Number.isFinite(value) ? value : 1);
+    // Frightened by an enemy's effect (Demoralize, fear) is a morale trigger.
+    if (slug === "frightened" && target.cond.frightened > before && source && source.side !== target.side) state.pendingEvents?.push({ type: "frightened", victim: target, byEnemy: true });
     // Who's holding it, for Escape, Constrict and letting go.
     if ((slug === "grabbed" || slug === "restrained") && source && source !== target) target.grabbedBy = source.id;
     if (Number.isFinite(rounds)) {
@@ -1105,6 +1109,11 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     if (change.scope.attacker === caster.id) entry.damage += chance * 0.1 * bestHit(caster, target, change.scope.attacks === "melee") * (change.scope.uses ?? 3);
                 } else if (change.op === "condition") {
                     entry.worth += chance * conditionWorth(change.slug, change.value, change.duration);
+                    // The party plays for morale (M23): fear may break the foe, which takes it out of the fight.
+                    if (change.slug === "frightened" && caster.side === "party" && target.side !== caster.side && state.setup.situational?.playsForMorale) {
+                        const odds = moraleOdds(state, target, { trigger: "frightenedByEnemy", frightened: change.value ?? 1 });
+                        entry.breaks = (entry.breaks ?? 0) + chance * (odds.breaks + 0.3 * odds.wavers);
+                    }
                 } else if (change.op === "affliction" && Array.isArray(change.data?.stages)) {
                     const value = afflictionValue(target, change.data);
                     entry.damage += chance * value.damage;

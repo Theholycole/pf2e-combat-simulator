@@ -14,7 +14,7 @@ import { ikonOf, rendReady } from "./exemplar.js";
 import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, flankChance, mapGap, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
-import { isShaken } from "./morale.js";
+import { isShaken, leaderDownWorth } from "./morale.js";
 import { chargeStrike, ducksFromCoverFire, multiStrikeOrder, strikeNamed } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
@@ -89,6 +89,9 @@ export function computeThreats(state) {
         return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
     };
     state.meanThreat = { party: mean("party"), foes: mean("foes") };
+    // Playing for morale (M23): what each foe leader's fall would break.
+    state.leaderDownWorth = new Map();
+    if (state.setup?.situational?.playsForMorale) for (const c of state.list) if (c.morale?.leader && isActive(c)) state.leaderDownWorth.set(c.id, leaderDownWorth(state, c));
 }
 
 // Expected damage of the creature's best spell it can still cast, against one
@@ -155,6 +158,8 @@ function targetValue(state, target, attacker) {
     if (target.kind !== "object") threat = Math.max(threat, 0.5 * (state.meanThreat?.[target.side] ?? 0), 1);
     // An alarm-raiser (E1): dropping it keeps the help away, worth what the help would deal.
     if (target.alarm && attacker.side !== target.side && alarmOpen(state)) threat += state.escalation.helpThreat ?? 0;
+    // Playing for morale (M23): the foes' leader first, for the breaks its fall would bring.
+    if (attacker.side === "party" && target.morale?.leader) threat += state.leaderDownWorth?.get(target.id) ?? 0;
     return threat + objectiveBonus(state, target, attacker);
 }
 
@@ -729,13 +734,15 @@ function expand(ctx, node, actionsLeft) {
                 for (const set of sets) {
                     let gain = 0;
                     const damage = { ...node.damage };
-                    for (const { target, damage: expected, worth, heal, benefit } of ctx.spellEffect(index, spell, set.targets, node.attacks, actions)) {
+                    for (const { target, damage: expected, worth, heal, benefit, breaks = 0 } of ctx.spellEffect(index, spell, set.targets, node.attacks, actions)) {
                         const ally = target.side === c.side;
                         const sign = ally ? -1 : 1;
                         const before = damage[target.id] ?? 0;
                         const hp = remainingHp(target);
                         const value = target.status === "active" ? targetValue(state, target, c) : Math.max(1, state.meanThreat?.[target.side] ?? 1);
-                        gain += sign * value * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + worth * ROUND_TO_KILL);
+                        // Playing for morale (M23): a break takes it out like a kill, beyond the damage already counted.
+                        const out = Math.min(1, Math.min(1, (before + expected) / hp) + breaks);
+                        gain += sign * value * (out - Math.min(1, before / hp) + worth * ROUND_TO_KILL);
                         if (heal > 0 && target.hp.max > 0) {
                             // Topping up a barely hurt ally is worth little; saving one near 0 HP, a lot.
                             const urgency = target.status !== "active" ? 3 : 2.5 * (1 - hpFraction(target)) ** 1.5;

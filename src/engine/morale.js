@@ -2,7 +2,7 @@
 // the Mn notes refer to docs/morale-decisions.md.
 
 import { SURRENDERED, baseWill, canAct, hpFraction, isActive, statusPenalty } from "./combatant.js";
-import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf } from "./checks.js";
+import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistribution, degreeOf } from "./checks.js";
 import { engagedAllies, engagedEnemies, removeFromSpace } from "./space.js";
 import { helpPending } from "./escalations.js";
 
@@ -330,6 +330,45 @@ function individualCheck(state, c, reason) {
     if (c.morale.boss && degree <= FAILURE && !bossMayBreak(state, c)) degree = FAILURE;
     state.log?.push(`  ${c.name} morale (${reason}): ${roll.total} vs ${roll.dc} → ${["critical failure", "failure", "success", "critical success"][degree]}`);
     applyIndividualResult(state, c, degree, template);
+}
+
+// The party plays for morale (a setup tick, M23): what a check set off now would
+// likely do to a foe, for the planner. extra: modifiers the cause adds (a leader
+// down); frightened: the value fear would give it. { breaks, wavers } chances.
+export function moraleOdds(state, c, { trigger, frightened = 0, extra = 0 }) {
+    const none = { breaks: 0, wavers: 0 };
+    if (!state.options.morale || !triggerEnabled(state, trigger) || !eligible(state, c)) return none;
+    const group = groupOf(state, c);
+    if ((group ?? c.moraleState).checkedRound === state.round) return none;
+    if (c.morale.boss && !c.moraleState.autoPassed) return none;
+    let modifier = [...sharedModifiers(state, c), ...personalModifiers(state, c)].reduce((sum, part) => sum + part.value, 0) + extra;
+    if (frightened > 0 && !(c.cond.frightened > 0)) modifier += modifierValue(state, "frightened");
+    const penalty = Math.max(statusPenalty(c, "will"), frightened);
+    const odds = degreeDistribution(modifier - penalty, state.moraleRules.thresholdBase);
+    const template = state.moraleRules.templates[c.morale.template] ?? state.moraleRules.templates.typical;
+    if (template.ignoreFirstFailure && !c.moraleState.ignoredFirstFailure) return none;
+    let breaks = odds[CRITICAL_FAILURE];
+    let wavers = odds[FAILURE];
+    if (c.morale.boss && !bossMayBreak(state, c)) {
+        wavers += breaks;
+        breaks = 0;
+    }
+    // A berserk break keeps it fighting.
+    if (template.break === "berserk") breaks = 0;
+    return { breaks, wavers };
+}
+
+// What dropping the foes' leader is worth when the party plays for morale: the other
+// foes' threat times the chance their "leader down" checks break them.
+export function leaderDownWorth(state, leader) {
+    if (!state.setup.situational?.playsForMorale || !leader.morale?.leader) return 0;
+    let worth = 0;
+    for (const c of state.list) {
+        if (c === leader || c.side !== leader.side || !isActive(c)) continue;
+        const odds = moraleOdds(state, c, { trigger: "leaderDown", extra: modifierValue(state, "leaderDown") });
+        worth += (state.threat?.get(c.id) ?? 0) * (odds.breaks + 0.3 * odds.wavers);
+    }
+    return worth;
 }
 
 function bossMayBreak(state, c) {

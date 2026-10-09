@@ -160,3 +160,41 @@ test("weapon traits: forceful, sweep, backswing, volley and backstabber", () => 
     const dagger = { name: "Dagger", melee: true, backstabber: true, damage: [{ dice: 1, die: 4, bonus: 0, type: "piercing" }] };
     assert.equal(expectedHitDamage(fighter, dagger, foe, false, { offGuardChance: 1 }) - expectedHitDamage(fighter, dagger, foe, false), 1);
 });
+
+test("frightened by an enemy's effect sets off a morale check (the trigger was never raised before 2026-10-08)", async () => {
+    const { applyCondition } = await import("../src/engine/spells.js");
+    // Steady foes (they never fail, so nothing else follows from the check).
+    const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { templates: { typical: { modifier: 30 } } });
+    const guard = state.byId.get("g");
+    const pc = state.list.find((c) => c.kind === "pc");
+    applyCondition(state, guard, "frightened", 1, null, pc);
+    processMorale(state);
+    assert.ok(state.log.some((line) => /Guard morale \(frightenedByEnemy\)/.test(line)), state.log.join("\n"));
+    // Frightened again at the same value, or by an ally, doesn't (the check may have changed it: set it back).
+    state.round = 2;
+    guard.cond.frightened = 1;
+    const checks = state.stats.moraleChecks;
+    applyCondition(state, guard, "frightened", 1, null, pc);
+    applyCondition(state, guard, "frightened", 1, null, state.byId.get("o"));
+    processMorale(state);
+    assert.equal(state.stats.moraleChecks, checks);
+});
+
+test("the party plays for morale (M23): fear is worth the chance it breaks a foe, and the foes' leader the breaks its fall brings", () => {
+    const demoralize = { name: "Demoralize", plan: { traits: ["concentrate"], activation: { time: "1" }, targeting: { target: "1 creature", range: "30 feet" }, resolution: { kind: "check", check: { roll: "skill", statistic: "intimidation", against: { dc: "target", statistic: "will" } }, outcomes: { criticalSuccess: { effects: [{ kind: "condition", slug: "frightened", value: 2 }] }, success: { effects: [{ kind: "condition", slug: "frightened", value: 1 }] }, failure: { effects: [] }, criticalFailure: { effects: [] } } } }, castRank: 1, pool: null, kind: "basic" };
+    const [fighter] = martialParty(3);
+    const value = (plays) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, skills: { ...fighter.skills, intimidation: 12 }, spells: [demoralize] }, { ...moderateCreature(3, "g", "Guard"), engagement: 1 }, moderateCreature(3, "o", "Other")], setup: { situational: { playsForMorale: plays } } });
+        const pc = state.byId.get("fighter");
+        pc.actionsLeft = 3;
+        return scoreOptions(state, pc).options.find((option) => option.action.type === "cast")?.value ?? 0;
+    };
+    assert.ok(value(true) > value(false) * 1.5, `${value(true)} > 1.5 × ${value(false)}`);
+    // A chief two levels above its guards leads them.
+    const leader = (plays) => {
+        const state = createFightState({ combatants: [fighter, moderateCreature(5, "chief", "Chief"), moderateCreature(3, "g1", "Guard"), moderateCreature(3, "g2", "Guard")], setup: { situational: { playsForMorale: plays } } });
+        return state.leaderDownWorth.get("chief") ?? 0;
+    };
+    assert.ok(leader(true) > 0);
+    assert.equal(leader(false), 0);
+});
