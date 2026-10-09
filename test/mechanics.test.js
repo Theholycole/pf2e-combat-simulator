@@ -193,7 +193,8 @@ test("frightened 2+ from an enemy's effect sets off a morale check (M25; never r
 });
 
 test("the party plays for morale (M23): fear is worth the chance it breaks a foe, and the foes' leader the breaks its fall brings", () => {
-    const demoralize = { name: "Demoralize", plan: { traits: ["concentrate"], activation: { time: "1" }, targeting: { target: "1 creature", range: "30 feet" }, resolution: { kind: "check", check: { roll: "skill", statistic: "intimidation", against: { dc: "target", statistic: "will" } }, outcomes: { criticalSuccess: { effects: [{ kind: "condition", slug: "frightened", value: 2 }] }, success: { effects: [{ kind: "condition", slug: "frightened", value: 1 }] }, failure: { effects: [] }, criticalFailure: { effects: [] } } } }, castRank: 1, pool: null, kind: "basic" };
+    // A strong fear (frightened 2 on a success, 3 on a critical): it sets off checks (M25), which give up only on a critical failure (M29).
+    const demoralize = { name: "Terrify", plan: { traits: ["concentrate"], activation: { time: "1" }, targeting: { target: "1 creature", range: "30 feet" }, resolution: { kind: "check", check: { roll: "skill", statistic: "intimidation", against: { dc: "target", statistic: "will" } }, outcomes: { criticalSuccess: { effects: [{ kind: "condition", slug: "frightened", value: 3 }] }, success: { effects: [{ kind: "condition", slug: "frightened", value: 2 }] }, failure: { effects: [] }, criticalFailure: { effects: [] } } } }, castRank: 1, pool: null, kind: "basic" };
     const [fighter] = martialParty(3);
     const value = (plays) => {
         const state = createFightState({ combatants: [{ ...fighter, engagement: 1, skills: { ...fighter.skills, intimidation: 12 }, spells: [demoralize] }, { ...moderateCreature(3, "g", "Guard"), engagement: 1 }, moderateCreature(3, "o", "Other")], setup: { situational: { playsForMorale: plays } } });
@@ -201,7 +202,7 @@ test("the party plays for morale (M23): fear is worth the chance it breaks a foe
         pc.actionsLeft = 3;
         return scoreOptions(state, pc).options.find((option) => option.action.type === "cast")?.value ?? 0;
     };
-    assert.ok(value(true) > value(false) * 1.5, `${value(true)} > 1.5 × ${value(false)}`);
+    assert.ok(value(true) > value(false) * 1.2, `${value(true)} > 1.2 × ${value(false)}`);
     // A chief two levels above its guards leads them. (The gate, M24, is off here: the party isn't
     // ahead at the start of this fight, so the chief's fall would set off no checks yet.)
     const leader = (plays) => {
@@ -248,4 +249,22 @@ test("the gate by HP share: each side's HP left as a share of what it started wi
     state.pendingEvents.push({ type: "halfHp", victim: guard });
     processMorale(state);
     assert.equal(state.stats.moraleChecks, 1);
+});
+
+test("fear only cracks morale (M29): a failed check fear set off raises frightened; a critical failure gives up", async () => {
+    const { applyCondition } = await import("../src/engine/spells.js");
+    const outcome = (natural) => {
+        const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")]);
+        const guard = state.byId.get("g");
+        state.rng.d20 = () => natural;
+        applyCondition(state, guard, "frightened", 2, null, state.list.find((c) => c.kind === "pc"));
+        processMorale(state);
+        return { status: guard.status, frightened: guard.cond.frightened, checks: state.stats.moraleChecks };
+    };
+    // DC = level 3's 18 against Will +9 (moderate level 3), −2 frightened, −1 the frightened modifier: a 9 fails, a 1 critically fails.
+    const failed = outcome(9);
+    assert.equal(failed.status, "active");
+    assert.equal(failed.frightened, 3);
+    assert.equal(failed.checks, 1, "raising frightened itself sets off no new check");
+    assert.notEqual(outcome(1).status, "active");
 });

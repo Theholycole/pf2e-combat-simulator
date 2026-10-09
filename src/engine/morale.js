@@ -405,7 +405,7 @@ function individualCheck(state, c, reason) {
     // Boss Resolve: it can't break yet. Under M24 (a failure gives up) it holds; before, it wavered.
     if (c.morale.boss && degree <= FAILURE && !bossMayBreak(state, c)) degree = state.moraleRules.failureGivesUp ? SUCCESS : FAILURE;
     state.log?.push(`  ${c.name} morale (${reason}): ${roll.total} vs ${roll.dc} → ${["critical failure", "failure", "success", "critical success"][degree]}`);
-    applyIndividualResult(state, c, degree, template);
+    applyIndividualResult(state, c, degree, template, reason);
 }
 
 // Simulated PCs who play for morale (a setup tick, M23; it changes how they act,
@@ -425,7 +425,9 @@ export function moraleOdds(state, c, { trigger, frightened = 0, extra = 0 }) {
     const odds = degreeDistribution(baseWill(c) + modifier - penalty, moraleDC(state, baseWill(c)));
     const template = state.moraleRules.templates[c.morale.template] ?? state.moraleRules.templates.typical;
     if (template.ignoreFirstFailure && !c.moraleState.ignoredFirstFailure) return none;
-    let breaks = odds[CRITICAL_FAILURE] + (state.moraleRules.failureGivesUp ? odds[FAILURE] : 0);
+    // A check fear set off gives up only on a critical failure (M29).
+    const crackOnly = state.moraleRules.triggers[trigger]?.onFailure === "frighten";
+    let breaks = odds[CRITICAL_FAILURE] + (state.moraleRules.failureGivesUp && !crackOnly ? odds[FAILURE] : 0);
     let wavers = state.moraleRules.failureGivesUp ? 0 : odds[FAILURE];
     if (c.morale.boss && !bossMayBreak(state, c)) {
         wavers = state.moraleRules.failureGivesUp ? 0 : wavers + breaks;
@@ -457,7 +459,7 @@ function bossMayBreak(state, c) {
     return false;
 }
 
-function applyIndividualResult(state, c, degree, template) {
+function applyIndividualResult(state, c, degree, template, reason = null) {
     if (degree === CRITICAL_SUCCESS) {
         c.cond.frightened = Math.max(0, c.cond.frightened - 1);
         return;
@@ -465,6 +467,13 @@ function applyIndividualResult(state, c, degree, template) {
     if (degree === SUCCESS) return;
     c.moraleState.failed++;
     state.stats.moraleFailures++;
+    // M29: fear only cracks morale. A failure on a check fear set off raises frightened by 1
+    // (not an enemy effect, so no new check); only a critical failure gives up.
+    if (degree === FAILURE && state.moraleRules.triggers[reason]?.onFailure === "frighten") {
+        c.cond.frightened = Math.min(4, (c.cond.frightened ?? 0) + 1);
+        state.log?.push(`  ${c.name} is shaken: frightened ${c.cond.frightened}`);
+        return;
+    }
     // M24: a failure gives up too; before, it wavered and only a critical failure broke.
     if (degree === FAILURE && !state.moraleRules.failureGivesUp) {
         waver(state, c, template.waver);

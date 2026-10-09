@@ -59,7 +59,8 @@ export const MORALE_RULES = Object.freeze({
         // Off (user, 2026-10-08, M21): +1 point of win rate for 0.03 rounds.
         strongestAllyDown: { enabled: false, label: "Sees its strongest ally destroyed", oncePerCreature: true },
         // minValue (user, 2026-10-08, M25): only when an enemy's effect takes it to frightened 2 or more.
-        frightenedByEnemy: { enabled: true, label: "Becomes frightened 2+ from an enemy effect", minValue: 2 },
+        // onFailure "frighten" (M29): a failure raises frightened by 1; only a critical failure gives up.
+        frightenedByEnemy: { enabled: true, label: "Becomes frightened 2+ from an enemy effect", minValue: 2, onFailure: "frighten" },
         // Off (M24): an early check that decides fights.
         surprised: { enabled: false, label: "Surprised (first round)", source: "Morale.md" },
         // Escalations (user, 2026-10-08): not a check; foe reinforcements arriving steady wavering foes
