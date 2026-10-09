@@ -156,10 +156,31 @@ function modifierValue(state, id) {
 // Collects morale triggers from the events of the last action, then rolls the
 // checks they cause.
 export function processMorale(state) {
+    const triggered = collectMoraleChecks(state);
+    if (!triggered.size) return;
+    const doneGroups = new Set();
+    for (const [id, reason] of triggered) {
+        const c = state.byId.get(id);
+        if (!eligible(state, c)) continue;
+        const group = groupOf(state, c);
+        if (group) {
+            if (doneGroups.has(group.key)) continue;
+            doneGroups.add(group.key);
+            groupCheck(state, group, reason);
+        } else {
+            individualCheck(state, c, reason);
+        }
+    }
+}
+
+// Who checks now, and why: the pending events and the side's state turned into triggers, past the
+// gate. Map of creature id → trigger id. The simulator rolls them; in play (scripts/morale-live.js)
+// they become the GM's cards.
+export function collectMoraleChecks(state) {
     const events = state.pendingEvents;
     state.pendingEvents = [];
-    if (!state.options.morale) return;
     const triggered = new Map();
+    if (!state.options.morale) return triggered;
     const add = (c, reason) => {
         if (!eligible(state, c)) return;
         if (!triggerEnabled(state, reason)) return;
@@ -269,20 +290,7 @@ export function processMorale(state) {
             held.delete(id);
         }
     }
-    if (!triggered.size) return;
-    const doneGroups = new Set();
-    for (const [id, reason] of triggered) {
-        const c = state.byId.get(id);
-        if (!eligible(state, c)) continue;
-        const group = groupOf(state, c);
-        if (group) {
-            if (doneGroups.has(group.key)) continue;
-            doneGroups.add(group.key);
-            groupCheck(state, group, reason);
-        } else {
-            individualCheck(state, c, reason);
-        }
-    }
+    return triggered;
 }
 
 function mayCheck(state, holder) {
@@ -391,10 +399,57 @@ function isIsolated(state, c) {
 }
 
 // The morale check's DC (see dcMode in morale-rules.js).
-function moraleDC(state, will) {
+export function moraleDC(state, will) {
     const rules = state.moraleRules;
     if (rules.dcMode === "partyLevel") return levelDC(state.partyLevel ?? 1) + (rules.levelOffset ?? 0);
     return rules.thresholdBase + will;
+}
+
+// The modifiers on a creature's check now: [{ id, value }] (see morale-rules.js for the labels).
+export function moraleModifierParts(state, c) {
+    return [...sharedModifiers(state, c), ...personalModifiers(state, c)];
+}
+
+// Takes the creature's check for this round (one a round, one more the round its leader fell); false if spent.
+export function claimCheck(state, c) {
+    if (!mayCheck(state, c.moraleState)) return false;
+    c.moraleState.checkedRound = state.round;
+    return true;
+}
+
+// Boss Resolve: a solo boss passes its first check without a roll.
+export function bossAutoPasses(c) {
+    if (!c.morale?.boss || c.moraleState.autoPassed) return false;
+    c.moraleState.autoPassed = true;
+    return true;
+}
+
+// The roll's degree after a fanatic's first failure and Boss Resolve.
+export function finalMoraleDegree(state, c, degree) {
+    const template = templateOf(state, c);
+    if (degree <= FAILURE && template.ignoreFirstFailure && !c.moraleState.ignoredFirstFailure) {
+        c.moraleState.ignoredFirstFailure = true;
+        degree = SUCCESS;
+    }
+    // Boss Resolve: it can't break yet. Under M24 (a failure gives up) it holds; before, it wavered.
+    if (c.morale.boss && degree <= FAILURE && !bossMayBreak(state, c)) degree = state.moraleRules.failureGivesUp ? SUCCESS : FAILURE;
+    return degree;
+}
+
+// What a check's final degree does: { kind: "steady" (frightened −1) | "holds" | "frighten" (+1) |
+// "waver" | "giveUp", how: "rout" | "collapse" | "disordered" | "berserk" for giving up }.
+export function moraleOutcome(state, c, degree, reason = null) {
+    if (degree === CRITICAL_SUCCESS) return { kind: "steady" };
+    if (degree === SUCCESS) return { kind: "holds" };
+    // M29: fear only cracks morale.
+    if (degree === FAILURE && state.moraleRules.triggers[reason]?.onFailure === "frighten") return { kind: "frighten" };
+    // M24: a failure gives up too; before, it wavered and only a critical failure broke.
+    if (degree === FAILURE && !state.moraleRules.failureGivesUp) return { kind: "waver" };
+    return { kind: "giveUp", how: breakKind(c, templateOf(state, c).break) };
+}
+
+function templateOf(state, c) {
+    return state.moraleRules.templates[c.morale?.template] ?? state.moraleRules.templates.typical;
 }
 
 function rollMorale(state, will, penalty, parts) {
@@ -406,27 +461,17 @@ function rollMorale(state, will, penalty, parts) {
 }
 
 function individualCheck(state, c, reason) {
-    if (!mayCheck(state, c.moraleState)) return;
-    c.moraleState.checkedRound = state.round;
+    if (!claimCheck(state, c)) return;
     state.stats.moraleChecks++;
-    if (c.morale.boss && !c.moraleState.autoPassed) {
-        c.moraleState.autoPassed = true;
+    if (bossAutoPasses(c)) {
         state.log?.push(`  ${c.name} morale (${reason}): Boss Resolve, holds`);
         return;
     }
-    const parts = [...sharedModifiers(state, c), ...personalModifiers(state, c)];
     // M1: the threshold uses Will without condition penalties; the check takes them.
-    const roll = rollMorale(state, baseWill(c), statusPenalty(c, "will"), parts);
-    let degree = roll.degree;
-    const template = state.moraleRules.templates[c.morale.template] ?? state.moraleRules.templates.typical;
-    if (degree <= FAILURE && template.ignoreFirstFailure && !c.moraleState.ignoredFirstFailure) {
-        c.moraleState.ignoredFirstFailure = true;
-        degree = SUCCESS;
-    }
-    // Boss Resolve: it can't break yet. Under M24 (a failure gives up) it holds; before, it wavered.
-    if (c.morale.boss && degree <= FAILURE && !bossMayBreak(state, c)) degree = state.moraleRules.failureGivesUp ? SUCCESS : FAILURE;
+    const roll = rollMorale(state, baseWill(c), statusPenalty(c, "will"), moraleModifierParts(state, c));
+    const degree = finalMoraleDegree(state, c, roll.degree);
     state.log?.push(`  ${c.name} morale (${reason}): ${roll.total} vs ${roll.dc} → ${["critical failure", "failure", "success", "critical success"][degree]}`);
-    applyIndividualResult(state, c, degree, template, reason);
+    applyIndividualResult(state, c, degree, templateOf(state, c), reason);
 }
 
 // Simulated PCs who play for morale (a setup tick, M23; it changes how they act,
@@ -481,22 +526,22 @@ function bossMayBreak(state, c) {
 }
 
 function applyIndividualResult(state, c, degree, template, reason = null) {
-    if (degree === CRITICAL_SUCCESS) {
+    const outcome = moraleOutcome(state, c, degree, reason);
+    if (outcome.kind === "steady") {
         c.cond.frightened = Math.max(0, c.cond.frightened - 1);
         return;
     }
-    if (degree === SUCCESS) return;
+    if (outcome.kind === "holds") return;
     c.moraleState.failed++;
     state.stats.moraleFailures++;
     // M29: fear only cracks morale. A failure on a check fear set off raises frightened by 1
     // (not an enemy effect, so no new check); only a critical failure gives up.
-    if (degree === FAILURE && state.moraleRules.triggers[reason]?.onFailure === "frighten") {
+    if (outcome.kind === "frighten") {
         c.cond.frightened = Math.min(4, (c.cond.frightened ?? 0) + 1);
         state.log?.push(`  ${c.name} is shaken: frightened ${c.cond.frightened}`);
         return;
     }
-    // M24: a failure gives up too; before, it wavered and only a critical failure broke.
-    if (degree === FAILURE && !state.moraleRules.failureGivesUp) {
+    if (outcome.kind === "waver") {
         waver(state, c, template.waver);
         return;
     }

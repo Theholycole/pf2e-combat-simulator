@@ -256,7 +256,7 @@ The outcomes are decisive, rout, defeat, retreat, survived and timeout (round ca
 ## Morale
 
 - **Rules:** "cleanup morale" (M24, 2026-10-08), the user's system inspired by `Morale.md` and `Improved Morale.md` (in the user's PF2e Notes, `03 Combat and Encounter Design/Combat Systems/`). Every trigger, modifier, DC setting and template is a data entry with an id and an enabled flag, and can be overridden in the world settings. Improved Morale's waver stage, group checks and recovery are still there, switched off.
-- **Decisions:** [morale-decisions.md](morale-decisions.md) M1–M32.
+- **Decisions:** [morale-decisions.md](morale-decisions.md) M1–M34.
 
 **Design goal** (the user, 2026-10-08): morale should shorten fights the party is winning as much as it can, with little effect on the win rate. The rules are the same whether or not the players play for morale (M26).
 
@@ -275,6 +275,18 @@ The outcomes are decisive, rout, defeat, retreat, survived and timeout (round ca
 - 3 or more foes with the same name → a Group
 - highest-level foe → leader
 - the target of a kill/capture objective → Cowardly
+
+### Morale checks in play (2026-10-09)
+
+The same rules at the table (M34): `src/live/morale.js` runs the engine's own morale code (`collectMoraleChecks`, the DC, the modifiers, Boss Resolve, a fanatic's first failure, what a result does) against the real encounter; `scripts/morale-live.js` watches the fight and posts the cards; `src/live/morale-card.js` is the card.
+
+- **When it looks:** after any change to a creature in a running encounter (HP, conditions, defeated, a token moving, a new round, a turn starting), once things settle (0.3 s). Only the active GM's client acts; the "Morale checks in play" world setting (on) turns it off. Every encounter with party and foes counts, test fights included.
+- **What it compares:** what each foe looked like at the last look (up, HP, frightened, fleeing). A foe dropping (from half its HP or more at once: overwhelming), leaving the tracker (still a loss), frightened rising, or fleeing starting becomes the engine's event; at a foe's turn start it checks fleeing again and "can't meaningfully affect an opponent". The side's crossings come from the engine as in the simulator. Any frightened gained in combat counts as fear (the source isn't always recorded).
+- **Memory** (kept per encounter, saved on the combat only when a card is posted or applied): the roster as the encounter began, the side's crossings, each foe's check state (one check a round, Boss Resolve used, gave up, …), and the last look.
+- **The card:** whispered to the GMs, one per event, a row per foe: DC (PF2e's for the party's level), modifiers as tick boxes (the ones that apply now ticked; the GM's calls such as defending home, no retreat, a bestial lair or an unpaid mercenary offered unticked unless the encounter's saved situation has them). **Roll** rolls the foe's PF2e Will save with the ticked modifiers against the DC, GM-only; **Roll the rest**; **Apply** once all have rolled. A solo boss's first check shows "Boss Resolve: holds" with no roll.
+- **Apply** (the final degree after a fanatic's first failure and Boss Resolve): critical success frightened −1; success nothing; a fear or fleeing check's failure frightened +1 (up to 4); giving up: rout = fleeing and frightened 2, collapse = a "Surrendered" effect and the combatant marked defeated, disordered = fleeing, berserk = frightened 1 and a 1-round "Berserk (morale)" effect with −1 AC. The GM moves the tokens. What Apply changes is noted in the memory, so its own frightened +1 or fleeing sets off no new check (M29).
+- **The rout card:** after a look or an Apply, when half or more of the surviving foes are broken (those who gave up, fled or surrendered, and any foe fleeing), once per encounter: the rest flee, one pursuit action each, end the encounter when ready. **Make the rest flee** routs those still fighting.
+- **The gate** is silent: while the party isn't clearly ahead, side-losing checks are lost with no card (fear and fleeing still come).
 
 ## Objectives (first version)
 

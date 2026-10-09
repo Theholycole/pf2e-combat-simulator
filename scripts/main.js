@@ -5,6 +5,7 @@ import { registerLogger } from "./logger.js";
 import { FightLogApp } from "./log-app.js";
 import { setUpMapTracking } from "./map.js";
 import { setUpEscalationTracking } from "./escalation-tracking.js";
+import { registerMoraleSetting, setUpMoraleInPlay } from "./morale-live.js";
 
 function openSimulator({ combat = null, tokens = null } = {}) {
     if (!game.user.isGM) return ui.notifications.warn("Combat Simulator is for the GM.");
@@ -69,6 +70,9 @@ Hooks.once("init", () => {
     setUpMapTracking();
     // The round each escalation rule fires in play (active GM).
     setUpEscalationTracking();
+    // Morale checks in play: the GM's cards when foes must check (active GM).
+    registerMoraleSetting();
+    setUpMoraleInPlay();
 });
 
 function openLog() {

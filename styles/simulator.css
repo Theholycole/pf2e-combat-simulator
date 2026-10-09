@@ -275,3 +275,50 @@
     width: auto;
     flex: 0 0 auto;
 }
+
+/* Morale checks in play (scripts/morale-live.js). */
+.pf2e-sim-morale header {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    margin-bottom: 4px;
+}
+.pf2e-sim-morale .sim-morale-rows,
+.pf2e-sim-morale .sim-morale-results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.pf2e-sim-morale .sim-morale-row {
+    padding: 3px 0;
+    border-top: 1px solid var(--color-border-light-tertiary, #ccc);
+}
+.pf2e-sim-morale .sim-morale-row button {
+    margin-left: 4px;
+    line-height: 20px;
+    height: 22px;
+    width: auto;
+}
+.pf2e-sim-morale .sim-morale-mods {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+    font-size: 0.85em;
+}
+.pf2e-sim-morale .sim-morale-mod input {
+    margin: 0 2px 0 0;
+    vertical-align: middle;
+}
+.pf2e-sim-morale .sim-morale-result {
+    margin-left: 4px;
+    font-weight: bold;
+}
+.pf2e-sim-morale .sim-morale-results li {
+    padding: 2px 0;
+}
+.pf2e-sim-morale .sim-morale-controls {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+}
+

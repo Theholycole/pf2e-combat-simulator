@@ -1,6 +1,6 @@
 # PF2e Combat Simulator
 
-A GM-only Foundry VTT module (Foundry 14, PF2e 8.5) that plays an encounter in memory many times and reports the odds. Nothing on the canvas moves and no actor changes.
+A GM-only Foundry VTT module (Foundry 14, PF2e 8.5) that plays an encounter in memory many times and reports the odds. The simulations move nothing on the canvas and change no actor; only the morale cards' **Apply**, which the GM presses, sets conditions.
 
 - **Simulate…** (Combat Tracker): set up the encounter (sides, roles, morale, reinforcements, ambush, cover, a secondary objective), then:
   - **Simulate**: win %, objective %, PC danger, the most dangerous foe, a sample fight log, and what isn't simulated yet.
@@ -15,6 +15,11 @@ A GM-only Foundry VTT module (Foundry 14, PF2e 8.5) that plays an encounter in m
   - Foes marked as alarm-raisers head for a gong or run off to fetch help when the help is worth it.
   - Hazards take their turns or fire once, and the PCs can Disable or smash them.
   - In play, the round each rule fires is noted at each new round. See [docs/spec.md](docs/spec.md#escalations-e1e4-2026-10-08).
+- **Morale checks in play**: during an encounter, the simulator's morale rules watch the real fight. When foes must check, the GM gets a whispered card for the event ("A quarter of its side has fallen"):
+  - a row per foe with its DC and modifiers as tick boxes (the GM can untick one or tick a call such as "defending home");
+  - **Roll** rolls the foe's Will for the GM only; **Apply** gives up (fleeing and frightened 2, or a "Surrendered" marker and defeated), shakes (frightened +1) or steadies (frightened −1) as the rules say;
+  - when half the surviving foes are broken, a rout card offers to make the rest flee.
+  The gate is silent: no card while the party isn't clearly ahead. The "Morale checks in play" setting turns it off. See [docs/spec.md](docs/spec.md#morale-checks-in-play-2026-10-09).
 - **Spells** (milestone 2): creatures cast the spells the resolution core can resolve: saves and spell attacks, with their damage, conditions and push or pull. Everything else is listed as a gap. It needs the `pf2e-resolution-core` module, and the spell module for the plans.
 
 The design is in [docs/spec.md](docs/spec.md) and the vocabulary in [CONTEXT.md](CONTEXT.md). The rules choices the user confirmed are in [docs/morale-decisions.md](docs/morale-decisions.md) (morale) and [docs/spell-decisions.md](docs/spell-decisions.md) (spellcasting).
