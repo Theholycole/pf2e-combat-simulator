@@ -833,7 +833,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         targets.splice(0, targets.length, ...found);
     }
     // A recharge ("can't use it again for 1d4 rounds") and immunity (Demoralize, Frightful Presence).
-    if (info.recharge) (caster.rechargeUntil ??= new Map()).set(spell, state.round + rollCount(state, info.recharge));
+    // The ways of one ability (a dragon's two breath weapons) share it: their rechargeGroup, the ability's name.
+    if (info.recharge) (caster.rechargeUntil ??= new Map()).set(spell.rechargeGroup ?? spell, state.round + rollCount(state, info.recharge));
     const markImmune = (list) => {
         const immune = (caster.immuneTargets ??= new Map()).get(spell) ?? new Set();
         for (const target of list) immune.add(target.id);
@@ -980,7 +981,7 @@ export function isUtility(plan) {
 export function canCast(c, spell) {
     if (!registry.familyFor(spell.plan?.resolution?.kind) || castsNothing(spell.plan)) return false;
     // Recharging (a breath weapon used a round ago).
-    if ((c.rechargeUntil?.get(spell) ?? -Infinity) > (c.round ?? 0)) return false;
+    if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0)) return false;
     if (!spellVariants(spell).some((actions) => {
         const info = describeSpell(spell.plan, actions);
         return info.area || info.targets || info.self;

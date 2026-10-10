@@ -66,7 +66,12 @@ function combatant(npc) {
     for (const item of npc.items.filter((entry) => entry.type === "action")) {
         const plan = compileMonsterAbility(item, { basicActions, actor: npc });
         if (!plan) continue;
-        if (plan.builtin) {
+        // Used in one of several ways (two breath weapons): each way, sharing the ability's recharge.
+        if (plan.builtin === "modes") {
+            const ways = plan.modes.filter((mode) => mode.plan?.resolution);
+            if (ways.length) used.add(item.name);
+            for (const mode of ways) spells.push({ name: `${item.name} (${mode.name})`, plan: mode.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name });
+        } else if (plan.builtin) {
             if (addBuiltin(builtins, plan, item.name)) used.add(item.name);
         } else if (plan.resolution) {
             used.add(item.name);

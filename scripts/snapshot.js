@@ -480,15 +480,25 @@ async function readAbilities(actor, { fresh = false } = {}) {
     for (const { item, result: compiled } of prepared) {
         const plan = compiled?.plan;
         if (!plan) continue;
+        // "Frequency once per minute" and longer: once a fight.
+        const frequency = item.system?.frequency;
+        const pool = frequency?.max && !["turn", "round"].includes(frequency.per) ? `frequency:${item.id}` : null;
+        // Used in one of several ways (a dragon's two breath weapons): each way an ability of its own, sharing the
+        // ability's recharge and frequency.
+        if (plan.builtin === "modes") {
+            const ways = pc ? [] : plan.modes.filter((mode) => mode.plan?.resolution);
+            if (!ways.length) continue;
+            if (pool) result.pools[pool] = frequency.value ?? frequency.max;
+            result.handled.add(item);
+            for (const mode of ways) result.abilities.push({ name: `${item.name} (${mode.name})`, plan: leanPlan(mode.plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: item.name });
+            continue;
+        }
         if (plan.builtin) {
             if (!pc && addBuiltin(result.builtins, plan, item.name)) result.handled.add(item);
             continue;
         }
         if (!plan.resolution) continue;
         if (pc && !(["check", "save"].includes(plan.resolution.kind) && (plan.trigger?.event ?? "use") === "use")) continue;
-        // "Frequency once per minute" and longer: once a fight.
-        const frequency = item.system?.frequency;
-        const pool = frequency?.max && !["turn", "round"].includes(frequency.per) ? `frequency:${item.id}` : null;
         if (pool) result.pools[pool] = frequency.value ?? frequency.max;
         result.handled.add(item);
         result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null });

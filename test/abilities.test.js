@@ -145,6 +145,24 @@ test("a breath weapon recharges; Frightful Presence frightens the party as the f
     assert.equal(canCast(c, c.spells[0]), true, "at most 1d4 rounds");
 });
 
+test("an ability used in one of two ways: each way an option, one recharge for both", { skip: !existsSync(new URL(ABILITIES, import.meta.url)) && "the ability module not found" }, async () => {
+    const { compileMonsterAbility } = await import(ABILITIES);
+    const html = "<p>The dragon breathes in one of two ways. It can't use Breath Weapon again for [[/gmr 1d4 #Recharge Breath Weapon]]{1d4 rounds}.</p><ul><li><strong>Flame</strong> A @Template[cone|distance:30] of fire deals @Damage[8d6[fire]] damage (@Check[reflex|dc:25|basic] save).</li><li><strong>Gas</strong> Each creature in a @Template[cone|distance:30] must succeed at a @Check[fortitude|dc:25] save or be @UUID[Compendium.pf2e.conditionitems.Item.xYTAsEpcJE1Ccni3]{Slowed 1} for 1 round.</li></ul>";
+    const plan = compileMonsterAbility({ type: "action", name: "Breath Weapon", system: { slug: null, actionType: { value: "action" }, actions: { value: 2 }, traits: { value: [] }, description: { value: html } } });
+    assert.equal(plan.builtin, "modes");
+    const ways = plan.modes.map((mode) => ({ ...entry(`Breath Weapon (${mode.name})`, mode.plan), rechargeGroup: "Breath Weapon" }));
+    const dragon = { ...moderateCreature(8, "dragon", "Dragon"), spells: ways, band: "near" };
+    const party = martialParty(8).map((pc) => ({ ...pc, band: "near" }));
+    const state = createFightState({ combatants: [...party, dragon] });
+    const c = state.byId.get("dragon");
+    c.round = 1;
+    assert.deepEqual(c.spells.map((spell) => canCast(c, spell)), [true, true]);
+    castSpell(state, c, 1, party.map((pc) => pc.id));
+    assert.deepEqual(c.spells.map((spell) => canCast(c, spell)), [false, false], "both ways wait for the one recharge");
+    c.round = 6;
+    assert.deepEqual(c.spells.map((spell) => canCast(c, spell)), [true, true]);
+});
+
 test("Ferocity keeps a monster up once; whole fights with monster abilities run", { skip }, async () => {
     const { grab, constrict, basic } = await abilities();
     const [fighter] = martialParty(3);

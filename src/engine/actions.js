@@ -354,10 +354,12 @@ function splashAround(state, attacker, target, splash, { includeTarget }) {
 function rechargeOnCritical(state, c) {
     if (!c.rechargeUntil?.size) return;
     const names = (c.momentum.recharges ?? []).map((name) => name.toLowerCase());
-    for (const spell of [...c.rechargeUntil.keys()]) {
-        if (names.length && !names.includes(String(spell.name).toLowerCase())) continue;
-        c.rechargeUntil.delete(spell);
-        log(state, `  ${c.name}'s ${spell.name} recharges`);
+    // A key is the ability, or the name its ways share (rechargeGroup).
+    for (const key of [...c.rechargeUntil.keys()]) {
+        const name = typeof key === "string" ? key : key.name;
+        if (names.length && !names.includes(String(name).toLowerCase())) continue;
+        c.rechargeUntil.delete(key);
+        log(state, `  ${c.name}'s ${name} recharges`);
     }
 }
 
