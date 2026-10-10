@@ -55,9 +55,10 @@ function effectItem(uuid) {
 // The models of the effects an effect plan applies (a monster's Battle Cry), at its level.
 function effectModels(plan, level) {
     const models = {};
-    for (const application of plan?.resolution?.kind === "effect" ? plan.resolution.applications ?? [] : []) {
-        const item = application?.uuid ? effectItem(application.uuid) : null;
-        if (item) models[application.uuid] = effectModel(item, { rank: level });
+    const uuids = [...(plan?.resolution?.kind === "effect" ? plan.resolution.applications ?? [] : []).map((application) => application?.uuid), ...Object.values(plan?.resolution?.outcomes ?? {}).flatMap((row) => (row?.nativeEffects ?? []).map((native) => native?.uuid))];
+    for (const uuid of uuids.filter(Boolean)) {
+        const item = effectItem(uuid);
+        if (item) models[uuid] = effectModel(item, { rank: level });
     }
     return models;
 }
@@ -102,7 +103,7 @@ function combatant(npc) {
             if (addBuiltin(builtins, plan, item.name)) used.add(item.name);
         } else if (plan.resolution) {
             used.add(item.name);
-            spells.push({ name: item.name, plan, castRank: 1, pool: null, kind: "ability", ...(plan.resolution.kind === "effect" ? { effects: effectModels(plan, system.details.level.value) } : {}) });
+            spells.push({ name: item.name, plan, castRank: 1, pool: null, kind: "ability", effects: effectModels(plan, system.details.level.value) });
         }
     }
     const skills = Object.fromEntries(Object.entries(system.skills ?? {}).map(([slug, value]) => [slug, value.base ?? 0]));
