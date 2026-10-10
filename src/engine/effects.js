@@ -252,5 +252,8 @@ export function effectBenefit(model, target, conditionHarm, strikeShare = 1) {
     for (const condition of model.conditions) {
         benefit += condition.slug === "quickened" ? 0.3 * rounds * Math.max(0.2, strikes) : -conditionHarm(condition.slug, condition.value, duration);
     }
+    // A form that keeps it from attacking or casting (Vapor Form): that part of its threat, lost for those rounds.
+    if (model.noAttacks) benefit -= strikes * rounds;
+    if (model.noSpells) benefit -= (1 - strikes) * rounds;
     return benefit;
 }

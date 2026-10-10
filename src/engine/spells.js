@@ -523,6 +523,17 @@ export function applyHeal(state, target, amount) {
     return target.hp.value - before;
 }
 
+// An effect the target already has (a Vapor Form cast last round): only the rounds a recast adds count, none while
+// it has 3 or more left or lasts without end.
+function recastShare(state, target, model, key) {
+    const held = (target.effects ?? []).find((effect) => effect.key === key);
+    if (!held) return 1;
+    const full = Math.min(3, model.rounds);
+    const timer = (target.timers ?? []).find((entry) => entry.effect === held);
+    if (!timer || !(full > 0)) return 0;
+    return Math.max(0, full - (timer.round - (state.round ?? 0))) / full;
+}
+
 // A PF2e effect the plan names (Bless), or a penalty an outcome gives (Bon Mot's -2 to Will).
 function outcomeEffect(spell, change) {
     if (change.effect?.kind === "native") return { model: spell.effects?.[change.effect.uuid] ?? null, key: change.effect.uuid };
@@ -1164,8 +1175,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 } else if (change.op === "heal") {
                     entry.heal += chance * Math.min(change.amount, Math.max(0, target.hp.max - Math.max(0, target.hp.value)));
                 } else if (change.op === "effect" && ["native", "modifier"].includes(change.effect?.kind)) {
-                    const { model } = outcomeEffect(spell, change);
-                    if (model) entry.benefit += chance * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1);
+                    const { model, key } = outcomeEffect(spell, change);
+                    if (model) entry.benefit += chance * recastShare(state, target, model, key) * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1);
                 }
             }
         }
@@ -1215,7 +1226,9 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     const reaches = (other) => other === caster || (info.touch ? inMelee(other) : info.range === null || distance(other) <= info.range);
     if (!info.area) {
         const sets = [];
-        const inRange = enemies.filter((enemy) => enemy.status === "active" && reaches(enemy));
+        // (A spell for a willing creature — Vapor Form — goes to no enemy.)
+        const willing = /\bwilling\b/i.test(String(spell.plan?.targeting?.target ?? ""));
+        const inRange = willing ? [] : enemies.filter((enemy) => enemy.status === "active" && reaches(enemy));
         if (inRange.length) {
             if (info.targets <= 1) sets.push(...inRange.map((enemy) => ({ targets: [enemy] })));
             else sets.push({ targets: inRange.slice(0, info.targets) });

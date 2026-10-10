@@ -622,7 +622,10 @@ function expand(ctx, node, actionsLeft) {
     const mobile = canMove(c);
     // Restrained: no actions with the attack or manipulate traits. After a finisher: no attacks this turn.
     const restrained = !!c.cond.restrained;
-    const noAttacks = !!c.noAttacksThisTurn || node.casts.includes("finisher");
+    // A form that forbids attacks and spells (Vapor Form: "can't cast spells … or use actions that have the attack … trait").
+    const formLimits = (c.effects ?? []).map((effect) => effect.model ?? {});
+    const noAttacks = !!c.noAttacksThisTurn || node.casts.includes("finisher") || formLimits.some((model) => model.noAttacks);
+    const noSpells = formLimits.some((model) => model.noSpells);
 
     if (!mustWithdraw) {
         // Strikes: only the two best weapons against each target are worth planning with.
@@ -716,6 +719,7 @@ function expand(ctx, node, actionsLeft) {
         for (const [index, spell] of (c.spells ?? []).entries()) {
             if (!canCast(c, spell) || node.casts.includes(index)) continue;
             if (raging && (spell.plan?.traits ?? []).includes("concentrate") && !(spell.plan?.traits ?? []).includes("rage")) continue;
+            if (noSpells && (!spell.kind || spell.castsSpell)) continue;
             if (spell.pool && node.casts.filter((other) => typeof other === "number" && c.spells[other].pool === spell.pool).length >= (c.spellPools[spell.pool] ?? 0)) continue;
             // A rider (Grab, Knockdown, Push) or a follow-up ("last action was a successful claw Strike") only as the
             // action straight after the Strike that allows it.

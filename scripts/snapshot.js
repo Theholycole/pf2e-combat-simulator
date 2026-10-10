@@ -465,8 +465,8 @@ const NATURAL_ATTACK = /\b(?:jaws?|bite|claws?|talons?|tail|tusks?|horns?|hoof|h
 // compiler with the core), the basic actions it uses, and the rules the engine
 // plays itself (Ferocity, Rend, Sneak Attack, Regeneration …). Returns
 // { abilities, handled, builtins }, builtins being combatant fields (abilities.js addBuiltin).
-async function readAbilities(actor, { fresh = false } = {}) {
-    const result = { abilities: [], handled: new Set(), builtins: { reactions: {}, rend: null } };
+async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
+    const result = { abilities: [], handled: new Set(), builtins: { reactions: {}, rend: null }, castSpells: new Set() };
     const core = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api : null;
     const abilityModule = game.modules.get(ABILITY_MODULE_ID);
     if (!core || !abilityModule?.active) return result;
@@ -491,6 +491,16 @@ async function readAbilities(actor, { fresh = false } = {}) {
             if (pool) result.pools[pool] = frequency.value ?? frequency.max;
             result.handled.add(item);
             for (const mode of ways) result.abilities.push({ name: `${item.name} (${mode.name})`, plan: leanPlan(mode.plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: item.name });
+            continue;
+        }
+        // It casts a spell or has its effects (Dominate, Turn to Mist; B37): one of its spells, at the ability's rank and DC.
+        if (plan.builtin === "cast-spell") {
+            const cast = pc ? null : await castAbility(actor, item, plan, core, gaps);
+            if (!cast) continue;
+            result.handled.add(item);
+            result.castSpells.add(plan.spell.uuid);
+            if (pool) result.pools[pool] = frequency.value ?? frequency.max;
+            result.abilities.push({ ...cast, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null });
             continue;
         }
         if (plan.builtin) {
@@ -521,6 +531,57 @@ async function readAbilities(actor, { fresh = false } = {}) {
     }
     return result;
 }
+// An ability that casts a spell or has its effects (B37): the spell's plan from the core's registry (the spell module's),
+// cast at the ability's rank and DC, or else the creature's: half its level rounded up (not below the spell's rank) and its
+// best spell DC. null (a gap) for a spell the engine can't cast, or one needing a DC or an attack the creature hasn't got.
+async function castAbility(actor, item, plan, core, gaps) {
+    const spell = await fromUuid(plan.spell?.uuid ?? "").catch(() => null);
+    if (!spell) return null;
+    const [prepared] = await core.registry.preparePlans([spell]);
+    const spellPlan = prepared?.result?.plan;
+    if (!spellPlan) return null;
+    const half = Math.min(10, Math.max(1, Math.ceil((actor.level ?? 1) / 2)));
+    const castRank = plan.rank ?? (spell.isCantrip ? half : Math.max(Number(spell.system?.level?.value ?? 1), half));
+    const best = bestSpellStatistic(actor);
+    const dc = plan.dc ?? best?.dc ?? null;
+    const attack = plan.attack ?? (plan.dc ? plan.dc - 10 : best?.attack ?? null);
+    const check = spellPlan.resolution?.check;
+    if ((check?.roll === "save" && dc == null) || (check?.roll === "attack" && attack == null)) return null;
+    // (Its tradition, so it counts as magic: the text's, the creature's own innate magic's, or the spell's first.)
+    const own = (actor.spellcasting?.regular ?? actor.spellcasting?.contents ?? []).find((entry) => !entry.isRitual && !entry.flags?.[ABILITY_MODULE_ID]?.abilityCast)?.tradition ?? null;
+    const spec = { name: item.name, plan: leanPlan(spellPlan), castRank, dc, attack, tradition: plan.tradition ?? own ?? spell.system?.traits?.traditions?.[0] ?? null };
+    // On itself only ("The vampire turns into a cloud of vapor, as the Vapor Form spell"): no target or range of the spell's.
+    // (Before anything reads the plan: the engine keeps what it read of each plan.)
+    if (plan.self) spec.plan.targeting = { ...(spec.plan.targeting ?? {}), area: null, range: null, target: null };
+    if (!canCast({ spellPools: {} }, spec)) return null;
+    spec.castsSpell = true;
+    spec.effects = formLimits(spell, await effectModels(spellPlan, castRank));
+    const missing = spellGaps(spec);
+    if (missing.length) gaps.push({ kind: "ability, partly simulated", name: `${item.name}: ${missing.join(", ")}` });
+    return spec;
+}
+
+// A form whose target can't attack or cast (Vapor Form: "It can't cast spells, activate items, or use actions that have the
+// attack or manipulate trait"): its effects keep the creature from both. Returns the models.
+const FORM_LOCK = /\bcan't cast spells\b[^.]*\battack\b/i;
+function formLimits(spell, models) {
+    if (FORM_LOCK.test(spell?.system?.description?.value ?? "")) for (const model of Object.values(models ?? {})) Object.assign(model, { noAttacks: true, noSpells: true });
+    return models;
+}
+
+// The creature's best spell DC and attack, from its spellcasting entries (without its conditions), or null.
+function bestSpellStatistic(actor) {
+    let best = null;
+    for (const entry of actor.spellcasting?.regular ?? actor.spellcasting?.contents ?? []) {
+        const statistic = entry.statistic;
+        if (!statistic || entry.isRitual || entry.flags?.[ABILITY_MODULE_ID]?.abilityCast) continue;
+        const dc = stripConditions(statistic.dc?.value ?? 10, statistic.dc?.modifiers ?? statistic.modifiers ?? []);
+        const attack = stripConditions(statistic.check?.mod ?? statistic.mod ?? 0, statistic.check?.modifiers ?? statistic.modifiers ?? []);
+        if (!best || dc > best.dc) best = { dc, attack };
+    }
+    return best;
+}
+
 // Plan fields the engine never reads: left out of the snapshot sent to the worker.
 const PLAN_EXTRAS = new Set(["compilerEvidence", "diagnostics", "delegations", "semanticCoverage", "rawText", "sourceText", "raw"]);
 
@@ -562,10 +623,13 @@ async function effectModels(plan, castRank) {
 // entries (PF2e's own sheet data: prepared slots, spontaneous slots per rank,
 // innate uses, focus points, cantrips). Plans come from the resolution core's
 // registry; without it, or for a spell no family resolves, the spell is a gap.
-async function readSpells(actor, gaps, { fresh = false } = {}) {
+// castSpells: the compendium spells its abilities cast (a vampire's Dominate ability): the ability is that spell, so its own
+// copy in an entry (its innate Dominate) is left out.
+async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() } = {}) {
     const spells = [];
     const spellPools = {};
-    const entries = (actor.spellcasting?.regular ?? actor.spellcasting?.contents ?? []).filter((entry) => !entry.isRitual);
+    // (Not the entries the ability module makes for an ability's casting: the ability is read with the abilities.)
+    const entries = (actor.spellcasting?.regular ?? actor.spellcasting?.contents ?? []).filter((entry) => !entry.isRitual && !entry.flags?.[ABILITY_MODULE_ID]?.abilityCast);
     const registry = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api?.registry : null;
     const cantripRank = Math.min(10, Math.max(1, Math.ceil((actor.level ?? 1) / 2)));
     const listed = [];
@@ -588,7 +652,7 @@ async function readSpells(actor, gaps, { fresh = false } = {}) {
             if (sharedPool) spellPools[sharedPool] = fresh ? group.uses.max ?? 0 : group.uses.value ?? 0;
             for (const [index, active] of (group.active ?? []).entries()) {
                 const spell = active?.spell;
-                if (!spell || spell.isRitual) continue;
+                if (!spell || spell.isRitual || castSpells.has(spell.sourceId ?? spell._stats?.compendiumSource)) continue;
                 let pool = null;
                 if (cantrips || spell.isCantrip) pool = null;
                 else if (entry.isFocusPool || spell.isFocusSpell) {
@@ -618,7 +682,7 @@ async function readSpells(actor, gaps, { fresh = false } = {}) {
     for (const entry of listed) {
         const { result, error } = prepared.get(entry.spell.uuid) ?? {};
         const plan = result?.plan ? leanPlan(result.plan) : null;
-        const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, effects: plan ? await effectModels(plan, entry.castRank) : {} };
+        const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, effects: plan ? formLimits(entry.spell, await effectModels(plan, entry.castRank)) : {} };
         if (!plan || !canCast({ spellPools: { [entry.pool]: 1 } }, spec)) {
             // Detect Magic, Translocate and the like: listed, but they don't count against the result.
             // (On the full plan: the slimmed one may have lost its effect references.)
@@ -814,7 +878,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
             if (altStrike) strikes.push({ ...altStrike, name: `${altStrike.name} (${alt.item?.isThrown ? "thrown" : "alt"})` });
         }
     }
-    const abilities = await readAbilities(actor, { fresh });
+    const abilities = await readAbilities(actor, { fresh, gaps });
     const features = readClassFeatures(actor, strikes);
     for (const item of features.handled) abilities.handled.add(item);
     // A PC feat a class feature already plays (Battle Medicine) isn't also an ability; the item itself stays out of the snapshot.
@@ -823,7 +887,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     const selfEffects = await readSelfEffects(actor, strikes, abilities.handled, gaps);
     const exemplar = await readExemplar(actor, (actor.system?.actions ?? []).filter((action) => !action.type || action.type === "strike"), strikes, abilities.handled);
     readGaps(actor, gaps, abilities.handled);
-    const { spells, spellPools } = await readSpells(actor, gaps, { fresh });
+    const { spells, spellPools } = await readSpells(actor, gaps, { fresh, castSpells: abilities.castSpells });
     spells.push(...abilities.abilities);
     // A Strike's riders are gaps unless an ability plays them.
     const riders = new Set(abilities.abilities.flatMap((ability) => (ability.plan?.trigger?.event === "strike" ? [ability.plan.trigger.attackEffect, ability.plan.source?.slug] : [])).filter(Boolean));
