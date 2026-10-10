@@ -641,3 +641,36 @@ test("a monster's Power Attack-like Strike activity keeps its extra weapon die a
     performAction(state, b, option.action);
     assert.equal(b.attacksThisTurn, 2, "two attacks for the penalty");
 });
+
+test("Strikes at a number of different foes, a Grab after a hit, a Strike outside the penalty, once a turn (2026-10-10, B39)", () => {
+    // "makes up to two claw Strikes, each against a different target" / Swipe: at most that many of the foes in its Melee.
+    const brute = { ...moderateCreature(5, "brute", "Brute"), engagement: 1 };
+    brute.strikes = [{ ...brute.strikes[0], name: "Claw" }];
+    assert.equal(addBuiltin(brute, { builtin: "multi-strike", actions: 1, strikes: ["claw", "claw"], each: true, max: 2, sameMap: true }, "Swipe"), true);
+    assert.equal(brute.multiStrikes[0].max, 2);
+    const [fighter, champion, rogue] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...champion, engagement: 1 }, { ...rogue, engagement: 1 }, brute] }, {}, 1);
+    state.log = [];
+    const b = state.byId.get("brute");
+    b.round = 1;
+    b.actionsLeft = 3;
+    const option = scoreOptions(state, b).options.find((entry) => entry.action.type === "multiStrike");
+    assert.ok(option, "on offer");
+    performAction(state, b, option.action);
+    assert.equal(state.log.filter((line) => /Brute Claw →/.test(line)).length, 2, state.log.join("\n"));
+    assert.equal(b.attacksThisTurn, 2);
+    // A Strike outside the penalty, once a turn (Wriggling Beard).
+    const devil = { ...moderateCreature(5, "devil", "Devil"), engagement: 1 };
+    devil.strikes = [{ ...devil.strikes[0], name: "Beard" }];
+    addBuiltin(devil, { builtin: "strike-activity", actions: 1, strides: 0, strike: "beard", attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, oncePerTurn: true, noMap: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }, "Wriggling Beard");
+    const fight = createFightState({ combatants: [{ ...fighter, engagement: 1 }, devil] }, {}, 1);
+    const d = fight.byId.get("devil");
+    d.round = 1;
+    d.actionsLeft = 3;
+    d.attacksThisTurn = 2;
+    const beard = scoreOptions(fight, d).options.find((entry) => entry.action.type === "strikeActivity");
+    assert.ok(beard, "on offer");
+    performAction(fight, d, beard.action);
+    assert.equal(d.attacksThisTurn, 2, "it doesn't count toward the penalty");
+    assert.equal(scoreOptions(fight, d).options.some((entry) => entry.action.type === "strikeActivity"), false, "once a turn");
+});

@@ -507,6 +507,7 @@ function act(state, c, action) {
             state.log?.push(`  ${c.name} uses ${activity.name}`);
             if (activity.oncePerFight) (c.activitiesUsed ??= new Set()).add(action.index);
             if (activity.flourish) c.usedThisTurn?.add("flourish");
+            if (activity.oncePerTurn) (c.usedThisTurn ??= new Set()).add(activity.name);
             if (!target || !isActive(target)) break;
             if (activity.strides && !sameMelee(c, target)) {
                 stride(state, c, { kind: "engage", targetId: action.targetId });
@@ -518,7 +519,11 @@ function act(state, c, action) {
                 c.usedThisTurn?.add("cover-fire");
                 state.log?.push(`  ${target.name} ${ducksFromCoverFire(target) ? "ducks" : "stands firm"}`);
             }
+            // "This Strike ignores their multiple attack penalty and doesn't count toward that penalty."
+            const attacksBefore = c.attacksThisTurn;
+            if (activity.noMap) c.attacksThisTurn = 0;
             const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...activity, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : activity));
+            if (activity.noMap) c.attacksThisTurn = attacksBefore;
             if (fired?.reload) (c.unloaded ??= new Set()).add(fired.name);
             // A finisher spends panache, and no more attacks this turn; Confident Finisher's miss still deals half its dice.
             if (activity.finisher) {
@@ -560,10 +565,12 @@ function act(state, c, action) {
             if (ability.flourish) c.usedThisTurn?.add("flourish");
             let target = state.byId.get(action.targetId);
             const attacks = c.attacksThisTurn;
-            // A Strike at every enemy in its Melee (Vine Lash, Thrash).
+            // A Strike at every enemy in its Melee (Vine Lash, Thrash), or at that many of them (Dual Tusks, Swipe); a ranged
+            // one at any enemies (Cannonade).
             if (ability.each) {
                 const index = multiStrikeOrder(c, ability)?.[0];
-                const foes = engagedEnemies(state, c);
+                const ranged = index !== undefined && c.strikes[index] && !c.strikes[index].melee;
+                const foes = (ranged ? state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone") : engagedEnemies(state, c)).slice(0, ability.max ?? Infinity);
                 for (const foe of foes) {
                     if (!canAct(c) || index === undefined) break;
                     // Each at the penalty it started with, when it doesn't rise until all are made.
@@ -573,6 +580,7 @@ function act(state, c, action) {
                 if (ability.sameMap) c.attacksThisTurn = attacks + foes.length;
                 break;
             }
+            let grabbed = false;
             for (const [step, index] of (multiStrikeOrder(c, ability) ?? []).entries()) {
                 if (!canAct(c)) break;
                 let strike = c.strikes[index];
@@ -580,7 +588,15 @@ function act(state, c, action) {
                 if (!target) break;
                 if (ability.sameMap) c.attacksThisTurn = attacks;
                 if (ability.sameMap && step > 0 && !strike.agile) strike = { ...strike, bonus: strike.bonus - 2 };
-                performStrike(state, c, target, strike);
+                const result = performStrike(state, c, target, strike);
+                // "If either Strike hits, the dragon can attempt to Grab the target … as a free action" (Coiling Frenzy): its Grab, once.
+                if (ability.grab && !grabbed && result?.degree >= SUCCESS && isActive(target)) {
+                    const grab = (c.spells ?? []).findIndex((spell) => ["grab", "improved-grab"].includes(spell.plan?.source?.slug) || spell.plan?.trigger?.attackEffect === "grab");
+                    if (grab >= 0) {
+                        castSpell(state, c, grab, [target.id]);
+                        grabbed = true;
+                    }
+                }
             }
             if (ability.sameMap) c.attacksThisTurn = attacks + (multiStrikeOrder(c, ability)?.length ?? 0);
             break;

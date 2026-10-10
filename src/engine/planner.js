@@ -793,9 +793,10 @@ function expand(ctx, node, actionsLeft) {
             if (!order || order.some((index) => !strikeUsable(c, c.strikes[index]))) continue;
             // A Strike at every enemy in its Melee: worth the sum over them.
             if (ability.each) {
-                const foes = ctx.enemies.filter((target) => target.status === "active" && inMelee(node.pos, target));
-                if (foes.length < 2) continue;
                 const index = order[0];
+                const ranged = !c.strikes[index].melee;
+                const foes = ctx.enemies.filter((target) => target.status === "active" && (ranged || inMelee(node.pos, target))).slice(0, ability.max ?? Infinity);
+                if (foes.length < 2) continue;
                 const damage = { ...node.damage };
                 let gain = 0;
                 for (const [step, target] of foes.entries()) {
@@ -867,6 +868,8 @@ function expand(ctx, node, actionsLeft) {
         for (const [activityIndex, activity] of (c.strikeActivities ?? []).entries()) {
             if (restrained || noAttacks || activity.actions > remaining || (activity.oncePerFight && c.activitiesUsed?.has(activityIndex))) continue;
             if (activity.flourish && flourishUsed(c, node)) continue;
+            // "Frequency once per round" (Wriggling Beard).
+            if (activity.oncePerTurn && (c.usedThisTurn?.has(activity.name) || node.casts.includes(`sa${activityIndex}`))) continue;
             // A finisher needs panache.
             if (activity.finisher && !c.panache) continue;
             if (activity.strides && (!mobile || ctx.wavering)) continue;
@@ -893,7 +896,8 @@ function expand(ctx, node, actionsLeft) {
                     const strike = c.strikes[index];
                     if (!strikeUsable(c, strike) || (strike.melee && !inMelee(pos, target))) continue;
                     const changed = chargeStrike(strike, used);
-                    const expectation = ctx.strikeExpectation(changed, changed === strike ? index : 2000 + activityIndex * 64 + index, target, node.attacks, pos, node.prone);
+                    // ("This Strike ignores their multiple attack penalty": as a first attack.)
+                    const expectation = ctx.strikeExpectation(changed, changed === strike ? index : 2000 + activityIndex * 64 + index, target, activity.noMap ? 0 : node.attacks, pos, node.prone);
                     if (expectation && (!best || expectation.damage > best.expectation.damage)) best = { index, expectation };
                 }
                 if (!best) continue;
@@ -908,10 +912,10 @@ function expand(ctx, node, actionsLeft) {
                 // Exacting Strike: a miss doesn't raise the penalty for what follows (worth a little).
                 const exacting = activity.exacting ? 0.15 * (1 - best.expectation.hitChance) * gain : 0;
                 const next = child(node, { type: "strikeActivity", index: activityIndex, targetId: target.id, strikeIndex: best.index, actions: activity.actions }, activity.actions, ctx.profile.aggression * (gain + exacting), {
-                    attacks: activity.countsAs ?? 1,
+                    attacks: activity.noMap ? 0 : activity.countsAs ?? 1,
                     pos,
                     damage: { ...node.damage, [target.id]: before + expected },
-                    ...(activity.finisher || activity.coverFire || activity.flourish ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : [])] } : {})
+                    ...(activity.finisher || activity.coverFire || activity.flourish || activity.oncePerTurn ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : []), ...(activity.oncePerTurn ? [`sa${activityIndex}`] : [])] } : {})
                 });
                 if (activity.strides && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                 children.push(next);
