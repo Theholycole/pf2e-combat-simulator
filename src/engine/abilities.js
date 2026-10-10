@@ -68,6 +68,12 @@ export function addBuiltin(spec, plan, name) {
         case "attack-misfortune":
             spec.misfortuneReaction = { name };
             return true;
+        // Resilient Form, Cushioned Blow: a critical hit on it becomes a normal hit on a flat check (a reaction, or a
+        // free action with its uses a day).
+        case "crit-downgrade":
+            if (!Number.isFinite(plan.dc)) return false;
+            spec.critDowngrade = { name, dc: plan.dc, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}) };
+            return true;
         case "reaction-strike":
             spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: !!plan.disrupts }];
             return true;

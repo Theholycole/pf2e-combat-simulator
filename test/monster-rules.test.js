@@ -567,3 +567,21 @@ test("a monster's Retributive Strike (the glossary's): its ally resists 2 + its 
     assert.ok(state.log.some((line) => /Warden uses Retributive Strike/.test(line)));
     assert.ok(state.log.some((line) => /Warden .* → Fighter/.test(line)), "a Strike at the attacker");
 });
+
+test("Resilient Form and the like: a critical hit on it becomes a normal hit on a flat check", () => {
+    const dragon = { ...moderateCreature(10, "dragon", "Dragon"), engagement: 1, ac: 10 };
+    assert.equal(addBuiltin(dragon, { builtin: "crit-downgrade", dc: 2, uses: 1 }, "Cushioned Blow"), true);
+    const [fighter] = martialParty(10);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get("fighter");
+    const d = state.byId.get("dragon");
+    // A natural 20 against AC 10: a critical hit, downgraded once (DC 2 succeeds on anything but a 1).
+    state.rng.d20 = (() => { const rolls = [20, 15, 20]; return () => rolls.shift() ?? 10; })();
+    performStrike(state, f, d, f.strikes[0]);
+    performStrike(state, f, d, f.strikes[0]);
+    const lines = state.log.filter((line) => /Cushioned Blow|critical/i.test(line));
+    assert.ok(state.log.some((line) => /Dragon uses Cushioned Blow \(flat 15 vs DC 2\)/.test(line)), lines.join("\n"));
+    assert.equal(d.critDowngrade.uses, 0, "its one use spent");
+    assert.equal(createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, 1).byId.get("dragon").critDowngrade.uses, 1, "a fresh fight has it again");
+});

@@ -249,6 +249,15 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
             log(state, `  ${target.name} uses ${target.acReaction.name}`);
         }
     }
+    // Resilient Form and the like: a critical hit on it becomes a normal hit on a flat check.
+    const downgrade = target.critDowngrade;
+    if (degree === CRITICAL_SUCCESS && downgrade && (Number.isFinite(downgrade.uses) ? downgrade.uses > 0 : canReact(target))) {
+        if (Number.isFinite(downgrade.uses)) downgrade.uses--;
+        else target.reactionUsed = true;
+        const flat = state.rng.d20();
+        log(state, `  ${target.name} uses ${downgrade.name} (flat ${flat} vs DC ${downgrade.dc})`);
+        if (flat >= downgrade.dc) degree = SUCCESS;
+    }
     if (degree <= FAILURE && attacker.kind === "pc" && state.options.heroPoints && attacker.heroPoints >= 2) {
         const wouldDrop = expectedHitDamage(attacker, strike, target, false) >= target.hp.value + target.hp.temp;
         if (wouldDrop) {

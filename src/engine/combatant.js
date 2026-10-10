@@ -54,6 +54,8 @@ export function createCombatant(spec) {
         spells: spec.spells ?? [],
         effects: [],
         spellPools: { ...(spec.spellPools ?? {}) },
+        // A free critical-hit defence's uses are the fight's own.
+        ...(spec.critDowngrade ? { critDowngrade: { ...spec.critDowngrade } } : {}),
         // A magus starts a fight with Spellstrike charged.
         ...(spec.spellstrike ? { spellstrikeCharged: spec.spellstrikeCharged ?? true } : {}),
         timers: []
