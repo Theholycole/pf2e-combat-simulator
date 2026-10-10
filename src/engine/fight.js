@@ -2,7 +2,7 @@
 
 import { createRng } from "./rng.js";
 import { flatCheck, SUCCESS } from "./checks.js";
-import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, strikeUsable } from "./combatant.js";
+import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
 import { chargeStrike, ducksFromCoverFire, multiStrikeOrder, regenerating } from "./abilities.js";
@@ -61,6 +61,7 @@ export function createFightState(snapshot, options = {}, seed = 1) {
 
 function createState(snapshot, options, seed, withLog) {
     const list = snapshot.combatants.map(createCombatant);
+    for (const c of list) keepPermanent(c);
     const state = {
         rng: createRng(seed),
         seed,
@@ -273,6 +274,7 @@ function finish(state, outcome) {
 }
 
 function startTurn(state, c) {
+    keepPermanent(c);
     c.reactionUsed = false;
     c.attacksThisTurn = 0;
     c.round = state.round;

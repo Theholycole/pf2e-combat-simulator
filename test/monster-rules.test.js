@@ -975,3 +975,16 @@ test("a passive on a creature it holds as a turn starts or ends (2026-10-10, B49
     assert.equal(run({ at: "start", whose: "own", hold: "grabbed" }, true, "own"), 2, "the monster's turn: each creature it holds");
     assert.equal(run({ at: "end", whose: "held", hold: "grabbed" }, true, "held"), 0, "not at the other end of the turn");
 });
+
+test("a condition the monster always has: the zombie's Slow (2026-10-10, B50)", () => {
+    const [fighter] = martialParty(3);
+    const zombie = withBuiltins({ ...moderateCreature(3, "zom", "Zombie"), engagement: 1 }, ["Slow", { builtin: "permanent-condition", conditions: [{ slug: "slowed", value: 1 }], noReactions: true }, "Reactive Strike", { builtin: "reactive-strike" }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, zombie] }, {}, 1);
+    const z = state.byId.get("zom");
+    assert.equal(z.cond.slowed, 1, "slowed from the start");
+    assert.equal(z.noReactions, true);
+    const result = simulate({ combatants: [{ ...fighter, engagement: 1 }, zombie] }, { maxRounds: 2 }, 3, { log: true });
+    const turns = result.log.join("\n").split(/\n(?=\S)/).filter((block) => block.startsWith("Zombie ("));
+    assert.ok(turns.length > 0);
+    for (const block of turns) assert.ok(block.split("\n").slice(1).filter((line) => /^\s{2}Zombie /.test(line) && !/Zombie: /.test(line)).length <= 2, block);
+});

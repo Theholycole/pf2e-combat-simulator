@@ -58,6 +58,11 @@ export function addBuiltin(spec, plan, name) {
             if (!Number.isFinite(plan.resistance)) return false;
             spec.championReaction = { slug: "retributive-strike", name, self: false, resistance: plan.resistance, dice: 1 };
             return true;
+        // Slow, Weapon Supremacy: a condition it always has; "can't use reactions" (B50).
+        case "permanent-condition":
+            spec.permanent = [...(spec.permanent ?? []), ...(plan.conditions ?? [])];
+            if (plan.noReactions) spec.noReactions = true;
+            return true;
         case "momentum":
             spec.momentum = { recharges: [...(plan.recharges ?? [])] };
             return true;
@@ -242,5 +247,5 @@ export function levelDC(level) {
 
 // Whether a creature can use a reaction now (confused creatures can't).
 export function canReact(c) {
-    return c.status === "active" && !c.reactionUsed && !c.cond.confused && !c.cond.unconscious && !c.cond.paralyzed && !c.cond.asleep && c.acts !== false;
+    return c.status === "active" && !c.reactionUsed && !c.noReactions && !c.cond.confused && !c.cond.unconscious && !c.cond.paralyzed && !c.cond.asleep && c.acts !== false;
 }

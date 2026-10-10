@@ -23,6 +23,15 @@ const EMPTY_CONDITIONS = Object.freeze({
     immobilized: false, restrained: false, grabbed: false, confused: false
 });
 
+// A condition the creature always has (B50: the zombie's Slow, "permanently Slowed 1"): back at least to its value whenever its
+// turn starts, and as the fight starts (frightened would otherwise fade at the end of each turn).
+export function keepPermanent(c) {
+    for (const entry of c.permanent ?? []) {
+        if (entry.slug === "quickened") c.cond.quickened = true;
+        else c.cond[entry.slug] = Math.max(Number(c.cond[entry.slug]) || 0, Number(entry.value) || 1);
+    }
+}
+
 export function createCombatant(spec) {
     const conditions = { ...EMPTY_CONDITIONS, ...(spec.conditions ?? {}) };
     const persistent = (spec.conditions?.persistent ?? []).map((entry) => ({ ...entry }));
