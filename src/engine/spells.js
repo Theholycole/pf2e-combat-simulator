@@ -1066,8 +1066,8 @@ const CERTAIN = Object.freeze([1, 0, 0, 0]);
 
 function oddsFor(caster, spell, target, attacks, actions) {
     const check = describeSpell(spell.plan, actions).check;
-    // No check (healing, Force Barrage): the outcome doesn't depend on a degree.
-    if (!check) return CERTAIN;
+    // No check (healing, Force Barrage), or none rolled ("The target takes 3d8 fire damage"): the outcome doesn't depend on a degree.
+    if (!check || check.roll === "automatic") return CERTAIN;
     const penalty = statusPenalty(caster, "spell");
     if (check.roll === "attack") {
         const map = attacks <= 0 ? 0 : attacks === 1 ? 5 : 10;

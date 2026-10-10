@@ -674,3 +674,29 @@ test("Strikes at a number of different foes, a Grab after a hit, a Strike outsid
     assert.equal(d.attacksThisTurn, 2, "it doesn't count toward the penalty");
     assert.equal(scoreOptions(fight, d).options.some((entry) => entry.action.type === "strikeActivity"), false, "once a turn");
 });
+
+test("an ability with no roll: its damage and conditions on the target, valued as certain (2026-10-10, B40)", () => {
+    const none = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
+    const plan = {
+        modelVersion: 13, source: { name: "Digest" }, rank: 1, traits: [], activation: { time: "1", traits: [] },
+        targeting: { target: "1 creature", range: "touch", area: null }, trigger: { event: "use" },
+        resolution: {
+            kind: "check", check: { roll: "automatic", statistic: "automatic" },
+            sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "(2d12+6)[acid]" }] },
+            outcomes: { criticalSuccess: none, success: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [{ kind: "condition", slug: "drained", value: 1, duration: null }] }, failure: none, criticalFailure: none }
+        }
+    };
+    const [fighter] = martialParty(5);
+    const star = { ...moderateCreature(5, "star", "Star"), engagement: 1, spells: [{ name: "Digest", plan, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, star] }, {}, 1);
+    state.round = 1;
+    const c = state.byId.get("star");
+    c.actionsLeft = 3;
+    const option = scoreOptions(state, c).options.find((entry) => entry.action.type === "cast");
+    assert.ok(option, "on offer");
+    const pc = state.byId.get("fighter");
+    const hp = pc.hp.value;
+    castSpell(state, c, 0, ["fighter"]);
+    assert.ok(pc.hp.value <= hp - 8, "at least the damage's minimum");
+    assert.equal(pc.cond.drained, 1);
+});
