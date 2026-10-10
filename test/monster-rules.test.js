@@ -908,3 +908,44 @@ test("reactions to its own Strike, to being attacked, to a turn starting near it
     const cried = simulate({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "mon", "Losko"), engagement: 1, spells: [entry("Chilling Cry", cry)] }] }, { maxRounds: 1 }, 4, { log: true });
     assert.match(cried.log.join("\n"), /Losko uses Chilling Cry/);
 });
+
+test("passives that answer its own critical hit, damage on it, or a hit of some damage types (2026-10-10, B48)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const fortSave = (name, trigger, targeting, effects) => ({
+        modelVersion: 13, source: { name }, rank: 1, traits: [], activation: { time: "passive", traits: [] }, targeting, trigger: { event: "passive", ...trigger },
+        resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects }, criticalFailure: { damage: { ...none }, effects } } }
+    });
+    const [fighter] = martialParty(5);
+    const setup = (plan) => {
+        const monster = { ...moderateCreature(5, "mon", "Monster"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry(plan.source.name, plan)] };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, monster] }, {}, 4);
+        state.log = [];
+        return { state, f: state.byId.get("fighter"), m: state.byId.get("mon") };
+    };
+    // Firearms Critical Specialization: its own critical hit with a firearm.
+    const spec = fortSave("Firearms Critical Specialization", { event: "own-strike", on: ["criticalSuccess"], weapon: "firearm" }, { target: "the creature the Strike hits", range: "touch", area: null }, [{ kind: "condition", slug: "stunned", value: 1 }]);
+    let { state, f, m } = setup(spec);
+    performStrike(state, m, f, { ...m.strikes[0], name: "Pistol", firearm: true, bonus: 200 });
+    assert.ok(f.cond.stunned >= 1, state.log.join("\n"));
+    ({ state, f, m } = setup(spec));
+    performStrike(state, m, f, { ...m.strikes[0], name: "Club", bonus: 200 });
+    assert.ok(!f.cond.stunned, "not another weapon");
+    // Spewing Bile: slashing damage on it, on the creatures adjacent.
+    const bile = fortSave("Spewing Bile", { event: "damaged", damageTypes: ["slashing"] }, { target: null, range: null, area: { type: "emanation", value: 5 } }, [{ kind: "condition", slug: "sickened", value: 1 }]);
+    ({ state, f, m } = setup(bile));
+    applyDamage(state, m, [{ type: "slashing", amount: 5 }], { source: f });
+    assert.ok(f.cond.sickened >= 1, state.log.join("\n"));
+    ({ state, f, m } = setup(bile));
+    applyDamage(state, m, [{ type: "fire", amount: 5 }], { source: f });
+    assert.ok(!f.cond.sickened, "not fire");
+    // Shimmering Armor: a critical hit of physical damage, on the creatures around it.
+    const armor = fortSave("Shimmering Armor", { event: "hit-by", melee: false, critical: true, damageTypes: ["physical"] }, { target: null, range: null, area: { type: "emanation", value: 10 } }, [{ kind: "condition", slug: "sickened", value: 1 }]);
+    ({ state, f, m } = setup(armor));
+    performStrike(state, f, m, { ...f.strikes[0], bonus: 200 });
+    assert.ok(f.cond.sickened >= 1, state.log.join("\n"));
+    ({ state, f, m } = setup(armor));
+    state.rng.d20 = dice(10);
+    const plain = performStrike(state, f, m, { ...f.strikes[0], bonus: m.ac - 10 });
+    assert.equal(plain.degree, 2, "a plain hit");
+    assert.ok(!f.cond.sickened, "only on a critical hit");
+});

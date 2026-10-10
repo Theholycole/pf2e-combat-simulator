@@ -359,9 +359,10 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // Grab, Knockdown and Push follow a hit (free ones at once, the others as the next action).
     if (!reaction && isActive(target)) state.onStrikeHit?.(attacker, target, strike, degree);
     // Defensive Quills, Searing Heat: the monster's passive answers a melee hit on it (B43).
-    if (strike.melee && isActive(attacker)) hitByAnswers(state, target, attacker, strike);
+    const dealtTypes = dealt > 0 ? instances.map((instance) => instance.type) : [];
+    if (isActive(attacker)) hitByAnswers(state, target, attacker, strike, degree, dealtTypes);
     // Shrapnel Splash, Reactive Thrash: the monster's reaction to the hit (B44).
-    if (isActive(attacker)) reactToHit(state, target, attacker, strike, degree, dealt > 0 ? instances.map((instance) => instance.type) : []);
+    if (isActive(attacker)) reactToHit(state, target, attacker, strike, degree, dealtTypes);
     // Pin Prey, Storm Smite: the attacker's reaction to its own hit (B47).
     if (isActive(attacker)) reactToOwnHit(state, attacker, target, strike, degree);
     return { degree, damage: dealt, trigger };

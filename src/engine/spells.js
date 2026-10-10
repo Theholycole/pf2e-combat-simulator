@@ -1002,12 +1002,30 @@ function around(state, c, radius, inMelee) {
 // A melee hit on a creature whose passive answers it ("A creature that hits a pukwudgie with an unarmed Strike or a non-reach
 // melee Strike takes 3d8 piercing damage", B43): the passive on the attacker; one for unarmed attacks or touch only when the
 // Strike is unarmed.
-export function hitByAnswers(state, defender, attacker, strike) {
-    for (const [index, spell] of (defender.spells ?? []).entries()) {
+// (Batch 19: also any attack when it says so, a critical hit only, the damage types it names, its area around the monster.)
+export function hitByAnswers(state, defender, attacker, strike, degree = SUCCESS, types = []) {
+    passiveAnswers(state, defender, attacker, (trigger) => trigger.event === "hit-by" && (!trigger.melee || strike.melee) && (!trigger.unarmed || strike.unarmed)
+        && (!trigger.critical || degree === CRITICAL_SUCCESS) && typesMatch(trigger.damageTypes, types));
+}
+
+// A monster's passives that answer an event (B43, B48): each that matches, on its targets (see answerTargets).
+function passiveAnswers(state, c, other, matches) {
+    for (const [index, spell] of (c.spells ?? []).entries()) {
         const trigger = spell.plan?.trigger;
-        if (trigger?.event !== "hit-by" || trigger.reaction || (trigger.unarmed && !strike.unarmed)) continue;
-        castSpell(state, defender, index, [attacker.id]);
+        if (!trigger || trigger.reaction || !matches(trigger)) continue;
+        const targets = answerTargets(state, c, spell.plan, other);
+        if (targets.length) castSpell(state, c, index, targets.map((target) => target.id));
     }
+}
+
+// Who an answer goes on: the creature that set it off (the attacker, the creature its Strike hit, the creature starting its
+// turn), the creatures around it or around the creature it hit (Storm Smite), or none (the GM's targets in live play).
+function answerTargets(state, c, plan, other) {
+    const radius = describeSpell(plan).area?.value;
+    const live = other && isActive(other);
+    if (["the attacker", "the creature the Strike hits"].includes(plan.targeting?.target)) return live ? [other] : [];
+    if (radius && plan.targeting?.area?.around === "target") return live ? [other, ...around(state, other, radius, (near) => sameMelee(other, near)).filter((near) => near !== c)] : [];
+    return radius ? around(state, c, radius, (near) => sameMelee(c, near)) : [];
 }
 
 // A monster's reaction to a hit, a critical hit or damage on it (B44: Shrapnel Splash's "The dragon is critically hit with a
@@ -1020,7 +1038,10 @@ export function reactToHit(state, defender, attacker, strike, degree, types) {
 }
 
 export function reactToDamage(state, target, source, types) {
-    useReaction(state, target, source, (trigger) => trigger.event === "damaged" && typesMatch(trigger.damageTypes, types));
+    const sets = (trigger) => trigger.event === "damaged" && typesMatch(trigger.damageTypes, types);
+    // Spewing Bile, Diseased Pustules: its passive answers damage on it too (B48).
+    if (isActive(target)) passiveAnswers(state, target, source, sets);
+    useReaction(state, target, source, sets);
 }
 
 // A spell or an action with a trait a creature's ability answers when it's targeted (B46: Otherworldly Mind's "Whenever a
@@ -1056,13 +1077,7 @@ function useReaction(state, c, other, matches) {
         const trigger = spell.plan?.trigger;
         if (!trigger?.reaction || !matches(trigger) || (!trigger.free && !canReact(c))) continue;
         if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
-        const area = describeSpell(spell.plan).area;
-        const radius = area?.value;
-        const live = other && isActive(other);
-        const targets = ["the attacker", "the creature the Strike hits"].includes(spell.plan.targeting?.target) ? (live ? [other] : [])
-            // (Around the creature its Strike hit: Storm Smite's "burst centered on the target".)
-            : radius && spell.plan.targeting?.area?.around === "target" ? (live ? [other, ...around(state, other, radius, (near) => sameMelee(other, near)).filter((near) => near !== c)] : [])
-            : radius ? around(state, c, radius, (near) => sameMelee(c, near)) : [];
+        const targets = answerTargets(state, c, spell.plan, other);
         if (!targets.some((target) => target.side !== c.side)) continue;
         if (!trigger.free) c.reactionUsed = true;
         state.stats.reactions++;
@@ -1077,8 +1092,14 @@ function useReaction(state, c, other, matches) {
 // (Chilling Cry's "rolls initiative").
 export function reactToOwnHit(state, attacker, target, strike, degree) {
     const name = String(strike.name ?? "").toLowerCase();
-    useReaction(state, attacker, target, (trigger) => trigger.event === "own-strike" && (trigger.on ?? []).includes(DEGREE_NAMES[degree])
-        && (!trigger.strike || name.includes(trigger.strike) || trigger.strike.includes(name)) && (!trigger.maxSize || sizeRank(target.size) <= sizeRank(trigger.maxSize)));
+    // (A passive's kind of weapon, B48: "with a firearm", "with an unarmed attack", "a brawling weapon", "its melee Strikes".)
+    const weapon = (kind) => !kind || (kind === "firearm" ? Boolean(strike.firearm) || /\b(?:pistol|musket|rifle|arquebus|blunderbuss|pepperbox|firearm|gun)\b/.test(name)
+        : kind === "unarmed" ? Boolean(strike.unarmed) : kind === "brawling" ? Boolean(strike.unarmed) || /\b(?:fist|gauntlet|knuckles?|cestus)\b/.test(name) : kind === "melee" ? Boolean(strike.melee) : true);
+    const sets = (trigger) => trigger.event === "own-strike" && (trigger.on ?? []).includes(DEGREE_NAMES[degree]) && weapon(trigger.weapon)
+        && (!trigger.strike || name.includes(trigger.strike) || trigger.strike.includes(name)) && (!trigger.maxSize || sizeRank(target.size) <= sizeRank(trigger.maxSize));
+    // Firearms Critical Specialization, Painful Strikes: its passives (B48).
+    if (isActive(target)) passiveAnswers(state, attacker, target, sets);
+    useReaction(state, attacker, target, sets);
 }
 
 export function reactToAttack(state, target, attacker, strike) {
