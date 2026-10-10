@@ -753,3 +753,30 @@ test("death throes: a monster's ability that acts as it dies, on the creatures a
     assert.ok(f.hp.value < hpF, "the fighter beside it takes the burst");
     assert.equal(c.hp.value, hpC, "not the champion far off");
 });
+
+test("a passive that answers a melee hit on the monster, on the attacker (2026-10-10, B43)", () => {
+    const quills = (unarmed) => ({
+        modelVersion: 13, source: { name: "Defensive Quills" }, rank: 1, traits: [], activation: { time: "passive", traits: [] },
+        targeting: { target: "the attacker", range: "touch", area: null }, trigger: { event: "hit-by", melee: true, ...(unarmed ? { unarmed: true } : {}) },
+        resolution: {
+            kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 60 } },
+            sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "3d8[piercing]" }] },
+            outcomes: { criticalSuccess: { damage: { mode: "shared", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] }, effects: [] } }
+        }
+    });
+    const [fighter] = martialParty(5);
+    const run = (plan, strike) => {
+        const pukwudgie = { ...moderateCreature(5, "puk", "Pukwudgie"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry("Defensive Quills", plan)] };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, pukwudgie] }, {}, 4);
+        state.log = [];
+        const f = state.byId.get("fighter");
+        const hp = f.hp.value;
+        performStrike(state, f, state.byId.get("puk"), { ...f.strikes[0], bonus: 60, ...strike });
+        return { hit: hp - f.hp.value, log: state.log.join("\n") };
+    };
+    assert.ok(run(quills(false), { melee: true }).hit > 0, "a melee hit sets it off");
+    assert.equal(run(quills(false), { melee: true, bonus: -60 }).hit, 0, "not a miss");
+    assert.equal(run(quills(false), { melee: false }).hit, 0, "not a ranged one");
+    assert.equal(run(quills(true), { melee: true, unarmed: false }).hit, 0, "an unarmed-only one: not a weapon");
+    assert.ok(run(quills(true), { melee: true, unarmed: true }).hit > 0, "an unarmed-only one: a fist");
+});

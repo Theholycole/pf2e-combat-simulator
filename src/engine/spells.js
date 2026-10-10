@@ -991,6 +991,17 @@ export function deathThroes(state, c, melee) {
     }
 }
 
+// A melee hit on a creature whose passive answers it ("A creature that hits a pukwudgie with an unarmed Strike or a non-reach
+// melee Strike takes 3d8 piercing damage", B43): the passive on the attacker; one for unarmed attacks or touch only when the
+// Strike is unarmed.
+export function hitByAnswers(state, defender, attacker, strike) {
+    for (const [index, spell] of (defender.spells ?? []).entries()) {
+        const trigger = spell.plan?.trigger;
+        if (trigger?.event !== "hit-by" || (trigger.unarmed && !strike.unarmed)) continue;
+        castSpell(state, defender, index, [attacker.id]);
+    }
+}
+
 // --- Planning ----------------------------------------------------------------
 
 // A spell live play leaves to PF2e's card with no combat numbers in its data

@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { removeEffect } from "./effects.js";
-import { deathThroes } from "./spells.js";
+import { deathThroes, hitByAnswers } from "./spells.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -349,6 +349,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (critical && attacker.momentum) rechargeOnCritical(state, attacker);
     // Grab, Knockdown and Push follow a hit (free ones at once, the others as the next action).
     if (!reaction && isActive(target)) state.onStrikeHit?.(attacker, target, strike, degree);
+    // Defensive Quills, Searing Heat: the monster's passive answers a melee hit on it (B43).
+    if (strike.melee && isActive(attacker)) hitByAnswers(state, target, attacker, strike);
     return { degree, damage: dealt, trigger };
 }
 
