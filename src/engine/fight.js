@@ -494,10 +494,18 @@ function act(state, c, action) {
         case "disableHazard":
             disableHazard(state, c, state.byId.get(action.targetId), { provoke, performStrike });
             break;
-        case "cast":
+        case "cast": {
             if (action.rider && !(rider && rider.index === action.spellIndex)) break;
-            castSpell(state, c, action.spellIndex, action.targetIds, action.actions);
+            // Casting with the manipulate trait provokes (S12; Reactive Strike's critical hit disrupts it), and with the
+            // concentrate trait, the reactions that say so (B51).
+            const spell = c.spells[action.spellIndex];
+            const traits = spell?.plan?.activation?.traits ?? spell?.plan?.traits ?? [];
+            let disrupted = traits.includes("manipulate") ? provoke(state, c, "manipulate") : false;
+            if (canAct(c) && traits.includes("concentrate")) disrupted = provoke(state, c, "concentrate") || disrupted;
+            if (!canAct(c)) break;
+            castSpell(state, c, action.spellIndex, action.targetIds, action.actions, disrupted ? { disrupted: true } : {});
             break;
+        }
         case "interact":
             interact(state, c, action.what, action.strikeName);
             break;

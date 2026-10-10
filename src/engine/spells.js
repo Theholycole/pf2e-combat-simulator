@@ -1083,8 +1083,18 @@ function useReaction(state, c, other, matches) {
         state.stats.reactions++;
         log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name}`);
         castSpell(state, c, index, targets.map((target) => target.id));
-        return;
+        return true;
     }
+    return false;
+}
+
+// Reactive Strike's triggers, with results of their own (B51: "A creature within the razorbones' reach uses a manipulate action
+// or a move action or leaves a square during a move action"; "A creature within 100 feet makes a ranged attack or uses an action
+// that has the concentrate trait"): kind "move" (leaving its Melee), "manipulate", "ranged" or "concentrate", within its
+// distance (its reach or 10 feet or less: its Melee; more: the bands). True when it reacted.
+export function provokedReaction(state, c, mover, kind) {
+    const near = (within) => (within === "reach" || Number(within) <= 10 ? sameMelee(c, mover) : Number(within) >= 60 || mover.band !== "far" || c.band === "far");
+    return useReaction(state, c, mover, (trigger) => trigger.event === "provoke" && (trigger.triggers ?? []).some((each) => each === kind || (kind === "move" && each === "leave")) && near(trigger.within));
 }
 
 // More triggers (B47): its own Strike that hits or critically hits (Pin Prey, Storm Smite, Go For the Eyes); a Strike at it,

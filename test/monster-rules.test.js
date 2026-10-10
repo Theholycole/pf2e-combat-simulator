@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { createFightState, performAction, simulate } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
-import { applyDamage, dealDamage, expectedHitDamage, performStrike, stride } from "../src/engine/actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, stride } from "../src/engine/actions.js";
 import { isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeStrike, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
 import { applyAuras, applyCondition, applyStrikeRider, castSpell, expireTimers, grabTurnAnswers, retch, triggerRiders } from "../src/engine/spells.js";
@@ -987,4 +987,35 @@ test("a condition the monster always has: the zombie's Slow (2026-10-10, B50)", 
     const turns = result.log.join("\n").split(/\n(?=\S)/).filter((block) => block.startsWith("Zombie ("));
     assert.ok(turns.length > 0);
     for (const block of turns) assert.ok(block.split("\n").slice(1).filter((line) => /^\s{2}Zombie /.test(line) && !/Zombie: /.test(line)).length <= 2, block);
+});
+
+test("casting a manipulate spell in a Melee provokes (S12), and reactions to acting near the monster (2026-10-10, B51)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const willSave = (name, trigger, traits = [], effects = [{ kind: "condition", slug: "immobilized", value: null, duration: { mode: "fixed", value: 1, unit: "rounds" } }]) => ({
+        modelVersion: 13, source: { name }, rank: 1, traits, activation: { time: trigger ? "reaction" : "2", traits }, targeting: { target: trigger ? "the attacker" : "1 creature", range: trigger ? "touch" : "30 feet", area: null },
+        ...(trigger ? { trigger: { event: "provoke", reaction: true, ...trigger } } : {}),
+        resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects }, criticalFailure: { damage: { ...none }, effects } } }
+    });
+    const [fighter] = martialParty(5);
+    // The monster casts a manipulate spell next to the fighter (Reactive Strike).
+    const caster = { ...moderateCreature(5, "mon", "Mage"), engagement: 1, spells: [entry("Hold Person", willSave("Hold Person", null, ["concentrate", "manipulate"]))] };
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1, aoo: true, reactions: { aoo: true } }, caster] }, {}, 2);
+    state.log = [];
+    performAction(state, state.byId.get("mon"), { type: "cast", spellIndex: 0, targetIds: ["fighter"], actions: 2 });
+    assert.match(state.log.join("\n"), /Fighter Attack of Opportunity/, state.log.join("\n"));
+    // Leaving its reach: Ectoplasmic Filaments on the creature leaving.
+    const filaments = willSave("Ectoplasmic Filaments", { triggers: ["manipulate", "move", "leave"], within: "reach" });
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "mon", "Razorbones"), engagement: 1, spells: [entry("Ectoplasmic Filaments", filaments)] }] }, {}, 2);
+    state.log = [];
+    const f = state.byId.get("fighter");
+    provokeFor(state, f, "move");
+    assert.ok(f.cond.immobilized && state.byId.get("mon").reactionUsed, state.log.join("\n"));
+    // A concentrate action within 30 feet, and not Reactive Strike for it.
+    const spit = willSave("Brine Spit", { triggers: ["concentrate"], within: 30 });
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [{ ...entry("Demoralize", willSave("Demoralize", null, ["concentrate", "mental"])), kind: "basic" }] }, { ...moderateCreature(5, "mon", "Dragon"), engagement: 1, reactions: { aoo: true }, spells: [entry("Brine Spit", spit)] }] }, {}, 2);
+    state.log = [];
+    performAction(state, state.byId.get("fighter"), { type: "cast", spellIndex: 0, targetIds: ["mon"], actions: 1 });
+    const text = state.log.join("\n");
+    assert.match(text, /Dragon reacts with Brine Spit/, text);
+    assert.doesNotMatch(text, /Attack of Opportunity/);
 });

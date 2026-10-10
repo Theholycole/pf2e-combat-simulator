@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { removeEffect } from "./effects.js";
-import { deathThroes, hitByAnswers, reactToAttack, reactToDamage, reactToHit, reactToOwnHit } from "./spells.js";
+import { deathThroes, hitByAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit } from "./spells.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -714,7 +714,8 @@ export function recoveryCheck(state, c) {
 // Tail), which disrupt the move when they hit.
 export function provoke(state, mover, kind) {
     let disrupted = false;
-    for (const enemy of engagedEnemies(state, mover)) {
+    // (A concentrate action provokes only the reactions that say so, B51.)
+    for (const enemy of kind === "concentrate" ? [] : engagedEnemies(state, mover)) {
         if (!canAct(mover)) break;
         if (!canReact(enemy) || enemy.cond.fleeing) continue;
         if (enemy.reactions?.aoo) {
@@ -736,6 +737,12 @@ export function provoke(state, mover, kind) {
         const strike = enemy.strikes[index];
         const result = performStrike(state, enemy, mover, reaction.penalty ? { ...strike, bonus: strike.bonus - reaction.penalty } : strike, { reaction: true, trigger: kind });
         if (reaction.disrupts && result?.degree >= SUCCESS) disrupted = true;
+    }
+    // Tentacle Trip, Ectoplasmic Filaments, Baleful Gaze: a reaction with results of its own (B51). One that leaves the creature
+    // unable to act, or held, stops what it was doing.
+    for (const enemy of state.list) {
+        if (enemy.side === mover.side || !isActive(enemy) || !canAct(mover)) continue;
+        if (provokedReaction(state, enemy, mover, kind) && (!canAct(mover) || mover.cond.grabbed || mover.cond.restrained || mover.cond.immobilized || (kind === "move" && mover.cond.prone))) disrupted = true;
     }
     return disrupted;
 }
