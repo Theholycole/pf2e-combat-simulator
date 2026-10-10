@@ -931,9 +931,17 @@ function rollCount(state, formula) {
 
 // After a Strike hits: riders its Strike lists (Grab, Knockdown, Push). Free
 // ones (Improved Grab) happen at once; the others can be the creature's next action.
-export function triggerRiders(state, attacker, target, strike) {
+export function triggerRiders(state, attacker, target, strike, degree = SUCCESS) {
     for (const [index, spell] of (attacker.spells ?? []).entries()) {
         const trigger = spell.plan?.trigger;
+        // A follow-up to a Strike that hit ("last action was a successful claw Strike"): ready as the next action.
+        const follow = trigger?.followUp;
+        if (follow) {
+            const name = String(strike.name ?? "").toLowerCase();
+            const named = !follow.strike || name === follow.strike || name.startsWith(follow.strike) || name.includes(follow.strike) || follow.strike.includes(name);
+            if ((follow.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree]) && named && (!follow.melee || strike.melee)) attacker.riderReady = { index, targetId: target.id };
+            continue;
+        }
         // The Strike lists the rider by its own slug ("improved-grab") or its base one ("grab").
         const listed = strike.attackEffects ?? [];
         if (trigger?.event !== "strike" || !(listed.includes(trigger.attackEffect) || listed.includes(spell.plan.source?.slug))) continue;

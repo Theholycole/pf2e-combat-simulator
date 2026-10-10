@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 
-import { createFightState, simulate } from "../src/engine/fight.js";
+import { createFightState, performAction, simulate } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, stride } from "../src/engine/actions.js";
 import { isActive, isOffGuard } from "../src/engine/combatant.js";
-import { addBuiltin, chargeStrike, saveBonusAgainst } from "../src/engine/abilities.js";
+import { addBuiltin, chargeStrike, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
 import { applyAuras, applyCondition, applyStrikeRider, castSpell, expireTimers, retch, triggerRiders } from "../src/engine/spells.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
@@ -584,4 +584,43 @@ test("Resilient Form and the like: a critical hit on it becomes a normal hit on 
     assert.ok(state.log.some((line) => /Dragon uses Cushioned Blow \(flat 15 vs DC 2\)/.test(line)), lines.join("\n"));
     assert.equal(d.critDowngrade.uses, 0, "its one use spent");
     assert.equal(createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, 1).byId.get("dragon").critDowngrade.uses, 1, "a fresh fight has it again");
+});
+
+test("a follow-up to a Strike that hit (Skull Twist): only straight after a hit with that Strike, at that creature", () => {
+    const plan = { modelVersion: 13, source: { name: "Test Follow-up" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "the creature the Strike hits", range: "touch", area: null },
+        trigger: { event: "use", followUp: { strike: "claw", melee: false, on: ["success", "criticalSuccess"] } },
+        resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: false, against: { dc: "fixed", value: 21 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, failure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [{ kind: "condition", slug: "immobilized", value: null, duration: null }] }, criticalFailure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [{ kind: "condition", slug: "immobilized", value: null, duration: null }] } } } };
+    const hag = { ...moderateCreature(3, "hag", "Hag"), engagement: 1, spells: [{ name: "Test Follow-up", plan, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" }] };
+    hag.strikes = [{ ...hag.strikes[0], name: "Claw" }, { ...hag.strikes[0], name: "Jaws" }];
+    const [fighter] = martialParty(3);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, hag] }, {}, 1);
+    const h = state.byId.get("hag");
+    h.round = 1;
+    h.actionsLeft = 2;
+    const offered = () => scoreOptions(state, h).options.some((entry) => entry.action.type === "cast");
+    assert.equal(offered(), false, "not without a hit");
+    triggerRiders(state, h, state.byId.get("fighter"), h.strikes[1], 2);
+    assert.equal(h.riderReady?.index, undefined, "a jaws hit doesn't ready it");
+    triggerRiders(state, h, state.byId.get("fighter"), h.strikes[0], 2);
+    assert.deepEqual(h.riderReady, { index: 0, targetId: "fighter" });
+    assert.equal(offered(), true, "straight after the claw hit");
+});
+
+test("several Strikes in one action, read from more wordings, and a Strike at every enemy in its Melee (2026-10-10)", () => {
+    const brute = { ...moderateCreature(5, "brute", "Brute"), engagement: 1 };
+    brute.strikes = [{ ...brute.strikes[0], name: "Vine" }];
+    assert.equal(addBuiltin(brute, { builtin: "multi-strike", actions: 2, strikes: ["vine"], each: true, sameMap: true }, "Vine Lash"), true);
+    const [fighter, champion, rogue] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...champion, engagement: 1 }, { ...rogue, engagement: 1 }, brute] }, {}, 1);
+    state.log = [];
+    const b = state.byId.get("brute");
+    b.round = 1;
+    b.actionsLeft = 3;
+    const option = scoreOptions(state, b).options.find((entry) => entry.action.type === "multiStrike");
+    assert.ok(option, "on offer with three foes in its Melee");
+    performAction(state, b, option.action);
+    assert.deepEqual(["Fighter", "Champion", "Ranger"].map((name) => state.log.some((line) => new RegExp(`Brute .*→ ${name}:`).test(line))), [true, true, true], state.log.join("\n"));
+    assert.equal(b.attacksThisTurn, 3, "three attacks for the penalty, after all of them");
+    // An unnamed Strike is its best melee Strike.
+    assert.deepEqual(multiStrikeOrder({ strikes: [{ name: "Fist", melee: true, bonus: 10 }, { name: "Jaws", melee: true, bonus: 12 }, { name: "Bow", melee: false, bonus: 15 }] }, { strikes: [null, null] }), [1, 1]);
 });

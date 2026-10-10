@@ -717,8 +717,9 @@ function expand(ctx, node, actionsLeft) {
             if (!canCast(c, spell) || node.casts.includes(index)) continue;
             if (raging && (spell.plan?.traits ?? []).includes("concentrate") && !(spell.plan?.traits ?? []).includes("rage")) continue;
             if (spell.pool && node.casts.filter((other) => typeof other === "number" && c.spells[other].pool === spell.pool).length >= (c.spellPools[spell.pool] ?? 0)) continue;
-            // A rider (Grab, Knockdown, Push) only as the action straight after the Strike that allows it.
-            const rider = spell.plan?.trigger?.event === "strike";
+            // A rider (Grab, Knockdown, Push) or a follow-up ("last action was a successful claw Strike") only as the
+            // action straight after the Strike that allows it.
+            const rider = spell.plan?.trigger?.event === "strike" || Boolean(spell.plan?.trigger?.followUp);
             const riderTarget = rider && c.riderReady?.index === index && node.used === 0 ? state.byId.get(c.riderReady.targetId) : null;
             if (rider && !(riderTarget && isActive(riderTarget))) continue;
             for (const actions of spellVariants(spell)) {
@@ -786,6 +787,23 @@ function expand(ctx, node, actionsLeft) {
             if (ability.flourish && flourishUsed(c, node)) continue;
             const order = multiStrikeOrder(c, ability);
             if (!order || order.some((index) => !strikeUsable(c, c.strikes[index]))) continue;
+            // A Strike at every enemy in its Melee: worth the sum over them.
+            if (ability.each) {
+                const foes = ctx.enemies.filter((target) => target.status === "active" && inMelee(node.pos, target));
+                if (foes.length < 2) continue;
+                const index = order[0];
+                const damage = { ...node.damage };
+                let gain = 0;
+                for (const [step, target] of foes.entries()) {
+                    const expected = ctx.strikeExpectation(c.strikes[index], index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone)?.damage ?? 0;
+                    const before = damage[target.id] ?? 0;
+                    const hp = remainingHp(target);
+                    gain += targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
+                    damage[target.id] = before + expected;
+                }
+                if (gain > 0) children.push(child(node, { type: "multiStrike", ability: abilityIndex, targetId: foes[0].id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, { attacks: foes.length, damage }));
+                continue;
+            }
             for (const target of ctx.enemies) {
                 if (target.status !== "active" || order.some((index) => c.strikes[index].melee && !inMelee(node.pos, target))) continue;
                 // Hunted Shot, Twin Takedown: against the hunted prey only.

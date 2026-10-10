@@ -48,7 +48,7 @@ export function addBuiltin(spec, plan, name) {
             spec.fastHealing = Math.max(spec.fastHealing ?? 0, plan.value);
             return true;
         case "multi-strike":
-            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes] }];
+            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}) }];
             return true;
         case "charge":
             spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null }];
@@ -117,7 +117,9 @@ export function strikeNamed(c, name) {
 // order that loses least to the multiple attack penalty (agile ones last).
 // null when one of them isn't among the creature's Strikes.
 export function multiStrikeOrder(c, ability) {
-    const indices = ability.strikes.map((name) => strikeNamed(c, name));
+    // A Strike with no name ("makes two unarmed Strikes"): its best melee Strike.
+    const best = () => (c.strikes ?? []).reduce((found, strike, index) => (strike.melee && (found < 0 || strike.bonus > c.strikes[found].bonus) ? index : found), -1);
+    const indices = ability.strikes.map((name) => (name ? strikeNamed(c, name) : best()));
     if (indices.some((index) => index < 0)) return null;
     return indices.sort((a, b) => (c.strikes[a].agile ? 1 : 0) - (c.strikes[b].agile ? 1 : 0));
 }

@@ -560,6 +560,19 @@ function act(state, c, action) {
             if (ability.flourish) c.usedThisTurn?.add("flourish");
             let target = state.byId.get(action.targetId);
             const attacks = c.attacksThisTurn;
+            // A Strike at every enemy in its Melee (Vine Lash, Thrash).
+            if (ability.each) {
+                const index = multiStrikeOrder(c, ability)?.[0];
+                const foes = engagedEnemies(state, c);
+                for (const foe of foes) {
+                    if (!canAct(c) || index === undefined) break;
+                    // Each at the penalty it started with, when it doesn't rise until all are made.
+                    if (ability.sameMap) c.attacksThisTurn = attacks;
+                    if (isActive(foe)) performStrike(state, c, foe, c.strikes[index]);
+                }
+                if (ability.sameMap) c.attacksThisTurn = attacks + foes.length;
+                break;
+            }
             for (const [step, index] of (multiStrikeOrder(c, ability) ?? []).entries()) {
                 if (!canAct(c)) break;
                 let strike = c.strikes[index];
