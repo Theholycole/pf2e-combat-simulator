@@ -11,13 +11,13 @@
 // uses), or null for cantrips and at-will spells.
 
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
-import { degreeDistribution, degreeOf, flatCheck, DEGREE_NAMES, SUCCESS } from "./checks.js";
+import { degreeDistribution, degreeOf, flatCheck, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effects.js";
 import { applyDamage, expectedHitDamage, increaseDying, killCreature, log, releaseSwallowed, stride } from "./actions.js";
-import { levelDC, saveBonusAgainst, sizeRank } from "./abilities.js";
+import { canReact, levelDC, saveBonusAgainst, sizeRank } from "./abilities.js";
 import { adjustDamage, adjustInstance } from "./damage.js";
-import { leaveMelee } from "./space.js";
+import { leaveMelee, sameMelee } from "./space.js";
 import { moraleOdds } from "./morale.js";
 
 const registry = createRegistry();
@@ -986,9 +986,15 @@ export function deathThroes(state, c, melee) {
         if (spell.plan?.trigger?.event !== "death") continue;
         const radius = describeSpell(spell.plan).area?.value;
         if (!radius) continue;
-        const targets = state.list.filter((other) => other !== c && isActive(other) && other.band !== "gone" && (radius >= 60 || melee.has(other.id) || (radius > 10 && (other.band !== "far" || c.band === "far"))));
+        const targets = around(state, c, radius, (other) => melee.has(other.id));
         if (targets.length) castSpell(state, c, index, targets.map((target) => target.id));
     }
+}
+
+// The creatures within radius feet of c, by the bands: its Melee for 10 feet or less, those not far off for more (as auras
+// reach), everyone from 60 feet.
+function around(state, c, radius, inMelee) {
+    return state.list.filter((other) => other !== c && isActive(other) && other.band !== "gone" && (radius >= 60 || inMelee(other) || (radius > 10 && (other.band !== "far" || c.band === "far"))));
 }
 
 // A melee hit on a creature whose passive answers it ("A creature that hits a pukwudgie with an unarmed Strike or a non-reach
@@ -997,8 +1003,41 @@ export function deathThroes(state, c, melee) {
 export function hitByAnswers(state, defender, attacker, strike) {
     for (const [index, spell] of (defender.spells ?? []).entries()) {
         const trigger = spell.plan?.trigger;
-        if (trigger?.event !== "hit-by" || (trigger.unarmed && !strike.unarmed)) continue;
+        if (trigger?.event !== "hit-by" || trigger.reaction || (trigger.unarmed && !strike.unarmed)) continue;
         castSpell(state, defender, index, [attacker.id]);
+    }
+}
+
+// A monster's reaction to a hit, a critical hit or damage on it (B44: Shrapnel Splash's "The dragon is critically hit with a
+// melee weapon or unarmed attack", Reactive Thrash, Freezing Blood's piercing or slashing damage, Solar Flare's "takes
+// damage"): used whenever it can react and the ability is ready, on the attacker, or on the creatures in its area when a foe
+// is among them. One with neither (the GM's targets in live play) isn't played. types: the damage types dealt.
+export function reactToHit(state, defender, attacker, strike, degree, types) {
+    useReaction(state, defender, attacker, (trigger) => trigger.event === "hit-by" && (!trigger.critical || degree === CRITICAL_SUCCESS) && (!trigger.melee || strike.melee) && (!trigger.unarmed || strike.unarmed)
+        && (!trigger.within || trigger.within > 10 || sameMelee(defender, attacker)) && typesMatch(trigger.damageTypes, types));
+}
+
+export function reactToDamage(state, target, source, types) {
+    useReaction(state, target, source, (trigger) => trigger.event === "damaged" && typesMatch(trigger.damageTypes, types));
+}
+
+const PHYSICAL_TYPES = new Set(["bludgeoning", "piercing", "slashing"]);
+const typesMatch = (wanted, types) => !wanted?.length || types.some((type) => wanted.includes(type) || (wanted.includes("physical") && PHYSICAL_TYPES.has(type)));
+
+function useReaction(state, c, attacker, matches) {
+    if (!canReact(c)) return;
+    for (const [index, spell] of (c.spells ?? []).entries()) {
+        const trigger = spell.plan?.trigger;
+        if (!trigger?.reaction || !matches(trigger)) continue;
+        if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
+        const radius = describeSpell(spell.plan).area?.value;
+        const targets = spell.plan.targeting?.target === "the attacker" ? (attacker && isActive(attacker) ? [attacker] : []) : radius ? around(state, c, radius, (other) => sameMelee(c, other)) : [];
+        if (!targets.some((target) => target.side !== c.side)) continue;
+        c.reactionUsed = true;
+        state.stats.reactions++;
+        log(state, `  ${c.name} reacts with ${spell.name}`);
+        castSpell(state, c, index, targets.map((target) => target.id));
+        return;
     }
 }
 

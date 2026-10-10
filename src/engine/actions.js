@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { removeEffect } from "./effects.js";
-import { deathThroes, hitByAnswers } from "./spells.js";
+import { deathThroes, hitByAnswers, reactToDamage, reactToHit } from "./spells.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -351,6 +351,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (!reaction && isActive(target)) state.onStrikeHit?.(attacker, target, strike, degree);
     // Defensive Quills, Searing Heat: the monster's passive answers a melee hit on it (B43).
     if (strike.melee && isActive(attacker)) hitByAnswers(state, target, attacker, strike);
+    // Shrapnel Splash, Reactive Thrash: the monster's reaction to the hit (B44).
+    if (isActive(attacker)) reactToHit(state, target, attacker, strike, degree, dealt > 0 ? instances.map((instance) => instance.type) : []);
     return { degree, damage: dealt, trigger };
 }
 
@@ -455,6 +457,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
+    // Solar Flare, Caustic Blood: the monster's reaction to damage on it (B44).
+    if (dealt > 0) reactToDamage(state, target, source, instances.filter((instance) => instance.amount > 0).map((instance) => instance.type));
     // Retributive Strike: a melee Strike at the enemy within reach. Iron Command: the enemy kneels (prone) or takes mental damage.
     if (retribution?.ironCommand && isActive(source)) {
         const dice = (retribution.ironCommand.championReaction.dice ?? 1);

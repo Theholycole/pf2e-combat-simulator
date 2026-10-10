@@ -780,3 +780,43 @@ test("a passive that answers a melee hit on the monster, on the attacker (2026-1
     assert.equal(run(quills(true), { melee: true, unarmed: false }).hit, 0, "an unarmed-only one: not a weapon");
     assert.ok(run(quills(true), { melee: true, unarmed: true }).hit > 0, "an unarmed-only one: a fist");
 });
+
+test("a monster's reaction to a hit, a critical hit or damage on it (2026-10-10, B44)", () => {
+    const row = (multiplier) => ({ damage: { mode: "shared", multiplier, sourceComponentIds: multiplier ? ["0"] : [] }, effects: [] });
+    const reaction = (name, trigger, targeting = { target: "the attacker", range: "touch", area: null }) => ({
+        modelVersion: 13, source: { name }, rank: 1, traits: [], activation: { time: "reaction", traits: [] }, targeting, trigger: { event: "use", reaction: true, ...trigger },
+        resolution: {
+            kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 60 } },
+            sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "4d6[fire]" }] },
+            outcomes: { criticalSuccess: row(0), success: row(0.5), failure: row(1), criticalFailure: row(2) }
+        }
+    });
+    const [fighter] = martialParty(5);
+    const run = (plan, strike, { used = false } = {}) => {
+        const dragon = { ...moderateCreature(5, "drg", "Dragon"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry(plan.source.name, plan)] };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, 4);
+        state.log = [];
+        if (used) state.byId.get("drg").reactionUsed = true;
+        const f = state.byId.get("fighter");
+        const hp = f.hp.value;
+        performStrike(state, f, state.byId.get("drg"), { ...f.strikes[0], ...strike });
+        return { hurt: hp - f.hp.value, used: !used && state.byId.get("drg").reactionUsed === true, log: state.log.join("\n") };
+    };
+    // A critical hit only.
+    const splash = reaction("Shrapnel Splash", { event: "hit-by", melee: true, critical: true });
+    const crit = run(splash, { melee: true, bonus: 200 });
+    assert.ok(crit.hurt > 0 && crit.used, crit.log);
+    assert.match(crit.log, /reacts with Shrapnel Splash/);
+    assert.equal(run(splash, { melee: true, bonus: -9 }).used, false, "not a miss");
+    assert.equal(run(splash, { melee: false, bonus: 200 }).used, false, "not a ranged critical hit");
+    assert.equal(run(splash, { melee: true, bonus: 200 }, { used: true }).hurt, 0, "not with its reaction spent");
+    // Piercing or slashing damage only.
+    const blood = reaction("Freezing Blood", { event: "hit-by", melee: true, damageTypes: ["piercing", "slashing"] });
+    const type = fighter.strikes[0].damage[0].type;
+    assert.equal(run(blood, { melee: true, bonus: 200 }).used, ["piercing", "slashing"].includes(type), `a ${type} weapon`);
+    assert.equal(run(blood, { melee: true, bonus: 200, damage: [{ ...fighter.strikes[0].damage[0], type: "bludgeoning" }] }).used, false, "not a bludgeoning one");
+    // Any damage, on the creatures around it.
+    const flare = reaction("Solar Flare", { event: "damaged" }, { target: null, range: null, area: { type: "emanation", value: 30 } });
+    const flared = run(flare, { melee: true, bonus: 200 });
+    assert.ok(flared.used && flared.hurt > 0, flared.log);
+});
