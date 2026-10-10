@@ -53,6 +53,11 @@ export function addBuiltin(spec, plan, name) {
         case "charge":
             spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null }];
             return true;
+        // A monster's Retributive Strike (the glossary's): a champion's, the ally's resistance 2 + the monster's level.
+        case "retributive-strike":
+            if (!Number.isFinite(plan.resistance)) return false;
+            spec.championReaction = { slug: "retributive-strike", name, self: false, resistance: plan.resistance, dice: 1 };
+            return true;
         case "momentum":
             spec.momentum = { recharges: [...(plan.recharges ?? [])] };
             return true;

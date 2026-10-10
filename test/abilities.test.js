@@ -333,3 +333,18 @@ test("an area ability's temporary immunity keeps creatures out of its next use, 
     assert.deepEqual(run(frightening, 20).after, [], "after critical successes they're immune");
 });
 
+
+test("a monster's PF2e effect on its allies (Battle Cry): the allies in the area get it, the foes don't", () => {
+    const uuid = "Compendium.pf2e.bestiary-effects.Item.AAAAAAAAAAAAAAA4";
+    const plan = { modelVersion: 13, source: { name: "Battle Cry" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: null, range: null, area: { type: "emanation", value: 60 } }, trigger: { event: "use" }, resolution: { kind: "effect", applications: [{ kind: "native-spell-effect", uuid, label: "Effect: Battle Cry", recipients: "allies-in-area" }] } };
+    const model = { name: "Effect: Battle Cry", rounds: 1, modifiers: [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "status", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
+    const chief = { ...moderateCreature(5, "chief", "Chief"), engagement: 1, spells: [{ ...entry("Battle Cry", plan), effects: { [uuid]: model } }] };
+    const orc = { ...moderateCreature(5, "orc", "Orc"), engagement: 1 };
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, chief, orc] }, {}, 1);
+    const c = state.byId.get("chief");
+    assert.equal(canCast(c, c.spells[0]), true);
+    castSpell(state, c, 0, ["chief", "orc", "fighter"]);
+    const has = (id) => (state.byId.get(id).effects ?? []).some((effect) => effect.key === uuid || /Battle Cry/.test(effect.name ?? ""));
+    assert.deepEqual([has("chief"), has("orc"), has("fighter")], [true, true, false]);
+});

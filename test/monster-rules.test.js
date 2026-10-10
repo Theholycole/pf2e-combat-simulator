@@ -552,3 +552,18 @@ test("Engulf: an engulfed creature Escapes against the listed DC, not the monste
     castSpell(state, pc, 0, ["tar"]);
     assert.equal(pc.swallowedBy, null);
 });
+
+test("a monster's Retributive Strike (the glossary's): its ally resists 2 + its level, and it Strikes the attacker", () => {
+    const warden = { ...moderateCreature(6, "warden", "Warden"), engagement: 1 };
+    assert.equal(addBuiltin(warden, { builtin: "retributive-strike", resistance: 8 }, "Retributive Strike"), true);
+    assert.equal(addBuiltin({}, { builtin: "retributive-strike", resistance: null }, "Retributive Strike"), false, "no level, no resistance");
+    const [fighter] = martialParty(6);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, warden, { ...moderateCreature(6, "brute", "Brute"), engagement: 1 }] }, {}, 1);
+    state.log = [];
+    const brute = state.byId.get("brute");
+    const hp = brute.hp.value;
+    applyDamage(state, brute, [{ type: "slashing", amount: 20, persistent: false, precision: false }], { source: state.byId.get("fighter") });
+    assert.equal(hp - brute.hp.value, 12, "20 - 8");
+    assert.ok(state.log.some((line) => /Warden uses Retributive Strike/.test(line)));
+    assert.ok(state.log.some((line) => /Warden .* → Fighter/.test(line)), "a Strike at the attacker");
+});

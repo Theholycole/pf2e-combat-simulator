@@ -19,6 +19,7 @@ const { simulate } = await import("../src/engine/fight.js");
 const { martialParty } = await import("../src/engine/benchmarks.js");
 const { parseReadableDamage } = await import("../src/adapter/formula.js");
 const { addBuiltin } = await import("../src/engine/abilities.js");
+const { effectModel } = await import("../src/engine/effects.js");
 
 const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 const MAP = process.argv.includes("--map");
@@ -34,6 +35,32 @@ const MAP_OBJECTIVES = [
 const basicActions = compileBasicActions(readDocuments(`${PACK_ROOT}/actions`).filter((doc) => doc.collection === "items"));
 const SKILL_OF = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics", disarm: "athletics", reposition: "athletics", feint: "deception", "create-a-diversion": "deception", "administer-first-aid": "medicine" };
 const NATURAL_ATTACK = /\b(?:jaws?|bite|claws?|talons?|tail|tusks?|horns?|hoof|hooves|slam|fist|tentacles?|wings?|sting|stinger|pincers?|mandibles?|beak|foot|feet|body|antlers?|spines?|quills?|fangs?|tongue|tendrils?|vines?|branch|roots?|pseudopods?)\b/i;
+
+// PF2e's effect items by UUID (Compendium.pf2e.bestiary-effects.Item.…), read from their packs once.
+const effectPacks = new Map();
+function effectItem(uuid) {
+    const [, system, pack, id] = /^Compendium\.([\w-]+)\.([\w-]+)\.Item\.([A-Za-z0-9]{16})$/.exec(uuid) ?? [];
+    if (system !== "pf2e") return null;
+    if (!effectPacks.has(pack)) {
+        let docs = [];
+        try {
+            docs = readDocuments(`${PACK_ROOT}/${pack}`).filter((doc) => doc.collection === "items");
+        } catch {
+            docs = [];
+        }
+        effectPacks.set(pack, new Map(docs.map((doc) => [doc._id, doc])));
+    }
+    return effectPacks.get(pack).get(id) ?? null;
+}
+// The models of the effects an effect plan applies (a monster's Battle Cry), at its level.
+function effectModels(plan, level) {
+    const models = {};
+    for (const application of plan?.resolution?.kind === "effect" ? plan.resolution.applications ?? [] : []) {
+        const item = application?.uuid ? effectItem(application.uuid) : null;
+        if (item) models[application.uuid] = effectModel(item, { rank: level });
+    }
+    return models;
+}
 
 // A raw NPC (pack data) as an engine combatant.
 function combatant(npc) {
@@ -75,7 +102,7 @@ function combatant(npc) {
             if (addBuiltin(builtins, plan, item.name)) used.add(item.name);
         } else if (plan.resolution) {
             used.add(item.name);
-            spells.push({ name: item.name, plan, castRank: 1, pool: null, kind: "ability" });
+            spells.push({ name: item.name, plan, castRank: 1, pool: null, kind: "ability", ...(plan.resolution.kind === "effect" ? { effects: effectModels(plan, system.details.level.value) } : {}) });
         }
     }
     const skills = Object.fromEntries(Object.entries(system.skills ?? {}).map(([slug, value]) => [slug, value.base ?? 0]));

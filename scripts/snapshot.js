@@ -501,7 +501,9 @@ async function readAbilities(actor, { fresh = false } = {}) {
         if (pc && !(["check", "save"].includes(plan.resolution.kind) && (plan.trigger?.event ?? "use") === "use")) continue;
         if (pool) result.pools[pool] = frequency.value ?? frequency.max;
         result.handled.add(item);
-        result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null });
+        // A PF2e effect it applies (Battle Cry), modelled at the creature's level.
+        const effects = plan.resolution.kind === "effect" ? await effectModels(plan, actor.level ?? 1) : undefined;
+        result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, ...(effects ? { effects } : {}) });
     }
     // Basic actions: every PC; a monster only those it's trained for (its stat block lists the skill). Anyone can Escape.
     const basics = abilityModule.api?.basicActions ?? {};
@@ -539,9 +541,11 @@ function conditionSlug(uuid) {
     return entry?.system?.slug ?? entry?.slug ?? entry?.name?.slugify?.() ?? null;
 }
 
-// The engine's models of the PF2e spell effects a plan applies, at the cast rank.
+// The engine's models of the PF2e spell effects a plan applies, at the cast rank, and of the effects an effect
+// plan applies (a monster's Battle Cry: PF2e's bestiary effects or a module's).
 async function effectModels(plan, castRank) {
-    const uuids = [...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}/g) ?? [])];
+    const applied = (plan?.resolution?.kind === "effect" ? plan.resolution.applications ?? [] : []).map((application) => application?.uuid).filter(Boolean);
+    const uuids = [...new Set([...(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}/g) ?? []), ...applied])];
     const models = {};
     for (const uuid of uuids) {
         const item = await effectItem(uuid);
