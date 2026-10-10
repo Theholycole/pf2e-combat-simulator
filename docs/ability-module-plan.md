@@ -11,9 +11,8 @@ A sibling of the spell module that "works the same way" (the user's words). It c
 - class features and feats
 - monster abilities
 - creature afflictions
-- non-spell consumables
 
-Spellshapes, wands, staves, scrolls and item casting stay in the spell module.
+Spellshapes, wands, staves, scrolls and item casting stay in the spell module. **Items** (non-spell consumables such as bombs, elixirs and potions, and weapons, armor and worn items) get their **own module, later** (the user, 2026-10-10); they were family 7 here and part of family 2 (healing potions, elixirs of life).
 
 ## Dependency
 
@@ -44,7 +43,7 @@ The order comes from what the simulator misses most. It is based on the bestiary
 | 4 | Monster area and big actions | Swallow Whole (21), Trample (19), Breath Weapon, swarm and troop area attacks | Swarms and troops can't attack at all in the simulator yet. |
 | 5 | Common passives and reactions | Sneak Attack (35), Pack Attack (18), Fast Healing (15), Regeneration (15), Frightful Presence (26), Ferocity | Large damage and survival effects. Frightful Presence feeds morale. |
 | 6 | Class features that add damage | Rage, Hunt Prey and Flurry, Power Attack, Double Slice, Sudden Charge, Exploit Vulnerability | The biggest reason the benchmark martial party underperforms. |
-| 7 | Bombs and other offensive consumables | alchemist's fire and other bombs, poisons | Common at low levels. |
+| 7 | ~~Bombs and other offensive consumables~~ | moved to the future item module (2026-10-10) | |
 | 8 | Third-party set-asides | listed below | Handed over by the spell-automation session. |
 
 ### Third-party items the spell-automation session set aside for this module
