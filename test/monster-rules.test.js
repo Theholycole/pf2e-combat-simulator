@@ -727,3 +727,29 @@ test("concealment against a hit: the attacker's flat check, a miss on a failure 
     for (let i = 0; i < 100 && isActive(state.byId.get("foe")); i++) performStrike(state, state.byId.get("fighter"), state.byId.get("foe"), { ...state.byId.get("fighter").strikes[0], bonus: 60 });
     assert.ok(state.log.some((line) => /fails the DC 5 flat check/.test(line)), "some attacks lose the target");
 });
+
+test("death throes: a monster's ability that acts as it dies, on the creatures around it (2026-10-10, B42)", () => {
+    const burst = {
+        modelVersion: 13, source: { name: "Explosive Death" }, rank: 1, traits: [], activation: { time: "passive", traits: [] },
+        targeting: { target: null, range: null, area: { type: "emanation", value: 5 } }, trigger: { event: "death" },
+        resolution: {
+            kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 40 } },
+            sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "6d6[slashing]" }] },
+            outcomes: { criticalSuccess: { damage: { mode: "shared", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] }, effects: [] } }
+        }
+    };
+    const [fighter, champion] = martialParty(5);
+    const skeleton = { ...moderateCreature(5, "skeleton", "Skeleton"), engagement: 1, spells: [entry("Explosive Death", burst)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...champion, band: "far" }, skeleton] }, {}, 2);
+    state.log = [];
+    const s = state.byId.get("skeleton");
+    assert.equal(scoreOptions(state, s).options.some((option) => option.action.type === "cast"), false, "never an action of its own");
+    const f = state.byId.get("fighter");
+    const c = state.byId.get("champion");
+    const [hpF, hpC] = [f.hp.value, c.hp.value];
+    applyDamage(state, s, [{ type: "untyped", amount: 999, persistent: false }], { source: f });
+    assert.equal(s.status, "dead");
+    assert.ok(state.log.some((line) => /Skeleton casts Explosive Death at Fighter/.test(line)), state.log.join("\n"));
+    assert.ok(f.hp.value < hpF, "the fighter beside it takes the burst");
+    assert.equal(c.hp.value, hpC, "not the champion far off");
+});

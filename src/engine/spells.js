@@ -978,6 +978,19 @@ export function applyAuras(state) {
     }
 }
 
+// Death throes (B42): a monster's abilities that act as it dies ("When the skeleton is destroyed, … adjacent creatures take
+// 2d6 slashing damage"), on everyone in their area: its Melee for 10 feet or less, and the creatures not far off for more (as
+// auras reach), everyone from 60 feet. melee: the ids in its Melee as it died. One with no area isn't played.
+export function deathThroes(state, c, melee) {
+    for (const [index, spell] of (c.spells ?? []).entries()) {
+        if (spell.plan?.trigger?.event !== "death") continue;
+        const radius = describeSpell(spell.plan).area?.value;
+        if (!radius) continue;
+        const targets = state.list.filter((other) => other !== c && isActive(other) && other.band !== "gone" && (radius >= 60 || melee.has(other.id) || (radius > 10 && (other.band !== "far" || c.band === "far"))));
+        if (targets.length) castSpell(state, c, index, targets.map((target) => target.id));
+    }
+}
+
 // --- Planning ----------------------------------------------------------------
 
 // A spell live play leaves to PF2e's card with no combat numbers in its data

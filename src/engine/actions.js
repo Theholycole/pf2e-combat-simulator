@@ -11,6 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { removeEffect } from "./effects.js";
+import { deathThroes } from "./spells.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -642,12 +643,15 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
 }
 
 function kill(state, target) {
+    // Who's in its Melee as it dies: its death throes' nearest victims (B42).
+    const melee = new Set(target.meleeId !== null && target.meleeId !== undefined ? state.melees?.get(target.meleeId) ?? [] : []);
     releaseGrabs(state, target);
     releaseAllSwallowed(state, target, "is freed");
     target.status = DEAD;
     target.cond.unconscious = true;
     removeFromSpace(state, target);
     log(state, `  ${target.name} dies`);
+    if (target.kind !== "pc") deathThroes(state, target, melee);
 }
 
 export function increaseDying(state, c, amount) {
