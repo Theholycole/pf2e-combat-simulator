@@ -47,7 +47,7 @@
       {
         "id": "pf2e-automatic-resolution",
         "type": "module",
-        "manifest": "https://github.com/Theholycole/pf2e-automatic-resolution/releases/latest/download/module.json",
+        "manifest": "https://github.com/Theholycole/pf2e-automatic-spell-resolution/releases/latest/download/module.json",
         "reason": "Spells in the simulated fights come from its compiler."
       }
     ]
