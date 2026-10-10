@@ -2,6 +2,18 @@
 
 A GM-only Foundry VTT module (Foundry 14, PF2e 8.5) that plays an encounter in memory many times and reports the odds. The simulations move nothing on the canvas and change no actor; only the morale cards' **Apply**, which the GM presses, sets conditions.
 
+## Install
+
+In Foundry go to **Add-on Modules → Install Module**, paste this manifest URL and click **Install**:
+
+```
+https://github.com/Theholycole/pf2e-combat-simulator/releases/latest/download/module.json
+```
+
+It needs **PF2e Resolution Core**, which Foundry offers to install with it. It recommends **PF2e Automatic Ability Resolution** (monster abilities, feat actions and basic actions in the simulated fights) and **PF2e Automatic Spell Resolution** (spells); without them those are reported as gaps. Foundry 14 and the PF2e system 8.5 or later. MIT licensed (see [LICENSE](LICENSE)); the Pathfinder rules text it reads comes from the PF2e system under Paizo's ORC license.
+
+## What it does
+
 - **Simulate…** (Combat Tracker): set up the encounter (sides, roles, morale, reinforcements, ambush, cover, a secondary objective), then:
   - **Simulate**: win %, objective %, PC danger, the most dangerous foe, a sample fight log, and what isn't simulated yet.
   - **Compare**: the same fights with morale, hero points, the objective or party retreat switched off.
