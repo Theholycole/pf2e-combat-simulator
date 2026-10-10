@@ -1019,3 +1019,23 @@ test("casting a manipulate spell in a Melee provokes (S12), and reactions to act
     assert.match(text, /Dragon reacts with Brine Spit/, text);
     assert.doesNotMatch(text, /Attack of Opportunity/);
 });
+
+test("a monster healing itself (2026-10-10, B52)", () => {
+    const heal = {
+        modelVersion: 13, source: { name: "Abyssal Healing" }, rank: 1, traits: [], activation: { time: "1", traits: [] },
+        targeting: { target: "self", range: null, area: null }, trigger: { event: "use" },
+        resolution: { kind: "healing", native: { healing: { components: [{ id: "0", formula: "6d6", kinds: ["healing"] }], recipients: "any" } } }
+    };
+    const [fighter] = martialParty(3);
+    const quasit = { ...moderateCreature(3, "qua", "Quasit"), engagement: 1, spells: [entry("Abyssal Healing", heal)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, quasit] }, {}, 2);
+    state.log = [];
+    const q = state.byId.get("qua");
+    q.hp.value = Math.floor(q.hp.max / 4);
+    const before = q.hp.value;
+    castSpell(state, q, 0, [q.id]);
+    assert.ok(q.hp.value > before, state.log.join("\n"));
+    // The planner reaches for it when hurt.
+    const result = simulate({ combatants: [{ ...fighter, engagement: 1 }, { ...quasit, hp: { value: 5, max: quasit.hp.max } }] }, { maxRounds: 2 }, 2, { log: true });
+    assert.match(result.log.join("\n"), /Quasit casts Abyssal Healing/);
+});

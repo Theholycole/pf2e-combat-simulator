@@ -143,7 +143,7 @@ function readSpell(base, actions) {
         // A PF2e spell effect on its targets: aimed at allies as readily as at foes.
         helpful: kind === "effect" || applications.length > 0,
         // No target, range or area: the caster itself (the battle forms).
-        self: (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self"))
+        self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self"))
     };
 }
 

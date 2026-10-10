@@ -508,6 +508,8 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
             continue;
         }
         if (!plan.resolution) continue;
+        // (Not one with requirements the simulation can't check: "Requirements The bush is adjacent to a corpse", B52.)
+        if (plan.requires) continue;
         if (pc && !(["check", "save"].includes(plan.resolution.kind) && (plan.trigger?.event ?? "use") === "use")) continue;
         if (pool) result.pools[pool] = frequency.value ?? frequency.max;
         result.handled.add(item);
