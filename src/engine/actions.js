@@ -177,6 +177,10 @@ function computeHitDamage(strike, target, critical, penalty, offGuardChance) {
     return total;
 }
 
+// An AC reaction for only melee or only ranged attacks ("An adjacent enemy targets the swarm with a Strike", "targeted by a
+// physical ranged Strike"; B45).
+const dodges = (reaction, strike) => !reaction.against || (reaction.against === "melee") === Boolean(strike.melee);
+
 export function performStrike(state, attacker, target, strike, { reaction = false, trigger = null } = {}) {
     if (!strikeUsable(attacker, strike)) return null;
     const attacksMade = reaction ? 0 : attacker.attacksThisTurn;
@@ -215,7 +219,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         misfortune = true;
         target.reactionUsed = true;
         log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
-    } else if (target.acReaction?.when === "targeted" && canReact(target) && !target.reactions?.aoo) {
+    } else if (target.acReaction?.when === "targeted" && canReact(target) && !target.reactions?.aoo && dodges(target.acReaction, strike)) {
         defence = target.acReaction.value;
         target.reactionUsed = true;
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
@@ -241,7 +245,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     let degree = degreeOf(natural + modifier + bonus, ac + defence, natural);
     // Retract Body: +AC once the attack hits, when that turns it aside.
-    if (degree >= SUCCESS && target.acReaction?.when === "hit" && canReact(target)) {
+    if (degree >= SUCCESS && target.acReaction?.when === "hit" && canReact(target) && dodges(target.acReaction, strike)) {
         const lower = degreeOf(natural + modifier, ac + target.acReaction.value, natural);
         if (lower < degree) {
             defence = target.acReaction.value;

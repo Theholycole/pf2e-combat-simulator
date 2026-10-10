@@ -820,3 +820,53 @@ test("a monster's reaction to a hit, a critical hit or damage on it (2026-10-10,
     const flared = run(flare, { melee: true, bonus: 200 });
     assert.ok(flared.used && flared.hurt > 0, flared.log);
 });
+
+test("an AC reaction for melee or ranged attacks only (2026-10-10, B45)", () => {
+    const [fighter] = martialParty(5);
+    const run = (against, melee) => {
+        const swarm = withBuiltins({ ...moderateCreature(5, "sw", "Swarm"), engagement: 1, ac: 20 }, ["Evade", { builtin: "ac-reaction", value: 2, when: "targeted", against }]);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, swarm] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = dice(11);
+        const pc = state.byId.get("fighter");
+        return performStrike(state, pc, state.byId.get("sw"), { ...pc.strikes[0], bonus: 10, melee }).degree;
+    };
+    assert.equal(run("melee", true), 1, "a melee Strike: dodged");
+    assert.equal(run("melee", false), 2, "a ranged one: not");
+    assert.equal(run("ranged", false), 1);
+    assert.equal(run("ranged", true), 2);
+});
+
+test("a mental effect aimed at a monster whose ability answers it (2026-10-10, B46)", () => {
+    const row = (multiplier) => ({ damage: { mode: "shared", multiplier, sourceComponentIds: multiplier ? ["0"] : [] }, effects: [] });
+    const mind = (reaction) => ({
+        modelVersion: 13, source: { name: "Otherworldly Mind" }, rank: 1, traits: ["mental"], activation: { time: reaction ? "reaction" : "passive", traits: [] },
+        targeting: { target: "the attacker", range: "touch", area: null }, trigger: { event: "targeted-by", traits: ["mental"], ...(reaction ? { reaction: true } : {}) },
+        resolution: {
+            kind: "save", check: { roll: "save", statistic: "will", basic: true, against: { dc: "fixed", value: 60 } },
+            sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "4d6[mental]" }] },
+            outcomes: { criticalSuccess: row(0), success: row(0.5), failure: row(1), criticalFailure: row(2) }
+        }
+    });
+    const scare = (traits) => ({
+        modelVersion: 13, source: { name: "Scare" }, rank: 1, traits, activation: { time: "1", traits },
+        targeting: { target: "1 creature", range: "30 feet", area: null },
+        resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 10 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, failure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [{ kind: "condition", slug: "frightened", value: 1 }] }, criticalFailure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [{ kind: "condition", slug: "frightened", value: 2 }] } } }
+    });
+    const [fighter] = martialParty(5);
+    const run = (traits, reaction = false) => {
+        const hound = { ...moderateCreature(5, "hnd", "Hound"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry("Otherworldly Mind", mind(reaction))] };
+        const pc = { ...fighter, engagement: 1, spells: [{ ...entry("Scare", scare(traits)), kind: "basic" }] };
+        const state = createFightState({ combatants: [pc, hound] }, {}, 4);
+        state.log = [];
+        const f = state.byId.get("fighter");
+        const hp = f.hp.value;
+        castSpell(state, f, 0, ["hnd"]);
+        return { hurt: hp - f.hp.value, log: state.log.join("\n") };
+    };
+    const hit = run(["mental", "emotion"]);
+    assert.ok(hit.hurt > 0, hit.log);
+    assert.equal(run(["auditory"]).hurt, 0, "not without the trait");
+    const reacted = run(["mental"], true);
+    assert.ok(reacted.hurt > 0 && /reacts with Otherworldly Mind/.test(reacted.log), reacted.log);
+});

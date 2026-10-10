@@ -872,6 +872,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     if (info.immunity && info.immunityDegrees) markImmune(targets.filter((target) => !result.degrees[target.id] || info.immunityDegrees.includes(result.degrees[target.id])));
     applyChanges(state, caster, spell, result.changes, context, io);
+    // Otherworldly Mind, Entropic Feedback: a mental effect aimed at a creature whose ability answers it (B46).
+    if (!info.area) targetedAnswers(state, caster, spell, targets);
     // A swashbuckler's bravado action: panache on a success, until the end of the turn on a failure.
     if (caster.panacheStyle && (caster.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
         const degrees = targets.map((target) => result.degrees[target.id]).filter(Boolean);
@@ -1019,6 +1021,28 @@ export function reactToHit(state, defender, attacker, strike, degree, types) {
 
 export function reactToDamage(state, target, source, types) {
     useReaction(state, target, source, (trigger) => trigger.event === "damaged" && typesMatch(trigger.damageTypes, types));
+}
+
+// A spell or an action with a trait a creature's ability answers when it's targeted (B46: Otherworldly Mind's "Whenever a
+// creature targets the hound with a mental effect, that creature takes 8d6 mental damage"; Entropic Feedback, a reaction):
+// on the caster, after its effect. Not an area's, and not one answer setting off another.
+export function targetedAnswers(state, caster, spell, targets) {
+    if (state.answering) return;
+    const traits = spell.plan?.traits ?? [];
+    const isSpell = !["ability", "basic"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "");
+    const sets = (trigger) => trigger?.event === "targeted-by" && (trigger.traits?.some((trait) => traits.includes(trait)) || (trigger.spells && isSpell));
+    state.answering = true;
+    try {
+        for (const target of targets) {
+            if (target.side === caster.side || !isActive(target) || !isActive(caster)) continue;
+            for (const [index, own] of (target.spells ?? []).entries()) {
+                if (!own.plan?.trigger?.reaction && sets(own.plan?.trigger) && isActive(caster)) castSpell(state, target, index, [caster.id]);
+            }
+            if (isActive(caster)) useReaction(state, target, caster, sets);
+        }
+    } finally {
+        state.answering = false;
+    }
 }
 
 const PHYSICAL_TYPES = new Set(["bludgeoning", "piercing", "slashing"]);

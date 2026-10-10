@@ -63,7 +63,7 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // Reactions: Nimble Dodge and Retract Body, Challenge Fate, Twisting Tail, Death Frenzy.
         case "ac-reaction":
-            spec.acReaction = { value: plan.value, when: plan.when, name };
+            spec.acReaction = { value: plan.value, when: plan.when, name, ...(plan.against ? { against: plan.against } : {}) };
             return true;
         case "attack-misfortune":
             spec.misfortuneReaction = { name };
