@@ -190,8 +190,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         const chance = flankChance(state, flankersAgainst(state, target, attacker));
         if (chance > 0) flanked = state.rng.chance(chance);
     }
-    // Blinded or dazzled: a flat check to find the target first.
-    const findDC = attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0;
+    // Blinded or dazzled: a flat check to find the target first; a concealed or hidden target too (B41).
+    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, target.cond?.hidden ? 11 : target.cond?.concealed ? 5 : 0);
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
         return { degree: FAILURE, damage: 0, trigger };
@@ -248,6 +248,14 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
             target.reactionUsed = true;
             log(state, `  ${target.name} uses ${target.acReaction.name}`);
         }
+    }
+    // Shadow Evade and the like: when the attack hits, its reaction makes the attacker roll a flat check; a failure misses.
+    const conceal = target.concealReaction;
+    if (degree >= SUCCESS && conceal && (!conceal.ranged || !strike.melee) && canReact(target)) {
+        target.reactionUsed = true;
+        const flat = state.rng.d20();
+        log(state, `  ${target.name} uses ${conceal.name} (${attacker.name}'s flat ${flat} vs DC ${conceal.dc})`);
+        if (flat < conceal.dc) degree = FAILURE;
     }
     // Resilient Form and the like: a critical hit on it becomes a normal hit on a flat check.
     const downgrade = target.critDowngrade;

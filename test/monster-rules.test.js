@@ -700,3 +700,30 @@ test("an ability with no roll: its damage and conditions on the target, valued a
     assert.ok(pc.hp.value <= hp - 8, "at least the damage's minimum");
     assert.equal(pc.cond.drained, 1);
 });
+
+test("concealment against a hit: the attacker's flat check, a miss on a failure (2026-10-10, B41)", () => {
+    const drake = { ...moderateCreature(5, "drake", "Drake"), engagement: 1 };
+    assert.equal(addBuiltin(drake, { builtin: "conceal-reaction", dc: 11, ranged: false, when: "targeted" }, "Shadow Evade"), true);
+    const [fighter] = martialParty(5);
+    let misses = 0;
+    let used = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, drake] }, {}, seed);
+        state.log = [];
+        const f = state.byId.get("fighter");
+        const d = state.byId.get("drake");
+        // A sure hit before the flat check.
+        const strike = { ...f.strikes[0], bonus: 60 };
+        const result = performStrike(state, f, d, strike);
+        if (state.log.some((line) => /uses Shadow Evade/.test(line))) used++;
+        if (result.degree < 2) misses++;
+        assert.equal(d.reactionUsed, true);
+    }
+    assert.equal(used, 200);
+    assert.ok(misses > 70 && misses < 130, `about half miss on DC 11: ${misses}`);
+    // A concealed target: a DC 5 flat check for every attack.
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "foe", "Foe"), engagement: 1, conditions: { concealed: true } }] }, {}, 3);
+    state.log = [];
+    for (let i = 0; i < 100 && isActive(state.byId.get("foe")); i++) performStrike(state, state.byId.get("fighter"), state.byId.get("foe"), { ...state.byId.get("fighter").strikes[0], bonus: 60 });
+    assert.ok(state.log.some((line) => /fails the DC 5 flat check/.test(line)), "some attacks lose the target");
+});

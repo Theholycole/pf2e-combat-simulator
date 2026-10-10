@@ -68,6 +68,11 @@ export function addBuiltin(spec, plan, name) {
         case "attack-misfortune":
             spec.misfortuneReaction = { name };
             return true;
+        // Shadow Evade, Scintillating Defense: the attacker's flat check against the hit, a miss on a failure (B41).
+        case "conceal-reaction":
+            if (!Number.isFinite(plan.dc)) return false;
+            spec.concealReaction = { name, dc: plan.dc, ranged: !!plan.ranged };
+            return true;
         // Resilient Form, Cushioned Blow: a critical hit on it becomes a normal hit on a flat check (a reaction, or a
         // free action with its uses a day).
         case "crit-downgrade":
