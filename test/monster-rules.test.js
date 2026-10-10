@@ -8,7 +8,7 @@ import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, stride } from "../src/engine/actions.js";
 import { isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeStrike, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
-import { applyAuras, applyCondition, applyStrikeRider, castSpell, expireTimers, retch, triggerRiders } from "../src/engine/spells.js";
+import { applyAuras, applyCondition, applyStrikeRider, castSpell, expireTimers, grabTurnAnswers, retch, triggerRiders } from "../src/engine/spells.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
 // ones compiled from PF2e's packs (Swallow Whole, Trample, Stench).
@@ -948,4 +948,30 @@ test("passives that answer its own critical hit, damage on it, or a hit of some 
     const plain = performStrike(state, f, m, { ...f.strikes[0], bonus: m.ac - 10 });
     assert.equal(plain.degree, 2, "a plain hit");
     assert.ok(!f.cond.sickened, "only on a critical hit");
+});
+
+test("a passive on a creature it holds as a turn starts or ends (2026-10-10, B49)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const grasp = (trigger) => ({
+        modelVersion: 13, source: { name: "Mind-Numbing Grasp" }, rank: 1, traits: [], activation: { time: "passive", traits: [] }, targeting: { target: "the held creature", range: "touch", area: null },
+        trigger: { event: "grab-turn", ...trigger },
+        resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [{ kind: "condition", slug: "stupefied", value: 2 }] }, criticalFailure: { damage: { ...none }, effects: [{ kind: "condition", slug: "stupefied", value: 2 }] } } }
+    });
+    const [fighter] = martialParty(5);
+    const run = (trigger, grabbed, at) => {
+        const monster = { ...moderateCreature(5, "mon", "Baatamidar"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry("Mind-Numbing Grasp", grasp(trigger))] };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, monster] }, {}, 4);
+        state.log = [];
+        const f = state.byId.get("fighter");
+        if (grabbed) {
+            f.cond.grabbed = true;
+            f.grabbedBy = "mon";
+        }
+        grabTurnAnswers(state, at === "own" ? state.byId.get("mon") : f, "start");
+        return f.cond.stupefied ?? 0;
+    };
+    assert.equal(run({ at: "start", whose: "held", hold: "grabbed" }, true, "held"), 2, "its turn starting grabbed");
+    assert.equal(run({ at: "start", whose: "held", hold: "grabbed" }, false, "held"), 0, "not when free");
+    assert.equal(run({ at: "start", whose: "own", hold: "grabbed" }, true, "own"), 2, "the monster's turn: each creature it holds");
+    assert.equal(run({ at: "end", whose: "held", hold: "grabbed" }, true, "held"), 0, "not at the other end of the turn");
 });

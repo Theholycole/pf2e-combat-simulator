@@ -1023,7 +1023,7 @@ function passiveAnswers(state, c, other, matches) {
 function answerTargets(state, c, plan, other) {
     const radius = describeSpell(plan).area?.value;
     const live = other && isActive(other);
-    if (["the attacker", "the creature the Strike hits"].includes(plan.targeting?.target)) return live ? [other] : [];
+    if (["the attacker", "the creature the Strike hits", "the held creature"].includes(plan.targeting?.target)) return live ? [other] : [];
     if (radius && plan.targeting?.area?.around === "target") return live ? [other, ...around(state, other, radius, (near) => sameMelee(other, near)).filter((near) => near !== c)] : [];
     return radius ? around(state, c, radius, (near) => sameMelee(c, near)) : [];
 }
@@ -1112,6 +1112,20 @@ export function turnStartReactions(state, c) {
         if (other.side === c.side) continue;
         useReaction(state, other, c, (trigger) => trigger.event === "turn-start" && (!trigger.living || living) && (trigger.within <= 10 ? sameMelee(other, c) : trigger.within >= 60 || c.band !== "far" || other.band === "far"));
     }
+}
+
+// A passive on a creature it holds as a turn starts or ends (B49: "A creature that starts its turn grabbed by the baatamidar
+// must attempt a Will save", one at the end of the monster's own turn on every creature it has grabbed): the held
+// creature's turn (its holder's passive), or the monster's own (on each creature it holds). Grabbed means grabbed or
+// restrained by it and not swallowed; swallowed, inside it.
+export function grabTurnAnswers(state, c, at) {
+    const living = (other) => !(other.traits ?? []).some((trait) => trait === "undead" || trait === "construct");
+    const holds = (trigger, held, holder) => (trigger.hold === "swallowed" ? held.swallowedBy === holder.id : held.grabbedBy === holder.id && !held.swallowedBy && Boolean(held.cond.grabbed || held.cond.restrained));
+    const sets = (whose, held, holder) => (trigger) => trigger.event === "grab-turn" && trigger.at === at && trigger.whose === whose && holds(trigger, held, holder) && (!trigger.living || living(held));
+    const holder = state.byId.get(c.swallowedBy ?? c.grabbedBy ?? "");
+    if (holder && isActive(holder) && isActive(c)) passiveAnswers(state, holder, c, sets("held", c, holder));
+    if (!isActive(c)) return;
+    for (const held of state.list.filter((other) => other !== c && isActive(other) && (other.grabbedBy === c.id || other.swallowedBy === c.id))) passiveAnswers(state, c, held, sets("own", held, c));
 }
 
 export function initiativeReactions(state) {

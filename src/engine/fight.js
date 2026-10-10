@@ -11,7 +11,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castPlan, castSpell, describeSpell, endWhileConditions, expireTimers, exploitVulnerability, initiativeReactions, overdrive, retch, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castPlan, castSpell, describeSpell, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, retch, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
 import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
@@ -370,6 +370,8 @@ function swallowedTurn(state, c) {
 function endTurn(state, c) {
     // Panache from a failed bravado action lasts only this turn.
     if (c.panache === "turn") c.panache = false;
+    // Wine-Soaked, Draining Roots: a passive on a creature held as a turn ends (B49).
+    grabTurnAnswers(state, c, "end");
     // Swallow Whole's damage at the end of each of the swallowed creature's turns.
     if (c.swallowedBy && c.swallow?.damage?.length) {
         state.log?.push(`  ${c.name} is crushed inside ${state.byId.get(c.swallowedBy)?.name}`);
@@ -747,8 +749,9 @@ function takeTurn(state, c) {
     if (!canAct(c)) return;
     startTurn(state, c);
     state.log?.push(`${c.name} (${c.hp.value}/${c.hp.max} HP, ${c.band})`);
-    // Petrifying Glance: an enemy's reaction to this turn starting near it (B47).
+    // Petrifying Glance: an enemy's reaction to this turn starting near it (B47). Mind-Numbing Grasp: its holder's passive (B49).
     turnStartReactions(state, c);
+    grabTurnAnswers(state, c, "start");
     if (!canAct(c)) {
         endTurn(state, c);
         return;
