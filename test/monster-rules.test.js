@@ -624,3 +624,20 @@ test("several Strikes in one action, read from more wordings, and a Strike at ev
     // An unnamed Strike is its best melee Strike.
     assert.deepEqual(multiStrikeOrder({ strikes: [{ name: "Fist", melee: true, bonus: 10 }, { name: "Jaws", melee: true, bonus: 12 }, { name: "Bow", melee: false, bonus: 15 }] }, { strikes: [null, null] }), [1, 1]);
 });
+
+test("a monster's Power Attack-like Strike activity keeps its extra weapon die and counts as two attacks (2026-10-10)", () => {
+    const brute = { ...moderateCreature(5, "brute", "Brute"), engagement: 1 };
+    assert.equal(addBuiltin(brute, { builtin: "strike-activity", actions: 2, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, countsAs: 2, extraWeaponDice: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }, "Power Attack"), true);
+    assert.deepEqual([brute.strikeActivities[0].countsAs, brute.strikeActivities[0].extraWeaponDice], [2, 1]);
+    const strike = { name: "Fist", bonus: 10, melee: true, damage: [{ dice: 1, die: 8, bonus: 4, type: "bludgeoning" }] };
+    assert.equal(chargeStrike(strike, { name: "Power Attack", ...brute.strikeActivities[0] }).damage[0].dice, 2, "one more die");
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, brute] }, {}, 1);
+    const b = state.byId.get("brute");
+    b.round = 1;
+    b.actionsLeft = 3;
+    const option = scoreOptions(state, b).options.find((entry) => entry.action.type === "strikeActivity");
+    assert.ok(option, "on offer");
+    performAction(state, b, option.action);
+    assert.equal(b.attacksThisTurn, 2, "two attacks for the penalty");
+});

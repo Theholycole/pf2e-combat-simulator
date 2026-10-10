@@ -93,6 +93,8 @@ export function addBuiltin(spec, plan, name) {
                 offGuard: !!plan.offGuard,
                 requires: plan.requires ?? null,
                 oncePerFight: !!plan.oncePerFight,
+                ...(plan.countsAs > 1 ? { countsAs: plan.countsAs } : {}),
+                ...(plan.extraWeaponDice ? { extraWeaponDice: plan.extraWeaponDice } : {}),
                 onHit: plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];
