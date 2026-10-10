@@ -11,7 +11,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castPlan, castSpell, describeSpell, endWhileConditions, expireTimers, exploitVulnerability, overdrive, retch, rollInstances, triggerRiders } from "./spells.js";
+import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castPlan, castSpell, describeSpell, endWhileConditions, expireTimers, exploitVulnerability, initiativeReactions, overdrive, retch, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
 import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
@@ -747,6 +747,12 @@ function takeTurn(state, c) {
     if (!canAct(c)) return;
     startTurn(state, c);
     state.log?.push(`${c.name} (${c.hp.value}/${c.hp.max} HP, ${c.band})`);
+    // Petrifying Glance: an enemy's reaction to this turn starting near it (B47).
+    turnStartReactions(state, c);
+    if (!canAct(c)) {
+        endTurn(state, c);
+        return;
+    }
     if (state.round === 1 && state.surprisedSide === c.side && c.side === "foes" && !state.surpriseRaised) {
         state.surpriseRaised = true;
         state.pendingEvents.push({ type: "surprised" });
@@ -811,6 +817,8 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
     // Frightful Presence and other auras: each enemy in range saves when the fight starts.
     if (!resuming) applyAuras(state);
     if (!resuming) initiativeDeeds(state);
+    // Chilling Cry, Predestined Defeat: a monster's reaction to rolling initiative (B47).
+    if (!resuming) initiativeReactions(state);
     let turnIndex = resuming ? Math.max(0, snapshot.turn ?? 0) : 0;
     if (!checkEnd(state)) {
         while (!state.outcome) {

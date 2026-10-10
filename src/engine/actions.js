@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { removeEffect } from "./effects.js";
-import { deathThroes, hitByAnswers, reactToDamage, reactToHit } from "./spells.js";
+import { deathThroes, hitByAnswers, reactToAttack, reactToDamage, reactToHit, reactToOwnHit } from "./spells.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -211,6 +211,11 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     const scoped = (target.offGuardTo ?? []).find((entry) => entry.attacker === attacker.id && (entry.attacks !== "melee" || strike.melee) && entry.uses);
     // Spent by this attack; Set-Up Strike's off-guard is shared by the allies and spent by the first (its group).
     if (scoped && --scoped.uses <= 0) target.offGuardTo = target.offGuardTo.filter((entry) => entry !== scoped && (!scoped.group || entry.group !== scoped.group));
+    // Hypnotic Tattoos, Venom Spit: its reaction to the Strike, before the roll (B47); one that stops the attacker stops it.
+    if (!reaction) {
+        reactToAttack(state, target, attacker, strike);
+        if (!isActive(attacker) || !canAct(attacker)) return null;
+    }
     // Defensive reactions as the attack comes: the attacker rolls twice (Challenge
     // Fate), or +AC (Nimble Dodge); kept for Attacks of Opportunity when it has them.
     let defence = 0;
@@ -357,6 +362,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (strike.melee && isActive(attacker)) hitByAnswers(state, target, attacker, strike);
     // Shrapnel Splash, Reactive Thrash: the monster's reaction to the hit (B44).
     if (isActive(attacker)) reactToHit(state, target, attacker, strike, degree, dealt > 0 ? instances.map((instance) => instance.type) : []);
+    // Pin Prey, Storm Smite: the attacker's reaction to its own hit (B47).
+    if (isActive(attacker)) reactToOwnHit(state, attacker, target, strike, degree);
     return { degree, damage: dealt, trigger };
 }
 

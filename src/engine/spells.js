@@ -1048,21 +1048,53 @@ export function targetedAnswers(state, caster, spell, targets) {
 const PHYSICAL_TYPES = new Set(["bludgeoning", "piercing", "slashing"]);
 const typesMatch = (wanted, types) => !wanted?.length || types.some((type) => wanted.includes(type) || (wanted.includes("physical") && PHYSICAL_TYPES.has(type)));
 
-function useReaction(state, c, attacker, matches) {
-    if (!canReact(c)) return;
+// other: the creature that set it off (the attacker, the creature its Strike hit, the creature starting its turn), or null.
+// A free action with a trigger (trigger.free) doesn't need or use the reaction.
+function useReaction(state, c, other, matches) {
+    if (!isActive(c) || !canAct(c)) return;
     for (const [index, spell] of (c.spells ?? []).entries()) {
         const trigger = spell.plan?.trigger;
-        if (!trigger?.reaction || !matches(trigger)) continue;
+        if (!trigger?.reaction || !matches(trigger) || (!trigger.free && !canReact(c))) continue;
         if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
-        const radius = describeSpell(spell.plan).area?.value;
-        const targets = spell.plan.targeting?.target === "the attacker" ? (attacker && isActive(attacker) ? [attacker] : []) : radius ? around(state, c, radius, (other) => sameMelee(c, other)) : [];
+        const area = describeSpell(spell.plan).area;
+        const radius = area?.value;
+        const live = other && isActive(other);
+        const targets = ["the attacker", "the creature the Strike hits"].includes(spell.plan.targeting?.target) ? (live ? [other] : [])
+            // (Around the creature its Strike hit: Storm Smite's "burst centered on the target".)
+            : radius && spell.plan.targeting?.area?.around === "target" ? (live ? [other, ...around(state, other, radius, (near) => sameMelee(other, near)).filter((near) => near !== c)] : [])
+            : radius ? around(state, c, radius, (near) => sameMelee(c, near)) : [];
         if (!targets.some((target) => target.side !== c.side)) continue;
-        c.reactionUsed = true;
+        if (!trigger.free) c.reactionUsed = true;
         state.stats.reactions++;
-        log(state, `  ${c.name} reacts with ${spell.name}`);
+        log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name}`);
         castSpell(state, c, index, targets.map((target) => target.id));
         return;
     }
+}
+
+// More triggers (B47): its own Strike that hits or critically hits (Pin Prey, Storm Smite, Go For the Eyes); a Strike at it,
+// before the roll (Hypnotic Tattoos, Venom Spit); a creature starting its turn near it (Petrifying Glance); the fight starting
+// (Chilling Cry's "rolls initiative").
+export function reactToOwnHit(state, attacker, target, strike, degree) {
+    const name = String(strike.name ?? "").toLowerCase();
+    useReaction(state, attacker, target, (trigger) => trigger.event === "own-strike" && (trigger.on ?? []).includes(DEGREE_NAMES[degree])
+        && (!trigger.strike || name.includes(trigger.strike) || trigger.strike.includes(name)) && (!trigger.maxSize || sizeRank(target.size) <= sizeRank(trigger.maxSize)));
+}
+
+export function reactToAttack(state, target, attacker, strike) {
+    useReaction(state, target, attacker, (trigger) => trigger.event === "attacked" && (!trigger.melee || strike.melee) && (!trigger.within || trigger.within > 10 || sameMelee(target, attacker)));
+}
+
+export function turnStartReactions(state, c) {
+    const living = !(c.traits ?? []).some((trait) => trait === "undead" || trait === "construct");
+    for (const other of state.list) {
+        if (other.side === c.side) continue;
+        useReaction(state, other, c, (trigger) => trigger.event === "turn-start" && (!trigger.living || living) && (trigger.within <= 10 ? sameMelee(other, c) : trigger.within >= 60 || c.band !== "far" || other.band === "far"));
+    }
+}
+
+export function initiativeReactions(state) {
+    for (const c of state.list) useReaction(state, c, null, (trigger) => trigger.event === "initiative");
 }
 
 // --- Planning ----------------------------------------------------------------

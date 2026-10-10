@@ -870,3 +870,41 @@ test("a mental effect aimed at a monster whose ability answers it (2026-10-10, B
     const reacted = run(["mental"], true);
     assert.ok(reacted.hurt > 0 && /reacts with Otherworldly Mind/.test(reacted.log), reacted.log);
 });
+
+test("reactions to its own Strike, to being attacked, to a turn starting near it, and at initiative (2026-10-10, B47)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const willSave = (name, trigger, targeting, effects = [{ kind: "condition", slug: "frightened", value: 1 }]) => ({
+        modelVersion: 13, source: { name }, rank: 1, traits: [], activation: { time: trigger.free ? "free" : "reaction", traits: [] }, targeting, trigger: { event: "use", reaction: true, ...trigger },
+        resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects }, criticalFailure: { damage: { ...none }, effects } } }
+    });
+    const [fighter] = martialParty(5);
+    const setup = (plan) => {
+        const monster = { ...moderateCreature(5, "mon", "Monster"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry(plan.source.name, plan)] };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, monster] }, {}, 4);
+        state.log = [];
+        return { state, f: state.byId.get("fighter"), m: state.byId.get("mon") };
+    };
+    // Its own critical hit with the named Strike, on the creature it hit.
+    const eyes = willSave("Go For the Eyes", { event: "own-strike", on: ["criticalSuccess"], strike: "beak" }, { target: "the creature the Strike hits", range: "touch", area: null });
+    let { state, f, m } = setup(eyes);
+    performStrike(state, m, f, { ...m.strikes[0], name: "Beak", bonus: 200 });
+    assert.ok(f.cond.frightened >= 1 && m.reactionUsed, state.log.join("\n"));
+    ({ state, f, m } = setup(eyes));
+    performStrike(state, m, f, { ...m.strikes[0], name: "Claw", bonus: 200 });
+    assert.ok(!f.cond.frightened, "not another Strike");
+    // A melee Strike at it: before the roll, on the attacker; one that paralyzes stops the Strike.
+    const tattoos = willSave("Hypnotic Tattoos", { event: "attacked", melee: true }, { target: "the attacker", range: "touch", area: null }, [{ kind: "condition", slug: "paralyzed", value: null, duration: { mode: "fixed", value: 1, unit: "rounds" } }]);
+    ({ state, f, m } = setup(tattoos));
+    assert.equal(performStrike(state, f, m, { ...f.strikes[0], melee: true, bonus: 200 }), null, state.log.join("\n"));
+    assert.ok(f.cond.paralyzed && m.hp.value === 999);
+    ({ state, f, m } = setup(tattoos));
+    assert.notEqual(performStrike(state, f, m, { ...f.strikes[0], melee: false, bonus: 200 }), null, "not a ranged Strike");
+    // A creature starting its turn within 30 feet.
+    const glance = willSave("Petrifying Glance", { event: "turn-start", within: 30 }, { target: "the attacker", range: "30 feet", area: null }, [{ kind: "condition", slug: "slowed", value: 1, duration: { mode: "fixed", value: 10, unit: "rounds" } }]);
+    const glanced = simulate({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "mon", "Basilisk"), engagement: 1, spells: [entry("Petrifying Glance", glance)] }] }, { maxRounds: 1 }, 4, { log: true });
+    assert.match(glanced.log.join("\n"), /Basilisk reacts with Petrifying Glance/);
+    // Rolling initiative, a free action on the creatures around it.
+    const cry = willSave("Chilling Cry", { event: "initiative", free: true }, { target: null, range: null, area: { type: "emanation", value: 20 } });
+    const cried = simulate({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "mon", "Losko"), engagement: 1, spells: [entry("Chilling Cry", cry)] }] }, { maxRounds: 1 }, 4, { log: true });
+    assert.match(cried.log.join("\n"), /Losko uses Chilling Cry/);
+});
