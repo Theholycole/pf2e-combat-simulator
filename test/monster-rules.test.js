@@ -1815,3 +1815,27 @@ test("Biting Snakes: a Strike at a creature ending its turn beside it (2026-10-1
     assert.equal(state.byId.get("medusa").reactionUsed, true);
 });
 
+
+test("Feed on Fear: healing only with a frightened or dying enemy near (2026-10-11, B83)", () => {
+    const feed = {
+        modelVersion: 13, source: { name: "Feed on Fear" }, rank: 1, traits: ["concentrate"], activation: { time: "1", traits: ["concentrate"] },
+        targeting: { target: "self", range: null, area: null }, trigger: { event: "use" }, requires: "An enemy is under a fear effect or Dying within 15 feet",
+        requiresFoe: { conditions: ["frightened", "dying"], within: 15 },
+        resolution: { kind: "healing", native: { healing: { components: [{ id: "0", formula: "4d4", kinds: ["healing"] }], recipients: "any" } } }
+    };
+    const [fighter] = martialParty(3);
+    const wisp = { ...moderateCreature(3, "wisp", "Will-o'-Wisp"), engagement: 1, spells: [entry("Feed on Fear", feed)] };
+    const casts = (frightened, status = "active") => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, wisp] }, {}, 2);
+        const w = state.byId.get("wisp");
+        w.hp.value = Math.floor(w.hp.max / 3);
+        w.actionsLeft = 3;
+        const f = state.byId.get("fighter");
+        f.cond.frightened = frightened;
+        if (status === "down") Object.assign(f, { status: "down", hp: { ...f.hp, value: 0 } }, { cond: { ...f.cond, dying: 1 } });
+        return scoreOptions(state, w).options.some((option) => option.action?.type === "cast" && option.action.spellIndex === 0);
+    };
+    assert.equal(casts(0), false);
+    assert.equal(casts(1), true);
+    assert.equal(casts(0, "down"), true);
+});

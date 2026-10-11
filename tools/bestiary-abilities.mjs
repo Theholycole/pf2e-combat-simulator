@@ -101,7 +101,7 @@ function combatant(npc) {
             for (const mode of ways) spells.push({ name: `${item.name} (${mode.name})`, plan: mode.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name });
         } else if (plan.builtin) {
             if (addBuiltin(builtins, plan, item.name)) used.add(item.name);
-        } else if (plan.resolution && !plan.requires) {
+        } else if (plan.resolution && (!plan.requires || plan.requiresFoe)) {
             used.add(item.name);
             spells.push({ name: item.name, plan, castRank: 1, pool: null, kind: "ability", effects: effectModels(plan, system.details.level.value) });
         }

@@ -732,6 +732,11 @@ function expand(ctx, node, actionsLeft) {
             const rider = spell.plan?.trigger?.event === "strike" || Boolean(spell.plan?.trigger?.followUp);
             const riderTarget = rider && (c.riderReady?.index === index || c.riderReady?.also?.includes(index)) && node.used === 0 ? state.byId.get(c.riderReady.targetId) : null;
             if (rider && !(riderTarget && isActive(riderTarget))) continue;
+            // Its requirement an enemy nearby in a state (B83, Feed on Fear: "An enemy is under a fear effect or Dying within
+            // 15 feet"): frightened, or down and dying.
+            const foe = spell.plan?.requiresFoe;
+            if (foe && !state.list.some((other) => other.side !== c.side && distanceTo(node.pos, other, ctx.placeOf(node.pos)) <= (foe.within ?? Infinity)
+                && foe.conditions.some((condition) => (condition === "dying" ? other.status === "down" : isActive(other)) && (other.cond?.[condition] ?? 0) > 0))) continue;
             // Quickened Casting (B72): a spell of its rank or lower, one action fewer, once a fight.
             const quickens = c.quickenedCasting && !c.quickenedUsed && !node.casts.includes("quickened") && (!spell.kind || spell.castsSpell) && (c.quickenedCasting.maxRank == null || (spell.castRank ?? 1) <= c.quickenedCasting.maxRank);
             for (const actions of spellVariants(spell)) {
