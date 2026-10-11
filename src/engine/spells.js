@@ -17,7 +17,7 @@ import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effec
 import { applyDamage, expectedHitDamage, increaseDying, killCreature, log, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
 import { canReact, levelDC, saveBonusAgainst, sizeRank } from "./abilities.js";
 import { adjustDamage, adjustInstance } from "./damage.js";
-import { leaveMelee, sameMelee } from "./space.js";
+import { engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { moraleOdds } from "./morale.js";
 
 const registry = createRegistry();
@@ -1203,6 +1203,23 @@ export function reactToDamage(state, target, source, types) {
     // Spewing Bile, Diseased Pustules: its passive answers damage on it too (B48).
     if (isActive(target)) passiveAnswers(state, target, source, sets);
     useReaction(state, target, source, sets);
+    damagedStrike(state, target, source, types);
+}
+
+// Furious Flailing, Splinter (B89): damage of its types, a Strike at a random creature in its reach (or the attacker when it's there);
+// the trolls' flat check against their persistent fire damage too.
+function damagedStrike(state, target, source, types) {
+    const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("damaged-by") && typesMatch(entry.damageTypes, types));
+    if (!answer || !isActive(target) || !canAct(target) || !canReact(target) || target.cond.fleeing) return;
+    const foes = engagedEnemies(state, target).filter(isActive);
+    const victim = !answer.random && source && foes.includes(source) ? source : foes.length ? foes[state.rng.die(foes.length) - 1] : null;
+    if (!victim) return;
+    reactionStrikeAt(state, target, victim, answer, "damaged");
+    if (answer.persistentFire && isActive(target) && target.persistent?.some((entry) => entry.type === "fire")) {
+        const ends = flatCheck(state.rng, 15) >= SUCCESS;
+        if (ends) target.persistent = target.persistent.filter((entry) => entry.type !== "fire");
+        log(state, `  ${target.name} ${ends ? "puts out its persistent fire" : "still burns"}`);
+    }
 }
 
 // A spell or an action with a trait a creature's ability answers when it's targeted (B46: Otherworldly Mind's "Whenever a

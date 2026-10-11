@@ -1984,3 +1984,25 @@ test("Bully's Bludgeon's nonlethal Strike, Savage Jaws' own damage (2026-10-11, 
     const jaws = chargeStrike(lisk.strikes[0], lisk.strikeActivities[0]);
     assert.deepEqual([jaws.damage[0].dice, jaws.damage[0].die, jaws.damage[0].bonus, jaws.damage[0].type, lisk.strikeActivities[0].countsAs], [4, 12, 16, "piercing", 2]);
 });
+
+test("Furious Flailing: fire or electricity damage, a Strike at a random creature in reach and a flat check against persistent fire (2026-10-11, B89)", () => {
+    const [fighter] = martialParty(5);
+    const troll = { ...moderateCreature(5, "troll", "Troll"), engagement: 1, hp: { value: 999, max: 999 } };
+    assert.equal(addBuiltin(troll, { builtin: "reaction-strike", triggers: ["damaged-by"], damageTypes: ["electricity", "fire"], strike: "claw", penalty: 0, disrupts: false, random: true, persistentFire: true }, "Furious Flailing"), true);
+    troll.strikes = [...troll.strikes, { ...troll.strikes[0], name: "Claw" }];
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, troll] }, {}, 1);
+    state.log = [];
+    const t = state.byId.get("troll");
+    // Cold: nothing.
+    applyDamage(state, t, [{ type: "cold", amount: 5, persistent: false, precision: false }], { source: state.byId.get(fighter.id) });
+    assert.equal(state.log.some((line) => /Furious Flailing/.test(line)), false, state.log.join("\n"));
+    // Fire, while it burns: the Strike, then the flat check (a 20 puts it out).
+    t.persistent.push({ type: "fire", dice: 1, die: 6, bonus: 0, multiplier: 1 });
+    state.rng.d20 = () => 20;
+    applyDamage(state, t, [{ type: "fire", amount: 5, persistent: false, precision: false }], { source: state.byId.get(fighter.id) });
+    assert.ok(state.log.includes("  Troll uses Furious Flailing"), state.log.join("\n"));
+    assert.ok(state.log.some((line) => /^ {2}Troll Claw → /.test(line)), state.log.join("\n"));
+    assert.ok(state.log.includes("  Troll puts out its persistent fire"), state.log.join("\n"));
+    assert.equal(t.persistent.some((entry) => entry.type === "fire"), false);
+    assert.equal(t.reactionUsed, true);
+});
