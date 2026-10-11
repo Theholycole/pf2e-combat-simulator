@@ -70,7 +70,7 @@ export function addBuiltin(spec, plan, name) {
             const part = dice ? { dice: Number(dice[1] ?? 0), die: Number(dice[2] ?? 0), bonus: Number(dice[3] ?? 0), multiplier: 1, type: dice[4], precision: false, persistent: false } : null;
             const strikeDeltas = part ? Object.fromEntries((spec.strikes ?? []).filter((strike) => strike.melee).map((strike) => [strike.name, [{ ...part }]])) : null;
             const model = { name, rounds: plan.model?.rounds ?? 10, modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}) };
-            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model, ...(plan.whenHurt ? { whenHurt: true } : {}) }];
+            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model, ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}) }];
             return true;
         }
         // Golem Antimagic (B56): what others' magic does to it.

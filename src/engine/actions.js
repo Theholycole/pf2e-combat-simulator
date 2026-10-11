@@ -10,7 +10,7 @@ import { adjustDamage, concussiveType, expectedStrikeDamage, adjustInstance, rol
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
-import { removeEffect } from "./effects.js";
+import { applyEffect, removeEffect } from "./effects.js";
 import { deathThroes, hitByAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit } from "./spells.js";
 
 function log(state, text) {
@@ -377,6 +377,12 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (critical && attacker.momentum) rechargeOnCritical(state, attacker);
     // Grab, Knockdown and Push follow a hit (free ones at once, the others as the next action).
     if (!reaction && isActive(target)) state.onStrikeHit?.(attacker, target, strike, degree);
+    // Blood Frenzy, Hungry Rage (B65): bleed damage it deals to a living creature, its named Strike's damage on one.
+    if (dealt > 0 && isActive(attacker) && !["undead", "construct"].some((trait) => (target.traits ?? []).includes(trait))) {
+        const bleeds = instances.some((instance) => instance.type === "bleed" && instance.amount > 0);
+        const name = String(strike.name ?? "").toLowerCase();
+        triggeredSelfEffect(state, attacker, (trigger) => (trigger.kind === "deals-bleed" && bleeds) || (trigger.kind === "own-hit" && (name === trigger.strike || name.startsWith(trigger.strike))));
+    }
     // Defensive Quills, Searing Heat: the monster's passive answers a melee hit on it (B43).
     const dealtTypes = dealt > 0 ? instances.map((instance) => instance.type) : [];
     if (isActive(attacker)) hitByAnswers(state, target, attacker, strike, degree, dealtTypes);
@@ -385,6 +391,18 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // Pin Prey, Storm Smite: the attacker's reaction to its own hit (B47).
     if (isActive(attacker)) reactToOwnHit(state, attacker, target, strike, degree);
     return { degree, damage: dealt, trigger };
+}
+
+// A rage or frenzy its trigger sets off (B65): once a fight (it ends fatigued), the reaction spent when it's one.
+function triggeredSelfEffect(state, c, matches) {
+    for (const entry of c.selfEffects ?? []) {
+        if (!entry.trigger || !matches(entry.trigger) || c.buffsUsed?.has(entry.name)) continue;
+        if (entry.trigger.reaction && !canReact(c)) continue;
+        if (entry.trigger.reaction) c.reactionUsed = true;
+        c.buffsUsed = new Set([...(c.buffsUsed ?? []), entry.name]);
+        applyEffect(state, c, entry.model, c, { key: `self:${entry.name}` });
+        log(state, `  ${c.name} uses ${entry.name}`);
+    }
 }
 
 // A Strike's splash: its known amount (the snapshot reads it from the item), or its parts flagged splash.
@@ -488,6 +506,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
+    // Vengeful Rage (B65): damage that leaves it at that many Hit Points or fewer.
+    if (dealt > 0 && isActive(target)) triggeredSelfEffect(state, target, (trigger) => trigger.kind === "hp-at-most" && target.hp.value <= trigger.value);
     // Solar Flare, Caustic Blood: the monster's reaction to damage on it (B44).
     if (dealt > 0) reactToDamage(state, target, source, instances.filter((instance) => instance.amount > 0).map((instance) => instance.type));
     // Retributive Strike: a melee Strike at the enemy within reach. Iron Command: the enemy kneels (prone) or takes mental damage.

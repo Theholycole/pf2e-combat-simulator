@@ -1290,3 +1290,25 @@ test("a rage on itself: its effect's damage, AC and temporary Hit Points; a fren
     c.hp.value -= 5;
     assert.ok(scoreOptions(state, c).options.some((option) => option.action.type === "selfEffect" && option.action.index === 1));
 });
+
+test("triggered rages: Blood Frenzy on bleed it deals, Vengeful Rage at its HP threshold with its reaction (2026-10-10, B65)", () => {
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "shark", "Shark");
+    const bleeding = { ...base.strikes[0], name: "Jaws", bonus: 100, damage: [...base.strikes[0].damage, { dice: 1, die: 6, bonus: 0, multiplier: 1, type: "bleed", persistent: true, precision: false }] };
+    const shark = withBuiltins({ ...base, engagement: 1, strikes: [bleeding] }, ["Blood Frenzy", { builtin: "self-effect", actions: 0, model: { name: "Blood Frenzy", rounds: 10, modifiers: [{ on: "damage", type: "status", value: 4 }], tempHp: 8 }, trigger: { kind: "deals-bleed" } }]);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, shark] }, {}, 1);
+    state.log = [];
+    const s = state.byId.get("shark");
+    assert.equal(scoreOptions(state, s).options.some((option) => option.action.type === "selfEffect"), false, "not an action");
+    performStrike(state, s, state.byId.get("fighter"), s.strikes[0]);
+    assert.ok((s.effects ?? []).some((effect) => effect.key === "self:Blood Frenzy"), state.log.join("\n"));
+    assert.equal(s.hp.temp, 8);
+    // Vengeful Rage: damage that leaves it at 100 HP or fewer, as its reaction.
+    const chief = withBuiltins({ ...moderateCreature(5, "chief", "Chief"), engagement: 1, hp: { value: 110, max: 150 } }, ["Vengeful Rage", { builtin: "self-effect", actions: 0, model: { name: "Vengeful Rage", rounds: 10, modifiers: [{ on: "attack", type: "status", value: 1 }], tempHp: 0 }, trigger: { kind: "hp-at-most", value: 100, reaction: true } }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, chief] }, {}, 1);
+    const c = state.byId.get("chief");
+    applyDamage(state, c, [{ type: "slashing", amount: 5, persistent: false, precision: false }], { source: state.byId.get("fighter") });
+    assert.ok(!(c.effects ?? []).length, "still above 100");
+    applyDamage(state, c, [{ type: "slashing", amount: 10, persistent: false, precision: false }], { source: state.byId.get("fighter") });
+    assert.deepEqual([(c.effects ?? []).some((effect) => effect.key === "self:Vengeful Rage"), c.reactionUsed], [true, true]);
+});

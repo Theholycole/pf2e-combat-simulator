@@ -1066,8 +1066,9 @@ function expand(ctx, node, actionsLeft) {
         // effect's benefit, as a spell's on itself, and a better Strike it brings.
         for (const [index, entry] of (c.selfEffects ?? []).entries()) {
             if (entry.actions > remaining || (c.effects ?? []).some((effect) => effect.key === `self:${entry.name}`) || node.casts.includes(`self${index}`)) continue;
-            // Fanatical Frenzy: once it's hurt (B64).
+            // Fanatical Frenzy: once it's hurt (B64). Blood Frenzy and the like come with their trigger, not as an action (B65).
             if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
+            if (entry.trigger) continue;
             let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1);
             // Its measured change to the Strikes (Arcane Cascade's force damage): about three rounds of it.
             const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);
