@@ -1199,6 +1199,25 @@ function useReaction(state, c, other, matches) {
     return false;
 }
 
+// A creature losing a condition near a monster (B76: Consume Fear's "A creature within 60 feet loses the Frightened condition"): the
+// monster's reaction, on itself (the temporary Hit Points it gains). Within its distance: its Melee for 10 feet or less, the bands
+// for more, anyone in the fight from 60 feet.
+export function conditionLostAnswers(state, creature, slug) {
+    const near = (c, within) => !within || within >= 60 || (within <= 10 ? sameMelee(c, creature) : creature.band !== "far" || c.band === "far");
+    for (const c of state.list) {
+        if (c === creature || !isActive(c) || !canAct(c)) continue;
+        for (const [index, spell] of (c.spells ?? []).entries()) {
+            const trigger = spell.plan?.trigger;
+            if (!trigger?.reaction || trigger.event !== "condition-lost" || trigger.condition !== slug || (!trigger.free && !canReact(c)) || !near(c, trigger.within)) continue;
+            if (!trigger.free) c.reactionUsed = true;
+            state.stats.reactions++;
+            log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name} (${creature.name} is no longer ${slug})`);
+            castSpell(state, c, index, [c.id]);
+            break;
+        }
+    }
+}
+
 // Reactive Strike's triggers, with results of their own (B51: "A creature within the razorbones' reach uses a manipulate action
 // or a move action or leaves a square during a move action"; "A creature within 100 feet makes a ranged attack or uses an action
 // that has the concentrate trait"): kind "move" (leaving its Melee), "manipulate", "ranged" or "concentrate", within its

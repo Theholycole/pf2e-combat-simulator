@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 
-import { createFightState, performAction, simulate } from "../src/engine/fight.js";
+import { createFightState, performAction, simulate, turnEnd } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, stride } from "../src/engine/actions.js";
@@ -1652,3 +1652,25 @@ test("Knocking Sweep: a Trip at each enemy in its reach, at the penalty it start
     assert.ok(a.usedThisTurn.has("Knocking Sweep"), "once a round");
     assert.equal(scoreOptions(state, a).options.some((option) => option.action.type === "skillSweep"), false);
 });
+
+test("Consume Fear: temporary Hit Points as a creature near it stops being frightened (2026-10-11, B76)", { skip }, async () => {
+    const { readDocuments } = await import("../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs");
+    const { compileMonsterAbility } = await import(ABILITIES);
+    const dragonDoc = readDocuments(`${PACKS}/pathfinder-monster-core-2`).find((doc) => doc.collection === "actors" && (doc.items ?? []).some((item) => item.name === "Consume Fear"));
+    const plan = compileMonsterAbility(dragonDoc.items.find((item) => item.name === "Consume Fear"), { actor: dragonDoc });
+    assert.equal(plan?.trigger?.event, "condition-lost");
+    const [fighter] = martialParty(5);
+    const dragon = { ...moderateCreature(5, "dragon", "Dragon"), engagement: 1, spells: [entry("Consume Fear", plan)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, 1);
+    state.log = [];
+    const d = state.byId.get("dragon");
+    const f = state.byId.get("fighter");
+    f.cond.frightened = 2;
+    turnEnd(state, f);
+    assert.equal(d.hp.temp ?? 0, 0, "still frightened 1");
+    turnEnd(state, f);
+    assert.equal(f.cond.frightened, 0);
+    assert.ok(d.hp.temp > 0, state.log.join("\n"));
+    assert.equal(d.reactionUsed, true);
+});
+
