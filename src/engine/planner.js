@@ -15,7 +15,7 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, mapGap, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { chargeStrike, ducksFromCoverFire, followsStrike, multiStrikeOrder, strikeNamed } from "./abilities.js";
+import { chargeStrike, ducksFromCoverFire, followsStrike, multiStrikeOrder, strikeNamed, sweepActionIndex } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
@@ -1234,6 +1234,23 @@ function expand(ctx, node, actionsLeft) {
                 const what = pool ? { pool } : recharging >= 0 ? { spellIndex: recharging } : recharge.quickened && c.quickenedUsed ? { quickened: true } : null;
                 if (what) children.push(child(node, { type: "mythicRecharge", actions: 1, ...what }, 1, 0.35 * ctx.ownValue * ROUND_TO_KILL, { cast: "mythicRecharge" }));
             }
+        }
+        // Knocking Sweep (B75): its basic action (Trip) at every enemy in its Melee, separate checks at the penalty it started with:
+        // worth what each would be.
+        for (const [sweepIndex, sweep] of (c.skillSweeps ?? []).entries()) {
+            if (restrained || noAttacks || sweep.actions > remaining || (sweep.oncePerTurn && (c.usedThisTurn?.has(sweep.name) || node.casts.includes(`sweep${sweepIndex}`)))) continue;
+            const index = sweepActionIndex(c, sweep);
+            const foes = index >= 0 ? ctx.enemies.filter((target) => target.status === "active" && inMelee(node.pos, target)) : [];
+            if (foes.length < 2) continue;
+            let gain = 0;
+            for (const [step, target] of foes.entries()) {
+                const effect = ctx.spellEffect(index, c.spells[index], [target], sweep.sameMap ? node.attacks : node.attacks + step, sweep.actions).find((entry) => entry.target === target);
+                if (!effect) continue;
+                const before = node.damage[target.id] ?? 0;
+                const hp = remainingHp(target);
+                gain += targetValue(state, target, c) * (Math.min(1, (before + (effect.damage ?? 0)) / hp) - Math.min(1, before / hp) + (effect.worth ?? 0) * ROUND_TO_KILL);
+            }
+            if (gain > 0) children.push(child(node, { type: "skillSweep", index: sweepIndex, actions: sweep.actions }, sweep.actions, ctx.profile.aggression * gain, { attacks: foes.length, ...(sweep.oncePerTurn ? { cast: `sweep${sweepIndex}` } : {}) }));
         }
         // Poison Weapon (B72): an Interact to poison its weapon before a Strike: the poison's worth on its best foe, times a hit's chance.
         if (c.poisonWeapon && !c.weaponPoisoned && (c.poisonDoses ?? c.poisonWeapon.doses) > 0 && remaining >= 2 && !restrained && !node.casts.includes("poisonWeapon") && (c.strikes ?? []).some((strike) => strike.held && strikeUsable(c, strike))) {

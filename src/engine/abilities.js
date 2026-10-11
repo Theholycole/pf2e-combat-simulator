@@ -154,6 +154,10 @@ export function addBuiltin(spec, plan, name) {
         case "death-strike":
             spec.deathStrike = { name, strike: plan.strike ?? null };
             return true;
+        // Knocking Sweep (B75): a basic action (Trip) at each creature in its reach, separate checks, at one multiple attack penalty.
+        case "skill-sweep":
+            spec.skillSweeps = [...(spec.skillSweeps ?? []), { name, actions: plan.actions ?? 2, action: plan.action, ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}) }];
+            return true;
         // Wrestle, Intimidating Strike, Rhinoceros Charge: a Strike (after Strides) with more on a hit.
         case "strike-activity":
             spec.strikeActivities = [...(spec.strikeActivities ?? []), {
@@ -232,6 +236,11 @@ export function strikeNamed(c, name) {
 // The Strikes of a multi-Strike ability (Draconic Frenzy), as indices, in the
 // order that loses least to the multiple attack penalty (agile ones last).
 // null when one of them isn't among the creature's Strikes.
+// The basic action a skill sweep uses (B75): its index in the creature's spells, or -1.
+export function sweepActionIndex(c, sweep) {
+    return (c.spells ?? []).findIndex((spell) => spell.kind === "basic" && (spell.plan?.source?.slug === sweep.action || String(spell.name ?? "").toLowerCase() === sweep.action));
+}
+
 export function multiStrikeOrder(c, ability) {
     // A Strike with no name ("makes two unarmed Strikes"): its best melee Strike.
     const best = () => (c.strikes ?? []).reduce((found, strike, index) => (strike.melee && (found < 0 || strike.bonus > c.strikes[found].bonus) ? index : found), -1);

@@ -5,7 +5,7 @@ import { FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride } from "./actions.js";
-import { canReact, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating } from "./abilities.js";
+import { canReact, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating, sweepActionIndex } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -648,6 +648,22 @@ function act(state, c, action) {
             if (target && isActive(target)) performRend(state, c, target, c.strikes[action.strikeIndex]);
             break;
         }
+        // Knocking Sweep (B75): its basic action at each enemy in its Melee, each at the penalty it started with when it doesn't rise.
+        case "skillSweep": {
+            const sweep = c.skillSweeps[action.index];
+            state.log?.push(`  ${c.name} uses ${sweep.name}`);
+            if (sweep.oncePerTurn) (c.usedThisTurn ??= new Set()).add(sweep.name);
+            const index = sweepActionIndex(c, sweep);
+            const attacks = c.attacksThisTurn;
+            const foes = engagedEnemies(state, c);
+            for (const foe of foes) {
+                if (!canAct(c) || index < 0) break;
+                if (sweep.sameMap) c.attacksThisTurn = attacks;
+                if (isActive(foe)) castSpell(state, c, index, [foe.id]);
+            }
+            if (sweep.sameMap) c.attacksThisTurn = attacks + foes.length;
+            break;
+        }
         // Draconic Frenzy, Flurry of Blows, Double Slice: its Strikes in turn, at another
         // enemy within reach if the first drops. Double Slice: both at the current
         // multiple attack penalty (then it counts as two), the second -2 unless agile.
@@ -804,7 +820,7 @@ function actionCost(c, action) {
     if (action.type === "spellstrike" || action.type === "strikeHard") return 2;
     if (action.type === "pincerAttack" || action.type === "bannersInspiration" || action.type === "shiftImmanence" || action.type === "transcend") return 1;
     if (action.type === "disableHazard") return 2;
-    if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon") return action.actions ?? 1;
+    if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon") return action.actions ?? 1;
     // (Quickened Casting, B72: one action fewer.)
     if (action.type === "cast") return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened ? 1 : 0));
     return action.type === "task" ? 2 : 1;

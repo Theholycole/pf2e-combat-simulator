@@ -1632,3 +1632,23 @@ test("Twin Feint's off-guard second attack, Three-Headed Strike's different Stri
     assert.ok(target.hp.value < before, "the Strike's damage");
     assert.equal(h.attacksThisTurn, 5);
 });
+
+test("Knocking Sweep: a Trip at each enemy in its reach, at the penalty it started with (2026-10-11, B75)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const party = martialParty(5);
+    const adept = { ...moderateCreature(5, "adept", "Adept"), engagement: 1, spells: [entry("Trip", basic.trip, "basic")] };
+    assert.equal(addBuiltin(adept, { builtin: "skill-sweep", actions: 2, action: "trip", sameMap: true, oncePerTurn: true }, "Knocking Sweep"), true);
+    const state = createFightState({ combatants: [...party.slice(0, 3).map((pc) => ({ ...pc, engagement: 1 })), adept] }, {}, 1);
+    state.log = [];
+    const a = state.byId.get("adept");
+    a.round = 1;
+    a.actionsLeft = 3;
+    const sweep = scoreOptions(state, a).options.find((option) => option.action.type === "skillSweep");
+    assert.ok(sweep, "on offer with three foes in reach");
+    performAction(state, a, sweep.action);
+    const tripped = state.log.map((line) => /^ {2}Adept casts Trip at (.+)$/.exec(line)?.[1]).filter(Boolean);
+    assert.deepEqual(new Set(tripped).size, 3, state.log.join("\n"));
+    assert.equal(a.attacksThisTurn, 3, "three attempts counted after all of them");
+    assert.ok(a.usedThisTurn.has("Knocking Sweep"), "once a round");
+    assert.equal(scoreOptions(state, a).options.some((option) => option.action.type === "skillSweep"), false);
+});
