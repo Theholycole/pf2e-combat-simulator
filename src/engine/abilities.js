@@ -129,10 +129,15 @@ export function addBuiltin(spec, plan, name) {
         // rounds; Cat's Luck: its Reflex save rerolled, the better kept, once a fight (its use: a number on the creature).
         case "save-boost":
             if (plan.ally) spec.allySaveBoost = { name, within: plan.within ?? 60, recharge: plan.recharge ?? null };
-            else spec.saveBoost = { name, recharge: plan.recharge ?? null };
+            else {
+                // (B93: once a fight, Stubborn Resolve's; only a critical failure made a failure, Reality Twist's; a free action's.)
+                spec.saveBoost = { name, recharge: plan.recharge ?? null, ...(plan.criticalOnly ? { criticalOnly: true } : {}), ...(plan.free ? { free: true } : {}) };
+                if (Number.isFinite(plan.uses)) spec.saveBoostUses = plan.uses;
+            }
             return true;
         case "save-reroll":
-            spec.saveReroll = { name, save: plan.save ?? null };
+            // (B93: Halfling Luck's "must use the new result", keep "new"; a free action's.)
+            spec.saveReroll = { name, save: plan.save ?? null, ...(plan.keep ? { keep: plan.keep } : {}), ...(plan.free ? { free: true } : {}) };
             spec.saveRerollUses = 1;
             return true;
         // Shake It Off, Slough Skin (B77; the user's choice): the first harmful condition an enemy gives it, negated with its reaction once a

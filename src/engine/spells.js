@@ -295,22 +295,24 @@ function betterSave(state, statistic, options, result) {
     const saver = options?.actor;
     if (!SAVES.has(statistic) || !saver?.id || !["failure", "criticalFailure"].includes(result?.degree) || !isActive(saver)) return result;
     const reroll = saver.saveReroll;
-    if (reroll && (!reroll.save || reroll.save === statistic) && (saver.saveRerollUses ?? 0) > 0 && canReact(saver)) {
+    if (reroll && (!reroll.save || reroll.save === statistic) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver))) {
         saver.saveRerollUses--;
-        saver.reactionUsed = true;
+        if (!reroll.free) saver.reactionUsed = true;
         state.stats.reactions++;
         const natural = state.rng.d20();
         const total = natural + options.modifier;
         const degree = DEGREE_NAMES[degreeOf(total, options.dc, natural)];
         log(state, `  ${saver.name} uses ${reroll.name}: ${degree.replace(/([A-Z])/g, " $1").toLowerCase()} on the reroll`);
-        return DEGREE_NAMES.indexOf(degree) > DEGREE_NAMES.indexOf(result.degree) ? { natural, total, dc: options.dc, degree } : result;
+        return reroll.keep === "new" || DEGREE_NAMES.indexOf(degree) > DEGREE_NAMES.indexOf(result.degree) ? { natural, total, dc: options.dc, degree } : result;
     }
-    const ready = (c) => (c.saveBoostUntil ?? -Infinity) <= state.round && canReact(c);
-    const helper = saver.saveBoost && ready(saver) ? saver
+    const ready = (c) => (c.saveBoostUntil ?? -Infinity) <= state.round && (c === saver && saver.saveBoost?.free ? true : canReact(c));
+    const ownBoost = saver.saveBoost && (!Number.isFinite(saver.saveBoostUses) || saver.saveBoostUses > 0) && (!saver.saveBoost.criticalOnly || result.degree === "criticalFailure");
+    const helper = ownBoost && ready(saver) ? saver
         : state.list.find((c) => c !== saver && c.side === saver.side && isActive(c) && c.allySaveBoost && ready(c) && (c.allySaveBoost.within >= 60 || (c.allySaveBoost.within <= 10 ? sameMelee(c, saver) : saver.band !== "far" || c.band === "far")));
     if (!helper) return result;
     const boost = helper === saver ? saver.saveBoost : helper.allySaveBoost;
-    helper.reactionUsed = true;
+    if (!boost.free) helper.reactionUsed = true;
+    if (helper === saver && Number.isFinite(saver.saveBoostUses)) saver.saveBoostUses--;
     if (boost.recharge) helper.saveBoostUntil = state.round + rollCount(state, boost.recharge);
     state.stats.reactions++;
     const degree = DEGREE_NAMES[Math.min(3, DEGREE_NAMES.indexOf(result.degree) + 1)];
@@ -1013,6 +1015,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     applyChanges(state, caster, spell, result.changes, context, io);
     // Otherworldly Mind, Entropic Feedback: a mental effect aimed at a creature whose ability answers it (B46).
     if (!info.area) targetedAnswers(state, caster, spell, targets);
+    // Savage, Gnashing Bite (B92): a failed Escape, answered by the creature holding it.
+    if (info.escape) for (const target of targets) escapeAnswers(state, caster, target, result.degrees[target.id]);
     // A swashbuckler's bravado action: panache on a success, until the end of the turn on a failure.
     if (caster.panacheStyle && (caster.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
         const degrees = targets.map((target) => result.degrees[target.id]).filter(Boolean);
@@ -1304,6 +1308,20 @@ export function conditionLostAnswers(state, creature, slug) {
             break;
         }
     }
+}
+
+// A creature it holds failing to Escape (B92: Savage's "A creature Grabbed by the wyvern critically fails a skill check to Escape … a
+// stinger Strike against the triggering creature", Gnashing Bite's "fails a check to Escape … The lizard's jaws deal 1d6 piercing and
+// 1d6 acid damage to the triggering creature"): its reaction at that creature.
+export function escapeAnswers(state, escaper, grabber, degree) {
+    if (!["failure", "criticalFailure"].includes(degree) || !isActive(grabber) || !isActive(escaper) || !canAct(grabber)) return;
+    const critical = degree === "criticalFailure";
+    const answer = (grabber.reactionStrikes ?? []).find((entry) => entry.triggers.includes("escape-failed") || (critical && entry.triggers.includes("escape-critical-failure")));
+    if (answer && canReact(grabber) && !grabber.cond.fleeing) {
+        reactionStrikeAt(state, grabber, escaper, answer, "escape");
+        return;
+    }
+    useReaction(state, grabber, escaper, (trigger) => trigger.event === "escape-failed" && (!trigger.critical || critical));
 }
 
 // A foe's mishap near a monster (B85: Jeer at Failure's "A foe within 90 feet becomes Prone or critically fails on a Strike"): the

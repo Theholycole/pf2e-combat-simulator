@@ -2058,3 +2058,67 @@ test("A reaction Strike at a ranged attack in its Melee (2026-10-11, B91)", () =
     assert.ok(state.log.includes("  Drake uses Test Whip"), state.log.join("\n"));
     assert.ok(state.log.some((line) => /^ {2}Drake Tail → /.test(line)), state.log.join("\n"));
 });
+
+test("A creature it holds failing to Escape: a Strike, or its damage (2026-10-11, B92)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const fight = (extra) => {
+        const wyvern = { ...moderateCreature(5, "wyvern", "Wyvern"), engagement: 1, hp: { value: 999, max: 999 }, ...extra(moderateCreature(5, "wyvern", "Wyvern")) };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [entry("Escape", basic.escape, "basic")] }, wyvern] }, {}, 1);
+        state.log = [];
+        const f = state.byId.get(fighter.id);
+        applyCondition(state, f, "grabbed", null, null, state.byId.get("wyvern"));
+        return [state, f];
+    };
+    // Savage, on a critical failure only.
+    let [state, f] = fight((base) => { const spec = { strikes: [...base.strikes, { ...base.strikes[0], name: "Stinger" }] }; addBuiltin(spec, { builtin: "reaction-strike", triggers: ["escape-critical-failure"], strike: "stinger", penalty: 0, disrupts: false }, "Savage"); return spec; });
+    state.rng.d20 = () => 1;
+    castSpell(state, f, 0, ["wyvern"]);
+    state.rng.d20 = () => 10;
+    assert.ok(state.log.includes("  Wyvern uses Savage"), state.log.join("\n"));
+    // Gnashing Bite: its damage on a plain failure.
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const bite = { modelVersion: 13, source: { name: "Gnashing Bite" }, rank: 1, traits: [], activation: { time: "reaction", traits: [] }, targeting: { target: "the attacker", range: "touch", area: null }, trigger: { event: "escape-failed", reaction: true },
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { mode: "formulas", formulas: [{ formula: "2d6[piercing]" }], rollScope: "outcome" }, effects: [] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } };
+    [state, f] = fight(() => ({ spells: [entry("Gnashing Bite", bite)] }));
+    const before = f.hp.value;
+    state.rng.d20 = () => 2;
+    castSpell(state, f, 0, ["wyvern"]);
+    state.rng.d20 = () => 10;
+    assert.ok(state.log.some((line) => /Wyvern (?:reacts with|uses) Gnashing Bite/.test(line)), state.log.join("\n"));
+    assert.ok(f.hp.value < before, state.log.join("\n"));
+});
+
+test("Its own failed save: the new reroll kept, a free action's, once a fight; only a critical failure made a failure (2026-10-11, B93)", () => {
+    const save = (dc) => ({ name: "Test Blast", castRank: 1, dc: null, attack: null, pool: null, plan: { modelVersion: 13, source: { name: "Test Blast" }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: false, against: { dc: "fixed", value: dc } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, failure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, criticalFailure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] } } } } });
+    const [fighter] = martialParty(5);
+    const fight = (plan, rolls) => {
+        const monster = { ...moderateCreature(5, "mon", "Monster"), engagement: 1 };
+        addBuiltin(monster, plan, "Test Luck");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [save(30)] }, monster] }, {}, 1);
+        state.log = [];
+        const queue = [...rolls];
+        state.rng.d20 = () => queue.shift() ?? 10;
+        return state;
+    };
+    // Halfling Luck: a free reroll, the new result taken even when worse.
+    let state = fight({ builtin: "save-reroll", save: null, keep: "new", uses: 1, free: true }, [5, 1]);
+    const m = () => state.byId.get("mon");
+    castSpell(state, state.byId.get(fighter.id), 0, ["mon"]);
+    assert.ok(state.log.some((line) => /Test Luck: critical failure on the reroll/.test(line)), state.log.join("\n"));
+    assert.equal(m().cond.frightened, 2);
+    assert.equal(m().reactionUsed ?? false, false, "a free action");
+    // Reality Twist: a failure stays one; a critical failure becomes a failure.
+    state = fight({ builtin: "save-boost", criticalOnly: true }, [16]);
+    castSpell(state, state.byId.get(fighter.id), 0, ["mon"]);
+    assert.equal(state.log.some((line) => /Test Luck/.test(line)), false, state.log.join("\n"));
+    state = fight({ builtin: "save-boost", criticalOnly: true }, [1]);
+    castSpell(state, state.byId.get(fighter.id), 0, ["mon"]);
+    assert.equal(m().cond.frightened, 1, state.log.join("\n"));
+    // Stubborn Resolve: once a fight.
+    state = fight({ builtin: "save-boost", uses: 1 }, [5, 5]);
+    castSpell(state, state.byId.get(fighter.id), 0, ["mon"]);
+    m().reactionUsed = false;
+    castSpell(state, state.byId.get(fighter.id), 0, ["mon"]);
+    assert.equal(state.log.filter((line) => /Test Luck/.test(line)).length, 1, state.log.join("\n"));
+});
