@@ -181,7 +181,7 @@ function computeHitDamage(strike, target, critical, penalty, offGuardChance) {
 // physical ranged Strike"; B45).
 const dodges = (reaction, strike) => !reaction.against || (reaction.against === "melee") === Boolean(strike.melee);
 
-export function performStrike(state, attacker, target, strike, { reaction = false, trigger = null } = {}) {
+export function performStrike(state, attacker, target, strike, { reaction = false, trigger = null, fortune = false } = {}) {
     if (!strikeUsable(attacker, strike)) return null;
     const attacksMade = reaction ? 0 : attacker.attacksThisTurn;
     if (!reaction) attacker.attacksThisTurn++;
@@ -240,7 +240,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         target.reactionUsed = true;
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
     }
-    const roll = () => (misfortune ? Math.min(state.rng.d20(), state.rng.d20()) : state.rng.d20());
+    // (A fortune Strike, B90: twice, the better; with misfortune too, neither.)
+    const roll = () => (misfortune && !fortune ? Math.min(state.rng.d20(), state.rng.d20()) : fortune && !misfortune ? Math.max(state.rng.d20(), state.rng.d20()) : state.rng.d20());
     let natural = roll();
     // (Tail Lash's hit, B70: "the creature takes a –2 circumstance penalty to the triggering roll".)
     let bonus = reaction ? 0 : -(attacker.rollPenalty ?? 0);
@@ -337,10 +338,11 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
                 performStrike(state, target, attacker, riposte, { reaction: true });
             }
         }
-        // Opportune Bite, Gnawing Retort (B84): a monster's Strike back at a creature in its reach that critically fails a Strike against it.
-        if (degree === CRITICAL_FAILURE && !reaction && isActive(attacker) && isActive(target)) {
-            const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("critical-miss"));
-            if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, "critical-miss");
+        // Opportune Bite, Gnawing Retort (B84): a monster's Strike back at a creature in its reach that critically fails a Strike against it;
+        // B90: one that fails or critically fails.
+        if (!reaction && isActive(attacker) && isActive(target)) {
+            const answer = (target.reactionStrikes ?? []).find((entry) => (entry.triggers.includes("critical-miss") && degree === CRITICAL_FAILURE) || entry.triggers.includes("missed"));
+            if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, degree === CRITICAL_FAILURE ? "critical-miss" : "missed");
         }
         if (degree === CRITICAL_FAILURE && !reaction && attacker.weaponPoisoned && strike.held) attacker.weaponPoisoned = false;
         // Jeer at Failure (B85): a critically failed Strike near a monster with it.
@@ -445,13 +447,15 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
 // A reaction Strike (Twisting Tail, Tail Lash, Avenging Bite): its named Strike at the creature, at its penalty; its hit can
 // hinder the creature's own roll (B70). The result, or null when it has no such Strike.
 export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
-    const index = strikeNamed(enemy, reaction.strike);
+    // (A "melee Strike" with no name, B90: its best melee Strike.)
+    const any = !reaction.strike || /^(?:melee|weapon|unarmed)$/i.test(reaction.strike);
+    const index = any ? enemy.strikes.indexOf(bestMeleeStrike(enemy, mover)) : strikeNamed(enemy, reaction.strike);
     if (index < 0 || !strikeUsable(enemy, enemy.strikes[index])) return null;
     enemy.reactionUsed = true;
     state.stats.reactions++;
     log(state, `  ${enemy.name} uses ${reaction.name}`);
     const strike = enemy.strikes[index];
-    const result = performStrike(state, enemy, mover, reaction.penalty ? { ...strike, bonus: strike.bonus - reaction.penalty } : strike, { reaction: true, trigger: kind });
+    const result = performStrike(state, enemy, mover, reaction.penalty ? { ...strike, bonus: strike.bonus - reaction.penalty } : strike, { reaction: true, trigger: kind, fortune: !!reaction.fortune });
     if (reaction.hinders && result?.degree >= SUCCESS) mover.rollPenalty = (mover.rollPenalty ?? 0) + reaction.hinders;
     return result;
 }
@@ -910,7 +914,7 @@ export function stride(state, c, move) {
     // Grapple: "unless you move".
     releaseGrabs(state, c);
     const leavingMelee = c.meleeId !== null && !(move.kind === "engage" && state.byId.get(move.targetId)?.meleeId === c.meleeId);
-    if (leavingMelee) {
+    if (leavingMelee && !move.safe) {
         const disrupted = provoke(state, c, "move");
         if (!canAct(c)) return;
         if (disrupted) {

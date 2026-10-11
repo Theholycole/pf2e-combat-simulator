@@ -2006,3 +2006,42 @@ test("Furious Flailing: fire or electricity damage, a Strike at a random creatur
     assert.equal(t.persistent.some((entry) => entry.type === "fire"), false);
     assert.equal(t.reactionUsed, true);
 });
+
+test("A Strike back at a failed attack (its best melee Strike, a fortune one), a charge that triggers no reactions (2026-10-11, B90)", () => {
+    const [fighter] = martialParty(5);
+    const fight = (plan) => {
+        const drake = { ...moderateCreature(5, "drake", "Drake"), engagement: 1, hp: { value: 999, max: 999 } };
+        assert.equal(addBuiltin(drake, plan, "Test Counter"), true);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, drake] }, {}, 1);
+        state.log = [];
+        return state;
+    };
+    // A plain miss: its best melee Strike back; a hit: nothing.
+    let state = fight({ builtin: "reaction-strike", triggers: ["missed"], strike: "melee", penalty: 0, disrupts: false });
+    const f = state.byId.get(fighter.id);
+    state.rng.d20 = () => 2;
+    performStrike(state, f, state.byId.get("drake"), { ...f.strikes[0], bonus: 0 });
+    assert.ok(state.log.includes("  Drake uses Test Counter"), state.log.join("\n"));
+    state = fight({ builtin: "reaction-strike", triggers: ["missed"], strike: "melee", penalty: 0, disrupts: false });
+    state.rng.d20 = () => 19;
+    performStrike(state, state.byId.get(fighter.id), state.byId.get("drake"), state.byId.get(fighter.id).strikes[0]);
+    assert.equal(state.log.some((line) => /Test Counter/.test(line)), false, state.log.join("\n"));
+    // A fortune Strike: two dice, the better.
+    state = fight({ builtin: "reaction-strike", triggers: ["missed"], strike: "melee", penalty: 0, disrupts: false, fortune: true });
+    const rolls = [2, 3, 17];
+    let calls = 0;
+    state.rng.d20 = () => (calls++, rolls.shift() ?? 10);
+    performStrike(state, state.byId.get(fighter.id), state.byId.get("drake"), { ...state.byId.get(fighter.id).strikes[0], bonus: 0 });
+    assert.equal(calls, 3, "the miss's die, then two for the fortune Strike");
+    // A charge whose move triggers no reactions: out of one Melee into another with no Reactive Strike.
+    const drake = { ...moderateCreature(5, "drake", "Drake") };
+    addBuiltin(drake, { builtin: "charge", actions: 2, strides: 1, strike: null, offGuard: true, safe: true }, "Test Assault");
+    assert.equal(drake.charges[0].safe, true);
+    const [guard, archer] = martialParty(5);
+    state = createFightState({ combatants: [{ ...guard, engagement: 1, reactions: { aoo: true } }, { ...archer, engagement: 0 }, { ...drake, engagement: 1 }] }, {}, 1);
+    state.log = [];
+    const d = state.byId.get("drake");
+    performAction(state, d, { type: "charge", ability: 0, targetId: archer.id, strikeIndex: 0, actions: 2 });
+    assert.equal(state.log.some((line) => /Attack of Opportunity|Reactive Strike/.test(line)), false, state.log.join("\n"));
+    assert.ok(state.log.includes("  Drake uses Test Assault"), state.log.join("\n"));
+});

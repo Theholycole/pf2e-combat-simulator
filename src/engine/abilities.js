@@ -51,7 +51,7 @@ export function addBuiltin(spec, plan, name) {
             spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}) }];
             return true;
         case "charge":
-            spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null, ...(plan.fatal ? { fatal: plan.fatal } : {}), ...(plan.deadly ? { deadly: plan.deadly } : {}), ...(plan.halfDamage ? { halfDamage: true } : {}), ...(plan.offGuard ? { offGuard: true } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}) }];
+            spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null, ...(plan.safe ? { safe: true } : {}), ...(plan.fatal ? { fatal: plan.fatal } : {}), ...(plan.deadly ? { deadly: plan.deadly } : {}), ...(plan.halfDamage ? { halfDamage: true } : {}), ...(plan.offGuard ? { offGuard: true } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}) }];
             return true;
         // A monster's Retributive Strike (the glossary's): a champion's, the ally's resistance 2 + the monster's level.
         case "retributive-strike":
@@ -117,7 +117,7 @@ export function addBuiltin(spec, plan, name) {
         case "reaction-strike":
             spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: !!plan.disrupts, ...(plan.hinders ? { hinders: plan.hinders } : {}), ...(plan.second ? { second: true } : {}),
                 // (B89: the damage types that set it off, a random creature in reach, the trolls' extra flat check against persistent fire.)
-                ...(plan.damageTypes?.length ? { damageTypes: [...plan.damageTypes] } : {}), ...(plan.random ? { random: true } : {}), ...(plan.persistentFire ? { persistentFire: true } : {}) }];
+                ...(plan.damageTypes?.length ? { damageTypes: [...plan.damageTypes] } : {}), ...(plan.random ? { random: true } : {}), ...(plan.persistentFire ? { persistentFire: true } : {}), ...(plan.fortune ? { fortune: true } : {}) }];
             return true;
         // Mythic abilities (B72; the user's choice: three Mythic Points a fight): Remove a Condition, Recharge, Undying Myth.
         case "mythic":

@@ -790,7 +790,8 @@ function act(state, c, action) {
             if (c.charges[action.ability].oncePerTurn) c.usedThisTurn?.add(c.charges[action.ability].name);
             if (c.charges[action.ability].flourish) c.usedThisTurn?.add("flourish");
             if (c.charges[action.ability].oncePerFight) (c.chargesUsed ??= new Set()).add(c.charges[action.ability].name);
-            stride(state, c, { kind: "engage", targetId: action.targetId });
+            // (B90: a charge whose move triggers no reactions.)
+            stride(state, c, { kind: "engage", targetId: action.targetId, ...(c.charges[action.ability].safe ? { safe: true } : {}) });
             if (canAct(c) && target && isActive(target) && sameMelee(c, target)) performStrike(state, c, target, chargeStrike(c.strikes[action.strikeIndex], c.charges[action.ability]));
             break;
         }
