@@ -2380,3 +2380,19 @@ test("A condition that grows with each later failure, to its maximum (2026-10-11
     castSpell(state, l, 0, [f.id]);
     assert.equal(f.cond.stupefied, 3, "to its maximum");
 });
+
+test("A worse condition for a creature that already has the first: slowed, then petrified (2026-10-11, B103)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const slowed = { kind: "condition", slug: "slowed", value: 1, duration: null, escalate: { if: "slowed", slug: "petrified", value: null, duration: null } };
+    const gaze = { modelVersion: 13, source: { name: "Test Gaze" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [slowed] }, criticalFailure: { damage: { ...none }, effects: [slowed] } } } };
+    const [fighter] = martialParty(5);
+    const basilisk = { ...moderateCreature(5, "bas", "Basilisk"), engagement: 1, spells: [entry("Test Gaze", gaze)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, basilisk] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get(fighter.id);
+    castSpell(state, state.byId.get("bas"), 0, [f.id]);
+    assert.ok(f.cond.slowed === 1 && !f.cond.paralyzed, state.log.join("\n"));
+    castSpell(state, state.byId.get("bas"), 0, [f.id]);
+    assert.ok(f.cond.paralyzed && state.log.includes(`  ${f.name} is petrified`), state.log.join("\n"));
+});

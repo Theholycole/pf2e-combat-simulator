@@ -29,6 +29,8 @@ const VALUED = new Set(["frightened", "sickened", "clumsy", "enfeebled", "draine
 const FLAGS = {
     "off-guard": "offGuard", prone: "prone", fleeing: "fleeing", quickened: "quickened", fatigued: "fatigued",
     paralyzed: "paralyzed", unconscious: "asleep", blinded: "blinded", dazzled: "dazzled",
+    // (B103: petrified plays as paralyzed — out of action, for good when it has no duration.)
+    petrified: "paralyzed",
     immobilized: "immobilized", restrained: "restrained", grabbed: "grabbed", confused: "confused",
     // On itself (B53): concealed and hidden as attackers find them (Invisible plays as hidden).
     concealed: "concealed", hidden: "hidden", invisible: "hidden"
@@ -879,6 +881,9 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 // First Aid's critical failure: dying +1.
                 else if (change.slug === "dying") {
                     if (target.status === DOWN) increaseDying(state, target, change.value ?? 1);
+                } else if (isActive(target) && change.escalate?.slug && (FLAGS[change.escalate.if] ? target.cond[FLAGS[change.escalate.if]] : (target.cond[change.escalate.if] ?? 0) > 0)) {
+                    // (B103: already slowed — "a failed save causes it to be Petrified permanently": the worse condition.)
+                    if (applyCondition(state, target, change.escalate.slug, change.escalate.value, change.escalate.duration, caster)) log(state, `  ${target.name} is ${change.escalate.slug}`);
                 } else if (isActive(target) && applyCondition(state, target, change.slug, stackedValue(target, change), change.duration, caster, change.scope ?? null)) {
                     log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${stackedValue(target, change, true)}` : ""}`);
                     // Retching: a Fortitude save against the DC of what made it sickened.
