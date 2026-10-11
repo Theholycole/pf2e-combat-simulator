@@ -444,7 +444,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // Shrapnel Splash, Reactive Thrash: the monster's reaction to the hit (B44).
     if (isActive(attacker)) reactToHit(state, target, attacker, strike, degree, dealtTypes);
     // Pin Prey, Storm Smite: the attacker's reaction to its own hit (B47).
-    if (isActive(attacker)) reactToOwnHit(state, attacker, target, strike, degree);
+    if (isActive(attacker)) reactToOwnHit(state, attacker, target, strike, degree, { offGuard });
     // Poison Weapon (B72): a weapon Strike that hits and deals damage delivers the poison on it.
     if (!reaction && attacker.weaponPoisoned && strike.held && dealt > 0 && isActive(target) && attacker.poisonWeapon) {
         attacker.weaponPoisoned = false;

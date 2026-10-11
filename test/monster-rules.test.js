@@ -2201,3 +2201,60 @@ test("A reaction Strike that disrupts a move only on a critical hit (2026-10-11,
     disrupted = provokeFor(state, state.byId.get(fighter.id), "move");
     assert.equal(disrupted, true, state.log.join("\n"));
 });
+
+test("Its own hit on a creature with a condition, on its turn, with a kind of weapon, and extra damage (2026-10-11, B97)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const fortSave = (name, trigger) => ({
+        modelVersion: 13, source: { name }, rank: 1, traits: [], activation: { time: "reaction", traits: [] }, targeting: { target: "the creature the Strike hits", range: "touch", area: null }, trigger: { event: "own-strike", reaction: true, on: ["success", "criticalSuccess"], strike: null, ...trigger },
+        resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [{ kind: "condition", slug: "paralyzed", value: null, duration: { mode: "fixed", value: 1, unit: "rounds" } }] }, criticalFailure: { damage: { ...none }, effects: [{ kind: "condition", slug: "paralyzed", value: null, duration: { mode: "fixed", value: 1, unit: "rounds" } }] } } }
+    });
+    const [fighter] = martialParty(5);
+    const setup = (plan) => {
+        const monster = { ...moderateCreature(5, "mon", "Golem"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry(plan.source.name, plan)] };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, monster] }, {}, 4);
+        state.log = [];
+        return { state, f: state.byId.get("fighter"), m: state.byId.get("mon") };
+    };
+    // "Hits a Slowed creature": only a slowed one.
+    const paralysis = fortSave("Impose Paralysis", { condition: "slowed" });
+    let { state, f, m } = setup(paralysis);
+    performStrike(state, m, f, { ...m.strikes[0], melee: true, bonus: 200 });
+    assert.ok(!f.cond.paralyzed && !m.reactionUsed, state.log.join("\n"));
+    ({ state, f, m } = setup(paralysis));
+    f.cond.slowed = 1;
+    performStrike(state, m, f, { ...m.strikes[0], melee: true, bonus: 200 });
+    assert.ok(f.cond.paralyzed && m.reactionUsed, state.log.join("\n"));
+    // "Hits an off-guard creature": off-guard as the attack found it (prone here).
+    const debilitate = fortSave("Master Strike", { condition: "off-guard" });
+    ({ state, f, m } = setup(debilitate));
+    performStrike(state, m, f, { ...m.strikes[0], melee: true, bonus: 200 });
+    assert.ok(!f.cond.paralyzed, "not when it isn't off-guard");
+    ({ state, f, m } = setup(debilitate));
+    f.cond.prone = true;
+    performStrike(state, m, f, { ...m.strikes[0], melee: true, bonus: 200 });
+    assert.ok(f.cond.paralyzed, state.log.join("\n"));
+    // "… on its turn": not as a reaction Strike on another's turn.
+    const pyrebite = fortSave("Pyrebite", { ownTurn: true });
+    ({ state, f, m } = setup(pyrebite));
+    state.acting = f.id;
+    performStrike(state, m, f, { ...m.strikes[0], melee: true, bonus: 200 });
+    assert.ok(!f.cond.paralyzed, "not on another's turn");
+    ({ state, f, m } = setup(pyrebite));
+    state.acting = m.id;
+    performStrike(state, m, f, { ...m.strikes[0], melee: true, bonus: 200 });
+    assert.ok(f.cond.paralyzed, state.log.join("\n"));
+    // "With a melee Strike": any melee Strike, not a ranged one.
+    const melee = fortSave("Intimidating Strike", { weapon: "melee" });
+    ({ state, f, m } = setup(melee));
+    performStrike(state, m, f, { ...m.strikes[0], name: "Shortbow", melee: false, bonus: 200 });
+    assert.ok(!f.cond.paralyzed, "not a ranged Strike");
+    ({ state, f, m } = setup(melee));
+    performStrike(state, m, f, { ...m.strikes[0], name: "Glaive", melee: true, bonus: 200 });
+    assert.ok(f.cond.paralyzed, state.log.join("\n"));
+    // Extra damage on the creature it hit, no roll ("dealing an additional 1d8 sonic damage to the creature struck").
+    const reverb = { ...fortSave("Reverb", { strike: "antler" }), resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "8[sonic]", type: null, category: null }] }, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } };
+    ({ state, f, m } = setup(reverb));
+    performStrike(state, m, f, { ...m.strikes[0], name: "Antler", melee: true, bonus: 200 });
+    assert.match(state.log.join("\n"), /Golem reacts with Reverb/, state.log.join("\n"));
+    assert.match(state.log.join("\n"), /8 sonic|sonic.*8/, state.log.join("\n"));
+});

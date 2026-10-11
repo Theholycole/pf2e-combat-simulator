@@ -12,7 +12,7 @@
 
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
-import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
+import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effects.js";
 import { applyDamage, expectedHitDamage, increaseDying, killCreature, log, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
 import { canReact, levelDC, saveBonusAgainst, sizeRank } from "./abilities.js";
@@ -1356,13 +1356,16 @@ export function provokedReaction(state, c, mover, kind) {
 // More triggers (B47): its own Strike that hits or critically hits (Pin Prey, Storm Smite, Go For the Eyes); a Strike at it,
 // before the roll (Hypnotic Tattoos, Venom Spit); a creature starting its turn near it (Petrifying Glance); the fight starting
 // (Chilling Cry's "rolls initiative").
-export function reactToOwnHit(state, attacker, target, strike, degree) {
+// (B97: a target with a condition, "hits a Slowed creature", off-guard as the attack found it — flanked too; "on its turn".)
+export function reactToOwnHit(state, attacker, target, strike, degree, { offGuard = null } = {}) {
     const name = String(strike.name ?? "").toLowerCase();
     // (A passive's kind of weapon, B48: "with a firearm", "with an unarmed attack", "a brawling weapon", "its melee Strikes".)
     const weapon = (kind) => !kind || (kind === "firearm" ? Boolean(strike.firearm) || /\b(?:pistol|musket|rifle|arquebus|blunderbuss|pepperbox|firearm|gun)\b/.test(name)
         : kind === "unarmed" ? Boolean(strike.unarmed) : kind === "brawling" ? Boolean(strike.unarmed) || /\b(?:fist|gauntlet|knuckles?|cestus)\b/.test(name) : kind === "melee" ? Boolean(strike.melee) : true);
     const sets = (trigger) => trigger.event === "own-strike" && (trigger.on ?? []).includes(DEGREE_NAMES[degree]) && weapon(trigger.weapon)
-        && (!trigger.strike || name.includes(trigger.strike) || trigger.strike.includes(name)) && (!trigger.maxSize || sizeRank(target.size) <= sizeRank(trigger.maxSize));
+        && (!trigger.strike || name.includes(trigger.strike) || trigger.strike.includes(name)) && (!trigger.maxSize || sizeRank(target.size) <= sizeRank(trigger.maxSize))
+        && (!trigger.condition || (trigger.condition === "off-guard" ? offGuard ?? isOffGuard(target) : Boolean(target.cond[FLAGS[trigger.condition] ?? trigger.condition])))
+        && (!trigger.ownTurn || state.acting === attacker.id);
     // Firearms Critical Specialization, Painful Strikes: its passives (B48).
     if (isActive(target)) passiveAnswers(state, attacker, target, sets);
     useReaction(state, attacker, target, sets);
