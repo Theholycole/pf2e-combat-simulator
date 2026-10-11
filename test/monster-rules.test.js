@@ -1271,3 +1271,22 @@ test("Blood Drain: damage on the creature it holds, temporary Hit Points equal t
     // Back to full (10 of the 50), the other 40 as temporary Hit Points, more than the drain's.
     assert.deepEqual([leech.hp.value, leech.hp.temp], [leech.hp.max, 40]);
 });
+
+test("a rage on itself: its effect's damage, AC and temporary Hit Points; a frenzy only once hurt (2026-10-10, B64)", () => {
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "brute", "Brute");
+    const brute = withBuiltins({ ...base, engagement: 1, strikes: [{ ...base.strikes[0], name: "Club", melee: true }] },
+        ["Rage", { builtin: "self-effect", actions: 1, model: { name: "Rage", rounds: 10, modifiers: [{ on: "damage", type: "untyped", value: 2 }, { on: "ac", type: "untyped", value: -1 }], tempHp: 6 }, extraDice: "1d4[electricity]", noConcentrate: true }],
+        ["Fanatical Frenzy", { builtin: "self-effect", actions: 1, model: { name: "Fanatical Frenzy", rounds: 10, modifiers: [{ on: "attack", type: "status", value: 1 }], tempHp: 0 }, whenHurt: true }]);
+    assert.deepEqual(brute.selfEffects[0].model.strikeDeltas, { Club: [{ dice: 1, die: 4, bonus: 0, multiplier: 1, type: "electricity", precision: false, persistent: false }] });
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, brute] }, {}, 1);
+    const c = state.byId.get("brute");
+    c.actionsLeft = 3;
+    const options = scoreOptions(state, c).options.filter((option) => option.action.type === "selfEffect");
+    assert.deepEqual(options.map((option) => option.action.index), [0], "the frenzy waits until it's hurt");
+    performAction(state, c, { type: "selfEffect", index: 0, actions: 1 });
+    assert.equal(c.hp.temp, 6);
+    assert.ok((c.effects ?? []).some((effect) => effect.key === "self:Rage"));
+    c.hp.value -= 5;
+    assert.ok(scoreOptions(state, c).options.some((option) => option.action.type === "selfEffect" && option.action.index === 1));
+});

@@ -718,7 +718,7 @@ function expand(ctx, node, actionsLeft) {
         // more the closer it is to dropping, and most when it's down. Allies
         // caught by damage, and foes healed, count against the cast.
         // Raging: no actions with the concentrate trait unless they have the rage trait.
-        const raging = (c.activeBuffs ?? []).some((buff) => buff.noConcentrate);
+        const raging = (c.activeBuffs ?? []).some((buff) => buff.noConcentrate) || (c.effects ?? []).some((effect) => effect.model?.noConcentrate);
         for (const [index, spell] of (c.spells ?? []).entries()) {
             if (!canCast(c, spell) || node.casts.includes(index)) continue;
             if (raging && (spell.plan?.traits ?? []).includes("concentrate") && !(spell.plan?.traits ?? []).includes("rage")) continue;
@@ -1066,6 +1066,8 @@ function expand(ctx, node, actionsLeft) {
         // effect's benefit, as a spell's on itself, and a better Strike it brings.
         for (const [index, entry] of (c.selfEffects ?? []).entries()) {
             if (entry.actions > remaining || (c.effects ?? []).some((effect) => effect.key === `self:${entry.name}`) || node.casts.includes(`self${index}`)) continue;
+            // Fanatical Frenzy: once it's hurt (B64).
+            if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
             let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1);
             // Its measured change to the Strikes (Arcane Cascade's force damage): about three rounds of it.
             const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);
