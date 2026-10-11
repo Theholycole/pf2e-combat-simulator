@@ -15,7 +15,7 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, mapGap, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { chargeStrike, ducksFromCoverFire, followsStrike, multiStrikeOrder, strikeNamed, sweepActionIndex } from "./abilities.js";
+import { chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, multiStrikeOrder, strikeNamed, sweepActionIndex } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
@@ -864,6 +864,8 @@ function expand(ctx, node, actionsLeft) {
             if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ch${abilityIndex}`))) continue;
             // (Aquatic Ambush, B70: once a fight, from hiding.)
             if (ability.oncePerFight && c.chargesUsed?.has(ability.name)) continue;
+            // (B98: its recharge.)
+            if ((c.chargeUntil?.get(ability.name) ?? -Infinity) > state.round) continue;
             if (ability.flourish && flourishUsed(c, node)) continue;
             const named = strikeNamed(c, ability.strike);
             const candidates = named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
@@ -875,7 +877,7 @@ function expand(ctx, node, actionsLeft) {
                 for (const index of candidates) {
                     if (!strikeUsable(c, c.strikes[index])) continue;
                     // A charge's own Strike (its bonus or bigger damage) has a cache slot of its own.
-                    const charged = chargeStrike(c.strikes[index], ability);
+                    const charged = chargeStrike(c.strikes[index], chargeOn(c, ability, target.id));
                     const expectation = ctx.strikeExpectation(charged, charged === c.strikes[index] ? index : 1000 + abilityIndex * 64 + index, target, node.attacks, pos, node.prone);
                     if (expectation && (!best || expectation.damage > best.damage)) best = { index, damage: expectation.damage };
                 }

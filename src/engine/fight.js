@@ -5,7 +5,7 @@ import { FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers } from "./actions.js";
-import { canReact, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating, sweepActionIndex } from "./abilities.js";
+import { canReact, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating, sweepActionIndex } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -790,9 +790,17 @@ function act(state, c, action) {
             if (c.charges[action.ability].oncePerTurn) c.usedThisTurn?.add(c.charges[action.ability].name);
             if (c.charges[action.ability].flourish) c.usedThisTurn?.add("flourish");
             if (c.charges[action.ability].oncePerFight) (c.chargesUsed ??= new Set()).add(c.charges[action.ability].name);
+            // (B98: "can't use Leap Attack for 1 round"; off-guard only to a creature that hasn't seen it before.)
+            const used = chargeOn(c, c.charges[action.ability], action.targetId);
+            if (used.recharge) (c.chargeUntil ??= new Map()).set(used.name, state.round + rollCount(state, used.recharge));
+            if (used.offGuard !== c.charges[action.ability].offGuard) {
+                c.chargeSeen ??= new Map();
+                if (!c.chargeSeen.has(used.name)) c.chargeSeen.set(used.name, new Set());
+                c.chargeSeen.get(used.name).add(action.targetId);
+            }
             // (B90: a charge whose move triggers no reactions.)
-            stride(state, c, { kind: "engage", targetId: action.targetId, ...(c.charges[action.ability].safe ? { safe: true } : {}) });
-            if (canAct(c) && target && isActive(target) && sameMelee(c, target)) performStrike(state, c, target, chargeStrike(c.strikes[action.strikeIndex], c.charges[action.ability]));
+            stride(state, c, { kind: "engage", targetId: action.targetId, ...(used.safe ? { safe: true } : {}) });
+            if (canAct(c) && target && isActive(target) && sameMelee(c, target)) performStrike(state, c, target, chargeStrike(c.strikes[action.strikeIndex], used));
             break;
         }
         default:

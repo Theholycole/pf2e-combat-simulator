@@ -7,7 +7,7 @@ import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, stride } from "../src/engine/actions.js";
 import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
-import { addBuiltin, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
+import { addBuiltin, chargeOn, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
 import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, expireTimers, grabTurnAnswers, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
 import { engage } from "../src/engine/space.js";
 
@@ -2257,4 +2257,28 @@ test("Its own hit on a creature with a condition, on its turn, with a kind of we
     performStrike(state, m, f, { ...m.strikes[0], name: "Antler", melee: true, bonus: 200 });
     assert.match(state.log.join("\n"), /Golem reacts with Reverb/, state.log.join("\n"));
     assert.match(state.log.join("\n"), /8 sonic|sonic.*8/, state.log.join("\n"));
+});
+
+test("Charges: off-guard only to a creature that hasn't seen it, a recharge, a bonus to damage (2026-10-11, B98)", () => {
+    const [fighter, archer] = martialParty(5);
+    const porcupine = { ...moderateCreature(5, "porc", "Porcupine") };
+    addBuiltin(porcupine, { builtin: "charge", actions: 2, strides: 2, strike: null, offGuard: "first" }, "Test Rush");
+    addBuiltin(porcupine, { builtin: "charge", actions: 2, strides: 2, strike: null, recharge: "2" }, "Test Leap");
+    addBuiltin(porcupine, { builtin: "charge", actions: 2, strides: 2, strike: null, damageBonus: 4 }, "Test Lance");
+    assert.deepEqual(porcupine.charges.map((charge) => [charge.offGuard, charge.recharge, charge.damageBonus]), [["first", undefined, undefined], [undefined, "2", undefined], [undefined, undefined, 4]]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 0 }, { ...archer, engagement: 0 }, { ...porcupine, engagement: 0 }] }, {}, 1);
+    state.log = [];
+    const p = state.byId.get("porc");
+    const strike = p.strikes.find((entry) => entry.melee);
+    // Off-guard (+2) to a creature that hasn't seen it; not again to that one, still to another.
+    assert.equal(chargeStrike(strike, chargeOn(p, p.charges[0], fighter.id)).bonus, strike.bonus + 2);
+    performAction(state, p, { type: "charge", ability: 0, targetId: fighter.id, strikeIndex: p.strikes.indexOf(strike), actions: 2 });
+    assert.ok(state.log.includes("  Porcupine uses Test Rush"), state.log.join("\n"));
+    assert.equal(chargeStrike(strike, chargeOn(p, p.charges[0], fighter.id)).bonus, strike.bonus);
+    assert.equal(chargeStrike(strike, chargeOn(p, p.charges[0], archer.id)).bonus, strike.bonus + 2);
+    // Its recharge: not again until that many rounds have passed.
+    performAction(state, p, { type: "charge", ability: 1, targetId: archer.id, strikeIndex: p.strikes.indexOf(strike), actions: 2 });
+    assert.equal(p.chargeUntil.get("Test Leap"), state.round + 2);
+    // +4 to its damage.
+    assert.equal(chargeStrike(strike, p.charges[2]).damage[0].bonus, (strike.damage[0].bonus ?? 0) + 4);
 });
