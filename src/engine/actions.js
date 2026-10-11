@@ -300,6 +300,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (!reaction) {
         attacker.turnAttacks ??= [];
         attacker.turnAttacks.push({ strike: strike.name, targetId: target.id, hit: degree >= SUCCESS });
+        // Its last Strike, hit or miss, for a follow-up's ("last action was a greatclub Strike that missed", B68).
+        attacker.lastStrike = { strike: strike.name, melee: !!strike.melee, targetId: target.id, degree, action: attacker.actionCount ?? 0, round: state.round };
     }
     const label = ["critically misses", "misses", "hits", "critically hits"][degree];
     if (degree < SUCCESS) {

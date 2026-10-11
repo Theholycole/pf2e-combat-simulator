@@ -293,6 +293,7 @@ function startTurn(state, c) {
     // Actions this turn, and its last hit (Strike, Breathe, Rend needs one just before).
     c.actionCount = 0;
     c.lastHit = null;
+    c.lastStrike = null;
     c.noAttacksThisTurn = false;
     c.turnAttacks = [];
     if (c.shield) c.shield.raised = false;
@@ -523,7 +524,9 @@ function act(state, c, action) {
                 disrupted = false;
                 state.log?.push(`  ${c.name} keeps casting (Steady Spellcasting)`);
             }
-            castSpell(state, c, action.spellIndex, action.targetIds, action.actions, disrupted ? { disrupted: true } : {});
+            // (A follow-up by the Strike's degree, "Enfeebled 2 (or Enfeebled 3 on a critical hit)": that Strike's degree, B68.)
+            const byStrike = action.rider && spell?.plan?.resolution?.check?.statistic === "strike" && Number.isFinite(rider?.degree);
+            castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}) });
             break;
         }
         case "interact":
@@ -554,8 +557,10 @@ function act(state, c, action) {
             // "This Strike ignores their multiple attack penalty and doesn't count toward that penalty."
             const attacksBefore = c.attacksThisTurn;
             if (activity.noMap) c.attacksThisTurn = 0;
+            // "using the previous Strike's multiple attack penalty" (B68): that Strike's penalty, and no more after it.
+            if (activity.previousMap) c.attacksThisTurn = Math.max(0, attacksBefore - 1);
             const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...activity, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : activity));
-            if (activity.noMap) c.attacksThisTurn = attacksBefore;
+            if (activity.noMap || activity.previousMap) c.attacksThisTurn = attacksBefore;
             if (fired?.reload) (c.unloaded ??= new Set()).add(fired.name);
             // A finisher spends panache, and no more attacks this turn; Confident Finisher's miss still deals half its dice.
             if (activity.finisher) {

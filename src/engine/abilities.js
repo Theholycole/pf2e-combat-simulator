@@ -129,6 +129,9 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.noMap ? { noMap: true } : {}),
                 ...(plan.oncePerTurn ? { oncePerTurn: true } : {}),
                 ...(plan.extraWeaponDice ? { extraWeaponDice: plan.extraWeaponDice } : {}),
+                // A follow-up's Strike (B68): only straight after a Strike that fits; previousMap, at that Strike's penalty.
+                ...(plan.after ? { after: { ...plan.after } } : {}),
+                ...(plan.previousMap ? { previousMap: true } : {}),
                 onHit: plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];
@@ -136,6 +139,19 @@ export function addBuiltin(spec, plan, name) {
         default:
             return false;
     }
+}
+
+// Whether the creature's last action was a Strike a follow-up needs (B68): after { strike, melee, on } against its last Strike
+// this turn (its name, melee or not, its degree), as its action just before.
+const DEGREES = ["criticalFailure", "failure", "success", "criticalSuccess"];
+export function followsStrike(state, c, after) {
+    const last = c.lastStrike;
+    if (!last || last.round !== state.round || last.action !== (c.actionCount ?? 0) - 1) return false;
+    if (!(after.on ?? ["success", "criticalSuccess"]).includes(DEGREES[last.degree])) return false;
+    if (after.melee && !last.melee) return false;
+    if (!after.strike) return true;
+    const name = String(last.strike ?? "").toLowerCase();
+    return name === after.strike || name.startsWith(after.strike) || after.strike.startsWith(name) || name.includes(after.strike);
 }
 
 // The index of the creature's Strike a text names ("claw" for "Claw", "fangs" for "Fangs").

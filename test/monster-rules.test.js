@@ -602,7 +602,7 @@ test("a follow-up to a Strike that hit (Skull Twist): only straight after a hit 
     triggerRiders(state, h, state.byId.get("fighter"), h.strikes[1], 2);
     assert.equal(h.riderReady?.index, undefined, "a jaws hit doesn't ready it");
     triggerRiders(state, h, state.byId.get("fighter"), h.strikes[0], 2);
-    assert.deepEqual(h.riderReady, { index: 0, targetId: "fighter" });
+    assert.deepEqual(h.riderReady, { index: 0, targetId: "fighter", degree: 2 });
     assert.equal(offered(), true, "straight after the claw hit");
 });
 
@@ -1341,4 +1341,58 @@ test("a skill action after a Strike activity's hit: its own basic action (2026-1
     const pc = state.byId.get("fighter");
     applyStrikeRider(state, c, pc, { onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null, follow: "demoralize" } }, false, c.strikes[0]);
     assert.ok(pc.cond.frightened >= 1);
+});
+
+test("follow-ups: by the Strike's degree, after a Strike listing a rider, a second Strike only straight after its Strike (2026-10-10, B68)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (value) => ({ damage: { ...none }, effects: value ? [{ kind: "condition", slug: "enfeebled", value, duration: null }] : [] });
+    const plan = { modelVersion: 13, source: { name: "Test Shadow Tug" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "the creature the Strike hits", range: "touch", area: null },
+        trigger: { event: "use", followUp: { strike: "hand", melee: false, on: ["success", "criticalSuccess"] } },
+        resolution: { kind: "check", check: { roll: "skill", statistic: "strike", against: { dc: "target", statistic: "ac" } }, sharedDamage: null, outcomes: { criticalSuccess: row(2), success: row(1), failure: row(0), criticalFailure: row(0) } } };
+    const shade = { ...moderateCreature(5, "shade", "Shade"), engagement: 1, spells: [{ name: "Test Shadow Tug", plan, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" }] };
+    shade.strikes = [{ ...shade.strikes[0], name: "Hand" }];
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, shade] }, {}, 1);
+    const s = state.byId.get("shade");
+    const pc = state.byId.get("fighter");
+    s.round = 1;
+    s.actionsLeft = 2;
+    // A critical hit: the critical hit's row.
+    triggerRiders(state, s, pc, s.strikes[0], 3);
+    assert.equal(s.riderReady.degree, 3);
+    const option = scoreOptions(state, s).options.find((entry) => entry.action.type === "cast");
+    assert.ok(option, "on offer straight after the hit");
+    performAction(state, s, option.action);
+    assert.equal(pc.cond.enfeebled, 2);
+    // "a success with a Strike that lists Push in its damage entry": only after such a Strike.
+    s.spells[0].plan = { ...plan, trigger: { event: "use", followUp: { strike: null, melee: false, on: ["success", "criticalSuccess"], listing: "push" } } };
+    s.riderReady = null;
+    triggerRiders(state, s, pc, { ...s.strikes[0], attackEffects: [] }, 2);
+    assert.equal(s.riderReady, null, "not after a Strike without it");
+    triggerRiders(state, s, pc, { ...s.strikes[0], attackEffects: ["improved-push"] }, 2);
+    assert.equal(s.riderReady?.index, 0);
+});
+
+test("a follow-up's Strike after a miss, at that Strike's penalty (2026-10-10, B68)", () => {
+    const thrall = { ...moderateCreature(5, "thrall", "Thrall"), engagement: 1 };
+    thrall.strikes = [{ ...thrall.strikes[0], name: "Club" }];
+    assert.equal(addBuiltin(thrall, { builtin: "strike-activity", actions: 1, strides: 0, strike: "club", attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, previousMap: true, after: { strike: "club", melee: false, on: ["failure", "criticalFailure"] }, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }, "Swing Back"), true);
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, thrall] }, {}, 1);
+    const t = state.byId.get("thrall");
+    t.round = 1;
+    t.actionsLeft = 2;
+    t.actionCount = 1;
+    t.attacksThisTurn = 1;
+    const offered = () => scoreOptions(state, t).options.find((entry) => entry.action.type === "strikeActivity");
+    assert.equal(offered(), undefined, "not without a Strike just before");
+    t.lastStrike = { strike: "Club", melee: true, targetId: "fighter", degree: 0, action: 1, round: state.round };
+    assert.equal(offered(), undefined, "not when the Strike before wasn't its last action");
+    t.lastStrike = { ...t.lastStrike, action: 0 };
+    const option = offered();
+    assert.ok(option, "straight after the club missed");
+    performAction(state, t, option.action);
+    assert.equal(t.attacksThisTurn, 1, "no more penalty after it");
+    // Every Strike on its turn, hit or miss, is its last Strike.
+    assert.deepEqual([t.lastStrike.strike, t.lastStrike.targetId, t.lastStrike.action], ["Club", "fighter", 1]);
 });

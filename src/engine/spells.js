@@ -1043,7 +1043,10 @@ export function triggerRiders(state, attacker, target, strike, degree = SUCCESS)
         if (follow) {
             const name = String(strike.name ?? "").toLowerCase();
             const named = !follow.strike || name === follow.strike || name.startsWith(follow.strike) || name.includes(follow.strike) || follow.strike.includes(name);
-            if ((follow.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree]) && named && (!follow.melee || strike.melee)) attacker.riderReady = { index, targetId: target.id };
+            // (A Strike that lists it, "a success with a Strike that has Disarm in its damage entry", B68; the Strike's degree, for
+            // results by it, "Enfeebled 2 (or Enfeebled 3 on a critical hit)".)
+            const listing = !follow.listing || (strike.attackEffects ?? []).some((effect) => String(effect).replace(/^improved-/, "") === follow.listing);
+            if ((follow.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree]) && named && listing && (!follow.melee || strike.melee)) attacker.riderReady = { index, targetId: target.id, degree };
             continue;
         }
         // The Strike lists the rider by its own slug ("improved-grab") or its base one ("grab"), or the rider names the Strike
@@ -1366,7 +1369,8 @@ function oddsFor(caster, spell, target, attacks, actions) {
     }
     if (check.roll === "skill" || check.roll === "perception") {
         const map = describeSpell(spell.plan, actions).attack ? (attacks <= 0 ? 0 : attacks === 1 ? 5 : 10) : 0;
-        const roll = Math.max(...[].concat(check.statistic).map((slug) => skillValue(caster, slug))) - statusPenalty(caster, "skill") - map;
+        // (Its own bonus, "a +4 status bonus to the Athletics check", B68.)
+        const roll = Math.max(...[].concat(check.statistic).map((slug) => skillValue(caster, slug))) + (Number(check.bonus?.value) || 0) - statusPenalty(caster, "skill") - map;
         const dc = check.against?.dc === "fixed" ? check.against.value : escapeDCAgainst(caster, target, spell, actions) ?? defenceDC(target, check.against?.statistic ?? "will") - disarmBonus(spell, target);
         return degreeDistribution(roll, dc);
     }

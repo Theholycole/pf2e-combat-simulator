@@ -15,7 +15,7 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, mapGap, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { chargeStrike, ducksFromCoverFire, multiStrikeOrder, strikeNamed } from "./abilities.js";
+import { chargeStrike, ducksFromCoverFire, followsStrike, multiStrikeOrder, strikeNamed } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
@@ -879,6 +879,8 @@ function expand(ctx, node, actionsLeft) {
             if (activity.oncePerTurn && (c.usedThisTurn?.has(activity.name) || node.casts.includes(`sa${activityIndex}`))) continue;
             // A finisher needs panache.
             if (activity.finisher && !c.panache) continue;
+            // A follow-up's Strike (B68): straight after a Strike that allows it.
+            if (activity.after && !(node.used === 0 && followsStrike(state, c, activity.after))) continue;
             if (activity.strides && (!mobile || ctx.wavering)) continue;
             // Cover Fire (C19): a loaded firearm or crossbow, once a round.
             if (activity.coverFire && (c.usedThisTurn?.has("cover-fire") || node.casts.includes("coverFire"))) continue;
@@ -888,13 +890,17 @@ function expand(ctx, node, actionsLeft) {
                 : named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
             for (const target of ctx.enemies) {
                 if (target.status !== "active") continue;
+                // (At the creature it struck, unless it moves first: "Strides up to 10 feet and Strikes".)
+                if (activity.after && !activity.strides && target.id !== c.lastStrike?.targetId) continue;
                 if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
                 if (activity.requires === "prone" && !target.cond.prone) continue;
                 if (activity.requires === "free-hand" && state.list.some((other) => other.grabbedBy === c.id && (other.cond.grabbed || other.cond.restrained))) continue;
                 let pos = node.pos;
                 if (activity.strides) {
-                    if (inMelee(node.pos, target) || stridesToEngage(ctx.mover(node.pos), target) > activity.strides) continue;
-                    pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
+                    // (A follow-up's, "Strides up to 10 feet and Strikes", B68: also at a creature already in reach.)
+                    const here = inMelee(node.pos, target);
+                    if ((here && !activity.after) || (!here && stridesToEngage(ctx.mover(node.pos), target) > activity.strides)) continue;
+                    if (!here) pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
                 }
                 let best = null;
                 // Cover Fire: the target ducks (+2 AC against it) unless its best attack is ranged; then +1 to hit.
@@ -904,7 +910,8 @@ function expand(ctx, node, actionsLeft) {
                     if (!strikeUsable(c, strike) || (strike.melee && !inMelee(pos, target))) continue;
                     const changed = chargeStrike(strike, used);
                     // ("This Strike ignores their multiple attack penalty": as a first attack.)
-                    const expectation = ctx.strikeExpectation(changed, changed === strike ? index : 2000 + activityIndex * 64 + index, target, activity.noMap ? 0 : node.attacks, pos, node.prone);
+                    // ("using the previous Strike's multiple attack penalty": one attack fewer.)
+                    const expectation = ctx.strikeExpectation(changed, changed === strike ? index : 2000 + activityIndex * 64 + index, target, activity.noMap ? 0 : activity.previousMap ? Math.max(0, node.attacks - 1) : node.attacks, pos, node.prone);
                     if (expectation && (!best || expectation.damage > best.expectation.damage)) best = { index, expectation };
                 }
                 if (!best) continue;
@@ -919,7 +926,7 @@ function expand(ctx, node, actionsLeft) {
                 // Exacting Strike: a miss doesn't raise the penalty for what follows (worth a little).
                 const exacting = activity.exacting ? 0.15 * (1 - best.expectation.hitChance) * gain : 0;
                 const next = child(node, { type: "strikeActivity", index: activityIndex, targetId: target.id, strikeIndex: best.index, actions: activity.actions }, activity.actions, ctx.profile.aggression * (gain + exacting), {
-                    attacks: activity.noMap ? 0 : activity.countsAs ?? 1,
+                    attacks: activity.noMap || activity.previousMap ? 0 : activity.countsAs ?? 1,
                     pos,
                     damage: { ...node.damage, [target.id]: before + expected },
                     ...(activity.finisher || activity.coverFire || activity.flourish || activity.oncePerTurn ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : []), ...(activity.oncePerTurn ? [`sa${activityIndex}`] : [])] } : {})
