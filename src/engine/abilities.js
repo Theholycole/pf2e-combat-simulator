@@ -51,7 +51,7 @@ export function addBuiltin(spec, plan, name) {
             spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}) }];
             return true;
         case "charge":
-            spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null }];
+            spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null, ...(plan.fatal ? { fatal: plan.fatal } : {}), ...(plan.deadly ? { deadly: plan.deadly } : {}), ...(plan.halfDamage ? { halfDamage: true } : {}) }];
             return true;
         // A monster's Retributive Strike (the glossary's): a champion's, the ally's resistance 2 + the monster's level.
         case "retributive-strike":
@@ -66,11 +66,17 @@ export function addBuiltin(spec, plan, name) {
         // A rage or frenzy on itself (B64): an effect with its modifiers and temporary Hit Points, extra dice on its melee
         // Strikes; Fanatical Frenzy only once it's hurt.
         case "self-effect": {
-            const dice = plan.extraDice ? /^(?:(\d+)d(\d+)|(\d+))\[(\w+)\]$/.exec(plan.extraDice) : null;
-            const part = dice ? { dice: Number(dice[1] ?? 0), die: Number(dice[2] ?? 0), bonus: Number(dice[3] ?? 0), multiplier: 1, type: dice[4], precision: false, persistent: false } : null;
-            const strikeDeltas = part ? Object.fromEntries((spec.strikes ?? []).filter((strike) => strike.melee).map((strike) => [strike.name, [{ ...part }]])) : null;
-            const model = { name, rounds: plan.model?.rounds ?? 10, modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}) };
-            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model, ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}) }];
+            // Its extra damage on its melee Strikes (a rage's), or (B69) on the Strikes it names ("her fangs Strikes deal an
+            // additional 2d8 sonic damage"), its melee ones, or all of them: "2d8[sonic]", "1d10[persistent,bleed]", "2[acid]",
+            // "2d8[precision]", "die" (one more of the Strike's own dice).
+            // (The Strikes may come after the abilities: the parts are kept, and resolved again as the fight is prepared.)
+            const formulas = plan.damage ?? (plan.extraDice ? [plan.extraDice] : []);
+            const strikeParts = formulas.length ? { formulas: [...formulas], strike: plan.strike ?? null, scope: plan.damage ? (plan.melee ? "melee" : "all") : "melee" } : null;
+            const strikeDeltas = strikeParts && spec.strikes?.length ? deltasFor(spec.strikes, strikeParts) : null;
+            // (A stance lasts until another ends it.)
+            const rounds = plan.stance ? Infinity : plan.model?.rounds ?? 10;
+            const model = { name, rounds, modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}) };
+            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model, ...(plan.stance ? { stance: true } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}) }];
             return true;
         }
         // Golem Antimagic (B56): what others' magic does to it.
@@ -132,6 +138,9 @@ export function addBuiltin(spec, plan, name) {
                 // A follow-up's Strike (B68): only straight after a Strike that fits; previousMap, at that Strike's penalty.
                 ...(plan.after ? { after: { ...plan.after } } : {}),
                 ...(plan.previousMap ? { previousMap: true } : {}),
+                ...(plan.fatal ? { fatal: plan.fatal } : {}),
+                ...(plan.deadly ? { deadly: plan.deadly } : {}),
+                ...(plan.halfDamage ? { halfDamage: true } : {}),
                 onHit: plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];
@@ -152,6 +161,23 @@ export function followsStrike(state, c, after) {
     if (!after.strike) return true;
     const name = String(last.strike ?? "").toLowerCase();
     return name === after.strike || name.startsWith(after.strike) || after.strike.startsWith(name) || name.includes(after.strike);
+}
+
+// A self-effect's extra damage on the creature's Strikes (B69), as strikeDeltas by Strike name: parts { formulas, strike, scope }
+// (scope "melee" or "all" when it names no Strike). Formulas: "2d8[sonic]", "1d10[persistent,bleed]", "2[acid]",
+// "2d8[precision]", "die" (one more of the Strike's own dice).
+export function deltasFor(strikes, parts) {
+    const named = parts.strike ? strikeNamed({ strikes }, parts.strike) : -1;
+    const chosen = strikes.filter((strike, index) => (parts.strike ? index === named : parts.scope === "all" || strike.melee));
+    const partOf = (formula, strike) => {
+        if (formula === "die") return { dice: 1, die: strike.damage?.[0]?.die ?? 6, bonus: 0, multiplier: 1, type: strike.damage?.[0]?.type, precision: false, persistent: false };
+        const match = /^\(?(?:(\d+)d(\d+))?\+?(\d+)?\)?\[([\w,]+)\]$/.exec(String(formula).replace(/\s+/g, ""));
+        if (!match || (!match[1] && !match[3])) return null;
+        const kinds = match[4].split(",");
+        const type = kinds.find((kind) => !["persistent", "precision"].includes(kind));
+        return { dice: Number(match[1] ?? 0), die: Number(match[2] ?? 0), bonus: Number(match[3] ?? 0), multiplier: 1, type: type && type !== "untyped" ? type : strike.damage?.[0]?.type, precision: kinds.includes("precision"), persistent: kinds.includes("persistent") };
+    };
+    return Object.fromEntries(chosen.map((strike) => [strike.name, parts.formulas.map((formula) => partOf(formula, strike)).filter(Boolean)]));
 }
 
 // The index of the creature's Strike a text names ("claw" for "Claw", "fangs" for "Fangs").
@@ -189,7 +215,7 @@ export function ducksFromCoverFire(target) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher) return strike;
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage) return strike;
     const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
     // Vicious Swing: extra dice of the weapon's own damage (PF2e's critical formula would leave them out).
@@ -202,6 +228,10 @@ export function chargeStrike(strike, charge) {
         const type = /\[([a-z]+)\]/.exec(charge.damage)?.[1] ?? strike.damage[0]?.type ?? "untyped";
         changed.damage = [{ dice: Number(dice[1]), die: Number(dice[2]), bonus: (dice[3] === "-" ? -1 : 1) * Number(dice[4] ?? 0), multiplier: 1, type, persistent: false, precision: false }, ...strike.damage.slice(1)];
     }
+    // (B69: "This Strike gains the fatal d12 trait", "the deadly d4 trait for this attack"; "The Strike deals half damage".)
+    if (charge.fatal) changed.fatal = charge.fatal;
+    if (charge.deadly) changed.deadly = { dice: 1, die: charge.deadly };
+    if (charge.halfDamage) changed.damage = (changed.damage ?? strike.damage).map((part) => ({ ...part, multiplier: (part.multiplier ?? 1) * 0.5 }));
     return changed;
 }
 

@@ -776,7 +776,8 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
 
 // "2d8[strike]": the Strike's own damage type.
 function ownType(formula, strike) {
-    return String(formula).replace(/\[strike\]/g, `[${strike?.damage?.[0]?.type ?? "untyped"}]`);
+    // (Precision damage too, "4d6[precision]", B69: the Strike's type.)
+    return String(formula).replace(/\[strike\]/g, `[${strike?.damage?.[0]?.type ?? "untyped"}]`).replace(/\[precision\]/g, `[precision,${strike?.damage?.[0]?.type ?? "untyped"}]`);
 }
 
 // What an activity's hit adds, on average: { damage, worth }.

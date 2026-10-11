@@ -5,7 +5,7 @@ import { flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
-import { chargeStrike, ducksFromCoverFire, multiStrikeOrder, regenerating } from "./abilities.js";
+import { chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating } from "./abilities.js";
 import { adjustInstance, rollPersistent } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -46,6 +46,8 @@ export function prepareSnapshot(snapshot) {
             c.morale = { ...auto, ...(c.morale ?? {}) };
         }
         c.reactions = { aoo: false, shieldBlock: false, ...(c.reactions ?? {}) };
+        // A self-effect's extra damage, on the Strikes it names (B69).
+        if (c.selfEffects?.some((entry) => entry.model?.strikeParts)) c.selfEffects = c.selfEffects.map((entry) => (entry.model?.strikeParts ? { ...entry, model: { ...entry.model, strikeDeltas: deltasFor(c.strikes ?? [], entry.model.strikeParts) } } : entry));
     }
     return { ...snapshot, partyLevel, combatants };
 }

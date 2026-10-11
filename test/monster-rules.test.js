@@ -7,7 +7,7 @@ import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, stride } from "../src/engine/actions.js";
 import { isActive, isOffGuard } from "../src/engine/combatant.js";
-import { addBuiltin, chargeStrike, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
+import { addBuiltin, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
 import { applyAuras, applyCondition, applyStrikeRider, castSpell, deathThroes, expireTimers, grabTurnAnswers, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
@@ -1395,4 +1395,32 @@ test("a follow-up's Strike after a miss, at that Strike's penalty (2026-10-10, B
     assert.equal(t.attacksThisTurn, 1, "no more penalty after it");
     // Every Strike on its turn, hit or miss, is its last Strike.
     assert.deepEqual([t.lastStrike.strike, t.lastStrike.targetId, t.lastStrike.action], ["Club", "fighter", 1]);
+});
+
+test("more damage on its own Strikes: on the Strike it names, for its time; fatal and half damage on a charge (2026-10-10, B69)", () => {
+    const strikes = [{ name: "Fangs", melee: true, bonus: 10, damage: [{ dice: 1, die: 8, bonus: 4, type: "piercing" }] }, { name: "Claw", melee: true, bonus: 10, damage: [{ dice: 1, die: 6, bonus: 4, type: "slashing" }] }, { name: "Spit", melee: false, bonus: 10, damage: [{ dice: 1, die: 4, bonus: 0, type: "acid" }] }];
+    assert.deepEqual(Object.keys(deltasFor(strikes, { formulas: ["2d8[sonic]"], strike: "fangs", scope: "all" })), ["Fangs"]);
+    assert.deepEqual(Object.keys(deltasFor(strikes, { formulas: ["1d6[fire]"], strike: null, scope: "melee" })), ["Fangs", "Claw"]);
+    assert.deepEqual(deltasFor(strikes, { formulas: ["1d10[persistent,bleed]", "2[acid]", "2d8[precision]", "die"], strike: "claw", scope: "all" }).Claw, [
+        { dice: 1, die: 10, bonus: 0, multiplier: 1, type: "bleed", precision: false, persistent: true },
+        { dice: 0, die: 0, bonus: 2, multiplier: 1, type: "acid", precision: false, persistent: false },
+        { dice: 2, die: 8, bonus: 0, multiplier: 1, type: "slashing", precision: true, persistent: false },
+        { dice: 1, die: 6, bonus: 0, multiplier: 1, type: "slashing", precision: false, persistent: false }
+    ]);
+    // Added before the Strikes are known (as the snapshot does): resolved as the fight is prepared; a stance has no end.
+    const bat = { ...moderateCreature(5, "bat", "Bat"), engagement: 1 };
+    const builtins = {};
+    assert.equal(addBuiltin(builtins, { builtin: "self-effect", actions: 1, model: { name: "Test Hum", rounds: 1, modifiers: [], tempHp: 0 }, damage: ["2d8[sonic]"], strike: "fangs", melee: false }, "Test Hum"), true);
+    assert.equal(addBuiltin(builtins, { builtin: "self-effect", actions: 1, model: { name: "Test Stance", rounds: null, modifiers: [], tempHp: 0 }, damage: ["1d6[fire]"], strike: null, melee: true, stance: true }, "Test Stance"), true);
+    bat.strikes = strikes;
+    bat.selfEffects = builtins.selfEffects;
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, bat] }, {}, 1);
+    const b = state.byId.get("bat");
+    assert.deepEqual([Object.keys(b.selfEffects[0].model.strikeDeltas), b.selfEffects[1].model.rounds, Object.keys(b.selfEffects[1].model.strikeDeltas)], [["Fangs"], Infinity, ["Fangs", "Claw"]]);
+    assert.equal(bat.selfEffects[0].model.strikeDeltas, undefined, "the snapshot's own entry left as it was");
+    // A charge's fatal trait and half damage.
+    const horn = chargeStrike(strikes[0], { name: "Test Charge", fatal: 12, halfDamage: true });
+    assert.deepEqual([horn.fatal, horn.damage[0].multiplier], [12, 0.5]);
+    assert.deepEqual(chargeStrike(strikes[0], { name: "Test Aim", deadly: 4 }).deadly, { dice: 1, die: 4 });
 });

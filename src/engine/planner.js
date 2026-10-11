@@ -1085,7 +1085,9 @@ function expand(ctx, node, actionsLeft) {
                 const extra = parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
                 perRound = Math.max(perRound, extra * 1.3 + 0.05 * (entry.model.attackDeltas?.[strike.name] ?? 0) * 10);
             }
-            benefit += 3 * perRound / threatHere;
+            // (For as long as it lasts, up to three rounds: "until the start of its next turn", this turn's Strikes, B69.)
+            const span = Number.isFinite(entry.model.rounds) ? Math.max(0.5, Math.min(3, entry.model.rounds)) : 3;
+            benefit += span * perRound / threatHere;
             if (entry.strikes?.length && ctx.enemies.length) {
                 const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
                 const expected = (strike) => {
