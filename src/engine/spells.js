@@ -506,6 +506,63 @@ export function hasTimer(c, key) {
     return (c.timers ?? []).some((timer) => timer.key === key);
 }
 
+// --- Golem Antimagic (B56) ---------------------------------------------------
+
+// A golem is immune to others' magic (spells, and abilities of a tradition or with the magical trait), but magic of the kinds
+// it lists (damage types, traits or a spell's name) harms it (untyped damage instead of the usual effect), heals it (it loses
+// slowed and regains half the damage the magic would deal) or slows it (slowed 1 for 2d6 rounds). An area: its parenthetical
+// amounts, slowed 1 for a round (as a golem starting its turn in such an area). null: not a golem, not magic, or its own.
+const MAGIC_TRAITS = ["arcane", "divine", "occult", "primal", "magical"];
+function golemAnswer(caster, spell, target, area) {
+    const golem = target?.golemAntimagic;
+    if (!golem || target === caster) return null;
+    const traits = (spell.plan?.traits ?? []).map((trait) => String(trait).toLowerCase());
+    const magic = !["ability", "basic"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "") || traits.some((trait) => MAGIC_TRAITS.includes(trait));
+    if (!magic) return null;
+    const formulas = planFormulas(spell.plan);
+    const kinds = new Set([...traits, ...formulas.flatMap((formula) => parseDamage(formula).map((instance) => instance.type)), String(spell.plan?.source?.name ?? spell.name ?? "").toLowerCase()]);
+    const listed = (entry) => (entry?.by ?? []).some((kind) => kinds.has(kind));
+    if (listed(golem.harmed)) {
+        const formula = area ? golem.harmed.area ?? golem.harmed.damage : golem.harmed.damage ?? golem.harmed.area;
+        return formula ? { kind: "harmed", formula } : { kind: "immune" };
+    }
+    if (listed(golem.healed)) return { kind: "healed", formulas: area && golem.healed.area ? [golem.healed.area] : formulas, half: !(area && golem.healed.area) };
+    if (listed(golem.slowed)) return { kind: "slowed", rounds: area ? 1 : null };
+    return { kind: "immune" };
+}
+
+// The damage formulas of a plan: its shared damage, else its rows'.
+function planFormulas(plan) {
+    const shared = (plan?.resolution?.sharedDamage?.components ?? []).map((component) => component.formula);
+    const rows = Object.values(plan?.resolution?.outcomes ?? {}).flatMap((outcome) => (outcome?.damage?.formulas ?? []).map((entry) => entry.formula));
+    return [...new Set((shared.length ? shared : rows).filter(Boolean))];
+}
+
+function answerGolem(state, caster, spell, golem, answer) {
+    if (answer.kind === "harmed") {
+        const dealt = applyDamage(state, golem, rollInstances(state, parseDamage(`(${answer.formula})[untyped]`)), { source: caster });
+        log(state, `  ${golem.name} is harmed by ${spell.name}: ${dealt} damage (Golem Antimagic)`);
+    } else if (answer.kind === "healed") {
+        golem.cond.slowed = 0;
+        const rolled = answer.formulas.reduce((sum, formula) => sum + rollInstances(state, parseDamage(formula)).reduce((total, instance) => total + instance.amount, 0), 0);
+        const healed = applyHeal(state, golem, answer.half ? Math.floor(rolled / 2) : rolled);
+        log(state, `  ${golem.name} is healed by ${spell.name}: ${healed} HP (Golem Antimagic)`);
+    } else if (answer.kind === "slowed") {
+        const rounds = answer.rounds ?? state.rng.die(6) + state.rng.die(6);
+        applyCondition(state, golem, "slowed", 1, { mode: "fixed", value: rounds, unit: "rounds", expiry: "turn-end", anchor: "effect-start" }, caster);
+        log(state, `  ${golem.name} is slowed 1 by ${spell.name} for ${rounds} round(s) (Golem Antimagic)`);
+    } else log(state, `  ${golem.name} is immune to ${spell.name} (Golem Antimagic)`);
+}
+
+// What the answer is worth to the caster, on average: { damage, worth }.
+function golemValue(golem, answer) {
+    const average = (formulas, type = null) => formulas.flatMap((formula) => parseDamage(type ? `(${formula})[${type}]` : formula)).reduce((sum, instance) => sum + adjustInstance(golem, instance.type, averageOf(instance)), 0);
+    if (answer.kind === "harmed") return { damage: average([answer.formula], "untyped"), worth: 0 };
+    if (answer.kind === "healed") return { damage: -(answer.half ? 0.5 : 1) * average(answer.formulas), worth: golem.cond.slowed ? -conditionWorth("slowed", golem.cond.slowed, null) : 0 };
+    if (answer.kind === "slowed") return { damage: 0, worth: conditionWorth("slowed", 1, { mode: "fixed", value: answer.rounds ?? 7, unit: "rounds" }) };
+    return { damage: 0, worth: 0 };
+}
+
 export function applyHeal(state, target, amount) {
     if (amount <= 0 || target.status === "dead" || target.status === "fled" || target.status === "surrendered") return 0;
     if (target.status === DOWN) {
@@ -864,6 +921,13 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     };
     if (info.immunity && !info.immunityDegrees) markImmune(targets);
     if (!targets.length) return;
+    // Golem Antimagic (B56): a golem takes others' magic only as its list says.
+    const golems = targets.map((target) => [target, golemAnswer(caster, spell, target, Boolean(info.area))]).filter(([, answer]) => answer);
+    if (golems.length) {
+        for (const [golem, answer] of golems) answerGolem(state, caster, spell, golem, answer);
+        targets.splice(0, targets.length, ...targets.filter((target) => !golems.some(([golem]) => golem === target)));
+        if (!targets.length) return;
+    }
     // Trample: the creature moves through them, ending beside them.
     if (info.trample) {
         stride(state, caster, { kind: "engage", targetId: targets[0].id });
@@ -966,9 +1030,12 @@ export function triggerRiders(state, attacker, target, strike, degree = SUCCESS)
             if ((follow.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree]) && named && (!follow.melee || strike.melee)) attacker.riderReady = { index, targetId: target.id };
             continue;
         }
-        // The Strike lists the rider by its own slug ("improved-grab") or its base one ("grab").
+        // The Strike lists the rider by its own slug ("improved-grab") or its base one ("grab"), or the rider names the Strike
+        // ("hit by the wraith's spectral hand Strike", B58); a critical hit's only on a critical hit (B58).
         const listed = strike.attackEffects ?? [];
-        if (trigger?.event !== "strike" || !(listed.includes(trigger.attackEffect) || listed.includes(spell.plan.source?.slug))) continue;
+        const named = (trigger?.strikes ?? []).includes(String(strike.name ?? "").toLowerCase());
+        if (trigger?.event !== "strike" || !(listed.includes(trigger.attackEffect) || listed.includes(spell.plan.source?.slug) || named)) continue;
+        if (!(trigger.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree])) continue;
         if (trigger.cost === "free") castSpell(state, attacker, index, [target.id]);
         else attacker.riderReady = { index, targetId: target.id };
     }
@@ -999,9 +1066,18 @@ export function deathThroes(state, c, melee) {
         if (spell.plan?.trigger?.event !== "death") continue;
         const radius = describeSpell(spell.plan).area?.value;
         if (!radius) continue;
-        const targets = around(state, c, radius, (other) => melee.has(other.id));
+        // Only the creatures of the kind it names (B55: Verdant Burst's "each plant creature").
+        const kind = spell.plan.targeting?.traits;
+        const targets = around(state, c, radius, (other) => melee.has(other.id)).filter((other) => traitsFit(other.traits, kind));
         if (targets.length) castSpell(state, c, index, targets.map((target) => target.id));
     }
+}
+
+// A creature of the kind an ability names: filter { all, any } of trait slugs; none: any creature.
+function traitsFit(traits, filter) {
+    if (!filter) return true;
+    const has = new Set((traits ?? []).map((trait) => String(trait).toLowerCase()));
+    return (filter.all ?? []).every((trait) => has.has(trait)) && (!(filter.any ?? []).length || filter.any.some((trait) => has.has(trait)));
 }
 
 // The creatures within radius feet of c, by the bands: its Melee for 10 feet or less, those not far off for more (as auras
@@ -1317,6 +1393,14 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     for (const target of targets) {
         const entry = { target, damage: 0, worth: 0, heal: 0, benefit: 0 };
         result.push(entry);
+        // Golem Antimagic (B56): only what its list says.
+        const golem = golemAnswer(caster, spell, target, Boolean(describeSpell(spell.plan, actions).area));
+        if (golem) {
+            const value = golemValue(target, golem);
+            entry.damage += finds * value.damage;
+            entry.worth += finds * value.worth;
+            continue;
+        }
         const outcomes = outcomesFor(state, caster, spell, target, actions);
         const odds = outcomes && oddsFor(caster, spell, target, attacks, actions);
         if (!odds) continue;

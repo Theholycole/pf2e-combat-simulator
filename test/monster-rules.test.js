@@ -8,7 +8,7 @@ import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, stride } from "../src/engine/actions.js";
 import { isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeStrike, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
-import { applyAuras, applyCondition, applyStrikeRider, castSpell, expireTimers, grabTurnAnswers, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
+import { applyAuras, applyCondition, applyStrikeRider, castSpell, deathThroes, expireTimers, grabTurnAnswers, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
 // ones compiled from PF2e's packs (Swallow Whole, Trample, Stench).
@@ -1099,4 +1099,91 @@ test("a Strike activity's extra dice of the Strike's own type, its push on a cri
     applyStrikeRider(state, c, pc, shock, false, c.strikes[0]);
     assert.ok(pc.hp.value < before);
     assert.equal(pc.cond.confused, true);
+});
+
+test("Steady Spellcasting, Golem Antimagic, and healing as it dies for creatures of a kind (2026-10-10, B55–B57)", async () => {
+    const { spellExpectation } = await import("../src/engine/spells.js");
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const blast = (name, type, traits = [], area = null) => ({
+        modelVersion: 13, source: { name }, rank: 1, traits: ["concentrate", "manipulate", type, ...traits], activation: { time: "2", traits: ["concentrate", "manipulate"] }, targeting: { target: area ? null : "1 creature", range: "30 feet", area },
+        resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 10 } }, sharedDamage: { components: [{ id: "0", formula: `4d6[${type}]`, kinds: [type] }] }, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] }, effects: [] } } }
+    });
+    const [fighter] = martialParty(5);
+    // B55: Reactive Strike's critical hit disrupts a spell; Steady Spellcasting's flat check keeps it (DC 1: always).
+    const hitter = { ...fighter, engagement: 1, aoo: true, reactions: { aoo: true }, strikes: fighter.strikes.map((strike) => ({ ...strike, bonus: 100 })), hp: { value: 999, max: 999 } };
+    const caster = (steady) => ({ ...moderateCreature(5, "mon", "Mage"), engagement: 1, hp: { value: 999, max: 999 }, ...(steady ? { steadySpellcasting: 1 } : {}), spells: [entry("Spark", blast("Spark", "fire"), "spell")] });
+    let disrupted = 0;
+    let kept = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+        for (const steady of [false, true]) {
+            const state = createFightState({ combatants: [hitter, caster(steady)] }, {}, seed);
+            state.log = [];
+            performAction(state, state.byId.get("mon"), { type: "cast", spellIndex: 0, targetIds: ["fighter"], actions: 2 });
+            const text = state.log.join("\n");
+            if (!steady && /Spark is disrupted/.test(text)) disrupted++;
+            if (steady && /keeps casting \(Steady Spellcasting\)/.test(text)) kept++;
+            if (steady) assert.doesNotMatch(text, /Spark is disrupted/);
+        }
+    }
+    assert.ok(disrupted > 0 && kept > 0, `disrupted ${disrupted}, kept ${kept}`);
+    // B56: a golem harmed by fire, slowed by cold, healed by electricity, immune to the rest.
+    const golem = { ...moderateCreature(5, "golem", "Golem"), engagement: 1, hp: { value: 100, max: 200 }, golemAntimagic: { harmed: { by: ["fire"], damage: "5d8", area: "2d6" }, healed: { by: ["electricity"], area: "2d4" }, slowed: { by: ["cold"] } } };
+    const wizard = { ...fighter, id: "wiz", name: "Wizard", engagement: 1, spells: ["fire", "cold", "electricity", "acid"].map((type) => entry(`${type} bolt`, blast(`${type} bolt`, type), "spell")) };
+    const state = createFightState({ combatants: [wizard, golem] }, {}, 3, { log: true });
+    state.log = [];
+    const g = state.byId.get("golem");
+    const w = state.byId.get("wiz");
+    castSpell(state, w, 0, ["golem"]);
+    assert.match(state.log.join("\n"), /Golem is harmed by fire bolt: \d+ damage \(Golem Antimagic\)/, state.log.join("\n"));
+    assert.ok(g.hp.value < 100 && g.hp.value >= 60);
+    castSpell(state, w, 1, ["golem"]);
+    assert.equal(g.cond.slowed, 1);
+    const before = g.hp.value;
+    castSpell(state, w, 2, ["golem"]);
+    assert.equal(g.cond.slowed, 0);
+    assert.ok(g.hp.value > before);
+    const hp = g.hp.value;
+    castSpell(state, w, 3, ["golem"]);
+    assert.equal(g.hp.value, hp);
+    assert.match(state.log.join("\n"), /Golem is immune to acid bolt/);
+    // The planner: an acid bolt is worth nothing to it, a fire bolt the harm's 5d8.
+    assert.equal(spellExpectation(state, w, w.spells[3], [g])[0].damage, 0);
+    assert.ok(Math.abs(spellExpectation(state, w, w.spells[0], [g])[0].damage - 22.5) < 3);
+    // B57: Verdant Burst heals only the plant creatures around it as it dies.
+    const burst = {
+        modelVersion: 13, source: { name: "Verdant Burst" }, rank: 1, traits: [], activation: { time: "passive", traits: [] },
+        targeting: { target: null, range: null, area: { type: "emanation", value: 30 }, traits: { any: ["plant"] } }, trigger: { event: "death" },
+        resolution: { kind: "healing", native: { healing: { components: [{ id: "0", formula: "10", kinds: ["healing"] }], recipients: "any" } } }
+    };
+    const leshy = { ...moderateCreature(3, "leshy", "Leshy"), engagement: 1, traits: ["plant", "leshy"], spells: [entry("Verdant Burst", burst)] };
+    const sapling = { ...moderateCreature(3, "sap", "Sapling"), engagement: 1, traits: ["plant"], hp: { value: 5, max: 40 } };
+    const wolf = { ...moderateCreature(3, "wolf", "Wolf"), engagement: 1, traits: ["animal"], hp: { value: 5, max: 40 } };
+    const field = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 5, max: 80 } }, leshy, sapling, wolf] }, {}, 1);
+    deathThroes(field, field.byId.get("leshy"), new Set(["fighter", "sap", "wolf"]));
+    assert.deepEqual([field.byId.get("sap").hp.value, field.byId.get("wolf").hp.value, field.byId.get("fighter").hp.value], [15, 5, 5]);
+});
+
+test("riders: a critical hit's only on a critical hit, one naming its Strike; natural invisibility (2026-10-10, B58)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const rider = (name, trigger) => ({
+        modelVersion: 13, source: { name }, rank: 1, traits: [], activation: { time: "free", traits: [] }, targeting: { target: "the creature the Strike hits", range: "touch", area: null },
+        trigger: { event: "strike", cost: "free", map: false, ...trigger },
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [{ kind: "condition", slug: "stunned", value: 1, duration: null }] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } }
+    });
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "stag", "Stag");
+    const stag = { ...base, engagement: 1, strikes: [{ ...base.strikes[0], name: "Antler", attackEffects: ["brutal-gore"] }], spells: [entry("Brutal Gore", rider("Brutal Gore", { on: ["criticalSuccess"], attackEffect: "brutal-gore" })), entry("Test Named", rider("Test Named", { on: ["success", "criticalSuccess"], strikes: ["hoof"] }))] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, stag] }, {}, 1);
+    const c = state.byId.get("stag");
+    const pc = state.byId.get("fighter");
+    triggerRiders(state, c, pc, c.strikes[0], 2);
+    assert.ok(!pc.cond.stunned, "not on a plain hit");
+    triggerRiders(state, c, pc, c.strikes[0], 3);
+    assert.equal(pc.cond.stunned, 1, "on a critical hit");
+    pc.cond.stunned = 0;
+    triggerRiders(state, c, pc, { ...c.strikes[0], name: "Hoof", attackEffects: [] }, 2);
+    assert.equal(pc.cond.stunned, 1, "the Strike it names");
+    // Naturally invisible: hidden to attackers from the start.
+    const spirit = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "spirit", "Spirit"), engagement: 1, permanent: [{ slug: "invisible", value: null }] }] }, {}, 1);
+    assert.equal(spirit.byId.get("spirit").cond.hidden, true);
 });

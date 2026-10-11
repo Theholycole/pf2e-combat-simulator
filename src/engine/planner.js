@@ -385,15 +385,18 @@ class PlanContext {
     }
 
     freeRiderGain(strike, target, hitChance) {
-        if (!strike.attackEffects?.length || !hitChance) return 0;
+        if (!hitChance) return 0;
         let gain = 0;
+        const listed = strike.attackEffects ?? [];
         for (const [index, spell] of (this.c.spells ?? []).entries()) {
             const trigger = spell.plan?.trigger;
             if (trigger?.event !== "strike" || trigger.cost !== "free") continue;
-            if (!strike.attackEffects.includes(trigger.attackEffect) && !strike.attackEffects.includes(spell.plan.source?.slug)) continue;
+            if (!listed.includes(trigger.attackEffect) && !listed.includes(spell.plan.source?.slug) && !(trigger.strikes ?? []).includes(String(strike.name ?? "").toLowerCase())) continue;
+            // (A critical hit's only: about a fifth of the hits.)
+            const share = (trigger.on ?? []).length === 1 && trigger.on[0] === "criticalSuccess" ? 0.2 : 1;
             for (const { target: affected, damage, worth } of this.spellEffect(index, spell, [target], 0)) {
                 if (affected !== target) continue;
-                gain += targetValue(this.state, target, this.c) * (Math.min(1, damage / remainingHp(target)) + worth * ROUND_TO_KILL);
+                gain += share * targetValue(this.state, target, this.c) * (Math.min(1, damage / remainingHp(target)) + worth * ROUND_TO_KILL);
             }
         }
         return hitChance * gain;

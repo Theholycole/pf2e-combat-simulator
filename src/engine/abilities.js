@@ -63,6 +63,14 @@ export function addBuiltin(spec, plan, name) {
             spec.permanent = [...(spec.permanent ?? []), ...(plan.conditions ?? [])];
             if (plan.noReactions) spec.noReactions = true;
             return true;
+        // Golem Antimagic (B56): what others' magic does to it.
+        case "golem-antimagic":
+            spec.golemAntimagic = { harmed: plan.harmed ?? null, healed: plan.healed ?? null, slowed: plan.slowed ?? null };
+            return true;
+        // Steady Spellcasting (B55): a flat check against a reaction's disruption.
+        case "steady-spellcasting":
+            spec.steadySpellcasting = Number(plan.dc) || 15;
+            return true;
         case "momentum":
             spec.momentum = { recharges: [...(plan.recharges ?? [])] };
             return true;

@@ -28,6 +28,8 @@ const EMPTY_CONDITIONS = Object.freeze({
 export function keepPermanent(c) {
     for (const entry of c.permanent ?? []) {
         if (entry.slug === "quickened") c.cond.quickened = true;
+        // (Naturally invisible, B58: as hidden, the way attackers find it.)
+        else if (entry.slug === "invisible") c.cond.hidden = true;
         else c.cond[entry.slug] = Math.max(Number(c.cond[entry.slug]) || 0, Number(entry.value) || 1);
     }
 }

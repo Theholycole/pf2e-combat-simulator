@@ -503,6 +503,11 @@ function act(state, c, action) {
             let disrupted = traits.includes("manipulate") ? provoke(state, c, "manipulate") : false;
             if (canAct(c) && traits.includes("concentrate")) disrupted = provoke(state, c, "concentrate") || disrupted;
             if (!canAct(c)) break;
+            // Steady Spellcasting (B55): a flat check, and on a success the spell isn't disrupted.
+            if (disrupted && c.steadySpellcasting && flatCheck(state.rng, c.steadySpellcasting) >= SUCCESS) {
+                disrupted = false;
+                state.log?.push(`  ${c.name} keeps casting (Steady Spellcasting)`);
+            }
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, disrupted ? { disrupted: true } : {});
             break;
         }
