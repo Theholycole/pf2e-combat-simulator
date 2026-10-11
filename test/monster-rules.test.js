@@ -2151,3 +2151,31 @@ test("An ally's +AC that turns a hit aside, its Strike after; Counterattack at a
     assert.ok(state.log.some((line) => /fails the DC 5 flat check/.test(line)), state.log.join("\n"));
     assert.ok(state.log.includes("  Shae uses Counterattack"), state.log.join("\n"));
 });
+
+test("Ferocity's kin: half its HP for a Mythic Point, 25 HP once a fight, 1 HP and a Strike after (2026-10-11, B95)", () => {
+    const [fighter] = martialParty(5);
+    const fight = (plan, extra = {}) => {
+        const base = moderateCreature(5, "mon", "Monster");
+        const monster = { ...base, engagement: 1, ...extra };
+        assert.equal(addBuiltin(monster, { builtin: "ferocity", ...plan }, "Test Ferocity"), true);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, monster] }, {}, 1);
+        state.log = [];
+        return [state, state.byId.get("mon")];
+    };
+    // Mythic: half its maximum HP, wounded 1, a Mythic Point spent.
+    let [state, m] = fight({ hp: "half", wounded: true, mythic: true });
+    const points = m.mythicPoints;
+    dealDamage(state, m, m.hp.value + 50, { source: state.byId.get(fighter.id) });
+    assert.deepEqual([m.hp.value, m.cond.wounded, m.mythicPoints, isActive(m)], [Math.floor(m.hp.max / 2), 1, points - 1, true], state.log.join("\n"));
+    // Never Fall: 25 HP, not wounded, once; free.
+    [state, m] = fight({ hp: 25, wounded: false, uses: 1, free: true });
+    dealDamage(state, m, m.hp.value + 50, { source: state.byId.get(fighter.id) });
+    assert.deepEqual([m.hp.value, m.cond.wounded ?? 0, m.reactionUsed ?? false], [Math.min(25, m.hp.max), 0, false]);
+    dealDamage(state, m, m.hp.value + 50, { source: state.byId.get(fighter.id) });
+    assert.equal(isActive(m), false, "only once");
+    // Indomitable Beast: 1 HP, then its stinger Strike.
+    [state, m] = fight({ hp: 1, wounded: false, uses: 1, strike: "stinger" }, { strikes: [...moderateCreature(5, "mon", "Monster").strikes, { ...moderateCreature(5, "mon", "Monster").strikes[0], name: "Stinger" }] });
+    dealDamage(state, m, m.hp.value + 50, { source: state.byId.get(fighter.id) });
+    assert.equal(m.hp.value, 1);
+    assert.ok(state.log.some((line) => /^ {2}Monster Stinger → Fighter/.test(line)), state.log.join("\n"));
+});

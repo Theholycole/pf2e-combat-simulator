@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { applyEffect, removeEffect } from "./effects.js";
-import { applyCondition, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit } from "./spells.js";
+import { applyCondition, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit, rollCount } from "./spells.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -765,8 +765,26 @@ export function releaseGrabs(state, grabber) {
 }
 
 function knockOut(state, target, { source, critical, nonlethal, overwhelming, massive }) {
+    // Ferocity's kin (B95): Orc Ferocity once a day, Mythic Ferocity at half its Hit Points for a Mythic Point, Never Fall at 25 (and not
+    // wounded), Indomitable Beast's Strike after.
+    const rule = target.kind !== "pc" ? target.ferocityRule : null;
+    if (rule && !massive && (rule.free || canReact(target)) && (!rule.wounded || (target.cond.wounded ?? 0) < 3) && (target.ferocityUsed ?? 0) < (rule.uses ?? Infinity) && (!rule.mythic || (target.mythicPoints ?? 0) > 0)) {
+        const hp = rule.hp === "half" ? Math.floor(target.hp.max / 2) : typeof rule.hp === "string" ? rollCount(state, rule.hp) : Number(rule.hp) || 1;
+        target.hp.value = Math.max(1, Math.min(target.hp.max, hp));
+        if (rule.wounded) target.cond.wounded = (target.cond.wounded ?? 0) + 1;
+        if (!rule.free) target.reactionUsed = true;
+        if (rule.mythic) target.mythicPoints--;
+        target.ferocityUsed = (target.ferocityUsed ?? 0) + 1;
+        log(state, `  ${target.name} uses ${rule.name} and stays up at ${target.hp.value} HP`);
+        if (rule.strike) {
+            const foe = (source && source.side !== target.side && isActive(source) && sameMelee(source, target) ? source : null) ?? engagedEnemies(state, target)[0] ?? null;
+            const named = strikeNamed(target, rule.strike);
+            if (foe && named >= 0) performStrike(state, target, foe, target.strikes[named], { reaction: true });
+        }
+        return;
+    }
     // Ferocity (a monster's reaction): it stays at 1 HP, wounded +1, until wounded 3.
-    if (target.kind !== "pc" && target.reactions?.ferocity && canReact(target) && (target.cond.wounded ?? 0) < 3 && !massive) {
+    if (target.kind !== "pc" && target.reactions?.ferocity && !target.ferocityRule && canReact(target) && (target.cond.wounded ?? 0) < 3 && !massive) {
         target.hp.value = 1;
         target.cond.wounded = (target.cond.wounded ?? 0) + 1;
         target.reactionUsed = true;
