@@ -1965,3 +1965,22 @@ test("A teleport out of a Melee, then not until its recharge (2026-10-11, B87)",
     p.round = state.round + 3;
     assert.ok(scoreOptions(state, p).options.some((entry) => entry.action.type === "safeMove"), "on offer again");
 });
+
+test("Bully's Bludgeon's nonlethal Strike, Savage Jaws' own damage (2026-10-11, B88)", () => {
+    const giant = moderateCreature(5, "giant", "Giant");
+    assert.equal(addBuiltin(giant, { builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 2, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, nonlethal: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }, "Bully's Bludgeon"), true);
+    const bludgeon = chargeStrike(giant.strikes[0], giant.strikeActivities[0]);
+    assert.deepEqual([bludgeon.nonlethal, bludgeon.bonus], [true, giant.strikes[0].bonus + 2]);
+    // A PC knocked out by it: unconscious, not dying.
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...giant, engagement: 1 }] }, {}, 1);
+    const f = state.byId.get(fighter.id);
+    f.hp.value = 1;
+    state.rng.d20 = () => 19;
+    performStrike(state, state.byId.get("giant"), f, bludgeon);
+    assert.deepEqual([f.status, f.cond.unconscious, f.cond.dying ?? 0], ["down", true, 0], state.log?.join?.("\n"));
+    const lisk = moderateCreature(5, "lisk", "Dracolisk");
+    addBuiltin(lisk, { builtin: "strike-activity", actions: 2, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: "(4d12+16)[piercing]", countsAs: 2, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }, "Savage Jaws");
+    const jaws = chargeStrike(lisk.strikes[0], lisk.strikeActivities[0]);
+    assert.deepEqual([jaws.damage[0].dice, jaws.damage[0].die, jaws.damage[0].bonus, jaws.damage[0].type, lisk.strikeActivities[0].countsAs], [4, 12, 16, "piercing", 2]);
+});

@@ -200,6 +200,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.fatal ? { fatal: plan.fatal } : {}),
                 ...(plan.deadly ? { deadly: plan.deadly } : {}),
                 ...(plan.halfDamage ? { halfDamage: true } : {}),
+                // Bully's Bludgeon (B88): "This attack is nonlethal."
+                ...(plan.nonlethal ? { nonlethal: true } : {}),
                 // Focused Assault (B74): a failure (not a critical one) still deals the Strike's damage.
                 ...(plan.failureDamage ? { failureDamage: true } : {}),
                 onHit: plan.onHit,
@@ -281,8 +283,8 @@ export function ducksFromCoverFire(target) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage) return strike;
-    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}) };
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal) return strike;
+    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
     // Vicious Swing: extra dice of the weapon's own damage (PF2e's critical formula would leave them out).
     if (charge.extraWeaponDice) {

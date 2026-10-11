@@ -779,6 +779,11 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         target.cond.unconscious = true;
         target.cond.prone = true;
         removeFromSpace(state, target);
+        // (Nonlethal damage, B88's Bully's Bludgeon: unconscious, not dying.)
+        if (nonlethal) {
+            log(state, `  ${target.name} is knocked out`);
+            return;
+        }
         log(state, `  ${target.name} is down`);
         increaseDying(state, target, (critical ? 2 : 1) + target.cond.wounded);
         return;
