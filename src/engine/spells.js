@@ -341,6 +341,15 @@ function durationRounds(duration) {
 // caster's turn that many rounds later. false when the engine doesn't model it.
 const NOT_HARMFUL = new Set(["off-guard", "quickened", "concealed", "hidden", "invisible"]);
 
+// A condition that grows with each later failure (B102: "the condition value increases by 1 (to a maximum of stupefied 4)"): what it
+// already has plus the stack, to its maximum; its own value when it has none. (after: the value it has now, for the log.)
+function stackedValue(target, change, after = false) {
+    if (after) return target.cond[change.slug] ?? change.value;
+    const now = Number(target.cond[change.slug]) || 0;
+    if (!change.stack || now <= 0 || !Number.isFinite(change.value)) return change.value;
+    return Math.min(change.stack.max ?? Infinity, now + (Number(change.stack.by) || 1));
+}
+
 export function applyCondition(state, target, slug, value, duration, source, scope = null) {
     // Off-guard to one creature's attacks only (Feint, Create a Diversion).
     if (slug === "off-guard" && scope?.attacker) {
@@ -870,8 +879,8 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 // First Aid's critical failure: dying +1.
                 else if (change.slug === "dying") {
                     if (target.status === DOWN) increaseDying(state, target, change.value ?? 1);
-                } else if (isActive(target) && applyCondition(state, target, change.slug, change.value, change.duration, caster, change.scope ?? null)) {
-                    log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${change.value}` : ""}`);
+                } else if (isActive(target) && applyCondition(state, target, change.slug, stackedValue(target, change), change.duration, caster, change.scope ?? null)) {
+                    log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${stackedValue(target, change, true)}` : ""}`);
                     // Retching: a Fortitude save against the DC of what made it sickened.
                     if (change.slug === "sickened") target.sickenedDC = Math.max(target.sickenedDC ?? 0, effectDC(spell) ?? 0) || null;
                 }

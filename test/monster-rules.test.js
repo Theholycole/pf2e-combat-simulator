@@ -2361,3 +2361,22 @@ test("Speed Surge's kin without a daily count, with a recharge; Shoo!'s push of 
     performStrike(fight, f, d, { ...f.strikes[0], melee: true, bonus: 200 });
     assert.ok(d.reactionUsed && !sameMelee(f, d), fight.log.join("\n"));
 });
+
+test("A condition that grows with each later failure, to its maximum (2026-10-11, B102)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const caress = { modelVersion: 13, source: { name: "Test Caress" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "1 creature", range: "touch", area: null }, trigger: { event: "use" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [{ kind: "condition", slug: "stupefied", value: 1, duration: null, stack: { by: 1, max: 3 } }] }, criticalFailure: { damage: { ...none }, effects: [{ kind: "condition", slug: "stupefied", value: 1, duration: null, stack: { by: 1, max: 3 } }] } } } };
+    const [fighter] = martialParty(5);
+    const lamia = { ...moderateCreature(5, "lamia", "Lamia"), engagement: 1, spells: [entry("Test Caress", caress)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, lamia] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get(fighter.id);
+    const l = state.byId.get("lamia");
+    castSpell(state, l, 0, [f.id]);
+    assert.equal(f.cond.stupefied, 1, state.log.join("\n"));
+    castSpell(state, l, 0, [f.id]);
+    assert.equal(f.cond.stupefied, 2, "one more");
+    castSpell(state, l, 0, [f.id]);
+    castSpell(state, l, 0, [f.id]);
+    assert.equal(f.cond.stupefied, 3, "to its maximum");
+});
