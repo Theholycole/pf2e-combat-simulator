@@ -829,6 +829,13 @@ function applyChanges(state, caster, spell, changes, context, io) {
             case "heal":
                 applyHeal(state, target, change.amount);
                 break;
+            // Temporary Hit Points (B61): the higher of its current and these.
+            case "tempHp":
+                if (isActive(target) && change.amount > (target.hp.temp ?? 0)) {
+                    target.hp.temp = change.amount;
+                    log(state, `  ${target.name} gains ${change.amount} temporary HP`);
+                }
+                break;
             case "effect":
                 if (change.effect?.kind === "disarm") {
                     applyDisarm(state, target, change.effect);
@@ -1451,6 +1458,9 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     entry.damage += chance * Math.max(1, target.hp.value + target.hp.temp);
                 } else if (change.op === "heal") {
                     entry.heal += chance * Math.min(change.amount, Math.max(0, target.hp.max - Math.max(0, target.hp.value)));
+                } else if (change.op === "tempHp") {
+                    // Temporary Hit Points (B61): what they add over its current ones, as healing that may go unused.
+                    entry.heal += chance * 0.7 * Math.max(0, change.amount - (target.hp.temp ?? 0));
                 } else if (change.op === "effect" && ["native", "modifier"].includes(change.effect?.kind)) {
                     const { model, key } = outcomeEffect(spell, change);
                     if (model) entry.benefit += chance * recastShare(state, target, model, key) * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1);
@@ -1608,7 +1618,7 @@ export function spellGaps(spell) {
                 if (!modifierModel(spell.name, change.effect.modifier)) missing.add(`modifier to ${change.effect.modifier?.selector}`);
             } else if (change.op === "effect") missing.add(change.effect?.kind === "note" ? `note: ${change.effect.note?.label ?? "effect"}` : change.effect?.kind === "native" ? `effect: ${change.effect.label ?? change.effect.uuid}` : `effect: ${change.effect?.kind}`);
             else if (change.op === "note" && change.manual) missing.add("manual step");
-            else if (!["damage", "condition", "move", "death", "followUp", "note", "heal"].includes(change.op)) missing.add(change.op);
+            else if (!["damage", "condition", "move", "death", "followUp", "note", "heal", "tempHp"].includes(change.op)) missing.add(change.op);
         }
     }
     return [...missing];

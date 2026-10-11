@@ -273,6 +273,13 @@ function finish(state, outcome) {
     state.log?.push(`Outcome: ${outcome}${state.objective ? `; objective ${state.objective.status}` : ""}`);
 }
 
+// Frenzied Slashes (B62): "The pusk gains the Clumsy 2 condition until the beginning of its next turn."
+function multiStrikeAfter(state, c, ability) {
+    for (const entry of ability.after ?? []) {
+        if (applyCondition(state, c, entry.slug, entry.value ?? null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" }, c)) state.log?.push(`  ${c.name} is ${entry.slug}${Number.isFinite(entry.value) ? ` ${entry.value}` : ""}`);
+    }
+}
+
 function startTurn(state, c) {
     keepPermanent(c);
     c.reactionUsed = false;
@@ -600,9 +607,11 @@ function act(state, c, action) {
                     if (!canAct(c) || index === undefined) break;
                     // Each at the penalty it started with, when it doesn't rise until all are made.
                     if (ability.sameMap) c.attacksThisTurn = attacks;
-                    if (isActive(foe)) performStrike(state, c, foe, c.strikes[index]);
+                    // (Hungry Flurry, Double Shot: each at a -2 penalty, B62.)
+                    if (isActive(foe)) performStrike(state, c, foe, ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - ability.penalty } : c.strikes[index]);
                 }
                 if (ability.sameMap) c.attacksThisTurn = attacks + foes.length;
+                multiStrikeAfter(state, c, ability);
                 break;
             }
             let grabbed = false;
@@ -612,7 +621,9 @@ function act(state, c, action) {
                 if (ability.sameTarget ? !target || !isActive(target) : !target || !isActive(target) || (strike.melee && !sameMelee(c, target))) target = ability.sameTarget ? null : engagedEnemies(state, c)[0] ?? null;
                 if (!target) break;
                 if (ability.sameMap) c.attacksThisTurn = attacks;
-                if (ability.sameMap && step > 0 && !strike.agile) strike = { ...strike, bonus: strike.bonus - 2 };
+                // Double Slice's second Strike: -2 unless agile (C4). A monster's that doesn't raise the penalty: none (B62).
+                if (ability.secondPenalty && step > 0 && !strike.agile) strike = { ...strike, bonus: strike.bonus - 2 };
+                if (ability.penalty) strike = { ...strike, bonus: strike.bonus - ability.penalty };
                 const result = performStrike(state, c, target, strike);
                 // "If either Strike hits, the dragon can attempt to Grab the target … as a free action" (Coiling Frenzy): its Grab, once.
                 if (ability.grab && !grabbed && result?.degree >= SUCCESS && isActive(target)) {
@@ -624,6 +635,7 @@ function act(state, c, action) {
                 }
             }
             if (ability.sameMap) c.attacksThisTurn = attacks + (multiStrikeOrder(c, ability)?.length ?? 0);
+            multiStrikeAfter(state, c, ability);
             break;
         }
         // Rage and the like: a buff on itself for the rest of the fight.

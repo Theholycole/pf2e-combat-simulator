@@ -88,7 +88,7 @@ test("Flurry of Blows: two unarmed Strikes for one action, once a turn; Double S
     const turns = result.log.filter((line) => /Sajan uses Flurry of Blows/.test(line)).length;
     assert.ok(turns >= 1 && turns <= 2, "at most once a turn");
 
-    const slicer = { ...fighter, id: "valeros", name: "Valeros", engagement: 1, strikes: [{ ...base, name: "Longsword", held: true, bonus: 10 }, { ...base, name: "Shortsword", held: true, agile: true, bonus: 10 }], multiStrikes: [{ name: "Double Slice", actions: 2, strikes: ["longsword", "shortsword"], sameMap: true, sameTarget: true }] };
+    const slicer = { ...fighter, id: "valeros", name: "Valeros", engagement: 1, strikes: [{ ...base, name: "Longsword", held: true, bonus: 10 }, { ...base, name: "Shortsword", held: true, agile: true, bonus: 10 }], multiStrikes: [{ name: "Double Slice", actions: 2, strikes: ["longsword", "shortsword"], sameMap: true, sameTarget: true, secondPenalty: true }] };
     const other = createFightState({ combatants: [slicer, { ...moderateCreature(5, "foe", "Foe"), engagement: 1, hp: { value: 999, max: 999 } }] }, {}, 1);
     const v = other.byId.get("valeros");
     other.log = [];

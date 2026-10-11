@@ -1216,3 +1216,41 @@ test("Collapse makes a critical hit a hit and leaves it collapsed until it re-fo
     assert.ok(Number(/Wished Away[^\n]*\n[^\n]*critically hits for (\d+)/.exec(text)?.[1]) <= 2 * (part.dice * part.die + part.bonus) - 20, text);
     assert.equal(d.resistances?.some((entry) => entry.type === "all-damage") ?? false, false, "only for that attack");
 });
+
+test("temporary Hit Points; multi-Strikes: no second -2 for a monster, each at its penalty, Clumsy after, only at a creature it holds (2026-10-10, B61, B62)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (effects = []) => ({ damage: { ...none }, effects });
+    // B61: temporary Hit Points on itself, the higher of its current and these.
+    const fed = { modelVersion: 13, source: { name: "Fed by Water" }, rank: 1, traits: [], activation: { time: "reaction", traits: [] }, targeting: { target: "self", range: null, area: null }, trigger: { event: "use" }, resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row([{ kind: "temp-hp", amount: 40, duration: { mode: "fixed", value: 1, unit: "minutes", expiry: null, anchor: "effect-start" } }]), failure: row(), criticalFailure: row() } } };
+    const [fighter] = martialParty(5);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "drag", "Dragon"), engagement: 1, spells: [entry("Fed by Water", fed)] }] }, {}, 1);
+    const d = state.byId.get("drag");
+    castSpell(state, d, 0, ["drag"]);
+    assert.equal(d.hp.temp, 40);
+    d.hp.temp = 50;
+    castSpell(state, d, 0, ["drag"]);
+    assert.equal(d.hp.temp, 50, "they don't stack");
+    // B62: a monster's multi-Strike that doesn't raise the penalty: no -2 on the second; Frenzied Slashes' -2 on each, Clumsy 2 after.
+    const base = moderateCreature(5, "imp", "Imp");
+    const claw = { ...base.strikes[0], name: "Claw", bonus: 10, agile: false };
+    const imp = withBuiltins({ ...base, engagement: 1, strikes: [claw] }, ["Frenzied Slashes", { builtin: "multi-strike", actions: 3, strikes: ["claw", "claw", "claw"], sameMap: true, sameTarget: true, penalty: 2, after: [{ slug: "clumsy", value: 2, until: "own-turn-start" }] }], ["Draconic Frenzy", { builtin: "multi-strike", actions: 2, strikes: ["claw", "claw"], sameMap: true }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, imp] }, {}, 1);
+    state.log = [];
+    const c = state.byId.get("imp");
+    performAction(state, c, { type: "multiStrike", ability: 1, targetId: "fighter", actions: 2 });
+    const bonuses = state.log.filter((line) => /Imp Claw → Fighter/.test(line)).map((line) => Number(/: (\d+) vs AC/.exec(line)?.[1]) - 0);
+    assert.equal(bonuses.length, 2, state.log.join("\n"));
+    state.log = [];
+    performAction(state, c, { type: "multiStrike", ability: 0, targetId: "fighter", actions: 3 });
+    assert.equal(c.cond.clumsy, 2, state.log.join("\n"));
+    // Maul: only at a creature it holds.
+    const cat = withBuiltins({ ...moderateCreature(5, "cat", "Cat"), engagement: 1, strikes: [claw] }, ["Maul", { builtin: "multi-strike", actions: 1, strikes: ["claw", "claw"], sameMap: true, sameTarget: true, requires: "grabbed" }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, cat] }, {}, 1);
+    const k = state.byId.get("cat");
+    k.actionsLeft = 1;
+    assert.equal(scoreOptions(state, k).options.some((option) => option.action.type === "multiStrike"), false, "not at a creature it doesn't hold");
+    const pc = state.byId.get("fighter");
+    pc.cond.grabbed = true;
+    pc.grabbedBy = "cat";
+    assert.equal(scoreOptions(state, k).options.some((option) => option.action.type === "multiStrike" && option.action.targetId === "fighter"), true);
+});

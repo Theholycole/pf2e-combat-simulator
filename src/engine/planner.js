@@ -803,7 +803,8 @@ function expand(ctx, node, actionsLeft) {
                 const damage = { ...node.damage };
                 let gain = 0;
                 for (const [step, target] of foes.entries()) {
-                    const expected = ctx.strikeExpectation(c.strikes[index], index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone)?.damage ?? 0;
+                    const struck = ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - ability.penalty } : c.strikes[index];
+                    const expected = ctx.strikeExpectation(struck, struck === c.strikes[index] ? index : 4000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone)?.damage ?? 0;
                     const before = damage[target.id] ?? 0;
                     const hp = remainingHp(target);
                     gain += targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
@@ -814,12 +815,15 @@ function expand(ctx, node, actionsLeft) {
             }
             for (const target of ctx.enemies) {
                 if (target.status !== "active" || order.some((index) => c.strikes[index].melee && !inMelee(node.pos, target))) continue;
-                // Hunted Shot, Twin Takedown: against the hunted prey only.
+                // Hunted Shot, Twin Takedown: against the hunted prey only. Maul: a creature it holds (B62).
                 if (ability.preyOnly && c.prey !== target.id) continue;
+                if (ability.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
                 let expected = 0;
                 for (const [step, index] of order.entries()) {
-                    // Double Slice: both at the current penalty, the second -2 unless agile.
-                    const strike = ability.sameMap && step > 0 && !c.strikes[index].agile ? { ...c.strikes[index], bonus: c.strikes[index].bonus - 2 } : c.strikes[index];
+                    // Double Slice: both at the current penalty, the second -2 unless agile (B62: not a monster's). A penalty on each
+                    // (Frenzied Slashes' -2).
+                    const second = ability.secondPenalty && step > 0 && !c.strikes[index].agile ? 2 : 0;
+                    const strike = second || ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - second - (ability.penalty ?? 0) } : c.strikes[index];
                     expected += ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone)?.damage ?? 0;
                 }
                 if (expected <= 0) continue;

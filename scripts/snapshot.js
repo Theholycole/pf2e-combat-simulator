@@ -259,7 +259,7 @@ function readClassFeatures(actor, strikes) {
     const weapons = strikes.filter((strike) => strike.held && strike.melee && !strike.name.includes("(")).sort((a, b) => value(b) - value(a));
     if (doubleSlice && weapons.length >= 2) {
         result.handled.add(doubleSlice);
-        (fields.multiStrikes ??= []).push({ name: "Double Slice", actions: 2, strikes: [weapons[0].name.toLowerCase(), weapons[1].name.toLowerCase()], sameMap: true, sameTarget: true });
+        (fields.multiStrikes ??= []).push({ name: "Double Slice", actions: 2, strikes: [weapons[0].name.toLowerCase(), weapons[1].name.toLowerCase()], sameMap: true, sameTarget: true, secondPenalty: true });
     }
     // Feats with actions, as the engine's Strike activities, charges and multi-Strikes.
     const activity = (item, fields) => {
