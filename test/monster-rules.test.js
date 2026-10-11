@@ -8,7 +8,7 @@ import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, stride } from "../src/engine/actions.js";
 import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeOn, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
-import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, expireTimers, grabTurnAnswers, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
+import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, expireTimers, grabTurnAnswers, ownTurnStart, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
 import { engage } from "../src/engine/space.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
@@ -2311,4 +2311,27 @@ test("A reaction's resistance against the damage that sets it off (2026-10-11, B
     assert.equal(armorClass(d), ac - 2);
     d.reactionUsed = false;
     assert.equal(applyDamage(state, d, slash(20), { source: f, physical: true }), 20, "its one use spent");
+});
+
+test("Demoralize as the fight starts or its turn begins, at its nearest foe (2026-10-11, B100)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const party = martialParty(5);
+    const cry = { ...structuredClone(basic.demoralize), targeting: { target: "1 creature", range: "30 feet", area: null } };
+    // Battle Cry: as initiative is rolled, at a foe in its Melee.
+    const dragon = { ...moderateCreature(5, "dragon", "Dragon"), engagement: 1, spells: [entry("Battle Cry", { ...cry, trigger: { event: "initiative", reaction: true, free: true } })] };
+    const started = simulate({ combatants: [{ ...party[0], engagement: 1 }, dragon] }, { maxRounds: 1 }, 2, { log: true });
+    assert.match(started.log.join("\n"), /Dragon uses Battle Cry/);
+    assert.match(started.log.join("\n"), new RegExp(`Dragon casts Battle Cry at ${party[0].name}`));
+    // Stern Glare: as its turn begins; no foe near enough, not used.
+    const glare = { ...moderateCreature(5, "glare", "Director"), engagement: 1, spells: [entry("Stern Glare", { ...cry, trigger: { event: "own-turn-start", reaction: true, free: true } })] };
+    const state = createFightState({ combatants: [{ ...party[0], engagement: 1 }, glare] }, {}, 2);
+    state.log = [];
+    ownTurnStart(state, state.byId.get("glare"));
+    assert.ok(state.log.includes(`  Director casts Stern Glare at ${party[0].name}`), state.log.join("\n"));
+    const alone = createFightState({ combatants: [{ ...party[0], engagement: 0 }, { ...glare, engagement: 0 }] }, {}, 2);
+    alone.log = [];
+    for (const c of alone.list) Object.assign(c, { band: "far", meleeId: null });
+    alone.byId.get("glare").band = "near";
+    ownTurnStart(alone, alone.byId.get("glare"));
+    assert.ok(!alone.log.some((line) => /Stern Glare/.test(line)), alone.log.join("\n"));
 });

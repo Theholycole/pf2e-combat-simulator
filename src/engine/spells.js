@@ -1190,7 +1190,19 @@ function answerTargets(state, c, plan, other) {
     const live = other && isActive(other);
     if (["the attacker", "the creature the Strike hits", "the held creature"].includes(plan.targeting?.target)) return live ? [other] : [];
     if (radius && plan.targeting?.area?.around === "target") return live ? [other, ...around(state, other, radius, (near) => sameMelee(other, near)).filter((near) => near !== c)] : [];
+    // (B100: one creature, with none setting it off — Battle Cry's Demoralize as the fight starts: its nearest foe.)
+    if (!radius && !other && plan.targeting?.target === "1 creature") {
+        const foe = nearestFoe(state, c, plan);
+        return foe ? [foe] : [];
+    }
     return radius ? around(state, c, radius, (near) => sameMelee(c, near)) : [];
+}
+
+// A foe for one-creature ability no creature set off (B100): one in its Melee, else one not far (for a range over 10 feet).
+function nearestFoe(state, c, plan) {
+    const foes = state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone");
+    const range = Number.parseInt(plan.targeting?.range ?? "", 10) || 0;
+    return foes.find((other) => sameMelee(c, other)) ?? (range > 10 ? foes.find((other) => other.band !== "far" || c.band === "far") : null) ?? null;
 }
 
 // A monster's reaction to a hit, a critical hit or damage on it (B44: Shrapnel Splash's "The dragon is critically hit with a
@@ -1402,8 +1414,11 @@ export function ownTurnStart(state, c) {
     for (const [index, spell] of (c.spells ?? []).entries()) {
         if (spell.plan?.trigger?.event !== "own-turn-start" || !canAct(c)) continue;
         if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
+        // (B100: one creature, Stern Glare's Demoralize: its nearest foe; none, not used.)
+        const foe = spell.plan.targeting?.target === "1 creature" && !spell.plan.targeting?.area ? nearestFoe(state, c, spell.plan) : null;
+        if (spell.plan.targeting?.target === "1 creature" && !spell.plan.targeting?.area && !foe) continue;
         log(state, `  ${c.name} uses ${spell.name}`);
-        castSpell(state, c, index, [c.id]);
+        castSpell(state, c, index, [foe?.id ?? c.id]);
     }
 }
 
