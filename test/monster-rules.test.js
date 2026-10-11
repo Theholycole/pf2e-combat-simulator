@@ -6,7 +6,7 @@ import { createFightState, performAction, simulate } from "../src/engine/fight.j
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, stride } from "../src/engine/actions.js";
-import { isActive, isOffGuard } from "../src/engine/combatant.js";
+import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
 import { applyAuras, applyCondition, applyStrikeRider, castSpell, deathThroes, expireTimers, grabTurnAnswers, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
 
@@ -1485,4 +1485,31 @@ test("reaction Strikes to a Strike in reach, an attack on an ally and a critical
     assert.ok(scoreOptions(state, l).options.some((entry) => entry.action.type === "charge"), "on offer once");
     l.chargesUsed = new Set(["Aquatic Ambush"]);
     assert.equal(scoreOptions(state, l).options.some((entry) => entry.action.type === "charge"), false);
+});
+
+test("a monster's Hunt Prey with its own die, and a bonus to its own AC until its next turn (2026-10-10, B71)", () => {
+    const hunter = { ...moderateCreature(5, "hunter", "Hunter"), engagement: 1 };
+    assert.equal(addBuiltin(hunter, { builtin: "hunt-prey", edge: "precision", dice: 2, die: 6 }, "Hunt Prey"), true);
+    assert.deepEqual(hunter.huntPrey, { edge: "precision", precisionDice: 2, die: 6 });
+    assert.equal(addBuiltin({}, { builtin: "hunt-prey", edge: "flurry" }, "Hunt Prey"), false);
+    const [fighter] = martialParty(5);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, hunter] }, {}, 1);
+    const h = state.byId.get("hunter");
+    h.prey = "fighter";
+    // (A hit on its prey: 2d6 more precision damage the first time this round.)
+    const parts = expectedHitDamage(h, h.strikes[0], state.byId.get("fighter"), false) - expectedHitDamage({ ...h, prey: null }, h.strikes[0], state.byId.get("fighter"), false);
+    assert.ok(parts > 6 && parts < 8, String(parts));
+    // Dueling Parry: +2 AC until the start of its next turn.
+    const duelist = { ...moderateCreature(5, "duelist", "Duelist"), engagement: 1 };
+    assert.equal(addBuiltin(duelist, { builtin: "self-effect", actions: 1, model: { name: "Dueling Parry", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 2 }], tempHp: 0 }, duration: { value: 1, unit: "rounds", expiry: "turn-start" } }, "Dueling Parry"), true);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, duelist] }, {}, 1);
+    const d = state.byId.get("duelist");
+    d.round = 1;
+    d.actionsLeft = 1;
+    const before = d.ac;
+    const option = scoreOptions(state, d).options.find((entry) => entry.action.type === "selfEffect");
+    assert.ok(option, "on offer");
+    performAction(state, d, option.action);
+    assert.equal(d.effects.some((effect) => effect.key === "self:Dueling Parry"), true);
+    assert.equal(armorClass(d) - before, 2);
 });

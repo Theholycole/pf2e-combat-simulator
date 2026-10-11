@@ -115,6 +115,11 @@ export function addBuiltin(spec, plan, name) {
         case "reaction-strike":
             spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: !!plan.disrupts, ...(plan.hinders ? { hinders: plan.hinders } : {}) }];
             return true;
+        // A monster's Hunt Prey (B71): a ranger's precision edge, its dice ("1d8 precision damage" the first hit on its prey each round).
+        case "hunt-prey":
+            if (plan.edge !== "precision") return false;
+            spec.huntPrey = { edge: "precision", precisionDice: Number(plan.dice) || 1, die: Number(plan.die) || 8 };
+            return true;
         // Swift Leap, Jet (B70): a move that doesn't trigger reactions, out of a Melee.
         case "safe-move":
             spec.safeMove = { name, actions: Number(plan.actions) || 1 };
