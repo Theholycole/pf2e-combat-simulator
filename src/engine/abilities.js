@@ -163,7 +163,8 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // Swift Leap, Jet (B70): a move that doesn't trigger reactions, out of a Melee.
         case "safe-move":
-            spec.safeMove = { name, actions: Number(plan.actions) || 1 };
+            // (B87: a teleport's recharge, Jaunt's "can't use Jaunt again for 1d4 rounds".)
+            spec.safeMove = { name, actions: Number(plan.actions) || 1, ...(plan.recharge ? { recharge: plan.recharge } : {}) };
             return true;
         // Fast Swallow (B70): Swallow Whole as a reaction when it grabs a creature.
         case "fast-swallow":

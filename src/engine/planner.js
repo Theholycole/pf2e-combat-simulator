@@ -1377,7 +1377,7 @@ function expand(ctx, node, actionsLeft) {
         const stepOk = realMelee ? canStepOut(state, c) : (node.pos.melee === "new" && (state.byId.get(node.pos.newWith)?.reach ?? 5) <= 5);
         if (stepOk) children.push(child(node, { type: "step" }, 1, 0, { pos: ctx.away(node, "near"), moved: true }));
         // Swift Leap, Jet (B70): away without provoking, where a Step can't go.
-        else if (c.safeMove && c.safeMove.actions <= remaining && realMelee) children.push(child(node, { type: "safeMove", actions: c.safeMove.actions }, c.safeMove.actions, 0, { pos: ctx.away(node, "near"), moved: true }));
+        else if (c.safeMove && c.safeMove.actions <= remaining && realMelee && !((c.safeMoveUntil ?? -Infinity) > (c.round ?? 0))) children.push(child(node, { type: "safeMove", actions: c.safeMove.actions }, c.safeMove.actions, 0, { pos: ctx.away(node, "near"), moved: true }));
         else {
             const next = child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: ctx.away(node, "near"), moved: true });
             next.value -= ctx.aooLoss(node.pos, next);

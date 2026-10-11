@@ -9,6 +9,7 @@ import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as p
 import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
 import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, expireTimers, grabTurnAnswers, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
+import { engage } from "../src/engine/space.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
 // ones compiled from PF2e's packs (Swallow Whole, Trample, Stench).
@@ -1940,4 +1941,27 @@ test("Unbidden Thoughts: the attacker keeps the critical hit and is frightened 2
     const skeleton = moderateCreature(5, "skel", "Skeleton");
     assert.equal(addBuiltin(skeleton, { builtin: "crit-downgrade", dc: null, collapse: true }, "Collapse"), true);
     assert.deepEqual(skeleton.critDowngrade, { name: "Collapse", dc: null, collapse: true });
+});
+
+test("A teleport out of a Melee, then not until its recharge (2026-10-11, B87)", () => {
+    const [fighter] = martialParty(5);
+    const poracha = moderateCreature(5, "poracha", "Poracha");
+    assert.equal(addBuiltin(poracha, { builtin: "safe-move", actions: 1, recharge: "1d4" }, "Jaunt"), true);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, reach: 10 }, { ...poracha, engagement: 1 }] }, {}, 1);
+    const p = state.byId.get("poracha");
+    p.round = 1;
+    p.actionsLeft = 3;
+    const jaunt = scoreOptions(state, p).options.find((entry) => entry.action.type === "safeMove");
+    assert.ok(jaunt, "on offer");
+    state.rng.die = () => 3;
+    performAction(state, p, jaunt.action);
+    assert.equal(p.meleeId, null);
+    assert.equal(p.safeMoveUntil, state.round + 3);
+    // Back in the fighter's Melee next round: not yet.
+    engage(state, state.byId.get("fighter"), p);
+    p.round = state.round + 1;
+    p.actionsLeft = 3;
+    assert.equal(scoreOptions(state, p).options.some((entry) => entry.action.type === "safeMove"), false);
+    p.round = state.round + 3;
+    assert.ok(scoreOptions(state, p).options.some((entry) => entry.action.type === "safeMove"), "on offer again");
 });

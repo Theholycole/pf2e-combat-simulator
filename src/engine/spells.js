@@ -1073,7 +1073,7 @@ export function overdrive(state, c) {
 }
 
 // "1d4" or "3" → a number of rounds.
-function rollCount(state, formula) {
+export function rollCount(state, formula) {
     const dice = /^(\d+)d(\d+)$/.exec(String(formula).trim());
     if (!dice) return Number(formula) || 1;
     let total = 0;
