@@ -1839,3 +1839,77 @@ test("Feed on Fear: healing only with a frightened or dying enemy near (2026-10-
     assert.equal(casts(1), true);
     assert.equal(casts(0, "down"), true);
 });
+
+test("Reaction Strikes: at a Strike on it, a critical miss on it, damage from beside it, an attack or spell aimed at it (2026-10-11, B84)", () => {
+    const [fighter] = martialParty(5);
+    const fight = (triggers, name, { engaged = true } = {}) => {
+        const monster = { ...moderateCreature(5, "mon", "Monster"), engagement: engaged ? 1 : 0, hp: { value: 999, max: 999 } };
+        monster.strikes = [...monster.strikes, { ...monster.strikes[0], name: "Answer", melee: !triggers.includes("targeted"), range: triggers.includes("targeted") ? 120 : undefined }];
+        assert.equal(addBuiltin(monster, { builtin: "reaction-strike", triggers, strike: "answer", penalty: 0, disrupts: false }, name), true);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: engaged ? 1 : 0, band: engaged ? undefined : "far" }, monster] }, {}, 3);
+        state.log = [];
+        return state;
+    };
+    const answered = (state, name) => state.log.includes(`  Monster uses ${name}`) && state.log.some((line) => /^ {2}Monster Answer → Fighter/.test(line));
+    // A Strike at it in its reach.
+    let state = fight(["attacked"], "Cutting Rebuke");
+    performStrike(state, state.byId.get("fighter"), state.byId.get("mon"), state.byId.get("fighter").strikes[0]);
+    assert.ok(answered(state, "Cutting Rebuke"), state.log.join("\n"));
+    // A critical miss on it: only then.
+    state = fight(["critical-miss"], "Opportune Bite");
+    state.rng.d20 = () => 10;
+    performStrike(state, state.byId.get("fighter"), state.byId.get("mon"), state.byId.get("fighter").strikes[0]);
+    assert.equal(answered(state, "Opportune Bite"), false, state.log.join("\n"));
+    state = fight(["critical-miss"], "Opportune Bite");
+    state.rng.d20 = () => 1;
+    performStrike(state, state.byId.get("fighter"), state.byId.get("mon"), state.byId.get("fighter").strikes[0]);
+    state.rng.d20 = () => 10;
+    assert.ok(state.log.some((line) => /critically misses/.test(line)), state.log.join("\n"));
+    assert.ok(answered(state, "Opportune Bite"), state.log.join("\n"));
+    // Damage from beside it, one Strike back.
+    state = fight(["damaged-adjacent"], "Squealed Outrage");
+    state.rng.d20 = () => 19;
+    performStrike(state, state.byId.get("fighter"), state.byId.get("mon"), state.byId.get("fighter").strikes[0]);
+    assert.ok(answered(state, "Squealed Outrage"), state.log.join("\n"));
+    // An attack or a spell aimed at it, at any range.
+    state = fight(["targeted"], "Superconductor", { engaged: false });
+    performStrike(state, state.byId.get("fighter"), state.byId.get("mon"), { ...state.byId.get("fighter").strikes[0], melee: false, range: 100 });
+    assert.ok(answered(state, "Superconductor"), state.log.join("\n"));
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const spell = { modelVersion: 13, source: { name: "Test Spell" }, rank: 1, traits: ["concentrate", "manipulate"], activation: { time: "2", traits: [] }, targeting: { target: "creature", range: 120, area: null }, trigger: { event: "use" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 10 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } };
+    state = fight(["targeted"], "Superconductor", { engaged: false });
+    const caster = state.byId.get("fighter");
+    caster.spells = [{ name: "Test Spell", plan: spell, castRank: 1, dc: 20, attack: null, pool: null }];
+    castSpell(state, caster, 0, ["mon"]);
+    assert.ok(answered(state, "Superconductor"), state.log.join("\n"));
+});
+
+test("Jeer at Failure: Demoralize a foe that falls prone or critically fails a Strike (2026-10-11, B85)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter, second] = martialParty(5);
+    const jeer = { ...structuredClone(basic.demoralize), source: { name: "Jeer at Failure" }, targeting: { ...basic.demoralize.targeting, target: "the attacker" }, trigger: { event: "foe-mishap", reaction: true, within: 90 } };
+    const fight = () => {
+        const dragon = { ...moderateCreature(5, "dragon", "Dragon"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry("Jeer at Failure", jeer)] };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...second, engagement: 1 }, dragon] }, {}, 1);
+        state.log = [];
+        return state;
+    };
+    // A critically failed Strike: at that foe.
+    let state = fight();
+    const f = state.byId.get(fighter.id);
+    state.rng.d20 = () => 1;
+    performStrike(state, f, state.byId.get("dragon"), f.strikes[0]);
+    state.rng.d20 = () => 10;
+    assert.ok(state.log.some((line) => /Dragon reacts with Jeer at Failure/.test(line)), state.log.join("\n"));
+    assert.ok(state.log.includes(`  Dragon casts Jeer at Failure at ${f.name}`), state.log.join("\n"));
+    assert.equal(state.byId.get("dragon").reactionUsed, true);
+    // Falling prone (a Trip), and only once a round: its reaction is spent.
+    state = fight();
+    const s = state.byId.get(second.id);
+    applyCondition(state, s, "prone", null, null, state.byId.get(fighter.id));
+    assert.ok(state.log.includes(`  Dragon casts Jeer at Failure at ${s.name}`), state.log.join("\n"));
+    state.log = [];
+    applyCondition(state, state.byId.get(fighter.id), "prone", null, null, s);
+    assert.equal(state.log.some((line) => /Jeer at Failure/.test(line)), false, state.log.join("\n"));
+});

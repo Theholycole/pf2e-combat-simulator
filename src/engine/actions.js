@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { applyEffect, removeEffect } from "./effects.js";
-import { deathThroes, downsAnswers, hitByAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit } from "./spells.js";
+import { deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit } from "./spells.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -190,6 +190,14 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         if (!canAct(attacker)) return null;
         if (!isActive(target)) return null;
     }
+    // Superconductor (B84): a creature targeted by an attack Strikes back at the attacker, at any range, before the attack.
+    if (!reaction && target.side !== attacker.side && isActive(target)) {
+        const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("targeted"));
+        if (answer && canReact(target) && canAct(target) && !target.cond.fleeing) {
+            reactionStrikeAt(state, target, attacker, answer, "targeted");
+            if (!isActive(attacker) || !canAct(attacker) || !isActive(target)) return null;
+        }
+    }
     let flanked = false;
     if (strike.melee) {
         const chance = flankChance(state, flankersAgainst(state, target, attacker));
@@ -324,7 +332,14 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
                 performStrike(state, target, attacker, riposte, { reaction: true });
             }
         }
+        // Opportune Bite, Gnawing Retort (B84): a monster's Strike back at a creature in its reach that critically fails a Strike against it.
+        if (degree === CRITICAL_FAILURE && !reaction && isActive(attacker) && isActive(target)) {
+            const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("critical-miss"));
+            if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, "critical-miss");
+        }
         if (degree === CRITICAL_FAILURE && !reaction && attacker.weaponPoisoned && strike.held) attacker.weaponPoisoned = false;
+        // Jeer at Failure (B85): a critically failed Strike near a monster with it.
+        if (degree === CRITICAL_FAILURE && !reaction) mishapAnswers(state, attacker);
         return { degree, damage: 0, trigger };
     }
     // (Poison Weapon, B72: the poison goes with this hit, below; a critical miss wastes it.)
@@ -424,7 +439,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
 
 // A reaction Strike (Twisting Tail, Tail Lash, Avenging Bite): its named Strike at the creature, at its penalty; its hit can
 // hinder the creature's own roll (B70). The result, or null when it has no such Strike.
-function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
+export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     const index = strikeNamed(enemy, reaction.strike);
     if (index < 0 || !strikeUsable(enemy, enemy.strikes[index])) return null;
     enemy.reactionUsed = true;
@@ -462,7 +477,8 @@ function strikeProvokes(state, mover, target) {
     for (const enemy of engagedEnemies(state, mover)) {
         if (!canAct(mover) || !isActive(mover)) break;
         if (!canReact(enemy) || enemy.cond.fleeing) continue;
-        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("strike") || (entry.triggers.includes("ally-attacked") && target !== enemy && target.side === enemy.side));
+        // (Cutting Rebuke, Bite Back, B84: a Strike at it.)
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("strike") || (entry.triggers.includes("ally-attacked") && target !== enemy && target.side === enemy.side) || (entry.triggers.includes("attacked") && target === enemy));
         if (reaction) reactionStrikeAt(state, enemy, mover, reaction, "strike");
     }
 }

@@ -14,7 +14,7 @@ import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf,
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effects.js";
-import { applyDamage, expectedHitDamage, increaseDying, killCreature, log, releaseSwallowed, stride } from "./actions.js";
+import { applyDamage, expectedHitDamage, increaseDying, killCreature, log, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
 import { canReact, levelDC, saveBonusAgainst, sizeRank } from "./abilities.js";
 import { adjustDamage, adjustInstance } from "./damage.js";
 import { leaveMelee, sameMelee } from "./space.js";
@@ -372,6 +372,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if (slug === "fleeing" && !before) state.pendingEvents?.push({ type: "fleeing", victim: target });
     // Frightened by an enemy's effect (Demoralize, fear) is a morale trigger.
     if (slug === "frightened" && target.cond.frightened > before && source && source.side !== target.side) state.pendingEvents?.push({ type: "frightened", victim: target, byEnemy: true, value: target.cond.frightened });
+    // Jeer at Failure (B85): a foe near the monster falling prone.
+    if (slug === "prone" && !before && isActive(target)) mishapAnswers(state, target);
     // Who's holding it, for Escape, Constrict and letting go.
     if ((slug === "grabbed" || slug === "restrained") && source && source !== target) target.grabbedBy = source.id;
     // Fast Swallow (B70): a creature it just grabbed, swallowed as its reaction once the action ends.
@@ -1219,6 +1221,9 @@ export function targetedAnswers(state, caster, spell, targets) {
                 if (!own.plan?.trigger?.reaction && sets(own.plan?.trigger) && isActive(caster)) castSpell(state, target, index, [caster.id]);
             }
             if (isActive(caster)) useReaction(state, target, caster, sets);
+            // Superconductor (B84): a spell or an attack (Trip, Grapple) aimed at it, a Strike back at the caster at any range.
+            const answer = (isSpell || traits.includes("attack")) && (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("targeted"));
+            if (answer && isActive(caster) && isActive(target) && canReact(target) && canAct(target) && !target.cond.fleeing) reactionStrikeAt(state, target, caster, answer, "targeted");
         }
     } finally {
         state.answering = false;
@@ -1279,6 +1284,26 @@ export function conditionLostAnswers(state, creature, slug) {
             state.stats.reactions++;
             log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name} (${creature.name} is no longer ${slug})`);
             castSpell(state, c, index, [c.id]);
+            break;
+        }
+    }
+}
+
+// A foe's mishap near a monster (B85: Jeer at Failure's "A foe within 90 feet becomes Prone or critically fails on a Strike"): the
+// monster's reaction at it (PF2e's Demoralize). Within its distance and its action's range (30 feet): the bands, as above.
+export function mishapAnswers(state, creature) {
+    if (!isActive(creature)) return;
+    for (const c of state.list) {
+        if (c.side === creature.side || !isActive(c) || !canAct(c)) continue;
+        for (const [index, spell] of (c.spells ?? []).entries()) {
+            const trigger = spell.plan?.trigger;
+            if (!trigger?.reaction || trigger.event !== "foe-mishap" || (!trigger.free && !canReact(c)) || c.immuneTargets?.get(spell)?.has(creature.id)) continue;
+            const within = Math.min(trigger.within ?? Infinity, Number.parseInt(spell.plan?.targeting?.range, 10) || Infinity);
+            if (within <= 10 ? !sameMelee(c, creature) : within < 60 && creature.band === "far" && c.band !== "far") continue;
+            if (!trigger.free) c.reactionUsed = true;
+            state.stats.reactions++;
+            log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name} (${creature.name}'s mishap)`);
+            castSpell(state, c, index, [creature.id]);
             break;
         }
     }
