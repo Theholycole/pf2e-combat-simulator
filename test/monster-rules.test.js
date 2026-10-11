@@ -1692,3 +1692,22 @@ test("Shake It Off: the first harmful condition an enemy gives it, negated with 
     const again = createFightState({ combatants: [{ ...fighter, engagement: 1 }, worm] }, {}, 2);
     assert.equal(again.byId.get("worm").negateConditionUses, 1);
 });
+
+test("Wicked Bite: both ways ready after the jaws hit, the planner weighing each (2026-10-11, B78)", { skip }, async () => {
+    const { readDocuments } = await import("../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs");
+    const { compileMonsterAbility } = await import(ABILITIES);
+    const doc = readDocuments(`${PACKS}/pathfinder-monster-core-2`).find((entry) => entry.collection === "actors" && entry.name === "Urdefhan Tormentor");
+    const plan = compileMonsterAbility(doc.items.find((item) => item.name === "Wicked Bite"), { actor: doc });
+    assert.equal(plan?.builtin, "modes");
+    const [fighter] = martialParty(5);
+    const urdefhan = { ...moderateCreature(5, "urdefhan", "Urdefhan"), engagement: 1, spells: plan.modes.map((mode) => entry(`Wicked Bite (${mode.name})`, mode.plan)) };
+    urdefhan.strikes = [{ ...urdefhan.strikes[0], name: "Jaws" }];
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, urdefhan] }, {}, 1);
+    const u = state.byId.get("urdefhan");
+    u.round = 1;
+    u.actionsLeft = 2;
+    triggerRiders(state, u, state.byId.get("fighter"), u.strikes[0], 2);
+    assert.deepEqual([u.riderReady.index, u.riderReady.also], [0, [1]]);
+    const offered = scoreOptions(state, u).options.filter((option) => option.action.type === "cast" && option.action.rider).map((option) => option.action.spellIndex);
+    assert.deepEqual([...new Set(offered)].sort(), [0, 1], "both ways on offer");
+});

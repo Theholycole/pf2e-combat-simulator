@@ -1049,6 +1049,8 @@ function rollCount(state, formula) {
 // After a Strike hits: riders its Strike lists (Grab, Knockdown, Push). Free
 // ones (Improved Grab) happen at once; the others can be the creature's next action.
 export function triggerRiders(state, attacker, target, strike, degree = SUCCESS) {
+    // (Several follow-ups the Strike allows, each a way of one ability (Wicked Bite's, B78): all ready, the planner picks.)
+    let ready = null;
     for (const [index, spell] of (attacker.spells ?? []).entries()) {
         const trigger = spell.plan?.trigger;
         // A follow-up to a Strike that hit ("last action was a successful claw Strike"): ready as the next action.
@@ -1059,7 +1061,10 @@ export function triggerRiders(state, attacker, target, strike, degree = SUCCESS)
             // (A Strike that lists it, "a success with a Strike that has Disarm in its damage entry", B68; the Strike's degree, for
             // results by it, "Enfeebled 2 (or Enfeebled 3 on a critical hit)".)
             const listing = !follow.listing || (strike.attackEffects ?? []).some((effect) => String(effect).replace(/^improved-/, "") === follow.listing);
-            if ((follow.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree]) && named && listing && (!follow.melee || strike.melee)) attacker.riderReady = { index, targetId: target.id, degree };
+            if ((follow.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree]) && named && listing && (!follow.melee || strike.melee)) {
+                if (ready) (ready.also ??= []).push(index);
+                else ready = attacker.riderReady = { index, targetId: target.id, degree };
+            }
             continue;
         }
         // The Strike lists the rider by its own slug ("improved-grab") or its base one ("grab"), or the rider names the Strike

@@ -561,7 +561,7 @@ function act(state, c, action) {
             disableHazard(state, c, state.byId.get(action.targetId), { provoke, performStrike });
             break;
         case "cast": {
-            if (action.rider && !(rider && rider.index === action.spellIndex)) break;
+            if (action.rider && !(rider && (rider.index === action.spellIndex || rider.also?.includes(action.spellIndex)))) break;
             if (action.quickened) {
                 c.quickenedUsed = true;
                 state.log?.push(`  ${c.name} uses ${c.quickenedCasting?.name ?? "Quickened Casting"}`);

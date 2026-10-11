@@ -730,7 +730,7 @@ function expand(ctx, node, actionsLeft) {
             // A rider (Grab, Knockdown, Push) or a follow-up ("last action was a successful claw Strike") only as the
             // action straight after the Strike that allows it.
             const rider = spell.plan?.trigger?.event === "strike" || Boolean(spell.plan?.trigger?.followUp);
-            const riderTarget = rider && c.riderReady?.index === index && node.used === 0 ? state.byId.get(c.riderReady.targetId) : null;
+            const riderTarget = rider && (c.riderReady?.index === index || c.riderReady?.also?.includes(index)) && node.used === 0 ? state.byId.get(c.riderReady.targetId) : null;
             if (rider && !(riderTarget && isActive(riderTarget))) continue;
             // Quickened Casting (B72): a spell of its rank or lower, one action fewer, once a fight.
             const quickens = c.quickenedCasting && !c.quickenedUsed && !node.casts.includes("quickened") && (!spell.kind || spell.castsSpell) && (c.quickenedCasting.maxRank == null || (spell.castRank ?? 1) <= c.quickenedCasting.maxRank);
