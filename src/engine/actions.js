@@ -207,6 +207,9 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, target.cond?.hidden ? 11 : target.cond?.concealed ? 5 : 0);
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
+        // Counterattack (B94): a miss from beside it because it's concealed, a Strike back.
+        const answer = !reaction && (target.cond?.concealed || target.cond?.hidden) && (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("concealed-miss"));
+        if (answer && isActive(target) && canReact(target) && canAct(target) && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, "concealed-miss");
         return { degree: FAILURE, damage: 0, trigger };
     }
     // Reactions happen outside the attacker's turn, so this turn's history doesn't apply.
@@ -263,6 +266,27 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         log(state, `  ${attacker.name} uses its stratagem (${natural})`);
     }
     let degree = degreeOf(natural + modifier + bonus, ac + defence, natural);
+    // Hammer Block, Stygian Guardian (B94): an ally's +AC once the attack hits, when that turns it aside (its Strike back after, Reactive
+    // Defense's).
+    if (degree >= SUCCESS && !reaction) {
+        for (const guard of state.list) {
+            const entry = guard.allyAcReaction;
+            if (!entry || guard === target || guard.side !== target.side || !isActive(guard) || !canReact(guard) || !canAct(guard) || (entry.ranged && strike.melee)) continue;
+            if (entry.within <= 10 ? !sameMelee(guard, target) : entry.within < 60 && target.band === "far" && guard.band !== "far") continue;
+            const lower = degreeOf(natural + modifier + bonus, ac + defence + entry.value, natural);
+            if (lower >= degree) continue;
+            degree = lower;
+            defence += entry.value;
+            guard.reactionUsed = true;
+            state.stats.reactions++;
+            log(state, `  ${guard.name} uses ${entry.name}: ${target.name} +${entry.value} AC`);
+            if (entry.strike && sameMelee(guard, attacker) && isActive(attacker)) {
+                const index = enemyStrikeIndex(guard, attacker, entry.strike);
+                if (index >= 0) performStrike(state, guard, attacker, guard.strikes[index], { reaction: true, trigger: "ally-guarded" });
+            }
+            break;
+        }
+    }
     // Retract Body: +AC once the attack hits, when that turns it aside.
     if (degree >= SUCCESS && target.acReaction?.when === "hit" && canReact(target) && dodges(target.acReaction, strike)) {
         const lower = degreeOf(natural + modifier, ac + target.acReaction.value, natural);
@@ -446,10 +470,15 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
 
 // A reaction Strike (Twisting Tail, Tail Lash, Avenging Bite): its named Strike at the creature, at its penalty; its hit can
 // hinder the creature's own roll (B70). The result, or null when it has no such Strike.
+// A Strike by its name, or its best melee Strike for "melee" or none.
+function enemyStrikeIndex(enemy, mover, name) {
+    const any = !name || /^(?:melee|weapon|unarmed)$/i.test(name);
+    return any ? enemy.strikes.indexOf(bestMeleeStrike(enemy, mover)) : strikeNamed(enemy, name);
+}
+
 export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     // (A "melee Strike" with no name, B90: its best melee Strike.)
-    const any = !reaction.strike || /^(?:melee|weapon|unarmed)$/i.test(reaction.strike);
-    const index = any ? enemy.strikes.indexOf(bestMeleeStrike(enemy, mover)) : strikeNamed(enemy, reaction.strike);
+    const index = enemyStrikeIndex(enemy, mover, reaction.strike);
     if (index < 0 || !strikeUsable(enemy, enemy.strikes[index])) return null;
     enemy.reactionUsed = true;
     state.stats.reactions++;

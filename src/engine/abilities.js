@@ -127,6 +127,11 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // Golden Luck, Word of Wisdom (B80): its own (or an ally's within its distance) failed save one degree better, then not for 1d4
         // rounds; Cat's Luck: its Reflex save rerolled, the better kept, once a fight (its use: a number on the creature).
+        // Hammer Block, Stygian Guardian (B94): +AC for an ally within its distance as an attack hits it, when that turns it aside; Wind
+        // Shell's only against ranged attacks; Reactive Defense's Strike at the attacker after.
+        case "ally-ac-reaction":
+            spec.allyAcReaction = { name, value: Number(plan.value) || 2, within: plan.within === "reach" ? 10 : Number(plan.within) || 10, ...(plan.ranged ? { ranged: true } : {}), ...(plan.strike ? { strike: plan.strike } : {}) };
+            return true;
         case "save-boost":
             if (plan.ally) spec.allySaveBoost = { name, within: plan.within ?? 60, recharge: plan.recharge ?? null };
             else {

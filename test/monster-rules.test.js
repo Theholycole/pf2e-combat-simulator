@@ -2122,3 +2122,32 @@ test("Its own failed save: the new reroll kept, a free action's, once a fight; o
     castSpell(state, state.byId.get(fighter.id), 0, ["mon"]);
     assert.equal(state.log.filter((line) => /Test Luck/.test(line)).length, 1, state.log.join("\n"));
 });
+
+test("An ally's +AC that turns a hit aside, its Strike after; Counterattack at a miss from its concealment (2026-10-11, B94)", () => {
+    const [fighter] = martialParty(5);
+    // A hit by 1 on the guarded goblin: +2 AC from its champion beside it turns it into a miss; Reactive Defense's Strike after.
+    const champion = { ...moderateCreature(5, "champ", "Champion"), engagement: 1, hp: { value: 999, max: 999 } };
+    assert.equal(addBuiltin(champion, { builtin: "ally-ac-reaction", value: 2, type: "circumstance", within: "reach", strike: "melee" }, "Hammer Block"), true);
+    const ward = { ...moderateCreature(5, "ward", "Ward"), engagement: 1, hp: { value: 999, max: 999 } };
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, champion, ward] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get(fighter.id);
+    const w = state.byId.get("ward");
+    const strike = f.strikes[0];
+    // A natural roll that just hits: AC − bonus.
+    state.rng.d20 = () => Math.min(19, Math.max(2, armorClass(w) - strike.bonus));
+    performStrike(state, f, w, strike);
+    assert.ok(state.log.includes("  Champion uses Hammer Block: Ward +2 AC"), state.log.join("\n"));
+    assert.ok(state.log.some((line) => /^ {2}Champion .+ → Fighter/.test(line)), state.log.join("\n"));
+    assert.equal(state.byId.get("champ").reactionUsed, true);
+    // Counterattack: a concealed shae, the attacker's flat check failed.
+    const shae = { ...moderateCreature(5, "shae", "Shae"), engagement: 1, hp: { value: 999, max: 999 } };
+    addBuiltin(shae, { builtin: "reaction-strike", triggers: ["concealed-miss"], strike: "melee", penalty: 0, disrupts: false }, "Counterattack");
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, shae] }, {}, 1);
+    state.log = [];
+    state.byId.get("shae").cond.concealed = true;
+    state.rng.d20 = () => 2;
+    performStrike(state, state.byId.get(fighter.id), state.byId.get("shae"), state.byId.get(fighter.id).strikes[0]);
+    assert.ok(state.log.some((line) => /fails the DC 5 flat check/.test(line)), state.log.join("\n"));
+    assert.ok(state.log.includes("  Shae uses Counterattack"), state.log.join("\n"));
+});
