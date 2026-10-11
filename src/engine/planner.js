@@ -7,7 +7,7 @@
 // its threat. Exposure to enemy attacks costs the creature's own threat the
 // same way, weighted by self-preservation.
 
-import { degreeDistribution, CRITICAL_SUCCESS, SUCCESS, CRITICAL_FAILURE } from "./checks.js";
+import { degreeDistribution, CRITICAL_SUCCESS, SUCCESS, FAILURE, CRITICAL_FAILURE } from "./checks.js";
 import { effectBenefit } from "./effects.js";
 import { allyStrike, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
@@ -361,8 +361,11 @@ class PlanContext {
         // Pack Attack: allies within reach of the target (those in its Melee).
         const packAllies = c.strikeExtras?.length && target.meleeId !== null ? this.allies.filter((ally) => ally.meleeId === target.meleeId).length : 0;
         const extras = { bonus: forcefulBonus(strike, attacks), offGuardChance: isOffGuard(target) || feinted ? 1 : flank, packAllies };
-        const damage = hitChance * expectedHitDamage(c, strike, target, false, extras) + critChance * expectedHitDamage(c, strike, target, true, extras);
-        const result = { damage, hitChance: hitChance + critChance };
+        const hitDamage = expectedHitDamage(c, strike, target, false, extras);
+        const damage = hitChance * hitDamage + critChance * expectedHitDamage(c, strike, target, true, extras);
+        // (A failure's chance and a hit's damage, for Focused Assault's failure, B74.)
+        const failChance = finds * ((1 - flank) * plain[FAILURE] + flank * flanked[FAILURE]);
+        const result = { damage, hitChance: hitChance + critChance, failChance, hitDamage };
         perTarget.set(key, result);
         return result;
     }
@@ -806,13 +809,14 @@ function expand(ctx, node, actionsLeft) {
             if (!order || order.some((index) => !strikeUsable(c, c.strikes[index]))) continue;
             // A Strike at every enemy in its Melee: worth the sum over them.
             if (ability.each) {
-                const index = order[0];
-                const ranged = !c.strikes[index].melee;
+                const ranged = !c.strikes[order[0]].melee;
                 const foes = ctx.enemies.filter((target) => target.status === "active" && (ranged || inMelee(node.pos, target))).slice(0, ability.max ?? Infinity);
                 if (foes.length < 2) continue;
                 const damage = { ...node.damage };
                 let gain = 0;
                 for (const [step, target] of foes.entries()) {
+                    // (A different Strike at each, B74.)
+                    const index = order[Math.min(step, order.length - 1)];
                     const struck = ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - ability.penalty } : c.strikes[index];
                     const expected = ctx.strikeExpectation(struck, struck === c.strikes[index] ? index : 4000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone)?.damage ?? 0;
                     const before = damage[target.id] ?? 0;
@@ -820,7 +824,7 @@ function expand(ctx, node, actionsLeft) {
                     gain += targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
                     damage[target.id] = before + expected;
                 }
-                if (gain > 0) children.push(child(node, { type: "multiStrike", ability: abilityIndex, targetId: foes[0].id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, { attacks: foes.length, damage }));
+                if (gain > 0) children.push(child(node, { type: "multiStrike", ability: abilityIndex, targetId: foes[0].id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, { attacks: ability.countsAs ?? foes.length, damage }));
                 continue;
             }
             for (const target of ctx.enemies) {
@@ -833,7 +837,9 @@ function expand(ctx, node, actionsLeft) {
                     // Double Slice: both at the current penalty, the second -2 unless agile (B62: not a monster's). A penalty on each
                     // (Frenzied Slashes' -2).
                     const second = ability.secondPenalty && step > 0 && !c.strikes[index].agile ? 2 : 0;
-                    const strike = second || ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - second - (ability.penalty ?? 0) } : c.strikes[index];
+                    // (Twin Feint, B74: the second against an off-guard target, about +2; after a first hit only, half that.)
+                    const feint = step === 1 && ability.secondOffGuard ? (ability.secondOffGuard === true ? 2 : 1) : 0;
+                    const strike = second || feint || ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - second + feint - (ability.penalty ?? 0) } : c.strikes[index];
                     expected += ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone)?.damage ?? 0;
                 }
                 if (expected <= 0) continue;
@@ -841,7 +847,7 @@ function expand(ctx, node, actionsLeft) {
                 const hp = remainingHp(target);
                 const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
                 children.push(child(node, { type: "multiStrike", ability: abilityIndex, targetId: target.id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
-                    attacks: order.length,
+                    attacks: ability.countsAs ?? order.length,
                     damage: { ...node.damage, [target.id]: before + expected },
                     ...(ability.oncePerTurn || ability.flourish ? { cast: [...(ability.oncePerTurn ? [`ms${abilityIndex}`] : []), ...(ability.flourish ? ["flourish"] : [])] } : {})
                 }));
@@ -930,7 +936,8 @@ function expand(ctx, node, actionsLeft) {
                 const rider = strikeRiderValue(state, c, target, activity, c.strikes[best.index]);
                 const before = node.damage[target.id] ?? 0;
                 const hp = remainingHp(target);
-                const expected = best.expectation.damage + best.expectation.hitChance * rider.damage;
+                // (Focused Assault, B74: a failure deals the Strike's damage too.)
+                const expected = best.expectation.damage + best.expectation.hitChance * rider.damage + (activity.failureDamage ? (best.expectation.failChance ?? 0) * (best.expectation.hitDamage ?? 0) : 0);
                 // Set-Up Strike: off-guard for an ally's next attack, about a tenth more of its damage.
                 const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * 0.12 / hp : 0;
                 const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + best.expectation.hitChance * rider.worth * ROUND_TO_KILL + setUpWorth);

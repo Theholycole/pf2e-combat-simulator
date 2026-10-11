@@ -1,12 +1,12 @@
 // One simulated fight from a snapshot.
 
 import { createRng } from "./rng.js";
-import { flatCheck, SUCCESS } from "./checks.js";
+import { FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride } from "./actions.js";
 import { canReact, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating } from "./abilities.js";
-import { adjustInstance, rollPersistent } from "./damage.js";
+import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
@@ -626,6 +626,12 @@ function act(state, c, action) {
             // Vicious Swing counts as two attacks; Exacting Strike's miss doesn't count.
             if (result && activity.countsAs > 1) c.attacksThisTurn += activity.countsAs - 1;
             if (result && activity.exacting && result.degree === 1) c.attacksThisTurn = Math.max(0, c.attacksThisTurn - 1);
+            // Focused Assault (B74): a failure (not a critical one) still deals the Strike's damage, as a hit's.
+            if (result && activity.failureDamage && result.degree === FAILURE && isActive(target)) {
+                const instances = rollStrikeDamage(state.rng, fired, { critical: false, penalty: fired.melee ? c.cond.enfeebled ?? 0 : 0 });
+                const dealt = applyDamage(state, target, instances, { source: c, physical: true });
+                state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
+            }
             if (result && result.degree >= SUCCESS && isActive(target)) applyStrikeRider(state, c, target, activity, result.degree === 3, fired);
             // Set-Up Strike: its hit leaves the target off-guard to an ally's next attack.
             if (activity.setUp && result && result.degree >= SUCCESS && isActive(target)) setUp(state, c, target);
@@ -655,21 +661,25 @@ function act(state, c, action) {
             // A Strike at every enemy in its Melee (Vine Lash, Thrash), or at that many of them (Dual Tusks, Swipe); a ranged
             // one at any enemies (Cannonade).
             if (ability.each) {
-                const index = multiStrikeOrder(c, ability)?.[0];
-                const ranged = index !== undefined && c.strikes[index] && !c.strikes[index].melee;
+                const order = multiStrikeOrder(c, ability) ?? [];
+                const ranged = order.length > 0 && c.strikes[order[0]] && !c.strikes[order[0]].melee;
                 const foes = (ranged ? state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone") : engagedEnemies(state, c)).slice(0, ability.max ?? Infinity);
-                for (const foe of foes) {
+                for (const [step, foe] of foes.entries()) {
+                    // (Three-Headed Strike, B74: a different Strike at each creature, in turn.)
+                    const index = order[Math.min(step, order.length - 1)];
                     if (!canAct(c) || index === undefined) break;
                     // Each at the penalty it started with, when it doesn't rise until all are made.
                     if (ability.sameMap) c.attacksThisTurn = attacks;
                     // (Hungry Flurry, Double Shot: each at a -2 penalty, B62.)
                     if (isActive(foe)) performStrike(state, c, foe, ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - ability.penalty } : c.strikes[index]);
                 }
-                if (ability.sameMap) c.attacksThisTurn = attacks + foes.length;
+                // ("These Strikes count as only one attack for its multiple attack penalty", B74.)
+                if (ability.sameMap) c.attacksThisTurn = attacks + (ability.countsAs ?? foes.length);
                 multiStrikeAfter(state, c, ability);
                 break;
             }
             let grabbed = false;
+            let firstHit = false;
             for (const [step, index] of (multiStrikeOrder(c, ability) ?? []).entries()) {
                 if (!canAct(c)) break;
                 let strike = c.strikes[index];
@@ -679,7 +689,10 @@ function act(state, c, action) {
                 // Double Slice's second Strike: -2 unless agile (C4). A monster's that doesn't raise the penalty: none (B62).
                 if (ability.secondPenalty && step > 0 && !strike.agile) strike = { ...strike, bonus: strike.bonus - 2 };
                 if (ability.penalty) strike = { ...strike, bonus: strike.bonus - ability.penalty };
+                // Twin Feint (B74): the target is off-guard against the second attack (or only after a first that hit).
+                if (step === 1 && (ability.secondOffGuard === true || (ability.secondOffGuard === "hit" && firstHit))) (target.offGuardTo ??= []).push({ attacker: c.id, attacks: "all", uses: 1 });
                 const result = performStrike(state, c, target, strike);
+                if (step === 0) firstHit = (result?.degree ?? 0) >= SUCCESS;
                 // "If either Strike hits, the dragon can attempt to Grab the target … as a free action" (Coiling Frenzy): its Grab, once.
                 if (ability.grab && !grabbed && result?.degree >= SUCCESS && isActive(target)) {
                     const grab = (c.spells ?? []).findIndex((spell) => ["grab", "improved-grab"].includes(spell.plan?.source?.slug) || spell.plan?.trigger?.attackEffect === "grab");
@@ -689,7 +702,7 @@ function act(state, c, action) {
                     }
                 }
             }
-            if (ability.sameMap) c.attacksThisTurn = attacks + (multiStrikeOrder(c, ability)?.length ?? 0);
+            if (ability.sameMap) c.attacksThisTurn = attacks + (ability.countsAs ?? multiStrikeOrder(c, ability)?.length ?? 0);
             multiStrikeAfter(state, c, ability);
             break;
         }

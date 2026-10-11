@@ -1577,3 +1577,58 @@ test("Mythic Points (Remove a Condition, Undying Myth, Recharge), Quickened Cast
     performStrike(state, a, state.byId.get("fighter"), a.strikes[0]);
     assert.deepEqual([a.weaponPoisoned, state.byId.get("fighter").cond.enfeebled >= 1], [false, true], state.log.join("\n"));
 });
+
+test("Twin Feint's off-guard second attack, Three-Headed Strike's different Strikes, Focused Assault's failure (2026-10-11, B74)", () => {
+    const party = martialParty(5);
+    const fighter = party[0];
+    const ready = (state, id) => {
+        const c = state.byId.get(id);
+        c.round = 1;
+        c.actionsLeft = 3;
+        return c;
+    };
+    // Twin Feint: the second Strike against an off-guard target (2 lower AC), spent by it.
+    const bugbear = { ...moderateCreature(5, "bugbear", "Bugbear"), engagement: 1 };
+    assert.equal(addBuiltin(bugbear, { builtin: "multi-strike", actions: 2, strikes: [null, null], sameTarget: true, secondOffGuard: true }, "Twin Feint"), true);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, bugbear] }, {}, 1);
+    state.log = [];
+    const b = ready(state, "bugbear");
+    const feint = scoreOptions(state, b).options.find((entry) => entry.action.type === "multiStrike");
+    assert.ok(feint, "on offer");
+    performAction(state, b, feint.action);
+    const acs = state.log.filter((line) => line.startsWith("  Bugbear ") && / vs AC \d+/.test(line)).map((line) => Number(/ vs AC (\d+)/.exec(line)[1]));
+    assert.equal(acs.length, 2, state.log.join("\n"));
+    assert.equal(acs[1], acs[0] - 2, state.log.join("\n"));
+    assert.equal((state.byId.get("fighter").offGuardTo ?? []).some((entry) => (entry.uses ?? 1) > 0), false, "spent by the second attack");
+    // Three-Headed Strike: a different Strike at each of three foes, counted as one attack.
+    const chimera = { ...moderateCreature(5, "chimera", "Chimera"), engagement: 1 };
+    chimera.strikes = ["Dragon Jaws", "Lion Jaws", "Goat Horns"].map((name) => ({ ...chimera.strikes[0], name }));
+    assert.equal(addBuiltin(chimera, { builtin: "multi-strike", actions: 2, strikes: ["dragon jaws", "lion jaws", "goat horns"], sameMap: true, each: true, max: 3, penalty: 2, countsAs: 1 }, "Three-Headed Strike"), true);
+    state = createFightState({ combatants: [...party.slice(0, 3).map((pc) => ({ ...pc, engagement: 1 })), chimera] }, {}, 1);
+    state.log = [];
+    const k = ready(state, "chimera");
+    const heads = scoreOptions(state, k).options.find((entry) => entry.action.type === "multiStrike");
+    assert.ok(heads, "on offer");
+    performAction(state, k, heads.action);
+    const struck = state.log.filter((line) => line.startsWith("  Chimera ") && line.includes(" → ")).map((line) => /^ {2}Chimera (.+?) → (.+?):/.exec(line)?.slice(1).join(" at "));
+    assert.equal(new Set(struck.map((entry) => entry.split(" at ")[0])).size, 3, state.log.join("\n"));
+    assert.equal(new Set(struck.map((entry) => entry.split(" at ")[1])).size, 3, "a different creature each");
+    assert.equal(k.attacksThisTurn, 1, "counted as one attack");
+    // Focused Assault: a failure (not a critical one) deals the Strike's damage; it counts as five attacks.
+    const hydra = { ...moderateCreature(5, "hydra", "Hydra"), engagement: 1 };
+    assert.equal(addBuiltin(hydra, { builtin: "strike-activity", actions: 2, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, countsAs: 5, failureDamage: true, onHit: { conditions: [], critical: null, push: null, damage: ["4d6[strike]"], save: null, size: null } }, "Focused Assault"), true);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, hydra] }, {}, 1);
+    state.log = [];
+    const h = ready(state, "hydra");
+    const target = state.byId.get("fighter");
+    const assault = scoreOptions(state, h).options.find((entry) => entry.action.type === "strikeActivity");
+    assert.ok(assault, "on offer");
+    // (10 on the die, 3 short of its AC: a failure.)
+    state.rng.d20 = () => 10;
+    h.strikes[assault.action.strikeIndex] = { ...h.strikes[assault.action.strikeIndex], bonus: armorClass(target) - 13 };
+    const before = target.hp.value;
+    performAction(state, h, assault.action);
+    assert.ok(state.log.some((line) => /takes \d+ from the failed Focused Assault/.test(line)), state.log.join("\n"));
+    assert.ok(target.hp.value < before, "the Strike's damage");
+    assert.equal(h.attacksThisTurn, 5);
+});

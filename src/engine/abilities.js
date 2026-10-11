@@ -48,7 +48,7 @@ export function addBuiltin(spec, plan, name) {
             spec.fastHealing = Math.max(spec.fastHealing ?? 0, plan.value);
             return true;
         case "multi-strike":
-            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}) }];
+            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}) }];
             return true;
         case "charge":
             spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null, ...(plan.fatal ? { fatal: plan.fatal } : {}), ...(plan.deadly ? { deadly: plan.deadly } : {}), ...(plan.halfDamage ? { halfDamage: true } : {}), ...(plan.offGuard ? { offGuard: true } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}) }];
@@ -177,6 +177,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.fatal ? { fatal: plan.fatal } : {}),
                 ...(plan.deadly ? { deadly: plan.deadly } : {}),
                 ...(plan.halfDamage ? { halfDamage: true } : {}),
+                // Focused Assault (B74): a failure (not a critical one) still deals the Strike's damage.
+                ...(plan.failureDamage ? { failureDamage: true } : {}),
                 onHit: plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];
