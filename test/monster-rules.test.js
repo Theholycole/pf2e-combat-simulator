@@ -1802,3 +1802,16 @@ test("Wing Thrash answers an adjacent enemy's damaging Strike; Telekinetic Defen
     assert.equal(state.byId.get("ghost").reactionUsed, true);
 });
 
+test("Biting Snakes: a Strike at a creature ending its turn beside it (2026-10-11, B82)", () => {
+    const [fighter] = martialParty(5);
+    const medusa = { ...moderateCreature(5, "medusa", "Medusa"), engagement: 1 };
+    medusa.strikes = [...medusa.strikes, { ...medusa.strikes[0], name: "Snake Fangs" }];
+    assert.equal(addBuiltin(medusa, { builtin: "reaction-strike", triggers: ["turn-end-adjacent"], strike: "snake fangs", penalty: 0, disrupts: false }, "Biting Snakes"), true);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, medusa] }, {}, 1);
+    state.log = [];
+    turnEnd(state, state.byId.get("fighter"));
+    assert.ok(state.log.includes("  Medusa uses Biting Snakes"), state.log.join("\n"));
+    assert.ok(state.log.some((line) => /^ {2}Medusa Snake Fangs → Fighter/.test(line)), state.log.join("\n"));
+    assert.equal(state.byId.get("medusa").reactionUsed, true);
+});
+

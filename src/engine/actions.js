@@ -436,6 +436,16 @@ function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     return result;
 }
 
+// A creature ending its turn in its Melee (B82: Biting Snakes' "A creature ends its turn adjacent to the medusa"): its Strike at it.
+export function turnEndAnswers(state, c) {
+    for (const enemy of engagedEnemies(state, c)) {
+        if (!isActive(c)) break;
+        if (!canReact(enemy) || !canAct(enemy) || enemy.cond.fleeing) continue;
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("turn-end-adjacent"));
+        if (reaction) reactionStrikeAt(state, enemy, c, reaction, "turn-end");
+    }
+}
+
 // A creature coming into its reach (B81: Telekinetic Defense's "approaches within 10 feet", Wing Rebuff's "moves … to within the reach of
 // the roc's wing"): as it engages, each enemy in that Melee with the reaction Strikes it.
 function approachAnswers(state, mover) {

@@ -4,7 +4,7 @@ import { createRng } from "./rng.js";
 import { FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
-import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride } from "./actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers } from "./actions.js";
 import { canReact, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating, sweepActionIndex } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
@@ -409,6 +409,8 @@ function endTurn(state, c) {
         dealDamage(state, c, amount);
         if (flatCheck(state.rng, 15) >= SUCCESS) c.persistent.splice(c.persistent.indexOf(entry), 1);
     }
+    // (Biting Snakes, B82: a Strike at it from a monster beside it.)
+    if (isActive(c)) turnEndAnswers(state, c);
     if (c.cond.frightened > 0) {
         c.cond.frightened--;
         // (Consume Fear, B76: a monster's reaction to a creature near it no longer frightened.)
