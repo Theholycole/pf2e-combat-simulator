@@ -324,8 +324,10 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
                 performStrike(state, target, attacker, riposte, { reaction: true });
             }
         }
+        if (degree === CRITICAL_FAILURE && !reaction && attacker.weaponPoisoned && strike.held) attacker.weaponPoisoned = false;
         return { degree, damage: 0, trigger };
     }
+    // (Poison Weapon, B72: the poison goes with this hit, below; a critical miss wastes it.)
     // A hazard's or an object's immunity to critical hits: a hit's damage.
     const critical = degree === CRITICAL_SUCCESS && !target.immunities?.includes("critical-hits");
     // A hit on its own turn, for Strike, Breathe, Rend's "last action was a successful Strike" (C26).
@@ -397,6 +399,11 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (isActive(attacker)) reactToHit(state, target, attacker, strike, degree, dealtTypes);
     // Pin Prey, Storm Smite: the attacker's reaction to its own hit (B47).
     if (isActive(attacker)) reactToOwnHit(state, attacker, target, strike, degree);
+    // Poison Weapon (B72): a weapon Strike that hits and deals damage delivers the poison on it.
+    if (!reaction && attacker.weaponPoisoned && strike.held && dealt > 0 && isActive(target) && attacker.poisonWeapon) {
+        attacker.weaponPoisoned = false;
+        state.onPoison?.(attacker, target);
+    }
     // Violent Retort (B70): a critical hit on it, answered with a Strike.
     if (degree === CRITICAL_SUCCESS && !reaction && isActive(attacker) && isActive(target)) {
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("critical-hit"));
@@ -679,6 +686,14 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         target.cond.wounded = (target.cond.wounded ?? 0) + 1;
         target.reactionUsed = true;
         log(state, `  ${target.name} uses Ferocity and stays up at 1 HP`);
+        return;
+    }
+    // Undying Myth (B72): all its Mythic Points, and it stays standing with half its Hit Points (or the number it names).
+    if (target.kind !== "pc" && target.mythic?.undying && (target.mythicPoints ?? 0) > 0) {
+        const undying = target.mythic.undying;
+        target.mythicPoints = 0;
+        target.hp.value = Math.max(1, Math.min(target.hp.max, undying.amount ?? Math.floor(target.hp.max * (undying.fraction ?? 0.5))));
+        log(state, `  ${target.name} uses ${undying.name} and stays up at ${target.hp.value} HP`);
         return;
     }
     // Death Frenzy: a last Strike as it drops.

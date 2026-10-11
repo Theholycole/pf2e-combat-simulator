@@ -20,7 +20,7 @@ import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
-import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets } from "./spells.js";
+import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, worstCondition } from "./spells.js";
 import { levelDC } from "./abilities.js";
 
 export const ROLE_PROFILES = Object.freeze({
@@ -729,9 +729,12 @@ function expand(ctx, node, actionsLeft) {
             const rider = spell.plan?.trigger?.event === "strike" || Boolean(spell.plan?.trigger?.followUp);
             const riderTarget = rider && c.riderReady?.index === index && node.used === 0 ? state.byId.get(c.riderReady.targetId) : null;
             if (rider && !(riderTarget && isActive(riderTarget))) continue;
+            // Quickened Casting (B72): a spell of its rank or lower, one action fewer, once a fight.
+            const quickens = c.quickenedCasting && !c.quickenedUsed && !node.casts.includes("quickened") && (!spell.kind || spell.castsSpell) && (c.quickenedCasting.maxRank == null || (spell.castRank ?? 1) <= c.quickenedCasting.maxRank);
             for (const actions of spellVariants(spell)) {
                 const info = describeSpell(spell.plan, actions);
-                if (!info.actions || info.actions > remaining || (restrained && (info.manipulate || info.attack)) || (noAttacks && info.attack)) continue;
+                const quickFits = quickens && info.actions >= 2 && info.actions - 1 <= remaining;
+                if (!info.actions || (info.actions > remaining && !quickFits) || (restrained && (info.manipulate || info.attack)) || (noAttacks && info.attack)) continue;
                 const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, c, spell, {
                     enemies: ctx.enemies,
                     allies: ctx.alliesAndDown,
@@ -766,10 +769,17 @@ function expand(ctx, node, actionsLeft) {
                         gain += 0.6 * ctx.ownValue * ROUND_TO_KILL * (3 * c.panacheStyle.precise + c.panacheStyle.finisherDice * 3.5 * 0.6) / threat;
                     }
                     if (gain <= 0) continue;
-                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...(rider ? { rider: true } : {}) }, info.actions, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
-                    // Casting is a manipulate action: it provokes Attacks of Opportunity.
-                    if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-                    children.push(next);
+                    if (info.actions <= remaining) {
+                        const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...(rider ? { rider: true } : {}) }, info.actions, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
+                        // Casting is a manipulate action: it provokes Attacks of Opportunity.
+                        if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                        children.push(next);
+                    }
+                    if (quickFits) {
+                        const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, quickened: true, ...(rider ? { rider: true } : {}) }, info.actions - 1, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: [index, "quickened"] });
+                        if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                        children.push(next);
+                    }
                 }
             }
         }
@@ -1157,6 +1167,13 @@ function expand(ctx, node, actionsLeft) {
                     if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }
+                // Speed Surge (B72): two Strides for one action, three times a fight.
+                if (strides === 2 && c.speedSurge && (c.surgesUsed ?? 0) < c.speedSurge.uses && !node.casts.includes("surge")) {
+                    const surged = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
+                    const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id }, surge: true }, 1, 0, { pos: surged, moved: false, cast: "surge" });
+                    if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    children.push(next);
+                }
                 if (strides !== 1) continue;
                 const pos = target.meleeId !== null
                     ? { band: "engaged", melee: target.meleeId, newWith: null }
@@ -1198,6 +1215,30 @@ function expand(ctx, node, actionsLeft) {
                 if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                 children.push(next);
             }
+        }
+        // Mythic (B72): a Mythic Point to end its worst condition, or to regain a spent spell, a recharge, Quickened Casting.
+        if ((c.mythicPoints ?? 0) > 0 && remaining >= 1) {
+            const worst = c.mythic?.["remove-condition"] && !node.casts.includes("mythicRemove") ? worstCondition(c) : null;
+            if (worst && worst.worth > 0) children.push(child(node, { type: "mythicRemove", slug: worst.slug, actions: 1 }, 1, ctx.ownValue * 1.5 * worst.worth * ROUND_TO_KILL, { cast: "mythicRemove" }));
+            const recharge = c.mythic?.recharge && !node.casts.includes("mythicRecharge") && node.used === 0 ? c.mythic.recharge : null;
+            if (recharge) {
+                const pool = Object.entries(c.spellPools ?? {}).find(([name, left]) => left <= 0 && (c.spells ?? []).some((spell) => spell.pool === name))?.[0];
+                const recharging = recharge.abilities ? (c.spells ?? []).findIndex((spell) => (c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0)) : -1;
+                const what = pool ? { pool } : recharging >= 0 ? { spellIndex: recharging } : recharge.quickened && c.quickenedUsed ? { quickened: true } : null;
+                if (what) children.push(child(node, { type: "mythicRecharge", actions: 1, ...what }, 1, 0.35 * ctx.ownValue * ROUND_TO_KILL, { cast: "mythicRecharge" }));
+            }
+        }
+        // Poison Weapon (B72): an Interact to poison its weapon before a Strike: the poison's worth on its best foe, times a hit's chance.
+        if (c.poisonWeapon && !c.weaponPoisoned && (c.poisonDoses ?? c.poisonWeapon.doses) > 0 && remaining >= 2 && !restrained && !node.casts.includes("poisonWeapon") && (c.strikes ?? []).some((strike) => strike.held && strikeUsable(c, strike))) {
+            let worth = 0;
+            for (const target of ctx.enemies) {
+                if (target.status !== "active") continue;
+                const effect = spellExpectation(state, c, c.poisonWeapon.spell, [target]).find((entry) => entry.target === target);
+                if (effect) worth = Math.max(worth, targetValue(state, target, c) * ((effect.damage ?? 0) / Math.max(1, remainingHp(target)) + (effect.worth ?? 0) * ROUND_TO_KILL));
+            }
+            const next = child(node, { type: "poisonWeapon", actions: 1 }, 1, ctx.profile.aggression * 0.6 * worth, { cast: "poisonWeapon" });
+            if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+            if (worth > 0) children.push(next);
         }
         // Retch: a sickened creature's Fortitude save to shake it off. Each point
         // of sickened is about a quarter of a round of its threat over the fight.

@@ -1294,6 +1294,20 @@ export function canCast(c, spell) {
 }
 
 // How much a condition is worth, as a share of one round of the target's threat.
+// Its worst condition, by what it costs it (Remove a Condition, B72): { slug, worth } or null.
+const REMOVABLE = ["stunned", "paralyzed", "confused", "fleeing", "restrained", "grabbed", "immobilized", "slowed", "blinded", "frightened", "sickened", "clumsy", "enfeebled", "stupefied", "drained", "dazzled", "prone", "off-guard"];
+export function worstCondition(c) {
+    let worst = null;
+    for (const slug of REMOVABLE) {
+        const flag = FLAGS[slug];
+        const has = flag ? c.cond?.[flag] : (c.cond?.[slug] ?? 0) > 0;
+        if (!has) continue;
+        const worth = conditionWorth(slug, flag ? null : c.cond[slug], null);
+        if (!worst || worth > worst.worth) worst = { slug, worth };
+    }
+    return worst;
+}
+
 export function conditionWorth(slug, value, duration) {
     const rounds = Math.min(3, durationRounds(duration));
     const n = Number.isFinite(value) ? value : 1;

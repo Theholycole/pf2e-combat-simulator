@@ -115,6 +115,29 @@ export function addBuiltin(spec, plan, name) {
         case "reaction-strike":
             spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: !!plan.disrupts, ...(plan.hinders ? { hinders: plan.hinders } : {}) }];
             return true;
+        // Mythic abilities (B72; the user's choice: three Mythic Points a fight): Remove a Condition, Recharge, Undying Myth.
+        case "mythic":
+            if (!["remove-condition", "recharge", "undying"].includes(plan.kind)) return false;
+            spec.mythicPoints ??= 3;
+            spec.mythic = { ...(spec.mythic ?? {}), [plan.kind]: { name, actions: Number(plan.actions) || 1, ...(plan.fraction ? { fraction: plan.fraction } : {}), ...(plan.amount ? { amount: plan.amount } : {}), ...(plan.quickened ? { quickened: true } : {}), ...(plan.abilities ? { abilities: true } : {}) } };
+            return true;
+        // Quickened Casting (B72): its next spell (of that rank or lower) one action fewer, once a fight.
+        case "quickened-casting":
+            spec.quickenedCasting = { name, maxRank: Number.isFinite(plan.maxRank) ? plan.maxRank : null };
+            return true;
+        // A monster's Spellstrike (B72): the magus's (C20).
+        case "spellstrike":
+            spec.spellstrike = { name };
+            return true;
+        // Speed Surge (B72): two moves for one action, three times a fight.
+        case "speed-surge":
+            spec.speedSurge = { name, uses: Number(plan.uses) || 3 };
+            return true;
+        // Poison Weapon (B72): its poison on the next weapon Strike that hits and deals damage.
+        case "poison-weapon":
+            if (!plan.poison?.plan?.resolution) return false;
+            spec.poisonWeapon = { name, actions: Number(plan.actions) || 1, doses: Number(plan.doses) || 1, spell: { name: plan.poison.name, plan: plan.poison.plan, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" } };
+            return true;
         // A monster's Hunt Prey (B71): a ranger's precision edge, its dice ("1d8 precision damage" the first hit on its prey each round).
         case "hunt-prey":
             if (plan.edge !== "precision") return false;

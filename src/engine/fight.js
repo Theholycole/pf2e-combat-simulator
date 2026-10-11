@@ -11,7 +11,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castPlan, castSpell, describeSpell, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castPlan, castSpell, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
 import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
@@ -88,6 +88,11 @@ function createState(snapshot, options, seed, withLog) {
     if (!options.heroPoints) for (const c of list) c.heroPoints = 0;
     // Grab, Knockdown and Push after a hit (spells.js resolves them).
     state.onStrikeHit = (attacker, target, strike, degree) => triggerRiders(state, attacker, target, strike, degree);
+    // Poison Weapon (B72): the poison's affliction on the creature hit.
+    state.onPoison = (attacker, target) => {
+        state.log?.push(`  ${attacker.poisonWeapon.spell.name} from ${attacker.name}'s weapon`);
+        castPlan(state, attacker, attacker.poisonWeapon.spell, [target.id]);
+    };
     // Before placing: an escalation's creatures wait off the field, and so do hazards not yet set off.
     setUpEscalations(state, snapshot.setup?.escalations);
     setUpHazards(state, snapshot.setup?.escalations);
@@ -487,12 +492,42 @@ function act(state, c, action) {
             break;
         }
         case "stride":
+            // (Speed Surge, B72: both moves in this action.)
+            if (action.surge) {
+                c.surgesUsed = (c.surgesUsed ?? 0) + 1;
+                state.log?.push(`  ${c.name} uses ${c.speedSurge?.name ?? "Speed Surge"}`);
+            }
             stride(state, c, action.move);
             if (action.move.kind !== "engage") c.withdrewThisTurn = true;
             break;
         case "step":
             step(state, c);
             c.withdrewThisTurn = true;
+            break;
+        // Mythic (B72): a Mythic Point to end its worst condition, or to regain a spent spell (or Quickened Casting, or a recharge).
+        case "mythicRemove":
+            if ((c.mythicPoints ?? 0) > 0 && action.slug) {
+                c.mythicPoints--;
+                endConditions(c, [action.slug]);
+                state.log?.push(`  ${c.name} uses ${c.mythic["remove-condition"].name}: no longer ${action.slug}`);
+            }
+            break;
+        case "mythicRecharge":
+            if ((c.mythicPoints ?? 0) > 0) {
+                c.mythicPoints--;
+                if (action.pool) c.spellPools[action.pool] = (c.spellPools[action.pool] ?? 0) + 1;
+                else if (action.quickened) c.quickenedUsed = false;
+                else if (Number.isInteger(action.spellIndex)) c.rechargeUntil?.delete(c.spells[action.spellIndex]?.rechargeGroup ?? c.spells[action.spellIndex]);
+                state.log?.push(`  ${c.name} uses ${c.mythic.recharge.name}`);
+            }
+            break;
+        // Poison Weapon (B72): an Interact (it provokes), then its weapon carries the poison.
+        case "poisonWeapon":
+            provoke(state, c, "manipulate");
+            if (!canAct(c)) break;
+            c.weaponPoisoned = true;
+            c.poisonDoses = Math.max(0, (c.poisonDoses ?? c.poisonWeapon.doses) - 1);
+            state.log?.push(`  ${c.name} uses ${c.poisonWeapon.name} (${c.poisonWeapon.spell.name})`);
             break;
         // Swift Leap, Jet (B70): out of the Melee without provoking.
         case "safeMove":
@@ -523,6 +558,10 @@ function act(state, c, action) {
             break;
         case "cast": {
             if (action.rider && !(rider && rider.index === action.spellIndex)) break;
+            if (action.quickened) {
+                c.quickenedUsed = true;
+                state.log?.push(`  ${c.name} uses ${c.quickenedCasting?.name ?? "Quickened Casting"}`);
+            }
             // Casting with the manipulate trait provokes (S12; Reactive Strike's critical hit disrupts it), and with the
             // concentrate trait, the reactions that say so (B51).
             const spell = c.spells[action.spellIndex];
@@ -752,8 +791,9 @@ function actionCost(c, action) {
     if (action.type === "spellstrike" || action.type === "strikeHard") return 2;
     if (action.type === "pincerAttack" || action.type === "bannersInspiration" || action.type === "shiftImmanence" || action.type === "transcend") return 1;
     if (action.type === "disableHazard") return 2;
-    if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove") return action.actions;
-    if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
+    if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon") return action.actions ?? 1;
+    // (Quickened Casting, B72: one action fewer.)
+    if (action.type === "cast") return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened ? 1 : 0));
     return action.type === "task" ? 2 : 1;
 }
 

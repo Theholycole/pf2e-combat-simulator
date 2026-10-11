@@ -1513,3 +1513,67 @@ test("a monster's Hunt Prey with its own die, and a bonus to its own AC until it
     assert.equal(d.effects.some((effect) => effect.key === "self:Dueling Parry"), true);
     assert.equal(armorClass(d) - before, 2);
 });
+
+test("Mythic Points (Remove a Condition, Undying Myth, Recharge), Quickened Casting, Speed Surge, Poison Weapon (2026-10-11, B72)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (effects = [], damage = { ...none }) => ({ damage, effects });
+    const [fighter] = martialParty(5);
+    // Remove a Condition: a Mythic Point for its worst condition; Undying Myth: all of them, and up at half its Hit Points.
+    const mythic = { ...moderateCreature(5, "myth", "Myth"), engagement: 1 };
+    for (const plan of [{ builtin: "mythic", kind: "remove-condition", actions: 1 }, { builtin: "mythic", kind: "undying", fraction: 0.5 }, { builtin: "mythic", kind: "recharge", actions: 1 }]) assert.equal(addBuiltin(mythic, plan, plan.kind), true);
+    assert.equal(mythic.mythicPoints, 3);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, mythic] }, {}, 1);
+    const m = state.byId.get("myth");
+    m.round = 1;
+    m.actionsLeft = 3;
+    m.cond.slowed = 1;
+    m.cond.frightened = 1;
+    const removal = scoreOptions(state, m).options.find((entry) => entry.action.type === "mythicRemove");
+    assert.equal(removal?.action.slug, "slowed");
+    performAction(state, m, removal.action);
+    assert.deepEqual([m.cond.slowed, m.mythicPoints], [0, 2]);
+    state.log = [];
+    dealDamage(state, m, m.hp.value + 5, { source: state.byId.get("fighter") });
+    assert.deepEqual([m.hp.value, m.mythicPoints, isActive(m)], [Math.floor(m.hp.max / 2), 0, true]);
+    dealDamage(state, m, m.hp.value + 5, { source: state.byId.get("fighter") });
+    assert.equal(isActive(m), false, "no Mythic Points left");
+    // Quickened Casting: a 2-action spell with one action left.
+    const spell = { modelVersion: 13, source: { name: "Test Blast" }, rank: 1, traits: ["concentrate", "manipulate"], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 30 } }, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row([], { mode: "formulas", formulas: [{ formula: "3d6[fire]" }], rollScope: "outcome" }), failure: row([], { mode: "formulas", formulas: [{ formula: "6d6[fire]" }], rollScope: "outcome" }), criticalFailure: row([], { mode: "formulas", formulas: [{ formula: "12d6[fire]" }], rollScope: "outcome" }) } } };
+    const caster = { ...moderateCreature(5, "mage", "Mage"), engagement: 1, spells: [{ name: "Test Blast", plan: spell, castRank: 3, dc: 30, attack: null, pool: null }] };
+    assert.equal(addBuiltin(caster, { builtin: "quickened-casting", maxRank: 4 }, "Quickened Casting"), true);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, caster] }, {}, 1);
+    const c = state.byId.get("mage");
+    c.round = 1;
+    c.actionsLeft = 1;
+    const quick = scoreOptions(state, c).options.find((entry) => entry.action.type === "cast" && entry.action.quickened);
+    assert.ok(quick, "a 2-action spell with one action, quickened");
+    performAction(state, c, quick.action);
+    assert.equal(c.quickenedUsed, true);
+    // Speed Surge: a foe two Strides away, engaged in one action.
+    const drake = { ...moderateCreature(5, "drake", "Drake"), band: "far" };
+    assert.equal(addBuiltin(drake, { builtin: "speed-surge", actions: 1, uses: 3 }, "Speed Surge"), true);
+    state = createFightState({ combatants: [{ ...fighter, band: "near" }, drake] }, {}, 1);
+    const d = state.byId.get("drake");
+    d.round = 1;
+    d.actionsLeft = 3;
+    const surge = scoreOptions(state, d).options.find((entry) => entry.action.surge);
+    assert.ok(surge, "on offer");
+    performAction(state, d, surge.action);
+    assert.deepEqual([d.surgesUsed, d.meleeId !== null], [1, true]);
+    // Poison Weapon: its poison with the next weapon Strike that hits and deals damage.
+    const poison = { modelVersion: 13, source: { name: "Test Venom" }, rank: 1, traits: ["poison"], activation: { time: "free", traits: [] }, targeting: { target: "the creature the Strike hits", range: "touch", area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 100 } }, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row(), failure: row([{ kind: "condition", slug: "enfeebled", value: 1, duration: null }]), criticalFailure: row([{ kind: "condition", slug: "enfeebled", value: 2, duration: null }]) } } };
+    const assassin = { ...moderateCreature(5, "assassin", "Assassin"), engagement: 1 };
+    assassin.strikes = [{ ...assassin.strikes[0], name: "Kukri", held: true, bonus: 100 }];
+    assert.equal(addBuiltin(assassin, { builtin: "poison-weapon", actions: 1, poison: { name: "Test Venom", plan: poison }, doses: 2 }, "Poison Weapon"), true);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, assassin] }, {}, 1);
+    state.log = [];
+    const a = state.byId.get("assassin");
+    a.round = 1;
+    a.actionsLeft = 3;
+    const apply = scoreOptions(state, a).options.find((entry) => entry.action.type === "poisonWeapon");
+    assert.ok(apply, "on offer");
+    performAction(state, a, apply.action);
+    assert.deepEqual([a.weaponPoisoned, a.poisonDoses], [true, 1]);
+    performStrike(state, a, state.byId.get("fighter"), a.strikes[0]);
+    assert.deepEqual([a.weaponPoisoned, state.byId.get("fighter").cond.enfeebled >= 1], [false, true], state.log.join("\n"));
+});
