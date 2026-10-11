@@ -272,9 +272,20 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (degree === CRITICAL_SUCCESS && downgrade && (Number.isFinite(downgrade.uses) ? downgrade.uses > 0 : canReact(target))) {
         if (Number.isFinite(downgrade.uses)) downgrade.uses--;
         else target.reactionUsed = true;
-        const flat = state.rng.d20();
-        log(state, `  ${target.name} uses ${downgrade.name} (flat ${flat} vs DC ${downgrade.dc})`);
-        if (flat >= downgrade.dc) degree = SUCCESS;
+        // (No check, B59: Collapse, Twist Fate; Collapse leaves it immobilized and off-guard until it re-forms.)
+        if (downgrade.dc == null) {
+            log(state, `  ${target.name} uses ${downgrade.name}: a normal hit`);
+            degree = SUCCESS;
+            if (downgrade.collapse) {
+                target.cond.immobilized = true;
+                target.cond.offGuard = true;
+                target.collapsed = true;
+            }
+        } else {
+            const flat = state.rng.d20();
+            log(state, `  ${target.name} uses ${downgrade.name} (flat ${flat} vs DC ${downgrade.dc})`);
+            if (flat >= downgrade.dc) degree = SUCCESS;
+        }
     }
     if (degree <= FAILURE && attacker.kind === "pc" && state.options.heroPoints && attacker.heroPoints >= 2) {
         const wouldDrop = expectedHitDamage(attacker, strike, target, false) >= target.hp.value + target.hp.temp;
@@ -343,6 +354,13 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         }
     }
     if (strike.concussive) for (const instance of instances) instance.type = concussiveType(target, instance.type, instance.amount, instance.precision);
+    // Wished Away, Withhold Death (B60): its reaction to the critical hit, resistance to all damage against this attack.
+    const before = target.resistances;
+    if (critical && target.critResistance && canReact(target)) {
+        target.reactionUsed = true;
+        target.resistances = [...(before ?? []), { type: "all-damage", value: target.critResistance.value, exceptions: [] }];
+        log(state, `  ${target.name} uses ${target.critResistance.name}: resistance ${target.critResistance.value} against the attack`);
+    }
     // Logged before the damage so consequences (Shield Block, going down) follow it.
     const line = state.log ? state.log.push("") - 1 : -1;
     const dealt = applyDamage(state, target, instances, {
@@ -351,6 +369,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         nonlethal: strike.nonlethal || nonlethalAgainst(state, attacker, target),
         physical: true
     });
+    target.resistances = before;
     if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
     // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
     if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances), { includeTarget: false });

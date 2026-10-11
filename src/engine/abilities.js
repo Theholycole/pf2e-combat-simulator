@@ -88,9 +88,13 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // Resilient Form, Cushioned Blow: a critical hit on it becomes a normal hit on a flat check (a reaction, or a
         // free action with its uses a day).
+        // Wished Away, Withhold Death (B60): resistance to all damage against a critical hit on it.
+        case "crit-resistance":
+            spec.critResistance = { name, value: Number(plan.value) || 0 };
+            return true;
         case "crit-downgrade":
             if (!Number.isFinite(plan.dc)) return false;
-            spec.critDowngrade = { name, dc: plan.dc, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}) };
+            spec.critDowngrade = { name, dc: plan.dc ?? null, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}), ...(plan.collapse ? { collapse: true } : {}) };
             return true;
         case "reaction-strike":
             spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: !!plan.disrupts }];

@@ -1187,3 +1187,32 @@ test("riders: a critical hit's only on a critical hit, one naming its Strike; na
     const spirit = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "spirit", "Spirit"), engagement: 1, permanent: [{ slug: "invisible", value: null }] }] }, {}, 1);
     assert.equal(spirit.byId.get("spirit").cond.hidden, true);
 });
+
+test("Collapse makes a critical hit a hit and leaves it collapsed until it re-forms; Wished Away resists a critical hit (2026-10-10, B59, B60)", () => {
+    const [fighter] = martialParty(5);
+    const hitter = { ...fighter, engagement: 1, strikes: fighter.strikes.map((strike) => ({ ...strike, bonus: 100 })) };
+    // B59: Collapse.
+    const skeleton = { ...moderateCreature(5, "skel", "Skeleton"), engagement: 1, hp: { value: 999, max: 999 }, critDowngrade: { name: "Collapse", dc: null, collapse: true } };
+    let state = createFightState({ combatants: [hitter, skeleton] }, {}, 2);
+    state.log = [];
+    const s = state.byId.get("skel");
+    let result = null;
+    for (let i = 0; i < 5 && !(result?.degree === 2 && /Collapse: a normal hit/.test(state.log.join("\n"))); i++) {
+        s.reactionUsed = false;
+        result = performStrike(state, state.byId.get("fighter"), s, state.byId.get("fighter").strikes[0]);
+    }
+    assert.match(state.log.join("\n"), /Skeleton uses Collapse: a normal hit/, state.log.join("\n"));
+    assert.deepEqual([s.cond.immobilized, s.cond.offGuard, s.collapsed], [true, true, true]);
+    // B60: Wished Away, resistance 20 against the critical hit.
+    const dragon = { ...moderateCreature(5, "drag", "Dragon"), engagement: 1, hp: { value: 999, max: 999 }, critResistance: { name: "Wished Away", value: 20 } };
+    state = createFightState({ combatants: [hitter, dragon] }, {}, 2);
+    state.log = [];
+    const d = state.byId.get("drag");
+    for (let i = 0; i < 5 && !/Wished Away/.test(state.log.join("\n")); i++) performStrike(state, state.byId.get("fighter"), d, state.byId.get("fighter").strikes[0]);
+    const text = state.log.join("\n");
+    assert.match(text, /Dragon uses Wished Away: resistance 20 against the attack/, text);
+    // (20 less than the critical hit's most.)
+    const part = state.byId.get("fighter").strikes[0].damage[0];
+    assert.ok(Number(/Wished Away[^\n]*\n[^\n]*critically hits for (\d+)/.exec(text)?.[1]) <= 2 * (part.dice * part.die + part.bonus) - 20, text);
+    assert.equal(d.resistances?.some((entry) => entry.type === "all-damage") ?? false, false, "only for that attack");
+});

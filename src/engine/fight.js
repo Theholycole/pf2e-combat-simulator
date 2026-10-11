@@ -298,6 +298,14 @@ function startTurn(state, c) {
     }
     actions -= Math.min(actions, c.cond.slowed);
     c.actionsLeft = Math.min(actions, isHazard(c) ? 9 : MAX_ACTIONS_PER_TURN);
+    // Collapsed (B59): it re-forms with its first action.
+    if (c.collapsed && c.actionsLeft > 0 && isActive(c)) {
+        c.actionsLeft -= 1;
+        c.collapsed = false;
+        c.cond.immobilized = false;
+        c.cond.offGuard = false;
+        state.log?.push(`  ${c.name} re-forms`);
+    }
     // Fast healing (the creature's own, or from spell effects) and regeneration.
     const fastHealing = Math.max(c.fastHealing ?? 0, ...(c.effects ?? []).map((effect) => effect.model.fastHealing ?? 0));
     if (fastHealing > 0) applyHeal(state, c, fastHealing);
