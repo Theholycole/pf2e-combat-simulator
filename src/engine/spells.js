@@ -287,6 +287,37 @@ function bestHit(c, target, meleeOnly) {
     return best;
 }
 
+// A failed save made better by a reaction (B80): Cat's Luck (its own save of that kind rerolled, the better kept, once a fight), Golden
+// Luck (its own, one degree better), Word of Wisdom (an ally's within its distance, one degree better); those two not again for their
+// recharge (1d4 rounds). The result as it stands otherwise.
+const SAVES = new Set(["fortitude", "reflex", "will"]);
+function betterSave(state, statistic, options, result) {
+    const saver = options?.actor;
+    if (!SAVES.has(statistic) || !saver?.id || !["failure", "criticalFailure"].includes(result?.degree) || !isActive(saver)) return result;
+    const reroll = saver.saveReroll;
+    if (reroll && (!reroll.save || reroll.save === statistic) && (saver.saveRerollUses ?? 0) > 0 && canReact(saver)) {
+        saver.saveRerollUses--;
+        saver.reactionUsed = true;
+        state.stats.reactions++;
+        const natural = state.rng.d20();
+        const total = natural + options.modifier;
+        const degree = DEGREE_NAMES[degreeOf(total, options.dc, natural)];
+        log(state, `  ${saver.name} uses ${reroll.name}: ${degree.replace(/([A-Z])/g, " $1").toLowerCase()} on the reroll`);
+        return DEGREE_NAMES.indexOf(degree) > DEGREE_NAMES.indexOf(result.degree) ? { natural, total, dc: options.dc, degree } : result;
+    }
+    const ready = (c) => (c.saveBoostUntil ?? -Infinity) <= state.round && canReact(c);
+    const helper = saver.saveBoost && ready(saver) ? saver
+        : state.list.find((c) => c !== saver && c.side === saver.side && isActive(c) && c.allySaveBoost && ready(c) && (c.allySaveBoost.within >= 60 || (c.allySaveBoost.within <= 10 ? sameMelee(c, saver) : saver.band !== "far" || c.band === "far")));
+    if (!helper) return result;
+    const boost = helper === saver ? saver.saveBoost : helper.allySaveBoost;
+    helper.reactionUsed = true;
+    if (boost.recharge) helper.saveBoostUntil = state.round + rollCount(state, boost.recharge);
+    state.stats.reactions++;
+    const degree = DEGREE_NAMES[Math.min(3, DEGREE_NAMES.indexOf(result.degree) + 1)];
+    log(state, `  ${helper.name} uses ${boost.name}: ${saver.name}'s save ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
+    return { ...result, degree };
+}
+
 // A persistent-damage change as the engine's persistent instance.
 function persistentInstance(damage) {
     const terms = damage.dice ?? [];
@@ -967,7 +998,9 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     const context = simContext(state, caster, spell, targets, caster.attacksThisTurn - (info.attack ? 1 : 0), actions);
     const live = liveRoller(state);
     // Spellstrike: the spell attack takes the Strike's result.
-    const roll = forcedDegree !== null ? (statistic, options) => (statistic === "spell-attack" || statistic === "strike" ? { natural: null, total: null, dc: options?.dc, degree: DEGREE_NAMES[forcedDegree] } : live.roll(statistic, options)) : live.roll;
+    const rolled = forcedDegree !== null ? (statistic, options) => (statistic === "spell-attack" || statistic === "strike" ? { natural: null, total: null, dc: options?.dc, degree: DEGREE_NAMES[forcedDegree] } : live.roll(statistic, options)) : live.roll;
+    // (A failed save a reaction makes better, B80.)
+    const roll = (statistic, options) => betterSave(state, statistic, options, rolled(statistic, options));
     const io = { ...live, roll, choose: chooser(caster, targets) };
     const result = registry.resolveSync(spell.plan, context, io);
     for (const target of targets) {

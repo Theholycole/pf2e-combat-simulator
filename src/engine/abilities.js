@@ -121,6 +121,16 @@ export function addBuiltin(spec, plan, name) {
             spec.mythicPoints ??= 3;
             spec.mythic = { ...(spec.mythic ?? {}), [plan.kind]: { name, actions: Number(plan.actions) || 1, ...(plan.fraction ? { fraction: plan.fraction } : {}), ...(plan.amount ? { amount: plan.amount } : {}), ...(plan.quickened ? { quickened: true } : {}), ...(plan.abilities ? { abilities: true } : {}) } };
             return true;
+        // Golden Luck, Word of Wisdom (B80): its own (or an ally's within its distance) failed save one degree better, then not for 1d4
+        // rounds; Cat's Luck: its Reflex save rerolled, the better kept, once a fight (its use: a number on the creature).
+        case "save-boost":
+            if (plan.ally) spec.allySaveBoost = { name, within: plan.within ?? 60, recharge: plan.recharge ?? null };
+            else spec.saveBoost = { name, recharge: plan.recharge ?? null };
+            return true;
+        case "save-reroll":
+            spec.saveReroll = { name, save: plan.save ?? null };
+            spec.saveRerollUses = 1;
+            return true;
         // Shake It Off, Slough Skin (B77; the user's choice): the first harmful condition an enemy gives it, negated with its reaction once a
         // fight (Dogged Persistence: only the conditions it names). Its use left: a number on the creature.
         case "negate-condition":

@@ -8,7 +8,7 @@ import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, stride } from "../src/engine/actions.js";
 import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
-import { applyAuras, applyCondition, applyStrikeRider, castSpell, deathThroes, expireTimers, grabTurnAnswers, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
+import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, expireTimers, grabTurnAnswers, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
 // ones compiled from PF2e's packs (Swallow Whole, Trample, Stench).
@@ -1735,5 +1735,45 @@ test("You're Next: Demoralize another foe as it downs one; Stoke the Flames: foe
     burning.persistent.push({ type: "fire", dice: 1, die: 6, bonus: 0, multiplier: 1 });
     const sets = targetSetsFor(state, state.byId.get("dragon"), state.byId.get("dragon").spells[0], { enemies: [burning, cool], allies: [], inMelee: () => true, distance: () => 5, meleeId: null });
     assert.deepEqual(sets.map((set) => set.targets.map((target) => target.name)), [[burning.name]]);
+});
+
+test("Golden Luck, Word of Wisdom, Cat's Luck: a failed save made better by a reaction (2026-10-11, B80)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (effects = []) => ({ damage: { ...none }, effects });
+    // A Reflex save at DC 30 (a 10 on the die fails; a 19 succeeds for a +12).
+    const save = (dc) => ({ name: "Test Blast", castRank: 1, dc: null, attack: null, pool: null, plan: { modelVersion: 13, source: { name: "Test Blast" }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: false, against: { dc: "fixed", value: dc } }, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row(), failure: row([{ kind: "condition", slug: "frightened", value: 1, duration: null }]), criticalFailure: row([{ kind: "condition", slug: "frightened", value: 2, duration: null }]) } } } });
+    const [fighter] = martialParty(5);
+    const fight = (monsters, rolls) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, ...monsters.map((m) => ({ ...m, engagement: 1 }))] }, {}, 1);
+        state.log = [];
+        const queue = [...rolls];
+        state.rng.d20 = () => queue.shift() ?? 10;
+        return state;
+    };
+    // Golden Luck: its own failure a success; then not until its recharge.
+    const gold = { ...moderateCreature(5, "gold", "Gold") };
+    assert.equal(addBuiltin(gold, { builtin: "save-boost", recharge: "1d4" }, "Golden Luck"), true);
+    let state = fight([gold], [10]);
+    const g = state.byId.get("gold");
+    const dc = 10 + g.saves.reflex + 3;
+    castPlan(state, state.byId.get("fighter"), save(dc), ["gold"]);
+    assert.ok(state.log.includes("  Gold uses Golden Luck: Gold's save success"), state.log.join("\n"));
+    assert.equal(g.cond.frightened ?? 0, 0);
+    assert.ok(g.saveBoostUntil > state.round);
+    // Word of Wisdom: an ally's failure, one degree better.
+    const vizier = { ...moderateCreature(5, "vizier", "Vizier") };
+    assert.equal(addBuiltin(vizier, { builtin: "save-boost", ally: true, within: 60, recharge: "1d4" }, "Word of Wisdom"), true);
+    const ally = { ...moderateCreature(5, "ally", "Ally") };
+    state = fight([vizier, ally], [10]);
+    castPlan(state, state.byId.get("fighter"), save(10 + state.byId.get("ally").saves.reflex + 3), ["ally"]);
+    assert.ok(state.log.includes("  Vizier uses Word of Wisdom: Ally's save success"), state.log.join("\n"));
+    assert.equal(state.byId.get("vizier").reactionUsed, true);
+    // Cat's Luck: its Reflex save rerolled, the better kept, once a fight.
+    const cat = { ...moderateCreature(5, "cat", "Cat") };
+    assert.equal(addBuiltin(cat, { builtin: "save-reroll", save: "reflex" }, "Cat's Luck"), true);
+    state = fight([cat], [10, 19]);
+    castPlan(state, state.byId.get("fighter"), save(10 + state.byId.get("cat").saves.reflex + 3), ["cat"]);
+    assert.ok(state.log.some((line) => /Cat uses Cat's Luck: success on the reroll/.test(line)), state.log.join("\n"));
+    assert.deepEqual([state.byId.get("cat").saveRerollUses, state.byId.get("cat").cond.frightened ?? 0], [0, 0]);
 });
 
