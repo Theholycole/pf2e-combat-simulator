@@ -114,6 +114,12 @@ export function addBuiltin(spec, plan, name) {
         case "crit-resistance":
             spec.critResistance = { name, value: Number(plan.value) || 0 };
             return true;
+        // Resistance against the damage that sets it off (B99): Liquefy, Chipping Scales; its uses a day a number (once a fight).
+        case "resist-damage":
+            if (!(Number(plan.value) > 0)) return false;
+            spec.resistReaction = { name, value: Number(plan.value), on: plan.on ?? null, types: plan.types ?? null, ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}), ...(plan.lasts ? { lasts: plan.lasts } : {}), ...(plan.acPenalty ? { acPenalty: plan.acPenalty } : {}) };
+            spec.resistUses = Number(plan.uses) || Infinity;
+            return true;
         case "crit-downgrade":
             // (A flat check's DC, or none: B59's Collapse, B86's choice. B59 left this guard asking for a DC, so until 2026-10-11 the
             // ones with no check never loaded.)

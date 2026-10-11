@@ -591,7 +591,10 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     // Regeneration turns off before damage of a listed type is dealt.
     if (target.regeneration && instances.some((instance) => instance.amount > 0 && target.regeneration.deactivatedBy.includes(instance.type))) turnOffRegeneration(state, target);
+    // Liquefy, Chipping Scales (B99): its reaction's resistance against this damage, and what it leaves.
+    const resisting = resistReaction(state, target, instances, { source, physical });
     const adjusted = adjustDamage(target, instances);
+    if (resisting) afterResisting(state, target, resisting);
     // A champion's reaction: resistance 2 + its level against the triggering damage, and more.
     const champion = adjusted.total > 0 ? championFor(state, target, source) : null;
     let retribution = null;
@@ -654,6 +657,34 @@ export function applyDamage(state, target, instances, { source = null, critical 
         if (strike) performStrike(state, retribution, source, strike, { reaction: true });
     }
     return dealt;
+}
+
+// A reaction that resists the damage setting it off (B99): damage of the types it names (any, when none), an attack's only ("hit with an
+// attack that deals physical damage"), an enemy's only; its uses. Its resistance (to the types it names, or to all the triggering damage)
+// is on the creature while this damage is adjusted; returns what to put back, or null.
+const PHYSICAL_TYPES = new Set(["bludgeoning", "piercing", "slashing"]);
+function resistReaction(state, target, instances, { source, physical }) {
+    const resist = target.resistReaction;
+    if (!resist || !isActive(target) || !canReact(target) || !((target.resistUses ?? Infinity) > 0)) return null;
+    if ((resist.attack && !physical) || (resist.foe && !(source && source.side !== target.side))) return null;
+    const sets = (instance) => !instance.persistent && instance.amount > 0 && (!resist.on || resist.on.includes(instance.type) || (resist.on.includes("physical") && PHYSICAL_TYPES.has(instance.type)));
+    if (adjustDamage(target, instances.filter(sets)).total <= 0) return null;
+    target.reactionUsed = true;
+    state.stats.reactions++;
+    if (Number.isFinite(target.resistUses)) target.resistUses--;
+    const before = target.resistances;
+    const entries = (resist.types ?? ["all-damage"]).map((type) => ({ type, value: resist.value, exceptions: [] }));
+    target.resistances = [...(before ?? []), ...entries];
+    log(state, `  ${target.name} uses ${resist.name}: resistance ${resist.value}${resist.types ? ` to ${resist.types.join(", ")}` : ""} against it`);
+    return { before, resist, entries };
+}
+
+// After it: the resistance gone, or kept until the end of its next turn (Liquefy); its AC lower for the day (Chipping Scales).
+function afterResisting(state, target, { before, resist, entries }) {
+    target.resistances = before;
+    const model = (name, rounds, modifiers, resistances) => ({ name, rounds, modifiers, tempHp: 0, fastHealing: 0, resistances, weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 });
+    if (resist.lasts) applyEffect(state, target, model(resist.name, resist.lasts, [], entries), target);
+    if (resist.acPenalty) applyEffect(state, target, model(`${resist.name} (AC)`, Infinity, [{ on: "ac", type: "untyped", value: -resist.acPenalty }], []), target);
 }
 
 // The champion (of the target's side) whose reaction this damage triggers:

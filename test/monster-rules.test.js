@@ -2282,3 +2282,33 @@ test("Charges: off-guard only to a creature that hasn't seen it, a recharge, a b
     // +4 to its damage.
     assert.equal(chargeStrike(strike, p.charges[2]).damage[0].bonus, (strike.damage[0].bonus ?? 0) + 4);
 });
+
+test("A reaction's resistance against the damage that sets it off (2026-10-11, B99)", () => {
+    const [fighter] = martialParty(5);
+    const fight = (plan, extra = {}) => {
+        const dragon = { ...moderateCreature(5, "drg", "Dragon"), engagement: 1, hp: { value: 200, max: 200 }, ...extra };
+        addBuiltin(dragon, plan, "Test Resist");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, 1);
+        state.log = [];
+        return { state, d: state.byId.get("drg"), f: state.byId.get(fighter.id) };
+    };
+    const fire = (amount) => [{ type: "fire", amount, persistent: false, precision: false }];
+    const slash = (amount) => [{ type: "slashing", amount, persistent: false, precision: false }];
+    // Fire resistance 20 against fire damage, and until the end of its next turn; not against slashing.
+    let { state, d, f } = fight({ builtin: "resist-damage", value: 20, on: ["fire"], types: ["fire"], lasts: 1 });
+    assert.equal(applyDamage(state, d, slash(15), { source: f }), 15);
+    assert.ok(!d.reactionUsed, "slashing doesn't set it off");
+    assert.equal(applyDamage(state, d, fire(25), { source: f }), 5, state.log.join("\n"));
+    assert.ok(d.reactionUsed && state.log.includes("  Dragon uses Test Resist: resistance 20 to fire against it"), state.log.join("\n"));
+    assert.equal(applyDamage(state, d, fire(25), { source: f }), 5, "still resisted while it lasts");
+    assert.equal(applyDamage(state, d, slash(10), { source: f }), 10);
+    // Resistance to all the triggering damage, an attack's only, once a day, and its AC lower afterwards.
+    ({ state, d, f } = fight({ builtin: "resist-damage", value: 15, on: ["piercing", "slashing"], types: null, attack: true, acPenalty: 2, uses: 1 }));
+    const ac = armorClass(d);
+    assert.equal(applyDamage(state, d, slash(12), { source: f }), 12, "not a spell's");
+    // (Off each damage type: 20 − 15 slashing, 6 − 15 fire.)
+    assert.equal(applyDamage(state, d, [...slash(20), ...fire(6)], { source: f, physical: true }), 5, state.log.join("\n"));
+    assert.equal(armorClass(d), ac - 2);
+    d.reactionUsed = false;
+    assert.equal(applyDamage(state, d, slash(20), { source: f, physical: true }), 20, "its one use spent");
+});
