@@ -1254,3 +1254,20 @@ test("temporary Hit Points; multi-Strikes: no second -2 for a monster, each at i
     pc.grabbedBy = "cat";
     assert.equal(scoreOptions(state, k).options.some((option) => option.action.type === "multiStrike" && option.action.targetId === "fighter"), true);
 });
+
+test("Blood Drain: damage on the creature it holds, temporary Hit Points equal to it; a heal's excess as temporary Hit Points (2026-10-10, B63)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (effects = [], damage = { ...none }) => ({ damage, effects });
+    const drain = { modelVersion: 13, source: { name: "Blood Drain" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "the creature it holds", range: "touch", area: null, grabbed: true }, trigger: { event: "use" }, resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row([{ kind: "condition", slug: "drained", value: 1, duration: null }, { kind: "temp-hp", fromDamage: true, recipient: "self" }, { kind: "heal", amount: 50, excessAsTemp: true, recipient: "self" }], { mode: "formulas", formulas: [{ formula: "4d6[untyped]" }], rollScope: "outcome" }), failure: row(), criticalFailure: row() } } };
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, { ...moderateCreature(5, "leech", "Leech"), engagement: 1, spells: [entry("Blood Drain", drain)] }] }, {}, 1);
+    const leech = state.byId.get("leech");
+    const pc = state.byId.get("fighter");
+    leech.hp.value = leech.hp.max - 10;
+    castSpell(state, leech, 0, ["fighter"]);
+    const dealt = 999 - pc.hp.value;
+    assert.ok(dealt >= 4 && dealt <= 24);
+    assert.equal(pc.cond.drained, 1);
+    // Back to full (10 of the 50), the other 40 as temporary Hit Points, more than the drain's.
+    assert.deepEqual([leech.hp.value, leech.hp.temp], [leech.hp.max, 40]);
+});

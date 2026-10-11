@@ -826,9 +826,13 @@ function applyChanges(state, caster, spell, changes, context, io) {
             case "move":
                 applyMove(state, target, change);
                 break;
-            case "heal":
+            case "heal": {
+                // (Any excess as temporary Hit Points, B63: Drink Blood's.)
+                const room = Math.max(0, target.hp.max - Math.max(0, target.hp.value));
                 applyHeal(state, target, change.amount);
+                if (change.excessAsTemp && change.amount > room && change.amount - room > (target.hp.temp ?? 0)) target.hp.temp = change.amount - room;
                 break;
+            }
             // Temporary Hit Points (B61): the higher of its current and these.
             case "tempHp":
                 if (isActive(target) && change.amount > (target.hp.temp ?? 0)) {
