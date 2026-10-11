@@ -901,7 +901,7 @@ function expand(ctx, node, actionsLeft) {
                     if (expectation && (!best || expectation.damage > best.expectation.damage)) best = { index, expectation };
                 }
                 if (!best) continue;
-                const rider = strikeRiderValue(state, c, target, activity);
+                const rider = strikeRiderValue(state, c, target, activity, c.strikes[best.index]);
                 const before = node.damage[target.id] ?? 0;
                 const hp = remainingHp(target);
                 const expected = best.expectation.damage + best.expectation.hitChance * rider.damage;

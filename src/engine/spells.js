@@ -29,7 +29,9 @@ const VALUED = new Set(["frightened", "sickened", "clumsy", "enfeebled", "draine
 const FLAGS = {
     "off-guard": "offGuard", prone: "prone", fleeing: "fleeing", quickened: "quickened", fatigued: "fatigued",
     paralyzed: "paralyzed", unconscious: "asleep", blinded: "blinded", dazzled: "dazzled",
-    immobilized: "immobilized", restrained: "restrained", grabbed: "grabbed", confused: "confused"
+    immobilized: "immobilized", restrained: "restrained", grabbed: "grabbed", confused: "confused",
+    // On itself (B53): concealed and hidden as attackers find them (Invisible plays as hidden).
+    concealed: "concealed", hidden: "hidden", invisible: "hidden"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -120,7 +122,7 @@ function readSpell(base, actions) {
         range: rangeFeet(targeting.range),
         touch: /touch/i.test(String(targeting.range ?? "")),
         area,
-        targets: area ? 0 : targetCount(targeting.target),
+        targets: area ? 0 : targeting.allies ? 1 : targetCount(targeting.target),
         attack: statistic === "spell-attack" || statistic === "strike" || (check?.roll === "skill" && (plan?.traits ?? []).includes("attack") && plan?.trigger?.map !== false),
         // Abilities: when they're used, how often, and on whom.
         event: plan?.trigger?.event ?? "use",
@@ -320,9 +322,11 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     // Fleeing with no stated end (Vision of Death, Aversion Beam): while it's frightened, or else its next turn (user, 2026-10-08).
     else if (slug === "fleeing" && !duration) (target.whileConditions ??= []).push({ slug, value, while: "frightened" });
     const rounds = durationRounds(duration);
-    const before = target.cond[slug] ?? 0;
+    const before = target.cond[flag ?? slug] ?? 0;
     if (flag) target.cond[flag] = true;
     else target.cond[slug] = Math.max(target.cond[slug] ?? 0, Number.isFinite(value) ? value : 1);
+    // Quickened on its own turn (Shrieking Frenzy, Alchemical Amplification): the extra action now (B53).
+    if (slug === "quickened" && !before && state.acting === target.id && Number.isFinite(target.actionsLeft)) target.actionsLeft += 1;
     // Fleeing for any reason is a morale trigger (M32).
     if (slug === "fleeing" && !before) state.pendingEvents?.push({ type: "fleeing", victim: target });
     // Frightened by an enemy's effect (Demoralize, fear) is a morale trigger.
@@ -690,29 +694,36 @@ function swallowedRounds(target, swallower, escapeDC = null) {
 
 // An activity's Strike hit (Wrestle, Intimidating Strike, Rhinoceros Charge):
 // its conditions (the critical ones on a critical hit), push, extra damage
-// (doubled on a critical hit) and save.
-export function applyStrikeRider(state, attacker, target, activity, critical) {
+// (doubled on a critical hit) and save. Extra dice of the Strike's own type
+// ("2d8[strike]", B54): the type of the Strike that hit.
+export function applyStrikeRider(state, attacker, target, activity, critical, strike = null) {
     const rider = activity.onHit;
     if (rider.size && sizeRank(target.size) > sizeRank(rider.size)) return;
     for (const { slug, value, duration } of critical && rider.critical ? rider.critical : rider.conditions) {
         if (isActive(target) && applyCondition(state, target, slug, value ?? null, duration ?? null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
     }
-    if (rider.push && isActive(target)) applyMove(state, target, { kind: "push", distance: rider.push });
+    const push = critical && rider.criticalPush ? rider.criticalPush : rider.push;
+    if (push && isActive(target)) applyMove(state, target, { kind: "push", distance: push });
     for (const formula of rider.damage ?? []) {
-        const instances = rollInstances(state, parseDamage(formula)).map((instance) => ({ ...instance, amount: critical ? instance.amount * 2 : instance.amount }));
+        const instances = rollInstances(state, parseDamage(ownType(formula, strike))).map((instance) => ({ ...instance, amount: critical ? instance.amount * 2 : instance.amount }));
         const dealt = applyDamage(state, target, instances, { source: attacker });
         log(state, `  ${target.name} takes ${dealt} more ${instances.map((instance) => instance.type).join("/")}`);
     }
     if (activity.riderSpell && isActive(target)) castPlan(state, attacker, activity.riderSpell, [target.id]);
 }
 
+// "2d8[strike]": the Strike's own damage type.
+function ownType(formula, strike) {
+    return String(formula).replace(/\[strike\]/g, `[${strike?.damage?.[0]?.type ?? "untyped"}]`);
+}
+
 // What an activity's hit adds, on average: { damage, worth }.
-export function strikeRiderValue(state, attacker, target, activity) {
+export function strikeRiderValue(state, attacker, target, activity, strike = null) {
     const rider = activity.onHit;
     if (rider.size && sizeRank(target.size) > sizeRank(rider.size)) return { damage: 0, worth: 0 };
     let worth = rider.conditions.reduce((sum, { slug, value, duration }) => sum + conditionWorth(slug, value, duration), 0);
     if (rider.push && target.meleeId !== null) worth += 0.1;
-    let damage = (rider.damage ?? []).flatMap((formula) => parseDamage(formula)).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
+    let damage = (rider.damage ?? []).flatMap((formula) => parseDamage(ownType(formula, strike))).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
     if (activity.riderSpell) {
         const entry = spellExpectation(state, attacker, activity.riderSpell, [target]).find((item) => item.target === target);
         damage += entry?.damage ?? 0;
@@ -1138,6 +1149,16 @@ export function grabTurnAnswers(state, c, at) {
     for (const held of state.list.filter((other) => other !== c && isActive(other) && (other.grabbedBy === c.id || other.swallowedBy === c.id))) passiveAnswers(state, c, held, sets("own", held, c));
 }
 
+// A free action as its own turn begins (Shrieking Frenzy, Sudden Surge; B53): used when ready (its uses a day, its recharge).
+export function ownTurnStart(state, c) {
+    for (const [index, spell] of (c.spells ?? []).entries()) {
+        if (spell.plan?.trigger?.event !== "own-turn-start" || !canAct(c)) continue;
+        if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
+        log(state, `  ${c.name} uses ${spell.name}`);
+        castSpell(state, c, index, [c.id]);
+    }
+}
+
 export function initiativeReactions(state) {
     for (const c of state.list) useReaction(state, c, null, (trigger) => trigger.event === "initiative");
 }
@@ -1217,6 +1238,14 @@ export function conditionWorth(slug, value, duration) {
             return 1.5 * n;
         case "off-guard":
             return 0.1 * Math.min(rounds === Infinity ? 3 : rounds, 3);
+        // Good for whoever has them (B53): negative, so on itself or an ally they count for it.
+        case "quickened":
+            return -0.3 * Math.min(rounds === Infinity ? 3 : Math.max(1, rounds), 3);
+        case "concealed":
+            return -0.15 * Math.min(rounds === Infinity ? 3 : Math.max(1, rounds), 3);
+        case "hidden":
+        case "invisible":
+            return -0.35 * Math.min(rounds === Infinity ? 3 : Math.max(1, rounds), 3);
         default:
             return 0;
     }
@@ -1377,6 +1406,13 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         const loose = enemies.filter((enemy) => fits(enemy) && enemy.meleeId === null && enemy.band !== "far");
         if (loose.length) sets.push({ targets: loose.slice(0, Math.max(1, Math.ceil(loose.length / 2))) });
         return sets;
+    }
+    // Its allies (B53: "All allies who hear or see him are Quickened for 1 round"): the active ones, within its emanation when
+    // it has one (its Melee for 10 feet or less; more: the bands). Never its enemies.
+    if (spell.plan?.targeting?.allies) {
+        const radius = Number(spell.plan.targeting.area?.value) || 0;
+        const near = allies.filter((ally) => ally !== caster && isActive(ally) && (!radius || radius >= 60 || (radius <= 10 ? sameMelee(caster, ally) : ally.band !== "far" || caster.band === "far")));
+        return near.length ? [{ targets: near }] : [];
     }
     // Constrict: everyone the creature is holding.
     if (info.grabbedTargets) {

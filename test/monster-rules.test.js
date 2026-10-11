@@ -8,7 +8,7 @@ import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, stride } from "../src/engine/actions.js";
 import { isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeStrike, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
-import { applyAuras, applyCondition, applyStrikeRider, castSpell, expireTimers, grabTurnAnswers, retch, triggerRiders } from "../src/engine/spells.js";
+import { applyAuras, applyCondition, applyStrikeRider, castSpell, expireTimers, grabTurnAnswers, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
 // ones compiled from PF2e's packs (Swallow Whole, Trample, Stench).
@@ -1038,4 +1038,65 @@ test("a monster healing itself (2026-10-10, B52)", () => {
     // The planner reaches for it when hurt.
     const result = simulate({ combatants: [{ ...fighter, engagement: 1 }, { ...quasit, hp: { value: 5, max: quasit.hp.max } }] }, { maxRounds: 2 }, 2, { log: true });
     assert.match(result.log.join("\n"), /Quasit casts Abyssal Healing/);
+});
+
+test("a condition the monster gives itself: Invisible, Concealed, Quickened (2026-10-10, B53)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const selfCondition = (name, slug, duration = null, trigger = { event: "use" }, time = "1") => ({
+        modelVersion: 13, source: { name }, rank: 1, traits: [], activation: { time, traits: [] }, targeting: { target: "self", range: null, area: null }, trigger,
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [{ kind: "condition", slug, value: null, duration }] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } }
+    });
+    const [fighter] = martialParty(3);
+    // Go Dark: invisible, played as hidden (a DC 11 flat check to target it); the planner reaches for it.
+    const wisp = { ...moderateCreature(3, "wisp", "Wisp"), engagement: 1, spells: [entry("Go Dark", selfCondition("Go Dark", "invisible"))] };
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, wisp] }, {}, 2);
+    castSpell(state, state.byId.get("wisp"), 0, ["wisp"]);
+    assert.equal(state.byId.get("wisp").cond.hidden, true);
+    const played = simulate({ combatants: [{ ...fighter, engagement: 1 }, wisp] }, { maxRounds: 1 }, 2, { log: true });
+    assert.match(played.log.join("\n"), /Wisp casts Go Dark/);
+    // Shrieking Frenzy: as its turn begins, quickened for this turn: four actions.
+    const frenzy = selfCondition("Shrieking Frenzy", "quickened", { mode: "fixed", value: 0, unit: "rounds", expiry: "turn-end", anchor: "source-turn" }, { event: "own-turn-start", reaction: true, free: true }, "free");
+    const result = simulate({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(3, "cha", "Charau-ka"), engagement: 1, spells: [entry("Shrieking Frenzy", frenzy)] }] }, { maxRounds: 1 }, 2, { log: true });
+    const turn = result.log.join("\n").split(/\n(?=\S)/).find((block) => block.startsWith("Charau-ka ("));
+    assert.match(turn, /Charau-ka uses Shrieking Frenzy/);
+    const strikes = turn.split("\n").filter((line) => /^\s{2}Charau-ka \S.* → /.test(line)).length;
+    assert.ok(strikes >= 1, turn);
+});
+
+test("a command that quickens its allies goes to its allies only (2026-10-10, B53)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const command = {
+        modelVersion: 13, source: { name: "Royal Command" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "allies", range: null, area: null, allies: true }, trigger: { event: "use" },
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [{ kind: "condition", slug: "quickened", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } }] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } }
+    };
+    const [fighter] = martialParty(5);
+    const king = { ...moderateCreature(5, "king", "King"), engagement: 1, spells: [entry("Royal Command", command)] };
+    const guard = { ...moderateCreature(5, "guard", "Guard"), engagement: 1 };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, king, guard] }, {}, 2);
+    const k = state.byId.get("king");
+    const sets = targetSetsFor(state, k, k.spells[0], { enemies: [state.byId.get("fighter")], allies: [k, state.byId.get("guard")], inMelee: () => true, distance: () => 5 });
+    assert.deepEqual(sets.map((set) => set.targets.map((t) => t.id)), [["guard"]]);
+    castSpell(state, k, 0, ["guard"]);
+    assert.equal(state.byId.get("guard").cond.quickened, true);
+    assert.ok(!state.byId.get("fighter").cond.quickened);
+});
+
+test("a Strike activity's extra dice of the Strike's own type, its push on a critical hit, and damage with a save (2026-10-10, B54)", () => {
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "horse", "Horse");
+    const horse = withBuiltins({ ...base, engagement: 1, strikes: [{ ...base.strikes[0], name: "Hoof", bonus: 40, damage: [{ dice: 1, die: 6, bonus: 0, multiplier: 1, type: "bludgeoning", persistent: false, precision: false }] }] },
+        ["Rearing Kick", { builtin: "strike-activity", actions: 2, strides: 0, strike: "hoof", attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: 5, criticalPush: 10, damage: ["2d8[strike]"], save: null, size: null } }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 }, resistances: [{ type: "bludgeoning", value: 3, exceptions: [] }] }, horse] }, {}, 1, { log: true });
+    const c = state.byId.get("horse");
+    const pc = state.byId.get("fighter");
+    // "2d8[strike]": bludgeoning, so the fighter's resistance counts.
+    applyStrikeRider(state, c, pc, c.strikeActivities[0], false, c.strikes[0]);
+    assert.ok(state.log.some((line) => /Fighter takes \d+ more bludgeoning/.test(line)), state.log.join("\n"));
+    assert.ok(state.log.some((line) => /pushed out of the melee/.test(line)));
+    // A save after the extra damage (Shock Mind): both.
+    const shock = { ...c.strikeActivities[0], onHit: { conditions: [], critical: null, push: null, damage: ["2d6[mental]"], save: null, size: null }, riderSpell: { name: "Shock Mind", plan: { modelVersion: 13, source: { name: "Shock Mind" }, rank: 1, traits: [], activation: { time: "free", traits: [] }, targeting: { target: "the creature the Strike hits", range: "touch", area: null }, trigger: { event: "strike-activity" }, resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 99 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, failure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [{ kind: "condition", slug: "confused", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } }] }, criticalFailure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [{ kind: "condition", slug: "confused", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } }] } } } }, castRank: 1, pool: null, kind: "ability" } };
+    const before = pc.hp.value;
+    applyStrikeRider(state, c, pc, shock, false, c.strikes[0]);
+    assert.ok(pc.hp.value < before);
+    assert.equal(pc.cond.confused, true);
 });
