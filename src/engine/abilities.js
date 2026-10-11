@@ -121,6 +121,12 @@ export function addBuiltin(spec, plan, name) {
             spec.mythicPoints ??= 3;
             spec.mythic = { ...(spec.mythic ?? {}), [plan.kind]: { name, actions: Number(plan.actions) || 1, ...(plan.fraction ? { fraction: plan.fraction } : {}), ...(plan.amount ? { amount: plan.amount } : {}), ...(plan.quickened ? { quickened: true } : {}), ...(plan.abilities ? { abilities: true } : {}) } };
             return true;
+        // Shake It Off, Slough Skin (B77; the user's choice): the first harmful condition an enemy gives it, negated with its reaction once a
+        // fight (Dogged Persistence: only the conditions it names). Its use left: a number on the creature.
+        case "negate-condition":
+            spec.negateCondition = { name, ...(plan.conditions?.length ? { conditions: [...plan.conditions] } : {}) };
+            spec.negateConditionUses = 1;
+            return true;
         // Quickened Casting (B72): its next spell (of that rank or lower) one action fewer, once a fight.
         case "quickened-casting":
             spec.quickenedCasting = { name, maxRank: Number.isFinite(plan.maxRank) ? plan.maxRank : null };

@@ -306,6 +306,8 @@ function durationRounds(duration) {
 
 // Sets a condition from a spell; a fixed duration ends it at the start of the
 // caster's turn that many rounds later. false when the engine doesn't model it.
+const NOT_HARMFUL = new Set(["off-guard", "quickened", "concealed", "hidden", "invisible"]);
+
 export function applyCondition(state, target, slug, value, duration, source, scope = null) {
     // Off-guard to one creature's attacks only (Feint, Create a Diversion).
     if (slug === "off-guard" && scope?.attacker) {
@@ -317,6 +319,14 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     }
     const flag = FLAGS[slug];
     if (!VALUED.has(slug) && !flag) return false;
+    // Shake It Off, Slough Skin (B77; the user's choice): the first harmful condition an enemy gives it, negated with its reaction.
+    const negate = target.negateCondition;
+    if (negate && (target.negateConditionUses ?? 0) > 0 && source && source.side !== target.side && !NOT_HARMFUL.has(slug) && (!negate.conditions || negate.conditions.includes(slug)) && isActive(target) && canReact(target)) {
+        target.negateConditionUses--;
+        target.reactionUsed = true;
+        log(state, `  ${target.name} uses ${negate.name}: not ${slug}`);
+        return false;
+    }
     // "As long as it's sickened" (Stench), "fleeing as long as it's frightened": ends when that condition does.
     if (duration?.mode === "while" && duration.condition) (target.whileConditions ??= []).push({ slug, value, while: duration.condition });
     // Fleeing with no stated end (Vision of Death, Aversion Beam): while it's frightened, or else its next turn (user, 2026-10-08).

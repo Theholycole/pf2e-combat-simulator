@@ -1674,3 +1674,21 @@ test("Consume Fear: temporary Hit Points as a creature near it stops being frigh
     assert.equal(d.reactionUsed, true);
 });
 
+
+test("Shake It Off: the first harmful condition an enemy gives it, negated with its reaction once a fight (2026-10-11, B77)", () => {
+    const [fighter] = martialParty(5);
+    const worm = { ...moderateCreature(5, "worm", "Worm"), engagement: 1 };
+    assert.equal(addBuiltin(worm, { builtin: "negate-condition" }, "Shake It Off"), true);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, worm] }, {}, 1);
+    state.log = [];
+    const w = state.byId.get("worm");
+    const f = state.byId.get("fighter");
+    // Its own side's, or a harmless one: not negated.
+    assert.equal(applyCondition(state, w, "off-guard", null, null, f), true);
+    assert.equal(applyCondition(state, w, "frightened", 1, null, f), false, "negated");
+    assert.deepEqual([w.cond.frightened ?? 0, w.reactionUsed, w.negateConditionUses], [0, true, 0]);
+    assert.equal(applyCondition(state, w, "frightened", 1, null, f), true, "once a fight");
+    // Another fight: its use back (the spec is shared, its count is the creature's own).
+    const again = createFightState({ combatants: [{ ...fighter, engagement: 1 }, worm] }, {}, 2);
+    assert.equal(again.byId.get("worm").negateConditionUses, 1);
+});
