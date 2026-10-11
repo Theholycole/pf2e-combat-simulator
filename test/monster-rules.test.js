@@ -9,7 +9,7 @@ import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as p
 import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeOn, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
 import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, expireTimers, grabTurnAnswers, ownTurnStart, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
-import { engage } from "../src/engine/space.js";
+import { engage, sameMelee } from "../src/engine/space.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
 // ones compiled from PF2e's packs (Swallow Whole, Trample, Stench).
@@ -2334,4 +2334,30 @@ test("Demoralize as the fight starts or its turn begins, at its nearest foe (202
     alone.byId.get("glare").band = "near";
     ownTurnStart(alone, alone.byId.get("glare"));
     assert.ok(!alone.log.some((line) => /Stern Glare/.test(line)), alone.log.join("\n"));
+});
+
+test("Speed Surge's kin without a daily count, with a recharge; Shoo!'s push of the creature that hurt it (2026-10-11, B101)", () => {
+    const [fighter] = martialParty(5);
+    // Once a round (no count), or a recharge.
+    const chameleon = { ...moderateCreature(5, "cham", "Chameleon") };
+    addBuiltin(chameleon, { builtin: "speed-surge", actions: 1, uses: null, oncePerRound: true }, "Flickering Dash");
+    assert.equal(chameleon.speedSurge.uses, Infinity);
+    const tenome = { ...moderateCreature(5, "ten", "Tenome") };
+    addBuiltin(tenome, { builtin: "speed-surge", actions: 1, uses: null, recharge: "2" }, "Burst of Speed");
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 0 }, { ...tenome, engagement: 0 }] }, {}, 1);
+    state.log = [];
+    const t = state.byId.get("ten");
+    performAction(state, t, { type: "stride", move: { kind: "engage", targetId: fighter.id }, surge: true });
+    assert.equal(t.surgeUntil, state.round + 2, state.log.join("\n"));
+    // Shoo!: a foe that damages it within 15 feet is pushed 45 feet away, out of its Melee.
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const shoo = { modelVersion: 13, source: { name: "Shoo!" }, rank: 1, traits: ["teleportation"], activation: { time: "reaction", traits: [] }, targeting: { target: "the attacker", range: "touch", area: null }, trigger: { event: "hit-by", reaction: true, melee: false, within: 15 },
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [], forcedMovement: { kind: "push", distance: 45, upTo: true, optional: false, direction: "away" } }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } };
+    const dragon = { ...moderateCreature(5, "drg", "Dragon"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry("Shoo!", shoo)] };
+    const fight = createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, 1);
+    fight.log = [];
+    const f = fight.byId.get(fighter.id);
+    const d = fight.byId.get("drg");
+    performStrike(fight, f, d, { ...f.strikes[0], melee: true, bonus: 200 });
+    assert.ok(d.reactionUsed && !sameMelee(f, d), fight.log.join("\n"));
 });

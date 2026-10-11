@@ -501,6 +501,7 @@ function act(state, c, action) {
             // (Speed Surge, B72: both moves in this action.)
             if (action.surge) {
                 c.surgesUsed = (c.surgesUsed ?? 0) + 1;
+                if (c.speedSurge?.recharge) c.surgeUntil = state.round + rollCount(state, c.speedSurge.recharge);
                 state.log?.push(`  ${c.name} uses ${c.speedSurge?.name ?? "Speed Surge"}`);
             }
             stride(state, c, action.move);

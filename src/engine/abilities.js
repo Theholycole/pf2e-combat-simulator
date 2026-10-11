@@ -173,7 +173,8 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // Speed Surge (B72): two moves for one action, three times a fight.
         case "speed-surge":
-            spec.speedSurge = { name, uses: Number(plan.uses) || 3 };
+            // (B101: no daily count — once a round, or a recharge.)
+            spec.speedSurge = { name, uses: plan.uses == null && (plan.oncePerRound || plan.recharge) ? Infinity : Number(plan.uses) || 3, ...(plan.recharge ? { recharge: plan.recharge } : {}) };
             return true;
         // Poison Weapon (B72): its poison on the next weapon Strike that hits and deals damage.
         case "poison-weapon":

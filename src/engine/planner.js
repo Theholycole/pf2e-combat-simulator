@@ -1182,7 +1182,7 @@ function expand(ctx, node, actionsLeft) {
                     children.push(next);
                 }
                 // Speed Surge (B72): two Strides for one action, three times a fight.
-                if (strides === 2 && c.speedSurge && (c.surgesUsed ?? 0) < c.speedSurge.uses && !node.casts.includes("surge")) {
+                if (strides === 2 && c.speedSurge && (c.surgesUsed ?? 0) < c.speedSurge.uses && (c.surgeUntil ?? -Infinity) <= state.round && !node.casts.includes("surge")) {
                     const surged = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
                     const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id }, surge: true }, 1, 0, { pos: surged, moved: false, cast: "surge" });
                     if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
