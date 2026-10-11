@@ -930,7 +930,8 @@ export function provoke(state, mover, kind) {
         }
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes(kind));
         const result = reaction ? reactionStrikeAt(state, enemy, mover, reaction, kind) : null;
-        if (reaction?.disrupts && result?.degree >= SUCCESS) disrupted = true;
+        // (B96: "If the attack is a critical hit …, it disrupts that action": a critical hit only.)
+        if (reaction?.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) disrupted = true;
     }
     // Tentacle Trip, Ectoplasmic Filaments, Baleful Gaze: a reaction with results of its own (B51). One that leaves the creature
     // unable to act, or held, stops what it was doing.

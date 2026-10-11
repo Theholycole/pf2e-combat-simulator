@@ -2179,3 +2179,25 @@ test("Ferocity's kin: half its HP for a Mythic Point, 25 HP once a fight, 1 HP a
     assert.equal(m.hp.value, 1);
     assert.ok(state.log.some((line) => /^ {2}Monster Stinger → Fighter/.test(line)), state.log.join("\n"));
 });
+
+test("A reaction Strike that disrupts a move only on a critical hit (2026-10-11, B96)", () => {
+    const [fighter] = martialParty(5);
+    const fight = (die) => {
+        const grick = { ...moderateCreature(5, "grick", "Grick"), engagement: 1, hp: { value: 999, max: 999 } };
+        grick.strikes = [...grick.strikes, { ...grick.strikes[0], name: "Tentacle", bonus: 30 }];
+        addBuiltin(grick, { builtin: "reaction-strike", triggers: ["move"], strike: "tentacle", penalty: 0, disrupts: "critical" }, "Gripping Tentacle");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, grick] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => die;
+        return state;
+    };
+    // A hit that isn't critical (a natural 1 one step worse than the +30 would make): the move goes on.
+    let state = fight(1);
+    let disrupted = provokeFor(state, state.byId.get(fighter.id), "move");
+    assert.ok(state.log.includes("  Grick uses Gripping Tentacle"), state.log.join("\n"));
+    assert.equal(disrupted, false, state.log.join("\n"));
+    // A critical hit: disrupted.
+    state = fight(15);
+    disrupted = provokeFor(state, state.byId.get(fighter.id), "move");
+    assert.equal(disrupted, true, state.log.join("\n"));
+});
