@@ -949,7 +949,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     const context = simContext(state, caster, spell, targets, caster.attacksThisTurn - (info.attack ? 1 : 0), actions);
     const live = liveRoller(state);
     // Spellstrike: the spell attack takes the Strike's result.
-    const roll = forcedDegree !== null ? (statistic, options) => (statistic === "spell-attack" ? { natural: null, total: null, dc: options?.dc, degree: DEGREE_NAMES[forcedDegree] } : live.roll(statistic, options)) : live.roll;
+    const roll = forcedDegree !== null ? (statistic, options) => (statistic === "spell-attack" || statistic === "strike" ? { natural: null, total: null, dc: options?.dc, degree: DEGREE_NAMES[forcedDegree] } : live.roll(statistic, options)) : live.roll;
     const io = { ...live, roll, choose: chooser(caster, targets) };
     const result = registry.resolveSync(spell.plan, context, io);
     for (const target of targets) {
@@ -1047,7 +1047,9 @@ export function triggerRiders(state, attacker, target, strike, degree = SUCCESS)
         const named = (trigger?.strikes ?? []).includes(String(strike.name ?? "").toLowerCase());
         if (trigger?.event !== "strike" || !(listed.includes(trigger.attackEffect) || listed.includes(spell.plan.source?.slug) || named)) continue;
         if (!(trigger.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree])) continue;
-        if (trigger.cost === "free") castSpell(state, attacker, index, [target.id]);
+        // (Its results by the Strike's degree, "Enfeebled 1 (or Enfeebled 2 on a critical hit)": that degree, B66.)
+        const byStrike = spell.plan?.resolution?.check?.statistic === "strike";
+        if (trigger.cost === "free") castSpell(state, attacker, index, [target.id], undefined, byStrike ? { forcedDegree: degree } : {});
         else attacker.riderReady = { index, targetId: target.id };
     }
 }
@@ -1343,11 +1345,14 @@ export function conditionWorth(slug, value, duration) {
 // The odds of each degree for one target, from the same numbers the core's
 // resolver rolls with (pre-roll questions at their defaults).
 const CERTAIN = Object.freeze([1, 0, 0, 0]);
+const GIVEN_HIT = Object.freeze([0, 0, 0.8, 0.2]);
 
 function oddsFor(caster, spell, target, attacks, actions) {
     const check = describeSpell(spell.plan, actions).check;
     // No check (healing, Force Barrage), or none rolled ("The target takes 3d8 fire damage"): the outcome doesn't depend on a degree.
     if (!check || check.roll === "automatic") return CERTAIN;
+    // A rider by its Strike's degree (B66): given the hit (its chance counted apart), mostly a hit, sometimes a critical hit.
+    if (check.statistic === "strike" && check.roll === "skill") return GIVEN_HIT;
     const penalty = statusPenalty(caster, "spell");
     if (check.roll === "attack") {
         const map = attacks <= 0 ? 0 : attacks === 1 ? 5 : 10;

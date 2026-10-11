@@ -1312,3 +1312,20 @@ test("triggered rages: Blood Frenzy on bleed it deals, Vengeful Rage at its HP t
     applyDamage(state, c, [{ type: "slashing", amount: 10, persistent: false, precision: false }], { source: state.byId.get("fighter") });
     assert.deepEqual([(c.effects ?? []).some((effect) => effect.key === "self:Vengeful Rage"), c.reactionUsed], [true, true]);
 });
+
+test("a rider by its Strike's degree: the critical hit's own row (2026-10-10, B66)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (value) => ({ damage: { ...none }, effects: [{ kind: "condition", slug: "enfeebled", value, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } }] });
+    const weakening = { modelVersion: 13, source: { name: "Weakening Strike" }, rank: 1, traits: [], activation: { time: "free", traits: [] }, targeting: { target: "the creature the Strike hits", range: "touch", area: null }, trigger: { event: "strike", on: ["success", "criticalSuccess"], attackEffect: "weakening-strike", cost: "free", map: false }, resolution: { kind: "check", check: { roll: "skill", statistic: "strike", against: { dc: "target", statistic: "ac" } }, sharedDamage: null, outcomes: { criticalSuccess: row(2), success: row(1), failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } };
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "lizard", "Lizard");
+    const lizard = { ...base, engagement: 1, strikes: [{ ...base.strikes[0], name: "Jaws", attackEffects: ["weakening-strike"] }], spells: [entry("Weakening Strike", weakening)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, lizard] }, {}, 1);
+    const c = state.byId.get("lizard");
+    const pc = state.byId.get("fighter");
+    triggerRiders(state, c, pc, c.strikes[0], 2);
+    assert.equal(pc.cond.enfeebled, 1);
+    pc.cond.enfeebled = 0;
+    triggerRiders(state, c, pc, c.strikes[0], 3);
+    assert.equal(pc.cond.enfeebled, 2);
+});
