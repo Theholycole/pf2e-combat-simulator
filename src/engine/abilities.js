@@ -51,7 +51,7 @@ export function addBuiltin(spec, plan, name) {
             spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}) }];
             return true;
         case "charge":
-            spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null, ...(plan.fatal ? { fatal: plan.fatal } : {}), ...(plan.deadly ? { deadly: plan.deadly } : {}), ...(plan.halfDamage ? { halfDamage: true } : {}) }];
+            spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null, ...(plan.fatal ? { fatal: plan.fatal } : {}), ...(plan.deadly ? { deadly: plan.deadly } : {}), ...(plan.halfDamage ? { halfDamage: true } : {}), ...(plan.offGuard ? { offGuard: true } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}) }];
             return true;
         // A monster's Retributive Strike (the glossary's): a champion's, the ally's resistance 2 + the monster's level.
         case "retributive-strike":
@@ -113,7 +113,15 @@ export function addBuiltin(spec, plan, name) {
             spec.critDowngrade = { name, dc: plan.dc ?? null, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}), ...(plan.collapse ? { collapse: true } : {}) };
             return true;
         case "reaction-strike":
-            spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: !!plan.disrupts }];
+            spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: !!plan.disrupts, ...(plan.hinders ? { hinders: plan.hinders } : {}) }];
+            return true;
+        // Swift Leap, Jet (B70): a move that doesn't trigger reactions, out of a Melee.
+        case "safe-move":
+            spec.safeMove = { name, actions: Number(plan.actions) || 1 };
+            return true;
+        // Fast Swallow (B70): Swallow Whole as a reaction when it grabs a creature.
+        case "fast-swallow":
+            spec.fastSwallow = { name };
             return true;
         case "death-strike":
             spec.deathStrike = { name, strike: plan.strike ?? null };

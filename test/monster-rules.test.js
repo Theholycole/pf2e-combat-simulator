@@ -1424,3 +1424,65 @@ test("more damage on its own Strikes: on the Strike it names, for its time; fata
     assert.deepEqual([horn.fatal, horn.damage[0].multiplier], [12, 0.5]);
     assert.deepEqual(chargeStrike(strikes[0], { name: "Test Aim", deadly: 4 }).deadly, { dice: 1, die: 4 });
 });
+
+test("reaction Strikes to a Strike in reach, an attack on an ally and a critical hit; Fast Swallow; a move without reactions; a once-a-fight ambush (2026-10-10, B70)", () => {
+    const [fighter] = martialParty(5);
+    const hitter = { ...fighter, engagement: 1, strikes: fighter.strikes.map((strike) => ({ ...strike, bonus: 100 })) };
+    const beast = (id, name, extra) => {
+        const base = moderateCreature(5, id, name);
+        return { ...base, engagement: 1, hp: { value: 999, max: 999 }, strikes: [{ ...base.strikes[0], name: "Tail", bonus: 100 }, { ...base.strikes[0], name: "Jaws", bonus: 100 }], ...extra };
+    };
+    // Tail Lash: the fighter's Strike in its reach; the hit costs the fighter 2 on that roll.
+    let state = createFightState({ combatants: [hitter, beast("drake", "Drake", { reactionStrikes: [{ name: "Tail Lash", triggers: ["strike", "skill"], strike: "tail", penalty: 2, disrupts: false, hinders: 2 }] })] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get("fighter");
+    performStrike(state, f, state.byId.get("drake"), f.strikes[0]);
+    let text = state.log.join("\n");
+    assert.match(text, /Drake uses Tail Lash[\s\S]*Fighter [^\n]*→ Drake/, text);
+    assert.equal(f.rollPenalty, 0, "spent on the roll");
+    // Avenging Bite: an attack on its ally, not on itself.
+    state = createFightState({ combatants: [hitter, beast("wolf", "Wolf", { reactionStrikes: [{ name: "Avenging Bite", triggers: ["ally-attacked"], strike: "jaws", penalty: 0, disrupts: false }] }), beast("pal", "Packmate", {})] }, {}, 1);
+    state.log = [];
+    performStrike(state, state.byId.get("fighter"), state.byId.get("wolf"), state.byId.get("fighter").strikes[0]);
+    assert.doesNotMatch(state.log.join("\n"), /Avenging Bite/);
+    performStrike(state, state.byId.get("fighter"), state.byId.get("pal"), state.byId.get("fighter").strikes[0]);
+    assert.match(state.log.join("\n"), /Wolf uses Avenging Bite/);
+    // Violent Retort: a critical hit on it.
+    state = createFightState({ combatants: [hitter, beast("dragon", "Dragon", { reactionStrikes: [{ name: "Violent Retort", triggers: ["critical-hit"], strike: "tail", penalty: 0, disrupts: false }] })] }, {}, 1);
+    state.log = [];
+    for (let i = 0; i < 5 && !/Violent Retort/.test(state.log.join("\n")); i++) performStrike(state, state.byId.get("fighter"), state.byId.get("dragon"), state.byId.get("fighter").strikes[0]);
+    text = state.log.join("\n");
+    assert.match(text, /critically hits[^\n]*\n\s+Dragon uses Violent Retort/, text);
+    // Fast Swallow: grabbed, then swallowed as its reaction once the action ends.
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const swallowed = { damage: { mode: "formulas", formulas: [{ formula: "2d6[bludgeoning]" }], rollScope: "outcome" }, effects: [{ kind: "swallow", damage: "2d6[bludgeoning]", rupture: 10, size: "large" }] };
+    const swallow = { modelVersion: 13, source: { name: "Swallow Whole" }, rank: 1, traits: ["attack"], activation: { time: "1", traits: ["attack"] }, targeting: { target: "a creature it has grabbed or restrained", range: "touch", area: null, grabbed: true, size: "large" }, trigger: { event: "use" }, resolution: { kind: "check", check: { roll: "skill", statistic: "athletics", against: { dc: "target", statistic: "reflex" } }, sharedDamage: null, outcomes: { criticalSuccess: swallowed, success: swallowed, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } };
+    const worm = beast("worm", "Worm", { fastSwallow: { name: "Fast Swallow" }, skills: { athletics: 100 }, spells: [{ name: "Swallow Whole", plan: swallow, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" }] });
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, worm] }, {}, 1);
+    state.log = [];
+    const w = state.byId.get("worm");
+    applyCondition(state, state.byId.get("fighter"), "grabbed", null, null, w);
+    performAction(state, w, { type: "raiseShield" });
+    assert.match(state.log.join("\n"), /Worm uses Fast Swallow/, state.log.join("\n"));
+    assert.equal(state.byId.get("fighter").swallowedBy, "worm");
+    // A move without reactions: out of a Melee where a Step can't go (a foe with reach).
+    const ghoul = { ...moderateCreature(5, "ghoul", "Ghoul"), engagement: 1, safeMove: { name: "Swift Leap", actions: 1 } };
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, reach: 10 }, ghoul] }, {}, 1);
+    const g = state.byId.get("ghoul");
+    g.round = 1;
+    g.actionsLeft = 3;
+    const leap = scoreOptions(state, g).options.find((entry) => entry.action.type === "safeMove");
+    assert.ok(leap, "on offer");
+    state.log = [];
+    performAction(state, g, leap.action);
+    assert.deepEqual([g.meleeId, /Attack of Opportunity/.test(state.log.join("\n"))], [null, false]);
+    // A once-a-fight ambush (Aquatic Ambush): not again.
+    const lurker = { ...moderateCreature(5, "lurker", "Lurker"), charges: [{ name: "Aquatic Ambush", actions: 1, strides: 1, strike: null, offGuard: true, oncePerFight: true }] };
+    state = createFightState({ combatants: [{ ...fighter }, lurker] }, {}, 1);
+    const l = state.byId.get("lurker");
+    l.round = 1;
+    l.actionsLeft = 3;
+    assert.ok(scoreOptions(state, l).options.some((entry) => entry.action.type === "charge"), "on offer once");
+    l.chargesUsed = new Set(["Aquatic Ambush"]);
+    assert.equal(scoreOptions(state, l).options.some((entry) => entry.action.type === "charge"), false);
+});

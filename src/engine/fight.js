@@ -4,8 +4,8 @@ import { createRng } from "./rng.js";
 import { flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
-import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, stand, step, stride } from "./actions.js";
-import { chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating } from "./abilities.js";
+import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride } from "./actions.js";
+import { canReact, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating } from "./abilities.js";
 import { adjustInstance, rollPersistent } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -494,6 +494,15 @@ function act(state, c, action) {
             step(state, c);
             c.withdrewThisTurn = true;
             break;
+        // Swift Leap, Jet (B70): out of the Melee without provoking.
+        case "safeMove":
+            if (canMove(c)) {
+                releaseGrabs(state, c);
+                leaveMelee(state, c, "near");
+                state.log?.push(`  ${c.name} uses ${c.safeMove.name}`);
+                c.withdrewThisTurn = true;
+            }
+            break;
         case "raiseShield":
             raiseShield(state, c);
             break;
@@ -705,6 +714,7 @@ function act(state, c, action) {
             state.log?.push(`  ${c.name} uses ${c.charges[action.ability].name}`);
             if (c.charges[action.ability].oncePerTurn) c.usedThisTurn?.add(c.charges[action.ability].name);
             if (c.charges[action.ability].flourish) c.usedThisTurn?.add("flourish");
+            if (c.charges[action.ability].oncePerFight) (c.chargesUsed ??= new Set()).add(c.charges[action.ability].name);
             stride(state, c, { kind: "engage", targetId: action.targetId });
             if (canAct(c) && target && isActive(target) && sameMelee(c, target)) performStrike(state, c, target, chargeStrike(c.strikes[action.strikeIndex], c.charges[action.ability]));
             break;
@@ -732,6 +742,7 @@ export function fightOver(state) {
 // One action as the turn loop takes it, for tests that set up exact situations.
 export function performAction(state, c, action) {
     act(state, c, action);
+    afterAction(state);
 }
 
 function actionCost(c, action) {
@@ -741,7 +752,7 @@ function actionCost(c, action) {
     if (action.type === "spellstrike" || action.type === "strikeHard") return 2;
     if (action.type === "pincerAttack" || action.type === "bannersInspiration" || action.type === "shiftImmanence" || action.type === "transcend") return 1;
     if (action.type === "disableHazard") return 2;
-    if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect") return action.actions;
+    if (action.type === "multiStrike" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove") return action.actions;
     if (action.type === "cast") return action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2;
     return action.type === "task" ? 2 : 1;
 }
@@ -829,6 +840,7 @@ function takeTurn(state, c) {
             if (!action) break;
             c.actionsLeft -= actionCost(c, action);
             act(state, c, action);
+            afterAction(state);
             c.actionCount = (c.actionCount ?? 0) + 1;
             processMorale(state);
             if (checkEnd(state)) return;
@@ -837,6 +849,20 @@ function takeTurn(state, c) {
     }
     if (state.outcome) return;
     endTurn(state, c);
+}
+
+// What waits for the action to end (B70): Fast Swallow on a creature just grabbed (its reaction, its own Swallow Whole).
+function afterAction(state) {
+    for (const entry of (state.afterAction ?? []).splice(0)) {
+        const c = state.byId.get(entry.sourceId);
+        const target = state.byId.get(entry.targetId);
+        if (entry.kind !== "fast-swallow" || !c || !target || !isActive(c) || !isActive(target) || !canReact(c) || target.grabbedBy !== c.id || target.swallowedBy) continue;
+        const index = (c.spells ?? []).findIndex((spell) => describeSpell(spell.plan).swallow);
+        if (index < 0) continue;
+        c.reactionUsed = true;
+        state.log?.push(`  ${c.name} uses ${c.fastSwallow.name}`);
+        castSpell(state, c, index, [target.id]);
+    }
 }
 
 function shouldRetreat(state) {

@@ -841,6 +841,8 @@ function expand(ctx, node, actionsLeft) {
         for (const [abilityIndex, ability] of (c.charges ?? []).entries()) {
             if (restrained || noAttacks || !mobile || ctx.wavering || ability.actions > remaining) continue;
             if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ch${abilityIndex}`))) continue;
+            // (Aquatic Ambush, B70: once a fight, from hiding.)
+            if (ability.oncePerFight && c.chargesUsed?.has(ability.name)) continue;
             if (ability.flourish && flourishUsed(c, node)) continue;
             const named = strikeNamed(c, ability.strike);
             const candidates = named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
@@ -1304,6 +1306,8 @@ function expand(ctx, node, actionsLeft) {
         const realMelee = node.pos.melee === c.meleeId && c.meleeId !== null;
         const stepOk = realMelee ? canStepOut(state, c) : (node.pos.melee === "new" && (state.byId.get(node.pos.newWith)?.reach ?? 5) <= 5);
         if (stepOk) children.push(child(node, { type: "step" }, 1, 0, { pos: ctx.away(node, "near"), moved: true }));
+        // Swift Leap, Jet (B70): away without provoking, where a Step can't go.
+        else if (c.safeMove && c.safeMove.actions <= remaining && realMelee) children.push(child(node, { type: "safeMove", actions: c.safeMove.actions }, c.safeMove.actions, 0, { pos: ctx.away(node, "near"), moved: true }));
         else {
             const next = child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: ctx.away(node, "near"), moved: true });
             next.value -= ctx.aooLoss(node.pos, next);

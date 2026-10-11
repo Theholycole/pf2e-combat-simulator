@@ -215,6 +215,9 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (!reaction) {
         reactToAttack(state, target, attacker, strike);
         if (!isActive(attacker) || !canAct(attacker)) return null;
+        // Tail Lash, Avenging Bite (B70): a Strike back at a creature that Strikes in its reach, or that attacks its ally.
+        strikeProvokes(state, attacker, target);
+        if (!isActive(attacker) || !canAct(attacker) || !isActive(target)) return null;
     }
     // Defensive reactions as the attack comes: the attacker rolls twice (Challenge
     // Fate), or +AC (Nimble Dodge); kept for Attacks of Opportunity when it has them.
@@ -231,7 +234,9 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     const roll = () => (misfortune ? Math.min(state.rng.d20(), state.rng.d20()) : state.rng.d20());
     let natural = roll();
-    let bonus = 0;
+    // (Tail Lash's hit, B70: "the creature takes a –2 circumstance penalty to the triggering roll".)
+    let bonus = reaction ? 0 : -(attacker.rollPenalty ?? 0);
+    if (!reaction) attacker.rollPenalty = 0;
     // Taunted: attacking someone other than the guardian costs −1, and leaves it off-guard.
     const taunter = attacker.tauntedBy ? state.byId.get(attacker.tauntedBy) : null;
     if (taunter && isActive(taunter) && taunter.id !== target.id && !reaction) {
@@ -392,7 +397,36 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (isActive(attacker)) reactToHit(state, target, attacker, strike, degree, dealtTypes);
     // Pin Prey, Storm Smite: the attacker's reaction to its own hit (B47).
     if (isActive(attacker)) reactToOwnHit(state, attacker, target, strike, degree);
+    // Violent Retort (B70): a critical hit on it, answered with a Strike.
+    if (degree === CRITICAL_SUCCESS && !reaction && isActive(attacker) && isActive(target)) {
+        const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("critical-hit"));
+        if (answer && canReact(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer);
+    }
     return { degree, damage: dealt, trigger };
+}
+
+// A reaction Strike (Twisting Tail, Tail Lash, Avenging Bite): its named Strike at the creature, at its penalty; its hit can
+// hinder the creature's own roll (B70). The result, or null when it has no such Strike.
+function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
+    const index = strikeNamed(enemy, reaction.strike);
+    if (index < 0 || !strikeUsable(enemy, enemy.strikes[index])) return null;
+    enemy.reactionUsed = true;
+    state.stats.reactions++;
+    log(state, `  ${enemy.name} uses ${reaction.name}`);
+    const strike = enemy.strikes[index];
+    const result = performStrike(state, enemy, mover, reaction.penalty ? { ...strike, bonus: strike.bonus - reaction.penalty } : strike, { reaction: true, trigger: kind });
+    if (reaction.hinders && result?.degree >= SUCCESS) mover.rollPenalty = (mover.rollPenalty ?? 0) + reaction.hinders;
+    return result;
+}
+
+// A Strike in its reach (Tail Lash) or an attack on its ally (Avenging Bite), B70: the reactions that answer it.
+function strikeProvokes(state, mover, target) {
+    for (const enemy of engagedEnemies(state, mover)) {
+        if (!canAct(mover) || !isActive(mover)) break;
+        if (!canReact(enemy) || enemy.cond.fleeing) continue;
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("strike") || (entry.triggers.includes("ally-attacked") && target !== enemy && target.side === enemy.side));
+        if (reaction) reactionStrikeAt(state, enemy, mover, reaction, "strike");
+    }
 }
 
 // A rage or frenzy its trigger sets off (B65): once a fight (it ends fatigued), the reaction spent when it's one.
@@ -770,14 +804,8 @@ export function provoke(state, mover, kind) {
             continue;
         }
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes(kind));
-        const index = reaction ? strikeNamed(enemy, reaction.strike) : -1;
-        if (index < 0 || !strikeUsable(enemy, enemy.strikes[index])) continue;
-        enemy.reactionUsed = true;
-        state.stats.reactions++;
-        log(state, `  ${enemy.name} uses ${reaction.name}`);
-        const strike = enemy.strikes[index];
-        const result = performStrike(state, enemy, mover, reaction.penalty ? { ...strike, bonus: strike.bonus - reaction.penalty } : strike, { reaction: true, trigger: kind });
-        if (reaction.disrupts && result?.degree >= SUCCESS) disrupted = true;
+        const result = reaction ? reactionStrikeAt(state, enemy, mover, reaction, kind) : null;
+        if (reaction?.disrupts && result?.degree >= SUCCESS) disrupted = true;
     }
     // Tentacle Trip, Ectoplasmic Filaments, Baleful Gaze: a reaction with results of its own (B51). One that leaves the creature
     // unable to act, or held, stops what it was doing.
