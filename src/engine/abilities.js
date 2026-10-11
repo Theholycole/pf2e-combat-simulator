@@ -113,7 +113,7 @@ export function addBuiltin(spec, plan, name) {
             spec.critDowngrade = { name, dc: plan.dc ?? null, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}), ...(plan.collapse ? { collapse: true } : {}) };
             return true;
         case "reaction-strike":
-            spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: !!plan.disrupts, ...(plan.hinders ? { hinders: plan.hinders } : {}) }];
+            spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: !!plan.disrupts, ...(plan.hinders ? { hinders: plan.hinders } : {}), ...(plan.second ? { second: true } : {}) }];
             return true;
         // Mythic abilities (B72; the user's choice: three Mythic Points a fight): Remove a Condition, Recharge, Undying Myth.
         case "mythic":

@@ -409,6 +409,16 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("critical-hit"));
         if (answer && canReact(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer);
     }
+    // Wing Thrash (B81): an adjacent enemy that damages it with a Strike, a Strike back, and one at another adjacent foe.
+    if (dealt > 0 && !reaction && strike.melee && isActive(attacker) && isActive(target)) {
+        const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("damaged-adjacent"));
+        if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) {
+            reactionStrikeAt(state, target, attacker, answer);
+            const other = answer.second ? engagedEnemies(state, target).find((foe) => foe !== attacker) : null;
+            const index = other ? strikeNamed(target, answer.strike) : -1;
+            if (other && index >= 0 && isActive(target) && canAct(target)) performStrike(state, target, other, target.strikes[index], { reaction: true });
+        }
+    }
     return { degree, damage: dealt, trigger };
 }
 
@@ -424,6 +434,17 @@ function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     const result = performStrike(state, enemy, mover, reaction.penalty ? { ...strike, bonus: strike.bonus - reaction.penalty } : strike, { reaction: true, trigger: kind });
     if (reaction.hinders && result?.degree >= SUCCESS) mover.rollPenalty = (mover.rollPenalty ?? 0) + reaction.hinders;
     return result;
+}
+
+// A creature coming into its reach (B81: Telekinetic Defense's "approaches within 10 feet", Wing Rebuff's "moves … to within the reach of
+// the roc's wing"): as it engages, each enemy in that Melee with the reaction Strikes it.
+function approachAnswers(state, mover) {
+    for (const enemy of engagedEnemies(state, mover)) {
+        if (!canAct(mover) || !isActive(mover)) break;
+        if (!canReact(enemy) || enemy.cond.fleeing) continue;
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("approach"));
+        if (reaction) reactionStrikeAt(state, enemy, mover, reaction, "approach");
+    }
 }
 
 // A Strike in its reach (Tail Lash) or an attack on its ally (Avenging Bite), B70: the reactions that answer it.
@@ -866,6 +887,8 @@ export function stride(state, c, move) {
         if (!target || !isActive(target)) return;
         engage(state, c, target);
         log(state, `  ${c.name} Strides to engage ${target.name}`);
+        // (Telekinetic Defense, Wing Rebuff, B81: a reaction Strike as it comes into their reach.)
+        approachAnswers(state, c);
         // Map objectives: it's where the target is now.
         if (isMapObjective(state.objective)) {
             moveTo(c, target);

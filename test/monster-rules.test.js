@@ -1777,3 +1777,28 @@ test("Golden Luck, Word of Wisdom, Cat's Luck: a failed save made better by a re
     assert.deepEqual([state.byId.get("cat").saveRerollUses, state.byId.get("cat").cond.frightened ?? 0], [0, 0]);
 });
 
+test("Wing Thrash answers an adjacent enemy's damaging Strike; Telekinetic Defense, Wing Rebuff answer an approach (2026-10-11, B81)", () => {
+    const party = martialParty(5);
+    // Wing Thrash: a wing Strike back at the fighter, and one at the other adjacent foe.
+    const bat = { ...moderateCreature(5, "bat", "Bat"), engagement: 1 };
+    bat.strikes = [{ ...bat.strikes[0], name: "Wing" }];
+    assert.equal(addBuiltin(bat, { builtin: "reaction-strike", triggers: ["damaged-adjacent"], strike: "wing", penalty: 0, disrupts: false, second: true }, "Wing Thrash"), true);
+    let state = createFightState({ combatants: [...party.slice(0, 2).map((pc) => ({ ...pc, engagement: 1 })), bat] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    const [fighter, second] = party.slice(0, 2).map((pc) => state.byId.get(pc.id));
+    performStrike(state, fighter, state.byId.get("bat"), fighter.strikes[0]);
+    assert.ok(state.log.includes("  Bat uses Wing Thrash"), state.log.join("\n"));
+    const wings = state.log.filter((line) => /^ {2}Bat Wing → /.test(line)).map((line) => /→ (.+?):/.exec(line)[1]);
+    assert.deepEqual(wings, [fighter.name, second.name], state.log.join("\n"));
+    // Telekinetic Defense: a Strike at the creature that comes into its reach.
+    const poltergeist = { ...moderateCreature(5, "ghost", "Ghost"), band: "near" };
+    poltergeist.strikes = [{ ...poltergeist.strikes[0], name: "Telekinetic Object" }];
+    assert.equal(addBuiltin(poltergeist, { builtin: "reaction-strike", triggers: ["approach"], strike: "telekinetic object", penalty: 0, disrupts: false, within: 10 }, "Telekinetic Defense"), true);
+    state = createFightState({ combatants: [{ ...party[0], band: "near" }, poltergeist] }, {}, 1);
+    state.log = [];
+    stride(state, state.byId.get(party[0].id), { kind: "engage", targetId: "ghost" });
+    assert.ok(state.log.includes("  Ghost uses Telekinetic Defense"), state.log.join("\n"));
+    assert.equal(state.byId.get("ghost").reactionUsed, true);
+});
+
