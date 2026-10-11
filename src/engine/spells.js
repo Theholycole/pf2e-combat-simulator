@@ -1214,6 +1214,24 @@ function useReaction(state, c, other, matches) {
     return false;
 }
 
+// Its reaction to downing a creature (B79: You're Next's "Trigger The prisoner reduces a creature to 0 hit points Effect … Demoralize a
+// single creature it can see"): at another foe, one in its Melee first, then one nearby.
+export function downsAnswers(state, c, downed) {
+    if (!canAct(c)) return;
+    for (const [index, spell] of (c.spells ?? []).entries()) {
+        const trigger = spell.plan?.trigger;
+        if (!trigger?.reaction || trigger.event !== "downs" || (!trigger.free && !canReact(c))) continue;
+        const foes = state.list.filter((other) => other.side !== c.side && other !== downed && isActive(other) && !c.immuneTargets?.get(spell)?.has(other.id));
+        const target = foes.find((other) => sameMelee(c, other)) ?? foes.find((other) => other.band !== "far") ?? null;
+        if (!target) return;
+        if (!trigger.free) c.reactionUsed = true;
+        state.stats.reactions++;
+        log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name}`);
+        castSpell(state, c, index, [target.id]);
+        return;
+    }
+}
+
 // A creature losing a condition near a monster (B76: Consume Fear's "A creature within 60 feet loses the Frightened condition"): the
 // monster's reaction, on itself (the temporary Hit Points it gains). Within its distance: its Melee for 10 feet or less, the bands
 // for more, anyone in the fight from 60 feet.
@@ -1581,6 +1599,12 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     if (info.grabbedTargets) {
         const held = enemies.filter((enemy) => enemy.grabbedBy === caster.id && isActive(enemy));
         return held.length ? [{ targets: held }] : [];
+    }
+    // Stoke the Flames (B79): the foes within its distance taking persistent damage of that type.
+    if (spell.plan?.targeting?.foes && spell.plan.targeting.taking) {
+        const radius = Number(spell.plan.targeting.area?.value) || 0;
+        const taking = enemies.filter((enemy) => isActive(enemy) && (enemy.persistent ?? []).some((entry) => entry.type === spell.plan.targeting.taking) && (radius >= 60 || inMelee(enemy) || enemy.band !== "far"));
+        return taking.length ? [{ targets: taking }] : [];
     }
     // Not those already immune to it (Demoralize, a screech's "temporarily immune for 1 minute"), areas included.
     const immune = caster.immuneTargets?.get(spell);

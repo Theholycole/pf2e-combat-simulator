@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { applyEffect, removeEffect } from "./effects.js";
-import { deathThroes, hitByAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit } from "./spells.js";
+import { deathThroes, downsAnswers, hitByAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit } from "./spells.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -711,6 +711,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     releaseAllSwallowed(state, target, "is freed");
     target.hp.value = 0;
     if (source && target.kind === "pc") source.downedCount++;
+    // (You're Next, B79: the reaction of the creature that downed it.)
+    if (source && source !== target && source.side !== target.side && isActive(source)) downsAnswers(state, source, target);
     state.pendingEvents.push({ type: "dropped", victim: target, by: source, critical, overwhelming });
     if (massive && !nonlethal) {
         kill(state, target);

@@ -1711,3 +1711,29 @@ test("Wicked Bite: both ways ready after the jaws hit, the planner weighing each
     const offered = scoreOptions(state, u).options.filter((option) => option.action.type === "cast" && option.action.rider).map((option) => option.action.spellIndex);
     assert.deepEqual([...new Set(offered)].sort(), [0, 1], "both ways on offer");
 });
+
+test("You're Next: Demoralize another foe as it downs one; Stoke the Flames: foes taking persistent fire (2026-10-11, B79)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const party = martialParty(5);
+    // You're Next: the Demoralize with its +2, at another foe, as its reaction.
+    const demoralize = structuredClone(basic.demoralize);
+    demoralize.resolution.check = { ...demoralize.resolution.check, bonus: { value: 2, type: "circumstance" } };
+    const prisoner = { ...moderateCreature(5, "prisoner", "Prisoner"), engagement: 1, spells: [entry("You're Next", { ...demoralize, trigger: { event: "downs", reaction: true } })] };
+    let state = createFightState({ combatants: [...party.slice(0, 2).map((pc) => ({ ...pc, engagement: 1 })), prisoner] }, {}, 1);
+    state.log = [];
+    const p = state.byId.get("prisoner");
+    const [first, second] = party.slice(0, 2).map((pc) => state.byId.get(pc.id));
+    dealDamage(state, first, first.hp.value + first.hp.temp + 1, { source: p });
+    assert.ok(state.log.some((line) => /Prisoner reacts with You're Next/.test(line)), state.log.join("\n"));
+    assert.ok(state.log.includes(`  Prisoner casts You're Next at ${second.name}`), state.log.join("\n"));
+    assert.equal(p.reactionUsed, true);
+    // Stoke the Flames: only the foes taking persistent fire damage.
+    const stoke = { modelVersion: 13, source: { name: "Stoke the Flames" }, rank: 1, traits: ["fire"], activation: { time: "1", traits: [] }, targeting: { target: null, range: null, area: { type: "emanation", value: 60 }, foes: true, taking: "fire" }, trigger: { event: "use" }, resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "formulas", formulas: [{ formula: "4d6[fire]" }], rollScope: "outcome" }, effects: [] }, failure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, criticalFailure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] } } } };
+    const dragon = { ...moderateCreature(5, "dragon", "Dragon"), engagement: 1, spells: [entry("Stoke the Flames", stoke)] };
+    state = createFightState({ combatants: [...party.slice(0, 2).map((pc) => ({ ...pc, engagement: 1 })), dragon] }, {}, 1);
+    const [burning, cool] = party.slice(0, 2).map((pc) => state.byId.get(pc.id));
+    burning.persistent.push({ type: "fire", dice: 1, die: 6, bonus: 0, multiplier: 1 });
+    const sets = targetSetsFor(state, state.byId.get("dragon"), state.byId.get("dragon").spells[0], { enemies: [burning, cool], allies: [], inMelee: () => true, distance: () => 5, meleeId: null });
+    assert.deepEqual(sets.map((set) => set.targets.map((target) => target.name)), [[burning.name]]);
+});
+
