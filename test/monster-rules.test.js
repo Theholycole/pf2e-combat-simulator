@@ -1913,3 +1913,31 @@ test("Jeer at Failure: Demoralize a foe that falls prone or critically fails a S
     applyCondition(state, state.byId.get(fighter.id), "prone", null, null, s);
     assert.equal(state.log.some((line) => /Jeer at Failure/.test(line)), false, state.log.join("\n"));
 });
+
+test("Unbidden Thoughts: the attacker keeps the critical hit and is frightened 2, or takes a normal hit when that's enough (2026-10-11, B86)", () => {
+    const [fighter] = martialParty(5);
+    const fight = (hp) => {
+        const dragon = { ...moderateCreature(5, "dragon", "Dragon"), engagement: 1, hp: { value: hp, max: 999 } };
+        assert.equal(addBuiltin(dragon, { builtin: "crit-downgrade", dc: null, or: { slug: "frightened", value: 2 } }, "Unbidden Thoughts"), true);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => 20;
+        return state;
+    };
+    let state = fight(999);
+    const f = state.byId.get(fighter.id);
+    performStrike(state, f, state.byId.get("dragon"), f.strikes[0]);
+    assert.ok(state.log.includes(`  Dragon uses Unbidden Thoughts: ${f.name} keeps the critical hit and is frightened 2`), state.log.join("\n"));
+    assert.equal(f.cond.frightened, 2);
+    assert.ok(state.log.some((line) => /critically hits/.test(line)), state.log.join("\n"));
+    // A normal hit would finish it: the attacker takes that, unafraid.
+    state = fight(3);
+    const g = state.byId.get(fighter.id);
+    performStrike(state, g, state.byId.get("dragon"), g.strikes[0]);
+    assert.ok(state.log.includes("  Dragon uses Unbidden Thoughts: a normal hit"), state.log.join("\n"));
+    assert.equal(g.cond.frightened ?? 0, 0);
+    // (B59's no-check ones load from their plans too: Collapse.)
+    const skeleton = moderateCreature(5, "skel", "Skeleton");
+    assert.equal(addBuiltin(skeleton, { builtin: "crit-downgrade", dc: null, collapse: true }, "Collapse"), true);
+    assert.deepEqual(skeleton.critDowngrade, { name: "Collapse", dc: null, collapse: true });
+});

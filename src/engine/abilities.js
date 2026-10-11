@@ -109,8 +109,10 @@ export function addBuiltin(spec, plan, name) {
             spec.critResistance = { name, value: Number(plan.value) || 0 };
             return true;
         case "crit-downgrade":
-            if (!Number.isFinite(plan.dc)) return false;
-            spec.critDowngrade = { name, dc: plan.dc ?? null, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}), ...(plan.collapse ? { collapse: true } : {}) };
+            // (A flat check's DC, or none: B59's Collapse, B86's choice. B59 left this guard asking for a DC, so until 2026-10-11 the
+            // ones with no check never loaded.)
+            if (plan.dc != null && !Number.isFinite(plan.dc)) return false;
+            spec.critDowngrade = { name, dc: plan.dc ?? null, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}), ...(plan.collapse ? { collapse: true } : {}), ...(plan.or ? { or: { ...plan.or } } : {}) };
             return true;
         case "reaction-strike":
             spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: !!plan.disrupts, ...(plan.hinders ? { hinders: plan.hinders } : {}), ...(plan.second ? { second: true } : {}) }];

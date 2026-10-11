@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { applyEffect, removeEffect } from "./effects.js";
-import { deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit } from "./spells.js";
+import { applyCondition, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit } from "./spells.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -286,7 +286,12 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         if (Number.isFinite(downgrade.uses)) downgrade.uses--;
         else target.reactionUsed = true;
         // (No check, B59: Collapse, Twist Fate; Collapse leaves it immobilized and off-guard until it re-forms.)
-        if (downgrade.dc == null) {
+        // (B86, Unbidden Thoughts: the attacker's choice, a normal hit or the critical hit and Frightened 2. It keeps the critical hit
+        // unless a normal hit's damage is expected to finish the target anyway.)
+        if (downgrade.dc == null && downgrade.or && expectedHitDamage(attacker, strike, target, false) < target.hp.value + (target.hp.temp ?? 0)) {
+            log(state, `  ${target.name} uses ${downgrade.name}: ${attacker.name} keeps the critical hit and is ${downgrade.or.slug} ${downgrade.or.value}`);
+            applyCondition(state, attacker, downgrade.or.slug, downgrade.or.value, null, target);
+        } else if (downgrade.dc == null) {
             log(state, `  ${target.name} uses ${downgrade.name}: a normal hit`);
             degree = SUCCESS;
             if (downgrade.collapse) {
