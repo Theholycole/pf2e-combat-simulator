@@ -767,6 +767,11 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
         log(state, `  ${target.name} takes ${dealt} more ${instances.map((instance) => instance.type).join("/")}`);
     }
     if (activity.riderSpell && isActive(target)) castPlan(state, attacker, activity.riderSpell, [target.id]);
+    // A skill action after the hit (B67: Terrifying Charge's Demoralize, Pouncing Pin's Trip): its own basic action.
+    if (rider.follow && isActive(target) && canAct(attacker)) {
+        const index = (attacker.spells ?? []).findIndex((spell) => spell.kind === "basic" && (spell.plan?.source?.slug === rider.follow || String(spell.name ?? "").toLowerCase() === rider.follow));
+        if (index >= 0) castSpell(state, attacker, index, [target.id]);
+    }
 }
 
 // "2d8[strike]": the Strike's own damage type.

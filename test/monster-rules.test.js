@@ -1329,3 +1329,16 @@ test("a rider by its Strike's degree: the critical hit's own row (2026-10-10, B6
     triggerRiders(state, c, pc, c.strikes[0], 3);
     assert.equal(pc.cond.enfeebled, 2);
 });
+
+test("a skill action after a Strike activity's hit: its own basic action (2026-10-10, B67)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const demoralize = { modelVersion: 13, source: { name: "Demoralize", slug: "demoralize" }, rank: 1, traits: ["mental", "emotion"], activation: { time: "1", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, resolution: { kind: "check", check: { roll: "skill", statistic: "intimidation", against: { dc: "target", statistic: "will" } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] }, success: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } };
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "skel", "Skeleton");
+    const skeleton = { ...base, engagement: 1, skills: { ...(base.skills ?? {}), intimidation: 100 }, spells: [{ ...entry("Demoralize", demoralize), kind: "basic" }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, skeleton] }, {}, 1);
+    const c = state.byId.get("skel");
+    const pc = state.byId.get("fighter");
+    applyStrikeRider(state, c, pc, { onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null, follow: "demoralize" } }, false, c.strikes[0]);
+    assert.ok(pc.cond.frightened >= 1);
+});
