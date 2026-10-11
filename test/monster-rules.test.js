@@ -2045,3 +2045,16 @@ test("A Strike back at a failed attack (its best melee Strike, a fortune one), a
     assert.equal(state.log.some((line) => /Attack of Opportunity|Reactive Strike/.test(line)), false, state.log.join("\n"));
     assert.ok(state.log.includes("  Drake uses Test Assault"), state.log.join("\n"));
 });
+
+test("A reaction Strike at a ranged attack in its Melee (2026-10-11, B91)", () => {
+    const [fighter] = martialParty(5);
+    const drake = { ...moderateCreature(5, "drake", "Drake"), engagement: 1, hp: { value: 999, max: 999 } };
+    drake.strikes = [...drake.strikes, { ...drake.strikes[0], name: "Tail" }];
+    assert.equal(addBuiltin(drake, { builtin: "reaction-strike", triggers: ["move", "ranged"], strike: "tail", penalty: 0, disrupts: false, criticalTrip: true }, "Test Whip"), true);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, drake] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get(fighter.id);
+    performStrike(state, f, state.byId.get("drake"), { ...f.strikes[0], name: "Shortbow", melee: false, range: 60 });
+    assert.ok(state.log.includes("  Drake uses Test Whip"), state.log.join("\n"));
+    assert.ok(state.log.some((line) => /^ {2}Drake Tail → /.test(line)), state.log.join("\n"));
+});
