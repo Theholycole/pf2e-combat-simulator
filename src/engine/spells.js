@@ -1105,6 +1105,12 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     // (B105: an Escape from one whose reaction makes it harder, Tighten Coils.)
     if (info.escape) for (const target of targets) guardEscape(state, caster, target);
+    // (B136, Punish Flight: a Strike at the creature as it tries to Escape; dropped by it, it doesn't get to try.)
+    if (info.escape) for (const target of targets) escapeAttempted(state, caster, target);
+    if (info.escape && !canAct(caster)) {
+        for (const target of targets) delete target.escapeGuardActive;
+        return;
+    }
     const context = simContext(state, caster, spell, targets, caster.attacksThisTurn - (info.attack ? 1 : 0), actions);
     const live = liveRoller(state);
     // Spellstrike: the spell attack takes the Strike's result.
@@ -1125,6 +1131,12 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     if (info.escape) for (const target of targets) {
         delete target.escapeGuardActive;
         escapeAnswers(state, caster, target, result.degrees[target.id]);
+    }
+    // (B136, Sweeping Hook: its own Trip that succeeded, its Strike at the creature it tripped.)
+    if (spell.plan?.source?.slug === "trip") for (const target of targets) {
+        if (!["success", "criticalSuccess"].includes(result.degrees[target.id])) continue;
+        const answer = (caster.reactionStrikes ?? []).find((entry) => entry.triggers.includes("tripped"));
+        if (answer && isActive(caster) && isActive(target) && canAct(caster) && canReact(caster) && !caster.cond.fleeing) reactionStrikeAt(state, caster, target, answer, "tripped");
     }
     // A swashbuckler's bravado action: panache on a success, until the end of the turn on a failure.
     if (caster.panacheStyle && (caster.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
@@ -1457,6 +1469,14 @@ function guardEscape(state, escaper, grabber) {
     log(state, `  ${grabber.name} uses ${guard.name}: the Escape DC is ${guard.value} higher`);
 }
 
+// A creature it holds trying to Escape (B136, Punish Flight's "A creature attempts to Escape from the hatred siktempora"): its Strike at
+// that creature first, whatever the Escape's result.
+function escapeAttempted(state, escaper, grabber) {
+    if (!isActive(grabber) || !isActive(escaper) || !canAct(grabber) || !canReact(grabber) || grabber.cond.fleeing) return;
+    const answer = (grabber.reactionStrikes ?? []).find((entry) => entry.triggers.includes("escape"));
+    if (answer) reactionStrikeAt(state, grabber, escaper, answer, "escape");
+}
+
 // A creature it holds failing to Escape (B92: Savage's "A creature Grabbed by the wyvern critically fails a skill check to Escape … a
 // stinger Strike against the triggering creature", Gnashing Bite's "fails a check to Escape … The lizard's jaws deal 1d6 piercing and
 // 1d6 acid damage to the triggering creature"): its reaction at that creature.
@@ -1504,7 +1524,9 @@ export function mishapAnswers(state, creature) {
 // distance (its reach or 10 feet or less: its Melee; more: the bands). True when it reacted.
 export function provokedReaction(state, c, mover, kind) {
     const near = (within) => (within === "reach" || Number(within) <= 10 ? sameMelee(c, mover) : Number(within) >= 60 || mover.band !== "far" || c.band === "far");
-    return useReaction(state, c, mover, (trigger) => trigger.event === "provoke" && (trigger.triggers ?? []).some((each) => each === kind || (kind === "move" && each === "leave")) && near(trigger.within));
+    // (B136, Kneecapper: "A Medium creature …" — only a mover of that size.)
+    const sized = (sizes) => !sizes?.length || sizes.some((size) => sizeRank(size) === sizeRank(mover.size));
+    return useReaction(state, c, mover, (trigger) => trigger.event === "provoke" && (trigger.triggers ?? []).some((each) => each === kind || (kind === "move" && each === "leave")) && near(trigger.within) && sized(trigger.sizes));
 }
 
 // More triggers (B47): its own Strike that hits or critically hits (Pin Prey, Storm Smite, Go For the Eyes); a Strike at it,

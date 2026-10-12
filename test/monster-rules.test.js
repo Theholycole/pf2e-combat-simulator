@@ -3226,3 +3226,42 @@ test("A move away on damage with a recharge: not again until it recharges (2026-
     performStrike(state, f, c, f.strikes[0]);
     assert.ok(!state.log.some((line) => /uses Test Crumble/.test(line)), state.log.join("\n"));
 });
+
+test("A Medium mover only; a Strike as a creature tries to Escape; a Strike after its own Trip (2026-10-12, B136)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const prone = { kind: "condition", slug: "prone", value: null, duration: null };
+    // Kneecapper: a Trip rolled with Acrobatics at a Medium creature leaving its reach — not at a Large one.
+    const kneecap = { modelVersion: 13, source: { name: "Test Kneecap" }, rank: 1, traits: [], activation: { time: "reaction", traits: [] }, targeting: { target: "the attacker", range: "touch", area: null }, trigger: { event: "provoke", reaction: true, triggers: ["leave"], within: "reach", sizes: ["medium"] },
+        resolution: { kind: "check", check: { roll: "skill", statistic: "acrobatics", against: { dc: "target", statistic: "reflex" } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [prone] }, success: { damage: { ...none }, effects: [prone] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } };
+    for (const [size, reacts] of [["med", true], ["lg", false]]) {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, size }, { ...moderateCreature(5, "nug", "Nuglub"), engagement: 1, spells: [entry("Test Kneecap", kneecap)] }] }, {}, 1);
+        state.log = [];
+        provokeFor(state, state.byId.get(fighter.id), "move");
+        assert.equal(state.log.some((line) => /Test Kneecap/.test(line)), reacts, `${size}: ${state.log.join("\n")}`);
+    }
+    // Punish Flight: its Strike as the held creature tries to Escape, whatever the result.
+    const holder = withBuiltins({ ...moderateCreature(5, "sik", "Siktempora"), engagement: 1, hp: { value: 999, max: 999 } }, ["Test Punish", { builtin: "reaction-strike", triggers: ["escape"], strike: null, penalty: 0, disrupts: false, noGrab: true }]);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [entry("Escape", basic.escape, "basic")] }, holder] }, {}, 1);
+    state.log = [];
+    let f = state.byId.get(fighter.id);
+    applyCondition(state, f, "grabbed", null, null, state.byId.get("sik"));
+    state.rng.d20 = () => 19;
+    castSpell(state, f, 0, ["sik"]);
+    state.rng.d20 = () => 10;
+    const text = state.log.join("\n");
+    assert.ok(text.indexOf("Siktempora uses Test Punish") >= 0 && text.indexOf("Siktempora uses Test Punish") < text.indexOf("Fighter: "), text);
+    // Sweeping Hook: its own Trip that succeeds, then its Strike at the creature it tripped.
+    const ogre = withBuiltins({ ...moderateCreature(5, "ogre", "Ogre Boss"), engagement: 1, spells: [entry("Trip", basic.trip, "basic")] }, ["Test Hook", { builtin: "reaction-strike", triggers: ["tripped"], strike: null, penalty: 0, disrupts: false, using: "ogre hook" }]);
+    for (const [reflex, reacts] of [[0, true], [40, false]]) {
+        state = createFightState({ combatants: [{ ...fighter, engagement: 1, saves: { fortitude: 0, reflex, will: 0 } }, ogre] }, {}, 1);
+        state.log = [];
+        const o = state.byId.get("ogre");
+        o.actionsLeft = 3;
+        state.rng.d20 = () => 15;
+        castSpell(state, o, o.spells.findIndex((spell) => spell.name === "Trip"), [fighter.id]);
+        state.rng.d20 = () => 10;
+        assert.equal(state.log.some((line) => /Ogre Boss uses Test Hook/.test(line)), reacts, `${reflex}: ${state.log.join("\n")}`);
+    }
+});
