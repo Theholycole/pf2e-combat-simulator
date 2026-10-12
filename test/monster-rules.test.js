@@ -4592,3 +4592,15 @@ test("A self-effect as it takes any damage, its Hit Points back with it (2026-10
     assert.match(log, /Goblin uses Test Growth/, log);
     assert.equal(state.byId.get("gob").hp.value, 50 - 10 + 8);
 });
+
+test("A Strike at a creature starting its turn beside it, a free action's (2026-10-12, B245)", async () => {
+    const { turnStartAnswers } = await import("../src/engine/actions.js");
+    const [fighter] = martialParty(5);
+    const golem = withBuiltins({ ...moderateCreature(5, "glm", "Golem"), engagement: 1, hp: { value: 999, max: 999 } }, ["Test Hands", { builtin: "reaction-strike", triggers: ["turn-start-adjacent"], strike: null, penalty: 0, disrupts: false, free: true }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, golem] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    turnStartAnswers(state, state.byId.get(fighter.id));
+    assert.match(state.log.join("\n"), /Golem uses Test Hands/, state.log.join("\n"));
+    assert.equal(state.byId.get("glm").reactionUsed, false, "its reaction left");
+});

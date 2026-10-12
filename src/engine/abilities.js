@@ -175,6 +175,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(Number(plan.within) > 10 ? { within: Number(plan.within) } : {}),
                 // (B242, Lurking Death: a teleport to the creature first.)
                 ...(plan.teleport ? { teleport: true } : {}),
+                // (B245, Whirling Hands: a free action, not its reaction.)
+                ...(plan.free ? { free: true } : {}),
                 // (B227: the save that keeps the disrupted action.)
                 ...(plan.disruptSave?.statistic && Number.isFinite(Number(plan.disruptSave.dc)) ? { disruptSave: { statistic: plan.disruptSave.statistic, dc: Number(plan.disruptSave.dc) } } : {}),
                 // (B122: Knowing Glance's melee Strikes only; Bodyguard's Reprisal's charge, played as any ally.)

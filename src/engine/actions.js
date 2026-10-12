@@ -710,6 +710,19 @@ export function turnEndAnswers(state, c) {
     }
 }
 
+// A creature starting its turn in its Melee (B245, Whirling Hands: "A creature starts its turn in the capritellix's melee reach"): its Strike at it;
+// a free action's leaves its reaction.
+export function turnStartAnswers(state, c) {
+    for (const enemy of engagedEnemies(state, c)) {
+        if (!isActive(c)) break;
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("turn-start-adjacent"));
+        if (!reaction || !(reaction.free || canReact(enemy)) || !canAct(enemy) || enemy.cond.fleeing) continue;
+        const used = enemy.reactionUsed;
+        reactionStrikeAt(state, enemy, c, reaction, "turn-start");
+        if (reaction.free) enemy.reactionUsed = used;
+    }
+}
+
 // A creature coming into its reach (B81: Telekinetic Defense's "approaches within 10 feet", Wing Rebuff's "moves … to within the reach of
 // the roc's wing"): as it engages, each enemy in that Melee with the reaction Strikes it.
 function approachAnswers(state, mover) {
