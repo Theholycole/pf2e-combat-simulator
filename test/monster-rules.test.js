@@ -4659,3 +4659,57 @@ test("A reaction to a foe's critical miss on it only, not on an ally (2026-10-12
     mishapAnswers(state, state.byId.get(fighter.id), state.byId.get("jst"));
     assert.match(state.log.join("\n"), /Test Jeer/, state.log.join("\n"));
 });
+
+test("Random effect tables: the die picks the way (roll twice, a face with nothing), weighted expectations, a bomb's damage row on its Strike, Strikes by dice (2026-10-12, B255)", async () => {
+    const { spellExpectation } = await import("../src/engine/spells.js");
+    const { randomDamageRows } = await import("../src/adapter/formula.js");
+    const { rolledStrikes, randomStrikeShare } = await import("../src/engine/abilities.js");
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (effects = []) => ({ damage: { ...none }, effects });
+    const hex = (slug) => ({ modelVersion: 13, source: { name: "Test Hex" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use", recharge: { formula: "1", unit: "rounds" } },
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row([{ kind: "condition", slug, value: 1, duration: null }]), failure: row(), criticalFailure: row() } } });
+    const ways = [{ name: "1: twice", faces: [1], plan: null, again: 2 }, { name: "2: clumsy", faces: [2], plan: hex("clumsy") }, { name: "3: enfeebled", faces: [3], plan: hex("enfeebled") }, { name: "4: nothing", faces: [4], plan: null }];
+    const spell = { name: "Test Hex", plan: hex("clumsy"), castRank: 1, pool: null, kind: "ability", rechargeGroup: "Test Hex", die: 4, randomWays: ways };
+    const witch = { ...moderateCreature(5, "wch", "Witch"), engagement: 1, spells: [spell] };
+    const run = (faces) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, witch] }, {}, 1);
+        state.log = [];
+        state.rng.die = () => faces.shift();
+        const w = state.byId.get("wch");
+        castPlan(state, w, w.spells[0], [fighter.id]);
+        return { state, w, f: state.byId.get(fighter.id) };
+    };
+    const first = run([2]);
+    assert.deepEqual([first.f.cond.clumsy, first.f.cond.enfeebled ?? 0], [1, 0]);
+    assert.ok((first.w.rechargeUntil?.get("Test Hex") ?? 0) > first.state.round, "the ways share its recharge");
+    const twice = run([1, 3, 1, 2]);
+    assert.deepEqual([twice.f.cond.clumsy, twice.f.cond.enfeebled], [1, 1], twice.state.log.join("\n"));
+    const nothing = run([4]);
+    assert.match(nothing.state.log.join("\n"), /Test Hex: 4: nothing/);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, witch] }, {}, 1);
+    const w = state.byId.get("wch");
+    const target = state.byId.get(fighter.id);
+    const whole = spellExpectation(state, w, { ...spell, randomWays: null }, [target])[0];
+    const mixed = spellExpectation(state, w, spell, [target])[0];
+    assert.ok(whole.worth > 0 && mixed.worth > 0 && mixed.worth < whole.worth, `${mixed.worth} vs ${whole.worth}`);
+    // A bomb's table: its row's damage and splash, its save on a hit.
+    const sicken = { ...hex("sickened"), resolution: { ...hex("sickened").resolution } };
+    const rows = randomDamageRows({ rows: [{ name: "Burn", faces: [1], onHit: { damage: ["2d6[fire]"], splash: ["2[fire]"], conditions: [] } }, { name: "Fumes", faces: [2], onHit: { damage: [], conditions: [], save: sicken } }] });
+    assert.deepEqual([rows[0].damage.map((part) => [part.type, Boolean(part.splash)]), rows[1].damage, Boolean(rows[1].hitSpell)], [[["fire", false], ["fire", true]], [], true]);
+    const tinker = { ...moderateCreature(5, "tnk", "Tinker"), engagement: 1 };
+    const bombState = createFightState({ combatants: [{ ...fighter, engagement: 1 }, tinker] }, {}, 1);
+    bombState.log = [];
+    bombState.rng.d20 = () => 15;
+    bombState.rng.die = (() => { const faces = [2]; return (sides) => (faces.length ? faces.shift() : Math.ceil(sides / 2)); })();
+    const bomb = { name: "Flask", bonus: 30, melee: false, increment: 20, agile: false, reach: 5, damage: rows[0].damage, attackEffects: [], randomDamage: rows, randomDie: 2, splashKind: "bomb" };
+    performStrike(bombState, bombState.byId.get("tnk"), bombState.byId.get(fighter.id), bomb);
+    assert.match(bombState.log.join("\n"), /rolls 2: Fumes/);
+    assert.equal(bombState.byId.get(fighter.id).cond.sickened, 1, bombState.log.join("\n"));
+    // Strikes by dice: a face's Strike or none; its share of uses for the planner.
+    const gizmo = withBuiltins({ ...moderateCreature(5, "gzm", "Gizmo"), strikes: [{ name: "Claw", bonus: 12, melee: true, agile: false, reach: 5, damage: [{ dice: 2, die: 6, bonus: 4, multiplier: 1, type: "slashing", persistent: false, precision: false }], attackEffects: [] }, { name: "Tail", bonus: 12, melee: true, agile: true, reach: 5, damage: [{ dice: 1, die: 8, bonus: 4, multiplier: 1, type: "bludgeoning", persistent: false, precision: false }], attackEffects: [] }] }, ["Test Gizmos", { builtin: "random-strikes", actions: 1, formula: "1d4", times: 2, faces: { 3: "claw", 4: "tail" } }]);
+    const ability = gizmo.multiStrikes[0];
+    assert.deepEqual([ability.strikes, randomStrikeShare(ability, gizmo, 0), randomStrikeShare(ability, gizmo, 1)], [["claw", "tail"], 0.5, 0.5]);
+    const gizmoState = { rng: { die: (() => { const faces = [4, 3]; return () => faces.shift(); })() }, log: [] };
+    assert.deepEqual(rolledStrikes(gizmoState, gizmo, ability), [0, 1], "non-agile first");
+});

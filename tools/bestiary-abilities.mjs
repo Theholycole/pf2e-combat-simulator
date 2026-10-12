@@ -17,7 +17,7 @@ const { readDocuments } = await import(new URL("../../PF2e AUTOMATIC ABILITY RES
 const { compileBasicActions, compileMonsterAbility } = await import(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/src/compiler/index.js", import.meta.url).href);
 const { simulate } = await import("../src/engine/fight.js");
 const { martialParty } = await import("../src/engine/benchmarks.js");
-const { parseReadableDamage } = await import("../src/adapter/formula.js");
+const { parseReadableDamage, randomDamageRows } = await import("../src/adapter/formula.js");
 const { addBuiltin } = await import("../src/engine/abilities.js");
 const { effectModel } = await import("../src/engine/effects.js");
 
@@ -67,9 +67,12 @@ function effectModels(plan, level) {
 function combatant(npc) {
     const system = npc.system;
     const strikes = [];
+    // (B255: a Strike with no damage of its own, for an ability that gives it a table of damage — Generate Bomb's bomb.)
+    const bare = [];
     for (const item of npc.items.filter((entry) => entry.type === "melee")) {
         const traits = item.system.traits?.value ?? [];
         const damage = Object.values(item.system.damageRolls ?? {}).flatMap((roll) => parseReadableDamage(`${roll.damage} ${roll.damageType ?? "untyped"}${roll.category === "persistent" ? " persistent" : roll.category === "splash" ? " splash" : ""}`));
+        if (!damage.length) bare.push(item);
         if (!damage.length) continue;
         const increment = Number(traits.find((trait) => /^range-increment-\d+$/.test(trait))?.split("-").pop()) || Number(traits.find((trait) => /^range-\d+$/.test(trait))?.split("-").pop()) || null;
         strikes.push({
@@ -95,7 +98,14 @@ function combatant(npc) {
         const plan = compileMonsterAbility(item, { basicActions, actor: npc });
         if (!plan) continue;
         // Used in one of several ways (two breath weapons): each way, sharing the ability's recharge.
-        if (plan.builtin === "modes") {
+        // (B255: a random effect table — one ability, its die picking the way when used; a way it can't play does nothing.)
+        if (plan.builtin === "modes" && plan.random) {
+            const ways = plan.modes.filter((mode) => mode.plan?.resolution || mode.again);
+            const shown = ways.find((mode) => mode.plan?.resolution);
+            if (!shown) continue;
+            used.add(item.name);
+            spells.push({ name: item.name, plan: shown.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name, die: Number(/^1d(\d+)$/.exec(plan.random.formula)?.[1]) || 1, randomWays: plan.modes.map((mode) => ({ name: mode.name, faces: mode.faces, plan: mode.plan?.resolution ? mode.plan : null, ...(mode.again ? { again: mode.again } : {}) })) });
+        } else if (plan.builtin === "modes") {
             const ways = plan.modes.filter((mode) => mode.plan?.resolution);
             if (ways.length) used.add(item.name);
             for (const mode of ways) spells.push({ name: `${item.name} (${mode.name})`, plan: mode.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name });
@@ -109,6 +119,17 @@ function combatant(npc) {
             spells.push({ name: item.name, plan, castRank: 1, pool: plan.oncePerFight ? `once:${item.name}` : null, kind: "ability", effects: effectModels(plan, system.details.level.value) });
         }
     }
+    // (B255: the table on its Strike — the damage a die picks, its splash as a bomb's.)
+    for (const table of builtins.randomStrikeTables ?? []) {
+        const item = bare.find((entry) => entry.name.toLowerCase() === String(table.strike).toLowerCase());
+        const rows = randomDamageRows(table);
+        const shown = rows.find((row) => row.damage.length);
+        if (!item || !shown) continue;
+        const traits = item.system.traits?.value ?? [];
+        const increment = Number(traits.find((trait) => /^range-increment-\d+$/.test(trait))?.split("-").pop()) || Number(traits.find((trait) => /^(?:range|thrown)-\d+$/.test(trait))?.split("-").pop()) || null;
+        strikes.push({ name: item.name, bonus: item.system.bonus?.value ?? 0, melee: !increment, increment, agile: traits.includes("agile"), reach: Number(traits.find((trait) => /^reach-\d+$/.test(trait))?.split("-")[1]) || 5, damage: shown.damage, attackEffects: [], held: !traits.includes("unarmed") && !NATURAL_ATTACK.test(item.name), randomDamage: rows, randomDie: table.die, ...(rows.some((row) => row.damage.some((part) => part.splash)) ? { splashKind: "bomb" } : {}) });
+    }
+    delete builtins.randomStrikeTables;
     const skills = Object.fromEntries(Object.entries(system.skills ?? {}).map(([slug, value]) => [slug, value.base ?? 0]));
     for (const [slug, plan] of Object.entries(basicActions)) {
         if (SKILL_OF[slug] && !(SKILL_OF[slug] in skills)) continue;

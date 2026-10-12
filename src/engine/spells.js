@@ -1126,6 +1126,31 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
 // Resolves a spell or ability (one of the creature's, or a rider's plan) at the targets.
 // Spellstrike (C20): forcedDegree is the Strike's result for a spell attack; disrupted, a spell lost to a critically missed Strike.
 export function castPlan(state, caster, spell, targetIds, actions, { forcedDegree = null, disrupted = false } = {}) {
+    // A random effect table (B255): the die picks the way, played as the ability (a face with nothing to play does nothing; "roll twice"
+    // rolls twice more, without that face). The ways share the ability's recharge.
+    if (spell.randomWays?.length) {
+        const roll = (ways) => {
+            const face = state.rng.die(spell.die);
+            return ways.find((way) => way.faces.includes(face)) ?? null;
+        };
+        const first = roll(spell.randomWays);
+        // (A face that would roll again is rolled over, at most 20 times.)
+        const again = () => {
+            let way = null;
+            for (let tries = 0; tries < 20 && (!way || way.again); tries++) way = roll(spell.randomWays) ?? { name: "nothing", plan: null };
+            return way?.again ? null : way;
+        };
+        const picks = first?.again ? Array.from({ length: first.again }, again) : [first];
+        log(state, `  ${caster.name} uses ${spell.name}: ${picks.map((way) => way?.name ?? "nothing").join(", ")}`);
+        const recharge = describeSpell(spell.plan, actions).recharge;
+        if (recharge) (caster.rechargeUntil ??= new Map()).set(spell.rechargeGroup ?? spell, state.round + rollCount(state, recharge));
+        for (const way of picks) {
+            if (!way?.plan?.resolution || !isActive(caster)) continue;
+            const at = way.plan.targeting?.target === "self" ? [caster.id] : targetIds;
+            castPlan(state, caster, { ...spell, randomWays: null, pool: null, plan: { ...way.plan, trigger: { ...(way.plan.trigger ?? {}), recharge: null } }, name: `${spell.name} (${way.name})` }, at, actions, { forcedDegree, disrupted });
+        }
+        return;
+    }
     const info = describeSpell(spell.plan, actions);
     const reachable = (target) => isActive(target) || target === caster || ((info.healing || info.dying) && target.status === DOWN);
     const targets = targetIds.map((id) => state.byId.get(id)).filter((target) => target && reachable(target));
@@ -1900,6 +1925,21 @@ function outcomesFor(state, caster, spell, target, actions) {
 // worth (harm from conditions) and benefit (from a PF2e spell effect, negative
 // for a hindrance) in rounds of the target's threat.
 export function spellExpectation(state, caster, spell, targets, attacks = caster.attacksThisTurn ?? 0, actions = undefined) {
+    // A random effect table (B255): each way's expectation, weighted by its share of the die's faces (a way on itself, on itself).
+    if (spell.randomWays?.length) {
+        const merged = new Map();
+        for (const way of spell.randomWays) {
+            if (!way.plan?.resolution) continue;
+            const share = way.faces.length / (spell.die || 1);
+            const at = way.plan.targeting?.target === "self" ? [caster] : targets;
+            for (const entry of spellExpectation(state, caster, { ...spell, randomWays: null, plan: way.plan }, at, attacks, actions)) {
+                const sum = merged.get(entry.target) ?? { target: entry.target, damage: 0, worth: 0, heal: 0, benefit: 0 };
+                for (const key of ["damage", "worth", "heal", "benefit"]) sum[key] += share * (entry[key] ?? 0);
+                merged.set(entry.target, sum);
+            }
+        }
+        return [...merged.values()];
+    }
     const stupefied = caster.cond.stupefied ?? 0;
     const casts = stupefied ? Math.max(0, 16 - stupefied) / 20 : 1;
     const finds = casts * (describeSpell(spell.plan, actions).area ? 1 : targetingChance(caster));

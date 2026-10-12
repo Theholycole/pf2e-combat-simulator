@@ -175,3 +175,22 @@ export function referenceAverage(text) {
         .replace(/[a-z][a-z\s-]*/gi, " ");
     return Function(`"use strict"; return (${arithmetic.replace(/\)\s+\(/g, ")+(").replace(/(\d|\))\s+(\(|\d)/g, "$1+$2")});`)();
 }
+
+// A Strike whose damage a die picks from a table (B255, Generate Bomb): each row as the engine reads a Strike's damage
+// ("3d10[acid]" and its splash "3[acid]" → 3d10 acid, 3 acid splash), with its save and conditions on a hit; a row with only a save
+// deals no damage. [{ name, faces, damage, hitSpell?, conditions? }]
+export function randomDamageRows(table) {
+    const readable = (formula, splash) => {
+        const match = /^(.*)\[([\w,-]+)\]$/.exec(String(formula).trim());
+        if (!match) return [];
+        const words = match[2].split(",");
+        return parseReadableDamage(`${match[1].replace(/^\((.*)\)$/, "$1")} ${words.includes("persistent") ? "persistent " : ""}${splash ? "splash " : ""}${words.at(-1)}`);
+    };
+    return (table?.rows ?? []).map((row) => ({
+        name: row.name,
+        faces: [...row.faces],
+        damage: [...(row.onHit?.damage ?? []).flatMap((formula) => readable(formula, false)), ...(row.onHit?.splash ?? []).flatMap((formula) => readable(formula, true))],
+        ...(row.onHit?.save?.resolution ? { hitSpell: row.onHit.save } : {}),
+        ...(row.onHit?.conditions?.length ? { conditions: row.onHit.conditions.map((entry) => ({ ...entry })) } : {})
+    }));
+}

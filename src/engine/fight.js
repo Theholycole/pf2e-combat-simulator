@@ -5,7 +5,7 @@ import { CRITICAL_SUCCESS, FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
-import { canReact, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, regenerating, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { canReact, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -777,7 +777,8 @@ function act(state, c, action) {
             let made = 0;
             let hits = 0;
             let struck = null;
-            for (const [step, index] of (multiStrikeOrder(c, ability) ?? []).entries()) {
+            // (B255: a random multi-Strike's dice pick its Strikes.)
+            for (const [step, index] of ((ability.random ? rolledStrikes(state, c, ability) : multiStrikeOrder(c, ability)) ?? []).entries()) {
                 if (!canAct(c)) break;
                 // (B106, Pike and Strike: the second only after a first that hit.)
                 if (ability.ifFirstHits && step > 0 && !firstHit) break;

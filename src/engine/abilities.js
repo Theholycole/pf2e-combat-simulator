@@ -58,6 +58,13 @@ export function addBuiltin(spec, plan, name) {
         case "multi-strike":
             spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.bothHit ? { bothHit: { conditions: [...(plan.bothHit.conditions ?? [])], damage: [...(plan.bothHit.damage ?? [])], ...(plan.bothHit.follow ? { follow: plan.bothHit.follow } : {}), ...(plan.bothHit.strikeDamage ? { strikeDamage: plan.bothHit.strikeDamage } : {}), ...(plan.bothHit.affliction ? { affliction: plan.bothHit.affliction } : {}), ...(plan.bothHit.atLeast ? { atLeast: plan.bothHit.atLeast } : {}), ...(plan.bothHit.perHit ? { perHit: true } : {}) } } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}), ...(plan.ifFirstHits ? { ifFirstHits: true } : {}), ...(plan.penalties?.length ? { penalties: [...plan.penalties] } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(plan.notGrabbed ? { notGrabbed: true } : {}), ...(plan.noGrab ? { noGrab: true } : {}), ...(plan.flourish ? { flourish: true } : {}), ...(plan.critical ? { critical: { conditions: [...(plan.critical.conditions ?? [])], damage: [...(plan.critical.damage ?? [])] } } : {}), ...(plan.extraDamage?.length ? { extraDamage: [...plan.extraDamage] } : {}), ...(plan.missDamage?.length ? { missDamage: [...plan.missDamage] } : {}), ...(plan.then ? { then: plan.then } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}), ...(plan.noMomentum ? { noMomentum: true } : {}), ...(plan.chain ? { chain: true } : {}) }];
             return true;
+        // (B255, Chaotic Gizmos: a die rolled twice, each face a Strike it names or nothing — the Strikes the faces give, in its best order.)
+        case "random-strikes": {
+            const names = [...new Set(Object.values(plan.faces ?? {}))];
+            if (!names.length) return false;
+            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: names, random: { die: Number(/^1d(\d+)$/.exec(plan.formula ?? "")?.[1]) || 6, times: Number(plan.times) || 1, faces: { ...plan.faces } }, ...(plan.oncePerTurn ? { oncePerTurn: true } : {}) }];
+            return true;
+        }
         case "charge":
             spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null, ...(plan.safe ? { safe: true } : {}), ...(plan.fatal ? { fatal: plan.fatal } : {}), ...(plan.deadly ? { deadly: plan.deadly } : {}), ...(plan.halfDamage ? { halfDamage: true } : {}), ...(plan.offGuard ? { offGuard: plan.offGuard === "first" ? "first" : true } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}), ...(plan.damageBonus ? { damageBonus: plan.damageBonus } : {}), ...(plan.recharge ? { recharge: plan.recharge } : {}) }];
             return true;
@@ -368,6 +375,11 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // Wrestle, Intimidating Strike, Rhinoceros Charge: a Strike (after Strides) with more on a hit.
         case "strike-activity":
+            // (B255, Generate Bomb: the bomb a die picks, then its Strike — one action, as a Strike is; the table goes on that Strike.)
+            if (plan.randomOnHit?.rows?.length) {
+                spec.randomStrikeTables = [...(spec.randomStrikeTables ?? []), { name, strike: plan.strike, die: Number(/^1d(\d+)$/.exec(plan.randomOnHit.formula ?? "")?.[1]) || plan.randomOnHit.rows.length, rows: plan.randomOnHit.rows }];
+                return true;
+            }
             spec.strikeActivities = [...(spec.strikeActivities ?? []), {
                 name,
                 actions: plan.actions,
@@ -481,6 +493,28 @@ export function grantAooAllies(state, c) {
 }
 
 export const isRaging = (c) => (c.activeBuffs ?? []).some((buff) => buff.noConcentrate) || (c.effects ?? []).some((effect) => effect.model?.noConcentrate);
+
+// The Strikes a random multi-Strike's dice give (B255): each roll's face, its Strike or nothing; non-agile first, as multiStrikeOrder.
+export function rolledStrikes(state, c, ability) {
+    const indices = [];
+    const faces = [];
+    for (let roll = 0; roll < ability.random.times; roll++) {
+        const face = state.rng.die(ability.random.die);
+        faces.push(face);
+        const name = ability.random.faces[face];
+        const index = name ? strikeNamed(c, name) : -1;
+        if (index >= 0) indices.push(index);
+    }
+    state.log?.push(`  ${c.name} rolls ${faces.join(" and ")}`);
+    return indices.sort((a, b) => (c.strikes[a].agile ? 1 : 0) - (c.strikes[b].agile ? 1 : 0));
+}
+
+// A random multi-Strike's share of uses that make this Strike (B255): its faces of the die, as many times as it rolls.
+export function randomStrikeShare(ability, c, index) {
+    if (!ability.random) return 1;
+    const faces = Object.entries(ability.random.faces).filter(([, name]) => strikeNamed(c, name) === index).length;
+    return (ability.random.times * faces) / ability.random.die;
+}
 
 export function multiStrikeOrder(c, ability) {
     // A Strike with no name ("makes two unarmed Strikes"): its best melee Strike.

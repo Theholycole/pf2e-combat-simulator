@@ -1,7 +1,7 @@
 // Builds an engine snapshot from Foundry: a Combat in progress, or tokens.
 // This is the only place that reads PF2e documents.
 
-import { extraDamageParts, parseReadableDamage } from "../src/adapter/formula.js";
+import { extraDamageParts, parseReadableDamage, randomDamageRows } from "../src/adapter/formula.js";
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
 import { effectModel } from "../src/engine/effects.js";
@@ -119,7 +119,8 @@ function traitList(source) {
     return (source ?? []).map((trait) => (typeof trait === "string" ? trait : trait?.name)).filter(Boolean);
 }
 
-async function readStrike(actor, action, gaps) {
+// (B255, tableDamage: a Strike with no damage of its own whose damage a table gives — Generate Bomb's bomb.)
+async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
     const item = action.item;
     // A character's weapon traits are on weaponTraits; an NPC's are among its Strike's traits.
     const traits = [...new Set([...traitList(action.traits), ...traitList(action.weaponTraits)])];
@@ -134,7 +135,10 @@ async function readStrike(actor, action, gaps) {
     const reload = /^\d+$/.test(reloadValue) ? Number(reloadValue) : reloadValue === "-" || !reloadValue ? 0 : 99;
     let damage = [];
     let critDamage = null;
-    try {
+    if (tableDamage) {
+        // (Doubled on a critical hit as the engine doubles: no formula of PF2e's own.)
+        damage = tableDamage;
+    } else try {
         damage = parseReadableDamage(await action.damage({ getFormula: true }));
         critDamage = parseReadableDamage(await action.critical({ getFormula: true }));
     } catch (error) {
@@ -486,6 +490,15 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
         const pool = frequency?.max && !["turn", "round"].includes(frequency.per) ? `frequency:${item.id}` : plan.oncePerFight ? `once:${item.id}` : null;
         // Used in one of several ways (a dragon's two breath weapons): each way an ability of its own, sharing the
         // ability's recharge and frequency.
+        // (B255: a random effect table — one ability, its die picking the way when used; a way it can't play does nothing.)
+        if (plan.builtin === "modes" && plan.random) {
+            const shown = pc ? null : plan.modes.find((mode) => mode.plan?.resolution);
+            if (!shown) continue;
+            if (pool) result.pools[pool] = frequency?.value ?? frequency?.max ?? 1;
+            result.handled.add(item);
+            result.abilities.push({ name: item.name, plan: leanPlan(shown.plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: item.name, die: Number(/^1d(\d+)$/.exec(plan.random.formula)?.[1]) || 1, randomWays: plan.modes.map((mode) => ({ name: mode.name, faces: mode.faces, plan: mode.plan?.resolution ? leanPlan(mode.plan) : null, ...(mode.again ? { again: mode.again } : {}) })) });
+            continue;
+        }
         if (plan.builtin === "modes") {
             const ways = pc ? [] : plan.modes.filter((mode) => mode.plan?.resolution);
             // (B179, the mocking dragon's Hilarious Exhalation: a way that casts a spell — that spell, as a cast-spell ability's.)
@@ -902,6 +915,15 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     for (const ability of abilities.abilities) delete ability.sourceItem;
     const selfEffects = await readSelfEffects(actor, strikes, abilities.handled, gaps);
     const exemplar = await readExemplar(actor, (actor.system?.actions ?? []).filter((action) => !action.type || action.type === "strike"), strikes, abilities.handled);
+    // (B255: a table on a Strike with no damage of its own — the damage a die picks, its splash as a bomb's.)
+    for (const table of abilities.builtins.randomStrikeTables ?? []) {
+        const action = (actor.system?.actions ?? []).find((entry) => String(entry.label ?? entry.item?.name ?? "").toLowerCase() === String(table.strike).toLowerCase());
+        const rows = randomDamageRows(table);
+        const shown = rows.find((row) => row.damage.length);
+        const strike = action && shown && !strikes.some((entry) => entry.name === action.label) ? await readStrike(actor, action, gaps, { tableDamage: shown.damage }) : null;
+        if (strike) strikes.push({ ...strike, randomDamage: rows, randomDie: table.die, ...(rows.some((row) => row.damage.some((part) => part.splash)) ? { splashKind: "bomb" } : {}) });
+    }
+    delete abilities.builtins.randomStrikeTables;
     readGaps(actor, gaps, abilities.handled);
     const { spells, spellPools } = await readSpells(actor, gaps, { fresh, castSpells: abilities.castSpells });
     spells.push(...abilities.abilities);

@@ -185,6 +185,13 @@ const dodges = (reaction, strike) => !reaction.against || (reaction.against === 
 
 export function performStrike(state, attacker, target, strike, { reaction = false, trigger = null, fortune = false } = {}) {
     if (!strikeUsable(attacker, strike)) return null;
+    // (B255, Generate Bomb: the die picks the row — its damage, the save and conditions a hit brings.)
+    if (strike.randomDamage?.length) {
+        const face = state.rng.die(strike.randomDie);
+        const row = strike.randomDamage.find((entry) => entry.faces.includes(face)) ?? strike.randomDamage[0];
+        log(state, `  ${attacker.name} rolls ${face}: ${row.name}`);
+        strike = { ...strike, randomDamage: null, critDamage: null, damage: row.damage.length ? row.damage : [{ dice: 0, die: 4, bonus: 0, multiplier: 1, type: "untyped", persistent: false, precision: false }], ...(row.damage.length ? {} : { noDamage: true }), hitSpell: row.hitSpell ?? null, hitName: row.name, hitConditions: row.conditions ?? null };
+    }
     // (B164, Mark for Death: deadly on its Strikes against its mark.)
     const mark = attacker.huntPrey;
     if (mark?.edge === "deadly" && attacker.prey === target?.id && !strike.deadly && (!mark.strike || String(strike.name ?? "").toLowerCase().startsWith(mark.strike))) strike = { ...strike, deadly: { dice: 1, die: mark.die } };
@@ -481,6 +488,9 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
     // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
     if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances), { includeTarget: false });
+    // (B255: a table row's conditions and save on the creature hit.)
+    for (const { slug, value, duration } of strike.hitConditions ?? []) if (isActive(target) && applyCondition(state, target, slug, value ?? null, duration ?? null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
+    if (strike.hitSpell && isActive(target)) castPlan(state, attacker, { name: strike.hitName ?? strike.name, plan: strike.hitSpell, castRank: 1, pool: null, kind: "ability" }, [target.id]);
     // Draconic Momentum: a critical hit recharges the breath weapon.
     if (critical && attacker.momentum && !attacker.suppressMomentum) rechargeOnCritical(state, attacker);
     // Grab, Knockdown and Push follow a hit (free ones at once, the others as the next action).

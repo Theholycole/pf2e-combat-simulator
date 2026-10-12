@@ -15,7 +15,7 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, isRaging, multiStrikeOrder, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, isRaging, multiStrikeOrder, randomStrikeShare, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
@@ -903,8 +903,9 @@ function expand(ctx, node, actionsLeft) {
                     const own = ability.penalties?.[step] ?? 0;
                     const base = withExtraDamage(c.strikes[index], ability.extraDamage);
                     const strike = second || feint || ability.penalty || own ? { ...base, bonus: base.bonus - second + feint - (ability.penalty ?? 0) - own } : base;
-                    const expectation = ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.noMap ? 0 : ability.sameMap ? node.attacks : node.attacks + step, pos, node.prone);
-                    expected += (expectation?.damage ?? 0) * (ability.ifFirstHits && step > 0 ? firstHits : 1);
+                    const expectation = ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.noMap ? 0 : ability.sameMap || ability.random ? node.attacks : node.attacks + step, pos, node.prone);
+                    // (B255: a random multi-Strike's Strike, as often as its faces give it.)
+                    expected += (expectation?.damage ?? 0) * (ability.ifFirstHits && step > 0 ? firstHits : 1) * randomStrikeShare(ability, c, index);
                     if (step === 0) firstHits = expectation?.hitChance ?? 0;
                 }
                 if (expected <= 0) continue;
@@ -912,7 +913,7 @@ function expand(ctx, node, actionsLeft) {
                 const hp = remainingHp(target);
                 const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
                 const next = child(node, { type: "multiStrike", ability: abilityIndex, targetId: target.id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
-                    attacks: ability.countsAs ?? order.length,
+                    attacks: ability.countsAs ?? (ability.random ? Math.round(order.reduce((sum, index) => sum + randomStrikeShare(ability, c, index), 0)) : order.length),
                     ...(pos !== node.pos ? { pos } : {}),
                     damage: { ...node.damage, [target.id]: before + expected },
                     ...(ability.oncePerTurn || ability.flourish ? { cast: [...(ability.oncePerTurn ? [`ms${abilityIndex}`] : []), ...(ability.flourish ? ["flourish"] : [])] } : {})
