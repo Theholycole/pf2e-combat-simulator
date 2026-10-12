@@ -174,6 +174,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.melee ? { melee: true } : {}), ...(plan.ward ? { ward: true } : {}), ...(plan.persistentType ? { persistentType: plan.persistentType } : {}),
                 // (B227: only a ranged attack at it.)
                 ...(plan.rangedAttack ? { rangedAttack: true } : {}),
+                // (B228: its AC lower against the triggering Strike; only after another of its kind's Strike of that name.)
+                ...(Number(plan.selfAcPenalty) > 0 ? { selfAcPenalty: Number(plan.selfAcPenalty) } : {}), ...(plan.kin ? { kin: true } : {}), ...(plan.allyStrike ? { allyStrike: plan.allyStrike } : {}),
                 // (B123: Quick Capture's grab on a hit; Deadly Cleave's same multiple attack penalty.)
                 ...(plan.grab ? { grab: true } : {}), ...(plan.sameMap ? { sameMap: true } : {}),
                 // (B129: Vengeful Sting's +2 damage on a hit.)
@@ -323,7 +325,9 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // Human Shield, Mortal Shield, Interposition (B124): an ally's damage, taken in its place (all of it or half).
         case "intercept":
-            spec.intercept = { name, ward: plan.ward ?? "ally", share: Number(plan.share) || 1, ...(plan.strikes ? { strikes: true } : {}), ...(plan.attacks ? { attacks: true } : {}), ...(Number(plan.within) > 0 ? { within: Number(plan.within) } : {}) };
+            spec.intercept = { name, ward: plan.ward ?? "ally", share: Number(plan.share) || 1, ...(plan.strikes ? { strikes: true } : {}), ...(plan.attacks ? { attacks: true } : {}), ...(Number(plan.within) > 0 ? { within: Number(plan.within) } : {}),
+                // (B228: only a critical hit's damage.)
+                ...(plan.critical ? { critical: true } : {}) };
             return true;
         // You Don't Have My Permission to Die!, Soul Anchor, Recall the Fallen (B124): an ally kept from dropping.
         // (B195, Reawaken!: a creature it sees that dies, back at half its Hit Points, each once; returned at 0 HP, dying or stable, isn't played.)

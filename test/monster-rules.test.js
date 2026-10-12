@@ -4430,3 +4430,38 @@ test("Strikes at a concentrate action (a save keeps it) or at Standing up; a sto
     performStrike(state, a, state.byId.get("skull"), a.strikes.find((strike) => !strike.melee));
     assert.match(state.log.join("\n"), /Skull uses Test Dare/, state.log.join("\n"));
 });
+
+test("A critical hit beside it shared half and half; a lunge that lowers its AC against the Strike; a kin's bite followed up once (2026-10-12, B228)", () => {
+    const [fighter] = martialParty(5);
+    // A critical hit only: half to the guard.
+    const seal = withBuiltins({ ...moderateCreature(5, "seal", "Seal"), engagement: 1, hp: { value: 200, max: 200 } }, ["Test Mob", { builtin: "intercept", ward: "ally", share: 0.5, strikes: true, critical: true }]);
+    const pup = { ...moderateCreature(5, "pup", "Pup"), engagement: 1, hp: { value: 10, max: 100 } };
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, seal, pup] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get(fighter.id);
+    applyDamage(state, state.byId.get("pup"), [{ type: "slashing", amount: 8, persistent: false, precision: false }], { source: f, physical: true });
+    assert.doesNotMatch(state.log.join("\n"), /Test Mob/, "not on a plain hit");
+    applyDamage(state, state.byId.get("pup"), [{ type: "slashing", amount: 8, persistent: false, precision: false }], { source: f, physical: true, critical: true });
+    assert.match(state.log.join("\n"), /Seal uses Test Mob for Pup/, state.log.join("\n"));
+    assert.equal(state.byId.get("seal").hp.value, 196, "half of the 8");
+    // A lunge: its Strike first, and its AC 2 lower against the triggering Strike.
+    const crab = withBuiltins({ ...moderateCreature(5, "crab", "Crab"), engagement: 1, hp: { value: 999, max: 999 } }, ["Test Lunge", { builtin: "reaction-strike", triggers: ["attacked"], strike: null, penalty: 0, disrupts: false, melee: true, selfAcPenalty: 2 }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, crab] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 10;
+    const ac = armorClass(state.byId.get("crab"));
+    performStrike(state, state.byId.get(fighter.id), state.byId.get("crab"), state.byId.get(fighter.id).strikes[0]);
+    const line = state.log.find((entry) => entry.startsWith(`  ${state.byId.get(fighter.id).name} `) && /vs AC (\d+)/.test(entry));
+    assert.ok(state.log.includes("  Crab uses Test Lunge"), state.log.join("\n"));
+    assert.equal(Number(/vs AC (\d+)/.exec(line)[1]), ac - 2, state.log.join("\n"));
+    // A kin's bite: only another of its kind, and one answer.
+    const otter = (id) => withBuiltins({ ...moderateCreature(5, id, "Otter"), engagement: 1 }, ["Test Duo", { builtin: "reaction-strike", triggers: ["ally-hit"], strike: null, penalty: 0, disrupts: false, kin: true, allyStrike: null }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, otter("o1"), otter("o2"), otter("o3"), withBuiltins({ ...moderateCreature(5, "eel", "Eel"), engagement: 1 }, ["Test Duo", { builtin: "reaction-strike", triggers: ["ally-hit"], strike: null, penalty: 0, disrupts: false, kin: true }])] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 19;
+    const o1 = state.byId.get("o1");
+    o1.strikes = o1.strikes.map((strike) => ({ ...strike, bonus: 40 }));
+    performStrike(state, o1, state.byId.get(fighter.id), o1.strikes[0]);
+    assert.equal(state.log.filter((entry) => / uses Test Duo$/.test(entry)).length, 1, state.log.join("\n"));
+    assert.ok(!state.log.includes("  Eel uses Test Duo"), state.log.join("\n"));
+});

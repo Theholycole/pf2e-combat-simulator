@@ -251,6 +251,11 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // Defensive reactions as the attack comes: the attacker rolls twice (Challenge
     // Fate), or +AC (Nimble Dodge); kept for Attacks of Opportunity when it has them.
     let defence = 0;
+    // (B228: a lower AC its own reaction cost it against this Strike.)
+    if (!reaction && target.pendingAcPenalty) {
+        defence -= target.pendingAcPenalty;
+        target.pendingAcPenalty = 0;
+    }
     let misfortune = false;
     if (target.misfortuneReaction && !target.misfortuneReaction.spell && canReact(target)) {
         misfortune = true;
@@ -496,10 +501,16 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     // (B114, Opportune Backstab: a melee hit by one of its allies on a creature in its reach, followed by its own Strike at that creature.)
     if (degree >= SUCCESS && !reaction && strike.melee && isActive(attacker) && isActive(target)) {
+        // (B228, Deadly Duo: only after another of its kind's Strike of that name, and one answer to it.)
+        const kind = (c) => String(c.name ?? "").toLowerCase().replace(/\s*\(\d+\)$|\s+\d+$/, "");
+        let kinAnswered = false;
         for (const ally of state.list) {
             if (ally === attacker || ally.side !== attacker.side || !isActive(ally) || !isActive(target)) continue;
-            const answer = (ally.reactionStrikes ?? []).find((entry) => entry.triggers.includes("ally-hit"));
-            if (answer && canReact(ally) && canAct(ally) && !ally.cond.fleeing && sameMelee(ally, target)) reactionStrikeAt(state, ally, target, answer, "ally-hit");
+            const answer = (ally.reactionStrikes ?? []).find((entry) => entry.triggers.includes("ally-hit") && (!entry.kin || (!kinAnswered && kind(ally) === kind(attacker))) && (!entry.allyStrike || String(strike.name ?? "").toLowerCase().includes(entry.allyStrike)));
+            if (answer && canReact(ally) && canAct(ally) && !ally.cond.fleeing && sameMelee(ally, target)) {
+                reactionStrikeAt(state, ally, target, answer, "ally-hit");
+                if (answer.kin) kinAnswered = true;
+            }
         }
     }
     // (B111, Absorb Weapon, Sticky: a melee hit on it, answered — with a maneuver.)
@@ -713,6 +724,8 @@ function strikeProvokes(state, mover, target, strike = null) {
         // (Cutting Rebuke, Bite Back, B84: a Strike at it.)
         // (B122: Knowing Glance's "targeted by a melee Strike": melee ones only.)
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("strike") || (entry.triggers.includes("ally-attacked") && target !== enemy && target.side === enemy.side) || (entry.triggers.includes("attacked") && target === enemy && (!entry.melee || !strike || strike.melee) && (!entry.rangedAttack || (strike && !strike.melee))));
+        // (B228, Endangering Lunge: its AC lower against the Strike that set it off.)
+        if (reaction?.selfAcPenalty && enemy === target && canReact(enemy)) target.pendingAcPenalty = reaction.selfAcPenalty;
         const result = reaction ? reactionStrikeAt(state, enemy, mover, reaction, "strike") : null;
         // (B123, Wrappings Lash: a critical hit disrupts the Strike.)
         if (reaction?.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) {
@@ -821,9 +834,11 @@ function shouldShieldBlock(defender, total) {
 // Whether a monster's guard (B124) takes this damage for the creature: its ward (the boss, master or ward its text names: its highest-level
 // ally) or any ally, beside it (or within 15 feet for Interposition's Stride); a Strike's damage only where it says so. For any ally, only
 // when the ally would drop or is the more hurt of the two.
-function guards(state, c, target, { physical = false } = {}) {
+function guards(state, c, target, { physical = false, critical = false } = {}) {
     const rule = c.intercept;
     if ((rule.strikes || rule.attacks) && !physical) return false;
+    // (B228: a critical hit only.)
+    if (rule.critical && !critical) return false;
     const near = sameMelee(c, target) || ((rule.within ?? 0) >= 15 && c.band !== "far" && target.band !== "far");
     if (!near) return false;
     if (rule.ward === "ally") {
@@ -853,7 +868,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     // (B124: Human Shield, Mortal Shield, Interposition — a monster's guard takes its ward's damage, or half of it.)
     if (!intercepted && source && source.side !== target.side) {
-        const guard = state.list.find((c) => c.intercept && c !== target && c.side === target.side && isActive(c) && canReact(c) && canAct(c) && !c.cond.fleeing && guards(state, c, target, { physical }));
+        const guard = state.list.find((c) => c.intercept && c !== target && c.side === target.side && isActive(c) && canReact(c) && canAct(c) && !c.cond.fleeing && guards(state, c, target, { physical, critical }));
         if (guard) {
             guard.reactionUsed = true;
             state.stats.reactions++;
