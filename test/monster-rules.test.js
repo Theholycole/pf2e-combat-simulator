@@ -4105,3 +4105,25 @@ test("A foe's healing split: half to the creature, the rest the siphoner's tempo
     assert.equal(state.byId.get(fighter.id).hp.value, 20);
     assert.equal(state.byId.get("drg").hp.temp, 10);
 });
+
+test("Two or more of three Strikes hitting one creature: what that brings (2026-10-12, B212)", () => {
+    const [fighter] = martialParty(5);
+    const wolf = { ...moderateCreature(5, "wolf", "Wolf"), engagement: 1 };
+    addBuiltin(wolf, { builtin: "multi-strike", actions: 2, strikes: [null, null, null], sameTarget: true, bothHit: { conditions: [{ slug: "frightened", value: 1, rounds: null }], damage: [], atLeast: 2 } }, "Test Bites");
+    assert.equal(wolf.multiStrikes[0].bothHit.atLeast, 2);
+    const fight = (dice) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, wolf] }, {}, 1);
+        state.log = [];
+        const rolls = [...dice];
+        state.rng.d20 = () => rolls.shift() ?? 1;
+        const w = state.byId.get("wolf");
+        w.strikes = w.strikes.map((strike) => ({ ...strike, bonus: 10 }));
+        performAction(state, w, { type: "multiStrike", ability: 0, targetId: fighter.id, actions: 2 });
+        return { state, f: state.byId.get(fighter.id) };
+    };
+    let { state, f } = fight([20, 1, 20]);
+    assert.equal(f.cond.frightened, 1, state.log.join("\n"));
+    assert.ok(state.log.includes(`  2 Strikes hit ${f.name}`), state.log.join("\n"));
+    ({ state, f } = fight([20, 1, 1]));
+    assert.ok(!f.cond.frightened, "not with one hit");
+});

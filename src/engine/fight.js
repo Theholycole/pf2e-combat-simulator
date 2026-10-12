@@ -806,7 +806,8 @@ function act(state, c, action) {
             }
             if (ability.sameMap || ability.noMap) c.attacksThisTurn = attacks + (ability.countsAs ?? multiStrikeOrder(c, ability)?.length ?? 0);
             c.suppressMomentum = false;
-            if (ability.bothHit && made >= 2 && hits === made && struck) bothHitRider(state, c, struck, ability.bothHit);
+            // (B212, a Battlezoo creature's bites: at least that many hits on one creature, not every Strike.)
+            if (ability.bothHit && struck && (ability.bothHit.atLeast ? hits >= ability.bothHit.atLeast : made >= 2 && hits === made)) bothHitRider(state, c, struck, ability.bothHit, ability.bothHit.atLeast ? { said: `${hits} Strikes hit` } : {});
             // (B152, Haunting Assault: "…, then Demoralizes that creature" — its basic action after the Strikes.)
             if (ability.then && made > 0 && target && isActive(target)) bothHitRider(state, c, target, { follow: ability.then }, { said: null });
             multiStrikeAfter(state, c, ability);
