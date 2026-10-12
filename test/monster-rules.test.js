@@ -4027,3 +4027,21 @@ test("A Stride and a Strike as it rolls initiative, never planned after (Uncanny
     assert.ok(log.slice(0, start).includes("Cat uses Test Pounce"), log.slice(0, 2000));
     assert.equal((log.slice(start).match(/Cat uses Test Pounce/g) ?? []).length, 0, "not planned in its turns");
 });
+
+test("Three Strikes, then Fatigued for the fight; not again while Fatigued (Power Through, 2026-10-12, B200)", () => {
+    const [fighter, champion, ranger] = martialParty(5);
+    const brute = withBuiltins({ ...moderateCreature(5, "brt", "Brute"), engagement: 1 }, ["Test Through", { builtin: "multi-strike", actions: 2, strikes: [null, null, null], sameMap: true, each: true, max: 3, requires: "not-fatigued", after: [{ slug: "fatigued", value: null, until: "save" }] }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...champion, engagement: 1 }, { ...ranger, engagement: 1 }, brute] }, {}, 1);
+    state.log = [];
+    const b = state.byId.get("brt");
+    b.round = 1;
+    b.actionsLeft = 3;
+    const option = scoreOptions(state, b).options.find((entry) => entry.action.type === "multiStrike");
+    assert.ok(option, "on offer while not Fatigued");
+    performAction(state, b, option.action);
+    assert.equal(b.cond.fatigued, true, state.log.join("\n"));
+    expireTimers(state, b, "start");
+    assert.equal(b.cond.fatigued, true, "it lasts");
+    b.actionsLeft = 3;
+    assert.ok(!scoreOptions(state, b).options.some((entry) => entry.action.type === "multiStrike"), "not while Fatigued");
+});

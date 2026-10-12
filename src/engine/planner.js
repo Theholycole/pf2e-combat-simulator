@@ -832,7 +832,8 @@ function expand(ctx, node, actionsLeft) {
             // A Strike at every enemy in its Melee: worth the sum over them.
             if (ability.each) {
                 // (B120: Rampage's "is uncontrollable", Bladestorm's "holding six spirit blades": states the engine doesn't play.)
-                if (ability.requires && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0) && !(ability.requires === "raging" && isRaging(c))) continue;
+                // (B200, Power Through: not while Fatigued.)
+                if (ability.requires && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0) && !(ability.requires === "raging" && isRaging(c)) && !(ability.requires === "not-fatigued" && !c.cond.fatigued)) continue;
                 const ranged = !c.strikes[order[0]].melee;
                 // Where it Strikes from: here, or (B109, Mauling Rush) the Melee of a creature one Stride away.
                 const places = [{ pos: node.pos, first: null }];
@@ -886,7 +887,8 @@ function expand(ctx, node, actionsLeft) {
                 if (ability.requires === "raging" && !isRaging(c)) continue;
                 // (B186, Ravage: at a Paralyzed, Restrained or Unconscious creature.)
                 if (ability.requires === "helpless" && !(target.cond.paralyzed || target.cond.restrained || target.cond.unconscious)) continue;
-                if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging", "helpless"].includes(ability.requires)) continue;
+                if (ability.requires === "not-fatigued" && c.cond.fatigued) continue;
+                if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging", "helpless", "not-fatigued"].includes(ability.requires)) continue;
                 let expected = 0;
                 // (B106: a second Strike only after a first that hits, worth that chance.)
                 let firstHits = 1;

@@ -297,7 +297,9 @@ function finish(state, outcome) {
 // Frenzied Slashes (B62): "The pusk gains the Clumsy 2 condition until the beginning of its next turn."
 function multiStrikeAfter(state, c, ability) {
     for (const entry of ability.after ?? []) {
-        if (applyCondition(state, c, entry.slug, entry.value ?? null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" }, c)) state.log?.push(`  ${c.name} is ${entry.slug}${Number.isFinite(entry.value) ? ` ${entry.value}` : ""}`);
+        // (B200, Power Through: Fatigued until it saves — for the rest of the fight here.)
+        const duration = entry.until === "save" ? null : { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
+        if (applyCondition(state, c, entry.slug, entry.value ?? null, duration, c)) state.log?.push(`  ${c.name} is ${entry.slug}${Number.isFinite(entry.value) ? ` ${entry.value}` : ""}`);
     }
 }
 
