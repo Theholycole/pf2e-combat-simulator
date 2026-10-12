@@ -2656,3 +2656,25 @@ test("A bonus to its own save as it comes, against a spell, its reaction once (2
     ({ state, p } = fight("ability"));
     assert.equal(p.reactionUsed ?? false, false, "not against a monster's ability");
 });
+
+test("A maneuver back in place of a Strike: a Disarm as a Strike against it critically fails, a Shove as a melee Strike hits it (2026-10-11, B111)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const fight = (plan, die) => {
+        const tree = { ...moderateCreature(5, "tre", "Tree"), engagement: 1, hp: { value: 999, max: 999, temp: 0 }, spells: [entry("Disarm", basic.disarm, "basic"), entry("Shove", basic.shove, "basic")] };
+        addBuiltin(tree, plan, "Test Answer");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, tree] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => die;
+        const f = state.byId.get(fighter.id);
+        state.byId.get("tre").attacksThisTurn = 2;
+        performStrike(state, f, state.byId.get("tre"), f.strikes[0]);
+        return { state, t: state.byId.get("tre") };
+    };
+    let { state, t } = fight({ builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, skill: "disarm", penalty: 2, disrupts: false }, 1);
+    assert.ok(state.log.includes("  Tree uses Test Answer"), state.log.join("\n"));
+    assert.equal(t.reactionUsed, true);
+    assert.equal(t.attacksThisTurn, 2, "its own count kept");
+    ({ state } = fight({ builtin: "reaction-strike", triggers: ["hit"], strike: null, skill: "shove", penalty: 0, disrupts: false }, 15));
+    assert.ok(state.log.includes("  Tree uses Test Answer"), state.log.join("\n"));
+});

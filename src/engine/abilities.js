@@ -135,7 +135,9 @@ export function addBuiltin(spec, plan, name) {
         case "reaction-strike":
             spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: plan.disrupts === "critical" ? "critical" : !!plan.disrupts, ...(plan.hinders ? { hinders: plan.hinders } : {}), ...(plan.second ? { second: true } : {}),
                 // (B89: the damage types that set it off, a random creature in reach, the trolls' extra flat check against persistent fire.)
-                ...(plan.damageTypes?.length ? { damageTypes: [...plan.damageTypes] } : {}), ...(plan.random ? { random: true } : {}), ...(plan.persistentFire ? { persistentFire: true } : {}), ...(plan.fortune ? { fortune: true } : {}) }];
+                ...(plan.damageTypes?.length ? { damageTypes: [...plan.damageTypes] } : {}), ...(plan.random ? { random: true } : {}), ...(plan.persistentFire ? { persistentFire: true } : {}), ...(plan.fortune ? { fortune: true } : {}),
+                // (B111: a basic maneuver in place of the Strike, with its own penalty or bonus.)
+                ...(plan.skill ? { skill: plan.skill } : {}), ...(plan.bonus ? { bonus: plan.bonus } : {}) }];
             return true;
         // Mythic abilities (B72; the user's choice: three Mythic Points a fight): Remove a Condition, Recharge, Undying Myth.
         case "mythic":

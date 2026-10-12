@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { applyEffect, removeEffect } from "./effects.js";
-import { applyCondition, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit, rollCount } from "./spells.js";
+import { applyCondition, castPlan, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit, rollCount } from "./spells.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -450,6 +450,11 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         attacker.weaponPoisoned = false;
         state.onPoison?.(attacker, target);
     }
+    // (B111, Absorb Weapon, Sticky: a melee hit on it, answered — with a maneuver.)
+    if (degree >= SUCCESS && !reaction && strike.melee && isActive(attacker) && isActive(target)) {
+        const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("hit"));
+        if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, "hit");
+    }
     // Violent Retort (B70): a critical hit on it, answered with a Strike.
     if (degree === CRITICAL_SUCCESS && !reaction && isActive(attacker) && isActive(target)) {
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("critical-hit"));
@@ -477,6 +482,22 @@ function enemyStrikeIndex(enemy, mover, name) {
 }
 
 export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
+    // (B111, Ripping Disarm: its own basic action at the creature, with the reaction's penalty or bonus on the check.)
+    if (reaction.skill) {
+        const basic = (enemy.spells ?? []).find((spell) => spell.kind === "basic" && (spell.plan?.source?.slug === reaction.skill || String(spell.name ?? "").toLowerCase() === reaction.skill));
+        if (!basic?.plan?.resolution?.check || !isActive(mover)) return null;
+        enemy.reactionUsed = true;
+        state.stats.reactions++;
+        log(state, `  ${enemy.name} uses ${reaction.name}`);
+        const shift = (reaction.bonus ?? 0) - (reaction.penalty ?? 0);
+        const plan = shift ? { ...basic.plan, resolution: { ...basic.plan.resolution, check: { ...basic.plan.resolution.check, bonus: { value: (Number(basic.plan.resolution.check.bonus?.value) || 0) + shift, type: "circumstance" } } } } : basic.plan;
+        // (Not on its turn: no multiple attack penalty, and its own count left as it was.)
+        const attacks = enemy.attacksThisTurn;
+        enemy.attacksThisTurn = 0;
+        castPlan(state, enemy, { ...basic, name: reaction.name, plan }, [mover.id]);
+        enemy.attacksThisTurn = attacks;
+        return { degree: null };
+    }
     // (A "melee Strike" with no name, B90: its best melee Strike.)
     const index = enemyStrikeIndex(enemy, mover, reaction.strike);
     if (index < 0 || !strikeUsable(enemy, enemy.strikes[index])) return null;
