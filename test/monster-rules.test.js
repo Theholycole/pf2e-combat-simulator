@@ -4063,3 +4063,16 @@ test("An ally's Stride and Strike as its reaction, each ally once (Kingpin's Com
     t.reactionUsed = false;
     assert.ok(!scoreOptions(state, b).options.some((entry) => entry.action.type === "allyAdvance"), "not the same ally again");
 });
+
+test("A Strike activity only at an Off-Guard creature (Scorpion Sting, 2026-10-12, B206)", () => {
+    const [fighter] = martialParty(5);
+    const manticore = withBuiltins({ ...moderateCreature(5, "man", "Manticore"), engagement: 1 }, ["Test Sting", { builtin: "strike-activity", actions: 2, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: "off-guard", oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: ["4d8[poison]"], save: null, size: null } }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, manticore] }, {}, 1);
+    const m = state.byId.get("man");
+    m.round = 1;
+    m.actionsLeft = 3;
+    const offered = () => scoreOptions(state, m).options.some((entry) => entry.action.type === "strikeActivity");
+    assert.equal(offered(), false, "not at a creature that isn't Off-Guard");
+    state.byId.get(fighter.id).cond.prone = true;
+    assert.equal(offered(), true, "at a Prone (Off-Guard) creature");
+});

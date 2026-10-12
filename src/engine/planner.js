@@ -989,6 +989,8 @@ function expand(ctx, node, actionsLeft) {
                 if (activity.after && !activity.strides && target.id !== c.lastStrike?.targetId) continue;
                 if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
                 if (activity.requires === "prone" && !target.cond.prone) continue;
+                // (B206, Scorpion Sting: "Strikes an Off-Guard creature".)
+                if (activity.requires === "off-guard" && !(isOffGuard(target) || target.cond.immobilized)) continue;
                 // (B151, Shatter Defenses: "A Frightened creature is within melee reach".)
                 if (activity.requires === "frightened" && !(target.cond.frightened > 0)) continue;
                 if (activity.targetTraits && !activity.targetTraits.some((trait) => (target.traits ?? []).includes(trait))) continue;
