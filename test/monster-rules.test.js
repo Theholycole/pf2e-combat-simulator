@@ -3341,3 +3341,20 @@ test("A maneuver's own damage, doubled on a critical success (Stampeding Shove's
     castSpell(state, state.byId.get("brute"), 0, [f.id]);
     assert.equal(f.hp.value, 500 - 40, state.log.join("\n"));
 });
+
+test("A breath whose damage type is the monster's pick: the one that does the most (Eye Beams, 2026-10-12, B142)", () => {
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const beams = { modelVersion: 13, source: { name: "Test Beams" }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: null, range: null, area: { type: "line", value: 15 } }, trigger: { event: "use" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 40 } }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "2d6[cold]", type: null, category: null }] }, casterChoice: { kind: "damage-type", label: "Damage type", values: ["cold", "fire"] },
+            outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] }, effects: [] } } } };
+    const eye = { ...moderateCreature(5, "eye", "Eye"), engagement: 1, spells: [entry("Test Beams", beams)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 500, max: 500 }, weaknesses: [{ type: "fire", value: 10 }], resistances: [{ type: "cold", value: 10 }] }, eye] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 5;
+    state.rng.die = () => 3;
+    const f = state.byId.get(fighter.id);
+    castSpell(state, state.byId.get("eye"), 0, [f.id]);
+    // 2d6 at 3 each (6), a critical failure (12): fire with weakness 10 → 22 (cold, resisted, would be 2).
+    assert.equal(f.hp.value, 500 - 22, state.log.join("\n"));
+});
