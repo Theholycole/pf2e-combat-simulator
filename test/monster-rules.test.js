@@ -3283,3 +3283,12 @@ test("A guard that lasts until it moves: Cower's AC, ended by its Stride (2026-1
     const squid = withBuiltins({ ...moderateCreature(5, "sq", "Squid"), engagement: 1 }, ["Test Stab", { builtin: "multi-strike", actions: 1, strikes: [null, null], sameMap: true, sameTarget: true, noGrab: true }]);
     assert.equal(squid.multiStrikes[0].noGrab, true);
 });
+
+test("A reaction to rolling initiative with a skill it names: played as if it did (2026-10-12, B138)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const party = martialParty(5);
+    const cry = { ...structuredClone(basic.demoralize), targeting: { target: "1 creature", range: "30 feet", area: null } };
+    const dazzler = { ...moderateCreature(5, "dazz", "Dazzler"), engagement: 1, spells: [entry("Test Charisma", { ...cry, trigger: { event: "initiative", reaction: true, free: true, skills: ["deception", "performance"] } })] };
+    const started = simulate({ combatants: [{ ...party[0], engagement: 1 }, dazzler] }, { maxRounds: 1 }, 2, { log: true });
+    assert.match(started.log.join("\n"), new RegExp(`Dazzler casts Test Charisma at ${party[0].name}`));
+});
