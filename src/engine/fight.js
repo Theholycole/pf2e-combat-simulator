@@ -609,7 +609,8 @@ function act(state, c, action) {
             let disrupted = traits.includes("manipulate") ? provoke(state, c, "manipulate") : false;
             if (canAct(c) && traits.includes("concentrate")) disrupted = provoke(state, c, "concentrate") || disrupted;
             // (B225: an auditory or a healing action, the reaction Strikes that say so.)
-            for (const kind of ["auditory", "healing"]) if (canAct(c) && traits.includes(kind)) disrupted = provoke(state, c, kind) || disrupted;
+            // (B254, Objection!: a linguistic one too.)
+            for (const kind of ["auditory", "healing", "linguistic"]) if (canAct(c) && traits.includes(kind)) disrupted = provoke(state, c, kind) || disrupted;
             // (B122, Spell Interception: a spell, not an ability.)
             if (canAct(c) && spell && (!spell.kind || spell.castsSpell)) disrupted = castAnswers(state, c) || disrupted;
             if (!canAct(c)) break;

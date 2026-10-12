@@ -1350,7 +1350,7 @@ export function recoveryCheck(state, c) {
 // Tail), which disrupt the move when they hit.
 // (B225: an auditory or a healing action — Auditory Swipe, Disruptive Screech, Clinch Victory: only the reaction Strikes that name it. B227: a
 // concentrate action and Standing up too.)
-const OWN_KINDS = new Set(["auditory", "healing", "concentrate", "stand"]);
+const OWN_KINDS = new Set(["auditory", "healing", "concentrate", "stand", "linguistic"]);
 
 // (B227: a hit that disrupts the action unless the creature passes a save.)
 function disruptedBy(state, reaction, result, mover) {
