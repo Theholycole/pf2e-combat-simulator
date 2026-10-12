@@ -91,7 +91,7 @@ export function addBuiltin(spec, plan, name) {
             const rounds = plan.stance ? Infinity : plan.model?.rounds ?? 10;
             const model = { name, rounds, modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}) };
             // (B137, Cower, Entrench: a stance that ends when it moves.)
-            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model, ...(plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}) }];
+            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model, ...(plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}) }];
             return true;
         }
         // Golem Antimagic (B56): what others' magic does to it.

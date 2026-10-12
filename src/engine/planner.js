@@ -1177,8 +1177,9 @@ function expand(ctx, node, actionsLeft) {
             if (entry.trigger) continue;
             // (B147: straight after a spell it cast, Primal Weapon.)
             if (entry.afterCast && !(node.used === 0 && castJustNow(state, c, entry.afterCast === "non-cantrip"))) continue;
-            // (B155: only while its rage lasts.)
+            // (B155: only while its rage lasts; B158, Mountain Stronghold: only while its own stance is on it.)
             if (entry.whileRaging && !isRaging(c)) continue;
+            if (entry.requiresEffect && !(c.effects ?? []).some((effect) => effect.key === `self:${entry.requiresEffect}`)) continue;
             let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1);
             // Its measured change to the Strikes (Arcane Cascade's force damage): about three rounds of it.
             const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);

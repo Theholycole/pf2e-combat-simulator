@@ -3594,3 +3594,17 @@ test("A Strike whose damage is rolled three times (Flog Mercilessly, 2026-10-12,
     assert.equal(chargeStrike(strike, { name: "Test Flog", damageTimes: 3 }).damage[0].multiplier, 3);
     assert.equal(chargeStrike(strike, { name: "Plain" }), strike);
 });
+
+test("A guard only while its own stance is on it (Mountain Stronghold, 2026-10-12, B158)", () => {
+    const [fighter] = martialParty(5);
+    const guard = { builtin: "self-effect", actions: 1, model: { name: "Test Stronghold", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 2 }], tempHp: 0 }, duration: { value: 1, unit: "rounds", expiry: "turn-start" }, requiresEffect: "Test Stance" };
+    const monk = withBuiltins({ ...moderateCreature(5, "monk", "Monk"), engagement: 1 }, ["Test Stronghold", guard]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, monk] }, {}, 1);
+    const m = state.byId.get("monk");
+    m.round = state.round;
+    m.actionsLeft = 3;
+    const offered = () => scoreOptions(state, m).options.some((option) => option.action.type === "selfEffect");
+    assert.equal(offered(), false, "not out of its stance");
+    m.effects = [{ key: "self:Test Stance", model: { name: "Test Stance", rounds: Infinity, modifiers: [] } }];
+    assert.equal(offered(), true, "in its stance");
+});
