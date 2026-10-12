@@ -2,10 +2,10 @@
 // reactions Attack of Opportunity and Shield Block. Also damage, dying and
 // hero points.
 
-import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatCheck } from "./checks.js";
+import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatCheck, rollCheck } from "./checks.js";
 import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
 import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
-import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, strikeUsable } from "./combatant.js";
+import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, concussiveType, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
@@ -666,7 +666,8 @@ export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     if (reaction.onHit && result?.degree >= SUCCESS && isActive(mover)) {
         const critical = result.degree === CRITICAL_SUCCESS && reaction.onHit.critical?.length;
         for (const entry of critical ? reaction.onHit.critical : reaction.onHit.conditions ?? []) {
-            if (applyCondition(state, mover, entry.slug, entry.value ?? null, null, enemy)) log(state, `  ${mover.name} is ${entry.slug}${Number.isFinite(entry.value) ? ` ${entry.value}` : ""}`);
+            // (B227, Lashing Kick: Stomp on Shadow's conditions until its next turn — their durations.)
+            if (applyCondition(state, mover, entry.slug, entry.value ?? null, entry.duration ?? null, enemy)) log(state, `  ${mover.name} is ${entry.slug}${Number.isFinite(entry.value) ? ` ${entry.value}` : ""}`);
         }
     }
     // (B123, Quick Capture: "If it hits, the creature is Grabbed in that leaf.")
@@ -696,13 +697,22 @@ function approachAnswers(state, mover) {
 }
 
 // A Strike in its reach (Tail Lash) or an attack on its ally (Avenging Bite), B70: the reactions that answer it.
+// (B227: a ranged attack at it from outside its Melee, a Demoralize back from 30 feet — the bands, as a trigger's.)
+function rangedProvokes(state, mover, target, strike) {
+    if (!strike || strike.melee || target === mover || target.side === mover.side || sameMelee(target, mover) || !isActive(target) || !canReact(target) || target.cond.fleeing) return;
+    if (mover.band === "far" && target.band !== "far") return;
+    const reaction = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("attacked") && entry.rangedAttack);
+    if (reaction) reactionStrikeAt(state, target, mover, reaction, "strike");
+}
+
 function strikeProvokes(state, mover, target, strike = null) {
+    rangedProvokes(state, mover, target, strike);
     for (const enemy of engagedEnemies(state, mover)) {
         if (!canAct(mover) || !isActive(mover)) break;
         if (!canReact(enemy) || enemy.cond.fleeing) continue;
         // (Cutting Rebuke, Bite Back, B84: a Strike at it.)
         // (B122: Knowing Glance's "targeted by a melee Strike": melee ones only.)
-        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("strike") || (entry.triggers.includes("ally-attacked") && target !== enemy && target.side === enemy.side) || (entry.triggers.includes("attacked") && target === enemy && (!entry.melee || !strike || strike.melee)));
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("strike") || (entry.triggers.includes("ally-attacked") && target !== enemy && target.side === enemy.side) || (entry.triggers.includes("attacked") && target === enemy && (!entry.melee || !strike || strike.melee) && (!entry.rangedAttack || (strike && !strike.melee))));
         const result = reaction ? reactionStrikeAt(state, enemy, mover, reaction, "strike") : null;
         // (B123, Wrappings Lash: a critical hit disrupts the Strike.)
         if (reaction?.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) {
@@ -1286,14 +1296,24 @@ export function recoveryCheck(state, c) {
 // kind: "move" | "ranged" | "manipulate". Returns true if a manipulate action was disrupted.
 // Also the Strikes some monsters make when a creature moves by them (Twisting
 // Tail), which disrupt the move when they hit.
-// (B225: an auditory or a healing action — Auditory Swipe, Disruptive Screech, Clinch Victory: only the reaction Strikes that name it.)
-const OWN_KINDS = new Set(["auditory", "healing"]);
+// (B225: an auditory or a healing action — Auditory Swipe, Disruptive Screech, Clinch Victory: only the reaction Strikes that name it. B227: a
+// concentrate action and Standing up too.)
+const OWN_KINDS = new Set(["auditory", "healing", "concentrate", "stand"]);
+
+// (B227: a hit that disrupts the action unless the creature passes a save.)
+function disruptedBy(state, reaction, result, mover) {
+    if (!reaction?.disrupts || !(result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS))) return false;
+    if (!reaction.disruptSave) return true;
+    const roll = rollCheck(state.rng, saveModifier(mover, reaction.disruptSave.statistic), reaction.disruptSave.dc);
+    log(state, `  ${mover.name} ${roll.degree >= SUCCESS ? "keeps" : "loses"} its action (${reaction.disruptSave.statistic} save ${roll.total} vs DC ${reaction.disruptSave.dc})`);
+    return roll.degree < SUCCESS;
+}
 
 export function provoke(state, mover, kind) {
     let disrupted = false;
     const own = OWN_KINDS.has(kind);
-    // (A concentrate action provokes only the reactions that say so, B51.)
-    for (const enemy of kind === "concentrate" ? [] : engagedEnemies(state, mover)) {
+    // (A concentrate action provokes only the reactions that say so, B51: no Reactive Strike.)
+    for (const enemy of engagedEnemies(state, mover)) {
         if (!canAct(mover)) break;
         if (!canReact(enemy) || enemy.cond.fleeing) continue;
         if (enemy.reactions?.aoo && !own) {
@@ -1312,7 +1332,7 @@ export function provoke(state, mover, kind) {
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes(kind) || (kind === "move" && entry.triggers.includes("leave")));
         const result = reaction ? reactionStrikeAt(state, enemy, mover, reaction, kind) : null;
         // (B96: "If the attack is a critical hit …, it disrupts that action": a critical hit only.)
-        if (reaction?.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) disrupted = true;
+        if (disruptedBy(state, reaction, result, mover)) disrupted = true;
     }
     // (B225: from afar, a ranged Strike within its distance — Disruptive Screech's 30 feet: the bands, as a trigger's.)
     for (const enemy of own ? state.list : []) {
@@ -1321,7 +1341,7 @@ export function provoke(state, mover, kind) {
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes(kind) && entry.within > 10);
         if (!reaction || !(reaction.within >= 60 || mover.band !== "far" || enemy.band === "far")) continue;
         const result = reactionStrikeAt(state, enemy, mover, { ...reaction, ranged: true }, kind);
-        if (reaction.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) disrupted = true;
+        if (disruptedBy(state, reaction, result, mover)) disrupted = true;
     }
     // Tentacle Trip, Ectoplasmic Filaments, Baleful Gaze: a reaction with results of its own (B51). One that leaves the creature
     // unable to act, or held, stops what it was doing.
@@ -1478,7 +1498,8 @@ export function step(state, c) {
 }
 
 export function stand(state, c) {
-    const disrupted = provoke(state, c, "move");
+    // (B227, Tail Sweep: a reaction Strike at Standing up.)
+    const disrupted = provoke(state, c, "move") || (canAct(c) && provoke(state, c, "stand"));
     if (!canAct(c)) return;
     if (disrupted) {
         log(state, `  ${c.name} fails to stand`);

@@ -168,8 +168,12 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.extraDamage ? { extraDamage: plan.extraDamage } : {}), ...(plan.step ? { step: true } : {}), ...(plan.ranged ? { ranged: true } : {}), ...(Number(plan.from) > 0 ? { from: Number(plan.from) } : {}),
                 // (B225, Disruptive Screech: its distance, for a ranged Strike from afar.)
                 ...(Number(plan.within) > 10 ? { within: Number(plan.within) } : {}),
+                // (B227: the save that keeps the disrupted action.)
+                ...(plan.disruptSave?.statistic && Number.isFinite(Number(plan.disruptSave.dc)) ? { disruptSave: { statistic: plan.disruptSave.statistic, dc: Number(plan.disruptSave.dc) } } : {}),
                 // (B122: Knowing Glance's melee Strikes only; Bodyguard's Reprisal's charge, played as any ally.)
                 ...(plan.melee ? { melee: true } : {}), ...(plan.ward ? { ward: true } : {}), ...(plan.persistentType ? { persistentType: plan.persistentType } : {}),
+                // (B227: only a ranged attack at it.)
+                ...(plan.rangedAttack ? { rangedAttack: true } : {}),
                 // (B123: Quick Capture's grab on a hit; Deadly Cleave's same multiple attack penalty.)
                 ...(plan.grab ? { grab: true } : {}), ...(plan.sameMap ? { sameMap: true } : {}),
                 // (B129: Vengeful Sting's +2 damage on a hit.)

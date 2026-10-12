@@ -4387,3 +4387,46 @@ test("Fear 1 lower and a rush at the foe; an ally's critical failure made a fail
     castPlan(state, caster, caster.spells[0], ["aly"]);
     assert.equal(ally.cond.frightened, 2, "only once for that ally");
 });
+
+test("Strikes at a concentrate action (a save keeps it) or at Standing up; a stomp's conditions for a round; a scare back at an archer (2026-10-12, B227)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const focus = { modelVersion: 13, source: { name: "Test Focus" }, rank: 1, traits: ["concentrate"], activation: { time: "1", traits: ["concentrate"] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 1 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } };
+    // A concentrate action: the reaction Strike that names it, not Reactive Strike; a hit loses the action unless the save passes.
+    const horn = withBuiltins({ ...moderateCreature(5, "horn", "Horn"), engagement: 1, hp: { value: 999, max: 999 }, reactions: { aoo: true } }, ["Test Blare", { builtin: "reaction-strike", triggers: ["concentrate"], strike: null, penalty: 0, disrupts: true, disruptSave: { statistic: "will", dc: 60 } }]);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [entry("Test Focus", focus)] }, horn] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    state.byId.get("horn").strikes = state.byId.get("horn").strikes.map((strike) => ({ ...strike, bonus: 40 }));
+    performAction(state, state.byId.get(fighter.id), { type: "cast", spellIndex: 0, targetIds: [fighter.id], actions: 1 });
+    let log = state.log.join("\n");
+    assert.match(log, /Horn uses Test Blare/, log);
+    assert.match(log, /loses its action \(will save/, log);
+    assert.doesNotMatch(log, /Attack of Opportunity/, log);
+    // Standing up in its reach.
+    const otter = withBuiltins({ ...moderateCreature(5, "otter", "Otter"), engagement: 1 }, ["Test Sweep", { builtin: "reaction-strike", triggers: ["stand"], strike: null, penalty: 0, disrupts: "critical" }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, otter] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get(fighter.id);
+    f.cond.prone = true;
+    performAction(state, f, { type: "stand" });
+    assert.match(state.log.join("\n"), /Otter uses Test Sweep/, state.log.join("\n"));
+    // A stomp's Immobilized until the start of its next turn, at a creature trying to move beside it.
+    const thief = withBuiltins({ ...moderateCreature(5, "thief", "Thief"), engagement: 1 }, ["Test Kick", { builtin: "reaction-strike", triggers: ["move"], strike: null, penalty: 0, disrupts: false, onHit: { conditions: [{ slug: "immobilized", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" } }], critical: [] } }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, thief] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 19;
+    state.byId.get("thief").strikes = state.byId.get("thief").strikes.map((strike) => ({ ...strike, bonus: 40 }));
+    provokeFor(state, state.byId.get(fighter.id), "move");
+    assert.ok(state.byId.get(fighter.id).cond.immobilized, state.log.join("\n"));
+    assert.ok((state.byId.get(fighter.id).timers ?? []).length > 0, "it ends");
+    // A ranged attack at it from outside its Melee: a Demoralize back.
+    const skull = withBuiltins({ ...moderateCreature(5, "skull", "Skull"), hp: { value: 999, max: 999 }, spells: [entry("Demoralize", basic.demoralize, "basic")] }, ["Test Dare", { builtin: "reaction-strike", triggers: ["attacked"], strike: null, skill: "demoralize", penalty: 0, disrupts: false, rangedAttack: true }]);
+    const archer = martialParty(5).find((pc) => (pc.strikes ?? []).some((strike) => !strike.melee));
+    state = createFightState({ combatants: [{ ...archer }, skull] }, {}, 1);
+    state.log = [];
+    const a = state.byId.get(archer.id);
+    performStrike(state, a, state.byId.get("skull"), a.strikes.find((strike) => !strike.melee));
+    assert.match(state.log.join("\n"), /Skull uses Test Dare/, state.log.join("\n"));
+});
