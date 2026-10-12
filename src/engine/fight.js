@@ -139,11 +139,21 @@ function rollInitiative(state, snapshot) {
     if (ambush === "party") state.surprisedSide = "foes";
     else if (ambush === "foes") state.surprisedSide = "party";
     state.stealthInitiative = new Set();
+    const usesStealth = (c) => ambush && ambush === c.side && typeof c.stealth === "number";
+    // (B170, Guide's Warning: its allies' initiative rolls a circumstance bonus higher, when it rolls Perception — its reaction, or a free
+    // action.)
+    const warned = new Map();
+    for (const c of state.list) {
+        if (!c.initiativeWarning || usesStealth(c) || (!c.initiativeWarning.free && !canReact(c))) continue;
+        if (!c.initiativeWarning.free) c.reactionUsed = true;
+        state.log?.push(`  ${c.name} uses ${c.initiativeWarning.name}: +${c.initiativeWarning.value} to its allies' initiative`);
+        for (const ally of state.list) if (ally !== c && ally.side === c.side) warned.set(ally.id, Math.max(warned.get(ally.id) ?? 0, c.initiativeWarning.value));
+    }
     const rolled = state.list.map((c) => {
-        const useStealth = ambush && ambush === c.side && typeof c.stealth === "number";
+        const useStealth = usesStealth(c);
         if (useStealth) state.stealthInitiative.add(c.id);
-        // Ten Paces: +2 circumstance to the initiative roll (C18).
-        const modifier = (useStealth ? c.stealth : (c.perception ?? 0)) + (c.initiativeBonus ?? 0);
+        // Ten Paces: +2 circumstance to the initiative roll (C18); not with another circumstance bonus.
+        const modifier = (useStealth ? c.stealth : (c.perception ?? 0)) + Math.max(c.initiativeBonus ?? 0, warned.get(c.id) ?? 0);
         return { c, total: state.rng.d20() + modifier, modifier };
     });
     rolled.sort((a, b) => (b.total - a.total) || ((a.c.side === "foes" ? 0 : 1) - (b.c.side === "foes" ? 0 : 1)) || (b.modifier - a.modifier));

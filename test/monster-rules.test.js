@@ -3725,3 +3725,15 @@ test("A success instead of a failed save, once a fight (Flash of Insight, 2026-1
     castPlan(state, state.byId.get("fighter"), save(10 + s.saves.reflex + 12), ["seer"]);
     assert.equal(s.cond.frightened, 2, "once a fight");
 });
+
+test("Its allies' initiative higher when it rolls Perception (Guide's Warning, 2026-10-12, B170)", () => {
+    const [fighter] = martialParty(5);
+    const guide = withBuiltins({ ...moderateCreature(5, "guide", "Guide"), stealth: 10 }, ["Test Warning", { builtin: "initiative-warning", value: 50 }]);
+    const ally = { ...moderateCreature(5, "ally", "Ally") };
+    const { log } = simulate({ combatants: [fighter, guide, ally] }, {}, 1, { log: true });
+    assert.equal(log[0], "  Guide uses Test Warning: +50 to its allies' initiative");
+    assert.match(log[log.indexOf("— Round 1 —") + 1], /^Ally \(/, "the ally first");
+    // Rolling Stealth for an ambush, not Perception: no warning.
+    const ambush = simulate({ combatants: [fighter, guide, ally], setup: { ambush: "foes" } }, {}, 1, { log: true });
+    assert.ok(!ambush.log.some((line) => /uses Test Warning/.test(line)));
+});

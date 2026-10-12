@@ -193,6 +193,11 @@ export function addBuiltin(spec, plan, name) {
             }
             spec.saveBonusReaction = { name, value: Number(plan.value), against: plan.against ?? null };
             return true;
+        // (B170, Guide's Warning, Warning Hoot: a circumstance bonus to its allies' initiative rolls; its reaction, or a free action.)
+        case "initiative-warning":
+            if (!(Number(plan.value) > 0)) return false;
+            spec.initiativeWarning = { name, value: Number(plan.value), ...(plan.free ? { free: true } : {}) };
+            return true;
         // (B168, Drowning Drone: a skill check as a save is attempted, the higher of the two resolving the effect — its own, or its allies'
         // within its distance (of its trait); that kind of save, against those traits.)
         case "save-skill":
