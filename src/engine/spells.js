@@ -225,6 +225,8 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
                 return { modifier };
             }
             if (slug === "stabilize") return { modifier: 0, dc: defenceDC(c, slug) };
+            // A check with a fixed modifier of its own (a special attack, Hurl Net; B128): the actor's penalties and the multiple attack penalty.
+            if (slug === "fixed-check") return { modifier: -statusPenalty(c, "skill") - (describeSpell(spell.plan, actions).attack ? mapPenalty() : 0) };
             // A skill check: the actor's roll (with the multiple attack penalty
             // for an attack-trait action), or another creature's DC.
             if (isCheckStatistic(slug)) {
@@ -1669,7 +1671,8 @@ function oddsFor(caster, spell, target, attacks, actions) {
     if (check.roll === "skill" || check.roll === "perception") {
         const map = describeSpell(spell.plan, actions).attack ? (attacks <= 0 ? 0 : attacks === 1 ? 5 : 10) : 0;
         // (Its own bonus, "a +4 status bonus to the Athletics check", B68.)
-        const roll = Math.max(...[].concat(check.statistic).map((slug) => skillValue(caster, slug))) + (Number(check.bonus?.value) || 0) - statusPenalty(caster, "skill") - map;
+        // (A fixed modifier of its own, a special attack's, B128: that.)
+        const roll = (Number.isFinite(check.modifier) ? check.modifier : Math.max(...[].concat(check.statistic).map((slug) => skillValue(caster, slug)))) + (Number(check.bonus?.value) || 0) - statusPenalty(caster, "skill") - map;
         // (B105: an Escape from one that can still make it harder.)
         const guarded = describeSpell(spell.plan, actions).escape && target.escapeGuard && canReact(target) && !target.cond.fleeing ? target.escapeGuard.value : 0;
         const dc = (check.against?.dc === "fixed" ? check.against.value : escapeDCAgainst(caster, target, spell, actions) ?? defenceDC(target, check.against?.statistic ?? "will") - disarmBonus(spell, target)) + guarded;

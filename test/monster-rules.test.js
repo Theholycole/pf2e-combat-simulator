@@ -3070,3 +3070,24 @@ test("Furious Throw: a ranged answer at any enemy, the flat check against its pe
     assert.ok(state.log.includes("  Troll uses Test Throw"), state.log.join("\n"));
     assert.ok(state.log.some((line) => /persistent acid damage/.test(line)), state.log.join("\n"));
 });
+
+test("A special attack with a fixed modifier of its own, against AC, with the multiple attack penalty (2026-10-12, B128)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const net = (modifier) => ({ modelVersion: 13, source: { name: "Test Net" }, rank: 1, traits: ["attack"], activation: { time: "1", traits: ["attack"] }, targeting: { target: "1 creature", range: "20 feet", area: null }, trigger: { event: "use" },
+        resolution: { kind: "check", check: { roll: "skill", statistic: "test-net", against: { dc: "target", statistic: "ac" }, modifier }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [{ kind: "condition", slug: "restrained", value: null, duration: null }] }, success: { damage: { ...none }, effects: [{ kind: "condition", slug: "off-guard", value: null, duration: null }], modifiers: [{ selector: "all-speeds", value: -10, type: "circumstance", duration: null }] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } });
+    const [fighter] = martialParty(5);
+    const fight = (attacks) => {
+        const probe = createFightState({ combatants: [{ ...fighter, engagement: 1 }] }, {}, 1);
+        const modifier = armorClass(probe.byId.get(fighter.id)) - 10 + 2;
+        const strider = { ...moderateCreature(5, "bog", "Bog Strider"), engagement: 1, spells: [entry("Test Net", net(modifier))] };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, strider] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => 10;
+        const c = state.byId.get("bog");
+        c.attacksThisTurn = attacks;
+        castSpell(state, c, 0, [fighter.id]);
+        return state.byId.get(fighter.id);
+    };
+    assert.equal(fight(0).cond.offGuard, true, "a hit: off-guard");
+    assert.equal(fight(1).cond.offGuard, false, "a miss at the multiple attack penalty");
+});
