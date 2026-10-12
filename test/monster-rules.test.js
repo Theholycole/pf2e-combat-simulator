@@ -2715,3 +2715,23 @@ test("Two Strikes only at an Off-Guard or Immobilized creature; a requirement it
     assert.equal(plan("off-guard", (f) => { f.cond.immobilized = true; }), true);
     assert.equal(plan("uncontrollable"), false);
 });
+
+test("A Strike at a creature one of its allies just hit in melee (2026-10-11, B114)", () => {
+    const [fighter] = martialParty(5);
+    const thug = { ...moderateCreature(5, "thg", "Thug"), engagement: 1 };
+    const rogue = { ...moderateCreature(5, "rog", "Rogue"), engagement: 1 };
+    addBuiltin(rogue, { builtin: "reaction-strike", triggers: ["ally-hit"], strike: null, penalty: 0, disrupts: false }, "Test Backstab");
+    const fight = (die) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, thug, rogue] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => die;
+        const t = state.byId.get("thg");
+        performStrike(state, t, state.byId.get(fighter.id), t.strikes[0]);
+        return { state, r: state.byId.get("rog") };
+    };
+    let { state, r } = fight(19);
+    assert.ok(state.log.includes("  Rogue uses Test Backstab"), state.log.join("\n"));
+    assert.equal(r.reactionUsed, true);
+    ({ state, r } = fight(1));
+    assert.equal(r.reactionUsed ?? false, false, "not after a miss");
+});

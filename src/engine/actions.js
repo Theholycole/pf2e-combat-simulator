@@ -450,6 +450,14 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         attacker.weaponPoisoned = false;
         state.onPoison?.(attacker, target);
     }
+    // (B114, Opportune Backstab: a melee hit by one of its allies on a creature in its reach, followed by its own Strike at that creature.)
+    if (degree >= SUCCESS && !reaction && strike.melee && isActive(attacker) && isActive(target)) {
+        for (const ally of state.list) {
+            if (ally === attacker || ally.side !== attacker.side || !isActive(ally) || !isActive(target)) continue;
+            const answer = (ally.reactionStrikes ?? []).find((entry) => entry.triggers.includes("ally-hit"));
+            if (answer && canReact(ally) && canAct(ally) && !ally.cond.fleeing && sameMelee(ally, target)) reactionStrikeAt(state, ally, target, answer, "ally-hit");
+        }
+    }
     // (B111, Absorb Weapon, Sticky: a melee hit on it, answered — with a maneuver.)
     if (degree >= SUCCESS && !reaction && strike.melee && isActive(attacker) && isActive(target)) {
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("hit"));
