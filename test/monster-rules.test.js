@@ -3450,3 +3450,26 @@ test("Straight after a spell it cast: a Strike activity and a Strike buff that n
     m.lastCast = { round: state.round, action: 0, cantrip: true };
     assert.ok(!offered().includes("selfEffect"), "not after a cantrip");
 });
+
+test("A Strike activity only at a frightened creature; a Shove at a creature coming into its reach (Shatter Defenses, Toss, 2026-10-12, B151)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const activity = { builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: "frightened", oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } };
+    const guard = withBuiltins({ ...moderateCreature(5, "guard", "Guard"), engagement: 1 }, ["Test Shatter", activity]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, guard] }, {}, 1);
+    const g = state.byId.get("guard");
+    g.round = state.round;
+    g.actionsLeft = 3;
+    const offered = () => scoreOptions(state, g).options.some((option) => option.action.type === "strikeActivity");
+    assert.equal(offered(), false, "not at a creature that isn't frightened");
+    state.byId.get(fighter.id).cond.frightened = 1;
+    assert.equal(offered(), true, "at a frightened one");
+    // Toss: its Shove as a creature comes into its reach.
+    const bison = withBuiltins({ ...moderateCreature(5, "bison", "Bison"), engagement: 0, spells: [entry("Shove", basic.shove, "basic")] }, ["Test Toss", { builtin: "reaction-strike", triggers: ["approach"], strike: null, skill: "shove", penalty: 0, disrupts: false }]);
+    const second = createFightState({ combatants: [{ ...fighter, engagement: 0 }, bison] }, {}, 1);
+    second.log = [];
+    const f = second.byId.get(fighter.id);
+    f.actionsLeft = 3;
+    stride(second, f, { kind: "engage", targetId: "bison" });
+    assert.ok(second.log.some((line) => /Bison uses Test Toss/.test(line)), second.log.join("\n"));
+});
