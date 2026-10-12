@@ -3325,3 +3325,19 @@ test("Hit Points back on itself as it downs a creature (Absorb Sin, 2026-10-12, 
     downsAnswers(state, c, state.byId.get(fighter.id));
     assert.ok(!state.log.some((line) => /Test Absorb/.test(line)), state.log.join("\n"));
 });
+
+test("A maneuver's own damage, doubled on a critical success (Stampeding Shove's \"2*\" formula, 2026-10-12, B141)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const shove = structuredClone(basic.shove);
+    shove.resolution.outcomes.success.damage = { mode: "formulas", formulas: [{ formula: "2d10[bludgeoning]" }], rollScope: "target" };
+    shove.resolution.outcomes.criticalSuccess.damage = { mode: "formulas", formulas: [{ formula: "2*2d10[bludgeoning]" }], rollScope: "target" };
+    const brute = { ...moderateCreature(5, "brute", "Brute"), engagement: 1, spells: [entry("Test Shove", shove)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 500, max: 500 }, saves: { fortitude: 0, reflex: 0, will: 0 } }, brute] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 20;
+    state.rng.die = () => 10;
+    const f = state.byId.get(fighter.id);
+    castSpell(state, state.byId.get("brute"), 0, [f.id]);
+    assert.equal(f.hp.value, 500 - 40, state.log.join("\n"));
+});
