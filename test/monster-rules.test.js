@@ -3123,3 +3123,22 @@ test("Strikes back of more kinds: a getaway, a hit of its damage types, +2 damag
     state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, sting] }, {}, 1);
     assert.equal(state.byId.get("sting").reactionStrikes[0].damageBonus, 2);
 });
+
+test("A Strike activity's save only against an off-guard target (2026-10-12, B130)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const stun = { modelVersion: 13, source: { name: "Test Clobber" }, rank: 1, traits: [], activation: { time: "free", traits: [] }, targeting: { target: "the creature the Strike hits", range: "touch", area: null }, trigger: { event: "strike-activity" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [{ kind: "condition", slug: "stunned", value: 2, duration: null }] }, criticalFailure: { damage: { ...none }, effects: [{ kind: "condition", slug: "stunned", value: 2, duration: null }] } } } };
+    const [fighter] = martialParty(5);
+    const run = (offGuard) => {
+        const guard = withBuiltins({ ...moderateCreature(5, "grd", "Guard"), engagement: 1 }, ["Test Clobber", { builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: stun, size: null, saveIf: "off-guard" } }]);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, guard] }, {}, 1);
+        state.log = [];
+        const f = state.byId.get(fighter.id);
+        if (offGuard) f.cond.offGuard = true;
+        const c = state.byId.get("grd");
+        applyStrikeRider(state, c, f, c.strikeActivities[0], false, c.strikes[0]);
+        return f.cond.stunned;
+    };
+    assert.equal(run(false), 0, "not off-guard: no save");
+    assert.equal(run(true), 2, "off-guard: the save, failed against DC 60");
+});

@@ -905,7 +905,8 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
         const dealt = applyDamage(state, target, instances, { source: attacker });
         log(state, `  ${target.name} takes ${dealt} more ${instances.map((instance) => instance.type).join("/")}`);
     }
-    if (activity.riderSpell && isActive(target)) castPlan(state, attacker, activity.riderSpell, [target.id]);
+    // (B130, Clobber: its save only against an off-guard target.)
+    if (activity.riderSpell && isActive(target) && (rider.saveIf !== "off-guard" || isOffGuard(target))) castPlan(state, attacker, activity.riderSpell, [target.id]);
     // A skill action after the hit (B67: Terrifying Charge's Demoralize, Pouncing Pin's Trip): its own basic action.
     if (rider.follow && isActive(target) && canAct(attacker)) {
         const index = (attacker.spells ?? []).findIndex((spell) => spell.kind === "basic" && (spell.plan?.source?.slug === rider.follow || String(spell.name ?? "").toLowerCase() === rider.follow));
@@ -926,7 +927,7 @@ export function strikeRiderValue(state, attacker, target, activity, strike = nul
     let worth = rider.conditions.reduce((sum, { slug, value, duration }) => sum + conditionWorth(slug, value, duration), 0);
     if (rider.push && target.meleeId !== null) worth += 0.1;
     let damage = [...(rider.damage ?? []), ...(target.cond.prone ? rider.proneDamage ?? [] : [])].flatMap((formula) => parseDamage(ownType(formula, strike))).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
-    if (activity.riderSpell) {
+    if (activity.riderSpell && (rider.saveIf !== "off-guard" || isOffGuard(target))) {
         const entry = spellExpectation(state, attacker, activity.riderSpell, [target]).find((item) => item.target === target);
         damage += entry?.damage ?? 0;
         worth += entry?.worth ?? 0;
