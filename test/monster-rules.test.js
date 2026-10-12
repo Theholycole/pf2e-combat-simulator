@@ -2842,3 +2842,95 @@ test("A critical hit on it recharges its breath, used at once; once a day, its h
     c.attacksThisTurn = 0;
     assert.equal(performStrike(second, c, target, c.strikes[0]).degree, 2, "once");
 });
+
+test("Strikes at every creature in its reach but those it holds; a sweep behind a requirement it can't meet (2026-10-11, B120)", () => {
+    const party = martialParty(5);
+    const pit = withBuiltins({ ...moderateCreature(5, "pit", "Pit"), engagement: 1 }, ["Test Pods", { builtin: "multi-strike", actions: 2, strikes: [null], each: true, sameMap: true, notGrabbed: true }]);
+    const state = createFightState({ combatants: [...party.slice(0, 3).map((pc) => ({ ...pc, engagement: 1, hp: { value: 999, max: 999, temp: 0 } })), pit] }, {}, 1);
+    state.log = [];
+    const c = state.byId.get("pit");
+    const held = state.byId.get(party[0].id);
+    held.grabbedBy = c.id;
+    held.cond.grabbed = true;
+    c.actionsLeft = 3;
+    performAction(state, c, { type: "multiStrike", ability: 0, actions: 2 });
+    const struck = state.log.filter((line) => /^ {2}Pit .+ → /.test(line)).map((line) => line.split(" → ")[1].split(":")[0]);
+    assert.equal(struck.length, 2, state.log.join("\n"));
+    assert.ok(!struck.includes(held.name), "not at the creature it holds");
+    // Rampage's requirement: never planned.
+    const golem = withBuiltins({ ...moderateCreature(5, "glm", "Golem"), engagement: 1 }, ["Test Rampage", { builtin: "multi-strike", actions: 2, strikes: [null], each: true, sameMap: true, requires: "requirement" }]);
+    const second = createFightState({ combatants: [...party.slice(0, 2).map((pc) => ({ ...pc, engagement: 1 })), golem] }, {}, 1);
+    const g = second.byId.get("glm");
+    g.actionsLeft = 3;
+    assert.ok(!scoreOptions(second, g).options.some((option) => option.action.type === "multiStrike"));
+});
+
+test("Reaction Strikes: extra dice on a hit, a Step to the creature that hurt an ally, a ranged Strike at a far attacker (2026-10-11, B121)", () => {
+    const [fighter, , ranger] = martialParty(5);
+    // Retaliatory Strike: its tail back, 1d6 more on a hit.
+    const drake = { ...moderateCreature(5, "drk", "Drake"), engagement: 1 };
+    drake.strikes = [{ ...drake.strikes[0], name: "Tail" }];
+    addBuiltin(drake, { builtin: "reaction-strike", triggers: ["damaged-adjacent"], strike: "tail", penalty: 0, disrupts: false, extraDamage: "1d6" }, "Test Retaliation");
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, drake] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    const f = state.byId.get(fighter.id);
+    performStrike(state, f, state.byId.get("drk"), f.strikes.find((strike) => strike.melee));
+    assert.ok(state.log.includes("  Drake uses Test Retaliation"), state.log.join("\n"));
+    // Avenging Claws: a creature that damages its ally beside it, a Step and its claws.
+    const wolf = { ...moderateCreature(5, "wlf", "Wolf"), engagement: 1, hp: { value: 999, max: 999, temp: 0 } };
+    const bear = { ...moderateCreature(5, "bear", "Bear"), engagement: 1 };
+    bear.strikes = [{ ...bear.strikes[0], name: "Claws" }];
+    addBuiltin(bear, { builtin: "reaction-strike", triggers: ["ally-damaged"], strike: "claws", penalty: 0, disrupts: false, within: 10, step: true }, "Test Avenging");
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, wolf, bear] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    const g = state.byId.get(fighter.id);
+    performStrike(state, g, state.byId.get("wlf"), g.strikes.find((strike) => strike.melee));
+    assert.ok(state.log.includes("  Bear uses Test Avenging"), state.log.join("\n"));
+    // Vengeful Throw: a ranged attacker away from its Melee, its thrown spear back.
+    const marauder = { ...moderateCreature(5, "mar", "Marauder"), engagement: null, band: "near" };
+    marauder.strikes = [{ ...marauder.strikes[0], name: "Spear", melee: true }, { ...marauder.strikes[0], name: "Spear", melee: false, range: 20 }];
+    addBuiltin(marauder, { builtin: "reaction-strike", triggers: ["damaged-far"], strike: "spear", penalty: 0, disrupts: false, from: 20, ranged: true }, "Test Throw");
+    state = createFightState({ combatants: [{ ...ranger, engagement: null, band: "far", hp: { value: 999, max: 999, temp: 0 } }, marauder] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    const r = state.byId.get(ranger.id);
+    const shot = r.strikes.find((strike) => !strike.melee);
+    assert.ok(shot && !sameMelee(r, state.byId.get("mar")));
+    performStrike(state, r, state.byId.get("mar"), shot);
+    assert.ok(state.log.includes("  Marauder uses Test Throw"), state.log.join("\n"));
+});
+
+test("Spell Interception, Shoot First, Knowing Glance (2026-10-11, B122)", { skip }, async () => {
+    const { hellfire } = await packAbilities();
+    const [fighter] = martialParty(5);
+    // Spell Interception: a spell cast in its Melee, its Strike; a hit disrupts the spell.
+    const killer = withBuiltins({ ...moderateCreature(5, "kil", "Killer"), engagement: 1 }, ["Test Interception", { builtin: "reaction-strike", triggers: ["cast"], strike: null, penalty: 0, disrupts: true }]);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 }, spells: [entry("Test Blast", hellfire, null)] }, killer] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 19;
+    let f = state.byId.get(fighter.id);
+    performAction(state, f, { type: "cast", spellIndex: 0, targetIds: ["kil"], actions: 1 });
+    assert.ok(state.log.includes("  Killer uses Test Interception"), state.log.join("\n"));
+    // Shoot First: its firearm before the Strike; a critical hit disrupts it.
+    const duelist = withBuiltins({ ...moderateCreature(5, "due", "Duelist"), engagement: 1 }, ["Test Shoot First", { builtin: "reaction-strike", triggers: ["targeted"], strike: "firearm", penalty: 0, disrupts: "critical" }]);
+    duelist.strikes = [...duelist.strikes, { ...duelist.strikes[0], name: "Dueling Pistol", melee: false, firearm: true }];
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, duelist] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 20;
+    f = state.byId.get(fighter.id);
+    assert.equal(performStrike(state, f, state.byId.get("due"), f.strikes.find((strike) => strike.melee)), null, "disrupted");
+    assert.ok(state.log.includes("  Duelist uses Test Shoot First") && state.log.some((line) => /Strike is disrupted/.test(line)), state.log.join("\n"));
+    // Knowing Glance: a melee Strike at it, its Demoralize first; not a ranged one.
+    const glancer = withBuiltins({ ...moderateCreature(5, "gla", "Glancer"), engagement: 1, skills: { intimidation: 14 } }, ["Test Glance", { builtin: "reaction-strike", triggers: ["attacked"], strike: null, skill: "demoralize", penalty: 0, disrupts: false, melee: true }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, glancer] }, {}, 1);
+    const g = state.byId.get("gla");
+    f = state.byId.get(fighter.id);
+    const ranged = f.strikes.find((strike) => !strike.melee);
+    if (ranged) {
+        state.log = [];
+        performStrike(state, f, g, ranged);
+        assert.ok(!state.log.includes("  Glancer uses Test Glance"), "not at a ranged Strike");
+    }
+});

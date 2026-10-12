@@ -814,6 +814,8 @@ function expand(ctx, node, actionsLeft) {
             if (!order || order.some((index) => !strikeUsable(c, c.strikes[index]))) continue;
             // A Strike at every enemy in its Melee: worth the sum over them.
             if (ability.each) {
+                // (B120: Rampage's "is uncontrollable", Bladestorm's "holding six spirit blades": states the engine doesn't play.)
+                if (ability.requires && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0)) continue;
                 const ranged = !c.strikes[order[0]].melee;
                 // Where it Strikes from: here, or (B109, Mauling Rush) the Melee of a creature one Stride away.
                 const places = [{ pos: node.pos, first: null }];
@@ -824,7 +826,8 @@ function expand(ctx, node, actionsLeft) {
                     }
                 }
                 for (const { pos, first } of places) {
-                    const near = ctx.enemies.filter((target) => target.status === "active" && (ranged || inMelee(pos, target)));
+                    // (B120, Flurry of Pods: not at the creatures it already holds.)
+                    const near = ctx.enemies.filter((target) => target.status === "active" && (ranged || inMelee(pos, target)) && !(ability.notGrabbed && target.grabbedBy === c.id));
                     const foes = (first ? [first, ...near.filter((target) => target !== first)] : near).slice(0, ability.max ?? Infinity);
                     if (foes.length < 2) continue;
                     const damage = { ...node.damage };

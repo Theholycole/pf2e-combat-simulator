@@ -4,7 +4,7 @@ import { createRng } from "./rng.js";
 import { FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
-import { applyDamage, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers } from "./actions.js";
+import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers } from "./actions.js";
 import { canReact, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating, sweepActionIndex } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
@@ -578,6 +578,8 @@ function act(state, c, action) {
             const traits = spell?.plan?.activation?.traits ?? spell?.plan?.traits ?? [];
             let disrupted = traits.includes("manipulate") ? provoke(state, c, "manipulate") : false;
             if (canAct(c) && traits.includes("concentrate")) disrupted = provoke(state, c, "concentrate") || disrupted;
+            // (B122, Spell Interception: a spell, not an ability.)
+            if (canAct(c) && spell && (!spell.kind || spell.castsSpell)) disrupted = castAnswers(state, c) || disrupted;
             if (!canAct(c)) break;
             // Steady Spellcasting (B55): a flat check, and on a success the spell isn't disrupted.
             if (disrupted && c.steadySpellcasting && flatCheck(state.rng, c.steadySpellcasting) >= SUCCESS) {
@@ -694,7 +696,7 @@ function act(state, c, action) {
             if (ability.each) {
                 const order = multiStrikeOrder(c, ability) ?? [];
                 const ranged = order.length > 0 && c.strikes[order[0]] && !c.strikes[order[0]].melee;
-                const foes = (ranged ? state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone") : engagedEnemies(state, c)).slice(0, ability.max ?? Infinity);
+                const foes = (ranged ? state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone") : engagedEnemies(state, c)).filter((other) => !(ability.notGrabbed && other.grabbedBy === c.id)).slice(0, ability.max ?? Infinity);
                 for (const [step, foe] of foes.entries()) {
                     // (Three-Headed Strike, B74: a different Strike at each creature, in turn.)
                     const index = order[Math.min(step, order.length - 1)];

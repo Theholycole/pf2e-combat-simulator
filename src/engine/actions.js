@@ -194,8 +194,13 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (!reaction && target.side !== attacker.side && isActive(target)) {
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("targeted"));
         if (answer && canReact(target) && canAct(target) && !target.cond.fleeing) {
-            reactionStrikeAt(state, target, attacker, answer, "targeted");
+            const back = reactionStrikeAt(state, target, attacker, answer, "targeted");
             if (!isActive(attacker) || !canAct(attacker) || !isActive(target)) return null;
+            // (B122, Shoot First: a critical hit disrupts the Strike.)
+            if (answer.disrupts && back?.degree >= (answer.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) {
+                log(state, `  ${attacker.name}'s Strike is disrupted`);
+                return null;
+            }
         }
     }
     let flanked = false;
@@ -227,7 +232,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         reactToAttack(state, target, attacker, strike);
         if (!isActive(attacker) || !canAct(attacker)) return null;
         // Tail Lash, Avenging Bite (B70): a Strike back at a creature that Strikes in its reach, or that attacks its ally.
-        strikeProvokes(state, attacker, target);
+        strikeProvokes(state, attacker, target, strike);
         if (!isActive(attacker) || !canAct(attacker) || !isActive(target)) return null;
     }
     // Defensive reactions as the attack comes: the attacker rolls twice (Challenge
@@ -486,6 +491,20 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
             if (other && index >= 0 && isActive(target) && canAct(target)) performStrike(state, target, other, target.strikes[index], { reaction: true });
         }
     }
+    // (B121, Avenging Claws: a melee hit that damages one of its allies, by a creature within its reach or a Step of it: a Step and a Strike.)
+    if (dealt > 0 && !reaction && strike.melee && isActive(attacker) && isActive(target)) {
+        for (const ally of state.list) {
+            if (ally === target || ally.side !== target.side || !isActive(ally) || !isActive(attacker)) continue;
+            const answer = (ally.reactionStrikes ?? []).find((entry) => entry.triggers.includes("ally-damaged"));
+            if (!answer || !canReact(ally) || !canAct(ally) || ally.cond.fleeing || !(sameMelee(ally, attacker) || (answer.step && sameMelee(ally, target) && canMove(ally)))) continue;
+            reactionStrikeAt(state, ally, attacker, answer, "ally-damaged");
+        }
+    }
+    // (B121, Vengeful Throw: damage from a creature away from its Melee, a ranged Strike back.)
+    if (dealt > 0 && !reaction && isActive(attacker) && isActive(target) && !sameMelee(target, attacker)) {
+        const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("damaged-far"));
+        if (answer && canReact(target) && canAct(target) && !target.cond.fleeing) reactionStrikeAt(state, target, attacker, answer, "damaged-far");
+    }
     // (B118, Hellish Revenge, Spitting Rage: a critical hit on it, its breath recharged and used at once.)
     if (critical && !reaction && target.critRecharge && isActive(target)) critRechargeAnswer(state, target);
     // (B116, Skittish, Bolt: a hit on it, or its damage, answered by moving off.)
@@ -541,12 +560,23 @@ export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
         return { degree: null };
     }
     // (A "melee Strike" with no name, B90: its best melee Strike.)
-    const index = enemyStrikeIndex(enemy, mover, reaction.strike);
+    // (B121, Vengeful Throw: a ranged Strike by that name — the thrown spear, not the one in hand.)
+    const ranged = reaction.ranged ? (enemy.strikes ?? []).findIndex((strike) => !strike.melee && String(strike.name ?? "").toLowerCase().includes(String(reaction.strike ?? ""))) : -1;
+    const index = reaction.ranged ? ranged : enemyStrikeIndex(enemy, mover, reaction.strike);
     if (index < 0 || !strikeUsable(enemy, enemy.strikes[index])) return null;
     enemy.reactionUsed = true;
     state.stats.reactions++;
     log(state, `  ${enemy.name} uses ${reaction.name}`);
-    const strike = enemy.strikes[index];
+    // (B121, Avenging Claws: a Step to the creature first.)
+    if (reaction.step && !sameMelee(enemy, mover)) {
+        releaseGrabs(state, enemy);
+        engage(state, enemy, mover);
+        log(state, `  ${enemy.name} Steps to ${mover.name}`);
+    }
+    const base = enemy.strikes[index];
+    // (B121, Retaliatory Strike: its extra dice on a hit, a part of the Strike's damage.)
+    const extra = /^(\d+)d(\d+)$/.exec(String(reaction.extraDamage ?? ""));
+    const strike = extra ? { ...base, damage: [...base.damage, { dice: Number(extra[1]), die: Number(extra[2]), bonus: 0, type: base.damage[0]?.type ?? "untyped" }] } : base;
     const result = performStrike(state, enemy, mover, reaction.penalty ? { ...strike, bonus: strike.bonus - reaction.penalty } : strike, { reaction: true, trigger: kind, fortune: !!reaction.fortune });
     if (reaction.hinders && result?.degree >= SUCCESS) mover.rollPenalty = (mover.rollPenalty ?? 0) + reaction.hinders;
     return result;
@@ -574,14 +604,29 @@ function approachAnswers(state, mover) {
 }
 
 // A Strike in its reach (Tail Lash) or an attack on its ally (Avenging Bite), B70: the reactions that answer it.
-function strikeProvokes(state, mover, target) {
+function strikeProvokes(state, mover, target, strike = null) {
     for (const enemy of engagedEnemies(state, mover)) {
         if (!canAct(mover) || !isActive(mover)) break;
         if (!canReact(enemy) || enemy.cond.fleeing) continue;
         // (Cutting Rebuke, Bite Back, B84: a Strike at it.)
-        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("strike") || (entry.triggers.includes("ally-attacked") && target !== enemy && target.side === enemy.side) || (entry.triggers.includes("attacked") && target === enemy));
+        // (B122: Knowing Glance's "targeted by a melee Strike": melee ones only.)
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("strike") || (entry.triggers.includes("ally-attacked") && target !== enemy && target.side === enemy.side) || (entry.triggers.includes("attacked") && target === enemy && (!entry.melee || !strike || strike.melee)));
         if (reaction) reactionStrikeAt(state, enemy, mover, reaction, "strike");
     }
+}
+
+// Spell Interception (B122): a creature casting a spell in its Melee, its Strike at it; a hit disrupts the spell. Whether the spell is
+// disrupted.
+export function castAnswers(state, caster) {
+    let disrupted = false;
+    for (const enemy of engagedEnemies(state, caster)) {
+        if (!canAct(caster) || !isActive(caster)) break;
+        if (!canReact(enemy) || !canAct(enemy) || enemy.cond.fleeing) continue;
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("cast"));
+        const result = reaction ? reactionStrikeAt(state, enemy, caster, reaction, "cast") : null;
+        if (reaction?.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) disrupted = true;
+    }
+    return disrupted;
 }
 
 // A rage or frenzy its trigger sets off (B65): once a fight (it ends fatigued), the reaction spent when it's one.
