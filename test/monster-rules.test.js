@@ -2698,3 +2698,20 @@ test("Two Strikes at full bonus; a claw's damage again when both land (2026-10-1
     assert.ok(state.log.filter((line) => new RegExp(`  ${fighter.name} takes \\d+ more`).test(line)).length >= 1, state.log.join("\n"));
     assert.equal(s.attacksThisTurn, 3);
 });
+
+test("Two Strikes only at an Off-Guard or Immobilized creature; a requirement it doesn't know, never (2026-10-11, B113)", () => {
+    const [fighter] = martialParty(5);
+    const plan = (requires, setUp) => {
+        const zecui = { ...moderateCreature(5, "zec", "Zecui"), engagement: 1 };
+        addBuiltin(zecui, { builtin: "multi-strike", actions: 1, strikes: [null, null], sameMap: true, sameTarget: true, requires }, "Test Stab");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, zecui] }, {}, 1);
+        setUp?.(state.byId.get(fighter.id));
+        const z = state.byId.get("zec");
+        z.actionsLeft = 3;
+        return scoreOptions(state, z).options.some((option) => option.action?.type === "multiStrike");
+    };
+    assert.equal(plan("off-guard"), false, "not at a creature on guard");
+    assert.equal(plan("off-guard", (f) => { f.cond.offGuard = true; }), true);
+    assert.equal(plan("off-guard", (f) => { f.cond.immobilized = true; }), true);
+    assert.equal(plan("uncontrollable"), false);
+});

@@ -860,6 +860,9 @@ function expand(ctx, node, actionsLeft) {
                 if (ability.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
                 // (B107, Eviscerate: "has not attacked yet this turn".)
                 if (ability.requires === "first-attack" && (node.attacks > 0 || (c.attacksThisTurn ?? 0) > 0)) continue;
+                // (B113, Dual Stab: "against an Immobilized or Off-Guard target"; a requirement the engine doesn't know, never.)
+                if (ability.requires === "off-guard" && !(isOffGuard(target) || target.cond.immobilized)) continue;
+                if (ability.requires && !["grabbed", "first-attack", "off-guard"].includes(ability.requires)) continue;
                 let expected = 0;
                 // (B106: a second Strike only after a first that hits, worth that chance.)
                 let firstHits = 1;
