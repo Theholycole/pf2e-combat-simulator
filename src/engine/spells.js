@@ -306,7 +306,40 @@ function betterSave(state, statistic, options, result, spell = null) {
         result = { ...result, total, degree: DEGREE_NAMES[degreeOf(total, options.dc, result.natural)] };
         log(state, `  ${saver.name} uses ${ward.name}: +${ward.value} to the save`);
     }
+    // (B125: an ally's bonus to the save as it comes — Stay Strong!'s animals, Free Mind's mental effects and its success made critical.)
+    const traits = spell?.plan?.traits ?? [];
+    const near = (c, within) => within >= 60 || (within <= 10 ? sameMelee(c, saver) : saver.band !== "far" || c.band === "far");
+    if (SAVES.has(statistic) && saver?.id && isActive(saver) && Number.isFinite(result?.total) && Number.isFinite(options?.dc)) {
+        const helper = state.list.find((c) => c !== saver && c.side === saver.side && c.allySaveBonus && isActive(c) && canReact(c) && near(c, c.allySaveBonus.within)
+            && (!c.allySaveBonus.against || traits.includes(c.allySaveBonus.against)) && (!c.allySaveBonus.animal || (saver.traits ?? []).includes("animal")));
+        if (helper) {
+            const rule = helper.allySaveBonus;
+            const total = result.total + rule.value;
+            let degree = DEGREE_NAMES[degreeOf(total, options.dc, result.natural)];
+            if (rule.upgrade && degree === "success") degree = "criticalSuccess";
+            if (degree !== result.degree) {
+                helper.reactionUsed = true;
+                state.stats.reactions++;
+                log(state, `  ${helper.name} uses ${rule.name}: +${rule.value} to ${saver.name}'s save`);
+                result = { ...result, total, degree };
+            }
+        }
+    }
     if (!SAVES.has(statistic) || !saver?.id || !["failure", "criticalFailure"].includes(result?.degree) || !isActive(saver)) return result;
+    // (B125: an ally's failed save rerolled, keeping the better — against the effects it names, or its kind of save.)
+    const rerolls = state.list.find((c) => c.allySaveReroll && (c !== saver || c.allySaveReroll.self) && c.side === saver.side && isActive(c) && canReact(c) && (c.allySaveRerollsUsed ?? 0) < c.allySaveReroll.uses
+        && (c === saver || near(c, c.allySaveReroll.within)) && (!c.allySaveReroll.save || c.allySaveReroll.save === statistic) && (!c.allySaveReroll.against || c.allySaveReroll.against.some((trait) => traits.includes(trait))));
+    if (rerolls) {
+        rerolls.reactionUsed = true;
+        rerolls.allySaveRerollsUsed = (rerolls.allySaveRerollsUsed ?? 0) + 1;
+        state.stats.reactions++;
+        const natural = state.rng.d20();
+        const total = natural + options.modifier;
+        const degree = DEGREE_NAMES[degreeOf(total, options.dc, natural)];
+        log(state, `  ${rerolls.name} uses ${rerolls.allySaveReroll.name}: ${saver.name} rerolls, ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
+        if (DEGREE_NAMES.indexOf(degree) > DEGREE_NAMES.indexOf(result.degree)) return { natural, total, dc: options.dc, degree };
+        return result;
+    }
     const reroll = saver.saveReroll;
     if (reroll && (!reroll.save || reroll.save === statistic) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
         saver.saveRerollUses--;

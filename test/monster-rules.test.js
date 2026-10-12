@@ -3014,3 +3014,25 @@ test("A guard takes its ward's damage (all or half); an ally kept from dropping 
     applyDamage(state, k, [{ type: "slashing", amount: k.hp.value + 5, persistent: false, precision: false }], { source: state.byId.get(fighter.id), physical: true });
     assert.ok(k.hp.value >= 5 && k.cond.prone && k.cond.wounded === 1);
 });
+
+test("An ally's save helped: a reroll keeping the better, a bonus as it comes (2026-10-11, B125)", () => {
+    const [fighter] = martialParty(5);
+    const none = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
+    const scare = { modelVersion: 13, source: { name: "Test Scare" }, rank: 1, traits: ["mental", "emotion"], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: null, area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 40 } }, sharedDamage: null, outcomes: { criticalSuccess: none, success: none, failure: { damage: none.damage, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, criticalFailure: { damage: none.damage, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] } } } };
+    const caster = { ...fighter, engagement: 1, spells: [entry("Test Scare", scare, null)] };
+    // Distracting Frolic: an ally beside it rerolls a failed save against a mental effect.
+    const dancer = withBuiltins({ ...moderateCreature(5, "dan", "Dancer"), engagement: 1 }, ["Test Frolic", { builtin: "save-reroll", ally: true, within: 10, against: ["mental", "illusion"] }]);
+    const ally = { ...moderateCreature(5, "aly", "Ally"), engagement: 1 };
+    let state = createFightState({ combatants: [caster, dancer, ally] }, {}, 1);
+    state.log = [];
+    castPlan(state, state.byId.get(fighter.id), state.byId.get(fighter.id).spells[0], ["aly"]);
+    assert.ok(state.log.some((line) => /Dancer uses Test Frolic: Ally rerolls/.test(line)), state.log.join("\n"));
+    // Free Mind: +4 to the save against a mental effect, when that changes the result.
+    const yamah = withBuiltins({ ...moderateCreature(5, "yam", "Yamah"), engagement: 1 }, ["Test Free Mind", { builtin: "save-bonus-reaction", ally: true, value: 4, kind: "status", against: "mental", upgrade: true }]);
+    state = createFightState({ combatants: [caster, yamah, { ...ally }] }, {}, 1);
+    state.log = [];
+    const target = state.byId.get("aly");
+    state.rng.d20 = () => Math.max(1, Math.min(20, 40 - target.saves.will - 2));
+    castPlan(state, state.byId.get(fighter.id), state.byId.get(fighter.id).spells[0], ["aly"]);
+    assert.ok(state.log.some((line) => /Yamah uses Test Free Mind: \+4 to Ally's save/.test(line)), state.log.join("\n"));
+});

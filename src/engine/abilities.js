@@ -169,9 +169,20 @@ export function addBuiltin(spec, plan, name) {
         // Occult Ward, Orc Superstition (B110): a bonus to its own save as it comes, its reaction.
         case "save-bonus-reaction":
             if (!(Number(plan.value) > 0)) return false;
+            // (B125, Stay Strong!, Free Mind: an ally's save, its bonus as it comes.)
+            if (plan.ally) {
+                spec.allySaveBonus = { name, value: Number(plan.value), within: Number(plan.within) || 60, against: plan.against ?? null, ...(plan.animal ? { animal: true } : {}), ...(plan.upgrade ? { upgrade: true } : {}) };
+                return true;
+            }
             spec.saveBonusReaction = { name, value: Number(plan.value), against: plan.against ?? null };
             return true;
         case "save-reroll":
+            // (B125, Hold Fast, Distracting Frolic, Guide to Fortune: an ally's failed save rerolled, keeping the better; its own too where
+            // it says so.)
+            if (plan.ally) {
+                spec.allySaveReroll = { name, within: Number(plan.within) || 60, save: plan.save ?? null, against: plan.against ?? null, uses: Number(plan.uses) || Infinity, ...(plan.self ? { self: true } : {}) };
+                return true;
+            }
             // (B93: Halfling Luck's "must use the new result", keep "new"; a free action's.)
             spec.saveReroll = { name, save: plan.save ?? null, ...(plan.keep ? { keep: plan.keep } : {}), ...(plan.free ? { free: true } : {}), ...(plan.mythic ? { mythic: true } : {}) };
             // (B108, Reroll: a Mythic Point each time, as many as it has.)
