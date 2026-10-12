@@ -834,12 +834,14 @@ function swallowedRounds(target, swallower, escapeDC = null) {
 export function applyStrikeRider(state, attacker, target, activity, critical, strike = null) {
     const rider = activity.onHit;
     if (rider.size && sizeRank(target.size) > sizeRank(rider.size)) return;
+    // (B107, Stomp: more damage on a creature already Prone.)
+    const prone = Boolean(target.cond.prone);
     for (const { slug, value, duration } of critical && rider.critical ? rider.critical : rider.conditions) {
         if (isActive(target) && applyCondition(state, target, slug, value ?? null, duration ?? null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
     }
     const push = critical && rider.criticalPush ? rider.criticalPush : rider.push;
     if (push && isActive(target)) applyMove(state, target, { kind: "push", distance: push });
-    for (const formula of rider.damage ?? []) {
+    for (const formula of [...(rider.damage ?? []), ...(prone ? rider.proneDamage ?? [] : [])]) {
         const instances = rollInstances(state, parseDamage(ownType(formula, strike))).map((instance) => ({ ...instance, amount: critical ? instance.amount * 2 : instance.amount }));
         const dealt = applyDamage(state, target, instances, { source: attacker });
         log(state, `  ${target.name} takes ${dealt} more ${instances.map((instance) => instance.type).join("/")}`);
@@ -864,7 +866,7 @@ export function strikeRiderValue(state, attacker, target, activity, strike = nul
     if (rider.size && sizeRank(target.size) > sizeRank(rider.size)) return { damage: 0, worth: 0 };
     let worth = rider.conditions.reduce((sum, { slug, value, duration }) => sum + conditionWorth(slug, value, duration), 0);
     if (rider.push && target.meleeId !== null) worth += 0.1;
-    let damage = (rider.damage ?? []).flatMap((formula) => parseDamage(ownType(formula, strike))).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
+    let damage = [...(rider.damage ?? []), ...(target.cond.prone ? rider.proneDamage ?? [] : [])].flatMap((formula) => parseDamage(ownType(formula, strike))).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
     if (activity.riderSpell) {
         const entry = spellExpectation(state, attacker, activity.riderSpell, [target]).find((item) => item.target === target);
         damage += entry?.damage ?? 0;

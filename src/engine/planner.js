@@ -837,6 +837,8 @@ function expand(ctx, node, actionsLeft) {
                 // Hunted Shot, Twin Takedown: against the hunted prey only. Maul: a creature it holds (B62).
                 if (ability.preyOnly && c.prey !== target.id) continue;
                 if (ability.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
+                // (B107, Eviscerate: "has not attacked yet this turn".)
+                if (ability.requires === "first-attack" && (node.attacks > 0 || (c.attacksThisTurn ?? 0) > 0)) continue;
                 let expected = 0;
                 // (B106: a second Strike only after a first that hits, worth that chance.)
                 let firstHits = 1;
@@ -846,7 +848,8 @@ function expand(ctx, node, actionsLeft) {
                     const second = ability.secondPenalty && step > 0 && !c.strikes[index].agile ? 2 : 0;
                     // (Twin Feint, B74: the second against an off-guard target, about +2; after a first hit only, half that.)
                     const feint = step === 1 && ability.secondOffGuard ? (ability.secondOffGuard === true ? 2 : 1) : 0;
-                    const strike = second || feint || ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - second + feint - (ability.penalty ?? 0) } : c.strikes[index];
+                    const own = ability.penalties?.[step] ?? 0;
+                    const strike = second || feint || ability.penalty || own ? { ...c.strikes[index], bonus: c.strikes[index].bonus - second + feint - (ability.penalty ?? 0) - own } : c.strikes[index];
                     const expectation = ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone);
                     expected += (expectation?.damage ?? 0) * (ability.ifFirstHits && step > 0 ? firstHits : 1);
                     if (step === 0) firstHits = expectation?.hitChance ?? 0;

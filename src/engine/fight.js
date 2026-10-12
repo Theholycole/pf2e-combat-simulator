@@ -719,6 +719,8 @@ function act(state, c, action) {
                 // Double Slice's second Strike: -2 unless agile (C4). A monster's that doesn't raise the penalty: none (B62).
                 if (ability.secondPenalty && step > 0 && !strike.agile) strike = { ...strike, bonus: strike.bonus - 2 };
                 if (ability.penalty) strike = { ...strike, bonus: strike.bonus - ability.penalty };
+                // (B107, Eviscerate: each Strike's own penalty, "the next two with a -4 penalty …, and the last one with a -8 penalty".)
+                if (ability.penalties?.[step]) strike = { ...strike, bonus: strike.bonus - ability.penalties[step] };
                 // Twin Feint (B74): the target is off-guard against the second attack (or only after a first that hit).
                 if (step === 1 && (ability.secondOffGuard === true || (ability.secondOffGuard === "hit" && firstHit))) (target.offGuardTo ??= []).push({ attacker: c.id, attacks: "all", uses: 1 });
                 const result = performStrike(state, c, target, strike);

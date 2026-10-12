@@ -2537,3 +2537,40 @@ test("An effect for its allies as its own Strike critically hits (2026-10-11, B1
     performStrike(state, f, state.byId.get("tri"), f.strikes[0]);
     assert.ok((state.byId.get("tri").effects ?? []).some((effect) => effect.model.name === "Test Curl"), state.log.join("\n"));
 });
+
+test("More damage on a creature already Prone; four Strikes at their own penalties, before any other attack (2026-10-11, B107)", () => {
+    const [fighter] = martialParty(5);
+    const stomp = { builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null, proneDamage: ["2d6[slashing]"] } };
+    const hit = (prone) => {
+        const cap = { ...moderateCreature(5, "cap", "Cap"), engagement: 1 };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, cap] }, {}, 1);
+        state.log = [];
+        const f = state.byId.get(fighter.id);
+        if (prone) f.cond.prone = true;
+        const before = f.hp.value;
+        applyStrikeRider(state, state.byId.get("cap"), f, stomp, false, { damage: [{ type: "bludgeoning" }] });
+        return before - f.hp.value;
+    };
+    assert.ok(hit(true) > 0, "on a Prone creature");
+    assert.equal(hit(false), 0, "not on one standing");
+    // Eviscerate: the penalties per Strike, and only as its first attack this turn.
+    const rivka = { ...moderateCreature(5, "riv", "Rivka"), engagement: 1 };
+    addBuiltin(rivka, { builtin: "multi-strike", actions: 2, strikes: [null, null, null, null], sameTarget: true, sameMap: true, penalties: [0, 4, 4, 8], countsAs: 4, requires: "first-attack" }, "Test Eviscerate");
+    assert.deepEqual(rivka.multiStrikes[0].penalties, [0, 4, 4, 8]);
+    const plans = (attacks) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, rivka] }, {}, 1);
+        const r = state.byId.get("riv");
+        r.actionsLeft = 3;
+        r.attacksThisTurn = attacks;
+        return scoreOptions(state, r).options.some((option) => option.action?.type === "multiStrike");
+    };
+    assert.equal(plans(0), true);
+    assert.equal(plans(1), false, "not after an attack");
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, rivka] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 10;
+    performAction(state, state.byId.get("riv"), { type: "multiStrike", ability: 0, targetId: fighter.id, actions: 2 });
+    const totals = state.log.filter((line) => /Rivka .* → .*: \d+ vs AC/.test(line)).map((line) => Number(/: (\d+) vs AC/.exec(line)[1]));
+    assert.deepEqual(totals.map((total) => totals[0] - total), [0, 4, 4, 8], state.log.join("\n"));
+    assert.equal(state.byId.get("riv").attacksThisTurn, 4);
+});
