@@ -1177,8 +1177,22 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     };
     // (A failed save a reaction makes better, B80.)
     const roll = (statistic, options) => betterSave(state, statistic, options, misfortune(statistic, options) ?? rolled(statistic, options), spell);
-    const io = { ...live, roll, choose: chooser(caster, targets) };
+    // (B195, Siphon Life: a foe's healing at its least — each die at 1, flat values halved — then temporary Hit Points on the siphoner.)
+    const siphon = info.healing ? state.list.find((c) => c.healSiphon && c.side !== caster.side && isActive(c) && canReact(c)
+        && (c.healSiphon.within >= 60 || sameMelee(c, caster) || c.band === caster.band)) : null;
+    if (siphon) {
+        siphon.reactionUsed = true;
+        state.stats.reactions++;
+        log(state, `  ${siphon.name} uses ${siphon.healSiphon.name}: the healing is at its least`);
+    }
+    const least = (instance) => Math.max(0, Math.floor(Math.floor(instance.constant / 2) + instance.dice.reduce((sum, term) => sum + term.factor * term.count, 0)));
+    const io = { ...live, ...(siphon ? { damage: least } : {}), roll, choose: chooser(caster, targets) };
     const result = registry.resolveSync(spell.plan, context, io);
+    if (siphon?.healSiphon.tempHp && isActive(siphon)) {
+        const temp = rollCount(state, siphon.healSiphon.tempHp);
+        if (temp > (siphon.hp.temp ?? 0)) siphon.hp.temp = temp;
+        log(state, `  ${siphon.name} gains ${temp} temporary HP`);
+    }
     for (const target of targets) {
         const degree = result.degrees[target.id];
         if (degree) log(state, `  ${target.name}: ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);

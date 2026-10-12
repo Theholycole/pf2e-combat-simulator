@@ -3935,3 +3935,28 @@ test("A free follow-up to a Strike that hit, used at once: a Dirty Trick after a
     assert.equal(d.riderReady?.index, undefined, "not left as its next action");
     assert.equal(state.byId.get("fighter").cond.clumsy, 1);
 });
+
+test("An ally that dies back at half its Hit Points, once (Reawaken!); a foe's healing at its least, and temporary Hit Points (Siphon Life, 2026-10-12, B195)", () => {
+    const [fighter, cleric] = martialParty(5);
+    // Back at half, once a creature; not for a PC that drops.
+    let dragon = withBuiltins({ ...moderateCreature(5, "drg", "Dragon"), engagement: 1 }, ["Test Return", { builtin: "rescue", within: null, sees: true, hp: "half", living: true, oncePerTarget: true, onDeath: true }]);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon, { ...moderateCreature(5, "ogre", "Ogre"), engagement: 1, hp: { value: 10, max: 100 } }] }, {}, 1);
+    state.log = [];
+    const ogre = state.byId.get("ogre");
+    applyDamage(state, ogre, [{ type: "slashing", amount: 15, persistent: false, precision: false }], { source: state.byId.get(fighter.id) });
+    assert.ok(state.log.includes("  Dragon uses Test Return: Ogre returns to life at 50 HP") && isActive(ogre), state.log.join("\n"));
+    state.byId.get("drg").reactionUsed = false;
+    applyDamage(state, ogre, [{ type: "slashing", amount: 60, persistent: false, precision: false }], { source: state.byId.get(fighter.id) });
+    assert.ok(!isActive(ogre), "only once");
+    assert.equal(addBuiltin({ ...moderateCreature(5, "x", "X") }, { builtin: "rescue", within: null, sees: true, hp: 0, dying: 1, onDeath: true }, "Test Dying"), false, "returned dying isn't played");
+    // A foe's healing at its least: 2d8+8 → 2 + 4.
+    const heal = { name: "Test Mend", castRank: 1, dc: 20, attack: 10, pool: null, plan: { modelVersion: 13, source: { name: "Test Mend" }, rank: 1, traits: ["healing"], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "healing", native: { healing: { components: [{ id: "0", formula: "2d8+8", kinds: ["healing"] }], recipients: "any" } } } } };
+    dragon = withBuiltins({ ...moderateCreature(5, "drg", "Dragon"), engagement: 1 }, ["Test Siphon", { builtin: "heal-siphon", within: 60, tempHp: "4d8", tempRounds: 1 }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 10, max: 80 } }, { ...cleric, id: "cleric", spells: [heal], spellPools: {} }, dragon] }, {}, 1);
+    state.log = [];
+    state.rng.die = (sides) => sides;
+    castSpell(state, state.byId.get("cleric"), 0, [fighter.id], 2);
+    assert.ok(state.log.includes("  Dragon uses Test Siphon: the healing is at its least"), state.log.join("\n"));
+    assert.equal(state.byId.get(fighter.id).hp.value, 16);
+    assert.equal(state.byId.get("drg").hp.temp, 32);
+});

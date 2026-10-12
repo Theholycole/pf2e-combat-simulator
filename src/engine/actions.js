@@ -1124,6 +1124,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         if (!rule || friend === target || friend.side !== target.side || !isActive(friend) || !canReact(friend) || !canAct(friend) || massive) continue;
         if ((rule.uses ?? Infinity) <= (friend.rescuesUsed ?? 0) || (rule.oncePerTarget && friend.rescued?.has(target.id))) continue;
         if (rule.living && (target.traits ?? []).some((trait) => trait === "undead" || trait === "construct")) continue;
+        // (B195: as it dies — a creature dropping at 0 is a PC that isn't dead.)
+        if (rule.onDeath && target.kind === "pc") continue;
         if (!(rule.within >= 60 || sameMelee(friend, target) || (rule.within > 10 && target.band !== "far") || friend.band === target.band)) continue;
         friend.reactionUsed = true;
         friend.rescuesUsed = (friend.rescuesUsed ?? 0) + 1;
@@ -1133,9 +1135,9 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
             target.hp.value = Math.max(1, Math.min(target.hp.max, rollCount(state, rule.heal)));
             target.cond.prone = true;
             target.cond.wounded = (target.cond.wounded ?? 0) + 1;
-        } else target.hp.value = 1;
+        } else target.hp.value = rule.hp === "half" ? Math.max(1, Math.floor(target.hp.max / 2)) : 1;
         if (rule.doomed) target.cond.doomed = Math.max(target.cond.doomed ?? 0, rule.doomed);
-        log(state, `  ${friend.name} uses ${rule.name}: ${target.name} stays up at ${target.hp.value} HP`);
+        log(state, `  ${friend.name} uses ${rule.name}: ${target.name} ${rule.onDeath ? "returns to life" : "stays up"} at ${target.hp.value} HP`);
         return;
     }
     // Death Frenzy: a last Strike as it drops.

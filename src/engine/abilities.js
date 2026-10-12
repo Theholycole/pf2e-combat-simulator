@@ -305,8 +305,14 @@ export function addBuiltin(spec, plan, name) {
             spec.intercept = { name, ward: plan.ward ?? "ally", share: Number(plan.share) || 1, ...(plan.strikes ? { strikes: true } : {}), ...(plan.attacks ? { attacks: true } : {}), ...(Number(plan.within) > 0 ? { within: Number(plan.within) } : {}) };
             return true;
         // You Don't Have My Permission to Die!, Soul Anchor, Recall the Fallen (B124): an ally kept from dropping.
+        // (B195, Reawaken!: a creature it sees that dies, back at half its Hit Points, each once; returned at 0 HP, dying or stable, isn't played.)
         case "rescue":
-            spec.rescue = { name, within: Number(plan.within) || 30, ...(plan.heal ? { heal: plan.heal } : { hp: 1 }), ...(plan.doomed ? { doomed: Number(plan.doomed) } : {}), ...(plan.living ? { living: true } : {}), ...(plan.perDay ? { uses: 1 } : {}), ...(plan.oncePerTarget ? { oncePerTarget: true } : {}) };
+            if (plan.hp === 0) return false;
+            spec.rescue = { name, within: plan.sees ? Infinity : Number(plan.within) || 30, ...(plan.heal ? { heal: plan.heal } : plan.hp === "half" ? { hp: "half" } : { hp: 1 }), ...(plan.onDeath ? { onDeath: true } : {}), ...(plan.doomed ? { doomed: Number(plan.doomed) } : {}), ...(plan.living ? { living: true } : {}), ...(plan.perDay ? { uses: 1 } : {}), ...(plan.oncePerTarget ? { oncePerTarget: true } : {}) };
+            return true;
+        // (B195, Siphon Life: a foe's healing spell near it at its least — dice at their minimum, flat values halved — and temporary Hit Points.)
+        case "heal-siphon":
+            spec.healSiphon = { name, within: Number(plan.within) || 60, ...(plan.tempHp ? { tempHp: String(plan.tempHp) } : {}) };
             return true;
         // Fast Swallow (B70): Swallow Whole as a reaction when it grabs a creature.
         case "fast-swallow":
