@@ -4574,3 +4574,10 @@ test("A teleport to a creature acting within its distance, then a Strike; a tele
     assert.match(state.log.join("\n"), /Hound teleports to/, state.log.join("\n"));
     assert.equal(sameMelee(state.byId.get("hnd"), state.byId.get(fighter.id)), true);
 });
+
+test("Extra damage on Strikes with a flat part of its own (2026-10-12, B243)", () => {
+    const strike = { name: "Claw", damage: [{ dice: 2, die: 8, bonus: 4, multiplier: 1, type: "slashing" }] };
+    const parts = withExtraDamage(strike, ["3d8[force]", "3[force]"]).damage.slice(1);
+    assert.deepEqual(parts.map(({ dice, die, bonus, type }) => [dice, die, bonus, type]), [[3, 8, 0, "force"], [0, 0, 3, "force"]]);
+    assert.deepEqual(withExtraDamage(strike, ["(2d6+2)[fire]"]).damage.at(-1).bonus, 2, "a bracketed formula too");
+});

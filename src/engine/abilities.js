@@ -507,9 +507,10 @@ export function chargeOn(c, charge, targetId) {
 export function withExtraDamage(strike, formulas) {
     if (!strike || !formulas?.length) return strike;
     // (B213, Spearing Tail: "4d6[persistent,bleed]" — persistent, as PF2e's bleed is.)
-    const parts = formulas.map((formula) => /^(\d+)d(\d+)(?:\s*([+-])\s*(\d+))?\[(persistent,)?([a-z]+)\]$/.exec(String(formula).trim())).filter(Boolean)
+    // (B243, Unstoppable Onslaught: a flat part too, "3[force]"; a bracketed formula, "(2d6+2)[fire]".)
+    const parts = formulas.map((formula) => /^\(?(?:(\d+)d(\d+))?(?:\s*([+-])?\s*(\d+))?\)?\[(persistent,)?([a-z]+)\]$/.exec(String(formula).trim())).filter((dice) => dice && (dice[1] || dice[4]))
         // (B241, Rocketing Strafe: "2d6[untyped]" — the Strike's own damage type.)
-        .map((dice) => ({ dice: Number(dice[1]), die: Number(dice[2]), bonus: (dice[3] === "-" ? -1 : 1) * Number(dice[4] ?? 0), multiplier: 1, type: dice[6] === "untyped" ? strike.damage[0]?.type ?? "untyped" : dice[6], persistent: Boolean(dice[5]) || dice[6] === "bleed", precision: false }));
+        .map((dice) => ({ dice: Number(dice[1] ?? 0), die: Number(dice[2] ?? 0), bonus: (dice[3] === "-" ? -1 : 1) * Number(dice[4] ?? 0), multiplier: 1, type: dice[6] === "untyped" ? strike.damage[0]?.type ?? "untyped" : dice[6], persistent: Boolean(dice[5]) || dice[6] === "bleed", precision: false }));
     return parts.length ? { ...strike, damage: [...strike.damage, ...parts] } : strike;
 }
 
