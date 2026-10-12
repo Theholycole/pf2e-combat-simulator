@@ -3914,3 +3914,24 @@ test("A ranged spell attack at it rolled twice, the worse kept; a spell aimed at
     assert.ok(state.log.includes("  Dragon uses Test Answer: resistance 4 against it"), state.log.join("\n"));
     assert.equal(d.hp.value, 300 - 10 - 26);
 });
+
+test("A free follow-up to a Strike that hit, used at once: a Dirty Trick after a tail Strike (Improved Vex, 2026-10-12, B194)", () => {
+    const none = () => ({ damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] });
+    const clumsy = () => ({ ...none(), effects: [{ kind: "condition", slug: "clumsy", value: 1, duration: null }] });
+    const plan = { modelVersion: 13, source: { name: "Test Vex" }, rank: 1, traits: [], activation: { time: "free", traits: [] }, targeting: { target: "the creature the Strike hits", range: "touch", area: null },
+        trigger: { event: "use", map: false, cost: "free", followUp: { strike: "tail", melee: false, on: ["success", "criticalSuccess"] } },
+        resolution: { kind: "check", check: { roll: "skill", statistic: "thievery", against: { dc: "target", statistic: "reflex" } }, sharedDamage: null, outcomes: { criticalSuccess: clumsy(), success: clumsy(), failure: none(), criticalFailure: none() } } };
+    const drake = { ...moderateCreature(5, "drake", "Drake"), engagement: 1, spells: [{ name: "Test Vex", plan, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" }] };
+    drake.strikes = [{ ...drake.strikes[0], name: "Jaws" }, { ...drake.strikes[0], name: "Tail" }];
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, drake] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 19;
+    const d = state.byId.get("drake");
+    triggerRiders(state, d, state.byId.get("fighter"), d.strikes[0], 2);
+    assert.ok(!state.log.some((line) => /casts Test Vex/.test(line)), "not after a jaws hit");
+    triggerRiders(state, d, state.byId.get("fighter"), d.strikes[1], 2);
+    assert.ok(state.log.some((line) => /Drake casts Test Vex at Fighter/.test(line)), state.log.join("\n"));
+    assert.equal(d.riderReady?.index, undefined, "not left as its next action");
+    assert.equal(state.byId.get("fighter").cond.clumsy, 1);
+});

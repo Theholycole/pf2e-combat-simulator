@@ -1284,6 +1284,11 @@ export function triggerRiders(state, attacker, target, strike, degree = SUCCESS)
             // results by it, "Enfeebled 2 (or Enfeebled 3 on a critical hit)".)
             const listing = !follow.listing || (strike.attackEffects ?? []).some((effect) => String(effect).replace(/^improved-/, "") === follow.listing);
             if ((follow.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree]) && named && listing && (!follow.melee || strike.melee)) {
+                // (B194, Improved Vex: a free one, at once.)
+                if (trigger.cost === "free") {
+                    if (isActive(target)) castSpell(state, attacker, index, [target.id]);
+                    continue;
+                }
                 if (ready) (ready.also ??= []).push(index);
                 else ready = attacker.riderReady = { index, targetId: target.id, degree };
             }
