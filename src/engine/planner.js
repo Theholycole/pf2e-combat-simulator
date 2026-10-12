@@ -15,7 +15,7 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, multiStrikeOrder, strikeNamed, sweepActionIndex } from "./abilities.js";
+import { castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, multiStrikeOrder, strikeNamed, sweepActionIndex } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
@@ -964,6 +964,8 @@ function expand(ctx, node, actionsLeft) {
             // (B126: a requirement the engine doesn't play — "The dragon is burrowed", "It's the first round of combat" — not planned.)
             if (activity.requires === "requirement") continue;
             if (activity.requires === "first-round" && state.round !== 1) continue;
+            // (B147: straight after a spell it cast.)
+            if (activity.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, activity.nonCantrip))) continue;
             if (activity.strides && (!mobile || ctx.wavering)) continue;
             // Cover Fire (C19): a loaded firearm or crossbow, once a round.
             if (activity.coverFire && (c.usedThisTurn?.has("cover-fire") || node.casts.includes("coverFire"))) continue;
@@ -1167,6 +1169,8 @@ function expand(ctx, node, actionsLeft) {
             // Fanatical Frenzy: once it's hurt (B64). Blood Frenzy and the like come with their trigger, not as an action (B65).
             if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
             if (entry.trigger) continue;
+            // (B147: straight after a spell it cast, Primal Weapon.)
+            if (entry.afterCast && !(node.used === 0 && castJustNow(state, c, entry.afterCast === "non-cantrip"))) continue;
             let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1);
             // Its measured change to the Strikes (Arcane Cascade's force damage): about three rounds of it.
             const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);

@@ -89,7 +89,7 @@ export function addBuiltin(spec, plan, name) {
             const rounds = plan.stance ? Infinity : plan.model?.rounds ?? 10;
             const model = { name, rounds, modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}) };
             // (B137, Cower, Entrench: a stance that ends when it moves.)
-            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model, ...(plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}) }];
+            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model, ...(plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}) }];
             return true;
         }
         // Golem Antimagic (B56): what others' magic does to it.
@@ -285,6 +285,7 @@ export function addBuiltin(spec, plan, name) {
                 damage: plan.damage ?? null,
                 offGuard: !!plan.offGuard,
                 requires: plan.requires ?? null,
+                ...(plan.nonCantrip ? { nonCantrip: true } : {}),
                 oncePerFight: !!plan.oncePerFight,
                 ...(plan.countsAs > 1 ? { countsAs: plan.countsAs } : {}),
                 ...(plan.noMap ? { noMap: true } : {}),
@@ -311,6 +312,13 @@ export function addBuiltin(spec, plan, name) {
         default:
             return false;
     }
+}
+
+// Whether its last action was casting a spell (B147: Residual Force's "most recent action was to cast a spell", Primal Weapon's "a non-cantrip
+// spell").
+export function castJustNow(state, c, nonCantrip = false) {
+    const last = c.lastCast;
+    return Boolean(last) && last.round === state.round && last.action === (c.actionCount ?? 0) - 1 && (!nonCantrip || !last.cantrip);
 }
 
 // Whether the creature's last action was a Strike a follow-up needs (B68): after { strike, melee, on } against its last Strike

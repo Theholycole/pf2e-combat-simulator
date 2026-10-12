@@ -3431,3 +3431,22 @@ test("A maneuver, then a Strike at the same creature (Noble's Ruse, Bully, Terro
     assert.equal(b.attacksThisTurn, 2, state.log.join("\n"));
     assert.ok(f.hp.value < 500, state.log.join("\n"));
 });
+
+test("Straight after a spell it cast: a Strike activity and a Strike buff that need it (Residual Force, Primal Weapon, 2026-10-12, B147)", () => {
+    const [fighter] = martialParty(5);
+    const activity = { builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: "after-cast", oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: ["2d4[force]"], save: null, size: null } };
+    const buff = { builtin: "self-effect", actions: 0, model: { name: "Test Weapon", rounds: 2, modifiers: [], tempHp: 0 }, damage: ["1d6[slashing]"], strike: null, melee: true, duration: { value: 1, unit: "rounds", expiry: "turn-end" }, requires: "after-cast", nonCantrip: true };
+    const mage = withBuiltins({ ...moderateCreature(5, "mage", "Mage"), engagement: 1 }, ["Test Force", activity], ["Test Weapon", buff]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, mage] }, {}, 1);
+    const m = state.byId.get("mage");
+    m.round = state.round;
+    m.actionsLeft = 2;
+    m.actionCount = 1;
+    const offered = () => scoreOptions(state, m).options.map((option) => option.action.type);
+    assert.ok(!offered().includes("strikeActivity") && !offered().includes("selfEffect"), "not without a spell just cast");
+    m.lastCast = { round: state.round, action: 0, cantrip: false };
+    assert.ok(offered().includes("strikeActivity"), "after a spell");
+    assert.ok(offered().includes("selfEffect"), "after a spell");
+    m.lastCast = { round: state.round, action: 0, cantrip: true };
+    assert.ok(!offered().includes("selfEffect"), "not after a cantrip");
+});

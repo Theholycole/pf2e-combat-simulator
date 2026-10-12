@@ -593,6 +593,8 @@ function act(state, c, action) {
             // (A follow-up by the Strike's degree, "Enfeebled 2 (or Enfeebled 3 on a critical hit)": that Strike's degree, B68.)
             const byStrike = action.rider && spell?.plan?.resolution?.check?.statistic === "strike" && Number.isFinite(rider?.degree);
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}) });
+            // (B147: a spell just cast, for what needs it as its last action — Residual Force, Primal Weapon.)
+            if (spell && (!spell.kind || spell.castsSpell)) c.lastCast = { round: state.round, action: c.actionCount ?? 0, cantrip: (spell.plan?.traits ?? []).includes("cantrip") };
             break;
         }
         case "interact":
