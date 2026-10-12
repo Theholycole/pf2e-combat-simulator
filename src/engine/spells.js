@@ -1292,6 +1292,11 @@ function answerTargets(state, c, plan, other) {
     const radius = describeSpell(plan).area?.value;
     const live = other && isActive(other);
     if (["the attacker", "the creature the Strike hits", "the held creature"].includes(plan.targeting?.target)) return live ? [other] : [];
+    // (B131, Electric Reflexes: "an adjacent creature" — the one that set it off when it's beside it, else another foe in its Melee.)
+    if (plan.targeting?.target === "an adjacent creature") {
+        const beside = live && other.side !== c.side && sameMelee(c, other) ? other : state.list.find((foe) => foe.side !== c.side && isActive(foe) && sameMelee(c, foe));
+        return beside ? [beside] : [];
+    }
     if (radius && plan.targeting?.area?.around === "target") return live ? [other, ...around(state, other, radius, (near) => sameMelee(other, near)).filter((near) => near !== c)] : [];
     // (B106: an effect for its allies with no area, Brutal Rally's "All allies that can see the gang leader": its allies in the fight.)
     // (Curl Up's "gains a +2 circumstance bonus to AC": its own effect, on itself.)

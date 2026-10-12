@@ -3142,3 +3142,20 @@ test("A Strike activity's save only against an off-guard target (2026-10-12, B13
     assert.equal(run(false), 0, "not off-guard: no save");
     assert.equal(run(true), 2, "off-guard: the save, failed against DC 60");
 });
+
+test("A Grapple as a reaction to electricity damage, at a creature beside it (2026-10-12, B131)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const grapple = structuredClone(basic.grapple);
+    grapple.resolution.outcomes.success.damage = { mode: "formulas", formulas: [{ formula: "3d6[electricity]" }], rollScope: "target" };
+    const plan = { ...grapple, source: { name: "Test Reflexes" }, activation: { time: "reaction", traits: [] }, targeting: { ...grapple.targeting, target: "an adjacent creature", range: "touch" }, trigger: { event: "damaged", reaction: true, damageTypes: ["electricity"] } };
+    const [fighter, , , wizard] = martialParty(5);
+    const golem = { ...moderateCreature(5, "glm", "Golem"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry("Test Reflexes", plan)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...(wizard ?? fighter), id: "far", name: "Far", engagement: null, band: "far" }, golem] }, {}, 1);
+    state.log = [];
+    const g = state.byId.get("glm");
+    applyDamage(state, g, [{ type: "fire", amount: 5, persistent: false, precision: false }], { source: state.byId.get("far") });
+    assert.ok(!state.log.some((line) => /Test Reflexes/.test(line)), "not fire damage");
+    applyDamage(state, g, [{ type: "electricity", amount: 5, persistent: false, precision: false }], { source: state.byId.get("far") });
+    assert.ok(state.log.some((line) => /reacts with Test Reflexes/.test(line)), state.log.join("\n"));
+    assert.ok(state.log.some((line) => /Golem casts Test Reflexes at Fighter|Fighter:/.test(line)), "at the fighter beside it, not the far caster");
+});
