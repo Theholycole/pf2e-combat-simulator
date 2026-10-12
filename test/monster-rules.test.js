@@ -2678,3 +2678,23 @@ test("A maneuver back in place of a Strike: a Disarm as a Strike against it crit
     ({ state } = fight({ builtin: "reaction-strike", triggers: ["hit"], strike: null, skill: "shove", penalty: 0, disrupts: false }, 15));
     assert.ok(state.log.includes("  Tree uses Test Answer"), state.log.join("\n"));
 });
+
+test("Two Strikes at full bonus; a claw's damage again when both land (2026-10-11, B112)", () => {
+    const [fighter] = martialParty(5);
+    const sphinx = { ...moderateCreature(5, "sph", "Sphinx"), engagement: 1 };
+    addBuiltin(sphinx, { builtin: "multi-strike", actions: 3, strikes: [null, null], sameTarget: true, noMap: true, bothHit: { conditions: [], damage: [], strikeDamage: "claw" } }, "Test Rake");
+    assert.equal(sphinx.multiStrikes[0].noMap, true);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, sphinx] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 10;
+    const s = state.byId.get("sph");
+    s.strikes = s.strikes.map((strike) => ({ ...strike, name: "Claw", bonus: 100 }));
+    s.attacksThisTurn = 1;
+    performAction(state, s, { type: "multiStrike", ability: 0, targetId: fighter.id, actions: 3 });
+    const totals = state.log.filter((line) => /Sphinx .* → .*: \d+ vs AC/.test(line)).map((line) => Number(/: (\d+) vs AC/.exec(line)[1]));
+    assert.equal(totals.length, 2, state.log.join("\n"));
+    assert.equal(totals[0], totals[1], "both at the same bonus");
+    assert.ok(state.log.includes(`  Both Strikes hit ${fighter.name}`), state.log.join("\n"));
+    assert.ok(state.log.filter((line) => new RegExp(`  ${fighter.name} takes \\d+ more`).test(line)).length >= 1, state.log.join("\n"));
+    assert.equal(s.attacksThisTurn, 3);
+});

@@ -15,8 +15,8 @@ import { degreeDistribution, degreeOf, flatCheck, CRITICAL_SUCCESS, DEGREE_NAMES
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effects.js";
 import { applyDamage, expectedHitDamage, increaseDying, killCreature, log, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
-import { canReact, levelDC, saveBonusAgainst, sizeRank } from "./abilities.js";
-import { adjustDamage, adjustInstance } from "./damage.js";
+import { canReact, levelDC, saveBonusAgainst, sizeRank, strikeNamed } from "./abilities.js";
+import { adjustDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { moraleOdds } from "./morale.js";
 
@@ -371,6 +371,14 @@ export function bothHitRider(state, attacker, target, rider) {
         const instances = parsed.map((instance, index) => (instance.category === "persistent" ? persistentInstance({ ...instance, amount: rolled[index].amount }) : rolled[index]));
         const dealt = applyDamage(state, target, instances, { source: attacker });
         log(state, `  ${target.name} ${instances.some((instance) => instance.persistent) ? `takes persistent ${instances.find((instance) => instance.persistent).type}` : `takes ${dealt} more`}`);
+    }
+    // (B112, Claw Rake: "the target takes extra damage equal to one claw Strike": that Strike's damage rolled again.)
+    if (rider.strikeDamage && isActive(target)) {
+        const index = strikeNamed(attacker, rider.strikeDamage);
+        if (index >= 0) {
+            const dealt = applyDamage(state, target, rollStrikeDamage(state.rng, attacker.strikes[index], { critical: false }), { source: attacker });
+            log(state, `  ${target.name} takes ${dealt} more`);
+        }
     }
     // (B110, Dual Disarm: "If both Strikes hit, … can attempt to Disarm the target": its own basic action.)
     if (rider.follow && isActive(target) && canAct(attacker)) {

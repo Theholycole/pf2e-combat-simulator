@@ -871,7 +871,7 @@ function expand(ctx, node, actionsLeft) {
                     const feint = step === 1 && ability.secondOffGuard ? (ability.secondOffGuard === true ? 2 : 1) : 0;
                     const own = ability.penalties?.[step] ?? 0;
                     const strike = second || feint || ability.penalty || own ? { ...c.strikes[index], bonus: c.strikes[index].bonus - second + feint - (ability.penalty ?? 0) - own } : c.strikes[index];
-                    const expectation = ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, pos, node.prone);
+                    const expectation = ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.noMap ? 0 : ability.sameMap ? node.attacks : node.attacks + step, pos, node.prone);
                     expected += (expectation?.damage ?? 0) * (ability.ifFirstHits && step > 0 ? firstHits : 1);
                     if (step === 0) firstHits = expectation?.hitChance ?? 0;
                 }

@@ -721,6 +721,8 @@ function act(state, c, action) {
                 if (ability.sameTarget ? !target || !isActive(target) : !target || !isActive(target) || (strike.melee && !sameMelee(c, target))) target = ability.sameTarget ? null : engagedEnemies(state, c)[0] ?? null;
                 if (!target) break;
                 if (ability.sameMap) c.attacksThisTurn = attacks;
+                // (B112, Claw Rake: each at its highest attack bonus.)
+                if (ability.noMap) c.attacksThisTurn = 0;
                 // Double Slice's second Strike: -2 unless agile (C4). A monster's that doesn't raise the penalty: none (B62).
                 if (ability.secondPenalty && step > 0 && !strike.agile) strike = { ...strike, bonus: strike.bonus - 2 };
                 if (ability.penalty) strike = { ...strike, bonus: strike.bonus - ability.penalty };
@@ -744,7 +746,7 @@ function act(state, c, action) {
                     }
                 }
             }
-            if (ability.sameMap) c.attacksThisTurn = attacks + (ability.countsAs ?? multiStrikeOrder(c, ability)?.length ?? 0);
+            if (ability.sameMap || ability.noMap) c.attacksThisTurn = attacks + (ability.countsAs ?? multiStrikeOrder(c, ability)?.length ?? 0);
             if (ability.bothHit && made >= 2 && hits === made && struck) bothHitRider(state, c, struck, ability.bothHit);
             multiStrikeAfter(state, c, ability);
             break;
