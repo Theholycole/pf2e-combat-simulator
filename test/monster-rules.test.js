@@ -4465,3 +4465,25 @@ test("A critical hit beside it shared half and half; a lunge that lowers its AC 
     assert.equal(state.log.filter((entry) => / uses Test Duo$/.test(entry)).length, 1, state.log.join("\n"));
     assert.ok(!state.log.includes("  Eel uses Test Duo"), state.log.join("\n"));
 });
+
+test("An emanation on its foes only spares its allies in the Melee; a reaction's emanation too (2026-10-12, B229)", () => {
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const area = (foes, trigger = { event: "use" }) => ({ modelVersion: 13, source: { name: "Test Thorns" }, rank: 1, traits: [], activation: { time: trigger.reaction ? "reaction" : "1", traits: [] }, targeting: { target: null, range: null, area: { type: "emanation", value: 5, ...(foes ? { foes: true } : {}) } }, trigger,
+        resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 60 } }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "2d6[piercing]", type: null, category: null }] }, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] }, effects: [] } } } });
+    const caught = (foes) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, { ...moderateCreature(5, "bush", "Bush"), engagement: 1, spells: [entry("Test Thorns", area(foes))] }, { ...moderateCreature(5, "pal", "Pal"), engagement: 1, hp: { value: 999, max: 999 } }] }, {}, 1);
+        const bush = state.byId.get("bush");
+        return targetSetsFor(state, bush, bush.spells[0], { enemies: [state.byId.get(fighter.id)], allies: [state.byId.get("pal")], inMelee: (other) => sameMelee(bush, other), distance: () => 5, meleeId: bush.meleeId }).flatMap((set) => set.targets.map((target) => target.id));
+    };
+    assert.ok(caught(false).includes("pal"), "a plain emanation catches its ally too");
+    assert.ok(!caught(true).includes("pal") && caught(true).includes(fighter.id), "foes only");
+    // A reaction to a hit: its foes around it, not its ally.
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, { ...moderateCreature(5, "bush", "Bush"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry("Test Thorns", area(true, { event: "hit-by", reaction: true, melee: true }))] }, { ...moderateCreature(5, "pal", "Pal"), engagement: 1, hp: { value: 999, max: 999 } }] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 19;
+    const f = state.byId.get(fighter.id);
+    performStrike(state, f, state.byId.get("bush"), { ...f.strikes[0], bonus: 40 });
+    assert.match(state.log.join("\n"), /Bush reacts with Test Thorns/, state.log.join("\n"));
+    assert.equal(state.byId.get("pal").hp.value, 999, state.log.join("\n"));
+});

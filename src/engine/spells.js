@@ -110,7 +110,8 @@ function readSpell(base, actions) {
     // PF2e spell effects the compiler found for a spell left to PF2e's card (Bless).
     const applications = Array.isArray(nativeOf(plan).applications) ? nativeOf(plan).applications : [];
     const areaSource = targeting.area?.type ? targeting.area : applications.find((application) => application.area)?.area;
-    const area = areaSource?.type && Number(areaSource.value) > 0 ? { type: areaSource.type, value: Number(areaSource.value) } : null;
+    // (B229: "each foe within 5 feet" — an emanation on its foes only.)
+    const area = areaSource?.type && Number(areaSource.value) > 0 ? { type: areaSource.type, value: Number(areaSource.value), ...(areaSource.foes ? { foes: true } : {}) } : null;
     // The plan's check, or for a spell left to PF2e's own card ("unsupported"),
     // the native one or its first variant's (Lay on Hands vs. undead).
     const variants = mechanicalVariants(plan);
@@ -1450,7 +1451,8 @@ function answerTargets(state, c, plan, other) {
         const foe = nearestFoe(state, c, plan);
         return foe ? [foe] : [];
     }
-    return radius ? around(state, c, radius, (near) => sameMelee(c, near)) : [];
+    // (B229: an emanation on its foes only.)
+    return radius ? around(state, c, radius, (near) => sameMelee(c, near)).filter((near) => !describeSpell(plan).area?.foes || near.side !== c.side) : [];
 }
 
 // A foe for one-creature ability no creature set off (B100): one in its Melee, else one not far (for a range over 10 feet).
@@ -2068,6 +2070,8 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
             around.push(...state.list.filter((other) => apart(other) && other.side === caster.side && other.band === band && isActive(other)));
         }
         if (info.healing || info.helpful) around.push(caster);
+        // (B229: foes only.)
+        if (info.area.foes) around.splice(0, around.length, ...around.filter((other) => other.side !== caster.side));
         const helps = (info.healing && around.some((other) => other.side === caster.side && other.hp.value < other.hp.max)) || (info.helpful && around.some((other) => other.side === caster.side));
         if (helps || around.some((other) => other.side !== caster.side)) sets.push({ targets: around.slice(0, capacity) });
         return sets;
