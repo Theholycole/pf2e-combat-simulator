@@ -1224,11 +1224,17 @@ function passiveAnswers(state, c, other, matches) {
 
 // Who an answer goes on: the creature that set it off (the attacker, the creature its Strike hit, the creature starting its
 // turn), the creatures around it or around the creature it hit (Storm Smite), or none (the GM's targets in live play).
+const effectFor = (plan, recipients) => plan?.resolution?.kind === "effect" && (plan.resolution.applications ?? []).some((application) => application.recipients === recipients);
+const allyEffect = (plan) => effectFor(plan, "allies-in-area");
 function answerTargets(state, c, plan, other) {
     const radius = describeSpell(plan).area?.value;
     const live = other && isActive(other);
     if (["the attacker", "the creature the Strike hits", "the held creature"].includes(plan.targeting?.target)) return live ? [other] : [];
     if (radius && plan.targeting?.area?.around === "target") return live ? [other, ...around(state, other, radius, (near) => sameMelee(other, near)).filter((near) => near !== c)] : [];
+    // (B106: an effect for its allies with no area, Brutal Rally's "All allies that can see the gang leader": its allies in the fight.)
+    // (Curl Up's "gains a +2 circumstance bonus to AC": its own effect, on itself.)
+    if (!radius && effectFor(plan, "self")) return [c];
+    if (!radius && allyEffect(plan)) return state.list.filter((ally) => ally !== c && ally.side === c.side && isActive(ally) && ally.band !== "gone");
     // (B100: one creature, with none setting it off — Battle Cry's Demoralize as the fight starts: its nearest foe.)
     if (!radius && !other && plan.targeting?.target === "1 creature") {
         const foe = nearestFoe(state, c, plan);
@@ -1314,7 +1320,8 @@ function useReaction(state, c, other, matches) {
         if (!trigger?.reaction || !matches(trigger) || (!trigger.free && !canReact(c))) continue;
         if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
         const targets = answerTargets(state, c, spell.plan, other);
-        if (!targets.some((target) => target.side !== c.side)) continue;
+        // (A foe among them; or, B106, itself or its allies for an effect that helps them.)
+        if (!targets.some((target) => target.side !== c.side) && !((allyEffect(spell.plan) || effectFor(spell.plan, "self")) && targets.length)) continue;
         if (!trigger.free) c.reactionUsed = true;
         state.stats.reactions++;
         log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name}`);

@@ -838,6 +838,8 @@ function expand(ctx, node, actionsLeft) {
                 if (ability.preyOnly && c.prey !== target.id) continue;
                 if (ability.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
                 let expected = 0;
+                // (B106: a second Strike only after a first that hits, worth that chance.)
+                let firstHits = 1;
                 for (const [step, index] of order.entries()) {
                     // Double Slice: both at the current penalty, the second -2 unless agile (B62: not a monster's). A penalty on each
                     // (Frenzied Slashes' -2).
@@ -845,7 +847,9 @@ function expand(ctx, node, actionsLeft) {
                     // (Twin Feint, B74: the second against an off-guard target, about +2; after a first hit only, half that.)
                     const feint = step === 1 && ability.secondOffGuard ? (ability.secondOffGuard === true ? 2 : 1) : 0;
                     const strike = second || feint || ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - second + feint - (ability.penalty ?? 0) } : c.strikes[index];
-                    expected += ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone)?.damage ?? 0;
+                    const expectation = ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone);
+                    expected += (expectation?.damage ?? 0) * (ability.ifFirstHits && step > 0 ? firstHits : 1);
+                    if (step === 0) firstHits = expectation?.hitChance ?? 0;
                 }
                 if (expected <= 0) continue;
                 const before = node.damage[target.id] ?? 0;
@@ -906,6 +910,8 @@ function expand(ctx, node, actionsLeft) {
             if (activity.finisher && !c.panache) continue;
             // A follow-up's Strike (B68): straight after a Strike that allows it.
             if (activity.after && !(node.used === 0 && followsStrike(state, c, activity.after))) continue;
+            // (B106: Berserk Slam's "is berserk", a state the engine doesn't play.)
+            if (activity.requires === "berserk") continue;
             if (activity.strides && (!mobile || ctx.wavering)) continue;
             // Cover Fire (C19): a loaded firearm or crossbow, once a round.
             if (activity.coverFire && (c.usedThisTurn?.has("cover-fire") || node.casts.includes("coverFire"))) continue;

@@ -710,6 +710,8 @@ function act(state, c, action) {
             let struck = null;
             for (const [step, index] of (multiStrikeOrder(c, ability) ?? []).entries()) {
                 if (!canAct(c)) break;
+                // (B106, Pike and Strike: the second only after a first that hit.)
+                if (ability.ifFirstHits && step > 0 && !firstHit) break;
                 let strike = c.strikes[index];
                 if (ability.sameTarget ? !target || !isActive(target) : !target || !isActive(target) || (strike.melee && !sameMelee(c, target))) target = ability.sameTarget ? null : engagedEnemies(state, c)[0] ?? null;
                 if (!target) break;

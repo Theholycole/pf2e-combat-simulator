@@ -2480,3 +2480,60 @@ test("A Strike activity only at a foe it hit earlier this turn (2026-10-11, B105
     assert.equal(plan([{ strike: "Fist", targetId: fighter.id, hit: false }]), false, "not after a miss");
     assert.equal(plan([]), false, "not before any Strike");
 });
+
+test("A second Strike only after a first that hits; never one that needs berserk (2026-10-11, B106)", () => {
+    const [fighter] = martialParty(5);
+    const bosun = { ...moderateCreature(5, "bos", "Bosun"), engagement: 1 };
+    addBuiltin(bosun, { builtin: "multi-strike", actions: 2, strikes: [null, null], sameTarget: true, sameMap: true, ifFirstHits: true, instead: "move the target 5 feet within the pike's reach" }, "Test Pike");
+    assert.equal(bosun.multiStrikes[0].ifFirstHits, true);
+    const fight = (die) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, bosun] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => die;
+        performAction(state, state.byId.get("bos"), { type: "multiStrike", ability: 0, targetId: fighter.id, actions: 2 });
+        return state.log.filter((line) => /Bosun .* → /.test(line)).length;
+    };
+    assert.equal(fight(20), 2, "both after a hit");
+    assert.equal(fight(1), 1, "only the first after a miss");
+    // Berserk Slam: a state the engine doesn't play.
+    const slam = { builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: -1, damageBonus: 0, offGuard: false, requires: "berserk", oncePerFight: false, onHit: { conditions: [{ slug: "prone", value: null, duration: null }], critical: null, push: null, damage: ["1d6[strike]"], save: null, size: null } };
+    const golem = { ...moderateCreature(5, "gol", "Golem"), engagement: 1 };
+    addBuiltin(golem, slam, "Test Slam");
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, golem] }, {}, 1);
+    state.byId.get("gol").actionsLeft = 3;
+    assert.equal(scoreOptions(state, state.byId.get("gol")).options.some((option) => /activity/i.test(option.action?.type ?? "")), false);
+});
+
+test("An effect for its allies as its own Strike critically hits (2026-10-11, B106)", () => {
+    const [fighter] = martialParty(5);
+    const uuid = "Compendium.pf2e.bestiary-effects.Item.testrally000001";
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const rally = { modelVersion: 13, source: { name: "Test Rally" }, rank: 1, traits: [], activation: { time: "reaction", traits: [] }, targeting: { target: "up to 6 creatures", range: null, area: null }, trigger: { event: "own-strike", reaction: true, on: ["criticalSuccess"], strike: null },
+        resolution: { kind: "effect", applications: [{ kind: "native-spell-effect", uuid, label: "Effect: Test Rally", recipients: "allies-in-area" }] } };
+    const model = { name: "Effect: Test Rally", rounds: 1, modifiers: [{ on: "attack", type: "circumstance", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
+    const leader = { ...moderateCreature(5, "lead", "Leader"), engagement: 1, spells: [{ ...entry("Test Rally", rally), effects: { [uuid]: model } }] };
+    const ally = { ...moderateCreature(5, "ally", "Ally"), engagement: 1 };
+    const fight = (die) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, leader, ally] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => die;
+        const l = state.byId.get("lead");
+        performStrike(state, l, state.byId.get(fighter.id), l.strikes[0]);
+        return { state, l, a: state.byId.get("ally") };
+    };
+    let { state, l, a } = fight(20);
+    assert.ok(state.log.includes("  Leader reacts with Test Rally"), state.log.join("\n"));
+    assert.ok((a.effects ?? []).some((effect) => effect.model.name === "Effect: Test Rally"), state.log.join("\n"));
+    assert.equal(l.reactionUsed, true);
+    ({ state, a } = fight(15));
+    assert.equal((a.effects ?? []).length, 0, "not on a plain hit");
+    // Curl Up: its own effect as it takes damage.
+    const curl = { ...rally, source: { name: "Test Curl" }, targeting: { target: null, range: null, area: null }, trigger: { event: "damaged", reaction: true }, resolution: { kind: "effect", applications: [{ kind: "native-spell-effect", uuid, label: "Test Curl", recipients: "self", selfEffect: true }] } };
+    const trilobite = { ...moderateCreature(5, "tri", "Trilobite"), engagement: 1, spells: [{ ...entry("Test Curl", curl), effects: { [uuid]: { ...model, name: "Test Curl", modifiers: [{ on: "ac", type: "circumstance", value: 2 }] } } }] };
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, trilobite] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 20;
+    const f = state.byId.get(fighter.id);
+    performStrike(state, f, state.byId.get("tri"), f.strikes[0]);
+    assert.ok((state.byId.get("tri").effects ?? []).some((effect) => effect.model.name === "Test Curl"), state.log.join("\n"));
+});
