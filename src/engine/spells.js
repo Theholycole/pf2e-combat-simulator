@@ -302,12 +302,12 @@ function bestHit(c, target, meleeOnly) {
 // Luck (its own, one degree better), Word of Wisdom (an ally's within its distance, one degree better); those two not again for their
 // recharge (1d4 rounds). The result as it stands otherwise.
 const SAVES = new Set(["fortitude", "reflex", "will"]);
-function betterSave(state, statistic, options, result, spell = null) {
+function betterSave(state, statistic, options, result, spell = null, { area = false } = {}) {
     const saver = options?.actor;
     // (B110, Occult Ward: a bonus to its own save as it comes, against a spell (or any): its reaction on the first such save, the bonus
     // in the result.)
     const ward = saver?.saveBonusReaction;
-    if (ward && SAVES.has(statistic) && saver?.id && isActive(saver) && canReact(saver) && Number.isFinite(result?.total) && Number.isFinite(options?.dc) && (!ward.against || (spell && (!spell.kind || spell.kind === "spell")) || (ward.against === "magical" && (spell?.plan?.traits ?? []).some((trait) => ["magical", "arcane", "divine", "occult", "primal"].includes(trait))))) {
+    if (ward && SAVES.has(statistic) && (!ward.kind || ward.kind === statistic) && (!ward.area || area) && saver?.id && isActive(saver) && canReact(saver) && Number.isFinite(result?.total) && Number.isFinite(options?.dc) && (!ward.against || (spell && (!spell.kind || spell.kind === "spell")) || (ward.against === "magical" && (spell?.plan?.traits ?? []).some((trait) => ["magical", "arcane", "divine", "occult", "primal"].includes(trait))))) {
         saver.reactionUsed = true;
         state.stats.reactions++;
         const total = result.total + ward.value;
@@ -1187,7 +1187,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         return { natural, total, dc: options.dc, degree: DEGREE_NAMES[degreeOf(total, options.dc, natural)] };
     };
     // (A failed save a reaction makes better, B80.)
-    const roll = (statistic, options) => betterSave(state, statistic, options, misfortune(statistic, options) ?? rolled(statistic, options), spell);
+    const roll = (statistic, options) => betterSave(state, statistic, options, misfortune(statistic, options) ?? rolled(statistic, options), spell, { area: Boolean(info.area) });
     // (B195, Siphon Life: a foe's healing at its least — each die at 1, flat values halved — then temporary Hit Points on the siphoner.)
     const siphon = info.healing ? state.list.find((c) => c.healSiphon && c.side !== caster.side && isActive(c) && canReact(c)
         && (c.healSiphon.within >= 60 || sameMelee(c, caster) || c.band === caster.band)) : null;

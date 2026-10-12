@@ -134,8 +134,14 @@ export function addBuiltin(spec, plan, name) {
                 spec.resistUses = Number(plan.uses) || Infinity;
                 return true;
             }
+            // (B213, Shadow Siphon: half the damage of a spell, in place of a resistance.)
+            if (plan.value === "half") {
+                spec.resistReaction = { name, value: "half", on: plan.on ?? null, types: null, ...(plan.magical ? { magical: true } : {}), ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}) };
+                spec.resistUses = Number(plan.uses) || Infinity;
+                return true;
+            }
             if (!(Number(plan.value) > 0)) return false;
-            spec.resistReaction = { name, value: Number(plan.value), on: plan.on ?? null, types: plan.types ?? null, ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}), ...(plan.lasts ? { lasts: plan.lasts } : {}), ...(plan.acPenalty ? { acPenalty: plan.acPenalty } : {}), ...(plan.quickened ? { quickened: plan.quickened } : {}), ...(plan.lashBack ? { lashBack: { bonus: Number(plan.lashBack.bonus) || 0 } } : {}) };
+            spec.resistReaction = { name, value: Number(plan.value), on: plan.on ?? null, types: plan.types ?? null, ...(plan.magical ? { magical: true } : {}), ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}), ...(plan.lasts ? { lasts: plan.lasts } : {}), ...(plan.acPenalty ? { acPenalty: plan.acPenalty } : {}), ...(plan.quickened ? { quickened: plan.quickened } : {}), ...(plan.lashBack ? { lashBack: { bonus: Number(plan.lashBack.bonus) || 0 } } : {}) };
             spec.resistUses = Number(plan.uses) || Infinity;
             return true;
         // A harder Escape from it (B105): Tighten Coils' "The DC of the Escape check is increased by 2", No Liberation's "…a –2
@@ -203,7 +209,8 @@ export function addBuiltin(spec, plan, name) {
                 spec.allySaveBonus = { name, value: Number(plan.value), within: Number(plan.within) || 60, against: plan.against ?? null, ...(plan.animal ? { animal: true } : {}), ...(plan.upgrade ? { upgrade: true } : {}) };
                 return true;
             }
-            spec.saveBonusReaction = { name, value: Number(plan.value), against: plan.against ?? null };
+            // (B214, Scatter: its Reflex save against an area only.)
+            spec.saveBonusReaction = { name, value: Number(plan.value), against: plan.against ?? null, ...(plan.kind ? { kind: plan.kind } : {}), ...(plan.area ? { area: true } : {}) };
             return true;
         // (B183, Word of Advice: an ally's Stride and Strike, its extra damage on a hit.)
         case "ally-advance":

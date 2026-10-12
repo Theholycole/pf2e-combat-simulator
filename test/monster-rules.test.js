@@ -4167,3 +4167,48 @@ test("A Strike at each foe that hurts even on a failed attack; Frightened per hi
     assert.deepEqual(withExtraDamage(titan.strikes[0], ["2d6[bleed]"]).damage.at(-1).persistent, true);
     assert.deepEqual(withExtraDamage(titan.strikes[0], ["2d6[fire]"]).damage.at(-1).persistent, false);
 });
+
+test("A reaction's resistance to the triggering damage's own type for a while; half a spell's damage (2026-10-12, B214)", () => {
+    const [fighter] = martialParty(5);
+    const fight = (plan) => {
+        const golem = { ...moderateCreature(5, "glm", "Golem"), engagement: 1, hp: { value: 200, max: 200 } };
+        addBuiltin(golem, plan, "Test Resist");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, golem] }, {}, 1);
+        state.log = [];
+        return { state, g: state.byId.get("glm"), f: state.byId.get(fighter.id) };
+    };
+    const hit = (type, amount) => ({ type, amount, persistent: false, precision: false });
+    // Resistance 5 to the type it takes most of, kept for 10 rounds against that type only.
+    let { state, g, f } = fight({ builtin: "resist-damage", value: 5, on: null, types: ["triggering"], lasts: 10 });
+    assert.equal(applyDamage(state, g, [hit("slashing", 12), hit("fire", 3)], { source: f }), 10, state.log.join("\n"));
+    assert.ok(state.log.includes("  Golem uses Test Resist: resistance 5 to slashing against it"), state.log.join("\n"));
+    g.reactionUsed = false;
+    assert.equal(applyDamage(state, g, [hit("slashing", 8)], { source: f }), 3, "still resisted while it lasts");
+    // Half a spell's damage; not a Strike's.
+    ({ state, g, f } = fight({ builtin: "resist-damage", value: "half", on: null, types: null, magical: true }));
+    assert.equal(applyDamage(state, g, [hit("slashing", 10)], { source: f }), 10);
+    assert.ok(!g.reactionUsed, "not a spell's damage");
+    assert.equal(applyDamage(state, g, [hit("fire", 21)], { source: f, spell: { rank: 3, targeted: true } }), 10, state.log.join("\n"));
+    assert.ok(g.reactionUsed && state.log.includes("  Golem uses Test Resist: half the damage"));
+});
+
+test("A bonus to its own Reflex save against an area only (Scatter, 2026-10-12, B214)", () => {
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const blast = (statistic, area) => ({ name: "Test Blast", castRank: 1, dc: null, attack: null, pool: null, plan: { modelVersion: 13, source: { name: "Test Blast" }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: area ? "area" : "1 creature", range: "30 feet", area: area ? { type: "burst", value: 10 } : null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic, basic: false, against: { dc: "fixed", value: 30 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, criticalFailure: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] } } } } });
+    const fight = (statistic, area) => {
+        const swarm = { ...moderateCreature(5, "swm", "Swarm"), engagement: 1 };
+        addBuiltin(swarm, { builtin: "save-bonus-reaction", value: 2, kind: "reflex", area: true }, "Test Scatter");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [blast(statistic, area)] }, swarm] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => 10;
+        castSpell(state, state.byId.get(fighter.id), 0, ["swm"]);
+        return { state, s: state.byId.get("swm") };
+    };
+    let { state, s } = fight("reflex", true);
+    assert.ok(state.log.includes("  Swarm uses Test Scatter: +2 to the save"), state.log.join("\n"));
+    ({ state, s } = fight("will", true));
+    assert.equal(s.reactionUsed ?? false, false, "not a Will save");
+    ({ state, s } = fight("reflex", false));
+    assert.equal(s.reactionUsed ?? false, false, "not without an area");
+});

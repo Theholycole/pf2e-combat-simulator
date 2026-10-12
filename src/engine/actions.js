@@ -853,6 +853,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // Liquefy, Chipping Scales (B99): its reaction's resistance against this damage, and what it leaves.
     const resisting = resistReaction(state, target, instances, { source, physical, spell });
     const adjusted = adjustDamage(target, instances);
+    if (resisting?.half) adjusted.total = Math.floor(adjusted.total / 2);
     if (resisting) afterResisting(state, target, resisting, source);
     // A champion's reaction: resistance 2 + its level against the triggering damage, and more.
     const champion = adjusted.total > 0 ? championFor(state, target, source) : null;
@@ -941,6 +942,8 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     if ((resist.attack && !physical) || (resist.foe && !(source && source.side !== target.side))) return null;
     // (B193, Divert Essence: only a spell aimed at it, its rank the resistance.)
     if (resist.spell && !(spell?.targeted && spell.rank > 0 && source && source.side !== target.side)) return null;
+    // (B213, Shadow Siphon: "a spell or magical effect" — a spell's damage.)
+    if (resist.magical && !spell) return null;
     const value = resist.value === "rank" ? spell.rank : resist.value;
     const sets = (instance) => !instance.persistent && instance.amount > 0 && (!resist.on || resist.on.includes(instance.type) || (resist.on.includes("physical") && PHYSICAL_TYPES.has(instance.type)));
     if (adjustDamage(target, instances.filter(sets)).total <= 0) return null;
@@ -949,9 +952,16 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     if (Number.isFinite(target.resistUses)) target.resistUses--;
     const before = target.resistances;
     const plain = adjustDamage(target, instances).total;
-    const entries = (resist.types ?? ["all-damage"]).map((type) => ({ type, value, exceptions: [] }));
+    // (B213: half the damage, applied after its resistances.)
+    if (resist.value === "half") {
+        log(state, `  ${target.name} uses ${resist.name}: half the damage`);
+        return { before, resist, entries: [], resisted: 0, type: "untyped", half: true };
+    }
+    // (B213, Runic Resistance: "one damage type dealt by the triggering attack" — the type it takes most of.)
+    const main = instances.filter(sets).reduce((best, instance) => (!best || instance.amount > best.amount ? instance : best), null)?.type ?? "untyped";
+    const entries = (resist.types ?? ["all-damage"]).map((type) => ({ type: type === "triggering" ? main : type, value, exceptions: [] }));
     target.resistances = [...(before ?? []), ...entries];
-    log(state, `  ${target.name} uses ${resist.name}: resistance ${value}${resist.types ? ` to ${resist.types.join(", ")}` : ""} against it`);
+    log(state, `  ${target.name} uses ${resist.name}: resistance ${value}${resist.types ? ` to ${entries.map((entry) => entry.type).join(", ")}` : ""} against it`);
     // (B155: what it kept off, and of which type, for a lash back.)
     const resisted = Math.max(0, plain - adjustDamage(target, instances).total);
     const type = instances.find((instance) => !instance.persistent && instance.amount > 0 && PHYSICAL_TYPES.has(instance.type))?.type ?? instances[0]?.type ?? "untyped";
