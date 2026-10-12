@@ -3985,3 +3985,19 @@ test("Resistance and temporary Hit Points on itself, ending with them (Reef Armo
     applyDamage(state, t, [{ type: "slashing", amount: 10, persistent: false, precision: false }], { source: f });
     assert.equal(t.hp.value, hp - 17, "no resistance once it ends");
 });
+
+test("A Strike as its reaction at a creature it just grabbed, once the action ends (Deadly Mandibles, 2026-10-12, B197)", () => {
+    const [fighter] = martialParty(5);
+    const mantis = withBuiltins({ ...moderateCreature(5, "man", "Mantis"), engagement: 1 }, ["Test Mandibles", { builtin: "reaction-strike", triggers: ["grabs"], strike: "mandibles", penalty: 0, disrupts: false }]);
+    mantis.strikes = [{ ...mantis.strikes[0], name: "Leg" }, { ...mantis.strikes[0], name: "Mandibles" }];
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, mantis] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    const m = state.byId.get("man");
+    const f = state.byId.get(fighter.id);
+    applyCondition(state, f, "grabbed", null, null, m);
+    assert.equal(state.afterAction?.length, 1);
+    performAction(state, m, { type: "strike", targetId: f.id, strikeIndex: 0 });
+    assert.ok(state.log.includes("  Mantis uses Test Mandibles") && m.reactionUsed, state.log.join("\n"));
+    assert.ok(state.log.some((line) => /Mantis Mandibles → Fighter/.test(line)), state.log.join("\n"));
+});

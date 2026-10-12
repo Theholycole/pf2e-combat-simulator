@@ -498,6 +498,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if (slug === "prone" && !before && isActive(target)) mishapAnswers(state, target);
     // Who's holding it, for Escape, Constrict and letting go.
     if ((slug === "grabbed" || slug === "restrained") && source && source !== target) target.grabbedBy = source.id;
+    // (B197, Deadly Mandibles: a creature it just grabbed, its reaction Strike at it once the action ends.)
+    if ((slug === "grabbed" || slug === "restrained") && !before && source && source !== target && (source.reactionStrikes ?? []).some((entry) => entry.triggers.includes("grabs")) && !(state.afterAction ?? []).some((entry) => entry.kind === "grab-strike" && entry.targetId === target.id)) (state.afterAction ??= []).push({ kind: "grab-strike", sourceId: source.id, targetId: target.id });
     // Fast Swallow (B70): a creature it just grabbed, swallowed as its reaction once the action ends.
     if ((slug === "grabbed" || slug === "restrained") && !before && source?.fastSwallow && source !== target && !(state.afterAction ?? []).some((entry) => entry.targetId === target.id)) (state.afterAction ??= []).push({ kind: "fast-swallow", sourceId: source.id, targetId: target.id });
     if (Number.isFinite(rounds)) {

@@ -1047,6 +1047,17 @@ function afterAction(state) {
             c.attacksThisTurn = attacks + 1;
             continue;
         }
+        // (B197, Deadly Mandibles: its named Strike at the creature it grabbed, as its reaction; it counts toward its multiple attack penalty.)
+        if (entry.kind === "grab-strike") {
+            const rule = c?.reactionStrikes?.find((each) => each.triggers.includes("grabs"));
+            const index = rule && isActive(c) && isActive(target) && canReact(c) && canAct(c) && target.grabbedBy === c.id ? strikeNamed(c, rule.strike) : -1;
+            if (index < 0) continue;
+            c.reactionUsed = true;
+            state.stats.reactions++;
+            state.log?.push(`  ${c.name} uses ${rule.name}`);
+            performStrike(state, c, target, c.strikes[index]);
+            continue;
+        }
         if (entry.kind !== "fast-swallow" || !c || !target || !isActive(c) || !isActive(target) || !canReact(c) || target.grabbedBy !== c.id || target.swallowedBy) continue;
         const index = (c.spells ?? []).findIndex((spell) => describeSpell(spell.plan).swallow);
         if (index < 0) continue;
