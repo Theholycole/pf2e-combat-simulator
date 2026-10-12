@@ -1642,13 +1642,15 @@ export function escapeAnswers(state, escaper, grabber, degree) {
 
 // A foe's mishap near a monster (B85: Jeer at Failure's "A foe within 90 feet becomes Prone or critically fails on a Strike"): the
 // monster's reaction at it (PF2e's Demoralize). Within its distance and its action's range (30 feet): the bands, as above.
-export function mishapAnswers(state, creature) {
+// (B252: target — the creature the critically failed Strike was at, for a trigger on itself only, onSelf; none for a fall.)
+export function mishapAnswers(state, creature, target = null) {
     if (!isActive(creature)) return;
     for (const c of state.list) {
         if (c.side === creature.side || !isActive(c) || !canAct(c)) continue;
         for (const [index, spell] of (c.spells ?? []).entries()) {
             const trigger = spell.plan?.trigger;
             if (!trigger?.reaction || trigger.event !== "foe-mishap" || (!trigger.free && !canReact(c)) || c.immuneTargets?.get(spell)?.has(creature.id)) continue;
+            if (trigger.onSelf && target !== c) continue;
             const within = Math.min(trigger.within ?? Infinity, Number.parseInt(spell.plan?.targeting?.range, 10) || Infinity);
             if (within <= 10 ? !sameMelee(c, creature) : within < 60 && creature.band === "far" && c.band !== "far") continue;
             if (!trigger.free) c.reactionUsed = true;

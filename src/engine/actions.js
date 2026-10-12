@@ -420,7 +420,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         if (!reaction && isActive(attacker) && isActive(target)) reactToMiss(state, target, attacker, strike, degree);
         if (degree === CRITICAL_FAILURE && !reaction && attacker.weaponPoisoned && strike.held) attacker.weaponPoisoned = false;
         // Jeer at Failure (B85): a critically failed Strike near a monster with it.
-        if (degree === CRITICAL_FAILURE && !reaction) mishapAnswers(state, attacker);
+        if (degree === CRITICAL_FAILURE && !reaction) mishapAnswers(state, attacker, target);
         return { degree, damage: 0, trigger };
     }
     // (Poison Weapon, B72: the poison goes with this hit, below; a critical miss wastes it.)

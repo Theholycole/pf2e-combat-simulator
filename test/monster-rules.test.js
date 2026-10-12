@@ -4642,3 +4642,20 @@ test("Regeneration on itself as fast healing; an AC reaction against spell attac
     assert.equal(addBuiltin(drake, { builtin: "ac-reaction", value: 4, when: "targeted", against: "ranged", spellOnly: true }, "Test Wing"), false);
     assert.equal(drake.acReaction, undefined);
 });
+
+test("A reaction to a foe's critical miss on it only, not on an ally (2026-10-12, B252)", async () => {
+    const { mishapAnswers } = await import("../src/engine/spells.js");
+    const [fighter, champion] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (effects = []) => ({ damage: { ...none }, effects });
+    const jeer = { modelVersion: 13, source: { name: "Test Jeer" }, rank: 1, traits: [], activation: { time: "reaction", traits: [] }, targeting: { target: "the attacker", range: "touch", area: null }, trigger: { event: "foe-mishap", reaction: true, within: 120, onSelf: true },
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row([{ kind: "condition", slug: "frightened", value: 1, duration: null }]), failure: row(), criticalFailure: row() } } };
+    const jester = { ...moderateCreature(5, "jst", "Jester"), engagement: 1, spells: [{ name: "Test Jeer", plan: jeer, dc: 20, attack: 0 }] };
+    const ally = { ...moderateCreature(5, "aly", "Ally"), engagement: 1 };
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, jester, ally] }, {}, 1);
+    state.log = [];
+    mishapAnswers(state, state.byId.get(fighter.id), state.byId.get("aly"));
+    assert.doesNotMatch(state.log.join("\n"), /Test Jeer/, "a miss at its ally: not it");
+    mishapAnswers(state, state.byId.get(fighter.id), state.byId.get("jst"));
+    assert.match(state.log.join("\n"), /Test Jeer/, state.log.join("\n"));
+});
