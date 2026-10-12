@@ -19,6 +19,7 @@ import { isMapObjective, mapOutcome, pickUpItem, placeOnMap } from "./map-object
 import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startDanger } from "./escalations.js";
 import { helpArrives } from "./morale.js";
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
+import { zoneTurn } from "./zones.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -420,6 +421,8 @@ function endTurn(state, c) {
     for (const ally of state.list) if (ally.grantedAoo?.untilSource && ally.grantedAoo.by === c.id && ally.grantedAoo.round < state.round) ungrant(ally);
     // Wine-Soaked, Draining Roots: a passive on a creature held as a turn ends (B49).
     grabTurnAnswers(state, c, "end");
+    // (B256: the zones it ends its turn in.)
+    if (isActive(c)) zoneTurn(state, c, "end");
     // Swallow Whole's damage at the end of each of the swallowed creature's turns.
     if (c.swallowedBy && c.swallow?.damage?.length) {
         state.log?.push(`  ${c.name} is crushed inside ${state.byId.get(c.swallowedBy)?.name}`);
@@ -999,6 +1002,8 @@ function takeTurn(state, c) {
     // (B245, Whirling Hands: a Strike at a creature starting its turn in its Melee.)
     turnStartAnswers(state, c);
     grabTurnAnswers(state, c, "start");
+    // (B256: the zones it starts its turn in.)
+    zoneTurn(state, c, "start");
     // Shrieking Frenzy: its own free action as its turn begins (B53).
     ownTurnStart(state, c);
     if (!canAct(c)) {

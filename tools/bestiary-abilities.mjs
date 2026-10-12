@@ -16,6 +16,7 @@
 const { readDocuments } = await import(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs", import.meta.url).href);
 const { compileBasicActions, compileMonsterAbility } = await import(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/src/compiler/index.js", import.meta.url).href);
 const { simulate } = await import("../src/engine/fight.js");
+const { zoneSpell } = await import("../src/engine/zones.js");
 const { martialParty } = await import("../src/engine/benchmarks.js");
 const { parseReadableDamage, randomDamageRows } = await import("../src/adapter/formula.js");
 const { addBuiltin } = await import("../src/engine/abilities.js");
@@ -109,6 +110,15 @@ function combatant(npc) {
             const ways = plan.modes.filter((mode) => mode.plan?.resolution);
             if (ways.length) used.add(item.name);
             for (const mode of ways) spells.push({ name: `${item.name} (${mode.name})`, plan: mode.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name });
+        } else if (plan.builtin === "zone") {
+            // (B256: an area that lasts — one ability, its zone played over the turns.)
+            const effectModel = plan.zone.effect ? effectModels({ resolution: { outcomes: { success: { nativeEffects: [plan.zone.effect] } } } }, system.details.level.value)[plan.zone.effect.uuid] ?? null : null;
+            const effects = Object.assign({}, ...(plan.zone.saves ?? []).map((save) => effectModels(save.plan, system.details.level.value)));
+            const spell = zoneSpell(item.name, plan, { effectModel, effects });
+            if (spell) {
+                used.add(item.name);
+                spells.push({ ...spell, rechargeGroup: item.name });
+            }
         } else if (plan.builtin === "no-effect" && plan.gm) {
             // (The GM's, 2026-10-12: not played here.)
         } else if (plan.builtin) {

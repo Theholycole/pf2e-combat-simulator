@@ -4713,3 +4713,39 @@ test("Random effect tables: the die picks the way (roll twice, a face with nothi
     const gizmoState = { rng: { die: (() => { const faces = [4, 3]; return () => faces.shift(); })() }, log: [] };
     assert.deepEqual(rolledStrikes(gizmoState, gizmo, ability), [0, 1], "non-agile first");
 });
+
+test("Zones: concealed inside, saves at a turn's start, damage at its end, a hazard on coming in, difficult terrain halving a foe's Speed, its end with time; not made again while up (2026-10-12, B256)", async () => {
+    const { zoneSpell, zoneTurn, zoneMembers } = await import("../src/engine/zones.js");
+    const { canCast } = await import("../src/engine/spells.js");
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (effects = []) => ({ damage: { ...none }, effects });
+    const save = { modelVersion: 13, source: { name: "Test Smog" }, rank: 1, traits: [], activation: { time: "free", traits: [] }, targeting: { target: "1 creature", range: null, area: null }, trigger: { event: "zone" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 40 } }, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row(), failure: row([{ kind: "condition", slug: "sickened", value: 1, duration: null }]), criticalFailure: row([{ kind: "condition", slug: "sickened", value: 2, duration: null }]) } } };
+    const plan = { builtin: "zone", actions: 2, zone: { area: { type: "emanation", value: 10 }, centre: "self", range: null, lasts: { mode: "fixed", value: 2, unit: "rounds", expiry: "turn-start" }, untilReused: false, concealed: true, terrain: [{ movement: ["walk"], difficulty: 2 }], others: true, hazard: { formulas: ["3[fire]"] }, saves: [{ when: ["start"], plan: save }], damage: [{ when: "end", formulas: ["4[fire]"] }], effect: null, modifiers: [], notes: [] } };
+    const spell = zoneSpell("Test Smog", plan);
+    assert.deepEqual([spell.plan.resolution.kind, spell.plan.targeting.area, Boolean(spell.zone)], ["save", { type: "emanation", value: 10 }, true]);
+    assert.equal(zoneSpell("Test", { ...plan, zone: { ...plan.zone, saves: [], damage: [], hazard: null, concealed: false } }), null, "terrain alone isn't valued");
+    const smoker = { ...moderateCreature(5, "smk", "Smoker"), engagement: 1, spells: [{ ...spell, rechargeGroup: "Test Smog" }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, smoker] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 2;
+    const s = state.byId.get("smk");
+    const f = state.byId.get(fighter.id);
+    castPlan(state, s, s.spells[0], [f.id]);
+    assert.deepEqual([state.zones?.length, zoneMembers(state, state.zones[0]).map((c) => c.id).sort(), f.cond.concealed, s.cond.concealed], [1, [f.id, "smk"].sort(), true, true]);
+    assert.equal(canCast(s, s.spells[0]), false, "not again while it's up");
+    const speed = f.speed;
+    const hp = f.hp.value;
+    zoneTurn(state, f, "start");
+    assert.ok(f.cond.sickened >= 1, state.log.join("\n"));
+    assert.equal(f.speed, Math.max(5, Math.floor(speed / 2 / 5) * 5));
+    zoneTurn(state, f, "end");
+    assert.equal(f.speed, speed);
+    assert.ok(f.hp.value < hp, "damage at its turn's end");
+    assert.doesNotMatch(state.log.join("\n"), /moves into/, "no hazard when it was already inside");
+    // Its time: gone at its maker's turn two rounds on.
+    state.round += 2;
+    zoneTurn(state, s, "start");
+    assert.deepEqual([state.zones.length, s.activeZones.has("Test Smog")], [0, false]);
+});

@@ -15,6 +15,7 @@ import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUC
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effects.js";
 import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
+import { startZone } from "./zones.js";
 import { allyStrike } from "./commander.js";
 import { canReact, levelDC, saveBonusAgainst, sizeRank, strikeNamed } from "./abilities.js";
 import { adjustDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
@@ -1151,6 +1152,15 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         }
         return;
     }
+    // A zone (B256): its area made; what it does then and over the turns is zones.js's.
+    if (spell.zone) {
+        if (spell.pool) caster.spellPools[spell.pool] = Math.max(0, (caster.spellPools[spell.pool] ?? 0) - 1);
+        const recharge = describeSpell(spell.plan, actions).recharge;
+        if (recharge) (caster.rechargeUntil ??= new Map()).set(spell.rechargeGroup ?? spell, state.round + rollCount(state, recharge));
+        log(state, `  ${caster.name} uses ${spell.name}`);
+        startZone(state, caster, spell, targetIds);
+        return;
+    }
     const info = describeSpell(spell.plan, actions);
     const reachable = (target) => isActive(target) || target === caster || ((info.healing || info.dying) && target.status === DOWN);
     const targets = targetIds.map((id) => state.byId.get(id)).filter((target) => target && reachable(target));
@@ -1782,6 +1792,8 @@ export function canCast(c, spell) {
     if (!registry.familyFor(spell.plan?.resolution?.kind) || castsNothing(spell.plan)) return false;
     // Recharging (a breath weapon used a round ago).
     if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0)) return false;
+    // (B256: not a zone it already has up.)
+    if (spell.zone && c.activeZones?.has(spell.name)) return false;
     if (!spellVariants(spell).some((actions) => {
         const info = describeSpell(spell.plan, actions);
         return info.area || info.targets || info.self;

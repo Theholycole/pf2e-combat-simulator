@@ -6,6 +6,7 @@ import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
 import { effectModel } from "../src/engine/effects.js";
 import { addBuiltin } from "../src/engine/abilities.js";
+import { zoneSpell } from "../src/engine/zones.js";
 import { MAP_KINDS, readMapFeet, readRegionFeet, regionToRegions, roundsHeld } from "./map.js";
 import { hazardSpec } from "./hazards.js";
 
@@ -497,6 +498,17 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
             if (pool) result.pools[pool] = frequency?.value ?? frequency?.max ?? 1;
             result.handled.add(item);
             result.abilities.push({ name: item.name, plan: leanPlan(shown.plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: item.name, die: Number(/^1d(\d+)$/.exec(plan.random.formula)?.[1]) || 1, randomWays: plan.modes.map((mode) => ({ name: mode.name, faces: mode.faces, plan: mode.plan?.resolution ? leanPlan(mode.plan) : null, ...(mode.again ? { again: mode.again } : {}) })) });
+            continue;
+        }
+        // (B256: an area that lasts — one ability, its zone played over the turns.)
+        if (plan.builtin === "zone") {
+            const effectModel = !pc && plan.zone.effect ? (await effectModels({ resolution: { outcomes: { success: { nativeEffects: [plan.zone.effect] } } } }, actor.level ?? 1))[plan.zone.effect.uuid] ?? null : null;
+            const effects = Object.assign({}, ...(await Promise.all((pc ? [] : plan.zone.saves ?? []).map((save) => effectModels(save.plan, actor.level ?? 1)))));
+            const spell = pc ? null : zoneSpell(item.name, plan, { effectModel, effects });
+            if (!spell) continue;
+            if (pool) result.pools[pool] = frequency?.value ?? frequency?.max ?? 1;
+            result.handled.add(item);
+            result.abilities.push({ ...spell, plan: leanPlan(spell.plan), dc: null, attack: null, pool, sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: item.name });
             continue;
         }
         if (plan.builtin === "modes") {

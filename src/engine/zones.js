@@ -1,0 +1,169 @@
+// Zones (B256, 2026-10-12): an ability's area that lasts, as the engine's bands allow. Its members: the creatures around its maker (an
+// emanation, or a burst centred on it), or around the creature it was placed on (a burst at range); a cone's or a line's, the creatures it
+// first covered. Concealed while inside (both sides); a foe's turn inside: its saves at the turn's start, and on coming in (read at the
+// turn's end), damage at its end, a hazard's damage when it moved in; difficult terrain halves a foe's Speed for its turn there; PF2e's
+// effect while inside (its allies only, when so). It ends with its time, at its maker's turn, or when its maker is gone. Its maker isn't
+// harmed by it, nor are its allies by its saves and damage.
+
+import { isActive } from "./combatant.js";
+import { applyEffect, removeEffect } from "./effects.js";
+import { applyDamage, log } from "./actions.js";
+import { applyCondition, castPlan, rollInstances } from "./spells.js";
+import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
+
+let nextZoneId = 1;
+
+// The rounds a zone lasts: its time (minutes count 10 rounds), or for good (Infinity: until used again, an hour or more, no time said).
+export function zoneRounds(lasts, rolled = null) {
+    if (!lasts) return Infinity;
+    const value = Number.isFinite(rolled) ? rolled : Number(lasts.value);
+    if (lasts.unit === "rounds") return value;
+    if (lasts.unit === "minutes") return value * 10;
+    return Infinity;
+}
+
+// Whether a creature is within radius feet of another, as the engine's bands say: the same Melee for 10 feet or less, not far off (or both
+// far) for more, everyone from 60 feet.
+function near(anchor, other, radius) {
+    if (anchor === other) return true;
+    if (!isActive(other) || other.band === "gone") return false;
+    if (radius >= 60) return true;
+    if (radius <= 10) return anchor.meleeId !== null && anchor.meleeId !== undefined && anchor.meleeId === other.meleeId;
+    return other.band !== "far" || anchor.band === "far";
+}
+
+// The creatures in a zone now.
+export function zoneMembers(state, zone) {
+    if (zone.fixed) return state.list.filter((c) => zone.fixed.has(c.id) && isActive(c));
+    const anchor = state.byId.get(zone.anchorId);
+    if (!anchor || anchor.band === "gone") return [];
+    return state.list.filter((c) => isActive(c) && near(anchor, c, zone.radius));
+}
+
+// The ability's zone, as it's made: its members concealed, its effect on them, its saves "as it's made" on its foes there.
+export function startZone(state, owner, spell, targetIds) {
+    const model = spell.zone;
+    const area = model.area ?? {};
+    const first = targetIds.map((id) => state.byId.get(id)).find(Boolean);
+    const rolled = model.lasts?.valueRoll ? rollDice(state, model.lasts.valueRoll) : null;
+    const rounds = zoneRounds(model.lasts, rolled);
+    const zone = {
+        id: nextZoneId++,
+        name: spell.name,
+        ownerId: owner.id,
+        side: owner.side,
+        model,
+        radius: Number(area.value) || 5,
+        anchorId: area.type === "emanation" || (area.type === "burst" && model.centre !== "placed") ? owner.id : (first?.id ?? owner.id),
+        fixed: area.type === "cone" || area.type === "line" ? new Set(targetIds) : null,
+        until: Number.isFinite(rounds) ? state.round + rounds : Infinity
+    };
+    (state.zones ??= []).push(zone);
+    (owner.activeZones ??= new Set()).add(spell.name);
+    log(state, `  ${owner.name}'s ${spell.name} covers the area${Number.isFinite(rounds) ? ` for ${rounds} rounds` : ""}`);
+    for (const c of zoneMembers(state, zone)) {
+        refresh(state, zone, c);
+        if (c.side !== zone.side) for (const save of model.saves ?? []) if (save.plan && save.when.includes("initial")) castPlan(state, owner, { name: spell.name, plan: save.plan, castRank: 1, pool: null, kind: "ability", effects: model.effects ?? {} }, [c.id]);
+    }
+    return zone;
+}
+
+function rollDice(state, formula) {
+    const match = /^(\d+)d(\d+)(?:\s*\+\s*(\d+))?$/.exec(String(formula).trim());
+    if (!match) return null;
+    let total = Number(match[3] ?? 0);
+    for (let die = 0; die < Number(match[1]); die++) total += state.rng.die(Number(match[2]));
+    return total;
+}
+
+// What being inside gives: concealment (for this round, refreshed each turn), the zone's effect (once, while it stays inside).
+function refresh(state, zone, c) {
+    const owner = state.byId.get(zone.ownerId);
+    if (zone.model.concealed && !c.cond.concealed) applyCondition(state, c, "concealed", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start" }, owner);
+    const effect = zone.model.effectModel;
+    const key = `zone:${zone.id}`;
+    if (effect && (!zone.model.effect?.allies || c.side === zone.side) && !(c.effects ?? []).some((entry) => entry.key === key)) applyEffect(state, c, { ...effect, rounds: Number.isFinite(zone.until) ? Math.max(1, zone.until - state.round) : effect.rounds }, owner, { applyCondition, key });
+}
+
+// A creature's turn starting or ending: the zones' doings on it, and zones whose time is up.
+export function zoneTurn(state, c, phase) {
+    if (!state.zones?.length) return;
+    if (phase === "start") {
+        for (const zone of [...state.zones]) {
+            const owner = state.byId.get(zone.ownerId);
+            if ((zone.ownerId === c.id && state.round >= zone.until) || (!Number.isFinite(zone.until) && !(owner && isActive(owner)))) endZone(state, zone);
+        }
+    }
+    const members = new Set();
+    for (const zone of state.zones) if (zoneMembers(state, zone).includes(c)) members.add(zone.id);
+    if (phase === "start") {
+        c.zonesAtStart = members;
+        // (Its Speed, halved for a turn spent in difficult terrain of a foe's.)
+        if (c.zoneSpeed) c.speed = c.zoneSpeed;
+        c.zoneSpeed = null;
+    }
+    for (const zone of state.zones) {
+        const inside = members.has(zone.id);
+        if (!inside) {
+            if (phase === "start") for (const effect of (c.effects ?? []).filter((entry) => entry.key === `zone:${zone.id}`)) removeEffect(c, effect);
+            continue;
+        }
+        const owner = state.byId.get(zone.ownerId);
+        if (phase === "start") refresh(state, zone, c);
+        if (c.side === zone.side || !owner) continue;
+        const cameIn = phase === "end" && !(c.zonesAtStart ?? new Set()).has(zone.id);
+        if (phase === "start" && (zone.model.terrain ?? []).some((entry) => (entry.movement ?? ["walk"]).some((move) => ["walk", "climb"].includes(move))) && !c.zoneSpeed) {
+            c.zoneSpeed = c.speed ?? 25;
+            c.speed = Math.max(5, Math.floor((c.speed ?? 25) / 2 / 5) * 5);
+        }
+        if (cameIn && zone.model.hazard?.formulas?.length) hurt(state, zone, owner, c, zone.model.hazard.formulas, "moves into");
+        for (const save of zone.model.saves ?? []) {
+            if (!save.plan || !isActive(c)) continue;
+            if ((phase === "start" && save.when.includes("start")) || (cameIn && save.when.includes("enter") && !save.when.includes("start")) || (phase === "end" && save.when.includes("end"))) castPlan(state, owner, { name: zone.name, plan: save.plan, castRank: 1, pool: null, kind: "ability", effects: zone.model.effects ?? {} }, [c.id]);
+        }
+        for (const entry of zone.model.damage ?? []) if (entry.when === (phase === "start" ? "start" : "end") && isActive(c)) hurt(state, zone, owner, c, entry.formulas, phase === "start" ? "starts its turn in" : "ends its turn in");
+    }
+    if (phase === "end" && c.zoneSpeed) {
+        c.speed = c.zoneSpeed;
+        c.zoneSpeed = null;
+    }
+}
+
+function hurt(state, zone, owner, c, formulas, how) {
+    const instances = formulas.flatMap((formula) => rollInstances(state, parseDamage(String(formula))));
+    const dealt = applyDamage(state, c, instances, { source: owner });
+    log(state, `  ${c.name} ${how} ${zone.name}: ${dealt} damage`);
+}
+
+export function endZone(state, zone) {
+    state.zones = (state.zones ?? []).filter((entry) => entry !== zone);
+    state.byId.get(zone.ownerId)?.activeZones?.delete(zone.name);
+    for (const c of state.list) for (const effect of (c.effects ?? []).filter((entry) => entry.key === `zone:${zone.id}`)) removeEffect(c, effect);
+    log(state, `  ${zone.name} ends`);
+}
+
+// The ability's entry for the engine (a spell entry with its zone), or null: valued as its save on the creatures in its area as it's made
+// or on entering, else its damage, else concealment on itself; a zone of terrain alone isn't valued, nor one on a trigger the engine
+// doesn't play. extra: what the reader adds (the effect's model).
+export function zoneSpell(name, plan, extra = {}) {
+    const zone = plan?.zone;
+    if (plan?.builtin !== "zone" || !zone?.area || !["use", "initiative"].includes(plan.trigger?.event ?? "use")) return null;
+    const save = (zone.saves ?? []).find((entry) => entry.plan?.resolution && entry.when.some((when) => ["initial", "start", "enter"].includes(when)));
+    const trigger = { event: plan.trigger?.event ?? "use", ...(plan.trigger?.reaction ? { reaction: true } : {}), ...(plan.trigger?.free ? { free: true } : {}), ...(plan.trigger?.recharge ? { recharge: { ...plan.trigger.recharge } } : {}) };
+    const activation = { time: plan.trigger?.reaction ? (plan.trigger.free ? "free" : "reaction") : String(plan.actions || 1), traits: [] };
+    const area = { type: zone.area.type, value: zone.area.value };
+    const base = { modelVersion: 13, source: { name }, rank: 1, traits: [], activation, automation: { level: "automatic" }, trigger };
+    const none = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
+    const automatic = (success, targeting) => ({ ...base, targeting, resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { ...none }, success, failure: { ...none }, criticalFailure: { ...none } } } });
+    const formulas = [...(zone.damage ?? []).flatMap((entry) => entry.formulas), ...(zone.hazard?.formulas ?? [])];
+    const inArea = { target: null, range: zone.range ? `${zone.range} feet` : null, area };
+    // (PF2e's effect inside: on its allies there, an effect for them; on the others, as a hit's would be.)
+    const effect = zone.effect && extra.effectModel ? (zone.effect.allies ? { ...base, targeting: inArea, resolution: { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: zone.effect.uuid, label: zone.effect.label, recipients: "allies-in-area" }] } } : automatic({ ...none, nativeEffects: [{ uuid: zone.effect.uuid, label: zone.effect.label }] }, inArea)) : null;
+    const value = save ? { ...save.plan, ...base, targeting: inArea }
+        : formulas.length ? automatic({ damage: { mode: "formulas", formulas: formulas.map((formula) => ({ formula })), rollScope: "target" }, effects: [] }, inArea)
+            : effect ? effect
+                : zone.concealed ? automatic({ ...none, effects: [{ kind: "condition", slug: "concealed", value: null, duration: { mode: "fixed", value: Math.min(3, zoneRounds(zone.lasts)), unit: "rounds", expiry: "turn-start" } }] }, { target: "self", range: null, area: null })
+                    : null;
+    if (!value) return null;
+    return { name, plan: value, castRank: 1, pool: null, kind: "ability", zone: { ...zone, ...extra }, ...(zone.effect && extra.effectModel ? { effects: { ...(extra.effects ?? {}), [zone.effect.uuid]: extra.effectModel } } : extra.effects ? { effects: { ...extra.effects } } : {}) };
+}
