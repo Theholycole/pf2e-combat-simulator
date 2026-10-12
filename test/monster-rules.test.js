@@ -4231,3 +4231,22 @@ test("An ally's Strike only as its reaction, only an ally of a trait and a lower
     ({ state, b } = make(false));
     assert.ok(!scoreOptions(state, b).options.some((entry) => entry.action.type === "allyAdvance"), "not when the goblin would have to Stride first, nor the orc");
 });
+
+test("Its own failed save rerolled against a spell only (a Battlezoo owl's foresight, 2026-10-12, B217)", () => {
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const blast = (kind) => ({ name: "Test Blast", castRank: 1, dc: null, attack: null, pool: null, ...(kind ? { kind } : {}), plan: { modelVersion: 13, source: { name: "Test Blast" }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 30 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, criticalFailure: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] } } } } });
+    const fight = (kind) => {
+        const owl = { ...moderateCreature(5, "owl", "Owl"), engagement: 1 };
+        addBuiltin(owl, { builtin: "save-reroll", save: null, against: "spell" }, "Test Foresight");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [blast(kind)] }, owl] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => 5;
+        castSpell(state, state.byId.get(fighter.id), 0, ["owl"]);
+        return { state, o: state.byId.get("owl") };
+    };
+    let { state, o } = fight(null);
+    assert.ok(state.log.some((line) => line.startsWith("  Owl uses Test Foresight")), state.log.join("\n"));
+    ({ state, o } = fight("ability"));
+    assert.ok(!state.log.some((line) => line.startsWith("  Owl uses Test Foresight")), "not against a monster's ability");
+});

@@ -370,7 +370,7 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
         return result;
     }
     const reroll = saver.saveReroll;
-    if (reroll && (!reroll.save || reroll.save === statistic) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
+    if (reroll && (!reroll.save || reroll.save === statistic) && (reroll.against !== "spell" || (spell && (!spell.kind || spell.kind === "spell"))) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
         saver.saveRerollUses--;
         if (reroll.mythic) saver.mythicPoints--;
         if (!reroll.free) saver.reactionUsed = true;
