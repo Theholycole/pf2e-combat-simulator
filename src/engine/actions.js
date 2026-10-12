@@ -520,6 +520,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
 export function withdrawAnswer(state, c, from, { melee = true, hit = false, dealt = 0, approach = false } = {}) {
     const rule = c.withdraw;
     if (!rule || !canReact(c) || !canAct(c) || !canMove(c) || !sameMelee(c, from)) return false;
+    // (B135, Crumble: not again until it recharges.)
+    if (rule.recharge && (c.withdrawUntil ?? -Infinity) > state.round) return false;
     const fits = approach
         ? rule.on === "approach" && (!rule.foe || rule.foe.some((slug) => from.cond[slug]))
         : (!rule.melee || melee) && (rule.on === "attacked" || (rule.on === "hit" && hit) || (rule.on === "missed" && !hit) || (rule.on === "damaged" && dealt > 0));
@@ -528,6 +530,7 @@ export function withdrawAnswer(state, c, from, { melee = true, hit = false, deal
     const foeActing = state.acting === from.id && (from.actionsLeft ?? 0) > 0;
     if ((!foeActing && !ranged && !c.cond.fleeing) || state.list.some((other) => other.grabbedBy === c.id)) return false;
     c.reactionUsed = true;
+    if (rule.recharge) c.withdrawUntil = state.round + rollCount(state, rule.recharge);
     log(state, `  ${c.name} uses ${rule.name}`);
     if (rule.safe) {
         releaseGrabs(state, c);

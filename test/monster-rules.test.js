@@ -3202,3 +3202,27 @@ test("A move first, then a maneuver: Tackle reaches a creature away from it; an 
     b.actionsLeft = 3;
     assert.equal(scoreOptions(second, b).options.filter((option) => option.action.type === "cast").length, 0);
 });
+
+test("A move away on damage with a recharge: not again until it recharges (2026-10-12, B135)", () => {
+    const [fighter] = martialParty(5);
+    const slide = withBuiltins({ ...moderateCreature(5, "lnd", "Landslide"), engagement: 1, hp: { value: 999, max: 999 } }, ["Test Crumble", { builtin: "withdraw", on: "damaged", move: "Burrow", feet: 10, safe: true, recharge: "1d4" }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, slide] }, {}, 1);
+    state.log = [];
+    state.round = 1;
+    state.rng.d4 = () => 4;
+    const c = state.byId.get("lnd");
+    const f = state.byId.get(fighter.id);
+    state.acting = f.id;
+    f.actionsLeft = 2;
+    assert.equal(c.withdraw.recharge, "1d4");
+    state.rng.d20 = () => 15;
+    performStrike(state, f, c, f.strikes[0]);
+    assert.ok(state.log.some((line) => /uses Test Crumble/.test(line)), state.log.join("\n"));
+    assert.ok(c.withdrawUntil > state.round, "recharging");
+    // Back in its Melee, hit again the same round: no second use while it recharges.
+    c.reactionUsed = false;
+    engage(state, f, c);
+    state.log = [];
+    performStrike(state, f, c, f.strikes[0]);
+    assert.ok(!state.log.some((line) => /uses Test Crumble/.test(line)), state.log.join("\n"));
+});
