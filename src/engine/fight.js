@@ -11,7 +11,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
 import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
@@ -704,6 +704,10 @@ function act(state, c, action) {
             }
             let grabbed = false;
             let firstHit = false;
+            // (B104: what both hits bring, on the creature they both hit.)
+            let made = 0;
+            let hits = 0;
+            let struck = null;
             for (const [step, index] of (multiStrikeOrder(c, ability) ?? []).entries()) {
                 if (!canAct(c)) break;
                 let strike = c.strikes[index];
@@ -717,6 +721,11 @@ function act(state, c, action) {
                 if (step === 1 && (ability.secondOffGuard === true || (ability.secondOffGuard === "hit" && firstHit))) (target.offGuardTo ??= []).push({ attacker: c.id, attacks: "all", uses: 1 });
                 const result = performStrike(state, c, target, strike);
                 if (step === 0) firstHit = (result?.degree ?? 0) >= SUCCESS;
+                made++;
+                if ((result?.degree ?? 0) >= SUCCESS) {
+                    hits++;
+                    struck = struck === null || struck === target ? target : false;
+                }
                 // "If either Strike hits, the dragon can attempt to Grab the target … as a free action" (Coiling Frenzy): its Grab, once.
                 if (ability.grab && !grabbed && result?.degree >= SUCCESS && isActive(target)) {
                     const grab = (c.spells ?? []).findIndex((spell) => ["grab", "improved-grab"].includes(spell.plan?.source?.slug) || spell.plan?.trigger?.attackEffect === "grab");
@@ -727,6 +736,7 @@ function act(state, c, action) {
                 }
             }
             if (ability.sameMap) c.attacksThisTurn = attacks + (ability.countsAs ?? multiStrikeOrder(c, ability)?.length ?? 0);
+            if (ability.bothHit && made >= 2 && hits === made && struck) bothHitRider(state, c, struck, ability.bothHit);
             multiStrikeAfter(state, c, ability);
             break;
         }

@@ -12,7 +12,7 @@ import { effectBenefit } from "./effects.js";
 import { allyStrike, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
 import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
-import { canStepOut, flankChance, mapGap, rangePenalty, stridesToEngage, DISTANCE_FEET } from "./space.js";
+import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
 import { chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, multiStrikeOrder, strikeNamed, sweepActionIndex } from "./abilities.js";
@@ -919,6 +919,8 @@ function expand(ctx, node, actionsLeft) {
                 if (activity.after && !activity.strides && target.id !== c.lastStrike?.targetId) continue;
                 if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
                 if (activity.requires === "prone" && !target.cond.prone) continue;
+                // (B104: Terrifying Smite's "an enemy that has one of its allies within its reach".)
+                if (activity.requires === "ally-adjacent" && !state.list.some((other) => other !== c && other.side === c.side && isActive(other) && sameMelee(other, target))) continue;
                 if (activity.requires === "free-hand" && state.list.some((other) => other.grabbedBy === c.id && (other.cond.grabbed || other.cond.restrained))) continue;
                 let pos = node.pos;
                 if (activity.strides) {

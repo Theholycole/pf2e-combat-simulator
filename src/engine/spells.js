@@ -343,6 +343,25 @@ function durationRounds(duration) {
 // caster's turn that many rounds later. false when the engine doesn't model it.
 const NOT_HARMFUL = new Set(["off-guard", "quickened", "concealed", "hidden", "invisible"]);
 
+// What two Strikes that both hit bring (B104: "If they both hit, the target becomes Slowed 1 for 1 round", "… is also dealt 1d8 persistent
+// bleed damage"): its conditions (for their rounds, on the attacker's turns) and damage, on the creature both hit.
+export function bothHitRider(state, attacker, target, rider) {
+    if (!isActive(target)) return;
+    log(state, `  Both Strikes hit ${target.name}`);
+    for (const entry of rider.conditions ?? []) {
+        const duration = entry.rounds ? { mode: "fixed", value: entry.rounds, unit: "rounds", expiry: "turn-start", anchor: "source-turn" } : null;
+        if (applyCondition(state, target, entry.slug, entry.value ?? null, duration, attacker)) log(state, `  ${target.name} is ${entry.slug}${Number.isFinite(entry.value) ? ` ${entry.value}` : ""}`);
+    }
+    for (const formula of rider.damage ?? []) {
+        const parsed = parseDamage(formula);
+        const rolled = rollInstances(state, parsed);
+        // (Persistent damage as the engine's persistent instance, dealt at the end of its turns.)
+        const instances = parsed.map((instance, index) => (instance.category === "persistent" ? persistentInstance({ ...instance, amount: rolled[index].amount }) : rolled[index]));
+        const dealt = applyDamage(state, target, instances, { source: attacker });
+        log(state, `  ${target.name} ${instances.some((instance) => instance.persistent) ? `takes persistent ${instances.find((instance) => instance.persistent).type}` : `takes ${dealt} more`}`);
+    }
+}
+
 // A condition that grows with each later failure (B102: "the condition value increases by 1 (to a maximum of stupefied 4)"): what it
 // already has plus the stack, to its maximum; its own value when it has none. (after: the value it has now, for the log.)
 function stackedValue(target, change, after = false) {

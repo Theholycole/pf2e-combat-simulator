@@ -2396,3 +2396,41 @@ test("A worse condition for a creature that already has the first: slowed, then 
     castSpell(state, state.byId.get("bas"), 0, [f.id]);
     assert.ok(f.cond.paralyzed && state.log.includes(`  ${f.name} is petrified`), state.log.join("\n"));
 });
+
+test("Two Strikes that both hit the same creature: what that brings (2026-10-11, B104)", () => {
+    const [fighter] = martialParty(5);
+    const oni = { ...moderateCreature(5, "oni", "Oni"), engagement: 1 };
+    addBuiltin(oni, { builtin: "multi-strike", actions: 1, strikes: [null, null], sameTarget: true, bothHit: { conditions: [{ slug: "slowed", value: 1, rounds: 1 }], damage: ["1d8[persistent,bleed]"] } }, "Test Combo");
+    assert.deepEqual(oni.multiStrikes[0].bothHit.conditions, [{ slug: "slowed", value: 1, rounds: 1 }]);
+    const fight = (die) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, oni] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => die;
+        const o = state.byId.get("oni");
+        o.strikes = o.strikes.map((strike) => ({ ...strike, bonus: die === 20 ? 100 : -100 }));
+        performAction(state, o, { type: "multiStrike", ability: 0, targetId: fighter.id, actions: 1 });
+        return { state, f: state.byId.get(fighter.id) };
+    };
+    let { state, f } = fight(20);
+    assert.ok(f.cond.slowed === 1 && f.persistent.some((entry) => entry.type === "bleed"), state.log.join("\n"));
+    assert.ok(state.log.includes(`  Both Strikes hit ${f.name}`));
+    ({ state, f } = fight(1));
+    assert.ok(!f.cond.slowed, "not when they miss");
+});
+
+test("A Strike activity only at an enemy with one of its allies beside it (2026-10-11, B104)", () => {
+    const [fighter, cleric] = martialParty(5);
+    const smite = { builtin: "strike-activity", actions: 2, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: "ally-adjacent", oncePerFight: false, onHit: { conditions: [{ slug: "frightened", value: 2, duration: null }], critical: null, push: null, damage: ["2d8[mental]"], save: null, size: null } };
+    const plan = (alone) => {
+        const rekhep = { ...moderateCreature(5, "rek", "Rekhep"), engagement: 1 };
+        addBuiltin(rekhep, smite, "Test Smite");
+        const ally = { ...moderateCreature(5, "ally", "Ally"), engagement: alone ? 0 : 1 };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, rekhep, ally] }, {}, 1);
+        if (alone) Object.assign(state.byId.get("ally"), { band: "far", meleeId: null });
+        state.byId.get("rek").actionsLeft = 3;
+        const { options } = scoreOptions(state, state.byId.get("rek"));
+        return options.some((option) => /activity/i.test(option.action?.type ?? ""));
+    };
+    assert.equal(plan(false), true, "with an ally beside the target");
+    assert.equal(plan(true), false, "not with no ally beside it");
+});
