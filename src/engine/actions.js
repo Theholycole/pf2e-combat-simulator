@@ -736,6 +736,12 @@ function triggeredSelfEffect(state, c, matches) {
         c.buffsUsed = new Set([...(c.buffsUsed ?? []), entry.name]);
         applyEffect(state, c, entry.model, c, { key: `self:${entry.name}` });
         log(state, `  ${c.name} uses ${entry.name}`);
+        // (B220, Blood Fury: Hit Points back with it.)
+        if (entry.heal > 0 && isActive(c)) {
+            const before = c.hp.value;
+            c.hp.value = Math.min(c.hp.max, c.hp.value + entry.heal);
+            if (c.hp.value > before) log(state, `  ${c.name} regains ${c.hp.value - before} HP`);
+        }
     }
 }
 

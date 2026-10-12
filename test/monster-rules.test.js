@@ -4269,3 +4269,46 @@ test("A bonus to its own save against a mental effect only (2026-10-12, B218)", 
     ({ state, g } = fight(["fire"]));
     assert.equal(g.reactionUsed ?? false, false, "not a mental effect");
 });
+
+test("Strikes at enemy after enemy while each hits; Hit Points as it deals bleed; an ally's failed save rerolled, the new result kept, free once a round; a healing's full amount taken (2026-10-12, B220)", () => {
+    const party = martialParty(5);
+    // Cleanse the Forest: the third only after a second that hit.
+    const berang = withBuiltins({ ...moderateCreature(5, "ber", "Berang"), engagement: 1 }, ["Test Cleanse", { builtin: "multi-strike", actions: 3, strikes: [null, null, null], each: true, max: 3, chain: true, strides: 1 }]);
+    let state = createFightState({ combatants: [...party.slice(0, 3).map((pc) => ({ ...pc, engagement: 1, hp: { value: 999, max: 999, temp: 0 } })), berang] }, {}, 1);
+    state.log = [];
+    let rolls = [20, 1, 20];
+    state.rng.d20 = () => rolls.shift() ?? 20;
+    const b = state.byId.get("ber");
+    b.strikes = b.strikes.map((strike) => ({ ...strike, bonus: 10 }));
+    performAction(state, b, { type: "multiStrike", ability: 0, targetId: party[0].id, actions: 3 });
+    assert.equal(state.log.filter((line) => line.includes("Berang Strike →") || / Strike → /.test(line) && line.startsWith("  Berang")).length, 2, state.log.join("\n"));
+    // Blood Fury: 5 Hit Points back as it deals bleed damage.
+    const butcher = withBuiltins({ ...moderateCreature(5, "but", "Butcher"), engagement: 1, hp: { value: 40, max: 80, temp: 0 } }, ["Test Fury", { builtin: "self-effect", actions: 0, model: { name: "Test Fury", rounds: 0, modifiers: [{ on: "attack", type: "status", value: 1 }], tempHp: 0 }, heal: 5, trigger: { kind: "deals-bleed", reaction: true } }]);
+    state = createFightState({ combatants: [{ ...party[0], engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, butcher] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 20;
+    const u = state.byId.get("but");
+    const bleeding = { ...u.strikes[0], bonus: 30, damage: [...u.strikes[0].damage, { dice: 1, die: 4, bonus: 1, multiplier: 1, type: "bleed", persistent: false, precision: false }] };
+    performStrike(state, u, state.byId.get(party[0].id), bleeding);
+    assert.ok(state.log.includes("  Butcher regains 5 HP") && u.hp.value === 45, state.log.join("\n"));
+    // Second Chance: the new result even when worse, as a free action.
+    const none = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
+    const scare = { modelVersion: 13, source: { name: "Test Scare" }, rank: 1, traits: ["mental"], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: null, area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: none, success: none, failure: { damage: none.damage, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, criticalFailure: { damage: none.damage, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] } } } };
+    const dragon = withBuiltins({ ...moderateCreature(5, "dragon", "Dragon"), engagement: 1 }, ["Test Second", { builtin: "save-reroll", ally: true, self: true, within: 30, save: null, keep: "new", perRound: true, free: true }]);
+    state = createFightState({ combatants: [{ ...party[0], engagement: 1, spells: [entry("Test Scare", scare, null)] }, dragon, { ...moderateCreature(5, "aly", "Ally"), engagement: 1 }] }, {}, 1);
+    state.log = [];
+    rolls = [20, 1];
+    state.rng.d20 = () => rolls.shift() ?? 1;
+    castPlan(state, state.byId.get(party[0].id), state.byId.get(party[0].id).spells[0], ["aly"]);
+    assert.ok(state.log.some((line) => /Dragon uses Test Second: Ally rerolls, critical failure/.test(line)), state.log.join("\n"));
+    assert.equal(state.byId.get("aly").cond.frightened, 2, "the new, worse result");
+    assert.equal(state.byId.get("dragon").reactionUsed ?? false, false, "a free action");
+    // Parasitic Healing: half to the creature, the full amount to the siphoner.
+    const heal = { name: "Test Mend", castRank: 1, dc: 20, attack: 10, pool: null, plan: { modelVersion: 13, source: { name: "Test Mend" }, rank: 1, traits: ["healing"], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "healing", native: { healing: { components: [{ id: "0", formula: "20", kinds: ["healing"] }], recipients: "any" } } } } };
+    const noble = withBuiltins({ ...moderateCreature(5, "nob", "Noble"), engagement: 1, hp: { value: 30, max: 90, temp: 0 } }, ["Test Parasite", { builtin: "heal-siphon", within: 60, share: 0.5, selfHeal: "full" }]);
+    state = createFightState({ combatants: [{ ...party[0], engagement: 1, hp: { value: 10, max: 80 } }, { ...party[1], id: "cleric", engagement: 1, spells: [heal], spellPools: {} }, noble] }, {}, 1);
+    state.log = [];
+    castSpell(state, state.byId.get("cleric"), 0, [party[0].id], 2);
+    assert.equal(state.byId.get(party[0].id).hp.value, 20, state.log.join("\n"));
+    assert.deepEqual([state.byId.get("nob").hp.value, state.byId.get("nob").hp.temp ?? 0], [50, 0]);
+});

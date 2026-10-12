@@ -757,6 +757,8 @@ function act(state, c, action) {
                     if (ability.critical && result?.degree === CRITICAL_SUCCESS) bothHitRider(state, c, foe, ability.critical, { said: "Critical hit on" });
                     // (B213, Hundred-Handed Whirlwind: damage even on a failed attack, not a critical failure.)
                     if (ability.missDamage?.length && result?.degree === FAILURE) bothHitRider(state, c, foe, { conditions: [], damage: ability.missDamage }, { said: "A failed attack still hurts" });
+                    // (B220, Cleanse the Forest: the next only after a hit.)
+                    if (ability.chain && (result?.degree ?? 0) < SUCCESS) break;
                 }
                 // ("These Strikes count as only one attack for its multiple attack penalty", B74.)
                 if (ability.sameMap) c.attacksThisTurn = attacks + (ability.countsAs ?? foes.length);

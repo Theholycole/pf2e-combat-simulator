@@ -354,10 +354,12 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
     }
     if (!SAVES.has(statistic) || !saver?.id || !["failure", "criticalFailure"].includes(result?.degree) || !isActive(saver)) return result;
     // (B125: an ally's failed save rerolled, keeping the better — against the effects it names, or its kind of save.)
-    const rerolls = state.list.find((c) => c.allySaveReroll && (c !== saver || c.allySaveReroll.self) && c.side === saver.side && isActive(c) && canReact(c) && (c.allySaveRerollsUsed ?? 0) < c.allySaveReroll.uses
+    // (B220, Second Chance: a free action once a round, not a reaction.)
+    const rerolls = state.list.find((c) => c.allySaveReroll && (c !== saver || c.allySaveReroll.self) && c.side === saver.side && isActive(c) && (c.allySaveReroll.free ? (!c.allySaveReroll.perRound || c.allySaveRerollRound !== state.round) : canReact(c)) && (c.allySaveRerollsUsed ?? 0) < c.allySaveReroll.uses
         && (c === saver || near(c, c.allySaveReroll.within)) && (!c.allySaveReroll.save || c.allySaveReroll.save === statistic) && (!c.allySaveReroll.against || c.allySaveReroll.against.some((trait) => traits.includes(trait))));
     if (rerolls) {
-        rerolls.reactionUsed = true;
+        if (rerolls.allySaveReroll.free) rerolls.allySaveRerollRound = state.round;
+        else rerolls.reactionUsed = true;
         rerolls.allySaveRerollsUsed = (rerolls.allySaveRerollsUsed ?? 0) + 1;
         state.stats.reactions++;
         const natural = state.rng.d20();
@@ -366,7 +368,8 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
         // (B181: a critical failure on the reroll a failure.)
         const degree = rerolls.allySaveReroll.floor === "failure" && rolled === "criticalFailure" ? "failure" : rolled;
         log(state, `  ${rerolls.name} uses ${rerolls.allySaveReroll.name}: ${saver.name} rerolls, ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
-        if (DEGREE_NAMES.indexOf(degree) > DEGREE_NAMES.indexOf(result.degree)) return { natural, total, dc: options.dc, degree };
+        // (B220, Second Chance: the new result, whatever it is.)
+        if (rerolls.allySaveReroll.keep === "new" || DEGREE_NAMES.indexOf(degree) > DEGREE_NAMES.indexOf(result.degree)) return { natural, total, dc: options.dc, degree };
         return result;
     }
     const reroll = saver.saveReroll;
@@ -1199,15 +1202,23 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     const least = (instance) => Math.max(0, Math.floor(Math.floor(instance.constant / 2) + instance.dice.reduce((sum, term) => sum + term.factor * term.count, 0)));
     // (B209: a share of each roll kept for the creature, the rest the siphoner's temporary Hit Points.)
     let siphoned = 0;
+    let whole = 0;
     const shared = (instance) => {
         const full = live.damage(instance);
         const kept = Math.floor(full * siphon.healSiphon.share);
         siphoned += full - kept;
+        whole += full;
         return kept;
     };
     const io = { ...live, ...(siphon ? { damage: siphon.healSiphon.share ? shared : least } : {}), roll, choose: chooser(caster, targets) };
     const result = registry.resolveSync(spell.plan, context, io);
-    const temp = siphon?.healSiphon.share ? siphoned : siphon?.healSiphon.tempHp ? rollCount(state, siphon.healSiphon.tempHp) : 0;
+    // (B220, Parasitic Healing: the siphoner regains the full amount instead.)
+    if (siphon?.healSiphon.selfHeal === "full" && whole > 0 && isActive(siphon)) {
+        const before = siphon.hp.value;
+        siphon.hp.value = Math.min(siphon.hp.max, siphon.hp.value + whole);
+        log(state, `  ${siphon.name} regains ${siphon.hp.value - before} HP`);
+    }
+    const temp = siphon?.healSiphon.selfHeal === "full" ? 0 : siphon?.healSiphon.share ? siphoned : siphon?.healSiphon.tempHp ? rollCount(state, siphon.healSiphon.tempHp) : 0;
     if (siphon && temp > 0 && isActive(siphon)) {
         if (temp > (siphon.hp.temp ?? 0)) siphon.hp.temp = temp;
         log(state, `  ${siphon.name} gains ${temp} temporary HP`);
