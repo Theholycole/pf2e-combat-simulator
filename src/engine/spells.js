@@ -125,6 +125,9 @@ function readSpell(base, actions) {
         touch: /touch/i.test(String(targeting.range ?? "")),
         // (B133, Tackle: a move first — that many Strides to reach the creature.)
         approach: Number(plan?.approach?.strides) || 0,
+        // (B134: less than a Stride — "up to 10 feet", "up to half its Speed".)
+        approachFeet: Number(plan?.approach?.feet) || null,
+        approachHalf: Boolean(plan?.approach?.half),
         area,
         targets: area ? 0 : targeting.allies ? 1 : targetCount(targeting.target),
         attack: statistic === "spell-attack" || statistic === "strike" || (check?.roll === "skill" && (plan?.traits ?? []).includes("attack") && plan?.trigger?.map !== false),
@@ -1864,7 +1867,7 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     const notImmune = (other) => !immune?.has(other.id);
     if (immune?.size) enemies = enemies.filter(notImmune);
     // (B133: a move first, Tackle's — a creature within that many Strides too.)
-    const reaches = (other) => other === caster || (info.touch ? inMelee(other) || (info.approach > 0 && canMove(caster) && distance(other) <= (caster.speed ?? 25) * info.approach) : info.range === null || distance(other) <= info.range);
+    const reaches = (other) => other === caster || (info.touch ? inMelee(other) || (info.approach > 0 && canMove(caster) && distance(other) <= (info.approachFeet ?? (caster.speed ?? 25) * info.approach * (info.approachHalf ? 0.5 : 1))) : info.range === null || distance(other) <= info.range);
     if (!info.area) {
         const sets = [];
         // (A spell for a willing creature — Vapor Form — goes to no enemy.)
