@@ -166,6 +166,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.skill ? { skill: plan.skill } : {}), ...(plan.bonus ? { bonus: plan.bonus } : {}),
                 // (B121: Retaliatory Strike's extra dice on a hit; Avenging Claws' Step first; Vengeful Throw's ranged Strike from afar.)
                 ...(plan.extraDamage ? { extraDamage: plan.extraDamage } : {}), ...(plan.step ? { step: true } : {}), ...(plan.ranged ? { ranged: true } : {}), ...(Number(plan.from) > 0 ? { from: Number(plan.from) } : {}),
+                // (B225, Disruptive Screech: its distance, for a ranged Strike from afar.)
+                ...(Number(plan.within) > 10 ? { within: Number(plan.within) } : {}),
                 // (B122: Knowing Glance's melee Strikes only; Bodyguard's Reprisal's charge, played as any ally.)
                 ...(plan.melee ? { melee: true } : {}), ...(plan.ward ? { ward: true } : {}), ...(plan.persistentType ? { persistentType: plan.persistentType } : {}),
                 // (B123: Quick Capture's grab on a hit; Deadly Cleave's same multiple attack penalty.)

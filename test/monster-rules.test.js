@@ -4312,3 +4312,44 @@ test("Strikes at enemy after enemy while each hits; Hit Points as it deals bleed
     assert.equal(state.byId.get(party[0].id).hp.value, 20, state.log.join("\n"));
     assert.deepEqual([state.byId.get("nob").hp.value, state.byId.get("nob").hp.temp ?? 0], [50, 0]);
 });
+
+test("Strikes at an auditory or a healing action, from afar too; a bite as a held creature gets free (2026-10-12, B225)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const plan = (name, traits, resolution) => ({ modelVersion: 13, source: { name }, rank: 1, traits, activation: { time: "1", traits }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution });
+    const shout = plan("Test Shout", ["auditory", "concentrate", "mental"], { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 1 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } });
+    const mend = plan("Test Mend", ["healing", "manipulate"], { kind: "healing", native: { healing: { components: [{ id: "0", formula: "10", kinds: ["healing"] }], recipients: "any" } } });
+    const fight = (spell, monster, engaged = true) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [entry(spell.source.name, spell)] }, { ...monster, ...(engaged ? { engagement: 1 } : {}), hp: { value: 999, max: 999 } }] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => 10;
+        performAction(state, state.byId.get(fighter.id), { type: "cast", spellIndex: 0, targetIds: [fighter.id], actions: 1 });
+        return state.log.join("\n");
+    };
+    // Auditory Swipe: a Strike in reach at an auditory action; not Reactive Strike for it.
+    const hound = withBuiltins({ ...moderateCreature(5, "hound", "Hound"), reactions: { aoo: true } }, ["Test Swipe", { builtin: "reaction-strike", triggers: ["auditory"], strike: null, penalty: 0, disrupts: false }]);
+    let log = fight(shout, hound);
+    assert.match(log, /Hound uses Test Swipe/, log);
+    assert.doesNotMatch(log, /Attack of Opportunity/, log);
+    assert.doesNotMatch(fight(mend, hound), /Test Swipe/);
+    // Disruptive Screech: a ranged Strike from 30 feet, outside the Melee.
+    const base = moderateCreature(5, "bat", "Bat");
+    const bat = withBuiltins({ ...base, strikes: [...base.strikes, { ...base.strikes[0], name: "Screech", melee: false }] }, ["Test Screech", { builtin: "reaction-strike", triggers: ["auditory"], strike: "screech", penalty: 0, disrupts: "critical", within: 30 }]);
+    log = fight(shout, bat, false);
+    assert.match(log, /Bat uses Test Screech/, log);
+    // Clinch Victory: a healing action in its reach.
+    log = fight(mend, withBuiltins(moderateCreature(5, "spirit", "Spirit"), ["Test Clinch", { builtin: "reaction-strike", triggers: ["healing"], strike: null, penalty: 0, disrupts: "critical" }]));
+    assert.match(log, /Spirit uses Test Clinch/, log);
+    // Serrated Teeth: its damage on a creature it held getting free.
+    const teeth = { modelVersion: 13, source: { name: "Test Teeth" }, rank: 1, traits: [], activation: { time: "reaction", traits: [] }, targeting: { target: "the attacker", range: "touch", area: null }, trigger: { event: "escaped", reaction: true },
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "2d6[slashing]", type: null, category: null }] }, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [entry("Escape", basic.escape, "basic")] }, { ...moderateCreature(5, "croc", "Croc"), engagement: 1, hp: { value: 999, max: 999 }, spells: [entry("Test Teeth", teeth)] }] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get(fighter.id);
+    applyCondition(state, f, "grabbed", null, null, state.byId.get("croc"));
+    const before = f.hp.value;
+    state.rng.d20 = () => 20;
+    castSpell(state, f, 0, ["croc"]);
+    assert.ok(state.log.some((line) => /Croc reacts with Test Teeth/.test(line)) && f.hp.value < before, state.log.join("\n"));
+});

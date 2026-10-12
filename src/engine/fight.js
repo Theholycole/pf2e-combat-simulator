@@ -608,6 +608,8 @@ function act(state, c, action) {
             const traits = spell?.plan?.activation?.traits ?? spell?.plan?.traits ?? [];
             let disrupted = traits.includes("manipulate") ? provoke(state, c, "manipulate") : false;
             if (canAct(c) && traits.includes("concentrate")) disrupted = provoke(state, c, "concentrate") || disrupted;
+            // (B225: an auditory or a healing action, the reaction Strikes that say so.)
+            for (const kind of ["auditory", "healing"]) if (canAct(c) && traits.includes(kind)) disrupted = provoke(state, c, kind) || disrupted;
             // (B122, Spell Interception: a spell, not an ability.)
             if (canAct(c) && spell && (!spell.kind || spell.castsSpell)) disrupted = castAnswers(state, c) || disrupted;
             if (!canAct(c)) break;
@@ -695,7 +697,9 @@ function act(state, c, action) {
         // Battle Medicine: a Medicine check against the Treat Wounds DC it chose.
         case "battleMedicine": {
             const target = state.byId.get(action.targetId);
-            if (target) battleMedicine(state, c, target, action.tier);
+            // (B225: a healing action, Clinch Victory's trigger; disrupted, it's lost.)
+            const disrupted = target ? provoke(state, c, "healing") : false;
+            if (target && !disrupted && canAct(c)) battleMedicine(state, c, target, action.tier);
             break;
         }
         case "rend": {

@@ -1606,6 +1606,8 @@ export function escapeAnswers(state, escaper, grabber, degree) {
     if (["success", "criticalSuccess"].includes(degree)) {
         const answer = (grabber.reactionStrikes ?? []).find((entry) => entry.triggers.includes("escaped"));
         if (answer && canReact(grabber) && !grabber.cond.fleeing) reactionStrikeAt(state, grabber, escaper, answer, "escape");
+        // (B225, Serrated Teeth: its damage on the creature getting free.)
+        else if (!grabber.cond.fleeing) useReaction(state, grabber, escaper, (trigger) => trigger.event === "escaped");
         return;
     }
     if (!["failure", "criticalFailure"].includes(degree)) return;

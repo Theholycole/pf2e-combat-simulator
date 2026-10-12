@@ -1286,13 +1286,17 @@ export function recoveryCheck(state, c) {
 // kind: "move" | "ranged" | "manipulate". Returns true if a manipulate action was disrupted.
 // Also the Strikes some monsters make when a creature moves by them (Twisting
 // Tail), which disrupt the move when they hit.
+// (B225: an auditory or a healing action — Auditory Swipe, Disruptive Screech, Clinch Victory: only the reaction Strikes that name it.)
+const OWN_KINDS = new Set(["auditory", "healing"]);
+
 export function provoke(state, mover, kind) {
     let disrupted = false;
+    const own = OWN_KINDS.has(kind);
     // (A concentrate action provokes only the reactions that say so, B51.)
     for (const enemy of kind === "concentrate" ? [] : engagedEnemies(state, mover)) {
         if (!canAct(mover)) break;
         if (!canReact(enemy) || enemy.cond.fleeing) continue;
-        if (enemy.reactions?.aoo) {
+        if (enemy.reactions?.aoo && !own) {
             const strike = bestMeleeStrike(enemy, mover);
             if (!strike) continue;
             enemy.reactionUsed = true;
@@ -1309,6 +1313,15 @@ export function provoke(state, mover, kind) {
         const result = reaction ? reactionStrikeAt(state, enemy, mover, reaction, kind) : null;
         // (B96: "If the attack is a critical hit …, it disrupts that action": a critical hit only.)
         if (reaction?.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) disrupted = true;
+    }
+    // (B225: from afar, a ranged Strike within its distance — Disruptive Screech's 30 feet: the bands, as a trigger's.)
+    for (const enemy of own ? state.list : []) {
+        if (!canAct(mover)) break;
+        if (enemy.side === mover.side || !isActive(enemy) || sameMelee(enemy, mover) || !canReact(enemy) || enemy.cond.fleeing) continue;
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes(kind) && entry.within > 10);
+        if (!reaction || !(reaction.within >= 60 || mover.band !== "far" || enemy.band === "far")) continue;
+        const result = reactionStrikeAt(state, enemy, mover, { ...reaction, ranged: true }, kind);
+        if (reaction.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) disrupted = true;
     }
     // Tentacle Trip, Ectoplasmic Filaments, Baleful Gaze: a reaction with results of its own (B51). One that leaves the creature
     // unable to act, or held, stops what it was doing.
