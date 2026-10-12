@@ -99,6 +99,8 @@ function combatant(npc) {
             const ways = plan.modes.filter((mode) => mode.plan?.resolution);
             if (ways.length) used.add(item.name);
             for (const mode of ways) spells.push({ name: `${item.name} (${mode.name})`, plan: mode.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name });
+        } else if (plan.builtin === "no-effect" && plan.gm) {
+            // (The GM's, 2026-10-12: not played here.)
         } else if (plan.builtin) {
             if (addBuiltin(builtins, plan, item.name)) used.add(item.name);
         } else if (plan.resolution && (!plan.requires || plan.requiresFoe)) {

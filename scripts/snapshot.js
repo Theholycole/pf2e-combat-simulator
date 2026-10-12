@@ -512,6 +512,9 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
             result.abilities.push({ ...cast, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null });
             continue;
         }
+        // (The GM's — behind a state the simulator can't see, out of combat, a one-off adventure creature's; the user's choice of 2026-10-12:
+        // not played here, so still listed among what the simulation leaves out.)
+        if (plan.builtin === "no-effect" && plan.gm) continue;
         if (plan.builtin) {
             if (!pc && addBuiltin(result.builtins, plan, item.name)) result.handled.add(item);
             continue;
