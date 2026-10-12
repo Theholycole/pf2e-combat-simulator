@@ -4517,3 +4517,15 @@ test("Its claw after its second fist hit on the same creature this turn, outside
     assert.ok(state.log.includes("  Giant uses Test Swift"), state.log.join("\n"));
     assert.equal(g.attacksThisTurn, 2, "the two fists only: the claw adds none");
 });
+
+test("Resistance against a melee Strike from beside it, and damage back at the attacker (2026-10-12, B237)", () => {
+    const [fighter] = martialParty(5);
+    const lion = withBuiltins({ ...moderateCreature(5, "lion", "Lion"), engagement: 1, hp: { value: 999, max: 999 } }, ["Test Riposte", { builtin: "resist-damage", value: 3, on: ["physical"], types: ["physical"], attack: true, foe: true, melee: true, retort: "(1d6+2)[slashing]" }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 200, max: 200 } }, lion] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get(fighter.id);
+    applyDamage(state, state.byId.get("lion"), [{ type: "slashing", amount: 10, persistent: false, precision: false }], { source: f, physical: true });
+    assert.match(state.log.join("\n"), /Lion uses Test Riposte/, state.log.join("\n"));
+    assert.ok(f.hp.value < 200, state.log.join("\n"));
+    assert.equal(state.byId.get("lion").hp.value, 999 - 7);
+});

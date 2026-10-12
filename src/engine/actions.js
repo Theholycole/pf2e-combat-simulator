@@ -11,7 +11,8 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { applyEffect, removeEffect } from "./effects.js";
-import { applyCondition, castPlan, castSpell, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit, rollCount } from "./spells.js";
+import { applyCondition, castPlan, castSpell, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -983,6 +984,8 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     const resist = target.resistReaction;
     if (!resist || !isActive(target) || !canReact(target) || !((target.resistUses ?? Infinity) > 0)) return null;
     if ((resist.attack && !physical) || (resist.foe && !(source && source.side !== target.side))) return null;
+    // (B237: a melee attack from beside it — a Strike from a creature in its Melee.)
+    if (resist.melee && !(physical && source && sameMelee(target, source))) return null;
     // (B193, Divert Essence: only a spell aimed at it, its rank the resistance.)
     if (resist.spell && !(spell?.targeted && spell.rank > 0 && source && source.side !== target.side)) return null;
     // (B213, Shadow Siphon: "a spell or magical effect" — a spell's damage.)
@@ -1020,6 +1023,11 @@ function afterResisting(state, target, { before, resist, entries, resisted = 0, 
         const degree = degreeOf(natural + resist.lashBack.bonus, armorClass(source), natural);
         log(state, `  ${target.name} lashes back at ${source.name}: ${natural + resist.lashBack.bonus} vs AC ${armorClass(source)}`);
         if (degree >= SUCCESS) applyDamage(state, source, [{ type, amount: resisted, persistent: false, precision: false }], { source: target });
+    }
+    // (B237, Sharp Riposte: the attacker takes its damage back when the attack hits.)
+    if (resist.retort && source && source !== target && isActive(source) && isActive(target)) {
+        const dealt = applyDamage(state, source, rollInstances(state, parseDamage(resist.retort)), { source: target });
+        log(state, `  ${source.name} takes ${dealt} from ${resist.name}`);
     }
     const model = (name, rounds, modifiers, resistances) => ({ name, rounds, modifiers, tempHp: 0, fastHealing: 0, resistances, weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 });
     if (resist.lasts) applyEffect(state, target, model(resist.name, resist.lasts, [], entries), target);
