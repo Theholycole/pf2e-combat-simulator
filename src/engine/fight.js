@@ -5,7 +5,7 @@ import { CRITICAL_SUCCESS, FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers } from "./actions.js";
-import { canReact, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { canReact, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, regenerating, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -397,6 +397,11 @@ function swallowedTurn(state, c) {
 function endTurn(state, c) {
     // Panache from a failed bravado action lasts only this turn.
     if (c.panache === "turn") c.panache = false;
+    // (B167: Attack of Opportunity from Tactical Direction ends with this turn.)
+    if (c.grantedAoo) {
+        c.grantedAoo = false;
+        c.reactions = { ...(c.reactions ?? {}), aoo: false };
+    }
     // Wine-Soaked, Draining Roots: a passive on a creature held as a turn ends (B49).
     grabTurnAnswers(state, c, "end");
     // Swallow Whole's damage at the end of each of the swallowed creature's turns.
@@ -831,6 +836,16 @@ function act(state, c, action) {
             c.usedThisTurn?.add("overdrive");
             overdrive(state, c);
             break;
+        // (B167, Tactical Direction: its allies of that trait near it gain Attack of Opportunity until the end of their next turn.)
+        case "grantAoo": {
+            state.log?.push(`  ${c.name} uses ${c.grantAoo.name}`);
+            for (const ally of grantAooAllies(state, c)) {
+                ally.reactions = { ...(ally.reactions ?? {}), aoo: true };
+                ally.grantedAoo = true;
+                state.log?.push(`  ${ally.name} gains Attack of Opportunity`);
+            }
+            break;
+        }
         // Hunt Prey: the creature its hunter's edge works against.
         case "huntPrey": {
             const target = state.byId.get(action.targetId);
@@ -893,7 +908,7 @@ function actionCost(c, action) {
     if (action.type === "spellstrike" || action.type === "strikeHard") return 2;
     if (action.type === "pincerAttack" || action.type === "bannersInspiration" || action.type === "shiftImmanence" || action.type === "transcend") return 1;
     if (action.type === "disableHazard") return 2;
-    if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon") return action.actions ?? 1;
+    if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon" || action.type === "grantAoo") return action.actions ?? 1;
     // (Quickened Casting, B72: one action fewer.)
     if (action.type === "cast") return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened ? 1 : 0));
     return action.type === "task" ? 2 : 1;

@@ -228,6 +228,10 @@ export function addBuiltin(spec, plan, name) {
             if (!plan.poison?.plan?.resolution) return false;
             spec.poisonWeapon = { name, actions: Number(plan.actions) || 1, doses: Number(plan.doses) || 1, spell: { name: plan.poison.name, plan: plan.poison.plan, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" } };
             return true;
+        // (B167, Tactical Direction: Attack of Opportunity for its allies of a trait within an emanation, until the end of their next turn.)
+        case "grant-aoo":
+            spec.grantAoo = { name, actions: Number(plan.actions) || 1, within: Number(plan.within) || 30, ...(plan.trait ? { trait: plan.trait } : {}) };
+            return true;
         // A monster's Hunt Prey (B71): a ranger's precision edge, its dice ("1d8 precision damage" the first hit on its prey each round).
         case "hunt-prey":
             // (B164, Mark for Death: deadly on its Strikes (or the ones it names) against its mark.)
@@ -388,6 +392,11 @@ export function sweepActionIndex(c, sweep) {
 }
 
 // Raging (B155): a rage on itself that keeps it from concentrating — the planner's own test.
+// (B167: the allies Tactical Direction reaches — its trait, near it (not "far"), active, without Attack of Opportunity of their own.)
+export function grantAooAllies(state, c) {
+    return state.list.filter((ally) => ally !== c && ally.side === c.side && ally.status === "active" && !ally.reactions?.aoo && ally.band !== "far" && (!c.grantAoo?.trait || (ally.traits ?? []).includes(c.grantAoo.trait)));
+}
+
 export const isRaging = (c) => (c.activeBuffs ?? []).some((buff) => buff.noConcentrate) || (c.effects ?? []).some((effect) => effect.model?.noConcentrate);
 
 export function multiStrikeOrder(c, ability) {

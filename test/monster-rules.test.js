@@ -3667,3 +3667,22 @@ test("A buff for its next Strike only, spent by that Strike (Trick Attack, 2026-
     performStrike(state, r, state.byId.get(fighter.id), r.strikes[0]);
     assert.ok(!(r.effects ?? []).some((effect) => effect.key === "self:Test Trick"), "spent by the Strike");
 });
+
+test("Attack of Opportunity for its allies of a trait until the end of their next turn (Tactical Direction, 2026-10-12, B167)", () => {
+    const [fighter] = martialParty(5);
+    const commander = withBuiltins({ ...moderateCreature(5, "commander", "Commander"), engagement: 1, traits: ["undead", "wight"] }, ["Test Direction", { builtin: "grant-aoo", actions: 2, within: 30, trait: "wight" }]);
+    const wight = { ...moderateCreature(5, "wight", "Wight"), engagement: 1, traits: ["undead", "wight"] };
+    const ghoul = { ...moderateCreature(5, "ghoul", "Ghoul"), engagement: 1, traits: ["undead", "ghoul"] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, commander, wight, ghoul] }, {}, 1);
+    state.log = [];
+    const c = state.byId.get("commander");
+    c.actionsLeft = 3;
+    assert.ok(scoreOptions(state, c).options.some((option) => option.action.type === "grantAoo"), "an option while a wight lacks it");
+    performAction(state, c, { type: "grantAoo", actions: 2 });
+    const w = state.byId.get("wight");
+    assert.equal(w.reactions.aoo, true, state.log.join("\n"));
+    assert.ok(!state.byId.get("ghoul").reactions.aoo, "only its trait");
+    assert.ok(!scoreOptions(state, c).options.some((option) => option.action.type === "grantAoo"), "no option once they have it");
+    turnEnd(state, w);
+    assert.equal(w.reactions.aoo, false, "ends with the wight's turn");
+});

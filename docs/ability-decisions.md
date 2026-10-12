@@ -158,6 +158,7 @@ Milestone 3, first slice: creatures use the basic actions and their monster abil
 | B158 | A guard only while its own stance is on it (Mountain Stronghold, 2026-10-12). | A self-effect's `requiresEffect`: planned only while the creature has its own effect of that name (`self:<name>`). | The ability's own words, 2026-10-12. |
 | B164 | A mark whose Strikes against it gain deadly (Mark for Death, 2026-10-12). | Hunt Prey's `edge: "deadly"`: its Strikes (the named one, or all) against its prey gain deadly with that die, unless they have deadly already. | The ability's own words, 2026-10-12. |
 | B166 | A buff for its next Strike only (Trick Attack, 2026-10-12). | A self-effect's `nextStrike`: its effect is removed by the next Strike it adds damage to, hit or miss (after that Strike's damage is counted). | The ability's own words, 2026-10-12. |
+| B167 | Attack of Opportunity for its allies of a trait in an emanation, until the end of their next turn (Tactical Direction, 2026-10-12). | `grant-aoo`: its actions (two for the wight commanders), worth a little per ally of that trait near it (not far) without the reaction; each gains it until its own turn ends. | The ability's own words, 2026-10-12. |
 
 **Not yet:** Stop Bleeding (Administer First Aid's other use), reactions with other triggers (Retaliatory Strike, Avenging Bite), defensive reactions against spell attacks, Strike activities with other effects (dragging, longer reach, several targets), the fascinated and controlled conditions, class features, consumables, and live-play confirmation cards.
 

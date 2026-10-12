@@ -21,7 +21,7 @@ import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, 
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
 import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, worstCondition } from "./spells.js";
-import { levelDC } from "./abilities.js";
+import { grantAooAllies, levelDC } from "./abilities.js";
 
 export const ROLE_PROFILES = Object.freeze({
     soldier: { aggression: 1, selfPreservation: 0.8, objective: 1 },
@@ -1236,6 +1236,11 @@ function expand(ctx, node, actionsLeft) {
             const current = (c.activeBuffs ?? []).some((buff) => buff.name === c.overdrive.name) ? 1 : 0;
             const bonus = odds[3] * c.overdrive.intMod + odds[2] * Math.floor(c.overdrive.intMod / 2) + odds[1] * 1 - current;
             if (bonus > 0) children.push(child(node, { type: "overdrive" }, 1, ctx.ownValue * ROUND_TO_KILL * 3 * 1.2 * bonus / threatOf));
+        }
+        // (B167, Tactical Direction: worth its allies' Attacks of Opportunity, a little each, when none has one of its own.)
+        if (c.grantAoo && !node.casts.includes("grant-aoo")) {
+            const allies = grantAooAllies(state, c);
+            if (allies.length) children.push(child(node, { type: "grantAoo", actions: c.grantAoo.actions }, c.grantAoo.actions, ctx.ownValue * 0.04 * allies.length, { cast: "grant-aoo" }));
         }
         // Hunt Prey: a new prey when the current one is gone or a better target is in reach.
         if (c.huntPrey && node.used === 0 && !raging) {
