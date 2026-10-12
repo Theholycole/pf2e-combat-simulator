@@ -370,6 +370,18 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         if (strike.firearm && attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;
         // A bomb that misses (not critically) still splashes the target and those around it.
         if (degree === FAILURE && strike.splashKind === "bomb") splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false })), { includeTarget: true });
+        // (B171, Sidestep, Glide Aside: the attack sent at another of the attacker's side beside it, the attacker rerolling against that one at
+        // the same multiple attack penalty.)
+        if (!reaction && target.redirectAttack && isActive(attacker) && isActive(target) && canReact(target) && canAct(target)) {
+            const other = state.list.find((c) => c !== attacker && c !== target && c.side === attacker.side && isActive(c) && sameMelee(c, target));
+            if (other) {
+                target.reactionUsed = true;
+                log(state, `  ${target.name} uses ${target.redirectAttack.name}: the attack goes to ${other.name}`);
+                attacker.attacksThisTurn--;
+                performStrike(state, attacker, other, strike);
+                return { degree, damage: 0, trigger };
+            }
+        }
         // Opportune Riposte: a Strike back at a foe in reach that critically fails against it.
         if (degree === CRITICAL_FAILURE && !reaction && target.opportuneRiposte && canReact(target) && sameMelee(target, attacker)) {
             const riposte = bestMeleeStrike(target, attacker);

@@ -3737,3 +3737,20 @@ test("Its allies' initiative higher when it rolls Perception (Guide's Warning, 2
     const ambush = simulate({ combatants: [fighter, guide, ally], setup: { ambush: "foes" } }, {}, 1, { log: true });
     assert.ok(!ambush.log.some((line) => /uses Test Warning/.test(line)));
 });
+
+test("A Strike that misses it sent at another creature beside it, rerolled (Sidestep, 2026-10-12, B171)", () => {
+    const party = martialParty(5);
+    const [fighter, other] = party;
+    const assassin = withBuiltins({ ...moderateCreature(5, "assassin", "Assassin"), engagement: 1 }, ["Test Sidestep", { builtin: "redirect-attack" }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...other, engagement: 1, hp: { value: 900, max: 900 } }, assassin] }, {}, 1);
+    state.log = [];
+    const rolls = [2, 19];
+    state.rng.d20 = () => rolls.shift() ?? 10;
+    const f = state.byId.get(fighter.id);
+    const a = state.byId.get("assassin");
+    performStrike(state, f, a, f.strikes[0]);
+    assert.ok(state.log.some((line) => line === `  Assassin uses Test Sidestep: the attack goes to ${other.name}`), state.log.join("\n"));
+    assert.ok(state.byId.get(other.id).hp.value < 900, "the reroll hit the other creature");
+    assert.equal(a.reactionUsed, true);
+    assert.equal(f.attacksThisTurn, 1, "one attack for its multiple attack penalty");
+});
