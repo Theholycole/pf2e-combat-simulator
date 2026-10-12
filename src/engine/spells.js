@@ -355,7 +355,8 @@ function betterSave(state, statistic, options, result, spell = null) {
         return reroll.keep === "new" || DEGREE_NAMES.indexOf(degree) > DEGREE_NAMES.indexOf(result.degree) ? { natural, total, dc: options.dc, degree } : result;
     }
     const ready = (c) => (c.saveBoostUntil ?? -Infinity) <= state.round && (c === saver && saver.saveBoost?.free ? true : canReact(c));
-    const ownBoost = saver.saveBoost && (!Number.isFinite(saver.saveBoostUses) || saver.saveBoostUses > 0) && (!saver.saveBoost.criticalOnly || result.degree === "criticalFailure");
+    const ownBoost = saver.saveBoost && (!Number.isFinite(saver.saveBoostUses) || saver.saveBoostUses > 0) && (!saver.saveBoost.criticalOnly || result.degree === "criticalFailure")
+        && (!saver.saveBoost.failureOnly || result.degree === "failure") && (!saver.saveBoost.save || saver.saveBoost.save === statistic) && (!saver.saveBoost.against || saver.saveBoost.against.some((trait) => traits.includes(trait)));
     const helper = ownBoost && ready(saver) ? saver
         : state.list.find((c) => c !== saver && c.side === saver.side && isActive(c) && c.allySaveBoost && ready(c) && (c.allySaveBoost.within >= 60 || (c.allySaveBoost.within <= 10 ? sameMelee(c, saver) : saver.band !== "far" || c.band === "far")));
     if (!helper) return result;
@@ -366,6 +367,8 @@ function betterSave(state, statistic, options, result, spell = null) {
     state.stats.reactions++;
     const degree = DEGREE_NAMES[Math.min(3, DEGREE_NAMES.indexOf(result.degree) + 1)];
     log(state, `  ${helper.name} uses ${boost.name}: ${saver.name}'s save ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
+    // (B132, Gardener's Resolve: the damage it takes for it.)
+    if (boost.selfDamage) applyDamage(state, helper, rollInstances(state, parseDamage(boost.selfDamage)), { source: helper });
     return { ...result, degree };
 }
 

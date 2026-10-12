@@ -3159,3 +3159,22 @@ test("A Grapple as a reaction to electricity damage, at a creature beside it (20
     assert.ok(state.log.some((line) => /reacts with Test Reflexes/.test(line)), state.log.join("\n"));
     assert.ok(state.log.some((line) => /Golem casts Test Reflexes at Fighter|Fighter:/.test(line)), "at the fighter beside it, not the far caster");
 });
+
+test("Its failed Will save against a mental effect made a success, at the cost of damage (2026-10-12, B132)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const scare = (traits) => ({ modelVersion: 13, source: { name: "Test Scare" }, rank: 1, traits, activation: { time: "2", traits }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 25 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] }, criticalFailure: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 3, duration: null }] } } } });
+    const [fighter] = martialParty(5);
+    const run = (traits) => {
+        const masked = withBuiltins({ ...moderateCreature(5, "msk", "Masked"), engagement: 1, hp: { value: 999, max: 999 } }, ["Test Resolve", { builtin: "save-boost", failureOnly: true, save: "will", against: ["mental", "fear"], selfDamage: "3d8[mental]" }]);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [entry("Test Scare", scare(traits))] }, masked] }, {}, 1);
+        state.log = [];
+        const m = state.byId.get("msk");
+        // A failure, not a critical failure: the save total just under the DC.
+        state.rng.d20 = () => Math.max(2, Math.min(19, 24 - m.saves.will));
+        castSpell(state, state.byId.get(fighter.id), 0, ["msk"]);
+        return [m.cond.frightened, m.hp.value < 999];
+    };
+    assert.deepEqual(run(["mental", "fear"]), [0, true], "boosted to a success, its damage taken");
+    assert.deepEqual(run(["fire"]), [2, false], "not against a non-mental effect");
+});
