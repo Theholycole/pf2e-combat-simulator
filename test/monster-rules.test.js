@@ -3795,3 +3795,13 @@ test("A rune detonated on the creature that damaged it (Retributive Rune, 2026-1
     assert.ok(state.log.some((line) => /Dragon reacts with Test Rune/.test(line)), state.log.join("\n"));
     assert.equal(500 - f.hp.value, 30, "5d6 at its most");
 });
+
+test("An initiative bonus for its allies within 10 feet only (Warning Ears, 2026-10-12, B178)", () => {
+    const [fighter] = martialParty(5);
+    const courser = withBuiltins({ ...moderateCreature(5, "courser", "Courser"), engagement: 1 }, ["Test Ears", { builtin: "initiative-warning", value: 50, within: 10, free: true }]);
+    const near = { ...moderateCreature(5, "near", "Near"), engagement: 1 };
+    const far = { ...moderateCreature(5, "far", "Far"), band: "far" };
+    const { log } = simulate({ combatants: [{ ...fighter, engagement: 1 }, courser, near, far] }, {}, 1, { log: true });
+    assert.equal(log[0], "  Courser uses Test Ears: +50 to its allies' initiative");
+    assert.match(log[log.indexOf("— Round 1 —") + 1], /^Near \(/, "the ally beside it first");
+});

@@ -200,7 +200,8 @@ export function addBuiltin(spec, plan, name) {
         // (B170, Guide's Warning, Warning Hoot: a circumstance bonus to its allies' initiative rolls; its reaction, or a free action.)
         case "initiative-warning":
             if (!(Number(plan.value) > 0)) return false;
-            spec.initiativeWarning = { name, value: Number(plan.value), ...(plan.free ? { free: true } : {}) };
+            // (B178, Warning Ears: only its allies within 10 feet.)
+            spec.initiativeWarning = { name, value: Number(plan.value), ...(plan.free ? { free: true } : {}), ...(Number(plan.within) > 0 ? { within: Number(plan.within) } : {}) };
             return true;
         // (B168, Drowning Drone: a skill check as a save is attempted, the higher of the two resolving the effect — its own, or its allies'
         // within its distance (of its trait); that kind of save, against those traits.)

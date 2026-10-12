@@ -147,7 +147,9 @@ function rollInitiative(state, snapshot) {
         if (!c.initiativeWarning || usesStealth(c) || (!c.initiativeWarning.free && !canReact(c))) continue;
         if (!c.initiativeWarning.free) c.reactionUsed = true;
         state.log?.push(`  ${c.name} uses ${c.initiativeWarning.name}: +${c.initiativeWarning.value} to its allies' initiative`);
-        for (const ally of state.list) if (ally !== c && ally.side === c.side) warned.set(ally.id, Math.max(warned.get(ally.id) ?? 0, c.initiativeWarning.value));
+        // (B178, Warning Ears: within 10 feet, the allies in its melee.)
+        const near = (ally) => !c.initiativeWarning.within || c.initiativeWarning.within > 10 || sameMelee(ally, c);
+        for (const ally of state.list) if (ally !== c && ally.side === c.side && near(ally)) warned.set(ally.id, Math.max(warned.get(ally.id) ?? 0, c.initiativeWarning.value));
     }
     const rolled = state.list.map((c) => {
         const useStealth = usesStealth(c);
