@@ -1254,6 +1254,8 @@ export function provoke(state, mover, kind) {
             enemy.reactionUsed = true;
             state.stats.reactions++;
             log(state, `  ${enemy.name} Attack of Opportunity`);
+            // (B176, Call to Arms: an ally that uses the Reactive Strike it gave is immune to it afterward.)
+            if (enemy.grantedAoo?.usedOnce) (state.byId.get(enemy.grantedAoo.by).grantAooImmune ??= new Set()).add(enemy.id);
             const result = performStrike(state, enemy, mover, strike, { reaction: true, trigger: kind });
             if (result?.degree === CRITICAL_SUCCESS && kind === "manipulate") disrupted = true;
             continue;

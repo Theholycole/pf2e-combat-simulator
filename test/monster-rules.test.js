@@ -3754,3 +3754,29 @@ test("A Strike that misses it sent at another creature beside it, rerolled (Side
     assert.equal(a.reactionUsed, true);
     assert.equal(f.attacksThisTurn, 1, "one attack for its multiple attack penalty");
 });
+
+test("Reactive Strike until the granter's next turn ends, an ally that uses it immune after (Call to Arms, 2026-10-12, B176)", () => {
+    const [fighter] = martialParty(5);
+    const vanguard = withBuiltins({ ...moderateCreature(5, "vanguard", "Vanguard"), engagement: 1, traits: ["caligni", "humanoid"] }, ["Test Call", { builtin: "grant-aoo", actions: 1, within: 30, trait: "caligni", until: "source", usedOnce: true }]);
+    const caligni = { ...moderateCreature(5, "cal", "Caligni"), engagement: 1, traits: ["caligni", "humanoid"] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 900, max: 900 } }, vanguard, caligni] }, {}, 1);
+    state.log = [];
+    const v = state.byId.get("vanguard");
+    const cal = state.byId.get("cal");
+    v.actionsLeft = 3;
+    performAction(state, v, { type: "grantAoo", actions: 1 });
+    assert.equal(cal.reactions.aoo, true, state.log.join("\n"));
+    turnEnd(state, cal);
+    assert.equal(cal.reactions.aoo, true, "not with the ally's own turn");
+    turnEnd(state, v);
+    assert.equal(cal.reactions.aoo, true, "not with the turn it was given in");
+    // Used: immune to it after.
+    provokeFor(state, state.byId.get(fighter.id), "move");
+    assert.ok(state.log.some((line) => /Caligni Attack of Opportunity/.test(line)), state.log.join("\n"));
+    state.round++;
+    turnEnd(state, v);
+    assert.equal(cal.reactions.aoo, false, "ends with the granter's next turn");
+    cal.reactionUsed = false;
+    v.actionsLeft = 3;
+    assert.ok(!scoreOptions(state, v).options.some((option) => option.action.type === "grantAoo"), "immune after using it");
+});

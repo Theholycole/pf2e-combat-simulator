@@ -407,11 +407,13 @@ function swallowedTurn(state, c) {
 function endTurn(state, c) {
     // Panache from a failed bravado action lasts only this turn.
     if (c.panache === "turn") c.panache = false;
-    // (B167: Attack of Opportunity from Tactical Direction ends with this turn.)
-    if (c.grantedAoo) {
-        c.grantedAoo = false;
-        c.reactions = { ...(c.reactions ?? {}), aoo: false };
-    }
+    // (B167: Attack of Opportunity from Tactical Direction ends with this turn; B176, Call to Arms': with the granter's next turn.)
+    const ungrant = (ally) => {
+        ally.grantedAoo = null;
+        ally.reactions = { ...(ally.reactions ?? {}), aoo: false };
+    };
+    if (c.grantedAoo && !c.grantedAoo.untilSource) ungrant(c);
+    for (const ally of state.list) if (ally.grantedAoo?.untilSource && ally.grantedAoo.by === c.id && ally.grantedAoo.round < state.round) ungrant(ally);
     // Wine-Soaked, Draining Roots: a passive on a creature held as a turn ends (B49).
     grabTurnAnswers(state, c, "end");
     // Swallow Whole's damage at the end of each of the swallowed creature's turns.
@@ -851,7 +853,7 @@ function act(state, c, action) {
             state.log?.push(`  ${c.name} uses ${c.grantAoo.name}`);
             for (const ally of grantAooAllies(state, c)) {
                 ally.reactions = { ...(ally.reactions ?? {}), aoo: true };
-                ally.grantedAoo = true;
+                ally.grantedAoo = { by: c.id, round: state.round, ...(c.grantAoo.untilSource ? { untilSource: true } : {}), ...(c.grantAoo.usedOnce ? { usedOnce: true } : {}) };
                 state.log?.push(`  ${ally.name} gains Attack of Opportunity`);
             }
             break;
