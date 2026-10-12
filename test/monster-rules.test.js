@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { createFightState, performAction, simulate, turnEnd } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
-import { applyDamage, dealDamage, expectedHitDamage, featureParts, performStrike, provoke as provokeFor, step, stride } from "../src/engine/actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, featureParts, performStrike, provoke as provokeFor, reactionStrikeAt, step, stride } from "../src/engine/actions.js";
 import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeOn, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst, strikeNamed, withExtraDamage } from "../src/engine/abilities.js";
 import { applyAuras, applyCondition, applyStrikeRider, bothHitRider, castPlan, castSpell, deathThroes, downsAnswers, expireTimers, grabTurnAnswers, ownTurnStart, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
@@ -4075,4 +4075,20 @@ test("A Strike activity only at an Off-Guard creature (Scorpion Sting, 2026-10-1
     assert.equal(offered(), false, "not at a creature that isn't Off-Guard");
     state.byId.get(fighter.id).cond.prone = true;
     assert.equal(offered(), true, "at a Prone (Off-Guard) creature");
+});
+
+test("A reaction Strike that frightens on a hit, more on a critical hit; a Strike rider's heal rolled from dice (Repartee Riposte, Devour Flesh, 2026-10-12, B207)", () => {
+    const [fighter] = martialParty(5);
+    const rake = withBuiltins({ ...moderateCreature(5, "rake", "Rake"), engagement: 1, hp: { value: 20, max: 90 } }, ["Test Retort", { builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, onHit: { conditions: [{ slug: "frightened", value: 1 }], critical: [{ slug: "frightened", value: 2 }] } }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 900, max: 900 } }, rake] }, {}, 1);
+    state.log = [];
+    const r = state.byId.get("rake");
+    const f = state.byId.get(fighter.id);
+    state.rng.d20 = () => 19;
+    reactionStrikeAt(state, r, f, r.reactionStrikes[0], "critical-miss");
+    assert.ok(f.cond.frightened >= 1, state.log.join("\n"));
+    // A Strike rider's "3d6" heal, rolled.
+    state.rng.die = (sides) => sides;
+    applyStrikeRider(state, r, f, { onHit: { conditions: [], damage: [], selfHeal: "3d6" } }, false, r.strikes[0]);
+    assert.ok(state.log.includes("  Rake regains 18 HP"), state.log.join("\n"));
 });

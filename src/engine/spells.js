@@ -945,9 +945,11 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
     // (B130, Clobber: its save only against an off-guard target.)
     if (activity.riderSpell && isActive(target) && (rider.saveIf !== "off-guard" || isOffGuard(target))) castPlan(state, attacker, activity.riderSpell, [target.id]);
     // (B153, Draining Touch: the Hit Points it regains on a hit.)
-    if (rider.selfHeal > 0 && isActive(attacker)) {
-        applyHeal(state, attacker, rider.selfHeal);
-        log(state, `  ${attacker.name} regains ${rider.selfHeal} HP`);
+    // (B207, Devour Flesh: dice, "3d6", rolled.)
+    const healed = typeof rider.selfHeal === "string" ? rollCount(state, rider.selfHeal) : rider.selfHeal;
+    if (healed > 0 && isActive(attacker)) {
+        applyHeal(state, attacker, healed);
+        log(state, `  ${attacker.name} regains ${healed} HP`);
     }
     // (B153, Shared Feast: an ally of its choice spends its reaction to Strike the same target — the one whose Strike would do most.)
     if (rider.allyStrike && isActive(target)) {
@@ -985,7 +987,9 @@ export function strikeRiderValue(state, attacker, target, activity, strike = nul
     let damage = [...(rider.damage ?? []), ...(target.cond.prone ? rider.proneDamage ?? [] : [])].flatMap((formula) => parseDamage(ownType(formula, strike))).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
     // (B153: an ally's Strike after the hit; the Hit Points it regains.)
     if (rider.allyStrike) damage += Math.max(0, ...state.list.filter((ally) => ally !== attacker && ally.side === attacker.side && isActive(ally) && canReact(ally)).map((ally) => allyStrike(state, ally, target)?.expected ?? 0));
-    if (rider.selfHeal > 0) worth += 0.02 * Math.min(rider.selfHeal, Math.max(0, attacker.hp.max - attacker.hp.value)) / Math.max(1, attacker.hp.max) * 10;
+    const dice = /^(\d+)d(\d+)$/.exec(String(rider.selfHeal ?? ""));
+    const meanHeal = dice ? Number(dice[1]) * (Number(dice[2]) + 1) / 2 : Number(rider.selfHeal) || 0;
+    if (meanHeal > 0) worth += 0.02 * Math.min(meanHeal, Math.max(0, attacker.hp.max - attacker.hp.value)) / Math.max(1, attacker.hp.max) * 10;
     if (activity.riderSpell && (rider.saveIf !== "off-guard" || isOffGuard(target))) {
         const entry = spellExpectation(state, attacker, activity.riderSpell, [target]).find((item) => item.target === target);
         damage += entry?.damage ?? 0;

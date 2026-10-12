@@ -662,6 +662,13 @@ export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     const strike = reaction.damageBonus && extended.damage?.length ? { ...extended, damage: extended.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + reaction.damageBonus } : part)) } : extended;
     const result = performStrike(state, enemy, mover, reaction.penalty ? { ...strike, bonus: strike.bonus - reaction.penalty } : strike, { reaction: true, trigger: kind, fortune: !!reaction.fortune });
     if (reaction.hinders && result?.degree >= SUCCESS) mover.rollPenalty = (mover.rollPenalty ?? 0) + reaction.hinders;
+    // (B207, Repartee Riposte: Frightened 1 on a hit, 2 on a critical hit.)
+    if (reaction.onHit && result?.degree >= SUCCESS && isActive(mover)) {
+        const critical = result.degree === CRITICAL_SUCCESS && reaction.onHit.critical?.length;
+        for (const entry of critical ? reaction.onHit.critical : reaction.onHit.conditions ?? []) {
+            if (applyCondition(state, mover, entry.slug, entry.value ?? null, null, enemy)) log(state, `  ${mover.name} is ${entry.slug}${Number.isFinite(entry.value) ? ` ${entry.value}` : ""}`);
+        }
+    }
     // (B123, Quick Capture: "If it hits, the creature is Grabbed in that leaf.")
     if (reaction.grab && result?.degree >= SUCCESS && isActive(mover) && isActive(enemy)) applyCondition(state, mover, "grabbed", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" }, enemy);
     return result;

@@ -165,7 +165,9 @@ export function addBuiltin(spec, plan, name) {
                 // (B123: Quick Capture's grab on a hit; Deadly Cleave's same multiple attack penalty.)
                 ...(plan.grab ? { grab: true } : {}), ...(plan.sameMap ? { sameMap: true } : {}),
                 // (B129: Vengeful Sting's +2 damage on a hit.)
-                ...(Number(plan.damageBonus) ? { damageBonus: Number(plan.damageBonus) } : {}) }];
+                ...(Number(plan.damageBonus) ? { damageBonus: Number(plan.damageBonus) } : {}),
+                // (B207, Repartee Riposte: conditions on a hit, others on a critical hit.)
+                ...(plan.onHit?.conditions?.length || plan.onHit?.critical?.length ? { onHit: { conditions: [...(plan.onHit.conditions ?? [])], critical: [...(plan.onHit.critical ?? [])] } } : {}) }];
             return true;
         // Mythic abilities (B72; the user's choice: three Mythic Points a fight): Remove a Condition, Recharge, Undying Myth.
         case "mythic":
