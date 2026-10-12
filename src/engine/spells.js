@@ -445,6 +445,11 @@ export function bothHitRider(state, attacker, target, rider, { said = "Both Stri
             log(state, `  ${target.name} takes ${dealt} more`);
         }
     }
+    // (B198, Gory Rend: "… and is exposed to piscovenom" — its affliction, the rider its Strikes would carry, at the creature.)
+    if (rider.affliction && isActive(target)) {
+        const index = (attacker.spells ?? []).findIndex((spell) => spell.plan?.trigger?.attackEffect === rider.affliction || String(spell.name ?? "").toLowerCase() === rider.affliction);
+        if (index >= 0) castSpell(state, attacker, index, [target.id]);
+    }
     // (B110, Dual Disarm: "If both Strikes hit, … can attempt to Disarm the target": its own basic action.)
     if (rider.follow && isActive(target) && canAct(attacker)) {
         const index = (attacker.spells ?? []).findIndex((spell) => spell.kind === "basic" && (spell.plan?.source?.slug === rider.follow || String(spell.name ?? "").toLowerCase() === rider.follow));

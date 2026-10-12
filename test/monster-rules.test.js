@@ -8,7 +8,7 @@ import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, featureParts, performStrike, provoke as provokeFor, step, stride } from "../src/engine/actions.js";
 import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeOn, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst, strikeNamed, withExtraDamage } from "../src/engine/abilities.js";
-import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, downsAnswers, expireTimers, grabTurnAnswers, ownTurnStart, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
+import { applyAuras, applyCondition, applyStrikeRider, bothHitRider, castPlan, castSpell, deathThroes, downsAnswers, expireTimers, grabTurnAnswers, ownTurnStart, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
 import { engage, sameMelee } from "../src/engine/space.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
@@ -4000,4 +4000,19 @@ test("A Strike as its reaction at a creature it just grabbed, once the action en
     performAction(state, m, { type: "strike", targetId: f.id, strikeIndex: 0 });
     assert.ok(state.log.includes("  Mantis uses Test Mandibles") && m.reactionUsed, state.log.join("\n"));
     assert.ok(state.log.some((line) => /Mantis Mandibles → Fighter/.test(line)), state.log.join("\n"));
+});
+
+test("Both hits expose the creature to the monster's affliction (Gory Rend, 2026-10-12, B198)", () => {
+    const none = () => ({ damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] });
+    const venom = { modelVersion: 13, source: { name: "Test Venom", slug: "test-venom" }, rank: 1, traits: ["poison"], activation: { time: "free", traits: [] }, targeting: { target: "1 creature", range: null, area: null },
+        trigger: { event: "strike", on: ["success", "criticalSuccess"], attackEffect: "test-venom", cost: "free", map: false },
+        resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 40 } }, sharedDamage: null, outcomes: { criticalSuccess: none(), success: none(), failure: { ...none(), effects: [{ kind: "condition", slug: "sickened", value: 1, duration: null }] }, criticalFailure: { ...none(), effects: [{ kind: "condition", slug: "sickened", value: 2, duration: null }] } } } };
+    const fiend = { ...moderateCreature(5, "fnd", "Fiend"), engagement: 1, spells: [{ name: "Test Venom", plan: venom, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" }] };
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, fiend] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 2;
+    const f = state.byId.get(fighter.id);
+    bothHitRider(state, state.byId.get("fnd"), f, { conditions: [], damage: [], affliction: "test-venom" });
+    assert.ok(state.log.some((line) => /Fiend casts Test Venom at Fighter/.test(line)) && f.cond.sickened >= 1, state.log.join("\n"));
 });
