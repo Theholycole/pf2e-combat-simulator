@@ -4487,3 +4487,15 @@ test("An emanation on its foes only spares its allies in the Melee; a reaction's
     assert.match(state.log.join("\n"), /Bush reacts with Test Thorns/, state.log.join("\n"));
     assert.equal(state.byId.get("pal").hp.value, 999, state.log.join("\n"));
 });
+
+test("A shell stance isn't played; a heal once a fight is used once (2026-10-12, B230)", () => {
+    assert.equal(addBuiltin({}, { builtin: "self-effect", actions: 1, model: { name: "Test Shell", rounds: null, modifiers: [{ on: "ac", type: "circumstance", value: 4 }], tempHp: 0, resistances: [] }, stance: true, shell: true }, "Test Shell"), false);
+    const heal = { modelVersion: 13, source: { name: "Test Shed" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "self", range: null, area: null }, trigger: { event: "use" }, resolution: { kind: "healing", native: { healing: { components: [{ id: "0", formula: "40", kinds: ["healing"] }], recipients: "any" } } }, oncePerFight: true };
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "troll", "Troll"), engagement: 1, hp: { value: 10, max: 200 }, spells: [{ ...entry("Test Shed", heal), pool: "once:Test Shed" }], spellPools: { "once:Test Shed": 1 } }] }, {}, 1);
+    state.log = [];
+    const troll = state.byId.get("troll");
+    castSpell(state, troll, 0, ["troll"]);
+    assert.equal(troll.hp.value, 50, state.log.join("\n"));
+    assert.equal(troll.spellPools["once:Test Shed"], 0, "spent");
+});

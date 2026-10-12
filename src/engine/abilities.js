@@ -81,6 +81,8 @@ export function addBuiltin(spec, plan, name) {
         // Strikes; Fanatical Frenzy only once it's hurt.
         // (B196: its resistances too — Reef Armor's, Shifting Form's, Harden Chitin's; Reef Armor's ending with its temporary Hit Points.)
         case "self-effect": {
+            // (B230: Retract, Shell Defense, Roll Up — shut in its shell, it would only wait: not played.)
+            if (plan.shell) return false;
             // Its extra damage on its melee Strikes (a rage's), or (B69) on the Strikes it names ("her fangs Strikes deal an
             // additional 2d8 sonic damage"), its melee ones, or all of them: "2d8[sonic]", "1d10[persistent,bleed]", "2[acid]",
             // "2d8[precision]", "die" (one more of the Strike's own dice).

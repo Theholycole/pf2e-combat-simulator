@@ -482,7 +482,8 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
         if (!plan) continue;
         // "Frequency once per minute" and longer: once a fight.
         const frequency = item.system?.frequency;
-        const pool = frequency?.max && !["turn", "round"].includes(frequency.per) ? `frequency:${item.id}` : null;
+        // (B230: once a fight in the ability's words, "can't be used again until 1 hour has passed" — plan.oncePerFight.)
+        const pool = frequency?.max && !["turn", "round"].includes(frequency.per) ? `frequency:${item.id}` : plan.oncePerFight ? `once:${item.id}` : null;
         // Used in one of several ways (a dragon's two breath weapons): each way an ability of its own, sharing the
         // ability's recharge and frequency.
         if (plan.builtin === "modes") {
@@ -496,7 +497,7 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
                 casts.push({ ...cast, name: `${item.name} (${mode.name})` });
             }
             if (!ways.length && !casts.length) continue;
-            if (pool) result.pools[pool] = frequency.value ?? frequency.max;
+            if (pool) result.pools[pool] = frequency?.value ?? frequency?.max ?? 1;
             result.handled.add(item);
             for (const mode of ways) result.abilities.push({ name: `${item.name} (${mode.name})`, plan: leanPlan(mode.plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: item.name });
             for (const cast of casts) result.abilities.push({ ...cast, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: item.name });
@@ -508,7 +509,7 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
             if (!cast) continue;
             result.handled.add(item);
             result.castSpells.add(plan.spell.uuid);
-            if (pool) result.pools[pool] = frequency.value ?? frequency.max;
+            if (pool) result.pools[pool] = frequency?.value ?? frequency?.max ?? 1;
             result.abilities.push({ ...cast, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null });
             continue;
         }
@@ -524,7 +525,7 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
         // checks a frightened or dying enemy nearby, Feed on Fear's, B83.)
         if (plan.requires && !plan.requiresFoe) continue;
         if (pc && !(["check", "save"].includes(plan.resolution.kind) && (plan.trigger?.event ?? "use") === "use")) continue;
-        if (pool) result.pools[pool] = frequency.value ?? frequency.max;
+        if (pool) result.pools[pool] = frequency?.value ?? frequency?.max ?? 1;
         result.handled.add(item);
         // A PF2e effect it applies (Battle Cry), modelled at the creature's level.
         const effects = plan.resolution.kind === "effect" || Object.values(plan.resolution.outcomes ?? {}).some((row) => row?.nativeEffects?.length) ? await effectModels(plan, actor.level ?? 1) : undefined;

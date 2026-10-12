@@ -105,7 +105,8 @@ function combatant(npc) {
             if (addBuiltin(builtins, plan, item.name)) used.add(item.name);
         } else if (plan.resolution && (!plan.requires || plan.requiresFoe)) {
             used.add(item.name);
-            spells.push({ name: item.name, plan, castRank: 1, pool: null, kind: "ability", effects: effectModels(plan, system.details.level.value) });
+            // (B230: once a fight in its words.)
+            spells.push({ name: item.name, plan, castRank: 1, pool: plan.oncePerFight ? `once:${item.name}` : null, kind: "ability", effects: effectModels(plan, system.details.level.value) });
         }
     }
     const skills = Object.fromEntries(Object.entries(system.skills ?? {}).map(([slug, value]) => [slug, value.base ?? 0]));
@@ -123,6 +124,7 @@ function combatant(npc) {
         traits: system.traits.value ?? [],
         hp: { value: hp, max: hp },
         ac: system.attributes.ac.value,
+        spellPools: Object.fromEntries(spells.filter((spell) => spell.pool).map((spell) => [spell.pool, 1])),
         saves: { fortitude: system.saves.fortitude.value, reflex: system.saves.reflex.value, will: system.saves.will.value },
         perception: system.perception?.mod ?? 0,
         skills,
