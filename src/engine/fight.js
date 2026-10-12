@@ -736,6 +736,8 @@ function act(state, c, action) {
                 if (ability.penalty) strike = { ...strike, bonus: strike.bonus - ability.penalty };
                 // (B107, Eviscerate: each Strike's own penalty, "the next two with a -4 penalty …, and the last one with a -8 penalty".)
                 if (ability.penalties?.[step]) strike = { ...strike, bonus: strike.bonus - ability.penalties[step] };
+                // (B137, Tentacle Stab: "can't Grab with them" — the Strike without its Grab.)
+                if (ability.noGrab) strike = { ...strike, attackEffects: (strike.attackEffects ?? []).filter((effect) => !/^(?:improved-)?grab$/.test(String(effect))) };
                 // Twin Feint (B74): the target is off-guard against the second attack (or only after a first that hit).
                 if (step === 1 && (ability.secondOffGuard === true || (ability.secondOffGuard === "hit" && firstHit))) (target.offGuardTo ??= []).push({ attacker: c.id, attacks: "all", uses: 1 });
                 const result = performStrike(state, c, target, strike);

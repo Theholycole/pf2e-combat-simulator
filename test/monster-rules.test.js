@@ -3265,3 +3265,21 @@ test("A Medium mover only; a Strike as a creature tries to Escape; a Strike afte
         assert.equal(state.log.some((line) => /Ogre Boss uses Test Hook/.test(line)), reacts, `${reflex}: ${state.log.join("\n")}`);
     }
 });
+
+test("A guard that lasts until it moves: Cower's AC, ended by its Stride (2026-10-12, B137)", () => {
+    const [fighter] = martialParty(5);
+    const pusk = withBuiltins({ ...moderateCreature(5, "pusk", "Pusk"), engagement: 1 }, ["Test Cower", { builtin: "self-effect", actions: 1, model: { name: "Test Cower", rounds: 10, modifiers: [{ on: "ac", type: "circumstance", value: 4 }, { on: "attack", type: "untyped", value: -2 }], tempHp: 0 }, stance: true, endsOnMove: true, duration: { value: -1, unit: "unlimited", expiry: null } }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, pusk] }, {}, 1);
+    state.log = [];
+    const p = state.byId.get("pusk");
+    const before = armorClass(p);
+    p.actionsLeft = 3;
+    performAction(state, p, { type: "selfEffect", index: 0, actions: 1 });
+    assert.equal(armorClass(p), before + 4, state.log.join("\n"));
+    stride(state, p, { kind: "away" });
+    assert.equal(armorClass(p), before, state.log.join("\n"));
+    assert.ok(state.log.some((line) => /Test Cower ends as it moves/.test(line)), state.log.join("\n"));
+    // Tentacle Stab: two Strikes that can't Grab.
+    const squid = withBuiltins({ ...moderateCreature(5, "sq", "Squid"), engagement: 1 }, ["Test Stab", { builtin: "multi-strike", actions: 1, strikes: [null, null], sameMap: true, sameTarget: true, noGrab: true }]);
+    assert.equal(squid.multiStrikes[0].noGrab, true);
+});

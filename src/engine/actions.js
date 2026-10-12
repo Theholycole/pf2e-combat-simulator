@@ -1198,8 +1198,20 @@ export function bestMeleeStrike(attacker, target) {
 }
 
 // Movement. move: { kind: "engage", targetId } | { kind: "toNear" } | { kind: "toFar" } | { kind: "leave" }
+// A stance that lasts until it moves (B137: Cower's "until the pusk moves from its current space", Entrench's "… as soon as the bastion
+// archon uses another move action"): ended as it moves.
+function endMoveEffects(state, c) {
+    for (const entry of (c.selfEffects ?? []).filter((self) => self.endsOnMove)) {
+        for (const effect of (c.effects ?? []).filter((active) => active.key === `self:${entry.name}`)) {
+            removeEffect(c, effect);
+            log(state, `  ${c.name}'s ${entry.name} ends as it moves`);
+        }
+    }
+}
+
 export function stride(state, c, move) {
     if (!canMove(c)) return;
+    endMoveEffects(state, c);
     // Grapple: "unless you move".
     releaseGrabs(state, c);
     const leavingMelee = c.meleeId !== null && !(move.kind === "engage" && state.byId.get(move.targetId)?.meleeId === c.meleeId);
@@ -1307,6 +1319,7 @@ export function leaveField(state, c) {
 
 export function step(state, c) {
     if (!canMove(c) || !canStepOut(state, c)) return false;
+    endMoveEffects(state, c);
     releaseGrabs(state, c);
     const left = engagedEnemies(state, c);
     leaveMelee(state, c, "near");
