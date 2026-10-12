@@ -4045,3 +4045,21 @@ test("Three Strikes, then Fatigued for the fight; not again while Fatigued (Powe
     b.actionsLeft = 3;
     assert.ok(!scoreOptions(state, b).options.some((entry) => entry.action.type === "multiStrike"), "not while Fatigued");
 });
+
+test("An ally's Stride and Strike as its reaction, each ally once (Kingpin's Command, 2026-10-12, B202)", () => {
+    const [fighter] = martialParty(5);
+    const boss = withBuiltins({ ...moderateCreature(5, "boss", "Boss"), band: "near" }, ["Test Command", { builtin: "ally-advance", actions: 1, within: 60, extraDamage: [], reaction: true, oncePerAlly: true }]);
+    const thug = { ...moderateCreature(5, "thug", "Thug"), band: "near" };
+    const state = createFightState({ combatants: [{ ...fighter, band: "near", hp: { value: 900, max: 900 } }, boss, thug] }, {}, 1);
+    state.log = [];
+    const b = state.byId.get("boss");
+    const t = state.byId.get("thug");
+    b.actionsLeft = 3;
+    b.usedThisTurn = new Set();
+    const option = scoreOptions(state, b).options.find((entry) => entry.action.type === "allyAdvance");
+    assert.ok(option, "an option");
+    performAction(state, b, option.action);
+    assert.ok(t.reactionUsed, "the ally's reaction");
+    t.reactionUsed = false;
+    assert.ok(!scoreOptions(state, b).options.some((entry) => entry.action.type === "allyAdvance"), "not the same ally again");
+});

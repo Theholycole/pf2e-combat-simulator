@@ -205,7 +205,8 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // (B183, Word of Advice: an ally's Stride and Strike, its extra damage on a hit.)
         case "ally-advance":
-            spec.allyAdvance = { name, actions: Number(plan.actions) || 1, within: Number(plan.within) || 60, extraDamage: [...(plan.extraDamage ?? [])], ...(plan.oncePerTurn ? { oncePerTurn: true } : {}) };
+            // (B202, Kingpin's Command: the ally's reaction, each ally once.)
+            spec.allyAdvance = { name, actions: Number(plan.actions) || 1, within: Number(plan.within) || 60, extraDamage: [...(plan.extraDamage ?? [])], ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.reaction ? { reaction: true } : {}), ...(plan.oncePerAlly ? { oncePerAlly: true } : {}) };
             return true;
         // (B171, Sidestep, Glide Aside: a Strike that misses it sent at another creature beside it.)
         case "redirect-attack":

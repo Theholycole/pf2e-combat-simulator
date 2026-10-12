@@ -128,6 +128,8 @@ export function bestAdvance(state, c, enemies) {
     let best = null;
     for (const ally of state.list) {
         if (ally === c || ally.side !== c.side || !isActive(ally) || !canAct(ally) || (rule.within < 60 && distanceBetween(c, ally) > rule.within)) continue;
+        // (B202, Kingpin's Command: its reaction, and each ally once.)
+        if ((rule.reaction && !canReact(ally)) || (rule.oncePerAlly && c.advancedAllies?.has(ally.id))) continue;
         for (const target of enemies) {
             if (!isActive(target)) continue;
             const strides = stridesToEngage(ally, target);
@@ -148,6 +150,8 @@ export function allyAdvance(state, c, action) {
     const target = state.byId.get(action.targetId);
     log(state, `  ${c.name} uses ${c.allyAdvance.name}${ally ? `: ${ally.name} ${action.stride ? "Strides and " : ""}Strikes` : ""}`);
     if (!ally || !target || !isActive(ally) || !isActive(target) || !canAct(ally)) return;
+    if (c.allyAdvance.reaction) ally.reactionUsed = true;
+    if (c.allyAdvance.oncePerAlly) (c.advancedAllies ??= new Set()).add(ally.id);
     if (action.stride && !sameMelee(ally, target)) stride(state, ally, { kind: "engage", targetId: target.id });
     if (!isActive(ally) || !isActive(target) || !canAct(ally)) return;
     const strike = ally.strikes?.[action.strikeIndex];
