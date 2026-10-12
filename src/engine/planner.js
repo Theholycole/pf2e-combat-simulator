@@ -884,7 +884,9 @@ function expand(ctx, node, actionsLeft) {
                 // (B113, Dual Stab: "against an Immobilized or Off-Guard target"; a requirement the engine doesn't know, never.)
                 if (ability.requires === "off-guard" && !(isOffGuard(target) || target.cond.immobilized)) continue;
                 if (ability.requires === "raging" && !isRaging(c)) continue;
-                if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging"].includes(ability.requires)) continue;
+                // (B186, Ravage: at a Paralyzed, Restrained or Unconscious creature.)
+                if (ability.requires === "helpless" && !(target.cond.paralyzed || target.cond.restrained || target.cond.unconscious)) continue;
+                if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging", "helpless"].includes(ability.requires)) continue;
                 let expected = 0;
                 // (B106: a second Strike only after a first that hits, worth that chance.)
                 let firstHits = 1;

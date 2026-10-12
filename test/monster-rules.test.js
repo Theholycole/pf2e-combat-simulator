@@ -3854,3 +3854,17 @@ test("An ally Strides once and Strikes once, with extra damage on a hit (Word of
     assert.ok(f.hp.value < 900, state.log.join("\n"));
     assert.ok(d.usedThisTurn.has("Test Advice"));
 });
+
+test("Two Strikes at its full bonus only at a helpless creature (Ravage, 2026-10-12, B186)", () => {
+    const [fighter] = martialParty(5);
+    const devourer = withBuiltins({ ...moderateCreature(5, "dev", "Devourer"), engagement: 1 }, ["Test Ravage", { builtin: "multi-strike", actions: 3, strikes: [null, null], sameTarget: true, noMap: true, requires: "helpless" }]);
+    const options = (condition) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, devourer] }, {}, 1);
+        const d = state.byId.get("dev");
+        d.actionsLeft = 3;
+        if (condition) state.byId.get(fighter.id).cond[condition] = condition === "unconscious" ? true : 1;
+        return scoreOptions(state, d).options.filter((option) => option.action.type === "multiStrike");
+    };
+    assert.equal(options(null).length, 0);
+    assert.ok(options("paralyzed").length > 0);
+});
