@@ -206,6 +206,15 @@ export function addBuiltin(spec, plan, name) {
             // (B87: a teleport's recharge, Jaunt's "can't use Jaunt again for 1d4 rounds".)
             spec.safeMove = { name, actions: Number(plan.actions) || 1, ...(plan.recharge ? { recharge: plan.recharge } : {}) };
             return true;
+        // Skitter, Skittish, Scurry, Flit Back (B116): a reaction that moves it off as a foe misses, hits or damages it, or comes beside it.
+        case "withdraw":
+            if (!["missed", "hit", "damaged", "attacked", "approach"].includes(plan.on)) return false;
+            spec.withdraw = { name, on: plan.on, melee: !!plan.melee, foe: plan.foe ?? null, safe: !!plan.safe };
+            return true;
+        // No Escape, Reactive Pursuit (B117): a foe in its reach moving away, followed (the hunted prey's only; a Strike after).
+        case "follow":
+            spec.follow = { name, prey: !!plan.prey, strike: !!plan.strike };
+            return true;
         // Fast Swallow (B70): Swallow Whole as a reaction when it grabs a creature.
         case "fast-swallow":
             spec.fastSwallow = { name };
@@ -288,6 +297,8 @@ export function strikeNamed(c, name) {
     if (!name) return -1;
     const wanted = name.toLowerCase();
     const strikes = c.strikes ?? [];
+    // (B115: "makes a ranged Strike" — its ranged Strike, the first it has.)
+    if (wanted === "ranged" && !strikes.some((strike) => strike.name.toLowerCase().includes("ranged"))) return strikes.findIndex((strike) => !strike.melee);
     let index = strikes.findIndex((strike) => strike.name.toLowerCase() === wanted);
     if (index < 0) index = strikes.findIndex((strike) => strike.name.toLowerCase().startsWith(wanted) || wanted.startsWith(strike.name.toLowerCase()));
     if (index < 0) index = strikes.findIndex((strike) => strike.name.toLowerCase().includes(wanted));

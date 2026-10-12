@@ -5,9 +5,9 @@ import { existsSync } from "node:fs";
 import { createFightState, performAction, simulate, turnEnd } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
-import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, stride } from "../src/engine/actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, step, stride } from "../src/engine/actions.js";
 import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
-import { addBuiltin, chargeOn, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst } from "../src/engine/abilities.js";
+import { addBuiltin, chargeOn, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst, strikeNamed } from "../src/engine/abilities.js";
 import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, expireTimers, grabTurnAnswers, ownTurnStart, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
 import { engage, sameMelee } from "../src/engine/space.js";
 
@@ -2734,4 +2734,67 @@ test("A Strike at a creature one of its allies just hit in melee (2026-10-11, B1
     assert.equal(r.reactionUsed, true);
     ({ state, r } = fight(1));
     assert.equal(r.reactionUsed ?? false, false, "not after a miss");
+});
+
+test("A Strike activity's \"ranged Strike\": its ranged Strike (2026-10-11, B115)", () => {
+    const c = { strikes: [{ name: "Fist", melee: true }, { name: "Crossbow", melee: false }] };
+    assert.equal(strikeNamed(c, "ranged"), 1);
+    assert.equal(strikeNamed({ strikes: [{ name: "Fist", melee: true }] }, "ranged"), -1);
+});
+
+test("A reaction that moves it off: a miss on it, or a foe coming beside it (2026-10-11, B116)", () => {
+    const [fighter] = martialParty(5);
+    const beetle = { ...moderateCreature(5, "btl", "Beetle"), engagement: 1 };
+    addBuiltin(beetle, { builtin: "withdraw", on: "missed", melee: true, move: "Step", safe: true }, "Test Skitter");
+    const fight = (die, { acting = true } = {}) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, beetle] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => die;
+        const f = state.byId.get(fighter.id);
+        if (acting) [state.acting, f.actionsLeft] = [f.id, 2];
+        performStrike(state, f, state.byId.get("btl"), f.strikes.find((strike) => strike.melee));
+        return { state, b: state.byId.get("btl"), f };
+    };
+    let { state, b, f } = fight(2);
+    assert.ok(state.log.includes("  Beetle uses Test Skitter"), state.log.join("\n"));
+    assert.equal(sameMelee(b, f), false);
+    assert.equal(b.reactionUsed, true);
+    ({ b, f } = fight(19));
+    assert.equal(sameMelee(b, f), true, "not after a hit");
+    ({ b, f } = fight(2, { acting: false }));
+    assert.equal(sameMelee(b, f), true, "not when the foe has nothing left to spend this turn");
+
+    // A foe ending its move beside it.
+    const sprite = { ...moderateCreature(5, "spr", "Sprite"), engagement: 0 };
+    addBuiltin(sprite, { builtin: "withdraw", on: "approach", enters: true, move: "Step", safe: true }, "Test Scurry");
+    state = createFightState({ combatants: [{ ...fighter, engagement: 0 }, sprite] }, {}, 1);
+    state.log = [];
+    f = state.byId.get(fighter.id);
+    [state.acting, f.actionsLeft] = [f.id, 2];
+    stride(state, f, { kind: "engage", targetId: "spr" });
+    assert.ok(state.log.includes("  Sprite uses Test Scurry"), state.log.join("\n"));
+    assert.equal(sameMelee(state.byId.get("spr"), f), false);
+});
+
+test("A reaction that follows a foe moving away: No Escape (2026-10-11, B117)", () => {
+    const [fighter] = martialParty(5);
+    const guard = { ...moderateCreature(5, "grd", "Guard"), engagement: 1, speed: 25 };
+    addBuiltin(guard, { builtin: "follow", move: "Stride" }, "Test No Escape");
+    const fight = (move, { speed = 25 } = {}) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, speed }, guard] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => 2;
+        const f = state.byId.get(fighter.id);
+        if (move === "step") step(state, f);
+        else stride(state, f, { kind: "toNear" });
+        return { state, g: state.byId.get("grd"), f };
+    };
+    let { state, g, f } = fight("stride");
+    assert.ok(state.log.includes("  Guard uses Test No Escape"), state.log.join("\n"));
+    assert.equal(sameMelee(g, f), true);
+    assert.equal(g.reactionUsed, true);
+    ({ state, g, f } = fight("step"));
+    assert.equal(sameMelee(g, f), true, "a Step too");
+    ({ g, f } = fight("stride", { speed: 40 }));
+    assert.equal(sameMelee(g, f), false, "not a faster creature");
 });

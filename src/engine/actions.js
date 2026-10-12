@@ -368,6 +368,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
             const answer = (target.reactionStrikes ?? []).find((entry) => (entry.triggers.includes("critical-miss") && degree === CRITICAL_FAILURE) || entry.triggers.includes("missed"));
             if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, degree === CRITICAL_FAILURE ? "critical-miss" : "missed");
         }
+        // (B116, Skitter: a miss on it, answered by moving off.)
+        if (!reaction && isActive(attacker) && isActive(target)) withdrawAnswer(state, target, attacker, { melee: !!strike.melee });
         if (degree === CRITICAL_FAILURE && !reaction && attacker.weaponPoisoned && strike.held) attacker.weaponPoisoned = false;
         // Jeer at Failure (B85): a critically failed Strike near a monster with it.
         if (degree === CRITICAL_FAILURE && !reaction) mishapAnswers(state, attacker);
@@ -478,7 +480,31 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
             if (other && index >= 0 && isActive(target) && canAct(target)) performStrike(state, target, other, target.strikes[index], { reaction: true });
         }
     }
+    // (B116, Skittish, Bolt: a hit on it, or its damage, answered by moving off.)
+    if (!reaction && isActive(attacker) && isActive(target)) withdrawAnswer(state, target, attacker, { melee: !!strike.melee, hit: true, dealt });
     return { degree, damage: dealt, trigger };
+}
+
+// Skitter, Skittish, Bolt, Scurry, Flit Back (B116): a reaction that moves it off, out of the Melee it shares with the foe — while that
+// foe still has actions to spend this turn (or it fights from range, or it's fleeing), and not while it holds a creature. A Step, or a move
+// that "doesn't trigger reactions", provokes nothing; another Stride or a flight is a move out of the Melee.
+export function withdrawAnswer(state, c, from, { melee = true, hit = false, dealt = 0, approach = false } = {}) {
+    const rule = c.withdraw;
+    if (!rule || !canReact(c) || !canAct(c) || !canMove(c) || !sameMelee(c, from)) return false;
+    const fits = approach
+        ? rule.on === "approach" && (!rule.foe || rule.foe.some((slug) => from.cond[slug]))
+        : (!rule.melee || melee) && (rule.on === "attacked" || (rule.on === "hit" && hit) || (rule.on === "missed" && !hit) || (rule.on === "damaged" && dealt > 0));
+    if (!fits) return false;
+    const ranged = (c.strikes ?? []).some((strike) => !strike.melee && strikeUsable(c, strike));
+    const foeActing = state.acting === from.id && (from.actionsLeft ?? 0) > 0;
+    if ((!foeActing && !ranged && !c.cond.fleeing) || state.list.some((other) => other.grabbedBy === c.id)) return false;
+    c.reactionUsed = true;
+    log(state, `  ${c.name} uses ${rule.name}`);
+    if (rule.safe) {
+        releaseGrabs(state, c);
+        leaveMelee(state, c, "near");
+    } else stride(state, c, { kind: "toNear" });
+    return true;
 }
 
 // A reaction Strike (Twisting Tail, Tail Lash, Avenging Bite): its named Strike at the creature, at its penalty; its hit can
@@ -1022,6 +1048,8 @@ export function stride(state, c, move) {
     // Grapple: "unless you move".
     releaseGrabs(state, c);
     const leavingMelee = c.meleeId !== null && !(move.kind === "engage" && state.byId.get(move.targetId)?.meleeId === c.meleeId);
+    // (B117: those it moves away from, for No Escape.)
+    const left = leavingMelee && !move.safe ? engagedEnemies(state, c) : [];
     if (leavingMelee && !move.safe) {
         const disrupted = provoke(state, c, "move");
         if (!canAct(c)) return;
@@ -1030,6 +1058,31 @@ export function stride(state, c, move) {
             return;
         }
     }
+    if (left.length && move.kind !== "leave") {
+        strideTo(state, c, move);
+        followAnswers(state, c, left);
+        return;
+    }
+    strideTo(state, c, move);
+}
+
+// No Escape, Reactive Pursuit (B117): a creature that moved away from monsters with one, followed — each Strides after it and stays in its
+// reach, when it's as fast and holds no one (Pursuing Strike's Strike after). A Step too; not a move that triggers no reactions.
+function followAnswers(state, mover, left) {
+    for (const enemy of left) {
+        const rule = enemy.follow;
+        if (!rule || !isActive(enemy) || !isActive(mover) || sameMelee(enemy, mover)) continue;
+        if (!canReact(enemy) || !canAct(enemy) || !canMove(enemy) || enemy.cond.fleeing || (rule.prey && enemy.prey !== mover.id)) continue;
+        if ((enemy.speed ?? 25) < (mover.speed ?? 25) || state.list.some((other) => other.grabbedBy === enemy.id)) continue;
+        enemy.reactionUsed = true;
+        log(state, `  ${enemy.name} uses ${rule.name}`);
+        stride(state, enemy, { kind: "engage", targetId: mover.id });
+        const strike = rule.strike && sameMelee(enemy, mover) && canAct(enemy) ? bestMeleeStrike(enemy, mover) : null;
+        if (strike) performStrike(state, enemy, mover, strike, { reaction: true });
+    }
+}
+
+function strideTo(state, c, move) {
     if (move.kind === "engage") {
         const target = state.byId.get(move.targetId);
         if (!target || !isActive(target)) return;
@@ -1037,6 +1090,8 @@ export function stride(state, c, move) {
         log(state, `  ${c.name} Strides to engage ${target.name}`);
         // (Telekinetic Defense, Wing Rebuff, B81: a reaction Strike as it comes into their reach.)
         approachAnswers(state, c);
+        // (B116, Scurry, Flit Back: a reaction that moves off as it comes beside them.)
+        for (const enemy of engagedEnemies(state, c)) if (isActive(c) && canAct(c)) withdrawAnswer(state, enemy, c, { approach: true });
         // Map objectives: it's where the target is now.
         if (isMapObjective(state.objective)) {
             moveTo(c, target);
@@ -1098,8 +1153,10 @@ export function leaveField(state, c) {
 export function step(state, c) {
     if (!canMove(c) || !canStepOut(state, c)) return false;
     releaseGrabs(state, c);
+    const left = engagedEnemies(state, c);
     leaveMelee(state, c, "near");
     log(state, `  ${c.name} Steps away`);
+    followAnswers(state, c, left);
     return true;
 }
 

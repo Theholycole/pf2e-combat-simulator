@@ -948,7 +948,7 @@ function expand(ctx, node, actionsLeft) {
             const named = strikeNamed(c, activity.strike);
             const candidates = activity.coverFire
                 ? (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].firearm && !c.strikes[index].melee && !emptyNow(c, node, index, c.strikes[index]))
-                : named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
+                : named >= 0 ? [named] : activity.strike === "ranged" ? [] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
             for (const target of ctx.enemies) {
                 if (target.status !== "active") continue;
                 // (At the creature it struck, unless it moves first: "Strides up to 10 feet and Strikes".)
