@@ -1194,13 +1194,21 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     if (siphon) {
         siphon.reactionUsed = true;
         state.stats.reactions++;
-        log(state, `  ${siphon.name} uses ${siphon.healSiphon.name}: the healing is at its least`);
+        log(state, `  ${siphon.name} uses ${siphon.healSiphon.name}: ${siphon.healSiphon.share ? "it takes a share of the healing" : "the healing is at its least"}`);
     }
     const least = (instance) => Math.max(0, Math.floor(Math.floor(instance.constant / 2) + instance.dice.reduce((sum, term) => sum + term.factor * term.count, 0)));
-    const io = { ...live, ...(siphon ? { damage: least } : {}), roll, choose: chooser(caster, targets) };
+    // (B209: a share of each roll kept for the creature, the rest the siphoner's temporary Hit Points.)
+    let siphoned = 0;
+    const shared = (instance) => {
+        const full = live.damage(instance);
+        const kept = Math.floor(full * siphon.healSiphon.share);
+        siphoned += full - kept;
+        return kept;
+    };
+    const io = { ...live, ...(siphon ? { damage: siphon.healSiphon.share ? shared : least } : {}), roll, choose: chooser(caster, targets) };
     const result = registry.resolveSync(spell.plan, context, io);
-    if (siphon?.healSiphon.tempHp && isActive(siphon)) {
-        const temp = rollCount(state, siphon.healSiphon.tempHp);
+    const temp = siphon?.healSiphon.share ? siphoned : siphon?.healSiphon.tempHp ? rollCount(state, siphon.healSiphon.tempHp) : 0;
+    if (siphon && temp > 0 && isActive(siphon)) {
         if (temp > (siphon.hp.temp ?? 0)) siphon.hp.temp = temp;
         log(state, `  ${siphon.name} gains ${temp} temporary HP`);
     }

@@ -4092,3 +4092,16 @@ test("A reaction Strike that frightens on a hit, more on a critical hit; a Strik
     applyStrikeRider(state, r, f, { onHit: { conditions: [], damage: [], selfHeal: "3d6" } }, false, r.strikes[0]);
     assert.ok(state.log.includes("  Rake regains 18 HP"), state.log.join("\n"));
 });
+
+test("A foe's healing split: half to the creature, the rest the siphoner's temporary Hit Points (a Battlezoo dragon's, 2026-10-12, B209)", () => {
+    const [fighter, cleric] = martialParty(5);
+    const heal = { name: "Test Mend", castRank: 1, dc: 20, attack: 10, pool: null, plan: { modelVersion: 13, source: { name: "Test Mend" }, rank: 1, traits: ["healing"], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "healing", native: { healing: { components: [{ id: "0", formula: "20", kinds: ["healing"] }], recipients: "any" } } } } };
+    const dragon = withBuiltins({ ...moderateCreature(5, "drg", "Dragon"), engagement: 1 }, ["Test Share", { builtin: "heal-siphon", within: 30, share: 0.5, tempRounds: 10 }]);
+    // (The healer in the same Melee: within its 30 feet.)
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 10, max: 80 } }, { ...cleric, id: "cleric", engagement: 1, spells: [heal], spellPools: {} }, dragon] }, {}, 1);
+    state.log = [];
+    castSpell(state, state.byId.get("cleric"), 0, [fighter.id], 2);
+    assert.ok(state.log.includes("  Dragon uses Test Share: it takes a share of the healing"), state.log.join("\n"));
+    assert.equal(state.byId.get(fighter.id).hp.value, 20);
+    assert.equal(state.byId.get("drg").hp.temp, 10);
+});

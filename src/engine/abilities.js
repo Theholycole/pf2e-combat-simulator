@@ -316,7 +316,8 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // (B195, Siphon Life: a foe's healing spell near it at its least — dice at their minimum, flat values halved — and temporary Hit Points.)
         case "heal-siphon":
-            spec.healSiphon = { name, within: Number(plan.within) || 60, ...(plan.tempHp ? { tempHp: String(plan.tempHp) } : {}) };
+            // (B209: a share of the healing instead — half to the creature, the rest its temporary Hit Points.)
+            spec.healSiphon = { name, within: Number(plan.within) || 60, ...(plan.tempHp ? { tempHp: String(plan.tempHp) } : {}), ...(Number(plan.share) > 0 ? { share: Number(plan.share) } : {}) };
             return true;
         // Fast Swallow (B70): Swallow Whole as a reaction when it grabs a creature.
         case "fast-swallow":
