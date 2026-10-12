@@ -677,7 +677,7 @@ export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     if (reaction.step && !sameMelee(enemy, mover)) {
         releaseGrabs(state, enemy);
         engage(state, enemy, mover);
-        log(state, `  ${enemy.name} Steps to ${mover.name}`);
+        log(state, `  ${enemy.name} ${reaction.teleport ? "teleports" : "Steps"} to ${mover.name}`);
     }
     const base = enemy.strikes[index];
     // (B121, Retaliatory Strike: its extra dice on a hit, a part of the Strike's damage.)
@@ -1371,12 +1371,13 @@ export function provoke(state, mover, kind) {
         if (disruptedBy(state, reaction, result, mover)) disrupted = true;
     }
     // (B225: from afar, a ranged Strike within its distance — Disruptive Screech's 30 feet: the bands, as a trigger's.)
-    for (const enemy of own ? state.list : []) {
+    // (B242, Lurking Death: a teleport to the creature first, then a melee Strike — any kind it names, from within its distance.)
+    for (const enemy of state.list) {
         if (!canAct(mover)) break;
         if (enemy.side === mover.side || !isActive(enemy) || sameMelee(enemy, mover) || !canReact(enemy) || enemy.cond.fleeing) continue;
-        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes(kind) && entry.within > 10);
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.within > 10 && (entry.teleport ? entry.triggers.includes(kind) || (kind === "move" && entry.triggers.includes("leave")) : own && entry.triggers.includes(kind)));
         if (!reaction || !(reaction.within >= 60 || mover.band !== "far" || enemy.band === "far")) continue;
-        const result = reactionStrikeAt(state, enemy, mover, { ...reaction, ranged: true }, kind);
+        const result = reactionStrikeAt(state, enemy, mover, reaction.teleport ? { ...reaction, step: true } : { ...reaction, ranged: true }, kind);
         if (disruptedBy(state, reaction, result, mover)) disrupted = true;
     }
     // Tentacle Trip, Ectoplasmic Filaments, Baleful Gaze: a reaction with results of its own (B51). One that leaves the creature
@@ -1445,10 +1446,14 @@ function followAnswers(state, mover, left) {
         const rule = enemy.follow;
         if (!rule || !isActive(enemy) || !isActive(mover) || sameMelee(enemy, mover)) continue;
         if (!canReact(enemy) || !canAct(enemy) || !canMove(enemy) || enemy.cond.fleeing || (rule.prey && enemy.prey !== mover.id)) continue;
-        if ((enemy.speed ?? 25) < (mover.speed ?? 25) || state.list.some((other) => other.grabbedBy === enemy.id)) continue;
+        // (B242, Primal Hunt: a teleport, whatever its Speed.)
+        if ((!rule.teleport && (enemy.speed ?? 25) < (mover.speed ?? 25)) || state.list.some((other) => other.grabbedBy === enemy.id)) continue;
         enemy.reactionUsed = true;
         log(state, `  ${enemy.name} uses ${rule.name}`);
-        stride(state, enemy, { kind: "engage", targetId: mover.id });
+        if (rule.teleport) {
+            engage(state, enemy, mover);
+            log(state, `  ${enemy.name} teleports to ${mover.name}`);
+        } else stride(state, enemy, { kind: "engage", targetId: mover.id });
         const strike = rule.strike && sameMelee(enemy, mover) && canAct(enemy) ? bestMeleeStrike(enemy, mover) : null;
         if (strike) performStrike(state, enemy, mover, strike, { reaction: true });
     }

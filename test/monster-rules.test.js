@@ -4553,3 +4553,24 @@ test("A troop's attack that grabs or restrains with more actions; extra damage o
     assert.equal(featureParts(knight, strike, { id: "fiend", traits: ["fiend", "unholy"] }).length, 1);
     assert.equal(featureParts(knight, strike, { id: "human", traits: ["human"] }).length, 0);
 });
+
+test("A teleport to a creature acting within its distance, then a Strike; a teleport after a foe moving away (2026-10-12, B242)", () => {
+    const [fighter] = martialParty(5);
+    // Lurking Death: a manipulate action 30 feet away — it teleports beside the creature and Strikes.
+    const shade = withBuiltins({ ...moderateCreature(5, "shade", "Shade"), hp: { value: 999, max: 999 } }, ["Test Lurk", { builtin: "reaction-strike", triggers: ["ranged", "concentrate", "manipulate", "move"], strike: "melee", penalty: 0, disrupts: true, within: 60, teleport: true }]);
+    let state = createFightState({ combatants: [{ ...fighter, band: "near" }, { ...shade, band: "near" }] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    provokeFor(state, state.byId.get(fighter.id), "manipulate");
+    assert.match(state.log.join("\n"), /Shade uses Test Lurk\n {2}Shade teleports to/, state.log.join("\n"));
+    assert.equal(sameMelee(state.byId.get("shade"), state.byId.get(fighter.id)), true);
+    // Primal Hunt: a faster creature moving away is followed all the same.
+    const hound = { ...moderateCreature(5, "hnd", "Hound"), engagement: 1, speed: 25 };
+    addBuiltin(hound, { builtin: "follow", move: "Teleport", within: 60 }, "Test Hunt");
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, speed: 40 }, hound] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 2;
+    stride(state, state.byId.get(fighter.id), { kind: "toNear" });
+    assert.match(state.log.join("\n"), /Hound teleports to/, state.log.join("\n"));
+    assert.equal(sameMelee(state.byId.get("hnd"), state.byId.get(fighter.id)), true);
+});

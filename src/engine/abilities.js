@@ -173,6 +173,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.extraDamage ? { extraDamage: plan.extraDamage } : {}), ...(plan.step ? { step: true } : {}), ...(plan.ranged ? { ranged: true } : {}), ...(Number(plan.from) > 0 ? { from: Number(plan.from) } : {}),
                 // (B225, Disruptive Screech: its distance, for a ranged Strike from afar.)
                 ...(Number(plan.within) > 10 ? { within: Number(plan.within) } : {}),
+                // (B242, Lurking Death: a teleport to the creature first.)
+                ...(plan.teleport ? { teleport: true } : {}),
                 // (B227: the save that keeps the disrupted action.)
                 ...(plan.disruptSave?.statistic && Number.isFinite(Number(plan.disruptSave.dc)) ? { disruptSave: { statistic: plan.disruptSave.statistic, dc: Number(plan.disruptSave.dc) } } : {}),
                 // (B122: Knowing Glance's melee Strikes only; Bodyguard's Reprisal's charge, played as any ally.)
@@ -319,7 +321,8 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // No Escape, Reactive Pursuit (B117): a foe in its reach moving away, followed (the hunted prey's only; a Strike after).
         case "follow":
-            spec.follow = { name, prey: !!plan.prey, strike: !!plan.strike };
+            // (B242, Primal Hunt: a teleport after it.)
+            spec.follow = { name, prey: !!plan.prey, strike: !!plan.strike, ...(plan.move === "Teleport" ? { teleport: true } : {}) };
             return true;
         // Hellish Revenge, Spitting Rage (B118): a critical hit on it recharges its breath, used at once.
         case "crit-recharge":
