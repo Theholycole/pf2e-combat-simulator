@@ -3819,3 +3819,18 @@ test("An ally's failed save rerolled, a critical failure on it a failure (2026-1
     assert.ok(state.log.some((line) => /Dragon uses Test Purify: Ally rerolls, failure/.test(line)), state.log.join("\n"));
     assert.equal(state.byId.get("aly").cond.frightened, 1, "frightened 1, not 2");
 });
+
+test("A shield for itself or an ally as either is attacked (2026-10-12, B182)", () => {
+    const [fighter] = martialParty(5);
+    const dragon = withBuiltins({ ...moderateCreature(5, "dragon", "Dragon"), engagement: 1, hp: { value: 900, max: 900 } }, ["Test Shield", { builtin: "ally-ac-reaction", value: 2, type: "circumstance", within: 15, self: true }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, dragon] }, {}, 1);
+    state.log = [];
+    const d = state.byId.get("dragon");
+    const f = state.byId.get(fighter.id);
+    // A roll that just hits its AC: +2 turns it aside.
+    const strike = f.strikes[0];
+    state.rng.d20 = () => Math.max(2, Math.min(19, armorClass(d) - strike.bonus));
+    performStrike(state, f, d, strike);
+    assert.ok(state.log.some((line) => /Dragon uses Test Shield: Dragon \+2 AC/.test(line)), state.log.join("\n"));
+    assert.equal(d.reactionUsed, true);
+});

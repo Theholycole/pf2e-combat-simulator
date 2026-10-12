@@ -169,7 +169,8 @@ export function addBuiltin(spec, plan, name) {
         // Hammer Block, Stygian Guardian (B94): +AC for an ally within its distance as an attack hits it, when that turns it aside; Wind
         // Shell's only against ranged attacks; Reactive Defense's Strike at the attacker after.
         case "ally-ac-reaction":
-            spec.allyAcReaction = { name, value: Number(plan.value) || 2, within: plan.within === "reach" ? 10 : Number(plan.within) || 10, ...(plan.ranged ? { ranged: true } : {}), ...(plan.strike ? { strike: plan.strike } : {}) };
+            // (B182: itself too, a dragon's shield.)
+            spec.allyAcReaction = { name, value: Number(plan.value) || 2, within: plan.within === "reach" ? 10 : Number(plan.within) || 10, ...(plan.ranged ? { ranged: true } : {}), ...(plan.strike ? { strike: plan.strike } : {}), ...(plan.self ? { self: true } : {}) };
             return true;
         case "save-boost":
             if (plan.ally) spec.allySaveBoost = { name, within: plan.within ?? 60, recharge: plan.recharge ?? null };

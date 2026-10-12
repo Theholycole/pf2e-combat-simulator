@@ -279,8 +279,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (degree >= SUCCESS && !reaction) {
         for (const guard of state.list) {
             const entry = guard.allyAcReaction;
-            if (!entry || guard === target || guard.side !== target.side || !isActive(guard) || !canReact(guard) || !canAct(guard) || (entry.ranged && strike.melee)) continue;
-            if (entry.within <= 10 ? !sameMelee(guard, target) : entry.within < 60 && target.band === "far" && guard.band !== "far") continue;
+            if (!entry || (guard === target && !entry.self) || guard.side !== target.side || !isActive(guard) || !canReact(guard) || !canAct(guard) || (entry.ranged && strike.melee)) continue;
+            if (guard !== target && (entry.within <= 10 ? !sameMelee(guard, target) : entry.within < 60 && target.band === "far" && guard.band !== "far")) continue;
             const lower = degreeOf(natural + modifier + bonus, ac + defence + entry.value, natural);
             if (lower >= degree) continue;
             degree = lower;
