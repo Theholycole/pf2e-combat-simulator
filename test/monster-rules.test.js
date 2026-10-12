@@ -3805,3 +3805,17 @@ test("An initiative bonus for its allies within 10 feet only (Warning Ears, 2026
     assert.equal(log[0], "  Courser uses Test Ears: +50 to its allies' initiative");
     assert.match(log[log.indexOf("— Round 1 —") + 1], /^Near \(/, "the ally beside it first");
 });
+
+test("An ally's failed save rerolled, a critical failure on it a failure (2026-10-12, B181)", () => {
+    const [fighter] = martialParty(5);
+    const none = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
+    const scare = { modelVersion: 13, source: { name: "Test Scare" }, rank: 1, traits: ["fear", "mental"], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: null, area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: none, success: none, failure: { damage: none.damage, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, criticalFailure: { damage: none.damage, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] } } } };
+    const caster = { ...fighter, engagement: 1, spells: [entry("Test Scare", scare, null)] };
+    const dragon = withBuiltins({ ...moderateCreature(5, "dragon", "Dragon"), engagement: 1 }, ["Test Purify", { builtin: "save-reroll", ally: true, within: 30, against: ["fear", "poison", "disease"], keep: "new", floor: "failure" }]);
+    const ally = { ...moderateCreature(5, "aly", "Ally"), engagement: 1 };
+    const state = createFightState({ combatants: [caster, dragon, ally] }, {}, 1);
+    state.log = [];
+    castPlan(state, state.byId.get(fighter.id), state.byId.get(fighter.id).spells[0], ["aly"]);
+    assert.ok(state.log.some((line) => /Dragon uses Test Purify: Ally rerolls, failure/.test(line)), state.log.join("\n"));
+    assert.equal(state.byId.get("aly").cond.frightened, 1, "frightened 1, not 2");
+});

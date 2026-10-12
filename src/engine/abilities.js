@@ -213,7 +213,8 @@ export function addBuiltin(spec, plan, name) {
             // (B125, Hold Fast, Distracting Frolic, Guide to Fortune: an ally's failed save rerolled, keeping the better; its own too where
             // it says so.)
             if (plan.ally) {
-                spec.allySaveReroll = { name, within: Number(plan.within) || 60, save: plan.save ?? null, against: plan.against ?? null, uses: Number(plan.uses) || Infinity, ...(plan.self ? { self: true } : {}) };
+                // (B181: the new result kept, a critical failure on it a failure.)
+                spec.allySaveReroll = { name, within: Number(plan.within) || 60, save: plan.save ?? null, against: plan.against ?? null, uses: Number(plan.uses) || Infinity, ...(plan.self ? { self: true } : {}), ...(plan.floor ? { floor: plan.floor } : {}) };
                 return true;
             }
             // (B93: Halfling Luck's "must use the new result", keep "new"; a free action's.)

@@ -362,7 +362,9 @@ function betterSave(state, statistic, options, result, spell = null) {
         state.stats.reactions++;
         const natural = state.rng.d20();
         const total = natural + options.modifier;
-        const degree = DEGREE_NAMES[degreeOf(total, options.dc, natural)];
+        const rolled = DEGREE_NAMES[degreeOf(total, options.dc, natural)];
+        // (B181: a critical failure on the reroll a failure.)
+        const degree = rerolls.allySaveReroll.floor === "failure" && rolled === "criticalFailure" ? "failure" : rolled;
         log(state, `  ${rerolls.name} uses ${rerolls.allySaveReroll.name}: ${saver.name} rerolls, ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
         if (DEGREE_NAMES.indexOf(degree) > DEGREE_NAMES.indexOf(result.degree)) return { natural, total, dc: options.dc, degree };
         return result;
