@@ -307,7 +307,7 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
     // (B110, Occult Ward: a bonus to its own save as it comes, against a spell (or any): its reaction on the first such save, the bonus
     // in the result.)
     const ward = saver?.saveBonusReaction;
-    if (ward && SAVES.has(statistic) && (!ward.kind || ward.kind === statistic) && (!ward.area || area) && saver?.id && isActive(saver) && canReact(saver) && Number.isFinite(result?.total) && Number.isFinite(options?.dc) && (!ward.against || (spell && (!spell.kind || spell.kind === "spell")) || (ward.against === "magical" && (spell?.plan?.traits ?? []).some((trait) => ["magical", "arcane", "divine", "occult", "primal"].includes(trait))))) {
+    if (ward && SAVES.has(statistic) && (!ward.kind || ward.kind === statistic) && (!ward.area || area) && saver?.id && isActive(saver) && canReact(saver) && Number.isFinite(result?.total) && Number.isFinite(options?.dc) && (!ward.against || (["spell", "magical"].includes(ward.against) && ((spell && (!spell.kind || spell.kind === "spell")) || (ward.against === "magical" && (spell?.plan?.traits ?? []).some((trait) => ["magical", "arcane", "divine", "occult", "primal"].includes(trait))))) || (!["spell", "magical"].includes(ward.against) && (spell?.plan?.traits ?? []).includes(ward.against)))) {
         saver.reactionUsed = true;
         state.stats.reactions++;
         const total = result.total + ward.value;

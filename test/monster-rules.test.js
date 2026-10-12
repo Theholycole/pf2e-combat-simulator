@@ -4250,3 +4250,22 @@ test("Its own failed save rerolled against a spell only (a Battlezoo owl's fores
     ({ state, o } = fight("ability"));
     assert.ok(!state.log.some((line) => line.startsWith("  Owl uses Test Foresight")), "not against a monster's ability");
 });
+
+test("A bonus to its own save against a mental effect only (2026-10-12, B218)", () => {
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const blast = (traits) => ({ name: "Test Blast", castRank: 1, dc: null, attack: null, pool: null, plan: { modelVersion: 13, source: { name: "Test Blast" }, rank: 1, traits, activation: { time: "2", traits }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 30 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, criticalFailure: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] } } } } });
+    const fight = (traits) => {
+        const guard = { ...moderateCreature(5, "grd", "Guard"), engagement: 1 };
+        addBuiltin(guard, { builtin: "save-bonus-reaction", value: 2, against: "mental" }, "Test Bravado");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [blast(traits)] }, guard] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => 10;
+        castSpell(state, state.byId.get(fighter.id), 0, ["grd"]);
+        return { state, g: state.byId.get("grd") };
+    };
+    let { state, g } = fight(["mental"]);
+    assert.ok(state.log.includes("  Guard uses Test Bravado: +2 to the save"), state.log.join("\n"));
+    ({ state, g } = fight(["fire"]));
+    assert.equal(g.reactionUsed ?? false, false, "not a mental effect");
+});
