@@ -9,7 +9,7 @@ import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBo
 import { adjustDamage, concussiveType, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
-import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
+import { canReact, chargeStrike, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { applyCondition, castPlan, castSpell, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit, rollCount } from "./spells.js";
 
@@ -550,6 +550,46 @@ function enemyStrikeIndex(enemy, mover, name) {
 // A Strike that deals one of these damage types (any when none are named).
 function strikeOfTypes(strike, types) {
     return !types?.length || (strike?.damage ?? []).some((part) => types.includes(part.type));
+}
+
+// A Strike at the creature its maneuver was at (B146: Noble's Ruse's "On a success, the noble Strikes the target", Bully's Shove then a tentacle
+// Strike at the same multiple attack penalty, Sacrificial Takedown's fatal d10 after a Trip that succeeds, Distracting Trick's precision dice
+// after a Feint that succeeds, Terrorizing Swing's 2d10 and Prone at a Frightened creature it damages). then: { strike, onSuccess, sameMap,
+// follow, fatal, successDamage, ifFrightened }.
+export function followUpStrike(state, c, target, then, degree) {
+    if (!then || !isActive(c) || !canAct(c) || !isActive(target) || target.side === c.side) return null;
+    const success = degree === "success" || degree === "criticalSuccess";
+    if (then.onSuccess && !success) return null;
+    const index = enemyStrikeIndex(c, target, then.strike);
+    const base = index >= 0 ? c.strikes[index] : null;
+    if (!base || !strikeUsable(c, base)) return null;
+    // (Bully: "Strides after it into the nearest adjacent square if successful".)
+    if (base.melee && !sameMelee(c, target)) {
+        if (!(then.follow && success && canMove(c))) return null;
+        engage(state, c, target);
+        log(state, `  ${c.name} Strides after ${target.name}`);
+    }
+    const strike = then.fatal ? chargeStrike(base, { name: "follow-up", fatal: then.fatal }) : base;
+    const before = c.attacksThisTurn;
+    if (then.sameMap) c.attacksThisTurn = Math.max(0, before - 1);
+    const frightened = (target.cond.frightened ?? 0) > 0;
+    const hpBefore = target.hp.value;
+    const result = performStrike(state, c, target, strike);
+    if (then.sameMap) c.attacksThisTurn = before + 1;
+    const hit = (result?.degree ?? 0) >= SUCCESS;
+    const dealt = hit && target.hp.value < hpBefore;
+    const type = base.damage?.[0]?.type ?? "untyped";
+    if (hit && success && then.successDamage && isActive(target)) {
+        const dice = /^(\d+d\d+)/.exec(then.successDamage)?.[1] ?? "1d6";
+        const extra = applyDamage(state, target, [{ type, amount: rollCount(state, dice), persistent: false, precision: /precision/.test(then.successDamage) }], { source: c });
+        log(state, `  ${target.name} takes ${extra} more from the feint`);
+    }
+    if (dealt && frightened && then.ifFrightened && isActive(target)) {
+        const extra = applyDamage(state, target, [{ type, amount: rollCount(state, then.ifFrightened.damage ?? "2d10"), persistent: false }], { source: c });
+        log(state, `  ${target.name} takes ${extra} more while frightened`);
+        if (then.ifFrightened.prone && isActive(target)) applyCondition(state, target, "prone", null, null, c);
+    }
+    return result;
 }
 
 export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {

@@ -771,7 +771,21 @@ function expand(ctx, node, actionsLeft) {
                         }
                         // A spell effect: good for an ally, bad for a foe (and the reverse for hindrances).
                         if (benefit) gain += (ally ? 1 : -1) * value * benefit * ROUND_TO_KILL;
-                        if (!ally) damage[target.id] = before + expected;
+                        // (B146: the Strike after the maneuver — its best expected damage, about half of it when the maneuver must succeed.)
+                        let follow = 0;
+                        const then = spell.plan?.then;
+                        if (then && !ally && target.status === "active") {
+                            const named = then.strike ? strikeNamed(c, then.strike) : -1;
+                            const choices = named >= 0 ? [named] : (c.strikes ?? []).map((strike, strikeIndex) => strikeIndex).filter((strikeIndex) => c.strikes[strikeIndex].melee);
+                            for (const strikeIndex of choices) {
+                                const strike = c.strikes[strikeIndex];
+                                if (!strikeUsable(c, strike) || (strike.melee && !inMelee(node.pos, target) && !then.follow)) continue;
+                                const expectation = ctx.strikeExpectation(strike, strikeIndex, target, node.attacks + (then.sameMap ? 0 : 1), node.pos, node.prone);
+                                follow = Math.max(follow, (expectation?.damage ?? 0) * (then.onSuccess ? 0.5 : 1));
+                            }
+                            gain += value * (Math.min(1, (before + expected + follow) / hp) - Math.min(1, (before + expected) / hp));
+                        }
+                        if (!ally) damage[target.id] = before + expected + follow;
                     }
                     // A swashbuckler's bravado action also brings panache: Precise Strike's damage for the fight and a finisher.
                     if (!c.panache && c.panacheStyle && (c.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {

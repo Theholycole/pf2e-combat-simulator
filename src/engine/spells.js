@@ -14,7 +14,7 @@ import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf,
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effects.js";
-import { applyDamage, expectedHitDamage, increaseDying, killCreature, log, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
+import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
 import { canReact, levelDC, saveBonusAgainst, sizeRank, strikeNamed } from "./abilities.js";
 import { adjustDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { engagedEnemies, leaveMelee, sameMelee } from "./space.js";
@@ -1132,6 +1132,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         delete target.escapeGuardActive;
         escapeAnswers(state, caster, target, result.degrees[target.id]);
     }
+    // (B146: a Strike at the same creature after the maneuver — Noble's Ruse, Bully, Sacrificial Takedown.)
+    if (spell.plan?.then) for (const target of targets) followUpStrike(state, caster, target, spell.plan.then, result.degrees[target.id]);
     // (B136, Sweeping Hook: its own Trip that succeeded, its Strike at the creature it tripped.)
     if (spell.plan?.source?.slug === "trip") for (const target of targets) {
         if (!["success", "criticalSuccess"].includes(result.degrees[target.id])) continue;

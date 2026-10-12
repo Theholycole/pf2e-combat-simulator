@@ -3404,3 +3404,30 @@ test("A reaction Strike that needs a state of its own isn't played (Twin Riposte
     assert.equal(spec.reactionStrikes, undefined);
     assert.equal(addBuiltin(spec, { builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, note: "Or it can Disarm the attacker instead." }, "Test Riposte"), true);
 });
+
+test("A maneuver, then a Strike at the same creature (Noble's Ruse, Bully, Terrorizing Swing, 2026-10-12, B146)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const fight = (slug, then, d20) => {
+        const plan = { ...structuredClone(basic[slug]), then, targeting: { target: "1 creature", range: "touch", area: null } };
+        const brute = { ...moderateCreature(5, "brute", "Brute"), engagement: 1, spells: [entry("Test Combo", plan)] };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 500, max: 500 }, saves: { fortitude: 0, reflex: 0, will: 0 } }, brute] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => d20;
+        const b = state.byId.get("brute");
+        b.actionsLeft = 3;
+        castSpell(state, b, 0, [fighter.id]);
+        return { state, b, f: state.byId.get(fighter.id) };
+    };
+    // On a success only: a Strike after a Feint that succeeds, none after one that fails.
+    let { state, f } = fight("feint", { strike: null, onSuccess: true }, 15);
+    assert.ok(f.hp.value < 500, state.log.join("\n"));
+    ({ state, f } = fight("feint", { strike: null, onSuccess: true }, 1));
+    assert.equal(f.hp.value, 500, state.log.join("\n"));
+    // Bully: Shove, Stride after it, Strike at the same multiple attack penalty (two attacks counted in all).
+    let b;
+    ({ state, b, f } = fight("shove", { strike: null, sameMap: true, follow: true }, 15));
+    assert.ok(state.log.some((line) => /Strides after/.test(line)) || sameMelee(b, f), state.log.join("\n"));
+    assert.equal(b.attacksThisTurn, 2, state.log.join("\n"));
+    assert.ok(f.hp.value < 500, state.log.join("\n"));
+});
