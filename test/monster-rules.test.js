@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { createFightState, performAction, simulate, turnEnd } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
-import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, step, stride } from "../src/engine/actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, featureParts, performStrike, provoke as provokeFor, step, stride } from "../src/engine/actions.js";
 import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeOn, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst, strikeNamed, withExtraDamage } from "../src/engine/abilities.js";
 import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, downsAnswers, expireTimers, grabTurnAnswers, ownTurnStart, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
@@ -3504,4 +3504,45 @@ test("A flurry's extra damage and critical rider, a Demoralize after the Strikes
     applyDamage(second, g, [{ type: "electricity", amount: 15, persistent: false, precision: false }], { source: second.byId.get(fighter.id) });
     assert.equal(g.hp.value, g.hp.max, second.log.join("\n"));
     assert.ok(g.cond.quickened, second.log.join("\n"));
+});
+
+test("Best ranged Strikes, once a fight, a Strike that deals no damage but heals, an ally's Strike after a hit, every hit on a mark (Double Shot, Heads Will Roll!, Draining Touch, Shared Feast, Lawbringer, 2026-10-12, B153)", () => {
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "archer", "Archer");
+    const archer = { ...base, strikes: [...base.strikes, { ...base.strikes[0], name: "Shortbow", melee: false, range: 60, bonus: base.strikes[0].bonus + 1 }] };
+    assert.equal(multiStrikeOrder(archer, { strikes: ["ranged", "ranged"] }).every((index) => archer.strikes[index].name === "Shortbow"), true);
+    // Once a fight: not offered again after its use.
+    const dragon = withBuiltins({ ...moderateCreature(5, "dragon", "Dragon"), engagement: 1 }, ["Test Sweep", { builtin: "multi-strike", actions: 2, strikes: [null, null], each: true, max: 2, sameMap: true, strides: 2, oncePerFight: true }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...martialParty(5)[1], engagement: 1 }, dragon] }, {}, 1);
+    const d = state.byId.get("dragon");
+    d.round = state.round;
+    d.actionsLeft = 3;
+    d.usedThisTurn = new Set();
+    assert.ok(scoreOptions(state, d).options.some((option) => option.action.type === "multiStrike"));
+    d.multiUsed = new Set(["Test Sweep"]);
+    assert.ok(!scoreOptions(state, d).options.some((option) => option.action.type === "multiStrike"), "once a fight");
+    // No damage, Drained and Hit Points back; an ally's Strike with its reaction.
+    const drain = { builtin: "strike-activity", actions: 2, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, noDamage: true, onHit: { conditions: [{ slug: "drained", value: 1, duration: { mode: "fixed", value: 1, unit: "days" } }], critical: null, push: null, damage: [], save: null, size: null, selfHeal: 4, allyStrike: true } };
+    const ghost = withBuiltins({ ...moderateCreature(5, "ghost", "Ghost"), engagement: 1 }, ["Test Drain", drain]);
+    const second = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 500, max: 500 } }, ghost, { ...moderateCreature(5, "wolf", "Wolf"), engagement: 1 }] }, {}, 1);
+    second.log = [];
+    second.rng.d20 = () => 15;
+    const g = second.byId.get("ghost");
+    g.hp.value -= 10;
+    const f = second.byId.get(fighter.id);
+    const activity = g.strikeActivities[0];
+    const result = performStrike(second, g, f, chargeStrike(g.strikes[0], activity));
+    assert.ok(result.degree >= 2, second.log.join("\n"));
+    applyStrikeRider(second, g, f, activity, false, g.strikes[0]);
+    assert.equal(f.cond.drained, 1, second.log.join("\n"));
+    assert.equal(g.hp.value, g.hp.max - 6, second.log.join("\n"));
+    assert.ok(second.log.some((line) => /Wolf Strikes with its reaction/.test(line)), second.log.join("\n"));
+    assert.ok(f.hp.value < 500, "the wolf's Strike, not the touch, did damage");
+    // A mark: its precision dice on every hit, not only the first each round.
+    const marshal = withBuiltins({ ...moderateCreature(5, "marshal", "Marshal"), engagement: 1 }, ["Test Mark", { builtin: "hunt-prey", edge: "precision", dice: 2, die: 8, every: true }]);
+    const third = createFightState({ combatants: [{ ...fighter, engagement: 1 }, marshal] }, {}, 1);
+    const m = third.byId.get("marshal");
+    m.prey = fighter.id;
+    const parts = (first) => featureParts(m, m.strikes[0], third.byId.get(fighter.id), { firstPreyHit: first }).filter((part) => part.precision).length;
+    assert.deepEqual([parts(true), parts(false)], [1, 1]);
 });

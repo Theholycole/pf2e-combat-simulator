@@ -14,7 +14,8 @@ import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf,
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effects.js";
-import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
+import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
+import { allyStrike } from "./commander.js";
 import { canReact, levelDC, saveBonusAgainst, sizeRank, strikeNamed } from "./abilities.js";
 import { adjustDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { engagedEnemies, leaveMelee, sameMelee } from "./space.js";
@@ -915,6 +916,25 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
     }
     // (B130, Clobber: its save only against an off-guard target.)
     if (activity.riderSpell && isActive(target) && (rider.saveIf !== "off-guard" || isOffGuard(target))) castPlan(state, attacker, activity.riderSpell, [target.id]);
+    // (B153, Draining Touch: the Hit Points it regains on a hit.)
+    if (rider.selfHeal > 0 && isActive(attacker)) {
+        applyHeal(state, attacker, rider.selfHeal);
+        log(state, `  ${attacker.name} regains ${rider.selfHeal} HP`);
+    }
+    // (B153, Shared Feast: an ally of its choice spends its reaction to Strike the same target — the one whose Strike would do most.)
+    if (rider.allyStrike && isActive(target)) {
+        let best = null;
+        for (const ally of state.list) {
+            if (ally === attacker || ally.side !== attacker.side || !isActive(ally) || !canReact(ally) || !canAct(ally) || ally.cond.fleeing) continue;
+            const strike = allyStrike(state, ally, target);
+            if (strike && (!best || strike.expected > best.strike.expected)) best = { ally, strike };
+        }
+        if (best) {
+            best.ally.reactionUsed = true;
+            log(state, `  ${best.ally.name} Strikes with its reaction`);
+            performStrike(state, best.ally, target, best.ally.strikes[best.strike.index], { reaction: true });
+        }
+    }
     // A skill action after the hit (B67: Terrifying Charge's Demoralize, Pouncing Pin's Trip): its own basic action.
     if (rider.follow && isActive(target) && canAct(attacker)) {
         const index = (attacker.spells ?? []).findIndex((spell) => spell.kind === "basic" && (spell.plan?.source?.slug === rider.follow || String(spell.name ?? "").toLowerCase() === rider.follow));
@@ -935,6 +955,9 @@ export function strikeRiderValue(state, attacker, target, activity, strike = nul
     let worth = rider.conditions.reduce((sum, { slug, value, duration }) => sum + conditionWorth(slug, value, duration), 0);
     if (rider.push && target.meleeId !== null) worth += 0.1;
     let damage = [...(rider.damage ?? []), ...(target.cond.prone ? rider.proneDamage ?? [] : [])].flatMap((formula) => parseDamage(ownType(formula, strike))).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
+    // (B153: an ally's Strike after the hit; the Hit Points it regains.)
+    if (rider.allyStrike) damage += Math.max(0, ...state.list.filter((ally) => ally !== attacker && ally.side === attacker.side && isActive(ally) && canReact(ally)).map((ally) => allyStrike(state, ally, target)?.expected ?? 0));
+    if (rider.selfHeal > 0) worth += 0.02 * Math.min(rider.selfHeal, Math.max(0, attacker.hp.max - attacker.hp.value)) / Math.max(1, attacker.hp.max) * 10;
     if (activity.riderSpell && (rider.saveIf !== "off-guard" || isOffGuard(target))) {
         const entry = spellExpectation(state, attacker, activity.riderSpell, [target]).find((item) => item.target === target);
         damage += entry?.damage ?? 0;

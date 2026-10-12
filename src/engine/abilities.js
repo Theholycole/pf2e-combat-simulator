@@ -54,7 +54,7 @@ export function addBuiltin(spec, plan, name) {
             spec.fastHealing = Math.max(spec.fastHealing ?? 0, plan.value);
             return true;
         case "multi-strike":
-            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.bothHit ? { bothHit: { conditions: [...(plan.bothHit.conditions ?? [])], damage: [...(plan.bothHit.damage ?? [])], ...(plan.bothHit.follow ? { follow: plan.bothHit.follow } : {}), ...(plan.bothHit.strikeDamage ? { strikeDamage: plan.bothHit.strikeDamage } : {}) } } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}), ...(plan.ifFirstHits ? { ifFirstHits: true } : {}), ...(plan.penalties?.length ? { penalties: [...plan.penalties] } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(plan.notGrabbed ? { notGrabbed: true } : {}), ...(plan.noGrab ? { noGrab: true } : {}), ...(plan.flourish ? { flourish: true } : {}), ...(plan.critical ? { critical: { conditions: [...(plan.critical.conditions ?? [])], damage: [...(plan.critical.damage ?? [])] } } : {}), ...(plan.extraDamage?.length ? { extraDamage: [...plan.extraDamage] } : {}), ...(plan.then ? { then: plan.then } : {}) }];
+            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.bothHit ? { bothHit: { conditions: [...(plan.bothHit.conditions ?? [])], damage: [...(plan.bothHit.damage ?? [])], ...(plan.bothHit.follow ? { follow: plan.bothHit.follow } : {}), ...(plan.bothHit.strikeDamage ? { strikeDamage: plan.bothHit.strikeDamage } : {}) } } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}), ...(plan.ifFirstHits ? { ifFirstHits: true } : {}), ...(plan.penalties?.length ? { penalties: [...plan.penalties] } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(plan.notGrabbed ? { notGrabbed: true } : {}), ...(plan.noGrab ? { noGrab: true } : {}), ...(plan.flourish ? { flourish: true } : {}), ...(plan.critical ? { critical: { conditions: [...(plan.critical.conditions ?? [])], damage: [...(plan.critical.damage ?? [])] } } : {}), ...(plan.extraDamage?.length ? { extraDamage: [...plan.extraDamage] } : {}), ...(plan.then ? { then: plan.then } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}) }];
             return true;
         case "charge":
             spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null, ...(plan.safe ? { safe: true } : {}), ...(plan.fatal ? { fatal: plan.fatal } : {}), ...(plan.deadly ? { deadly: plan.deadly } : {}), ...(plan.halfDamage ? { halfDamage: true } : {}), ...(plan.offGuard ? { offGuard: plan.offGuard === "first" ? "first" : true } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}), ...(plan.damageBonus ? { damageBonus: plan.damageBonus } : {}), ...(plan.recharge ? { recharge: plan.recharge } : {}) }];
@@ -229,7 +229,8 @@ export function addBuiltin(spec, plan, name) {
         // A monster's Hunt Prey (B71): a ranger's precision edge, its dice ("1d8 precision damage" the first hit on its prey each round).
         case "hunt-prey":
             if (plan.edge !== "precision") return false;
-            spec.huntPrey = { edge: "precision", precisionDice: Number(plan.dice) || 1, die: Number(plan.die) || 8 };
+            // (B153, Lawbringer: every Strike against the creature it marks, not only the first hit each round.)
+            spec.huntPrey = { edge: "precision", precisionDice: Number(plan.dice) || 1, die: Number(plan.die) || 8, ...(plan.every ? { every: true } : {}) };
             return true;
         // Swift Leap, Jet (B70): a move that doesn't trigger reactions, out of a Melee.
         case "safe-move":
@@ -297,6 +298,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.fatal ? { fatal: plan.fatal } : {}),
                 ...(plan.deadly ? { deadly: plan.deadly } : {}),
                 ...(plan.halfDamage ? { halfDamage: true } : {}),
+                // (B153, Draining Touch, Pinning Shot: "deals no damage on a hit".)
+                ...(plan.noDamage ? { noDamage: true } : {}),
                 // Bully's Bludgeon (B88): "This attack is nonlethal."
                 ...(plan.nonlethal ? { nonlethal: true } : {}),
                 // Focused Assault (B74): a failure (not a critical one) still deals the Strike's damage.
@@ -376,8 +379,9 @@ export function sweepActionIndex(c, sweep) {
 
 export function multiStrikeOrder(c, ability) {
     // A Strike with no name ("makes two unarmed Strikes"): its best melee Strike.
-    const best = () => (c.strikes ?? []).reduce((found, strike, index) => (strike.melee && (found < 0 || strike.bonus > c.strikes[found].bonus) ? index : found), -1);
-    const indices = ability.strikes.map((name) => (name ? strikeNamed(c, name) : best()));
+    // (B153: "two ranged Strikes" — its best ranged Strike.)
+    const best = (melee = true) => (c.strikes ?? []).reduce((found, strike, index) => (!strike.melee === !melee && (found < 0 || strike.bonus > c.strikes[found].bonus) ? index : found), -1);
+    const indices = ability.strikes.map((name) => (name === "ranged" ? best(false) : name ? strikeNamed(c, name) : best()));
     if (indices.some((index) => index < 0)) return null;
     return indices.sort((a, b) => (c.strikes[a].agile ? 1 : 0) - (c.strikes[b].agile ? 1 : 0));
 }
@@ -409,7 +413,7 @@ export function withExtraDamage(strike, formulas) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard === true ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal) return strike;
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage) return strike;
     const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
     // Vicious Swing: extra dice of the weapon's own damage (PF2e's critical formula would leave them out).
@@ -426,6 +430,14 @@ export function chargeStrike(strike, charge) {
     if (charge.fatal) changed.fatal = charge.fatal;
     if (charge.deadly) changed.deadly = { dice: 1, die: charge.deadly };
     if (charge.halfDamage) changed.damage = (changed.damage ?? strike.damage).map((part) => ({ ...part, multiplier: (part.multiplier ?? 1) * 0.5 }));
+    // (B153: "deals no damage on a hit" — none, its riders only.)
+    if (charge.noDamage) {
+        changed.noDamage = true;
+        changed.damage = (changed.damage ?? strike.damage).map((part) => ({ ...part, multiplier: 0 }));
+        delete changed.critDamage;
+        delete changed.deadly;
+        delete changed.fatal;
+    }
     return changed;
 }
 

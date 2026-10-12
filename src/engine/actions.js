@@ -120,7 +120,7 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
     if (offGuard && strike.offGuardExtra?.length) for (const part of strike.offGuardExtra) parts.push({ ...part, chance: offGuard });
     for (const buff of attacker.activeBuffs ?? []) for (const part of buff.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
     for (const effect of attacker.effects ?? []) for (const part of effect.model?.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
-    if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id && firstPreyHit) parts.push({ dice: attacker.huntPrey.precisionDice ?? 1, die: attacker.huntPrey.die ?? 8, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
+    if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id && (firstPreyHit || attacker.huntPrey.every)) parts.push({ dice: attacker.huntPrey.precisionDice ?? 1, die: attacker.huntPrey.die ?? 8, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
     // Panache: Precise Strike's damage on agile or finesse melee Strikes; a finisher's dice instead.
     const precise = attacker.panacheStyle && strike.melee && (strike.agile || strike.finesse);
     if (precise && strike.finisher) parts.push({ dice: attacker.panacheStyle.finisherDice, die: 6, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
@@ -421,6 +421,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
             instances.push({ type: extra.type ?? strike.damage[0].type, amount: critical ? amount * 2 : amount, precision: !!extra.precision, persistent: false });
         }
     }
+    // (B153, Draining Touch: a Strike that deals no damage on a hit.)
+    if (strike.noDamage) instances.length = 0;
     if (strike.concussive) for (const instance of instances) instance.type = concussiveType(target, instance.type, instance.amount, instance.precision);
     // Wished Away, Withhold Death (B60): its reaction to the critical hit, resistance to all damage against this attack.
     const before = target.resistances;

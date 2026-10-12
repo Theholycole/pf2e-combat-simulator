@@ -826,6 +826,7 @@ function expand(ctx, node, actionsLeft) {
             // A flourish (Flurry of Blows): once a turn.
             if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ms${abilityIndex}`))) continue;
             if (ability.flourish && flourishUsed(c, node)) continue;
+            if (ability.oncePerFight && c.multiUsed?.has(ability.name)) continue;
             const order = multiStrikeOrder(c, ability);
             if (!order || order.some((index) => !strikeUsable(c, c.strikes[index]))) continue;
             // A Strike at every enemy in its Melee: worth the sum over them.
@@ -1237,7 +1238,7 @@ function expand(ctx, node, actionsLeft) {
             const current = c.prey ? state.byId.get(c.prey) : null;
             if (!current || !isActive(current)) {
                 const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
-                const perRound = c.huntPrey.edge === "precision" ? 0.65 * (((c.huntPrey.die ?? 8) + 1) / 2) * (c.huntPrey.precisionDice ?? 1) : c.huntPrey.edge === "flurry" ? 0.25 * threat : 0.05 * threat;
+                const perRound = c.huntPrey.edge === "precision" ? (c.huntPrey.every ? 1.1 : 0.65) * (((c.huntPrey.die ?? 8) + 1) / 2) * (c.huntPrey.precisionDice ?? 1) : c.huntPrey.edge === "flurry" ? 0.25 * threat : 0.05 * threat;
                 const prey = ctx.enemies.filter((enemy) => enemy.status === "active").sort((a, b) => targetValue(state, b, c) - targetValue(state, a, c))[0];
                 if (prey) children.push(child(node, { type: "huntPrey", targetId: prey.id }, 1, ctx.ownValue * ROUND_TO_KILL * 3 * perRound / threat));
             }
