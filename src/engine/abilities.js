@@ -177,7 +177,9 @@ export function addBuiltin(spec, plan, name) {
                 // (B93: once a fight, Stubborn Resolve's; only a critical failure made a failure, Reality Twist's; a free action's.)
                 spec.saveBoost = { name, recharge: plan.recharge ?? null, ...(plan.criticalOnly ? { criticalOnly: true } : {}), ...(plan.free ? { free: true } : {}),
                     // (B132, Gardener's Resolve: only a failure, of one save, against effects with its traits; damage on itself.)
-                    ...(plan.failureOnly ? { failureOnly: true } : {}), ...(plan.save ? { save: plan.save } : {}), ...(plan.against?.length ? { against: [...plan.against] } : {}), ...(plan.selfDamage ? { selfDamage: plan.selfDamage } : {}) };
+                    ...(plan.failureOnly ? { failureOnly: true } : {}), ...(plan.save ? { save: plan.save } : {}), ...(plan.against?.length ? { against: [...plan.against] } : {}), ...(plan.selfDamage ? { selfDamage: plan.selfDamage } : {}),
+                    // (B169, Flash of Insight: a success, whatever it rolled.)
+                    ...(plan.toSuccess ? { toSuccess: true } : {}) };
                 if (Number.isFinite(plan.uses)) spec.saveBoostUses = plan.uses;
             }
             return true;

@@ -390,7 +390,7 @@ function betterSave(state, statistic, options, result, spell = null) {
     if (helper === saver && Number.isFinite(saver.saveBoostUses)) saver.saveBoostUses--;
     if (boost.recharge) helper.saveBoostUntil = state.round + rollCount(state, boost.recharge);
     state.stats.reactions++;
-    const degree = DEGREE_NAMES[Math.min(3, DEGREE_NAMES.indexOf(result.degree) + 1)];
+    const degree = boost.toSuccess ? "success" : DEGREE_NAMES[Math.min(3, DEGREE_NAMES.indexOf(result.degree) + 1)];
     log(state, `  ${helper.name} uses ${boost.name}: ${saver.name}'s save ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
     // (B132, Gardener's Resolve: the damage it takes for it.)
     if (boost.selfDamage) applyDamage(state, helper, rollInstances(state, parseDamage(boost.selfDamage)), { source: helper });

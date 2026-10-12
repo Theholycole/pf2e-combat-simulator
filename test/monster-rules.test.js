@@ -3705,3 +3705,23 @@ test("A skill check as its allies save, the higher result resolving the effect (
     assert.ok(state.byId.get("oth").cond.frightened, "not its kind of ally");
     assert.equal(state.byId.get("seer").reactionUsed, true);
 });
+
+test("A success instead of a failed save, once a fight (Flash of Insight, 2026-10-12, B169)", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (effects = []) => ({ damage: { ...none }, effects });
+    const save = (dc) => ({ name: "Test Blast", castRank: 1, dc: null, attack: null, pool: null, plan: { modelVersion: 13, source: { name: "Test Blast" }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: false, against: { dc: "fixed", value: dc } }, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row(), failure: row([{ kind: "condition", slug: "frightened", value: 1, duration: null }]), criticalFailure: row([{ kind: "condition", slug: "frightened", value: 2, duration: null }]) } } } });
+    const [fighter] = martialParty(5);
+    const seer = { ...moderateCreature(5, "seer", "Seer"), engagement: 1 };
+    assert.equal(addBuiltin(seer, { builtin: "save-boost", toSuccess: true, uses: 1, free: true }, "Test Insight"), true);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, seer] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 1;
+    const s = state.byId.get("seer");
+    // A critical failure made a success (not one degree better), its reaction kept.
+    castPlan(state, state.byId.get("fighter"), save(10 + s.saves.reflex + 12), ["seer"]);
+    assert.ok(state.log.includes("  Seer uses Test Insight: Seer's save success"), state.log.join("\n"));
+    assert.equal(s.cond.frightened ?? 0, 0);
+    assert.ok(!s.reactionUsed);
+    castPlan(state, state.byId.get("fighter"), save(10 + s.saves.reflex + 12), ["seer"]);
+    assert.equal(s.cond.frightened, 2, "once a fight");
+});
