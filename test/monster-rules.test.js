@@ -3571,3 +3571,26 @@ test("Only while raging; a resistance that lashes back with what it resisted (En
     assert.equal(b.hp.max - b.hp.value, 4, second.log.join("\n"));
     assert.equal(f.hp.value, 490, second.log.join("\n"));
 });
+
+test("A Strike, then a Shove hit or miss; Reactive Strike behind a state isn't loaded (Battering Blow, Coiled Strike, 2026-10-12, B156)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const activity = { builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, afterStrike: "shove", onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } };
+    const guard = withBuiltins({ ...moderateCreature(5, "guard", "Guard"), engagement: 1, spells: [entry("Shove", basic.shove, "basic")] }, ["Test Blow", activity]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 500, max: 500 } }, guard] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 2;
+    const g = state.byId.get("guard");
+    g.actionsLeft = 3;
+    performAction(state, g, { type: "strikeActivity", index: 0, targetId: fighter.id, strikeIndex: 0, actions: 1 });
+    assert.ok(state.log.some((line) => /Shove/.test(line)), state.log.join("\n"));
+    const snake = { ...moderateCreature(5, "snake", "Snake") };
+    assert.equal(addBuiltin(snake, { builtin: "reactive-strike", requires: "requirement", note: "Only while coiled." }, "Test Coiled Strike"), false);
+});
+
+test("A Strike whose damage is rolled three times (Flog Mercilessly, 2026-10-12, B156)", () => {
+    const base = moderateCreature(5, "flogger", "Flogger");
+    const strike = { ...base.strikes[0], damage: [{ dice: 1, die: 4, bonus: 2, multiplier: 1, type: "slashing", persistent: false, precision: false }] };
+    assert.equal(chargeStrike(strike, { name: "Test Flog", damageTimes: 3 }).damage[0].multiplier, 3);
+    assert.equal(chargeStrike(strike, { name: "Plain" }), strike);
+});

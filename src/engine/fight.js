@@ -651,6 +651,8 @@ function act(state, c, action) {
                 state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
             }
             if (result && result.degree >= SUCCESS && isActive(target)) applyStrikeRider(state, c, target, activity, result.degree === 3, fired);
+            // (B156, Battering Blow: "then Shoves the same creature" — hit or miss.)
+            if (result && activity.afterStrike && isActive(target) && canAct(c)) bothHitRider(state, c, target, { follow: activity.afterStrike }, { said: null });
             // Set-Up Strike: its hit leaves the target off-guard to an ally's next attack.
             if (activity.setUp && result && result.degree >= SUCCESS && isActive(target)) setUp(state, c, target);
             // (B139: Off-Guard or a guard on itself until its next turn starts.)

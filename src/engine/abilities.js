@@ -32,6 +32,8 @@ export function addBuiltin(spec, plan, name) {
             return true;
         case "attack-of-opportunity":
         case "reactive-strike":
+            // (B156, Coiled Strike: only in a state the engine doesn't play.)
+            if (plan.requires) return false;
             spec.reactions = { ...(spec.reactions ?? {}), aoo: true };
             return true;
         case "shield-block":
@@ -300,6 +302,9 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.halfDamage ? { halfDamage: true } : {}),
                 // (B153, Draining Touch, Pinning Shot: "deals no damage on a hit".)
                 ...(plan.noDamage ? { noDamage: true } : {}),
+                // (B156, Battering Blow: a basic action at the creature after the Strike, hit or miss; Flog Mercilessly: its damage rolled three times.)
+                ...(plan.afterStrike ? { afterStrike: plan.afterStrike } : {}),
+                ...(plan.damageTimes > 1 ? { damageTimes: Number(plan.damageTimes) } : {}),
                 // Bully's Bludgeon (B88): "This attack is nonlethal."
                 ...(plan.nonlethal ? { nonlethal: true } : {}),
                 // Focused Assault (B74): a failure (not a critical one) still deals the Strike's damage.
@@ -416,7 +421,7 @@ export function withExtraDamage(strike, formulas) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard === true ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage) return strike;
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1)) return strike;
     const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
     // Vicious Swing: extra dice of the weapon's own damage (PF2e's critical formula would leave them out).
@@ -433,6 +438,8 @@ export function chargeStrike(strike, charge) {
     if (charge.fatal) changed.fatal = charge.fatal;
     if (charge.deadly) changed.deadly = { dice: 1, die: charge.deadly };
     if (charge.halfDamage) changed.damage = (changed.damage ?? strike.damage).map((part) => ({ ...part, multiplier: (part.multiplier ?? 1) * 0.5 }));
+    // (B156: "rolls damage three times" — that many times its damage, combined.)
+    if (charge.damageTimes > 1) changed.damage = (changed.damage ?? strike.damage).map((part) => ({ ...part, multiplier: (part.multiplier ?? 1) * charge.damageTimes }));
     // (B153: "deals no damage on a hit" — none, its riders only.)
     if (charge.noDamage) {
         changed.noDamage = true;
