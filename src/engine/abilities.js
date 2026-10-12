@@ -192,7 +192,8 @@ export function addBuiltin(spec, plan, name) {
             spec.allyAcReaction = { name, value: Number(plan.value) || 2, within: plan.within === "reach" ? 10 : Number(plan.within) || 10, ...(plan.ranged ? { ranged: true } : {}), ...(plan.strike ? { strike: plan.strike } : {}), ...(plan.self ? { self: true } : {}) };
             return true;
         case "save-boost":
-            if (plan.ally) spec.allySaveBoost = { name, within: plan.within ?? 60, recharge: plan.recharge ?? null };
+            // (B226, Light of Diligence: only a critical failure, each ally once a fight.)
+            if (plan.ally) spec.allySaveBoost = { name, within: plan.within ?? 60, recharge: plan.recharge ?? null, ...(plan.criticalOnly ? { criticalOnly: true } : {}), ...(plan.perAlly ? { perAlly: true } : {}) };
             else {
                 // (B93: once a fight, Stubborn Resolve's; only a critical failure made a failure, Reality Twist's; a free action's.)
                 spec.saveBoost = { name, recharge: plan.recharge ?? null, ...(plan.criticalOnly ? { criticalOnly: true } : {}), ...(plan.free ? { free: true } : {}),
@@ -254,8 +255,10 @@ export function addBuiltin(spec, plan, name) {
         // Shake It Off, Slough Skin (B77; the user's choice): the first harmful condition an enemy gives it, negated with its reaction once a
         // fight (Dogged Persistence: only the conditions it names). Its use left: a number on the creature.
         case "negate-condition":
-            spec.negateCondition = { name, ...(plan.conditions?.length ? { conditions: [...plan.conditions] } : {}) };
-            spec.negateConditionUses = 1;
+            spec.negateCondition = { name, ...(plan.conditions?.length ? { conditions: [...plan.conditions] } : {}),
+                // (B226, Fearless Rush: the condition 1 lower, then a Stride toward the foe — every time, its reaction allowing.)
+                ...(Number(plan.reduceBy) > 0 ? { reduceBy: Number(plan.reduceBy) } : {}), ...(plan.stride ? { stride: plan.stride } : {}) };
+            spec.negateConditionUses = Number(plan.reduceBy) > 0 ? Infinity : 1;
             return true;
         // Quickened Casting (B72): its next spell (of that rank or lower) one action fewer, once a fight.
         case "quickened-casting":

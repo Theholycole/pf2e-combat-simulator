@@ -388,9 +388,12 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
     const ownBoost = saver.saveBoost && (!Number.isFinite(saver.saveBoostUses) || saver.saveBoostUses > 0) && (!saver.saveBoost.criticalOnly || result.degree === "criticalFailure")
         && (!saver.saveBoost.failureOnly || result.degree === "failure") && (!saver.saveBoost.save || saver.saveBoost.save === statistic) && (!saver.saveBoost.against || saver.saveBoost.against.some((trait) => traits.includes(trait)));
     const helper = ownBoost && ready(saver) ? saver
-        : state.list.find((c) => c !== saver && c.side === saver.side && isActive(c) && c.allySaveBoost && ready(c) && (c.allySaveBoost.within >= 60 || (c.allySaveBoost.within <= 10 ? sameMelee(c, saver) : saver.band !== "far" || c.band === "far")));
+        : state.list.find((c) => c !== saver && c.side === saver.side && isActive(c) && c.allySaveBoost && ready(c) && (c.allySaveBoost.within >= 60 || (c.allySaveBoost.within <= 10 ? sameMelee(c, saver) : saver.band !== "far" || c.band === "far"))
+            // (B226, Light of Diligence: only a critical failure; each ally once.)
+            && (!c.allySaveBoost.criticalOnly || result.degree === "criticalFailure") && !(c.allySaveBoost.perAlly && c.allySaveBoostGiven?.has(saver.id)));
     if (!helper) return result;
     const boost = helper === saver ? saver.saveBoost : helper.allySaveBoost;
+    if (helper !== saver && boost.perAlly) (helper.allySaveBoostGiven ??= new Set()).add(saver.id);
     if (!boost.free) helper.reactionUsed = true;
     if (helper === saver && Number.isFinite(saver.saveBoostUses)) saver.saveBoostUses--;
     if (boost.recharge) helper.saveBoostUntil = state.round + rollCount(state, boost.recharge);
@@ -485,8 +488,17 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if (negate && (target.negateConditionUses ?? 0) > 0 && source && source.side !== target.side && !NOT_HARMFUL.has(slug) && (!negate.conditions || negate.conditions.includes(slug)) && isActive(target) && canReact(target)) {
         target.negateConditionUses--;
         target.reactionUsed = true;
-        log(state, `  ${target.name} uses ${negate.name}: not ${slug}`);
-        return false;
+        // (B226, Fearless Rush: the value lower, then a Stride toward the creature that frightened it.)
+        if (negate.reduceBy) {
+            const lower = (Number.isFinite(value) ? value : 1) - negate.reduceBy;
+            log(state, `  ${target.name} uses ${negate.name}: ${slug} ${Math.max(0, lower)}`);
+            if (negate.stride && isActive(source) && !sameMelee(target, source) && canMove(target)) stride(state, target, { kind: "engage", targetId: source.id });
+            if (lower <= 0) return false;
+            value = lower;
+        } else {
+            log(state, `  ${target.name} uses ${negate.name}: not ${slug}`);
+            return false;
+        }
     }
     // "As long as it's sickened" (Stench), "fleeing as long as it's frightened": ends when that condition does.
     if (duration?.mode === "while" && duration.condition) (target.whileConditions ??= []).push({ slug, value, while: duration.condition });

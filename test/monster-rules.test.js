@@ -4353,3 +4353,37 @@ test("Strikes at an auditory or a healing action, from afar too; a bite as a hel
     castSpell(state, f, 0, ["croc"]);
     assert.ok(state.log.some((line) => /Croc reacts with Test Teeth/.test(line)) && f.hp.value < before, state.log.join("\n"));
 });
+
+test("Fear 1 lower and a rush at the foe; an ally's critical failure made a failure, once for each ally (2026-10-12, B226)", () => {
+    const [fighter] = martialParty(5);
+    // Fearless Rush: Frightened 2 lands as 1, and it Strides to the creature that frightened it.
+    const ox = withBuiltins(moderateCreature(5, "ox", "Ox"), ["Test Rush", { builtin: "negate-condition", conditions: ["frightened"], reduceBy: 1, stride: "toward" }]);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, ox] }, {}, 1);
+    state.log = [];
+    const o = state.byId.get("ox");
+    const f = state.byId.get(fighter.id);
+    applyCondition(state, o, "frightened", 2, null, f);
+    assert.equal(o.cond.frightened, 1, state.log.join("\n"));
+    assert.ok(sameMelee(o, f) && o.reactionUsed, state.log.join("\n"));
+    // Frightened 1 is gone.
+    o.reactionUsed = false;
+    o.cond.frightened = 0;
+    applyCondition(state, o, "frightened", 1, null, f);
+    assert.equal(o.cond.frightened ?? 0, 0, state.log.join("\n"));
+    // Light of Diligence: a critical failure only, and each ally once.
+    const none = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
+    const scare = { modelVersion: 13, source: { name: "Test Scare" }, rank: 1, traits: ["mental"], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: null, area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 25 } }, sharedDamage: null, outcomes: { criticalSuccess: none, success: none, failure: { damage: none.damage, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, criticalFailure: { damage: none.damage, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] } } } };
+    const sage = withBuiltins({ ...moderateCreature(5, "sage", "Sage"), engagement: 1 }, ["Test Lantern", { builtin: "save-boost", ally: true, within: 15, criticalOnly: true, perAlly: true }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [entry("Test Scare", scare)] }, sage, { ...moderateCreature(5, "aly", "Ally"), engagement: 1 }] }, {}, 1);
+    state.log = [];
+    const caster = state.byId.get(fighter.id);
+    const ally = state.byId.get("aly");
+    state.rng.d20 = () => 1;
+    castPlan(state, caster, caster.spells[0], ["aly"]);
+    assert.ok(state.log.some((line) => /Sage uses Test Lantern/.test(line)), state.log.join("\n"));
+    assert.equal(ally.cond.frightened, 1, "a failure, not a critical failure");
+    state.byId.get("sage").reactionUsed = false;
+    ally.cond.frightened = 0;
+    castPlan(state, caster, caster.spells[0], ["aly"]);
+    assert.equal(ally.cond.frightened, 2, "only once for that ally");
+});
