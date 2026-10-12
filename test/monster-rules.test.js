@@ -2621,3 +2621,38 @@ test("A Stride into a Melee, then a Strike at each creature there (2026-10-11, B
     assert.ok(sameMelee(k, f), state.log.join("\n"));
     assert.equal(state.log.filter((line) => /Kokogiak .* → /.test(line)).length, 2, state.log.join("\n"));
 });
+
+test("Both Strikes hit: a basic action at the creature (2026-10-11, B110)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const captain = { ...moderateCreature(5, "cap", "Captain"), engagement: 1, spells: [entry("Disarm", basic.disarm, "basic")] };
+    addBuiltin(captain, { builtin: "multi-strike", actions: 2, strikes: [null, null], sameTarget: true, sameMap: true, bothHit: { conditions: [], damage: [], follow: "disarm" } }, "Test Dual");
+    assert.equal(captain.multiStrikes[0].bothHit.follow, "disarm");
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, captain] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 20;
+    const c = state.byId.get("cap");
+    c.strikes = c.strikes.map((strike) => ({ ...strike, bonus: 100 }));
+    performAction(state, c, { type: "multiStrike", ability: 0, targetId: fighter.id, actions: 2 });
+    assert.ok(state.log.some((line) => /Captain (?:casts|uses) Disarm/.test(line)), state.log.join("\n"));
+});
+
+test("A bonus to its own save as it comes, against a spell, its reaction once (2026-10-11, B110)", () => {
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const blast = (kind) => ({ name: "Test Blast", castRank: 1, dc: null, attack: null, pool: null, ...(kind ? { kind } : {}), plan: { modelVersion: 13, source: { name: "Test Blast" }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 30 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, criticalFailure: { damage: { ...none }, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] } } } } });
+    const fight = (kind) => {
+        const padli = { ...moderateCreature(5, "pad", "Padli"), engagement: 1 };
+        addBuiltin(padli, { builtin: "save-bonus-reaction", value: 2, against: "spell" }, "Test Ward");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [blast(kind)] }, padli] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => 10;
+        castSpell(state, state.byId.get(fighter.id), 0, ["pad"]);
+        return { state, p: state.byId.get("pad") };
+    };
+    let { state, p } = fight(null);
+    assert.ok(state.log.includes("  Padli uses Test Ward: +2 to the save"), state.log.join("\n"));
+    assert.equal(p.reactionUsed, true);
+    ({ state, p } = fight("ability"));
+    assert.equal(p.reactionUsed ?? false, false, "not against a monster's ability");
+});

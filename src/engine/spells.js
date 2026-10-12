@@ -294,8 +294,18 @@ function bestHit(c, target, meleeOnly) {
 // Luck (its own, one degree better), Word of Wisdom (an ally's within its distance, one degree better); those two not again for their
 // recharge (1d4 rounds). The result as it stands otherwise.
 const SAVES = new Set(["fortitude", "reflex", "will"]);
-function betterSave(state, statistic, options, result) {
+function betterSave(state, statistic, options, result, spell = null) {
     const saver = options?.actor;
+    // (B110, Occult Ward: a bonus to its own save as it comes, against a spell (or any): its reaction on the first such save, the bonus
+    // in the result.)
+    const ward = saver?.saveBonusReaction;
+    if (ward && SAVES.has(statistic) && saver?.id && isActive(saver) && canReact(saver) && Number.isFinite(result?.total) && Number.isFinite(options?.dc) && (!ward.against || (spell && (!spell.kind || spell.kind === "spell")) || (ward.against === "magical" && (spell?.plan?.traits ?? []).some((trait) => ["magical", "arcane", "divine", "occult", "primal"].includes(trait))))) {
+        saver.reactionUsed = true;
+        state.stats.reactions++;
+        const total = result.total + ward.value;
+        result = { ...result, total, degree: DEGREE_NAMES[degreeOf(total, options.dc, result.natural)] };
+        log(state, `  ${saver.name} uses ${ward.name}: +${ward.value} to the save`);
+    }
     if (!SAVES.has(statistic) || !saver?.id || !["failure", "criticalFailure"].includes(result?.degree) || !isActive(saver)) return result;
     const reroll = saver.saveReroll;
     if (reroll && (!reroll.save || reroll.save === statistic) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
@@ -361,6 +371,11 @@ export function bothHitRider(state, attacker, target, rider) {
         const instances = parsed.map((instance, index) => (instance.category === "persistent" ? persistentInstance({ ...instance, amount: rolled[index].amount }) : rolled[index]));
         const dealt = applyDamage(state, target, instances, { source: attacker });
         log(state, `  ${target.name} ${instances.some((instance) => instance.persistent) ? `takes persistent ${instances.find((instance) => instance.persistent).type}` : `takes ${dealt} more`}`);
+    }
+    // (B110, Dual Disarm: "If both Strikes hit, … can attempt to Disarm the target": its own basic action.)
+    if (rider.follow && isActive(target) && canAct(attacker)) {
+        const index = (attacker.spells ?? []).findIndex((spell) => spell.kind === "basic" && (spell.plan?.source?.slug === rider.follow || String(spell.name ?? "").toLowerCase() === rider.follow));
+        if (index >= 0) castSpell(state, attacker, index, [target.id]);
     }
 }
 
@@ -1043,7 +1058,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // Spellstrike: the spell attack takes the Strike's result.
     const rolled = forcedDegree !== null ? (statistic, options) => (statistic === "spell-attack" || statistic === "strike" ? { natural: null, total: null, dc: options?.dc, degree: DEGREE_NAMES[forcedDegree] } : live.roll(statistic, options)) : live.roll;
     // (A failed save a reaction makes better, B80.)
-    const roll = (statistic, options) => betterSave(state, statistic, options, rolled(statistic, options));
+    const roll = (statistic, options) => betterSave(state, statistic, options, rolled(statistic, options), spell);
     const io = { ...live, roll, choose: chooser(caster, targets) };
     const result = registry.resolveSync(spell.plan, context, io);
     for (const target of targets) {
