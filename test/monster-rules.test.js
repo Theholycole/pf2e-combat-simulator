@@ -4604,3 +4604,19 @@ test("A Strike at a creature starting its turn beside it, a free action's (2026-
     assert.match(state.log.join("\n"), /Golem uses Test Hands/, state.log.join("\n"));
     assert.equal(state.byId.get("glm").reactionUsed, false, "its reaction left");
 });
+
+test("A reaction of its own to a melee miss on it: the attacker Grabbed (2026-10-12, B246)", () => {
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (effects = []) => ({ damage: { ...none }, effects });
+    const tangle = { modelVersion: 13, source: { name: "Test Tangle" }, rank: 1, traits: [], activation: { time: "reaction", traits: [] }, targeting: { target: "the attacker", range: "touch", area: null }, trigger: { event: "hit-by", reaction: true, missed: true, melee: true, within: 5 },
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row([{ kind: "condition", slug: "grabbed", value: null, duration: null }]), failure: row(), criticalFailure: row() } } };
+    const monk = { ...moderateCreature(5, "monk", "Monk"), engagement: 1, ac: 99, hp: { value: 999, max: 999 }, spells: [{ name: "Test Tangle", plan: tangle, dc: 20, attack: 0 }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, monk] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 5;
+    const f = state.byId.get(fighter.id);
+    performStrike(state, f, state.byId.get("monk"), f.strikes.find((strike) => strike.melee));
+    assert.match(state.log.join("\n"), /Test Tangle/, state.log.join("\n"));
+    assert.ok(f.cond.grabbed, state.log.join("\n"));
+});

@@ -11,7 +11,7 @@
 // uses), or null for cantrips and at-will spells.
 
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
-import { degreeDistribution, degreeOf, flatCheck, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
+import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effects.js";
 import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
@@ -1414,7 +1414,7 @@ function around(state, c, radius, inMelee) {
 // Strike is unarmed.
 // (Batch 19: also any attack when it says so, a critical hit only, the damage types it names, its area around the monster.)
 export function hitByAnswers(state, defender, attacker, strike, degree = SUCCESS, types = []) {
-    passiveAnswers(state, defender, attacker, (trigger) => trigger.event === "hit-by" && (!trigger.melee || strike.melee) && (!trigger.unarmed || strike.unarmed)
+    passiveAnswers(state, defender, attacker, (trigger) => trigger.event === "hit-by" && !trigger.missed && (!trigger.melee || strike.melee) && (!trigger.unarmed || strike.unarmed)
         && (!trigger.critical || degree === CRITICAL_SUCCESS) && typesMatch(trigger.damageTypes, types));
 }
 
@@ -1467,8 +1467,14 @@ function nearestFoe(state, c, plan) {
 // damage"): used whenever it can react and the ability is ready, on the attacker, or on the creatures in its area when a foe
 // is among them. One with neither (the GM's targets in live play) isn't played. types: the damage types dealt.
 export function reactToHit(state, defender, attacker, strike, degree, types) {
-    useReaction(state, defender, attacker, (trigger) => trigger.event === "hit-by" && (!trigger.critical || degree === CRITICAL_SUCCESS) && (!trigger.melee || strike.melee) && (!trigger.unarmed || strike.unarmed)
+    useReaction(state, defender, attacker, (trigger) => trigger.event === "hit-by" && !trigger.missed && (!trigger.critical || degree === CRITICAL_SUCCESS) && (!trigger.melee || strike.melee) && (!trigger.unarmed || strike.unarmed)
         && (!trigger.within || trigger.within > 10 || sameMelee(defender, attacker)) && typesMatch(trigger.damageTypes, types));
+}
+
+// (B246, Robe Tangle: a miss on it — "hit-by" with missed, a critical miss with critical.)
+export function reactToMiss(state, defender, attacker, strike, degree) {
+    useReaction(state, defender, attacker, (trigger) => trigger.event === "hit-by" && trigger.missed && (!trigger.critical || degree === CRITICAL_FAILURE) && (!trigger.melee || strike.melee)
+        && (!trigger.within || trigger.within > 10 || sameMelee(defender, attacker)));
 }
 
 export function reactToDamage(state, target, source, types) {

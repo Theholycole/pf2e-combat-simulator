@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { applyEffect, removeEffect } from "./effects.js";
-import { applyCondition, castPlan, castSpell, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { applyCondition, castPlan, castSpell, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 function log(state, text) {
@@ -416,6 +416,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         }
         // (B116, Skitter: a miss on it, answered by moving off.)
         if (!reaction && isActive(attacker) && isActive(target)) withdrawAnswer(state, target, attacker, { melee: !!strike.melee });
+        // (B246, Robe Tangle: a plan of its own on a miss.)
+        if (!reaction && isActive(attacker) && isActive(target)) reactToMiss(state, target, attacker, strike, degree);
         if (degree === CRITICAL_FAILURE && !reaction && attacker.weaponPoisoned && strike.held) attacker.weaponPoisoned = false;
         // Jeer at Failure (B85): a critically failed Strike near a monster with it.
         if (degree === CRITICAL_FAILURE && !reaction) mishapAnswers(state, attacker);
