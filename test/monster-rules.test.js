@@ -4581,3 +4581,14 @@ test("Extra damage on Strikes with a flat part of its own (2026-10-12, B243)", (
     assert.deepEqual(parts.map(({ dice, die, bonus, type }) => [dice, die, bonus, type]), [[3, 8, 0, "force"], [0, 0, 3, "force"]]);
     assert.deepEqual(withExtraDamage(strike, ["(2d6+2)[fire]"]).damage.at(-1).bonus, 2, "a bracketed formula too");
 });
+
+test("A self-effect as it takes any damage, its Hit Points back with it (2026-10-12, B244)", () => {
+    const [fighter] = martialParty(5);
+    const goblin = withBuiltins({ ...moderateCreature(5, "gob", "Goblin"), engagement: 1, hp: { value: 50, max: 80 } }, ["Test Growth", { builtin: "self-effect", actions: 0, model: { name: "Test Growth", rounds: 2, modifiers: [{ on: "attack", type: "status", value: 2 }, { on: "damage", type: "status", value: 2 }], tempHp: 0 }, heal: 8, trigger: { kind: "damaged", reaction: true } }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, goblin] }, {}, 1);
+    state.log = [];
+    applyDamage(state, state.byId.get("gob"), [{ type: "slashing", amount: 10, persistent: false, precision: false }], { source: state.byId.get(fighter.id), physical: true });
+    const log = state.log.join("\n");
+    assert.match(log, /Goblin uses Test Growth/, log);
+    assert.equal(state.byId.get("gob").hp.value, 50 - 10 + 8);
+});

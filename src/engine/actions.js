@@ -950,7 +950,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
     for (const instance of adjusted.persistent) addPersistent(target, instance);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
     // Vengeful Rage (B65): damage that leaves it at that many Hit Points or fewer.
-    if (dealt > 0 && isActive(target)) triggeredSelfEffect(state, target, (trigger) => trigger.kind === "hp-at-most" && target.hp.value <= trigger.value);
+    // (B244, Enraged Growth: any damage it takes.)
+    if (dealt > 0 && isActive(target)) triggeredSelfEffect(state, target, (trigger) => (trigger.kind === "hp-at-most" && target.hp.value <= trigger.value) || trigger.kind === "damaged");
     // Solar Flare, Caustic Blood: the monster's reaction to damage on it (B44).
     if (dealt > 0) reactToDamage(state, target, source, instances.filter((instance) => instance.amount > 0).map((instance) => instance.type));
     // (B143: Destructive Vengeance's damage at the enemy.)
