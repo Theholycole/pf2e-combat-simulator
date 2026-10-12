@@ -681,6 +681,11 @@ function act(state, c, action) {
             if (ability.oncePerTurn) c.usedThisTurn?.add(ability.name);
             if (ability.flourish) c.usedThisTurn?.add("flourish");
             let target = state.byId.get(action.targetId);
+            // (B108, Chase Prey: a Stride to the creature first; B109, Mauling Rush: to its Melee, then a Strike at each there.)
+            if (ability.strides && target && isActive(target) && !sameMelee(c, target) && canMove(c)) {
+                stride(state, c, { kind: "engage", targetId: target.id });
+                if (!canAct(c)) break;
+            }
             const attacks = c.attacksThisTurn;
             // A Strike at every enemy in its Melee (Vine Lash, Thrash), or at that many of them (Dual Tusks, Swipe); a ranged
             // one at any enemies (Cannonade).
@@ -701,11 +706,6 @@ function act(state, c, action) {
                 if (ability.sameMap) c.attacksThisTurn = attacks + (ability.countsAs ?? foes.length);
                 multiStrikeAfter(state, c, ability);
                 break;
-            }
-            // (B108, Chase Prey: a Stride to the creature first.)
-            if (ability.strides && target && isActive(target) && !sameMelee(c, target) && canMove(c)) {
-                stride(state, c, { kind: "engage", targetId: target.id });
-                if (!canAct(c)) break;
             }
             let grabbed = false;
             let firstHit = false;

@@ -2603,3 +2603,21 @@ test("A mythic reroll of its failed save; a Stride and then two Strikes (2026-10
     assert.ok(sameMelee(t, fight.byId.get(fighter.id)), fight.log.join("\n"));
     assert.equal(fight.log.filter((line) => /Troll .* → /.test(line)).length, 2, fight.log.join("\n"));
 });
+
+test("A Stride into a Melee, then a Strike at each creature there (2026-10-11, B109)", () => {
+    const [fighter, cleric] = martialParty(5);
+    const beast = { ...moderateCreature(5, "kok", "Kokogiak"), engagement: 0 };
+    addBuiltin(beast, { builtin: "multi-strike", actions: 3, strikes: [null], each: true, max: 4, strides: 1, sameMap: true }, "Test Rush");
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, { ...cleric, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, beast] }, {}, 1);
+    const k = state.byId.get("kok");
+    const f = state.byId.get(fighter.id);
+    const c = state.byId.get(cleric.id);
+    engage(state, f, c);
+    Object.assign(k, { band: "near", meleeId: null });
+    k.actionsLeft = 3;
+    assert.ok(scoreOptions(state, k).options.some((option) => option.action?.type === "multiStrike"), "planned from nearby");
+    state.log = [];
+    performAction(state, k, { type: "multiStrike", ability: 0, targetId: f.id, actions: 3 });
+    assert.ok(sameMelee(k, f), state.log.join("\n"));
+    assert.equal(state.log.filter((line) => /Kokogiak .* → /.test(line)).length, 2, state.log.join("\n"));
+});

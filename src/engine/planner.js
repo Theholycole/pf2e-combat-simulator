@@ -815,21 +815,35 @@ function expand(ctx, node, actionsLeft) {
             // A Strike at every enemy in its Melee: worth the sum over them.
             if (ability.each) {
                 const ranged = !c.strikes[order[0]].melee;
-                const foes = ctx.enemies.filter((target) => target.status === "active" && (ranged || inMelee(node.pos, target))).slice(0, ability.max ?? Infinity);
-                if (foes.length < 2) continue;
-                const damage = { ...node.damage };
-                let gain = 0;
-                for (const [step, target] of foes.entries()) {
-                    // (A different Strike at each, B74.)
-                    const index = order[Math.min(step, order.length - 1)];
-                    const struck = ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - ability.penalty } : c.strikes[index];
-                    const expected = ctx.strikeExpectation(struck, struck === c.strikes[index] ? index : 4000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone)?.damage ?? 0;
-                    const before = damage[target.id] ?? 0;
-                    const hp = remainingHp(target);
-                    gain += targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
-                    damage[target.id] = before + expected;
+                // Where it Strikes from: here, or (B109, Mauling Rush) the Melee of a creature one Stride away.
+                const places = [{ pos: node.pos, first: null }];
+                if (ability.strides && !ranged && mobile && !ctx.wavering) {
+                    for (const target of ctx.enemies) {
+                        if (target.status !== "active" || inMelee(node.pos, target) || stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
+                        places.push({ pos: target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id }, first: target });
+                    }
                 }
-                if (gain > 0) children.push(child(node, { type: "multiStrike", ability: abilityIndex, targetId: foes[0].id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, { attacks: ability.countsAs ?? foes.length, damage }));
+                for (const { pos, first } of places) {
+                    const near = ctx.enemies.filter((target) => target.status === "active" && (ranged || inMelee(pos, target)));
+                    const foes = (first ? [first, ...near.filter((target) => target !== first)] : near).slice(0, ability.max ?? Infinity);
+                    if (foes.length < 2) continue;
+                    const damage = { ...node.damage };
+                    let gain = 0;
+                    for (const [step, target] of foes.entries()) {
+                        // (A different Strike at each, B74.)
+                        const index = order[Math.min(step, order.length - 1)];
+                        const struck = ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - ability.penalty } : c.strikes[index];
+                        const expected = ctx.strikeExpectation(struck, struck === c.strikes[index] ? index : 4000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, pos, node.prone)?.damage ?? 0;
+                        const before = damage[target.id] ?? 0;
+                        const hp = remainingHp(target);
+                        gain += targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
+                        damage[target.id] = before + expected;
+                    }
+                    if (gain <= 0) continue;
+                    const next = child(node, { type: "multiStrike", ability: abilityIndex, targetId: foes[0].id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, { attacks: ability.countsAs ?? foes.length, damage, ...(pos !== node.pos ? { pos } : {}) });
+                    if (pos !== node.pos && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    children.push(next);
+                }
                 continue;
             }
             for (const target of ctx.enemies) {
