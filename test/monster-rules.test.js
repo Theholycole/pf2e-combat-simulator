@@ -3608,3 +3608,17 @@ test("A guard only while its own stance is on it (Mountain Stronghold, 2026-10-1
     m.effects = [{ key: "self:Test Stance", model: { name: "Test Stance", rounds: Infinity, modifiers: [] } }];
     assert.equal(offered(), true, "in its stance");
 });
+
+test("Fling: the creature it holds falls, takes half the fall as damage, lands Prone and is let go (2026-10-12, B160)", { skip }, async () => {
+    const { compileMonsterAbility } = await import(ABILITIES);
+    const [fighter] = martialParty(5);
+    const plan = compileMonsterAbility({ type: "action", name: "Test Fling", system: { slug: null, actionType: { value: "action" }, actions: { value: 1 }, traits: { value: [] }, description: { value: "<p><strong>Requirements</strong> A creature is Grabbed in the test lizard's jaws</p><hr /><p><strong>Effect</strong> The test lizard flings the creature into the air up to 10 feet up from its mouth and 20 feet away. The creature falls 25 feet and takes falling damage accordingly.</p>" } } }, { basicActions: {} });
+    const lizard = { ...moderateCreature(5, "lizard", "Lizard"), engagement: 1, spells: [entry("Test Fling", plan)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 500, max: 500 } }, lizard] }, {}, 1);
+    state.log = [];
+    const l = state.byId.get("lizard");
+    const f = state.byId.get(fighter.id);
+    applyCondition(state, f, "grabbed", null, null, l);
+    castSpell(state, l, 0, [f.id]);
+    assert.deepEqual([f.hp.value, Boolean(f.cond.prone), Boolean(f.cond.grabbed)], [488, true, false], state.log.join("\n"));
+});
