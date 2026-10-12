@@ -229,7 +229,8 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
             // for an attack-trait action), or another creature's DC.
             if (isCheckStatistic(slug)) {
                 if (c === caster) return { modifier: skillValue(c, slug) - statusPenalty(c, "skill") - (describeSpell(spell.plan, actions).attack ? mapPenalty() : 0) };
-                return { modifier: skillValue(c, slug) - statusPenalty(c, "skill"), dc: escapeDCAgainst(caster, c, spell, actions) ?? defenceDC(c, slug) };
+                // (B105: its reaction making the Escape harder, Tighten Coils.)
+                return { modifier: skillValue(c, slug) - statusPenalty(c, "skill"), dc: (escapeDCAgainst(caster, c, spell, actions) ?? defenceDC(c, slug)) + (c.escapeGuardActive ?? 0) };
             }
             return null;
         },
@@ -1032,6 +1033,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         targets.splice(0, targets.length, ...targets.filter((target) => isActive(target)));
         if (!targets.length) return;
     }
+    // (B105: an Escape from one whose reaction makes it harder, Tighten Coils.)
+    if (info.escape) for (const target of targets) guardEscape(state, caster, target);
     const context = simContext(state, caster, spell, targets, caster.attacksThisTurn - (info.attack ? 1 : 0), actions);
     const live = liveRoller(state);
     // Spellstrike: the spell attack takes the Strike's result.
@@ -1049,7 +1052,10 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // Otherworldly Mind, Entropic Feedback: a mental effect aimed at a creature whose ability answers it (B46).
     if (!info.area) targetedAnswers(state, caster, spell, targets);
     // Savage, Gnashing Bite (B92): a failed Escape, answered by the creature holding it.
-    if (info.escape) for (const target of targets) escapeAnswers(state, caster, target, result.degrees[target.id]);
+    if (info.escape) for (const target of targets) {
+        delete target.escapeGuardActive;
+        escapeAnswers(state, caster, target, result.degrees[target.id]);
+    }
     // A swashbuckler's bravado action: panache on a success, until the end of the turn on a failure.
     if (caster.panacheStyle && (caster.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
         const degrees = targets.map((target) => result.degrees[target.id]).filter(Boolean);
@@ -1355,6 +1361,17 @@ export function conditionLostAnswers(state, creature, slug) {
     }
 }
 
+// A creature it holds trying to Escape (B105: Tighten Coils' "A creature Grabbed or Restrained by the zinba attempts to Escape … The DC of
+// the Escape check is increased by 2"): its reaction, the DC higher for this check.
+function guardEscape(state, escaper, grabber) {
+    const guard = grabber.escapeGuard;
+    if (!guard || escaper.grabbedBy !== grabber.id || !isActive(grabber) || !canAct(grabber) || !canReact(grabber) || grabber.cond.fleeing) return;
+    grabber.reactionUsed = true;
+    state.stats.reactions++;
+    grabber.escapeGuardActive = guard.value;
+    log(state, `  ${grabber.name} uses ${guard.name}: the Escape DC is ${guard.value} higher`);
+}
+
 // A creature it holds failing to Escape (B92: Savage's "A creature Grabbed by the wyvern critically fails a skill check to Escape … a
 // stinger Strike against the triggering creature", Gnashing Bite's "fails a check to Escape … The lizard's jaws deal 1d6 piercing and
 // 1d6 acid damage to the triggering creature"): its reaction at that creature.
@@ -1584,7 +1601,9 @@ function oddsFor(caster, spell, target, attacks, actions) {
         const map = describeSpell(spell.plan, actions).attack ? (attacks <= 0 ? 0 : attacks === 1 ? 5 : 10) : 0;
         // (Its own bonus, "a +4 status bonus to the Athletics check", B68.)
         const roll = Math.max(...[].concat(check.statistic).map((slug) => skillValue(caster, slug))) + (Number(check.bonus?.value) || 0) - statusPenalty(caster, "skill") - map;
-        const dc = check.against?.dc === "fixed" ? check.against.value : escapeDCAgainst(caster, target, spell, actions) ?? defenceDC(target, check.against?.statistic ?? "will") - disarmBonus(spell, target);
+        // (B105: an Escape from one that can still make it harder.)
+        const guarded = describeSpell(spell.plan, actions).escape && target.escapeGuard && canReact(target) && !target.cond.fleeing ? target.escapeGuard.value : 0;
+        const dc = (check.against?.dc === "fixed" ? check.against.value : escapeDCAgainst(caster, target, spell, actions) ?? defenceDC(target, check.against?.statistic ?? "will") - disarmBonus(spell, target)) + guarded;
         return degreeDistribution(roll, dc);
     }
     const slugs = check.saveChoice?.statistics?.length ? check.saveChoice.statistics : [check.statistic];

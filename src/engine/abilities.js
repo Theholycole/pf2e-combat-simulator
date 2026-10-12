@@ -120,6 +120,12 @@ export function addBuiltin(spec, plan, name) {
             spec.resistReaction = { name, value: Number(plan.value), on: plan.on ?? null, types: plan.types ?? null, ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}), ...(plan.lasts ? { lasts: plan.lasts } : {}), ...(plan.acPenalty ? { acPenalty: plan.acPenalty } : {}) };
             spec.resistUses = Number(plan.uses) || Infinity;
             return true;
+        // A harder Escape from it (B105): Tighten Coils' "The DC of the Escape check is increased by 2", No Liberation's "…a –2
+        // circumstance penalty to the check to Escape": its reaction as a creature it holds tries to Escape.
+        case "escape-guard":
+            if (!(Number(plan.value) > 0)) return false;
+            spec.escapeGuard = { name, value: Number(plan.value) };
+            return true;
         case "crit-downgrade":
             // (A flat check's DC, or none: B59's Collapse, B86's choice. B59 left this guard asking for a DC, so until 2026-10-11 the
             // ones with no check never loaded.)

@@ -2434,3 +2434,49 @@ test("A Strike activity only at an enemy with one of its allies beside it (2026-
     assert.equal(plan(false), true, "with an ally beside the target");
     assert.equal(plan(true), false, "not with no ally beside it");
 });
+
+test("A reaction making an Escape from it harder (2026-10-11, B105)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const attempt = (die, guarded, reacted = false) => {
+        const zinba = { ...moderateCreature(5, "zin", "Zinba"), engagement: 1, hp: { value: 999, max: 999 } };
+        if (guarded) addBuiltin(zinba, { builtin: "escape-guard", value: 2 }, "Test Coils");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [entry("Escape", basic.escape, "basic")] }, zinba] }, {}, 1);
+        state.log = [];
+        const f = state.byId.get(fighter.id);
+        const z = state.byId.get("zin");
+        applyCondition(state, f, "grabbed", null, null, z);
+        z.reactionUsed = reacted;
+        state.rng.d20 = () => die;
+        castSpell(state, f, 0, ["zin"]);
+        return { state, f, z };
+    };
+    // A roll that escapes the plain DC, but not the DC 2 higher.
+    const die = [...Array(20).keys()].map((index) => index + 1).find((value) => !attempt(value, false).f.cond.grabbed && attempt(value, true).f.cond.grabbed);
+    assert.ok(die, "some roll escapes only without the reaction");
+    const { state, f, z } = attempt(die, true);
+    assert.ok(state.log.includes("  Zinba uses Test Coils: the Escape DC is 2 higher"), state.log.join("\n"));
+    assert.equal(z.reactionUsed, true);
+    assert.equal(z.escapeGuardActive, undefined, "only for that check");
+    assert.ok(f.cond.grabbed);
+    // Its reaction already spent: the plain DC.
+    assert.equal(attempt(die, true, true).f.cond.grabbed ?? false, false);
+});
+
+test("A Strike activity only at a foe it hit earlier this turn (2026-10-11, B105)", () => {
+    const [fighter] = martialParty(5);
+    const stunning = { builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: "hit-earlier", oncePerFight: false, onHit: { conditions: [{ slug: "stunned", value: 1, duration: null }], critical: null, push: null, damage: [], save: null, size: null } };
+    const plan = (attacks) => {
+        const emissary = { ...moderateCreature(5, "emi", "Emissary"), engagement: 1 };
+        addBuiltin(emissary, stunning, "Test Stunning");
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, emissary] }, {}, 1);
+        const e = state.byId.get("emi");
+        e.actionsLeft = 2;
+        e.turnAttacks = attacks;
+        const { options } = scoreOptions(state, e);
+        return options.some((option) => /activity/i.test(option.action?.type ?? ""));
+    };
+    assert.equal(plan([{ strike: "Fist", targetId: fighter.id, hit: true }]), true, "after a hit on that foe");
+    assert.equal(plan([{ strike: "Fist", targetId: fighter.id, hit: false }]), false, "not after a miss");
+    assert.equal(plan([]), false, "not before any Strike");
+});

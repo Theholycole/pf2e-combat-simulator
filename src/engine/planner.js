@@ -919,6 +919,8 @@ function expand(ctx, node, actionsLeft) {
                 if (activity.after && !activity.strides && target.id !== c.lastStrike?.targetId) continue;
                 if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
                 if (activity.requires === "prone" && !target.cond.prone) continue;
+                // (B105: Stunning Strike's "hit a foe earlier this turn with a weapon Strike", at that foe; after Strikes made, not planned.)
+                if (activity.requires === "hit-earlier" && !(node.used === 0 && (c.turnAttacks ?? []).some((attack) => attack.hit && attack.targetId === target.id))) continue;
                 // (B104: Terrifying Smite's "an enemy that has one of its allies within its reach".)
                 if (activity.requires === "ally-adjacent" && !state.list.some((other) => other !== c && other.side === c.side && isActive(other) && sameMelee(other, target))) continue;
                 if (activity.requires === "free-hand" && state.list.some((other) => other.grabbedBy === c.id && (other.cond.grabbed || other.cond.restrained))) continue;
