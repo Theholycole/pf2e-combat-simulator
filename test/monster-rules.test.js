@@ -4127,3 +4127,43 @@ test("Two or more of three Strikes hitting one creature: what that brings (2026-
     ({ state, f } = fight([20, 1, 1]));
     assert.ok(!f.cond.frightened, "not with one hit");
 });
+
+test("A Strike at each foe that hurts even on a failed attack; Frightened per hit; bleed added to a Strike as persistent (2026-10-12, B213)", () => {
+    const [fighter] = martialParty(5);
+    const titan = { ...moderateCreature(5, "titan", "Titan"), engagement: 1 };
+    addBuiltin(titan, { builtin: "multi-strike", actions: 2, strikes: [null], each: true, sameMap: true, countsAs: 2, missDamage: ["10[force]"] }, "Test Whirl");
+    assert.deepEqual(titan.multiStrikes[0].missDamage, ["10[force]"]);
+    const whirl = (die) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, titan] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => die;
+        const t = state.byId.get("titan");
+        t.strikes = t.strikes.map((strike) => ({ ...strike, bonus: 5 }));
+        performAction(state, t, { type: "multiStrike", ability: 0, targetId: fighter.id, actions: 2 });
+        return { state, f: state.byId.get(fighter.id), t };
+    };
+    let { state, f, t } = whirl(10);
+    assert.ok(f.hp.value === 989 && state.log.includes(`  A failed attack still hurts ${f.name}`), state.log.join("\n"));
+    assert.equal(t.attacksThisTurn, 2, "counted as two attacks");
+    ({ state, f } = whirl(2));
+    assert.equal(f.hp.value, 999, "not on a critical failure");
+    // Frightened as many as the Strikes that hit.
+    const demon = { ...moderateCreature(5, "demon", "Demon"), engagement: 1 };
+    addBuiltin(demon, { builtin: "multi-strike", actions: 2, strikes: [null, null, null], sameTarget: true, bothHit: { conditions: [{ slug: "frightened", value: null, rounds: null }], damage: [], atLeast: 1, perHit: true } }, "Test Flurry");
+    const flurry = (dice) => {
+        const fight = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, demon] }, {}, 1);
+        fight.log = [];
+        const rolls = [...dice];
+        fight.rng.d20 = () => rolls.shift() ?? 1;
+        const d = fight.byId.get("demon");
+        d.strikes = d.strikes.map((strike) => ({ ...strike, bonus: 10 }));
+        performAction(fight, d, { type: "multiStrike", ability: 0, targetId: fighter.id, actions: 2 });
+        return fight.byId.get(fighter.id);
+    };
+    assert.equal(flurry([20, 20, 1]).cond.frightened, 2);
+    assert.equal(flurry([20, 1, 1]).cond.frightened, 1);
+    // Bleed added to a Strike: persistent.
+    assert.deepEqual(withExtraDamage(titan.strikes[0], ["2d6[persistent,bleed]"]).damage.at(-1).persistent, true);
+    assert.deepEqual(withExtraDamage(titan.strikes[0], ["2d6[bleed]"]).damage.at(-1).persistent, true);
+    assert.deepEqual(withExtraDamage(titan.strikes[0], ["2d6[fire]"]).damage.at(-1).persistent, false);
+});

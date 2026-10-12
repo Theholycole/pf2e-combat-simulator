@@ -755,6 +755,8 @@ function act(state, c, action) {
                     const result = isActive(foe) ? performStrike(state, c, foe, ability.penalty ? { ...strike, bonus: strike.bonus - ability.penalty } : strike) : null;
                     // (B152, Fan of Daggers: what each critical hit brings.)
                     if (ability.critical && result?.degree === CRITICAL_SUCCESS) bothHitRider(state, c, foe, ability.critical, { said: "Critical hit on" });
+                    // (B213, Hundred-Handed Whirlwind: damage even on a failed attack, not a critical failure.)
+                    if (ability.missDamage?.length && result?.degree === FAILURE) bothHitRider(state, c, foe, { conditions: [], damage: ability.missDamage }, { said: "A failed attack still hurts" });
                 }
                 // ("These Strikes count as only one attack for its multiple attack penalty", B74.)
                 if (ability.sameMap) c.attacksThisTurn = attacks + (ability.countsAs ?? foes.length);
@@ -807,7 +809,9 @@ function act(state, c, action) {
             if (ability.sameMap || ability.noMap) c.attacksThisTurn = attacks + (ability.countsAs ?? multiStrikeOrder(c, ability)?.length ?? 0);
             c.suppressMomentum = false;
             // (B212, a Battlezoo creature's bites: at least that many hits on one creature, not every Strike.)
-            if (ability.bothHit && struck && (ability.bothHit.atLeast ? hits >= ability.bothHit.atLeast : made >= 2 && hits === made)) bothHitRider(state, c, struck, ability.bothHit, ability.bothHit.atLeast ? { said: `${hits} Strikes hit` } : {});
+            // (B213, Frightening Flurry: Frightened as many as the Strikes that hit it.)
+            const rider = ability.bothHit?.perHit ? { ...ability.bothHit, conditions: ability.bothHit.conditions.map((entry) => ({ ...entry, value: hits })) } : ability.bothHit;
+            if (ability.bothHit && struck && (ability.bothHit.atLeast ? hits >= ability.bothHit.atLeast : made >= 2 && hits === made)) bothHitRider(state, c, struck, rider, ability.bothHit.atLeast ? { said: `${hits} Strike${hits === 1 ? "" : "s"} hit` } : {});
             // (B152, Haunting Assault: "…, then Demoralizes that creature" — its basic action after the Strikes.)
             if (ability.then && made > 0 && target && isActive(target)) bothHitRider(state, c, target, { follow: ability.then }, { said: null });
             multiStrikeAfter(state, c, ability);
