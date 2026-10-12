@@ -651,6 +651,15 @@ function act(state, c, action) {
             if (result && result.degree >= SUCCESS && isActive(target)) applyStrikeRider(state, c, target, activity, result.degree === 3, fired);
             // Set-Up Strike: its hit leaves the target off-guard to an ally's next attack.
             if (activity.setUp && result && result.degree >= SUCCESS && isActive(target)) setUp(state, c, target);
+            // (B139: Off-Guard or a guard on itself until its next turn starts.)
+            if (activity.selfAfter?.length && isActive(c)) {
+                multiStrikeAfter(state, c, { after: activity.selfAfter.filter((entry) => entry.slug) });
+                const guards = activity.selfAfter.filter((entry) => entry.ac);
+                if (guards.length) {
+                    applyEffect(state, c, { name: activity.name, rounds: 1, modifiers: guards.map((entry) => ({ on: "ac", type: entry.type ?? "circumstance", value: entry.ac })), tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `self:${activity.name}` });
+                    state.log?.push(`  ${c.name} gains +${guards[0].ac} AC until its next turn`);
+                }
+            }
             break;
         }
         // Battle Medicine: a Medicine check against the Treat Wounds DC it chose.

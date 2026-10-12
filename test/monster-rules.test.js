@@ -8,7 +8,7 @@ import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, step, stride } from "../src/engine/actions.js";
 import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
 import { addBuiltin, chargeOn, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst, strikeNamed } from "../src/engine/abilities.js";
-import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, expireTimers, grabTurnAnswers, ownTurnStart, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
+import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, downsAnswers, expireTimers, grabTurnAnswers, ownTurnStart, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
 import { engage, sameMelee } from "../src/engine/space.js";
 
 // Monster abilities the engine plays as its own rules ({ builtin }), and the
@@ -3291,4 +3291,37 @@ test("A reaction to rolling initiative with a skill it names: played as if it di
     const dazzler = { ...moderateCreature(5, "dazz", "Dazzler"), engagement: 1, spells: [entry("Test Charisma", { ...cry, trigger: { event: "initiative", reaction: true, free: true, skills: ["deception", "performance"] } })] };
     const started = simulate({ combatants: [{ ...party[0], engagement: 1 }, dazzler] }, { maxRounds: 1 }, 2, { log: true });
     assert.match(started.log.join("\n"), new RegExp(`Dazzler casts Test Charisma at ${party[0].name}`));
+});
+
+test("A Strike activity that leaves it Off-Guard or guarded until its next turn (2026-10-12, B139)", () => {
+    const [fighter] = martialParty(5);
+    const activity = (selfAfter) => ({ builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, extraWeaponDice: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, selfAfter });
+    for (const [selfAfter, change] of [[[{ slug: "off-guard", until: "own-turn-start" }], -2], [[{ ac: 2, type: "circumstance" }], 2]]) {
+        const brute = withBuiltins({ ...moderateCreature(5, "brute", "Brute"), engagement: 1 }, ["Test Swing", activity(selfAfter)]);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, brute] }, {}, 1);
+        state.log = [];
+        const b = state.byId.get("brute");
+        const before = armorClass(b);
+        b.actionsLeft = 3;
+        state.rng.d20 = () => 15;
+        performAction(state, b, { type: "strikeActivity", index: 0, targetId: fighter.id, strikeIndex: 0, actions: 1 });
+        assert.equal(armorClass(b), before + change, state.log.join("\n"));
+    }
+});
+
+test("Hit Points back on itself as it downs a creature (Absorb Sin, 2026-10-12, B140)", () => {
+    const [fighter] = martialParty(5);
+    const heal = { modelVersion: 13, source: { name: "Test Absorb" }, rank: 1, traits: [], activation: { time: "free", traits: [] }, targeting: { target: "self", range: null, area: null }, trigger: { event: "downs", reaction: true, free: true }, resolution: { kind: "healing", native: { healing: { components: [{ id: "0", formula: "6d6", kinds: ["healing"] }], recipients: "any" } } } };
+    const fiend = { ...moderateCreature(5, "fiend", "Fiend"), engagement: 1, spells: [entry("Test Absorb", heal)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, fiend] }, {}, 1);
+    state.log = [];
+    const c = state.byId.get("fiend");
+    c.hp.value = 10;
+    downsAnswers(state, c, state.byId.get(fighter.id));
+    assert.ok(c.hp.value > 10, state.log.join("\n"));
+    // Unhurt: not used.
+    c.hp.value = c.hp.max;
+    state.log = [];
+    downsAnswers(state, c, state.byId.get(fighter.id));
+    assert.ok(!state.log.some((line) => /Test Absorb/.test(line)), state.log.join("\n"));
 });

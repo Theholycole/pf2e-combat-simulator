@@ -1428,6 +1428,15 @@ export function downsAnswers(state, c, downed) {
     for (const [index, spell] of (c.spells ?? []).entries()) {
         const trigger = spell.plan?.trigger;
         if (!trigger?.reaction || trigger.event !== "downs" || (!trigger.free && !canReact(c))) continue;
+        // (B140, Absorb Sin: Hit Points back on itself, when it's hurt.)
+        if (spell.plan?.targeting?.target === "self") {
+            if (c.hp.value >= c.hp.max) continue;
+            if (!trigger.free) c.reactionUsed = true;
+            state.stats.reactions++;
+            log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name}`);
+            castSpell(state, c, index, [c.id]);
+            return;
+        }
         const foes = state.list.filter((other) => other.side !== c.side && other !== downed && isActive(other) && !c.immuneTargets?.get(spell)?.has(other.id));
         const target = foes.find((other) => sameMelee(c, other)) ?? foes.find((other) => other.band !== "far") ?? null;
         if (!target) return;

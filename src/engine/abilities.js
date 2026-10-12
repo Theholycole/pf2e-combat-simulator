@@ -294,6 +294,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.failureDamage ? { failureDamage: true } : {}),
                 // (B126, Flay: "against an animal or humanoid" — only at those.)
                 ...(plan.targetTraits?.length ? { targetTraits: [...plan.targetTraits] } : {}),
+                // (B139: what it does to itself after the Strike — Punishing Strike's Off-Guard, Defensive Slam's +2 AC — until its next turn.)
+                ...(plan.selfAfter?.length ? { selfAfter: plan.selfAfter.map((entry) => ({ ...entry })) } : {}),
                 onHit: plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];

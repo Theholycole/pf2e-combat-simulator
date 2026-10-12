@@ -1000,7 +1000,9 @@ function expand(ctx, node, actionsLeft) {
                 if (gain <= 0) continue;
                 // Exacting Strike: a miss doesn't raise the penalty for what follows (worth a little).
                 const exacting = activity.exacting ? 0.15 * (1 - best.expectation.hitChance) * gain : 0;
-                const next = child(node, { type: "strikeActivity", index: activityIndex, targetId: target.id, strikeIndex: best.index, actions: activity.actions }, activity.actions, ctx.profile.aggression * (gain + exacting), {
+                // (B139: Off-Guard on itself costs, a guard helps, for about a round.)
+                const selfWorth = activity.selfAfter?.length ? ctx.ownValue * ROUND_TO_KILL * effectBenefit({ rounds: 1, modifiers: activity.selfAfter.map((entry) => ({ on: "ac", value: entry.ac ?? -2 })), tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [] }, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1) : 0;
+                const next = child(node, { type: "strikeActivity", index: activityIndex, targetId: target.id, strikeIndex: best.index, actions: activity.actions }, activity.actions, ctx.profile.aggression * (gain + exacting) + selfWorth, {
                     attacks: activity.noMap || activity.previousMap ? 0 : activity.countsAs ?? 1,
                     pos,
                     damage: { ...node.damage, [target.id]: before + expected },
