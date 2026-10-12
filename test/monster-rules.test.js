@@ -4635,3 +4635,10 @@ test("An ability only while its breath recharges (2026-10-12, B247)", () => {
     (d.rechargeUntil ??= new Map()).set(d.spells[0], state.round + 3);
     assert.ok(pits(scoreOptions(state, d).options) > 0, "while its breath recharges");
 });
+
+test("Regeneration on itself as fast healing; an AC reaction against spell attacks only isn't played on Strikes (2026-10-12, B248)", () => {
+    const drake = withBuiltins({ ...moderateCreature(5, "drk", "Drake") }, ["Test Regrow", { builtin: "self-effect", actions: 2, model: { name: "Test Regrow", rounds: 10, modifiers: [], tempHp: 0, fastHealing: 10, regeneration: { value: 10, deactivatedBy: ["void"] } } }]);
+    assert.equal(drake.selfEffects?.[0]?.model?.fastHealing, 10);
+    assert.equal(addBuiltin(drake, { builtin: "ac-reaction", value: 4, when: "targeted", against: "ranged", spellOnly: true }, "Test Wing"), false);
+    assert.equal(drake.acReaction, undefined);
+});
