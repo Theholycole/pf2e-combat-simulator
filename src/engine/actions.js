@@ -1048,6 +1048,11 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
         const absorbed = Math.min(target.hp.temp, remaining);
         target.hp.temp -= absorbed;
         remaining -= absorbed;
+        // (B196, Reef Armor: an effect that lasts while its temporary Hit Points do.)
+        if (target.hp.temp <= 0) for (const effect of (target.effects ?? []).filter((entry) => entry.model?.endsWithTempHp)) {
+            removeEffect(target, effect);
+            log(state, `  ${target.name}'s ${effect.model.name} ends`);
+        }
     }
     const before = target.hp.value;
     const dealt = Math.min(before, remaining);

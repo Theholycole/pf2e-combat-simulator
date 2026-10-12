@@ -79,6 +79,7 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // A rage or frenzy on itself (B64): an effect with its modifiers and temporary Hit Points, extra dice on its melee
         // Strikes; Fanatical Frenzy only once it's hurt.
+        // (B196: its resistances too — Reef Armor's, Shifting Form's, Harden Chitin's; Reef Armor's ending with its temporary Hit Points.)
         case "self-effect": {
             // Its extra damage on its melee Strikes (a rage's), or (B69) on the Strikes it names ("her fangs Strikes deal an
             // additional 2d8 sonic damage"), its melee ones, or all of them: "2d8[sonic]", "1d10[persistent,bleed]", "2[acid]",
@@ -89,7 +90,7 @@ export function addBuiltin(spec, plan, name) {
             const strikeDeltas = strikeParts && spec.strikes?.length ? deltasFor(spec.strikes, strikeParts) : null;
             // (A stance lasts until another ends it.)
             const rounds = plan.stance ? Infinity : plan.model?.rounds ?? 10;
-            const model = { name, rounds, modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...(plan.nextStrike ? { nextStrike: true } : {}), ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}) };
+            const model = { name, rounds, modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: 0, resistances: (plan.model?.resistances ?? []).map((entry) => ({ type: entry.type, value: Number(entry.value) || 0, exceptions: [...(entry.exceptions ?? [])] })), weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...(plan.model?.endsWithTempHp ? { endsWithTempHp: true } : {}), ...(plan.nextStrike ? { nextStrike: true } : {}), ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}) };
             // (B137, Cower, Entrench: a stance that ends when it moves.)
             spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model, ...(plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}) }];
             return true;

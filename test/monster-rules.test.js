@@ -3960,3 +3960,28 @@ test("An ally that dies back at half its Hit Points, once (Reawaken!); a foe's h
     assert.equal(state.byId.get(fighter.id).hp.value, 16);
     assert.equal(state.byId.get("drg").hp.temp, 32);
 });
+
+test("Resistance and temporary Hit Points on itself, ending with them (Reef Armor, 2026-10-12, B196)", () => {
+    const [fighter] = martialParty(5);
+    const turtle = withBuiltins({ ...moderateCreature(5, "trt", "Turtle"), engagement: 1 }, ["Test Shell", { builtin: "self-effect", actions: 2, model: { name: "Test Shell", rounds: 10, modifiers: [], tempHp: 20, resistances: [{ type: "slashing", value: 5, exceptions: [] }], endsWithTempHp: true }, duration: { value: 1, unit: "minutes", expiry: null } }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, turtle] }, {}, 1);
+    state.log = [];
+    const t = state.byId.get("trt");
+    const f = state.byId.get(fighter.id);
+    t.round = 1;
+    t.actionsLeft = 3;
+    const option = scoreOptions(state, t).options.find((entry) => entry.action.type === "selfEffect");
+    assert.ok(option, "on offer");
+    performAction(state, t, option.action);
+    assert.equal(t.hp.temp, 20);
+    const hp = t.hp.value;
+    // 12 slashing − 5: 7 off the temporary Hit Points.
+    applyDamage(state, t, [{ type: "slashing", amount: 12, persistent: false, precision: false }], { source: f });
+    assert.deepEqual([t.hp.temp, t.hp.value], [13, hp]);
+    // 25 more − 5: the temporary Hit Points gone, 7 through, and the effect with them.
+    applyDamage(state, t, [{ type: "slashing", amount: 25, persistent: false, precision: false }], { source: f });
+    assert.deepEqual([t.hp.temp, t.hp.value], [0, hp - 7]);
+    assert.ok(state.log.includes("  Turtle's Test Shell ends") && !(t.effects ?? []).some((effect) => effect.key === "Test Shell"), state.log.join("\n"));
+    applyDamage(state, t, [{ type: "slashing", amount: 10, persistent: false, precision: false }], { source: f });
+    assert.equal(t.hp.value, hp - 17, "no resistance once it ends");
+});
