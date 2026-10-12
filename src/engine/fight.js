@@ -5,7 +5,7 @@ import { FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers } from "./actions.js";
-import { canReact, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating, sweepActionIndex } from "./abilities.js";
+import { canReact, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating, strikeNamed, sweepActionIndex } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -967,6 +967,21 @@ function afterAction(state) {
     for (const entry of (state.afterAction ?? []).splice(0)) {
         const c = state.byId.get(entry.sourceId);
         const target = state.byId.get(entry.targetId);
+        // (B123, Deadly Cleave: another Strike at a different creature in its Melee, at the penalty the downing Strike had; it counts.)
+        if (entry.kind === "cleave") {
+            const rule = c?.reactionStrikes?.find((each) => each.triggers.includes("downs"));
+            const foe = c && isActive(c) && canReact(c) && canAct(c) ? engagedEnemies(state, c).find((other) => other !== target && isActive(other)) : null;
+            const index = foe ? strikeNamed(c, rule.strike) : -1;
+            if (!foe || index < 0) continue;
+            c.reactionUsed = true;
+            state.stats.reactions++;
+            state.log?.push(`  ${c.name} uses ${rule.name}`);
+            const attacks = c.attacksThisTurn;
+            c.attacksThisTurn = entry.attacks;
+            performStrike(state, c, foe, c.strikes[index]);
+            c.attacksThisTurn = attacks + 1;
+            continue;
+        }
         if (entry.kind !== "fast-swallow" || !c || !target || !isActive(c) || !isActive(target) || !canReact(c) || target.grabbedBy !== c.id || target.swallowedBy) continue;
         const index = (c.spells ?? []).findIndex((spell) => describeSpell(spell.plan).swallow);
         if (index < 0) continue;

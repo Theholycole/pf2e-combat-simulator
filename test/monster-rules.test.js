@@ -2934,3 +2934,83 @@ test("Spell Interception, Shoot First, Knowing Glance (2026-10-11, B122)", { ski
         assert.ok(!state.log.includes("  Glancer uses Test Glance"), "not at a ranged Strike");
     }
 });
+
+test("Quick Capture's grab, Wrappings Lash's disruption, Deadly Cleave's second Strike (2026-10-11, B123)", () => {
+    const party = martialParty(5);
+    const [fighter] = party;
+    // Quick Capture: a hit on it, its leaf back, the creature Grabbed on a hit.
+    const trap = withBuiltins({ ...moderateCreature(5, "fly", "Flytrap"), engagement: 1 }, ["Test Capture", { builtin: "reaction-strike", triggers: ["hit"], strike: null, penalty: 0, disrupts: false, grab: true }]);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, trap] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 19;
+    let f = state.byId.get(fighter.id);
+    performStrike(state, f, state.byId.get("fly"), f.strikes.find((strike) => strike.melee));
+    assert.ok(state.log.includes("  Flytrap uses Test Capture"), state.log.join("\n"));
+    assert.equal(f.grabbedBy, "fly");
+    // Wrappings Lash: a Strike in its reach, its Strike first; a critical hit disrupts it.
+    const lasher = withBuiltins({ ...moderateCreature(5, "mor", "Morrigna"), engagement: 1 }, ["Test Lash", { builtin: "reaction-strike", triggers: ["strike", "skill"], strike: null, penalty: 0, disrupts: "critical" }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, lasher] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 20;
+    f = state.byId.get(fighter.id);
+    assert.equal(performStrike(state, f, state.byId.get("mor"), f.strikes.find((strike) => strike.melee)), null);
+    assert.ok(state.log.some((line) => /Strike is disrupted/.test(line)), state.log.join("\n"));
+    // Deadly Cleave: its halberd downs one, then another at a different creature in its Melee.
+    const redcap = { ...moderateCreature(5, "red", "Redcap"), engagement: 1 };
+    redcap.strikes = [{ ...redcap.strikes[0], name: "Halberd", bonus: 40 }];
+    addBuiltin(redcap, { builtin: "reaction-strike", triggers: ["downs"], strike: "halberd", penalty: 0, disrupts: false, sameMap: true }, "Test Cleave");
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 1, max: 50, temp: 0 } }, { ...party[1], engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, redcap] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    const r = state.byId.get("red");
+    r.actionsLeft = 2;
+    state.acting = r.id;
+    performAction(state, r, { type: "strike", strikeIndex: 0, targetId: fighter.id });
+    assert.ok(state.log.includes("  Redcap uses Test Cleave"), state.log.join("\n"));
+    assert.equal(r.attacksThisTurn, 2, "the second counts toward its multiple attack penalty");
+});
+
+test("A guard takes its ward's damage (all or half); an ally kept from dropping (2026-10-11, B124)", () => {
+    const [fighter] = martialParty(5);
+    // Human Shield: the toady takes the boss's damage.
+    const boss = { ...moderateCreature(7, "boss", "Boss"), engagement: 1 };
+    const toady = withBuiltins({ ...moderateCreature(3, "tdy", "Toady"), engagement: 1 }, ["Test Shield", { builtin: "intercept", ward: "boss", share: 1 }]);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, boss, toady] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get(fighter.id);
+    const b = state.byId.get("boss");
+    const t = state.byId.get("tdy");
+    const before = [b.hp.value, t.hp.value];
+    applyDamage(state, b, [{ type: "slashing", amount: 10, persistent: false, precision: false }], { source: f, physical: true });
+    assert.ok(state.log.includes("  Toady uses Test Shield for Boss"), state.log.join("\n"));
+    assert.equal(b.hp.value, before[0]);
+    assert.ok(t.hp.value < before[1]);
+    // Mortal Shield: half each.
+    const thrall = withBuiltins({ ...moderateCreature(3, "thr", "Thrall"), engagement: 1 }, ["Test Mortal", { builtin: "intercept", ward: "master", share: 0.5, attacks: true }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...boss }, thrall] }, {}, 1);
+    const m = state.byId.get("boss");
+    const h = state.byId.get("thr");
+    const hp = [m.hp.value, h.hp.value];
+    applyDamage(state, m, [{ type: "slashing", amount: 10, persistent: false, precision: false }], { source: state.byId.get(fighter.id), physical: true });
+    assert.equal(hp[0] - m.hp.value, 5);
+    assert.equal(hp[1] - h.hp.value, 5);
+    // Not a spell's damage (Strikes and spell attacks only; played as Strikes).
+    h.reactionUsed = false;
+    applyDamage(state, m, [{ type: "fire", amount: 4, persistent: false, precision: false }], { source: state.byId.get(fighter.id) });
+    assert.equal(hp[0] - m.hp.value, 9);
+    // You Don't Have My Permission to Die!: an ally within 30 feet stays at 1 HP, once.
+    const sergeant = withBuiltins({ ...moderateCreature(5, "sgt", "Sergeant"), engagement: 1 }, ["Test Rebuke", { builtin: "rescue", within: 30, hp: 1, oncePerTarget: true }]);
+    const grunt = { ...moderateCreature(3, "gru", "Grunt"), engagement: 1 };
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, sergeant, grunt] }, {}, 1);
+    state.log = [];
+    const g = state.byId.get("gru");
+    applyDamage(state, g, [{ type: "slashing", amount: g.hp.value + 5, persistent: false, precision: false }], { source: state.byId.get(fighter.id), physical: true });
+    assert.ok(state.log.some((line) => line === "  Sergeant uses Test Rebuke: Grunt stays up at 1 HP"), state.log.join("\n"));
+    assert.equal(isActive(g), true);
+    // (Recall the Fallen: Hit Points back, prone and wounded.)
+    const valkyrie = withBuiltins({ ...moderateCreature(5, "val", "Valkyrie"), engagement: 1 }, ["Test Recall", { builtin: "rescue", within: 60, heal: "5d10", living: true, perDay: 1 }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, valkyrie, { ...grunt }] }, {}, 1);
+    const k = state.byId.get("gru");
+    applyDamage(state, k, [{ type: "slashing", amount: k.hp.value + 5, persistent: false, precision: false }], { source: state.byId.get(fighter.id), physical: true });
+    assert.ok(k.hp.value >= 5 && k.cond.prone && k.cond.wounded === 1);
+});

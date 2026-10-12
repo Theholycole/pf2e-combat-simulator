@@ -141,7 +141,9 @@ export function addBuiltin(spec, plan, name) {
                 // (B121: Retaliatory Strike's extra dice on a hit; Avenging Claws' Step first; Vengeful Throw's ranged Strike from afar.)
                 ...(plan.extraDamage ? { extraDamage: plan.extraDamage } : {}), ...(plan.step ? { step: true } : {}), ...(plan.ranged ? { ranged: true } : {}), ...(Number(plan.from) > 0 ? { from: Number(plan.from) } : {}),
                 // (B122: Knowing Glance's melee Strikes only; Bodyguard's Reprisal's charge, played as any ally.)
-                ...(plan.melee ? { melee: true } : {}), ...(plan.ward ? { ward: true } : {}) }];
+                ...(plan.melee ? { melee: true } : {}), ...(plan.ward ? { ward: true } : {}),
+                // (B123: Quick Capture's grab on a hit; Deadly Cleave's same multiple attack penalty.)
+                ...(plan.grab ? { grab: true } : {}), ...(plan.sameMap ? { sameMap: true } : {}) }];
             return true;
         // Mythic abilities (B72; the user's choice: three Mythic Points a fight): Remove a Condition, Recharge, Undying Myth.
         case "mythic":
@@ -227,6 +229,14 @@ export function addBuiltin(spec, plan, name) {
         // Flash of Brutality (B118): once a day, its hit a critical one (again after its Ferocity, where it says so).
         case "crit-upgrade":
             spec.critUpgrade = { name, uses: Number(plan.perDay) || 1, ferocityRecharges: !!plan.ferocityRecharges };
+            return true;
+        // Human Shield, Mortal Shield, Interposition (B124): an ally's damage, taken in its place (all of it or half).
+        case "intercept":
+            spec.intercept = { name, ward: plan.ward ?? "ally", share: Number(plan.share) || 1, ...(plan.strikes ? { strikes: true } : {}), ...(plan.attacks ? { attacks: true } : {}), ...(Number(plan.within) > 0 ? { within: Number(plan.within) } : {}) };
+            return true;
+        // You Don't Have My Permission to Die!, Soul Anchor, Recall the Fallen (B124): an ally kept from dropping.
+        case "rescue":
+            spec.rescue = { name, within: Number(plan.within) || 30, ...(plan.heal ? { heal: plan.heal } : { hp: 1 }), ...(plan.doomed ? { doomed: Number(plan.doomed) } : {}), ...(plan.living ? { living: true } : {}), ...(plan.perDay ? { uses: 1 } : {}), ...(plan.oncePerTarget ? { oncePerTarget: true } : {}) };
             return true;
         // Fast Swallow (B70): Swallow Whole as a reaction when it grabs a creature.
         case "fast-swallow":

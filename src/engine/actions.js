@@ -232,8 +232,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         reactToAttack(state, target, attacker, strike);
         if (!isActive(attacker) || !canAct(attacker)) return null;
         // Tail Lash, Avenging Bite (B70): a Strike back at a creature that Strikes in its reach, or that attacks its ally.
-        strikeProvokes(state, attacker, target, strike);
-        if (!isActive(attacker) || !canAct(attacker) || !isActive(target)) return null;
+        const stopped = strikeProvokes(state, attacker, target, strike);
+        if (stopped || !isActive(attacker) || !canAct(attacker) || !isActive(target)) return null;
     }
     // Defensive reactions as the attack comes: the attacker rolls twice (Challenge
     // Fate), or +AC (Nimble Dodge); kept for Attacks of Opportunity when it has them.
@@ -579,6 +579,8 @@ export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     const strike = extra ? { ...base, damage: [...base.damage, { dice: Number(extra[1]), die: Number(extra[2]), bonus: 0, type: base.damage[0]?.type ?? "untyped" }] } : base;
     const result = performStrike(state, enemy, mover, reaction.penalty ? { ...strike, bonus: strike.bonus - reaction.penalty } : strike, { reaction: true, trigger: kind, fortune: !!reaction.fortune });
     if (reaction.hinders && result?.degree >= SUCCESS) mover.rollPenalty = (mover.rollPenalty ?? 0) + reaction.hinders;
+    // (B123, Quick Capture: "If it hits, the creature is Grabbed in that leaf.")
+    if (reaction.grab && result?.degree >= SUCCESS && isActive(mover) && isActive(enemy)) applyCondition(state, mover, "grabbed", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" }, enemy);
     return result;
 }
 
@@ -611,8 +613,14 @@ function strikeProvokes(state, mover, target, strike = null) {
         // (Cutting Rebuke, Bite Back, B84: a Strike at it.)
         // (B122: Knowing Glance's "targeted by a melee Strike": melee ones only.)
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("strike") || (entry.triggers.includes("ally-attacked") && target !== enemy && target.side === enemy.side) || (entry.triggers.includes("attacked") && target === enemy && (!entry.melee || !strike || strike.melee)));
-        if (reaction) reactionStrikeAt(state, enemy, mover, reaction, "strike");
+        const result = reaction ? reactionStrikeAt(state, enemy, mover, reaction, "strike") : null;
+        // (B123, Wrappings Lash: a critical hit disrupts the Strike.)
+        if (reaction?.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) {
+            log(state, `  ${mover.name}'s Strike is disrupted`);
+            return true;
+        }
     }
+    return false;
 }
 
 // Spell Interception (B122): a creature casting a spell in its Melee, its Strike at it; a hit disrupts the spell. Whether the spell is
@@ -704,6 +712,22 @@ function shouldShieldBlock(defender, total) {
     return total >= defender.hp.value + defender.hp.temp;
 }
 
+// Whether a monster's guard (B124) takes this damage for the creature: its ward (the boss, master or ward its text names: its highest-level
+// ally) or any ally, beside it (or within 15 feet for Interposition's Stride); a Strike's damage only where it says so. For any ally, only
+// when the ally would drop or is the more hurt of the two.
+function guards(state, c, target, { physical = false } = {}) {
+    const rule = c.intercept;
+    if ((rule.strikes || rule.attacks) && !physical) return false;
+    const near = sameMelee(c, target) || ((rule.within ?? 0) >= 15 && c.band !== "far" && target.band !== "far");
+    if (!near) return false;
+    if (rule.ward === "ally") {
+        const fraction = (other) => Math.max(0, other.hp.value) / Math.max(1, other.hp.max);
+        return fraction(c) > fraction(target) + 0.2 || target.hp.value <= Math.max(1, target.hp.max * 0.25);
+    }
+    const ward = state.list.filter((other) => other !== c && other.side === c.side && isActive(other) && other.kind !== "object").sort((a, b) => (b.level ?? 0) - (a.level ?? 0) || b.hp.max - a.hp.max)[0];
+    return ward === target;
+}
+
 export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false } = {}) {
     // Intercept Attack: a guardian next to the ally takes physical damage meant for it,
     // when the ally would drop or is the more hurt of the two.
@@ -718,6 +742,19 @@ export function applyDamage(state, target, instances, { source = null, critical 
                 log(state, `  ${guardian.name} uses Intercept Attack for ${target.name}`);
                 return applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
             }
+        }
+    }
+    // (B124: Human Shield, Mortal Shield, Interposition — a monster's guard takes its ward's damage, or half of it.)
+    if (!intercepted && source && source.side !== target.side) {
+        const guard = state.list.find((c) => c.intercept && c !== target && c.side === target.side && isActive(c) && canReact(c) && canAct(c) && !c.cond.fleeing && guards(state, c, target, { physical }));
+        if (guard) {
+            guard.reactionUsed = true;
+            state.stats.reactions++;
+            log(state, `  ${guard.name} uses ${guard.intercept.name} for ${target.name}`);
+            if (guard.intercept.share >= 1) return applyDamage(state, guard, instances, { source, critical, nonlethal, physical, intercepted: true });
+            const half = instances.map((instance) => ({ ...instance, amount: Math.floor(instance.amount / 2) }));
+            applyDamage(state, guard, half, { source, critical, nonlethal, physical, intercepted: true });
+            return applyDamage(state, target, instances.map((instance, index) => ({ ...instance, amount: instance.amount - half[index].amount })), { source, critical, nonlethal, physical, intercepted: true });
         }
     }
     // Regeneration turns off before damage of a listed type is dealt.
@@ -964,6 +1001,27 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         log(state, `  ${target.name} uses ${undying.name} and stays up at ${target.hp.value} HP`);
         return;
     }
+    // (B124: You Don't Have My Permission to Die!, Soul Anchor, Recall the Fallen — an ally's reaction keeps it up: at 1 HP (Soul Anchor's
+    // doomed too), or back at the Hit Points it restores, prone and wounded as one who dropped and was healed.)
+    for (const friend of state.list) {
+        const rule = friend.rescue;
+        if (!rule || friend === target || friend.side !== target.side || !isActive(friend) || !canReact(friend) || !canAct(friend) || massive) continue;
+        if ((rule.uses ?? Infinity) <= (friend.rescuesUsed ?? 0) || (rule.oncePerTarget && friend.rescued?.has(target.id))) continue;
+        if (rule.living && (target.traits ?? []).some((trait) => trait === "undead" || trait === "construct")) continue;
+        if (!(rule.within >= 60 || sameMelee(friend, target) || (rule.within > 10 && target.band !== "far") || friend.band === target.band)) continue;
+        friend.reactionUsed = true;
+        friend.rescuesUsed = (friend.rescuesUsed ?? 0) + 1;
+        (friend.rescued ??= new Set()).add(target.id);
+        state.stats.reactions++;
+        if (rule.heal) {
+            target.hp.value = Math.max(1, Math.min(target.hp.max, rollCount(state, rule.heal)));
+            target.cond.prone = true;
+            target.cond.wounded = (target.cond.wounded ?? 0) + 1;
+        } else target.hp.value = 1;
+        if (rule.doomed) target.cond.doomed = Math.max(target.cond.doomed ?? 0, rule.doomed);
+        log(state, `  ${friend.name} uses ${rule.name}: ${target.name} stays up at ${target.hp.value} HP`);
+        return;
+    }
     // Death Frenzy: a last Strike as it drops.
     if (target.deathStrike && target.kind !== "pc" && canReact(target)) {
         const foe = (source && source.side !== target.side && isActive(source) && sameMelee(source, target) ? source : null) ?? engagedEnemies(state, target)[0] ?? null;
@@ -981,6 +1039,11 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     if (source && target.kind === "pc") source.downedCount++;
     // (You're Next, B79: the reaction of the creature that downed it.)
     if (source && source !== target && source.side !== target.side && isActive(source)) downsAnswers(state, source, target);
+    // (B123, Deadly Cleave: its named Strike downed it — another at a different creature once the action ends, at that Strike's penalty.)
+    const cleave = source && source !== target && source.side !== target.side ? (source.reactionStrikes ?? []).find((entry) => entry.triggers.includes("downs")) : null;
+    if (cleave && source.lastStrike && String(source.lastStrike.strike ?? "").toLowerCase().includes(String(cleave.strike ?? "")) && source.lastStrike.targetId === target.id) {
+        (state.afterAction ??= []).push({ kind: "cleave", sourceId: source.id, targetId: target.id, attacks: Math.max(0, (source.attacksThisTurn ?? 1) - 1) });
+    }
     state.pendingEvents.push({ type: "dropped", victim: target, by: source, critical, overwhelming });
     if (massive && !nonlethal) {
         kill(state, target);
@@ -1093,7 +1156,8 @@ export function provoke(state, mover, kind) {
             if (result?.degree === CRITICAL_SUCCESS && kind === "manipulate") disrupted = true;
             continue;
         }
-        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes(kind));
+        // (B123: "attempts to move away", "leaves a square within its reach": a move out of its Melee.)
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes(kind) || (kind === "move" && entry.triggers.includes("leave")));
         const result = reaction ? reactionStrikeAt(state, enemy, mover, reaction, kind) : null;
         // (B96: "If the attack is a critical hit …, it disrupts that action": a critical hit only.)
         if (reaction?.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) disrupted = true;
