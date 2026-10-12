@@ -4620,3 +4620,18 @@ test("A reaction of its own to a melee miss on it: the attacker Grabbed (2026-10
     assert.match(state.log.join("\n"), /Test Tangle/, state.log.join("\n"));
     assert.ok(f.cond.grabbed, state.log.join("\n"));
 });
+
+test("An ability only while its breath recharges (2026-10-12, B247)", () => {
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const save = (name, requires) => ({ modelVersion: 13, source: { name }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, ...(requires ? { requires } : {}),
+        resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 25 } }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "6d6[fire]" }] }, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] }, effects: [] } } } });
+    const drake = { ...moderateCreature(5, "drk", "Drake"), engagement: 1, spells: [{ name: "Breath Weapon", plan: save("Breath Weapon"), dc: 25, attack: 0 }, { name: "Test Pits", plan: save("Test Pits", "breath-recharging"), dc: 25, attack: 0 }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, drake] }, {}, 1);
+    const d = state.byId.get("drk");
+    d.actionsLeft = 3;
+    const pits = (options) => options.filter((option) => option.action.type === "cast" && option.action.spellIndex === 1).length;
+    assert.equal(pits(scoreOptions(state, d).options), 0, "not while its breath is ready");
+    (d.rechargeUntil ??= new Map()).set(d.spells[0], state.round + 3);
+    assert.ok(pits(scoreOptions(state, d).options) > 0, "while its breath recharges");
+});

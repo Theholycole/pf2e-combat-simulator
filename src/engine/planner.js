@@ -736,6 +736,8 @@ function expand(ctx, node, actionsLeft) {
             // 15 feet"): frightened, or down and dying.
             // (B133: a requirement it can't check, Bushwhack's unseen creature: not planned.)
             if (spell.plan?.requires === "requirement") continue;
+            // (B247, a seed shot only while its breath recharges: one of its Breath Weapons waiting out its recharge.)
+            if (spell.plan?.requires === "breath-recharging" && !(c.spells ?? []).some((other) => other !== spell && /\bbreath\b/i.test(String(other.name ?? "")) && (c.rechargeUntil?.get(other.rechargeGroup ?? other) ?? -Infinity) > (c.round ?? state.round ?? 0))) continue;
             const foe = spell.plan?.requiresFoe;
             if (foe && !state.list.some((other) => other.side !== c.side && distanceTo(node.pos, other, ctx.placeOf(node.pos)) <= (foe.within ?? Infinity)
                 && foe.conditions.some((condition) => (condition === "dying" ? other.status === "down" : isActive(other)) && (other.cond?.[condition] ?? 0) > 0))) continue;
