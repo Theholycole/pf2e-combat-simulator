@@ -230,6 +230,11 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // A monster's Hunt Prey (B71): a ranger's precision edge, its dice ("1d8 precision damage" the first hit on its prey each round).
         case "hunt-prey":
+            // (B164, Mark for Death: deadly on its Strikes (or the ones it names) against its mark.)
+            if (plan.edge === "deadly" && Number(plan.die) > 0) {
+                spec.huntPrey = { edge: "deadly", die: Number(plan.die), ...(plan.strike ? { strike: plan.strike } : {}) };
+                return true;
+            }
             if (plan.edge !== "precision") return false;
             // (B153, Lawbringer: every Strike against the creature it marks, not only the first hit each round.)
             spec.huntPrey = { edge: "precision", precisionDice: Number(plan.dice) || 1, die: Number(plan.die) || 8, ...(plan.every ? { every: true } : {}) };

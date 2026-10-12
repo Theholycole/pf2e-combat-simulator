@@ -183,6 +183,9 @@ const dodges = (reaction, strike) => !reaction.against || (reaction.against === 
 
 export function performStrike(state, attacker, target, strike, { reaction = false, trigger = null, fortune = false } = {}) {
     if (!strikeUsable(attacker, strike)) return null;
+    // (B164, Mark for Death: deadly on its Strikes against its mark.)
+    const mark = attacker.huntPrey;
+    if (mark?.edge === "deadly" && attacker.prey === target?.id && !strike.deadly && (!mark.strike || String(strike.name ?? "").toLowerCase().startsWith(mark.strike))) strike = { ...strike, deadly: { dice: 1, die: mark.die } };
     const attacksMade = reaction ? 0 : attacker.attacksThisTurn;
     if (!reaction) attacker.attacksThisTurn++;
     if (!reaction && !strike.melee && attacker.meleeId !== null) {

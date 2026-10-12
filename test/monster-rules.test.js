@@ -3636,3 +3636,19 @@ test("Dero Medicine: healing itself or an ally it touches (2026-10-12, B161)", {
     castSpell(state, state.byId.get("dero"), 0, [a.id]);
     assert.equal(a.hp.max - a.hp.value, 10, state.log.join("\n"));
 });
+
+test("A mark whose Strikes against it gain deadly (Mark for Death, 2026-10-12, B164)", () => {
+    const [fighter] = martialParty(5);
+    const assassin = withBuiltins({ ...moderateCreature(5, "assassin", "Assassin"), engagement: 1 }, ["Test Mark", { builtin: "hunt-prey", edge: "deadly", strike: null, die: 8 }]);
+    const run = (marked) => {
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 900, max: 900 } }, assassin] }, {}, 1);
+        state.rng.d20 = () => 20;
+        state.rng.die = (sides) => sides;
+        const a = state.byId.get("assassin");
+        const f = state.byId.get(fighter.id);
+        if (marked) a.prey = f.id;
+        performStrike(state, a, f, a.strikes[0]);
+        return 900 - f.hp.value;
+    };
+    assert.equal(run(true) - run(false), 8);
+});
