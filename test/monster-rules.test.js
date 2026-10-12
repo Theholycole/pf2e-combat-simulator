@@ -3056,3 +3056,17 @@ test("A Strike activity behind a requirement it can't check, in the first round 
     assert.equal(options({ targetTraits: ["animal"] }).length, 0);
     assert.ok(options({ targetTraits: ["animal", "humanoid"] }).length > 0);
 });
+
+test("Furious Throw: a ranged answer at any enemy, the flat check against its persistent acid (2026-10-12, B127)", () => {
+    const [fighter, , ranger] = martialParty(5);
+    const troll = { ...moderateCreature(5, "trl", "Troll"), engagement: 1 };
+    troll.strikes = [{ ...troll.strikes[0], name: "Claw", melee: true }, { ...troll.strikes[0], name: "Rock", melee: false, range: 30 }];
+    addBuiltin(troll, { builtin: "reaction-strike", triggers: ["damaged-by"], damageTypes: ["acid", "sonic"], strike: "rock", penalty: 0, disrupts: false, random: true, ranged: true, persistentType: "acid" }, "Test Throw");
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, { ...ranger, engagement: null, band: "far", hp: { value: 999, max: 999, temp: 0 } }, troll] }, {}, 1);
+    state.log = [];
+    const t = state.byId.get("trl");
+    t.persistent = [{ type: "acid", amount: 3, persistent: true }];
+    applyDamage(state, t, [{ type: "acid", amount: 5, persistent: false, precision: false }], { source: state.byId.get(ranger.id) });
+    assert.ok(state.log.includes("  Troll uses Test Throw"), state.log.join("\n"));
+    assert.ok(state.log.some((line) => /persistent acid damage/.test(line)), state.log.join("\n"));
+});

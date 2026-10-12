@@ -1331,14 +1331,17 @@ export function reactToDamage(state, target, source, types) {
 function damagedStrike(state, target, source, types) {
     const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("damaged-by") && typesMatch(entry.damageTypes, types));
     if (!answer || !isActive(target) || !canAct(target) || !canReact(target) || target.cond.fleeing) return;
-    const foes = engagedEnemies(state, target).filter(isActive);
+    // (B127, Furious Throw: a thrown rock at a random enemy within its first range increment — any foe on the field.)
+    const foes = (answer.ranged ? state.list.filter((other) => other.side !== target.side && other.band !== "gone") : engagedEnemies(state, target)).filter(isActive);
     const victim = !answer.random && source && foes.includes(source) ? source : foes.length ? foes[state.rng.die(foes.length) - 1] : null;
     if (!victim) return;
     reactionStrikeAt(state, target, victim, answer, "damaged");
-    if (answer.persistentFire && isActive(target) && target.persistent?.some((entry) => entry.type === "fire")) {
+    // (The trolls' flat check against their persistent fire — Furious Throw's against persistent acid.)
+    const kind = answer.persistentType ?? (answer.persistentFire ? "fire" : null);
+    if (kind && isActive(target) && target.persistent?.some((entry) => entry.type === kind)) {
         const ends = flatCheck(state.rng, 15) >= SUCCESS;
-        if (ends) target.persistent = target.persistent.filter((entry) => entry.type !== "fire");
-        log(state, `  ${target.name} ${ends ? "puts out its persistent fire" : "still burns"}`);
+        if (ends) target.persistent = target.persistent.filter((entry) => entry.type !== kind);
+        log(state, `  ${target.name} ${kind === "fire" ? (ends ? "puts out its persistent fire" : "still burns") : ends ? `ends its persistent ${kind} damage` : `still takes persistent ${kind} damage`}`);
     }
 }
 
