@@ -487,10 +487,19 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
         // ability's recharge and frequency.
         if (plan.builtin === "modes") {
             const ways = pc ? [] : plan.modes.filter((mode) => mode.plan?.resolution);
-            if (!ways.length) continue;
+            // (B179, the mocking dragon's Hilarious Exhalation: a way that casts a spell — that spell, as a cast-spell ability's.)
+            const casts = [];
+            for (const mode of pc ? [] : plan.modes.filter((entry) => entry.plan?.builtin === "cast-spell")) {
+                const cast = await castAbility(actor, item, mode.plan, core, gaps);
+                if (!cast) continue;
+                result.castSpells.add(mode.plan.spell.uuid);
+                casts.push({ ...cast, name: `${item.name} (${mode.name})` });
+            }
+            if (!ways.length && !casts.length) continue;
             if (pool) result.pools[pool] = frequency.value ?? frequency.max;
             result.handled.add(item);
             for (const mode of ways) result.abilities.push({ name: `${item.name} (${mode.name})`, plan: leanPlan(mode.plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: item.name });
+            for (const cast of casts) result.abilities.push({ ...cast, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: item.name });
             continue;
         }
         // It casts a spell or has its effects (Dominate, Turn to Mist; B37): one of its spells, at the ability's rank and DC.
