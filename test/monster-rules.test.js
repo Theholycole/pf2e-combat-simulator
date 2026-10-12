@@ -3622,3 +3622,17 @@ test("Fling: the creature it holds falls, takes half the fall as damage, lands P
     castSpell(state, l, 0, [f.id]);
     assert.deepEqual([f.hp.value, Boolean(f.cond.prone), Boolean(f.cond.grabbed)], [488, true, false], state.log.join("\n"));
 });
+
+test("Dero Medicine: healing itself or an ally it touches (2026-10-12, B161)", { skip }, async () => {
+    const { compileMonsterAbility } = await import(ABILITIES);
+    const [fighter] = martialParty(5);
+    const plan = compileMonsterAbility({ type: "action", name: "Test Medicine", system: { slug: null, actionType: { value: "action" }, actions: { value: 1 }, traits: { value: [] }, description: { value: "<p><strong>Requirements</strong> The test dero is wearing a cytillesh toolkit and has a hand free</p><hr /><p><strong>Effect</strong> The test dero stitches wounds shut, healing themself or an ally in reach for @Damage[10[healing]] Hit Points. For 1 hour, the target has slashing weakness 2 and is immune to Test Medicine.</p>" } } }, { basicActions: {} });
+    const dero = { ...moderateCreature(5, "dero", "Dero"), engagement: 1, spells: [entry("Test Medicine", plan)] };
+    const ally = { ...moderateCreature(5, "ally", "Ally"), engagement: 1 };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, dero, ally] }, {}, 1);
+    state.log = [];
+    const a = state.byId.get("ally");
+    a.hp.value -= 20;
+    castSpell(state, state.byId.get("dero"), 0, [a.id]);
+    assert.equal(a.hp.max - a.hp.value, 10, state.log.join("\n"));
+});
