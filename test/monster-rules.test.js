@@ -3397,3 +3397,10 @@ test("A monster's own champion reactions: Selfish Shield, Destructive Vengeance,
     ({ state, c, f } = fight({ builtin: "champion-reaction", slug: "iron-command", self: true, resistance: 0, dice: 5 }));
     assert.ok(state.log.some((line) => /Champion uses Test Reaction/.test(line)) && (f.cond.prone || f.hp.value < 300), state.log.join("\n"));
 });
+
+test("A reaction Strike that needs a state of its own isn't played (Twin Riposte, 2026-10-12, B145)", () => {
+    const spec = { ...moderateCreature(5, "duel", "Duelist") };
+    assert.equal(addBuiltin(spec, { builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, requires: "requirement" }, "Test Riposte"), false);
+    assert.equal(spec.reactionStrikes, undefined);
+    assert.equal(addBuiltin(spec, { builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, note: "Or it can Disarm the attacker instead." }, "Test Riposte"), true);
+});
