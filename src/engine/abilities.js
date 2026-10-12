@@ -176,6 +176,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.melee ? { melee: true } : {}), ...(plan.ward ? { ward: true } : {}), ...(plan.persistentType ? { persistentType: plan.persistentType } : {}),
                 // (B227: only a ranged attack at it.)
                 ...(plan.rangedAttack ? { rangedAttack: true } : {}),
+                // (B236, Swift Claw: the Strike whose second hit sets it off.)
+                ...(plan.after ? { after: plan.after } : {}),
                 // (B228: its AC lower against the triggering Strike; only after another of its kind's Strike of that name.)
                 ...(Number(plan.selfAcPenalty) > 0 ? { selfAcPenalty: Number(plan.selfAcPenalty) } : {}), ...(plan.kin ? { kin: true } : {}), ...(plan.allyStrike ? { allyStrike: plan.allyStrike } : {}),
                 // (B123: Quick Capture's grab on a hit; Deadly Cleave's same multiple attack penalty.)

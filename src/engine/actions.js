@@ -499,6 +499,18 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         attacker.weaponPoisoned = false;
         state.onPoison?.(attacker, target);
     }
+    // (B236, Swift Claw: its second hit this turn with the Strike it names on the same creature — its other Strike at it, outside its multiple attack
+    // penalty.)
+    if (degree >= SUCCESS && !reaction && isActive(attacker) && isActive(target) && canReact(attacker) && canAct(attacker)) {
+        const twice = (attacker.turnAttacks ?? []).filter((entry) => entry.targetId === target.id && entry.hit && entry.strike === strike.name).length === 2;
+        const answer = twice ? (attacker.reactionStrikes ?? []).find((entry) => entry.triggers.includes("two-hits") && String(strike.name ?? "").toLowerCase().includes(entry.after ?? "")) : null;
+        if (answer) {
+            const attacks = attacker.attacksThisTurn;
+            attacker.attacksThisTurn = 0;
+            reactionStrikeAt(state, attacker, target, answer, "two-hits");
+            attacker.attacksThisTurn = attacks;
+        }
+    }
     // (B114, Opportune Backstab: a melee hit by one of its allies on a creature in its reach, followed by its own Strike at that creature.)
     if (degree >= SUCCESS && !reaction && strike.melee && isActive(attacker) && isActive(target)) {
         // (B228, Deadly Duo: only after another of its kind's Strike of that name, and one answer to it.)

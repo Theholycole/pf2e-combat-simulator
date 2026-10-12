@@ -4499,3 +4499,21 @@ test("A shell stance isn't played; a heal once a fight is used once (2026-10-12,
     assert.equal(troll.hp.value, 50, state.log.join("\n"));
     assert.equal(troll.spellPools["once:Test Shed"], 0, "spent");
 });
+
+test("Its claw after its second fist hit on the same creature this turn, outside its multiple attack penalty (2026-10-12, B236)", () => {
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "giant", "Giant");
+    const giant = withBuiltins({ ...base, engagement: 1, strikes: [{ ...base.strikes[0], name: "Fist", bonus: 40 }, { ...base.strikes[0], name: "Claw", bonus: 40 }] }, ["Test Swift", { builtin: "reaction-strike", triggers: ["two-hits"], strike: "claw", after: "fist", penalty: 0, disrupts: false }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999 } }, giant] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    const g = state.byId.get("giant");
+    const f = state.byId.get(fighter.id);
+    g.turnAttacks = [];
+    performStrike(state, g, f, g.strikes[0]);
+    assert.ok(!state.log.includes("  Giant uses Test Swift"), "not after one hit");
+    g.attacksThisTurn = 1;
+    performStrike(state, g, f, g.strikes[0]);
+    assert.ok(state.log.includes("  Giant uses Test Swift"), state.log.join("\n"));
+    assert.equal(g.attacksThisTurn, 2, "the two fists only: the claw adds none");
+});
