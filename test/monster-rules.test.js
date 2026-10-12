@@ -33,7 +33,8 @@ async function packAbilities() {
         swallow: monster("Megalodon", "Swallow Whole"),
         trample: monster("Elephant", "Trample"),
         stench: monster("Ghoul Soldier", "Stench"),
-        venom: monster("Giant Scorpion", "Giant Scorpion Venom")
+        venom: monster("Giant Scorpion", "Giant Scorpion Venom"),
+        hellfire: monster("Greater Hell Hound", "Hellfire Breath")
     };
     return compiled;
 }
@@ -2797,4 +2798,47 @@ test("A reaction that follows a foe moving away: No Escape (2026-10-11, B117)", 
     assert.equal(sameMelee(g, f), true, "a Step too");
     ({ g, f } = fight("stride", { speed: 40 }));
     assert.equal(sameMelee(g, f), false, "not a faster creature");
+});
+
+test("A critical hit on it recharges its breath, used at once; once a day, its hit a critical one (2026-10-11, B118)", { skip }, async () => {
+    const { hellfire } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const hound = withBuiltins({ ...moderateCreature(5, "hnd", "Hound"), engagement: 1, spells: [entry("Hellfire Breath", hellfire)] }, ["Test Revenge", { builtin: "crit-recharge", recharges: "Hellfire Breath", untilNatural: true }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, hound] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 20;
+    const h = state.byId.get("hnd");
+    const f = state.byId.get(fighter.id);
+    h.rechargeUntil = new Map([[h.spells[0], 99]]);
+    performStrike(state, f, h, f.strikes.find((strike) => strike.melee));
+    assert.ok(state.log.includes("  Hound uses Test Revenge: Hellfire Breath recharges"), state.log.join("\n"));
+    assert.ok(state.log.some((line) => /Hellfire Breath/.test(line) && !/Test Revenge/.test(line)), "and breathes at once");
+    assert.equal(h.reactionUsed, true);
+    // Not again until the breath's own recharge has run out.
+    h.reactionUsed = false;
+    const lines = state.log.length;
+    performStrike(state, f, h, f.strikes.find((strike) => strike.melee));
+    assert.ok(!state.log.slice(lines).some((line) => /Test Revenge/.test(line)), state.log.slice(lines).join("\n"));
+
+    // (B119: an ability used in ways, "Breathe Energy (Acid Maw)" and the rest, their rechargeGroup.)
+    const hydra = withBuiltins({ ...moderateCreature(5, "hyd", "Hydra"), engagement: 1, spells: ["Acid Maw", "Flame Maw"].map((way) => ({ ...entry(`Test Breath (${way})`, hellfire), rechargeGroup: "Test Breath" })) }, ["Test Rage", { builtin: "crit-recharge", recharges: "Test Breath", untilNatural: true }]);
+    const third = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, hydra] }, {}, 1);
+    third.log = [];
+    third.rng.d20 = () => 20;
+    const y = third.byId.get("hyd");
+    const g = third.byId.get(fighter.id);
+    y.rechargeUntil = new Map([["Test Breath", 99]]);
+    performStrike(third, g, y, g.strikes.find((strike) => strike.melee));
+    assert.ok(third.log.includes("  Hydra uses Test Rage: Test Breath recharges"), third.log.join("\n"));
+    assert.ok((y.rechargeUntil.get("Test Breath") ?? -1) < 99, "breathed again, its recharge rolled anew");
+    // Flash of Brutality: its first hit a critical one, once (again after its Ferocity).
+    const cyclops = withBuiltins({ ...moderateCreature(5, "cyc", "Cyclops"), engagement: 1 }, ["Test Flash", { builtin: "crit-upgrade", perDay: 1, ferocityRecharges: true }]);
+    const second = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, cyclops] }, {}, 1);
+    second.log = [];
+    const c = second.byId.get("cyc");
+    const target = second.byId.get(fighter.id);
+    second.rng.d20 = () => Math.max(1, armorClass(target) - c.strikes[0].bonus + 1);
+    assert.equal(performStrike(second, c, target, c.strikes[0]).degree, 3);
+    c.attacksThisTurn = 0;
+    assert.equal(performStrike(second, c, target, c.strikes[0]).degree, 2, "once");
 });

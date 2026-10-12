@@ -10,7 +10,7 @@ import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
-import { bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
+import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
 import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -88,6 +88,8 @@ function createState(snapshot, options, seed, withLog) {
     if (!options.heroPoints) for (const c of list) c.heroPoints = 0;
     // Grab, Knockdown and Push after a hit (spells.js resolves them).
     state.onStrikeHit = (attacker, target, strike, degree) => triggerRiders(state, attacker, target, strike, degree);
+    // (B118, Hellish Revenge: an ability used out of its turn, at the targets the planner likes best.)
+    state.pickCastNow = (c, spellIndices) => bestCastNow(state, c, spellIndices);
     // Poison Weapon (B72): the poison's affliction on the creature hit.
     state.onPoison = (attacker, target) => {
         state.log?.push(`  ${attacker.poisonWeapon.spell.name} from ${attacker.name}'s weapon`);

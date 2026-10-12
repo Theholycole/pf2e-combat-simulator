@@ -1442,6 +1442,22 @@ export function scoreOptions(state, c) {
     };
 }
 
+// The best use of one of its abilities now, out of its turn (B118: Hellish Revenge's breath as the reaction; any of the ways it's used in):
+// { spellIndex, targetIds, actions } of the cast worth the most, or null when none is worth anything.
+export function bestCastNow(state, c, spellIndices) {
+    const wanted = new Set([spellIndices].flat());
+    const saved = c.actionsLeft;
+    c.actionsLeft = 3;
+    try {
+        const ctx = new PlanContext(state, c);
+        const root = { value: 0, pos: { band: c.band, melee: c.meleeId, newWith: null }, shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, gong: c.gongFeet ?? 0, alarmRaised: false, left: false, atItem: false, first: null };
+        const best = expand(ctx, root, 3).filter((node) => node.first?.type === "cast" && wanted.has(node.first.spellIndex) && !node.first.quickened && node.value > 0).sort((a, b) => b.value - a.value)[0];
+        return best ? { spellIndex: best.first.spellIndex, targetIds: best.first.targetIds, actions: best.first.actions } : null;
+    } finally {
+        c.actionsLeft = saved;
+    }
+}
+
 // Returns the next action for the creature, or null to end its turn.
 export function chooseAction(state, c) {
     const ctx = new PlanContext(state, c);

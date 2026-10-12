@@ -215,6 +215,15 @@ export function addBuiltin(spec, plan, name) {
         case "follow":
             spec.follow = { name, prey: !!plan.prey, strike: !!plan.strike };
             return true;
+        // Hellish Revenge, Spitting Rage (B118): a critical hit on it recharges its breath, used at once.
+        case "crit-recharge":
+            if (!plan.recharges) return false;
+            spec.critRecharge = { name, recharges: plan.recharges, untilNatural: !!plan.untilNatural };
+            return true;
+        // Flash of Brutality (B118): once a day, its hit a critical one (again after its Ferocity, where it says so).
+        case "crit-upgrade":
+            spec.critUpgrade = { name, uses: Number(plan.perDay) || 1, ferocityRecharges: !!plan.ferocityRecharges };
+            return true;
         // Fast Swallow (B70): Swallow Whole as a reaction when it grabs a creature.
         case "fast-swallow":
             spec.fastSwallow = { name };

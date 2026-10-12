@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { isShaken } from "./morale.js";
 import { canReact, extraApplies, regenerating, strikeNamed } from "./abilities.js";
 import { applyEffect, removeEffect } from "./effects.js";
-import { applyCondition, castPlan, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit, rollCount } from "./spells.js";
+import { applyCondition, castPlan, castSpell, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToOwnHit, rollCount } from "./spells.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -340,6 +340,12 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
             log(state, `  ${attacker.name} spends a hero point to reroll`);
         }
     }
+    // Flash of Brutality (B118): once a day (again after its Ferocity, where it says so), its first hit a critical one.
+    if (degree === SUCCESS && !reaction && attacker.critUpgrade && (attacker.critUpgradesUsed ?? 0) < attacker.critUpgrade.uses) {
+        degree = CRITICAL_SUCCESS;
+        attacker.critUpgradesUsed = (attacker.critUpgradesUsed ?? 0) + 1;
+        log(state, `  ${attacker.name} uses ${attacker.critUpgrade.name}: the hit becomes a critical hit`);
+    }
     if (!reaction) {
         attacker.turnAttacks ??= [];
         attacker.turnAttacks.push({ strike: strike.name, targetId: target.id, hit: degree >= SUCCESS });
@@ -480,6 +486,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
             if (other && index >= 0 && isActive(target) && canAct(target)) performStrike(state, target, other, target.strikes[index], { reaction: true });
         }
     }
+    // (B118, Hellish Revenge, Spitting Rage: a critical hit on it, its breath recharged and used at once.)
+    if (critical && !reaction && target.critRecharge && isActive(target)) critRechargeAnswer(state, target);
     // (B116, Skittish, Bolt: a hit on it, or its damage, answered by moving off.)
     if (!reaction && isActive(attacker) && isActive(target)) withdrawAnswer(state, target, attacker, { melee: !!strike.melee, hit: true, dealt });
     return { degree, damage: dealt, trigger };
@@ -603,6 +611,29 @@ function splashAround(state, attacker, target, splash, { includeTarget }) {
         const dealt = applyDamage(state, other, splash.map((instance) => ({ ...instance })), { source: attacker });
         if (dealt > 0) log(state, `  ${other.name} takes ${dealt} splash (${Math.max(0, other.hp.value)}/${other.hp.max})`);
     }
+}
+
+// Hellish Revenge, Spitting Rage (B118): a critical hit on it recharges the ability it names and it uses it at once, as the reaction, at
+// the best targets for it now (state.onReactionCast). Spent only when the recharge or the use is worth something; Spitting Rage's not
+// again until the ability's own recharge has run out.
+function critRechargeAnswer(state, c) {
+    const rule = c.critRecharge;
+    if (!canReact(c) || !canAct(c) || (rule.untilNatural && (c.round ?? 0) < (c.critRechargeBlockedUntil ?? -Infinity))) return;
+    // (The ability, or its ways: "Breathe Energy (Acid Maw)", their rechargeGroup "Breathe Energy".)
+    const named = rule.recharges.toLowerCase();
+    const indices = (c.spells ?? []).map((spell, index) => (String(spell.rechargeGroup ?? spell.name ?? spell.plan?.source?.name ?? "").toLowerCase() === named ? index : -1)).filter((index) => index >= 0);
+    if (!indices.length) return;
+    const key = c.spells[indices[0]].rechargeGroup ?? c.spells[indices[0]];
+    const recharging = (c.rechargeUntil?.get(key) ?? -Infinity) > (c.round ?? 0);
+    const before = recharging ? c.rechargeUntil.get(key) : null;
+    if (recharging) c.rechargeUntil.delete(key);
+    const pick = state.pickCastNow?.(c, indices) ?? null;
+    if (!recharging && !pick) return;
+    c.reactionUsed = true;
+    state.stats.reactions++;
+    log(state, `  ${c.name} uses ${rule.name}${recharging ? `: ${rule.recharges} recharges` : ""}`);
+    if (pick) castSpell(state, c, pick.spellIndex, pick.targetIds, pick.actions);
+    if (rule.untilNatural) c.critRechargeBlockedUntil = c.rechargeUntil?.get(key) ?? before ?? -Infinity;
 }
 
 function rechargeOnCritical(state, c) {
@@ -862,6 +893,7 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         if (rule.mythic) target.mythicPoints--;
         target.ferocityUsed = (target.ferocityUsed ?? 0) + 1;
         log(state, `  ${target.name} uses ${rule.name} and stays up at ${target.hp.value} HP`);
+        if (target.critUpgrade?.ferocityRecharges) target.critUpgradesUsed = 0;
         if (rule.strike) {
             const foe = (source && source.side !== target.side && isActive(source) && sameMelee(source, target) ? source : null) ?? engagedEnemies(state, target)[0] ?? null;
             const named = strikeNamed(target, rule.strike);
@@ -875,6 +907,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         target.cond.wounded = (target.cond.wounded ?? 0) + 1;
         target.reactionUsed = true;
         log(state, `  ${target.name} uses Ferocity and stays up at 1 HP`);
+        // (B118: Flash of Brutality's "recharges when the great cyclops uses Ferocity".)
+        if (target.critUpgrade?.ferocityRecharges) target.critUpgradesUsed = 0;
         return;
     }
     // Undying Myth (B72): all its Mythic Points, and it stays standing with half its Hit Points (or the number it names).
