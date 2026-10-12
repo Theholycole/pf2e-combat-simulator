@@ -999,14 +999,18 @@ function applyMove(state, target, change) {
 }
 
 function applyChanges(state, caster, spell, changes, context, io) {
-    const nonlethal = describeSpell(spell.plan).nonlethal;
+    const described = describeSpell(spell.plan);
+    const nonlethal = described.nonlethal;
+    // (B193: a spell aimed at its targets, with its rank, for Divert Essence.)
+    const isSpell = !["ability", "basic"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "");
+    const aimed = isSpell ? { rank: Number(spell.castRank ?? spell.plan?.rank) || 1, targeted: !described.area } : null;
     for (const change of changes) {
         const target = change.target !== undefined ? state.byId.get(change.target) : null;
         if (change.target !== undefined && !target) continue;
         switch (change.op) {
             case "damage": {
                 const instances = change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision" }));
-                const dealt = applyDamage(state, target, instances, { source: caster, nonlethal });
+                const dealt = applyDamage(state, target, instances, { source: caster, nonlethal, spell: aimed });
                 log(state, `  ${target.name} takes ${dealt} ${change.instances.map((instance) => instance.type).join("/")}`);
                 break;
             }
@@ -1159,8 +1163,20 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     const live = liveRoller(state);
     // Spellstrike: the spell attack takes the Strike's result.
     const rolled = forcedDegree !== null ? (statistic, options) => (statistic === "spell-attack" || statistic === "strike" ? { natural: null, total: null, dc: options?.dc, degree: DEGREE_NAMES[forcedDegree] } : live.roll(statistic, options)) : live.roll;
+    // (B193, Ray Displacement: a ranged spell attack at a creature whose reaction makes it roll twice, the worse kept.)
+    const misfortune = (statistic, options) => {
+        const target = options?.target;
+        const rule = target?.misfortuneReaction;
+        if (forcedDegree !== null || statistic !== "spell-attack" || !rule?.spell || !target.id || target.side === caster.side || !isActive(target) || !canReact(target) || (rule.ranged && info.touch)) return null;
+        target.reactionUsed = true;
+        state.stats.reactions++;
+        log(state, `  ${target.name} uses ${rule.name}`);
+        const natural = Math.min(state.rng.d20(), state.rng.d20());
+        const total = natural + options.modifier;
+        return { natural, total, dc: options.dc, degree: DEGREE_NAMES[degreeOf(total, options.dc, natural)] };
+    };
     // (A failed save a reaction makes better, B80.)
-    const roll = (statistic, options) => betterSave(state, statistic, options, rolled(statistic, options), spell);
+    const roll = (statistic, options) => betterSave(state, statistic, options, misfortune(statistic, options) ?? rolled(statistic, options), spell);
     const io = { ...live, roll, choose: chooser(caster, targets) };
     const result = registry.resolveSync(spell.plan, context, io);
     for (const target of targets) {

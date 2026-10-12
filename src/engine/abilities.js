@@ -109,8 +109,9 @@ export function addBuiltin(spec, plan, name) {
         case "ac-reaction":
             spec.acReaction = { value: plan.value, when: plan.when, name, ...(plan.against ? { against: plan.against } : {}) };
             return true;
+        // (B193, Ray Displacement: a ranged spell attack at it only.)
         case "attack-misfortune":
-            spec.misfortuneReaction = { name };
+            spec.misfortuneReaction = { name, ...(plan.spell ? { spell: true } : {}), ...(plan.ranged ? { ranged: true } : {}) };
             return true;
         // Shadow Evade, Scintillating Defense: the attacker's flat check against the hit, a miss on a failure (B41).
         case "conceal-reaction":
@@ -124,7 +125,14 @@ export function addBuiltin(spec, plan, name) {
             spec.critResistance = { name, value: Number(plan.value) || 0 };
             return true;
         // Resistance against the damage that sets it off (B99): Liquefy, Chipping Scales; its uses a day a number (once a fight).
+        // (B193, Divert Essence: a spell aimed at it, resistance equal to the spell's rank against that spell's damage; its lasting until its
+        // next turn against other spells isn't played.)
         case "resist-damage":
+            if (plan.value === "rank" && plan.spell) {
+                spec.resistReaction = { name, value: "rank", spell: true, on: null, types: null };
+                spec.resistUses = Number(plan.uses) || Infinity;
+                return true;
+            }
             if (!(Number(plan.value) > 0)) return false;
             spec.resistReaction = { name, value: Number(plan.value), on: plan.on ?? null, types: plan.types ?? null, ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}), ...(plan.lasts ? { lasts: plan.lasts } : {}), ...(plan.acPenalty ? { acPenalty: plan.acPenalty } : {}), ...(plan.quickened ? { quickened: plan.quickened } : {}), ...(plan.lashBack ? { lashBack: { bonus: Number(plan.lashBack.bonus) || 0 } } : {}) };
             spec.resistUses = Number(plan.uses) || Infinity;

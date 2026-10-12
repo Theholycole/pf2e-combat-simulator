@@ -3882,3 +3882,35 @@ test("A melee Strike at it sent at another creature beside it as it's made (Hop-
     assert.ok(state.byId.get(other.id).hp.value < 900);
     assert.equal(f.attacksThisTurn, 1);
 });
+
+test("A ranged spell attack at it rolled twice, the worse kept; a spell aimed at it resisted by the spell's rank (Ray Displacement, Divert Essence, 2026-10-12, B193)", () => {
+    const rows = (hit) => Object.fromEntries(["criticalSuccess", "success", "failure", "criticalFailure"].map((degree) => [degree, { damage: { mode: hit.includes(degree) ? "shared" : "none", multiplier: hit.includes(degree) ? 1 : 0, sourceComponentIds: hit.includes(degree) ? ["0"] : [] }, effects: [] }]));
+    const bolt = { name: "Test Bolt", castRank: 4, dc: 20, attack: 10, pool: null, plan: { modelVersion: 12, source: { name: "Test Bolt", uuid: "Compendium.pf2e.spells-srd.Item.aaaaaaaaaaaaaaaa" }, rank: 4, traits: ["attack", "fire"], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "60 feet", area: null }, resolution: { kind: "save", check: { statistic: "spell-attack" }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "30", type: "fire" }] }, outcomes: rows(["criticalSuccess", "success"]) } } };
+    const fight = (builtin) => {
+        const [caster] = martialParty(5);
+        const dragon = withBuiltins({ ...moderateCreature(5, "drg", "Dragon"), engagement: 1, hp: { value: 300, max: 300 } }, ["Test Answer", builtin]);
+        const state = createFightState({ combatants: [{ ...caster, id: "caster", spells: [bolt], spellPools: {} }, dragon] }, {}, 1);
+        state.log = [];
+        return { state, c: state.byId.get("caster"), d: state.byId.get("drg") };
+    };
+    // Twice, the worse: a 20 and a 3 — a miss.
+    let { state, c, d } = fight({ builtin: "attack-misfortune", spell: true, ranged: true });
+    const rolls = [20, 3];
+    state.rng.d20 = () => rolls.shift() ?? 10;
+    castSpell(state, c, 0, ["drg"], 2);
+    assert.ok(state.log.includes("  Dragon uses Test Answer") && d.reactionUsed, state.log.join("\n"));
+    assert.equal(d.hp.value, 300, "the worse roll misses");
+    // Not a Strike's.
+    ({ state, c, d } = fight({ builtin: "attack-misfortune", spell: true, ranged: true }));
+    state.rng.d20 = () => 15;
+    performStrike(state, c, d, c.strikes[0]);
+    assert.ok(!d.reactionUsed);
+    // Resistance 4 (the spell's rank) against the spell aimed at it; not against a Strike.
+    ({ state, c, d } = fight({ builtin: "resist-damage", value: "rank", spell: true, on: null, types: ["spells"], lasts: 1, until: "turn-start" }));
+    assert.equal(applyDamage(state, d, [{ type: "slashing", amount: 10, persistent: false, precision: false }], { source: c }), 10);
+    assert.ok(!d.reactionUsed, "not a spell's damage");
+    state.rng.d20 = () => 15;
+    castSpell(state, c, 0, ["drg"], 2);
+    assert.ok(state.log.includes("  Dragon uses Test Answer: resistance 4 against it"), state.log.join("\n"));
+    assert.equal(d.hp.value, 300 - 10 - 26);
+});

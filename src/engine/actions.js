@@ -252,7 +252,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // Fate), or +AC (Nimble Dodge); kept for Attacks of Opportunity when it has them.
     let defence = 0;
     let misfortune = false;
-    if (target.misfortuneReaction && canReact(target)) {
+    if (target.misfortuneReaction && !target.misfortuneReaction.spell && canReact(target)) {
         misfortune = true;
         target.reactionUsed = true;
         log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
@@ -811,7 +811,8 @@ function guards(state, c, target, { physical = false } = {}) {
     return ward === target;
 }
 
-export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false } = {}) {
+// (B193: spell { rank, targeted } — the damage of a spell aimed at it, for Divert Essence.)
+export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null } = {}) {
     // Intercept Attack: a guardian next to the ally takes physical damage meant for it,
     // when the ally would drop or is the more hurt of the two.
     if (!intercepted && source && source.side !== target.side && instances.some((instance) => ["bludgeoning", "piercing", "slashing"].includes(instance.type))) {
@@ -843,7 +844,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // Regeneration turns off before damage of a listed type is dealt.
     if (target.regeneration && instances.some((instance) => instance.amount > 0 && target.regeneration.deactivatedBy.includes(instance.type))) turnOffRegeneration(state, target);
     // Liquefy, Chipping Scales (B99): its reaction's resistance against this damage, and what it leaves.
-    const resisting = resistReaction(state, target, instances, { source, physical });
+    const resisting = resistReaction(state, target, instances, { source, physical, spell });
     const adjusted = adjustDamage(target, instances);
     if (resisting) afterResisting(state, target, resisting, source);
     // A champion's reaction: resistance 2 + its level against the triggering damage, and more.
@@ -927,10 +928,13 @@ export function applyDamage(state, target, instances, { source = null, critical 
 // attack that deals physical damage"), an enemy's only; its uses. Its resistance (to the types it names, or to all the triggering damage)
 // is on the creature while this damage is adjusted; returns what to put back, or null.
 const PHYSICAL_TYPES = new Set(["bludgeoning", "piercing", "slashing"]);
-function resistReaction(state, target, instances, { source, physical }) {
+function resistReaction(state, target, instances, { source, physical, spell = null }) {
     const resist = target.resistReaction;
     if (!resist || !isActive(target) || !canReact(target) || !((target.resistUses ?? Infinity) > 0)) return null;
     if ((resist.attack && !physical) || (resist.foe && !(source && source.side !== target.side))) return null;
+    // (B193, Divert Essence: only a spell aimed at it, its rank the resistance.)
+    if (resist.spell && !(spell?.targeted && spell.rank > 0 && source && source.side !== target.side)) return null;
+    const value = resist.value === "rank" ? spell.rank : resist.value;
     const sets = (instance) => !instance.persistent && instance.amount > 0 && (!resist.on || resist.on.includes(instance.type) || (resist.on.includes("physical") && PHYSICAL_TYPES.has(instance.type)));
     if (adjustDamage(target, instances.filter(sets)).total <= 0) return null;
     target.reactionUsed = true;
@@ -938,9 +942,9 @@ function resistReaction(state, target, instances, { source, physical }) {
     if (Number.isFinite(target.resistUses)) target.resistUses--;
     const before = target.resistances;
     const plain = adjustDamage(target, instances).total;
-    const entries = (resist.types ?? ["all-damage"]).map((type) => ({ type, value: resist.value, exceptions: [] }));
+    const entries = (resist.types ?? ["all-damage"]).map((type) => ({ type, value, exceptions: [] }));
     target.resistances = [...(before ?? []), ...entries];
-    log(state, `  ${target.name} uses ${resist.name}: resistance ${resist.value}${resist.types ? ` to ${resist.types.join(", ")}` : ""} against it`);
+    log(state, `  ${target.name} uses ${resist.name}: resistance ${value}${resist.types ? ` to ${resist.types.join(", ")}` : ""} against it`);
     // (B155: what it kept off, and of which type, for a lash back.)
     const resisted = Math.max(0, plain - adjustDamage(target, instances).total);
     const type = instances.find((instance) => !instance.persistent && instance.amount > 0 && PHYSICAL_TYPES.has(instance.type))?.type ?? instances[0]?.type ?? "untyped";
