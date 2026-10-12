@@ -3780,3 +3780,18 @@ test("Reactive Strike until the granter's next turn ends, an ally that uses it i
     v.actionsLeft = 3;
     assert.ok(!scoreOptions(state, v).options.some((option) => option.action.type === "grantAoo"), "immune after using it");
 });
+
+test("A rune detonated on the creature that damaged it (Retributive Rune, 2026-10-12, B177)", () => {
+    const [fighter] = martialParty(5);
+    const none = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
+    const rune = { modelVersion: 13, source: { name: "Test Rune" }, rank: 1, traits: [], activation: { time: "reaction", traits: [] }, targeting: { target: "the attacker", range: "touch", area: null }, trigger: { event: "hit-by", reaction: true, melee: false, within: 15 }, resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: none, success: { damage: { mode: "formulas", formulas: [{ formula: "5d6[untyped]" }], rollScope: "outcome" }, effects: [] }, failure: none, criticalFailure: none } } };
+    const dragon = { ...moderateCreature(5, "dragon", "Dragon"), engagement: 1, hp: { value: 900, max: 900 }, spells: [entry("Test Rune", rune, null)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 500, max: 500 } }, dragon] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 19;
+    state.rng.die = (sides) => sides;
+    const f = state.byId.get(fighter.id);
+    performStrike(state, f, state.byId.get("dragon"), f.strikes[0]);
+    assert.ok(state.log.some((line) => /Dragon reacts with Test Rune/.test(line)), state.log.join("\n"));
+    assert.equal(500 - f.hp.value, 30, "5d6 at its most");
+});
