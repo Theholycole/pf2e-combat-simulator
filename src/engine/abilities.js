@@ -200,7 +200,8 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // (B171, Sidestep, Glide Aside: a Strike that misses it sent at another creature beside it.)
         case "redirect-attack":
-            spec.redirectAttack = { name, ...(plan.step ? { step: true } : {}) };
+            // (B191, Hop-Dodge: as a melee Strike is made at it, not after a miss.)
+            spec.redirectAttack = { name, ...(plan.step ? { step: true } : {}), ...(plan.when === "targeted" ? { when: "targeted" } : {}) };
             return true;
         // (B170, Guide's Warning, Warning Hoot: a circumstance bonus to its allies' initiative rolls; its reaction, or a free action.)
         case "initiative-warning":

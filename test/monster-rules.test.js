@@ -3868,3 +3868,17 @@ test("Two Strikes at its full bonus only at a helpless creature (Ravage, 2026-10
     assert.equal(options(null).length, 0);
     assert.ok(options("paralyzed").length > 0);
 });
+
+test("A melee Strike at it sent at another creature beside it as it's made (Hop-Dodge, 2026-10-12, B191)", () => {
+    const [fighter, other] = martialParty(5);
+    const bird = withBuiltins({ ...moderateCreature(5, "bird", "Bird"), engagement: 1, hp: { value: 900, max: 900 } }, ["Test Hop", { builtin: "redirect-attack", when: "targeted", melee: true }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...other, engagement: 1, hp: { value: 900, max: 900 } }, bird] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 19;
+    const f = state.byId.get(fighter.id);
+    performStrike(state, f, state.byId.get("bird"), f.strikes.find((strike) => strike.melee));
+    assert.ok(state.log.some((line) => line === `  Bird uses Test Hop: the Strike goes to ${other.name}`), state.log.join("\n"));
+    assert.equal(state.byId.get("bird").hp.value, 900);
+    assert.ok(state.byId.get(other.id).hp.value < 900);
+    assert.equal(f.attacksThisTurn, 1);
+});

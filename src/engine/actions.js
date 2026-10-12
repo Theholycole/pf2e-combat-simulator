@@ -186,6 +186,16 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // (B164, Mark for Death: deadly on its Strikes against its mark.)
     const mark = attacker.huntPrey;
     if (mark?.edge === "deadly" && attacker.prey === target?.id && !strike.deadly && (!mark.strike || String(strike.name ?? "").toLowerCase().startsWith(mark.strike))) strike = { ...strike, deadly: { dice: 1, die: mark.die } };
+    // (B191, Hop-Dodge: a melee Strike at it sent at another of the attacker's side beside both, as it's made.)
+    if (!reaction && strike.melee && target.redirectAttack?.when === "targeted" && isActive(target) && canReact(target) && canAct(target)) {
+        const other = state.list.find((c) => c !== attacker && c !== target && c.side === attacker.side && isActive(c) && sameMelee(c, target) && sameMelee(c, attacker));
+        if (other) {
+            target.reactionUsed = true;
+            state.stats.reactions++;
+            log(state, `  ${target.name} uses ${target.redirectAttack.name}: the Strike goes to ${other.name}`);
+            return performStrike(state, attacker, other, strike, { reaction, trigger, fortune });
+        }
+    }
     const attacksMade = reaction ? 0 : attacker.attacksThisTurn;
     if (!reaction) attacker.attacksThisTurn++;
     if (!reaction && !strike.melee && attacker.meleeId !== null) {
@@ -372,7 +382,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         if (degree === FAILURE && strike.splashKind === "bomb") splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false })), { includeTarget: true });
         // (B171, Sidestep, Glide Aside: the attack sent at another of the attacker's side beside it, the attacker rerolling against that one at
         // the same multiple attack penalty.)
-        if (!reaction && target.redirectAttack && isActive(attacker) && isActive(target) && canReact(target) && canAct(target)) {
+        if (!reaction && target.redirectAttack && target.redirectAttack.when !== "targeted" && isActive(attacker) && isActive(target) && canReact(target) && canAct(target)) {
             const other = state.list.find((c) => c !== attacker && c !== target && c.side === attacker.side && isActive(c) && sameMelee(c, target));
             if (other) {
                 target.reactionUsed = true;
