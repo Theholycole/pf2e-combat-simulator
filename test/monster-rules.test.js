@@ -3036,3 +3036,23 @@ test("An ally's save helped: a reroll keeping the better, a bonus as it comes (2
     castPlan(state, state.byId.get(fighter.id), state.byId.get(fighter.id).spells[0], ["aly"]);
     assert.ok(state.log.some((line) => /Yamah uses Test Free Mind: \+4 to Ally's save/.test(line)), state.log.join("\n"));
 });
+
+test("A Strike activity behind a requirement it can't check, in the first round only, at an animal or humanoid only (2026-10-12, B126)", () => {
+    const [fighter] = martialParty(5);
+    const base = moderateCreature(5, "elk", "Elk");
+    const plan = (extra) => ({ builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: ["1d4[piercing]"], save: null, size: null }, ...extra });
+    const options = (extra, round = 1, traits = ["humanoid"]) => {
+        const elk = withBuiltins({ ...base, engagement: 1 }, ["Test Rush", plan(extra)]);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, traits }, elk] }, {}, 1);
+        state.round = round;
+        const c = state.byId.get("elk");
+        c.actionsLeft = 3;
+        return scoreOptions(state, c).options.filter((option) => option.action.type === "strikeActivity");
+    };
+    assert.ok(options({}).length > 0);
+    assert.equal(options({ requires: "requirement" }).length, 0);
+    assert.ok(options({ requires: "first-round" }).length > 0);
+    assert.equal(options({ requires: "first-round" }, 2).length, 0);
+    assert.equal(options({ targetTraits: ["animal"] }).length, 0);
+    assert.ok(options({ targetTraits: ["animal", "humanoid"] }).length > 0);
+});

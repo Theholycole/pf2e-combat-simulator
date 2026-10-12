@@ -945,6 +945,9 @@ function expand(ctx, node, actionsLeft) {
             if (activity.after && !(node.used === 0 && followsStrike(state, c, activity.after))) continue;
             // (B106: Berserk Slam's "is berserk", a state the engine doesn't play.)
             if (activity.requires === "berserk") continue;
+            // (B126: a requirement the engine doesn't play — "The dragon is burrowed", "It's the first round of combat" — not planned.)
+            if (activity.requires === "requirement") continue;
+            if (activity.requires === "first-round" && state.round !== 1) continue;
             if (activity.strides && (!mobile || ctx.wavering)) continue;
             // Cover Fire (C19): a loaded firearm or crossbow, once a round.
             if (activity.coverFire && (c.usedThisTurn?.has("cover-fire") || node.casts.includes("coverFire"))) continue;
@@ -958,6 +961,7 @@ function expand(ctx, node, actionsLeft) {
                 if (activity.after && !activity.strides && target.id !== c.lastStrike?.targetId) continue;
                 if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
                 if (activity.requires === "prone" && !target.cond.prone) continue;
+                if (activity.targetTraits && !activity.targetTraits.some((trait) => (target.traits ?? []).includes(trait))) continue;
                 // (B105: Stunning Strike's "hit a foe earlier this turn with a weapon Strike", at that foe; after Strikes made, not planned.)
                 if (activity.requires === "hit-earlier" && !(node.used === 0 && (c.turnAttacks ?? []).some((attack) => attack.hit && attack.targetId === target.id))) continue;
                 // (B104: Terrifying Smite's "an enemy that has one of its allies within its reach".)

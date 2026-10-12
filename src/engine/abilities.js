@@ -287,6 +287,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.nonlethal ? { nonlethal: true } : {}),
                 // Focused Assault (B74): a failure (not a critical one) still deals the Strike's damage.
                 ...(plan.failureDamage ? { failureDamage: true } : {}),
+                // (B126, Flay: "against an animal or humanoid" — only at those.)
+                ...(plan.targetTraits?.length ? { targetTraits: [...plan.targetTraits] } : {}),
                 onHit: plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];
