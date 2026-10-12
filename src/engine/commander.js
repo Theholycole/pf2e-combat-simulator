@@ -130,11 +130,14 @@ export function bestAdvance(state, c, enemies) {
         if (ally === c || ally.side !== c.side || !isActive(ally) || !canAct(ally) || (rule.within < 60 && distanceBetween(c, ally) > rule.within)) continue;
         // (B202, Kingpin's Command: its reaction, and each ally once.)
         if ((rule.reaction && !canReact(ally)) || (rule.oncePerAlly && c.advancedAllies?.has(ally.id))) continue;
+        // (B215: only an ally of its trait — an animal, a goblin — and of a lower level, where it says so.)
+        if ((rule.trait && !(ally.traits ?? []).includes(rule.trait)) || (rule.lowerLevel && !((ally.level ?? 0) < (c.level ?? 0)))) continue;
         for (const target of enemies) {
             if (!isActive(target)) continue;
             const strides = stridesToEngage(ally, target);
             for (const [index, strike] of (ally.strikes ?? []).entries()) {
-                if (!strikeUsable(ally, strike) || (strike.melee && strides > 1) || (!strike.melee && rangePenalty(strike, distanceBetween(ally, target)) === null)) continue;
+                // (B215, Interest is Due!: a Strike only, no Stride first.)
+                if (!strikeUsable(ally, strike) || (strike.melee && strides > (rule.noStride ? 0 : 1)) || (!strike.melee && rangePenalty(strike, distanceBetween(ally, target)) === null)) continue;
                 const boosted = withExtraDamage(strike, rule.extraDamage);
                 const odds = degreeDistribution(attackModifier(state, ally, target, boosted, 0), armorClass(target, { ranged: !strike.melee }));
                 const expected = odds[SUCCESS] * expectedHitDamage(ally, boosted, target, false) + odds[CRITICAL_SUCCESS] * expectedHitDamage(ally, boosted, target, true);

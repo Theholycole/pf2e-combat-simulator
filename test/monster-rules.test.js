@@ -4212,3 +4212,22 @@ test("A bonus to its own Reflex save against an area only (Scatter, 2026-10-12, 
     ({ state, s } = fight("reflex", false));
     assert.equal(s.reactionUsed ?? false, false, "not without an area");
 });
+
+test("An ally's Strike only as its reaction, only an ally of a trait and a lower level (Stab it! Stab it! Stab it!, 2026-10-12, B215)", () => {
+    const [fighter] = martialParty(5);
+    const make = (engaged) => {
+        const boss = withBuiltins({ ...moderateCreature(5, "boss", "Boss"), band: "near" }, ["Test Stab", { builtin: "ally-advance", actions: 1, within: 30, extraDamage: [], reaction: true, noStride: true, trait: "goblin", lowerLevel: true }]);
+        const goblin = { ...moderateCreature(3, "gob", "Goblin"), traits: ["goblin"], ...(engaged ? { engagement: 1 } : { band: "near" }) };
+        const orc = { ...moderateCreature(3, "orc", "Orc"), traits: ["orc"], engagement: 1 };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 900, max: 900 } }, boss, goblin, orc] }, {}, 1);
+        const b = state.byId.get("boss");
+        b.actionsLeft = 3;
+        b.usedThisTurn = new Set();
+        return { state, b };
+    };
+    let { state, b } = make(true);
+    const option = scoreOptions(state, b).options.find((entry) => entry.action.type === "allyAdvance");
+    assert.deepEqual([option?.action.allyId, option?.action.stride], ["gob", false]);
+    ({ state, b } = make(false));
+    assert.ok(!scoreOptions(state, b).options.some((entry) => entry.action.type === "allyAdvance"), "not when the goblin would have to Stride first, nor the orc");
+});
