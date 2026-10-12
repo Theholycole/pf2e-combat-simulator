@@ -3178,3 +3178,27 @@ test("Its failed Will save against a mental effect made a success, at the cost o
     assert.deepEqual(run(["mental", "fear"]), [0, true], "boosted to a success, its damage taken");
     assert.deepEqual(run(["fire"]), [2, false], "not against a non-mental effect");
 });
+
+test("A move first, then a maneuver: Tackle reaches a creature away from it; an unseen-only one isn't planned (2026-10-12, B133)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const tackle = { ...structuredClone(basic.grapple), source: { name: "Test Tackle" }, activation: { time: "2", traits: ["attack"] }, approach: { strides: 2 } };
+    const [fighter] = martialParty(5);
+    const brute = { ...moderateCreature(5, "gur", "Gurgist"), engagement: null, band: "near", spells: [entry("Test Tackle", tackle)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: null, band: "near" }, brute] }, {}, 1);
+    state.log = [];
+    const c = state.byId.get("gur");
+    const f = state.byId.get(fighter.id);
+    assert.equal(sameMelee(c, f), false);
+    const sets = targetSetsFor(state, c, c.spells[0], { enemies: [f], inMelee: (other) => sameMelee(c, other), distance: () => 30, meleeId: null }, 2);
+    assert.equal(sets.length, 1, "within two Strides");
+    c.actionsLeft = 3;
+    performAction(state, c, { type: "cast", spellIndex: 0, targetIds: [f.id], actions: 2 });
+    assert.equal(sameMelee(c, f), true, state.log.join("\n"));
+    assert.ok(state.log.some((line) => /Test Tackle/.test(line)), state.log.join("\n"));
+    // Bushwhack's: only at a creature it's undetected by — not planned.
+    const hidden = { ...moderateCreature(5, "bug", "Bugbear"), engagement: 1, spells: [entry("Test Bushwhack", { ...tackle, requires: "requirement" })] };
+    const second = createFightState({ combatants: [{ ...fighter, engagement: 1 }, hidden] }, {}, 1);
+    const b = second.byId.get("bug");
+    b.actionsLeft = 3;
+    assert.equal(scoreOptions(second, b).options.filter((option) => option.action.type === "cast").length, 0);
+});

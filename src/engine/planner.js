@@ -734,6 +734,8 @@ function expand(ctx, node, actionsLeft) {
             if (rider && !(riderTarget && isActive(riderTarget))) continue;
             // Its requirement an enemy nearby in a state (B83, Feed on Fear: "An enemy is under a fear effect or Dying within
             // 15 feet"): frightened, or down and dying.
+            // (B133: a requirement it can't check, Bushwhack's unseen creature: not planned.)
+            if (spell.plan?.requires === "requirement") continue;
             const foe = spell.plan?.requiresFoe;
             if (foe && !state.list.some((other) => other.side !== c.side && distanceTo(node.pos, other, ctx.placeOf(node.pos)) <= (foe.within ?? Infinity)
                 && foe.conditions.some((condition) => (condition === "dying" ? other.status === "down" : isActive(other)) && (other.cond?.[condition] ?? 0) > 0))) continue;

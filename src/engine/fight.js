@@ -575,6 +575,10 @@ function act(state, c, action) {
             // Casting with the manipulate trait provokes (S12; Reactive Strike's critical hit disrupts it), and with the
             // concentrate trait, the reactions that say so (B51).
             const spell = c.spells[action.spellIndex];
+            // (B133, Tackle: its move first, to the creature.)
+            const goal = spell?.plan?.approach?.strides ? state.byId.get(action.targetIds?.[0]) : null;
+            if (goal && isActive(goal) && !sameMelee(c, goal) && canMove(c)) stride(state, c, { kind: "engage", targetId: goal.id });
+            if (goal && (!isActive(goal) || !sameMelee(c, goal))) break;
             const traits = spell?.plan?.activation?.traits ?? spell?.plan?.traits ?? [];
             let disrupted = traits.includes("manipulate") ? provoke(state, c, "manipulate") : false;
             if (canAct(c) && traits.includes("concentrate")) disrupted = provoke(state, c, "concentrate") || disrupted;

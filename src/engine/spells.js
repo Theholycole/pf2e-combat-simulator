@@ -123,6 +123,8 @@ function readSpell(base, actions) {
         actions: plan?.castActions ?? actionCost(plan?.activation?.time),
         range: rangeFeet(targeting.range),
         touch: /touch/i.test(String(targeting.range ?? "")),
+        // (B133, Tackle: a move first — that many Strides to reach the creature.)
+        approach: Number(plan?.approach?.strides) || 0,
         area,
         targets: area ? 0 : targeting.allies ? 1 : targetCount(targeting.target),
         attack: statistic === "spell-attack" || statistic === "strike" || (check?.roll === "skill" && (plan?.traits ?? []).includes("attack") && plan?.trigger?.map !== false),
@@ -1861,7 +1863,8 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     const immune = caster.immuneTargets?.get(spell);
     const notImmune = (other) => !immune?.has(other.id);
     if (immune?.size) enemies = enemies.filter(notImmune);
-    const reaches = (other) => other === caster || (info.touch ? inMelee(other) : info.range === null || distance(other) <= info.range);
+    // (B133: a move first, Tackle's — a creature within that many Strides too.)
+    const reaches = (other) => other === caster || (info.touch ? inMelee(other) || (info.approach > 0 && canMove(caster) && distance(other) <= (caster.speed ?? 25) * info.approach) : info.range === null || distance(other) <= info.range);
     if (!info.area) {
         const sets = [];
         // (A spell for a willing creature — Vapor Form — goes to no enemy.)
