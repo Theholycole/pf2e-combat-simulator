@@ -120,7 +120,8 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
     const parts = [];
     if (offGuard && strike.offGuardExtra?.length) for (const part of strike.offGuardExtra) parts.push({ ...part, chance: offGuard });
     for (const buff of attacker.activeBuffs ?? []) for (const part of buff.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
-    for (const effect of attacker.effects ?? []) for (const part of effect.model?.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
+    // (B241: a part only against creatures with a trait, Imbue Righteousness's.)
+    for (const effect of attacker.effects ?? []) for (const part of effect.model?.strikeDeltas?.[strike.name] ?? []) if (!part.vsTrait || (target.traits ?? []).includes(part.vsTrait)) parts.push({ ...part, chance: 1 });
     if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id && (firstPreyHit || attacker.huntPrey.every)) parts.push({ dice: attacker.huntPrey.precisionDice ?? 1, die: attacker.huntPrey.die ?? 8, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
     // Panache: Precise Strike's damage on agile or finesse melee Strikes; a finisher's dice instead.
     const precise = attacker.panacheStyle && strike.melee && (strike.agile || strike.finesse);

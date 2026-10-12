@@ -4529,3 +4529,27 @@ test("Resistance against a melee Strike from beside it, and damage back at the a
     assert.ok(f.hp.value < 200, state.log.join("\n"));
     assert.equal(state.byId.get("lion").hp.value, 999 - 7);
 });
+
+test("A troop's attack that grabs or restrains with more actions; extra damage of the Strike's own type; a buff only against unholy creatures (2026-10-12, B241)", () => {
+    const [fighter] = martialParty(5);
+    // Rows by the number of actions (the core's byActions[n].rows): with 2 actions a critical failure restrains.
+    const rows = (critical) => ({ criticalSuccess: { damage: { mode: "shared", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] }, effects: critical } });
+    const plan = { modelVersion: 13, source: { name: "Test Jab", type: "action" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: null, range: null, area: { type: "emanation", value: 5 } }, trigger: { event: "use" }, automation: { level: "automatic" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 60 } }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "1[bludgeoning]", type: null, category: null }] }, outcomes: rows([]),
+            native: { byActions: { 1: { sharedDamage: { components: [{ id: "0", formula: "1[bludgeoning]", type: null, category: null }] } }, 2: { sharedDamage: { components: [{ id: "0", formula: "2[bludgeoning]", type: null, category: null }] }, rows: rows([{ kind: "condition", slug: "restrained", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "effect-start" } }]) } } } } };
+    const troop = { ...moderateCreature(5, "troop", "Troop"), spells: [{ name: "Test Jab", plan, dc: 60, attack: 0 }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 200, max: 200 } }, { ...troop, engagement: 1 }] }, {}, 1);
+    const c = state.byId.get("troop");
+    castSpell(state, c, 0, [fighter.id], 1);
+    assert.ok(!state.byId.get(fighter.id).cond.restrained, "one action: no restraint");
+    castSpell(state, c, 0, [fighter.id], 2);
+    assert.ok(state.byId.get(fighter.id).cond.restrained, "two actions: restrained on the critical failure");
+    // (Rocketing Strafe: "2d6[untyped]" takes the Strike's own type.)
+    const strike = { name: "Fist", damage: [{ dice: 1, die: 6, bonus: 0, multiplier: 1, type: "bludgeoning" }] };
+    assert.equal(withExtraDamage(strike, ["2d6[untyped]"]).damage.at(-1).type, "bludgeoning");
+    // (Imbue Righteousness: only against an unholy target.)
+    const deltas = deltasFor([strike], { formulas: ["1d6[spirit]"], strike: null, scope: "all", vsTrait: "unholy" });
+    const knight = { effects: [{ model: { strikeDeltas: deltas } }], activeBuffs: [] };
+    assert.equal(featureParts(knight, strike, { id: "fiend", traits: ["fiend", "unholy"] }).length, 1);
+    assert.equal(featureParts(knight, strike, { id: "human", traits: ["human"] }).length, 0);
+});

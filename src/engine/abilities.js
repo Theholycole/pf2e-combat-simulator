@@ -88,7 +88,8 @@ export function addBuiltin(spec, plan, name) {
             // "2d8[precision]", "die" (one more of the Strike's own dice).
             // (The Strikes may come after the abilities: the parts are kept, and resolved again as the fight is prepared.)
             const formulas = plan.damage ?? (plan.extraDice ? [plan.extraDice] : []);
-            const strikeParts = formulas.length ? { formulas: [...formulas], strike: plan.strike ?? null, scope: plan.damage ? (plan.melee ? "melee" : "all") : "melee" } : null;
+            // (B241, Imbue Righteousness: only against creatures with that trait — vsTrait.)
+            const strikeParts = formulas.length ? { formulas: [...formulas], strike: plan.strike ?? null, scope: plan.damage ? (plan.melee ? "melee" : "all") : "melee", ...(plan.vsTrait ? { vsTrait: plan.vsTrait } : {}) } : null;
             const strikeDeltas = strikeParts && spec.strikes?.length ? deltasFor(spec.strikes, strikeParts) : null;
             // (A stance lasts until another ends it.)
             const rounds = plan.stance ? Infinity : plan.model?.rounds ?? 10;
@@ -439,7 +440,7 @@ export function deltasFor(strikes, parts) {
         const type = kinds.find((kind) => !["persistent", "precision"].includes(kind));
         return { dice: Number(match[1] ?? 0), die: Number(match[2] ?? 0), bonus: Number(match[3] ?? 0), multiplier: 1, type: type && type !== "untyped" ? type : strike.damage?.[0]?.type, precision: kinds.includes("precision"), persistent: kinds.includes("persistent") };
     };
-    return Object.fromEntries(chosen.map((strike) => [strike.name, parts.formulas.map((formula) => partOf(formula, strike)).filter(Boolean)]));
+    return Object.fromEntries(chosen.map((strike) => [strike.name, parts.formulas.map((formula) => partOf(formula, strike)).filter(Boolean).map((part) => (parts.vsTrait ? { ...part, vsTrait: parts.vsTrait } : part))]));
 }
 
 // The index of the creature's Strike a text names ("claw" for "Claw", "fangs" for "Fangs").
@@ -504,7 +505,8 @@ export function withExtraDamage(strike, formulas) {
     if (!strike || !formulas?.length) return strike;
     // (B213, Spearing Tail: "4d6[persistent,bleed]" — persistent, as PF2e's bleed is.)
     const parts = formulas.map((formula) => /^(\d+)d(\d+)(?:\s*([+-])\s*(\d+))?\[(persistent,)?([a-z]+)\]$/.exec(String(formula).trim())).filter(Boolean)
-        .map((dice) => ({ dice: Number(dice[1]), die: Number(dice[2]), bonus: (dice[3] === "-" ? -1 : 1) * Number(dice[4] ?? 0), multiplier: 1, type: dice[6], persistent: Boolean(dice[5]) || dice[6] === "bleed", precision: false }));
+        // (B241, Rocketing Strafe: "2d6[untyped]" — the Strike's own damage type.)
+        .map((dice) => ({ dice: Number(dice[1]), die: Number(dice[2]), bonus: (dice[3] === "-" ? -1 : 1) * Number(dice[4] ?? 0), multiplier: 1, type: dice[6] === "untyped" ? strike.damage[0]?.type ?? "untyped" : dice[6], persistent: Boolean(dice[5]) || dice[6] === "bleed", precision: false }));
     return parts.length ? { ...strike, damage: [...strike.damage, ...parts] } : strike;
 }
 
