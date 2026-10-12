@@ -3686,3 +3686,22 @@ test("Attack of Opportunity for its allies of a trait until the end of their nex
     turnEnd(state, w);
     assert.equal(w.reactions.aoo, false, "ends with the wight's turn");
 });
+
+test("A skill check as its allies save, the higher result resolving the effect (Drowning Drone, 2026-10-12, B168)", () => {
+    const [fighter] = martialParty(5);
+    const none = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
+    const shriek = { modelVersion: 13, source: { name: "Test Shriek" }, rank: 1, traits: ["sonic"], activation: { time: "2", traits: [] }, targeting: { target: "2 creatures", range: null, area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 22 } }, sharedDamage: null, outcomes: { criticalSuccess: none, success: none, failure: { damage: none.damage, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, criticalFailure: { damage: none.damage, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] } } } };
+    const caster = { ...fighter, engagement: 1, spells: [entry("Test Shriek", shriek, null)] };
+    const seer = withBuiltins({ ...moderateCreature(5, "seer", "Seer"), engagement: 1, skills: { performance: 14 } }, ["Test Drone", { builtin: "save-skill", skill: "performance", against: ["auditory", "sonic"], ally: true, within: 60, allyTrait: "boggard" }]);
+    const boggard = { ...moderateCreature(5, "bog", "Boggard"), engagement: 1, traits: ["boggard", "humanoid"] };
+    const other = { ...moderateCreature(5, "oth", "Other"), engagement: 1, traits: ["humanoid"] };
+    const state = createFightState({ combatants: [caster, seer, boggard, other] }, {}, 1);
+    state.log = [];
+    const rolls = [2, 18, 2];
+    state.rng.d20 = () => rolls.shift() ?? 2;
+    castPlan(state, state.byId.get(fighter.id), state.byId.get(fighter.id).spells[0], ["bog", "oth"]);
+    assert.ok(state.log.some((line) => /Seer uses Test Drone: performance 32/.test(line)), state.log.join("\n"));
+    assert.ok(!state.byId.get("bog").cond.frightened, "the boggard keeps the Performance result");
+    assert.ok(state.byId.get("oth").cond.frightened, "not its kind of ally");
+    assert.equal(state.byId.get("seer").reactionUsed, true);
+});

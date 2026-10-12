@@ -333,6 +333,25 @@ function betterSave(state, statistic, options, result, spell = null) {
             }
         }
     }
+    // (B168, Drowning Drone, Cautionary Tale: its skill check as the save is attempted — its reaction, once for one effect, that one result for
+    // each save it covers — the higher total resolving the effect.)
+    if (SAVES.has(statistic) && saver?.id && isActive(saver) && Number.isFinite(result?.total) && Number.isFinite(options?.dc)) {
+        const key = `${state.round}:${spell?.name ?? statistic}`;
+        const singer = state.list.find((c) => c.saveSkill && c.side === saver.side && isActive(c) && (!c.saveSkill.save || c.saveSkill.save === statistic) && (!c.saveSkill.against || c.saveSkill.against.some((trait) => traits.includes(trait)))
+            && (c === saver || (c.saveSkill.ally && near(c, c.saveSkill.within) && (!c.saveSkill.allyTrait || (saver.traits ?? []).includes(c.saveSkill.allyTrait))))
+            && (c.saveSkillRoll?.key === key || canReact(c)));
+        if (singer) {
+            if (singer.saveSkillRoll?.key !== key) {
+                singer.reactionUsed = true;
+                state.stats.reactions++;
+                const natural = state.rng.d20();
+                singer.saveSkillRoll = { key, natural, total: natural + skillValue(singer, singer.saveSkill.skill) - statusPenalty(singer, "skill") };
+                log(state, `  ${singer.name} uses ${singer.saveSkill.name}: ${singer.saveSkill.skill} ${singer.saveSkillRoll.total}`);
+            }
+            const { natural, total } = singer.saveSkillRoll;
+            if (total > result.total) result = { natural, total, dc: options.dc, degree: DEGREE_NAMES[degreeOf(total, options.dc, natural)] };
+        }
+    }
     if (!SAVES.has(statistic) || !saver?.id || !["failure", "criticalFailure"].includes(result?.degree) || !isActive(saver)) return result;
     // (B125: an ally's failed save rerolled, keeping the better — against the effects it names, or its kind of save.)
     const rerolls = state.list.find((c) => c.allySaveReroll && (c !== saver || c.allySaveReroll.self) && c.side === saver.side && isActive(c) && canReact(c) && (c.allySaveRerollsUsed ?? 0) < c.allySaveReroll.uses

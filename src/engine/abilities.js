@@ -191,6 +191,12 @@ export function addBuiltin(spec, plan, name) {
             }
             spec.saveBonusReaction = { name, value: Number(plan.value), against: plan.against ?? null };
             return true;
+        // (B168, Drowning Drone: a skill check as a save is attempted, the higher of the two resolving the effect — its own, or its allies'
+        // within its distance (of its trait); that kind of save, against those traits.)
+        case "save-skill":
+            if (!plan.skill) return false;
+            spec.saveSkill = { name, skill: plan.skill, save: plan.save ?? null, against: plan.against ?? null, ally: !!plan.ally, within: Number(plan.within) || 0, allyTrait: plan.allyTrait ?? null };
+            return true;
         case "save-reroll":
             // (B125, Hold Fast, Distracting Frolic, Guide to Fortune: an ally's failed save rerolled, keeping the better; its own too where
             // it says so.)
