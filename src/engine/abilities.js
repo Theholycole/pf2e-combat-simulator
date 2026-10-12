@@ -59,6 +59,12 @@ export function addBuiltin(spec, plan, name) {
         case "charge":
             spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null, ...(plan.safe ? { safe: true } : {}), ...(plan.fatal ? { fatal: plan.fatal } : {}), ...(plan.deadly ? { deadly: plan.deadly } : {}), ...(plan.halfDamage ? { halfDamage: true } : {}), ...(plan.offGuard ? { offGuard: plan.offGuard === "first" ? "first" : true } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}), ...(plan.damageBonus ? { damageBonus: plan.damageBonus } : {}), ...(plan.recharge ? { recharge: plan.recharge } : {}) }];
             return true;
+        // (B143: a monster's Glimpse of Redemption or Liberating Step: its resistance; the redeemer's choice played as a champion's.)
+        // (Its own: Iron Command's kneel or mental damage, Selfish Shield's resistance, Destructive Vengeance's damage both ways.)
+        case "champion-reaction":
+            if (!Number.isFinite(plan.resistance) || !["glimpse-of-redemption", "liberating-step", "iron-command", "selfish-shield", "destructive-vengeance"].includes(plan.slug)) return false;
+            spec.championReaction = { slug: plan.slug, name, self: !!plan.self, resistance: plan.resistance, dice: Number(plan.dice) || 1, ...(plan.selfDamage ? { selfDamage: plan.selfDamage } : {}), ...(plan.damage ? { damage: plan.damage } : {}) };
+            return true;
         // A monster's Retributive Strike (the glossary's): a champion's, the ally's resistance 2 + the monster's level.
         case "retributive-strike":
             if (!Number.isFinite(plan.resistance)) return false;

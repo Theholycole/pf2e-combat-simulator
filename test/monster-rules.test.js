@@ -3358,3 +3358,42 @@ test("A breath whose damage type is the monster's pick: the one that does the mo
     // 2d6 at 3 each (6), a critical failure (12): fire with weakness 10 → 22 (cold, resisted, would be 2).
     assert.equal(f.hp.value, 500 - 22, state.log.join("\n"));
 });
+
+test("A monster's Glimpse of Redemption and Liberating Step: its ally's resistance, the foe's choice (2026-10-12, B143)", () => {
+    const [fighter] = martialParty(5);
+    for (const [slug, resistance] of [["glimpse-of-redemption", 7], ["liberating-step", 10]]) {
+        const redeemer = withBuiltins({ ...moderateCreature(5, "red", "Redeemer"), engagement: 1 }, ["Test Champion", { builtin: "champion-reaction", slug, resistance }]);
+        const ally = { ...moderateCreature(5, "ally", "Ally"), engagement: 1, hp: { value: 200, max: 200 } };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, redeemer, ally] }, {}, 1);
+        state.log = [];
+        const a = state.byId.get("ally");
+        const f = state.byId.get(fighter.id);
+        engage(state, f, a);
+        engage(state, state.byId.get("red"), a);
+        applyDamage(state, a, [{ type: "slashing", amount: 20, persistent: false }], { source: f });
+        assert.ok(state.log.some((line) => /Redeemer uses Test Champion/.test(line)), state.log.join("\n"));
+        assert.equal(a.hp.value, 200 - (20 - resistance), state.log.join("\n"));
+        if (slug === "glimpse-of-redemption") assert.equal(f.cond.enfeebled, 2, state.log.join("\n"));
+    }
+});
+
+test("A monster's own champion reactions: Selfish Shield, Destructive Vengeance, Iron Command (2026-10-12, B143)", () => {
+    const [fighter] = martialParty(5);
+    const fight = (plan) => {
+        const champ = withBuiltins({ ...moderateCreature(5, "champ", "Champion"), engagement: 1, hp: { value: 200, max: 200 } }, ["Test Reaction", plan]);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 300, max: 300 } }, champ] }, {}, 1);
+        state.log = [];
+        state.rng.die = () => 3;
+        const c = state.byId.get("champ");
+        const f = state.byId.get(fighter.id);
+        applyDamage(state, c, [{ type: "slashing", amount: 20, persistent: false }], { source: f });
+        return { state, c, f };
+    };
+    let { state, c, f } = fight({ builtin: "champion-reaction", slug: "selfish-shield", self: true, resistance: 5 });
+    assert.equal(c.hp.value, 200 - 15, state.log.join("\n"));
+    ({ state, c, f } = fight({ builtin: "champion-reaction", slug: "destructive-vengeance", self: true, resistance: 0, selfDamage: "2d6", damage: "2d6[spirit]" }));
+    assert.equal(c.hp.value, 200 - 26, state.log.join("\n"));
+    assert.ok(f.hp.value < 300, state.log.join("\n"));
+    ({ state, c, f } = fight({ builtin: "champion-reaction", slug: "iron-command", self: true, resistance: 0, dice: 5 }));
+    assert.ok(state.log.some((line) => /Champion uses Test Reaction/.test(line)) && (f.cond.prone || f.hp.value < 300), state.log.join("\n"));
+});

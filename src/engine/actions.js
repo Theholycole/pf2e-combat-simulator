@@ -789,12 +789,19 @@ export function applyDamage(state, target, instances, { source = null, critical 
             return 0;
         }
         adjusted.total = Math.max(0, adjusted.total - reaction.resistance);
+        // (B143, Destructive Vengeance: more damage on itself, the same back at the enemy.)
+        if (reaction.slug === "destructive-vengeance") {
+            const more = rollCount(state, reaction.selfDamage ?? "2d6");
+            adjusted.total += more;
+            log(state, `  ${champion.name} takes ${more} more`);
+        }
         if (reaction.slug === "glimpse-of-redemption") {
             source.cond.enfeebled = Math.max(source.cond.enfeebled ?? 0, 2);
             (source.timers ??= []).push({ key: "enfeebled", value: 2, round: source.round === state.round ? state.round + 1 : state.round, turnOf: source.id, at: "end" });
             log(state, `  ${source.name} refuses and is enfeebled 2`);
         }
         if (reaction.slug === "retributive-strike") retribution = champion;
+        if (reaction.slug === "destructive-vengeance") retribution = { vengeance: champion };
         if (reaction.slug === "iron-command") retribution = { ironCommand: champion };
     }
     // Swallow Whole: piercing or slashing damage of at least the Rupture value from one attack frees who's inside.
@@ -821,6 +828,12 @@ export function applyDamage(state, target, instances, { source = null, critical 
     if (dealt > 0 && isActive(target)) triggeredSelfEffect(state, target, (trigger) => trigger.kind === "hp-at-most" && target.hp.value <= trigger.value);
     // Solar Flare, Caustic Blood: the monster's reaction to damage on it (B44).
     if (dealt > 0) reactToDamage(state, target, source, instances.filter((instance) => instance.amount > 0).map((instance) => instance.type));
+    // (B143: Destructive Vengeance's damage at the enemy.)
+    if (retribution?.vengeance && isActive(source)) {
+        const [, dice, type] = /^(\d+d\d+)\[(\w+)\]$/.exec(retribution.vengeance.championReaction.damage ?? "2d6[spirit]") ?? [null, "2d6", "spirit"];
+        const back = applyDamage(state, source, [{ type, amount: rollCount(state, dice), persistent: false }], { source: retribution.vengeance });
+        log(state, `  ${source.name} takes ${back} ${type} from ${retribution.vengeance.championReaction.name}`);
+    }
     // Retributive Strike: a melee Strike at the enemy within reach. Iron Command: the enemy kneels (prone) or takes mental damage.
     if (retribution?.ironCommand && isActive(source)) {
         const dice = (retribution.ironCommand.championReaction.dice ?? 1);
