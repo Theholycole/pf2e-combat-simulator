@@ -3834,3 +3834,23 @@ test("A shield for itself or an ally as either is attacked (2026-10-12, B182)", 
     assert.ok(state.log.some((line) => /Dragon uses Test Shield: Dragon \+2 AC/.test(line)), state.log.join("\n"));
     assert.equal(d.reactionUsed, true);
 });
+
+test("An ally Strides once and Strikes once, with extra damage on a hit (Word of Advice, 2026-10-12, B183)", () => {
+    const [fighter] = martialParty(5);
+    const dragon = withBuiltins({ ...moderateCreature(5, "dragon", "Dragon"), band: "near" }, ["Test Advice", { builtin: "ally-advance", actions: 1, within: 60, extraDamage: ["2d6[fire]"], oncePerTurn: true }]);
+    const student = { ...moderateCreature(5, "student", "Student"), band: "near" };
+    const state = createFightState({ combatants: [{ ...fighter, band: "near", hp: { value: 900, max: 900 } }, dragon, student] }, {}, 1);
+    state.log = [];
+    const d = state.byId.get("dragon");
+    d.actionsLeft = 3;
+    d.usedThisTurn = new Set();
+    const option = scoreOptions(state, d).options.find((entry) => entry.action.type === "allyAdvance");
+    assert.ok(option, "an option");
+    state.rng.d20 = () => 15;
+    state.rng.die = (sides) => sides;
+    performAction(state, d, option.action);
+    const f = state.byId.get(fighter.id);
+    assert.ok(state.log.some((line) => /Dragon uses Test Advice: Student (?:Strides and )?Strikes/.test(line)), state.log.join("\n"));
+    assert.ok(f.hp.value < 900, state.log.join("\n"));
+    assert.ok(d.usedThisTurn.has("Test Advice"));
+});

@@ -13,7 +13,7 @@ import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfter
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
 import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
-import { bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
+import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
 import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
 import { isMapObjective, mapOutcome, pickUpItem, placeOnMap } from "./map-objectives.js";
 import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startDanger } from "./escalations.js";
@@ -480,6 +480,11 @@ function act(state, c, action) {
         case "strikeHard":
             strikeHard(state, c, action);
             break;
+        // (B183, Word of Advice.)
+        case "allyAdvance":
+            if (c.allyAdvance?.oncePerTurn) c.usedThisTurn?.add(c.allyAdvance.name);
+            allyAdvance(state, c, action);
+            break;
         case "pincerAttack":
             pincerAttack(state, c);
             break;
@@ -922,7 +927,7 @@ function actionCost(c, action) {
     if (action.type === "spellstrike" || action.type === "strikeHard") return 2;
     if (action.type === "pincerAttack" || action.type === "bannersInspiration" || action.type === "shiftImmanence" || action.type === "transcend") return 1;
     if (action.type === "disableHazard") return 2;
-    if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon" || action.type === "grantAoo") return action.actions ?? 1;
+    if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon" || action.type === "grantAoo" || action.type === "allyAdvance") return action.actions ?? 1;
     // (Quickened Casting, B72: one action fewer.)
     if (action.type === "cast") return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened ? 1 : 0));
     return action.type === "task" ? 2 : 1;

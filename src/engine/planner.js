@@ -9,7 +9,7 @@
 
 import { degreeDistribution, CRITICAL_SUCCESS, SUCCESS, FAILURE, CRITICAL_FAILURE } from "./checks.js";
 import { effectBenefit } from "./effects.js";
-import { allyStrike, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
+import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
 import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
@@ -1085,6 +1085,17 @@ function expand(ctx, node, actionsLeft) {
                     const gain = ctx.ownValue * (heal / c.hp.max) * urgency;
                     if (gain > 0) children.push(child(node, { type: "transcend", index, targetId: c.id, actions: 1 }, 1, gain, { cast: "transcend" }));
                 }
+            }
+        }
+        // (B183, Word of Advice: an ally's Stride and Strike with its extra damage, worth what that Strike does.)
+        if (c.allyAdvance && c.allyAdvance.actions <= remaining && !node.casts.includes("ally-advance") && !(c.allyAdvance.oncePerTurn && c.usedThisTurn?.has(c.allyAdvance.name))) {
+            const best = bestAdvance(state, c, ctx.enemies);
+            const target = best ? state.byId.get(best.targetId) : null;
+            if (target) {
+                const before = node.damage[target.id] ?? 0;
+                const hp = remainingHp(target);
+                const gain = targetValue(state, target, c) * (Math.min(1, (before + best.expected) / hp) - Math.min(1, before / hp));
+                if (gain > 0) children.push(child(node, { type: "allyAdvance", allyId: best.allyId, targetId: best.targetId, strikeIndex: best.strikeIndex, stride: best.stride, actions: c.allyAdvance.actions }, c.allyAdvance.actions, ctx.profile.aggression * gain, { cast: "ally-advance", damage: { ...node.damage, [target.id]: before + best.expected } }));
             }
         }
         // A commander's tactics (C21–C24): Strike Hard! (an ally's Strike), Pincer Attack

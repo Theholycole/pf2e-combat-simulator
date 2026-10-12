@@ -10,10 +10,10 @@
 // - Drilled Reactions: once a round, one ally answering a tactic gets an extra reaction for it.
 
 import { CRITICAL_SUCCESS, SUCCESS, degreeDistribution } from "./checks.js";
-import { armorClass, isActive, strikeUsable } from "./combatant.js";
-import { attackModifier, expectedHitDamage, performStrike } from "./actions.js";
-import { canReact } from "./abilities.js";
-import { distanceBetween, rangePenalty, sameMelee } from "./space.js";
+import { armorClass, canAct, isActive, strikeUsable } from "./combatant.js";
+import { attackModifier, expectedHitDamage, performStrike, stride } from "./actions.js";
+import { canReact, withExtraDamage } from "./abilities.js";
+import { distanceBetween, rangePenalty, sameMelee, stridesToEngage } from "./space.js";
 
 const log = (state, line) => state.log?.push(line);
 
@@ -119,4 +119,37 @@ export function bannersInspiration(state, commander) {
         (commander.inspired ??= new Set()).add(ally.id);
         log(state, `  ${ally.name} is frightened ${ally.cond.frightened}`);
     }
+}
+
+// Word of Advice (B183): an ally within its distance Strides once and Strikes once, the extra damage on a hit — the ally's best Strike at a foe
+// in its reach or one Stride away: { allyId, targetId, strikeIndex, stride, expected } or null.
+export function bestAdvance(state, c, enemies) {
+    const rule = c.allyAdvance;
+    let best = null;
+    for (const ally of state.list) {
+        if (ally === c || ally.side !== c.side || !isActive(ally) || !canAct(ally) || (rule.within < 60 && distanceBetween(c, ally) > rule.within)) continue;
+        for (const target of enemies) {
+            if (!isActive(target)) continue;
+            const strides = stridesToEngage(ally, target);
+            for (const [index, strike] of (ally.strikes ?? []).entries()) {
+                if (!strikeUsable(ally, strike) || (strike.melee && strides > 1) || (!strike.melee && rangePenalty(strike, distanceBetween(ally, target)) === null)) continue;
+                const boosted = withExtraDamage(strike, rule.extraDamage);
+                const odds = degreeDistribution(attackModifier(state, ally, target, boosted, 0), armorClass(target, { ranged: !strike.melee }));
+                const expected = odds[SUCCESS] * expectedHitDamage(ally, boosted, target, false) + odds[CRITICAL_SUCCESS] * expectedHitDamage(ally, boosted, target, true);
+                if (!best || expected > best.expected) best = { allyId: ally.id, targetId: target.id, strikeIndex: index, stride: strike.melee && strides === 1, expected };
+            }
+        }
+    }
+    return best;
+}
+
+export function allyAdvance(state, c, action) {
+    const ally = state.byId.get(action.allyId);
+    const target = state.byId.get(action.targetId);
+    log(state, `  ${c.name} uses ${c.allyAdvance.name}${ally ? `: ${ally.name} ${action.stride ? "Strides and " : ""}Strikes` : ""}`);
+    if (!ally || !target || !isActive(ally) || !isActive(target) || !canAct(ally)) return;
+    if (action.stride && !sameMelee(ally, target)) stride(state, ally, { kind: "engage", targetId: target.id });
+    if (!isActive(ally) || !isActive(target) || !canAct(ally)) return;
+    const strike = ally.strikes?.[action.strikeIndex];
+    if (strike && (!strike.melee || sameMelee(ally, target))) performStrike(state, ally, target, withExtraDamage(strike, c.allyAdvance.extraDamage), { reaction: true });
 }
