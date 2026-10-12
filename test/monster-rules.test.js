@@ -3091,3 +3091,35 @@ test("A special attack with a fixed modifier of its own, against AC, with the mu
     assert.equal(fight(0).cond.offGuard, true, "a hit: off-guard");
     assert.equal(fight(1).cond.offGuard, false, "a miss at the multiple attack penalty");
 });
+
+test("Strikes back of more kinds: a getaway, a hit of its damage types, +2 damage on a hit (2026-10-12, B129)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    // Snagging Spines: a creature it held escaping, a Strike at it.
+    const louse = withBuiltins({ ...moderateCreature(5, "louse", "Louse"), engagement: 1, hp: { value: 999, max: 999 } }, ["Test Spines", { builtin: "reaction-strike", triggers: ["escaped"], strike: null, penalty: 0, disrupts: false }]);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [entry("Escape", basic.escape, "basic")] }, louse] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get(fighter.id);
+    applyCondition(state, f, "grabbed", null, null, state.byId.get("louse"));
+    state.rng.d20 = () => 20;
+    castSpell(state, f, 0, ["louse"]);
+    state.rng.d20 = () => 10;
+    assert.ok(state.log.includes("  Louse uses Test Spines"), state.log.join("\n"));
+    // Reactive Splash: a melee hit of a type it names (the fighter's weapon), not of another.
+    const splash = (types) => {
+        const bramble = withBuiltins({ ...moderateCreature(5, "bram", "Bramble"), engagement: 1, hp: { value: 999, max: 999 } }, ["Test Splash", { builtin: "reaction-strike", triggers: ["hit"], damageTypes: types, strike: null, penalty: 0, disrupts: false }]);
+        const fightState = createFightState({ combatants: [{ ...fighter, engagement: 1 }, bramble] }, {}, 1);
+        fightState.log = [];
+        fightState.rng.d20 = () => 15;
+        const attacker = fightState.byId.get(fighter.id);
+        performStrike(fightState, attacker, fightState.byId.get("bram"), attacker.strikes[0]);
+        return fightState.log.includes("  Bramble uses Test Splash");
+    };
+    const own = createFightState({ combatants: [{ ...fighter, engagement: 1 }] }, {}, 1).byId.get(fighter.id).strikes[0].damage[0].type;
+    assert.equal(splash([own]), true, own);
+    assert.equal(splash(["fire"]), false);
+    // Vengeful Sting: its Strike's damage 2 higher.
+    const sting = withBuiltins({ ...moderateCreature(5, "sting", "Stinger"), engagement: 1, hp: { value: 999, max: 999 } }, ["Test Sting", { builtin: "reaction-strike", triggers: ["damaged-adjacent"], strike: null, penalty: 2, disrupts: false, damageBonus: 2 }]);
+    state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 999, max: 999, temp: 0 } }, sting] }, {}, 1);
+    assert.equal(state.byId.get("sting").reactionStrikes[0].damageBonus, 2);
+});

@@ -143,7 +143,9 @@ export function addBuiltin(spec, plan, name) {
                 // (B122: Knowing Glance's melee Strikes only; Bodyguard's Reprisal's charge, played as any ally.)
                 ...(plan.melee ? { melee: true } : {}), ...(plan.ward ? { ward: true } : {}), ...(plan.persistentType ? { persistentType: plan.persistentType } : {}),
                 // (B123: Quick Capture's grab on a hit; Deadly Cleave's same multiple attack penalty.)
-                ...(plan.grab ? { grab: true } : {}), ...(plan.sameMap ? { sameMap: true } : {}) }];
+                ...(plan.grab ? { grab: true } : {}), ...(plan.sameMap ? { sameMap: true } : {}),
+                // (B129: Vengeful Sting's +2 damage on a hit.)
+                ...(Number(plan.damageBonus) ? { damageBonus: Number(plan.damageBonus) } : {}) }];
             return true;
         // Mythic abilities (B72; the user's choice: three Mythic Points a fight): Remove a Condition, Recharge, Undying Myth.
         case "mythic":

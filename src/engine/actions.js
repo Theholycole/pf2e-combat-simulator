@@ -473,7 +473,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     // (B111, Absorb Weapon, Sticky: a melee hit on it, answered — with a maneuver.)
     if (degree >= SUCCESS && !reaction && strike.melee && isActive(attacker) && isActive(target)) {
-        const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("hit"));
+        // (B129, Reactive Splash: only an attack of the damage types it names.)
+        const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("hit") && strikeOfTypes(strike, entry.damageTypes));
         if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, "hit");
     }
     // Violent Retort (B70): a critical hit on it, answered with a Strike.
@@ -483,7 +484,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     // Wing Thrash (B81): an adjacent enemy that damages it with a Strike, a Strike back, and one at another adjacent foe.
     if (dealt > 0 && !reaction && strike.melee && isActive(attacker) && isActive(target)) {
-        const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("damaged-adjacent"));
+        // (B129, Reactive Gnaw: only damage of the type it names.)
+        const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("damaged-adjacent") && strikeOfTypes(strike, entry.damageTypes));
         if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) {
             reactionStrikeAt(state, target, attacker, answer);
             const other = answer.second ? engagedEnemies(state, target).find((foe) => foe !== attacker) : null;
@@ -542,6 +544,11 @@ function enemyStrikeIndex(enemy, mover, name) {
     return any ? enemy.strikes.indexOf(bestMeleeStrike(enemy, mover)) : strikeNamed(enemy, name);
 }
 
+// A Strike that deals one of these damage types (any when none are named).
+function strikeOfTypes(strike, types) {
+    return !types?.length || (strike?.damage ?? []).some((part) => types.includes(part.type));
+}
+
 export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     // (B111, Ripping Disarm: its own basic action at the creature, with the reaction's penalty or bonus on the check.)
     if (reaction.skill) {
@@ -576,7 +583,9 @@ export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     const base = enemy.strikes[index];
     // (B121, Retaliatory Strike: its extra dice on a hit, a part of the Strike's damage.)
     const extra = /^(\d+)d(\d+)$/.exec(String(reaction.extraDamage ?? ""));
-    const strike = extra ? { ...base, damage: [...base.damage, { dice: Number(extra[1]), die: Number(extra[2]), bonus: 0, type: base.damage[0]?.type ?? "untyped" }] } : base;
+    const extended = extra ? { ...base, damage: [...base.damage, { dice: Number(extra[1]), die: Number(extra[2]), bonus: 0, type: base.damage[0]?.type ?? "untyped" }] } : base;
+    // (B129, Vengeful Sting: "+2 bonus on the damage roll if the Strike hits".)
+    const strike = reaction.damageBonus && extended.damage?.length ? { ...extended, damage: extended.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + reaction.damageBonus } : part)) } : extended;
     const result = performStrike(state, enemy, mover, reaction.penalty ? { ...strike, bonus: strike.bonus - reaction.penalty } : strike, { reaction: true, trigger: kind, fortune: !!reaction.fortune });
     if (reaction.hinders && result?.degree >= SUCCESS) mover.rollPenalty = (mover.rollPenalty ?? 0) + reaction.hinders;
     // (B123, Quick Capture: "If it hits, the creature is Grabbed in that leaf.")

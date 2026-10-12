@@ -1447,7 +1447,14 @@ function guardEscape(state, escaper, grabber) {
 // stinger Strike against the triggering creature", Gnashing Bite's "fails a check to Escape … The lizard's jaws deal 1d6 piercing and
 // 1d6 acid damage to the triggering creature"): its reaction at that creature.
 export function escapeAnswers(state, escaper, grabber, degree) {
-    if (!["failure", "criticalFailure"].includes(degree) || !isActive(grabber) || !isActive(escaper) || !canAct(grabber)) return;
+    if (!isActive(grabber) || !isActive(escaper) || !canAct(grabber)) return;
+    // (B129, Snagging Spines: a creature it held getting free, a Strike at it.)
+    if (["success", "criticalSuccess"].includes(degree)) {
+        const answer = (grabber.reactionStrikes ?? []).find((entry) => entry.triggers.includes("escaped"));
+        if (answer && canReact(grabber) && !grabber.cond.fleeing) reactionStrikeAt(state, grabber, escaper, answer, "escape");
+        return;
+    }
+    if (!["failure", "criticalFailure"].includes(degree)) return;
     const critical = degree === "criticalFailure";
     const answer = (grabber.reactionStrikes ?? []).find((entry) => entry.triggers.includes("escape-failed") || (critical && entry.triggers.includes("escape-critical-failure")));
     if (answer && canReact(grabber) && !grabber.cond.fleeing) {
