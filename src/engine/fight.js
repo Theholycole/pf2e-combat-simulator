@@ -702,6 +702,11 @@ function act(state, c, action) {
                 multiStrikeAfter(state, c, ability);
                 break;
             }
+            // (B108, Chase Prey: a Stride to the creature first.)
+            if (ability.strides && target && isActive(target) && !sameMelee(c, target) && canMove(c)) {
+                stride(state, c, { kind: "engage", targetId: target.id });
+                if (!canAct(c)) break;
+            }
             let grabbed = false;
             let firstHit = false;
             // (B104: what both hits bring, on the creature they both hit.)

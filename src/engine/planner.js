@@ -833,7 +833,14 @@ function expand(ctx, node, actionsLeft) {
                 continue;
             }
             for (const target of ctx.enemies) {
-                if (target.status !== "active" || order.some((index) => c.strikes[index].melee && !inMelee(node.pos, target))) continue;
+                if (target.status !== "active") continue;
+                // (B108, Chase Prey: a Stride to it first, when it's that close.)
+                let pos = node.pos;
+                if (ability.strides && !inMelee(node.pos, target)) {
+                    if (!mobile || ctx.wavering || stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
+                    pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
+                }
+                if (order.some((index) => c.strikes[index].melee && !inMelee(pos, target))) continue;
                 // Hunted Shot, Twin Takedown: against the hunted prey only. Maul: a creature it holds (B62).
                 if (ability.preyOnly && c.prey !== target.id) continue;
                 if (ability.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
@@ -850,7 +857,7 @@ function expand(ctx, node, actionsLeft) {
                     const feint = step === 1 && ability.secondOffGuard ? (ability.secondOffGuard === true ? 2 : 1) : 0;
                     const own = ability.penalties?.[step] ?? 0;
                     const strike = second || feint || ability.penalty || own ? { ...c.strikes[index], bonus: c.strikes[index].bonus - second + feint - (ability.penalty ?? 0) - own } : c.strikes[index];
-                    const expectation = ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, node.pos, node.prone);
+                    const expectation = ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, pos, node.prone);
                     expected += (expectation?.damage ?? 0) * (ability.ifFirstHits && step > 0 ? firstHits : 1);
                     if (step === 0) firstHits = expectation?.hitChance ?? 0;
                 }
@@ -858,11 +865,14 @@ function expand(ctx, node, actionsLeft) {
                 const before = node.damage[target.id] ?? 0;
                 const hp = remainingHp(target);
                 const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
-                children.push(child(node, { type: "multiStrike", ability: abilityIndex, targetId: target.id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
+                const next = child(node, { type: "multiStrike", ability: abilityIndex, targetId: target.id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
                     attacks: ability.countsAs ?? order.length,
+                    ...(pos !== node.pos ? { pos } : {}),
                     damage: { ...node.damage, [target.id]: before + expected },
                     ...(ability.oncePerTurn || ability.flourish ? { cast: [...(ability.oncePerTurn ? [`ms${abilityIndex}`] : []), ...(ability.flourish ? ["flourish"] : [])] } : {})
-                }));
+                });
+                if (pos !== node.pos && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                children.push(next);
             }
         }
         // Pounce: Stride to an enemy and Strike, as one action.

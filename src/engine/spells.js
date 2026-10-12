@@ -298,8 +298,9 @@ function betterSave(state, statistic, options, result) {
     const saver = options?.actor;
     if (!SAVES.has(statistic) || !saver?.id || !["failure", "criticalFailure"].includes(result?.degree) || !isActive(saver)) return result;
     const reroll = saver.saveReroll;
-    if (reroll && (!reroll.save || reroll.save === statistic) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver))) {
+    if (reroll && (!reroll.save || reroll.save === statistic) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
         saver.saveRerollUses--;
+        if (reroll.mythic) saver.mythicPoints--;
         if (!reroll.free) saver.reactionUsed = true;
         state.stats.reactions++;
         const natural = state.rng.d20();

@@ -2574,3 +2574,32 @@ test("More damage on a creature already Prone; four Strikes at their own penalti
     assert.deepEqual(totals.map((total) => totals[0] - total), [0, 4, 4, 8], state.log.join("\n"));
     assert.equal(state.byId.get("riv").attacksThisTurn, 4);
 });
+
+test("A mythic reroll of its failed save; a Stride and then two Strikes (2026-10-11, B108)", () => {
+    const [fighter] = martialParty(5);
+    const save = { name: "Test Blast", castRank: 1, dc: null, attack: null, pool: null, plan: { modelVersion: 13, source: { name: "Test Blast" }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: false, against: { dc: "fixed", value: 30 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, failure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, criticalFailure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] } } } } };
+    const elder = { ...moderateCreature(5, "eld", "Elder"), engagement: 1 };
+    addBuiltin(elder, { builtin: "save-reroll", save: null, keep: "new", free: true, mythic: true }, "Test Reroll");
+    assert.equal(elder.mythicPoints, 3);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [save] }, elder] }, {}, 1);
+    state.log = [];
+    const queue = [5, 19, 5, 19, 5, 19, 5, 5];
+    state.rng.d20 = () => queue.shift() ?? 5;
+    const e = state.byId.get("eld");
+    for (let n = 0; n < 4; n++) castSpell(state, state.byId.get(fighter.id), 0, ["eld"]);
+    assert.equal(state.log.filter((line) => /Test Reroll/.test(line)).length, 3, state.log.join("\n"));
+    assert.equal(e.mythicPoints, 0);
+    // Chase Prey: a Stride to a creature not yet in reach, then the Strikes.
+    const troll = { ...moderateCreature(5, "trl", "Troll"), engagement: 0 };
+    addBuiltin(troll, { builtin: "multi-strike", actions: 2, strikes: [null, null], sameTarget: true, strides: 1 }, "Test Chase");
+    assert.equal(troll.multiStrikes[0].strides, 1);
+    const fight = createFightState({ combatants: [{ ...fighter, engagement: 1 }, troll] }, {}, 1);
+    const t = fight.byId.get("trl");
+    Object.assign(t, { band: "near", meleeId: null });
+    t.actionsLeft = 3;
+    assert.ok(scoreOptions(fight, t).options.some((option) => option.action?.type === "multiStrike"), "planned from nearby");
+    fight.log = [];
+    performAction(fight, t, { type: "multiStrike", ability: 0, targetId: fighter.id, actions: 2 });
+    assert.ok(sameMelee(t, fight.byId.get(fighter.id)), fight.log.join("\n"));
+    assert.equal(fight.log.filter((line) => /Troll .* → /.test(line)).length, 2, fight.log.join("\n"));
+});
