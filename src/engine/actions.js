@@ -444,7 +444,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
     if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances), { includeTarget: false });
     // Draconic Momentum: a critical hit recharges the breath weapon.
-    if (critical && attacker.momentum) rechargeOnCritical(state, attacker);
+    if (critical && attacker.momentum && !attacker.suppressMomentum) rechargeOnCritical(state, attacker);
     // Grab, Knockdown and Push follow a hit (free ones at once, the others as the next action).
     if (!reaction && isActive(target)) state.onStrikeHit?.(attacker, target, strike, degree);
     // Blood Frenzy, Hungry Rage (B65): bleed damage it deals to a living creature, its named Strike's damage on one.
@@ -816,7 +816,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // Liquefy, Chipping Scales (B99): its reaction's resistance against this damage, and what it leaves.
     const resisting = resistReaction(state, target, instances, { source, physical });
     const adjusted = adjustDamage(target, instances);
-    if (resisting) afterResisting(state, target, resisting);
+    if (resisting) afterResisting(state, target, resisting, source);
     // A champion's reaction: resistance 2 + its level against the triggering damage, and more.
     const champion = adjusted.total > 0 ? championFor(state, target, source) : null;
     let retribution = null;
@@ -908,15 +908,26 @@ function resistReaction(state, target, instances, { source, physical }) {
     state.stats.reactions++;
     if (Number.isFinite(target.resistUses)) target.resistUses--;
     const before = target.resistances;
+    const plain = adjustDamage(target, instances).total;
     const entries = (resist.types ?? ["all-damage"]).map((type) => ({ type, value: resist.value, exceptions: [] }));
     target.resistances = [...(before ?? []), ...entries];
     log(state, `  ${target.name} uses ${resist.name}: resistance ${resist.value}${resist.types ? ` to ${resist.types.join(", ")}` : ""} against it`);
-    return { before, resist, entries };
+    // (B155: what it kept off, and of which type, for a lash back.)
+    const resisted = Math.max(0, plain - adjustDamage(target, instances).total);
+    const type = instances.find((instance) => !instance.persistent && instance.amount > 0 && PHYSICAL_TYPES.has(instance.type))?.type ?? instances[0]?.type ?? "untyped";
+    return { before, resist, entries, resisted, type };
 }
 
 // After it: the resistance gone, or kept until the end of its next turn (Liquefy); its AC lower for the day (Chipping Scales).
-function afterResisting(state, target, { before, resist, entries }) {
+function afterResisting(state, target, { before, resist, entries, resisted = 0, type = "untyped" }, source = null) {
     target.resistances = before;
+    // (B155, a Battlezoo dragon's lash back: an attack roll at the attacker with its own modifier; a hit deals what it resisted, of that type.)
+    if (resist.lashBack && resisted > 0 && source && source !== target && isActive(source) && isActive(target)) {
+        const natural = state.rng.d20();
+        const degree = degreeOf(natural + resist.lashBack.bonus, armorClass(source), natural);
+        log(state, `  ${target.name} lashes back at ${source.name}: ${natural + resist.lashBack.bonus} vs AC ${armorClass(source)}`);
+        if (degree >= SUCCESS) applyDamage(state, source, [{ type, amount: resisted, persistent: false, precision: false }], { source: target });
+    }
     const model = (name, rounds, modifiers, resistances) => ({ name, rounds, modifiers, tempHp: 0, fastHealing: 0, resistances, weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 });
     if (resist.lasts) applyEffect(state, target, model(resist.name, resist.lasts, [], entries), target);
     if (resist.acPenalty) applyEffect(state, target, model(`${resist.name} (AC)`, Infinity, [{ on: "ac", type: "untyped", value: -resist.acPenalty }], []), target);

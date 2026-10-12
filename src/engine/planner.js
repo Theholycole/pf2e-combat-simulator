@@ -15,7 +15,7 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, multiStrikeOrder, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, isRaging, multiStrikeOrder, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
@@ -832,7 +832,7 @@ function expand(ctx, node, actionsLeft) {
             // A Strike at every enemy in its Melee: worth the sum over them.
             if (ability.each) {
                 // (B120: Rampage's "is uncontrollable", Bladestorm's "holding six spirit blades": states the engine doesn't play.)
-                if (ability.requires && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0)) continue;
+                if (ability.requires && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0) && !(ability.requires === "raging" && isRaging(c))) continue;
                 const ranged = !c.strikes[order[0]].melee;
                 // Where it Strikes from: here, or (B109, Mauling Rush) the Melee of a creature one Stride away.
                 const places = [{ pos: node.pos, first: null }];
@@ -883,7 +883,8 @@ function expand(ctx, node, actionsLeft) {
                 if (ability.requires === "first-attack" && (node.attacks > 0 || (c.attacksThisTurn ?? 0) > 0)) continue;
                 // (B113, Dual Stab: "against an Immobilized or Off-Guard target"; a requirement the engine doesn't know, never.)
                 if (ability.requires === "off-guard" && !(isOffGuard(target) || target.cond.immobilized)) continue;
-                if (ability.requires && !["grabbed", "first-attack", "off-guard"].includes(ability.requires)) continue;
+                if (ability.requires === "raging" && !isRaging(c)) continue;
+                if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging"].includes(ability.requires)) continue;
                 let expected = 0;
                 // (B106: a second Strike only after a first that hits, worth that chance.)
                 let firstHits = 1;
@@ -1176,6 +1177,8 @@ function expand(ctx, node, actionsLeft) {
             if (entry.trigger) continue;
             // (B147: straight after a spell it cast, Primal Weapon.)
             if (entry.afterCast && !(node.used === 0 && castJustNow(state, c, entry.afterCast === "non-cantrip"))) continue;
+            // (B155: only while its rage lasts.)
+            if (entry.whileRaging && !isRaging(c)) continue;
             let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1);
             // Its measured change to the Strikes (Arcane Cascade's force damage): about three rounds of it.
             const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);

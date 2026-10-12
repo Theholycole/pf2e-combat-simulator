@@ -3546,3 +3546,28 @@ test("Best ranged Strikes, once a fight, a Strike that deals no damage but heals
     const parts = (first) => featureParts(m, m.strikes[0], third.byId.get(fighter.id), { firstPreyHit: first }).filter((part) => part.precision).length;
     assert.deepEqual([parts(true), parts(false)], [1, 1]);
 });
+
+test("Only while raging; a resistance that lashes back with what it resisted (Enraged Charge, Formless Backlash, 2026-10-12, B155)", () => {
+    const [fighter] = martialParty(5);
+    const sweep = { builtin: "multi-strike", actions: 2, strikes: [null], each: true, sameMap: true, strides: 1, requires: "raging", noMomentum: true };
+    const drake = withBuiltins({ ...moderateCreature(5, "drake", "Drake"), engagement: 1 }, ["Test Charge", sweep]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...martialParty(5)[1], engagement: 1 }, drake] }, {}, 1);
+    const d = state.byId.get("drake");
+    d.round = state.round;
+    d.actionsLeft = 3;
+    d.usedThisTurn = new Set();
+    const offered = () => scoreOptions(state, d).options.some((option) => option.action.type === "multiStrike");
+    assert.equal(offered(), false, "not while calm");
+    d.activeBuffs = [{ name: "Test Rage", noConcentrate: true }];
+    assert.equal(offered(), true, "while raging");
+    // The lash back: resistance 10 to the physical damage, then that much back on a hit.
+    const blob = withBuiltins({ ...moderateCreature(5, "blob", "Blob"), engagement: 1 }, ["Test Backlash", { builtin: "resist-damage", value: 10, on: ["physical"], types: ["physical"], foe: true, lashBack: { bonus: 30 } }]);
+    const second = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 500, max: 500 } }, blob] }, {}, 1);
+    second.log = [];
+    second.rng.d20 = () => 15;
+    const b = second.byId.get("blob");
+    const f = second.byId.get(fighter.id);
+    applyDamage(second, b, [{ type: "slashing", amount: 14, persistent: false, precision: false }], { source: f, physical: true });
+    assert.equal(b.hp.max - b.hp.value, 4, second.log.join("\n"));
+    assert.equal(f.hp.value, 490, second.log.join("\n"));
+});

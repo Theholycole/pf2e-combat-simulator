@@ -708,6 +708,8 @@ function act(state, c, action) {
                 if (!canAct(c)) break;
             }
             const attacks = c.attacksThisTurn;
+            // (B155, Enraged Charge: these Strikes don't recharge its Breath Weapon through Draconic Momentum.)
+            if (ability.noMomentum) c.suppressMomentum = true;
             // A Strike at every enemy in its Melee (Vine Lash, Thrash), or at that many of them (Dual Tusks, Swipe); a ranged
             // one at any enemies (Cannonade).
             if (ability.each) {
@@ -728,6 +730,7 @@ function act(state, c, action) {
                 }
                 // ("These Strikes count as only one attack for its multiple attack penalty", B74.)
                 if (ability.sameMap) c.attacksThisTurn = attacks + (ability.countsAs ?? foes.length);
+                c.suppressMomentum = false;
                 multiStrikeAfter(state, c, ability);
                 break;
             }
@@ -774,6 +777,7 @@ function act(state, c, action) {
                 }
             }
             if (ability.sameMap || ability.noMap) c.attacksThisTurn = attacks + (ability.countsAs ?? multiStrikeOrder(c, ability)?.length ?? 0);
+            c.suppressMomentum = false;
             if (ability.bothHit && made >= 2 && hits === made && struck) bothHitRider(state, c, struck, ability.bothHit);
             // (B152, Haunting Assault: "…, then Demoralizes that creature" — its basic action after the Strikes.)
             if (ability.then && made > 0 && target && isActive(target)) bothHitRider(state, c, target, { follow: ability.then }, { said: null });
