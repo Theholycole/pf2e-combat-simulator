@@ -361,6 +361,9 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         attacker.lastStrike = { strike: strike.name, melee: !!strike.melee, targetId: target.id, degree, action: attacker.actionCount ?? 0, round: state.round };
     }
     const label = ["critically misses", "misses", "hits", "critically hits"][degree];
+    // (B166, Trick Attack: an effect for its next Strike only — spent by this one, hit or miss, once its damage is counted.)
+    const spent = (attacker.effects ?? []).filter((effect) => effect.model?.nextStrike && effect.model.strikeDeltas?.[strike.name]);
+    if (degree < SUCCESS) for (const effect of spent) removeEffect(attacker, effect);
     if (degree < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label}`);
         // Energy Shot counts its first three Strikes, hit or miss.
@@ -403,6 +406,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // Class features: Sneak Attack's off-guard dice, Rage, the Precision edge.
     const firstPreyHit = attacker.preyHitRound !== state.round;
     const parts = featureParts(attacker, strike, target, { offGuard: offGuard ? 1 : 0, firstPreyHit });
+    for (const effect of spent) removeEffect(attacker, effect);
     if (strike.firearm) {
         attacker.firstShotReady = 0;
         if (attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;

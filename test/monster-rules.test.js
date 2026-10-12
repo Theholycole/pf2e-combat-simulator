@@ -3652,3 +3652,18 @@ test("A mark whose Strikes against it gain deadly (Mark for Death, 2026-10-12, B
     };
     assert.equal(run(true) - run(false), 8);
 });
+
+test("A buff for its next Strike only, spent by that Strike (Trick Attack, 2026-10-12, B166)", () => {
+    const [fighter] = martialParty(5);
+    const buff = { builtin: "self-effect", actions: 1, model: { name: "Test Trick", rounds: 0, modifiers: [], tempHp: 0 }, damage: ["2d6[precision]"], strike: null, melee: false, duration: { value: 0, unit: "rounds", expiry: "turn-end" }, nextStrike: true };
+    const raider = withBuiltins({ ...moderateCreature(5, "raider", "Raider"), engagement: 1 }, ["Test Trick", buff]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 900, max: 900 } }, raider] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    const r = state.byId.get("raider");
+    r.actionsLeft = 3;
+    performAction(state, r, { type: "selfEffect", index: 0, actions: 1 });
+    assert.ok((r.effects ?? []).some((effect) => effect.key === "self:Test Trick"), state.log.join("\n"));
+    performStrike(state, r, state.byId.get(fighter.id), r.strikes[0]);
+    assert.ok(!(r.effects ?? []).some((effect) => effect.key === "self:Test Trick"), "spent by the Strike");
+});
