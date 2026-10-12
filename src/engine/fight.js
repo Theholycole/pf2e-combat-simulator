@@ -1067,6 +1067,20 @@ function afterAction(state) {
     }
 }
 
+// (B199, Uncanny Pounce: as it rolls initiative, a Stride and its Strike — free — at a foe in its Melee, or one nearby it can reach.)
+function initiativeStrikes(state) {
+    for (const c of state.list) {
+        const index = (c.strikeActivities ?? []).findIndex((activity) => activity.initiative);
+        if (index < 0 || !isActive(c) || !canAct(c)) continue;
+        const activity = c.strikeActivities[index];
+        const strikeIndex = strikeNamed(c, activity.strike);
+        const foes = state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone");
+        const target = engagedEnemies(state, c).find((other) => isActive(other)) ?? foes.find((other) => other.band !== "far" || c.band === "far") ?? null;
+        if (strikeIndex < 0 || !target) continue;
+        act(state, c, { type: "strikeActivity", index, targetId: target.id, strikeIndex });
+    }
+}
+
 function shouldRetreat(state) {
     if (!state.options.retreat) return false;
     const down = pcs(state).filter((c) => c.status === DOWN || c.status === DEAD).length;
@@ -1095,6 +1109,7 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
     if (!resuming) initiativeDeeds(state);
     // Chilling Cry, Predestined Defeat: a monster's reaction to rolling initiative (B47).
     if (!resuming) initiativeReactions(state);
+    if (!resuming) initiativeStrikes(state);
     let turnIndex = resuming ? Math.max(0, snapshot.turn ?? 0) : 0;
     if (!checkEnd(state)) {
         while (!state.outcome) {

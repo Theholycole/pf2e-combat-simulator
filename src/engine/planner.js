@@ -959,6 +959,8 @@ function expand(ctx, node, actionsLeft) {
         for (const [activityIndex, activity] of (c.strikeActivities ?? []).entries()) {
             if (restrained || noAttacks || activity.actions > remaining || (activity.oncePerFight && c.activitiesUsed?.has(activityIndex))) continue;
             if (activity.flourish && flourishUsed(c, node)) continue;
+            // (B199, Uncanny Pounce: only as it rolls initiative.)
+            if (activity.initiative) continue;
             // "Frequency once per round" (Wriggling Beard).
             if (activity.oncePerTurn && (c.usedThisTurn?.has(activity.name) || node.casts.includes(`sa${activityIndex}`))) continue;
             // A finisher needs panache.

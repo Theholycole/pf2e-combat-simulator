@@ -363,6 +363,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.targetTraits?.length ? { targetTraits: [...plan.targetTraits] } : {}),
                 // (B139: what it does to itself after the Strike — Punishing Strike's Off-Guard, Defensive Slam's +2 AC — until its next turn.)
                 ...(plan.selfAfter?.length ? { selfAfter: plan.selfAfter.map((entry) => ({ ...entry })) } : {}),
+                // (B199, Uncanny Pounce: as it rolls initiative only.)
+                ...(plan.initiative ? { initiative: true } : {}),
                 onHit: plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];

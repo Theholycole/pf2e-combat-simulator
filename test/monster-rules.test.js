@@ -4016,3 +4016,14 @@ test("Both hits expose the creature to the monster's affliction (Gory Rend, 2026
     bothHitRider(state, state.byId.get("fnd"), f, { conditions: [], damage: [], affliction: "test-venom" });
     assert.ok(state.log.some((line) => /Fiend casts Test Venom at Fighter/.test(line)) && f.cond.sickened >= 1, state.log.join("\n"));
 });
+
+test("A Stride and a Strike as it rolls initiative, never planned after (Uncanny Pounce, 2026-10-12, B199)", () => {
+    const [fighter] = martialParty(5);
+    const cat = withBuiltins({ ...moderateCreature(5, "cat", "Cat"), engagement: 1 }, ["Test Pounce", { builtin: "strike-activity", actions: 0, strides: 1, strike: "claw", attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, initiative: true }]);
+    cat.strikes = [{ ...cat.strikes[0], name: "Claw" }];
+    const result = simulate({ combatants: [{ ...fighter, engagement: 1 }, cat] }, { maxRounds: 1 }, 3, { log: true });
+    const log = result.log.join("\n");
+    const start = log.indexOf("— Round 1 —");
+    assert.ok(log.slice(0, start).includes("Cat uses Test Pounce"), log.slice(0, 2000));
+    assert.equal((log.slice(start).match(/Cat uses Test Pounce/g) ?? []).length, 0, "not planned in its turns");
+});
