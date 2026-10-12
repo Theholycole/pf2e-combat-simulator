@@ -1,11 +1,11 @@
 // One simulated fight from a snapshot.
 
 import { createRng } from "./rng.js";
-import { FAILURE, flatCheck, SUCCESS } from "./checks.js";
+import { CRITICAL_SUCCESS, FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers } from "./actions.js";
-import { canReact, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating, strikeNamed, sweepActionIndex } from "./abilities.js";
+import { canReact, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, multiStrikeOrder, regenerating, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -719,7 +719,10 @@ function act(state, c, action) {
                     // Each at the penalty it started with, when it doesn't rise until all are made.
                     if (ability.sameMap) c.attacksThisTurn = attacks;
                     // (Hungry Flurry, Double Shot: each at a -2 penalty, B62.)
-                    if (isActive(foe)) performStrike(state, c, foe, ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - ability.penalty } : c.strikes[index]);
+                    const strike = withExtraDamage(c.strikes[index], ability.extraDamage);
+                    const result = isActive(foe) ? performStrike(state, c, foe, ability.penalty ? { ...strike, bonus: strike.bonus - ability.penalty } : strike) : null;
+                    // (B152, Fan of Daggers: what each critical hit brings.)
+                    if (ability.critical && result?.degree === CRITICAL_SUCCESS) bothHitRider(state, c, foe, ability.critical, { said: "Critical hit on" });
                 }
                 // ("These Strikes count as only one attack for its multiple attack penalty", B74.)
                 if (ability.sameMap) c.attacksThisTurn = attacks + (ability.countsAs ?? foes.length);
@@ -736,7 +739,7 @@ function act(state, c, action) {
                 if (!canAct(c)) break;
                 // (B106, Pike and Strike: the second only after a first that hit.)
                 if (ability.ifFirstHits && step > 0 && !firstHit) break;
-                let strike = c.strikes[index];
+                let strike = withExtraDamage(c.strikes[index], ability.extraDamage);
                 if (ability.sameTarget ? !target || !isActive(target) : !target || !isActive(target) || (strike.melee && !sameMelee(c, target))) target = ability.sameTarget ? null : engagedEnemies(state, c)[0] ?? null;
                 if (!target) break;
                 if (ability.sameMap) c.attacksThisTurn = attacks;
@@ -752,6 +755,7 @@ function act(state, c, action) {
                 // Twin Feint (B74): the target is off-guard against the second attack (or only after a first that hit).
                 if (step === 1 && (ability.secondOffGuard === true || (ability.secondOffGuard === "hit" && firstHit))) (target.offGuardTo ??= []).push({ attacker: c.id, attacks: "all", uses: 1 });
                 const result = performStrike(state, c, target, strike);
+                if (ability.critical && result?.degree === CRITICAL_SUCCESS) bothHitRider(state, c, target, ability.critical, { said: "Critical hit on" });
                 if (step === 0) firstHit = (result?.degree ?? 0) >= SUCCESS;
                 made++;
                 if ((result?.degree ?? 0) >= SUCCESS) {
@@ -769,6 +773,8 @@ function act(state, c, action) {
             }
             if (ability.sameMap || ability.noMap) c.attacksThisTurn = attacks + (ability.countsAs ?? multiStrikeOrder(c, ability)?.length ?? 0);
             if (ability.bothHit && made >= 2 && hits === made && struck) bothHitRider(state, c, struck, ability.bothHit);
+            // (B152, Haunting Assault: "…, then Demoralizes that creature" — its basic action after the Strikes.)
+            if (ability.then && made > 0 && target && isActive(target)) bothHitRider(state, c, target, { follow: ability.then }, { said: null });
             multiStrikeAfter(state, c, ability);
             break;
         }

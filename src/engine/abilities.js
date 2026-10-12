@@ -54,7 +54,7 @@ export function addBuiltin(spec, plan, name) {
             spec.fastHealing = Math.max(spec.fastHealing ?? 0, plan.value);
             return true;
         case "multi-strike":
-            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.bothHit ? { bothHit: { conditions: [...(plan.bothHit.conditions ?? [])], damage: [...(plan.bothHit.damage ?? [])], ...(plan.bothHit.follow ? { follow: plan.bothHit.follow } : {}), ...(plan.bothHit.strikeDamage ? { strikeDamage: plan.bothHit.strikeDamage } : {}) } } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}), ...(plan.ifFirstHits ? { ifFirstHits: true } : {}), ...(plan.penalties?.length ? { penalties: [...plan.penalties] } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(plan.notGrabbed ? { notGrabbed: true } : {}), ...(plan.noGrab ? { noGrab: true } : {}) }];
+            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.bothHit ? { bothHit: { conditions: [...(plan.bothHit.conditions ?? [])], damage: [...(plan.bothHit.damage ?? [])], ...(plan.bothHit.follow ? { follow: plan.bothHit.follow } : {}), ...(plan.bothHit.strikeDamage ? { strikeDamage: plan.bothHit.strikeDamage } : {}) } } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}), ...(plan.ifFirstHits ? { ifFirstHits: true } : {}), ...(plan.penalties?.length ? { penalties: [...plan.penalties] } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(plan.notGrabbed ? { notGrabbed: true } : {}), ...(plan.noGrab ? { noGrab: true } : {}), ...(plan.flourish ? { flourish: true } : {}), ...(plan.critical ? { critical: { conditions: [...(plan.critical.conditions ?? [])], damage: [...(plan.critical.damage ?? [])] } } : {}), ...(plan.extraDamage?.length ? { extraDamage: [...plan.extraDamage] } : {}), ...(plan.then ? { then: plan.then } : {}) }];
             return true;
         case "charge":
             spec.charges = [...(spec.charges ?? []), { name, actions: plan.actions, strides: plan.strides, strike: plan.strike ?? null, attackBonus: plan.attackBonus ?? 0, damage: plan.damage ?? null, ...(plan.safe ? { safe: true } : {}), ...(plan.fatal ? { fatal: plan.fatal } : {}), ...(plan.deadly ? { deadly: plan.deadly } : {}), ...(plan.halfDamage ? { halfDamage: true } : {}), ...(plan.offGuard ? { offGuard: plan.offGuard === "first" ? "first" : true } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}), ...(plan.damageBonus ? { damageBonus: plan.damageBonus } : {}), ...(plan.recharge ? { recharge: plan.recharge } : {}) }];
@@ -124,7 +124,7 @@ export function addBuiltin(spec, plan, name) {
         // Resistance against the damage that sets it off (B99): Liquefy, Chipping Scales; its uses a day a number (once a fight).
         case "resist-damage":
             if (!(Number(plan.value) > 0)) return false;
-            spec.resistReaction = { name, value: Number(plan.value), on: plan.on ?? null, types: plan.types ?? null, ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}), ...(plan.lasts ? { lasts: plan.lasts } : {}), ...(plan.acPenalty ? { acPenalty: plan.acPenalty } : {}) };
+            spec.resistReaction = { name, value: Number(plan.value), on: plan.on ?? null, types: plan.types ?? null, ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}), ...(plan.lasts ? { lasts: plan.lasts } : {}), ...(plan.acPenalty ? { acPenalty: plan.acPenalty } : {}), ...(plan.quickened ? { quickened: plan.quickened } : {}) };
             spec.resistUses = Number(plan.uses) || Infinity;
             return true;
         // A harder Escape from it (B105): Tighten Coils' "The DC of the Escape check is increased by 2", No Liberation's "…a –2
@@ -399,6 +399,14 @@ export function chargeOn(c, charge, targetId) {
 }
 
 // (B98: offGuard "first" — off-guard only to a creature that hasn't seen it before — is settled by its caller as true or false.)
+// A multi-Strike's Strike with the extra damage its text gives each (B152, Hellfire Flurry's "These attacks deal an extra 1d4 fire damage").
+export function withExtraDamage(strike, formulas) {
+    if (!strike || !formulas?.length) return strike;
+    const parts = formulas.map((formula) => /^(\d+)d(\d+)(?:\s*([+-])\s*(\d+))?\[([a-z]+)\]$/.exec(String(formula).trim())).filter(Boolean)
+        .map((dice) => ({ dice: Number(dice[1]), die: Number(dice[2]), bonus: (dice[3] === "-" ? -1 : 1) * Number(dice[4] ?? 0), multiplier: 1, type: dice[5], persistent: false, precision: false }));
+    return parts.length ? { ...strike, damage: [...strike.damage, ...parts] } : strike;
+}
+
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard === true ? 2 : 0);
     if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal) return strike;

@@ -7,7 +7,7 @@ import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, performStrike, provoke as provokeFor, step, stride } from "../src/engine/actions.js";
 import { armorClass, isActive, isOffGuard } from "../src/engine/combatant.js";
-import { addBuiltin, chargeOn, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst, strikeNamed } from "../src/engine/abilities.js";
+import { addBuiltin, chargeOn, chargeStrike, deltasFor, multiStrikeOrder, saveBonusAgainst, strikeNamed, withExtraDamage } from "../src/engine/abilities.js";
 import { applyAuras, applyCondition, applyStrikeRider, castPlan, castSpell, deathThroes, downsAnswers, expireTimers, grabTurnAnswers, ownTurnStart, retch, targetSets as targetSetsFor, triggerRiders } from "../src/engine/spells.js";
 import { engage, sameMelee } from "../src/engine/space.js";
 
@@ -3472,4 +3472,36 @@ test("A Strike activity only at a frightened creature; a Shove at a creature com
     f.actionsLeft = 3;
     stride(second, f, { kind: "engage", targetId: "bison" });
     assert.ok(second.log.some((line) => /Bison uses Test Toss/.test(line)), second.log.join("\n"));
+});
+
+test("A flurry's extra damage and critical rider, a Demoralize after the Strikes, one flourish a turn, Quickened after a resistance (Fan of Daggers, Hellfire Flurry, Haunting Assault, Overcharge, 2026-10-12, B152)", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const [fighter] = martialParty(5);
+    const flurry = { builtin: "multi-strike", actions: 1, strikes: [null, null], sameTarget: true, flourish: true, extraDamage: ["1d6[fire]"], critical: { conditions: [{ slug: "blinded", value: null, rounds: 1 }], damage: ["2d6[bleed]"] }, then: "demoralize" };
+    const monk = withBuiltins({ ...moderateCreature(5, "monk", "Monk"), engagement: 1, spells: [entry("Demoralize", basic.demoralize, "basic")] }, ["Test Flurry", flurry]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 900, max: 900 } }, monk] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 20;
+    const m = state.byId.get("monk");
+    const f = state.byId.get(fighter.id);
+    m.round = state.round;
+    m.actionsLeft = 3;
+    m.usedThisTurn = new Set();
+    assert.deepEqual(m.multiStrikes[0].extraDamage, ["1d6[fire]"]);
+    assert.equal(withExtraDamage(m.strikes[0], ["1d6[fire]"]).damage.at(-1).type, "fire");
+    performAction(state, m, { type: "multiStrike", ability: 0, targetId: f.id, actions: 1 });
+    // Critical hits: blinded, more damage; then its Demoralize; the flourish used.
+    assert.ok(f.cond.blinded, state.log.join("\n"));
+    assert.ok(state.log.some((line) => /Critical hit on/.test(line)), state.log.join("\n"));
+    assert.ok(f.cond.frightened > 0, state.log.join("\n"));
+    assert.ok(m.usedThisTurn.has("flourish"));
+    assert.ok(!scoreOptions(state, m).options.some((option) => option.action.type === "multiStrike"), "one flourish a turn");
+    // Overcharge: resistance against the electricity, then Quickened for 1d4 rounds.
+    const golem = withBuiltins({ ...moderateCreature(5, "golem", "Golem"), engagement: 1 }, ["Test Surge", { builtin: "resist-damage", value: 20, on: ["electricity"], types: ["electricity"], quickened: "1d4" }]);
+    const second = createFightState({ combatants: [{ ...fighter, engagement: 1 }, golem] }, {}, 1);
+    second.log = [];
+    const g = second.byId.get("golem");
+    applyDamage(second, g, [{ type: "electricity", amount: 15, persistent: false, precision: false }], { source: second.byId.get(fighter.id) });
+    assert.equal(g.hp.value, g.hp.max, second.log.join("\n"));
+    assert.ok(g.cond.quickened, second.log.join("\n"));
 });

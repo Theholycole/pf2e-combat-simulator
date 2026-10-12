@@ -400,9 +400,9 @@ const NOT_HARMFUL = new Set(["off-guard", "quickened", "concealed", "hidden", "i
 
 // What two Strikes that both hit bring (B104: "If they both hit, the target becomes Slowed 1 for 1 round", "… is also dealt 1d8 persistent
 // bleed damage"): its conditions (for their rounds, on the attacker's turns) and damage, on the creature both hit.
-export function bothHitRider(state, attacker, target, rider) {
+export function bothHitRider(state, attacker, target, rider, { said = "Both Strikes hit" } = {}) {
     if (!isActive(target)) return;
-    log(state, `  Both Strikes hit ${target.name}`);
+    if (said) log(state, `  ${said} ${target.name}`);
     for (const entry of rider.conditions ?? []) {
         const duration = entry.rounds ? { mode: "fixed", value: entry.rounds, unit: "rounds", expiry: "turn-start", anchor: "source-turn" } : null;
         if (applyCondition(state, target, entry.slug, entry.value ?? null, duration, attacker)) log(state, `  ${target.name} is ${entry.slug}${Number.isFinite(entry.value) ? ` ${entry.value}` : ""}`);

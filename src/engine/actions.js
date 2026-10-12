@@ -918,6 +918,11 @@ function afterResisting(state, target, { before, resist, entries }) {
     const model = (name, rounds, modifiers, resistances) => ({ name, rounds, modifiers, tempHp: 0, fastHealing: 0, resistances, weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 });
     if (resist.lasts) applyEffect(state, target, model(resist.name, resist.lasts, [], entries), target);
     if (resist.acPenalty) applyEffect(state, target, model(`${resist.name} (AC)`, Infinity, [{ on: "ac", type: "untyped", value: -resist.acPenalty }], []), target);
+    // (B152, Overcharge: "… and becomes Quickened for 1d4 rounds".)
+    if (resist.quickened && isActive(target)) {
+        const rounds = rollCount(state, resist.quickened);
+        if (applyCondition(state, target, "quickened", null, { mode: "fixed", value: rounds, unit: "rounds" }, target)) log(state, `  ${target.name} is quickened for ${rounds} round${rounds === 1 ? "" : "s"}`);
+    }
 }
 
 // The champion (of the target's side) whose reaction this damage triggers:

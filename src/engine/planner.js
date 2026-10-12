@@ -15,7 +15,7 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, multiStrikeOrder, strikeNamed, sweepActionIndex } from "./abilities.js";
+import { castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, multiStrikeOrder, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
@@ -851,7 +851,8 @@ function expand(ctx, node, actionsLeft) {
                     for (const [step, target] of foes.entries()) {
                         // (A different Strike at each, B74.)
                         const index = order[Math.min(step, order.length - 1)];
-                        const struck = ability.penalty ? { ...c.strikes[index], bonus: c.strikes[index].bonus - ability.penalty } : c.strikes[index];
+                        const base = withExtraDamage(c.strikes[index], ability.extraDamage);
+                        const struck = ability.penalty ? { ...base, bonus: base.bonus - ability.penalty } : base;
                         const expected = ctx.strikeExpectation(struck, struck === c.strikes[index] ? index : 4000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, pos, node.prone)?.damage ?? 0;
                         const before = damage[target.id] ?? 0;
                         const hp = remainingHp(target);
@@ -892,7 +893,8 @@ function expand(ctx, node, actionsLeft) {
                     // (Twin Feint, B74: the second against an off-guard target, about +2; after a first hit only, half that.)
                     const feint = step === 1 && ability.secondOffGuard ? (ability.secondOffGuard === true ? 2 : 1) : 0;
                     const own = ability.penalties?.[step] ?? 0;
-                    const strike = second || feint || ability.penalty || own ? { ...c.strikes[index], bonus: c.strikes[index].bonus - second + feint - (ability.penalty ?? 0) - own } : c.strikes[index];
+                    const base = withExtraDamage(c.strikes[index], ability.extraDamage);
+                    const strike = second || feint || ability.penalty || own ? { ...base, bonus: base.bonus - second + feint - (ability.penalty ?? 0) - own } : base;
                     const expectation = ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.noMap ? 0 : ability.sameMap ? node.attacks : node.attacks + step, pos, node.prone);
                     expected += (expectation?.damage ?? 0) * (ability.ifFirstHits && step > 0 ? firstHits : 1);
                     if (step === 0) firstHits = expectation?.hitChance ?? 0;
