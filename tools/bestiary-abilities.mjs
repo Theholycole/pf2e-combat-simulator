@@ -110,6 +110,9 @@ function combatant(npc) {
             const ways = plan.modes.filter((mode) => mode.plan?.resolution);
             if (ways.length) used.add(item.name);
             for (const mode of ways) spells.push({ name: `${item.name} (${mode.name})`, plan: mode.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name });
+            // (B273: ways that are builtins — stances, self-effects, sweeps — the first one, as the creature's choice.)
+            const built = ways.length ? null : plan.modes.find((mode) => mode.plan?.builtin && !["no-effect", "modes"].includes(mode.plan.builtin));
+            if (built && addBuiltin(builtins, built.plan, item.name)) used.add(item.name);
         } else if (plan.builtin === "zone") {
             // (B256: an area that lasts — one ability, its zone played over the turns.)
             const effectModel = plan.zone.effect ? effectModels({ resolution: { outcomes: { success: { nativeEffects: [plan.zone.effect] } } } }, system.details.level.value)[plan.zone.effect.uuid] ?? null : null;

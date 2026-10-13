@@ -4898,3 +4898,19 @@ test("Its own failed save rerolled only against one trait, with a bonus on the n
     assert.equal(addBuiltin(monk, { builtin: "save-reroll", save: "will", keep: "new", against: "fear", bonus: 2, uses: 1 }, "Test Again"), true);
     assert.deepEqual([monk.saveReroll.againstTrait, monk.saveReroll.bonus, monk.saveReroll.keep, monk.saveReroll.against], ["fear", 2, "new", undefined]);
 });
+
+test("A foe's failed save against its own ability sets off its reaction (Mass Improved Grab, Siphon Faith, 2026-10-13, B273)", async () => {
+    const { castPlan: cast } = await import("../src/engine/spells.js");
+    const [fighter] = martialParty(5);
+    const none = () => ({ damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] });
+    const vines = { modelVersion: 13, source: { name: "Test Vines" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "1 creature", range: "touch", area: null }, trigger: { event: "use" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: none(), success: none(), failure: none(), criticalFailure: none() } } };
+    const daze = { modelVersion: 13, source: { name: "Test Grab" }, rank: 1, traits: [], activation: { time: "free", traits: [] }, targeting: { target: "the triggering creature", range: null, area: null }, trigger: { event: "foe-failed-save", reaction: true, ability: "Test Vines", free: true },
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: none(), success: { ...none(), effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, failure: none(), criticalFailure: none() } } };
+    const thicket = { ...moderateCreature(5, "thk", "Thicket"), engagement: 1, spells: [{ name: "Test Vines", plan: vines, castRank: 1, pool: null, kind: "ability" }, { name: "Test Grab", plan: daze, castRank: 1, pool: null, kind: "ability" }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, thicket] }, {}, 1);
+    const c = state.byId.get("thk");
+    const f = state.byId.get(fighter.id);
+    cast(state, c, c.spells[0], [f.id]);
+    assert.equal(f.cond.frightened, 1, "the free reaction after the failed save");
+});

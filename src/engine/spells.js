@@ -1281,6 +1281,12 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     if (info.immunity && info.immunityDegrees) markImmune(targets.filter((target) => !result.degrees[target.id] || info.immunityDegrees.includes(result.degrees[target.id])));
     applyChanges(state, caster, spell, result.changes, context, io);
+    // (B273: a foe's failed save against its own spell or ability — Mass Improved Grab, Siphon Faith: its reaction at that creature.)
+    if (spell.plan?.resolution?.kind === "save") for (const target of targets) {
+        if (!["failure", "criticalFailure"].includes(result.degrees[target.id]) || !isActive(target) || !isActive(caster) || target.side === caster.side) continue;
+        const named = String(spell.name ?? "").toLowerCase().replace(/ \(.*\)$/, "");
+        useReaction(state, caster, target, (trigger) => trigger.event === "foe-failed-save" && (!trigger.ability || trigger.ability.toLowerCase() === named) && (!trigger.spell || !spell.kind || spell.kind === "spell") && (!trigger.traits?.length || trigger.traits.some((trait) => (spell.plan?.traits ?? []).includes(trait))));
+    }
     // Otherworldly Mind, Entropic Feedback: a mental effect aimed at a creature whose ability answers it (B46).
     if (!info.area) targetedAnswers(state, caster, spell, targets);
     // Savage, Gnashing Bite (B92): a failed Escape, answered by the creature holding it.

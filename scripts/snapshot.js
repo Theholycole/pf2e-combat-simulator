@@ -521,6 +521,12 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
                 result.castSpells.add(mode.plan.spell.uuid);
                 casts.push({ ...cast, name: `${item.name} (${mode.name})` });
             }
+            // (B273: ways that are builtins — stances, self-effects, sweeps — the first one, as the creature's choice.)
+            const built = pc || ways.length || casts.length ? null : plan.modes.find((mode) => mode.plan?.builtin && !["no-effect", "modes"].includes(mode.plan.builtin));
+            if (built) {
+                if (addBuiltin(result.builtins, built.plan, item.name)) result.handled.add(item);
+                continue;
+            }
             if (!ways.length && !casts.length) continue;
             if (pool) result.pools[pool] = frequency?.value ?? frequency?.max ?? 1;
             result.handled.add(item);
