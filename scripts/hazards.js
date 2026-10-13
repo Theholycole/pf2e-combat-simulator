@@ -30,7 +30,11 @@ export function hazardSpec(actor, spec) {
     });
     const reactions = (actor.itemTypes?.action ?? []).filter((item) => TRIGGER_TYPES.has(item.system?.actionType?.value));
     // Its compiled reactions fire when it's set off; abilities that ride on its Strikes (poisons) stay.
-    const trigger = { strikes: reactions.some((item) => mentionsStrike(item.system?.description?.value)), abilities: [] };
+    // (B301: the ability module's reading of a trap's Strike, when it has one — which Strike, at whom, how often.)
+    // (A creature it lets loose makes the Strike — an ooze from a hatch: the hazard has none, so not played; a gap.)
+    const trapStrikes = strikes.length ? spec.trapStrikes ?? [] : [];
+    if (!strikes.length) for (const entry of spec.trapStrikes ?? []) spec.gaps?.push({ kind: "reaction", name: entry.name });
+    const trigger = { strikes: trapStrikes.length > 0 || reactions.some((item) => mentionsStrike(item.system?.description?.value)), trapStrikes, abilities: [] };
     const spells = [];
     for (const spell of spec.spells) {
         if (spell.kind === "ability" && TRIGGER_TYPES.has(spell.actionType) && (spell.plan?.trigger?.event ?? "use") === "use") trigger.abilities.push(spell);

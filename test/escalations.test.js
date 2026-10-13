@@ -250,3 +250,31 @@ test("E4 a simple hazard that fired is reported spent, not killed", () => {
     const result = simulate({ combatants: [fighter, simple, tough("foe", "Foe")], setup: { escalations: { rules: [{ when: { kind: "round", round: 1 }, then: { kind: "hazard", hazardId: "trap" } }] } } }, { roundCap: 2 }, 1);
     assert.equal(result.foes.find((c) => c.id === "trap").status, "spent");
 });
+
+test("B301 a trap's own Strike: the one its reaction names, at whom and how often its text says (the ability module's trap-strike reading)", async () => {
+    const { addBuiltin } = await import("../src/engine/abilities.js");
+    const spec = {};
+    assert.ok(addBuiltin(spec, { builtin: "trap-strike", strike: "jaws", at: "trigger", times: 1, initiative: false, notes: [] }, "Snap Shut"));
+    assert.deepEqual(spec.trapStrikes, [{ name: "Snap Shut", strike: "jaws", at: "trigger", times: 1 }]);
+    const strikes = [
+        { name: "Blade", bonus: 15, melee: false, increment: null, noMap: true, damage: [{ dice: 2, die: 8, bonus: 5, type: "slashing" }] },
+        { name: "Jaws", bonus: 15, melee: false, increment: null, noMap: true, damage: [{ dice: 2, die: 10, bonus: 5, type: "piercing" }] }
+    ];
+    const fire = (trapStrikes) => {
+        const [fighter, champion] = martialParty(5);
+        const trap = bladeTrap({ strikes, hazard: { complex: false, routineActions: 0, disable: [], trigger: { strikes: true, trapStrikes, abilities: [] } } });
+        const rules = [{ when: { kind: "enters", region: "hall" }, then: { kind: "hazard", hazardId: "trap" } }];
+        const combatants = [{ ...fighter, regionFeet: { hall: { to: 10, edge: 0 } } }, { ...champion, regionFeet: { hall: { to: 30, edge: 0 } } }, trap, tough("foe", "Foe")];
+        const state = createFightState({ combatants, setup: { escalations: { rules } } }, {}, 1);
+        state.log = [];
+        state.byId.get("fighter").regionFeet.hall.to = 0;
+        escalate(state);
+        return state.log.filter((line) => /Blade Trap (?:Blade|Jaws) →/.test(line)).map((line) => /Blade Trap (\w+) → (\w+)/.exec(line).slice(1).join(" "));
+    };
+    // The named Strike, at the one that set it off.
+    assert.deepEqual(fire([{ name: "Snap Shut", strike: "jaws", at: "trigger", times: 1 }]), ["Jaws Fighter"]);
+    // "Both blades swing down, each one Striking all creatures under them": twice at each creature.
+    assert.deepEqual(fire([{ name: "Falling Blades", strike: null, at: "all", times: 2 }]), ["Blade Fighter", "Blade Fighter", "Blade Champion", "Blade Champion"]);
+    // A name only part of its Strike's ("spinning blade" for its Blade): that one.
+    assert.deepEqual(fire([{ name: "Spin", strike: "spinning blade", at: "adjacent", times: 1 }]), ["Blade Fighter"]);
+});

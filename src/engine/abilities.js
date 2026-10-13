@@ -45,6 +45,10 @@ export function addBuiltin(spec, plan, name) {
         case "throw-rock":
         case "no-effect":
             return true;
+        // (B301: a trap's own Strike when it's set off — the Strike it names, at whom and how often its text says; scripts/hazards.js.)
+        case "trap-strike":
+            spec.trapStrikes = [...(spec.trapStrikes ?? []), { name, strike: plan.strike ?? null, at: plan.at ?? "trigger", times: plan.times ?? 1 }];
+            return true;
         // (B298: a summon whose creatures fight — its reserves are made with the snapshot.)
         case "conjure": {
             const entry = summonSpec(plan, name);

@@ -367,6 +367,7 @@ Rules that change a fight partway: **when** something happens, **then** creature
 6. **Hazards** (PF2e hazard actors on the foes' side):
    - A complex hazard takes a turn in initiative, rolled with its Stealth, using its routine's actions. It has its Strikes (no multiple attack penalty when its text says so) and its compiled actions.
    - A simple hazard fires its reaction once when a rule triggers it, at the creature that set it off: its compiled reactions, and its Strikes when the reaction says it Strikes. It is then spent.
+   - A trap's own Strike the ability module reads (B301) is the one it names, at whom and how often its text says: the creature that set it off, or every party creature, once or twice.
    - A hazard can't move, and its Strikes reach anyone on the field.
 7. **Disable or smash.**
    - Disable uses the hazard's own skill and DC. It takes 2 actions and provokes, like a task: success +1, critical success +2. It needs several successes when the text says "twice" or "three times". A critical failure sets it off at the one tampering with it.

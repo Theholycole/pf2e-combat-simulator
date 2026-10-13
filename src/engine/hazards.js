@@ -19,8 +19,9 @@ const log = (state, line) => state.log?.push(line);
 export const isHazard = (c) => c?.kind === "hazard";
 
 // The hazard's reaction: its compiled trigger abilities (an area one at the whole
-// party), and its Strikes when the text says it Strikes. target: the creature
-// that set it off, or a random one.
+// party), and its Strikes when the text says it Strikes (the one it names, at
+// whom and how often it says, when the ability module read it). target: the
+// creature that set it off, or a random one.
 function fireReaction(state, c, triggerer, { castPlan, describeSpell, performStrike }) {
     const party = state.list.filter((other) => other.side !== c.side && isActive(other));
     if (!party.length) return;
@@ -29,7 +30,30 @@ function fireReaction(state, c, triggerer, { castPlan, describeSpell, performStr
         const area = describeSpell(ability.plan).area;
         castPlan(state, c, ability, area ? party.map((other) => other.id) : [target.id]);
     }
+    const trapStrikes = c.hazard.trigger?.trapStrikes ?? [];
+    if (trapStrikes.length) {
+        for (const entry of trapStrikes) fireTrapStrike(state, c, entry, entry.at === "all" ? party : [target], performStrike);
+        return;
+    }
     if (c.hazard.trigger?.strikes) for (const strike of c.strikes ?? []) if (isActive(target)) performStrike(state, c, target, strike, { reaction: true });
+}
+
+// The Strike a trap's reaction names ("a jaws Strike"), else its first.
+export function trapStrikeOf(c, name) {
+    const strikes = c.strikes ?? [];
+    const wanted = String(name ?? "").toLowerCase();
+    if (!wanted) return strikes[0] ?? null;
+    return strikes.find((strike) => strike.name.toLowerCase() === wanted)
+        ?? strikes.find((strike) => strike.name.toLowerCase().includes(wanted) || wanted.includes(strike.name.toLowerCase()))
+        ?? strikes[0] ?? null;
+}
+
+// A trap's own Strike (B301, the ability module's trap-strike reading): at the creature that set it off (or the one beside it), or at every
+// creature in its reach, as many times as its text says ("both blades swing down": twice at each).
+function fireTrapStrike(state, c, entry, targets, performStrike) {
+    const strike = trapStrikeOf(c, entry.strike);
+    if (!strike) return;
+    for (const target of targets) for (let time = 0; time < Math.max(1, entry.times ?? 1); time++) if (isActive(target)) performStrike(state, c, target, strike, { reaction: true });
 }
 
 // A rule switches the hazard on (E4).
