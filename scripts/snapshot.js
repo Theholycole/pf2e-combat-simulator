@@ -230,6 +230,24 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
     };
 }
 
+// Its senses' types ("darkvision", "low-light-vision" …), however PF2e holds them.
+export function readSenses(actor) {
+    const held = actor?.perception?.senses ?? actor?.system?.perception?.senses ?? [];
+    const list = Array.isArray(held) ? held : typeof held.values === "function" ? [...held.values()] : Array.isArray(held.contents) ? held.contents : [];
+    return [...new Set(list.map((sense) => (typeof sense === "string" ? sense : sense?.type)).filter(Boolean))];
+}
+
+function readFlies(actor) {
+    const speeds = actor?.attributes?.speed?.otherSpeeds ?? actor?.system?.attributes?.speed?.otherSpeeds ?? [];
+    return speeds.some((speed) => speed?.type === "fly" && (Number(speed.total ?? speed.value) || 0) > 0);
+}
+
+// (L1: the scene's light, for an environment set to "auto": its darkness level.)
+export function sceneLight(scene) {
+    const level = Number(scene?.environment?.darknessLevel ?? scene?.darkness ?? 0);
+    return level >= 0.75 ? "dark" : level >= 0.25 ? "dim" : "bright";
+}
+
 // Whether PF2e's critical specialization synthetics give this Strike its group's effect (they return its notes and dice, none when not).
 function critSpecialization(actor, item) {
     const synthetics = actor?.synthetics?.criticalSpecializations;
@@ -829,7 +847,8 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
                     spellPools[pool] = fresh ? active.uses.max : active.uses.value ?? 0;
                 }
                 const castRank = active.castRank ?? (spell.isCantrip || spell.isFocusSpell ? cantripRank : groupRank);
-                listed.push({ spell, name: spell.name, castRank, dc, attack, pool, tradition: entry.tradition ?? entry.system?.tradition?.value ?? null });
+                // (L5: a coven's spells, castable only with the coven.)
+                listed.push({ spell, name: spell.name, castRank, dc, attack, pool, tradition: entry.tradition ?? entry.system?.tradition?.value ?? null, ...(/\bcoven\b/i.test(entry.name ?? "") ? { coven: true } : {}) });
             }
         }
     }
@@ -843,8 +862,8 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
     for (const entry of listed) {
         const { result, error } = prepared.get(entry.spell.uuid) ?? {};
         const plan = result?.plan ? leanPlan(result.plan) : null;
-        const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, effects: plan ? formLimits(entry.spell, await effectModels(plan, entry.castRank)) : {} };
-        if (!plan || !canCast({ spellPools: { [entry.pool]: 1 } }, spec)) {
+        const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, ...(entry.coven ? { coven: true } : {}), effects: plan ? formLimits(entry.spell, await effectModels(plan, entry.castRank)) : {} };
+        if (!plan || !canCast({ spellPools: { [entry.pool]: 1 }, covenReady: true }, spec)) {
             // Detect Magic, Translocate and the like: listed, but they don't count against the result.
             // (On the full plan: the slimmed one may have lost its effect references.)
             const utility = isUtility(result?.plan ?? plan);
@@ -1089,6 +1108,9 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         kind,
         acts: kind !== "object",
         level: actor.level ?? 0,
+        // (L1, L3: its senses — darkvision, low-light vision — and whether it flies, over the ground's difficult terrain.)
+        senses: readSenses(actor),
+        ...(readFlies(actor) ? { flies: true } : {}),
         // (T6: its class DC, for a critical specialization's save.)
         ...(Number.isFinite(actor.classDC?.dc?.value) ? { classDC: actor.classDC.dc.value } : {}),
         traits,
@@ -1284,6 +1306,11 @@ export async function buildSnapshot(entries, { setup = {}, overrides = {}, fresh
     if (canvas?.ready) placeFromTokens(placed.filter((entry) => tokenObject(entry.token)));
     // (B298: a summon's creatures, made now as reserves waiting off the field.)
     for (const maker of [...combatants]) if (maker.summons?.length) combatants.push(...(await summonReserves(maker)));
+    // (L1: the light "auto" — as the scene's darkness has it.)
+    if (!setup.environment?.light || setup.environment.light === "auto") {
+        const scene = combat?.scene ?? placed.find((entry) => entry.token?.parent)?.token.parent ?? canvas?.scene;
+        setup = { ...setup, environment: { ...(setup.environment ?? {}), light: sceneLight(scene) } };
+    }
     const snapshot = { combatants, setup, moraleRules };
     // Map objectives (O1–O3): each creature's distance to the area and the exit, from the
     // scene's Regions; in play, the rounds already held.

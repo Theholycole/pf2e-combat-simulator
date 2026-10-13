@@ -62,6 +62,9 @@ export function createCombatant(spec) {
     else if (spec.hp.value <= 0 || conditions.dying > 0 || conditions.unconscious) status = spec.kind === "pc" ? DOWN : DEAD;
     const c = {
         ...spec,
+        // (H1: a hydra's heads, this fight's own; its spare reactions too, which severed heads take.)
+        ...(spec.hydra ? { hydra: { ...spec.hydra, heads: spec.hydra.heads ?? spec.hydra.count, stumps: spec.hydra.stumps ?? 0, headDamage: 0 }, regeneration: spec.regeneration ? { ...spec.regeneration } : spec.regeneration } : {}),
+        ...(spec.spareReactions?.length ? { spareReactions: spec.spareReactions.map((entry) => ({ ...entry, names: [...entry.names] })) } : {}),
         // (T4: immunities its abilities add, Protean Anatomy's polymorph.)
         ...(spec.addedImmunities?.length ? { immunities: [...new Set([...(spec.immunities ?? []), ...spec.addedImmunities])] } : {}),
         hp: { value: spec.hp.value, max: spec.hp.max, temp: spec.hp.temp ?? 0 },

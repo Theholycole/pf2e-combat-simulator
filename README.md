@@ -60,6 +60,13 @@ It needs **PF2e Resolution Core**, which Foundry offers to install with it. It r
   - Troop Defenses.
 
   See [docs/ability-decisions.md](docs/ability-decisions.md) (T1–T7).
+- **Surroundings** (2026-10-13, L1–L5, H1): the setup's light (or the scene's), sunlight, weather, difficult ground, terrain and climate.
+  - Senses matter in darkness and dim light; fog, rain and snow conceal.
+  - Light Blindness and sunlight's weaknesses; Woodland, Swamp and Ice Stride on difficult ground.
+  - Hidden Movement; coven spells only with the coven.
+  - A hydra's heads: severed, cauterized and regrown.
+
+  See [docs/ability-decisions.md](docs/ability-decisions.md) (L1–L5, H1).
 - **Spells** (milestone 2): creatures cast the spells the resolution core can resolve: saves and spell attacks, with their damage, conditions and push or pull. Everything else is listed as a gap. It needs the `pf2e-resolution-core` module, and the spell module for the plans.
 
 The design is in [docs/spec.md](docs/spec.md) and the vocabulary in [CONTEXT.md](CONTEXT.md). The rules choices the user confirmed are in [docs/morale-decisions.md](docs/morale-decisions.md) (morale) and [docs/spell-decisions.md](docs/spell-decisions.md) (spellcasting).

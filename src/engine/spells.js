@@ -20,7 +20,8 @@ import { allyStrike } from "./commander.js";
 import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
 import { effectImmunity, immuneToCondition } from "./immunities.js";
-import { elementalAnswers, troopIgnores, troopSegmentLost } from "./creature-rules.js";
+import { elementalAnswers, hydraScaled, troopIgnores, troopSegmentLost } from "./creature-rules.js";
+import { sightDC } from "./environment.js";
 import { adjustDamage, adjustInstance, rollStrikeDamage, spellContext, strikeContext } from "./damage.js";
 import { distanceBetween, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { moraleOdds } from "./morale.js";
@@ -981,7 +982,7 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
     if (push && isActive(target)) applyMove(state, target, { kind: "push", distance: push });
     // (B258, Resonating Kick: more damage against a creature with a trait it names.)
     const againstTrait = (rider.vsTraits ?? []).filter((entry) => entry.traits.some((trait) => (target.traits ?? []).includes(trait))).flatMap((entry) => entry.damage);
-    for (const formula of [...(rider.damage ?? []), ...(prone ? rider.proneDamage ?? [] : []), ...againstTrait]) {
+    for (const formula of [...(rider.damage ?? []).map((entry) => hydraScaled(attacker, entry)).filter(Boolean), ...(prone ? rider.proneDamage ?? [] : []), ...againstTrait]) {
         const instances = rollInstances(state, parseDamage(ownType(formula, strike))).map((instance) => ({ ...instance, amount: critical ? instance.amount * 2 : instance.amount, context: strikeContext(attacker, strike, critical) }));
         const dealt = applyDamage(state, target, instances, { source: attacker });
         log(state, `  ${target.name} takes ${dealt} more ${instances.map((instance) => instance.type).join("/")}`);
@@ -1248,9 +1249,10 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         return;
     }
     // Blinded or dazzled: each target of a targeted spell needs a flat check.
-    const findDC = info.area ? 0 : caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0;
-    if (findDC) {
-        const found = targets.filter(() => flatCheck(state.rng, findDC) >= SUCCESS);
+    // (L1: and each one the light or the weather hides from it.)
+    const findDC = (target) => (info.area || target === caster ? 0 : Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, sightDC(state, caster, target)));
+    if (targets.some((target) => findDC(target) > 0)) {
+        const found = targets.filter((target) => !findDC(target) || flatCheck(state.rng, findDC(target)) >= SUCCESS);
         if (found.length < targets.length) log(state, `  ${caster.name} fails to find ${targets.length - found.length} target(s)`);
         targets.splice(0, targets.length, ...found);
     }
@@ -1886,6 +1888,8 @@ export function isUtility(plan) {
 
 export function canCast(c, spell) {
     if (!registry.familyFor(spell.plan?.resolution?.kind) || castsNothing(spell.plan)) return false;
+    // (L5: a coven spell, only with its coven beside it.)
+    if (spell.coven && !c.covenReady) return false;
     // Recharging (a breath weapon used a round ago).
     if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0)) return false;
     // (B256: not a zone it already has up.)

@@ -328,3 +328,122 @@ export function troopSegmentLost(state, c, slug) {
     }
     return true;
 }
+
+// --- H1: a hydra's heads (2026-10-13, tier 3) ----------------------------------------------
+// Its heads (Head Regrowth's count, a head's Hit Points and weaknesses, what cauterizes a stump) and its regeneration by them (3 × its
+// heads). A PC aims a Strike at a head when that hit would sever it and saving its regeneration and its bite is worth more than the hit on
+// the body (not when the body would drop); a severed head leaves a stump (cauterized at once by an acid or fire Strike), costs a Reactive
+// Strike a round and lowers its regeneration; acid or fire damage later cauterizes a stump (all of them from an area or a splash). After
+// regenerating, a Fortitude save regrows heads from an uncauterized stump (up to double its own count). No heads and no stumps: it dies.
+// A head's damage short of severing it is gone at the end of any turn.
+
+export function hydraOf(c) {
+    return c?.hydra?.count ? c.hydra : null;
+}
+
+// Its regeneration by its heads now.
+export function setHydraRegeneration(c) {
+    const hydra = hydraOf(c);
+    if (!hydra?.perHead) return;
+    c.regeneration = { ...(c.regeneration ?? {}), value: hydra.perHead * (hydra.heads ?? hydra.count), deactivatedBy: [], hydra: true };
+}
+
+// Its regeneration holds while it has a head or an uncauterized stump.
+export function hydraAlive(c) {
+    const hydra = hydraOf(c);
+    return !hydra || (hydra.heads ?? hydra.count) > 0 || (hydra.stumps ?? 0) > 0;
+}
+
+// The head as a target of its own: its weaknesses, immune to area damage.
+const headOf = (c, hydra) => ({ id: `${c.id}~head`, name: `${c.name}'s head`, traits: [], cond: {}, weaknesses: (hydra.weaknesses ?? []).map((entry) => ({ ...entry, exceptions: [] })), resistances: [], immunities: ["area-damage"], hp: { value: hydra.hp, max: hydra.hp } });
+
+// A party member's choice: a head it severs in one hit, worth more than the hit on its body.
+export function aimsAtHead(attacker, target, strike, { expectedHitDamage }) {
+    const hydra = hydraOf(target);
+    if (!hydra?.hp || !(hydra.heads > 0) || attacker.side === target.side || attacker.kind !== "pc") return false;
+    const onHead = expectedHitDamage(attacker, strike, headOf(target, hydra), false) + (hydra.headDamage ?? 0);
+    if (onHead < hydra.hp) return false;
+    const onBody = expectedHitDamage(attacker, strike, target, false);
+    if (onBody >= target.hp.value) return false;
+    const bite = Math.max(0, ...(target.strikes ?? []).filter((entry) => entry.melee).map((entry) => (entry.damage ?? []).reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0)));
+    return (hydra.perHead ?? 3) * 3 + bite * 0.5 >= onBody;
+}
+
+// The hit on the head: severed when its damage this turn reaches the head's Hit Points. Nothing on the body.
+export function strikeHead(state, attacker, target, instances, { adjustDamage, killCreature }) {
+    const hydra = hydraOf(target);
+    const damage = adjustDamage(headOf(target, hydra), instances.filter((instance) => !instance.persistent)).total;
+    hydra.headDamage = (hydra.headDamage ?? 0) + damage;
+    log(state, `  ${attacker.name} aims at one of ${target.name}'s heads: ${damage} (${Math.min(hydra.headDamage, hydra.hp)}/${hydra.hp})`);
+    if (hydra.headDamage < hydra.hp) return 0;
+    hydra.headDamage = 0;
+    const burns = instances.some((instance) => (hydra.cauterize ?? []).includes(instance.type) && instance.amount > 0);
+    sever(state, target, burns, { killCreature });
+    return 0;
+}
+
+function sever(state, c, cauterized, { killCreature }) {
+    const hydra = hydraOf(c);
+    hydra.heads = Math.max(0, (hydra.heads ?? hydra.count) - 1);
+    if (!cauterized) hydra.stumps = (hydra.stumps ?? 0) + 1;
+    // (A Reactive Strike a round fewer.)
+    const spare = (c.spareReactions ?? []).find((entry) => entry.count > 0 && entry.names.some((name) => /reactive strike/i.test(name)));
+    if (spare) spare.count--;
+    setHydraRegeneration(c);
+    log(state, `  ${c.name}'s head is severed${cauterized ? " and the stump cauterized" : ""} (${hydra.heads} left)`);
+    if (!hydraAlive(c)) {
+        log(state, `  ${c.name} has no heads left`);
+        killCreature(state, c);
+    }
+}
+
+// Acid or fire damage on it (cold or water, a hellfire hydra's): a stump cauterized — all of them by an area's or a splash's.
+export function cauterizeStumps(state, c, instances, context, { killCreature }) {
+    const hydra = hydraOf(c);
+    if (!hydra?.stumps) return;
+    const kinds = hydra.cauterize ?? ["acid", "fire"];
+    const burning = instances.some((instance) => instance.amount > 0 && (kinds.includes(instance.type) || kinds.some((kind) => context?.has?.(`item:trait:${kind}`))));
+    if (!burning) return;
+    const all = Boolean(context?.has?.("area-damage")) || instances.some((instance) => instance.splash);
+    const count = all ? hydra.stumps : 1;
+    hydra.stumps -= count;
+    log(state, `  ${c.name}: ${count} stump${count === 1 ? "" : "s"} cauterized`);
+    if (!hydraAlive(c)) {
+        log(state, `  ${c.name} has no heads left`);
+        killCreature(state, c);
+    }
+}
+
+// After it regenerates: a Fortitude save, and an uncauterized stump (two on a critical success) regrows its heads.
+export function hydraRegrow(state, c) {
+    const hydra = hydraOf(c);
+    if (!hydra?.stumps || !hydra.dc) return;
+    const modifier = saveModifier(c, "fortitude");
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + modifier, hydra.dc, natural);
+    if (degree < SUCCESS) return;
+    const stumps = Math.min(hydra.stumps, degree === CRITICAL_SUCCESS ? 2 : 1);
+    const cap = hydra.double ? hydra.count * 2 : Infinity;
+    const grown = Math.min(cap - hydra.heads, stumps * (hydra.perSuccess ?? 1));
+    hydra.stumps -= stumps;
+    if (grown <= 0) return;
+    hydra.heads += grown;
+    const spare = (c.spareReactions ?? []).find((entry) => entry.names.some((name) => /reactive strike/i.test(name)));
+    if (spare) spare.count += grown;
+    setHydraRegeneration(c);
+    log(state, `  ${c.name} regrows ${grown} head${grown === 1 ? "" : "s"} (${hydra.heads})`);
+}
+
+// A head's damage short of severing it is gone at the end of any turn.
+export function headsMend(state) {
+    for (const c of state.list) if (c.hydra?.headDamage) c.hydra.headDamage = 0;
+}
+
+// Its Strikes by its heads: a "Strikes up to its number of heads" count, and Focused Assault's "1d6 for every head beyond the first".
+export function hydraScaled(c, formula) {
+    const hydra = hydraOf(c);
+    if (!hydra || (hydra.heads ?? hydra.count) === hydra.count) return formula;
+    const pattern = new RegExp(`^${hydra.count - 1}d6\\b`);
+    if (!pattern.test(String(formula))) return formula;
+    return hydra.heads > 1 ? String(formula).replace(pattern, `${hydra.heads - 1}d6`) : null;
+}

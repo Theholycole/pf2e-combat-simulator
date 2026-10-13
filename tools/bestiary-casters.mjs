@@ -54,7 +54,8 @@ for (const pack of PACKS) {
       const add = (spell, castRank, pool) => {
         let plan;
         try { plan = compileAbility(spell, { nativeEffectCatalog, referencedSpells }); } catch (e) { stats.errors.push(`${npc.name}/${spell.name}: compile ${e.message}`); return; }
-        spells.push({ name: spell.name, plan, castRank, dc, attack, pool, effects: effectModels(plan, castRank) });
+        // (L5: a coven's spells, castable only with its coven — not by a lone caster here.)
+        spells.push({ name: spell.name, plan, castRank, dc, attack, pool, ...(/\bcoven\b/i.test(entry.name ?? "") ? { coven: true } : {}), effects: effectModels(plan, castRank) });
       };
       for (const spell of own) {
         const traits = spell.system?.traits?.value ?? [];
@@ -84,7 +85,7 @@ for (const pack of PACKS) {
       stats.spells++;
       if (isUtility(spell.plan)) stats.utility = (stats.utility ?? 0) + 1;
       kinds.set(spell.plan.resolution?.kind, (kinds.get(spell.plan.resolution?.kind) ?? 0) + 1);
-      if (!canCast({ spellPools: { [spell.pool]: 1 } }, spell)) continue;
+      if (!canCast({ spellPools: { [spell.pool]: 1 }, covenReady: true }, spell)) continue;
       stats.castable++;
       const gaps = spellGaps(spell);
       if (!gaps.length) stats.full++;

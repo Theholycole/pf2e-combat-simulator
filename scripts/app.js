@@ -171,6 +171,8 @@ export class SimulatorApp extends ApplicationV2 {
             <label>DC <input type="number" name="dc" value="${escape(objective.dc ?? "")}" placeholder="level DC"></label>
             <label>Skills <input type="text" name="skills" value="${escape((objective.skills ?? ["athletics", "crafting", "thievery"]).join(", "))}"></label>`;
         if (MAP_KINDS.has(objective.kind)) objectiveFields = this.#mapFields(objective);
+        // (L1–L3: the fight's light, weather and ground.)
+        const env = setup.environment ?? {};
         const situational = SITUATIONAL.map(([key, label]) => `<label class="check"><input type="checkbox" name="situational.${key}" ${setup.situational?.[key] ? "checked" : ""}> ${escape(label)}</label>`).join("");
         return `
         <form class="sim-setup" autocomplete="off">
@@ -185,6 +187,14 @@ export class SimulatorApp extends ApplicationV2 {
                 <label>Foe cover <select name="cover.foes">${option(0, "None", setup.cover?.foes ?? 0)}${option(2, "Standard", setup.cover?.foes)}${option(4, "Greater", setup.cover?.foes)}</select></label>
                 <label class="check"><input type="checkbox" name="fresh" ${this.fresh ? "checked" : ""}> Start fresh (full HP, no conditions)</label>
                 <label>Runs <input type="number" name="runs" min="20" max="5000" value="${escape(this.runs)}"></label>
+            </fieldset>
+            <fieldset><legend>Surroundings</legend>
+                <label title="Auto: the scene's darkness">Light <select name="env.light">${option("auto", "Auto", env.light ?? "auto")}${option("bright", "Bright", env.light)}${option("dim", "Dim", env.light)}${option("dark", "Darkness", env.light)}</select></label>
+                <label class="check"><input type="checkbox" name="env.sunlight" ${env.sunlight ? "checked" : ""}> Sunlight</label>
+                <label>Weather <select name="env.weather">${option("", "Clear", env.weather ?? "")}${option("fog", "Fog", env.weather)}${option("rain", "Heavy rain", env.weather)}${option("snow", "Falling snow", env.weather)}</select></label>
+                <label title="Natural difficult terrain: half Speed for creatures without the stride for it">Difficult ground <select name="env.difficult">${option("", "None", env.difficult ?? "")}${option("plants", "Undergrowth", env.difficult)}${option("swamp", "Swamp", env.difficult)}${option("snow", "Snow", env.difficult)}${option("ice", "Ice", env.difficult)}${option("water", "Shallow water", env.difficult)}${option("rubble", "Rubble", env.difficult)}${option("sand", "Sand", env.difficult)}</select></label>
+                <label title="PF2e's terrain roll options its creatures' rules test, comma-separated">Terrain <input type="text" name="env.terrain" value="${escape((env.terrain ?? []).join(", "))}" placeholder="underwater, underground…" size="14"></label>
+                <label>Climate <select name="env.climate">${option("", "Mild", env.climate ?? "")}${option("severe-cold", "Severe cold", env.climate)}${option("extreme-cold", "Extreme cold", env.climate)}${option("severe-heat", "Severe heat", env.climate)}${option("extreme-heat", "Extreme heat", env.climate)}</select></label>
             </fieldset>
             <fieldset><legend>Morale situation</legend>${situational}</fieldset>
             ${this.#escalationFields()}
@@ -408,7 +418,15 @@ export class SimulatorApp extends ApplicationV2 {
             situational: Object.fromEntries(SITUATIONAL.map(([key]) => [key, checked(`situational.${key}`)])),
             objective,
             objectivePriority: Number(value("objectivePriority") || this.setup.objectivePriority || 1),
-            escalations: this.#readEscalations(form, value)
+            escalations: this.#readEscalations(form, value),
+            environment: {
+                light: value("env.light") || "auto",
+                sunlight: checked("env.sunlight"),
+                weather: value("env.weather") || null,
+                difficult: value("env.difficult") || null,
+                terrain: (value("env.terrain") || "").split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean),
+                climate: value("env.climate") || null
+            }
         };
         this.fresh = checked("fresh");
         this.runs = Math.max(20, Number(value("runs") || this.runs));

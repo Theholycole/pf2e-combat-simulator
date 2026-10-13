@@ -4,7 +4,7 @@ import { createRng } from "./rng.js";
 import { CRITICAL_SUCCESS, FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
-import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
+import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
@@ -22,6 +22,8 @@ import { helpArrives } from "./morale.js";
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
+import { buildEnvironment, covenCast, covenTurnStart, hiddenAtTurnStart, lightAtStart, sunlightTurnEnd, terrainTurn } from "./environment.js";
+import { headsMend, hydraRegrow } from "./creature-rules.js";
 import { attachedTurnStart, berserkTurnStart, followAttached, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
@@ -107,6 +109,9 @@ function createState(snapshot, options, seed, withLog) {
     placeCombatants(state);
     placeOnMap(state);
     initMorale(state);
+    // (L1–L5: the fight's light, weather and ground; light blindness and sunlight as it starts.)
+    state.environment = buildEnvironment(snapshot.setup?.environment);
+    lightAtStart(state, { applyCondition });
     const strongest = list.filter((c) => c.side === "foes" && c.kind !== "object").sort((a, b) => b.level - a.level || b.hp.max - a.hp.max)[0];
     state.strongestFoeId = strongest?.id ?? null;
     return state;
@@ -377,6 +382,8 @@ function startTurn(state, c) {
     const fastHealing = fastHealingNow(state, c);
     if (fastHealing > 0) applyHeal(state, c, fastHealing);
     if (regenerating(c, state) && c.regeneratedRound !== state.round) applyHeal(state, c, c.regeneration.value);
+    // (H1: a hydra's stumps regrow heads after it regenerates.)
+    if (c.hydra?.stumps && regenerating(c, state)) hydraRegrow(state, c);
 }
 
 // Regeneration: a downed monster regains its HP at the start of its turn, loses
@@ -505,6 +512,11 @@ function endTurn(state, c) {
     // (T2, T4: Inexorable's slowed and stunned gone; Protean Anatomy's new senses.)
     if (isActive(c) && c.inexorable) inexorableTurnEnd(state, c);
     if (isActive(c) && c.protean) proteanTurnEnd(state, c);
+    // (H1: a hydra's heads mend what didn't sever them.)
+    headsMend(state);
+    // (L2–L3: sunlight's slowing grows; the ground's Speed back.)
+    if (c.sunlight) sunlightTurnEnd(state, c, { killCreature });
+    terrainTurn(state, c, "end");
     if (c.cond.frightened > 0) {
         c.cond.frightened--;
         // (Consume Fear, B76: a monster's reaction to a creature near it no longer frightened.)
@@ -699,6 +711,11 @@ function act(state, c, action) {
             // (A follow-up by the Strike's degree, "Enfeebled 2 (or Enfeebled 3 on a critical hit)": that Strike's degree, B68.)
             const byStrike = action.rider && spell?.plan?.resolution?.check?.statistic === "strike" && Number.isFinite(rider?.degree);
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}) });
+            // (L5: a coven spell — the coven's one this round, and its helpers' actions.)
+            if (spell?.coven) {
+                covenCast(state, c);
+                c.covenReady = false;
+            }
             // (B147: a spell just cast, for what needs it as its last action — Residual Force, Primal Weapon.)
             if (spell && (!spell.kind || spell.castsSpell)) c.lastCast = { round: state.round, action: c.actionCount ?? 0, cantrip: (spell.plan?.traits ?? []).includes("cantrip") };
             break;
@@ -748,7 +765,7 @@ function act(state, c, action) {
                 }
             }
             // Vicious Swing counts as two attacks; Exacting Strike's miss doesn't count.
-            if (result && activity.countsAs > 1) c.attacksThisTurn += activity.countsAs - 1;
+            if (result && activity.countsAs > 1) c.attacksThisTurn += (c.hydra?.count === activity.countsAs ? Math.max(1, c.hydra.heads) : activity.countsAs) - 1;
             if (result && activity.exacting && result.degree === 1) c.attacksThisTurn = Math.max(0, c.attacksThisTurn - 1);
             // Focused Assault (B74): a failure (not a critical one) still deals the Strike's damage, as a hit's.
             if (result && activity.failureDamage && result.degree === FAILURE && isActive(target)) {
@@ -826,7 +843,8 @@ function act(state, c, action) {
             if (ability.each) {
                 const order = multiStrikeOrder(c, ability) ?? [];
                 const ranged = order.length > 0 && c.strikes[order[0]] && !c.strikes[order[0]].melee;
-                const foes = (ranged ? state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone") : engagedEnemies(state, c)).filter((other) => !(ability.notGrabbed && other.grabbedBy === c.id)).slice(0, ability.max ?? Infinity);
+                // (H1: a hydra's Strikes up to its heads now.)
+                const foes = (ranged ? state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone") : engagedEnemies(state, c)).filter((other) => !(ability.notGrabbed && other.grabbedBy === c.id)).slice(0, Math.min(ability.max ?? Infinity, c.hydra?.count ? c.hydra.heads : Infinity));
                 for (const [step, foe] of foes.entries()) {
                     // (Three-Headed Strike, B74: a different Strike at each creature, in turn.)
                     const index = order[Math.min(step, order.length - 1)];
@@ -1085,6 +1103,10 @@ function takeTurn(state, c) {
     ownTurnStart(state, c);
     // (T4: a flesh golem's Berserk; an attached creature's Strike damage, the pickled punk's.)
     berserkTurnStart(state, c);
+    // (L3–L5: the ground's difficult terrain; Hidden Movement; a coven's readiness and the actions it lent.)
+    terrainTurn(state, c, "start");
+    hiddenAtTurnStart(state, c);
+    covenTurnStart(state, c);
     if (c.attach?.strike) attachedTurnStart(state, c, { applyDamage, rollStrikeDamage, strikeNamed });
     if (!canAct(c)) {
         endTurn(state, c);

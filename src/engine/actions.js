@@ -15,6 +15,8 @@ import { applyEffect, removeEffect } from "./effects.js";
 import { applyCondition, applyMove, castPlan, castSpell, deathThroes, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
+import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
+import { aimsAtHead, cauterizeStumps, strikeHead } from "./creature-rules.js";
 import { attachAfterHit, bestStrikeType, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, troopAfterDamage } from "./creature-rules.js";
 
 function log(state, text) {
@@ -255,8 +257,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     // (B302: off-guard to it by its own passive — Surprise Attack's first round, Dread Striker's frightened target.)
     const surprised = offGuardFrom(state, attacker, target, { melee: strike.melee });
-    // Blinded or dazzled: a flat check to find the target first; a concealed or hidden target too (B41).
-    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, target.cond?.hidden ? 11 : target.cond?.concealed ? 5 : 0);
+    // Blinded or dazzled: a flat check to find the target first; a concealed or hidden target too (B41). (L1: the light and the weather.)
+    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, target.cond?.hidden ? 11 : target.cond?.concealed ? 5 : 0, sightDC(state, attacker, target));
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
         // Counterattack (B94): a miss from beside it because it's concealed, a Strike back.
@@ -267,9 +269,13 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // Reactions happen outside the attacker's turn, so this turn's history doesn't apply.
     const history = reaction ? [] : (attacker.turnAttacks ?? []);
     const modifier = attackModifier(state, attacker, target, strike, attacksMade, { history });
-    const ac = targetAC(state, attacker, target, strike, flanked || surprised);
+    // (L1, L4: off-guard to an attacker it can't see — darkness without darkvision — or one that started its turn hidden, Hidden Movement.)
+    const unseenAttacker = unseen(state, target, attacker) || hiddenMovementOffGuard(state, attacker, target);
+    // (H1: a party member aiming at a hydra's head it can sever in one hit.)
+    const headAimed = !reaction && aimsAtHead(attacker, target, strike, { expectedHitDamage });
+    const ac = targetAC(state, attacker, target, strike, flanked || surprised || unseenAttacker);
     // Off-guard to this attack: for Sneak Attack and backstabber.
-    const offGuard = flanked || surprised || isOffGuard(target) || offGuardTo(target, attacker, strike.melee);
+    const offGuard = flanked || surprised || unseenAttacker || isOffGuard(target) || offGuardTo(target, attacker, strike.melee);
     // A one-attack feint or diversion is used up by this attack.
     const scoped = (target.offGuardTo ?? []).find((entry) => entry.attacker === attacker.id && (entry.attacks !== "melee" || strike.melee) && entry.uses);
     // Spent by this attack; Set-Up Strike's off-guard is shared by the allies and spent by the first (its group).
@@ -518,7 +524,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     // Logged before the damage so consequences (Shield Block, going down) follow it.
     const line = state.log ? state.log.push("") - 1 : -1;
-    const dealt = applyDamage(state, target, instances, {
+    // (H1: a hit aimed at one of a hydra's heads — on the head, not its body.)
+    const dealt = headAimed ? strikeHead(state, attacker, target, instances, { adjustDamage, killCreature: kill }) : applyDamage(state, target, instances, {
         source: attacker,
         critical,
         nonlethal: strike.nonlethal || nonlethalAgainst(state, attacker, target),
@@ -1048,6 +1055,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
     if (dealt > 0 && target.protean) proteanAfterDamage(state, target, types);
     if (dealt > 0 && target.troop) troopAfterDamage(state, target);
     if (source && target.split) splitAfterHit(state, target, types, { critical });
+    // (H1: acid or fire on a hydra with stumps — cauterized.)
+    if (target.hydra?.stumps) cauterizeStumps(state, target, instances, instances.find((instance) => instance.context)?.context ?? null, { killCreature: kill });
     if (dealt > 0 && target.elemental) elementalAnswers(state, target, "damage", { types, context: instances.find((instance) => instance.context)?.context ?? null, applyCondition, recharge: rechargeNamed });
     // (B143: Destructive Vengeance's damage at the enemy.)
     if (retribution?.vengeance && isActive(source)) {

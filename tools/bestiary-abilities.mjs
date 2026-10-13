@@ -234,6 +234,9 @@ function combatant(npc) {
         spellPools: Object.fromEntries(spells.filter((spell) => spell.pool).map((spell) => [spell.pool, 1])),
         saves: { fortitude: system.saves.fortitude.value, reflex: system.saves.reflex.value, will: system.saves.will.value },
         perception: system.perception?.mod ?? 0,
+        // (L1, L3: its senses and whether it flies.)
+        senses: [...new Set((system.perception?.senses ?? []).map((sense) => (typeof sense === "string" ? sense : sense?.type)).filter(Boolean))],
+        ...((system.attributes.speed?.otherSpeeds ?? []).some((speed) => speed?.type === "fly" && Number(speed.value) > 0) ? { flies: true } : {}),
         skills,
         // (B303: the skills its abilities name for its own initiative.)
         initiativeSkills: [...new Set(npc.items.filter((entry) => ["action", "feat"].includes(entry.type)).flatMap((entry) => initiativeSkills(entry)))],

@@ -5,7 +5,7 @@
 // Dodge, Challenge Fate, Twisting Tail, Death Frenzy).
 
 import { summonSpec } from "./summons.js";
-import { conditionHeld } from "./creature-rules.js";
+import { conditionHeld, hydraAlive } from "./creature-rules.js";
 
 const SIZES = ["tiny", "small", "medium", "large", "huge", "gargantuan"];
 const SIZE_WORDS = { tiny: "tiny", sm: "small", med: "medium", lg: "large", huge: "huge", grg: "gargantuan" };
@@ -113,6 +113,19 @@ export function addBuiltin(spec, plan, name) {
             if (plan.berserk) set("golemBerserk", { ...plan.berserk });
             if (plan.elemental?.length) set("elemental", [...(spec.elemental ?? []), ...plan.elemental.map((rule) => ({ ...rule, name }))]);
             if (plan.permanent?.length) set("permanent", [...(spec.permanent ?? []), ...plan.permanent]);
+            // (L1–L5: light, sunlight, ground, sight, Hidden Movement, covens — src/engine/environment.js.)
+            if (plan.lightBlindness) set("lightBlindness", { ...plan.lightBlindness });
+            if (plan.sunlight) set("sunlight", { ...plan.sunlight, conditions: (plan.sunlight.conditions ?? []).map((entry) => ({ ...entry })) });
+            if (plan.terrainStride?.length) set("terrainStride", [...new Set([...(spec.terrainStride ?? []), ...plan.terrainStride])]);
+            if (plan.dimConcealDC) set("dimConcealDC", plan.dimConcealDC);
+            if (plan.snowVision) set("snowVision", true);
+            if (plan.hiddenMovement) set("hiddenMovement", true);
+            if (plan.coven) set("coven", true);
+            // (H1: a hydra's heads and its regeneration by them, from its several abilities.)
+            if (plan.heads || plan.hydraRegeneration) {
+                set("hydra", { ...(spec.hydra ?? {}), ...(plan.heads ?? {}), ...(plan.hydraRegeneration ?? {}) });
+                if (spec.hydra.count && spec.hydra.perHead) spec.regeneration = { value: spec.hydra.perHead * spec.hydra.count, deactivatedBy: [], hydra: true };
+            }
             return played;
         }
         // (B298: a summon whose creatures fight — its reserves are made with the snapshot.)
@@ -755,6 +768,8 @@ export function extraApplies(extra, target, { offGuard, packAllies, attacker = n
 
 // Regeneration works unless damage of a listed type turned it off.
 export function regenerating(c, state = null) {
+    // (H1: a hydra's while it has a head or an uncauterized stump.)
+    if (c.regeneration?.hydra) return hydraAlive(c);
     return !!c.regeneration && !c.regenerationOff && (!c.regeneration.when || testPredicate(c.regeneration.when, selfOptions(state, c)));
 }
 
