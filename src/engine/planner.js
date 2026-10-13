@@ -829,6 +829,8 @@ function expand(ctx, node, actionsLeft) {
             if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ms${abilityIndex}`))) continue;
             if (ability.flourish && flourishUsed(c, node)) continue;
             if (ability.oncePerFight && c.multiUsed?.has(ability.name)) continue;
+            // (B258, Gaze Upon: its recharge.)
+            if ((c.multiUntil?.get(ability.name) ?? -Infinity) > state.round) continue;
             const order = multiStrikeOrder(c, ability);
             if (!order || order.some((index) => !strikeUsable(c, c.strikes[index]))) continue;
             // A Strike at every enemy in its Melee: worth the sum over them.

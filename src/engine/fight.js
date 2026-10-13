@@ -737,6 +737,7 @@ function act(state, c, action) {
             if (ability.flourish) c.usedThisTurn?.add("flourish");
             // (B153, Heads Will Roll!: once a minute — once a fight.)
             if (ability.oncePerFight) (c.multiUsed ??= new Set()).add(ability.name);
+            if (ability.recharge) (c.multiUntil ??= new Map()).set(ability.name, state.round + rollCount(state, ability.recharge));
             let target = state.byId.get(action.targetId);
             // (B108, Chase Prey: a Stride to the creature first; B109, Mauling Rush: to its Melee, then a Strike at each there.)
             if (ability.strides && target && isActive(target) && !sameMelee(c, target) && canMove(c)) {

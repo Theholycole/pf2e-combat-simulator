@@ -954,7 +954,9 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
     }
     const push = critical && rider.criticalPush ? rider.criticalPush : rider.push;
     if (push && isActive(target)) applyMove(state, target, { kind: "push", distance: push });
-    for (const formula of [...(rider.damage ?? []), ...(prone ? rider.proneDamage ?? [] : [])]) {
+    // (B258, Resonating Kick: more damage against a creature with a trait it names.)
+    const againstTrait = (rider.vsTraits ?? []).filter((entry) => entry.traits.some((trait) => (target.traits ?? []).includes(trait))).flatMap((entry) => entry.damage);
+    for (const formula of [...(rider.damage ?? []), ...(prone ? rider.proneDamage ?? [] : []), ...againstTrait]) {
         const instances = rollInstances(state, parseDamage(ownType(formula, strike))).map((instance) => ({ ...instance, amount: critical ? instance.amount * 2 : instance.amount }));
         const dealt = applyDamage(state, target, instances, { source: attacker });
         log(state, `  ${target.name} takes ${dealt} more ${instances.map((instance) => instance.type).join("/")}`);

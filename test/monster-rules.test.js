@@ -4749,3 +4749,26 @@ test("Zones: concealed inside, saves at a turn's start, damage at its end, a haz
     zoneTurn(state, s, "start");
     assert.deepEqual([state.zones.length, s.activeZones.has("Test Smog")], [0, false]);
 });
+
+test("A multi-Strike's recharge; a Strike activity's damage against a trait (2026-10-12, B258)", () => {
+    const [fighter] = martialParty(5);
+    const eye = withBuiltins({ ...moderateCreature(5, "eye", "Eye"), engagement: 1 }, ["Test Volley", { builtin: "multi-strike", actions: 2, strikes: [null], each: true, sameMap: true, recharge: "1d4" }]);
+    assert.equal(eye.multiStrikes[0].recharge, "1d4");
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, eye] }, {}, 1);
+    state.log = [];
+    const e = state.byId.get("eye");
+    state.rng.die = () => 3;
+    performAction(state, e, { type: "multiStrike", ability: 0, targetId: fighter.id, actions: 2 });
+    assert.equal(e.multiUntil.get("Test Volley"), state.round + 3);
+    const monk = { ...moderateCreature(5, "mnk", "Monk"), engagement: 1 };
+    const aberration = { ...moderateCreature(5, "abr", "Aberration"), traits: ["aberration"], engagement: 1 };
+    const rider = { name: "Test Kick", onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null, vsTraits: [{ traits: ["aberration"], damage: ["10[force]"] }] } };
+    const both = createFightState({ combatants: [monk, aberration, { ...fighter, engagement: 1 }] }, {}, 1);
+    both.log = [];
+    const before = both.byId.get("abr").hp.value;
+    applyStrikeRider(both, both.byId.get("mnk"), both.byId.get("abr"), rider, false);
+    assert.equal(both.byId.get("abr").hp.value, before - 10);
+    const human = both.byId.get(fighter.id).hp.value;
+    applyStrikeRider(both, both.byId.get("mnk"), both.byId.get(fighter.id), rider, false);
+    assert.equal(both.byId.get(fighter.id).hp.value, human);
+});
