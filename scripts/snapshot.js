@@ -512,7 +512,11 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
             continue;
         }
         if (plan.builtin === "modes") {
-            const ways = pc ? [] : plan.modes.filter((mode) => mode.plan?.resolution);
+            // (B286: not with a requirement the simulation can't check — the ability's own or a way's: Inject Venom's last Strike, Shifting
+            // Tempo's grab.)
+            const unmet = (entry) => Boolean(entry?.requires) && !entry.requiresFoe && !PLAYED_REQUIRES.has(entry.requires);
+            if (unmet(plan)) continue;
+            const ways = pc ? [] : plan.modes.filter((mode) => mode.plan?.resolution && !unmet(mode.plan));
             // (B179, the mocking dragon's Hilarious Exhalation: a way that casts a spell — that spell, as a cast-spell ability's.)
             const casts = [];
             for (const mode of pc ? [] : plan.modes.filter((entry) => entry.plan?.builtin === "cast-spell")) {

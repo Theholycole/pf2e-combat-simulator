@@ -275,7 +275,12 @@ function chooser(caster, targets) {
 function liveRoller(state) {
     return {
         roll(statistic, options) {
-            const natural = state.rng.d20();
+            let natural = state.rng.d20();
+            // (B286, Twice for Bad Luck: a save rolled twice, the worse kept — the core's misfortune; fortune the better.)
+            if (Boolean(options?.fortune) !== Boolean(options?.misfortune)) {
+                const second = state.rng.d20();
+                natural = options.fortune ? Math.max(natural, second) : Math.min(natural, second);
+            }
             const total = natural + options.modifier;
             return { natural, total, dc: options.dc, degree: DEGREE_NAMES[degreeOf(total, options.dc, natural)] };
         },

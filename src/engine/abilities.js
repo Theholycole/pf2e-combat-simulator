@@ -23,7 +23,7 @@ export function addBuiltin(spec, plan, name) {
             // (B95, Ferocity's kin: its Hit Points ("half", a number or a formula), whether it's wounded, its uses, a Strike after, a
             // Mythic Point's cost, a free action's.)
             if (plan.hp !== undefined) {
-                spec.ferocityRule = { name, hp: plan.hp, wounded: plan.wounded !== false, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}), ...(plan.strike ? { strike: plan.strike } : {}), ...(plan.mythic ? { mythic: true } : {}), ...(plan.free ? { free: true } : {}) };
+                spec.ferocityRule = { name, hp: plan.hp, wounded: plan.wounded !== false, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}), ...(plan.strike ? { strike: plan.strike } : {}), ...(plan.mythic ? { mythic: true } : {}), ...(plan.free ? { free: true } : {}), ...(plan.atOne ? { atOne: true } : {}), ...(plan.perTurn ? { perTurn: true } : {}) };
                 if (plan.mythic) spec.mythicPoints ??= 3;
             }
             return true;
@@ -101,7 +101,8 @@ export function addBuiltin(spec, plan, name) {
             // (A stance lasts until another ends it.)
             const rounds = plan.stance ? Infinity : plan.model?.rounds ?? 10;
             // (B248: regeneration on itself, played as fast healing.)
-            const model = { name, rounds, modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: Number(plan.model?.fastHealing) || 0, resistances: (plan.model?.resistances ?? []).map((entry) => ({ type: entry.type, value: Number(entry.value) || 0, exceptions: [...(entry.exceptions ?? [])] })), weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...(plan.model?.endsWithTempHp ? { endsWithTempHp: true } : {}), ...(plan.nextStrike ? { nextStrike: true } : {}), ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}) };
+            // (B286, Conductive Shell: damage on each creature that hits it in melee while it lasts — hitBack.)
+            const model = { name, rounds, ...(plan.model?.hitBack ? { hitBack: plan.model.hitBack } : {}), modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: Number(plan.model?.fastHealing) || 0, resistances: (plan.model?.resistances ?? []).map((entry) => ({ type: entry.type, value: Number(entry.value) || 0, exceptions: [...(entry.exceptions ?? [])] })), weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...(plan.model?.endsWithTempHp ? { endsWithTempHp: true } : {}), ...(plan.nextStrike ? { nextStrike: true } : {}), ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}) };
             // (B137, Cower, Entrench: a stance that ends when it moves.)
             spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model, ...(plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}), ...(Number(plan.heal) > 0 ? { heal: Number(plan.heal) } : {}) }];
             return true;
@@ -250,7 +251,8 @@ export function addBuiltin(spec, plan, name) {
         // (B171, Sidestep, Glide Aside: a Strike that misses it sent at another creature beside it.)
         case "redirect-attack":
             // (B191, Hop-Dodge: as a melee Strike is made at it, not after a miss.)
-            spec.redirectAttack = { name, ...(plan.step ? { step: true } : {}), ...(plan.when === "targeted" ? { when: "targeted" } : {}) };
+            // (B286, Bouncy: only a critically failed Strike — when "critical".)
+            spec.redirectAttack = { name, ...(plan.step ? { step: true } : {}), ...(["targeted", "critical"].includes(plan.when) ? { when: plan.when } : {}) };
             return true;
         // (B170, Guide's Warning, Warning Hoot: a circumstance bonus to its allies' initiative rolls; its reaction, or a free action.)
         case "initiative-warning":

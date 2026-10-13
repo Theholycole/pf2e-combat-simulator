@@ -396,7 +396,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         if (degree === FAILURE && strike.splashKind === "bomb") splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false })), { includeTarget: true });
         // (B171, Sidestep, Glide Aside: the attack sent at another of the attacker's side beside it, the attacker rerolling against that one at
         // the same multiple attack penalty.)
-        if (!reaction && target.redirectAttack && target.redirectAttack.when !== "targeted" && isActive(attacker) && isActive(target) && canReact(target) && canAct(target)) {
+        // (B286, Bouncy: when "critical", only a critically failed Strike.)
+        if (!reaction && target.redirectAttack && target.redirectAttack.when !== "targeted" && (target.redirectAttack.when !== "critical" || degree === CRITICAL_FAILURE) && isActive(attacker) && isActive(target) && canReact(target) && canAct(target)) {
             const other = state.list.find((c) => c !== attacker && c !== target && c.side === attacker.side && isActive(c) && sameMelee(c, target));
             if (other) {
                 target.reactionUsed = true;
@@ -544,6 +545,14 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         // (B129, Reactive Splash: only an attack of the damage types it names.)
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("hit") && strikeOfTypes(strike, entry.damageTypes));
         if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, "hit");
+    }
+    // (B286, Conductive Shell: while its effect lasts, a creature that hits it in melee takes the damage it names.)
+    if (degree >= SUCCESS && strike.melee && isActive(attacker)) {
+        for (const effect of (target.effects ?? []).filter((entry) => entry.model?.hitBack)) {
+            log(state, `  ${attacker.name} is hurt by ${target.name}'s ${effect.model.name ?? effect.name}`);
+            applyDamage(state, attacker, rollInstances(state, parseDamage(effect.model.hitBack)), { source: target });
+            if (!isActive(attacker)) break;
+        }
     }
     // Violent Retort (B70): a critical hit on it, answered with a Strike.
     if (degree === CRITICAL_SUCCESS && !reaction && isActive(attacker) && isActive(target)) {
@@ -1162,7 +1171,7 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
     if (target.hp.value <= 0) {
         const overwhelming = amount >= target.hp.max * state.moraleRules.measures.overwhelmingFraction;
         const massive = amount >= target.hp.max * 2;
-        knockOut(state, target, { source, critical, nonlethal, overwhelming, massive });
+        knockOut(state, target, { source, critical, nonlethal, overwhelming, massive, before });
     }
     return dealt;
 }
@@ -1179,11 +1188,15 @@ export function releaseGrabs(state, grabber) {
     }
 }
 
-function knockOut(state, target, { source, critical, nonlethal, overwhelming, massive }) {
+function knockOut(state, target, { source, critical, nonlethal, overwhelming, massive, before = null }) {
     // Ferocity's kin (B95): Orc Ferocity once a day, Mythic Ferocity at half its Hit Points for a Mythic Point, Never Fall at 25 (and not
     // wounded), Indomitable Beast's Strike after.
+    // (B286, Fractions of Life: only from 1 Hit Point — atOne — and once on each creature's turn — perTurn.)
     const rule = target.kind !== "pc" ? target.ferocityRule : null;
-    if (rule && !massive && (rule.free || canReact(target)) && (!rule.wounded || (target.cond.wounded ?? 0) < 3) && (target.ferocityUsed ?? 0) < (rule.uses ?? Infinity) && (!rule.mythic || (target.mythicPoints ?? 0) > 0)) {
+    const turnKey = `${state.round}:${state.acting ?? ""}`;
+    const allowed = rule && (!rule.atOne || before === 1) && (!rule.perTurn || target.ferocityTurn !== turnKey);
+    if (rule && allowed && !massive && (rule.free || canReact(target)) && (!rule.wounded || (target.cond.wounded ?? 0) < 3) && (target.ferocityUsed ?? 0) < (rule.uses ?? Infinity) && (!rule.mythic || (target.mythicPoints ?? 0) > 0)) {
+        if (rule.perTurn) target.ferocityTurn = turnKey;
         const hp = rule.hp === "half" ? Math.floor(target.hp.max / 2) : typeof rule.hp === "string" ? rollCount(state, rule.hp) : Number(rule.hp) || 1;
         target.hp.value = Math.max(1, Math.min(target.hp.max, hp));
         if (rule.wounded) target.cond.wounded = (target.cond.wounded ?? 0) + 1;

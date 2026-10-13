@@ -4914,3 +4914,68 @@ test("A foe's failed save against its own ability sets off its reaction (Mass Im
     cast(state, c, c.spells[0], [f.id]);
     assert.equal(f.cond.frightened, 1, "the free reaction after the failed save");
 });
+
+test("A save rolled twice, the worse kept; melee hits hurting the attacker; a critical miss bounced; 1 HP held once a turn (2026-10-13, B286)", async () => {
+    const { applyEffect } = await import("../src/engine/effects.js");
+    const none = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
+    const frightened = { ...none, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] };
+    const curse = (misfortune) => entry("Test Curse", { modelVersion: 12, source: { name: "Test Curse" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 20 }, ...(misfortune ? { misfortune: true } : {}) }, sharedDamage: null, outcomes: { criticalSuccess: none, success: none, failure: frightened, criticalFailure: frightened } } });
+    const cursed = (misfortune) => {
+        const [fighter] = martialParty(5);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "hag", "Hag"), engagement: 1, spells: [curse(misfortune)] }] }, {}, 1);
+        state.log = [];
+        const rolls = [19, 2];
+        state.rng.d20 = () => rolls.shift() ?? 10;
+        castSpell(state, state.byId.get("hag"), 0, [fighter.id]);
+        return state.byId.get(fighter.id).cond.frightened ?? 0;
+    };
+    assert.deepEqual([cursed(false), cursed(true)], [0, 2], "the 19 saves; twice, the 2 is kept");
+
+    // Damage back on a creature that hits it in melee while its effect lasts.
+    const [fighter] = martialParty(5);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, withBuiltins({ ...moderateCreature(5, "jug", "Juggernaut"), engagement: 1, hp: { value: 300, max: 300 } }, ["Test Shell", { builtin: "self-effect", actions: 1, model: { name: "Test Shell", rounds: 1, modifiers: [], tempHp: 0, hitBack: "3d6[electricity]" }, damage: [], strike: null, melee: false }])] }, {}, 1);
+    state.log = [];
+    const j = state.byId.get("jug");
+    const f = state.byId.get(fighter.id);
+    applyEffect(state, j, j.selfEffects[0].model, j);
+    state.rng.d20 = () => 19;
+    const before = f.hp.value;
+    performStrike(state, f, j, f.strikes.find((strike) => strike.melee));
+    assert.ok(f.hp.value < before && state.log.includes(`  ${f.name} is hurt by Juggernaut's Test Shell`), state.log.join("\n"));
+
+    // A critically failed Strike sent at another creature; a plain miss not.
+    const [first, second] = martialParty(5);
+    state = createFightState({ combatants: [{ ...first, engagement: 1 }, { ...second, engagement: 1, hp: { value: 900, max: 900 } }, withBuiltins({ ...moderateCreature(5, "bol", "Bolbalos"), engagement: 1 }, ["Test Bounce", { builtin: "redirect-attack", when: "critical", any: true }])] }, {}, 1);
+    state.log = [];
+    const a = state.byId.get(first.id);
+    const b = state.byId.get("bol");
+    state.rng.d20 = () => 2;
+    performStrike(state, a, b, a.strikes[0]);
+    assert.ok(!b.reactionUsed, "a miss that isn't a critical one");
+    const rolls = [1, 19];
+    state.rng.d20 = () => rolls.shift() ?? 10;
+    a.attacksThisTurn = 0;
+    performStrike(state, a, b, a.strikes[0]);
+    assert.ok(b.reactionUsed && state.log.some((line) => line.startsWith("  Bolbalos uses Test Bounce: the attack goes to ")), state.log.join("\n"));
+
+    // One Hit Point held: only from 1 HP, once on each creature's turn.
+    const held = () => {
+        const [hero] = martialParty(5);
+        const s = createFightState({ combatants: [{ ...hero, engagement: 1 }, withBuiltins({ ...moderateCreature(5, "xen", "Xenarian"), engagement: 1 }, ["Test Fractions", { builtin: "ferocity", hp: 1, wounded: false, free: true, atOne: true, perTurn: true }])] }, {}, 1);
+        s.log = [];
+        s.acting = hero.id;
+        return { s, x: s.byId.get("xen"), h: s.byId.get(hero.id) };
+    };
+    let { s, x, h } = held();
+    dealDamage(s, x, x.hp.value + 50, { source: h });
+    assert.equal(isActive(x), false, "not from full Hit Points");
+    ({ s, x, h } = held());
+    x.hp.value = 1;
+    dealDamage(s, x, 10, { source: h });
+    assert.deepEqual([x.hp.value, isActive(x)], [1, true]);
+    s.acting = "xen";
+    dealDamage(s, x, 10, { source: h });
+    assert.deepEqual([x.hp.value, isActive(x)], [1, true], "again on another creature's turn");
+    dealDamage(s, x, 10, { source: h });
+    assert.equal(isActive(x), false, "only once a turn");
+});

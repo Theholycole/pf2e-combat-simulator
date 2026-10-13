@@ -107,7 +107,10 @@ function combatant(npc) {
             used.add(item.name);
             spells.push({ name: item.name, plan: shown.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name, die: Number(/^(?:\d+)d(\d+)$/.exec(plan.random.formula)?.[1]) || 1, dice: Number(/^(\d+)d\d+$/.exec(plan.random.formula)?.[1]) || 1, randomWays: plan.modes.map((mode) => ({ name: mode.name, faces: mode.faces, plan: mode.plan?.resolution ? mode.plan : null, ...(mode.again ? { again: mode.again } : {}) })) });
         } else if (plan.builtin === "modes") {
-            const ways = plan.modes.filter((mode) => mode.plan?.resolution);
+            // (B286: not with a requirement the simulation can't check — the ability's own or a way's.)
+            const unmet = (entry) => Boolean(entry?.requires) && !entry.requiresFoe && !PLAYED_REQUIRES.has(entry.requires);
+            if (unmet(plan)) continue;
+            const ways = plan.modes.filter((mode) => mode.plan?.resolution && !unmet(mode.plan));
             if (ways.length) used.add(item.name);
             for (const mode of ways) spells.push({ name: `${item.name} (${mode.name})`, plan: mode.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name });
             // (B273: ways that are builtins — stances, self-effects, sweeps — the first one, as the creature's choice.)

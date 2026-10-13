@@ -22,6 +22,7 @@ import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
 import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, worstCondition } from "./spells.js";
 import { grantAooAllies, levelDC } from "./abilities.js";
+import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 export const ROLE_PROFILES = Object.freeze({
     soldier: { aggression: 1, selfPreservation: 0.8, objective: 1 },
@@ -1220,6 +1221,11 @@ function expand(ctx, node, actionsLeft) {
             // (For as long as it lasts, up to three rounds: "until the start of its next turn", this turn's Strikes, B69.)
             const span = Number.isFinite(entry.model.rounds) ? Math.max(0.5, Math.min(3, entry.model.rounds)) : 3;
             benefit += span * perRound / threatHere;
+            // (B286, Conductive Shell: its damage on each foe that hits it in melee — about one hit in two from each foe in its Melee a round.)
+            if (entry.model.hitBack) {
+                const average = parseDamage(entry.model.hitBack).reduce((sum, instance) => sum + (instance.constant ?? 0) + (instance.dice ?? []).reduce((total, term) => total + (term.factor ?? 1) * term.count * (term.die + 1) / 2, 0), 0);
+                benefit += span * 0.5 * ctx.enemies.filter((enemy) => isActive(enemy) && sameMelee(c, enemy)).length * average / threatHere;
+            }
             if (entry.strikes?.length && ctx.enemies.length) {
                 const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
                 const expected = (strike) => {
