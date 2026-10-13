@@ -24,6 +24,7 @@ import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValu
 import { canReact, grantAooAllies, levelDC } from "./abilities.js";
 import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
+import { needsMet, targetNeedsMet } from "./needs.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 export const ROLE_PROFILES = Object.freeze({
@@ -745,7 +746,9 @@ function expand(ctx, node, actionsLeft) {
             // Its requirement an enemy nearby in a state (B83, Feed on Fear: "An enemy is under a fear effect or Dying within
             // 15 feet"): frightened, or down and dying.
             // (B133: a requirement it can't check, Bushwhack's unseen creature: not planned.)
-            if (spell.plan?.requires === "requirement") continue;
+            if (spell.plan?.requires === "requirement" && !spell.plan.needs) continue;
+            // (B304: its needs — a corpse, a creature it holds, its last action — as things stand.)
+            if (spell.plan?.needs && !needsMet(state, c, spell.plan.needs, { fresh: node.used === 0 })) continue;
             // (B262, Rage-Charged Breath: only while raging.)
             if (spell.plan?.requires === "raging" && !isRaging(c)) continue;
             // (B259, Inspiring Display: straight after a spell it cast.)
@@ -768,7 +771,8 @@ function expand(ctx, node, actionsLeft) {
                     distance: (other) => distanceTo(node.pos, other, ctx.placeOf(node.pos)),
                     meleeId: typeof node.pos.melee === "number" ? node.pos.melee : null
                 }, actions);
-                for (const set of sets) {
+                // (B304: a target need — Drag's Prone creature — only at those.)
+                for (const set of spell.plan?.needs ? sets.filter((entry) => entry.targets.every((target) => target.side === c.side || targetNeedsMet(c, target, spell.plan.needs))) : sets) {
                     let gain = 0;
                     const damage = { ...node.damage };
                     for (const { target, damage: expected, worth, heal, benefit, breaks = 0 } of ctx.spellEffect(index, spell, set.targets, node.attacks, actions)) {

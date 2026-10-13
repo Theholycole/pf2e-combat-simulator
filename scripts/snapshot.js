@@ -6,6 +6,7 @@ import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
 import { effectModel } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES } from "../src/engine/abilities.js";
+import { requirementPlayable } from "../src/engine/needs.js";
 import { zoneSpell } from "../src/engine/zones.js";
 import { MAP_KINDS, readMapFeet, readRegionFeet, regionToRegions, roundsHeld } from "./map.js";
 import { hazardSpec } from "./hazards.js";
@@ -29,7 +30,8 @@ const NOTABLE_PASSIVE = /sneak-attack|regeneration|fast-healing|frightful-presen
 const MODELLED_TRAITS = new Set([
     "attack", "agile", "finesse", "magical", "unarmed", "deadly", "fatal", "nonlethal", "brutal", "reach",
     "forceful", "sweep", "backswing", "backstabber", "volley",
-    "thrown", "reload", "range", "versatile", "light", "holy", "unholy", "adamantine", "cold-iron", "silver",
+    // (B306: "range-increment-30" — the range the Strike's weapon carries, read with it.)
+    "thrown", "reload", "range", "range-increment", "versatile", "light", "holy", "unholy", "adamantine", "cold-iron", "silver",
     // Firearms (C16): kickback is in PF2e's own numbers; concussive, scatter and splash are played.
     "concussive", "kickback", "scatter", "splash",
     "two-hand", "propulsive", "concealable", "monk", "free-hand", "orichalcum", "mithral", "dawnsilver", "duskwood",
@@ -531,7 +533,8 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
         if (plan.builtin === "modes") {
             // (B286: not with a requirement the simulation can't check — the ability's own or a way's: Inject Venom's last Strike, Shifting
             // Tempo's grab.)
-            const unmet = (entry) => Boolean(entry?.requires) && !entry.requiresFoe && !PLAYED_REQUIRES.has(entry.requires);
+            // (B304: or needs it checks.)
+            const unmet = (entry) => !requirementPlayable(entry, PLAYED_REQUIRES);
             if (unmet(plan)) continue;
             const ways = pc ? [] : plan.modes.filter((mode) => mode.plan?.resolution && !unmet(mode.plan));
             // (B179, the mocking dragon's Hilarious Exhalation: a way that casts a spell — that spell, as a cast-spell ability's.)
@@ -575,7 +578,8 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
         if (!plan.resolution) continue;
         // (Not one with requirements the simulation can't check: "Requirements The bush is adjacent to a corpse", B52; it
         // checks a frightened or dying enemy nearby, Feed on Fear's, B83.)
-        if (plan.requires && !plan.requiresFoe && !PLAYED_REQUIRES.has(plan.requires)) continue;
+        // (B304: a requirement read into needs the simulation checks — Consume Flesh's corpse, Suck Blood's grab.)
+        if (!requirementPlayable(plan, PLAYED_REQUIRES)) continue;
         if (pc && !(["check", "save"].includes(plan.resolution.kind) && (plan.trigger?.event ?? "use") === "use")) continue;
         if (pool) result.pools[pool] = frequency?.value ?? frequency?.max ?? 1;
         result.handled.add(item);

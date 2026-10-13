@@ -17,10 +17,10 @@ import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effec
 import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
 import { startZone } from "./zones.js";
 import { allyStrike } from "./commander.js";
-import { canReact, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
+import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
 import { adjustDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
-import { engagedEnemies, leaveMelee, sameMelee } from "./space.js";
+import { distanceBetween, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { moraleOdds } from "./morale.js";
 
 const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
@@ -542,6 +542,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
         // "Until the end of your next turn" ends at the end of that turn; the rest at its start.
         (target.timers ??= []).push({ key: flag ?? slug, value: flag ? true : target.cond[slug], round: state.round + rounds, turnOf: source?.id ?? target.id, at: duration?.expiry === "turn-end" ? "end" : "start" });
     }
+    // (B305: its reaction to gaining the condition — Quick Escape from a grab, Melt Time when slowed or stunned.)
+    if (!before && isActive(target)) useReaction(state, target, source && source !== target ? source : null, (trigger) => trigger.event === "condition-gained" && (!trigger.slugs?.length || trigger.slugs.includes(slug)));
     return true;
 }
 
@@ -1140,7 +1142,10 @@ function applyChanges(state, caster, spell, changes, context, io) {
 
 // Casts spell spellIndex at the targets (ids). Spends its pool.
 export function castSpell(state, caster, spellIndex, targetIds, actions, options = {}) {
-    castPlan(state, caster, caster.spells[spellIndex], targetIds, actions, options);
+    const spell = caster.spells[spellIndex];
+    // (B304, Consume Flesh: "from any given corpse only once" — each use takes one of the fight's corpses.)
+    if ((spell?.plan?.needs ?? []).some((need) => need.corpse || need.any?.some((each) => each.corpse))) caster.corpsesUsed = (caster.corpsesUsed ?? 0) + 1;
+    castPlan(state, caster, spell, targetIds, actions, options);
 }
 
 // Resolves a spell or ability (one of the creature's, or a rider's plan) at the targets.
@@ -1504,6 +1509,10 @@ function answerTargets(state, c, plan, other) {
     const live = other && isActive(other);
     // (B265: "the triggering creature" — Elegy of the Faithless's caster, the disrupting saves' creature.)
     if (["the attacker", "the creature the Strike hits", "the held creature", "the triggering creature"].includes(plan.targeting?.target)) return live ? [other] : [];
+    // (B305: on itself.)
+    if (plan.targeting?.target === "self") return [c];
+    // (B305, Quick Escape: "the creature grabbing you" — the one whose grab set it off.)
+    if (/^the creature (?:grabbing|holding) (?:you|it|them|him|her)$/i.test(plan.targeting?.target ?? "")) return live ? [other] : [];
     // (B131, Electric Reflexes: "an adjacent creature" — the one that set it off when it's beside it, else another foe in its Melee.)
     if (plan.targeting?.target === "an adjacent creature") {
         const beside = live && other.side !== c.side && sameMelee(c, other) ? other : state.list.find((foe) => foe.side !== c.side && isActive(foe) && sameMelee(c, foe));
@@ -1610,7 +1619,8 @@ function useReaction(state, c, other, matches) {
         if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
         const targets = answerTargets(state, c, spell.plan, other);
         // (A foe among them; or, B106, itself or its allies for an effect that helps them.)
-        if (!targets.some((target) => target.side !== c.side) && !((allyEffect(spell.plan) || effectFor(spell.plan, "self")) && targets.length)) continue;
+        // (B305: or one on itself — Melt Time's quickening as it's slowed.)
+        if (!targets.some((target) => target.side !== c.side) && !((allyEffect(spell.plan) || effectFor(spell.plan, "self") || spell.plan?.targeting?.target === "self") && targets.length)) continue;
         if (!trigger.free) spendReaction(c, spell.name);
         state.stats.reactions++;
         log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name}`);
@@ -2244,4 +2254,40 @@ export function spellGaps(spell) {
         }
     }
     return [...missing];
+}
+
+// A creature dying, or dropping to 0 Hit Points, near it (B305; the ability module's nearby-death trigger, batch 300 — living creatures
+// only when it says so): each creature's reaction to it — Soul Feast's healing and Absorb Soul's quickening on itself, Preserve Prey keeping
+// the creature that went down from dying (it stays unconscious, stable). One whose effect is only on the dead (Consume Soul's soul) does
+// nothing here. died: it died, not only went down; melee: who was in its Melee as it fell.
+export function nearbyDeathAnswers(state, victim, { died, melee = new Set() }) {
+    const living = !isUndead(victim) && !(victim.traits ?? []).includes("construct");
+    for (const c of state.list) {
+        if (c === victim || !isActive(c) || !canAct(c)) continue;
+        for (const [index, spell] of (c.spells ?? []).entries()) {
+            const trigger = spell.plan?.trigger;
+            if (trigger?.event !== "nearby-death" || (trigger.dies && !died) || (trigger.living && !living)) continue;
+            if (!trigger.free && !canReact(c, spell.name)) continue;
+            const feet = trigger.within ?? 30;
+            if (!(feet <= 10 ? melee.has(c.id) : c.band === victim.band || distanceBetween(c, victim) <= feet)) continue;
+            if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
+            const target = spell.plan?.targeting?.target;
+            const heals = Object.values(spell.plan?.resolution?.outcomes ?? {}).some((row) => (row?.effects ?? []).some((effect) => effect.kind === "heal")) || spell.plan?.resolution?.kind === "healing";
+            if (target === "self") {
+                if (heals && c.hp.value >= c.hp.max) continue;
+            } else if (target === "the triggering creature" && victim.status === DOWN && (victim.cond.dying ?? 0) > 0
+                && Object.values(spell.plan?.resolution?.outcomes ?? {}).some((row) => (row?.effects ?? []).some((effect) => effect.kind === "end-condition" && (effect.slugs ?? []).includes("dying")))) {
+                if (!trigger.free) spendReaction(c, spell.name);
+                state.stats.reactions++;
+                victim.cond.dying = 0;
+                victim.stable = true;
+                log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name}: ${victim.name} is unconscious but not dying`);
+                continue;
+            } else continue;
+            if (!trigger.free) spendReaction(c, spell.name);
+            state.stats.reactions++;
+            log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name}`);
+            castSpell(state, c, index, [c.id]);
+        }
+    }
 }

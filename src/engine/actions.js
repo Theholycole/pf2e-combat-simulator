@@ -12,7 +12,7 @@ import { isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, reactionMark, regenerating, restoreReaction, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, removeEffect } from "./effects.js";
-import { applyCondition, castPlan, castSpell, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { applyCondition, castPlan, castSpell, deathThroes, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 
@@ -1295,6 +1295,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     // Rage ends when the creature falls unconscious, and its temporary HP with it; so does a stance.
     if (target.activeBuffs?.length) target.activeBuffs = [];
     for (const entry of (target.selfEffects ?? []).filter((self) => self.stance)) for (const effect of (target.effects ?? []).filter((active) => active.key === `self:${entry.name}`)) removeEffect(target, effect);
+    // (B305: who was beside it as it fell, for "an adjacent creature … is reduced to 0 Hit Points".)
+    const besideIt = new Set(target.meleeId !== null && target.meleeId !== undefined ? state.melees?.get(target.meleeId) ?? [] : []);
     if (target.kind === "pc") {
         target.status = DOWN;
         target.everDown = true;
@@ -1308,6 +1310,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         }
         log(state, `  ${target.name} is down`);
         increaseDying(state, target, (critical ? 2 : 1) + target.cond.wounded);
+        // (B305: a reaction to a creature reduced to 0 Hit Points nearby — Preserve Prey; dying from it is kill's.)
+        if (target.status !== DEAD) nearbyDeathAnswers(state, target, { died: false, melee: besideIt });
         return;
     }
     // Regeneration: a monster at 0 HP is dying (at most 3) and gets back up at the start of its turn.
@@ -1340,6 +1344,8 @@ function kill(state, target) {
     target.cond.unconscious = true;
     removeFromSpace(state, target);
     log(state, `  ${target.name} dies`);
+    // (B305: reactions to a creature dying nearby — Soul Feast, Absorb Soul.)
+    nearbyDeathAnswers(state, target, { died: true, melee });
     if (target.kind !== "pc") deathThroes(state, target, melee);
     // (B298: a summon as it dies, Final Spite's horn; the creatures that go with it.)
     if (target.kind !== "pc") summonsOnDeath(state, target);

@@ -21,6 +21,7 @@ const { zoneSpell } = await import("../src/engine/zones.js");
 const { martialParty } = await import("../src/engine/benchmarks.js");
 const { parseReadableDamage, randomDamageRows } = await import("../src/adapter/formula.js");
 const { addBuiltin, PLAYED_REQUIRES } = await import("../src/engine/abilities.js");
+const { requirementPlayable } = await import("../src/engine/needs.js");
 const { effectModel } = await import("../src/engine/effects.js");
 const { asReserve, bestOption, bestPick, reserveCount } = await import("../src/engine/summons.js");
 const { eliteAdjust, weakAdjust } = await import("../src/engine/adjust.js");
@@ -113,7 +114,7 @@ function combatant(npc) {
             spells.push({ name: item.name, plan: shown.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name, die: Number(/^(?:\d+)d(\d+)$/.exec(plan.random.formula)?.[1]) || 1, dice: Number(/^(\d+)d\d+$/.exec(plan.random.formula)?.[1]) || 1, randomWays: plan.modes.map((mode) => ({ name: mode.name, faces: mode.faces, plan: mode.plan?.resolution ? mode.plan : null, ...(mode.again ? { again: mode.again } : {}) })) });
         } else if (plan.builtin === "modes") {
             // (B286: not with a requirement the simulation can't check — the ability's own or a way's.)
-            const unmet = (entry) => Boolean(entry?.requires) && !entry.requiresFoe && !PLAYED_REQUIRES.has(entry.requires);
+            const unmet = (entry) => !requirementPlayable(entry, PLAYED_REQUIRES);
             if (unmet(plan)) continue;
             const ways = plan.modes.filter((mode) => mode.plan?.resolution && !unmet(mode.plan));
             if (ways.length) used.add(item.name);
@@ -134,7 +135,7 @@ function combatant(npc) {
             // (The GM's, 2026-10-12: not played here.)
         } else if (plan.builtin) {
             if (addBuiltin(builtins, plan, item.name)) used.add(item.name);
-        } else if (plan.resolution && (!plan.requires || plan.requiresFoe || PLAYED_REQUIRES.has(plan.requires))) {
+        } else if (plan.resolution && requirementPlayable(plan, PLAYED_REQUIRES)) {
             used.add(item.name);
             // (B230: once a fight in its words; B262: its recharge by name, shared when it says so.)
             spells.push({ name: item.name, plan, castRank: 1, pool: plan.oncePerFight ? `once:${item.name}` : null, kind: "ability", rechargeGroup: plan.sharesRecharge ?? item.name, effects: effectModels(plan, system.details.level.value) });
