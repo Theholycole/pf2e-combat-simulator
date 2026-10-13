@@ -181,7 +181,9 @@ function computeHitDamage(strike, target, critical, penalty, offGuardChance) {
 
 // An AC reaction for only melee or only ranged attacks ("An adjacent enemy targets the swarm with a Strike", "targeted by a
 // physical ranged Strike"; B45).
-const dodges = (reaction, strike) => !reaction.against || (reaction.against === "melee") === Boolean(strike.melee);
+// (B289, Meat Shield: only while it holds a creature — requires "grabbed".)
+const dodges = (reaction, strike, state = null, c = null) => (!reaction.against || (reaction.against === "melee") === Boolean(strike.melee))
+    && (reaction.requires !== "grabbed" || Boolean(state?.list?.some((other) => other.grabbedBy === c?.id && (other.cond.grabbed || other.cond.restrained))));
 
 export function performStrike(state, attacker, target, strike, { reaction = false, trigger = null, fortune = false } = {}) {
     if (!strikeUsable(attacker, strike)) return null;
@@ -270,7 +272,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         misfortune = true;
         target.reactionUsed = true;
         log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
-    } else if (target.acReaction?.when === "targeted" && canReact(target) && !target.reactions?.aoo && dodges(target.acReaction, strike)) {
+    } else if (target.acReaction?.when === "targeted" && canReact(target) && !target.reactions?.aoo && dodges(target.acReaction, strike, state, target)) {
         defence = target.acReaction.value;
         target.reactionUsed = true;
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
@@ -320,7 +322,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         }
     }
     // Retract Body: +AC once the attack hits, when that turns it aside.
-    if (degree >= SUCCESS && target.acReaction?.when === "hit" && canReact(target) && dodges(target.acReaction, strike)) {
+    if (degree >= SUCCESS && target.acReaction?.when === "hit" && canReact(target) && dodges(target.acReaction, strike, state, target)) {
         const lower = degreeOf(natural + modifier, ac + target.acReaction.value, natural);
         if (lower < degree) {
             defence = target.acReaction.value;

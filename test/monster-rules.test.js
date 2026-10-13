@@ -4991,3 +4991,23 @@ test("Two Strikes only at a prone or immobilized creature (Radical Surgery, 2026
     state.byId.get(fighter.id).cond.prone = true;
     assert.equal(offered(), true, "at a prone one");
 });
+
+test("A held creature as a shield: the AC reaction only while it holds one (Meat Shield, 2026-10-13, B289)", () => {
+    const run = (holding) => {
+        const [fighter, other] = martialParty(5);
+        const brute = withBuiltins({ ...moderateCreature(5, "brute", "Brute"), engagement: 1, hp: { value: 500, max: 500 } }, ["Test Shield", { builtin: "ac-reaction", value: 4, when: "hit", requires: "grabbed" }]);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...other, engagement: 1 }, brute] }, {}, 1);
+        state.log = [];
+        const b = state.byId.get("brute");
+        if (holding) Object.assign(state.byId.get(other.id), { grabbedBy: "brute", cond: { ...state.byId.get(other.id).cond, grabbed: true } });
+        const f = state.byId.get(fighter.id);
+        // A hit by 1: the +4 turns it into a miss.
+        const modifier = f.strikes[0].bonus ?? 0;
+        state.rng.d20 = () => 10;
+        const ac = armorClass(b);
+        b.ac = (b.ac ?? ac) - (ac - (10 + modifier)) ;
+        performStrike(state, f, b, f.strikes[0]);
+        return b.reactionUsed ?? false;
+    };
+    assert.deepEqual([run(false), run(true)], [false, true]);
+});

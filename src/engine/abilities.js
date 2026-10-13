@@ -122,7 +122,7 @@ export function addBuiltin(spec, plan, name) {
         case "ac-reaction":
             // (B248: against a spell attack only — the engine plays it on Strikes, so not here.)
             if (plan.spellOnly) return false;
-            spec.acReaction = { value: plan.value, when: plan.when, name, ...(plan.against ? { against: plan.against } : {}) };
+            spec.acReaction = { value: plan.value, when: plan.when, name, ...(plan.against ? { against: plan.against } : {}), ...(plan.requires === "grabbed" ? { requires: "grabbed" } : {}) };
             return true;
         // (B193, Ray Displacement: a ranged spell attack at it only.)
         case "attack-misfortune":
