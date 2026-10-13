@@ -23,6 +23,7 @@ import { bestDisable, isHazard } from "./hazards.js";
 import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, worstCondition } from "./spells.js";
 import { grantAooAllies, levelDC } from "./abilities.js";
 import { canSummon, summonPool } from "./summons.js";
+import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 export const ROLE_PROFILES = Object.freeze({
@@ -350,9 +351,10 @@ class PlanContext {
             const others = target.meleeId !== null && inMelee(pos, target)
                 ? this.allies.filter((ally) => ally.meleeId === target.meleeId && canAct(ally)).length
                 : 0;
-            flank = flankChance(state, others + 1);
+            flank = flankableBy(target, c) ? flankChance(state, others + 1) : 0;
         }
-        const feinted = !isOffGuard(target) && offGuardTo(target, c, strike.melee);
+        // (B302: off-guard to it by its own passive — Surprise Attack's first round, Dread Striker.)
+        const feinted = !isOffGuard(target) && (offGuardTo(target, c, strike.melee) || offGuardFrom(state, c, target, { melee: strike.melee }));
         const ac = armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: feinted });
         const plain = degreeDistribution(modifier, ac);
         const flanked = flank > 0 ? degreeDistribution(modifier, ac - (target.cond.offGuard || target.cond.prone ? 0 : 2)) : plain;
@@ -416,6 +418,11 @@ class PlanContext {
             this.spellCache.set(key, cached);
         }
         return cached;
+    }
+
+    // A Stride's: none for a short one with Mobility (B302).
+    moveLoss(pos, node, kind) {
+        return mobileStride(this.c, { kind }) ? 0 : this.aooLoss(pos, node);
     }
 
     // Expected damage this creature takes from one enemy's Attack of Opportunity.
@@ -1311,14 +1318,14 @@ function expand(ctx, node, actionsLeft) {
                 if (strides > 1 && ctx.rootPlace && stridesToEngage({ ...ctx.mover(node.pos), areaFeet: undefined }, target) <= 1) {
                     const moved = approachPlace(ctx.placeOf(node.pos), { area: target.areaFeet, exit: target.exitFeet }, Math.max(5, c.speed ?? 25));
                     const next = child(node, { type: "stride", move: { kind: "approach", targetId: target.id } }, 1, 0, { pos: { ...ctx.away(node, node.pos.band === "engaged" ? "near" : node.pos.band), place: moved }, atItem: false });
-                    if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "approach");
                     children.push(next);
                 }
                 // Speed Surge (B72): two Strides for one action, three times a fight.
                 if (strides === 2 && c.speedSurge && (c.surgesUsed ?? 0) < c.speedSurge.uses && (c.surgeUntil ?? -Infinity) <= state.round && !node.casts.includes("surge")) {
                     const surged = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
                     const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id }, surge: true }, 1, 0, { pos: surged, moved: false, cast: "surge" });
-                    if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
                     children.push(next);
                 }
                 if (strides !== 1) continue;
@@ -1326,7 +1333,7 @@ function expand(ctx, node, actionsLeft) {
                     ? { band: "engaged", melee: target.meleeId, newWith: null }
                     : { band: "engaged", melee: "new", newWith: target.id };
                 const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id } }, 1, 0, { pos, moved: false });
-                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
                 children.push(next);
             }
             if (node.pos.band === "far") {
@@ -1423,7 +1430,7 @@ function expand(ctx, node, actionsLeft) {
             const toward = (where) => {
                 const moved = strideToward(place, where, Math.max(5, c.speed ?? 25), state.objective.areaToExit);
                 const next = child(node, { type: "stride", move: { kind: where === "area" ? "toArea" : "toExit" } }, 1, 0, { pos: { band, melee: null, newWith: null, place: moved }, atItem: false });
-                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "toExit");
                 children.push(next);
             };
             const item = state.objective.item;
@@ -1434,12 +1441,12 @@ function expand(ctx, node, actionsLeft) {
                 const there = item.meleeId !== null && [...(state.melees.get(item.meleeId) ?? [])].some((id) => state.byId.get(id).side !== c.side && isActive(state.byId.get(id)));
                 const spot = { area: item.area, exit: item.exit };
                 const next = child(node, { type: "stride", move: { kind: "toItem" } }, 1, 0, { pos: there ? { band: "engaged", melee: item.meleeId, newWith: null, place: spot } : { band: item.band, melee: null, newWith: null, place: spot }, atItem: true });
-                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "toItem");
                 children.push(next);
             } else if (toItem > 1 && stridesToItem(item, node.pos.band, c.speed) <= 1) {
                 // Further than a Stride on the map: toward it.
                 const next = child(node, { type: "stride", move: { kind: "approach", targetId: "item" } }, 1, 0, { pos: { band, melee: null, newWith: null, place: approachPlace(place, { area: item.area, exit: item.exit }, Math.max(5, c.speed ?? 25)) }, atItem: false });
-                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "approach");
                 children.push(next);
             }
         }
@@ -1459,7 +1466,7 @@ function expand(ctx, node, actionsLeft) {
                 const pos = ctx.away(node, inAnyMelee ? "near" : node.pos.band);
                 pos.regions = { ...regions, [danger.region]: { to: edge > 0 ? 0 : 5, edge } };
                 const next = child(node, { type: "stride", move: { kind: "outOf", region: danger.region } }, 1, 0, { pos });
-                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "outOf");
                 children.push(next);
             }
         }
@@ -1467,7 +1474,7 @@ function expand(ctx, node, actionsLeft) {
         if (ctx.alarm && !node.alarmRaised) {
             if (ctx.alarm.kind === "gong" && node.gong > 0 && mobile) {
                 const next = child(node, { type: "stride", move: { kind: "toGong" } }, 1, 0, { pos: ctx.away(node, inAnyMelee ? "near" : node.pos.band), gong: Math.max(0, node.gong - Math.max(5, c.speed ?? 25)) });
-                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "toGong");
                 children.push(next);
             }
             if (ctx.alarm.kind === "gong" && node.gong <= 0 && !restrained) {
@@ -1515,7 +1522,7 @@ function expand(ctx, node, actionsLeft) {
         else if (c.safeMove && c.safeMove.actions <= remaining && realMelee && !((c.safeMoveUntil ?? -Infinity) > (c.round ?? 0))) children.push(child(node, { type: "safeMove", actions: c.safeMove.actions }, c.safeMove.actions, 0, { pos: ctx.away(node, "near"), moved: true }));
         else {
             const next = child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: ctx.away(node, "near"), moved: true });
-            next.value -= ctx.aooLoss(node.pos, next);
+            next.value -= ctx.moveLoss(node.pos, next, "toNear");
             children.push(next);
         }
     } else if (node.pos.band === "near") {

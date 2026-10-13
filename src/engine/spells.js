@@ -18,10 +18,12 @@ import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCrea
 import { startZone } from "./zones.js";
 import { allyStrike } from "./commander.js";
 import { canReact, levelDC, saveBonusAgainst, sizeRank, strikeNamed } from "./abilities.js";
+import { adjustedSaveDegree, adjustedSaveOdds, offGuardFrom } from "./passives.js";
 import { adjustDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { moraleOdds } from "./morale.js";
 
+const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
 const registry = createRegistry();
 for (const family of CORE_FAMILIES) registry.registerFamily(family);
 
@@ -223,7 +225,8 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
         actions,
         id: (c) => c.id,
         statistic: (c, slug) => {
-            if (slug === "ac") return { dc: armorClass(c) };
+            // (B302: off-guard to the caster by its own passive — Surprise Attack's spell attacks.)
+            if (slug === "ac") return { dc: armorClass(c, { flanked: c !== caster && offGuardFrom(state, caster, c, { spell: true }) }) };
             // Spell attacks have the attack trait, so the multiple attack penalty applies.
             if (slug === "spell") return { modifier: (spell.attack ?? 0) - checkPenalty - mapPenalty() + effectBonus(c, "spell") + effectBonus(c, "attack"), dc: (spell.dc ?? 10) - checkPenalty + effectBonus(c, "spell") };
             if (slug === "strike") return { modifier: Math.max(0, ...(c.strikes ?? []).map((strike) => strike.bonus)) - checkPenalty - mapPenalty() + effectBonus(c, "attack") };
@@ -491,6 +494,11 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     }
     const flag = FLAGS[slug];
     if (!VALUED.has(slug) && !flag) return false;
+    // (B302, Bravery: "any time it gains the Frightened condition, reduce its value by 1".)
+    if (slug === "frightened" && target.lessFrightened) {
+        value = (Number.isFinite(value) ? value : 1) - target.lessFrightened;
+        if (value <= 0) return false;
+    }
     // Shake It Off, Slough Skin (B77; the user's choice): the first harmful condition an enemy gives it, negated with its reaction.
     const negate = target.negateCondition;
     if (negate && (target.negateConditionUses ?? 0) > 0 && source && source.side !== target.side && !NOT_HARMFUL.has(slug) && (!negate.conditions || negate.conditions.includes(slug)) && isActive(target) && canReact(target)) {
@@ -679,7 +687,7 @@ function afflictionSave(state, target, entry) {
     const statistic = entry.data.statistic ?? "fortitude";
     const modifier = saveModifier(target, statistic) + saveBonusAgainst(target, statistic, { kind: "ability", plan: { traits: entry.data.traits ?? [] } });
     const natural = state.rng.d20();
-    const degree = degreeOf(natural + modifier, entry.data.dc, natural);
+    const degree = adjustedSaveDegree(target, statistic, degreeOf(natural + modifier, entry.data.dc, natural), { kind: "ability", plan: { traits: entry.data.traits ?? [] } });
     const change = [2, 1, -1, -2][degree];
     log(state, `  ${target.name} saves against ${entry.name}: ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}`);
     setAfflictionStage(state, target, entry, Math.min(entry.stages.length, entry.stage + change));
@@ -867,7 +875,7 @@ export function endWhileConditions(c) {
 // the DC that sickened it; a success lowers sickened by 1, a critical success by 2.
 export function retch(state, c) {
     const natural = state.rng.d20();
-    const degree = degreeOf(natural + saveModifier(c, "fortitude"), c.sickenedDC ?? 10, natural);
+    const degree = adjustedSaveDegree(c, "fortitude", degreeOf(natural + saveModifier(c, "fortitude"), c.sickenedDC ?? 10, natural));
     const drop = degree === 3 ? 2 : degree === 2 ? 1 : 0;
     c.cond.sickened = Math.max(0, (c.cond.sickened ?? 0) - drop);
     if (!c.cond.sickened) {
@@ -908,7 +916,7 @@ export function battleMedicineOdds(c) {
 
 // The chance a Retch lowers sickened: [success, critical success].
 export function retchOdds(c) {
-    const odds = degreeDistribution(saveModifier(c, "fortitude"), c.sickenedDC ?? 10);
+    const odds = adjustedSaveOdds(c, "fortitude", degreeDistribution(saveModifier(c, "fortitude"), c.sickenedDC ?? 10));
     return [odds[2], odds[3]];
 }
 
@@ -1250,8 +1258,10 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         const total = natural + options.modifier;
         return { natural, total, dc: options.dc, degree: DEGREE_NAMES[degreeOf(total, options.dc, natural)] };
     };
+    // (B302: Evasion, Juggernaut, Bravery … — the save's degree adjusted, before any reaction.)
+    const adjusted = (statistic, options, result) => (SAVE_SLUGS.has(statistic) && options?.actor?.saveDegrees && result?.degree ? { ...result, degree: DEGREE_NAMES[adjustedSaveDegree(options.actor, statistic, DEGREE_NAMES.indexOf(result.degree), spell)] } : result);
     // (A failed save a reaction makes better, B80.)
-    const roll = (statistic, options) => betterSave(state, statistic, options, misfortune(statistic, options) ?? rolled(statistic, options), spell, { area: Boolean(info.area) });
+    const roll = (statistic, options) => betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
     // (B195, Siphon Life: a foe's healing at its least — each die at 1, flat values halved — then temporary Hit Points on the siphoner.)
     const siphon = info.healing ? state.list.find((c) => c.healSiphon && c.side !== caster.side && isActive(c) && canReact(c)
         && (c.healSiphon.within >= 60 || sameMelee(c, caster) || c.band === caster.band)) : null;
@@ -1927,9 +1937,11 @@ function oddsFor(caster, spell, target, attacks, actions) {
         return degreeDistribution(roll, dc);
     }
     const slugs = check.saveChoice?.statistics?.length ? check.saveChoice.statistics : [check.statistic];
-    const save = Math.max(...slugs.map((slug) => saveModifier(target, slug) + saveBonusAgainst(target, slug, spell)));
+    const slug = slugs.reduce((best, entry) => (saveModifier(target, entry) + saveBonusAgainst(target, entry, spell) > saveModifier(target, best) + saveBonusAgainst(target, best, spell) ? entry : best));
+    const save = saveModifier(target, slug) + saveBonusAgainst(target, slug, spell);
     const dc = check.against?.dc === "fixed" ? check.against.value : (spell.dc ?? 10) - penalty + effectBonus(caster, "spell");
-    return degreeDistribution(save, dc);
+    // (B302: its Evasion and the like.)
+    return adjustedSaveOdds(target, slug, degreeDistribution(save, dc), spell);
 }
 
 // The changes a spell has on one target at each degree, with average damage.

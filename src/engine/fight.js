@@ -315,6 +315,7 @@ function multiStrikeAfter(state, c, ability) {
 function startTurn(state, c) {
     keepPermanent(c);
     c.reactionUsed = false;
+    c.spareUsed = null;
     c.attacksThisTurn = 0;
     c.round = state.round;
     c.riderReady = null;

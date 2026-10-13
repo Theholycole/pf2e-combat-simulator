@@ -49,6 +49,46 @@ export function addBuiltin(spec, plan, name) {
         case "trap-strike":
             spec.trapStrikes = [...(spec.trapStrikes ?? []), { name, strike: plan.strike ?? null, at: plan.at ?? "trigger", times: plan.times ?? 1 }];
             return true;
+        // (B302: passives PF2e's own rules hold, and three from their words — passives.js; Extra Reaction's count, combatant.js. Played if any
+        // part is: a reaction for one thing only, only for Reactive Strikes or Shield Block.)
+        case "passive-rules": {
+            let played = false;
+            if (plan.saveDegrees?.length) {
+                spec.saveDegrees = [...(spec.saveDegrees ?? []), ...plan.saveDegrees];
+                played = true;
+            }
+            if (plan.flanking) {
+                spec.flanking = { ...(spec.flanking ?? {}), ...plan.flanking };
+                played = true;
+            }
+            if (plan.offGuardTo?.length) {
+                spec.makesOffGuard = [...(spec.makesOffGuard ?? []), ...plan.offGuardTo.map((entry) => ({ ...entry, source: name }))];
+                played = true;
+            }
+            if (plan.constructArmor?.ac) {
+                spec.constructArmor = { ...plan.constructArmor };
+                if (plan.constructArmor.hardness) spec.hardness = Math.max(spec.hardness ?? 0, plan.constructArmor.hardness);
+                played = true;
+            }
+            if (plan.lessFrightened) {
+                spec.lessFrightened = Math.max(spec.lessFrightened ?? 0, plan.lessFrightened);
+                played = true;
+            }
+            if (plan.mobility) {
+                spec.mobility = plan.mobility;
+                played = true;
+            }
+            if (plan.reactions?.perRound > 1) {
+                spec.reactionsPerRound = Math.max(spec.reactionsPerRound ?? 1, plan.reactions.perRound);
+                played = true;
+            }
+            const spare = plan.reactions?.only ? (/^(?:Reactive Strikes?|Attacks? of Opportunity)$/i.test(plan.reactions.only) ? "aoo" : /^Shield Block$/i.test(plan.reactions.only) ? "shield-block" : null) : null;
+            if (spare) {
+                spec.spareReactions = { ...(spec.spareReactions ?? {}), [spare]: (spec.spareReactions?.[spare] ?? 0) + (plan.reactions.extra ?? 1) };
+                played = true;
+            }
+            return played;
+        }
         // (B298: a summon whose creatures fight — its reserves are made with the snapshot.)
         case "conjure": {
             const entry = summonSpec(plan, name);
@@ -620,6 +660,8 @@ export function sourceOptions(spell) {
         options.add(trait);
         options.add(`item:trait:${trait}`);
     }
+    // (B302: its slug, for a predicate that names one — Otherworldly Will's Dominate.)
+    if (spell?.name) options.add(`item:slug:${String(spell.name).toLowerCase().replace(/\s*\(.*\)$/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`);
     // Spells are magical; an ability is when it has the magical trait or a tradition's.
     const ability = spell?.kind === "ability" || spell?.kind === "basic";
     if (!ability || traits.some((trait) => trait === "magical" || TRADITIONS.has(trait))) {
@@ -690,5 +732,28 @@ export function levelDC(level) {
 
 // Whether a creature can use a reaction now (confused creatures can't).
 export function canReact(c) {
-    return c.status === "active" && !c.reactionUsed && !c.noReactions && !c.cond.confused && !c.cond.unconscious && !c.cond.paralyzed && !c.cond.asleep && c.acts !== false;
+    return !c.reactionUsed && ableToReact(c);
+}
+
+// Whether it could react, its reaction aside.
+function ableToReact(c) {
+    return c.status === "active" && !c.noReactions && !c.cond.confused && !c.cond.unconscious && !c.cond.paralyzed && !c.cond.asleep && c.acts !== false;
+}
+
+// (B302: one more reaction a round for one thing only — Quick Shield Block's, Opportunistic's Reactive Strikes: "aoo" | "shield-block" —
+// spent on that first.)
+export function spareReaction(c, kind) {
+    return (c.spareReactions?.[kind] ?? 0) > (c.spareUsed?.[kind] ?? 0) && ableToReact(c);
+}
+
+export function spendReaction(c, kind) {
+    if (spareReaction(c, kind)) (c.spareUsed ??= {})[kind] = (c.spareUsed[kind] ?? 0) + 1;
+    else c.reactionUsed = true;
+}
+
+// (B302: what a free reaction gives back — an Extra Reaction's count, else the flag.)
+export const reactionMark = (c) => (c.reactionsPerRound > 1 ? c.reactionsSpent : c.reactionUsed);
+export function restoreReaction(c, mark) {
+    if (c.reactionsPerRound > 1) c.reactionsSpent = mark;
+    else c.reactionUsed = mark;
 }

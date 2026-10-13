@@ -9,7 +9,8 @@ import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBo
 import { adjustDamage, concussiveType, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
-import { canReact, chargeStrike, extraApplies, regenerating, strikeNamed } from "./abilities.js";
+import { canReact, chargeStrike, extraApplies, reactionMark, regenerating, restoreReaction, spareReaction, spendReaction, strikeNamed } from "./abilities.js";
+import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { applyCondition, castPlan, castSpell, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
@@ -229,10 +230,13 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         }
     }
     let flanked = false;
-    if (strike.melee) {
+    // (B302: not All-Around Vision; not Deny Advantage against a flanker of its level or lower.)
+    if (strike.melee && flankableBy(target, attacker)) {
         const chance = flankChance(state, flankersAgainst(state, target, attacker));
         if (chance > 0) flanked = state.rng.chance(chance);
     }
+    // (B302: off-guard to it by its own passive — Surprise Attack's first round, Dread Striker's frightened target.)
+    const surprised = offGuardFrom(state, attacker, target, { melee: strike.melee });
     // Blinded or dazzled: a flat check to find the target first; a concealed or hidden target too (B41).
     const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, target.cond?.hidden ? 11 : target.cond?.concealed ? 5 : 0);
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
@@ -245,9 +249,9 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // Reactions happen outside the attacker's turn, so this turn's history doesn't apply.
     const history = reaction ? [] : (attacker.turnAttacks ?? []);
     const modifier = attackModifier(state, attacker, target, strike, attacksMade, { history });
-    const ac = targetAC(state, attacker, target, strike, flanked);
+    const ac = targetAC(state, attacker, target, strike, flanked || surprised);
     // Off-guard to this attack: for Sneak Attack and backstabber.
-    const offGuard = flanked || isOffGuard(target) || offGuardTo(target, attacker, strike.melee);
+    const offGuard = flanked || surprised || isOffGuard(target) || offGuardTo(target, attacker, strike.melee);
     // A one-attack feint or diversion is used up by this attack.
     const scoped = (target.offGuardTo ?? []).find((entry) => entry.attacker === attacker.id && (entry.attacks !== "melee" || strike.melee) && entry.uses);
     // Spent by this attack; Set-Up Strike's off-guard is shared by the allies and spent by the first (its group).
@@ -741,9 +745,9 @@ export function turnStartAnswers(state, c) {
         if (!isActive(c)) break;
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("turn-start-adjacent"));
         if (!reaction || !(reaction.free || canReact(enemy)) || !canAct(enemy) || enemy.cond.fleeing) continue;
-        const used = enemy.reactionUsed;
+        const used = reactionMark(enemy);
         reactionStrikeAt(state, enemy, c, reaction, "turn-start");
-        if (reaction.free) enemy.reactionUsed = used;
+        if (reaction.free) restoreReaction(enemy, used);
     }
 }
 
@@ -874,7 +878,7 @@ function rechargeOnCritical(state, c) {
 function shouldShieldBlock(defender, total) {
     const shield = defender.shield;
     if (!shield || shield.broken || !shield.raised) return false;
-    if (!defender.reactions?.shieldBlock || !canReact(defender)) return false;
+    if (!defender.reactions?.shieldBlock || !(canReact(defender) || spareReaction(defender, "shield-block"))) return false;
     // Not worth the reaction for a hit the shield would mostly ignore anyway.
     if (total < Math.max(1, shield.hardness)) return false;
     const taken = Math.max(0, total - shield.hardness);
@@ -981,7 +985,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
         total -= blocked;
         shield.hp -= total;
         if (shield.hp <= shield.bt) shield.broken = true;
-        target.reactionUsed = true;
+        spendReaction(target, "shield-block");
         log(state, `  ${target.name} Shield Blocks (${blocked} prevented${shield.broken ? ", shield broken" : ""})`);
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance);
@@ -1173,6 +1177,8 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
     }
     // (B298: a summon set off by damage on it, Splinter Sycophant's.)
     if (target.hp.value > 0 && target.summons?.length) summonsOnDamage(state, target, amount);
+    // (B302: Construct Armor breaking below half its Hit Points, or on a critical hit.)
+    if (target.constructArmor) constructArmorDamaged(state, target, critical);
     if (target.hp.value <= 0) {
         const overwhelming = amount >= target.hp.max * state.moraleRules.measures.overwhelmingFraction;
         const massive = amount >= target.hp.max * 2;
@@ -1388,7 +1394,8 @@ const OWN_KINDS = new Set(["auditory", "healing", "concentrate", "stand", "lingu
 function disruptedBy(state, reaction, result, mover) {
     if (!reaction?.disrupts || !(result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS))) return false;
     if (!reaction.disruptSave) return true;
-    const roll = rollCheck(state.rng, saveModifier(mover, reaction.disruptSave.statistic), reaction.disruptSave.dc);
+    const rolled = rollCheck(state.rng, saveModifier(mover, reaction.disruptSave.statistic), reaction.disruptSave.dc);
+    const roll = { ...rolled, degree: adjustedSaveDegree(mover, reaction.disruptSave.statistic, rolled.degree) };
     log(state, `  ${mover.name} ${roll.degree >= SUCCESS ? "keeps" : "loses"} its action (${reaction.disruptSave.statistic} save ${roll.total} vs DC ${reaction.disruptSave.dc})`);
     return roll.degree < SUCCESS;
 }
@@ -1399,11 +1406,13 @@ export function provoke(state, mover, kind) {
     // (A concentrate action provokes only the reactions that say so, B51: no Reactive Strike.)
     for (const enemy of engagedEnemies(state, mover)) {
         if (!canAct(mover)) break;
-        if (!canReact(enemy) || enemy.cond.fleeing) continue;
+        // (B302: a reaction for Reactive Strikes only — Opportunistic's, a dragon's — spent on them first.)
+        const spare = Boolean(enemy.reactions?.aoo) && !own && spareReaction(enemy, "aoo");
+        if ((!canReact(enemy) && !spare) || enemy.cond.fleeing) continue;
         if (enemy.reactions?.aoo && !own) {
             const strike = bestMeleeStrike(enemy, mover);
             if (!strike) continue;
-            enemy.reactionUsed = true;
+            spendReaction(enemy, "aoo");
             state.stats.reactions++;
             log(state, `  ${enemy.name} Attack of Opportunity`);
             // (B176, Call to Arms: an ally that uses the Reactive Strike it gave is immune to it afterward.)
@@ -1470,8 +1479,10 @@ export function stride(state, c, move) {
     releaseGrabs(state, c);
     const leavingMelee = c.meleeId !== null && !(move.kind === "engage" && state.byId.get(move.targetId)?.meleeId === c.meleeId);
     // (B117: those it moves away from, for No Escape.)
-    const left = leavingMelee && !move.safe ? engagedEnemies(state, c) : [];
-    if (leavingMelee && !move.safe) {
+    // (B302, Mobility: a short Stride triggers no reactions.)
+    const safe = move.safe || mobileStride(c, move);
+    const left = leavingMelee && !safe ? engagedEnemies(state, c) : [];
+    if (leavingMelee && !safe) {
         const disrupted = provoke(state, c, "move");
         if (!canAct(c)) return;
         if (disrupted) {

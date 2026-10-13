@@ -163,6 +163,8 @@ function combatant(npc) {
         traits: system.traits.value ?? [],
         hp: { value: hp, max: hp },
         ac: system.attributes.ac.value,
+        // (B302: PF2e takes a creature's Hardness off all its damage.)
+        hardness: system.attributes.hardness?.value ?? 0,
         spellPools: Object.fromEntries(spells.filter((spell) => spell.pool).map((spell) => [spell.pool, 1])),
         saves: { fortitude: system.saves.fortitude.value, reflex: system.saves.reflex.value, will: system.saves.will.value },
         perception: system.perception?.mod ?? 0,

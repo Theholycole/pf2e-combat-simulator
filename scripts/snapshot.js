@@ -568,6 +568,20 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
         // (B262: its recharge by name, shared with another ability's when it says so — a reshaped Breath Weapon's.)
         result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: plan.sharesRecharge ?? item.name, ...(effects ? { effects } : {}) });
     }
+    // (B302: a PC's passives that PF2e's rules hold — Evasion, Juggernaut, Bravery, Deny Advantage, Surprise Attack — read as a monster's are,
+    // by the ability module's own compiler: the core's registry hands it only a PC's check actions.)
+    const compileAbility = abilityModule.api?.compileAbility;
+    if (pc && compileAbility) {
+        for (const item of (actor.itemTypes?.feat ?? []).filter((entry) => entry.system?.actionType?.value === "passive")) {
+            let plan = null;
+            try {
+                plan = compileAbility(item);
+            } catch {
+                plan = null;
+            }
+            if (plan?.builtin === "passive-rules" && addBuiltin(result.builtins, plan, item.name)) result.handled.add(item);
+        }
+    }
     // Basic actions: every PC; a monster only those it's trained for (its stat block lists the skill). Anyone can Escape.
     const basics = abilityModule.api?.basicActions ?? {};
     result.handled.basicSlugs = new Set(Object.keys(basics));
@@ -978,6 +992,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         traits,
         hp: fresh ? { value: hp.max, max: hp.max, temp: 0 } : { value: hp.value ?? 0, max: hp.max ?? 0, temp: hp.temp ?? 0 },
         ac: stripConditions(actor.armorClass?.value ?? actor.system?.attributes?.ac?.value ?? 10, actor.armorClass?.modifiers ?? []),
+        // (B302: PF2e takes a creature's Hardness off all its damage — Construct Armor's, an animated object's.)
+        hardness: Number(actor.hardness ?? actor.system?.attributes?.hardness?.value) || 0,
         saves: {
             fortitude: statValue(actor.saves?.fortitude),
             reflex: statValue(actor.saves?.reflex),
@@ -1007,6 +1023,18 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         conditions,
         gaps
     };
+    // (B302: Construct Armor PF2e already has broken — below its share of Hit Points, or its toggle for a critical hit: PF2e's AC and Hardness
+    // say so. A fresh fight mends it.)
+    const armor = spec.constructArmor;
+    if (armor && (hp.value < (hp.max ?? 0) * (armor.below ?? 50) / 100 || actor.rollOptions?.all?.["construct-armor"])) {
+        if (fresh) {
+            spec.ac -= armor.ac;
+            spec.hardness = Math.max(spec.hardness, armor.hardness ?? 0);
+        } else {
+            spec.armorBroken = true;
+            spec.hardness = Number(actor.hardness) || 0;
+        }
+    }
     // A hazard (E4): its routine, Disable options and reactions.
     return kind === "hazard" ? hazardSpec(actor, spec) : spec;
 }

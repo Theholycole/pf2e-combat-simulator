@@ -34,6 +34,22 @@ export function keepPermanent(c) {
     }
 }
 
+// (B302, Extra Reaction: that many reactions a round — reactionUsed is true once they're all spent; set false at its turn's start, they're back.)
+function countReactions(c) {
+    c.reactionsSpent = 0;
+    Object.defineProperty(c, "reactionUsed", {
+        get() {
+            return this.reactionsSpent >= this.reactionsPerRound;
+        },
+        set(used) {
+            this.reactionsSpent = used ? this.reactionsSpent + 1 : 0;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    return c;
+}
+
 export function createCombatant(spec) {
     const conditions = { ...EMPTY_CONDITIONS, ...(spec.conditions ?? {}) };
     const persistent = (spec.conditions?.persistent ?? []).map((entry) => ({ ...entry }));
@@ -44,7 +60,7 @@ export function createCombatant(spec) {
     // (B298: a summon's creature waits off the field until it's summoned.)
     else if (spec.reserve) status = PENDING;
     else if (spec.hp.value <= 0 || conditions.dying > 0 || conditions.unconscious) status = spec.kind === "pc" ? DOWN : DEAD;
-    return {
+    const c = {
         ...spec,
         hp: { value: spec.hp.value, max: spec.hp.max, temp: spec.hp.temp ?? 0 },
         startHp: spec.hp.max,
@@ -73,6 +89,7 @@ export function createCombatant(spec) {
         ...(spec.spellstrike ? { spellstrikeCharged: spec.spellstrikeCharged ?? true } : {}),
         timers: []
     };
+    return spec.reactionsPerRound > 1 ? countReactions(c) : c;
 }
 
 // Swallowed creatures (Swallow Whole) are still fighting, but out of everyone else's reach.

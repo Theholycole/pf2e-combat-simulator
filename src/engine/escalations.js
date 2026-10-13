@@ -14,6 +14,7 @@ import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, armorClass, canAct, isA
 import { applyDamage, expectedHitDamage } from "./actions.js";
 import { degreeDistribution, rollCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS } from "./checks.js";
 import { rollInstances } from "./spells.js";
+import { adjustedSaveDegree, adjustedSaveOdds } from "./passives.js";
 
 const log = (state, line) => state.log?.push(line);
 
@@ -187,7 +188,8 @@ export function dangerAtRoundEnd(state) {
             let share = 1;
             if (danger.save) {
                 const roll = rollCheck(state.rng, saveModifier(c, danger.save.type), danger.save.dc);
-                share = BASIC[roll.degree];
+                // (B302: its Evasion and the like.)
+                share = BASIC[adjustedSaveDegree(c, danger.save.type, roll.degree)];
             }
             const dealt = applyDamage(state, c, [{ type: danger.type, amount: Math.floor(amount * share), persistent: false, precision: false }]);
             log(state, `  ${c.name} takes ${dealt} (${Math.max(0, c.hp.value)}/${c.hp.max})`);
@@ -200,7 +202,7 @@ export function expectedDanger(danger, c) {
     const average = (list) => list.reduce((sum, instance) => sum + (instance.constant ?? 0) + (instance.dice ?? []).reduce((total, term) => total + (term.factor ?? 1) * term.count * (term.die + 1) / 2, 0), 0);
     let amount = average(danger.instances) + danger.rounds * average(danger.grow);
     if (danger.save) {
-        const odds = degreeDistribution(saveModifier(c, danger.save.type), danger.save.dc);
+        const odds = adjustedSaveOdds(c, danger.save.type, degreeDistribution(saveModifier(c, danger.save.type), danger.save.dc));
         amount *= odds[CRITICAL_FAILURE] * 2 + odds[FAILURE] + odds[SUCCESS] * 0.5;
     }
     return amount;
