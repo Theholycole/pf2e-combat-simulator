@@ -1477,7 +1477,8 @@ const allyEffect = (plan) => effectFor(plan, "allies-in-area");
 function answerTargets(state, c, plan, other) {
     const radius = describeSpell(plan).area?.value;
     const live = other && isActive(other);
-    if (["the attacker", "the creature the Strike hits", "the held creature"].includes(plan.targeting?.target)) return live ? [other] : [];
+    // (B265: "the triggering creature" — Elegy of the Faithless's caster, the disrupting saves' creature.)
+    if (["the attacker", "the creature the Strike hits", "the held creature", "the triggering creature"].includes(plan.targeting?.target)) return live ? [other] : [];
     // (B131, Electric Reflexes: "an adjacent creature" — the one that set it off when it's beside it, else another foe in its Melee.)
     if (plan.targeting?.target === "an adjacent creature") {
         const beside = live && other.side !== c.side && sameMelee(c, other) ? other : state.list.find((foe) => foe.side !== c.side && isActive(foe) && sameMelee(c, foe));
@@ -1708,11 +1709,12 @@ export function mishapAnswers(state, creature, target = null) {
 // or a move action or leaves a square during a move action"; "A creature within 100 feet makes a ranged attack or uses an action
 // that has the concentrate trait"): kind "move" (leaving its Melee), "manipulate", "ranged" or "concentrate", within its
 // distance (its reach or 10 feet or less: its Melee; more: the bands). True when it reacted.
-export function provokedReaction(state, c, mover, kind) {
+// (B265, Elegy of the Faithless: kind "cast", a spell cast near it — of its tradition, when it names one and the spell has one.)
+export function provokedReaction(state, c, mover, kind, { tradition = null } = {}) {
     const near = (within) => (within === "reach" || Number(within) <= 10 ? sameMelee(c, mover) : Number(within) >= 60 || mover.band !== "far" || c.band === "far");
     // (B136, Kneecapper: "A Medium creature …" — only a mover of that size.)
     const sized = (sizes) => !sizes?.length || sizes.some((size) => sizeRank(size) === sizeRank(mover.size));
-    return useReaction(state, c, mover, (trigger) => trigger.event === "provoke" && (trigger.triggers ?? []).some((each) => each === kind || (kind === "move" && each === "leave")) && near(trigger.within) && sized(trigger.sizes));
+    return useReaction(state, c, mover, (trigger) => trigger.event === "provoke" && (trigger.triggers ?? []).some((each) => each === kind || (kind === "move" && each === "leave")) && near(trigger.within) && sized(trigger.sizes) && (!trigger.tradition || !tradition || trigger.tradition === tradition));
 }
 
 // More triggers (B47): its own Strike that hits or critically hits (Pin Prey, Storm Smite, Go For the Eyes); a Strike at it,

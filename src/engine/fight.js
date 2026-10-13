@@ -11,7 +11,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, applyCondition, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { applyAuras, provokedReaction, applyCondition, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
 import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
@@ -621,6 +621,8 @@ function act(state, c, action) {
             for (const kind of ["auditory", "healing", "linguistic"]) if (canAct(c) && traits.includes(kind)) disrupted = provoke(state, c, kind) || disrupted;
             // (B122, Spell Interception: a spell, not an ability.)
             if (canAct(c) && spell && (!spell.kind || spell.castsSpell)) disrupted = castAnswers(state, c) || disrupted;
+            // (B265, Elegy of the Faithless: a spell cast near a foe whose reaction it sets off — its save card at the caster.)
+            if (spell && (!spell.kind || spell.castsSpell)) for (const enemy of state.list) if (canAct(c) && enemy.side !== c.side && isActive(enemy)) provokedReaction(state, enemy, c, "cast", { tradition: spell.tradition ?? null });
             if (!canAct(c)) break;
             // Steady Spellcasting (B55): a flat check, and on a success the spell isn't disrupted.
             if (disrupted && c.steadySpellcasting && flatCheck(state.rng, c.steadySpellcasting) >= SUCCESS) {

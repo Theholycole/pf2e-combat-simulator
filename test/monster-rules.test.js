@@ -4877,3 +4877,18 @@ test("A withdraw only on damage of one effect's trait isn't played (Instinctive 
     assert.equal(rex.withdraw, undefined);
     assert.equal(addBuiltin(rex, { builtin: "withdraw", on: "damaged", move: "Teleport", feet: 60, safe: true }, "Test Hop"), true);
 });
+
+test("A spell cast near it sets off its save, of its tradition only (Elegy of the Faithless, 2026-10-12, B265)", async () => {
+    const { provokedReaction } = await import("../src/engine/spells.js");
+    const [fighter] = martialParty(5);
+    const none = () => ({ damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] });
+    const wail = { modelVersion: 13, source: { name: "Test Wail" }, rank: 1, traits: [], activation: { time: "reaction", traits: [] }, targeting: { target: "the triggering creature", range: "30 feet", area: null }, trigger: { event: "provoke", reaction: true, triggers: ["cast"], within: 30, tradition: "divine" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 22 } }, sharedDamage: null, outcomes: { criticalSuccess: none(), success: none(), failure: { ...none(), manualInstructions: ["{target}'s triggering action is disrupted."] }, criticalFailure: none() } } };
+    const zealot = { ...moderateCreature(5, "zea", "Zealot"), engagement: 1, spells: [{ name: "Test Wail", plan: wail, castRank: 1, pool: null, kind: "ability" }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, zealot] }, {}, 1);
+    const z = state.byId.get("zea");
+    const f = state.byId.get(fighter.id);
+    assert.equal(provokedReaction(state, z, f, "cast", { tradition: "arcane" }), false, "not an arcane spell");
+    assert.equal(provokedReaction(state, z, f, "cast", { tradition: "divine" }), true);
+    assert.equal(z.reactionUsed, true);
+});
