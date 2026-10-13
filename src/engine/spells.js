@@ -1051,7 +1051,10 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 break;
             }
             case "condition":
-                if (change.slug === "persistent-damage") applyDamage(state, target, [persistentInstance(change.damage)], { source: caster });
+                // (A plan that also links PF2e's Persistent Damage condition, its damage in its own formula — Spellwrack: nothing more here.)
+                if (change.slug === "persistent-damage") {
+                    if (change.damage) applyDamage(state, target, [persistentInstance(change.damage)], { source: caster });
+                }
                 // First Aid's critical failure: dying +1.
                 else if (change.slug === "dying") {
                     if (target.status === DOWN) increaseDying(state, target, change.value ?? 1);
@@ -2018,6 +2021,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 if (change.op === "damage") {
                     entry.damage += chance * adjustDamage(target, change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision" }))).total;
                 } else if (change.op === "condition" && change.slug === "persistent-damage") {
+                    if (!change.damage) continue;
                     entry.damage += chance * 2 * adjustInstance(target, change.damage.type, change.damage.amount);
                 } else if (change.op === "condition" && change.scope) {
                     // Feint, Create a Diversion: the attacker's own attacks hit more often (+2): about a
