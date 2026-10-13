@@ -20,6 +20,7 @@ import { allyStrike } from "./commander.js";
 import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
 import { effectImmunity, immuneToCondition } from "./immunities.js";
+import { elementalAnswers, troopIgnores, troopSegmentLost } from "./creature-rules.js";
 import { adjustDamage, adjustInstance, rollStrikeDamage, spellContext, strikeContext } from "./damage.js";
 import { distanceBetween, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { moraleOdds } from "./morale.js";
@@ -497,6 +498,11 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if (!VALUED.has(slug) && !flag) return false;
     // (I1: a creature immune to the condition.)
     if (immuneToCondition(target, slug)) return false;
+    // (T7: a condition that takes a troop's segment out of the fight costs it a threshold instead.)
+    if (target.troop && troopSegmentLost(state, target, slug)) {
+        if (target.hp.value <= 0 && isActive(target)) killCreature(state, target);
+        return false;
+    }
     // (B302, Bravery: "any time it gains the Frightened condition, reduce its value by 1".)
     if (slug === "frightened" && target.lessFrightened) {
         value = (Number.isFinite(value) ? value : 1) - target.lessFrightened;
@@ -1036,7 +1042,7 @@ export function strikeRiderValue(state, attacker, target, activity, strike = nul
     return { damage, worth };
 }
 
-function applyMove(state, target, change) {
+export function applyMove(state, target, change) {
     if (!isActive(target)) return;
     if (change.kind === "push" && change.distance >= 5 && target.meleeId !== null) {
         leaveMelee(state, target, "near");
@@ -1045,6 +1051,12 @@ function applyMove(state, target, change) {
         target.band = "near";
         log(state, `  ${target.name} is pulled closer`);
     }
+}
+
+// Whether a plan deals damage (T7: a troop's non-damaging effects).
+function planDamages(plan) {
+    const resolution = plan?.resolution ?? {};
+    return Boolean(resolution.sharedDamage?.components?.length) || Object.values(resolution.outcomes ?? {}).some((row) => row?.damage && row.damage.mode && row.damage.mode !== "none");
 }
 
 // A spell rather than an ability: not a monster's or a basic action, unless it is a spell from the spell list.
@@ -1210,6 +1222,15 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         targets.splice(targets.indexOf(target), 1);
         log(state, `  ${target.name} is immune (${immunity.replace(/-/g, " ")})`);
     }
+    // (T7: a troop ignores a non-damaging effect aimed at one creature — Demoralize, a Charm.)
+    const damaging = planDamages(spell.plan);
+    for (const target of [...targets]) {
+        if (!troopIgnores(target, { damaging, targets: info.area ? Infinity : targetIds.length })) continue;
+        targets.splice(targets.indexOf(target), 1);
+        log(state, `  ${target.name} is unaffected (a troop)`);
+    }
+    // (T5: an elemental dragon's answer to a spell of an element aimed at it.)
+    for (const target of targets) if (target.elemental && target !== caster) elementalAnswers(state, target, "targeted", { spell, applyCondition });
     // A magus's conflux spell recharges Spellstrike.
     if (caster.spellstrike && !caster.spellstrikeCharged && (spell.plan?.traits ?? []).includes("conflux") && (info.actions ?? 0) >= 1) {
         caster.spellstrikeCharged = true;
@@ -2051,8 +2072,9 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     for (const target of targets) {
         const entry = { target, damage: 0, worth: 0, heal: 0, benefit: 0 };
         result.push(entry);
-        // (I1: nothing on a creature immune to it.)
+        // (I1: nothing on a creature immune to it; T7: nor a non-damaging one aimed at one creature on a troop.)
         if (effectImmunity(target, spell)) continue;
+        if (troopIgnores(target, { damaging: planDamages(spell.plan), targets: describeSpell(spell.plan, actions).area ? Infinity : targets.length })) continue;
         // Golem Antimagic (B56): only what its list says.
         const golem = golemAnswer(caster, spell, target, Boolean(describeSpell(spell.plan, actions).area));
         if (golem) {

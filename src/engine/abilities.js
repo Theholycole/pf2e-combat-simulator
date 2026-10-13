@@ -5,6 +5,7 @@
 // Dodge, Challenge Fate, Twisting Tail, Death Frenzy).
 
 import { summonSpec } from "./summons.js";
+import { conditionHeld } from "./creature-rules.js";
 
 const SIZES = ["tiny", "small", "medium", "large", "huge", "gargantuan"];
 const SIZE_WORDS = { tiny: "tiny", sm: "small", med: "medium", lg: "large", huge: "huge", grg: "gargantuan" };
@@ -88,6 +89,30 @@ export function addBuiltin(spec, plan, name) {
                 spec.spareReactions = [...(spec.spareReactions ?? []), { names, count: plan.reactions.extra ?? 1 }];
                 played = true;
             }
+            return played;
+        }
+        // (T1–T7: what the ability module's creature-rules reading gives it — src/engine/creature-rules.js.)
+        case "creature-rules": {
+            let played = false;
+            const set = (field, value) => {
+                spec[field] = value;
+                played = true;
+            };
+            if (plan.critRider) set("critRider", { ...plan.critRider, name });
+            if (plan.swiftness) set("swiftness", true);
+            if (plan.inexorable) set("inexorable", { ...plan.inexorable, name });
+            if (plan.strikeTypes?.length) set("strikeTypes", [...new Set([...(spec.strikeTypes ?? []), ...plan.strikeTypes])]);
+            if (plan.hpRules?.length) set("hpRules", [...(spec.hpRules ?? []), ...plan.hpRules.map((rule) => ({ ...rule, source: name }))]);
+            if (plan.protean?.value) set("protean", { ...plan.protean });
+            // (Its own immunities come from its stat block after this: these join them as it's made.)
+            if (plan.immunities?.length) set("addedImmunities", [...new Set([...(spec.addedImmunities ?? []), ...plan.immunities])]);
+            if (plan.critSpec) set("critSpec", true);
+            if (plan.troop) set("troop", { thresholds: plan.troop.thresholds ? plan.troop.thresholds.map((entry) => ({ ...entry })) : null });
+            if (plan.split) set("split", { ...plan.split });
+            if (plan.attach) set("attach", { ...plan.attach, name });
+            if (plan.berserk) set("golemBerserk", { ...plan.berserk });
+            if (plan.elemental?.length) set("elemental", [...(spec.elemental ?? []), ...plan.elemental.map((rule) => ({ ...rule, name }))]);
+            if (plan.permanent?.length) set("permanent", [...(spec.permanent ?? []), ...plan.permanent]);
             return played;
         }
         // (B298: a summon whose creatures fight — its reserves are made with the snapshot.)
@@ -708,7 +733,10 @@ export function isUndead(c) {
 
 // Whether an extra-damage ability applies to this hit. offGuard: the target is
 // off-guard to the attack; packAllies: the attacker's allies within reach of the target.
-export function extraApplies(extra, target, { offGuard, packAllies }) {
+export function extraApplies(extra, target, { offGuard, packAllies, attacker = null }) {
+    // (T1: any condition on its target — Gang Up's Grabbed, Punch Down's Prone; Mauler's, a creature it has Grabbed itself.)
+    if (String(extra.when).startsWith("condition:")) return conditionHeld(target, extra.when.slice("condition:".length));
+    if (extra.when === "grabbing") return Boolean(attacker) && target.grabbedBy === attacker.id && Boolean(target.cond?.grabbed || target.cond?.restrained);
     switch (extra.when) {
         case "off-guard":
             return offGuard;

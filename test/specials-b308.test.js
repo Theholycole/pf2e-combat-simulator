@@ -39,7 +39,7 @@ test("B308 a riposte only in its parry stance; a teleport only from a holy Strik
     applyEffect(state, d, { name: "Effect: Twin Parry", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [] }, d);
     assert.notEqual(reactionStrikeAt(state, d, pc, d.reactionStrikes[0], "critical-miss"), null, "while it parries");
     // Instinctive Teleportation: only a holy Strike's damage.
-    const fiend = { ...moderateCreature(5, "fiend", "Fiend"), engagement: 1 };
+    const fiend = { ...moderateCreature(5, "fiend", "Fiend"), engagement: 1, hp: { value: 200, max: 200 } };
     assert.ok(addBuiltin(fiend, { builtin: "withdraw", on: "damaged", damageTrait: "holy", move: "Teleport", feet: 60, safe: true }, "Test Blink"));
     const fight = createFightState({ combatants: [{ ...fighter, engagement: 1 }, fiend] }, {}, 1);
     const f = fight.byId.get("fiend");

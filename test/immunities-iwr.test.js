@@ -132,9 +132,9 @@ test("I2 a Strike's context from its traits and item: magical and holy, material
     assert.deepEqual(strikeIwr(["magical", "good", "cold-iron", "agile"], { name: "Battle Axe" }), { traits: ["magical", "holy"], materials: ["cold-iron"], group: "axe" });
     assert.equal(strikeIwr(["agile"], { name: "Pickaxe" }), null);
     assert.deepEqual(strikeIwr([], { material: "silver", group: "sword", runes: ["ghost-touch"] }), { materials: ["silver"], group: "sword", runes: ["ghost-touch"] });
-    // The benchmark party's weapons are magical from 2nd level.
-    assert.equal(martialParty(1)[0].strikes[0].iwr, undefined);
-    assert.deepEqual(martialParty(2)[0].strikes[0].iwr, { traits: ["magical"] });
+    // The benchmark party's weapons are magical from 2nd level (T6: with their groups).
+    assert.deepEqual(martialParty(1)[0].strikes[0].iwr, { group: "sword" });
+    assert.deepEqual(martialParty(2)[0].strikes[0].iwr, { group: "sword", traits: ["magical"] });
 });
 
 test("I2 in a fight: a silver Strike on a creature weak to silver, expected and rolled; an area spell on a swarm", () => {

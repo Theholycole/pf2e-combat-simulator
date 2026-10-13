@@ -1454,7 +1454,8 @@ test("reaction Strikes to a Strike in reach, an attack on an ally and a critical
     state.log = [];
     for (let i = 0; i < 5 && !/Violent Retort/.test(state.log.join("\n")); i++) performStrike(state, state.byId.get("fighter"), state.byId.get("dragon"), state.byId.get("fighter").strikes[0]);
     text = state.log.join("\n");
-    assert.match(text, /critically hits[^\n]*\n\s+Dragon uses Violent Retort/, text);
+    // (T6: the fighter's critical specialization comes with the hit.)
+    assert.match(text, /critically hits[^\n]*\n(?:[^\n]*\(critical specialization\)\n)?\s+Dragon uses Violent Retort/, text);
     // Fast Swallow: grabbed, then swallowed as its reaction once the action ends.
     const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
     const swallowed = { damage: { mode: "formulas", formulas: [{ formula: "2d6[bludgeoning]" }], rollScope: "outcome" }, effects: [{ kind: "swallow", damage: "2d6[bludgeoning]", rupture: 10, size: "large" }] };

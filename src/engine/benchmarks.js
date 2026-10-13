@@ -83,7 +83,7 @@ function specialization(level, fighter) {
     return level >= 13 ? 3 : 2;
 }
 
-function pc({ id, name, level, hpPerLevel, acBonus, strike, shield = null, aoo = false, perceptionBonus = 2 }) {
+function pc({ id, name, level, hpPerLevel, acBonus, strike, shield = null, aoo = false, perceptionBonus = 2, critSpec = null }) {
     const con = level >= 10 ? 4 : level >= 5 ? 3 : 2;
     const hp = 8 + (hpPerLevel + con) * level;
     const attribute = attributeFor(level);
@@ -107,7 +107,10 @@ function pc({ id, name, level, hpPerLevel, acBonus, strike, shield = null, aoo =
         shield,
         reactions: { aoo, shieldBlock: !!shield },
         // A held weapon: Disarm can knock it away. (I2: magical from its first potency rune, for a resistance doubled against non-magical damage.)
-        strikes: [{ ...strike(attribute), held: true, ...(potency(level) ? { iwr: { traits: ["magical"] } } : {}) }]
+        strikes: [{ ...strike(attribute), held: true, ...((potency(level) || strike(attribute).iwr) ? { iwr: { ...(strike(attribute).iwr ?? {}), ...(potency(level) ? { traits: ["magical"] } : {}) } } : {}) }],
+        // (T6: its class DC, trained, expert from 11th level; its critical specialization from its class.)
+        classDC: 10 + level + (level >= 11 ? 4 : 2) + attribute,
+        ...(critSpec ? { critSpec } : {})
     };
 }
 
@@ -117,20 +120,24 @@ export function martialParty(level) {
     return [
         pc({
             id: "fighter", name: "Fighter", level, hpPerLevel: 10, acBonus: 0, aoo: true,
-            strike: (attribute) => ({ name: "Greatsword", bonus: bonusFor(true, attribute), melee: true, damage: [{ dice, die: 12, bonus: attribute + specialization(level, true), type: "slashing" }] })
+            // (T6: Fighter Weapon Mastery's critical specialization from 5th level.)
+            ...(level >= 5 ? { critSpec: true } : {}),
+            strike: (attribute) => ({ name: "Greatsword", bonus: bonusFor(true, attribute), melee: true, iwr: { group: "sword" }, damage: [{ dice, die: 12, bonus: attribute + specialization(level, true), type: "slashing" }] })
         }),
         pc({
             id: "champion", name: "Champion", level, hpPerLevel: 10, acBonus: 1,
             shield: { ac: 2, hardness: 5 + Math.floor(level / 2), hp: 20 + level * 4, bt: 10 + level * 2 },
-            strike: (attribute) => ({ name: "Longsword", bonus: bonusFor(false, attribute), melee: true, damage: [{ dice, die: 8, bonus: attribute + specialization(level, false), type: "slashing" }] })
+            strike: (attribute) => ({ name: "Longsword", bonus: bonusFor(false, attribute), melee: true, iwr: { group: "sword" }, damage: [{ dice, die: 8, bonus: attribute + specialization(level, false), type: "slashing" }] })
         }),
         pc({
             id: "ranger", name: "Ranger", level, hpPerLevel: 10, acBonus: 0, perceptionBonus: 4,
-            strike: (attribute) => ({ name: "Shortbow", bonus: bonusFor(false, attribute), melee: false, increment: 60, deadly: { dice: level >= 19 ? 3 : level >= 12 ? 2 : 1, die: 10 }, damage: [{ dice, die: 6, bonus: specialization(level, false), type: "piercing" }] })
+            strike: (attribute) => ({ name: "Shortbow", bonus: bonusFor(false, attribute), melee: false, increment: 60, iwr: { group: "bow" }, deadly: { dice: level >= 19 ? 3 : level >= 12 ? 2 : 1, die: 10 }, damage: [{ dice, die: 6, bonus: specialization(level, false), type: "piercing" }] })
         }),
         pc({
             id: "rogue", name: "Rogue", level, hpPerLevel: 8, acBonus: 0, perceptionBonus: 4,
-            strike: (attribute) => ({ name: "Rapier", bonus: bonusFor(false, attribute), melee: true, deadly: { dice: 1, die: 8 }, damage: [{ dice, die: 6, bonus: attribute + specialization(level, false), type: "piercing" }] })
+            // (T6: Weapon Tricks' critical specialization against an off-guard target from 5th level.)
+            ...(level >= 5 ? { critSpec: { offGuard: true } } : {}),
+            strike: (attribute) => ({ name: "Rapier", bonus: bonusFor(false, attribute), melee: true, iwr: { group: "sword" }, deadly: { dice: 1, die: 8 }, damage: [{ dice, die: 6, bonus: attribute + specialization(level, false), type: "piercing" }] })
         })
     ];
 }

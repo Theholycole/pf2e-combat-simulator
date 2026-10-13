@@ -62,6 +62,8 @@ export function createCombatant(spec) {
     else if (spec.hp.value <= 0 || conditions.dying > 0 || conditions.unconscious) status = spec.kind === "pc" ? DOWN : DEAD;
     const c = {
         ...spec,
+        // (T4: immunities its abilities add, Protean Anatomy's polymorph.)
+        ...(spec.addedImmunities?.length ? { immunities: [...new Set([...(spec.immunities ?? []), ...spec.addedImmunities])] } : {}),
         hp: { value: spec.hp.value, max: spec.hp.max, temp: spec.hp.temp ?? 0 },
         startHp: spec.hp.max,
         cond: conditions,
@@ -139,6 +141,8 @@ export function statusPenalty(c, kind) {
 }
 
 export function isOffGuard(c) {
+    // (T4: attached to a creature, as most Attach say.)
+    if (c?.attachedTo && c.attach?.offGuard) return true;
     const k = c.cond;
     return k.offGuard || k.prone || k.unconscious || k.paralyzed || k.asleep || k.blinded || k.restrained || k.grabbed || k.confused || c.status === DOWN;
 }

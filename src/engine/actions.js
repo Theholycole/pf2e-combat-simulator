@@ -6,15 +6,16 @@ import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatChe
 import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
 import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
 import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, strikeUsable } from "./combatant.js";
-import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, rollStrikeDamage, strikeContext } from "./damage.js";
+import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, resistancesOf, rollStrikeDamage, strikeContext } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
-import { canReact, chargeStrike, extraApplies, hasOwnEffect, reactionMark, regenerating, restoreReaction, spendReaction, strikeNamed } from "./abilities.js";
+import { canReact, chargeStrike, extraApplies, hasOwnEffect, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, removeEffect } from "./effects.js";
-import { applyCondition, castPlan, castSpell, deathThroes, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { applyCondition, applyMove, castPlan, castSpell, deathThroes, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
+import { attachAfterHit, bestStrikeType, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, troopAfterDamage } from "./creature-rules.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -82,7 +83,10 @@ export function targetAC(state, attacker, target, strike, flanked) {
     const feinted = !isOffGuard(target) && offGuardTo(target, attacker, strike.melee);
     // The Outwit hunter's edge: +1 AC against the prey.
     const outwit = target.huntPrey?.edge === "outwit" && target.prey === attacker.id ? 1 : 0;
-    return armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: flanked || feinted }) - berserkPenalty(state, target) + outwit;
+    // (T4: attached — the pickled punk's +2 while not held itself; the bee borer's target off-guard to it too.)
+    const attached = target.attachedTo && target.attach?.acBonus && !target.cond.grabbed && !target.cond.restrained ? target.attach.acBonus : 0;
+    const borne = !isOffGuard(target) && state.list.some((other) => other.attachedTo === target.id && other.attach?.both && isActive(other));
+    return armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: flanked || feinted || borne }) - berserkPenalty(state, target) + outwit + attached;
 }
 
 // Cache of expected hit damage per Strike object (shared by every run of a
@@ -92,9 +96,12 @@ const defenceIds = new Map();
 
 // A small number per distinct set of resistances, weaknesses and immunities.
 function defenceId(target) {
-    if (target.defenceId === undefined) {
-        const text = JSON.stringify([target.resistances ?? [], target.weaknesses ?? [], target.immunities ?? []]);
+    // (T3–T4: resistances that change with its Hit Points or the damage it took aren't kept.)
+    const changing = Boolean(target.hpRules?.length || target.protean);
+    if (target.defenceId === undefined || changing) {
+        const text = JSON.stringify([resistancesOf(target), target.weaknesses ?? [], target.immunities ?? []]);
         if (!defenceIds.has(text)) defenceIds.set(text, defenceIds.size);
+        if (changing) return defenceIds.get(text);
         target.defenceId = defenceIds.get(text);
     }
     return target.defenceId;
@@ -151,9 +158,9 @@ const bestEnergy = (target) => ENERGIES.reduce((best, type) => (adjustInstance(t
 function expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies) {
     let total = 0;
     for (const extra of attacker.strikeExtras) {
-        const chance = extra.when === "off-guard" ? offGuardChance : extraApplies(extra, target, { offGuard: false, packAllies }) ? 1 : 0;
+        const chance = extra.when === "off-guard" ? offGuardChance : extraApplies(extra, target, { offGuard: false, packAllies, attacker }) ? 1 : 0;
         if (!chance) continue;
-        const amount = extra.dice * (extra.die + 1) / 2 * (critical ? 2 : 1);
+        const amount = (extra.dice * (extra.die + 1) / 2 + (extra.bonus ?? 0)) * (critical ? 2 : 1);
         total += chance * adjustInstance(target, extra.type ?? strike.damage[0]?.type ?? "untyped", amount, extra.precision, strikeContext(attacker, strike, critical));
     }
     return total;
@@ -179,7 +186,9 @@ function computeHitDamage(attacker, strike, target, critical, penalty, offGuardC
     const context = strikeContext(attacker, strike, critical);
     let total = 0;
     for (const instance of expectedStrikeDamage(strike, { critical, penalty })) {
-        const type = strike.concussive ? concussiveType(target, instance.type, instance.amount, instance.precision) : instance.type;
+        let type = strike.concussive ? concussiveType(target, instance.type, instance.amount, instance.precision) : instance.type;
+        // (T3: a type it can deal instead — versatile, Phantom Touch — the one this target minds most.)
+        if (instance.weapon) type = bestStrikeType(attacker, strike, target, type, instance.amount, instance.precision);
         const amount = adjustPart(target, { ...instance, type }, context);
         // Persistent damage is counted for about two rounds.
         total += instance.persistent ? amount * 2 : amount;
@@ -239,7 +248,9 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     let flanked = false;
     // (B302: not All-Around Vision; not Deny Advantage against a flanker of its level or lower.)
     if (strike.melee && flankableBy(target, attacker)) {
-        const chance = flankChance(state, flankersAgainst(state, target, attacker));
+        const flankers = flankersAgainst(state, target, attacker);
+        // (T1, Gang Up: within reach of it and an ally is enough.)
+        const chance = attacker.flanking?.gangUp && flankers >= 2 ? 1 : flankChance(state, flankers);
         if (chance > 0) flanked = state.rng.chance(chance);
     }
     // (B302: off-guard to it by its own passive — Surprise Attack's first round, Dread Striker's frightened target.)
@@ -477,8 +488,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (attacker.strikeExtras?.length) {
         const packAllies = engagedEnemies(state, target).filter((other) => other !== attacker).length;
         for (const extra of attacker.strikeExtras) {
-            if (!extraApplies(extra, target, { offGuard, packAllies })) continue;
-            let amount = 0;
+            if (!extraApplies(extra, target, { offGuard, packAllies, attacker })) continue;
+            let amount = extra.bonus ?? 0;
             for (let die = 0; die < extra.dice; die++) amount += state.rng.die(extra.die);
             instances.push({ type: extra.type ?? strike.damage[0].type, amount: critical ? amount * 2 : amount, precision: !!extra.precision, persistent: false });
         }
@@ -486,6 +497,15 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // (B153, Draining Touch: a Strike that deals no damage on a hit.)
     if (strike.noDamage) instances.length = 0;
     if (strike.concussive) for (const instance of instances) instance.type = concussiveType(target, instance.type, instance.amount, instance.precision);
+    for (const instance of instances) if (instance.weapon) instance.type = bestStrikeType(attacker, strike, target, instance.type, instance.amount, instance.precision);
+    // (T5: an elemental dragon's jaws countered — without their energy — or fed, a die more.)
+    if (/\bjaws\b/i.test(strike.name ?? "")) {
+        for (const effect of attacker.effects ?? []) {
+            if (effect.model.jawsLose) for (let index = instances.length - 1; index >= 0; index--) if (instances[index].type === effect.model.jawsLose) instances.splice(index, 1);
+            const part = effect.model.jawsDie ? strike.damage.find((entry) => entry.type === effect.model.jawsDie && entry.die) : null;
+            if (part) instances.push({ type: part.type, amount: state.rng.die(part.die) * (critical ? 2 : 1), persistent: false, precision: false });
+        }
+    }
     // (B309, I2: the Strike's context on its damage — a holy Strike on a fiend weak to holy, a silver one on a werewolf.)
     const context = strikeContext(attacker, strike, critical);
     for (const instance of instances) instance.context = context;
@@ -506,6 +526,11 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     });
     target.resistances = before;
     if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
+    // (T1, T6: a critical hit's rider — Brutal Beating's — and its weapon group's critical specialization.)
+    if (critical && attacker.critRider) critRiderAnswer(state, attacker, target, { applyCondition, applyMove });
+    if (critical) critSpecEffect(state, attacker, target, strike, natural + modifier + bonus, { applyCondition, applyMove, applyDamage, rollDie: (size) => state.rng.die(size) });
+    // (T4: attached to a larger creature it hits.)
+    if (attacker.attach && isActive(attacker)) attachAfterHit(state, attacker, target, sizeRank);
     // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
     if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances, strikeContext(attacker, strike)), { includeTarget: false });
     // (B255: a table row's conditions and save on the creature hit.)
@@ -880,6 +905,11 @@ function critRechargeAnswer(state, c) {
     if (rule.untilNatural) c.critRechargeBlockedUntil = c.rechargeUntil?.get(key) ?? before ?? -Infinity;
 }
 
+// (T5, Fed by Wood: the ability it names recharges.)
+function rechargeNamed(c, name) {
+    for (const key of [...(c.rechargeUntil?.keys() ?? [])]) if (String(typeof key === "string" ? key : key.name).toLowerCase() === String(name).toLowerCase()) c.rechargeUntil.delete(key);
+}
+
 function rechargeOnCritical(state, c) {
     if (!c.rechargeUntil?.size) return;
     const names = (c.momentum.recharges ?? []).map((name) => name.toLowerCase());
@@ -1012,6 +1042,13 @@ export function applyDamage(state, target, instances, { source = null, critical 
     if (dealt > 0 && isActive(target)) triggeredSelfEffect(state, target, (trigger) => (trigger.kind === "hp-at-most" && target.hp.value <= trigger.value) || trigger.kind === "damaged");
     // Solar Flare, Caustic Blood: the monster's reaction to damage on it (B44).
     if (dealt > 0) reactToDamage(state, target, source, instances.filter((instance) => instance.amount > 0).map((instance) => instance.type));
+    // (T4–T7: what the damage sets off on it — Protean Anatomy, a troop's thresholds, Split ("would deal": its types, immune or not), an
+    // elemental dragon's Countered by and Fed by.)
+    const types = instances.filter((instance) => instance.amount > 0 && !instance.persistent).map((instance) => instance.type);
+    if (dealt > 0 && target.protean) proteanAfterDamage(state, target, types);
+    if (dealt > 0 && target.troop) troopAfterDamage(state, target);
+    if (source && target.split) splitAfterHit(state, target, types, { critical });
+    if (dealt > 0 && target.elemental) elementalAnswers(state, target, "damage", { types, context: instances.find((instance) => instance.context)?.context ?? null, applyCondition, recharge: rechargeNamed });
     // (B143: Destructive Vengeance's damage at the enemy.)
     if (retribution?.vengeance && isActive(source)) {
         const [, dice, type] = /^(\d+d\d+)\[(\w+)\]$/.exec(retribution.vengeance.championReaction.damage ?? "2d6[spirit]") ?? [null, "2d6", "spirit"];
@@ -1043,6 +1080,8 @@ const PHYSICAL_TYPES = new Set(["bludgeoning", "piercing", "slashing"]);
 function resistReaction(state, target, instances, { source, physical, spell = null }) {
     const resist = target.resistReaction;
     if (!resist || !isActive(target) || !canReact(target, resist.name) || !((target.resistUses ?? Infinity) > 0)) return null;
+    // (T5, Countered by Earth: Liquefy can't be used until the end of its next turn.)
+    if ((target.disabledUntil?.[String(resist.name).toLowerCase()] ?? -Infinity) >= state.round) return null;
     if ((resist.attack && !physical) || (resist.foe && !(source && source.side !== target.side))) return null;
     // (B237: a melee attack from beside it — a Strike from a creature in its Melee.)
     if (resist.melee && !(physical && source && sameMelee(target, source))) return null;

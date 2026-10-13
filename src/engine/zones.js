@@ -121,7 +121,8 @@ export function zoneTurn(state, c, phase) {
         if (phase === "start") refresh(state, zone, c);
         if (c.side === zone.side || !owner) continue;
         const cameIn = phase === "end" && !(c.zonesAtStart ?? new Set()).has(zone.id);
-        if (phase === "start" && (zone.model.terrain ?? []).some((entry) => (entry.movement ?? ["walk"]).some((move) => ["walk", "climb"].includes(move))) && !c.zoneSpeed) {
+        // (T2, Inexorable: no difficult terrain for it.)
+        if (phase === "start" && c.inexorable?.difficultTerrain !== false && (zone.model.terrain ?? []).some((entry) => (entry.movement ?? ["walk"]).some((move) => ["walk", "climb"].includes(move))) && !c.zoneSpeed) {
             c.zoneSpeed = c.speed ?? 25;
             c.speed = Math.max(5, Math.floor((c.speed ?? 25) / 2 / 5) * 5);
         }

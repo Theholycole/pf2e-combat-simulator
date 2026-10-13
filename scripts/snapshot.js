@@ -9,7 +9,7 @@ import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abi
 import { requirementPlayable } from "../src/engine/needs.js";
 import { markParts, toggleWays } from "../src/engine/toggles.js";
 import { zoneSpell } from "../src/engine/zones.js";
-import { strikeIwr } from "../src/engine/damage.js";
+import { strikeIwr, versatileTypes } from "../src/engine/damage.js";
 import { immunityExceptions } from "../src/engine/immunities.js";
 import { MAP_KINDS, readMapFeet, readRegionFeet, regionToRegions, roundsHeld } from "./map.js";
 import { hazardSpec } from "./hazards.js";
@@ -50,7 +50,8 @@ const MODELLED_TRAITS = new Set([
 ]);
 
 function traitRoot(trait) {
-    return trait.replace(/-(\d+d)?\d+$/, "").replace(/-d\d+$/, "").replace(/-[a-z]$/, "");
+    // (T3: "versatile-fire" — a versatile trait of any type — is versatile's.)
+    return trait.replace(/-(\d+d)?\d+$/, "").replace(/-d\d+$/, "").replace(/-[a-z]$/, "").replace(/^versatile-[a-z]+$/, "versatile");
 }
 
 // Takes condition modifiers out of a total, restoring any same-type modifier
@@ -176,6 +177,8 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
     for (const trait of traits) {
         if (!MODELLED_TRAITS.has(traitRoot(trait)) && !trait.startsWith("attached")) gaps.push({ kind: "strike trait", name: trait });
     }
+    // (T6: the critical specialization PF2e gives this Strike — a fighter's weapon mastery, a rogue's tricks, Weapon Master.)
+    const critSpec = critSpecialization(actor, item);
     // (I2: what its damage carries for weaknesses and resistances — magical, holy, a tradition; its material, group and property runes.)
     const iwr = strikeIwr([...traits, ...(item?.isMagical ? ["magical"] : [])], { material: item?.system?.material?.type ?? null, group: item?.group ?? item?.system?.group ?? null, runes: item?.system?.runes?.property ?? [], name: action.label ?? item?.name ?? "" });
     return {
@@ -219,9 +222,32 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
         ...(["firearm", "crossbow"].includes(item?.group ?? item?.system?.group) ? { firearm: true } : {}),
         ...(traits.includes("parry") ? { parry: true } : {}),
         ...(iwr ? { iwr } : {}),
+        // (T3: the types its versatile traits let it deal instead; T6: its critical specialization.)
+        ...(versatileTypes(traits).length ? { versatile: versatileTypes(traits) } : {}),
+        ...(critSpec ? { critSpec: true } : {}),
         damage,
         critDamage
     };
+}
+
+// Whether PF2e's critical specialization synthetics give this Strike its group's effect (they return its notes and dice, none when not).
+function critSpecialization(actor, item) {
+    const synthetics = actor?.synthetics?.criticalSpecializations;
+    if (!synthetics || !item?.group) return false;
+    let options;
+    try {
+        options = new Set([...(actor.getRollOptions?.(["all", "strike-damage", "damage"]) ?? []), ...(item.getRollOptions?.("item") ?? [])]);
+    } catch {
+        return false;
+    }
+    return [...(synthetics.standard ?? []), ...(synthetics.alternate ?? [])].some((synthetic) => {
+        try {
+            const effect = synthetic?.(item, options);
+            return Array.isArray(effect) && effect.length > 0;
+        } catch {
+            return false;
+        }
+    });
 }
 
 function splashAmount(item, traits) {
@@ -991,7 +1017,9 @@ function readIwr(list) {
         exceptions: (entry.exceptions ?? []).map(iwrException).filter(Boolean),
         ...(Array.isArray(entry.definition) && entry.definition.length ? { definition: entry.definition } : {}),
         // (I2: a resistance doubled against what it names — non-magical damage.)
-        ...(entry.doubleVs?.length ? { doubleVs: [...entry.doubleVs] } : {})
+        ...(entry.doubleVs?.length ? { doubleVs: [...entry.doubleVs] } : {}),
+        // (T3: the ability that gives it, for one its share of Hit Points decides — Abandon Armor's, played from its rules instead.)
+        ...(typeof entry.source === "string" ? { source: entry.source } : {})
     }));
 }
 
@@ -1061,6 +1089,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         kind,
         acts: kind !== "object",
         level: actor.level ?? 0,
+        // (T6: its class DC, for a critical specialization's save.)
+        ...(Number.isFinite(actor.classDC?.dc?.value) ? { classDC: actor.classDC.dc.value } : {}),
         traits,
         hp: fresh ? { value: hp.max, max: hp.max, temp: 0 } : { value: hp.value ?? 0, max: hp.max ?? 0, temp: hp.temp ?? 0 },
         ac: stripConditions(actor.armorClass?.value ?? actor.system?.attributes?.ac?.value ?? 10, actor.armorClass?.modifiers ?? []),
@@ -1100,6 +1130,11 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     };
     // (B302: Construct Armor PF2e already has broken — below its share of Hit Points, or its toggle for a critical hit: PF2e's AC and Hardness
     // say so. A fresh fight mends it.)
+    // (T3: a resistance its share of Hit Points decides is played from its rules, not as PF2e has it now.)
+    if (spec.hpRules?.length) {
+        const sources = new Set(spec.hpRules.map((rule) => rule.source));
+        spec.resistances = spec.resistances.filter((entry) => !sources.has(entry.source));
+    }
     // (I4: the roll options its predicated Fast Healing or regeneration names that are on now — a toggle the GM set, a form it's in.)
     const named = predicateOptions([...(spec.fastHealingWhen ?? []).map((entry) => entry.when), spec.regeneration?.when ?? []]);
     if (named.length) spec.rollOptions = [...new Set(named.filter((option) => actor.rollOptions?.all?.[option]))];

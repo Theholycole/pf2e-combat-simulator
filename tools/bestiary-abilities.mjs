@@ -27,13 +27,20 @@ const { effectModel, iwrException } = await import("../src/engine/effects.js");
 const { immunityExceptions } = await import("../src/engine/immunities.js");
 const { asReserve, bestOption, bestPick, reserveCount } = await import("../src/engine/summons.js");
 const { eliteAdjust, weakAdjust } = await import("../src/engine/adjust.js");
-const { strikeIwr } = await import("../src/engine/damage.js");
+const { strikeIwr, versatileTypes } = await import("../src/engine/damage.js");
 
 const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 const MAP = process.argv.includes("--map");
 const ESCALATE = process.argv.includes("--escalate");
 const ARGS = process.argv.slice(2).filter((arg) => arg !== "--map" && arg !== "--escalate");
 const PACKS = ARGS.length ? ARGS : ["pathfinder-monster-core", "pathfinder-monster-core-2", "pathfinder-npc-core"];
+// (T6: PF2e's weapons by name and slug → their group, for an NPC attack named after one.)
+const WEAPON_GROUPS = new Map();
+for (const doc of readDocuments(`${PACK_ROOT}/equipment`).filter((entry) => entry.collection === "items" && entry.type === "weapon" && entry.system?.group)) {
+    WEAPON_GROUPS.set(String(doc.name).toLowerCase(), doc.system.group);
+    if (doc.system.slug) WEAPON_GROUPS.set(doc.system.slug, doc.system.group);
+}
+const weaponGroup = (item, traits) => (traits.includes("unarmed") ? "brawling" : WEAPON_GROUPS.get(String(item.name).toLowerCase()) ?? WEAPON_GROUPS.get(String(item.name).toLowerCase().replace(/[^a-z0-9]+/g, "-")) ?? null);
 // A map objective for each seed, with a merchant to escort.
 const MAP_OBJECTIVES = [
     { kind: "hold", needed: 2, strides: { party: { area: 2, exit: 4 }, foes: { area: 1, exit: 4 } } },
@@ -107,8 +114,10 @@ function combatant(npc) {
             // (B308: holy or unholy, for a reaction to damage of that trait.)
             ...(traits.includes("holy") || traits.includes("good") ? { holy: true } : {}), ...(traits.includes("unholy") || traits.includes("evil") ? { unholy: true } : {}),
             ...(traits.includes("sanctified") ? { sanctified: true } : {}), ...(traits.includes("twin") ? { twin: true } : {}),
-            // (I2: what its damage carries for weaknesses and resistances.)
-            ...(strikeIwr(traits, { name: item.name }) ? { iwr: strikeIwr(traits, { name: item.name }) } : {}),
+            // (I2: what its damage carries for weaknesses and resistances; T6: its weapon group as PF2e gives it — brawling for an unarmed
+            // attack, a weapon's by its name.)
+            ...(strikeIwr(traits, { name: item.name, group: weaponGroup(item, traits) }) ? { iwr: strikeIwr(traits, { name: item.name, group: weaponGroup(item, traits) }) } : {}),
+            ...(versatileTypes(traits).length ? { versatile: versatileTypes(traits) } : {}),
             unarmed: traits.includes("unarmed"),
             reach: Number(traits.find((trait) => /^reach-\d+$/.test(trait))?.split("-")[1]) || 5,
             damage,

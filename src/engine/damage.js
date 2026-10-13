@@ -102,6 +102,16 @@ function resistanceValue(entry, options) {
     return (entry.doubleVs ?? []).some((type) => testPredicate(describe(type, "resistance"), options)) ? value * 2 : value;
 }
 
+// Its resistances now: its own, those its share of Hit Points gives (T3, Abandon Armor), and Protean Anatomy's to the type it last took (T4).
+export function resistancesOf(defender) {
+    const own = defender?.resistances ?? [];
+    if (!defender?.hpRules?.length && !defender?.proteanType) return own;
+    const share = 100 * Math.max(0, defender.hp?.value ?? 0) / Math.max(1, defender.hp?.max ?? 1);
+    const held = (defender.hpRules ?? []).filter((rule) => (rule.below === undefined || share < rule.below) && (rule.atLeast === undefined || share >= rule.atLeast)).flatMap((rule) => rule.resistances ?? []);
+    const protean = defender.proteanType && defender.protean?.value ? [{ type: defender.proteanType, value: defender.protean.value, exceptions: [] }] : [];
+    return [...own, ...held, ...protean];
+}
+
 // A Strike's context: its traits (holy for good, unholy for evil; a sanctified one's by its creature's own), materials, weapon group, runes,
 // and the critical hit. Cached per Strike.
 const strikeContexts = new WeakMap();
@@ -121,6 +131,9 @@ export function strikeContext(attacker, strike, critical = false) {
         if (iwr.group) options.add(`item:group:${iwr.group}`);
         for (const rune of iwr.runes ?? []) options.add(`item:rune:property:${rune}`);
         if (strike.unarmed) options.add("item:category:unarmed");
+        // (T5: a weapon in hand, and one of wood — a bow, a club, a staff, duskwood or peachwood — for an elemental dragon's answers.)
+        if (strike.held) options.add("held-weapon");
+        if ((iwr.materials ?? []).some((material) => ["duskwood", "peachwood"].includes(material)) || ["bow", "club"].includes(iwr.group) || /\b(?:staff|club|wooden|cudgel|bo)\b/i.test(strike.name ?? "")) options.add("wooden");
         cached = { normal: options, critical: new Set([...options, CRITICAL]) };
         strikeContexts.set(strike, cached);
     }
@@ -133,6 +146,12 @@ export function spellContext(spell, { isSpell = true, area = false } = {}) {
     if (isSpell) options.add("item:type:spell");
     if (area) options.add("area-damage");
     return options;
+}
+
+// Its versatile traits' damage types: "versatile-p" piercing, "versatile-fire" fire (T3).
+const VERSATILE = { b: "bludgeoning", p: "piercing", s: "slashing" };
+export function versatileTypes(traits) {
+    return [...new Set((traits ?? []).map((trait) => /^versatile-([a-z]+)$/.exec(trait)?.[1]).filter(Boolean).map((key) => VERSATILE[key] ?? key))];
 }
 
 // A Strike's fields for its context, from its traits and its item (the snapshot's and the bestiary tool's): the traits that count, its
@@ -280,7 +299,7 @@ export function adjustPart(defender, instance, context = null) {
         if (!ONCE.has(entry.type) && applies(entry, "weakness", options)) weakness = Math.max(weakness, Number(entry.value) || 0);
     }
     let resistance = 0;
-    for (const entry of defender.resistances ?? []) {
+    for (const entry of resistancesOf(defender)) {
         if (!applies(entry, "resistance", options)) continue;
         const value = resistanceValue(entry, options);
         resistance = Math.max(resistance, entry.type === "critical-hits" ? Math.min(value, Math.floor(amount / 2)) : value);

@@ -169,6 +169,8 @@ test("Vicious Swing counts as two attacks and adds a weapon die; Exacting Strike
     assert.equal(c.attacksThisTurn, 2);
     assert.ok(state.log.some((line) => /Greatsword \(Vicious Swing\) → Foe/.test(line)));
     c.attacksThisTurn = 0;
+    // (T6: not off-guard from the critical hit's specialization.)
+    state.byId.get("foe").cond.offGuard = false;
     // 10 + (AC - 11): one short of the AC, a plain miss.
     c.strikes[0].bonus = state.byId.get("foe").ac - 11;
     state.rng.d20 = dice(10);

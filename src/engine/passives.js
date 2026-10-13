@@ -105,5 +105,7 @@ export function frightenedAfter(c, value) {
 // Mobility: a Stride of half its Speed or less triggers no reactions — any but a long move (leaving the field, to the exit, an area, a gong).
 const LONG_MOVES = new Set(["leave", "toExit", "toArea", "toGong"]);
 export function mobileStride(c, move) {
+    // (T2, Swiftness: none of its movement triggers reactions.)
+    if (c.swiftness) return true;
     return Boolean(c.mobility?.moves?.includes("stride")) && !LONG_MOVES.has(move?.kind);
 }

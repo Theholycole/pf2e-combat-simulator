@@ -5,7 +5,7 @@ import { CRITICAL_SUCCESS, FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
-import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -22,6 +22,7 @@ import { helpArrives } from "./morale.js";
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
+import { attachedTurnStart, berserkTurnStart, followAttached, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -394,6 +395,36 @@ function regenerateUp(state, c) {
 
 // Confused: every action is a Strike at a random creature it can reach, friend
 // or foe; with no one in reach it Strides to a random creature (or babbles, unable to move).
+// (T4) Berserk: it attacks the nearest living creature, whichever side — one in its Melee (Berserk Slam when it has it), or it moves to one.
+function berserkTurn(state, c) {
+    let guard = 0;
+    const living = (other) => other !== c && isActive(other) && !isUndead(other) && !(other.traits ?? []).includes("construct");
+    const pick = (list) => list[Math.floor(state.rng.next() * list.length)];
+    while (c.actionsLeft > 0 && canAct(c) && guard++ < 8) {
+        const near = state.list.filter((other) => living(other) && sameMelee(c, other));
+        const melee = (c.strikes ?? []).filter((strike) => strike.melee && strikeUsable(c, strike));
+        const slam = (c.strikeActivities ?? []).findIndex((activity) => activity.requires === "berserk" && activity.actions <= c.actionsLeft);
+        if (near.length && slam >= 0) {
+            const activity = c.strikeActivities[slam];
+            const strikeIndex = activity.strike ? strikeNamed(c, activity.strike) : c.strikes.indexOf(melee[0]);
+            c.actionsLeft -= activity.actions;
+            act(state, c, { type: "strikeActivity", index: slam, targetId: pick(near).id, strikeIndex: Math.max(0, strikeIndex) });
+        } else if (near.length && melee.length) {
+            c.actionsLeft--;
+            performStrike(state, c, pick(near), melee.reduce((best, strike) => (strike.bonus > best.bonus ? strike : best), melee[0]));
+        } else {
+            const others = state.list.filter(living);
+            const nearest = others.filter((other) => other.band !== "far");
+            if (!others.length || !canMove(c)) break;
+            c.actionsLeft--;
+            stride(state, c, { kind: "engage", targetId: pick(nearest.length ? nearest : others).id });
+        }
+        afterAction(state);
+        processMorale(state);
+        if (checkEnd(state)) return;
+    }
+}
+
 function confusedTurn(state, c) {
     let guard = 0;
     while (c.actionsLeft > 0 && canAct(c) && c.cond.confused && guard++ < 8) {
@@ -471,6 +502,9 @@ function endTurn(state, c) {
     }
     // (Biting Snakes, B82: a Strike at it from a monster beside it.)
     if (isActive(c)) turnEndAnswers(state, c);
+    // (T2, T4: Inexorable's slowed and stunned gone; Protean Anatomy's new senses.)
+    if (isActive(c) && c.inexorable) inexorableTurnEnd(state, c);
+    if (isActive(c) && c.protean) proteanTurnEnd(state, c);
     if (c.cond.frightened > 0) {
         c.cond.frightened--;
         // (Consume Fear, B76: a monster's reaction to a creature near it no longer frightened.)
@@ -1049,6 +1083,9 @@ function takeTurn(state, c) {
     zoneTurn(state, c, "start");
     // Shrieking Frenzy: its own free action as its turn begins (B53).
     ownTurnStart(state, c);
+    // (T4: a flesh golem's Berserk; an attached creature's Strike damage, the pickled punk's.)
+    berserkTurnStart(state, c);
+    if (c.attach?.strike) attachedTurnStart(state, c, { applyDamage, rollStrikeDamage, strikeNamed });
     if (!canAct(c)) {
         endTurn(state, c);
         return;
@@ -1072,6 +1109,9 @@ function takeTurn(state, c) {
         if (state.outcome) return;
     } else if (c.cond.fleeing) {
         fleeTurn(state, c);
+    } else if (c.goneBerserk) {
+        berserkTurn(state, c);
+        if (state.outcome) return;
     } else if (state.objective?.kind === "escort" && state.objective.escortId === c.id && state.objective.status === "open") {
         escortTurn(state, c);
     } else {
@@ -1094,6 +1134,8 @@ function takeTurn(state, c) {
 
 // What waits for the action to end (B70): Fast Swallow on a creature just grabbed (its reaction, its own Swallow Whole).
 function afterAction(state) {
+    // (T4: an attached creature goes where its creature went.)
+    followAttached(state);
     for (const entry of (state.afterAction ?? []).splice(0)) {
         const c = state.byId.get(entry.sourceId);
         const target = state.byId.get(entry.targetId);
