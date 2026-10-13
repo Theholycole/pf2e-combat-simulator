@@ -23,7 +23,7 @@ export function addBuiltin(spec, plan, name) {
             // (B95, Ferocity's kin: its Hit Points ("half", a number or a formula), whether it's wounded, its uses, a Strike after, a
             // Mythic Point's cost, a free action's.)
             if (plan.hp !== undefined) {
-                spec.ferocityRule = { name, hp: plan.hp, wounded: plan.wounded !== false, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}), ...(plan.strike ? { strike: plan.strike } : {}), ...(plan.mythic ? { mythic: true } : {}), ...(plan.free ? { free: true } : {}), ...(plan.atOne ? { atOne: true } : {}), ...(plan.perTurn ? { perTurn: true } : {}) };
+                spec.ferocityRule = { name, hp: plan.hp, wounded: plan.wounded !== false, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}), ...(plan.strike ? { strike: plan.strike } : {}), ...(plan.mythic ? { mythic: true } : {}), ...(plan.free ? { free: true } : {}), ...(plan.atOne ? { atOne: true } : {}), ...(plan.notAtOne ? { notAtOne: true } : {}), ...(plan.perTurn ? { perTurn: true } : {}) };
                 if (plan.mythic) spec.mythicPoints ??= 3;
             }
             return true;

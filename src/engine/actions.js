@@ -1196,7 +1196,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     // (B286, Fractions of Life: only from 1 Hit Point — atOne — and once on each creature's turn — perTurn.)
     const rule = target.kind !== "pc" ? target.ferocityRule : null;
     const turnKey = `${state.round}:${state.acting ?? ""}`;
-    const allowed = rule && (!rule.atOne || before === 1) && (!rule.perTurn || target.ferocityTurn !== turnKey);
+    // (B294, Bravo's Determination: never from 1 Hit Point — notAtOne.)
+    const allowed = rule && (!rule.atOne || before === 1) && (!rule.notAtOne || before !== 1) && (!rule.perTurn || target.ferocityTurn !== turnKey);
     if (rule && allowed && !massive && (rule.free || canReact(target)) && (!rule.wounded || (target.cond.wounded ?? 0) < 3) && (target.ferocityUsed ?? 0) < (rule.uses ?? Infinity) && (!rule.mythic || (target.mythicPoints ?? 0) > 0)) {
         if (rule.perTurn) target.ferocityTurn = turnKey;
         const hp = rule.hp === "half" ? Math.floor(target.hp.max / 2) : typeof rule.hp === "string" ? rollCount(state, rule.hp) : Number(rule.hp) || 1;

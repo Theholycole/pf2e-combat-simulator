@@ -5011,3 +5011,16 @@ test("A held creature as a shield: the AC reaction only while it holds one (Meat
     };
     assert.deepEqual([run(false), run(true)], [false, true]);
 });
+
+test("Ferocity's kin that never works from 1 HP (Bravo's Determination, 2026-10-13, B294)", () => {
+    const [hero] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...hero, engagement: 1 }, withBuiltins({ ...moderateCreature(5, "bravo", "Bravo"), engagement: 1 }, ["Test Bluff", { builtin: "ferocity", hp: 1, wounded: true, notAtOne: true }])] }, {}, 1);
+    state.log = [];
+    const b = state.byId.get("bravo");
+    const h = state.byId.get(hero.id);
+    dealDamage(state, b, b.hp.value + 20, { source: h });
+    assert.deepEqual([b.hp.value, b.cond.wounded, isActive(b)], [1, 1, true], state.log.join("\n"));
+    b.reactionUsed = false;
+    dealDamage(state, b, 10, { source: h });
+    assert.equal(isActive(b), false, "not again from 1 HP");
+});
