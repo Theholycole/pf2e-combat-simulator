@@ -4772,3 +4772,20 @@ test("A multi-Strike's recharge; a Strike activity's damage against a trait (202
     applyStrikeRider(both, both.byId.get("mnk"), both.byId.get(fighter.id), rider, false);
     assert.equal(both.byId.get(fighter.id).hp.value, human);
 });
+
+test("An ability for an ally only straight after a spell it cast (2026-10-12, B259)", () => {
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const save = (name, requires) => ({ modelVersion: 13, source: { name }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, ...(requires ? { requires } : {}),
+        resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 25 } }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "4d6[fire]" }] }, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] }, effects: [] } } } });
+    const mage = { ...moderateCreature(5, "mage", "Mage"), engagement: 1, spells: [{ name: "Test After", plan: save("Test After", "after-cast"), dc: 25, attack: 0 }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, mage] }, {}, 1);
+    const m = state.byId.get("mage");
+    m.round = state.round;
+    m.actionsLeft = 2;
+    m.actionCount = 1;
+    const after = () => scoreOptions(state, m).options.filter((option) => option.action.type === "cast" && option.action.spellIndex === 0).length;
+    assert.equal(after(), 0, "not without a spell just cast");
+    m.lastCast = { round: state.round, action: 0, cantrip: false };
+    assert.ok(after() > 0, "after a spell");
+});

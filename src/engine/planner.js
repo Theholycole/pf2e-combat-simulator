@@ -736,6 +736,8 @@ function expand(ctx, node, actionsLeft) {
             // 15 feet"): frightened, or down and dying.
             // (B133: a requirement it can't check, Bushwhack's unseen creature: not planned.)
             if (spell.plan?.requires === "requirement") continue;
+            // (B259, Inspiring Display: straight after a spell it cast.)
+            if (spell.plan?.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, spell.plan.nonCantrip))) continue;
             // (B247, a seed shot only while its breath recharges: one of its Breath Weapons waiting out its recharge.)
             if (spell.plan?.requires === "breath-recharging" && !(c.spells ?? []).some((other) => other !== spell && /\bbreath\b/i.test(String(other.name ?? "")) && (c.rechargeUntil?.get(other.rechargeGroup ?? other) ?? -Infinity) > (c.round ?? state.round ?? 0))) continue;
             const foe = spell.plan?.requiresFoe;
