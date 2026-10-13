@@ -256,7 +256,8 @@ export function addBuiltin(spec, plan, name) {
         case "initiative-warning":
             if (!(Number(plan.value) > 0)) return false;
             // (B178, Warning Ears: only its allies within 10 feet.)
-            spec.initiativeWarning = { name, value: Number(plan.value), ...(plan.free ? { free: true } : {}), ...(Number(plan.within) > 0 ? { within: Number(plan.within) } : {}) };
+            // (B260, All This Has Happened Before: its own roll.)
+            spec.initiativeWarning = { name, value: Number(plan.value), ...(plan.free ? { free: true } : {}), ...(Number(plan.within) > 0 ? { within: Number(plan.within) } : {}), ...(plan.self ? { self: true } : {}) };
             return true;
         // (B168, Drowning Drone: a skill check as a save is attempted, the higher of the two resolving the effect — its own, or its allies'
         // within its distance (of its trait); that kind of save, against those traits.)

@@ -4789,3 +4789,30 @@ test("An ability for an ally only straight after a spell it cast (2026-10-12, B2
     m.lastCast = { round: state.round, action: 0, cantrip: false };
     assert.ok(after() > 0, "after a spell");
 });
+
+test("Its own initiative higher; a follow-up only after two hits in a row (All This Has Happened Before, Mind-Rending Sting, 2026-10-12, B260)", async () => {
+    const [fighter] = martialParty(5);
+    const seer = withBuiltins({ ...moderateCreature(5, "seer", "Seer") }, ["Test Deja Vu", { builtin: "initiative-warning", value: 50, skills: [], self: true }]);
+    const ally = { ...moderateCreature(5, "ally", "Ally") };
+    const { log } = simulate({ combatants: [fighter, seer, ally] }, {}, 1, { log: true });
+    assert.equal(log[0], "  Seer uses Test Deja Vu: +50 to its own initiative");
+    assert.match(log[log.indexOf("— Round 1 —") + 1], /^Seer \(/, "the seer first");
+    const { triggerRiders } = await import("../src/engine/spells.js");
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const plan = { modelVersion: 13, source: { name: "Test Pierce" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "the creature the Strike hits", range: "touch", area: null }, trigger: { event: "use", followUp: { strike: "stinger", melee: false, on: ["success", "criticalSuccess"], twice: true } },
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { mode: "formulas", formulas: [{ formula: "2d8[poison]" }], rollScope: "outcome" }, effects: [] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } };
+    const wasp = { ...moderateCreature(5, "wasp", "Wasp"), engagement: 1, spells: [{ name: "Test Pierce", plan, dc: 0, attack: 0 }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, wasp] }, {}, 1);
+    const w = state.byId.get("wasp");
+    const f = state.byId.get(fighter.id);
+    const stinger = { name: "stinger", melee: true };
+    w.turnAttacks = [{ strike: "stinger", targetId: f.id, hit: true }];
+    triggerRiders(state, w, f, stinger, 2);
+    assert.equal(w.riderReady ?? null, null, "not after one hit");
+    w.turnAttacks = [{ strike: "stinger", targetId: f.id, hit: false }, { strike: "stinger", targetId: f.id, hit: true }];
+    triggerRiders(state, w, f, stinger, 2);
+    assert.equal(w.riderReady ?? null, null, "not after a miss and a hit");
+    w.turnAttacks = [{ strike: "stinger", targetId: f.id, hit: true }, { strike: "stinger", targetId: f.id, hit: true }];
+    triggerRiders(state, w, f, stinger, 2);
+    assert.equal(w.riderReady?.index, 0, "after two hits in a row");
+});

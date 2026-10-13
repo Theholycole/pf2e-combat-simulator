@@ -1377,7 +1377,10 @@ export function triggerRiders(state, attacker, target, strike, degree = SUCCESS)
             // (A Strike that lists it, "a success with a Strike that has Disarm in its damage entry", B68; the Strike's degree, for
             // results by it, "Enfeebled 2 (or Enfeebled 3 on a critical hit)".)
             const listing = !follow.listing || (strike.attackEffects ?? []).some((effect) => String(effect).replace(/^improved-/, "") === follow.listing);
-            if ((follow.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree]) && named && listing && (!follow.melee || strike.melee)) {
+            // (B260, Mind-Rending Sting: after two of those Strikes in a row this turn, both hitting this creature.)
+            const pair = (attacker.turnAttacks ?? []).slice(-2);
+            const twice = !follow.twice || (pair.length === 2 && pair.every((attack) => attack.hit && attack.targetId === target.id && attack.strike === strike.name));
+            if ((follow.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree]) && named && listing && twice && (!follow.melee || strike.melee)) {
                 // (B194, Improved Vex: a free one, at once.)
                 if (trigger.cost === "free") {
                     if (isActive(target)) castSpell(state, attacker, index, [target.id]);

@@ -147,7 +147,12 @@ function rollInitiative(state, snapshot) {
     for (const c of state.list) {
         if (!c.initiativeWarning || usesStealth(c) || (!c.initiativeWarning.free && !canReact(c))) continue;
         if (!c.initiativeWarning.free) c.reactionUsed = true;
-        state.log?.push(`  ${c.name} uses ${c.initiativeWarning.name}: +${c.initiativeWarning.value} to its allies' initiative`);
+        state.log?.push(`  ${c.name} uses ${c.initiativeWarning.name}: +${c.initiativeWarning.value} to its ${c.initiativeWarning.self ? "own" : "allies'"} initiative`);
+        // (B260, All This Has Happened Before: its own roll.)
+        if (c.initiativeWarning.self) {
+            warned.set(c.id, Math.max(warned.get(c.id) ?? 0, c.initiativeWarning.value));
+            continue;
+        }
         // (B178, Warning Ears: within 10 feet, the allies in its melee.)
         const near = (ally) => !c.initiativeWarning.within || c.initiativeWarning.within > 10 || sameMelee(ally, c);
         for (const ally of state.list) if (ally !== c && ally.side === c.side && near(ally)) warned.set(ally.id, Math.max(warned.get(ally.id) ?? 0, c.initiativeWarning.value));
