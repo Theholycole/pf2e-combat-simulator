@@ -207,8 +207,9 @@ function disarmBonus(spell, target) {
     return Object.values(spell.plan?.resolution?.outcomes ?? {}).some((outcome) => outcome?.effects?.some((effect) => effect.kind === "disarm")) ? 2 : 0;
 }
 
+// (B280: a Lore, the Hellbound attorney's Legal Lore — its listed value, or the usual fallback.)
 function isCheckStatistic(slug) {
-    return SKILLS.has(slug) || slug === "perception" || slug === "unarmed";
+    return SKILLS.has(slug) || slug === "perception" || slug === "unarmed" || /-lore$/.test(String(slug));
 }
 
 // attacks: Strikes and spell attacks made earlier this turn (planned or real).
