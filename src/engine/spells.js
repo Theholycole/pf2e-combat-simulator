@@ -1266,7 +1266,20 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // (B302: Evasion, Juggernaut, Bravery … — the save's degree adjusted, before any reaction.)
     const adjusted = (statistic, options, result) => (SAVE_SLUGS.has(statistic) && options?.actor?.saveDegrees && result?.degree ? { ...result, degree: DEGREE_NAMES[adjustedSaveDegree(options.actor, statistic, DEGREE_NAMES.indexOf(result.degree), spell)] } : result);
     // (A failed save a reaction makes better, B80.)
-    const roll = (statistic, options) => betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
+    // (B308, Reflect Spell: a reaction raising its AC against a spell attack — a ranged one where it says so.)
+    const raised = (statistic, options) => {
+        const target = options?.target;
+        const rule = target?.acReaction;
+        if (forcedDegree !== null || statistic !== "spell-attack" || !rule?.spellOnly || !target.id || target.side === caster.side || !isActive(target) || !canReact(target, rule.name) || (rule.against === "ranged" && info.touch)) return options;
+        spendReaction(target, rule.name);
+        state.stats.reactions++;
+        log(state, `  ${target.name} uses ${rule.name}: +${rule.value} AC against ${spell.name}`);
+        return { ...options, dc: options.dc + rule.value };
+    };
+    const roll = (statistic, given) => {
+        const options = raised(statistic, given);
+        return betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
+    };
     // (B195, Siphon Life: a foe's healing at its least — each die at 1, flat values halved — then temporary Hit Points on the siphoner.)
     const siphon = info.healing ? state.list.find((c) => c.healSiphon && c.side !== caster.side && isActive(c) && canReact(c)
         && (c.healSiphon.within >= 60 || sameMelee(c, caster) || c.band === caster.band)) : null;

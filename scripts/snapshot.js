@@ -7,6 +7,7 @@ import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
 import { effectModel } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES } from "../src/engine/abilities.js";
 import { requirementPlayable } from "../src/engine/needs.js";
+import { markParts, toggleWays } from "../src/engine/toggles.js";
 import { zoneSpell } from "../src/engine/zones.js";
 import { MAP_KINDS, readMapFeet, readRegionFeet, regionToRegions, roundsHeld } from "./map.js";
 import { hazardSpec } from "./hazards.js";
@@ -32,6 +33,10 @@ const MODELLED_TRAITS = new Set([
     "forceful", "sweep", "backswing", "backstabber", "volley",
     // (B306: "range-increment-30" — the range the Strike's weapon carries, read with it.)
     "thrown", "reload", "range", "range-increment", "versatile", "light", "holy", "unholy", "adamantine", "cold-iron", "silver",
+    // (B309: sacred traits and twin, played; legacy alignments as holy and unholy, lawful and chaotic as labels; and traits that change
+    // nothing about a Strike in range bands — no mounts, objects, or reloading pace here — or only name the effect's kind.)
+    "sanctified", "good", "evil", "lawful", "chaotic", "twin", "infused", "tethered", "jousting", "razing", "modular",
+    "death", "disease", "auditory", "time", "plant", "fungus", "radiation", "concentrate", "impulse", "illusion", "visual", "emotion", "light", "darkness",
     // Firearms (C16): kickback is in PF2e's own numbers; concussive, scatter and splash are played.
     "concussive", "kickback", "scatter", "splash",
     "two-hand", "propulsive", "concealable", "monk", "free-hand", "orichalcum", "mithral", "dawnsilver", "duskwood",
@@ -199,6 +204,10 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
         ...(reload > 0 ? { reload } : {}),
         // C16: firearms' and bombs' traits; the group for gunslinger deeds.
         ...(traits.includes("concussive") ? { concussive: true } : {}),
+        // (B308: holy or unholy, for a reaction to damage of that trait; B309: and the weakness to it — sanctified by the creature's own,
+        // legacy good and evil as holy and unholy — and twin's bonus.)
+        ...(traits.includes("holy") || traits.includes("good") ? { holy: true } : {}), ...(traits.includes("unholy") || traits.includes("evil") ? { unholy: true } : {}),
+        ...(traits.includes("sanctified") ? { sanctified: true } : {}), ...(traits.includes("twin") ? { twin: true } : {}),
         ...(traits.includes("splash") ? { splashKind: "bomb" } : traits.some((trait) => /^scatter-\d+$/.test(trait)) ? { splashKind: "scatter" } : {}),
         // How much splash: PF2e's readable formula folds it into the total, so it's read from the item
         // (a scatter weapon's 1 per weapon die; a bomb's listed splash; an NPC's splash damage roll).
@@ -545,6 +554,29 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
                 result.castSpells.add(mode.plan.spell.uuid);
                 casts.push({ ...cast, name: `${item.name} (${mode.name})` });
             }
+            // (B307: ways that are zones — Trail of Runes' detonating or entangling runes: each a zone ability, sharing the ability's recharge.)
+            const zoneWays = pc || ways.length || casts.length ? [] : plan.modes.filter((mode) => mode.plan?.builtin === "zone");
+            for (const mode of zoneWays) {
+                const way = { ...mode.plan, actions: mode.plan.actions ?? plan.actions };
+                const effectModel = way.zone.effect ? (await effectModels({ resolution: { outcomes: { success: { nativeEffects: [way.zone.effect] } } } }, actor.level ?? 1))[way.zone.effect.uuid] ?? null : null;
+                const effects = Object.assign({}, ...(await Promise.all((way.zone.saves ?? []).map((save) => effectModels(save.plan, actor.level ?? 1)))));
+                const spell = zoneSpell(`${item.name} (${mode.name})`, way, { effectModel, effects });
+                if (!spell) continue;
+                if (pool) result.pools[pool] = frequency?.value ?? frequency?.max ?? 1;
+                result.handled.add(item);
+                result.abilities.push({ ...spell, plan: leanPlan(spell.plan), dc: null, attack: null, pool, sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: item.name });
+            }
+            if (zoneWays.length && result.handled.has(item)) continue;
+            // (B307: a choice PF2e holds as a toggle — Ablative Adaptation's material: its ways from the creature's rules, the best taken as the
+            // fight starts. Not one already switched on: PF2e's numbers have it.)
+            if (!pc && plan.modes.length && plan.modes.every((mode) => mode.plan?.builtin === "roll-option") && !plan.modes.some((mode) => actor.rollOptions?.all?.[mode.plan.option])) {
+                const toggle = toggleWays(actor.items, plan, item.name);
+                if (toggle) {
+                    result.builtins.toggles = [...(result.builtins.toggles ?? []), ...toggle];
+                    result.handled.add(item);
+                    continue;
+                }
+            }
             // (B273: ways that are builtins — stances, self-effects, sweeps — the first one, as the creature's choice.)
             const built = pc || ways.length || casts.length ? null : plan.modes.find((mode) => mode.plan?.builtin && !["no-effect", "modes"].includes(mode.plan.builtin));
             if (built) {
@@ -571,6 +603,15 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
         // (The GM's — behind a state the simulator can't see, out of combat, a one-off adventure creature's; the user's choice of 2026-10-12:
         // not played here, so still listed among what the simulation leaves out.)
         if (plan.builtin === "no-effect" && plan.gm) continue;
+        // (B308: a mark whose bonus is its toggle's rules — Smite's +4 damage, Spirit Hunter's +2 spirit: Hunt Prey with that damage.)
+        if (!pc && plan.builtin === "hunt-prey" && !plan.edge && plan.toggle) {
+            const parts = markParts(actor.items, plan.toggle);
+            if (parts.length) {
+                result.builtins.huntPrey = { edge: "parts", parts, every: true };
+                result.handled.add(item);
+            }
+            continue;
+        }
         if (plan.builtin) {
             if (!pc && addBuiltin(result.builtins, plan, item.name)) result.handled.add(item);
             continue;
@@ -692,6 +733,8 @@ function conditionSlug(uuid) {
 // The engine's models of the PF2e spell effects a plan applies, at the cast rank, and of the effects an effect
 // plan applies (a monster's Battle Cry: PF2e's bestiary effects or a module's).
 async function effectModels(plan, castRank) {
+    // (A zone's save with no plan of its own — Trail of Runes' runes: none.)
+    if (!plan) return {};
     const applied = [
         ...(plan?.resolution?.kind === "effect" ? plan.resolution.applications ?? [] : []).map((application) => application?.uuid),
         // …and the effects a save's or check's results apply (an ability's "Effect: Downcast" on a failure).

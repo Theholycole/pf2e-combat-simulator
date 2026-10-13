@@ -1219,7 +1219,8 @@ function expand(ctx, node, actionsLeft) {
             // Fanatical Frenzy: once it's hurt (B64). Blood Frenzy and the like come with their trigger, not as an action (B65).
             if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
             if (entry.trigger) continue;
-            // (B147: straight after a spell it cast, Primal Weapon.)
+            // (B308: a shell — only badly hurt, under 40% of its Hit Points, with a foe in its reach; it spends the rest of its turn in it.)
+            if (entry.shell && !(c.hp.value < c.hp.max * 0.4 && ctx.enemies.some((enemy) => isActive(enemy) && sameMelee(c, enemy)))) continue;
             if (entry.afterCast && !(node.used === 0 && castJustNow(state, c, entry.afterCast === "non-cantrip"))) continue;
             // (B155: only while its rage lasts; B158, Mountain Stronghold: only while its own stance is on it.)
             if (entry.whileRaging && !isRaging(c)) continue;
@@ -1252,7 +1253,8 @@ function expand(ctx, node, actionsLeft) {
                 benefit += 3 * 2 * Math.max(0, best(entry.strikes) - best(c.strikes ?? [])) / Math.max(1, state.threat?.get(c.id) ?? 1);
             }
             const gain = ctx.ownValue * benefit * ROUND_TO_KILL;
-            if (gain > 0) children.push(child(node, { type: "selfEffect", index, actions: entry.actions }, entry.actions, gain, { cast: `self${index}` }));
+            const cost = entry.shell ? remaining : entry.actions;
+            if (gain > 0) children.push(child(node, { type: "selfEffect", index, actions: cost }, cost, gain, { cast: `self${index}` }));
         }
         const threatOf = Math.max(1, state.threat?.get(c.id) ?? 1);
         // Exploit Vulnerability (once a round): the weakness it'd bring on about three rounds of hits.
@@ -1309,7 +1311,9 @@ function expand(ctx, node, actionsLeft) {
             const current = c.prey ? state.byId.get(c.prey) : null;
             if (!current || !isActive(current)) {
                 const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
-                const perRound = c.huntPrey.edge === "precision" ? (c.huntPrey.every ? 1.1 : 0.65) * (((c.huntPrey.die ?? 8) + 1) / 2) * (c.huntPrey.precisionDice ?? 1) : c.huntPrey.edge === "flurry" ? 0.25 * threat : 0.05 * threat;
+                // (B308: a mark's extra damage on each hit, about 1.1 hits a round.)
+                const markDamage = c.huntPrey.edge === "parts" ? 1.1 * c.huntPrey.parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0) : 0;
+                const perRound = c.huntPrey.edge === "precision" ? (c.huntPrey.every ? 1.1 : 0.65) * (((c.huntPrey.die ?? 8) + 1) / 2) * (c.huntPrey.precisionDice ?? 1) : c.huntPrey.edge === "parts" ? markDamage : c.huntPrey.edge === "flurry" ? 0.25 * threat : 0.05 * threat;
                 const prey = ctx.enemies.filter((enemy) => enemy.status === "active").sort((a, b) => targetValue(state, b, c) - targetValue(state, a, c))[0];
                 if (prey) children.push(child(node, { type: "huntPrey", targetId: prey.id }, 1, ctx.ownValue * ROUND_TO_KILL * 3 * perRound / threat));
             }

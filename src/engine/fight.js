@@ -13,6 +13,7 @@ import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfter
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
 import { applyAuras, provokedReaction, applyCondition, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
+import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
 import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
 import { isMapObjective, mapOutcome, pickUpItem, placeOnMap } from "./map-objectives.js";
@@ -357,6 +358,12 @@ function startTurn(state, c) {
     c.actionsLeft = Math.min(actions, isHazard(c) ? 9 : MAX_ACTIONS_PER_TURN);
     // (B298: a minion's two actions; its summons' time, and a sustained one's action.)
     summonTurnStart(state, c);
+    // (B308: coming out of its shell takes an action.)
+    if (c.inShell) {
+        c.inShell = false;
+        if (c.actionsLeft > 0) c.actionsLeft -= 1;
+        state.log?.push(`  ${c.name} comes out of its shell`);
+    }
     // Collapsed (B59): it re-forms with its first action.
     if (c.collapsed && c.actionsLeft > 0 && isActive(c)) {
         c.actionsLeft -= 1;
@@ -880,6 +887,8 @@ function act(state, c, action) {
                 for (const other of c.selfEffects.filter((self) => self.stance && self !== entry)) for (const effect of (c.effects ?? []).filter((active) => active.key === `self:${other.name}`)) removeEffect(c, effect);
             }
             const effect = applyEffect(state, c, entry.model, c, { applyCondition, key: `self:${entry.name}` });
+            // (B308: shut in its shell for the rest of its turn; coming out costs an action at its next.)
+            if (entry.shell) c.inShell = true;
             if (entry.strikes?.length) c.strikes = [...(c.strikes ?? []).filter((strike) => strike.fromEffect !== effect.key), ...entry.strikes.map((strike) => ({ ...strike, fromEffect: effect.key }))];
             break;
         }
@@ -1160,6 +1169,8 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
         rollInitiative(state, snapshot);
         state.round = 1;
     }
+    // (B307: a choice PF2e holds as a toggle — its best way for this fight, set as it starts.)
+    if (!resuming) chooseToggles(state, { applyEffect, applyCondition });
     // Frightful Presence and other auras: each enemy in range saves when the fight starts.
     if (!resuming) applyAuras(state);
     if (!resuming) initiativeDeeds(state);

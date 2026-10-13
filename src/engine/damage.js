@@ -92,12 +92,17 @@ export function adjustDamage(defender, instances) {
             continue;
         }
         const key = instance.precision ? `${instance.type}|precision` : instance.type;
-        const entry = immediate.get(key) ?? { type: instance.type, precision: instance.precision, amount: 0 };
+        const entry = immediate.get(key) ?? { type: instance.type, precision: instance.precision, amount: 0, extraWeakness: 0 };
         entry.amount += instance.amount;
+        // (B309: a weakness its trait sets off — a holy Strike's on a fiend weak to holy — added once to the damage it rides on.)
+        entry.extraWeakness = Math.max(entry.extraWeakness, instance.extraWeakness ?? 0);
         immediate.set(key, entry);
     }
     let total = 0;
-    for (const entry of immediate.values()) total += adjustInstance(defender, entry.type, entry.amount, entry.precision);
+    for (const entry of immediate.values()) {
+        const dealt = adjustInstance(defender, entry.type, entry.amount, entry.precision);
+        total += dealt + (dealt > 0 ? entry.extraWeakness : 0);
+    }
     // Hardness (hazards, objects) comes off the damage.
     if (defender.hardness) total -= defender.hardness;
     return { total: Math.max(0, total), persistent };
@@ -144,4 +149,16 @@ export function averagePersistent(instance) {
 export function rollPersistent(rng, instance) {
     if (instance.dice && instance.die) return (rollDice(rng, instance.dice, instance.die) + (instance.bonus ?? 0)) * (instance.multiplier ?? 1);
     return instance.amount ?? 0;
+}
+
+// (B309: the sacred trait a Strike carries — holy or unholy, a sanctified one's by its creature's own, a legacy good or evil one's — and
+// the weakness to it its target has; 0 for none.)
+export function sacredWeakness(attacker, strike, target) {
+    const sacred = new Set();
+    if (strike?.holy || strike?.good) sacred.add("holy");
+    if (strike?.unholy || strike?.evil) sacred.add("unholy");
+    if (strike?.sanctified) for (const trait of ["holy", "unholy"]) if ((attacker?.traits ?? []).includes(trait)) sacred.add(trait);
+    let value = 0;
+    for (const entry of target?.weaknesses ?? []) if (sacred.has(entry.type)) value = Math.max(value, Number(entry.value) || 0);
+    return value;
 }

@@ -35,6 +35,14 @@ It needs **PF2e Resolution Core**, which Foundry offers to install with it. It r
 - **Summons** (2026-10-13, B298): a monster's summon brings its creatures into the fight. They're made from the compendium creature the ability names (or the best of its options, or its pick), and they come when the monster uses it, or as it dies or takes enough damage. Minions act right after their maker with two actions; creatures that roll initiative take their own turns. Examples: the Dullahan's War Horse, the Bone Prophet's skeletons, Final Spite's Wights. Markers, merges and creatures that can't act aren't played.
 - **Passives** (2026-10-13, B302): the passives PF2e's own rules hold, for monsters and PCs alike. That covers Evasion and its kin on saves, All-Around Vision and Deny Advantage on flanking, Surprise Attack and Dread Striker's off-guard, Construct Armor's Hardness and broken AC (every NPC's Hardness now counts), Bravery's lower frightened, Mobility's short Strides and Extra Reaction's count. See [docs/ability-decisions.md](docs/ability-decisions.md) (B302).
   - Since B303: Bravery lowers morale's frightened too; a creature rolls the initiative skill its abilities name (Deception, Intimidation, a Lore) when it beats Perception; reactions kept for one reaction are spent only on it, and per-head extra reactions (hydras) are counted.
+- **More of what creatures have** (2026-10-13, B304–B309):
+  - requirements it can check (a corpse nearby, a creature held, its last action);
+  - triggers for a creature dying or going down nearby, and for gaining a condition;
+  - toggle choices taken at their best (Ablative Adaptation, All Made One), and zone ways;
+  - shells, stance ripostes, holy-only teleports, Reflect Spell, Smite marks;
+  - holy and unholy Strikes against weaknesses, twin.
+
+  See [docs/ability-decisions.md](docs/ability-decisions.md).
 - **Spells** (milestone 2): creatures cast the spells the resolution core can resolve: saves and spell attacks, with their damage, conditions and push or pull. Everything else is listed as a gap. It needs the `pf2e-resolution-core` module, and the spell module for the plans.
 
 The design is in [docs/spec.md](docs/spec.md) and the vocabulary in [CONTEXT.md](CONTEXT.md). The rules choices the user confirmed are in [docs/morale-decisions.md](docs/morale-decisions.md) (morale) and [docs/spell-decisions.md](docs/spell-decisions.md) (spellcasting).

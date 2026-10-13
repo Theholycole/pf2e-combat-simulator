@@ -6,10 +6,10 @@ import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatChe
 import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
 import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
 import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, strikeUsable } from "./combatant.js";
-import { adjustDamage, concussiveType, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
+import { adjustDamage, concussiveType, expectedStrikeDamage, adjustInstance, rollStrikeDamage, sacredWeakness } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
-import { canReact, chargeStrike, extraApplies, reactionMark, regenerating, restoreReaction, spendReaction, strikeNamed } from "./abilities.js";
+import { canReact, chargeStrike, extraApplies, hasOwnEffect, reactionMark, regenerating, restoreReaction, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { applyCondition, castPlan, castSpell, deathThroes, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
@@ -112,6 +112,8 @@ export function expectedHitDamage(attacker, strike, target, critical, { bonus = 
         const amount = ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (critical && !part.noCrit ? 2 : 1);
         total += part.chance * adjustInstance(target, part.type ?? strike.damage[0]?.type ?? "untyped", amount, !!part.precision);
     }
+    // (B309: a holy or unholy Strike on a creature weak to it.)
+    total += sacredWeakness(attacker, strike, target);
     return target.hardness ? Math.max(0, total - target.hardness) : total;
 }
 
@@ -124,6 +126,8 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
     for (const buff of attacker.activeBuffs ?? []) for (const part of buff.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
     // (B241: a part only against creatures with a trait, Imbue Righteousness's.)
     for (const effect of attacker.effects ?? []) for (const part of effect.model?.strikeDeltas?.[strike.name] ?? []) if (!part.vsTrait || (target.traits ?? []).includes(part.vsTrait)) parts.push({ ...part, chance: 1 });
+    // (B308: a mark's extra damage — Smite's +4, +8 against an unholy target.)
+    if (attacker.huntPrey?.edge === "parts" && attacker.prey === target.id) for (const part of attacker.huntPrey.parts) parts.push({ dice: part.dice, die: part.die, bonus: part.upgrade && (target.traits ?? []).includes(part.upgrade.trait) ? Math.max(part.bonus, part.upgrade.value) : part.bonus, multiplier: 1, type: part.type ?? strike.damage?.[0]?.type, precision: false, persistent: false, chance: 1 });
     if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id && (firstPreyHit || attacker.huntPrey.every)) parts.push({ dice: attacker.huntPrey.precisionDice ?? 1, die: attacker.huntPrey.die ?? 8, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
     // Panache: Precise Strike's damage on agile or finesse melee Strikes; a finisher's dice instead.
     const precise = attacker.panacheStyle && strike.melee && (strike.agile || strike.finesse);
@@ -277,7 +281,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         misfortune = true;
         spendReaction(target, target.misfortuneReaction.name);
         log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
-    } else if (target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && !target.reactions?.aoo && dodges(target.acReaction, strike, state, target)) {
+    } else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && !target.reactions?.aoo && dodges(target.acReaction, strike, state, target)) {
         defence = target.acReaction.value;
         spendReaction(target, target.acReaction.name);
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
@@ -327,7 +331,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         }
     }
     // Retract Body: +AC once the attack hits, when that turns it aside.
-    if (degree >= SUCCESS && target.acReaction?.when === "hit" && canReact(target, target.acReaction.name) && dodges(target.acReaction, strike, state, target)) {
+    if (degree >= SUCCESS && !target.acReaction?.spellOnly && target.acReaction?.when === "hit" && canReact(target, target.acReaction.name) && dodges(target.acReaction, strike, state, target)) {
         const lower = degreeOf(natural + modifier, ac + target.acReaction.value, natural);
         if (lower < degree) {
             defence = target.acReaction.value;
@@ -463,6 +467,11 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         for (let die = 0; die < (part.dice ?? 0); die++) amount += state.rng.die(part.die);
         instances.push({ type: part.type ?? strike.damage[0].type, amount: Math.max(0, critical && !part.noCrit ? amount * 2 : amount), precision: !!part.precision, persistent: !!part.persistent });
     }
+    // (B309, twin: another attack with the pair this turn — a bonus of its damage dice.)
+    if (strike.twin && (attacker.turnAttacks ?? []).filter((entry) => entry.strike === strike.name).length >= 2) instances.push({ type: strike.damage[0].type, amount: strike.damage[0].dice ?? 1, precision: false, persistent: false });
+    // (B309: a holy or unholy Strike on a creature weak to it.)
+    const sacred = sacredWeakness(attacker, strike, target);
+    if (sacred && instances[0]) instances[0] = { ...instances[0], extraWeakness: sacred };
     if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id) attacker.preyHitRound = state.round;
     // Sneak Attack, Pack Attack and the like (monsters).
     if (attacker.strikeExtras?.length) {
@@ -594,21 +603,23 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // (B118, Hellish Revenge, Spitting Rage: a critical hit on it, its breath recharged and used at once.)
     if (critical && !reaction && target.critRecharge && isActive(target)) critRechargeAnswer(state, target);
     // (B116, Skittish, Bolt: a hit on it, or its damage, answered by moving off.)
-    if (!reaction && isActive(attacker) && isActive(target)) withdrawAnswer(state, target, attacker, { melee: !!strike.melee, hit: true, dealt });
+    if (!reaction && isActive(attacker) && isActive(target)) withdrawAnswer(state, target, attacker, { melee: !!strike.melee, hit: true, dealt, strike });
     return { degree, damage: dealt, trigger };
 }
 
 // Skitter, Skittish, Bolt, Scurry, Flit Back (B116): a reaction that moves it off, out of the Melee it shares with the foe — while that
 // foe still has actions to spend this turn (or it fights from range, or it's fleeing), and not while it holds a creature. A Step, or a move
 // that "doesn't trigger reactions", provokes nothing; another Stride or a flight is a move out of the Melee.
-export function withdrawAnswer(state, c, from, { melee = true, hit = false, dealt = 0, approach = false } = {}) {
+export function withdrawAnswer(state, c, from, { melee = true, hit = false, dealt = 0, approach = false, strike = null } = {}) {
     const rule = c.withdraw;
     if (!rule || !canReact(c, rule.name) || !canAct(c) || !canMove(c) || !sameMelee(c, from)) return false;
     // (B135, Crumble: not again until it recharges.)
     if (rule.recharge && (c.withdrawUntil ?? -Infinity) > state.round) return false;
     const fits = approach
         ? rule.on === "approach" && (!rule.foe || rule.foe.some((slug) => from.cond[slug]))
-        : (!rule.melee || melee) && (rule.on === "attacked" || (rule.on === "hit" && hit) || (rule.on === "missed" && !hit) || (rule.on === "damaged" && dealt > 0));
+        : (!rule.melee || melee) && (rule.on === "attacked" || (rule.on === "hit" && hit) || (rule.on === "missed" && !hit) || (rule.on === "damaged" && dealt > 0))
+            // (B308: only a holy Strike's damage, Instinctive Teleportation.)
+            && (!rule.damageTrait || Boolean(strike?.[rule.damageTrait]));
     if (!fits) return false;
     const ranged = (c.strikes ?? []).some((strike) => !strike.melee && strikeUsable(c, strike));
     const foeActing = state.acting === from.id && (from.actionsLeft ?? 0) > 0;
@@ -677,6 +688,8 @@ export function followUpStrike(state, c, target, then, degree) {
 }
 
 export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
+    // (B308, Twin Riposte: only while the stance it names is on it.)
+    if (reaction.requiresEffect && !hasOwnEffect(enemy, reaction.requiresEffect)) return null;
     // (B111, Ripping Disarm: its own basic action at the creature, with the reaction's penalty or bonus on the check.)
     if (reaction.skill) {
         const basic = (enemy.spells ?? []).find((spell) => spell.kind === "basic" && (spell.plan?.source?.slug === reaction.skill || String(spell.name ?? "").toLowerCase() === reaction.skill));

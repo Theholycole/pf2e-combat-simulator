@@ -142,8 +142,8 @@ export function addBuiltin(spec, plan, name) {
         // Strikes; Fanatical Frenzy only once it's hurt.
         // (B196: its resistances too — Reef Armor's, Shifting Form's, Harden Chitin's; Reef Armor's ending with its temporary Hit Points.)
         case "self-effect": {
-            // (B230: Retract, Shell Defense, Roll Up — shut in its shell, it would only wait: not played.)
-            if (plan.shell) return false;
+            // (B230: Retract, Shell Defense, Roll Up — shut in its shell. B308: played as a turn spent in it, until its next turn — selfEffects
+            // entry shell; planner.js offers it when it's badly hurt in a foe's reach.)
             // Its extra damage on its melee Strikes (a rage's), or (B69) on the Strikes it names ("her fangs Strikes deal an
             // additional 2d8 sonic damage"), its melee ones, or all of them: "2d8[sonic]", "1d10[persistent,bleed]", "2[acid]",
             // "2d8[precision]", "die" (one more of the Strike's own dice).
@@ -158,7 +158,7 @@ export function addBuiltin(spec, plan, name) {
             // (B286, Conductive Shell: damage on each creature that hits it in melee while it lasts — hitBack.)
             const model = { name, rounds, ...(plan.model?.hitBack ? { hitBack: plan.model.hitBack } : {}), modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: Number(plan.model?.fastHealing) || 0, resistances: (plan.model?.resistances ?? []).map((entry) => ({ type: entry.type, value: Number(entry.value) || 0, exceptions: [...(entry.exceptions ?? [])] })), weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...(plan.model?.endsWithTempHp ? { endsWithTempHp: true } : {}), ...(plan.nextStrike ? { nextStrike: true } : {}), ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}) };
             // (B137, Cower, Entrench: a stance that ends when it moves.)
-            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model, ...(plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}), ...(Number(plan.heal) > 0 ? { heal: Number(plan.heal) } : {}) }];
+            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model: plan.shell ? { ...model, rounds: 1 } : model, ...(plan.shell ? { shell: true } : plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}), ...(Number(plan.heal) > 0 ? { heal: Number(plan.heal) } : {}) }];
             return true;
         }
         // Golem Antimagic (B56): what others' magic does to it.
@@ -174,9 +174,8 @@ export function addBuiltin(spec, plan, name) {
             return true;
         // Reactions: Nimble Dodge and Retract Body, Challenge Fate, Twisting Tail, Death Frenzy.
         case "ac-reaction":
-            // (B248: against a spell attack only — the engine plays it on Strikes, so not here.)
-            if (plan.spellOnly) return false;
-            spec.acReaction = { value: plan.value, when: plan.when, name, ...(plan.against ? { against: plan.against } : {}), ...(plan.requires === "grabbed" ? { requires: "grabbed" } : {}) };
+            // (B248: against a spell attack only — B308: played on spell attacks, spells.js, and not on Strikes.)
+            spec.acReaction = { value: plan.value, when: plan.when, name, ...(plan.against ? { against: plan.against } : {}), ...(plan.requires === "grabbed" ? { requires: "grabbed" } : {}), ...(plan.spellOnly ? { spellOnly: true } : {}) };
             return true;
         // (B193, Ray Displacement: a ranged spell attack at it only.)
         case "attack-misfortune":
@@ -227,9 +226,10 @@ export function addBuiltin(spec, plan, name) {
             spec.critDowngrade = { name, dc: plan.dc ?? null, ...(Number.isFinite(plan.uses) ? { uses: plan.uses } : {}), ...(plan.collapse ? { collapse: true } : {}), ...(plan.or ? { or: { ...plan.or } } : {}) };
             return true;
         case "reaction-strike":
-            // (B145, Twin Riposte: one that needs a state of its own — "is benefiting from Twin Parry" — isn't played.)
-            if (plan.requires) return false;
-            spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, penalty: plan.penalty ?? 0, disrupts: plan.disrupts === "critical" ? "critical" : !!plan.disrupts, ...(plan.hinders ? { hinders: plan.hinders } : {}), ...(plan.second ? { second: true } : {}),
+            // (B145, Twin Riposte: one that needs a state of its own isn't played — B308: unless it's an effect it puts on itself, "is benefiting
+            // from Twin Parry", checked as it reacts.)
+            if (plan.requires && !plan.requiresEffect) return false;
+            spec.reactionStrikes = [...(spec.reactionStrikes ?? []), { name, triggers: [...plan.triggers], strike: plan.strike, ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), penalty: plan.penalty ?? 0, disrupts: plan.disrupts === "critical" ? "critical" : !!plan.disrupts, ...(plan.hinders ? { hinders: plan.hinders } : {}), ...(plan.second ? { second: true } : {}),
                 // (B89: the damage types that set it off, a random creature in reach, the trolls' extra flat check against persistent fire.)
                 ...(plan.damageTypes?.length ? { damageTypes: [...plan.damageTypes] } : {}), ...(plan.random ? { random: true } : {}), ...(plan.persistentFire ? { persistentFire: true } : {}), ...(plan.fortune ? { fortune: true } : {}),
                 // (B111: a basic maneuver in place of the Strike, with its own penalty or bonus.)
@@ -388,9 +388,9 @@ export function addBuiltin(spec, plan, name) {
         // Skitter, Skittish, Scurry, Flit Back (B116): a reaction that moves it off as a foe misses, hits or damages it, or comes beside it.
         case "withdraw":
             if (!["missed", "hit", "damaged", "attacked", "approach"].includes(plan.on)) return false;
-            // (B263, Instinctive Teleportation: only damage of one effect's trait, holy — the engine's damage carries no such trait.)
-            if (plan.damageTrait) return false;
-            spec.withdraw = { name, on: plan.on, melee: !!plan.melee, foe: plan.foe ?? null, safe: !!plan.safe, ...(plan.recharge ? { recharge: plan.recharge } : {}) };
+            // (B263, Instinctive Teleportation: only damage of one effect's trait, holy — B308: a holy or unholy Strike's, as Strikes carry it now.)
+            if (plan.damageTrait && !["holy", "unholy"].includes(plan.damageTrait)) return false;
+            spec.withdraw = { name, on: plan.on, melee: !!plan.melee, foe: plan.foe ?? null, safe: !!plan.safe, ...(plan.recharge ? { recharge: plan.recharge } : {}), ...(plan.damageTrait ? { damageTrait: plan.damageTrait } : {}) };
             return true;
         // No Escape, Reactive Pursuit (B117): a foe in its reach moving away, followed (the hunted prey's only; a Strike after).
         case "follow":
@@ -519,6 +519,9 @@ export function deltasFor(strikes, parts) {
     const chosen = strikes.filter((strike, index) => (parts.strike ? index === named : parts.scope === "all" || strike.melee));
     const partOf = (formula, strike) => {
         if (formula === "die") return { dice: 1, die: strike.damage?.[0]?.die ?? 6, bonus: 0, multiplier: 1, type: strike.damage?.[0]?.type, precision: false, persistent: false };
+        // (B307: one of its dice of another type — "die[fire]".)
+        const typed = /^die\[([a-z]+)\]$/.exec(String(formula));
+        if (typed) return { dice: 1, die: strike.damage?.[0]?.die ?? 6, bonus: 0, multiplier: 1, type: typed[1], precision: false, persistent: false };
         const match = /^\(?(?:(\d+)d(\d+))?\+?(\d+)?\)?\[([\w,]+)\]$/.exec(String(formula).replace(/\s+/g, ""));
         if (!match || (!match[1] && !match[3])) return null;
         const kinds = match[4].split(",");
@@ -745,6 +748,15 @@ function ableToReact(c) {
 }
 
 // (B303: a reaction's name in one form — lower case, no plurals; Attack of Opportunity is Reactive Strike.)
+// (B308: whether an effect it put on itself is on it now — a self-effect's, or a PF2e effect's by its name: "Twin Parry", "Effect: Twin Parry".)
+export function hasOwnEffect(c, name) {
+    const wanted = String(name ?? "").toLowerCase();
+    return (c.effects ?? []).some((effect) => effect.key === `self:${name}` || [effect.model?.name, effect.key].some((label) => {
+        const text = String(label ?? "").toLowerCase().replace(/^self:/, "").replace(/^effect: /, "");
+        return text === wanted;
+    }));
+}
+
 export function reactionWord(text) {
     const word = String(text ?? "").toLowerCase().replace(/\s*\(.*\)$/, "").replace(/^(?:an?|the) /, "").replace(/s\b/g, "").trim();
     return word === "attack of opportunity" ? "reactive strike" : word;

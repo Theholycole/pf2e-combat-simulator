@@ -4488,8 +4488,10 @@ test("An emanation on its foes only spares its allies in the Melee; a reaction's
     assert.equal(state.byId.get("pal").hp.value, 999, state.log.join("\n"));
 });
 
-test("A shell stance isn't played; a heal once a fight is used once (2026-10-12, B230)", () => {
-    assert.equal(addBuiltin({}, { builtin: "self-effect", actions: 1, model: { name: "Test Shell", rounds: null, modifiers: [{ on: "ac", type: "circumstance", value: 4 }], tempHp: 0, resistances: [] }, stance: true, shell: true }, "Test Shell"), false);
+test("A shell stance is a turn spent in it (B308; not played before, B230); a heal once a fight is used once (2026-10-12, B230)", () => {
+    const shelled = {};
+    assert.equal(addBuiltin(shelled, { builtin: "self-effect", actions: 1, model: { name: "Test Shell", rounds: null, modifiers: [{ on: "ac", type: "circumstance", value: 4 }], tempHp: 0, resistances: [] }, stance: true, shell: true }, "Test Shell"), true);
+    assert.deepEqual([shelled.selfEffects[0].shell, shelled.selfEffects[0].model.rounds, shelled.selfEffects[0].stance], [true, 1, undefined]);
     const heal = { modelVersion: 13, source: { name: "Test Shed" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "self", range: null, area: null }, trigger: { event: "use" }, resolution: { kind: "healing", native: { healing: { components: [{ id: "0", formula: "40", kinds: ["healing"] }], recipients: "any" } } }, oncePerFight: true };
     const [fighter] = martialParty(5);
     const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "troll", "Troll"), engagement: 1, hp: { value: 10, max: 200 }, spells: [{ ...entry("Test Shed", heal), pool: "once:Test Shed" }], spellPools: { "once:Test Shed": 1 } }] }, {}, 1);
@@ -4636,11 +4638,12 @@ test("An ability only while its breath recharges (2026-10-12, B247)", () => {
     assert.ok(pits(scoreOptions(state, d).options) > 0, "while its breath recharges");
 });
 
-test("Regeneration on itself as fast healing; an AC reaction against spell attacks only isn't played on Strikes (2026-10-12, B248)", () => {
+test("Regeneration on itself as fast healing; an AC reaction against spell attacks only isn't played on Strikes (2026-10-12, B248; on spell attacks since B308)", () => {
     const drake = withBuiltins({ ...moderateCreature(5, "drk", "Drake") }, ["Test Regrow", { builtin: "self-effect", actions: 2, model: { name: "Test Regrow", rounds: 10, modifiers: [], tempHp: 0, fastHealing: 10, regeneration: { value: 10, deactivatedBy: ["void"] } } }]);
     assert.equal(drake.selfEffects?.[0]?.model?.fastHealing, 10);
-    assert.equal(addBuiltin(drake, { builtin: "ac-reaction", value: 4, when: "targeted", against: "ranged", spellOnly: true }, "Test Wing"), false);
-    assert.equal(drake.acReaction, undefined);
+    // (B308: played on spell attacks only, spells.js; not on Strikes.)
+    assert.equal(addBuiltin(drake, { builtin: "ac-reaction", value: 4, when: "targeted", against: "ranged", spellOnly: true }, "Test Wing"), true);
+    assert.equal(drake.acReaction.spellOnly, true);
 });
 
 test("A reaction to a foe's critical miss on it only, not on an ally (2026-10-12, B252)", async () => {
@@ -4871,10 +4874,11 @@ test("A 2d6 table weighted by its totals; Attack of Opportunity granted to itsel
     assert.deepEqual(grantAooAllies(second, s).map((entry) => entry.id), ["sol"]);
 });
 
-test("A withdraw only on damage of one effect's trait isn't played (Instinctive Teleportation, 2026-10-12, B264)", () => {
+test("A withdraw only on damage of one effect's trait: a holy Strike's (Instinctive Teleportation, B308; not played before, B264)", () => {
     const rex = { ...moderateCreature(5, "rex", "Rex") };
-    assert.equal(addBuiltin(rex, { builtin: "withdraw", on: "damaged", damageTrait: "holy", move: "Teleport", feet: 60, safe: true }, "Test Blink"), false);
-    assert.equal(rex.withdraw, undefined);
+    assert.equal(addBuiltin(rex, { builtin: "withdraw", on: "damaged", damageTrait: "holy", move: "Teleport", feet: 60, safe: true }, "Test Blink"), true);
+    assert.equal(rex.withdraw.damageTrait, "holy");
+    assert.equal(addBuiltin({}, { builtin: "withdraw", on: "damaged", damageTrait: "fire", move: "Teleport", feet: 60, safe: true }, "Test Blink"), false);
     assert.equal(addBuiltin(rex, { builtin: "withdraw", on: "damaged", move: "Teleport", feet: 60, safe: true }, "Test Hop"), true);
 });
 

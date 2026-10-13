@@ -22,6 +22,7 @@ const { martialParty } = await import("../src/engine/benchmarks.js");
 const { parseReadableDamage, randomDamageRows } = await import("../src/adapter/formula.js");
 const { addBuiltin, PLAYED_REQUIRES } = await import("../src/engine/abilities.js");
 const { requirementPlayable } = await import("../src/engine/needs.js");
+const { markParts, toggleWays } = await import("../src/engine/toggles.js");
 const { effectModel } = await import("../src/engine/effects.js");
 const { asReserve, bestOption, bestPick, reserveCount } = await import("../src/engine/summons.js");
 const { eliteAdjust, weakAdjust } = await import("../src/engine/adjust.js");
@@ -86,6 +87,9 @@ function combatant(npc) {
             melee: !increment,
             increment,
             agile: traits.includes("agile"),
+            // (B308: holy or unholy, for a reaction to damage of that trait.)
+            ...(traits.includes("holy") || traits.includes("good") ? { holy: true } : {}), ...(traits.includes("unholy") || traits.includes("evil") ? { unholy: true } : {}),
+            ...(traits.includes("sanctified") ? { sanctified: true } : {}), ...(traits.includes("twin") ? { twin: true } : {}),
             reach: Number(traits.find((trait) => /^reach-\d+$/.test(trait))?.split("-")[1]) || 5,
             damage,
             attackEffects: item.system.attackEffects?.value ?? [],
@@ -119,6 +123,28 @@ function combatant(npc) {
             const ways = plan.modes.filter((mode) => mode.plan?.resolution && !unmet(mode.plan));
             if (ways.length) used.add(item.name);
             for (const mode of ways) spells.push({ name: `${item.name} (${mode.name})`, plan: mode.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name });
+            // (B307: ways that are zones — Trail of Runes: each a zone ability, sharing the ability's recharge.)
+            let zoned = false;
+            for (const mode of ways.length ? [] : plan.modes.filter((entry) => entry.plan?.builtin === "zone")) {
+                const way = { ...mode.plan, actions: mode.plan.actions ?? plan.actions };
+                const effectModel = way.zone.effect ? effectModels({ resolution: { outcomes: { success: { nativeEffects: [way.zone.effect] } } } }, system.details.level.value)[way.zone.effect.uuid] ?? null : null;
+                const effects = Object.assign({}, ...(way.zone.saves ?? []).map((save) => effectModels(save.plan, system.details.level.value)));
+                const spell = zoneSpell(`${item.name} (${mode.name})`, way, { effectModel, effects });
+                if (!spell) continue;
+                zoned = true;
+                spells.push({ ...spell, rechargeGroup: item.name });
+            }
+            if (zoned) {
+                used.add(item.name);
+                continue;
+            }
+            // (B307: a choice PF2e holds as a toggle: its ways from the creature's rules.)
+            const toggle = !ways.length && plan.modes.length && plan.modes.every((mode) => mode.plan?.builtin === "roll-option") ? toggleWays(npc.items, plan, item.name) : null;
+            if (toggle) {
+                builtins.toggles = [...(builtins.toggles ?? []), ...toggle];
+                used.add(item.name);
+                continue;
+            }
             // (B273: ways that are builtins — stances, self-effects, sweeps — the first one, as the creature's choice.)
             const built = ways.length ? null : plan.modes.find((mode) => mode.plan?.builtin && !["no-effect", "modes"].includes(mode.plan.builtin));
             if (built && addBuiltin(builtins, built.plan, item.name)) used.add(item.name);
@@ -133,6 +159,13 @@ function combatant(npc) {
             }
         } else if (plan.builtin === "no-effect" && plan.gm) {
             // (The GM's, 2026-10-12: not played here.)
+        } else if (plan.builtin === "hunt-prey" && !plan.edge && plan.toggle) {
+            // (B308: a mark whose bonus is its toggle's rules.)
+            const parts = markParts(npc.items, plan.toggle);
+            if (parts.length) {
+                builtins.huntPrey = { edge: "parts", parts, every: true };
+                used.add(item.name);
+            }
         } else if (plan.builtin) {
             if (addBuiltin(builtins, plan, item.name)) used.add(item.name);
         } else if (plan.resolution && requirementPlayable(plan, PLAYED_REQUIRES)) {
