@@ -331,6 +331,8 @@ export function addBuiltin(spec, plan, name) {
         // Skitter, Skittish, Scurry, Flit Back (B116): a reaction that moves it off as a foe misses, hits or damages it, or comes beside it.
         case "withdraw":
             if (!["missed", "hit", "damaged", "attacked", "approach"].includes(plan.on)) return false;
+            // (B263, Instinctive Teleportation: only damage of one effect's trait, holy — the engine's damage carries no such trait.)
+            if (plan.damageTrait) return false;
             spec.withdraw = { name, on: plan.on, melee: !!plan.melee, foe: plan.foe ?? null, safe: !!plan.safe, ...(plan.recharge ? { recharge: plan.recharge } : {}) };
             return true;
         // No Escape, Reactive Pursuit (B117): a foe in its reach moving away, followed (the hunted prey's only; a Strike after).

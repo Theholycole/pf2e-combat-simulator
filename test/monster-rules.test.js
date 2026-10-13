@@ -4870,3 +4870,10 @@ test("A 2d6 table weighted by its totals; Attack of Opportunity granted to itsel
     const s = second.byId.get("sol");
     assert.deepEqual(grantAooAllies(second, s).map((entry) => entry.id), ["sol"]);
 });
+
+test("A withdraw only on damage of one effect's trait isn't played (Instinctive Teleportation, 2026-10-12, B264)", () => {
+    const rex = { ...moderateCreature(5, "rex", "Rex") };
+    assert.equal(addBuiltin(rex, { builtin: "withdraw", on: "damaged", damageTrait: "holy", move: "Teleport", feet: 60, safe: true }, "Test Blink"), false);
+    assert.equal(rex.withdraw, undefined);
+    assert.equal(addBuiltin(rex, { builtin: "withdraw", on: "damaged", move: "Teleport", feet: 60, safe: true }, "Test Hop"), true);
+});
