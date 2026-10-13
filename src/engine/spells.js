@@ -19,7 +19,8 @@ import { startZone } from "./zones.js";
 import { allyStrike } from "./commander.js";
 import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
-import { adjustDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
+import { effectImmunity, immuneToCondition } from "./immunities.js";
+import { adjustDamage, adjustInstance, rollStrikeDamage, spellContext, strikeContext } from "./damage.js";
 import { distanceBetween, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { moraleOdds } from "./morale.js";
 
@@ -458,7 +459,7 @@ export function bothHitRider(state, attacker, target, rider, { said = "Both Stri
     if (rider.strikeDamage && isActive(target)) {
         const index = strikeNamed(attacker, rider.strikeDamage);
         if (index >= 0) {
-            const dealt = applyDamage(state, target, rollStrikeDamage(state.rng, attacker.strikes[index], { critical: false }), { source: attacker });
+            const dealt = applyDamage(state, target, rollStrikeDamage(state.rng, attacker.strikes[index], { critical: false }).map((instance) => ({ ...instance, context: strikeContext(attacker, attacker.strikes[index]) })), { source: attacker });
             log(state, `  ${target.name} takes ${dealt} more`);
         }
     }
@@ -494,6 +495,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     }
     const flag = FLAGS[slug];
     if (!VALUED.has(slug) && !flag) return false;
+    // (I1: a creature immune to the condition.)
+    if (immuneToCondition(target, slug)) return false;
     // (B302, Bravery: "any time it gains the Frightened condition, reduce its value by 1".)
     if (slug === "frightened" && target.lessFrightened) {
         value = (Number.isFinite(value) ? value : 1) - target.lessFrightened;
@@ -973,7 +976,7 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
     // (B258, Resonating Kick: more damage against a creature with a trait it names.)
     const againstTrait = (rider.vsTraits ?? []).filter((entry) => entry.traits.some((trait) => (target.traits ?? []).includes(trait))).flatMap((entry) => entry.damage);
     for (const formula of [...(rider.damage ?? []), ...(prone ? rider.proneDamage ?? [] : []), ...againstTrait]) {
-        const instances = rollInstances(state, parseDamage(ownType(formula, strike))).map((instance) => ({ ...instance, amount: critical ? instance.amount * 2 : instance.amount }));
+        const instances = rollInstances(state, parseDamage(ownType(formula, strike))).map((instance) => ({ ...instance, amount: critical ? instance.amount * 2 : instance.amount, context: strikeContext(attacker, strike, critical) }));
         const dealt = applyDamage(state, target, instances, { source: attacker });
         log(state, `  ${target.name} takes ${dealt} more ${instances.map((instance) => instance.type).join("/")}`);
     }
@@ -1019,7 +1022,7 @@ export function strikeRiderValue(state, attacker, target, activity, strike = nul
     if (rider.size && sizeRank(target.size) > sizeRank(rider.size)) return { damage: 0, worth: 0 };
     let worth = rider.conditions.reduce((sum, { slug, value, duration }) => sum + conditionWorth(slug, value, duration), 0);
     if (rider.push && target.meleeId !== null) worth += 0.1;
-    let damage = [...(rider.damage ?? []), ...(target.cond.prone ? rider.proneDamage ?? [] : [])].flatMap((formula) => parseDamage(ownType(formula, strike))).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
+    let damage = [...(rider.damage ?? []), ...(target.cond.prone ? rider.proneDamage ?? [] : [])].flatMap((formula) => parseDamage(ownType(formula, strike))).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance), false, strikeContext(attacker, strike)), 0);
     // (B153: an ally's Strike after the hit; the Hit Points it regains.)
     if (rider.allyStrike) damage += Math.max(0, ...state.list.filter((ally) => ally !== attacker && ally.side === attacker.side && isActive(ally) && canReact(ally)).map((ally) => allyStrike(state, ally, target)?.expected ?? 0));
     const dice = /^(\d+)d(\d+)$/.exec(String(rider.selfHeal ?? ""));
@@ -1044,18 +1047,26 @@ function applyMove(state, target, change) {
     }
 }
 
+// A spell rather than an ability: not a monster's or a basic action, unless it is a spell from the spell list.
+function isSpellCast(spell) {
+    return !["ability", "basic"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "");
+}
+
 function applyChanges(state, caster, spell, changes, context, io) {
-    const described = describeSpell(spell.plan);
+    // (I2: with its actions — Heal's three-action area.)
+    const described = describeSpell(spell.plan, context?.actions);
     const nonlethal = described.nonlethal;
     // (B193: a spell aimed at its targets, with its rank, for Divert Essence.)
-    const isSpell = !["ability", "basic"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "");
+    const isSpell = isSpellCast(spell);
     const aimed = isSpell ? { rank: Number(spell.castRank ?? spell.plan?.rank) || 1, targeted: !described.area } : null;
+    // (I2: its context on its damage — area damage on a swarm, a holy spell on a fiend, a resistance to spells.)
+    const damageContext = spellContext(spell, { isSpell, area: Boolean(described.area) });
     for (const change of changes) {
         const target = change.target !== undefined ? state.byId.get(change.target) : null;
         if (change.target !== undefined && !target) continue;
         switch (change.op) {
             case "damage": {
-                const instances = change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision" }));
+                const instances = change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext }));
                 const dealt = applyDamage(state, target, instances, { source: caster, nonlethal, spell: aimed });
                 log(state, `  ${target.name} takes ${dealt} ${change.instances.map((instance) => instance.type).join("/")}`);
                 break;
@@ -1192,6 +1203,13 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     const targets = targetIds.map((id) => state.byId.get(id)).filter((target) => target && reachable(target));
     if (spell.pool) caster.spellPools[spell.pool] = Math.max(0, (caster.spellPools[spell.pool] ?? 0) - 1);
     log(state, `  ${caster.name} casts ${spell.name}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
+    // (I1: a creature immune to the effect's trait — a mindless one to a mental effect, a construct to a death effect — is unaffected.)
+    for (const target of [...targets]) {
+        const immunity = effectImmunity(target, spell);
+        if (!immunity) continue;
+        targets.splice(targets.indexOf(target), 1);
+        log(state, `  ${target.name} is immune (${immunity.replace(/-/g, " ")})`);
+    }
     // A magus's conflux spell recharges Spellstrike.
     if (caster.spellstrike && !caster.spellstrikeCharged && (spell.plan?.traits ?? []).includes("conflux") && (info.actions ?? 0) >= 1) {
         caster.spellstrikeCharged = true;
@@ -2029,9 +2047,12 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     const result = [];
     // What happens to the caster itself (Trip's critical failure, Escape's success).
     let self = null;
+    let damageContext = null;
     for (const target of targets) {
         const entry = { target, damage: 0, worth: 0, heal: 0, benefit: 0 };
         result.push(entry);
+        // (I1: nothing on a creature immune to it.)
+        if (effectImmunity(target, spell)) continue;
         // Golem Antimagic (B56): only what its list says.
         const golem = golemAnswer(caster, spell, target, Boolean(describeSpell(spell.plan, actions).area));
         if (golem) {
@@ -2054,7 +2075,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     continue;
                 }
                 if (change.op === "damage") {
-                    entry.damage += chance * adjustDamage(target, change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision" }))).total;
+                    damageContext ??= spellContext(spell, { isSpell: isSpellCast(spell), area: Boolean(describeSpell(spell.plan, actions).area) });
+                    entry.damage += chance * adjustDamage(target, change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext }))).total;
                 } else if (change.op === "condition" && change.slug === "persistent-damage") {
                     if (!change.damage) continue;
                     entry.damage += chance * 2 * adjustInstance(target, change.damage.type, change.damage.amount);

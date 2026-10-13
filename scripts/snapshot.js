@@ -4,11 +4,13 @@
 import { extraDamageParts, parseReadableDamage, randomDamageRows } from "../src/adapter/formula.js";
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
-import { effectModel } from "../src/engine/effects.js";
-import { addBuiltin, PLAYED_REQUIRES } from "../src/engine/abilities.js";
+import { effectModel, iwrException } from "../src/engine/effects.js";
+import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
 import { requirementPlayable } from "../src/engine/needs.js";
 import { markParts, toggleWays } from "../src/engine/toggles.js";
 import { zoneSpell } from "../src/engine/zones.js";
+import { strikeIwr } from "../src/engine/damage.js";
+import { immunityExceptions } from "../src/engine/immunities.js";
 import { MAP_KINDS, readMapFeet, readRegionFeet, regionToRegions, roundsHeld } from "./map.js";
 import { hazardSpec } from "./hazards.js";
 import { asReserve, bestOption, bestPick, reserveCount } from "../src/engine/summons.js";
@@ -174,6 +176,8 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
     for (const trait of traits) {
         if (!MODELLED_TRAITS.has(traitRoot(trait)) && !trait.startsWith("attached")) gaps.push({ kind: "strike trait", name: trait });
     }
+    // (I2: what its damage carries for weaknesses and resistances — magical, holy, a tradition; its material, group and property runes.)
+    const iwr = strikeIwr([...traits, ...(item?.isMagical ? ["magical"] : [])], { material: item?.system?.material?.type ?? null, group: item?.group ?? item?.system?.group ?? null, runes: item?.system?.runes?.property ?? [], name: action.label ?? item?.name ?? "" });
     return {
         name: action.label,
         // Riders the Strike lists (grab, knockdown, push); a gap unless an ability plays them.
@@ -214,6 +218,7 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
         ...(splashAmount(item, traits) > 0 ? { splashAmount: splashAmount(item, traits) } : {}),
         ...(["firearm", "crossbow"].includes(item?.group ?? item?.system?.group) ? { firearm: true } : {}),
         ...(traits.includes("parry") ? { parry: true } : {}),
+        ...(iwr ? { iwr } : {}),
         damage,
         critDamage
     };
@@ -982,7 +987,11 @@ function readIwr(list) {
     return (list ?? []).map((entry) => ({
         type: entry.type,
         value: entry.value ?? 0,
-        exceptions: (entry.exceptions ?? []).map((exception) => (typeof exception === "string" ? exception : exception?.label ?? exception?.type)).filter(Boolean)
+        // (I2: a custom exception with its definition, "magical silver"; a custom type with its own.)
+        exceptions: (entry.exceptions ?? []).map(iwrException).filter(Boolean),
+        ...(Array.isArray(entry.definition) && entry.definition.length ? { definition: entry.definition } : {}),
+        // (I2: a resistance doubled against what it names — non-magical damage.)
+        ...(entry.doubleVs?.length ? { doubleVs: [...entry.doubleVs] } : {})
     }));
 }
 
@@ -1081,6 +1090,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         resistances: readIwr(actor.attributes?.resistances),
         weaknesses: readIwr(actor.attributes?.weaknesses),
         immunities: (actor.attributes?.immunities ?? []).map((entry) => entry.type),
+        ...immunityExceptions(actor.attributes?.immunities),
         voidHealing: !!(actor.system?.attributes?.hp?.negativeHealing ?? actor.attributes?.hp?.negativeHealing),
         strikes,
         spells,
@@ -1090,6 +1100,9 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     };
     // (B302: Construct Armor PF2e already has broken — below its share of Hit Points, or its toggle for a critical hit: PF2e's AC and Hardness
     // say so. A fresh fight mends it.)
+    // (I4: the roll options its predicated Fast Healing or regeneration names that are on now — a toggle the GM set, a form it's in.)
+    const named = predicateOptions([...(spec.fastHealingWhen ?? []).map((entry) => entry.when), spec.regeneration?.when ?? []]);
+    if (named.length) spec.rollOptions = [...new Set(named.filter((option) => actor.rollOptions?.all?.[option]))];
     const armor = spec.constructArmor;
     if (armor && (hp.value < (hp.max ?? 0) * (armor.below ?? 50) / 100 || actor.rollOptions?.all?.["construct-armor"])) {
         if (fresh) {

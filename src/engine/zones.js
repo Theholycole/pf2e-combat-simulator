@@ -8,6 +8,7 @@
 import { isActive } from "./combatant.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { applyDamage, log } from "./actions.js";
+import { spellContext } from "./damage.js";
 import { applyCondition, castPlan, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
@@ -62,7 +63,9 @@ export function startZone(state, owner, spell, targetIds) {
         radius: area.type === "square" ? squareRadius(area.value) : Number(area.value) || 5,
         anchorId: area.type === "emanation" || (area.type === "burst" && model.centre !== "placed") ? owner.id : (first?.id ?? owner.id),
         fixed: area.type === "cone" || area.type === "line" ? new Set(targetIds) : null,
-        until: Number.isFinite(rounds) ? state.round + rounds : Infinity
+        until: Number.isFinite(rounds) ? state.round + rounds : Infinity,
+        // (I2: area damage, with its source's traits.)
+        context: spellContext(spell, { isSpell: !["ability", "basic"].includes(spell.kind), area: true })
     };
     (state.zones ??= []).push(zone);
     (owner.activeZones ??= new Set()).add(spell.name);
@@ -136,7 +139,7 @@ export function zoneTurn(state, c, phase) {
 }
 
 function hurt(state, zone, owner, c, formulas, how) {
-    const instances = formulas.flatMap((formula) => rollInstances(state, parseDamage(String(formula))));
+    const instances = formulas.flatMap((formula) => rollInstances(state, parseDamage(String(formula)))).map((instance) => ({ ...instance, context: zone.context }));
     const dealt = applyDamage(state, c, instances, { source: owner });
     log(state, `  ${c.name} ${how} ${zone.name}: ${dealt} damage`);
 }

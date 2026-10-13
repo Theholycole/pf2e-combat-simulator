@@ -5,8 +5,8 @@ import { CRITICAL_SUCCESS, FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
-import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
-import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
+import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { adjustInstance, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
@@ -373,9 +373,9 @@ function startTurn(state, c) {
         state.log?.push(`  ${c.name} re-forms`);
     }
     // Fast healing (the creature's own, or from spell effects) and regeneration.
-    const fastHealing = Math.max(c.fastHealing ?? 0, ...(c.effects ?? []).map((effect) => effect.model.fastHealing ?? 0));
+    const fastHealing = fastHealingNow(state, c);
     if (fastHealing > 0) applyHeal(state, c, fastHealing);
-    if (regenerating(c) && c.regeneratedRound !== state.round) applyHeal(state, c, c.regeneration.value);
+    if (regenerating(c, state) && c.regeneratedRound !== state.round) applyHeal(state, c, c.regeneration.value);
 }
 
 // Regeneration: a downed monster regains its HP at the start of its turn, loses
@@ -709,7 +709,7 @@ function act(state, c, action) {
                 if (activity.finisher === "confident" && result?.degree === 1 && isActive(target)) {
                     let amount = 0;
                     for (let die = 0; die < (c.panacheStyle?.finisherDice ?? 2); die++) amount += state.rng.die(6);
-                    const dealt = applyDamage(state, target, [{ type: c.strikes[action.strikeIndex].damage[0].type, amount: Math.floor(amount / 2), persistent: false, precision: true }], { source: c });
+                    const dealt = applyDamage(state, target, [{ type: c.strikes[action.strikeIndex].damage[0].type, amount: Math.floor(amount / 2), persistent: false, precision: true, context: strikeContext(c, c.strikes[action.strikeIndex]) }], { source: c });
                     state.log?.push(`  ${target.name} takes ${dealt} from the finisher's miss`);
                 }
             }
@@ -718,7 +718,7 @@ function act(state, c, action) {
             if (result && activity.exacting && result.degree === 1) c.attacksThisTurn = Math.max(0, c.attacksThisTurn - 1);
             // Focused Assault (B74): a failure (not a critical one) still deals the Strike's damage, as a hit's.
             if (result && activity.failureDamage && result.degree === FAILURE && isActive(target)) {
-                const instances = rollStrikeDamage(state.rng, fired, { critical: false, penalty: fired.melee ? c.cond.enfeebled ?? 0 : 0 });
+                const instances = rollStrikeDamage(state.rng, fired, { critical: false, penalty: fired.melee ? c.cond.enfeebled ?? 0 : 0 }).map((instance) => ({ ...instance, context: strikeContext(c, fired) }));
                 const dealt = applyDamage(state, target, instances, { source: c, physical: true });
                 state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
             }
@@ -1029,7 +1029,7 @@ function fleeTurn(state, c) {
 function takeTurn(state, c) {
     // Conditions this creature's spells timed end at the start of its turn, whatever its state.
     expireTimers(state, c);
-    if (c.status === DOWN && c.kind !== "pc" && regenerating(c)) regenerateUp(state, c);
+    if (c.status === DOWN && c.kind !== "pc" && regenerating(c, state)) regenerateUp(state, c);
     if (c.status === DOWN) {
         state.log?.push(`${c.name} (down)`);
         if (c.kind === "pc" && c.cond.dying > 0) recoveryCheck(state, c);

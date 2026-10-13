@@ -106,8 +106,8 @@ function pc({ id, name, level, hpPerLevel, acBonus, strike, shield = null, aoo =
         heroPoints: 1,
         shield,
         reactions: { aoo, shieldBlock: !!shield },
-        // A held weapon: Disarm can knock it away.
-        strikes: [{ ...strike(attribute), held: true }]
+        // A held weapon: Disarm can knock it away. (I2: magical from its first potency rune, for a resistance doubled against non-magical damage.)
+        strikes: [{ ...strike(attribute), held: true, ...(potency(level) ? { iwr: { traits: ["magical"] } } : {}) }]
     };
 }
 

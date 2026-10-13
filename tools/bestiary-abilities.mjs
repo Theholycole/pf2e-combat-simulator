@@ -20,12 +20,14 @@ const { simulate } = await import("../src/engine/fight.js");
 const { zoneSpell } = await import("../src/engine/zones.js");
 const { martialParty } = await import("../src/engine/benchmarks.js");
 const { parseReadableDamage, randomDamageRows } = await import("../src/adapter/formula.js");
-const { addBuiltin, PLAYED_REQUIRES } = await import("../src/engine/abilities.js");
+const { addBuiltin, PLAYED_REQUIRES, predicateOptions } = await import("../src/engine/abilities.js");
 const { requirementPlayable } = await import("../src/engine/needs.js");
 const { markParts, toggleWays } = await import("../src/engine/toggles.js");
-const { effectModel } = await import("../src/engine/effects.js");
+const { effectModel, iwrException } = await import("../src/engine/effects.js");
+const { immunityExceptions } = await import("../src/engine/immunities.js");
 const { asReserve, bestOption, bestPick, reserveCount } = await import("../src/engine/summons.js");
 const { eliteAdjust, weakAdjust } = await import("../src/engine/adjust.js");
+const { strikeIwr } = await import("../src/engine/damage.js");
 
 const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 const MAP = process.argv.includes("--map");
@@ -69,6 +71,21 @@ function effectModels(plan, level) {
     return models;
 }
 
+// The resistances, weaknesses or immunities its items' rules add without a condition, one for each type a rule lists.
+function ruleIwr(npc, key) {
+    const rules = npc.items.flatMap((item) => (item.system?.rules ?? []).filter((rule) => rule?.key === key && !rule.predicate?.length && rule.mode !== "remove" && rule.type && (key === "Immunity" || Number.isFinite(Number(rule.value)))));
+    return rules.flatMap((rule) => [].concat(rule.type).map((type) => ({ ...rule, type, ...(key === "Immunity" ? {} : { value: Number(rule.value) }) })));
+}
+
+// The options a creature's rules turn on as it is: a RollOption without a predicate that isn't a toggle, or a toggle on by default — of
+// those its predicates name.
+function defaultOptions(npc, predicates) {
+    const named = new Set(predicateOptions(predicates.filter(Boolean)));
+    if (!named.size) return [];
+    const on = npc.items.flatMap((item) => (item.system?.rules ?? []).filter((rule) => rule?.key === "RollOption" && !rule.predicate?.length && (rule.toggleable ? rule.value === true : true)).map((rule) => rule.option));
+    return [...new Set(on.filter((option) => named.has(option)))];
+}
+
 // A raw NPC (pack data) as an engine combatant.
 function combatant(npc) {
     const system = npc.system;
@@ -90,6 +107,9 @@ function combatant(npc) {
             // (B308: holy or unholy, for a reaction to damage of that trait.)
             ...(traits.includes("holy") || traits.includes("good") ? { holy: true } : {}), ...(traits.includes("unholy") || traits.includes("evil") ? { unholy: true } : {}),
             ...(traits.includes("sanctified") ? { sanctified: true } : {}), ...(traits.includes("twin") ? { twin: true } : {}),
+            // (I2: what its damage carries for weaknesses and resistances.)
+            ...(strikeIwr(traits, { name: item.name }) ? { iwr: strikeIwr(traits, { name: item.name }) } : {}),
+            unarmed: traits.includes("unarmed"),
             reach: Number(traits.find((trait) => /^reach-\d+$/.test(trait))?.split("-")[1]) || 5,
             damage,
             attackEffects: item.system.attackEffects?.value ?? [],
@@ -214,9 +234,14 @@ function combatant(npc) {
         spells,
         ...builtins,
         size: system.traits.size?.value ?? "med",
-        resistances: (system.attributes.resistances ?? []).map((entry) => ({ type: entry.type, value: entry.value ?? 0, exceptions: entry.exceptions ?? [] })),
-        weaknesses: (system.attributes.weaknesses ?? []).map((entry) => ({ type: entry.type, value: entry.value ?? 0, exceptions: entry.exceptions ?? [] })),
-        immunities: (system.attributes.immunities ?? []).map((entry) => entry.type),
+        // (I2: with what its items' rules add without a condition — a vampire's physical resistance except magical silver — as the live
+        // actor has them; a custom type's or exception's definition kept.)
+        resistances: [...(system.attributes.resistances ?? []), ...ruleIwr(npc, "Resistance")].map((entry) => ({ type: entry.type, value: entry.value ?? 0, exceptions: (entry.exceptions ?? []).map(iwrException), ...(entry.definition ? { definition: entry.definition } : {}), ...(entry.doubleVs?.length ? { doubleVs: entry.doubleVs } : {}) })),
+        weaknesses: [...(system.attributes.weaknesses ?? []), ...ruleIwr(npc, "Weakness")].map((entry) => ({ type: entry.type, value: entry.value ?? 0, exceptions: (entry.exceptions ?? []).map(iwrException), ...(entry.definition ? { definition: entry.definition } : {}) })),
+        immunities: [...(system.attributes.immunities ?? []), ...ruleIwr(npc, "Immunity")].map((entry) => entry.type),
+        ...immunityExceptions([...(system.attributes.immunities ?? []), ...ruleIwr(npc, "Immunity")]),
+        // (I4: the roll options its predicated Fast Healing names that its rules turn on by default — Mask of Power's, not a scamp's terrain.)
+        rollOptions: defaultOptions(npc, [...(builtins.fastHealingWhen ?? []).map((entry) => entry.when), builtins.regeneration?.when]),
         usedAbilities: used
     };
 }

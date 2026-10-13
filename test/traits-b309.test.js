@@ -4,7 +4,10 @@ import assert from "node:assert/strict";
 import { createFightState } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { expectedHitDamage, performStrike } from "../src/engine/actions.js";
-import { sacredWeakness } from "../src/engine/damage.js";
+import { onceWeakness, strikeContext } from "../src/engine/damage.js";
+
+// (I2: the weakness a Strike's trait sets off, through its context.)
+const sacredWeakness = (attacker, strike, target) => onceWeakness(target, strikeContext(attacker, strike));
 
 // B309 (2026-10-13; the user's call: "work through your recommendations in order", item 5): Strike traits the simulation ignored.
 

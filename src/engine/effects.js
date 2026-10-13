@@ -81,6 +81,13 @@ export function modifierModel(name, modifier) {
 
 // item: a PF2e effect item (or its source). conditionSlug(uuid): the slug of a
 // condition item a GrantItem points at, or null.
+// A weakness's or resistance's exception: its type, or a custom one's definition (a vampire's "magical silver").
+export function iwrException(exception) {
+    if (typeof exception === "string") return exception;
+    if (Array.isArray(exception?.definition)) return { definition: exception.definition, ...(exception.label ? { label: exception.label } : {}) };
+    return String(exception?.type ?? exception);
+}
+
 export function effectModel(item, { rank = 1, conditionSlug = () => null } = {}) {
     const model = { name: item?.name ?? "Effect", rounds: roundsOf(item?.system?.duration), modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
     const unsupported = new Set();
@@ -120,7 +127,8 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
                 break;
             case "Resistance":
             case "Weakness":
-                if (value !== null && rule.type) (rule.key === "Resistance" ? model.resistances : model.weaknesses).push({ type: rule.type, value, exceptions: [].concat(rule.exceptions ?? []).map(String) });
+                // (I2: one for each type a rule lists; a resistance doubled against what it names.)
+                if (value !== null && rule.type) for (const type of [].concat(rule.type)) (rule.key === "Resistance" ? model.resistances : model.weaknesses).push({ type, value, exceptions: [].concat(rule.exceptions ?? []).map(iwrException), ...(rule.definition ? { definition: rule.definition } : {}), ...(rule.key === "Resistance" && [].concat(rule.doubleVs ?? []).length ? { doubleVs: [].concat(rule.doubleVs) } : {}) });
                 break;
             case "Immunity":
                 if (rule.type) model.immunities.push(rule.type);

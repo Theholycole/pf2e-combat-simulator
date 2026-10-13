@@ -43,6 +43,13 @@ It needs **PF2e Resolution Core**, which Foundry offers to install with it. It r
   - holy and unholy Strikes against weaknesses, twin.
 
   See [docs/ability-decisions.md](docs/ability-decisions.md).
+- **Immunities, weaknesses and resistances as PF2e has them** (2026-10-13, I1–I4):
+  - immunities to conditions (paralyzed, unconscious …) and to effects of a trait (mental, death, fear, sleep, magic …);
+  - weaknesses and resistances to more than a damage type: area and splash damage (swarms, troops), cold iron, silver, axes, holy and unholy spells, resistances to spells;
+  - resistance exceptions (adamantine, ghost touch …) and resistance doubled against non-magical damage;
+  - Fast Healing and regeneration that hold only sometimes (in mist form, a toggle, the terrain).
+
+  See [docs/ability-decisions.md](docs/ability-decisions.md) (I1–I4).
 - **Spells** (milestone 2): creatures cast the spells the resolution core can resolve: saves and spell attacks, with their damage, conditions and push or pull. Everything else is listed as a gap. It needs the `pf2e-resolution-core` module, and the spell module for the plans.
 
 The design is in [docs/spec.md](docs/spec.md) and the vocabulary in [CONTEXT.md](CONTEXT.md). The rules choices the user confirmed are in [docs/morale-decisions.md](docs/morale-decisions.md) (morale) and [docs/spell-decisions.md](docs/spell-decisions.md) (spellcasting).

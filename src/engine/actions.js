@@ -6,7 +6,7 @@ import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatChe
 import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
 import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
 import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, strikeUsable } from "./combatant.js";
-import { adjustDamage, concussiveType, expectedStrikeDamage, adjustInstance, rollStrikeDamage, sacredWeakness } from "./damage.js";
+import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, rollStrikeDamage, strikeContext } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, reactionMark, regenerating, restoreReaction, spendReaction, strikeNamed } from "./abilities.js";
@@ -106,14 +106,16 @@ function defenceId(target) {
 export function expectedHitDamage(attacker, strike, target, critical, { bonus = 0, offGuardChance = 0, packAllies = 0 } = {}) {
     // Hazards and objects: immune to critical hits, and Hardness off each hit.
     if (critical && target.immunities?.includes("critical-hits")) critical = false;
+    // (I2: the Strike's context — its traits, materials, group and runes — for the weaknesses and resistances they set off.)
+    const context = strikeContext(attacker, strike, critical);
     let total = baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance);
     if (attacker.strikeExtras?.length) total += expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies);
     for (const part of featureParts(attacker, strike, target, { offGuard: offGuardChance })) {
         const amount = ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (critical && !part.noCrit ? 2 : 1);
-        total += part.chance * adjustInstance(target, part.type ?? strike.damage[0]?.type ?? "untyped", amount, !!part.precision);
+        total += part.chance * adjustInstance(target, part.type ?? strike.damage[0]?.type ?? "untyped", amount, !!part.precision, context);
     }
-    // (B309: a holy or unholy Strike on a creature weak to it.)
-    total += sacredWeakness(attacker, strike, target);
+    // (B309, I2: a weakness once a hit — a holy or unholy Strike's on a creature weak to it, an axe's, a tradition's.)
+    total += onceWeakness(target, context);
     return target.hardness ? Math.max(0, total - target.hardness) : total;
 }
 
@@ -152,7 +154,7 @@ function expectedExtras(attacker, strike, target, critical, offGuardChance, pack
         const chance = extra.when === "off-guard" ? offGuardChance : extraApplies(extra, target, { offGuard: false, packAllies }) ? 1 : 0;
         if (!chance) continue;
         const amount = extra.dice * (extra.die + 1) / 2 * (critical ? 2 : 1);
-        total += chance * adjustInstance(target, extra.type ?? strike.damage[0]?.type ?? "untyped", amount, extra.precision);
+        total += chance * adjustInstance(target, extra.type ?? strike.damage[0]?.type ?? "untyped", amount, extra.precision, strikeContext(attacker, strike, critical));
     }
     return total;
 }
@@ -168,16 +170,17 @@ function baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance
     const key = ((defenceId(target) * 2 + (critical ? 1 : 0)) * 2048 + (penalty + 1024)) * 101 + offGuard;
     const cached = cache.get(key);
     if (cached !== undefined) return cached;
-    const total = computeHitDamage(strike, target, critical, penalty, offGuardChance);
+    const total = computeHitDamage(attacker, strike, target, critical, penalty, offGuardChance);
     cache.set(key, total);
     return total;
 }
 
-function computeHitDamage(strike, target, critical, penalty, offGuardChance) {
+function computeHitDamage(attacker, strike, target, critical, penalty, offGuardChance) {
+    const context = strikeContext(attacker, strike, critical);
     let total = 0;
     for (const instance of expectedStrikeDamage(strike, { critical, penalty })) {
         const type = strike.concussive ? concussiveType(target, instance.type, instance.amount, instance.precision) : instance.type;
-        const amount = adjustInstance(target, type, instance.amount, instance.precision);
+        const amount = adjustPart(target, { ...instance, type }, context);
         // Persistent damage is counted for about two rounds.
         total += instance.persistent ? amount * 2 : amount;
     }
@@ -404,7 +407,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         // Energy Shot counts its first three Strikes, hit or miss.
         if (strike.firearm && attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;
         // A bomb that misses (not critically) still splashes the target and those around it.
-        if (degree === FAILURE && strike.splashKind === "bomb") splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false })), { includeTarget: true });
+        if (degree === FAILURE && strike.splashKind === "bomb") splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false }), strikeContext(attacker, strike)), { includeTarget: true });
         // (B171, Sidestep, Glide Aside: the attack sent at another of the attacker's side beside it, the attacker rerolling against that one at
         // the same multiple attack penalty.)
         // (B286, Bouncy: when "critical", only a critically failed Strike.)
@@ -469,9 +472,6 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     // (B309, twin: another attack with the pair this turn — a bonus of its damage dice.)
     if (strike.twin && (attacker.turnAttacks ?? []).filter((entry) => entry.strike === strike.name).length >= 2) instances.push({ type: strike.damage[0].type, amount: strike.damage[0].dice ?? 1, precision: false, persistent: false });
-    // (B309: a holy or unholy Strike on a creature weak to it.)
-    const sacred = sacredWeakness(attacker, strike, target);
-    if (sacred && instances[0]) instances[0] = { ...instances[0], extraWeakness: sacred };
     if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id) attacker.preyHitRound = state.round;
     // Sneak Attack, Pack Attack and the like (monsters).
     if (attacker.strikeExtras?.length) {
@@ -486,6 +486,9 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // (B153, Draining Touch: a Strike that deals no damage on a hit.)
     if (strike.noDamage) instances.length = 0;
     if (strike.concussive) for (const instance of instances) instance.type = concussiveType(target, instance.type, instance.amount, instance.precision);
+    // (B309, I2: the Strike's context on its damage — a holy Strike on a fiend weak to holy, a silver one on a werewolf.)
+    const context = strikeContext(attacker, strike, critical);
+    for (const instance of instances) instance.context = context;
     // Wished Away, Withhold Death (B60): its reaction to the critical hit, resistance to all damage against this attack.
     const before = target.resistances;
     if (critical && target.critResistance && canReact(target, target.critResistance.name)) {
@@ -504,7 +507,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     target.resistances = before;
     if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
     // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
-    if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances), { includeTarget: false });
+    if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances, strikeContext(attacker, strike)), { includeTarget: false });
     // (B255: a table row's conditions and save on the creature hit.)
     for (const { slug, value, duration } of strike.hitConditions ?? []) if (isActive(target) && applyCondition(state, target, slug, value ?? null, duration ?? null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
     if (strike.hitSpell && isActive(target)) castPlan(state, attacker, { name: strike.hitName ?? strike.name, plan: strike.hitSpell, castRank: 1, pool: null, kind: "ability" }, [target.id]);
@@ -837,7 +840,8 @@ function triggeredSelfEffect(state, c, matches) {
 }
 
 // A Strike's splash: its known amount (the snapshot reads it from the item), or its parts flagged splash.
-const splashOf = (strike, instances) => (strike.splashAmount ? [{ type: strike.damage[0]?.type ?? "untyped", amount: strike.splashAmount, persistent: false, precision: false, splash: true }] : instances.filter((instance) => instance.splash));
+// (I2: in the Strike's context, for a swarm's weakness to splash damage.)
+const splashOf = (strike, instances, context = null) => (strike.splashAmount ? [{ type: strike.damage[0]?.type ?? "untyped", amount: strike.splashAmount, persistent: false, precision: false, splash: true }] : instances.filter((instance) => instance.splash)).map((instance) => ({ ...instance, weapon: false, context }));
 
 // Splash damage (the instances flagged splash) on the creatures in the target's
 // Melee (within the splash's few feet in range bands), and the target itself after a bomb's miss.
@@ -1163,7 +1167,7 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
     if (target.status === DOWN) {
         if (target.kind === "pc") increaseDying(state, target, critical ? 2 : 1);
         // Regeneration: dying never goes past 3 while it works.
-        else if (regenerating(target)) target.cond.dying = Math.min(3, (target.cond.dying ?? 0) + (critical ? 2 : 1));
+        else if (regenerating(target, state)) target.cond.dying = Math.min(3, (target.cond.dying ?? 0) + (critical ? 2 : 1));
         else if (!nonlethal) kill(state, target);
         return 0;
     }
@@ -1328,7 +1332,7 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         return;
     }
     // Regeneration: a monster at 0 HP is dying (at most 3) and gets back up at the start of its turn.
-    if (regenerating(target) && !nonlethal) {
+    if (regenerating(target, state) && !nonlethal) {
         target.status = DOWN;
         target.cond.unconscious = true;
         target.cond.prone = true;
@@ -1638,7 +1642,7 @@ export { kill as killCreature, log };
 
 // Rend: the listed Strike's damage again, automatically, after two hits with it on the same enemy this round.
 export function performRend(state, attacker, target, strike) {
-    const instances = rollStrikeDamage(state.rng, strike, { critical: false, penalty: (strike.melee ? attacker.cond.enfeebled : 0) - effectBonus(attacker, "damage") });
+    const instances = rollStrikeDamage(state.rng, strike, { critical: false, penalty: (strike.melee ? attacker.cond.enfeebled : 0) - effectBonus(attacker, "damage") }).map((instance) => ({ ...instance, context: strikeContext(attacker, strike) }));
     const dealt = applyDamage(state, target, instances, { source: attacker, physical: true });
     log(state, `  ${attacker.name} rends ${target.name} for ${dealt}`);
     attacker.rendUsed = true;

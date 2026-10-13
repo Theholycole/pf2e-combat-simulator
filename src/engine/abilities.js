@@ -103,11 +103,13 @@ export function addBuiltin(spec, plan, name) {
         case "save-bonus":
             spec.saveBonuses = [...(spec.saveBonuses ?? []), ...plan.bonuses];
             return true;
+        // (I4: only while PF2e's predicate holds — its toggle on, not in a form, the fight's terrain or light; selfOptions.)
         case "regeneration":
-            spec.regeneration = { value: plan.value, deactivatedBy: [...(plan.deactivatedBy ?? [])] };
+            spec.regeneration = { value: plan.value, deactivatedBy: [...(plan.deactivatedBy ?? [])], ...(plan.when ? { when: plan.when } : {}) };
             return true;
         case "fast-healing":
-            spec.fastHealing = Math.max(spec.fastHealing ?? 0, plan.value);
+            if (plan.when) spec.fastHealingWhen = [...(spec.fastHealingWhen ?? []), { value: plan.value, when: plan.when }];
+            else spec.fastHealing = Math.max(spec.fastHealing ?? 0, plan.value);
             return true;
         case "multi-strike":
             spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.bothHit ? { bothHit: { conditions: [...(plan.bothHit.conditions ?? [])], damage: [...(plan.bothHit.damage ?? [])], ...(plan.bothHit.follow ? { follow: plan.bothHit.follow } : {}), ...(plan.bothHit.strikeDamage ? { strikeDamage: plan.bothHit.strikeDamage } : {}), ...(plan.bothHit.affliction ? { affliction: plan.bothHit.affliction } : {}), ...(plan.bothHit.atLeast ? { atLeast: plan.bothHit.atLeast } : {}), ...(plan.bothHit.perHit ? { perHit: true } : {}) } } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}), ...(plan.ifFirstHits ? { ifFirstHits: true } : {}), ...(plan.penalties?.length ? { penalties: [...plan.penalties] } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(plan.notGrabbed ? { notGrabbed: true } : {}), ...(plan.noGrab ? { noGrab: true } : {}), ...(plan.flourish ? { flourish: true } : {}), ...(plan.critical ? { critical: { conditions: [...(plan.critical.conditions ?? [])], damage: [...(plan.critical.damage ?? [])] } } : {}), ...(plan.extraDamage?.length ? { extraDamage: [...plan.extraDamage] } : {}), ...(plan.missDamage?.length ? { missDamage: [...plan.missDamage] } : {}), ...(plan.then ? { then: plan.then } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}), ...(plan.noMomentum ? { noMomentum: true } : {}), ...(plan.chain ? { chain: true } : {}), ...(plan.recharge ? { recharge: plan.recharge } : {}) }];
@@ -724,8 +726,34 @@ export function extraApplies(extra, target, { offGuard, packAllies }) {
 }
 
 // Regeneration works unless damage of a listed type turned it off.
-export function regenerating(c) {
-    return !!c.regeneration && !c.regenerationOff;
+export function regenerating(c, state = null) {
+    return !!c.regeneration && !c.regenerationOff && (!c.regeneration.when || testPredicate(c.regeneration.when, selfOptions(state, c)));
+}
+
+// (I4: the roll options a creature's own predicates test in a fight — its toggles that are on (as the snapshot found them, or its rules'
+// defaults), "self:effect:<slug>" for the effects on it, and the fight's own (terrain, light).)
+export function selfOptions(state, c) {
+    const options = new Set(c?.rollOptions ?? []);
+    for (const effect of c?.effects ?? []) {
+        const slug = String(effect.slug ?? effect.model?.slug ?? effect.model?.name ?? effect.name ?? "").toLowerCase().replace(/^effect:\s*/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        if (slug) options.add(`self:effect:${slug}`);
+    }
+    for (const option of state?.environment?.options ?? []) options.add(option);
+    return options;
+}
+
+// The roll options a predicate names, at any depth.
+export function predicateOptions(predicate) {
+    if (typeof predicate === "string") return [predicate];
+    if (Array.isArray(predicate)) return predicate.flatMap(predicateOptions);
+    if (predicate && typeof predicate === "object") return Object.values(predicate).flatMap(predicateOptions);
+    return [];
+}
+
+// Fast Healing now: its own, its predicated ones that hold, and its effects'.
+export function fastHealingNow(state, c) {
+    const held = (c.fastHealingWhen ?? []).filter((entry) => testPredicate(entry.when, selfOptions(state, c))).map((entry) => entry.value);
+    return Math.max(c.fastHealing ?? 0, ...held, ...(c.effects ?? []).map((effect) => effect.model.fastHealing ?? 0));
 }
 
 // PF2e's standard DC for a level (level −1 to 25).
