@@ -1469,7 +1469,7 @@ function around(state, c, radius, inMelee) {
 // (Batch 19: also any attack when it says so, a critical hit only, the damage types it names, its area around the monster.)
 export function hitByAnswers(state, defender, attacker, strike, degree = SUCCESS, types = []) {
     passiveAnswers(state, defender, attacker, (trigger) => trigger.event === "hit-by" && !trigger.missed && (!trigger.melee || strike.melee) && (!trigger.unarmed || strike.unarmed)
-        && (!trigger.critical || degree === CRITICAL_SUCCESS) && typesMatch(trigger.damageTypes, types));
+        && (!trigger.critical || degree === CRITICAL_SUCCESS) && (!trigger.notCritical || degree !== CRITICAL_SUCCESS) && typesMatch(trigger.damageTypes, types));
 }
 
 // A monster's passives that answer an event (B43, B48): each that matches, on its targets (see answerTargets).

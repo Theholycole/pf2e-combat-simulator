@@ -4979,3 +4979,15 @@ test("A save rolled twice, the worse kept; melee hits hurting the attacker; a cr
     dealDamage(s, x, 10, { source: h });
     assert.equal(isActive(x), false, "only once a turn");
 });
+
+test("Two Strikes only at a prone or immobilized creature (Radical Surgery, 2026-10-13, B287)", () => {
+    const [fighter] = martialParty(5);
+    const surgeon = withBuiltins({ ...moderateCreature(5, "surgeon", "Surgeon"), engagement: 1 }, ["Test Surgery", { builtin: "multi-strike", actions: 2, strikes: [null, null], sameTarget: true, sameMap: true, penalty: 2, requires: "prone-or-immobilized" }]);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, surgeon] }, {}, 1);
+    const s = state.byId.get("surgeon");
+    s.actionsLeft = 3;
+    const offered = () => scoreOptions(state, s).options.some((option) => option.action.type === "multiStrike");
+    assert.equal(offered(), false, "not at a creature standing");
+    state.byId.get(fighter.id).cond.prone = true;
+    assert.equal(offered(), true, "at a prone one");
+});

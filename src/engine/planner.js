@@ -897,7 +897,9 @@ function expand(ctx, node, actionsLeft) {
                 // (B186, Ravage: at a Paralyzed, Restrained or Unconscious creature.)
                 if (ability.requires === "helpless" && !(target.cond.paralyzed || target.cond.restrained || target.cond.unconscious)) continue;
                 if (ability.requires === "not-fatigued" && c.cond.fatigued) continue;
-                if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging", "helpless", "not-fatigued"].includes(ability.requires)) continue;
+                // (B287, Radical Surgery: at a Prone or Immobilized creature.)
+                if (ability.requires === "prone-or-immobilized" && !(target.cond.prone || target.cond.immobilized)) continue;
+                if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging", "helpless", "not-fatigued", "prone-or-immobilized"].includes(ability.requires)) continue;
                 let expected = 0;
                 // (B106: a second Strike only after a first that hits, worth that chance.)
                 let firstHits = 1;
