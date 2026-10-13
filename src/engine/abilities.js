@@ -4,6 +4,8 @@
 // Draconic Momentum, bonuses to saves against magic, and reactions (Nimble
 // Dodge, Challenge Fate, Twisting Tail, Death Frenzy).
 
+import { summonSpec } from "./summons.js";
+
 const SIZES = ["tiny", "small", "medium", "large", "huge", "gargantuan"];
 const SIZE_WORDS = { tiny: "tiny", sm: "small", med: "medium", lg: "large", huge: "huge", grg: "gargantuan" };
 
@@ -43,6 +45,13 @@ export function addBuiltin(spec, plan, name) {
         case "throw-rock":
         case "no-effect":
             return true;
+        // (B298: a summon whose creatures fight — its reserves are made with the snapshot.)
+        case "conjure": {
+            const entry = summonSpec(plan, name);
+            if (!entry) return false;
+            spec.summons = [...(spec.summons ?? []), entry];
+            return true;
+        }
         case "strike-extra":
             spec.strikeExtras = [...(spec.strikeExtras ?? []), ...plan.extras.map((extra) => ({ ...extra, source: name }))];
             return true;

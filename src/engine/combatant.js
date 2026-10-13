@@ -41,6 +41,8 @@ export function createCombatant(spec) {
     let status = ACTIVE;
     if (spec.status === DEAD) status = DEAD;
     else if (spec.arrivesRound && spec.arrivesRound > 0) status = PENDING;
+    // (B298: a summon's creature waits off the field until it's summoned.)
+    else if (spec.reserve) status = PENDING;
     else if (spec.hp.value <= 0 || conditions.dying > 0 || conditions.unconscious) status = spec.kind === "pc" ? DOWN : DEAD;
     return {
         ...spec,

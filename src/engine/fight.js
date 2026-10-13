@@ -20,6 +20,7 @@ import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startD
 import { helpArrives } from "./morale.js";
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
+import { activateSummons, summonTurnStart } from "./summons.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -96,6 +97,8 @@ function createState(snapshot, options, seed, withLog) {
         state.log?.push(`  ${attacker.poisonWeapon.spell.name} from ${attacker.name}'s weapon`);
         castPlan(state, attacker, attacker.poisonWeapon.spell, [target.id]);
     };
+    // (B298: a summon's creatures join the turns as it says.)
+    state.joinInitiative = (c) => insertArrival(state, c);
     // Before placing: an escalation's creatures wait off the field, and so do hazards not yet set off.
     setUpEscalations(state, snapshot.setup?.escalations);
     setUpHazards(state, snapshot.setup?.escalations);
@@ -335,6 +338,8 @@ function startTurn(state, c) {
     }
     actions -= Math.min(actions, c.cond.slowed);
     c.actionsLeft = Math.min(actions, isHazard(c) ? 9 : MAX_ACTIONS_PER_TURN);
+    // (B298: a minion's two actions; its summons' time, and a sustained one's action.)
+    summonTurnStart(state, c);
     // Collapsed (B59): it re-forms with its first action.
     if (c.collapsed && c.actionsLeft > 0 && isActive(c)) {
         c.actionsLeft -= 1;
@@ -461,6 +466,10 @@ function act(state, c, action) {
     const rider = c.riderReady;
     c.riderReady = null;
     switch (action.type) {
+        // (B298: a summon.)
+        case "summon":
+            activateSummons(state, c, c.summons[action.index]);
+            break;
         case "strike": {
             const target = state.byId.get(action.targetId);
             const strike = c.strikes[action.strikeIndex];
@@ -953,7 +962,7 @@ function actionCost(c, action) {
     if (action.type === "spellstrike" || action.type === "strikeHard") return 2;
     if (action.type === "pincerAttack" || action.type === "bannersInspiration" || action.type === "shiftImmanence" || action.type === "transcend") return 1;
     if (action.type === "disableHazard") return 2;
-    if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon" || action.type === "grantAoo" || action.type === "allyAdvance") return action.actions ?? 1;
+    if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon" || action.type === "grantAoo" || action.type === "allyAdvance" || action.type === "summon") return action.actions ?? 1;
     // (Quickened Casting, B72: one action fewer.)
     if (action.type === "cast") return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened ? 1 : 0));
     return action.type === "task" ? 2 : 1;

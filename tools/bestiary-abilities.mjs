@@ -21,6 +21,8 @@ const { martialParty } = await import("../src/engine/benchmarks.js");
 const { parseReadableDamage, randomDamageRows } = await import("../src/adapter/formula.js");
 const { addBuiltin, PLAYED_REQUIRES } = await import("../src/engine/abilities.js");
 const { effectModel } = await import("../src/engine/effects.js");
+const { asReserve, bestOption, bestPick, reserveCount } = await import("../src/engine/summons.js");
+const { eliteAdjust, weakAdjust } = await import("../src/engine/adjust.js");
 
 const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 const MAP = process.argv.includes("--map");
@@ -178,6 +180,63 @@ function combatant(npc) {
     };
 }
 
+// (B298: a summon's creatures as reserves, from the packs — the creature it links or names, the best of its options, the best its pick allows
+// in the rulebook bestiaries, or another of itself.)
+const SUMMON_PACKS = ["pathfinder-monster-core", "pathfinder-monster-core-2", "pathfinder-npc-core", "pathfinder-bestiary", "pathfinder-bestiary-2", "pathfinder-bestiary-3"];
+const packDocs = new Map();
+const actorsOf = (pack) => {
+    if (!packDocs.has(pack)) {
+        let docs = [];
+        try {
+            docs = readDocuments(`${PACK_ROOT}/${pack}`).filter((doc) => doc.collection === "actors");
+        } catch {
+            docs = [];
+        }
+        packDocs.set(pack, docs);
+    }
+    return packDocs.get(pack);
+};
+function summonDocument(from) {
+    const linked = /^Compendium\.pf2e\.([\w-]+)\.Actor\.(\w+)$/.exec(String(from?.uuid ?? ""));
+    if (linked) return actorsOf(linked[1]).find((doc) => doc._id === linked[2]) ?? null;
+    if (from?.name) for (const pack of SUMMON_PACKS) {
+        const found = actorsOf(pack).find((doc) => doc.type === "npc" && doc.name.toLowerCase() === String(from.name).toLowerCase());
+        if (found) return found;
+    }
+    return null;
+}
+function summonReserves(maker) {
+    const out = [];
+    for (const entry of maker.summons ?? []) {
+        let creature = entry.creature;
+        let doc = null;
+        let spec = null;
+        if (creature.options) {
+            const found = creature.options.map((option) => summonDocument(option.from));
+            const index = bestOption(creature.options.map((option, i) => ({ index: i, level: Number(found[i]?.system?.details?.level?.value ?? -2), count: Number(option.count) || 1 })).filter((option) => found[option.index]));
+            creature = creature.options[index];
+            entry.count = creature.count ?? 1;
+            entry.perUse = Math.max(1, Number(creature.count) || 1);
+            doc = found[index];
+        } else if (creature.pick) {
+            const entries = SUMMON_PACKS.flatMap((pack) => actorsOf(pack).map((actor) => ({ uuid: `Compendium.pf2e.${pack}.Actor.${actor._id}`, name: actor.name, level: Number(actor.system?.details?.level?.value), traits: actor.system?.traits?.value ?? [], type: actor.type })));
+            const best = bestPick(entries, creature.pick);
+            doc = best ? summonDocument({ uuid: best.uuid }) : null;
+        } else if (creature.from?.self) spec = structuredClone({ ...maker, summons: undefined });
+        else doc = summonDocument(creature.from);
+        if (doc && !spec) spec = { ...combatant(doc), id: "summon", side: "foes" };
+        if (!spec) continue;
+        if (creature.adjust === "elite") spec = eliteAdjust(spec);
+        else if (creature.adjust === "weak") spec = weakAdjust(spec);
+        for (let index = 0; index < reserveCount(entry); index++) {
+            const reserve = asReserve(spec, maker, entry, index);
+            entry.reserveIds.push(reserve.id);
+            out.push(reserve);
+        }
+    }
+    return out;
+}
+
 const stats = { creatures: 0, fights: 0, errors: [], withAbilities: 0 };
 const uses = new Map();
 const started = Date.now();
@@ -193,6 +252,12 @@ for (const pack of PACKS) {
             continue;
         }
         if (!monster.strikes.length && !monster.spells.some((spell) => spell.kind === "ability")) continue;
+        let reserves = [];
+        try {
+            reserves = summonReserves(monster);
+        } catch (error) {
+            stats.errors.push(`${npc.name}: summon reserves ${error.message}`);
+        }
         stats.creatures++;
         if (monster.spells.some((spell) => spell.kind === "ability")) stats.withAbilities++;
         const party = martialParty(Math.min(20, level)).map((pc) => ({ ...pc, spells: Object.values(basicActions).map((plan) => ({ name: plan.source.name, plan, castRank: 1, pool: null, kind: "basic" })) }));
@@ -208,7 +273,7 @@ for (const pack of PACKS) {
                         : { rules: [{ when: { kind: "alarm" }, then: { kind: "arrive", creatureIds: ["second"], delay: 1, band: "far" } }] };
                 const raiser = ESCALATE && seed === 3 ? { ...monster, alarm: "gong", gongFeet: 30 } : monster;
                 const setup = { ...(objective ? { objective } : {}), ...(escalations ? { escalations } : {}) };
-                const result = simulate({ combatants: [...party, ...merchant, raiser, ...second], setup }, {}, seed, { log: true });
+                const result = simulate({ combatants: [...party, ...merchant, raiser, ...second, ...reserves], setup }, {}, seed, { log: true });
                 stats.fights++;
                 for (const line of result.log) {
                     const cast = / casts (.+?)(?: \(\d actions\))?(?: at |$)/.exec(line)?.[1];

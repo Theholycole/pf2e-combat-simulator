@@ -9,6 +9,7 @@ import { addBuiltin, PLAYED_REQUIRES } from "../src/engine/abilities.js";
 import { zoneSpell } from "../src/engine/zones.js";
 import { MAP_KINDS, readMapFeet, readRegionFeet, regionToRegions, roundsHeld } from "./map.js";
 import { hazardSpec } from "./hazards.js";
+import { asReserve, bestOption, bestPick, reserveCount } from "../src/engine/summons.js";
 
 export const MODULE_ID = "pf2e-combat-simulator";
 
@@ -1140,6 +1141,8 @@ export async function buildSnapshot(entries, { setup = {}, overrides = {}, fresh
         placed.push({ combatant: adjusted, token: entry.token });
     }
     if (canvas?.ready) placeFromTokens(placed.filter((entry) => tokenObject(entry.token)));
+    // (B298: a summon's creatures, made now as reserves waiting off the field.)
+    for (const maker of [...combatants]) if (maker.summons?.length) combatants.push(...(await summonReserves(maker)));
     const snapshot = { combatants, setup, moraleRules };
     // Map objectives (O1–O3): each creature's distance to the area and the exit, from the
     // scene's Regions; in play, the rounds already held.
@@ -1163,6 +1166,67 @@ export async function buildSnapshot(entries, { setup = {}, overrides = {}, fresh
         snapshot.turn = Math.max(0, snapshot.order.indexOf(current));
     }
     return snapshot;
+}
+
+// Summons (B298): each summon's creatures as reserves — PF2e's creature it links or names, the best of its options, the best its pick allows
+// (the rulebook bestiaries' creatures of that level and those traits), or another of itself; as many as its uses could bring.
+const SUMMON_PACKS = ["pathfinder-monster-core", "pathfinder-monster-core-2", "pathfinder-npc-core", "pathfinder-bestiary", "pathfinder-bestiary-2", "pathfinder-bestiary-3"];
+let summonIndex = null;
+async function summonEntries() {
+    if (summonIndex) return summonIndex;
+    const entries = [];
+    for (const name of SUMMON_PACKS) {
+        const pack = game.packs.get(`pf2e.${name}`);
+        if (!pack) continue;
+        const index = await pack.getIndex({ fields: ["system.details.level.value", "system.traits.value", "type"] });
+        for (const entry of index) entries.push({ uuid: entry.uuid ?? `Compendium.${pack.collection}.Actor.${entry._id}`, name: entry.name, level: Number(entry.system?.details?.level?.value), traits: entry.system?.traits?.value ?? [], type: entry.type });
+    }
+    summonIndex = entries;
+    return entries;
+}
+
+async function summonDocument(from) {
+    if (from?.uuid) return fromUuid(from.uuid).catch(() => null);
+    if (from?.name) {
+        const found = (await summonEntries()).find((entry) => entry.type === "npc" && entry.name.toLowerCase() === String(from.name).toLowerCase());
+        return found ? fromUuid(found.uuid).catch(() => null) : null;
+    }
+    return null;
+}
+
+async function summonReserves(maker) {
+    const out = [];
+    for (const entry of maker.summons) {
+        let creature = entry.creature;
+        let spec = null;
+        if (creature.options) {
+            const found = await Promise.all(creature.options.map((option) => summonDocument(option.from)));
+            const index = bestOption(creature.options.map((option, i) => ({ index: i, level: Number(found[i]?.level ?? found[i]?.system?.details?.level?.value ?? -2), count: Number(option.count) || 1 })).filter((option) => found[option.index]));
+            creature = creature.options[index];
+            entry.count = creature.count ?? 1;
+            entry.perUse = Math.max(1, Number(creature.count) || 1);
+            spec = found[index] ? await readActor(found[index], { id: "summon", name: found[index].name, fresh: true }) : null;
+        } else if (creature.pick) {
+            const best = bestPick(await summonEntries(), creature.pick);
+            const document = best ? await fromUuid(best.uuid).catch(() => null) : null;
+            spec = document ? await readActor(document, { id: "summon", name: document.name, fresh: true }) : null;
+        } else if (creature.from?.self) {
+            spec = structuredClone({ ...maker, summons: undefined, gaps: [] });
+        } else {
+            const document = await summonDocument(creature.from);
+            spec = document ? await readActor(document, { id: "summon", name: document.name, fresh: true }) : null;
+        }
+        if (!spec) continue;
+        if (creature.adjust === "elite") spec = eliteAdjust(spec);
+        else if (creature.adjust === "weak") spec = weakAdjust(spec);
+        if (creature.traits?.length) spec.traits = [...new Set([...(spec.traits ?? []), ...creature.traits])];
+        for (let index = 0; index < reserveCount(entry); index++) {
+            const reserve = asReserve(spec, maker, entry, index);
+            entry.reserveIds.push(reserve.id);
+            out.push(reserve);
+        }
+    }
+    return out;
 }
 
 // Escalations (E1–E4) from the scene and the tracker: each creature's place

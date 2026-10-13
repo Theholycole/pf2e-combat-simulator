@@ -22,6 +22,7 @@ import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
 import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, worstCondition } from "./spells.js";
 import { grantAooAllies, levelDC } from "./abilities.js";
+import { canSummon, summonPool } from "./summons.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 export const ROLE_PROFILES = Object.freeze({
@@ -1277,6 +1278,19 @@ function expand(ctx, node, actionsLeft) {
         if (c.grantAoo && !node.casts.includes("grant-aoo")) {
             const allies = grantAooAllies(state, c);
             if (allies.length) children.push(child(node, { type: "grantAoo", actions: c.grantAoo.actions }, c.grantAoo.actions, ctx.ownValue * 0.04 * allies.length, { cast: "grant-aoo" }));
+        }
+        // (B298: a summon — its creatures' threat for as long as they last, about three rounds at most; a minion's two actions of three; a
+        // sustained one less the action it costs each turn.)
+        for (const [index, entry] of (c.summons ?? []).entries()) {
+            if (entry.trigger || entry.actions > remaining || node.casts.includes(`summon${index}`) || !canSummon(state, c, entry) || !ctx.enemies.length) continue;
+            const pool = summonPool(state, entry);
+            const sample = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
+            const each = pool.length ? pool.reduce((sum, reserve) => sum + roundDamage(reserve, ctx.enemies[0], sample), 0) / pool.length : 0;
+            const many = Math.min(pool.length, entry.count?.formula ? Math.max(1, Math.round(entry.perUse / 2)) : Number(entry.count) || entry.perUse);
+            const span = Math.max(1, Math.min(3, entry.lasts ?? 3));
+            const share = entry.initiative === "minion" ? 2 / 3 : 1;
+            const gain = ctx.ownValue * ROUND_TO_KILL * span * (many * each * share - (entry.sustained ? threatOf / 3 : 0)) / threatOf;
+            if (gain > 0) children.push(child(node, { type: "summon", index, actions: entry.actions }, entry.actions, gain, { cast: `summon${index}` }));
         }
         // Hunt Prey: a new prey when the current one is gone or a better target is in reach.
         if (c.huntPrey && node.used === 0 && !raging) {

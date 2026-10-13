@@ -13,6 +13,7 @@ import { canReact, chargeStrike, extraApplies, regenerating, strikeNamed } from 
 import { applyEffect, removeEffect } from "./effects.js";
 import { applyCondition, castPlan, castSpell, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
+import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 
 function log(state, text) {
     state.log?.push(text);
@@ -1170,6 +1171,8 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
     if (before > target.hp.max / 2 && target.hp.value <= target.hp.max / 2 && target.hp.value > 0) {
         state.pendingEvents.push({ type: "halfHp", victim: target });
     }
+    // (B298: a summon set off by damage on it, Splinter Sycophant's.)
+    if (target.hp.value > 0 && target.summons?.length) summonsOnDamage(state, target, amount);
     if (target.hp.value <= 0) {
         const overwhelming = amount >= target.hp.max * state.moraleRules.measures.overwhelmingFraction;
         const massive = amount >= target.hp.max * 2;
@@ -1332,6 +1335,9 @@ function kill(state, target) {
     removeFromSpace(state, target);
     log(state, `  ${target.name} dies`);
     if (target.kind !== "pc") deathThroes(state, target, melee);
+    // (B298: a summon as it dies, Final Spite's horn; the creatures that go with it.)
+    if (target.kind !== "pc") summonsOnDeath(state, target);
+    summonerFalls(state, target);
 }
 
 export function increaseDying(state, c, amount) {
