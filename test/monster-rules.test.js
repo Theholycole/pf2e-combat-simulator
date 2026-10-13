@@ -4843,3 +4843,30 @@ test("A square zone as the burst around its middle square; plans needing rage on
     d.activeBuffs = [{ name: "Test Rage", noConcentrate: true }];
     assert.ok(roars() > 0, "while raging");
 });
+
+test("A 2d6 table weighted by its totals; Attack of Opportunity granted to itself (Roll the Bones, Set Defense, 2026-10-12, B263)", async () => {
+    const { spellExpectation, castPlan: cast } = await import("../src/engine/spells.js");
+    const { grantAooAllies } = await import("../src/engine/abilities.js");
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const hurt = (amount) => ({ modelVersion: 13, source: { name: "Test Bones" }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "touch", area: null }, trigger: { event: "use" },
+        resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { mode: "formulas", formulas: [{ formula: `${amount}[void]` }], rollScope: "outcome" }, effects: [] }, failure: { damage: { ...none }, effects: [] }, criticalFailure: { damage: { ...none }, effects: [] } } } });
+    // 2 or 12: 2 chances in 36 for 36 damage; the rest none — an expected 2 damage.
+    const spell = { name: "Test Bones", plan: hurt(36), castRank: 1, pool: null, kind: "ability", die: 6, dice: 2, randomWays: [{ name: "2, 12", faces: [2, 12], plan: hurt(36) }] };
+    const croupier = { ...moderateCreature(5, "crp", "Croupier"), engagement: 1, spells: [spell] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, croupier] }, {}, 1);
+    const c = state.byId.get("crp");
+    const f = state.byId.get(fighter.id);
+    const [expected] = spellExpectation(state, c, c.spells[0], [f]);
+    assert.ok(Math.abs(expected.damage - 2) < 0.3, `expected about 2, got ${expected.damage}`);
+    // The roll adds two dice: 1 + 1 picks the "2" face.
+    state.rng.die = () => 1;
+    const before = f.hp.value;
+    cast(state, c, c.spells[0], [f.id]);
+    assert.ok(f.hp.value < before, "the 2 face (1 + 1) hit");
+    // Set Defense: itself only, while it lacks the reaction.
+    const soldier = withBuiltins({ ...moderateCreature(5, "sol", "Soldier"), engagement: 1 }, ["Test Defense", { builtin: "grant-aoo", actions: 1, self: true, until: "move-or-attack" }]);
+    const second = createFightState({ combatants: [{ ...fighter, engagement: 1 }, soldier, { ...moderateCreature(5, "ally", "Ally"), engagement: 1 }] }, {}, 1);
+    const s = second.byId.get("sol");
+    assert.deepEqual(grantAooAllies(second, s).map((entry) => entry.id), ["sol"]);
+});

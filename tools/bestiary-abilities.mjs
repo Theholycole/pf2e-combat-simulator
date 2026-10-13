@@ -105,7 +105,7 @@ function combatant(npc) {
             const shown = ways.find((mode) => mode.plan?.resolution);
             if (!shown) continue;
             used.add(item.name);
-            spells.push({ name: item.name, plan: shown.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name, die: Number(/^1d(\d+)$/.exec(plan.random.formula)?.[1]) || 1, randomWays: plan.modes.map((mode) => ({ name: mode.name, faces: mode.faces, plan: mode.plan?.resolution ? mode.plan : null, ...(mode.again ? { again: mode.again } : {}) })) });
+            spells.push({ name: item.name, plan: shown.plan, castRank: 1, pool: null, kind: "ability", rechargeGroup: item.name, die: Number(/^(?:\d+)d(\d+)$/.exec(plan.random.formula)?.[1]) || 1, dice: Number(/^(\d+)d\d+$/.exec(plan.random.formula)?.[1]) || 1, randomWays: plan.modes.map((mode) => ({ name: mode.name, faces: mode.faces, plan: mode.plan?.resolution ? mode.plan : null, ...(mode.again ? { again: mode.again } : {}) })) });
         } else if (plan.builtin === "modes") {
             const ways = plan.modes.filter((mode) => mode.plan?.resolution);
             if (ways.length) used.add(item.name);

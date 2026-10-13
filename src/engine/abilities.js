@@ -309,7 +309,8 @@ export function addBuiltin(spec, plan, name) {
         // (B167, Tactical Direction: Attack of Opportunity for its allies of a trait within an emanation, until the end of their next turn.)
         case "grant-aoo":
             // (B176, Call to Arms: until its own next turn ends, and an ally that uses it immune to it after.)
-            spec.grantAoo = { name, actions: Number(plan.actions) || 1, within: Number(plan.within) || 30, ...(plan.trait ? { trait: plan.trait } : {}), ...(plan.until === "source" ? { untilSource: true } : {}), ...(plan.usedOnce ? { usedOnce: true } : {}) };
+            // (B263, Set Defense: itself, self.)
+            spec.grantAoo = { name, actions: Number(plan.actions) || 1, within: Number(plan.within) || 30, ...(plan.self ? { self: true } : {}), ...(plan.trait ? { trait: plan.trait } : {}), ...(plan.until === "source" ? { untilSource: true } : {}), ...(plan.usedOnce ? { usedOnce: true } : {}) };
             return true;
         // A monster's Hunt Prey (B71): a ranger's precision edge, its dice ("1d8 precision damage" the first hit on its prey each round).
         case "hunt-prey":
@@ -494,6 +495,7 @@ export function sweepActionIndex(c, sweep) {
 // Raging (B155): a rage on itself that keeps it from concentrating — the planner's own test.
 // (B167: the allies Tactical Direction reaches — its trait, near it (not "far"), active, without Attack of Opportunity of their own.)
 export function grantAooAllies(state, c) {
+    if (c.grantAoo?.self) return c.status === "active" && !c.reactions?.aoo ? [c] : [];
     return state.list.filter((ally) => ally !== c && ally.side === c.side && ally.status === "active" && !ally.reactions?.aoo && ally.band !== "far" && (!c.grantAoo?.trait || (ally.traits ?? []).includes(c.grantAoo.trait)) && !c.grantAooImmune?.has(ally.id));
 }
 

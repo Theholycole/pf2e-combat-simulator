@@ -1132,8 +1132,10 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // A random effect table (B255): the die picks the way, played as the ability (a face with nothing to play does nothing; "roll twice"
     // rolls twice more, without that face). The ways share the ability's recharge.
     if (spell.randomWays?.length) {
+        // (B263, Roll the Bones: several dice added, spell.dice of them.)
         const roll = (ways) => {
-            const face = state.rng.die(spell.die);
+            let face = 0;
+            for (let count = 0; count < Math.max(1, Number(spell.dice) || 1); count++) face += state.rng.die(spell.die);
             return ways.find((way) => way.faces.includes(face)) ?? null;
         };
         const first = roll(spell.randomWays);
@@ -1937,6 +1939,18 @@ function outcomesFor(state, caster, spell, target, actions) {
     return outcomes;
 }
 
+// The chance a roll of `dice` dice of `die` faces, added, lands on one of these totals (B263: 2d6 tables; one die, faces / die).
+function faceShare(faces, die, dice = 1) {
+    let counts = new Map([[0, 1]]);
+    for (let count = 0; count < dice; count++) {
+        const next = new Map();
+        for (const [total, ways] of counts) for (let face = 1; face <= die; face++) next.set(total + face, (next.get(total + face) ?? 0) + ways);
+        counts = next;
+    }
+    const all = die ** dice;
+    return faces.reduce((sum, face) => sum + (counts.get(face) ?? 0), 0) / all;
+}
+
 // Expected effect of a cast on each target: [{ target, damage, worth, heal, benefit }]:
 // damage and healing in HP (after resistances; healing up to the HP missing),
 // worth (harm from conditions) and benefit (from a PF2e spell effect, negative
@@ -1947,7 +1961,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         const merged = new Map();
         for (const way of spell.randomWays) {
             if (!way.plan?.resolution) continue;
-            const share = way.faces.length / (spell.die || 1);
+            const share = faceShare(way.faces, spell.die || 1, Number(spell.dice) || 1);
             const at = way.plan.targeting?.target === "self" ? [caster] : targets;
             for (const entry of spellExpectation(state, caster, { ...spell, randomWays: null, plan: way.plan }, at, attacks, actions)) {
                 const sum = merged.get(entry.target) ?? { target: entry.target, damage: 0, worth: 0, heal: 0, benefit: 0 };
