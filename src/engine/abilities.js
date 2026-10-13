@@ -429,6 +429,10 @@ export function addBuiltin(spec, plan, name) {
 
 // Whether its last action was casting a spell (B147: Residual Force's "most recent action was to cast a spell", Primal Weapon's "a non-cantrip
 // spell").
+// The requirements of an ability's plan the planner plays (B262): straight after a spell (B259), while raging, while its breath recharges (B247).
+// The snapshot and the sweep load such plans; others with requirements stay out.
+export const PLAYED_REQUIRES = new Set(["after-cast", "raging", "breath-recharging"]);
+
 export function castJustNow(state, c, nonCantrip = false) {
     const last = c.lastCast;
     return Boolean(last) && last.round === state.round && last.action === (c.actionCount ?? 0) - 1 && (!nonCantrip || !last.cantrip);

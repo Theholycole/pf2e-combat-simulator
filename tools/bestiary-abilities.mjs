@@ -19,7 +19,7 @@ const { simulate } = await import("../src/engine/fight.js");
 const { zoneSpell } = await import("../src/engine/zones.js");
 const { martialParty } = await import("../src/engine/benchmarks.js");
 const { parseReadableDamage, randomDamageRows } = await import("../src/adapter/formula.js");
-const { addBuiltin } = await import("../src/engine/abilities.js");
+const { addBuiltin, PLAYED_REQUIRES } = await import("../src/engine/abilities.js");
 const { effectModel } = await import("../src/engine/effects.js");
 
 const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
@@ -123,10 +123,10 @@ function combatant(npc) {
             // (The GM's, 2026-10-12: not played here.)
         } else if (plan.builtin) {
             if (addBuiltin(builtins, plan, item.name)) used.add(item.name);
-        } else if (plan.resolution && (!plan.requires || plan.requiresFoe)) {
+        } else if (plan.resolution && (!plan.requires || plan.requiresFoe || PLAYED_REQUIRES.has(plan.requires))) {
             used.add(item.name);
-            // (B230: once a fight in its words.)
-            spells.push({ name: item.name, plan, castRank: 1, pool: plan.oncePerFight ? `once:${item.name}` : null, kind: "ability", effects: effectModels(plan, system.details.level.value) });
+            // (B230: once a fight in its words; B262: its recharge by name, shared when it says so.)
+            spells.push({ name: item.name, plan, castRank: 1, pool: plan.oncePerFight ? `once:${item.name}` : null, kind: "ability", rechargeGroup: plan.sharesRecharge ?? item.name, effects: effectModels(plan, system.details.level.value) });
         }
     }
     // (B255: the table on its Strike — the damage a die picks, its splash as a bomb's.)

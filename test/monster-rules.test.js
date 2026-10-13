@@ -4816,3 +4816,30 @@ test("Its own initiative higher; a follow-up only after two hits in a row (All T
     triggerRiders(state, w, f, stinger, 2);
     assert.equal(w.riderReady?.index, 0, "after two hits in a row");
 });
+
+test("A square zone as the burst around its middle square; plans needing rage only while raging, and loaded (2026-10-12, B262)", async () => {
+    const { zoneSpell, startZone } = await import("../src/engine/zones.js");
+    const { PLAYED_REQUIRES } = await import("../src/engine/abilities.js");
+    const [fighter] = martialParty(5);
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const row = (damage = { ...none }) => ({ damage, effects: [] });
+    const save = (name, extra = {}) => ({ modelVersion: 13, source: { name }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: null, range: null, area: { type: "line", value: 40 } }, trigger: { event: "use" }, ...extra,
+        resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: false, against: { dc: "fixed", value: 25 } }, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row(), failure: row({ mode: "formulas", formulas: [{ formula: "4d6[piercing]" }], rollScope: "outcome" }), criticalFailure: row({ mode: "formulas", formulas: [{ formula: "4d6[piercing]" }], rollScope: "outcome" }) } } });
+    const plan = { builtin: "zone", actions: 2, zone: { area: { type: "square", value: 15 }, centre: "placed", range: 30, lasts: { mode: "fixed", value: 1, unit: "minutes", expiry: "turn-start" }, untilReused: false, concealed: false, terrain: [], others: false, hazard: null, saves: [{ when: ["initial", "enter"], plan: save("Test Web") }], damage: [], effect: null, modifiers: [], notes: [] } };
+    const spell = zoneSpell("Test Web", plan);
+    assert.deepEqual(spell.plan.targeting.area, { type: "burst", value: 5 });
+    const spinner = { ...moderateCreature(5, "spn", "Spinner"), engagement: 1, spells: [{ ...spell, rechargeGroup: "Test Web" }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, spinner] }, {}, 1);
+    state.log = [];
+    const zone = startZone(state, state.byId.get("spn"), state.byId.get("spn").spells[0], [fighter.id]);
+    assert.deepEqual([zone.radius, zone.anchorId], [5, fighter.id]);
+    assert.ok(["after-cast", "raging", "breath-recharging"].every((requires) => PLAYED_REQUIRES.has(requires)) && !PLAYED_REQUIRES.has("requirement"));
+    const drake = { ...moderateCreature(5, "drk", "Drake"), engagement: 1, spells: [{ name: "Test Roar", plan: save("Test Roar", { requires: "raging" }), dc: 25, attack: 0, rechargeGroup: "Breath Weapon" }] };
+    const fight = createFightState({ combatants: [{ ...fighter, engagement: 1 }, drake] }, {}, 1);
+    const d = fight.byId.get("drk");
+    d.actionsLeft = 3;
+    const roars = () => scoreOptions(fight, d).options.filter((option) => option.action.type === "cast" && option.action.spellIndex === 0).length;
+    assert.equal(roars(), 0, "not while calm");
+    d.activeBuffs = [{ name: "Test Rage", noConcentrate: true }];
+    assert.ok(roars() > 0, "while raging");
+});

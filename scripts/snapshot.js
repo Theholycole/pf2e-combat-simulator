@@ -5,7 +5,7 @@ import { extraDamageParts, parseReadableDamage, randomDamageRows } from "../src/
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
 import { effectModel } from "../src/engine/effects.js";
-import { addBuiltin } from "../src/engine/abilities.js";
+import { addBuiltin, PLAYED_REQUIRES } from "../src/engine/abilities.js";
 import { zoneSpell } from "../src/engine/zones.js";
 import { MAP_KINDS, readMapFeet, readRegionFeet, regionToRegions, roundsHeld } from "./map.js";
 import { hazardSpec } from "./hazards.js";
@@ -548,13 +548,14 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
         if (!plan.resolution) continue;
         // (Not one with requirements the simulation can't check: "Requirements The bush is adjacent to a corpse", B52; it
         // checks a frightened or dying enemy nearby, Feed on Fear's, B83.)
-        if (plan.requires && !plan.requiresFoe) continue;
+        if (plan.requires && !plan.requiresFoe && !PLAYED_REQUIRES.has(plan.requires)) continue;
         if (pc && !(["check", "save"].includes(plan.resolution.kind) && (plan.trigger?.event ?? "use") === "use")) continue;
         if (pool) result.pools[pool] = frequency?.value ?? frequency?.max ?? 1;
         result.handled.add(item);
         // A PF2e effect it applies (Battle Cry), modelled at the creature's level.
         const effects = plan.resolution.kind === "effect" || Object.values(plan.resolution.outcomes ?? {}).some((row) => row?.nativeEffects?.length) ? await effectModels(plan, actor.level ?? 1) : undefined;
-        result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, ...(effects ? { effects } : {}) });
+        // (B262: its recharge by name, shared with another ability's when it says so — a reshaped Breath Weapon's.)
+        result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: plan.sharesRecharge ?? item.name, ...(effects ? { effects } : {}) });
     }
     // Basic actions: every PC; a monster only those it's trained for (its stat block lists the skill). Anyone can Escape.
     const basics = abilityModule.api?.basicActions ?? {};

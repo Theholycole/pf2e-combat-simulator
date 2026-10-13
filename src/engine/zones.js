@@ -40,6 +40,11 @@ export function zoneMembers(state, zone) {
     return state.list.filter((c) => isActive(c) && near(anchor, c, zone.radius));
 }
 
+// A square's reach from its middle square: 15 feet across, 5 feet; at least 5.
+function squareRadius(side) {
+    return Math.max(5, Math.floor(((Number(side) || 15) - 5) / 10) * 5);
+}
+
 // The ability's zone, as it's made: its members concealed, its effect on them, its saves "as it's made" on its foes there.
 export function startZone(state, owner, spell, targetIds) {
     const model = spell.zone;
@@ -53,7 +58,8 @@ export function startZone(state, owner, spell, targetIds) {
         ownerId: owner.id,
         side: owner.side,
         model,
-        radius: Number(area.value) || 5,
+        // (B262: a square, "a 15-foot by 15-foot area", as the creatures within half of it from its middle square.)
+        radius: area.type === "square" ? squareRadius(area.value) : Number(area.value) || 5,
         anchorId: area.type === "emanation" || (area.type === "burst" && model.centre !== "placed") ? owner.id : (first?.id ?? owner.id),
         fixed: area.type === "cone" || area.type === "line" ? new Set(targetIds) : null,
         until: Number.isFinite(rounds) ? state.round + rounds : Infinity
@@ -151,7 +157,8 @@ export function zoneSpell(name, plan, extra = {}) {
     const save = (zone.saves ?? []).find((entry) => entry.plan?.resolution && entry.when.some((when) => ["initial", "start", "enter"].includes(when)));
     const trigger = { event: plan.trigger?.event ?? "use", ...(plan.trigger?.reaction ? { reaction: true } : {}), ...(plan.trigger?.free ? { free: true } : {}), ...(plan.trigger?.recharge ? { recharge: { ...plan.trigger.recharge } } : {}) };
     const activation = { time: plan.trigger?.reaction ? (plan.trigger.free ? "free" : "reaction") : String(plan.actions || 1), traits: [] };
-    const area = { type: zone.area.type, value: zone.area.value };
+    // (B262: a square as the burst around its middle square.)
+    const area = zone.area.type === "square" ? { type: "burst", value: squareRadius(zone.area.value) } : { type: zone.area.type, value: zone.area.value };
     const base = { modelVersion: 13, source: { name }, rank: 1, traits: [], activation, automation: { level: "automatic" }, trigger };
     const none = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
     const automatic = (success, targeting) => ({ ...base, targeting, resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { ...none }, success, failure: { ...none }, criticalFailure: { ...none } } } });
