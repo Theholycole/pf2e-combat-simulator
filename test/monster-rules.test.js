@@ -4892,3 +4892,9 @@ test("A spell cast near it sets off its save, of its tradition only (Elegy of th
     assert.equal(provokedReaction(state, z, f, "cast", { tradition: "divine" }), true);
     assert.equal(z.reactionUsed, true);
 });
+
+test("Its own failed save rerolled only against one trait, with a bonus on the new roll (All This Will Happen Again, 2026-10-12, B266)", () => {
+    const monk = { ...moderateCreature(5, "monk", "Monk") };
+    assert.equal(addBuiltin(monk, { builtin: "save-reroll", save: "will", keep: "new", against: "fear", bonus: 2, uses: 1 }, "Test Again"), true);
+    assert.deepEqual([monk.saveReroll.againstTrait, monk.saveReroll.bonus, monk.saveReroll.keep, monk.saveReroll.against], ["fear", 2, "new", undefined]);
+});

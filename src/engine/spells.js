@@ -375,13 +375,13 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
         return result;
     }
     const reroll = saver.saveReroll;
-    if (reroll && (!reroll.save || reroll.save === statistic) && (reroll.against !== "spell" || (spell && (!spell.kind || spell.kind === "spell"))) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
+    if (reroll && (!reroll.save || reroll.save === statistic) && (reroll.against !== "spell" || (spell && (!spell.kind || spell.kind === "spell"))) && (!reroll.againstTrait || traits.includes(reroll.againstTrait)) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
         saver.saveRerollUses--;
         if (reroll.mythic) saver.mythicPoints--;
         if (!reroll.free) saver.reactionUsed = true;
         state.stats.reactions++;
         const natural = state.rng.d20();
-        const total = natural + options.modifier;
+        const total = natural + options.modifier + (reroll.bonus ?? 0);
         const degree = DEGREE_NAMES[degreeOf(total, options.dc, natural)];
         log(state, `  ${saver.name} uses ${reroll.name}: ${degree.replace(/([A-Z])/g, " $1").toLowerCase()} on the reroll`);
         return reroll.keep === "new" || DEGREE_NAMES.indexOf(degree) > DEGREE_NAMES.indexOf(result.degree) ? { natural, total, dc: options.dc, degree } : result;

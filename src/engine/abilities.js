@@ -275,7 +275,8 @@ export function addBuiltin(spec, plan, name) {
             }
             // (B93: Halfling Luck's "must use the new result", keep "new"; a free action's.)
             // (B217, a Battlezoo owl's foresight: only against a spell.)
-            spec.saveReroll = { name, save: plan.save ?? null, ...(plan.keep ? { keep: plan.keep } : {}), ...(plan.free ? { free: true } : {}), ...(plan.mythic ? { mythic: true } : {}), ...(plan.against === "spell" ? { against: "spell" } : {}) };
+            // (B266, All This Will Happen Again: only against an effect of one trait, a bonus on the new roll.)
+            spec.saveReroll = { name, save: plan.save ?? null, ...(plan.keep ? { keep: plan.keep } : {}), ...(plan.free ? { free: true } : {}), ...(plan.mythic ? { mythic: true } : {}), ...(plan.against === "spell" ? { against: "spell" } : {}), ...(plan.against && plan.against !== "spell" ? { againstTrait: plan.against } : {}), ...(Number(plan.bonus) ? { bonus: Number(plan.bonus) } : {}) };
             // (B108, Reroll: a Mythic Point each time, as many as it has.)
             spec.saveRerollUses = plan.mythic ? Infinity : 1;
             if (plan.mythic) spec.mythicPoints ??= 3;
