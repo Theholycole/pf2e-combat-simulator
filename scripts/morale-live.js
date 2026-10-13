@@ -276,7 +276,7 @@ async function applyCard(message) {
             const actor = await actorOf(row);
             if (!actor) throw new Error("its actor is gone");
             changes[result.id] = await carryOut(outcomeOps(result.outcome), actor, combat.combatants.get(result.id));
-            lines.push(outcomeLine(result.name, result.outcome) + note);
+            lines.push(outcomeLine(result.name, result.outcome, { lessFrightened: result.lessFrightened ?? 0 }) + note);
         } catch (error) {
             lines.push(`Couldn't apply to ${result.name}: ${error.message}`);
         }

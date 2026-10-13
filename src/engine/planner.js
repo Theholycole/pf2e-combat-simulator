@@ -21,7 +21,7 @@ import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, 
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
 import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, worstCondition } from "./spells.js";
-import { grantAooAllies, levelDC } from "./abilities.js";
+import { canReact, grantAooAllies, levelDC } from "./abilities.js";
 import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
@@ -429,7 +429,8 @@ class PlanContext {
     aooLoss(pos, node) {
         let loss = 0;
         for (const [index, enemy] of this.enemies.entries()) {
-            if (!inMelee(pos, enemy) || !enemy.reactions?.aoo || enemy.reactionUsed || !canAct(enemy)) continue;
+            // (B303: one kept for Reactive Strikes counts too.)
+            if (!inMelee(pos, enemy) || !enemy.reactions?.aoo || !canReact(enemy, "Reactive Strike") || !canAct(enemy)) continue;
             // provoked is a bit mask of enemy indices that already used their reaction in this plan.
             const bit = index < 30 ? 1 << index : 0;
             if (bit && node.provoked & bit) continue;

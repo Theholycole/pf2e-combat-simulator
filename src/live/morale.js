@@ -126,7 +126,8 @@ export function liveMoraleApply({ snapshot, memory = emptyMemory(), round = 1, r
         if (outcome.kind !== "holds" && outcome.kind !== "steady") c.moraleState.failed = (c.moraleState.failed ?? 0) + 1;
         // A berserk break keeps it fighting (and checking); every other way of giving up is final.
         if (outcome.kind === "giveUp" && outcome.how !== "berserk") c.moraleState.broken = true;
-        results.push({ id: row.id, name: c.name, degree, outcome, held });
+        // (B303: Bravery's lower frightened, for the card's line; the ability module lowers what PF2e applies.)
+        results.push({ id: row.id, name: c.name, degree, outcome, held, ...(c.lessFrightened ? { lessFrightened: c.lessFrightened } : {}) });
     }
     return { results, memory: remember(state, memory) };
 }

@@ -433,6 +433,20 @@ function readClassFeatures(actor, strikes) {
     return result;
 }
 
+// (B303: the skills a creature's abilities name for its own initiative — "rolls Deception or Stealth for initiative" — by the ability
+// module's reading.)
+function readInitiativeSkills(actor) {
+    const abilityModule = game.modules.get(ABILITY_MODULE_ID);
+    const read = abilityModule?.active ? abilityModule.api?.initiativeSkills : null;
+    if (!read) return [];
+    const skills = new Set();
+    for (const item of [...(actor.itemTypes?.action ?? []), ...(actor.itemTypes?.feat ?? [])]) {
+        if (!/initiative/i.test(item.system?.description?.value ?? "")) continue;
+        for (const skill of read(item)) skills.add(skill);
+    }
+    return [...skills];
+}
+
 function readGaps(actor, gaps, handled = new Set()) {
     for (const item of actor.itemTypes?.action ?? []) {
         const slug = item.slug ?? item.name.slugify?.() ?? item.name;
@@ -486,6 +500,8 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
     for (const { item, result: compiled } of prepared) {
         const plan = compiled?.plan;
         if (!plan) continue;
+        // (B303: more reactions a reaction grants with itself — the grindylow's Reactive Strike, a hardscale's Shield Block.)
+        if (!pc && plan.reactions && plan.builtin !== "passive-rules") addBuiltin(result.builtins, { builtin: "passive-rules", reactions: plan.reactions }, item.name);
         // "Frequency once per minute" and longer: once a fight.
         const frequency = item.system?.frequency;
         // (B230: once a fight in the ability's words, "can't be used again until 1 hour has passed" — plan.oncePerFight.)
@@ -1001,6 +1017,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         },
         perception: statValue(actor.perception),
         stealth: skills.stealth ?? null,
+        // (B303: the skills its abilities name for its own initiative, rolled when better than Perception.)
+        initiativeSkills: readInitiativeSkills(actor),
         skills,
         speed: actor.attributes?.speed?.total ?? actor.system?.attributes?.speed?.value ?? 25,
         reach: actorReach,

@@ -6,6 +6,7 @@ import { SURRENDERED, baseWill, canAct, hpFraction, isActive, statusPenalty } fr
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistribution, degreeOf, levelDC } from "./checks.js";
 import { engagedAllies, engagedEnemies, removeFromSpace } from "./space.js";
 import { helpPending } from "./escalations.js";
+import { frightenedAfter } from "./passives.js";
 
 export const GROUP_STATES = ["steady", "shaken", "wavering", "broken"];
 
@@ -537,8 +538,10 @@ function applyIndividualResult(state, c, degree, template, reason = null) {
     // M29: fear only cracks morale. A failure on a check fear set off raises frightened by 1
     // (not an enemy effect, so no new check); only a critical failure gives up.
     if (outcome.kind === "frighten") {
-        c.cond.frightened = Math.min(4, (c.cond.frightened ?? 0) + 1);
-        state.log?.push(`  ${c.name} is shaken: frightened ${c.cond.frightened}`);
+        // (B303, Bravery: the frightened it gains 1 lower — shaken, it may stay as it was.)
+        const before = c.cond.frightened ?? 0;
+        c.cond.frightened = frightenedAfter(c, Math.min(4, before + 1));
+        state.log?.push(c.cond.frightened > before ? `  ${c.name} is shaken: frightened ${c.cond.frightened}` : `  ${c.name} is shaken, but its Bravery holds: frightened ${before}`);
         return;
     }
     if (outcome.kind === "waver") {
@@ -550,7 +553,7 @@ function applyIndividualResult(state, c, degree, template, reason = null) {
 
 function waver(state, c, kind) {
     c.moraleState.wavering = true;
-    if (c.cond.frightened === 0) c.cond.frightened = 1;
+    c.cond.frightened = frightenedAfter(c, Math.max(c.cond.frightened ?? 0, 1));
     c.mustWithdraw = kind === "withdraw";
     c.dropAggression = kind === "defensive";
 }
@@ -565,7 +568,7 @@ export function breakCreature(state, c, kind) {
     const resolved = breakKind(c, kind);
     state.stats.moraleBreaks++;
     if (resolved === "berserk") {
-        c.cond.frightened = Math.max(c.cond.frightened, 1);
+        c.cond.frightened = frightenedAfter(c, Math.max(c.cond.frightened ?? 0, 1));
         c.berserkUntilRound = state.round + 1;
         c.moraleState.wavering = false;
         return;
@@ -580,7 +583,7 @@ export function breakCreature(state, c, kind) {
         return;
     }
     c.cond.fleeing = true;
-    if (resolved === "rout") c.cond.frightened = Math.max(c.cond.frightened, 2);
+    if (resolved === "rout") c.cond.frightened = frightenedAfter(c, Math.max(c.cond.frightened ?? 0, 2));
     state.log?.push(`  ${c.name} breaks and flees`);
 }
 

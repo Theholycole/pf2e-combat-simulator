@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createFightState } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { applyDamage, performStrike, provoke, stride } from "../src/engine/actions.js";
-import { addBuiltin, canReact, spareReaction } from "../src/engine/abilities.js";
+import { addBuiltin, canReact, spendReaction } from "../src/engine/abilities.js";
 import { applyCondition, castSpell } from "../src/engine/spells.js";
 import { saveModifier } from "../src/engine/combatant.js";
 import { adjustedSaveDegree, adjustedSaveOdds, flankableBy, offGuardFrom } from "../src/engine/passives.js";
@@ -14,7 +14,7 @@ const passive = (extra) => ({ builtin: "passive-rules", ...extra });
 const EVASION = { saves: ["reflex"], adjustment: { success: "one-degree-better" } };
 const BRAVERY = { saves: ["will"], adjustment: { success: "one-degree-better" }, predicate: ["item:trait:fear"] };
 
-test("B302 passive-rules plans as combatant fields; a reaction for one thing only played for Reactive Strikes and Shield Block alone", () => {
+test("B302 passive-rules plans as combatant fields; a reaction kept for the ones it names (B303)", () => {
     const spec = {};
     assert.ok(addBuiltin(spec, passive({ saveDegrees: [EVASION] }), "Evasion"));
     assert.ok(addBuiltin(spec, passive({ flanking: { offGuardable: "level" } }), "Deny Advantage"));
@@ -24,9 +24,11 @@ test("B302 passive-rules plans as combatant fields; a reaction for one thing onl
     assert.ok(addBuiltin(spec, passive({ mobility: { moves: ["stride"] } }), "Mobility"));
     assert.ok(addBuiltin(spec, passive({ reactions: { perRound: 3 } }), "Extra Reaction"));
     assert.ok(addBuiltin(spec, passive({ reactions: { extra: 1, only: "Shield Block" } }), "Quick Shield Block"));
-    assert.deepEqual([spec.saveDegrees.length, spec.flanking, spec.makesOffGuard[0].source, spec.hardness, spec.lessFrightened, spec.mobility, spec.reactionsPerRound, spec.spareReactions], [2, { offGuardable: "level" }, "Surprise Attack", 9, 1, { moves: ["stride"] }, 3, { "shield-block": 1 }]);
-    assert.equal(addBuiltin({}, passive({ reactions: { extra: 1, only: "Divert Strike" } }), "Extra Reaction"), false);
-    assert.deepEqual(addBuiltin((spec.other = {}), passive({ reactions: { extra: 2, only: "Attacks of Opportunity" } }), "Opportunist") && spec.other.spareReactions, { aoo: 2 });
+    assert.deepEqual([spec.saveDegrees.length, spec.flanking, spec.makesOffGuard[0].source, spec.hardness, spec.lessFrightened, spec.mobility, spec.reactionsPerRound, spec.spareReactions], [2, { offGuardable: "level" }, "Surprise Attack", 9, 1, { moves: ["stride"] }, 3, [{ names: ["shield block"], count: 1 }]]);
+    const other = {};
+    assert.ok(addBuiltin(other, passive({ reactions: { extra: 2, only: "Attacks of Opportunity" } }), "Opportunist"));
+    assert.ok(addBuiltin(other, passive({ reactions: { extra: 1, only: "Cruel Taunt or Spiteful Hex" } }), "Opportunist"));
+    assert.deepEqual(other.spareReactions, [{ names: ["reactive strike"], count: 2 }, { names: ["cruel taunt", "spiteful hex"], count: 1 }]);
 });
 
 test("B302 save degrees: Evasion's success a critical success, Bravery's only against fear, the odds moved with them; a Fireball that misses an evasive rogue", () => {
@@ -130,14 +132,20 @@ test("B302 Bravery's frightened one lower, Mobility's short Stride without React
     dragon.reactionUsed = false;
     assert.equal(canReact(dragon), true);
     // One more for Reactive Strikes only: two creatures leaving its Melee both provoke, the spare spent first.
-    const guard = { ...moderateCreature(5, "guard", "Guard"), reactions: { aoo: true, shieldBlock: false }, spareReactions: { aoo: 1 }, engagement: 1 };
+    const guard = { ...moderateCreature(5, "guard", "Guard"), reactions: { aoo: true, shieldBlock: false }, spareReactions: [{ names: ["reactive strike"], count: 1 }], engagement: 1 };
     const two = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...champion, engagement: 1 }, guard] }, {}, 1);
     const g = two.byId.get("guard");
     two.rng.d20 = () => 2;
     provoke(two, two.byId.get("fighter"), "move");
-    assert.equal(spareReaction(g, "aoo"), false);
-    assert.equal(canReact(g), true);
+    assert.equal(canReact(g), true, "its own reaction left");
+    assert.equal(g.reactionUsed, false, "the spare went first");
     provoke(two, two.byId.get(champion.id), "move");
     assert.equal(two.log.filter((line) => line.includes("Guard Attack of Opportunity")).length, 2);
     assert.equal(canReact(g), false);
+    // (B303: one kept for another reaction only — Shadow Evade — doesn't make a Reactive Strike, and is there for its own.)
+    const drake = createFightState({ combatants: [fighter, { ...moderateCreature(5, "drake", "Drake"), spareReactions: [{ names: ["shadow evade"], count: 1 }] }] }, {}, 1).byId.get("drake");
+    drake.reactionUsed = true;
+    assert.deepEqual([canReact(drake), canReact(drake, "Reactive Strike"), canReact(drake, "Shadow Evade"), canReact(drake, "*")], [false, false, true, true]);
+    spendReaction(drake, "Shadow Evade");
+    assert.equal(canReact(drake, "Shadow Evade"), false);
 });

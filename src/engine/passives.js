@@ -75,8 +75,8 @@ export function offGuardFrom(state, attacker, target, { melee = true, spell = fa
         const when = entry.when ?? {};
         if (when.round && state.round !== when.round) continue;
         if (when.notActed && target.round !== undefined) continue;
-        // (Only Stealth is rolled for initiative here, by an ambushing side.)
-        if (when.initiative && !(when.initiative.includes("stealth") && state.stealthInitiative?.has(attacker.id))) continue;
+        // (The skill it rolled for initiative: Stealth for an ambushing side, else the best its abilities name — B303.)
+        if (when.initiative && !when.initiative.includes(state.initiativeStat?.get(attacker.id)?.stat ?? (state.stealthInitiative?.has(attacker.id) ? "stealth" : "perception"))) continue;
         if (when.conditions && !when.conditions.every((any) => any.some((slug) => hasCondition(target, slug)))) continue;
         if (when.notTraits?.some((trait) => (target.traits ?? []).includes(trait))) continue;
         if (when.notActed && denyLevel(target) !== null && (attacker.level ?? 0) <= denyLevel(target)) continue;
@@ -94,6 +94,12 @@ export function constructArmorDamaged(state, c, critical) {
     c.ac += armor.ac;
     if (armor.losesHardness) c.hardness = 0;
     log(state, `  ${c.name}'s construct armor breaks: AC ${c.ac}${armor.losesHardness ? ", no Hardness" : ""}`);
+}
+
+// Bravery: "any time it gains the Frightened condition, reduce its value by 1" — the frightened it has after gaining frightened `value`
+// (B302; B303: the morale rules' frightened too, the user's call: "even if it changes how morale works on that creature").
+export function frightenedAfter(c, value) {
+    return Math.max(c.cond?.frightened ?? 0, (Number.isFinite(value) ? value : 1) - (c.lessFrightened ?? 0));
 }
 
 // Mobility: a Stride of half its Speed or less triggers no reactions — any but a long move (leaving the field, to the exit, an area, a gong).

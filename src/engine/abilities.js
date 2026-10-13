@@ -49,8 +49,8 @@ export function addBuiltin(spec, plan, name) {
         case "trap-strike":
             spec.trapStrikes = [...(spec.trapStrikes ?? []), { name, strike: plan.strike ?? null, at: plan.at ?? "trigger", times: plan.times ?? 1 }];
             return true;
-        // (B302: passives PF2e's own rules hold, and three from their words — passives.js; Extra Reaction's count, combatant.js. Played if any
-        // part is: a reaction for one thing only, only for Reactive Strikes or Shield Block.)
+        // (B302: passives PF2e's own rules hold, and three from their words — passives.js; Extra Reaction's count, combatant.js; a reaction kept
+        // for one thing, by its name — B303.)
         case "passive-rules": {
             let played = false;
             if (plan.saveDegrees?.length) {
@@ -82,9 +82,10 @@ export function addBuiltin(spec, plan, name) {
                 spec.reactionsPerRound = Math.max(spec.reactionsPerRound ?? 1, plan.reactions.perRound);
                 played = true;
             }
-            const spare = plan.reactions?.only ? (/^(?:Reactive Strikes?|Attacks? of Opportunity)$/i.test(plan.reactions.only) ? "aoo" : /^Shield Block$/i.test(plan.reactions.only) ? "shield-block" : null) : null;
-            if (spare) {
-                spec.spareReactions = { ...(spec.spareReactions ?? {}), [spare]: (spec.spareReactions?.[spare] ?? 0) + (plan.reactions.extra ?? 1) };
+            // (B303: kept for the reactions it names — "Cruel Mockery or Spiteful Curse": either.)
+            if (plan.reactions?.only) {
+                const names = String(plan.reactions.only).split(/,\s*(?:or\s+)?|\s+or\s+/).map(reactionWord).filter(Boolean);
+                spec.spareReactions = [...(spec.spareReactions ?? []), { names, count: plan.reactions.extra ?? 1 }];
                 played = true;
             }
             return played;
@@ -312,7 +313,7 @@ export function addBuiltin(spec, plan, name) {
             if (!(Number(plan.value) > 0)) return false;
             // (B178, Warning Ears: only its allies within 10 feet.)
             // (B260, All This Has Happened Before: its own roll.)
-            spec.initiativeWarning = { name, value: Number(plan.value), ...(plan.free ? { free: true } : {}), ...(Number(plan.within) > 0 ? { within: Number(plan.within) } : {}), ...(plan.self ? { self: true } : {}) };
+            spec.initiativeWarning = { name, value: Number(plan.value), ...(plan.skills?.length ? { skills: plan.skills.map((skill) => String(skill).toLowerCase()) } : {}), ...(plan.free ? { free: true } : {}), ...(Number(plan.within) > 0 ? { within: Number(plan.within) } : {}), ...(plan.self ? { self: true } : {}) };
             return true;
         // (B168, Drowning Drone: a skill check as a save is attempted, the higher of the two resolving the effect — its own, or its allies'
         // within its distance (of its trait); that kind of save, against those traits.)
@@ -730,9 +731,12 @@ export function levelDC(level) {
     return LEVEL_DCS[Math.max(0, Math.min(LEVEL_DCS.length - 1, (level ?? 0) + 1))];
 }
 
-// Whether a creature can use a reaction now (confused creatures can't).
-export function canReact(c) {
-    return !c.reactionUsed && ableToReact(c);
+// Whether a creature can use a reaction now (confused creatures can't). name: the reaction it's about to use — one kept for that reaction
+// only counts too (B303: Quick Shield Block's, Shadow Blend's Shadow Evade, a chimera's Reactive Strikes); "*": any reaction it has left.
+export function canReact(c, name = null) {
+    if (!ableToReact(c)) return false;
+    if (!c.reactionUsed) return true;
+    return Boolean(name) && spareIndex(c, name === "*" ? null : name) >= 0;
 }
 
 // Whether it could react, its reaction aside.
@@ -740,20 +744,29 @@ function ableToReact(c) {
     return c.status === "active" && !c.noReactions && !c.cond.confused && !c.cond.unconscious && !c.cond.paralyzed && !c.cond.asleep && c.acts !== false;
 }
 
-// (B302: one more reaction a round for one thing only — Quick Shield Block's, Opportunistic's Reactive Strikes: "aoo" | "shield-block" —
-// spent on that first.)
-export function spareReaction(c, kind) {
-    return (c.spareReactions?.[kind] ?? 0) > (c.spareUsed?.[kind] ?? 0) && ableToReact(c);
+// (B303: a reaction's name in one form — lower case, no plurals; Attack of Opportunity is Reactive Strike.)
+export function reactionWord(text) {
+    const word = String(text ?? "").toLowerCase().replace(/\s*\(.*\)$/, "").replace(/^(?:an?|the) /, "").replace(/s\b/g, "").trim();
+    return word === "attack of opportunity" ? "reactive strike" : word;
 }
 
-export function spendReaction(c, kind) {
-    if (spareReaction(c, kind)) (c.spareUsed ??= {})[kind] = (c.spareUsed[kind] ?? 0) + 1;
+// The reactions kept for one thing only ({ names, count } a round, B302–B303): the first with a use left for this one (any, with none), or -1.
+function spareIndex(c, name) {
+    const word = name ? reactionWord(name) : null;
+    return (c.spareReactions ?? []).findIndex((entry, index) => (c.spareUsed?.[index] ?? 0) < entry.count && (!word || entry.names.includes(word)));
+}
+
+// Spends a reaction on it (name: the reaction): one kept for it first, else its reaction.
+export function spendReaction(c, name = null) {
+    const index = name ? spareIndex(c, name) : -1;
+    if (index >= 0) (c.spareUsed ??= {})[index] = (c.spareUsed[index] ?? 0) + 1;
     else c.reactionUsed = true;
 }
 
-// (B302: what a free reaction gives back — an Extra Reaction's count, else the flag.)
-export const reactionMark = (c) => (c.reactionsPerRound > 1 ? c.reactionsSpent : c.reactionUsed);
+// (B302: what a free reaction gives back — an Extra Reaction's count or the flag, and the ones kept for one thing.)
+export const reactionMark = (c) => ({ spent: c.reactionsSpent, used: c.reactionUsed, spare: { ...(c.spareUsed ?? {}) } });
 export function restoreReaction(c, mark) {
-    if (c.reactionsPerRound > 1) c.reactionsSpent = mark;
-    else c.reactionUsed = mark;
+    if (c.reactionsPerRound > 1) c.reactionsSpent = mark.spent;
+    else c.reactionUsed = mark.used;
+    c.spareUsed = mark.spare;
 }

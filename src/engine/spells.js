@@ -17,8 +17,8 @@ import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effec
 import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
 import { startZone } from "./zones.js";
 import { allyStrike } from "./commander.js";
-import { canReact, levelDC, saveBonusAgainst, sizeRank, strikeNamed } from "./abilities.js";
-import { adjustedSaveDegree, adjustedSaveOdds, offGuardFrom } from "./passives.js";
+import { canReact, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
+import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
 import { adjustDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { moraleOdds } from "./morale.js";
@@ -1319,7 +1319,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     if (spell.plan?.source?.slug === "trip") for (const target of targets) {
         if (!["success", "criticalSuccess"].includes(result.degrees[target.id])) continue;
         const answer = (caster.reactionStrikes ?? []).find((entry) => entry.triggers.includes("tripped"));
-        if (answer && isActive(caster) && isActive(target) && canAct(caster) && canReact(caster) && !caster.cond.fleeing) reactionStrikeAt(state, caster, target, answer, "tripped");
+        if (answer && isActive(caster) && isActive(target) && canAct(caster) && canReact(caster, answer.name) && !caster.cond.fleeing) reactionStrikeAt(state, caster, target, answer, "tripped");
     }
     // A swashbuckler's bravado action: panache on a success, until the end of the turn on a failure.
     if (caster.panacheStyle && (caster.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
@@ -1557,7 +1557,7 @@ export function reactToDamage(state, target, source, types) {
 // the trolls' flat check against their persistent fire damage too.
 function damagedStrike(state, target, source, types) {
     const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("damaged-by") && typesMatch(entry.damageTypes, types));
-    if (!answer || !isActive(target) || !canAct(target) || !canReact(target) || target.cond.fleeing) return;
+    if (!answer || !isActive(target) || !canAct(target) || !canReact(target, answer.name) || target.cond.fleeing) return;
     // (B127, Furious Throw: a thrown rock at a random enemy within its first range increment — any foe on the field.)
     const foes = (answer.ranged ? state.list.filter((other) => other.side !== target.side && other.band !== "gone") : engagedEnemies(state, target)).filter(isActive);
     const victim = !answer.random && source && foes.includes(source) ? source : foes.length ? foes[state.rng.die(foes.length) - 1] : null;
@@ -1590,7 +1590,7 @@ export function targetedAnswers(state, caster, spell, targets) {
             if (isActive(caster)) useReaction(state, target, caster, sets);
             // Superconductor (B84): a spell or an attack (Trip, Grapple) aimed at it, a Strike back at the caster at any range.
             const answer = (isSpell || traits.includes("attack")) && (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("targeted"));
-            if (answer && isActive(caster) && isActive(target) && canReact(target) && canAct(target) && !target.cond.fleeing) reactionStrikeAt(state, target, caster, answer, "targeted");
+            if (answer && isActive(caster) && isActive(target) && canReact(target, answer.name) && canAct(target) && !target.cond.fleeing) reactionStrikeAt(state, target, caster, answer, "targeted");
         }
     } finally {
         state.answering = false;
@@ -1606,12 +1606,12 @@ function useReaction(state, c, other, matches) {
     if (!isActive(c) || !canAct(c)) return;
     for (const [index, spell] of (c.spells ?? []).entries()) {
         const trigger = spell.plan?.trigger;
-        if (!trigger?.reaction || !matches(trigger) || (!trigger.free && !canReact(c))) continue;
+        if (!trigger?.reaction || !matches(trigger) || (!trigger.free && !canReact(c, spell.name))) continue;
         if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
         const targets = answerTargets(state, c, spell.plan, other);
         // (A foe among them; or, B106, itself or its allies for an effect that helps them.)
         if (!targets.some((target) => target.side !== c.side) && !((allyEffect(spell.plan) || effectFor(spell.plan, "self")) && targets.length)) continue;
-        if (!trigger.free) c.reactionUsed = true;
+        if (!trigger.free) spendReaction(c, spell.name);
         state.stats.reactions++;
         log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name}`);
         castSpell(state, c, index, targets.map((target) => target.id));
@@ -1626,11 +1626,11 @@ export function downsAnswers(state, c, downed) {
     if (!canAct(c)) return;
     for (const [index, spell] of (c.spells ?? []).entries()) {
         const trigger = spell.plan?.trigger;
-        if (!trigger?.reaction || trigger.event !== "downs" || (!trigger.free && !canReact(c))) continue;
+        if (!trigger?.reaction || trigger.event !== "downs" || (!trigger.free && !canReact(c, spell.name))) continue;
         // (B140, Absorb Sin: Hit Points back on itself, when it's hurt.)
         if (spell.plan?.targeting?.target === "self") {
             if (c.hp.value >= c.hp.max) continue;
-            if (!trigger.free) c.reactionUsed = true;
+            if (!trigger.free) spendReaction(c, spell.name);
             state.stats.reactions++;
             log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name}`);
             castSpell(state, c, index, [c.id]);
@@ -1639,7 +1639,7 @@ export function downsAnswers(state, c, downed) {
         const foes = state.list.filter((other) => other.side !== c.side && other !== downed && isActive(other) && !c.immuneTargets?.get(spell)?.has(other.id));
         const target = foes.find((other) => sameMelee(c, other)) ?? foes.find((other) => other.band !== "far") ?? null;
         if (!target) return;
-        if (!trigger.free) c.reactionUsed = true;
+        if (!trigger.free) spendReaction(c, spell.name);
         state.stats.reactions++;
         log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name}`);
         castSpell(state, c, index, [target.id]);
@@ -1656,8 +1656,8 @@ export function conditionLostAnswers(state, creature, slug) {
         if (c === creature || !isActive(c) || !canAct(c)) continue;
         for (const [index, spell] of (c.spells ?? []).entries()) {
             const trigger = spell.plan?.trigger;
-            if (!trigger?.reaction || trigger.event !== "condition-lost" || trigger.condition !== slug || (!trigger.free && !canReact(c)) || !near(c, trigger.within)) continue;
-            if (!trigger.free) c.reactionUsed = true;
+            if (!trigger?.reaction || trigger.event !== "condition-lost" || trigger.condition !== slug || (!trigger.free && !canReact(c, spell.name)) || !near(c, trigger.within)) continue;
+            if (!trigger.free) spendReaction(c, spell.name);
             state.stats.reactions++;
             log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name} (${creature.name} is no longer ${slug})`);
             castSpell(state, c, index, [c.id]);
@@ -1670,8 +1670,8 @@ export function conditionLostAnswers(state, creature, slug) {
 // the Escape check is increased by 2"): its reaction, the DC higher for this check.
 function guardEscape(state, escaper, grabber) {
     const guard = grabber.escapeGuard;
-    if (!guard || escaper.grabbedBy !== grabber.id || !isActive(grabber) || !canAct(grabber) || !canReact(grabber) || grabber.cond.fleeing) return;
-    grabber.reactionUsed = true;
+    if (!guard || escaper.grabbedBy !== grabber.id || !isActive(grabber) || !canAct(grabber) || !canReact(grabber, guard.name) || grabber.cond.fleeing) return;
+    spendReaction(grabber, guard.name);
     state.stats.reactions++;
     grabber.escapeGuardActive = guard.value;
     log(state, `  ${grabber.name} uses ${guard.name}: the Escape DC is ${guard.value} higher`);
@@ -1680,7 +1680,7 @@ function guardEscape(state, escaper, grabber) {
 // A creature it holds trying to Escape (B136, Punish Flight's "A creature attempts to Escape from the hatred siktempora"): its Strike at
 // that creature first, whatever the Escape's result.
 function escapeAttempted(state, escaper, grabber) {
-    if (!isActive(grabber) || !isActive(escaper) || !canAct(grabber) || !canReact(grabber) || grabber.cond.fleeing) return;
+    if (!isActive(grabber) || !isActive(escaper) || !canAct(grabber) || !canReact(grabber, "*") || grabber.cond.fleeing) return;
     const answer = (grabber.reactionStrikes ?? []).find((entry) => entry.triggers.includes("escape"));
     if (answer) reactionStrikeAt(state, grabber, escaper, answer, "escape");
 }
@@ -1693,7 +1693,7 @@ export function escapeAnswers(state, escaper, grabber, degree) {
     // (B129, Snagging Spines: a creature it held getting free, a Strike at it.)
     if (["success", "criticalSuccess"].includes(degree)) {
         const answer = (grabber.reactionStrikes ?? []).find((entry) => entry.triggers.includes("escaped"));
-        if (answer && canReact(grabber) && !grabber.cond.fleeing) reactionStrikeAt(state, grabber, escaper, answer, "escape");
+        if (answer && canReact(grabber, answer.name) && !grabber.cond.fleeing) reactionStrikeAt(state, grabber, escaper, answer, "escape");
         // (B225, Serrated Teeth: its damage on the creature getting free.)
         else if (!grabber.cond.fleeing) useReaction(state, grabber, escaper, (trigger) => trigger.event === "escaped");
         return;
@@ -1701,7 +1701,7 @@ export function escapeAnswers(state, escaper, grabber, degree) {
     if (!["failure", "criticalFailure"].includes(degree)) return;
     const critical = degree === "criticalFailure";
     const answer = (grabber.reactionStrikes ?? []).find((entry) => entry.triggers.includes("escape-failed") || (critical && entry.triggers.includes("escape-critical-failure")));
-    if (answer && canReact(grabber) && !grabber.cond.fleeing) {
+    if (answer && canReact(grabber, answer.name) && !grabber.cond.fleeing) {
         reactionStrikeAt(state, grabber, escaper, answer, "escape");
         return;
     }
@@ -1717,11 +1717,11 @@ export function mishapAnswers(state, creature, target = null) {
         if (c.side === creature.side || !isActive(c) || !canAct(c)) continue;
         for (const [index, spell] of (c.spells ?? []).entries()) {
             const trigger = spell.plan?.trigger;
-            if (!trigger?.reaction || trigger.event !== "foe-mishap" || (!trigger.free && !canReact(c)) || c.immuneTargets?.get(spell)?.has(creature.id)) continue;
+            if (!trigger?.reaction || trigger.event !== "foe-mishap" || (!trigger.free && !canReact(c, spell.name)) || c.immuneTargets?.get(spell)?.has(creature.id)) continue;
             if (trigger.onSelf && target !== c) continue;
             const within = Math.min(trigger.within ?? Infinity, Number.parseInt(spell.plan?.targeting?.range, 10) || Infinity);
             if (within <= 10 ? !sameMelee(c, creature) : within < 60 && creature.band === "far" && c.band !== "far") continue;
-            if (!trigger.free) c.reactionUsed = true;
+            if (!trigger.free) spendReaction(c, spell.name);
             state.stats.reactions++;
             log(state, `  ${c.name} ${trigger.free ? "uses" : "reacts with"} ${spell.name} (${creature.name}'s mishap)`);
             castSpell(state, c, index, [creature.id]);
@@ -2040,11 +2040,14 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     // tenth of a hit's damage per attack (one for a single use, three otherwise).
                     if (change.scope.attacker === caster.id) entry.damage += chance * 0.1 * bestHit(caster, target, change.scope.attacks === "melee") * (change.scope.uses ?? 3);
                 } else if (change.op === "condition") {
-                    entry.worth += chance * conditionWorth(change.slug, change.value, change.duration);
+                    // (B303: Bravery's frightened 1 lower — none at all from frightened 1.)
+                    const brave = change.slug === "frightened" && target.lessFrightened ? (change.value ?? 1) - target.lessFrightened : null;
+                    if (brave !== null && brave <= 0) continue;
+                    entry.worth += chance * conditionWorth(change.slug, brave ?? change.value, change.duration);
                     // The party plays for morale (M23): fear may break the foe, which takes it out of the fight.
                     if (change.slug === "frightened" && caster.side === "party" && target.side !== caster.side && state.setup.situational?.playsForMorale) {
                         // Only a rise in frightened sets off a check (and only to the trigger's minimum value: M25).
-                        const after = Math.max(target.cond.frightened ?? 0, change.value ?? 1);
+                        const after = frightenedAfter(target, change.value ?? 1);
                         const odds = after > (target.cond.frightened ?? 0) ? moraleOdds(state, target, { trigger: "frightenedByEnemy", frightened: after }) : { breaks: 0, wavers: 0 };
                         entry.breaks = (entry.breaks ?? 0) + chance * (odds.breaks + 0.3 * odds.wavers);
                     }

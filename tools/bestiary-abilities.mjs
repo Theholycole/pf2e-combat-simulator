@@ -15,6 +15,7 @@
 
 const { readDocuments } = await import(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs", import.meta.url).href);
 const { compileBasicActions, compileMonsterAbility } = await import(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/src/compiler/index.js", import.meta.url).href);
+const { initiativeSkills } = await import(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/src/compiler/initiative.js", import.meta.url).href);
 const { simulate } = await import("../src/engine/fight.js");
 const { zoneSpell } = await import("../src/engine/zones.js");
 const { martialParty } = await import("../src/engine/benchmarks.js");
@@ -100,6 +101,8 @@ function combatant(npc) {
     for (const item of npc.items.filter((entry) => entry.type === "action")) {
         const plan = compileMonsterAbility(item, { basicActions, actor: npc });
         if (!plan) continue;
+        // (B303: more reactions a reaction grants with itself.)
+        if (plan.reactions && plan.builtin !== "passive-rules") addBuiltin(builtins, { builtin: "passive-rules", reactions: plan.reactions }, item.name);
         // Used in one of several ways (two breath weapons): each way, sharing the ability's recharge.
         // (B255: a random effect table — one ability, its die picking the way when used; a way it can't play does nothing.)
         if (plan.builtin === "modes" && plan.random) {
@@ -169,6 +172,8 @@ function combatant(npc) {
         saves: { fortitude: system.saves.fortitude.value, reflex: system.saves.reflex.value, will: system.saves.will.value },
         perception: system.perception?.mod ?? 0,
         skills,
+        // (B303: the skills its abilities name for its own initiative.)
+        initiativeSkills: [...new Set(npc.items.filter((entry) => ["action", "feat"].includes(entry.type)).flatMap((entry) => initiativeSkills(entry)))],
         speed: system.attributes.speed?.value ?? 25,
         reach: Math.max(5, ...strikes.filter((strike) => strike.melee).map((strike) => strike.reach)),
         strikes,

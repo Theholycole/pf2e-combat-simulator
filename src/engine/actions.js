@@ -9,7 +9,7 @@ import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBo
 import { adjustDamage, concussiveType, expectedStrikeDamage, adjustInstance, rollStrikeDamage } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { isShaken } from "./morale.js";
-import { canReact, chargeStrike, extraApplies, reactionMark, regenerating, restoreReaction, spareReaction, spendReaction, strikeNamed } from "./abilities.js";
+import { canReact, chargeStrike, extraApplies, reactionMark, regenerating, restoreReaction, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { applyCondition, castPlan, castSpell, deathThroes, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
@@ -200,10 +200,10 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     const mark = attacker.huntPrey;
     if (mark?.edge === "deadly" && attacker.prey === target?.id && !strike.deadly && (!mark.strike || String(strike.name ?? "").toLowerCase().startsWith(mark.strike))) strike = { ...strike, deadly: { dice: 1, die: mark.die } };
     // (B191, Hop-Dodge: a melee Strike at it sent at another of the attacker's side beside both, as it's made.)
-    if (!reaction && strike.melee && target.redirectAttack?.when === "targeted" && isActive(target) && canReact(target) && canAct(target)) {
+    if (!reaction && strike.melee && target.redirectAttack?.when === "targeted" && isActive(target) && canReact(target, target.redirectAttack.name) && canAct(target)) {
         const other = state.list.find((c) => c !== attacker && c !== target && c.side === attacker.side && isActive(c) && sameMelee(c, target) && sameMelee(c, attacker));
         if (other) {
-            target.reactionUsed = true;
+            spendReaction(target, target.redirectAttack.name);
             state.stats.reactions++;
             log(state, `  ${target.name} uses ${target.redirectAttack.name}: the Strike goes to ${other.name}`);
             return performStrike(state, attacker, other, strike, { reaction, trigger, fortune });
@@ -219,7 +219,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // Superconductor (B84): a creature targeted by an attack Strikes back at the attacker, at any range, before the attack.
     if (!reaction && target.side !== attacker.side && isActive(target)) {
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("targeted"));
-        if (answer && canReact(target) && canAct(target) && !target.cond.fleeing) {
+        if (answer && canReact(target, answer.name) && canAct(target) && !target.cond.fleeing) {
             const back = reactionStrikeAt(state, target, attacker, answer, "targeted");
             if (!isActive(attacker) || !canAct(attacker) || !isActive(target)) return null;
             // (B122, Shoot First: a critical hit disrupts the Strike.)
@@ -243,7 +243,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
         // Counterattack (B94): a miss from beside it because it's concealed, a Strike back.
         const answer = !reaction && (target.cond?.concealed || target.cond?.hidden) && (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("concealed-miss"));
-        if (answer && isActive(target) && canReact(target) && canAct(target) && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, "concealed-miss");
+        if (answer && isActive(target) && canReact(target, answer.name) && canAct(target) && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, "concealed-miss");
         return { degree: FAILURE, damage: 0, trigger };
     }
     // Reactions happen outside the attacker's turn, so this turn's history doesn't apply.
@@ -273,13 +273,13 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         target.pendingAcPenalty = 0;
     }
     let misfortune = false;
-    if (target.misfortuneReaction && !target.misfortuneReaction.spell && canReact(target)) {
+    if (target.misfortuneReaction && !target.misfortuneReaction.spell && canReact(target, target.misfortuneReaction.name)) {
         misfortune = true;
-        target.reactionUsed = true;
+        spendReaction(target, target.misfortuneReaction.name);
         log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
-    } else if (target.acReaction?.when === "targeted" && canReact(target) && !target.reactions?.aoo && dodges(target.acReaction, strike, state, target)) {
+    } else if (target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && !target.reactions?.aoo && dodges(target.acReaction, strike, state, target)) {
         defence = target.acReaction.value;
-        target.reactionUsed = true;
+        spendReaction(target, target.acReaction.name);
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
     }
     // (A fortune Strike, B90: twice, the better; with misfortune too, neither.)
@@ -310,13 +310,13 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (degree >= SUCCESS && !reaction) {
         for (const guard of state.list) {
             const entry = guard.allyAcReaction;
-            if (!entry || (guard === target && !entry.self) || guard.side !== target.side || !isActive(guard) || !canReact(guard) || !canAct(guard) || (entry.ranged && strike.melee)) continue;
+            if (!entry || (guard === target && !entry.self) || guard.side !== target.side || !isActive(guard) || !canReact(guard, entry.name) || !canAct(guard) || (entry.ranged && strike.melee)) continue;
             if (guard !== target && (entry.within <= 10 ? !sameMelee(guard, target) : entry.within < 60 && target.band === "far" && guard.band !== "far")) continue;
             const lower = degreeOf(natural + modifier + bonus, ac + defence + entry.value, natural);
             if (lower >= degree) continue;
             degree = lower;
             defence += entry.value;
-            guard.reactionUsed = true;
+            spendReaction(guard, entry.name);
             state.stats.reactions++;
             log(state, `  ${guard.name} uses ${entry.name}: ${target.name} +${entry.value} AC`);
             if (entry.strike && sameMelee(guard, attacker) && isActive(attacker)) {
@@ -327,28 +327,28 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         }
     }
     // Retract Body: +AC once the attack hits, when that turns it aside.
-    if (degree >= SUCCESS && target.acReaction?.when === "hit" && canReact(target) && dodges(target.acReaction, strike, state, target)) {
+    if (degree >= SUCCESS && target.acReaction?.when === "hit" && canReact(target, target.acReaction.name) && dodges(target.acReaction, strike, state, target)) {
         const lower = degreeOf(natural + modifier, ac + target.acReaction.value, natural);
         if (lower < degree) {
             defence = target.acReaction.value;
             degree = lower;
-            target.reactionUsed = true;
+            spendReaction(target, target.acReaction.name);
             log(state, `  ${target.name} uses ${target.acReaction.name}`);
         }
     }
     // Shadow Evade and the like: when the attack hits, its reaction makes the attacker roll a flat check; a failure misses.
     const conceal = target.concealReaction;
-    if (degree >= SUCCESS && conceal && (!conceal.ranged || !strike.melee) && canReact(target)) {
-        target.reactionUsed = true;
+    if (degree >= SUCCESS && conceal && (!conceal.ranged || !strike.melee) && canReact(target, conceal.name)) {
+        spendReaction(target, conceal.name);
         const flat = state.rng.d20();
         log(state, `  ${target.name} uses ${conceal.name} (${attacker.name}'s flat ${flat} vs DC ${conceal.dc})`);
         if (flat < conceal.dc) degree = FAILURE;
     }
     // Resilient Form and the like: a critical hit on it becomes a normal hit on a flat check.
     const downgrade = target.critDowngrade;
-    if (degree === CRITICAL_SUCCESS && downgrade && (Number.isFinite(downgrade.uses) ? downgrade.uses > 0 : canReact(target))) {
+    if (degree === CRITICAL_SUCCESS && downgrade && (Number.isFinite(downgrade.uses) ? downgrade.uses > 0 : canReact(target, downgrade.name))) {
         if (Number.isFinite(downgrade.uses)) downgrade.uses--;
-        else target.reactionUsed = true;
+        else spendReaction(target, downgrade.name);
         // (No check, B59: Collapse, Twist Fate; Collapse leaves it immobilized and off-guard until it re-forms.)
         // (B86, Unbidden Thoughts: the attacker's choice, a normal hit or the critical hit and Frightened 2. It keeps the critical hit
         // unless a normal hit's damage is expected to finish the target anyway.)
@@ -404,10 +404,10 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         // (B171, Sidestep, Glide Aside: the attack sent at another of the attacker's side beside it, the attacker rerolling against that one at
         // the same multiple attack penalty.)
         // (B286, Bouncy: when "critical", only a critically failed Strike.)
-        if (!reaction && target.redirectAttack && target.redirectAttack.when !== "targeted" && (target.redirectAttack.when !== "critical" || degree === CRITICAL_FAILURE) && isActive(attacker) && isActive(target) && canReact(target) && canAct(target)) {
+        if (!reaction && target.redirectAttack && target.redirectAttack.when !== "targeted" && (target.redirectAttack.when !== "critical" || degree === CRITICAL_FAILURE) && isActive(attacker) && isActive(target) && canReact(target, target.redirectAttack.name) && canAct(target)) {
             const other = state.list.find((c) => c !== attacker && c !== target && c.side === attacker.side && isActive(c) && sameMelee(c, target));
             if (other) {
-                target.reactionUsed = true;
+                spendReaction(target, target.redirectAttack.name);
                 log(state, `  ${target.name} uses ${target.redirectAttack.name}: the attack goes to ${other.name}`);
                 attacker.attacksThisTurn--;
                 performStrike(state, attacker, other, strike);
@@ -415,10 +415,10 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
             }
         }
         // Opportune Riposte: a Strike back at a foe in reach that critically fails against it.
-        if (degree === CRITICAL_FAILURE && !reaction && target.opportuneRiposte && canReact(target) && sameMelee(target, attacker)) {
+        if (degree === CRITICAL_FAILURE && !reaction && target.opportuneRiposte && canReact(target, "Opportune Riposte") && sameMelee(target, attacker)) {
             const riposte = bestMeleeStrike(target, attacker);
             if (riposte) {
-                target.reactionUsed = true;
+                spendReaction(target, "Opportune Riposte");
                 log(state, `  ${target.name} uses Opportune Riposte`);
                 performStrike(state, target, attacker, riposte, { reaction: true });
             }
@@ -427,7 +427,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         // B90: one that fails or critically fails.
         if (!reaction && isActive(attacker) && isActive(target)) {
             const answer = (target.reactionStrikes ?? []).find((entry) => (entry.triggers.includes("critical-miss") && degree === CRITICAL_FAILURE) || entry.triggers.includes("missed"));
-            if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, degree === CRITICAL_FAILURE ? "critical-miss" : "missed");
+            if (answer && canReact(target, answer.name) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, degree === CRITICAL_FAILURE ? "critical-miss" : "missed");
         }
         // (B116, Skitter: a miss on it, answered by moving off.)
         if (!reaction && isActive(attacker) && isActive(target)) withdrawAnswer(state, target, attacker, { melee: !!strike.melee });
@@ -479,8 +479,8 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (strike.concussive) for (const instance of instances) instance.type = concussiveType(target, instance.type, instance.amount, instance.precision);
     // Wished Away, Withhold Death (B60): its reaction to the critical hit, resistance to all damage against this attack.
     const before = target.resistances;
-    if (critical && target.critResistance && canReact(target)) {
-        target.reactionUsed = true;
+    if (critical && target.critResistance && canReact(target, target.critResistance.name)) {
+        spendReaction(target, target.critResistance.name);
         target.resistances = [...(before ?? []), { type: "all-damage", value: target.critResistance.value, exceptions: [] }];
         log(state, `  ${target.name} uses ${target.critResistance.name}: resistance ${target.critResistance.value} against the attack`);
     }
@@ -523,7 +523,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     }
     // (B236, Swift Claw: its second hit this turn with the Strike it names on the same creature — its other Strike at it, outside its multiple attack
     // penalty.)
-    if (degree >= SUCCESS && !reaction && isActive(attacker) && isActive(target) && canReact(attacker) && canAct(attacker)) {
+    if (degree >= SUCCESS && !reaction && isActive(attacker) && isActive(target) && canReact(attacker, "*") && canAct(attacker)) {
         const twice = (attacker.turnAttacks ?? []).filter((entry) => entry.targetId === target.id && entry.hit && entry.strike === strike.name).length === 2;
         const answer = twice ? (attacker.reactionStrikes ?? []).find((entry) => entry.triggers.includes("two-hits") && String(strike.name ?? "").toLowerCase().includes(entry.after ?? "")) : null;
         if (answer) {
@@ -541,7 +541,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         for (const ally of state.list) {
             if (ally === attacker || ally.side !== attacker.side || !isActive(ally) || !isActive(target)) continue;
             const answer = (ally.reactionStrikes ?? []).find((entry) => entry.triggers.includes("ally-hit") && (!entry.kin || (!kinAnswered && kind(ally) === kind(attacker))) && (!entry.allyStrike || String(strike.name ?? "").toLowerCase().includes(entry.allyStrike)));
-            if (answer && canReact(ally) && canAct(ally) && !ally.cond.fleeing && sameMelee(ally, target)) {
+            if (answer && canReact(ally, answer.name) && canAct(ally) && !ally.cond.fleeing && sameMelee(ally, target)) {
                 reactionStrikeAt(state, ally, target, answer, "ally-hit");
                 if (answer.kin) kinAnswered = true;
             }
@@ -551,7 +551,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     if (degree >= SUCCESS && !reaction && strike.melee && isActive(attacker) && isActive(target)) {
         // (B129, Reactive Splash: only an attack of the damage types it names.)
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("hit") && strikeOfTypes(strike, entry.damageTypes));
-        if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, "hit");
+        if (answer && canReact(target, answer.name) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, "hit");
     }
     // (B286, Conductive Shell: while its effect lasts, a creature that hits it in melee takes the damage it names.)
     if (degree >= SUCCESS && strike.melee && isActive(attacker)) {
@@ -564,13 +564,13 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
     // Violent Retort (B70): a critical hit on it, answered with a Strike.
     if (degree === CRITICAL_SUCCESS && !reaction && isActive(attacker) && isActive(target)) {
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("critical-hit"));
-        if (answer && canReact(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer);
+        if (answer && canReact(target, answer.name) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer);
     }
     // Wing Thrash (B81): an adjacent enemy that damages it with a Strike, a Strike back, and one at another adjacent foe.
     if (dealt > 0 && !reaction && strike.melee && isActive(attacker) && isActive(target)) {
         // (B129, Reactive Gnaw: only damage of the type it names.)
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("damaged-adjacent") && strikeOfTypes(strike, entry.damageTypes));
-        if (answer && canReact(target) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) {
+        if (answer && canReact(target, answer.name) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) {
             reactionStrikeAt(state, target, attacker, answer);
             const other = answer.second ? engagedEnemies(state, target).find((foe) => foe !== attacker) : null;
             const index = other ? strikeNamed(target, answer.strike) : -1;
@@ -582,14 +582,14 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
         for (const ally of state.list) {
             if (ally === target || ally.side !== target.side || !isActive(ally) || !isActive(attacker)) continue;
             const answer = (ally.reactionStrikes ?? []).find((entry) => entry.triggers.includes("ally-damaged"));
-            if (!answer || !canReact(ally) || !canAct(ally) || ally.cond.fleeing || !(sameMelee(ally, attacker) || (answer.step && sameMelee(ally, target) && canMove(ally)))) continue;
+            if (!answer || !canReact(ally, answer.name) || !canAct(ally) || ally.cond.fleeing || !(sameMelee(ally, attacker) || (answer.step && sameMelee(ally, target) && canMove(ally)))) continue;
             reactionStrikeAt(state, ally, attacker, answer, "ally-damaged");
         }
     }
     // (B121, Vengeful Throw: damage from a creature away from its Melee, a ranged Strike back.)
     if (dealt > 0 && !reaction && isActive(attacker) && isActive(target) && !sameMelee(target, attacker)) {
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("damaged-far"));
-        if (answer && canReact(target) && canAct(target) && !target.cond.fleeing) reactionStrikeAt(state, target, attacker, answer, "damaged-far");
+        if (answer && canReact(target, answer.name) && canAct(target) && !target.cond.fleeing) reactionStrikeAt(state, target, attacker, answer, "damaged-far");
     }
     // (B118, Hellish Revenge, Spitting Rage: a critical hit on it, its breath recharged and used at once.)
     if (critical && !reaction && target.critRecharge && isActive(target)) critRechargeAnswer(state, target);
@@ -603,7 +603,7 @@ export function performStrike(state, attacker, target, strike, { reaction = fals
 // that "doesn't trigger reactions", provokes nothing; another Stride or a flight is a move out of the Melee.
 export function withdrawAnswer(state, c, from, { melee = true, hit = false, dealt = 0, approach = false } = {}) {
     const rule = c.withdraw;
-    if (!rule || !canReact(c) || !canAct(c) || !canMove(c) || !sameMelee(c, from)) return false;
+    if (!rule || !canReact(c, rule.name) || !canAct(c) || !canMove(c) || !sameMelee(c, from)) return false;
     // (B135, Crumble: not again until it recharges.)
     if (rule.recharge && (c.withdrawUntil ?? -Infinity) > state.round) return false;
     const fits = approach
@@ -613,7 +613,7 @@ export function withdrawAnswer(state, c, from, { melee = true, hit = false, deal
     const ranged = (c.strikes ?? []).some((strike) => !strike.melee && strikeUsable(c, strike));
     const foeActing = state.acting === from.id && (from.actionsLeft ?? 0) > 0;
     if ((!foeActing && !ranged && !c.cond.fleeing) || state.list.some((other) => other.grabbedBy === c.id)) return false;
-    c.reactionUsed = true;
+    spendReaction(c, rule.name);
     if (rule.recharge) c.withdrawUntil = state.round + rollCount(state, rule.recharge);
     log(state, `  ${c.name} uses ${rule.name}`);
     if (rule.safe) {
@@ -681,7 +681,7 @@ export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     if (reaction.skill) {
         const basic = (enemy.spells ?? []).find((spell) => spell.kind === "basic" && (spell.plan?.source?.slug === reaction.skill || String(spell.name ?? "").toLowerCase() === reaction.skill));
         if (!basic?.plan?.resolution?.check || !isActive(mover)) return null;
-        enemy.reactionUsed = true;
+        spendReaction(enemy, reaction.name);
         state.stats.reactions++;
         log(state, `  ${enemy.name} uses ${reaction.name}`);
         const shift = (reaction.bonus ?? 0) - (reaction.penalty ?? 0);
@@ -698,7 +698,7 @@ export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
     const ranged = reaction.ranged ? (enemy.strikes ?? []).findIndex((strike) => !strike.melee && String(strike.name ?? "").toLowerCase().includes(String(reaction.strike ?? ""))) : -1;
     const index = reaction.ranged ? ranged : enemyStrikeIndex(enemy, mover, reaction.strike);
     if (index < 0 || !strikeUsable(enemy, enemy.strikes[index])) return null;
-    enemy.reactionUsed = true;
+    spendReaction(enemy, reaction.name);
     state.stats.reactions++;
     log(state, `  ${enemy.name} uses ${reaction.name}`);
     // (B121, Avenging Claws: a Step to the creature first.)
@@ -732,7 +732,7 @@ export function reactionStrikeAt(state, enemy, mover, reaction, kind = null) {
 export function turnEndAnswers(state, c) {
     for (const enemy of engagedEnemies(state, c)) {
         if (!isActive(c)) break;
-        if (!canReact(enemy) || !canAct(enemy) || enemy.cond.fleeing) continue;
+        if (!canReact(enemy, "*") || !canAct(enemy) || enemy.cond.fleeing) continue;
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("turn-end-adjacent"));
         if (reaction) reactionStrikeAt(state, enemy, c, reaction, "turn-end");
     }
@@ -744,7 +744,7 @@ export function turnStartAnswers(state, c) {
     for (const enemy of engagedEnemies(state, c)) {
         if (!isActive(c)) break;
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("turn-start-adjacent"));
-        if (!reaction || !(reaction.free || canReact(enemy)) || !canAct(enemy) || enemy.cond.fleeing) continue;
+        if (!reaction || !(reaction.free || canReact(enemy, reaction.name)) || !canAct(enemy) || enemy.cond.fleeing) continue;
         const used = reactionMark(enemy);
         reactionStrikeAt(state, enemy, c, reaction, "turn-start");
         if (reaction.free) restoreReaction(enemy, used);
@@ -756,7 +756,7 @@ export function turnStartAnswers(state, c) {
 function approachAnswers(state, mover) {
     for (const enemy of engagedEnemies(state, mover)) {
         if (!canAct(mover) || !isActive(mover)) break;
-        if (!canReact(enemy) || enemy.cond.fleeing) continue;
+        if (!canReact(enemy, "*") || enemy.cond.fleeing) continue;
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("approach"));
         if (reaction) reactionStrikeAt(state, enemy, mover, reaction, "approach");
     }
@@ -765,7 +765,7 @@ function approachAnswers(state, mover) {
 // A Strike in its reach (Tail Lash) or an attack on its ally (Avenging Bite), B70: the reactions that answer it.
 // (B227: a ranged attack at it from outside its Melee, a Demoralize back from 30 feet — the bands, as a trigger's.)
 function rangedProvokes(state, mover, target, strike) {
-    if (!strike || strike.melee || target === mover || target.side === mover.side || sameMelee(target, mover) || !isActive(target) || !canReact(target) || target.cond.fleeing) return;
+    if (!strike || strike.melee || target === mover || target.side === mover.side || sameMelee(target, mover) || !isActive(target) || !canReact(target, "*") || target.cond.fleeing) return;
     if (mover.band === "far" && target.band !== "far") return;
     const reaction = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("attacked") && entry.rangedAttack);
     if (reaction) reactionStrikeAt(state, target, mover, reaction, "strike");
@@ -775,12 +775,12 @@ function strikeProvokes(state, mover, target, strike = null) {
     rangedProvokes(state, mover, target, strike);
     for (const enemy of engagedEnemies(state, mover)) {
         if (!canAct(mover) || !isActive(mover)) break;
-        if (!canReact(enemy) || enemy.cond.fleeing) continue;
+        if (!canReact(enemy, "*") || enemy.cond.fleeing) continue;
         // (Cutting Rebuke, Bite Back, B84: a Strike at it.)
         // (B122: Knowing Glance's "targeted by a melee Strike": melee ones only.)
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("strike") || (entry.triggers.includes("ally-attacked") && target !== enemy && target.side === enemy.side) || (entry.triggers.includes("attacked") && target === enemy && (!entry.melee || !strike || strike.melee) && (!entry.rangedAttack || (strike && !strike.melee))));
         // (B228, Endangering Lunge: its AC lower against the Strike that set it off.)
-        if (reaction?.selfAcPenalty && enemy === target && canReact(enemy)) target.pendingAcPenalty = reaction.selfAcPenalty;
+        if (reaction?.selfAcPenalty && enemy === target && canReact(enemy, reaction.name)) target.pendingAcPenalty = reaction.selfAcPenalty;
         const result = reaction ? reactionStrikeAt(state, enemy, mover, reaction, "strike") : null;
         // (B123, Wrappings Lash: a critical hit disrupts the Strike.)
         if (reaction?.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) {
@@ -797,7 +797,7 @@ export function castAnswers(state, caster) {
     let disrupted = false;
     for (const enemy of engagedEnemies(state, caster)) {
         if (!canAct(caster) || !isActive(caster)) break;
-        if (!canReact(enemy) || !canAct(enemy) || enemy.cond.fleeing) continue;
+        if (!canReact(enemy, "*") || !canAct(enemy) || enemy.cond.fleeing) continue;
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("cast"));
         const result = reaction ? reactionStrikeAt(state, enemy, caster, reaction, "cast") : null;
         if (reaction?.disrupts && result?.degree >= (reaction.disrupts === "critical" ? CRITICAL_SUCCESS : SUCCESS)) disrupted = true;
@@ -809,8 +809,8 @@ export function castAnswers(state, caster) {
 function triggeredSelfEffect(state, c, matches) {
     for (const entry of c.selfEffects ?? []) {
         if (!entry.trigger || !matches(entry.trigger) || c.buffsUsed?.has(entry.name)) continue;
-        if (entry.trigger.reaction && !canReact(c)) continue;
-        if (entry.trigger.reaction) c.reactionUsed = true;
+        if (entry.trigger.reaction && !canReact(c, entry.name)) continue;
+        if (entry.trigger.reaction) spendReaction(c, entry.name);
         c.buffsUsed = new Set([...(c.buffsUsed ?? []), entry.name]);
         applyEffect(state, c, entry.model, c, { key: `self:${entry.name}` });
         log(state, `  ${c.name} uses ${entry.name}`);
@@ -845,7 +845,7 @@ function splashAround(state, attacker, target, splash, { includeTarget }) {
 // again until the ability's own recharge has run out.
 function critRechargeAnswer(state, c) {
     const rule = c.critRecharge;
-    if (!canReact(c) || !canAct(c) || (rule.untilNatural && (c.round ?? 0) < (c.critRechargeBlockedUntil ?? -Infinity))) return;
+    if (!canReact(c, rule.name) || !canAct(c) || (rule.untilNatural && (c.round ?? 0) < (c.critRechargeBlockedUntil ?? -Infinity))) return;
     // (The ability, or its ways: "Breathe Energy (Acid Maw)", their rechargeGroup "Breathe Energy".)
     const named = rule.recharges.toLowerCase();
     const indices = (c.spells ?? []).map((spell, index) => (String(spell.rechargeGroup ?? spell.name ?? spell.plan?.source?.name ?? "").toLowerCase() === named ? index : -1)).filter((index) => index >= 0);
@@ -856,7 +856,7 @@ function critRechargeAnswer(state, c) {
     if (recharging) c.rechargeUntil.delete(key);
     const pick = state.pickCastNow?.(c, indices) ?? null;
     if (!recharging && !pick) return;
-    c.reactionUsed = true;
+    spendReaction(c, rule.name);
     state.stats.reactions++;
     log(state, `  ${c.name} uses ${rule.name}${recharging ? `: ${rule.recharges} recharges` : ""}`);
     if (pick) castSpell(state, c, pick.spellIndex, pick.targetIds, pick.actions);
@@ -878,7 +878,7 @@ function rechargeOnCritical(state, c) {
 function shouldShieldBlock(defender, total) {
     const shield = defender.shield;
     if (!shield || shield.broken || !shield.raised) return false;
-    if (!defender.reactions?.shieldBlock || !(canReact(defender) || spareReaction(defender, "shield-block"))) return false;
+    if (!defender.reactions?.shieldBlock || !canReact(defender, "Shield Block")) return false;
     // Not worth the reaction for a hit the shield would mostly ignore anyway.
     if (total < Math.max(1, shield.hardness)) return false;
     const taken = Math.max(0, total - shield.hardness);
@@ -909,12 +909,12 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // Intercept Attack: a guardian next to the ally takes physical damage meant for it,
     // when the ally would drop or is the more hurt of the two.
     if (!intercepted && source && source.side !== target.side && instances.some((instance) => ["bludgeoning", "piercing", "slashing"].includes(instance.type))) {
-        const guardian = state.list.find((c) => c.interceptAttack && c !== target && c.side === target.side && canReact(c) && sameMelee(c, target));
+        const guardian = state.list.find((c) => c.interceptAttack && c !== target && c.side === target.side && canReact(c, c.interceptAttack.name) && sameMelee(c, target));
         if (guardian) {
             const total = adjustDamage(target, instances).total;
             const fraction = (c) => Math.max(0, c.hp.value) / Math.max(1, c.hp.max);
             if (total >= target.hp.value + (target.hp.temp ?? 0) || fraction(guardian) > fraction(target) + 0.2) {
-                guardian.reactionUsed = true;
+                spendReaction(guardian, guardian.interceptAttack.name);
                 state.stats.reactions++;
                 log(state, `  ${guardian.name} uses Intercept Attack for ${target.name}`);
                 return applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
@@ -923,9 +923,9 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     // (B124: Human Shield, Mortal Shield, Interposition — a monster's guard takes its ward's damage, or half of it.)
     if (!intercepted && source && source.side !== target.side) {
-        const guard = state.list.find((c) => c.intercept && c !== target && c.side === target.side && isActive(c) && canReact(c) && canAct(c) && !c.cond.fleeing && guards(state, c, target, { physical, critical }));
+        const guard = state.list.find((c) => c.intercept && c !== target && c.side === target.side && isActive(c) && canReact(c, c.intercept.name) && canAct(c) && !c.cond.fleeing && guards(state, c, target, { physical, critical }));
         if (guard) {
-            guard.reactionUsed = true;
+            spendReaction(guard, guard.intercept.name);
             state.stats.reactions++;
             log(state, `  ${guard.name} uses ${guard.intercept.name} for ${target.name}`);
             if (guard.intercept.share >= 1) return applyDamage(state, guard, instances, { source, critical, nonlethal, physical, intercepted: true });
@@ -946,7 +946,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
     let retribution = null;
     if (champion) {
         const reaction = champion.championReaction;
-        champion.reactionUsed = true;
+        spendReaction(champion, reaction.name);
         state.stats.reactions++;
         log(state, `  ${champion.name} uses ${reaction.name}`);
         if (reaction.slug === "glimpse-of-redemption" && adjusted.total <= reaction.resistance) {
@@ -985,7 +985,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
         total -= blocked;
         shield.hp -= total;
         if (shield.hp <= shield.bt) shield.broken = true;
-        spendReaction(target, "shield-block");
+        spendReaction(target, "Shield Block");
         log(state, `  ${target.name} Shield Blocks (${blocked} prevented${shield.broken ? ", shield broken" : ""})`);
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance);
@@ -1025,7 +1025,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
 const PHYSICAL_TYPES = new Set(["bludgeoning", "piercing", "slashing"]);
 function resistReaction(state, target, instances, { source, physical, spell = null }) {
     const resist = target.resistReaction;
-    if (!resist || !isActive(target) || !canReact(target) || !((target.resistUses ?? Infinity) > 0)) return null;
+    if (!resist || !isActive(target) || !canReact(target, resist.name) || !((target.resistUses ?? Infinity) > 0)) return null;
     if ((resist.attack && !physical) || (resist.foe && !(source && source.side !== target.side))) return null;
     // (B237: a melee attack from beside it — a Strike from a creature in its Melee.)
     if (resist.melee && !(physical && source && sameMelee(target, source))) return null;
@@ -1036,7 +1036,7 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     const value = resist.value === "rank" ? spell.rank : resist.value;
     const sets = (instance) => !instance.persistent && instance.amount > 0 && (!resist.on || resist.on.includes(instance.type) || (resist.on.includes("physical") && PHYSICAL_TYPES.has(instance.type)));
     if (adjustDamage(target, instances.filter(sets)).total <= 0) return null;
-    target.reactionUsed = true;
+    spendReaction(target, resist.name);
     state.stats.reactions++;
     if (Number.isFinite(target.resistUses)) target.resistUses--;
     const before = target.resistances;
@@ -1089,7 +1089,7 @@ function championFor(state, target, source) {
     if (!source || source.side === target.side) return null;
     for (const c of state.list) {
         const reaction = c.championReaction;
-        if (!reaction || c.side !== target.side || !canReact(c)) continue;
+        if (!reaction || c.side !== target.side || !canReact(c, reaction.name)) continue;
         if (reaction.self ? c !== target : c === target) continue;
         if (!sameMelee(c, source) || (c !== target && !sameMelee(c, target))) continue;
         return c;
@@ -1207,12 +1207,12 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     const turnKey = `${state.round}:${state.acting ?? ""}`;
     // (B294, Bravo's Determination: never from 1 Hit Point — notAtOne.)
     const allowed = rule && (!rule.atOne || before === 1) && (!rule.notAtOne || before !== 1) && (!rule.perTurn || target.ferocityTurn !== turnKey);
-    if (rule && allowed && !massive && (rule.free || canReact(target)) && (!rule.wounded || (target.cond.wounded ?? 0) < 3) && (target.ferocityUsed ?? 0) < (rule.uses ?? Infinity) && (!rule.mythic || (target.mythicPoints ?? 0) > 0)) {
+    if (rule && allowed && !massive && (rule.free || canReact(target, rule.name)) && (!rule.wounded || (target.cond.wounded ?? 0) < 3) && (target.ferocityUsed ?? 0) < (rule.uses ?? Infinity) && (!rule.mythic || (target.mythicPoints ?? 0) > 0)) {
         if (rule.perTurn) target.ferocityTurn = turnKey;
         const hp = rule.hp === "half" ? Math.floor(target.hp.max / 2) : typeof rule.hp === "string" ? rollCount(state, rule.hp) : Number(rule.hp) || 1;
         target.hp.value = Math.max(1, Math.min(target.hp.max, hp));
         if (rule.wounded) target.cond.wounded = (target.cond.wounded ?? 0) + 1;
-        if (!rule.free) target.reactionUsed = true;
+        if (!rule.free) spendReaction(target, rule.name);
         if (rule.mythic) target.mythicPoints--;
         target.ferocityUsed = (target.ferocityUsed ?? 0) + 1;
         log(state, `  ${target.name} uses ${rule.name} and stays up at ${target.hp.value} HP`);
@@ -1225,10 +1225,10 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         return;
     }
     // Ferocity (a monster's reaction): it stays at 1 HP, wounded +1, until wounded 3.
-    if (target.kind !== "pc" && target.reactions?.ferocity && !target.ferocityRule && canReact(target) && (target.cond.wounded ?? 0) < 3 && !massive) {
+    if (target.kind !== "pc" && target.reactions?.ferocity && !target.ferocityRule && canReact(target, "Ferocity") && (target.cond.wounded ?? 0) < 3 && !massive) {
         target.hp.value = 1;
         target.cond.wounded = (target.cond.wounded ?? 0) + 1;
-        target.reactionUsed = true;
+        spendReaction(target, "Ferocity");
         log(state, `  ${target.name} uses Ferocity and stays up at 1 HP`);
         // (B118: Flash of Brutality's "recharges when the great cyclops uses Ferocity".)
         if (target.critUpgrade?.ferocityRecharges) target.critUpgradesUsed = 0;
@@ -1246,13 +1246,13 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     // doomed too), or back at the Hit Points it restores, prone and wounded as one who dropped and was healed.)
     for (const friend of state.list) {
         const rule = friend.rescue;
-        if (!rule || friend === target || friend.side !== target.side || !isActive(friend) || !canReact(friend) || !canAct(friend) || massive) continue;
+        if (!rule || friend === target || friend.side !== target.side || !isActive(friend) || !canReact(friend, rule.name) || !canAct(friend) || massive) continue;
         if ((rule.uses ?? Infinity) <= (friend.rescuesUsed ?? 0) || (rule.oncePerTarget && friend.rescued?.has(target.id))) continue;
         if (rule.living && (target.traits ?? []).some((trait) => trait === "undead" || trait === "construct")) continue;
         // (B195: as it dies — a creature dropping at 0 is a PC that isn't dead.)
         if (rule.onDeath && target.kind === "pc") continue;
         if (!(rule.within >= 60 || sameMelee(friend, target) || (rule.within > 10 && target.band !== "far") || friend.band === target.band)) continue;
-        friend.reactionUsed = true;
+        spendReaction(friend, rule.name);
         friend.rescuesUsed = (friend.rescuesUsed ?? 0) + 1;
         (friend.rescued ??= new Set()).add(target.id);
         state.stats.reactions++;
@@ -1266,12 +1266,12 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         return;
     }
     // Death Frenzy: a last Strike as it drops.
-    if (target.deathStrike && target.kind !== "pc" && canReact(target)) {
+    if (target.deathStrike && target.kind !== "pc" && canReact(target, target.deathStrike.name)) {
         const foe = (source && source.side !== target.side && isActive(source) && sameMelee(source, target) ? source : null) ?? engagedEnemies(state, target)[0] ?? null;
         const named = strikeNamed(target, target.deathStrike.strike);
         const strike = named >= 0 ? target.strikes[named] : foe ? bestMeleeStrike(target, foe) : null;
         if (foe && strike) {
-            target.reactionUsed = true;
+            spendReaction(target, target.deathStrike.name);
             log(state, `  ${target.name} uses ${target.deathStrike.name}`);
             performStrike(state, target, foe, strike, { reaction: true });
         }
@@ -1406,13 +1406,12 @@ export function provoke(state, mover, kind) {
     // (A concentrate action provokes only the reactions that say so, B51: no Reactive Strike.)
     for (const enemy of engagedEnemies(state, mover)) {
         if (!canAct(mover)) break;
-        // (B302: a reaction for Reactive Strikes only — Opportunistic's, a dragon's — spent on them first.)
-        const spare = Boolean(enemy.reactions?.aoo) && !own && spareReaction(enemy, "aoo");
-        if ((!canReact(enemy) && !spare) || enemy.cond.fleeing) continue;
+        // (B302–B303: a reaction kept for Reactive Strikes, or another it has, counts — spent on its own reaction first.)
+        if (!canReact(enemy, "*") || enemy.cond.fleeing) continue;
         if (enemy.reactions?.aoo && !own) {
             const strike = bestMeleeStrike(enemy, mover);
-            if (!strike) continue;
-            spendReaction(enemy, "aoo");
+            if (!strike || !canReact(enemy, "Reactive Strike")) continue;
+            spendReaction(enemy, "Reactive Strike");
             state.stats.reactions++;
             log(state, `  ${enemy.name} Attack of Opportunity`);
             // (B176, Call to Arms: an ally that uses the Reactive Strike it gave is immune to it afterward.)
@@ -1431,7 +1430,7 @@ export function provoke(state, mover, kind) {
     // (B242, Lurking Death: a teleport to the creature first, then a melee Strike — any kind it names, from within its distance.)
     for (const enemy of state.list) {
         if (!canAct(mover)) break;
-        if (enemy.side === mover.side || !isActive(enemy) || sameMelee(enemy, mover) || !canReact(enemy) || enemy.cond.fleeing) continue;
+        if (enemy.side === mover.side || !isActive(enemy) || sameMelee(enemy, mover) || !canReact(enemy, "*") || enemy.cond.fleeing) continue;
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.within > 10 && (entry.teleport ? entry.triggers.includes(kind) || (kind === "move" && entry.triggers.includes("leave")) : own && entry.triggers.includes(kind)));
         if (!reaction || !(reaction.within >= 60 || mover.band !== "far" || enemy.band === "far")) continue;
         const result = reactionStrikeAt(state, enemy, mover, reaction.teleport ? { ...reaction, step: true } : { ...reaction, ranged: true }, kind);
@@ -1504,10 +1503,10 @@ function followAnswers(state, mover, left) {
     for (const enemy of left) {
         const rule = enemy.follow;
         if (!rule || !isActive(enemy) || !isActive(mover) || sameMelee(enemy, mover)) continue;
-        if (!canReact(enemy) || !canAct(enemy) || !canMove(enemy) || enemy.cond.fleeing || (rule.prey && enemy.prey !== mover.id)) continue;
+        if (!canReact(enemy, rule.name) || !canAct(enemy) || !canMove(enemy) || enemy.cond.fleeing || (rule.prey && enemy.prey !== mover.id)) continue;
         // (B242, Primal Hunt: a teleport, whatever its Speed.)
         if ((!rule.teleport && (enemy.speed ?? 25) < (mover.speed ?? 25)) || state.list.some((other) => other.grabbedBy === enemy.id)) continue;
-        enemy.reactionUsed = true;
+        spendReaction(enemy, rule.name);
         log(state, `  ${enemy.name} uses ${rule.name}`);
         if (rule.teleport) {
             engage(state, enemy, mover);

@@ -102,22 +102,24 @@ export function outcomeOps(outcome) {
     }
 }
 
-// The card's line for a result.
-export function outcomeLine(name, outcome) {
+// The card's line for a result. lessFrightened: Bravery's (B303) — the frightened it gains that much lower, which the ability module
+// applies as PF2e adds it.
+export function outcomeLine(name, outcome, { lessFrightened = 0 } = {}) {
+    const brave = lessFrightened ? ` (Bravery: ${lessFrightened} lower)` : "";
     switch (outcome?.kind) {
         case "steady":
             return `${name} holds firm (frightened −1).`;
         case "holds":
             return `${name} holds.`;
         case "frighten":
-            return `${name} is shaken: frightened +1.`;
+            return lessFrightened ? `${name} is shaken, but its Bravery holds: frightened +${Math.max(0, 1 - lessFrightened)}.` : `${name} is shaken: frightened +1.`;
         case "waver":
             return `${name} wavers.`;
         case "giveUp":
             if (outcome.how === "collapse") return `${name} surrenders: marked defeated.`;
-            if (outcome.how === "berserk") return `${name} goes berserk: frightened 1 and −1 AC until the end of next round; it keeps fighting.`;
+            if (outcome.how === "berserk") return `${name} goes berserk: frightened 1${brave} and −1 AC until the end of next round; it keeps fighting.`;
             if (outcome.how === "disordered") return `${name} falls back in order: fleeing. Move it away; it leaves the fight.`;
-            return `${name} routs: fleeing and frightened 2. Move it away; it leaves the fight.`;
+            return `${name} routs: fleeing and frightened 2${brave}. Move it away; it leaves the fight.`;
         default:
             return `${name}: nothing happens.`;
     }

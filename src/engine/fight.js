@@ -5,7 +5,7 @@ import { CRITICAL_SUCCESS, FAILURE, flatCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
-import { canReact, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
@@ -138,18 +138,33 @@ function placeCombatants(state) {
     }
 }
 
+// (B303: the skill its abilities name for its own initiative — "rolls Deception or Stealth for initiative" — that's best and better than its
+// Perception: { stat, value }, or null.)
+export function initiativeSkill(c) {
+    let best = null;
+    for (const stat of c.initiativeSkills ?? []) {
+        const value = stat === "stealth" ? c.stealth ?? c.skills?.stealth : c.skills?.[stat];
+        if (typeof value === "number" && value > (c.perception ?? 0) && (!best || value > best.value)) best = { stat, value };
+    }
+    return best;
+}
+
 function rollInitiative(state, snapshot) {
     const ambush = snapshot.setup?.ambush ?? null;
     if (ambush === "party") state.surprisedSide = "foes";
     else if (ambush === "foes") state.surprisedSide = "party";
     state.stealthInitiative = new Set();
+    // What each rolls: Stealth for an ambushing side; else the best skill its abilities name for its initiative (Surprise Attack's Deception,
+    // Roaring Initiative's Intimidation; B303) when it's better than its Perception; else Perception.
     const usesStealth = (c) => ambush && ambush === c.side && typeof c.stealth === "number";
-    // (B170, Guide's Warning: its allies' initiative rolls a circumstance bonus higher, when it rolls Perception — its reaction, or a free
-    // action.)
+    state.initiativeStat = new Map(state.list.map((c) => [c.id, usesStealth(c) ? { stat: "stealth", value: c.stealth } : initiativeSkill(c) ?? { stat: "perception", value: c.perception ?? 0 }]));
+    // (B170, Guide's Warning: its allies' initiative rolls a circumstance bonus higher, when it rolls Perception (or a skill it names) — its
+    // reaction, or a free action.)
     const warned = new Map();
     for (const c of state.list) {
-        if (!c.initiativeWarning || usesStealth(c) || (!c.initiativeWarning.free && !canReact(c))) continue;
-        if (!c.initiativeWarning.free) c.reactionUsed = true;
+        const stat = state.initiativeStat.get(c.id).stat;
+        if (!c.initiativeWarning || (stat !== "perception" && !(c.initiativeWarning.skills ?? []).includes(stat)) || (!c.initiativeWarning.free && !canReact(c, c.initiativeWarning.name))) continue;
+        if (!c.initiativeWarning.free) spendReaction(c, c.initiativeWarning.name);
         state.log?.push(`  ${c.name} uses ${c.initiativeWarning.name}: +${c.initiativeWarning.value} to its ${c.initiativeWarning.self ? "own" : "allies'"} initiative`);
         // (B260, All This Has Happened Before: its own roll.)
         if (c.initiativeWarning.self) {
@@ -161,10 +176,11 @@ function rollInitiative(state, snapshot) {
         for (const ally of state.list) if (ally !== c && ally.side === c.side && near(ally)) warned.set(ally.id, Math.max(warned.get(ally.id) ?? 0, c.initiativeWarning.value));
     }
     const rolled = state.list.map((c) => {
-        const useStealth = usesStealth(c);
-        if (useStealth) state.stealthInitiative.add(c.id);
+        const roll = state.initiativeStat.get(c.id);
+        if (roll.stat === "stealth") state.stealthInitiative.add(c.id);
+        if (roll.stat !== "perception" && !usesStealth(c)) state.log?.push(`  ${c.name} rolls ${roll.stat.replace(/-/g, " ")} for initiative`);
         // Ten Paces: +2 circumstance to the initiative roll (C18); not with another circumstance bonus.
-        const modifier = (useStealth ? c.stealth : (c.perception ?? 0)) + Math.max(c.initiativeBonus ?? 0, warned.get(c.id) ?? 0);
+        const modifier = roll.value + Math.max(c.initiativeBonus ?? 0, warned.get(c.id) ?? 0);
         return { c, total: state.rng.d20() + modifier, modifier };
     });
     rolled.sort((a, b) => (b.total - a.total) || ((a.c.side === "foes" ? 0 : 1) - (b.c.side === "foes" ? 0 : 1)) || (b.modifier - a.modifier));
@@ -1075,10 +1091,10 @@ function afterAction(state) {
         // (B123, Deadly Cleave: another Strike at a different creature in its Melee, at the penalty the downing Strike had; it counts.)
         if (entry.kind === "cleave") {
             const rule = c?.reactionStrikes?.find((each) => each.triggers.includes("downs"));
-            const foe = c && isActive(c) && canReact(c) && canAct(c) ? engagedEnemies(state, c).find((other) => other !== target && isActive(other)) : null;
+            const foe = c && isActive(c) && canReact(c, rule?.name) && canAct(c) ? engagedEnemies(state, c).find((other) => other !== target && isActive(other)) : null;
             const index = foe ? strikeNamed(c, rule.strike) : -1;
             if (!foe || index < 0) continue;
-            c.reactionUsed = true;
+            spendReaction(c, rule.name);
             state.stats.reactions++;
             state.log?.push(`  ${c.name} uses ${rule.name}`);
             const attacks = c.attacksThisTurn;
@@ -1090,18 +1106,18 @@ function afterAction(state) {
         // (B197, Deadly Mandibles: its named Strike at the creature it grabbed, as its reaction; it counts toward its multiple attack penalty.)
         if (entry.kind === "grab-strike") {
             const rule = c?.reactionStrikes?.find((each) => each.triggers.includes("grabs"));
-            const index = rule && isActive(c) && isActive(target) && canReact(c) && canAct(c) && target.grabbedBy === c.id ? strikeNamed(c, rule.strike) : -1;
+            const index = rule && isActive(c) && isActive(target) && canReact(c, rule.name) && canAct(c) && target.grabbedBy === c.id ? strikeNamed(c, rule.strike) : -1;
             if (index < 0) continue;
-            c.reactionUsed = true;
+            spendReaction(c, rule.name);
             state.stats.reactions++;
             state.log?.push(`  ${c.name} uses ${rule.name}`);
             performStrike(state, c, target, c.strikes[index]);
             continue;
         }
-        if (entry.kind !== "fast-swallow" || !c || !target || !isActive(c) || !isActive(target) || !canReact(c) || target.grabbedBy !== c.id || target.swallowedBy) continue;
+        if (entry.kind !== "fast-swallow" || !c || !target || !isActive(c) || !isActive(target) || !canReact(c, c.fastSwallow.name) || target.grabbedBy !== c.id || target.swallowedBy) continue;
         const index = (c.spells ?? []).findIndex((spell) => describeSpell(spell.plan).swallow);
         if (index < 0) continue;
-        c.reactionUsed = true;
+        spendReaction(c, c.fastSwallow.name);
         state.log?.push(`  ${c.name} uses ${c.fastSwallow.name}`);
         castSpell(state, c, index, [target.id]);
     }
