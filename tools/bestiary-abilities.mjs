@@ -72,7 +72,7 @@ function combatant(npc) {
     const bare = [];
     for (const item of npc.items.filter((entry) => entry.type === "melee")) {
         const traits = item.system.traits?.value ?? [];
-        const damage = Object.values(item.system.damageRolls ?? {}).flatMap((roll) => parseReadableDamage(`${roll.damage} ${roll.damageType ?? "untyped"}${roll.category === "persistent" ? " persistent" : roll.category === "splash" ? " splash" : ""}`));
+        const damage = Object.values(item.system.damageRolls ?? {}).flatMap((roll) => parseReadableDamage(`${roll.damage} ${roll.category === "persistent" ? "persistent " : roll.category === "splash" ? "splash " : ""}${roll.damageType ?? "untyped"}`));
         if (!damage.length) bare.push(item);
         if (!damage.length) continue;
         const increment = Number(traits.find((trait) => /^range-increment-\d+$/.test(trait))?.split("-").pop()) || Number(traits.find((trait) => /^range-\d+$/.test(trait))?.split("-").pop()) || null;
