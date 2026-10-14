@@ -495,8 +495,10 @@ function individualCheck(state, c, reason) {
     }
     // M1: the threshold uses Will without condition penalties; the check takes them.
     const roll = rollMorale(state, baseWill(c), statusPenalty(c, "will"), moraleModifierParts(state, c));
+    const firstIgnored = !c.moraleState.ignoredFirstFailure;
     const degree = finalMoraleDegree(state, c, roll.degree);
-    state.log?.push(`  ${c.name} morale (${reason}): ${roll.total} vs ${roll.dc} → ${["critical failure", "failure", "success", "critical success"][degree]}`);
+    const ignored = firstIgnored && c.moraleState.ignoredFirstFailure ? ", its first failure ignored (fanatical)" : "";
+    state.log?.push(`  ${c.name} morale (${reason}): ${roll.total} vs ${roll.dc} → ${["critical failure", "failure", "success", "critical success"][degree]}${ignored}`);
     applyIndividualResult(state, c, degree, templateOf(state, c), reason);
 }
 
@@ -596,6 +598,7 @@ export function breakCreature(state, c, kind) {
         c.cond.frightened = frightenedAfter(c, Math.max(c.cond.frightened ?? 0, 1));
         c.berserkUntilRound = state.round + 1;
         c.moraleState.wavering = false;
+        state.log?.push(`  ${c.name} fights on berserk: frightened ${c.cond.frightened}, −1 AC`);
         return;
     }
     c.moraleState.broken = true;

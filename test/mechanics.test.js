@@ -109,6 +109,8 @@ test("fanatical creatures ignore their first failure and go berserk instead of f
     assert.equal(zealot.moraleState.broken, false);
     assert.equal(zealot.status, "active");
     assert.ok(zealot.berserkUntilRound >= 2);
+    assert.ok(state.log.some((line) => line.includes("Zealot morale (halfHp)") && line.endsWith("its first failure ignored (fanatical)")));
+    assert.ok(state.log.some((line) => line.includes("Zealot fights on berserk: frightened")));
 });
 
 test("a typical humanoid that breaks surrenders", () => {
