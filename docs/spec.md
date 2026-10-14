@@ -103,6 +103,29 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
   - The fights showed two planner fixes. Buffs are weighed by the share of the target's threat that comes from Strikes, so Ezren hastes Valeros, not himself. Healing urgency is 2.5 × (1 − HP share)^1.5, so no topping up at 82% HP.
 - 78 Node tests.
 
+### Scrolls, wands and staves (S22, 2026-10-14)
+
+The user asked: "can we get the simulator to treat scrolls, wands and staffs as spells the creature can cast?" The rules are S22 in [spell-decisions.md](spell-decisions.md).
+
+- **Snapshot** (`scripts/snapshot.js`, with the pure parts in `src/adapter/items.js`):
+  - scrolls, wands and spell gems through the spellcasting PF2e would cast them with (`canCast` with the item as origin, best DC), or Trick Magic Item;
+  - PF2e Dailies' staff entries (category `charges`) with their charges;
+  - without them, the staff read as Dailies reads it.
+  - Each becomes a spell spec with `from` (the item's name, for the log), `item`, a pool (`item:<id>`, `staff:<id>`, `charges:<entry>`) and, for a staff, `poolCost`.
+  - A wand also gets an overcharge spec (`overcharge`: the wand's pool) with a pool of 1.
+  - Items that can't be used are gaps: stowed, unidentified, or no one can cast the spell.
+- **Engine:**
+  - `poolCost` (a staff's charges by rank) in `canCast`, the planner's plans, damage potential and the cast.
+  - `c.desperate` (`desperate` in `fight.js`, set as a turn starts) gates the overcharge.
+  - A Trick Magic Item cast costs an action more. The check is rolled when the cast starts; a failure gives the cast's actions back.
+- **Bestiary tools** (`tools/lib/pack-spells.mjs`): NPCs' scrolls, wands (fresh) and staves the same way. 127 bestiary NPCs carry some (48 wands, 48 staves); no compile errors.
+- **Live check in `pftest`** (PFTEST SIM Ezren Items, Valeros Items, Watchmage Items):
+  - The iconic Ezren's own Wand of Mystic Armor and Scroll of Grim Tendrils are read, along with the scrolls and wand added for the check.
+  - His Staff of Fire stays with its own spontaneous entry.
+  - Valeros tricks a Scroll of Fireball: Arcana +1 vs DC 20, then spell DC 16.
+  - The Watchmage's Staff of Fire, read from its description: 3 charges.
+  - In fights, Ezren casts from his scrolls once his prepared Fireball is spent, and Valeros' tricks roll and cast.
+
 ## Milestone 3 status (2026-10-08): monster abilities and basic actions
 
 - **Creatures use their abilities** through the ability module (`pf2e-automatic-ability-resolution`) and the core:

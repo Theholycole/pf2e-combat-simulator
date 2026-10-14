@@ -1236,7 +1236,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     // A zone (B256): its area made; what it does then and over the turns is zones.js's.
     if (spell.zone) {
-        if (spell.pool) caster.spellPools[spell.pool] = Math.max(0, (caster.spellPools[spell.pool] ?? 0) - 1);
+        spendPool(caster, spell);
         const recharge = describeSpell(spell.plan, actions).recharge;
         if (recharge) (caster.rechargeUntil ??= new Map()).set(spell.rechargeGroup ?? spell, state.round + rollCount(state, recharge));
         log(state, `  ${caster.name} uses ${spell.name}`);
@@ -1247,8 +1247,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // (B316: evenDown — Death Strike at a creature the spell just dropped.)
     const reachable = (target) => isActive(target) || target === caster || ((info.healing || info.dying || evenDown) && target.status === DOWN);
     const targets = targetIds.map((id) => state.byId.get(id)).filter((target) => target && reachable(target));
-    if (spell.pool) caster.spellPools[spell.pool] = Math.max(0, (caster.spellPools[spell.pool] ?? 0) - 1);
-    log(state, `  ${caster.name} casts ${spell.name}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
+    spendPool(caster, spell);
+    log(state, `  ${caster.name} casts ${spell.name}${spell.from ? ` from ${spell.from}` : ""}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
     // (I1: a creature immune to the effect's trait — a mindless one to a mental effect, a construct to a death effect — is unaffected.)
     for (const target of [...targets]) {
         const immunity = effectImmunity(target, spell);
@@ -1713,7 +1713,7 @@ function useReaction(state, c, other, matches) {
     for (const [index, spell] of (c.spells ?? []).entries()) {
         const trigger = spell.plan?.trigger;
         if (!trigger?.reaction || !matches(trigger) || (!trigger.free && !canReact(c, spell.name))) continue;
-        if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
+        if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || !poolReady(c, spell)) continue;
         const targets = answerTargets(state, c, spell.plan, other);
         // (A foe among them; or, B106, itself or its allies for an effect that helps them.)
         // (B305: or one on itself — Melt Time's quickening as it's slowed.)
@@ -1897,7 +1897,7 @@ export function grabTurnAnswers(state, c, at) {
 export function ownTurnStart(state, c) {
     for (const [index, spell] of (c.spells ?? []).entries()) {
         if (spell.plan?.trigger?.event !== "own-turn-start" || !canAct(c)) continue;
-        if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
+        if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || !poolReady(c, spell)) continue;
         // (B100: one creature, Stern Glare's Demoralize: its nearest foe; none, not used.)
         const foe = spell.plan.targeting?.target === "1 creature" && !spell.plan.targeting?.area ? nearestFoe(state, c, spell.plan) : null;
         if (spell.plan.targeting?.target === "1 creature" && !spell.plan.targeting?.area && !foe) continue;
@@ -2022,7 +2022,32 @@ export function canCast(c, spell) {
     if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0)) return false;
     // (B256: not a zone it already has up.)
     if (spell.zone && c.activeZones?.has(spell.name)) return false;
-    return !spell.pool || (c.spellPools?.[spell.pool] ?? 0) > 0;
+    // (S22: a failed trick locks the item this turn; a critically failed one, all fight.)
+    if (spell.trick && (c.itemsLocked?.has(spell.item) || c.usedThisTurn?.has(`trick:${spell.item}`))) return false;
+    return poolReady(c, spell);
+}
+
+// S22, scrolls, wands and staves (the user: "can we get the simulator to treat scrolls, wands and staffs as spells the creature
+// can cast?"). What a cast takes from its pool: one use, or for a staff its rank in charges (poolCost).
+export function poolCost(spell) {
+    return spell.poolCost ?? 1;
+}
+
+// Enough left in its pool. A wand's overcharge (spell.overcharge, the wand's own pool): only once the wand's cast for the day
+// is spent, and only while the fight goes badly for the creature's side (c.desperate, set as its turn starts).
+export function poolReady(c, spell) {
+    if (spell.overcharge && (!c.desperate || (c.spellPools?.[spell.overcharge] ?? 0) > 0)) return false;
+    return !spell.pool || (c.spellPools?.[spell.pool] ?? 0) >= poolCost(spell);
+}
+
+export function spendPool(c, spell) {
+    if (spell.pool) c.spellPools[spell.pool] = Math.max(0, (c.spellPools[spell.pool] ?? 0) - poolCost(spell));
+}
+
+// Trick Magic Item (S22): the chance its skill check succeeds.
+export function trickChance(trick) {
+    const [, , success, critical] = degreeDistribution(trick.modifier, trick.dc);
+    return success + critical;
 }
 
 // What about casting a spell never changes in a fight, read once per spell: not a constant one, a family the core
@@ -2483,7 +2508,7 @@ export function nearbyDeathAnswers(state, victim, { died, melee = new Set() }) {
             if (!trigger.free && !canReact(c, spell.name)) continue;
             const feet = trigger.within ?? 30;
             if (!(feet <= 10 ? melee.has(c.id) : c.band === victim.band || distanceBetween(c, victim) <= feet)) continue;
-            if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || (spell.pool && !((c.spellPools?.[spell.pool] ?? 0) > 0))) continue;
+            if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0) || !poolReady(c, spell)) continue;
             const target = spell.plan?.targeting?.target;
             const heals = Object.values(spell.plan?.resolution?.outcomes ?? {}).some((row) => (row?.effects ?? []).some((effect) => effect.kind === "heal")) || spell.plan?.resolution?.kind === "healing";
             if (target === "self") {

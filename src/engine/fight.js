@@ -1,7 +1,7 @@
 // One simulated fight from a snapshot.
 
 import { createRng } from "./rng.js";
-import { CRITICAL_SUCCESS, FAILURE, flatCheck, SUCCESS } from "./checks.js";
+import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
@@ -379,6 +379,8 @@ function startTurn(state, c) {
     c.weakGrip?.clear();
     // Flourishes (Flurry of Blows): once a turn. A finisher ends Strikes for the turn.
     c.usedThisTurn = new Set();
+    // (S22: a wand it may overcharge, only while the fight goes badly for its side.)
+    if (c.spells?.some((spell) => spell.overcharge)) c.desperate = desperate(state, c);
     // Actions this turn, and its last hit (Strike, Breathe, Rend needs one just before).
     c.actionCount = 0;
     c.lastHit = null;
@@ -724,6 +726,19 @@ function act(state, c, action) {
             // Casting with the manipulate trait provokes (S12; Reactive Strike's critical hit disrupts it), and with the
             // concentrate trait, the reactions that say so (B51).
             const spell = c.spells[action.spellIndex];
+            // (S22: Trick Magic Item first. A failure costs its own action, not the cast's, and the item can't be tried again this turn;
+            // a critical failure, not again this fight.)
+            if (action.trick && spell?.trick) {
+                const { total, degree } = rollCheck(state.rng, spell.trick.modifier, spell.trick.dc);
+                state.log?.push(`  ${c.name} tries Trick Magic Item on ${spell.from} (${spell.trick.skill}): ${total} vs ${spell.trick.dc} → ${["critical failure", "failure", "success", "critical success"][degree]}`);
+                if (degree < SUCCESS) {
+                    c.actionsLeft += actionCost(c, action) - 1;
+                    (c.usedThisTurn ??= new Set()).add(`trick:${spell.item}`);
+                    if (degree === CRITICAL_FAILURE) (c.itemsLocked ??= new Set()).add(spell.item);
+                    break;
+                }
+                (c.usedThisTurn ??= new Set()).add(`tricked:${spell.item}`);
+            }
             // (B133, Tackle: its move first, to the creature.)
             const goal = spell?.plan?.approach?.strides ? state.byId.get(action.targetIds?.[0]) : null;
             if (goal && isActive(goal) && !sameMelee(c, goal) && canMove(c)) stride(state, c, { kind: "engage", targetId: goal.id });
@@ -1078,7 +1093,8 @@ function actionCost(c, action) {
     if (action.type === "disableHazard") return 2;
     if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon" || action.type === "grantAoo" || action.type === "allyAdvance" || action.type === "summon") return action.actions ?? 1;
     // (Quickened Casting, B72: one action fewer.)
-    if (action.type === "cast") return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened ? 1 : 0));
+    // (S22: Trick Magic Item first, an action more.)
+    if (action.type === "cast") return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened ? 1 : 0)) + (action.trick ? 1 : 0);
     return action.type === "task" ? 2 : 1;
 }
 
@@ -1261,6 +1277,15 @@ export function shouldRetreat(state) {
     // "Failed or can't be completed": an open objective is out of reach once the foes are ahead.
     if (state.objective?.status === "failed") return true;
     return partyAdvantage(state, { potential: state.options.retreatBy === "potential" }) < (state.options.retreatRatio ?? 1);
+}
+
+// The fight going badly for a creature's side (S22, when it overcharges a wand): one of its side down or out (fled, surrendered), or
+// its side behind on strength (damage potential, as the morale gate weighs it).
+export function desperate(state, c) {
+    const out = [DOWN, DEAD, FLED, SURRENDERED];
+    if (state.list.some((other) => other.side === c.side && other.kind !== "object" && out.includes(other.status))) return true;
+    const ratio = partyAdvantage(state, { potential: true });
+    return c.side === "party" ? ratio < 1 : ratio > 1;
 }
 
 export function simulate(snapshot, options = {}, seed = 1, { log = false } = {}) {

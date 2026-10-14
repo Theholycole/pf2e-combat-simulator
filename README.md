@@ -69,6 +69,7 @@ It needs **PF2e Resolution Core**, which Foundry offers to install with it. It r
 
   See [docs/ability-decisions.md](docs/ability-decisions.md) (L1–L5, H1).
 - **Spells** (milestone 2): creatures cast the spells the resolution core can resolve: saves and spell attacks, with their damage, conditions and push or pull. Everything else is listed as a gap. It needs the `pf2e-resolution-core` module, and the spell module for the plans.
+- **Scrolls, wands and staves** (S22): cast as spells, as PF2e lets the creature cast them (its spellcasting, or Trick Magic Item's check first). Staves use PF2e Dailies' charges when Dailies has one prepared, and otherwise the staff's own list with the creature's highest spell rank in charges. A wand can be overcharged once its daily cast is spent, but only while the fight goes badly. The log names the item each spell came from.
 
 The design is in [docs/spec.md](docs/spec.md) and the vocabulary in [CONTEXT.md](CONTEXT.md). The rules choices the user confirmed are in [docs/morale-decisions.md](docs/morale-decisions.md) (morale) and [docs/spell-decisions.md](docs/spell-decisions.md) (spellcasting).
 

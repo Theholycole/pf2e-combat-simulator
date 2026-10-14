@@ -4,6 +4,7 @@ const W = decodeURIComponent(new URL("../../../PF2e AUTOMATIC SPELL RESOLUTION",
 const { compileAbility } = await import(`${W}/src/compiler/index.js`);
 const { readDocuments } = await import(new URL("../../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs", import.meta.url).href);
 const { effectModel } = await import("../../src/engine/effects.js");
+const { isStaffItem, itemCasts, SPELL_ITEMS, staffCharges, staffSpellList } = await import("../../src/adapter/items.js");
 
 export const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 // As the spell module's official compile does: its native-effect catalog and
@@ -37,11 +38,11 @@ export function spellNamed(name) {
 
 // A creature's spells as the simulator's entries, with their pools: cantrips at its cantrip rank, focus spells, innate uses, spontaneous
 // slots per rank, prepared slots. A coven's spells only with its coven (L5). onError(spell, error) for a spell that doesn't compile.
+// (S22: and its scrolls, wands and staff, npcItemSpells.)
 export function npcSpells(npc, { onError = () => {} } = {}) {
   const entries = (npc.items ?? []).filter((i) => i.type === "spellcastingEntry" && !["ritual", "items"].includes(i.system?.prepared?.value));
   const spells = [];
   const spellPools = {};
-  if (!entries.length) return { spells, spellPools };
   const cantripRank = Math.min(10, Math.max(1, Math.ceil((npc.system?.details?.level?.value ?? 1) / 2)));
   for (const entry of entries) {
     const kind = entry.system?.prepared?.value;
@@ -77,7 +78,66 @@ export function npcSpells(npc, { onError = () => {} } = {}) {
       }
     }
   }
+  npcItemSpells(npc, spells, spellPools, { onError });
   return { spells, spellPools };
+}
+
+// S22, as PF2e has it for an NPC: a scroll, wand or spell gem cast by the spellcasting that can cast its spell (prepared or spontaneous
+// of its tradition or with the spell, or an entry for items; the best DC), wands fresh and overcharged once while the fight goes
+// badly; a staff (one, the highest level) read as PF2e Dailies reads it, its charges the creature's highest spell rank, a spell its
+// rank in charges, a cantrip free.
+function npcItemSpells(npc, spells, spellPools, { onError }) {
+  const casting = (npc.items ?? []).filter((i) => i.type === "spellcastingEntry" && i.system?.prepared?.value !== "ritual");
+  if (!casting.length) return;
+  const level = npc.system?.details?.level?.value ?? 1;
+  const cantripRank = Math.min(10, Math.max(1, Math.ceil(level / 2)));
+  const traditionsOf = (spell) => spell.system?.traits?.traditions ?? [];
+  const listed = (entry) => new Set((npc.items ?? []).filter((i) => i.type === "spell" && i.system?.location?.value === entry._id).map((i) => i.system?.slug ?? i.name.toLowerCase()));
+  const slotCasting = (entry) => ["prepared", "spontaneous"].includes(entry.system?.prepared?.value);
+  // As PF2e's SpellcastingEntryPF2e#canCast with an item.
+  const canCastFrom = (entry, spell, scroll) => {
+    if (entry.system?.prepared?.value === "items") return entry.system?.prepared?.validItems !== "scroll" || scroll;
+    if (!slotCasting(entry)) return false;
+    return traditionsOf(spell).includes(entry.system?.tradition?.value) || listed(entry).has(spell.system?.slug ?? spell.name.toLowerCase());
+  };
+  const best = (entries) => entries.reduce((top, entry) => (!top || (entry.system?.spelldc?.dc ?? 0) > (top.system?.spelldc?.dc ?? 0) ? entry : top), null);
+  const add = (spell, castRank, entry, extra) => {
+    let plan;
+    try { plan = compileSpell(spell); } catch (e) { onError(spell, e); return; }
+    spells.push({ name: spell.name, plan, castRank, dc: entry.system?.spelldc?.dc ?? 20, attack: entry.system?.spelldc?.value ?? 10, ...extra, effects: effectModels(plan, castRank) });
+  };
+  for (const item of (npc.items ?? []).filter((i) => i.type === "consumable" && SPELL_ITEMS.includes(i.system?.category) && i.system?.spell)) {
+    const spell = item.system.spell;
+    const entry = best(casting.filter((each) => canCastFrom(each, spell, item.system.category === "scroll")));
+    if (!entry) continue;
+    const castRank = spell.system?.location?.heightenedLevel ?? spell.system?.level?.value ?? 1;
+    const pool = `item:${item._id}`;
+    spellPools[pool] = itemCasts({ category: item.system.category, quantity: item.system?.quantity, uses: item.system?.uses, fresh: true });
+    const base = { pool, from: item.name, item: item._id };
+    add(spell, castRank, entry, base);
+    if (item.system.category === "wand") {
+      spellPools[`overcharge:${item._id}`] = 1;
+      add(spell, castRank, entry, { ...base, pool: `overcharge:${item._id}`, from: `${item.name} (overcharged)`, overcharge: pool });
+    }
+  }
+  // (A staff with a spellcasting entry of its own name is that entry's.)
+  const named = (value) => String(value ?? "").trim().toLowerCase();
+  const magical = (item) => (item.system?.traits?.value ?? []).some((trait) => ["magical", "arcane", "divine", "occult", "primal"].includes(trait));
+  const staves = (npc.items ?? []).filter((item) => isStaffItem({ type: item.type, traits: item.system?.traits?.value ?? [], magical: magical(item) }));
+  const staffNames = new Set(staves.map((item) => named(item.name)));
+  const entryNames = new Set(casting.map((entry) => named(entry.name)));
+  const charges = staffCharges(casting.filter((entry) => slotCasting(entry) && !staffNames.has(named(entry.name))).map((entry) => entry.system?.slots), level);
+  const staff = charges ? staves.filter((item) => !entryNames.has(named(item.name))).sort((a, b) => (b.system?.level?.value ?? 0) - (a.system?.level?.value ?? 0))[0] : null;
+  if (!staff) return;
+  const pool = `staff:${staff._id}`;
+  for (const { rank, uuid } of staffSpellList(staff.system?.description?.value, charges)) {
+    const spell = referencedSpells.get(uuid);
+    const entry = spell ? best(casting.filter((each) => slotCasting(each) && canCastFrom(each, spell, false))) : null;
+    if (!entry) continue;
+    const cantrip = rank === 0 || (spell.system?.traits?.value ?? []).includes("cantrip");
+    add(spell, cantrip ? cantripRank : rank, entry, { pool: cantrip ? null : pool, from: staff.name, item: staff._id, ...(cantrip ? {} : { poolCost: rank }) });
+    if (!cantrip) spellPools[pool] = charges;
+  }
 }
 
 export { readDocuments };

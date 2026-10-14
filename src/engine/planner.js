@@ -20,7 +20,7 @@ import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
-import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, worstCondition } from "./spells.js";
+import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, poolCost, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition } from "./spells.js";
 import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";
@@ -116,6 +116,8 @@ function spellDamages(state, c, target) {
             const [expected] = spellExpectation(state, c, spell, [target], 0, actions);
             if (expected) damage = Math.max(damage, expected.damage * copies);
         }
+        // (S22: from an item tricked first, as likely as its check.)
+        if (spell.trick) damage *= trickChance(spell.trick);
         out.push({ spell, damage, recharges });
     }
     return out;
@@ -132,7 +134,7 @@ export function potentialDamage(c, castable, strikes) {
     let atWill = 0;
     for (const { spell, damage, recharges } of castable) {
         if (!spell.pool && !recharges) atWill = Math.max(atWill, damage);
-        else if (damage > 0) limited.push({ damage, pool: spell.pool ?? null, once: recharges ? (spell.rechargeGroup ?? spell) : null });
+        else if (damage > 0) limited.push({ damage, pool: spell.pool ?? null, cost: poolCost(spell), once: recharges ? (spell.rechargeGroup ?? spell) : null });
     }
     const base = Math.max(strikes, atWill, 0);
     const pools = { ...(c.spellPools ?? {}) };
@@ -141,7 +143,7 @@ export function potentialDamage(c, castable, strikes) {
     for (let round = 0; round < POTENTIAL_ROUNDS; round++) {
         let pick = null;
         for (const option of limited) {
-            if (option.damage <= base || (option.pool && !((pools[option.pool] ?? 0) > 0)) || (option.once && used.has(option.once))) continue;
+            if (option.damage <= base || (option.pool && !((pools[option.pool] ?? 0) >= option.cost)) || (option.once && used.has(option.once))) continue;
             if (!pick || option.damage > pick.damage) pick = option;
         }
         if (!pick) {
@@ -149,7 +151,7 @@ export function potentialDamage(c, castable, strikes) {
             continue;
         }
         total += pick.damage;
-        if (pick.pool) pools[pick.pool] -= 1;
+        if (pick.pool) pools[pick.pool] -= pick.cost;
         if (pick.once) used.add(pick.once);
     }
     return total / POTENTIAL_ROUNDS;
@@ -659,7 +661,8 @@ const flourishUsed = (c, node) => !!c.usedThisTurn?.has("flourish") || node.cast
 
 // A spell a magus can Spellstrike with: 1 or 2 actions, one target, a spell attack or a save, and castable now.
 function spellstrikeSpell(c, spell) {
-    if (spell.kind === "basic" || spell.kind === "ability" || !canCast(c, spell)) return false;
+    // (S22: not one from an item it must trick first.)
+    if (spell.kind === "basic" || spell.kind === "ability" || spell.trick || !canCast(c, spell)) return false;
     const info = describeSpell(spell.plan);
     const check = info.check;
     return (info.actions === 1 || info.actions === 2) && info.targets === 1 && !info.area && (check?.statistic === "spell-attack" || check?.roll === "save");
@@ -819,7 +822,8 @@ function expandSpells(env) {
         if (!canCast(c, spell) || node.casts.includes(index)) continue;
         if (raging && (spell.plan?.traits ?? []).includes("concentrate") && !(spell.plan?.traits ?? []).includes("rage")) continue;
         if (noSpells && (!spell.kind || spell.castsSpell)) continue;
-        if (spell.pool && node.casts.filter((other) => typeof other === "number" && c.spells[other].pool === spell.pool).length >= (c.spellPools[spell.pool] ?? 0)) continue;
+        // (S22: a staff's charges, each spell its rank.)
+        if (spell.pool && node.casts.reduce((sum, other) => sum + (typeof other === "number" && c.spells[other].pool === spell.pool ? poolCost(c.spells[other]) : 0), poolCost(spell)) > (c.spellPools[spell.pool] ?? 0)) continue;
         // A rider (Grab, Knockdown, Push) or a follow-up ("last action was a successful claw Strike") only as the
         // action straight after the Strike that allows it.
         const rider = spell.plan?.trigger?.event === "strike" || Boolean(spell.plan?.trigger?.followUp);
@@ -842,10 +846,13 @@ function expandSpells(env) {
             && foe.conditions.some((condition) => (condition === "dying" ? other.status === "down" : isActive(other)) && (other.cond?.[condition] ?? 0) > 0))) continue;
         // Quickened Casting (B72): a spell of its rank or lower, one action fewer, once a fight.
         const quickens = c.quickenedCasting && !c.quickenedUsed && !node.casts.includes("quickened") && (!spell.kind || spell.castsSpell) && (c.quickenedCasting.maxRank == null || (spell.castRank ?? 1) <= c.quickenedCasting.maxRank);
+        // (S22: an item it can't cast from by itself, Trick Magic Item first — an action more, worth as much as its check is likely,
+        // unless it tricked the item already this turn.)
+        const trick = spell.trick && !c.usedThisTurn?.has(`tricked:${spell.item}`) ? 1 : 0;
         for (const actions of spellVariants(spell)) {
             const info = describeSpell(spell.plan, actions);
-            const quickFits = quickens && info.actions >= 2 && info.actions - 1 <= remaining;
-            if (!info.actions || (info.actions > remaining && !quickFits) || (restrained && (info.manipulate || info.attack)) || (noAttacks && info.attack)) continue;
+            const quickFits = quickens && info.actions >= 2 && info.actions - 1 + trick <= remaining;
+            if (!info.actions || (info.actions + trick > remaining && !quickFits) || (restrained && (info.manipulate || info.attack || trick)) || (noAttacks && info.attack)) continue;
             const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, c, spell, {
                 enemies: ctx.enemies,
                 allies: ctx.alliesAndDown,
@@ -898,14 +905,18 @@ function expandSpells(env) {
                     gain += 0.6 * ctx.ownValue * ROUND_TO_KILL * (3 * c.panacheStyle.precise + c.panacheStyle.finisherDice * 3.5 * 0.6) / threat;
                 }
                 if (gain <= 0) continue;
-                if (info.actions <= remaining) {
-                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...(rider ? { rider: true } : {}) }, info.actions, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
+                if (trick) gain *= trickChance(spell.trick);
+                // (S22: a wand overcharged breaks it — the last thing it reaches for when another way does about as well.)
+                if (spell.overcharge) gain *= 0.95;
+                const tricks = trick ? { trick: true } : {};
+                if (info.actions + trick <= remaining) {
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + trick, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
                     // Casting is a manipulate action: it provokes Attacks of Opportunity.
                     if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }
                 if (quickFits) {
-                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, quickened: true, ...(rider ? { rider: true } : {}) }, info.actions - 1, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: [index, "quickened"] });
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, quickened: true, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions - 1 + trick, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: [index, "quickened"] });
                     if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }
@@ -1494,7 +1505,8 @@ function expandOtherActions(env) {
         if (worst && worst.worth > 0) children.push(child(node, { type: "mythicRemove", slug: worst.slug, actions: 1 }, 1, ctx.ownValue * 1.5 * worst.worth * ROUND_TO_KILL, { cast: "mythicRemove" }));
         const recharge = c.mythic?.recharge && !node.casts.includes("mythicRecharge") && node.used === 0 ? c.mythic.recharge : null;
         if (recharge) {
-            const pool = Object.entries(c.spellPools ?? {}).find(([name, left]) => left <= 0 && (c.spells ?? []).some((spell) => spell.pool === name))?.[0];
+            // (S22: not a scroll, wand or staff's.)
+            const pool = Object.entries(c.spellPools ?? {}).find(([name, left]) => left <= 0 && (c.spells ?? []).some((spell) => spell.pool === name && !spell.item))?.[0];
             const recharging = recharge.abilities ? (c.spells ?? []).findIndex((spell) => (c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0)) : -1;
             const what = pool ? { pool } : recharging >= 0 ? { spellIndex: recharging } : recharge.quickened && c.quickenedUsed ? { quickened: true } : null;
             if (what) children.push(child(node, { type: "mythicRecharge", actions: 1, ...what }, 1, 0.35 * ctx.ownValue * ROUND_TO_KILL, { cast: "mythicRecharge" }));

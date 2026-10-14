@@ -3,7 +3,9 @@
 
 import { extraDamageParts, parseReadableDamage, randomDamageRows } from "../src/adapter/formula.js";
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
-import { canCast, isUtility, spellGaps } from "../src/engine/spells.js";
+import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js";
+import { levelDC } from "../src/engine/checks.js";
+import { isStaffItem, itemCasts, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { effectModel, iwrException } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
 import { requirementPlayable } from "../src/engine/needs.js";
@@ -24,7 +26,8 @@ const CONDITION_SLUGS = new Set([
     "prone", "fatigued", "blinded", "dazzled", "grabbed", "restrained", "paralyzed", "unconscious", "encumbered"
 ]);
 
-const BUILT_IN_ACTIONS = new Set(["reactive-strike", "attack-of-opportunity", "shield-block", "raise-a-shield", "stride", "step", "strike"]);
+// (S22: Trick Magic Item, played with the scrolls and wands it lets the creature use.)
+const BUILT_IN_ACTIONS = new Set(["reactive-strike", "attack-of-opportunity", "shield-block", "raise-a-shield", "stride", "step", "strike", "trick-magic-item"]);
 const AOO_SLUGS = new Set(["reactive-strike", "attack-of-opportunity"]);
 const NOTABLE_PASSIVE = /sneak-attack|regeneration|fast-healing|frightful-presence|pack-attack|ferocity|deny-advantage|aura|swarm-mind|rage/;
 // Strike traits that need no simulation: modelled by the engine, already in
@@ -531,9 +534,10 @@ function readGaps(actor, gaps, handled = new Set()) {
         }
         gaps.push({ kind: type === "reaction" ? "reaction" : "feat action", name: item.name });
     }
+    // (Scrolls and wands: readSpells' since S22.)
     for (const item of actor.itemTypes?.consumable ?? []) {
         const category = item.system?.category;
-        if (["potion", "elixir", "scroll", "wand", "bomb", "oil", "talisman", "poison"].includes(category)) gaps.push({ kind: "consumable", name: item.name });
+        if (["potion", "elixir", "bomb", "oil", "talisman", "poison"].includes(category)) gaps.push({ kind: "consumable", name: item.name });
     }
 }
 
@@ -821,25 +825,37 @@ async function effectModels(plan, castRank) {
 // registry; without it, or for a spell no family resolves, the spell is a gap.
 // castSpells: the compendium spells its abilities cast (a vampire's Dominate ability): the ability is that spell, so its own
 // copy in an entry (its innate Dominate) is left out.
+// A spellcasting statistic's spell DC and attack, conditions aside.
+function castingNumbers(statistic) {
+    return {
+        dc: stripConditions(statistic?.dc?.value ?? 10, statistic?.dc?.modifiers ?? statistic?.modifiers ?? []),
+        attack: stripConditions(statistic?.check?.mod ?? statistic?.mod ?? 0, statistic?.check?.modifiers ?? statistic?.modifiers ?? [])
+    };
+}
+
 async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() } = {}) {
     const spells = [];
     const spellPools = {};
     // (Not the entries the ability module makes for an ability's casting: the ability is read with the abilities.)
     const entries = (actor.spellcasting?.regular ?? actor.spellcasting?.contents ?? []).filter((entry) => !entry.isRitual && !entry.flags?.[ABILITY_MODULE_ID]?.abilityCast);
+    // (S22: PF2e Dailies' staves and spell servers, entries of their own beside PF2e's.)
+    const charged = [...(actor.spellcasting?.contents ?? [])].filter((entry) => entry.category === "charges" && !entries.includes(entry));
     const registry = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api?.registry : null;
     const cantripRank = Math.min(10, Math.max(1, Math.ceil((actor.level ?? 1) / 2)));
     const listed = [];
-    for (const entry of entries) {
+    for (const entry of [...entries, ...charged]) {
         let data;
         try {
-            data = await entry.getSheetData?.();
+            data = await entry.getSheetData?.(charged.includes(entry) ? { spells: actor.spellcasting.collections?.get(entry.id) } : undefined);
         } catch (error) {
             console.warn(`${MODULE_ID} | Couldn't read ${entry.name} on ${actor.name}.`, error);
         }
         if (!data?.groups) continue;
-        const statistic = entry.statistic;
-        const dc = stripConditions(statistic?.dc?.value ?? 10, statistic?.dc?.modifiers ?? statistic?.modifiers ?? []);
-        const attack = stripConditions(statistic?.check?.mod ?? statistic?.mod ?? 0, statistic?.check?.modifiers ?? statistic?.modifiers ?? []);
+        const { dc, attack } = castingNumbers(entry.statistic);
+        // (S22: charges — a staff's, as PF2e Dailies keeps them — each spell its rank in them, a cantrip free.)
+        const chargePool = (data.isCharges || entry.category === "charges") && data.uses ? `charges:${entry.id}` : null;
+        if (chargePool) spellPools[chargePool] = fresh ? data.uses.max ?? 0 : data.uses.value ?? 0;
+        const from = charged.includes(entry) ? { from: entry.name, item: entry.item?.id ?? entry.id } : {};
         for (const group of data.groups) {
             const cantrips = group.id === "cantrips";
             const groupRank = cantrips ? cantripRank : Number(group.id) || 1;
@@ -851,6 +867,7 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
                 if (!spell || spell.isRitual || castSpells.has(spell.sourceId ?? spell._stats?.compendiumSource)) continue;
                 let pool = null;
                 if (cantrips || spell.isCantrip) pool = null;
+                else if (chargePool) pool = chargePool;
                 else if (entry.isFocusPool || spell.isFocusSpell) {
                     pool = "focus";
                     spellPools.focus = fresh ? actor.system?.resources?.focus?.max ?? 0 : actor.system?.resources?.focus?.value ?? 0;
@@ -865,10 +882,14 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
                 }
                 const castRank = active.castRank ?? (spell.isCantrip || spell.isFocusSpell ? cantripRank : groupRank);
                 // (L5: a coven's spells, castable only with the coven.)
-                listed.push({ spell, name: spell.name, castRank, dc, attack, pool, tradition: entry.tradition ?? entry.system?.tradition?.value ?? null, ...(/\bcoven\b/i.test(entry.name ?? "") ? { coven: true } : {}) });
+                const extra = { ...from, ...(pool && pool === chargePool ? { poolCost: castRank } : {}) };
+                listed.push({ spell, name: spell.name, castRank, dc, attack, pool, tradition: entry.tradition ?? entry.system?.tradition?.value ?? null, ...(/\bcoven\b/i.test(entry.name ?? "") ? { coven: true } : {}), extra });
             }
         }
     }
+    listed.push(...consumableSpells(actor, gaps, { fresh, spellPools }));
+    // (Without PF2e Dailies' staff: the staff read as Dailies reads it.)
+    if (!charged.some((entry) => entry.isStaff)) listed.push(...await staffSpells(actor, gaps, { spellPools, cantripRank }));
     if (!listed.length) return { spells, spellPools };
     if (!registry) {
         for (const entry of listed) gaps.push({ kind: "spell", name: entry.name });
@@ -879,8 +900,8 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
     for (const entry of listed) {
         const { result, error } = prepared.get(entry.spell.uuid) ?? {};
         const plan = result?.plan ? leanPlan(result.plan) : null;
-        const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, ...(entry.coven ? { coven: true } : {}), effects: plan ? formLimits(entry.spell, await effectModels(plan, entry.castRank)) : {} };
-        if (!plan || !canCast({ spellPools: { [entry.pool]: 1 }, covenReady: true }, spec)) {
+        const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, ...(entry.coven ? { coven: true } : {}), ...entry.extra, effects: plan ? formLimits(entry.spell, await effectModels(plan, entry.castRank)) : {} };
+        if (!plan || !canCast({ spellPools: { [entry.pool]: poolCost(spec) }, covenReady: true, desperate: true }, spec)) {
             // Detect Magic, Translocate and the like: listed, but they don't count against the result.
             // (On the full plan: the slimmed one may have lost its effect references.)
             const utility = isUtility(result?.plan ?? plan);
@@ -892,6 +913,120 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
         spells.push(spec);
     }
     return { spells, spellPools };
+}
+
+// S22, scrolls, wands and spell gems at hand (the user: "can we get the simulator to treat scrolls, wands and staffs as spells the
+// creature can cast?"), as PF2e casts them: by the spellcasting that can cast the item's spell (the best DC, as PF2e picks), or for
+// a PC with Trick Magic Item through its skill check first (the item level's DC; then the spell DC and attack PF2e gives a trick).
+// A scroll is used up; a wand casts once a day, and once that's spent it can be overcharged once — while the fight goes badly.
+function consumableSpells(actor, gaps, { fresh, spellPools }) {
+    const listed = [];
+    const casting = [...(actor.spellcasting?.contents ?? [])].filter((entry) => entry.statistic && !["charges", "items"].includes(entry.category));
+    const tricks = (actor.itemTypes?.feat ?? []).some((feat) => feat.slug === "trick-magic-item");
+    for (const item of actor.itemTypes?.consumable ?? []) {
+        const category = item.category ?? item.system?.category;
+        if (!SPELL_ITEMS.includes(category) || !item.system?.spell) continue;
+        // (Stowed in a pack, or not identified: not one PF2e lets it cast from.)
+        if (item.isStowed || item.isIdentified === false) {
+            gaps.push({ kind: item.isStowed ? "item, stowed" : "item, unidentified", name: item.name });
+            continue;
+        }
+        let spell = null;
+        try {
+            spell = item.embeddedSpell;
+        } catch {
+            spell = null;
+        }
+        if (!spell) continue;
+        const casts = itemCasts({ category, quantity: item.quantity, uses: item.system?.uses, fresh });
+        const overcharge = category === "wand" && !item.isBroken && !item.isDestroyed;
+        if (!casts && !overcharge) continue;
+        const canCastIt = (entry) => {
+            try {
+                return entry.canCast(spell, { origin: item });
+            } catch {
+                return false;
+            }
+        };
+        const entry = casting.filter(canCastIt).reduce((best, each) => (!best || (each.statistic.dc?.value ?? 0) > (best.statistic.dc?.value ?? 0) ? each : best), null);
+        let statistic = entry?.statistic ?? null;
+        let tradition = entry?.tradition ?? [...(spell.traditions ?? [])][0] ?? null;
+        let trick = null;
+        if (!entry && tricks) {
+            const traditions = [...(item.system?.traits?.value ?? []), ...(spell.traditions ?? [])];
+            const best = trickSkills(traditions).map((skill) => {
+                const check = actor.skills?.[skill]?.check ?? actor.skills?.[skill];
+                return { skill, modifier: stripConditions(check?.mod ?? 0, check?.modifiers ?? []) };
+            }).reduce((top, each) => (!top || each.modifier > top.modifier ? each : top), null);
+            let trickEntry = null;
+            try {
+                trickEntry = best ? actor.spellcasting.get(`trick-${best.skill}`) : null;
+            } catch {
+                trickEntry = null;
+            }
+            if (trickEntry?.statistic) {
+                statistic = trickEntry.statistic;
+                tradition = trickEntry.tradition ?? tradition;
+                trick = { skill: game.i18n?.localize?.(CONFIG.PF2E?.skills?.[best.skill]?.label ?? "") || best.skill, modifier: best.modifier, dc: levelDC(item.level ?? 1) };
+            }
+        }
+        if (!statistic) {
+            gaps.push({ kind: "item, can't cast its spell", name: item.name });
+            continue;
+        }
+        const pool = `item:${item.id}`;
+        spellPools[pool] = casts;
+        const base = { spell, name: spell.name, castRank: spell.rank, ...castingNumbers(statistic), pool, tradition, extra: { from: item.name, item: item.id, ...(trick ? { trick } : {}) } };
+        listed.push(base);
+        if (overcharge) {
+            spellPools[`overcharge:${item.id}`] = 1;
+            listed.push({ ...base, pool: `overcharge:${item.id}`, extra: { ...base.extra, from: `${item.name} (overcharged)`, overcharge: pool } });
+        }
+    }
+    return listed;
+}
+
+// S22, a staff without PF2e Dailies, read as Dailies reads one: the spells its description lists by rank, its charges the creature's
+// highest spell rank (none: it can't prepare a staff), each spell cast by the prepared or spontaneous spellcasting that can (the best
+// DC), its rank in charges, a cantrip free. One staff a day: the highest level one it carries. (A staff with a spellcasting entry of
+// its own name — the iconics' "Staff of Fire", spontaneous slots for its charges — is that entry's: read with the others.)
+async function staffSpells(actor, gaps, { spellPools, cantripRank }) {
+    const named = (value) => String(value ?? "").trim().toLowerCase();
+    const entryNames = new Set((actor.spellcasting?.regular ?? []).map((entry) => named(entry.name)));
+    const staves = [...(actor.itemTypes?.weapon ?? []), ...(actor.itemTypes?.equipment ?? [])]
+        .filter((item) => isStaffItem({ type: item.type, traits: item.system?.traits?.value ?? [], magical: !!item.isMagical }));
+    const staffNames = new Set(staves.map((item) => named(item.name)));
+    const features = (actor.spellcasting?.regular ?? []).filter((entry) => (entry.isPrepared || entry.isSpontaneous) && !staffNames.has(named(entry.name)));
+    const charges = staffCharges(features.map((entry) => entry.system?.slots), actor.level ?? 1);
+    if (!charges) return [];
+    const staff = staves.filter((item) => !entryNames.has(named(item.name))).sort((a, b) => (b.level ?? 0) - (a.level ?? 0))[0];
+    if (!staff) return [];
+    const listed = [];
+    const pool = `staff:${staff.id}`;
+    for (const { rank, uuid } of staffSpellList(staff.system?.description?.value ?? staff.description, charges)) {
+        let spell = null;
+        try {
+            spell = await fromUuid(uuid);
+        } catch {
+            spell = null;
+        }
+        if (!spell || spell.type !== "spell") continue;
+        const entry = features.filter((each) => {
+            try {
+                return each.canCast(spell, { origin: staff });
+            } catch {
+                return false;
+            }
+        }).reduce((best, each) => (!best || (each.statistic?.dc?.value ?? 0) > (best.statistic?.dc?.value ?? 0) ? each : best), null);
+        if (!entry?.statistic) {
+            gaps.push({ kind: "staff spell, not on its list", name: `${staff.name}: ${spell.name}` });
+            continue;
+        }
+        const cantrip = !!spell.isCantrip || rank === 0;
+        listed.push({ spell, name: spell.name, castRank: cantrip ? cantripRank : rank, ...castingNumbers(entry.statistic), pool: cantrip ? null : pool, tradition: entry.tradition ?? null, extra: { from: staff.name, item: staff.id, ...(cantrip ? {} : { poolCost: rank }) } });
+    }
+    if (listed.some((entry) => entry.pool)) spellPools[pool] = charges;
+    return listed;
 }
 
 // Actions that put an effect on the PC (stances such as Tiger Stance or
