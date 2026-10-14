@@ -10,12 +10,37 @@ import { frightenedAfter } from "./passives.js";
 
 export const GROUP_STATES = ["steady", "shaken", "wavering", "broken"];
 
+// Humanoids' temperament from the role in their name (M36); the band's
+// name (cultist, pirate) before a rank (captain, sergeant).
+const HUMANOID_ROLES = [
+    ["fanatical", /\b(cultists?|zealots?|fanatics?|devotees?|crusaders?|inquisitors?|berserkers?|martyrs?)\b/i],
+    ["mercenary", /\b(mercenar(?:y|ies)|sellswords?|bandits?|brigands?|thugs?|raiders?|pirates?|cutthroats?|bounty hunters?|smugglers?|highwaym[ae]n|ruffians?|footpads?|poachers?)\b/i],
+    ["disciplined", /(?<!-)\b(soldiers?|guards?|guardsm[ae]n|knights?|sentry|sentries|sentinels?|watch(?:m[ae]n|wom[ae]n)?|legionnaires?|wardens?|captains?|lieutenants?|sergeants?|commanders?|hellknights?|militia|infantry|cavalry|marshals?|veterans?)\b/i]
+];
+
+// A creature's temperament from its traits (M36): who never checks, then
+// undead, devils, demons and celestials by kind, troops, beasts, and humanoids
+// by name. Other fiends are typical, a fiendish animal still bestial; a pack
+// of animals is no drilled troop.
+export function temperamentOf(spec) {
+    const traits = new Set(spec.traits ?? []);
+    const has = (...names) => names.some((name) => traits.has(name));
+    if (spec.reserve || spec.summonedBy || has("summoned", "minion")) return "none";
+    if (has("mindless", "construct", "ooze")) return "none";
+    if (has("undead")) return "fanatical";
+    if (has("devil")) return "disciplined";
+    if (has("demon")) return "fanatical";
+    if (has("monitor")) return "fanatical";
+    if (has("celestial", "angel", "archon", "azata")) return "disciplined";
+    if (has("troop") && !(has("animal") && !has("humanoid"))) return "disciplined";
+    if (has("animal", "beast", "swarm")) return "bestial";
+    if (has("humanoid")) return HUMANOID_ROLES.find(([, pattern]) => pattern.test(spec.name ?? ""))?.[0] ?? "typical";
+    return "typical";
+}
+
 // Default morale profile for a foe, before per-actor and per-run overrides.
 export function defaultMoraleProfile(spec, { foes, partyLevel, objective }) {
-    const traits = new Set(spec.traits ?? []);
-    const profile = { template: "typical", boss: false, group: null, leader: false };
-    if (traits.has("mindless") || traits.has("construct") || traits.has("ooze")) profile.template = "none";
-    else if (traits.has("animal")) profile.template = "bestial";
+    const profile = { template: temperamentOf(spec), boss: false, group: null, leader: false };
     const sameName = foes.filter((other) => other.name === spec.name).length;
     if (sameName >= 3) profile.group = spec.name;
     if (sameName === 1 && spec.level >= partyLevel + 2) profile.boss = true;

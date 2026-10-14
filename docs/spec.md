@@ -269,8 +269,15 @@ The outcomes are decisive, rout, defeat, retreat, survived and timeout (round ca
 
 **Automatic creature settings** (saved on the actor, changeable per run):
 
-- mindless, construct or ooze → None
-- animal → Bestial
+- temperament by creature type (M36), the first that fits:
+  - a monster's summoned creatures, minions and summoned creatures; mindless, construct or ooze → None
+  - undead (not mindless) → Fanatical
+  - devils → Disciplined; demons → Fanatical; daemons and other fiends → Typical (a fiendish animal stays Bestial)
+  - monitors (aeons, psychopomps, proteans…) → Fanatical; celestials (angels, archons, azatas…) → Disciplined
+  - troops → Disciplined, except a pack or herd of animals with no humanoids → Bestial
+  - animals, beasts and swarms → Bestial
+  - humanoids by the role in their name: cultists, zealots, fanatics… → Fanatical; mercenaries, bandits, pirates, thugs… → Mercenary; guards, soldiers, knights, veterans, captains… → Disciplined; other humanoids → Typical
+  - dragons, fey, aberrations, elementals, giants and everything else → Typical
 - a single foe 2+ levels above the party → solo boss (Boss Resolve)
 - 3 or more foes with the same name → a Group
 - highest-level foe → leader

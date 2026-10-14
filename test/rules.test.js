@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { prepareSnapshot, simulate } from "../src/engine/fight.js";
 import { moderateCreature, martialParty, benchmarkEncounter } from "../src/engine/benchmarks.js";
 import { runBatch, runCompare, COMPARE_PRESETS } from "../src/engine/batch.js";
-import { defaultMoraleProfile } from "../src/engine/morale.js";
+import { defaultMoraleProfile, temperamentOf } from "../src/engine/morale.js";
 
 test("default morale profiles follow the agreed guesses", () => {
     const zombie = { ...moderateCreature(1, "z", "Zombie"), traits: ["mindless", "undead"] };
@@ -19,6 +19,49 @@ test("default morale profiles follow the agreed guesses", () => {
     assert.equal(defaultMoraleProfile(bandits[0], context).group, "Bandit");
     const targeted = defaultMoraleProfile(wolf, { ...context, objective: { kind: "target", targetId: "w" } });
     assert.equal(targeted.template, "cowardly");
+});
+
+test("M36: temperament by creature type", () => {
+    const of = (name, traits, extra = {}) => temperamentOf({ name, traits, ...extra });
+    assert.equal(of("Ghoul", ["undead"]), "fanatical");
+    assert.equal(of("Zombie Shambler", ["mindless", "undead"]), "none");
+    assert.equal(of("Barbazu", ["devil", "fiend"]), "disciplined");
+    assert.equal(of("Vrock", ["demon", "fiend"]), "fanatical");
+    assert.equal(of("Ceustodaemon", ["daemon", "fiend"]), "typical");
+    assert.equal(of("Rakshasa", ["fiend", "rakshasa"]), "typical");
+    assert.equal(of("Blood Wolf", ["animal", "fiend", "unholy"]), "bestial");
+    assert.equal(of("Abyssal Warhound", ["animal", "demon", "fiend"]), "fanatical");
+    assert.equal(of("Hellbound Attorney", ["devil", "fiend", "human", "humanoid"]), "disciplined");
+    assert.equal(of("Lantern Archon", ["archon", "celestial"]), "disciplined");
+    assert.equal(of("Morrigna", ["monitor", "psychopomp"]), "fanatical");
+    assert.equal(of("Guard Squadron", ["human", "humanoid", "troop"]), "disciplined");
+    assert.equal(of("Heavy Cavalry", ["animal", "human", "humanoid", "troop"]), "disciplined");
+    assert.equal(of("Wolf Pack", ["animal", "troop"]), "bestial");
+    assert.equal(of("Owlbear", ["beast"]), "bestial");
+    assert.equal(of("Rat Swarm", ["animal", "swarm"]), "bestial");
+    assert.equal(of("Army Ant Swarm", ["animal", "mindless", "swarm"]), "none");
+    assert.equal(of("Young Red Dragon", ["dragon", "fire"]), "typical");
+    assert.equal(of("Unicorn", ["fey"]), "typical");
+    assert.equal(of("Guard", ["human", "humanoid"]), "disciplined");
+    assert.equal(of("Hellknight Armiger", ["human", "humanoid"]), "disciplined");
+    assert.equal(of("Cultist", ["human", "humanoid"]), "fanatical");
+    assert.equal(of("Bandit", ["human", "humanoid"]), "mercenary");
+    assert.equal(of("Pirate Captain", ["human", "humanoid"]), "mercenary");
+    assert.equal(of("Pathfinder Venture-Captain", ["human", "humanoid"]), "typical");
+    assert.equal(of("Watchman", ["human", "humanoid"]), "disciplined");
+    assert.equal(of("Acolyte of Nethys", ["human", "humanoid"]), "typical");
+    assert.equal(of("Cave Fisher", ["animal"]), "bestial");
+    assert.equal(of("Wolf", ["animal"], { summonedBy: "druid" }), "none");
+    assert.equal(of("Spider Minion", ["animal", "minion"]), "none");
+    assert.equal(of("Skeleton", ["summoned", "undead"]), "none");
+});
+
+test("M36: a monster's summoned creatures never check morale, live and simulated", () => {
+    const maker = { ...moderateCreature(3, "m", "Necromancer"), side: "foes", traits: ["human", "humanoid"] };
+    const reserve = { ...moderateCreature(1, "m~Ghoul~0", "Necromancer's Ghoul"), side: "foes", traits: ["undead"], reserve: true, summonedBy: "m" };
+    const prepared = prepareSnapshot({ combatants: [...martialParty(3), maker, reserve] });
+    assert.equal(prepared.combatants.find((c) => c.id === "m~Ghoul~0").morale.template, "none");
+    assert.equal(prepared.combatants.find((c) => c.id === "m").morale.template, "typical");
 });
 
 test("the losing gate at 3× keeps morale from deciding fights: at most 5 points in each", () => {

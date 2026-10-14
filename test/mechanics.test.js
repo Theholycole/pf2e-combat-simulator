@@ -113,7 +113,7 @@ test("fanatical creatures ignore their first failure and go berserk instead of f
 
 test("a typical humanoid that breaks surrenders", () => {
     const rules = { templates: { typical: { modifier: -30 } } };
-    const state = moraleState([moderateCreature(3, "h", "Guard"), moderateCreature(3, "o", "Other")], rules);
+    const state = moraleState([moderateCreature(3, "h", "Clerk"), moderateCreature(3, "o", "Other")], rules);
     const guard = state.byId.get("h");
     state.pendingEvents.push({ type: "halfHp", victim: guard });
     processMorale(state);
@@ -255,7 +255,7 @@ test("the gate by HP share: each side's HP left as a share of what it started wi
 test("fear only cracks morale (M29): a failed check fear set off raises frightened; a critical failure gives up", async () => {
     const { applyCondition } = await import("../src/engine/spells.js");
     const outcome = (natural) => {
-        const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")]);
+        const state = moraleState([moderateCreature(3, "g", "Clerk"), moderateCreature(3, "o", "Other")]);
         const guard = state.byId.get("g");
         state.rng.d20 = () => natural;
         applyCondition(state, guard, "frightened", 2, null, state.list.find((c) => c.kind === "pc"));
