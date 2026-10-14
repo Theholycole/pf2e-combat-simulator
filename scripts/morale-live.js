@@ -206,7 +206,7 @@ async function actorOf(row) {
 // takes messageMode, not rollMode, and makes a "secret" roll GM-only).
 async function rollRow(message, rowId) {
     const row = cardOf(message).rows.find((entry) => entry.id === rowId);
-    if (!row || row.bossHolds || row.degree !== null) return;
+    if (!row || row.bossHolds || row.automatic || row.degree !== null) return;
     const actor = await actorOf(row);
     if (!actor?.saves?.will) throw new Error(`${row.name}'s Will isn't available.`);
     const modifiers = row.modifiers.filter((modifier) => modifier.on).map((modifier) => new game.pf2e.Modifier({ slug: `morale-${modifier.id.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`, label: modifier.label, modifier: modifier.value, type: "untyped" }));
@@ -301,7 +301,8 @@ async function applyCard(message) {
     const combat = game.combats.get(card.combatId);
     if (!combat) throw new Error("The encounter is gone.");
     const rules = rulesNow();
-    const rows = card.rows.filter((row) => !row.bossHolds).map((row) => ({ id: row.id, reason: card.reason, degree: row.degree, readDegree: row.read?.degree ?? null }));
+    // (M41: a row that gives up without a roll applies as a critical failure.)
+    const rows = card.rows.filter((row) => !row.bossHolds).map((row) => ({ id: row.id, reason: card.reason, degree: row.automatic ? 0 : row.degree, readDegree: row.read?.degree ?? null }));
     const { results, memory } = liveMoraleApply({ snapshot: await snapshotOf(combat), memory: memoryOf(combat), round: card.round, rules, rows });
     const lines = card.rows.filter((row) => row.bossHolds).map((row) => `${row.name}: Boss Resolve, it holds.`);
     const changes = {};

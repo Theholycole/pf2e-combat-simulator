@@ -13,7 +13,7 @@
 
 import { createFightState } from "../engine/fight.js";
 import { FLED, baseWill, isActive } from "../engine/combatant.js";
-import { bossAutoPasses, checkCantAffect, claimCheck, collectMoraleChecks, finalMoraleDegree, moraleDC, moraleModifierParts, moraleOutcome, readTheFightDC, readsTheFight, routReady, speaks } from "../engine/morale.js";
+import { automaticTrigger, bossAutoPasses, checkCantAffect, claimCheck, collectMoraleChecks, finalMoraleDegree, moraleDC, moraleModifierParts, moraleOutcome, readTheFightDC, readsTheFight, routReady, speaks } from "../engine/morale.js";
 import { SUCCESS } from "../engine/checks.js";
 import { bestOffense } from "../engine/planner.js";
 
@@ -85,6 +85,9 @@ export function liveMoraleChecks({ snapshot, memory = emptyMemory(), round = 1, 
             else state.pendingEvents.push({ type: "dropped", victim: c, overwhelming: before.hp >= c.hp.max * (state.moraleRules.measures.overwhelmingFraction ?? 0.5) });
         }
         if (now.frightened > before.frightened) state.pendingEvents.push({ type: "frightened", victim: c, byEnemy: true, value: now.frightened });
+        // (M41: wounded from full, a cowardly creature's first blood; below half, a bestial one's.)
+        if (now.up && before.hp >= c.hp.max && now.hp < c.hp.max) state.pendingEvents.push({ type: "hurt", victim: c });
+        if (now.up && before.hp > c.hp.max / 2 && now.hp <= c.hp.max / 2) state.pendingEvents.push({ type: "halfHp", victim: c });
         if (now.fleeing && !before.fleeing) state.pendingEvents.push({ type: "fleeing", victim: c });
     }
     // Its turn begins: still fleeing (M32), or no way to hurt anyone (M11).
@@ -102,8 +105,12 @@ export function liveMoraleChecks({ snapshot, memory = emptyMemory(), round = 1, 
     for (const [id, reason] of triggered) {
         const c = state.byId.get(id);
         if (!claimCheck(state, c)) continue;
-        const read = readsTheFight(state, c, reason) ? { dc: readTheFightDC(state, c), perception: Number(c.perception) || 0, signs: [...(state.moraleRules.readTheFight?.signs ?? [])] } : null;
-        const row = bossAutoPasses(c)
+        const readBonus = state.moraleRules.templates[c.morale?.template]?.readBonus;
+        const read = readsTheFight(state, c, reason) ? { dc: readTheFightDC(state, c), perception: Number(c.perception) || 0, signs: [...(state.moraleRules.readTheFight?.signs ?? [])], extra: readBonus ? [{ id: `template.${c.morale.template}.read`, value: readBonus }] : [] } : null;
+        // (M41: a trigger that gives up without a roll — a mercenary whose paymaster fell.)
+        const row = automaticTrigger(state, reason)
+            ? { id, name: c.name, automatic: true }
+            : bossAutoPasses(c)
             ? { id, name: c.name, bossHolds: true }
             : { id, name: c.name, dc: moraleDC(state, baseWill(c)), will: baseWill(c), parts: moraleModifierParts(state, c), template: c.morale?.template ?? "typical", ...(read ? { read } : {}) };
         if (!byReason.has(reason)) byReason.set(reason, []);

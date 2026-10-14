@@ -52,8 +52,8 @@ Built and tested: 25 Node tests, plus a live check in `pftest` with the level-1 
 
 **Choices made while building:**
 
-- **Losing gate:** on since M24. Since M28 it compares each side's HP left as a share of its starting HP: the party's share must be at least 1.25× the foes'. Before, it used Lanchester's square law (party HP × damage per round at least 2× the foes'), which is still a setting. See M2, M24 and M28 in [morale-decisions.md](morale-decisions.md).
-- **Party retreat with no objective** happens when the foes are ahead by the same measure (ratio below 1).
+- **Losing gate:** on since M24. Since M39–M40 it compares each side's strength (Lanchester's square law): HP left × damage potential, the party's at least 3.25× the foes'. M28's HP share (the party's share of its starting HP at least 1.25× the foes') is still a setting. See M2, M24, M28, M39 and M40 in [morale-decisions.md](morale-decisions.md).
+- **Party retreat with no objective** happens when two PCs are down and the foes are more than twice as strong by the same measure (strength below 0.5×; 2026-10-14, was below 1× by this round's damage).
 - **Drawn weapons:** weapons that are carried but not held count as drawn. The Interact action to draw them isn't simulated.
 - **Critical damage** uses PF2e's own critical formula, so deadly, fatal and runes are already included.
 - **Snapshot values** have condition modifiers removed, and any same-type modifier they had displaced is restored. The engine applies conditions itself.
@@ -237,7 +237,7 @@ Role profiles: soldier (default), brute, skirmisher, sniper. Monsters do not att
 
 The outcomes are decisive, rout, defeat, retreat, survived and timeout (round cap 20). The objective is scored separately.
 
-**Party retreat:** two or more PCs are down, and either the objective has failed, or the foes are ahead. Being behind counts as "can't be completed"; checking only for a failed objective made parties with an open objective fight to the last PC.
+**Party retreat:** two or more PCs are down, and either the objective has failed, or the foes are more than twice as strong (the party's HP × damage potential under 0.5× theirs; options `retreatDowns`, `retreatRatio`, `retreatBy`). Being behind counts as "can't be completed"; checking only for a failed objective made parties with an open objective fight to the last PC. Measured on paired fights (2026-10-14, each fight also fought to the end): at 1× by this round's damage, 2.6% of fights were retreats from fights the party would have won and 11.5% saved a party from a wipe; at 0.5× by potential, 1.5% and 11.4%, with wipes 0.2% → 0.3%. Waiting for 3 PCs down let 1.6% of fights end in wipes; retreating at 1 PC down abandoned 7% that would have been won.
 
 ### Fleeing, pursuit and surrender
 
@@ -267,6 +267,7 @@ The outcomes are decisive, rout, defeat, retreat, survived and timeout (round ca
 - **A failure means it gives up:** it flees or surrenders by its template; fanatics fight recklessly instead. When a third of the surviving foes have given up (those who surrendered or fled on a failed check count, M30), while the gate is open, the rest flee and the fight ends with a pursuit Strike for each PC (M37); those fighting to the death stay.
 - **Read the fight (M38):** with each side-losing check its morale held, while the gate is open, a foe rolls Perception against the same DC, its side's losing signs as bonuses as large as their morale penalties. On a success it sees the fight is lost: it yields if it speaks a language, otherwise it leaves (fleeing, not frightened). Not fanatics; a solo boss only once Boss Resolve would let it break.
 - **Surrender is an offer (M38):** the simulated party accepts (the creature is captured), except a kill objective's target or with the setup's "No quarter" tick. Refused, or a creature leaving harmed by a PC (not a Reactive Strike), it and the allies who saw (still fighting, not blinded) fight to the death: no more morale or Perception checks.
+- **Template personalities (M41):** Bestial foes also check once their own HP falls below half; Mercenaries give up without a roll when their paymaster (the side's leader) drops or flees, whatever the party's lead, and read the fight with +4; Disciplined foes hold formation (no side-losing checks while their leader stands; −2 more once it's gone); Cowardly foes also check on first blood and on their side's first fall, before the party is ahead too.
 - **Simulated PCs play for morale** (a setup tick, M23): it changes how the simulated PCs act, not the rules (M26). They value fear by the chance it makes a foe give up, and the foes' leader by the breaks its fall brings.
 
 **Automatic creature settings** (saved on the actor, changeable per run):

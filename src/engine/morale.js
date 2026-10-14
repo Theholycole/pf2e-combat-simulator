@@ -193,6 +193,16 @@ function leaderOf(state) {
     return state.list.find((c) => c.side === "foes" && c.morale?.leader) ?? null;
 }
 
+// M41: a disciplined creature holds formation while its side's leader (not itself) stands and hasn't given up.
+function holdsFormation(state, c) {
+    if (!templateOf(state, c).holdsFormation) return false;
+    const leader = leaderOf(state);
+    return !!leader && leader !== c && isActive(leader) && !leader.moraleState?.broken;
+}
+
+// M41: a trigger that gives up without a roll (a mercenary whose paymaster fell).
+export const automaticTrigger = (state, reason) => !!state.moraleRules.triggers[reason]?.automatic;
+
 function triggerEnabled(state, id) {
     return state.moraleRules.triggers[id]?.enabled !== false;
 }
@@ -216,6 +226,11 @@ export function processMorale(state) {
             if (doneGroups.has(group.key)) continue;
             doneGroups.add(group.key);
             groupCheck(state, group, reason);
+        } else if (automaticTrigger(state, reason)) {
+            state.log?.push(`  ${c.name} gives up: ${(state.moraleRules.triggers[reason].label ?? reason).toLowerCase()}`);
+            c.moraleState.failed++;
+            state.stats.moraleFailures++;
+            breakCreature(state, c, templateOf(state, c).break);
         } else {
             individualCheck(state, c, reason);
         }
@@ -233,12 +248,16 @@ export function collectMoraleChecks(state) {
     const add = (c, reason) => {
         if (!eligible(state, c)) return;
         if (!triggerEnabled(state, reason)) return;
-        if (state.moraleRules.triggers[reason]?.oncePerCreature) {
+        const trigger = state.moraleRules.triggers[reason];
+        // M41: a template's own trigger; a disciplined creature holds formation while its leader stands.
+        if (trigger?.templates && !trigger.templates.includes(c.morale.template)) return;
+        if (!trigger?.ignoresGate && holdsFormation(state, c)) return;
+        if (trigger?.oncePerCreature) {
             const used = (c.moraleState.usedTriggers ??= new Set());
             if (used.has(reason)) return;
             used.add(reason);
         }
-        if (!triggered.has(c.id)) triggered.set(c.id, reason);
+        if (!triggered.has(c.id) || trigger?.automatic) triggered.set(c.id, reason);
     };
     const foes = () => state.list.filter((c) => c.side === "foes");
     const flags = state.moraleFlags;
@@ -251,10 +270,12 @@ export function collectMoraleChecks(state) {
             if (!flags.firstDropSeen) {
                 flags.firstDropSeen = true;
                 if (event.critical || event.overwhelming) for (const c of foes()) add(c, "firstMemberOverwhelmed");
+                for (const c of foes()) if (c !== victim) add(c, "firstFall");
             }
             if (victim.morale?.leader) {
                 flags.leaderDownRound = state.round;
                 for (const c of foes()) add(c, "leaderDown");
+                for (const c of foes()) add(c, "paymasterDown");
             }
             if (!flags.strongestDown && victim.id === state.strongestFoeId) {
                 flags.strongestDown = true;
@@ -264,8 +285,13 @@ export function collectMoraleChecks(state) {
         if (event.type === "fled" && event.who.side === "foes" && event.who.morale?.leader) {
             flags.leaderDownRound = state.round;
             for (const c of foes()) add(c, "leaderDown");
+            for (const c of foes()) add(c, "paymasterDown");
         }
-        if (event.type === "halfHp" && event.victim.side === "foes") add(event.victim, "halfHp");
+        if (event.type === "halfHp" && event.victim.side === "foes") {
+            add(event.victim, "halfHp");
+            add(event.victim, "hurtBadly");
+        }
+        if (event.type === "hurt" && event.victim.side === "foes") add(event.victim, "firstBlood");
         if (event.type === "frightened" && event.victim.side === "foes" && event.byEnemy) {
             event.victim.moraleState.fearThisRound = true;
             // M25: only from frightened 2 or more (a Demoralize's critical success, stronger fear).
@@ -424,6 +450,10 @@ function personalModifiers(state, c) {
         if (situational(state, "defendingLair")) push("template.bestial.lair", template.defendingLair ?? 0);
         if (hpFraction(c) <= state.moraleRules.measures.bloodiedFraction && !isSurrounded(state, c)) push("template.bestial.bloodied", template.bloodied ?? 0);
     }
+    if (template.leaderless) {
+        const leader = leaderOf(state);
+        if (leader && leader !== c && (!isActive(leader) || leader.moraleState?.broken)) push(`template.${c.morale.template}.leaderless`, template.leaderless);
+    }
     if (c.morale.template === "mercenary") {
         if (partyAdvantage(state, { potential: state.moraleRules.strengthBy !== "thisRound" }) < 1) push("template.mercenary.winning", template.winning ?? 0);
         if (situational(state, "unpaid")) push("template.mercenary.unpaid", template.unpaid ?? 0);
@@ -543,7 +573,11 @@ export function readsTheFight(state, c, reason) {
 // Its side's losing signs: the morale modifiers it names, as bonuses as large as their penalties.
 export function readTheFightParts(state, c) {
     const signs = new Set(state.moraleRules.readTheFight?.signs ?? []);
-    return moraleModifierParts(state, c).filter((part) => signs.has(part.id) && part.value < 0).map((part) => ({ id: part.id, value: -part.value }));
+    const parts = moraleModifierParts(state, c).filter((part) => signs.has(part.id) && part.value < 0).map((part) => ({ id: part.id, value: -part.value }));
+    // M41: a mercenary reads it more easily.
+    const bonus = templateOf(state, c).readBonus;
+    if (bonus) parts.push({ id: `template.${c.morale.template}.read`, value: bonus });
+    return parts;
 }
 
 const perceptionOf = (c) => Number(c.perception) || 0;
@@ -685,7 +719,9 @@ export function leaderDownWorth(state, leader) {
     let worth = 0;
     for (const c of state.list) {
         if (c === leader || c.side !== leader.side || !isActive(c)) continue;
-        const odds = moraleOdds(state, c, { trigger: "leaderDown", extra: modifierValue(state, "leaderDown") });
+        // (M41: a mercenary gives up outright when its paymaster falls, if the party lets it.)
+        const paid = triggerEnabled(state, "paymasterDown") && (state.moraleRules.triggers.paymasterDown.templates ?? []).includes(c.morale?.template) && eligible(state, c);
+        const odds = paid ? { breaks: refusesQuarter(state, c) ? 0 : 1, wavers: 0 } : moraleOdds(state, c, { trigger: "leaderDown", extra: modifierValue(state, "leaderDown") });
         worth += (state.threat?.get(c.id) ?? 0) * (odds.breaks + 0.3 * odds.wavers);
     }
     return worth;

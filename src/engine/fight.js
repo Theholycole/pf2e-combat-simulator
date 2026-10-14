@@ -29,6 +29,13 @@ export const DEFAULT_OPTIONS = Object.freeze({
     heroPoints: true,
     objective: true,
     retreat: true,
+    // The party retreats once retreatDowns PCs are down and its strength is below retreatRatio times the foes'
+    // (retreatBy: "potential", what it can still deal, as morale's gate; "thisRound", the damage it deals this round).
+    // Potential and half (user, 2026-10-14; was this round's damage and 1×): needless retreats from fights the party
+    // would have won 2.6% → 1.5% of fights, the same parties saved from a wipe.
+    retreatDowns: 2,
+    retreatRatio: 0.5,
+    retreatBy: "potential",
     roundCap: 20,
     flankChances: [0, 0, 0.5, 0.75, 0.9]
 });
@@ -1233,13 +1240,14 @@ function initiativeStrikes(state) {
     }
 }
 
-function shouldRetreat(state) {
+// Whether the party retreats now (exported for tests).
+export function shouldRetreat(state) {
     if (!state.options.retreat) return false;
     const down = pcs(state).filter((c) => c.status === DOWN || c.status === DEAD).length;
-    if (down < 2) return false;
+    if (down < (state.options.retreatDowns ?? 2)) return false;
     // "Failed or can't be completed": an open objective is out of reach once the foes are ahead.
     if (state.objective?.status === "failed") return true;
-    return partyAdvantage(state) < 1;
+    return partyAdvantage(state, { potential: state.options.retreatBy === "potential" }) < (state.options.retreatRatio ?? 1);
 }
 
 export function simulate(snapshot, options = {}, seed = 1, { log = false } = {}) {

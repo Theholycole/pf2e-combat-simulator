@@ -1250,6 +1250,8 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
     if (before > target.hp.max / 2 && target.hp.value <= target.hp.max / 2 && target.hp.value > 0) {
         state.pendingEvents.push({ type: "halfHp", victim: target });
     }
+    // (M41: wounded from full, for a cowardly creature's first blood.)
+    if (before >= target.hp.max && target.hp.value < target.hp.max && target.hp.value > 0) state.pendingEvents.push({ type: "hurt", victim: target });
     // (B298: a summon set off by damage on it, Splinter Sycophant's.)
     if (target.hp.value > 0 && target.summons?.length) summonsOnDamage(state, target, amount);
     // (B302: Construct Armor breaking below half its Hit Points, or on a critical hit.)

@@ -22,6 +22,8 @@ export function modifierLabel(rules, id) {
         if (extra === "bloodied") return `${template?.label ?? name}: bloodied, escape possible`;
         if (extra === "winning") return `${template?.label ?? name}: its side is winning`;
         if (extra === "unpaid") return `${template?.label ?? name}: unpaid or betrayed`;
+        if (extra === "read") return `${template?.label ?? name}: not invested in the fight`;
+        if (extra === "leaderless") return `${template?.label ?? name}: its leader is gone`;
         return `${template?.label ?? name} template`;
     }
     return rules.modifiers?.[id]?.label ?? id;
@@ -43,8 +45,9 @@ export function rowModifiers(rules, parts, template) {
 
 export const rowTotal = (row) => (row.modifiers ?? []).filter((modifier) => modifier.on).reduce((sum, modifier) => sum + modifier.value, 0);
 
-// Read the fight (M38): the ticked morale modifiers among its losing signs, turned into Perception bonuses.
-export const readModifiers = (row) => (row.read ? (row.modifiers ?? []).filter((modifier) => modifier.on && row.read.signs.includes(modifier.id) && modifier.value < 0).map((modifier) => ({ ...modifier, value: -modifier.value })) : []);
+// Read the fight (M38): the ticked morale modifiers among its losing signs, turned into Perception bonuses, and its
+// template's own bonus (M41, a mercenary's).
+export const readModifiers = (row) => (row.read ? [...(row.modifiers ?? []).filter((modifier) => modifier.on && row.read.signs.includes(modifier.id) && modifier.value < 0).map((modifier) => ({ ...modifier, value: -modifier.value })), ...(row.read.extra ?? [])] : []);
 export const readTotal = (row) => readModifiers(row).reduce((sum, modifier) => sum + modifier.value, 0);
 
 // checks: liveMoraleChecks' { reason, rows }; who: id → { actorUuid, tokenUuid } for each row's creature.
@@ -62,9 +65,10 @@ export function createMoraleCard({ rules, combatId, round, check, who = {} }) {
             actorUuid: who[row.id]?.actorUuid ?? null,
             tokenUuid: who[row.id]?.tokenUuid ?? null,
             bossHolds: !!row.bossHolds,
+            automatic: !!row.automatic,
             dc: row.dc ?? null,
-            modifiers: row.bossHolds ? [] : rowModifiers(rules, row.parts, row.template),
-            read: row.read ? { dc: row.read.dc, signs: [...row.read.signs], total: null, natural: null, degree: null } : null,
+            modifiers: row.bossHolds || row.automatic ? [] : rowModifiers(rules, row.parts, row.template),
+            read: row.read ? { dc: row.read.dc, signs: [...row.read.signs], extra: (row.read.extra ?? []).map((part) => ({ ...part, label: modifierLabel(rules, part.id), on: true })), total: null, natural: null, degree: null } : null,
             total: null,
             natural: null,
             degree: null
@@ -75,7 +79,7 @@ export function createMoraleCard({ rules, combatId, round, check, who = {} }) {
     };
 }
 
-export const toRoll = (card) => card.rows.filter((row) => !row.bossHolds && row.degree === null);
+export const toRoll = (card) => card.rows.filter((row) => !row.bossHolds && !row.automatic && row.degree === null);
 export const allRolled = (card) => toRoll(card).length === 0;
 
 export function toggleModifier(card, rowId, modifierId) {
@@ -150,6 +154,7 @@ export function moraleCardHTML(card) {
     const open = card.status === "open";
     const rows = card.rows.map((row) => {
         if (row.bossHolds) return `<li class="sim-morale-row"><strong>${escape(row.name)}</strong> <span class="sim-morale-result">Boss Resolve: holds (no roll)</span></li>`;
+        if (row.automatic) return `<li class="sim-morale-row"><strong>${escape(row.name)}</strong> <span class="sim-morale-result">gives up (no roll)</span></li>`;
         const boxes = row.modifiers.map((modifier) => `<label class="sim-morale-mod"><input type="checkbox" data-sim-morale="toggle" data-row-id="${escape(row.id)}" data-mod-id="${escape(modifier.id)}"${modifier.on ? " checked" : ""}${open && row.degree === null ? "" : " disabled"}> ${escape(modifier.label)} ${signed(modifier.value)}</label>`).join("");
         const read = row.read ? ` · Perception ${row.read.degree !== null && row.read.degree !== undefined ? `${row.read.total ?? "?"}: ${DEGREES[row.read.degree]}` : `(${signed(readTotal(row))})`}` : "";
         const result = row.degree !== null

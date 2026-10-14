@@ -92,6 +92,14 @@ export const MORALE_RULES = Object.freeze({
         fleeing: { enabled: true, label: "Fleeing from any effect, each round it lasts", onFailure: "frighten", ignoresGate: true, giveUpNeedsGate: true },
         // Off (M24): an early check that decides fights.
         surprised: { enabled: false, label: "Surprised (first round)", source: "Morale.md" },
+        // Template personalities (user, 2026-10-14, M41): triggers only the templates listed have. automatic: it gives up
+        // without a roll. Bestial: it looks after itself once its own HP falls below half. Mercenary: paid to fight, it
+        // surrenders when its paymaster (its side's leader) drops or flees, whatever the party's lead. Cowardly: it breaks
+        // at first blood, before the party is ahead too.
+        hurtBadly: { enabled: true, label: "Its own HP falls below half", templates: ["bestial"], oncePerCreature: true },
+        paymasterDown: { enabled: true, label: "Its paymaster (the leader) dropped or fled", templates: ["mercenary"], ignoresGate: true, automatic: true },
+        firstBlood: { enabled: true, label: "Wounded for the first time", templates: ["cowardly"], ignoresGate: true, oncePerCreature: true },
+        firstFall: { enabled: true, label: "Its side's first creature falls", templates: ["cowardly"], ignoresGate: true },
         // Escalations (user, 2026-10-08): not a check; foe reinforcements arriving steady wavering foes
         // (off with M24: nothing wavers).
         helpArrives: { enabled: false, label: "Help arrives: wavering foes steady" }
@@ -147,10 +155,13 @@ export const MORALE_RULES = Object.freeze({
         none: { label: "None (never checks)", modifier: 0 },
         cowardly: { label: "Cowardly / Skittish", modifier: -2, waver: "withdraw", break: "rout" },
         typical: { label: "Typical", modifier: 0, waver: "defensive", break: "auto" },
-        disciplined: { label: "Disciplined", modifier: 2, waver: "formation", break: "disordered" },
+        // holdsFormation (M41): no side-losing checks while its leader stands; leaderless: its check once the leader is gone
+        // (with "Leader down or fled", −4).
+        disciplined: { label: "Disciplined", modifier: 2, waver: "formation", break: "disordered", holdsFormation: true, leaderless: -2 },
         fanatical: { label: "Fanatical", modifier: 4, waver: "defensive", break: "berserk", ignoreFirstFailure: true, readsTheFight: false },
         bestial: { label: "Bestial", modifier: 0, waver: "defensive", break: "rout", defendingLair: 2, bloodied: -2 },
-        mercenary: { label: "Mercenary", modifier: 0, waver: "defensive", break: "collapse", winning: 1, unpaid: -2 }
+        // readBonus (M41): it reads the fight more easily, not being invested.
+        mercenary: { label: "Mercenary", modifier: 0, waver: "defensive", break: "collapse", winning: 1, unpaid: -2, readBonus: 4 }
     },
 
     group: {
