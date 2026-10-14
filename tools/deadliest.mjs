@@ -8,6 +8,7 @@
 //   node tools/deadliest.mjs <out folder> ablate    the 12 deadliest up to level 20 and 6 above, each ability, Strike, spellcasting and
 //                                                   number left out, 300 fights
 //   node tools/deadliest.mjs <out folder> broad     every creature, each of those left out, on its first 16 screening fights
+//                                                   (--only=<file of refs>: just those creatures, into broad-only.jsonl)
 //
 //   --workers N (default: the cores less two)
 import fs from "node:fs";
@@ -192,8 +193,11 @@ if (!isMainThread) {
         const chosen = [...distinctTop.filter((entry) => entry.level <= 20).slice(0, 12), ...distinctTop.filter((entry) => entry.level > 20).slice(0, 6)];
         await run(chosen.flatMap((entry) => (screen.get(entry.ref.ref)?.variants ?? []).flatMap((variant) => chunks({ kind: "ablate", ref: entry.ref, variant }, 1, 301))), "ablate.jsonl");
     } else if (phase === "broad") {
-        const rows = read("screen.jsonl").filter((row) => !row.error && !row.skipped && Number.isFinite(row.score));
-        await run(rows.flatMap((row) => (row.variants ?? []).map((variant) => ({ kind: "broad", ref: row.ref, variant, from: 1, to: 17 }))), "broad.jsonl");
+        // (--only=<file>: just the creatures whose refs the file lists, one a line — after a fix that touches only them — into broad-only.jsonl.)
+        const onlyArg = process.argv.find((arg) => arg.startsWith("--only="));
+        const only = onlyArg ? new Set(fs.readFileSync(onlyArg.split("=")[1], "utf8").split("\n").map((line) => line.trim()).filter(Boolean)) : null;
+        const rows = read("screen.jsonl").filter((row) => !row.error && !row.skipped && Number.isFinite(row.score) && (!only || only.has(row.ref.ref)));
+        await run(rows.flatMap((row) => (row.variants ?? []).map((variant) => ({ kind: "broad", ref: row.ref, variant, from: 1, to: 17 }))), only ? "broad-only.jsonl" : "broad.jsonl");
     } else {
         console.error(`Unknown phase ${phase}`);
         process.exit(1);

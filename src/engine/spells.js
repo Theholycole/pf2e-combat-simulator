@@ -1920,7 +1920,8 @@ export function isUtility(plan) {
 
 // Constant spells (B315): "Haste (Constant)" is always on. As the fight starts, each one the creature can aim at itself without a check
 // takes effect on it for good; none is cast during the fight. (Before, a creature spent two actions casting its constant Haste.)
-export const isConstant = (spell) => /\(Constant\)\s*$/i.test(String(spell?.name ?? ""));
+// ("Foresight (Constant) (Self Only)" too.)
+export const isConstant = (spell) => /\(Constant\)/i.test(String(spell?.name ?? ""));
 export function applyConstantSpells(state) {
     for (const c of state.list) {
         if (!isActive(c)) continue;
