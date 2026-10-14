@@ -503,3 +503,26 @@ test("Telekinetic Maneuver: a way per basic action, with the caster's spell atta
     assert.equal(state.byId.get("foe").cond.prone, true, state.log.join("\n"));
     assert.equal(state.byId.get("mage").spellPools.s, 0);
 });
+
+test("Truesight: a counteract check against a foe's Invisibility; seen through, it isn't hidden to the caster nor its target off-guard to it; a spell at a hidden foe needs the flat check", async () => {
+    const { hiddenFrom } = await import("../src/engine/sight.js");
+    const { offGuardFrom } = await import("../src/engine/passives.js");
+    const truesight = { modelVersion: 12, source: { name: "Truesight" }, rank: 6, traits: ["revelation"], activation: { time: "2" }, targeting: { target: null, range: null }, lifecycle: { durationSpec: { mode: "fixed", value: 10, unit: "minutes" } },
+        resolution: { kind: "affliction-care", recipient: "self", modes: [], operations: [{ op: "ward" }], ward: { seeThrough: true, duration: { value: 10, unit: "minutes" } } } };
+    const seer = { ...moderateCreature(11, "seer", "Seer"), spells: [{ name: "Truesight", plan: truesight, castRank: 6, dc: 30, attack: 22, pool: null }], spellPools: {}, band: "near" };
+    const [rogue] = martialParty(11);
+    const state = createFightState({ combatants: [{ ...rogue, band: "near" }, seer] }, {}, 1);
+    const pc = state.byId.get(rogue.id);
+    // The rogue is invisible (a rank-4 Invisibility, DC 24).
+    pc.cond.hidden = true;
+    pc.condSources = { invisible: { dc: 24, rank: 4, spell: true, name: "Invisibility" } };
+    const caster = state.byId.get("seer");
+    caster.actionsLeft = 3;
+    assert.ok(scoreOptions(state, caster).options.some((option) => option.action.type === "cast" && option.value > 0), "worth casting with a foe hidden");
+    castSpell(state, caster, 0, ["seer"]);
+    assert.ok(caster.trueSight);
+    state.rng.d20 = () => 10;
+    assert.equal(hiddenFrom(state, caster, pc), false);
+    assert.ok(state.log.some((line) => line.includes("Seer sees through")), state.log.join("\n"));
+    assert.equal(offGuardFrom(state, pc, caster), false);
+});

@@ -30,6 +30,8 @@ import { adjustDamage, adjustInstance, rollStrikeDamage, spellContext, strikeCon
 import { distanceBetween, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
 import { applyWard, wardBlocks, wardWorth } from "./wards.js";
+import { hiddenFrom } from "./sight.js";
+import { lastingRounds } from "./lasting.js";
 
 const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
 const registry = createRegistry();
@@ -185,7 +187,7 @@ function readSpell(base, actions) {
         // (Sanctuary: a ward on an ally.)
         helpful: kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care" || kind === "attack-ward",
         // No target, range or area: the caster itself (the battle forms).
-        self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self")) || conditionNote?.recipient === "source"
+        self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self")) || conditionNote?.recipient === "source" || (kind === "affliction-care" && plan.resolution.recipient === "self")
     };
 }
 
@@ -1271,6 +1273,15 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     if (target.status !== "dead") applyAfflictionStage(state, target, change.effect);
                     break;
                 }
+                // (Truesight: it sees through Invisibility.)
+                if (change.effect?.kind === "true-sight") {
+                    if (isActive(target)) {
+                        const { rounds } = lastingRounds(change.effect.duration ? { mode: "fixed", ...change.effect.duration } : null);
+                        target.trueSight = { modifier: Number(spell.attack) || 0, rank: counterRank(caster, spell, isSpellCast(spell)), untilRound: state.round + rounds, seen: {} };
+                        log(state, `  ${target.name} gains ${spell.name}`);
+                    }
+                    break;
+                }
                 // (Sanctuary: its ward.)
                 if (change.effect?.kind === "attack-ward") {
                     if (isActive(target)) applyWard(state, target, caster, spell, change.effect.ward, effectDC(spell));
@@ -1432,7 +1443,9 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     if (spell.plan?.resolution?.lingering && !spell.fromZone) startLingering(state, caster, spell, targetIds);
     // Blinded or dazzled: each target of a targeted spell needs a flat check.
     // (L1: and each one the light or the weather hides from it.)
-    const findDC = (target) => (info.area || target === caster ? 0 : Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, sightDC(state, caster, target)));
+    // (2026-10-14: a hidden or concealed target too — Invisibility, Blur — as a Strike's; Truesight sees through Invisibility.)
+    // (A zone's save is the area's: nothing to find.)
+    const findDC = (target) => (info.area || spell.fromZone || target === caster ? 0 : Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, target.side !== caster.side ? (hiddenFrom(state, caster, target) ? 11 : target.cond?.concealed ? 5 : 0) : 0, sightDC(state, caster, target)));
     if (targets.some((target) => findDC(target) > 0)) {
         const found = targets.filter((target) => !findDC(target) || flatCheck(state.rng, findDC(target)) >= SUCCESS);
         if (found.length < targets.length) log(state, `  ${caster.name} fails to find ${targets.length - found.length} target(s)`);
@@ -2488,6 +2501,10 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 } else if (change.op === "tempHp") {
                     // Temporary Hit Points (B61): what they add over its current ones, as healing that may go unused.
                     entry.heal += chance * 0.7 * Math.max(0, change.amount - (target.hp.temp ?? 0));
+                } else if (change.op === "effect" && change.effect?.kind === "true-sight") {
+                    // (Worth something only against foes an Invisibility hides: about a third of a round of their threat a round, up to three.)
+                    const hidden = state.list.filter((other) => other.side !== target.side && other.status === "active" && other.cond?.hidden && other.condSources?.invisible?.spell).length;
+                    if (hidden && !target.trueSight) entry.benefit += chance * 0.3 * 3 * hidden;
                 } else if (change.op === "effect" && change.effect?.kind === "attack-ward") {
                     if (target.side === caster.side) entry.benefit += chance * wardWorth(state, target, caster, change.effect.ward, effectDC(spell));
                 } else if (change.op === "effect" && change.effect?.kind === "counteract") {
@@ -2674,7 +2691,7 @@ export function spellGaps(spell) {
                 if (model.unsupported.length) missing.add(`${model.name.replace(/^Spell Effect: /, "")}: ${model.unsupported.join(", ")}`);
             } else if (change.op === "effect" && change.effect?.kind === "modifier") {
                 if (!modifierModel(spell.name, change.effect.modifier)) missing.add(`modifier to ${change.effect.modifier?.selector}`);
-            } else if (change.op === "effect" && ["floor", "counteract", "affliction-stage", "attack-ward"].includes(change.effect?.kind)) {
+            } else if (change.op === "effect" && ["floor", "counteract", "affliction-stage", "attack-ward", "true-sight"].includes(change.effect?.kind)) {
                 // (Played: floors.js, counteract.js, afflictions.)
             } else if (change.op === "effect" && change.effect?.kind === "note" && (pacifyOf(change.effect.note) || noteState(change.effect.note) || noteModel(spell, change.effect.note))) {
                 const model = pacifyOf(change.effect.note) || noteState(change.effect.note) ? null : noteModel(spell, change.effect.note);

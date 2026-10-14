@@ -20,6 +20,7 @@ import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderA
 import { log } from "./log.js";
 import { hostility, ownHostility } from "./pacify.js";
 import { wardBlocks } from "./wards.js";
+import { hiddenFrom } from "./sight.js";
 
 export function coverFor(state, defender) {
     return state.setup.cover?.[defender.side] ?? 0;
@@ -278,7 +279,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (B302: off-guard to it by its own passive — Surprise Attack's first round, Dread Striker's frightened target.)
     const surprised = offGuardFrom(state, attacker, target, { melee: strike.melee });
     // Blinded or dazzled: a flat check to find the target first; a concealed or hidden target too (B41). (L1: the light and the weather.)
-    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, target.cond?.hidden ? 11 : target.cond?.concealed ? 5 : 0, sightDC(state, attacker, target));
+    // (Truesight: an invisible creature it sees through isn't hidden to it.)
+    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, hiddenFrom(state, attacker, target) ? 11 : target.cond?.concealed ? 5 : 0, sightDC(state, attacker, target));
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
         // Counterattack (B94): a miss from beside it because it's concealed, a Strike back.
