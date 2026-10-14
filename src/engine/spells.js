@@ -1281,7 +1281,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 }
                 // (Calm and the charm spells: "can't use hostile actions".)
                 if (change.effect?.kind === "note") {
-                    const entry = pacifyOf(change.effect.note, spell.plan?.resolution?.outcomes?.[change.effect.degree]?.rawText);
+                    const entry = pacifyOf(change.effect.note, { ...(spell.plan?.resolution?.outcomes?.[change.effect.degree] ?? {}), ...(spell.plan?.rowFlags?.[change.effect.degree] ?? {}) });
                     if (entry) {
                         if (isActive(target)) pacify(state, target, caster, spell, entry, change.effect.note.duration);
                         break;
@@ -2492,7 +2492,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 } else if (change.op === "effect" && change.effect?.kind === "note" && noteState(change.effect.note)) {
                     entry.worth += chance * noteStateWorth(target, noteState(change.effect.note), change.effect.note.duration);
                 } else if (change.op === "effect" && change.effect?.kind === "note" && pacifyOf(change.effect.note)) {
-                    const held = pacifyOf(change.effect.note, spell.plan?.resolution?.outcomes?.[change.effect.degree]?.rawText);
+                    const held = pacifyOf(change.effect.note, { ...(spell.plan?.resolution?.outcomes?.[change.effect.degree] ?? {}), ...(spell.plan?.rowFlags?.[change.effect.degree] ?? {}) });
                     entry.worth += chance * pacifyWorth(state, target, caster, held, change.effect.note.duration);
                 } else if (change.op === "effect" && ["native", "modifier", "note"].includes(change.effect?.kind)) {
                     const { model, key } = outcomeEffect(spell, change);

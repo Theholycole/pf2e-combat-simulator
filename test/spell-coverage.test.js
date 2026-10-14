@@ -434,3 +434,14 @@ test("Vampiric temporary HP from the damage dealt; a Speed penalty while it last
     assert.deepEqual(confusion.resolution.outcomes.failure.effects[0].duration.saveEnds, { save: "will", dc: "spell" });
     assert.equal(confusion.resolution.outcomes.criticalFailure.effects[0].duration.saveEnds, undefined);
 });
+
+test("Readings that need a row's own words survive the snapshot slimming them away (Calm's critical failure, Confusion's recurring save)", async () => {
+    const { withReading } = await import("../src/engine/readings.js");
+    const { pacifyOf } = await import("../src/engine/pacify.js");
+    const read = withReading({ ...CALM, source: { name: "Calm", slug: "calm" } });
+    const slim = JSON.parse(JSON.stringify(read, (key, value) => (key === "rawText" ? undefined : value)));
+    assert.deepEqual(slim.rowFlags, { criticalFailure: { hostilityPersists: true } });
+    const row = (degree) => ({ ...(slim.resolution.outcomes[degree] ?? {}), ...(slim.rowFlags?.[degree] ?? {}) });
+    assert.equal(pacifyOf(calmNote, row("criticalFailure")).endsOn, null);
+    assert.equal(pacifyOf(calmNote, row("failure")).endsOn, "any");
+});

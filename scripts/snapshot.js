@@ -904,7 +904,8 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
     for (const entry of listed) {
         const { result, error } = prepared.get(entry.spell.uuid) ?? {};
         // (2026-10-14: the simulator's own reading of a spell the compiler leaves without a plan — Evil Eye.)
-        const plan = result?.plan ? withReading(leanPlan(result.plan)) : null;
+        // (Read before it's slimmed: the readings use the rows' own words.)
+        const plan = result?.plan ? leanPlan(withReading(result.plan)) : null;
         const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, ...(entry.coven ? { coven: true } : {}), ...entry.extra, effects: plan ? formLimits(entry.spell, await effectModels(plan, entry.castRank)) : {} };
         // (Shield, the spell: the magic shield the creature raises by casting it — the engine's Raise a Shield and Shield Block.)
         const shield = Object.values(spec.effects ?? {}).find((model) => model?.spellShield)?.spellShield;

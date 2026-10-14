@@ -8,13 +8,13 @@ import { endEntries, lastingRounds } from "./lasting.js";
 
 const HOSTILE_NOTE = /\bno hostile actions\b/i;
 
-// A note's pacification, or null: { all, endsOn: "any" | "caster" | null, allies }. rowText: its outcome row's own words (Calm's
-// critical failure says only "As failure, but hostility doesn't end the effect").
-export function pacifyOf(note, rowText = "") {
+// A note's pacification, or null: { all, endsOn: "any" | "caster" | null, allies }. row: what its outcome row says — its own words, or
+// the reading's flags (Calm's critical failure says only "As failure, but hostility doesn't end the effect").
+export function pacifyOf(note, row = null) {
     if (!HOSTILE_NOTE.test(String(note?.label ?? ""))) return null;
     const text = String(note.text ?? note.sourceText ?? "");
     const all = !/\bagainst you\b/i.test(text);
-    if (/hostility (?:doesn't|does not) end/i.test(String(rowText ?? ""))) return { all, endsOn: null, allies: false };
+    if (row?.hostilityPersists || /hostility (?:doesn't|does not) end/i.test(String(row?.rawText ?? ""))) return { all, endsOn: null, allies: false };
     if (/subject to hostility from any/i.test(text)) return { all, endsOn: "any", allies: false };
     if (/hostile action against the creature or its allies/i.test(text)) return { all, endsOn: "caster", allies: true };
     if (/\byou (?:use|take) (?:a )?hostile actions? against (?:the target|it|the creature)\b/i.test(text)) return { all, endsOn: "caster", allies: false };

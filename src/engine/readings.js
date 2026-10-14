@@ -62,5 +62,15 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withRecurringSaves(withArea(resolved));
+    return withRowFlags(withRecurringSaves(withArea(resolved)));
+}
+
+// What the engine needs at cast time from a row's own words, kept as plan.rowFlags (the snapshot slims the rows' text away; the core
+// doesn't read plan-level keys): Calm's critical failure, "hostility doesn't end the effect".
+function withRowFlags(plan) {
+    const flags = {};
+    for (const [degree, row] of Object.entries(plan?.resolution?.outcomes ?? {})) {
+        if (/hostility (?:doesn't|does not) end/i.test(String(row?.rawText ?? ""))) flags[degree] = { hostilityPersists: true };
+    }
+    return Object.keys(flags).length ? { ...plan, rowFlags: { ...(plan.rowFlags ?? {}), ...flags } } : plan;
 }
