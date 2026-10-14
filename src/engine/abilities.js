@@ -697,7 +697,23 @@ export function chargeStrike(strike, charge) {
 // Roll options of a spell or ability, for predicates such as "item:magical" or "item:trait:mental".
 const TRADITIONS = new Set(["arcane", "divine", "occult", "primal"]);
 
+// (Read once per spell: sourceOptions gives a copy to add to, readSourceOptions the shared set.)
+const SOURCE_OPTIONS = new WeakMap();
 export function sourceOptions(spell) {
+    return new Set(readSourceOptions(spell));
+}
+
+export function readSourceOptions(spell) {
+    if (!spell || typeof spell !== "object") return buildSourceOptions(spell);
+    let options = SOURCE_OPTIONS.get(spell);
+    if (!options) {
+        options = buildSourceOptions(spell);
+        SOURCE_OPTIONS.set(spell, options);
+    }
+    return options;
+}
+
+function buildSourceOptions(spell) {
     const traits = [...(spell?.plan?.traits ?? []), ...(spell?.tradition ? [spell.tradition] : [])];
     const options = new Set();
     for (const trait of traits) {
@@ -729,7 +745,7 @@ export function testPredicate(predicate, options) {
 // the highest of each bonus type, summed.
 export function saveBonusAgainst(c, save, spell) {
     if (!c.saveBonuses?.length || !spell) return 0;
-    const options = sourceOptions(spell);
+    const options = readSourceOptions(spell);
     const best = new Map();
     let untyped = 0;
     for (const bonus of c.saveBonuses) {

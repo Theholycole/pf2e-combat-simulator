@@ -75,11 +75,11 @@ The design is in [docs/spec.md](docs/spec.md) and the vocabulary in [CONTEXT.md]
 ## Development
 
 - `node --test` runs the engine, rules, benchmark and adapter tests.
-- `src/engine/` is pure JavaScript with no Foundry dependency. It runs in a Web Worker in Foundry and in Node for tests.
+- `src/engine/` is pure JavaScript with no Foundry dependency. It runs on a pool of Web Workers in Foundry (each batch split across them, the same report as one thread) and in Node for tests.
 - `scripts/` is the Foundry layer:
   - `snapshot.js` is the only file that reads PF2e documents (`map.js` reads the scene's Regions and tracks rounds held; `hazards.js` reads hazard actors; `escalation-tracking.js` notes when rules fire in play)
   - `app.js` and `odds.js` are the UI
-  - `runner.js` handles the worker
+  - `runner.js` runs the jobs on the workers
 - `src/adapter/formula.js` parses PF2e's readable damage formulas. It has been checked against all 1,027 Monster Core Strike formulas.
 - `src/engine/spells.js` imports the core's pure code from `../../../pf2e-resolution-core/`. The core's sibling alias in `~/Documents/ChatGPT` makes that path work in Node too.
 - `node tools/bestiary-casters.mjs [pack …]` runs every bestiary spellcaster's spells through the simulator and reports what's cast, what's missing and any errors.

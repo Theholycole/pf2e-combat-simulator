@@ -687,885 +687,19 @@ function expand(ctx, node, actionsLeft) {
     const formLimits = (c.effects ?? []).map((effect) => effect.model ?? {});
     const noAttacks = !!c.noAttacksThisTurn || node.casts.includes("finisher") || formLimits.some((model) => model.noAttacks);
     const noSpells = formLimits.some((model) => model.noSpells);
+    // Raging: no actions with the concentrate trait unless they have the rage trait.
+    const raging = (c.activeBuffs ?? []).some((buff) => buff.noConcentrate) || (c.effects ?? []).some((effect) => effect.model?.noConcentrate);
+    const threatOf = Math.max(1, state.threat?.get(c.id) ?? 1);
 
     if (!mustWithdraw) {
-        // Strikes: only the two best weapons against each target are worth planning with.
-        for (const target of ctx.enemies) {
-            if (target.status !== "active" || restrained || noAttacks) continue;
-            const options = [];
-            for (const [index, strike] of (c.strikes ?? []).entries()) {
-                if (!strikeUsable(c, strike) || (strike.melee && !inMelee(node.pos, target))) continue;
-                const expectation = ctx.strikeExpectation(strike, index, target, node.attacks, node.pos, node.prone);
-                if (expectation && expectation.damage > 0) options.push({ index, strike, expectation });
-            }
-            options.sort((a, b) => b.expectation.damage - a.expectation.damage);
-            for (const { index, strike, expectation } of options.slice(0, 2)) {
-                // A crossbow or firearm fired already (before this turn, or earlier in this plan): reload first (C14).
-                const reload = strike.reload && emptyNow(c, node, index, strike) ? strike.reload : 0;
-                if (1 + reload > remaining) continue;
-                const before = node.damage[target.id] ?? 0;
-                const hp = remainingHp(target);
-                // A venom or Improved Grab the hit delivers for free.
-                const gain = targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp)) + ctx.freeRiderGain(strike, target, expectation.hitChance) + ctx.splashGain(strike, target, expectation.hitChance);
-                const next = child(node, { type: "strike", targetId: target.id, strikeIndex: index, ...(reload ? { reload } : {}) }, 1 + reload, ctx.profile.aggression * gain, {
-                    attack: true,
-                    damage: { ...node.damage, [target.id]: before + expectation.damage },
-                    ...(strike.reload ? { cast: `fired${index}` } : {})
-                });
-                if (!strike.melee && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-                children.push(next);
-            }
-        }
-        // Reloading on its own (the last action of a turn, so the next one starts with a shot):
-        // worth part of the shot it makes ready.
-        if (!restrained) {
-            for (const [index, strike] of (c.strikes ?? []).entries()) {
-                if (!strike.reload || strike.reload > remaining || !emptyNow(c, node, index, strike) || !strikeUsable(c, strike)) continue;
-                let best = 0;
-                for (const target of ctx.enemies) {
-                    if (target.status !== "active") continue;
-                    const expectation = ctx.strikeExpectation(strike, index, target, 0, node.pos, node.prone);
-                    if (expectation?.damage > 0) best = Math.max(best, targetValue(state, target, c) * Math.min(1, expectation.damage / remainingHp(target)));
-                }
-                if (best > 0) children.push(child(node, { type: "reload", strikeIndex: index, actions: strike.reload }, strike.reload, 0.6 * ctx.profile.aggression * best, { cast: `loaded${index}` }));
-            }
-            // A gunslinger's slinger's reload (C17): one action that reloads (a reload-1 weapon)
-            // and, with it, a Shove or a melee Strike at a foe in reach, or Demoralize or Create a Diversion.
-            if (c.slingersReload && remaining >= 1 && !noAttacks) {
-                for (const [index, strike] of (c.strikes ?? []).entries()) {
-                    if (strike.reload !== 1 || !emptyNow(c, node, index, strike) || !strikeUsable(c, strike)) continue;
-                    let shot = 0;
-                    for (const target of ctx.enemies) {
-                        if (target.status !== "active") continue;
-                        const expectation = ctx.strikeExpectation(strike, index, target, 0, node.pos, node.prone);
-                        if (expectation?.damage > 0) shot = Math.max(shot, targetValue(state, target, c) * Math.min(1, expectation.damage / remainingHp(target)));
-                    }
-                    let side = { gain: 0, side: null, sideIndex: null, targetId: null };
-                    const then = c.slingersReload.then;
-                    for (const target of ctx.enemies) {
-                        if (target.status !== "active") continue;
-                        const hp = remainingHp(target);
-                        const value = targetValue(state, target, c);
-                        if (then === "strike" && inMelee(node.pos, target)) {
-                            for (const [meleeIndex, melee] of (c.strikes ?? []).entries()) {
-                                if (!melee.melee || !strikeUsable(c, melee)) continue;
-                                const expectation = ctx.strikeExpectation(melee, meleeIndex, target, node.attacks, node.pos, node.prone);
-                                const gain = expectation ? value * Math.min(1, expectation.damage / hp) : 0;
-                                if (gain > side.gain) side = { gain, side: "strike", sideIndex: meleeIndex, targetId: target.id };
-                            }
-                        }
-                        const slugs = then === "shove" && inMelee(node.pos, target) ? ["shove"] : then === "demoralize-or-diversion" ? ["demoralize", "create-a-diversion"] : [];
-                        for (const slug of slugs) {
-                            const spellIndex = (c.spells ?? []).findIndex((spell) => spell.plan?.source?.slug === slug);
-                            if (spellIndex < 0) continue;
-                            let gain = 0;
-                            for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, c.spells[spellIndex], [target], node.attacks)) {
-                                if (affected === target) gain += value * (Math.min(1, damage / hp) + worth * ROUND_TO_KILL);
-                            }
-                            if (gain > side.gain) side = { gain, side: slug, sideIndex: spellIndex, targetId: target.id };
-                        }
-                    }
-                    const value = 0.6 * ctx.profile.aggression * shot + ctx.profile.aggression * side.gain;
-                    if (value > 0) children.push(child(node, { type: "slingersReload", strikeIndex: index, side: side.side, sideIndex: side.sideIndex, targetId: side.targetId }, 1, value, { cast: `loaded${index}`, attack: side.side === "strike" || side.side === "shove" }));
-                }
-            }
-        }
-        // Spells: each action variant and target set in reach, valued like
-        // Strikes (damage as a share of HP, conditions as rounds of threat).
-        // Healing an ally is worth its threat times the share of HP restored,
-        // more the closer it is to dropping, and most when it's down. Allies
-        // caught by damage, and foes healed, count against the cast.
-        // Raging: no actions with the concentrate trait unless they have the rage trait.
-        const raging = (c.activeBuffs ?? []).some((buff) => buff.noConcentrate) || (c.effects ?? []).some((effect) => effect.model?.noConcentrate);
-        for (const [index, spell] of (c.spells ?? []).entries()) {
-            if (!canCast(c, spell) || node.casts.includes(index)) continue;
-            if (raging && (spell.plan?.traits ?? []).includes("concentrate") && !(spell.plan?.traits ?? []).includes("rage")) continue;
-            if (noSpells && (!spell.kind || spell.castsSpell)) continue;
-            if (spell.pool && node.casts.filter((other) => typeof other === "number" && c.spells[other].pool === spell.pool).length >= (c.spellPools[spell.pool] ?? 0)) continue;
-            // A rider (Grab, Knockdown, Push) or a follow-up ("last action was a successful claw Strike") only as the
-            // action straight after the Strike that allows it.
-            const rider = spell.plan?.trigger?.event === "strike" || Boolean(spell.plan?.trigger?.followUp);
-            const riderTarget = rider && (c.riderReady?.index === index || c.riderReady?.also?.includes(index)) && node.used === 0 ? state.byId.get(c.riderReady.targetId) : null;
-            if (rider && !(riderTarget && isActive(riderTarget))) continue;
-            // Its requirement an enemy nearby in a state (B83, Feed on Fear: "An enemy is under a fear effect or Dying within
-            // 15 feet"): frightened, or down and dying.
-            // (B133: a requirement it can't check, Bushwhack's unseen creature: not planned.)
-            if (spell.plan?.requires === "requirement" && !spell.plan.needs) continue;
-            // (B304: its needs — a corpse, a creature it holds, its last action — as things stand.)
-            if (spell.plan?.needs && !needsMet(state, c, spell.plan.needs, { fresh: node.used === 0 })) continue;
-            // (B262, Rage-Charged Breath: only while raging.)
-            if (spell.plan?.requires === "raging" && !isRaging(c)) continue;
-            // (B259, Inspiring Display: straight after a spell it cast.)
-            if (spell.plan?.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, spell.plan.nonCantrip))) continue;
-            // (B247, a seed shot only while its breath recharges: one of its Breath Weapons waiting out its recharge.)
-            if (spell.plan?.requires === "breath-recharging" && !(c.spells ?? []).some((other) => other !== spell && /\bbreath\b/i.test(String(other.name ?? "")) && (c.rechargeUntil?.get(other.rechargeGroup ?? other) ?? -Infinity) > (c.round ?? state.round ?? 0))) continue;
-            const foe = spell.plan?.requiresFoe;
-            if (foe && !state.list.some((other) => other.side !== c.side && distanceTo(node.pos, other, ctx.placeOf(node.pos)) <= (foe.within ?? Infinity)
-                && foe.conditions.some((condition) => (condition === "dying" ? other.status === "down" : isActive(other)) && (other.cond?.[condition] ?? 0) > 0))) continue;
-            // Quickened Casting (B72): a spell of its rank or lower, one action fewer, once a fight.
-            const quickens = c.quickenedCasting && !c.quickenedUsed && !node.casts.includes("quickened") && (!spell.kind || spell.castsSpell) && (c.quickenedCasting.maxRank == null || (spell.castRank ?? 1) <= c.quickenedCasting.maxRank);
-            for (const actions of spellVariants(spell)) {
-                const info = describeSpell(spell.plan, actions);
-                const quickFits = quickens && info.actions >= 2 && info.actions - 1 <= remaining;
-                if (!info.actions || (info.actions > remaining && !quickFits) || (restrained && (info.manipulate || info.attack)) || (noAttacks && info.attack)) continue;
-                const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, c, spell, {
-                    enemies: ctx.enemies,
-                    allies: ctx.alliesAndDown,
-                    inMelee: (other) => inMelee(node.pos, other),
-                    distance: (other) => distanceTo(node.pos, other, ctx.placeOf(node.pos)),
-                    meleeId: typeof node.pos.melee === "number" ? node.pos.melee : null
-                }, actions);
-                // (B304: a target need — Drag's Prone creature — only at those.)
-                // (B313: Grapple, Reposition, Shove and Trip at a creature no more than one size larger.)
-                const sized = SIZE_LIMITED.has(spell.kind === "basic" ? spell.plan?.source?.slug ?? String(spell.name ?? "").toLowerCase() : null)
-                    ? sets.filter((entry) => entry.targets.every((target) => target.side === c.side || sizeRank(target.size) <= sizeRank(c.size) + 1)) : sets;
-                for (const set of spell.plan?.needs ? sized.filter((entry) => entry.targets.every((target) => target.side === c.side || targetNeedsMet(c, target, spell.plan.needs))) : sized) {
-                    let gain = 0;
-                    const damage = { ...node.damage };
-                    for (const { target, damage: expected, worth, heal, benefit, breaks = 0 } of ctx.spellEffect(index, spell, set.targets, node.attacks, actions)) {
-                        const ally = target.side === c.side;
-                        const sign = ally ? -1 : 1;
-                        const before = damage[target.id] ?? 0;
-                        const hp = remainingHp(target);
-                        const value = target.status === "active" ? targetValue(state, target, c) : Math.max(1, state.meanThreat?.[target.side] ?? 1);
-                        // Playing for morale (M23): a break takes it out like a kill, beyond the damage already counted.
-                        const out = Math.min(1, Math.min(1, (before + expected) / hp) + breaks);
-                        gain += sign * value * (out - Math.min(1, before / hp) + worth * ROUND_TO_KILL);
-                        if (heal > 0 && target.hp.max > 0) {
-                            // Topping up a barely hurt ally is worth little; saving one near 0 HP, a lot.
-                            const urgency = target.status !== "active" ? 3 : 2.5 * (1 - hpFraction(target)) ** 1.5;
-                            gain += (ally ? 1 : -1) * value * (heal / target.hp.max) * urgency;
-                        }
-                        // A spell effect: good for an ally, bad for a foe (and the reverse for hindrances).
-                        if (benefit) gain += (ally ? 1 : -1) * value * benefit * ROUND_TO_KILL;
-                        // (B146: the Strike after the maneuver — its best expected damage, about half of it when the maneuver must succeed.)
-                        let follow = 0;
-                        const then = spell.plan?.then;
-                        if (then && !ally && target.status === "active") {
-                            const named = then.strike ? strikeNamed(c, then.strike) : -1;
-                            const choices = named >= 0 ? [named] : (c.strikes ?? []).map((strike, strikeIndex) => strikeIndex).filter((strikeIndex) => c.strikes[strikeIndex].melee);
-                            for (const strikeIndex of choices) {
-                                const strike = c.strikes[strikeIndex];
-                                if (!strikeUsable(c, strike) || (strike.melee && !inMelee(node.pos, target) && !then.follow)) continue;
-                                const expectation = ctx.strikeExpectation(strike, strikeIndex, target, node.attacks + (then.sameMap ? 0 : 1), node.pos, node.prone);
-                                follow = Math.max(follow, (expectation?.damage ?? 0) * (then.onSuccess ? 0.5 : 1));
-                            }
-                            gain += value * (Math.min(1, (before + expected + follow) / hp) - Math.min(1, (before + expected) / hp));
-                        }
-                        if (!ally) damage[target.id] = before + expected + follow;
-                    }
-                    // A swashbuckler's bravado action also brings panache: Precise Strike's damage for the fight and a finisher.
-                    if (!c.panache && c.panacheStyle && (c.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
-                        const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
-                        gain += 0.6 * ctx.ownValue * ROUND_TO_KILL * (3 * c.panacheStyle.precise + c.panacheStyle.finisherDice * 3.5 * 0.6) / threat;
-                    }
-                    if (gain <= 0) continue;
-                    if (info.actions <= remaining) {
-                        const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...(rider ? { rider: true } : {}) }, info.actions, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
-                        // Casting is a manipulate action: it provokes Attacks of Opportunity.
-                        if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-                        children.push(next);
-                    }
-                    if (quickFits) {
-                        const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, quickened: true, ...(rider ? { rider: true } : {}) }, info.actions - 1, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: [index, "quickened"] });
-                        if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-                        children.push(next);
-                    }
-                }
-            }
-        }
-        // Rend: after two hits with the listed Strike on the same enemy this round, its damage again.
-        if (c.rend && !c.rendUsed && node.used === 0) {
-            const hits = (c.turnAttacks ?? []).slice(-2);
-            const strikeIndex = (c.strikes ?? []).findIndex((strike) => strike.name.toLowerCase().includes(String(c.rend.strike ?? "").toLowerCase()));
-            const target = hits.length === 2 && hits.every((hit) => hit.hit && hit.targetId === hits[0].targetId && hit.strike === c.strikes[strikeIndex]?.name) ? state.byId.get(hits[0].targetId) : null;
-            if (strikeIndex >= 0 && target && isActive(target) && inMelee(node.pos, target)) {
-                const expected = expectedHitDamage(c, c.strikes[strikeIndex], target, false);
-                const hp = remainingHp(target);
-                const before = node.damage[target.id] ?? 0;
-                const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
-                children.push(child(node, { type: "rend", targetId: target.id, strikeIndex }, 1, ctx.profile.aggression * gain, { damage: { ...node.damage, [target.id]: before + expected } }));
-            }
-        }
-        // Draconic Frenzy and the like: several Strikes for fewer actions, at one target.
-        for (const [abilityIndex, ability] of (c.multiStrikes ?? []).entries()) {
-            if (restrained || noAttacks || ability.actions > remaining) continue;
-            // A flourish (Flurry of Blows): once a turn.
-            if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ms${abilityIndex}`))) continue;
-            if (ability.flourish && flourishUsed(c, node)) continue;
-            if (ability.oncePerFight && c.multiUsed?.has(ability.name)) continue;
-            // (B258, Gaze Upon: its recharge.)
-            if ((c.multiUntil?.get(ability.name) ?? -Infinity) > state.round) continue;
-            const order = multiStrikeOrder(c, ability);
-            if (!order || order.some((index) => !strikeUsable(c, c.strikes[index]))) continue;
-            // A Strike at every enemy in its Melee: worth the sum over them.
-            if (ability.each) {
-                // (B120: Rampage's "is uncontrollable", Bladestorm's "holding six spirit blades": states the engine doesn't play.)
-                // (B200, Power Through: not while Fatigued.)
-                if (ability.requires && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0) && !(ability.requires === "raging" && isRaging(c)) && !(ability.requires === "not-fatigued" && !c.cond.fatigued)) continue;
-                const ranged = !c.strikes[order[0]].melee;
-                // Where it Strikes from: here, or (B109, Mauling Rush) the Melee of a creature one Stride away.
-                const places = [{ pos: node.pos, first: null }];
-                if (ability.strides && !ranged && mobile && !ctx.wavering) {
-                    for (const target of ctx.enemies) {
-                        if (target.status !== "active" || inMelee(node.pos, target) || stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
-                        places.push({ pos: target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id }, first: target });
-                    }
-                }
-                for (const { pos, first } of places) {
-                    // (B120, Flurry of Pods: not at the creatures it already holds.)
-                    const near = ctx.enemies.filter((target) => target.status === "active" && (ranged || inMelee(pos, target)) && !(ability.notGrabbed && target.grabbedBy === c.id));
-                    const foes = (first ? [first, ...near.filter((target) => target !== first)] : near).slice(0, ability.max ?? Infinity);
-                    if (foes.length < 2) continue;
-                    const damage = { ...node.damage };
-                    let gain = 0;
-                    for (const [step, target] of foes.entries()) {
-                        // (A different Strike at each, B74.)
-                        const index = order[Math.min(step, order.length - 1)];
-                        const base = withExtraDamage(c.strikes[index], ability.extraDamage);
-                        const struck = ability.penalty ? { ...base, bonus: base.bonus - ability.penalty } : base;
-                        const expected = ctx.strikeExpectation(struck, struck === c.strikes[index] ? index : 4000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, pos, node.prone)?.damage ?? 0;
-                        const before = damage[target.id] ?? 0;
-                        const hp = remainingHp(target);
-                        gain += targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
-                        damage[target.id] = before + expected;
-                    }
-                    if (gain <= 0) continue;
-                    const next = child(node, { type: "multiStrike", ability: abilityIndex, targetId: foes[0].id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, { attacks: ability.countsAs ?? foes.length, damage, ...(pos !== node.pos ? { pos } : {}) });
-                    if (pos !== node.pos && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-                    children.push(next);
-                }
-                continue;
-            }
-            for (const target of ctx.enemies) {
-                if (target.status !== "active") continue;
-                // (B108, Chase Prey: a Stride to it first, when it's that close.)
-                let pos = node.pos;
-                if (ability.strides && !inMelee(node.pos, target)) {
-                    if (!mobile || ctx.wavering || stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
-                    pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
-                }
-                if (order.some((index) => c.strikes[index].melee && !inMelee(pos, target))) continue;
-                // Hunted Shot, Twin Takedown: against the hunted prey only. Maul: a creature it holds (B62).
-                if (ability.preyOnly && c.prey !== target.id) continue;
-                if (ability.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
-                // (B107, Eviscerate: "has not attacked yet this turn".)
-                if (ability.requires === "first-attack" && (node.attacks > 0 || (c.attacksThisTurn ?? 0) > 0)) continue;
-                // (B113, Dual Stab: "against an Immobilized or Off-Guard target"; a requirement the engine doesn't know, never.)
-                if (ability.requires === "off-guard" && !(isOffGuard(target) || target.cond.immobilized)) continue;
-                if (ability.requires === "raging" && !isRaging(c)) continue;
-                // (B186, Ravage: at a Paralyzed, Restrained or Unconscious creature.)
-                if (ability.requires === "helpless" && !(target.cond.paralyzed || target.cond.restrained || target.cond.unconscious)) continue;
-                if (ability.requires === "not-fatigued" && c.cond.fatigued) continue;
-                // (B287, Radical Surgery: at a Prone or Immobilized creature.)
-                if (ability.requires === "prone-or-immobilized" && !(target.cond.prone || target.cond.immobilized)) continue;
-                if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging", "helpless", "not-fatigued", "prone-or-immobilized"].includes(ability.requires)) continue;
-                let expected = 0;
-                // (B106: a second Strike only after a first that hits, worth that chance.)
-                let firstHits = 1;
-                for (const [step, index] of order.entries()) {
-                    // Double Slice: both at the current penalty, the second -2 unless agile (B62: not a monster's). A penalty on each
-                    // (Frenzied Slashes' -2).
-                    const second = ability.secondPenalty && step > 0 && !c.strikes[index].agile ? 2 : 0;
-                    // (Twin Feint, B74: the second against an off-guard target, about +2; after a first hit only, half that.)
-                    const feint = step === 1 && ability.secondOffGuard ? (ability.secondOffGuard === true ? 2 : 1) : 0;
-                    const own = ability.penalties?.[step] ?? 0;
-                    const base = withExtraDamage(c.strikes[index], ability.extraDamage);
-                    const strike = second || feint || ability.penalty || own ? { ...base, bonus: base.bonus - second + feint - (ability.penalty ?? 0) - own } : base;
-                    const expectation = ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.noMap ? 0 : ability.sameMap || ability.random ? node.attacks : node.attacks + step, pos, node.prone);
-                    // (B255: a random multi-Strike's Strike, as often as its faces give it.)
-                    expected += (expectation?.damage ?? 0) * (ability.ifFirstHits && step > 0 ? firstHits : 1) * randomStrikeShare(ability, c, index);
-                    if (step === 0) firstHits = expectation?.hitChance ?? 0;
-                }
-                if (expected <= 0) continue;
-                const before = node.damage[target.id] ?? 0;
-                const hp = remainingHp(target);
-                const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
-                const next = child(node, { type: "multiStrike", ability: abilityIndex, targetId: target.id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
-                    attacks: ability.countsAs ?? (ability.random ? Math.round(order.reduce((sum, index) => sum + randomStrikeShare(ability, c, index), 0)) : order.length),
-                    ...(pos !== node.pos ? { pos } : {}),
-                    damage: { ...node.damage, [target.id]: before + expected },
-                    ...(ability.oncePerTurn || ability.flourish ? { cast: [...(ability.oncePerTurn ? [`ms${abilityIndex}`] : []), ...(ability.flourish ? ["flourish"] : [])] } : {})
-                });
-                if (pos !== node.pos && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-                children.push(next);
-            }
-        }
-        // Pounce: Stride to an enemy and Strike, as one action.
-        for (const [abilityIndex, ability] of (c.charges ?? []).entries()) {
-            if (restrained || noAttacks || !mobile || ctx.wavering || ability.actions > remaining) continue;
-            if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ch${abilityIndex}`))) continue;
-            // (Aquatic Ambush, B70: once a fight, from hiding.)
-            if (ability.oncePerFight && c.chargesUsed?.has(ability.name)) continue;
-            // (B98: its recharge.)
-            if ((c.chargeUntil?.get(ability.name) ?? -Infinity) > state.round) continue;
-            if (ability.flourish && flourishUsed(c, node)) continue;
-            const named = strikeNamed(c, ability.strike);
-            const candidates = named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
-            for (const target of ctx.enemies) {
-                if (target.status !== "active" || inMelee(node.pos, target)) continue;
-                if (stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
-                const pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
-                let best = null;
-                for (const index of candidates) {
-                    if (!strikeUsable(c, c.strikes[index])) continue;
-                    // A charge's own Strike (its bonus or bigger damage) has a cache slot of its own.
-                    const charged = chargeStrike(c.strikes[index], chargeOn(c, ability, target.id));
-                    const expectation = ctx.strikeExpectation(charged, charged === c.strikes[index] ? index : 1000 + abilityIndex * 64 + index, target, node.attacks, pos, node.prone);
-                    if (expectation && (!best || expectation.damage > best.damage)) best = { index, damage: expectation.damage };
-                }
-                if (!best || best.damage <= 0) continue;
-                const before = node.damage[target.id] ?? 0;
-                const hp = remainingHp(target);
-                const gain = targetValue(state, target, c) * (Math.min(1, (before + best.damage) / hp) - Math.min(1, before / hp));
-                const next = child(node, { type: "charge", ability: abilityIndex, targetId: target.id, strikeIndex: best.index, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
-                    attack: true,
-                    pos,
-                    damage: { ...node.damage, [target.id]: before + best.damage },
-                    ...(ability.oncePerTurn || ability.flourish ? { cast: [...(ability.oncePerTurn ? [`ch${abilityIndex}`] : []), ...(ability.flourish ? ["flourish"] : [])] } : {})
-                });
-                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-                children.push(next);
-            }
-        }
-        // Strike activities (Wrestle, Intimidating Strike, Rhinoceros Charge): the Strike,
-        // plus what a hit adds times the chance to hit; with Strides, only from outside the target's Melee.
-        for (const [activityIndex, activity] of (c.strikeActivities ?? []).entries()) {
-            if (restrained || noAttacks || activity.actions > remaining || (activity.oncePerFight && c.activitiesUsed?.has(activityIndex))) continue;
-            if (activity.flourish && flourishUsed(c, node)) continue;
-            // (B199, Uncanny Pounce: only as it rolls initiative.)
-            if (activity.initiative) continue;
-            // "Frequency once per round" (Wriggling Beard).
-            if (activity.oncePerTurn && (c.usedThisTurn?.has(activity.name) || node.casts.includes(`sa${activityIndex}`))) continue;
-            // A finisher needs panache.
-            if (activity.finisher && !c.panache) continue;
-            // A follow-up's Strike (B68): straight after a Strike that allows it.
-            if (activity.after && !(node.used === 0 && followsStrike(state, c, activity.after))) continue;
-            // (B106: Berserk Slam's "is berserk", a state the engine doesn't play.)
-            if (activity.requires === "berserk") continue;
-            // (B126: a requirement the engine doesn't play — "The dragon is burrowed", "It's the first round of combat" — not planned.)
-            if (activity.requires === "requirement") continue;
-            if (activity.requires === "first-round" && state.round !== 1) continue;
-            // (B147: straight after a spell it cast.)
-            if (activity.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, activity.nonCantrip))) continue;
-            if (activity.strides && (!mobile || ctx.wavering)) continue;
-            // Cover Fire (C19): a loaded firearm or crossbow, once a round.
-            if (activity.coverFire && (c.usedThisTurn?.has("cover-fire") || node.casts.includes("coverFire"))) continue;
-            const named = strikeNamed(c, activity.strike);
-            const candidates = activity.coverFire
-                ? (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].firearm && !c.strikes[index].melee && !emptyNow(c, node, index, c.strikes[index]))
-                : named >= 0 ? [named] : activity.strike === "ranged" ? [] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
-            for (const target of ctx.enemies) {
-                if (target.status !== "active") continue;
-                // (At the creature it struck, unless it moves first: "Strides up to 10 feet and Strikes".)
-                if (activity.after && !activity.strides && target.id !== c.lastStrike?.targetId) continue;
-                if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
-                if (activity.requires === "prone" && !target.cond.prone) continue;
-                // (B206, Scorpion Sting: "Strikes an Off-Guard creature".)
-                if (activity.requires === "off-guard" && !(isOffGuard(target) || target.cond.immobilized)) continue;
-                // (B151, Shatter Defenses: "A Frightened creature is within melee reach".)
-                if (activity.requires === "frightened" && !(target.cond.frightened > 0)) continue;
-                if (activity.targetTraits && !activity.targetTraits.some((trait) => (target.traits ?? []).includes(trait))) continue;
-                // (B105: Stunning Strike's "hit a foe earlier this turn with a weapon Strike", at that foe; after Strikes made, not planned.)
-                if (activity.requires === "hit-earlier" && !(node.used === 0 && (c.turnAttacks ?? []).some((attack) => attack.hit && attack.targetId === target.id))) continue;
-                // (B104: Terrifying Smite's "an enemy that has one of its allies within its reach".)
-                if (activity.requires === "ally-adjacent" && !state.list.some((other) => other !== c && other.side === c.side && isActive(other) && sameMelee(other, target))) continue;
-                if (activity.requires === "free-hand" && state.list.some((other) => other.grabbedBy === c.id && (other.cond.grabbed || other.cond.restrained))) continue;
-                let pos = node.pos;
-                if (activity.strides) {
-                    // (A follow-up's, "Strides up to 10 feet and Strikes", B68: also at a creature already in reach.)
-                    const here = inMelee(node.pos, target);
-                    if ((here && !activity.after) || (!here && stridesToEngage(ctx.mover(node.pos), target) > activity.strides)) continue;
-                    if (!here) pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
-                }
-                let best = null;
-                // Cover Fire: the target ducks (+2 AC against it) unless its best attack is ranged; then +1 to hit.
-                const used = activity.coverFire ? { ...activity, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : activity;
-                for (const index of candidates) {
-                    const strike = c.strikes[index];
-                    if (!strikeUsable(c, strike) || (strike.melee && !inMelee(pos, target))) continue;
-                    const changed = chargeStrike(strike, used);
-                    // ("This Strike ignores their multiple attack penalty": as a first attack.)
-                    // ("using the previous Strike's multiple attack penalty": one attack fewer.)
-                    const expectation = ctx.strikeExpectation(changed, changed === strike ? index : 2000 + activityIndex * 64 + index, target, activity.noMap ? 0 : activity.previousMap ? Math.max(0, node.attacks - 1) : node.attacks, pos, node.prone);
-                    if (expectation && (!best || expectation.damage > best.expectation.damage)) best = { index, expectation };
-                }
-                if (!best) continue;
-                const rider = strikeRiderValue(state, c, target, activity, c.strikes[best.index]);
-                const before = node.damage[target.id] ?? 0;
-                const hp = remainingHp(target);
-                // (Focused Assault, B74: a failure deals the Strike's damage too.)
-                const expected = best.expectation.damage + best.expectation.hitChance * rider.damage + (activity.failureDamage ? (best.expectation.failChance ?? 0) * (best.expectation.hitDamage ?? 0) : 0);
-                // Set-Up Strike: off-guard for an ally's next attack, about a tenth more of its damage.
-                const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * 0.12 / hp : 0;
-                const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + best.expectation.hitChance * rider.worth * ROUND_TO_KILL + setUpWorth);
-                if (gain <= 0) continue;
-                // Exacting Strike: a miss doesn't raise the penalty for what follows (worth a little).
-                const exacting = activity.exacting ? 0.15 * (1 - best.expectation.hitChance) * gain : 0;
-                // (B139: Off-Guard on itself costs, a guard helps, for about a round.)
-                const selfWorth = activity.selfAfter?.length ? ctx.ownValue * ROUND_TO_KILL * effectBenefit({ rounds: 1, modifiers: activity.selfAfter.map((entry) => ({ on: "ac", value: entry.ac ?? -2 })), tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [] }, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1) : 0;
-                const next = child(node, { type: "strikeActivity", index: activityIndex, targetId: target.id, strikeIndex: best.index, actions: activity.actions }, activity.actions, ctx.profile.aggression * (gain + exacting) + selfWorth, {
-                    attacks: activity.noMap || activity.previousMap ? 0 : activity.countsAs ?? 1,
-                    pos,
-                    damage: { ...node.damage, [target.id]: before + expected },
-                    ...(activity.finisher || activity.coverFire || activity.flourish || activity.oncePerTurn ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : []), ...(activity.oncePerTurn ? [`sa${activityIndex}`] : [])] } : {})
-                });
-                if (activity.strides && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-                children.push(next);
-            }
-        }
-        // Rage and the like: once a fight, for its temporary HP and the damage it adds
-        // over the rest of the fight (about three rounds of Strikes).
-        for (const [buffIndex, buff] of (c.selfBuffs ?? []).entries()) {
-            if (buff.actions > remaining || c.buffsUsed?.has(buff.name) || (c.activeBuffs ?? []).includes(buff) || node.casts.includes(`buff${buffIndex}`)) continue;
-            const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
-            let perRound = 0;
-            for (const strike of c.strikes ?? []) {
-                const parts = buff.strikeDeltas?.[strike.name] ?? [];
-                const average = parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
-                perRound = Math.max(perRound, average * 1.3);
-            }
-            const gain = ctx.ownValue * (ROUND_TO_KILL * 3 * perRound / threat + 0.5 * (buff.tempHp ?? 0) / Math.max(1, c.hp.max));
-            if (gain > 0) children.push(child(node, { type: "selfBuff", index: buffIndex, actions: buff.actions }, buff.actions, gain, { cast: `buff${buffIndex}` }));
-        }
-        // An exemplar (C25–C27): Shift Immanence into a better ikon (once a round), and a
-        // transcendence while the spark is in its ikon (it casts the spark out).
-        if (c.exemplar && node.used === 0) {
-            const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);
-            const ikonWorth = (ikon) => {
-                if (!ikon) return 0;
-                let perRound = 0;
-                for (const strike of c.strikes ?? []) {
-                    const extra = (ikon.model.strikeDeltas?.[strike.name] ?? []).reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
-                    perRound = Math.max(perRound, extra * 1.3);
-                }
-                return effectBenefit(ikon.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1) + 3 * perRound / threatHere;
-            };
-            if (!c.usedThisTurn?.has("shift-immanence") && remaining >= 1) {
-                const current = ikonWorth(ikonOf(c, c.spark));
-                for (const ikon of c.exemplar.ikons) {
-                    if (ikon.slug === c.spark) continue;
-                    const gain = ctx.ownValue * (ikonWorth(ikon) - current) * ROUND_TO_KILL;
-                    if (gain > 0) children.push(child(node, { type: "shiftImmanence", slug: ikon.slug, actions: 1 }, 1, gain, { cast: "shift" }));
-                }
-            }
-            for (const [index, entry] of c.exemplar.transcendences.entries()) {
-                if (remaining < 1 || c.spark !== entry.ikon) continue;
-                if (entry.kind === "rend" && rendReady(state, c, entry)) {
-                    const target = state.byId.get(c.lastHit.targetId);
-                    if (!target || target.status !== "active") continue;
-                    const expected = entry.dice * (entry.die + 1) / 2;
-                    // The spark comes back with a Shift (an action, once a round): about a round of immanence lost.
-                    const gain = targetValue(state, target, c) * Math.min(1, expected / remainingHp(target)) - ctx.ownValue * ROUND_TO_KILL * ikonWorth(ikonOf(c, c.spark)) / 3;
-                    if (gain > 0) children.push(child(node, { type: "transcend", index, targetId: target.id, actions: 1 }, 1, ctx.profile.aggression * gain, { cast: "transcend" }));
-                }
-                if (entry.kind === "heal" && c.hp.value < c.hp.max) {
-                    const heal = Math.min(entry.dice * 4.5, c.hp.max - c.hp.value);
-                    const urgency = 2.5 * (1 - hpFraction(c)) ** 1.5;
-                    const gain = ctx.ownValue * (heal / c.hp.max) * urgency;
-                    if (gain > 0) children.push(child(node, { type: "transcend", index, targetId: c.id, actions: 1 }, 1, gain, { cast: "transcend" }));
-                }
-            }
-        }
-        // (B183, Word of Advice: an ally's Stride and Strike with its extra damage, worth what that Strike does.)
-        if (c.allyAdvance && c.allyAdvance.actions <= remaining && !node.casts.includes("ally-advance") && !(c.allyAdvance.oncePerTurn && c.usedThisTurn?.has(c.allyAdvance.name))) {
-            const best = bestAdvance(state, c, ctx.enemies);
-            const target = best ? state.byId.get(best.targetId) : null;
-            if (target) {
-                const before = node.damage[target.id] ?? 0;
-                const hp = remainingHp(target);
-                const gain = targetValue(state, target, c) * (Math.min(1, (before + best.expected) / hp) - Math.min(1, before / hp));
-                if (gain > 0) children.push(child(node, { type: "allyAdvance", allyId: best.allyId, targetId: best.targetId, strikeIndex: best.strikeIndex, stride: best.stride, actions: c.allyAdvance.actions }, c.allyAdvance.actions, ctx.profile.aggression * gain, { cast: "ally-advance", damage: { ...node.damage, [target.id]: before + best.expected } }));
-            }
-        }
-        // A commander's tactics (C21–C24): Strike Hard! (an ally's Strike), Pincer Attack
-        // (off-guard to melee from the commander and the allies who answer), Banner's Inspiration.
-        if (c.commander) {
-            if (c.commander.strikeHard && remaining >= 2 && !node.casts.includes("strikeHard")) {
-                const best = bestStrikeHard(state, c, ctx.enemies);
-                const target = best ? state.byId.get(best.targetId) : null;
-                if (target) {
-                    const before = node.damage[target.id] ?? 0;
-                    const hp = remainingHp(target);
-                    const gain = targetValue(state, target, c) * (Math.min(1, (before + best.expected) / hp) - Math.min(1, before / hp));
-                    if (gain > 0) children.push(child(node, { type: "strikeHard", allyId: best.allyId, targetId: best.targetId, strikeIndex: best.strikeIndex, actions: 2 }, 2, ctx.profile.aggression * gain, { cast: "strikeHard", damage: { ...node.damage, [target.id]: before + best.expected } }));
-                }
-            }
-            if (c.commander.pincerAttack && remaining >= 1 && !node.casts.includes("pincer")) {
-                const { responders, foes } = pincerPlan(state, c);
-                let gain = 0;
-                for (const foe of foes) {
-                    // +2 for about a round of melee attacks at it: roughly a tenth more of each one's damage.
-                    const expected = [c, ...responders].filter((attacker) => attacker.meleeId === foe.meleeId).reduce((sum, attacker) => sum + (allyStrike(state, attacker, foe)?.expected ?? 0), 0);
-                    gain += targetValue(state, foe, c) * Math.min(1, 0.15 * expected / remainingHp(foe));
-                }
-                if (responders.length && gain > 0) children.push(child(node, { type: "pincerAttack", actions: 1 }, 1, ctx.profile.aggression * gain, { cast: "pincer" }));
-            }
-            if (c.commander.bannersInspiration && remaining >= 1 && !node.casts.includes("banners") && !(c.commander.inspirationFlourish && flourishUsed(c, node))) {
-                const allies = inspirable(state, c);
-                const gain = allies.reduce((sum, ally) => sum + targetValue(state, ally, c) * (conditionWorth("frightened", ally.cond.frightened, null) - conditionWorth("frightened", ally.cond.frightened - 1, null)) * ROUND_TO_KILL, 0);
-                if (gain > 0) children.push(child(node, { type: "bannersInspiration", actions: 1 }, 1, gain, { cast: ["banners", ...(c.commander.inspirationFlourish ? ["flourish"] : [])] }));
-            }
-        }
-        // Spellstrike (C20): a melee Strike carrying a 1- or 2-action spell with a spell
-        // attack (it hits as the Strike does) or a save (the target saves; a critical miss
-        // loses it); two attacks for the penalty. Then Recharge Spellstrike, an action, or a conflux spell.
-        if (c.spellstrike && !restrained && !noAttacks && !raging) {
-            if (c.spellstrikeCharged && !node.casts.includes("spellstrike") && remaining >= 2) {
-                for (const target of ctx.enemies) {
-                    if (target.status !== "active" || !inMelee(node.pos, target)) continue;
-                    let strikeBest = null;
-                    for (const [index, strike] of (c.strikes ?? []).entries()) {
-                        if (!strike.melee || !strikeUsable(c, strike)) continue;
-                        const expectation = ctx.strikeExpectation(strike, index, target, node.attacks, node.pos, node.prone);
-                        if (expectation && (!strikeBest || expectation.damage > strikeBest.expectation.damage)) strikeBest = { index, expectation };
-                    }
-                    if (!strikeBest) continue;
-                    const hp = remainingHp(target);
-                    const value = targetValue(state, target, c);
-                    const before = node.damage[target.id] ?? 0;
-                    for (const [spellIndex, spell] of (c.spells ?? []).entries()) {
-                        if (!spellstrikeSpell(c, spell) || node.casts.includes(spellIndex)) continue;
-                        let spellDamage = 0;
-                        let spellWorth = 0;
-                        for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, spell, [target], node.attacks)) {
-                            if (affected !== target) continue;
-                            spellDamage += damage;
-                            spellWorth += worth;
-                        }
-                        const expected = strikeBest.expectation.damage + spellDamage;
-                        const gain = value * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + spellWorth * ROUND_TO_KILL);
-                        if (gain <= 0) continue;
-                        children.push(child(node, { type: "spellstrike", targetId: target.id, strikeIndex: strikeBest.index, spellIndex, actions: 2 }, 2, ctx.profile.aggression * gain, {
-                            attacks: 2,
-                            damage: { ...node.damage, [target.id]: before + expected },
-                            cast: ["spellstrike", ...(spell.pool ? [spellIndex] : [])]
-                        }));
-                    }
-                }
-            }
-            // Recharge Spellstrike: worth part of the Spellstrike it makes ready.
-            if (!c.spellstrikeCharged && !node.casts.includes("recharge-spellstrike") && remaining >= 1) {
-                let best = 0;
-                for (const [spellIndex, spell] of (c.spells ?? []).entries()) {
-                    if (!spellstrikeSpell(c, spell)) continue;
-                    for (const target of ctx.enemies) {
-                        if (target.status !== "active") continue;
-                        for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, spell, [target], 0)) {
-                            if (affected === target) best = Math.max(best, targetValue(state, target, c) * (Math.min(1, damage / remainingHp(target)) + worth * ROUND_TO_KILL));
-                        }
-                    }
-                }
-                if (best > 0) children.push(child(node, { type: "rechargeSpellstrike", actions: 1 }, 1, 0.5 * ctx.profile.aggression * best, { cast: "recharge-spellstrike" }));
-            }
-        }
-        // A stance or another action that puts an effect on itself (C13): the
-        // effect's benefit, as a spell's on itself, and a better Strike it brings.
-        for (const [index, entry] of (c.selfEffects ?? []).entries()) {
-            if (entry.actions > remaining || (c.effects ?? []).some((effect) => effect.key === `self:${entry.name}`) || node.casts.includes(`self${index}`)) continue;
-            // Fanatical Frenzy: once it's hurt (B64). Blood Frenzy and the like come with their trigger, not as an action (B65).
-            if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
-            if (entry.trigger) continue;
-            // (B308: a shell — only badly hurt, under 40% of its Hit Points, with a foe in its reach; it spends the rest of its turn in it.)
-            if (entry.shell && !(c.hp.value < c.hp.max * 0.4 && ctx.enemies.some((enemy) => isActive(enemy) && sameMelee(c, enemy)))) continue;
-            if (entry.afterCast && !(node.used === 0 && castJustNow(state, c, entry.afterCast === "non-cantrip"))) continue;
-            // (B155: only while its rage lasts; B158, Mountain Stronghold: only while its own stance is on it.)
-            if (entry.whileRaging && !isRaging(c)) continue;
-            if (entry.requiresEffect && !(c.effects ?? []).some((effect) => effect.key === `self:${entry.requiresEffect}`)) continue;
-            let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1);
-            // Its measured change to the Strikes (Arcane Cascade's force damage): about three rounds of it.
-            const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);
-            let perRound = 0;
-            for (const strike of c.strikes ?? []) {
-                const parts = entry.model.strikeDeltas?.[strike.name] ?? [];
-                const extra = parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
-                perRound = Math.max(perRound, extra * 1.3 + 0.05 * (entry.model.attackDeltas?.[strike.name] ?? 0) * 10);
-            }
-            // (For as long as it lasts, up to three rounds: "until the start of its next turn", this turn's Strikes, B69.)
-            const span = Number.isFinite(entry.model.rounds) ? Math.max(0.5, Math.min(3, entry.model.rounds)) : 3;
-            benefit += span * perRound / threatHere;
-            // (B286, Conductive Shell: its damage on each foe that hits it in melee — about one hit in two from each foe in its Melee a round.)
-            if (entry.model.hitBack) {
-                const average = parseDamage(entry.model.hitBack).reduce((sum, instance) => sum + (instance.constant ?? 0) + (instance.dice ?? []).reduce((total, term) => total + (term.factor ?? 1) * term.count * (term.die + 1) / 2, 0), 0);
-                benefit += span * 0.5 * ctx.enemies.filter((enemy) => isActive(enemy) && sameMelee(c, enemy)).length * average / threatHere;
-            }
-            if (entry.strikes?.length && ctx.enemies.length) {
-                const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
-                const expected = (strike) => {
-                    const hit = Math.min(0.95, Math.max(0.05, (21 - (ac - strike.bonus)) / 20));
-                    return hit * strike.damage.reduce((sum, part) => sum + ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1), 0);
-                };
-                const best = (list) => Math.max(0, ...list.filter((strike) => strike.melee && strikeUsable(c, strike)).map(expected));
-                // About three rounds of the better Strike, twice a round.
-                benefit += 3 * 2 * Math.max(0, best(entry.strikes) - best(c.strikes ?? [])) / Math.max(1, state.threat?.get(c.id) ?? 1);
-            }
-            const gain = ctx.ownValue * benefit * ROUND_TO_KILL;
-            const cost = entry.shell ? remaining : entry.actions;
-            if (gain > 0) children.push(child(node, { type: "selfEffect", index, actions: cost }, cost, gain, { cast: `self${index}` }));
-        }
-        const threatOf = Math.max(1, state.threat?.get(c.id) ?? 1);
-        // Exploit Vulnerability (once a round): the weakness it'd bring on about three rounds of hits.
-        if (c.exploit && node.used === 0 && !c.usedThisTurn?.has("exploit")) {
-            for (const target of ctx.enemies) {
-                if (target.status !== "active" || c.exploited?.targetId === target.id) continue;
-                const gain = ctx.ownValue * ROUND_TO_KILL * 3 * 1.2 * exploitValue(c, target) / threatOf;
-                children.push(child(node, { type: "exploit", targetId: target.id }, 1, gain));
-            }
-        }
-        // Devise a Stratagem (once a round): the next Strike at the creature, rolled in advance with Intelligence and Strategic Strike's dice.
-        if (c.stratagemFeature && node.used === 0 && c.stratagem?.round !== state.round && !noAttacks) {
-            for (const target of ctx.enemies) {
-                if (target.status !== "active") continue;
-                const bonus = Math.max(0, ...Object.values(c.stratagemFeature.strikeBonus));
-                const gain = targetValue(state, target, c) * Math.min(1, (c.stratagemFeature.dice * 3.5 * 0.65 + bonus * 0.05 * 10) / remainingHp(target));
-                children.push(child(node, { type: "stratagem", targetId: target.id }, 1, gain));
-            }
-        }
-        // Taunt (a guardian): an enemy within 30 feet attacks anyone else at −1, and off-guard.
-        if (c.taunt && !raging && ctx.allies.length) {
-            for (const target of ctx.enemies) {
-                if (target.status !== "active" || target.tauntedBy === c.id || target.band === "far" || node.casts.includes("taunt")) continue;
-                children.push(child(node, { type: "taunt", targetId: target.id }, 1, targetValue(state, target, c) * 0.2 * ROUND_TO_KILL, { cast: "taunt" }));
-            }
-        }
-        // Overdrive (once a round, until it works): its Strikes' extra damage over about three rounds.
-        if (c.overdrive && !c.overdriveDone && !c.usedThisTurn?.has("overdrive") && node.used === 0) {
-            const odds = degreeDistribution(c.overdrive.modifier, levelDC(c.overdrive.level));
-            const current = (c.activeBuffs ?? []).some((buff) => buff.name === c.overdrive.name) ? 1 : 0;
-            const bonus = odds[3] * c.overdrive.intMod + odds[2] * Math.floor(c.overdrive.intMod / 2) + odds[1] * 1 - current;
-            if (bonus > 0) children.push(child(node, { type: "overdrive" }, 1, ctx.ownValue * ROUND_TO_KILL * 3 * 1.2 * bonus / threatOf));
-        }
-        // (B167, Tactical Direction: worth its allies' Attacks of Opportunity, a little each, when none has one of its own.)
-        if (c.grantAoo && !node.casts.includes("grant-aoo")) {
-            const allies = grantAooAllies(state, c);
-            if (allies.length) children.push(child(node, { type: "grantAoo", actions: c.grantAoo.actions }, c.grantAoo.actions, ctx.ownValue * 0.04 * allies.length, { cast: "grant-aoo" }));
-        }
-        // (B298: a summon — its creatures' threat for as long as they last, about three rounds at most; a minion's two actions of three; a
-        // sustained one less the action it costs each turn.)
-        for (const [index, entry] of (c.summons ?? []).entries()) {
-            if (entry.trigger || entry.actions > remaining || node.casts.includes(`summon${index}`) || !canSummon(state, c, entry) || !ctx.enemies.length) continue;
-            const pool = summonPool(state, entry);
-            const sample = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
-            const each = pool.length ? pool.reduce((sum, reserve) => sum + roundDamage(reserve, ctx.enemies[0], sample), 0) / pool.length : 0;
-            const many = Math.min(pool.length, entry.count?.formula ? Math.max(1, Math.round(entry.perUse / 2)) : Number(entry.count) || entry.perUse);
-            const span = Math.max(1, Math.min(3, entry.lasts ?? 3));
-            const share = entry.initiative === "minion" ? 2 / 3 : 1;
-            const gain = ctx.ownValue * ROUND_TO_KILL * span * (many * each * share - (entry.sustained ? threatOf / 3 : 0)) / threatOf;
-            if (gain > 0) children.push(child(node, { type: "summon", index, actions: entry.actions }, entry.actions, gain, { cast: `summon${index}` }));
-        }
-        // Hunt Prey: a new prey when the current one is gone or a better target is in reach.
-        if (c.huntPrey && node.used === 0 && !raging) {
-            const current = c.prey ? state.byId.get(c.prey) : null;
-            if (!current || !isActive(current)) {
-                const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
-                // (B308: a mark's extra damage on each hit, about 1.1 hits a round.)
-                const markDamage = c.huntPrey.edge === "parts" ? 1.1 * c.huntPrey.parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0) : 0;
-                const perRound = c.huntPrey.edge === "precision" ? (c.huntPrey.every ? 1.1 : 0.65) * (((c.huntPrey.die ?? 8) + 1) / 2) * (c.huntPrey.precisionDice ?? 1) : c.huntPrey.edge === "parts" ? markDamage : c.huntPrey.edge === "flurry" ? 0.25 * threat : 0.05 * threat;
-                const prey = ctx.enemies.filter((enemy) => enemy.status === "active").sort((a, b) => targetValue(state, b, c) - targetValue(state, a, c))[0];
-                if (prey) children.push(child(node, { type: "huntPrey", targetId: prey.id }, 1, ctx.ownValue * ROUND_TO_KILL * 3 * perRound / threat));
-            }
-        }
-        // Engage a target.
-        if (!ctx.wavering && mobile) {
-            for (const target of ctx.enemies) {
-                if (inMelee(node.pos, target)) continue;
-                const strides = stridesToEngage(ctx.mover(node.pos), target);
-                // Too far on the map to engage with one Stride: a Stride toward it.
-                if (strides > 1 && ctx.rootPlace && stridesToEngage({ ...ctx.mover(node.pos), areaFeet: undefined }, target) <= 1) {
-                    const moved = approachPlace(ctx.placeOf(node.pos), { area: target.areaFeet, exit: target.exitFeet }, Math.max(5, c.speed ?? 25));
-                    const next = child(node, { type: "stride", move: { kind: "approach", targetId: target.id } }, 1, 0, { pos: { ...ctx.away(node, node.pos.band === "engaged" ? "near" : node.pos.band), place: moved }, atItem: false });
-                    if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "approach");
-                    children.push(next);
-                }
-                // Speed Surge (B72): two Strides for one action, three times a fight.
-                if (strides === 2 && c.speedSurge && (c.surgesUsed ?? 0) < c.speedSurge.uses && (c.surgeUntil ?? -Infinity) <= state.round && !node.casts.includes("surge")) {
-                    const surged = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
-                    const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id }, surge: true }, 1, 0, { pos: surged, moved: false, cast: "surge" });
-                    if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
-                    children.push(next);
-                }
-                if (strides !== 1) continue;
-                const pos = target.meleeId !== null
-                    ? { band: "engaged", melee: target.meleeId, newWith: null }
-                    : { band: "engaged", melee: "new", newWith: target.id };
-                const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id } }, 1, 0, { pos, moved: false });
-                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
-                children.push(next);
-            }
-            if (node.pos.band === "far") {
-                children.push(child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: ctx.away(node, "near") }));
-            }
-        }
-        // A dropped weapon (Disarm): picking it up gives back its Strikes; a weakened grip, its -2.
-        if (node.used === 0) {
-            const best = (list) => Math.max(0, ...list.map((strike) => strike.bonus * 2 + strike.damage.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0)));
-            for (const name of c.dropped ?? []) {
-                const all = best(c.strikes ?? []);
-                const usable = best((c.strikes ?? []).filter((strike) => strikeUsable(c, strike)));
-                const gain = all > 0 ? (all - usable) / all : 0;
-                if (gain > 0) children.push(child(node, { type: "interact", what: "pickup", strikeName: name }, 1, 0.5 * ctx.ownValue * gain));
-            }
-            for (const [name] of c.weakGrip ?? []) children.push(child(node, { type: "interact", what: "regrip", strikeName: name }, 1, 0.1 * ctx.ownValue));
-        }
-        if (c.shield && !c.shield.broken && !node.shield && !node.carrying) {
-            children.push(child(node, { type: "raiseShield" }, 1, 0, { shield: true }));
-        }
-        // Battle Medicine: on a hurt ally in reach (or a downed one, or itself), once
-        // per ally, at its best Treat Wounds DC, valued as healing.
-        if (c.battleMedicine && !restrained) {
-            const best = battleMedicineOdds(c).sort((a, b) => b.heal - a.heal)[0];
-            for (const ally of [c, ...ctx.alliesAndDown]) {
-                if (c.battleMedicineGiven?.has(ally.id) || ally.hp.value >= ally.hp.max || node.casts.includes(`bm${ally.id}`)) continue;
-                const near = ally === c || ally.status !== "active" || (typeof node.pos.melee === "number" ? ally.meleeId === node.pos.melee : ally.meleeId === null && ally.band === node.pos.band);
-                if (!near || best.heal <= 0) continue;
-                const value = ally.status === "active" ? targetValue(state, ally, c) : Math.max(1, state.meanThreat?.[ally.side] ?? 1);
-                const urgency = ally.status !== "active" ? 3 : 2.5 * (1 - hpFraction(ally)) ** 1.5;
-                const gain = value * (Math.min(best.heal, ally.hp.max - Math.max(0, ally.hp.value)) / ally.hp.max) * urgency;
-                const next = child(node, { type: "battleMedicine", targetId: ally.id, tier: best.tier }, 1, gain, { cast: `bm${ally.id}` });
-                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-                children.push(next);
-            }
-        }
-        // Mythic (B72): a Mythic Point to end its worst condition, or to regain a spent spell, a recharge, Quickened Casting.
-        if ((c.mythicPoints ?? 0) > 0 && remaining >= 1) {
-            const worst = c.mythic?.["remove-condition"] && !node.casts.includes("mythicRemove") ? worstCondition(c) : null;
-            if (worst && worst.worth > 0) children.push(child(node, { type: "mythicRemove", slug: worst.slug, actions: 1 }, 1, ctx.ownValue * 1.5 * worst.worth * ROUND_TO_KILL, { cast: "mythicRemove" }));
-            const recharge = c.mythic?.recharge && !node.casts.includes("mythicRecharge") && node.used === 0 ? c.mythic.recharge : null;
-            if (recharge) {
-                const pool = Object.entries(c.spellPools ?? {}).find(([name, left]) => left <= 0 && (c.spells ?? []).some((spell) => spell.pool === name))?.[0];
-                const recharging = recharge.abilities ? (c.spells ?? []).findIndex((spell) => (c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0)) : -1;
-                const what = pool ? { pool } : recharging >= 0 ? { spellIndex: recharging } : recharge.quickened && c.quickenedUsed ? { quickened: true } : null;
-                if (what) children.push(child(node, { type: "mythicRecharge", actions: 1, ...what }, 1, 0.35 * ctx.ownValue * ROUND_TO_KILL, { cast: "mythicRecharge" }));
-            }
-        }
-        // Knocking Sweep (B75): its basic action (Trip) at every enemy in its Melee, separate checks at the penalty it started with:
-        // worth what each would be.
-        for (const [sweepIndex, sweep] of (c.skillSweeps ?? []).entries()) {
-            if (restrained || noAttacks || sweep.actions > remaining || (sweep.oncePerTurn && (c.usedThisTurn?.has(sweep.name) || node.casts.includes(`sweep${sweepIndex}`)))) continue;
-            const index = sweepActionIndex(c, sweep);
-            const foes = index >= 0 ? ctx.enemies.filter((target) => target.status === "active" && inMelee(node.pos, target)) : [];
-            if (foes.length < 2) continue;
-            let gain = 0;
-            for (const [step, target] of foes.entries()) {
-                const effect = ctx.spellEffect(index, c.spells[index], [target], sweep.sameMap ? node.attacks : node.attacks + step, sweep.actions).find((entry) => entry.target === target);
-                if (!effect) continue;
-                const before = node.damage[target.id] ?? 0;
-                const hp = remainingHp(target);
-                gain += targetValue(state, target, c) * (Math.min(1, (before + (effect.damage ?? 0)) / hp) - Math.min(1, before / hp) + (effect.worth ?? 0) * ROUND_TO_KILL);
-            }
-            if (gain > 0) children.push(child(node, { type: "skillSweep", index: sweepIndex, actions: sweep.actions }, sweep.actions, ctx.profile.aggression * gain, { attacks: foes.length, ...(sweep.oncePerTurn ? { cast: `sweep${sweepIndex}` } : {}) }));
-        }
-        // Poison Weapon (B72): an Interact to poison its weapon before a Strike: the poison's worth on its best foe, times a hit's chance.
-        if (c.poisonWeapon && !c.weaponPoisoned && (c.poisonDoses ?? c.poisonWeapon.doses) > 0 && remaining >= 2 && !restrained && !node.casts.includes("poisonWeapon") && (c.strikes ?? []).some((strike) => strike.held && strikeUsable(c, strike))) {
-            let worth = 0;
-            for (const target of ctx.enemies) {
-                if (target.status !== "active") continue;
-                const effect = spellExpectation(state, c, c.poisonWeapon.spell, [target]).find((entry) => entry.target === target);
-                if (effect) worth = Math.max(worth, targetValue(state, target, c) * ((effect.damage ?? 0) / Math.max(1, remainingHp(target)) + (effect.worth ?? 0) * ROUND_TO_KILL));
-            }
-            const next = child(node, { type: "poisonWeapon", actions: 1 }, 1, ctx.profile.aggression * 0.6 * worth, { cast: "poisonWeapon" });
-            if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-            if (worth > 0) children.push(next);
-        }
-        // Retch: a sickened creature's Fortitude save to shake it off. Each point
-        // of sickened is about a quarter of a round of its threat over the fight.
-        if (node.used === 0 && c.cond.sickened > 0 && c.sickenedDC) {
-            const [success, critical] = retchOdds(c);
-            const points = success + critical * Math.min(2, c.cond.sickened);
-            children.push(child(node, { type: "retch" }, 1, ctx.ownValue * 0.24 * points * ROUND_TO_KILL));
-        }
-        if (node.prone) {
-            const next = child(node, { type: "stand" }, 1, 0, { prone: false });
-            if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-            children.push(next);
-        }
-        // Map objectives (O1–O3): toward the area, the item or the exit, and picking the item up.
-        if (ctx.map && mobile) {
-            const place = ctx.placeOf(node.pos);
-            const band = inAnyMelee ? "near" : node.pos.band;
-            const toward = (where) => {
-                const moved = strideToward(place, where, Math.max(5, c.speed ?? 25), state.objective.areaToExit);
-                const next = child(node, { type: "stride", move: { kind: where === "area" ? "toArea" : "toExit" } }, 1, 0, { pos: { band, melee: null, newWith: null, place: moved }, atItem: false });
-                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "toExit");
-                children.push(next);
-            };
-            const item = state.objective.item;
-            if (place.area > 0 && (ctx.map.kind === "hold" || (!node.carrying && !item.dropped))) toward("area");
-            if (node.carrying && place.exit > 0) toward("exit");
-            const toItem = ctx.map.kind === "retrieve" && !node.carrying && item.dropped && !node.atItem ? stridesToItem(item, node.pos.band, c.speed, place) : 0;
-            if (toItem === 1) {
-                const there = item.meleeId !== null && [...(state.melees.get(item.meleeId) ?? [])].some((id) => state.byId.get(id).side !== c.side && isActive(state.byId.get(id)));
-                const spot = { area: item.area, exit: item.exit };
-                const next = child(node, { type: "stride", move: { kind: "toItem" } }, 1, 0, { pos: there ? { band: "engaged", melee: item.meleeId, newWith: null, place: spot } : { band: item.band, melee: null, newWith: null, place: spot }, atItem: true });
-                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "toItem");
-                children.push(next);
-            } else if (toItem > 1 && stridesToItem(item, node.pos.band, c.speed) <= 1) {
-                // Further than a Stride on the map: toward it.
-                const next = child(node, { type: "stride", move: { kind: "approach", targetId: "item" } }, 1, 0, { pos: { band, melee: null, newWith: null, place: approachPlace(place, { area: item.area, exit: item.exit }, Math.max(5, c.speed ?? 25)) }, atItem: false });
-                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "approach");
-                children.push(next);
-            }
-        }
-        if (ctx.map?.kind === "retrieve" && !node.carrying && !restrained && (state.objective.item.dropped ? node.atItem : ctx.placeOf(node.pos).area <= 0)) {
-            const item = state.objective.item;
-            const next = child(node, { type: "pickUp" }, 1, 0, { carrying: true, shield: false, ...(item.dropped ? { pos: { ...node.pos, place: { area: item.area, exit: item.exit } }, atItem: true } : {}) });
-            if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-            children.push(next);
-        }
-        // Out of a danger Region (E3): a Stride toward its nearest edge.
-        if (mobile && ctx.dangers.length) {
-            const regions = ctx.regionsOf(node.pos);
-            for (const danger of ctx.dangers) {
-                const place = regions[danger.region];
-                if (!place || place.to > 0) continue;
-                const edge = Math.max(0, place.edge - Math.max(5, c.speed ?? 25));
-                const pos = ctx.away(node, inAnyMelee ? "near" : node.pos.band);
-                pos.regions = { ...regions, [danger.region]: { to: edge > 0 ? 0 : 5, edge } };
-                const next = child(node, { type: "stride", move: { kind: "outOf", region: danger.region } }, 1, 0, { pos });
-                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "outOf");
-                children.push(next);
-            }
-        }
-        // The alarm (E1): toward the gong and sound it, or (a runner) off the battlefield.
-        if (ctx.alarm && !node.alarmRaised) {
-            if (ctx.alarm.kind === "gong" && node.gong > 0 && mobile) {
-                const next = child(node, { type: "stride", move: { kind: "toGong" } }, 1, 0, { pos: ctx.away(node, inAnyMelee ? "near" : node.pos.band), gong: Math.max(0, node.gong - Math.max(5, c.speed ?? 25)) });
-                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "toGong");
-                children.push(next);
-            }
-            if (ctx.alarm.kind === "gong" && node.gong <= 0 && !restrained) {
-                const next = child(node, { type: "soundGong" }, 1, 0, { alarmRaised: true });
-                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-                children.push(next);
-            }
-            if (ctx.alarm.kind === "runner" && mobile && !inAnyMelee && node.pos.band === "far") children.push(child(node, { type: "stride", move: { kind: "leave" } }, 1, 0, { left: true, moved: true }));
-        }
-        // Disable a hazard (E4): 2 actions, valued as its share of putting the hazard out of the fight.
-        if (remaining >= 2 && c.kind === "pc" && !restrained && node.pos.band !== "far") {
-            for (const hazard of ctx.enemies) {
-                if (!isHazard(hazard) || node.casts.includes(`disable${hazard.id}`)) continue;
-                const pick = bestDisable(c, hazard);
-                if (!pick) continue;
-                const odds = degreeDistribution(pick.modifier, pick.option.dc);
-                const done = hazard.hazard.progress?.[`${pick.option.skill}:${pick.option.dc}`] ?? 0;
-                const left = Math.max(1, pick.option.needed - done);
-                const progress = Math.min(1, (odds[SUCCESS] + 2 * odds[CRITICAL_SUCCESS]) / left) - odds[CRITICAL_FAILURE] * 0.25;
-                if (progress <= 0) continue;
-                const next = child(node, { type: "disableHazard", targetId: hazard.id }, 2, targetValue(state, hazard, c) * progress, { cast: `disable${hazard.id}` });
-                if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-                children.push(next);
-            }
-        }
-        if (remaining >= 2 && canDoTask(state, c) && node.pos.band !== "far") {
-            const objective = state.objective;
-            const modifier = taskModifier(objective, c);
-            const dist = degreeDistribution(modifier, objective.dc);
-            const progress = dist[SUCCESS] + 2 * dist[CRITICAL_SUCCESS] - dist[CRITICAL_FAILURE] * (objective.needed / objective.dangerLimit);
-            const worth = (state.setup.objectivePriority ?? 1) * ctx.profile.objective * Math.max(state.meanThreat.foes, 1) * 3;
-            const next = child(node, { type: "task" }, 2, worth * Math.max(0, progress) / objective.needed);
-            if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-            children.push(next);
-        }
+        const env = { state, c, ctx, node, remaining, actionsLeft, inAnyMelee, mobile, restrained, noAttacks, noSpells, raging, threatOf, children };
+        expandStrikes(env);
+        expandSpells(env);
+        expandMultiStrikes(env);
+        expandStrikeActivities(env);
+        expandClassActions(env);
+        expandTactics(env);
+        expandOtherActions(env);
     }
     // Moving away.
     if (!mobile) {
@@ -1585,6 +719,915 @@ function expand(ctx, node, actionsLeft) {
         children.push(child(node, { type: "stride", move: { kind: "toFar" } }, 1, 0, { pos: ctx.away(node, "far"), moved: true }));
     }
     return children;
+}
+
+// Strikes, reloading and a slinger's reload. (Part of expand, split up so the optimizer takes it.)
+function expandStrikes(env) {
+    const { state, c, ctx, node, remaining, inAnyMelee, restrained, noAttacks, children } = env;
+    // Strikes: only the two best weapons against each target are worth planning with.
+    for (const target of ctx.enemies) {
+        if (target.status !== "active" || restrained || noAttacks) continue;
+        const options = [];
+        for (const [index, strike] of (c.strikes ?? []).entries()) {
+            if (!strikeUsable(c, strike) || (strike.melee && !inMelee(node.pos, target))) continue;
+            const expectation = ctx.strikeExpectation(strike, index, target, node.attacks, node.pos, node.prone);
+            if (expectation && expectation.damage > 0) options.push({ index, strike, expectation });
+        }
+        options.sort((a, b) => b.expectation.damage - a.expectation.damage);
+        for (const { index, strike, expectation } of options.slice(0, 2)) {
+            // A crossbow or firearm fired already (before this turn, or earlier in this plan): reload first (C14).
+            const reload = strike.reload && emptyNow(c, node, index, strike) ? strike.reload : 0;
+            if (1 + reload > remaining) continue;
+            const before = node.damage[target.id] ?? 0;
+            const hp = remainingHp(target);
+            // A venom or Improved Grab the hit delivers for free.
+            const gain = targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp)) + ctx.freeRiderGain(strike, target, expectation.hitChance) + ctx.splashGain(strike, target, expectation.hitChance);
+            const next = child(node, { type: "strike", targetId: target.id, strikeIndex: index, ...(reload ? { reload } : {}) }, 1 + reload, ctx.profile.aggression * gain, {
+                attack: true,
+                damage: { ...node.damage, [target.id]: before + expectation.damage },
+                ...(strike.reload ? { cast: `fired${index}` } : {})
+            });
+            if (!strike.melee && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+            children.push(next);
+        }
+    }
+    // Reloading on its own (the last action of a turn, so the next one starts with a shot):
+    // worth part of the shot it makes ready.
+    if (!restrained) {
+        for (const [index, strike] of (c.strikes ?? []).entries()) {
+            if (!strike.reload || strike.reload > remaining || !emptyNow(c, node, index, strike) || !strikeUsable(c, strike)) continue;
+            let best = 0;
+            for (const target of ctx.enemies) {
+                if (target.status !== "active") continue;
+                const expectation = ctx.strikeExpectation(strike, index, target, 0, node.pos, node.prone);
+                if (expectation?.damage > 0) best = Math.max(best, targetValue(state, target, c) * Math.min(1, expectation.damage / remainingHp(target)));
+            }
+            if (best > 0) children.push(child(node, { type: "reload", strikeIndex: index, actions: strike.reload }, strike.reload, 0.6 * ctx.profile.aggression * best, { cast: `loaded${index}` }));
+        }
+        // A gunslinger's slinger's reload (C17): one action that reloads (a reload-1 weapon)
+        // and, with it, a Shove or a melee Strike at a foe in reach, or Demoralize or Create a Diversion.
+        if (c.slingersReload && remaining >= 1 && !noAttacks) {
+            for (const [index, strike] of (c.strikes ?? []).entries()) {
+                if (strike.reload !== 1 || !emptyNow(c, node, index, strike) || !strikeUsable(c, strike)) continue;
+                let shot = 0;
+                for (const target of ctx.enemies) {
+                    if (target.status !== "active") continue;
+                    const expectation = ctx.strikeExpectation(strike, index, target, 0, node.pos, node.prone);
+                    if (expectation?.damage > 0) shot = Math.max(shot, targetValue(state, target, c) * Math.min(1, expectation.damage / remainingHp(target)));
+                }
+                let side = { gain: 0, side: null, sideIndex: null, targetId: null };
+                const then = c.slingersReload.then;
+                for (const target of ctx.enemies) {
+                    if (target.status !== "active") continue;
+                    const hp = remainingHp(target);
+                    const value = targetValue(state, target, c);
+                    if (then === "strike" && inMelee(node.pos, target)) {
+                        for (const [meleeIndex, melee] of (c.strikes ?? []).entries()) {
+                            if (!melee.melee || !strikeUsable(c, melee)) continue;
+                            const expectation = ctx.strikeExpectation(melee, meleeIndex, target, node.attacks, node.pos, node.prone);
+                            const gain = expectation ? value * Math.min(1, expectation.damage / hp) : 0;
+                            if (gain > side.gain) side = { gain, side: "strike", sideIndex: meleeIndex, targetId: target.id };
+                        }
+                    }
+                    const slugs = then === "shove" && inMelee(node.pos, target) ? ["shove"] : then === "demoralize-or-diversion" ? ["demoralize", "create-a-diversion"] : [];
+                    for (const slug of slugs) {
+                        const spellIndex = (c.spells ?? []).findIndex((spell) => spell.plan?.source?.slug === slug);
+                        if (spellIndex < 0) continue;
+                        let gain = 0;
+                        for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, c.spells[spellIndex], [target], node.attacks)) {
+                            if (affected === target) gain += value * (Math.min(1, damage / hp) + worth * ROUND_TO_KILL);
+                        }
+                        if (gain > side.gain) side = { gain, side: slug, sideIndex: spellIndex, targetId: target.id };
+                    }
+                }
+                const value = 0.6 * ctx.profile.aggression * shot + ctx.profile.aggression * side.gain;
+                if (value > 0) children.push(child(node, { type: "slingersReload", strikeIndex: index, side: side.side, sideIndex: side.sideIndex, targetId: side.targetId }, 1, value, { cast: `loaded${index}`, attack: side.side === "strike" || side.side === "shove" }));
+            }
+        }
+    }
+}
+
+// Spells, abilities and basic actions. (Part of expand, split up so the optimizer takes it.)
+function expandSpells(env) {
+    const { state, c, ctx, node, remaining, inAnyMelee, restrained, noAttacks, noSpells, raging, children } = env;
+    // Spells: each action variant and target set in reach, valued like
+    // Strikes (damage as a share of HP, conditions as rounds of threat).
+    // Healing an ally is worth its threat times the share of HP restored,
+    // more the closer it is to dropping, and most when it's down. Allies
+    // caught by damage, and foes healed, count against the cast.
+    for (const [index, spell] of (c.spells ?? []).entries()) {
+        if (!canCast(c, spell) || node.casts.includes(index)) continue;
+        if (raging && (spell.plan?.traits ?? []).includes("concentrate") && !(spell.plan?.traits ?? []).includes("rage")) continue;
+        if (noSpells && (!spell.kind || spell.castsSpell)) continue;
+        if (spell.pool && node.casts.filter((other) => typeof other === "number" && c.spells[other].pool === spell.pool).length >= (c.spellPools[spell.pool] ?? 0)) continue;
+        // A rider (Grab, Knockdown, Push) or a follow-up ("last action was a successful claw Strike") only as the
+        // action straight after the Strike that allows it.
+        const rider = spell.plan?.trigger?.event === "strike" || Boolean(spell.plan?.trigger?.followUp);
+        const riderTarget = rider && (c.riderReady?.index === index || c.riderReady?.also?.includes(index)) && node.used === 0 ? state.byId.get(c.riderReady.targetId) : null;
+        if (rider && !(riderTarget && isActive(riderTarget))) continue;
+        // Its requirement an enemy nearby in a state (B83, Feed on Fear: "An enemy is under a fear effect or Dying within
+        // 15 feet"): frightened, or down and dying.
+        // (B133: a requirement it can't check, Bushwhack's unseen creature: not planned.)
+        if (spell.plan?.requires === "requirement" && !spell.plan.needs) continue;
+        // (B304: its needs — a corpse, a creature it holds, its last action — as things stand.)
+        if (spell.plan?.needs && !needsMet(state, c, spell.plan.needs, { fresh: node.used === 0 })) continue;
+        // (B262, Rage-Charged Breath: only while raging.)
+        if (spell.plan?.requires === "raging" && !isRaging(c)) continue;
+        // (B259, Inspiring Display: straight after a spell it cast.)
+        if (spell.plan?.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, spell.plan.nonCantrip))) continue;
+        // (B247, a seed shot only while its breath recharges: one of its Breath Weapons waiting out its recharge.)
+        if (spell.plan?.requires === "breath-recharging" && !(c.spells ?? []).some((other) => other !== spell && /\bbreath\b/i.test(String(other.name ?? "")) && (c.rechargeUntil?.get(other.rechargeGroup ?? other) ?? -Infinity) > (c.round ?? state.round ?? 0))) continue;
+        const foe = spell.plan?.requiresFoe;
+        if (foe && !state.list.some((other) => other.side !== c.side && distanceTo(node.pos, other, ctx.placeOf(node.pos)) <= (foe.within ?? Infinity)
+            && foe.conditions.some((condition) => (condition === "dying" ? other.status === "down" : isActive(other)) && (other.cond?.[condition] ?? 0) > 0))) continue;
+        // Quickened Casting (B72): a spell of its rank or lower, one action fewer, once a fight.
+        const quickens = c.quickenedCasting && !c.quickenedUsed && !node.casts.includes("quickened") && (!spell.kind || spell.castsSpell) && (c.quickenedCasting.maxRank == null || (spell.castRank ?? 1) <= c.quickenedCasting.maxRank);
+        for (const actions of spellVariants(spell)) {
+            const info = describeSpell(spell.plan, actions);
+            const quickFits = quickens && info.actions >= 2 && info.actions - 1 <= remaining;
+            if (!info.actions || (info.actions > remaining && !quickFits) || (restrained && (info.manipulate || info.attack)) || (noAttacks && info.attack)) continue;
+            const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, c, spell, {
+                enemies: ctx.enemies,
+                allies: ctx.alliesAndDown,
+                inMelee: (other) => inMelee(node.pos, other),
+                distance: (other) => distanceTo(node.pos, other, ctx.placeOf(node.pos)),
+                meleeId: typeof node.pos.melee === "number" ? node.pos.melee : null
+            }, actions);
+            // (B304: a target need — Drag's Prone creature — only at those.)
+            // (B313: Grapple, Reposition, Shove and Trip at a creature no more than one size larger.)
+            const sized = SIZE_LIMITED.has(spell.kind === "basic" ? spell.plan?.source?.slug ?? String(spell.name ?? "").toLowerCase() : null)
+                ? sets.filter((entry) => entry.targets.every((target) => target.side === c.side || sizeRank(target.size) <= sizeRank(c.size) + 1)) : sets;
+            for (const set of spell.plan?.needs ? sized.filter((entry) => entry.targets.every((target) => target.side === c.side || targetNeedsMet(c, target, spell.plan.needs))) : sized) {
+                let gain = 0;
+                const damage = { ...node.damage };
+                for (const { target, damage: expected, worth, heal, benefit, breaks = 0 } of ctx.spellEffect(index, spell, set.targets, node.attacks, actions)) {
+                    const ally = target.side === c.side;
+                    const sign = ally ? -1 : 1;
+                    const before = damage[target.id] ?? 0;
+                    const hp = remainingHp(target);
+                    const value = target.status === "active" ? targetValue(state, target, c) : Math.max(1, state.meanThreat?.[target.side] ?? 1);
+                    // Playing for morale (M23): a break takes it out like a kill, beyond the damage already counted.
+                    const out = Math.min(1, Math.min(1, (before + expected) / hp) + breaks);
+                    gain += sign * value * (out - Math.min(1, before / hp) + worth * ROUND_TO_KILL);
+                    if (heal > 0 && target.hp.max > 0) {
+                        // Topping up a barely hurt ally is worth little; saving one near 0 HP, a lot.
+                        const urgency = target.status !== "active" ? 3 : 2.5 * (1 - hpFraction(target)) ** 1.5;
+                        gain += (ally ? 1 : -1) * value * (heal / target.hp.max) * urgency;
+                    }
+                    // A spell effect: good for an ally, bad for a foe (and the reverse for hindrances).
+                    if (benefit) gain += (ally ? 1 : -1) * value * benefit * ROUND_TO_KILL;
+                    // (B146: the Strike after the maneuver — its best expected damage, about half of it when the maneuver must succeed.)
+                    let follow = 0;
+                    const then = spell.plan?.then;
+                    if (then && !ally && target.status === "active") {
+                        const named = then.strike ? strikeNamed(c, then.strike) : -1;
+                        const choices = named >= 0 ? [named] : (c.strikes ?? []).map((strike, strikeIndex) => strikeIndex).filter((strikeIndex) => c.strikes[strikeIndex].melee);
+                        for (const strikeIndex of choices) {
+                            const strike = c.strikes[strikeIndex];
+                            if (!strikeUsable(c, strike) || (strike.melee && !inMelee(node.pos, target) && !then.follow)) continue;
+                            const expectation = ctx.strikeExpectation(strike, strikeIndex, target, node.attacks + (then.sameMap ? 0 : 1), node.pos, node.prone);
+                            follow = Math.max(follow, (expectation?.damage ?? 0) * (then.onSuccess ? 0.5 : 1));
+                        }
+                        gain += value * (Math.min(1, (before + expected + follow) / hp) - Math.min(1, (before + expected) / hp));
+                    }
+                    if (!ally) damage[target.id] = before + expected + follow;
+                }
+                // A swashbuckler's bravado action also brings panache: Precise Strike's damage for the fight and a finisher.
+                if (!c.panache && c.panacheStyle && (c.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
+                    const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
+                    gain += 0.6 * ctx.ownValue * ROUND_TO_KILL * (3 * c.panacheStyle.precise + c.panacheStyle.finisherDice * 3.5 * 0.6) / threat;
+                }
+                if (gain <= 0) continue;
+                if (info.actions <= remaining) {
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...(rider ? { rider: true } : {}) }, info.actions, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
+                    // Casting is a manipulate action: it provokes Attacks of Opportunity.
+                    if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    children.push(next);
+                }
+                if (quickFits) {
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, quickened: true, ...(rider ? { rider: true } : {}) }, info.actions - 1, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: [index, "quickened"] });
+                    if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    children.push(next);
+                }
+            }
+        }
+    }
+}
+
+// Rend, several Strikes for fewer actions, and Pounce. (Part of expand, split up so the optimizer takes it.)
+function expandMultiStrikes(env) {
+    const { state, c, ctx, node, remaining, inAnyMelee, mobile, restrained, noAttacks, raging, children } = env;
+    // Rend: after two hits with the listed Strike on the same enemy this round, its damage again.
+    if (c.rend && !c.rendUsed && node.used === 0) {
+        const hits = (c.turnAttacks ?? []).slice(-2);
+        const strikeIndex = (c.strikes ?? []).findIndex((strike) => strike.name.toLowerCase().includes(String(c.rend.strike ?? "").toLowerCase()));
+        const target = hits.length === 2 && hits.every((hit) => hit.hit && hit.targetId === hits[0].targetId && hit.strike === c.strikes[strikeIndex]?.name) ? state.byId.get(hits[0].targetId) : null;
+        if (strikeIndex >= 0 && target && isActive(target) && inMelee(node.pos, target)) {
+            const expected = expectedHitDamage(c, c.strikes[strikeIndex], target, false);
+            const hp = remainingHp(target);
+            const before = node.damage[target.id] ?? 0;
+            const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
+            children.push(child(node, { type: "rend", targetId: target.id, strikeIndex }, 1, ctx.profile.aggression * gain, { damage: { ...node.damage, [target.id]: before + expected } }));
+        }
+    }
+    // Draconic Frenzy and the like: several Strikes for fewer actions, at one target.
+    for (const [abilityIndex, ability] of (c.multiStrikes ?? []).entries()) {
+        if (restrained || noAttacks || ability.actions > remaining) continue;
+        // A flourish (Flurry of Blows): once a turn.
+        if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ms${abilityIndex}`))) continue;
+        if (ability.flourish && flourishUsed(c, node)) continue;
+        if (ability.oncePerFight && c.multiUsed?.has(ability.name)) continue;
+        // (B258, Gaze Upon: its recharge.)
+        if ((c.multiUntil?.get(ability.name) ?? -Infinity) > state.round) continue;
+        const order = multiStrikeOrder(c, ability);
+        if (!order || order.some((index) => !strikeUsable(c, c.strikes[index]))) continue;
+        // A Strike at every enemy in its Melee: worth the sum over them.
+        if (ability.each) {
+            // (B120: Rampage's "is uncontrollable", Bladestorm's "holding six spirit blades": states the engine doesn't play.)
+            // (B200, Power Through: not while Fatigued.)
+            if (ability.requires && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0) && !(ability.requires === "raging" && isRaging(c)) && !(ability.requires === "not-fatigued" && !c.cond.fatigued)) continue;
+            const ranged = !c.strikes[order[0]].melee;
+            // Where it Strikes from: here, or (B109, Mauling Rush) the Melee of a creature one Stride away.
+            const places = [{ pos: node.pos, first: null }];
+            if (ability.strides && !ranged && mobile && !ctx.wavering) {
+                for (const target of ctx.enemies) {
+                    if (target.status !== "active" || inMelee(node.pos, target) || stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
+                    places.push({ pos: target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id }, first: target });
+                }
+            }
+            for (const { pos, first } of places) {
+                // (B120, Flurry of Pods: not at the creatures it already holds.)
+                const near = ctx.enemies.filter((target) => target.status === "active" && (ranged || inMelee(pos, target)) && !(ability.notGrabbed && target.grabbedBy === c.id));
+                const foes = (first ? [first, ...near.filter((target) => target !== first)] : near).slice(0, ability.max ?? Infinity);
+                if (foes.length < 2) continue;
+                const damage = { ...node.damage };
+                let gain = 0;
+                for (const [step, target] of foes.entries()) {
+                    // (A different Strike at each, B74.)
+                    const index = order[Math.min(step, order.length - 1)];
+                    const base = withExtraDamage(c.strikes[index], ability.extraDamage);
+                    const struck = ability.penalty ? { ...base, bonus: base.bonus - ability.penalty } : base;
+                    const expected = ctx.strikeExpectation(struck, struck === c.strikes[index] ? index : 4000 + abilityIndex * 64 + index, target, ability.sameMap ? node.attacks : node.attacks + step, pos, node.prone)?.damage ?? 0;
+                    const before = damage[target.id] ?? 0;
+                    const hp = remainingHp(target);
+                    gain += targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
+                    damage[target.id] = before + expected;
+                }
+                if (gain <= 0) continue;
+                const next = child(node, { type: "multiStrike", ability: abilityIndex, targetId: foes[0].id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, { attacks: ability.countsAs ?? foes.length, damage, ...(pos !== node.pos ? { pos } : {}) });
+                if (pos !== node.pos && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                children.push(next);
+            }
+            continue;
+        }
+        for (const target of ctx.enemies) {
+            if (target.status !== "active") continue;
+            // (B108, Chase Prey: a Stride to it first, when it's that close.)
+            let pos = node.pos;
+            if (ability.strides && !inMelee(node.pos, target)) {
+                if (!mobile || ctx.wavering || stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
+                pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
+            }
+            if (order.some((index) => c.strikes[index].melee && !inMelee(pos, target))) continue;
+            // Hunted Shot, Twin Takedown: against the hunted prey only. Maul: a creature it holds (B62).
+            if (ability.preyOnly && c.prey !== target.id) continue;
+            if (ability.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
+            // (B107, Eviscerate: "has not attacked yet this turn".)
+            if (ability.requires === "first-attack" && (node.attacks > 0 || (c.attacksThisTurn ?? 0) > 0)) continue;
+            // (B113, Dual Stab: "against an Immobilized or Off-Guard target"; a requirement the engine doesn't know, never.)
+            if (ability.requires === "off-guard" && !(isOffGuard(target) || target.cond.immobilized)) continue;
+            if (ability.requires === "raging" && !isRaging(c)) continue;
+            // (B186, Ravage: at a Paralyzed, Restrained or Unconscious creature.)
+            if (ability.requires === "helpless" && !(target.cond.paralyzed || target.cond.restrained || target.cond.unconscious)) continue;
+            if (ability.requires === "not-fatigued" && c.cond.fatigued) continue;
+            // (B287, Radical Surgery: at a Prone or Immobilized creature.)
+            if (ability.requires === "prone-or-immobilized" && !(target.cond.prone || target.cond.immobilized)) continue;
+            if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging", "helpless", "not-fatigued", "prone-or-immobilized"].includes(ability.requires)) continue;
+            let expected = 0;
+            // (B106: a second Strike only after a first that hits, worth that chance.)
+            let firstHits = 1;
+            for (const [step, index] of order.entries()) {
+                // Double Slice: both at the current penalty, the second -2 unless agile (B62: not a monster's). A penalty on each
+                // (Frenzied Slashes' -2).
+                const second = ability.secondPenalty && step > 0 && !c.strikes[index].agile ? 2 : 0;
+                // (Twin Feint, B74: the second against an off-guard target, about +2; after a first hit only, half that.)
+                const feint = step === 1 && ability.secondOffGuard ? (ability.secondOffGuard === true ? 2 : 1) : 0;
+                const own = ability.penalties?.[step] ?? 0;
+                const base = withExtraDamage(c.strikes[index], ability.extraDamage);
+                const strike = second || feint || ability.penalty || own ? { ...base, bonus: base.bonus - second + feint - (ability.penalty ?? 0) - own } : base;
+                const expectation = ctx.strikeExpectation(strike, strike === c.strikes[index] ? index : 3000 + abilityIndex * 64 + index, target, ability.noMap ? 0 : ability.sameMap || ability.random ? node.attacks : node.attacks + step, pos, node.prone);
+                // (B255: a random multi-Strike's Strike, as often as its faces give it.)
+                expected += (expectation?.damage ?? 0) * (ability.ifFirstHits && step > 0 ? firstHits : 1) * randomStrikeShare(ability, c, index);
+                if (step === 0) firstHits = expectation?.hitChance ?? 0;
+            }
+            if (expected <= 0) continue;
+            const before = node.damage[target.id] ?? 0;
+            const hp = remainingHp(target);
+            const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
+            const next = child(node, { type: "multiStrike", ability: abilityIndex, targetId: target.id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
+                attacks: ability.countsAs ?? (ability.random ? Math.round(order.reduce((sum, index) => sum + randomStrikeShare(ability, c, index), 0)) : order.length),
+                ...(pos !== node.pos ? { pos } : {}),
+                damage: { ...node.damage, [target.id]: before + expected },
+                ...(ability.oncePerTurn || ability.flourish ? { cast: [...(ability.oncePerTurn ? [`ms${abilityIndex}`] : []), ...(ability.flourish ? ["flourish"] : [])] } : {})
+            });
+            if (pos !== node.pos && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+            children.push(next);
+        }
+    }
+    // Pounce: Stride to an enemy and Strike, as one action.
+    for (const [abilityIndex, ability] of (c.charges ?? []).entries()) {
+        if (restrained || noAttacks || !mobile || ctx.wavering || ability.actions > remaining) continue;
+        if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ch${abilityIndex}`))) continue;
+        // (Aquatic Ambush, B70: once a fight, from hiding.)
+        if (ability.oncePerFight && c.chargesUsed?.has(ability.name)) continue;
+        // (B98: its recharge.)
+        if ((c.chargeUntil?.get(ability.name) ?? -Infinity) > state.round) continue;
+        if (ability.flourish && flourishUsed(c, node)) continue;
+        const named = strikeNamed(c, ability.strike);
+        const candidates = named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
+        for (const target of ctx.enemies) {
+            if (target.status !== "active" || inMelee(node.pos, target)) continue;
+            if (stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
+            const pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
+            let best = null;
+            for (const index of candidates) {
+                if (!strikeUsable(c, c.strikes[index])) continue;
+                // A charge's own Strike (its bonus or bigger damage) has a cache slot of its own.
+                const charged = chargeStrike(c.strikes[index], chargeOn(c, ability, target.id));
+                const expectation = ctx.strikeExpectation(charged, charged === c.strikes[index] ? index : 1000 + abilityIndex * 64 + index, target, node.attacks, pos, node.prone);
+                if (expectation && (!best || expectation.damage > best.damage)) best = { index, damage: expectation.damage };
+            }
+            if (!best || best.damage <= 0) continue;
+            const before = node.damage[target.id] ?? 0;
+            const hp = remainingHp(target);
+            const gain = targetValue(state, target, c) * (Math.min(1, (before + best.damage) / hp) - Math.min(1, before / hp));
+            const next = child(node, { type: "charge", ability: abilityIndex, targetId: target.id, strikeIndex: best.index, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
+                attack: true,
+                pos,
+                damage: { ...node.damage, [target.id]: before + best.damage },
+                ...(ability.oncePerTurn || ability.flourish ? { cast: [...(ability.oncePerTurn ? [`ch${abilityIndex}`] : []), ...(ability.flourish ? ["flourish"] : [])] } : {})
+            });
+            if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+            children.push(next);
+        }
+    }
+}
+
+// Strike activities, rage and an exemplar's ikons. (Part of expand, split up so the optimizer takes it.)
+function expandStrikeActivities(env) {
+    const { state, c, ctx, node, remaining, inAnyMelee, mobile, restrained, noAttacks, children } = env;
+    // Strike activities (Wrestle, Intimidating Strike, Rhinoceros Charge): the Strike,
+    // plus what a hit adds times the chance to hit; with Strides, only from outside the target's Melee.
+    for (const [activityIndex, activity] of (c.strikeActivities ?? []).entries()) {
+        if (restrained || noAttacks || activity.actions > remaining || (activity.oncePerFight && c.activitiesUsed?.has(activityIndex))) continue;
+        if (activity.flourish && flourishUsed(c, node)) continue;
+        // (B199, Uncanny Pounce: only as it rolls initiative.)
+        if (activity.initiative) continue;
+        // "Frequency once per round" (Wriggling Beard).
+        if (activity.oncePerTurn && (c.usedThisTurn?.has(activity.name) || node.casts.includes(`sa${activityIndex}`))) continue;
+        // A finisher needs panache.
+        if (activity.finisher && !c.panache) continue;
+        // A follow-up's Strike (B68): straight after a Strike that allows it.
+        if (activity.after && !(node.used === 0 && followsStrike(state, c, activity.after))) continue;
+        // (B106: Berserk Slam's "is berserk", a state the engine doesn't play.)
+        if (activity.requires === "berserk") continue;
+        // (B126: a requirement the engine doesn't play — "The dragon is burrowed", "It's the first round of combat" — not planned.)
+        if (activity.requires === "requirement") continue;
+        if (activity.requires === "first-round" && state.round !== 1) continue;
+        // (B147: straight after a spell it cast.)
+        if (activity.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, activity.nonCantrip))) continue;
+        if (activity.strides && (!mobile || ctx.wavering)) continue;
+        // Cover Fire (C19): a loaded firearm or crossbow, once a round.
+        if (activity.coverFire && (c.usedThisTurn?.has("cover-fire") || node.casts.includes("coverFire"))) continue;
+        const named = strikeNamed(c, activity.strike);
+        const candidates = activity.coverFire
+            ? (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].firearm && !c.strikes[index].melee && !emptyNow(c, node, index, c.strikes[index]))
+            : named >= 0 ? [named] : activity.strike === "ranged" ? [] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
+        for (const target of ctx.enemies) {
+            if (target.status !== "active") continue;
+            // (At the creature it struck, unless it moves first: "Strides up to 10 feet and Strikes".)
+            if (activity.after && !activity.strides && target.id !== c.lastStrike?.targetId) continue;
+            if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
+            if (activity.requires === "prone" && !target.cond.prone) continue;
+            // (B206, Scorpion Sting: "Strikes an Off-Guard creature".)
+            if (activity.requires === "off-guard" && !(isOffGuard(target) || target.cond.immobilized)) continue;
+            // (B151, Shatter Defenses: "A Frightened creature is within melee reach".)
+            if (activity.requires === "frightened" && !(target.cond.frightened > 0)) continue;
+            if (activity.targetTraits && !activity.targetTraits.some((trait) => (target.traits ?? []).includes(trait))) continue;
+            // (B105: Stunning Strike's "hit a foe earlier this turn with a weapon Strike", at that foe; after Strikes made, not planned.)
+            if (activity.requires === "hit-earlier" && !(node.used === 0 && (c.turnAttacks ?? []).some((attack) => attack.hit && attack.targetId === target.id))) continue;
+            // (B104: Terrifying Smite's "an enemy that has one of its allies within its reach".)
+            if (activity.requires === "ally-adjacent" && !state.list.some((other) => other !== c && other.side === c.side && isActive(other) && sameMelee(other, target))) continue;
+            if (activity.requires === "free-hand" && state.list.some((other) => other.grabbedBy === c.id && (other.cond.grabbed || other.cond.restrained))) continue;
+            let pos = node.pos;
+            if (activity.strides) {
+                // (A follow-up's, "Strides up to 10 feet and Strikes", B68: also at a creature already in reach.)
+                const here = inMelee(node.pos, target);
+                if ((here && !activity.after) || (!here && stridesToEngage(ctx.mover(node.pos), target) > activity.strides)) continue;
+                if (!here) pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
+            }
+            let best = null;
+            // Cover Fire: the target ducks (+2 AC against it) unless its best attack is ranged; then +1 to hit.
+            const used = activity.coverFire ? { ...activity, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : activity;
+            for (const index of candidates) {
+                const strike = c.strikes[index];
+                if (!strikeUsable(c, strike) || (strike.melee && !inMelee(pos, target))) continue;
+                const changed = chargeStrike(strike, used);
+                // ("This Strike ignores their multiple attack penalty": as a first attack.)
+                // ("using the previous Strike's multiple attack penalty": one attack fewer.)
+                const expectation = ctx.strikeExpectation(changed, changed === strike ? index : 2000 + activityIndex * 64 + index, target, activity.noMap ? 0 : activity.previousMap ? Math.max(0, node.attacks - 1) : node.attacks, pos, node.prone);
+                if (expectation && (!best || expectation.damage > best.expectation.damage)) best = { index, expectation };
+            }
+            if (!best) continue;
+            const rider = strikeRiderValue(state, c, target, activity, c.strikes[best.index]);
+            const before = node.damage[target.id] ?? 0;
+            const hp = remainingHp(target);
+            // (Focused Assault, B74: a failure deals the Strike's damage too.)
+            const expected = best.expectation.damage + best.expectation.hitChance * rider.damage + (activity.failureDamage ? (best.expectation.failChance ?? 0) * (best.expectation.hitDamage ?? 0) : 0);
+            // Set-Up Strike: off-guard for an ally's next attack, about a tenth more of its damage.
+            const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * 0.12 / hp : 0;
+            const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + best.expectation.hitChance * rider.worth * ROUND_TO_KILL + setUpWorth);
+            if (gain <= 0) continue;
+            // Exacting Strike: a miss doesn't raise the penalty for what follows (worth a little).
+            const exacting = activity.exacting ? 0.15 * (1 - best.expectation.hitChance) * gain : 0;
+            // (B139: Off-Guard on itself costs, a guard helps, for about a round.)
+            const selfWorth = activity.selfAfter?.length ? ctx.ownValue * ROUND_TO_KILL * effectBenefit({ rounds: 1, modifiers: activity.selfAfter.map((entry) => ({ on: "ac", value: entry.ac ?? -2 })), tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [] }, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1) : 0;
+            const next = child(node, { type: "strikeActivity", index: activityIndex, targetId: target.id, strikeIndex: best.index, actions: activity.actions }, activity.actions, ctx.profile.aggression * (gain + exacting) + selfWorth, {
+                attacks: activity.noMap || activity.previousMap ? 0 : activity.countsAs ?? 1,
+                pos,
+                damage: { ...node.damage, [target.id]: before + expected },
+                ...(activity.finisher || activity.coverFire || activity.flourish || activity.oncePerTurn ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : []), ...(activity.oncePerTurn ? [`sa${activityIndex}`] : [])] } : {})
+            });
+            if (activity.strides && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+            children.push(next);
+        }
+    }
+    // Rage and the like: once a fight, for its temporary HP and the damage it adds
+    // over the rest of the fight (about three rounds of Strikes).
+    for (const [buffIndex, buff] of (c.selfBuffs ?? []).entries()) {
+        if (buff.actions > remaining || c.buffsUsed?.has(buff.name) || (c.activeBuffs ?? []).includes(buff) || node.casts.includes(`buff${buffIndex}`)) continue;
+        const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
+        let perRound = 0;
+        for (const strike of c.strikes ?? []) {
+            const parts = buff.strikeDeltas?.[strike.name] ?? [];
+            const average = parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
+            perRound = Math.max(perRound, average * 1.3);
+        }
+        const gain = ctx.ownValue * (ROUND_TO_KILL * 3 * perRound / threat + 0.5 * (buff.tempHp ?? 0) / Math.max(1, c.hp.max));
+        if (gain > 0) children.push(child(node, { type: "selfBuff", index: buffIndex, actions: buff.actions }, buff.actions, gain, { cast: `buff${buffIndex}` }));
+    }
+    // An exemplar (C25–C27): Shift Immanence into a better ikon (once a round), and a
+    // transcendence while the spark is in its ikon (it casts the spark out).
+    if (c.exemplar && node.used === 0) {
+        const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);
+        const ikonWorth = (ikon) => {
+            if (!ikon) return 0;
+            let perRound = 0;
+            for (const strike of c.strikes ?? []) {
+                const extra = (ikon.model.strikeDeltas?.[strike.name] ?? []).reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
+                perRound = Math.max(perRound, extra * 1.3);
+            }
+            return effectBenefit(ikon.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1) + 3 * perRound / threatHere;
+        };
+        if (!c.usedThisTurn?.has("shift-immanence") && remaining >= 1) {
+            const current = ikonWorth(ikonOf(c, c.spark));
+            for (const ikon of c.exemplar.ikons) {
+                if (ikon.slug === c.spark) continue;
+                const gain = ctx.ownValue * (ikonWorth(ikon) - current) * ROUND_TO_KILL;
+                if (gain > 0) children.push(child(node, { type: "shiftImmanence", slug: ikon.slug, actions: 1 }, 1, gain, { cast: "shift" }));
+            }
+        }
+        for (const [index, entry] of c.exemplar.transcendences.entries()) {
+            if (remaining < 1 || c.spark !== entry.ikon) continue;
+            if (entry.kind === "rend" && rendReady(state, c, entry)) {
+                const target = state.byId.get(c.lastHit.targetId);
+                if (!target || target.status !== "active") continue;
+                const expected = entry.dice * (entry.die + 1) / 2;
+                // The spark comes back with a Shift (an action, once a round): about a round of immanence lost.
+                const gain = targetValue(state, target, c) * Math.min(1, expected / remainingHp(target)) - ctx.ownValue * ROUND_TO_KILL * ikonWorth(ikonOf(c, c.spark)) / 3;
+                if (gain > 0) children.push(child(node, { type: "transcend", index, targetId: target.id, actions: 1 }, 1, ctx.profile.aggression * gain, { cast: "transcend" }));
+            }
+            if (entry.kind === "heal" && c.hp.value < c.hp.max) {
+                const heal = Math.min(entry.dice * 4.5, c.hp.max - c.hp.value);
+                const urgency = 2.5 * (1 - hpFraction(c)) ** 1.5;
+                const gain = ctx.ownValue * (heal / c.hp.max) * urgency;
+                if (gain > 0) children.push(child(node, { type: "transcend", index, targetId: c.id, actions: 1 }, 1, gain, { cast: "transcend" }));
+            }
+        }
+    }
+    // (B183, Word of Advice: an ally's Stride and Strike with its extra damage, worth what that Strike does.)
+    if (c.allyAdvance && c.allyAdvance.actions <= remaining && !node.casts.includes("ally-advance") && !(c.allyAdvance.oncePerTurn && c.usedThisTurn?.has(c.allyAdvance.name))) {
+        const best = bestAdvance(state, c, ctx.enemies);
+        const target = best ? state.byId.get(best.targetId) : null;
+        if (target) {
+            const before = node.damage[target.id] ?? 0;
+            const hp = remainingHp(target);
+            const gain = targetValue(state, target, c) * (Math.min(1, (before + best.expected) / hp) - Math.min(1, before / hp));
+            if (gain > 0) children.push(child(node, { type: "allyAdvance", allyId: best.allyId, targetId: best.targetId, strikeIndex: best.strikeIndex, stride: best.stride, actions: c.allyAdvance.actions }, c.allyAdvance.actions, ctx.profile.aggression * gain, { cast: "ally-advance", damage: { ...node.damage, [target.id]: before + best.expected } }));
+        }
+    }
+}
+
+// A commander's tactics, Spellstrike and actions that put an effect on itself. (Part of expand, split up so the optimizer takes it.)
+function expandClassActions(env) {
+    const { state, c, ctx, node, remaining, restrained, noAttacks, raging, children } = env;
+    // A commander's tactics (C21–C24): Strike Hard! (an ally's Strike), Pincer Attack
+    // (off-guard to melee from the commander and the allies who answer), Banner's Inspiration.
+    if (c.commander) {
+        if (c.commander.strikeHard && remaining >= 2 && !node.casts.includes("strikeHard")) {
+            const best = bestStrikeHard(state, c, ctx.enemies);
+            const target = best ? state.byId.get(best.targetId) : null;
+            if (target) {
+                const before = node.damage[target.id] ?? 0;
+                const hp = remainingHp(target);
+                const gain = targetValue(state, target, c) * (Math.min(1, (before + best.expected) / hp) - Math.min(1, before / hp));
+                if (gain > 0) children.push(child(node, { type: "strikeHard", allyId: best.allyId, targetId: best.targetId, strikeIndex: best.strikeIndex, actions: 2 }, 2, ctx.profile.aggression * gain, { cast: "strikeHard", damage: { ...node.damage, [target.id]: before + best.expected } }));
+            }
+        }
+        if (c.commander.pincerAttack && remaining >= 1 && !node.casts.includes("pincer")) {
+            const { responders, foes } = pincerPlan(state, c);
+            let gain = 0;
+            for (const foe of foes) {
+                // +2 for about a round of melee attacks at it: roughly a tenth more of each one's damage.
+                const expected = [c, ...responders].filter((attacker) => attacker.meleeId === foe.meleeId).reduce((sum, attacker) => sum + (allyStrike(state, attacker, foe)?.expected ?? 0), 0);
+                gain += targetValue(state, foe, c) * Math.min(1, 0.15 * expected / remainingHp(foe));
+            }
+            if (responders.length && gain > 0) children.push(child(node, { type: "pincerAttack", actions: 1 }, 1, ctx.profile.aggression * gain, { cast: "pincer" }));
+        }
+        if (c.commander.bannersInspiration && remaining >= 1 && !node.casts.includes("banners") && !(c.commander.inspirationFlourish && flourishUsed(c, node))) {
+            const allies = inspirable(state, c);
+            const gain = allies.reduce((sum, ally) => sum + targetValue(state, ally, c) * (conditionWorth("frightened", ally.cond.frightened, null) - conditionWorth("frightened", ally.cond.frightened - 1, null)) * ROUND_TO_KILL, 0);
+            if (gain > 0) children.push(child(node, { type: "bannersInspiration", actions: 1 }, 1, gain, { cast: ["banners", ...(c.commander.inspirationFlourish ? ["flourish"] : [])] }));
+        }
+    }
+    // Spellstrike (C20): a melee Strike carrying a 1- or 2-action spell with a spell
+    // attack (it hits as the Strike does) or a save (the target saves; a critical miss
+    // loses it); two attacks for the penalty. Then Recharge Spellstrike, an action, or a conflux spell.
+    if (c.spellstrike && !restrained && !noAttacks && !raging) {
+        if (c.spellstrikeCharged && !node.casts.includes("spellstrike") && remaining >= 2) {
+            for (const target of ctx.enemies) {
+                if (target.status !== "active" || !inMelee(node.pos, target)) continue;
+                let strikeBest = null;
+                for (const [index, strike] of (c.strikes ?? []).entries()) {
+                    if (!strike.melee || !strikeUsable(c, strike)) continue;
+                    const expectation = ctx.strikeExpectation(strike, index, target, node.attacks, node.pos, node.prone);
+                    if (expectation && (!strikeBest || expectation.damage > strikeBest.expectation.damage)) strikeBest = { index, expectation };
+                }
+                if (!strikeBest) continue;
+                const hp = remainingHp(target);
+                const value = targetValue(state, target, c);
+                const before = node.damage[target.id] ?? 0;
+                for (const [spellIndex, spell] of (c.spells ?? []).entries()) {
+                    if (!spellstrikeSpell(c, spell) || node.casts.includes(spellIndex)) continue;
+                    let spellDamage = 0;
+                    let spellWorth = 0;
+                    for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, spell, [target], node.attacks)) {
+                        if (affected !== target) continue;
+                        spellDamage += damage;
+                        spellWorth += worth;
+                    }
+                    const expected = strikeBest.expectation.damage + spellDamage;
+                    const gain = value * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + spellWorth * ROUND_TO_KILL);
+                    if (gain <= 0) continue;
+                    children.push(child(node, { type: "spellstrike", targetId: target.id, strikeIndex: strikeBest.index, spellIndex, actions: 2 }, 2, ctx.profile.aggression * gain, {
+                        attacks: 2,
+                        damage: { ...node.damage, [target.id]: before + expected },
+                        cast: ["spellstrike", ...(spell.pool ? [spellIndex] : [])]
+                    }));
+                }
+            }
+        }
+        // Recharge Spellstrike: worth part of the Spellstrike it makes ready.
+        if (!c.spellstrikeCharged && !node.casts.includes("recharge-spellstrike") && remaining >= 1) {
+            let best = 0;
+            for (const [spellIndex, spell] of (c.spells ?? []).entries()) {
+                if (!spellstrikeSpell(c, spell)) continue;
+                for (const target of ctx.enemies) {
+                    if (target.status !== "active") continue;
+                    for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, spell, [target], 0)) {
+                        if (affected === target) best = Math.max(best, targetValue(state, target, c) * (Math.min(1, damage / remainingHp(target)) + worth * ROUND_TO_KILL));
+                    }
+                }
+            }
+            if (best > 0) children.push(child(node, { type: "rechargeSpellstrike", actions: 1 }, 1, 0.5 * ctx.profile.aggression * best, { cast: "recharge-spellstrike" }));
+        }
+    }
+    // A stance or another action that puts an effect on itself (C13): the
+    // effect's benefit, as a spell's on itself, and a better Strike it brings.
+    for (const [index, entry] of (c.selfEffects ?? []).entries()) {
+        if (entry.actions > remaining || (c.effects ?? []).some((effect) => effect.key === `self:${entry.name}`) || node.casts.includes(`self${index}`)) continue;
+        // Fanatical Frenzy: once it's hurt (B64). Blood Frenzy and the like come with their trigger, not as an action (B65).
+        if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
+        if (entry.trigger) continue;
+        // (B308: a shell — only badly hurt, under 40% of its Hit Points, with a foe in its reach; it spends the rest of its turn in it.)
+        if (entry.shell && !(c.hp.value < c.hp.max * 0.4 && ctx.enemies.some((enemy) => isActive(enemy) && sameMelee(c, enemy)))) continue;
+        if (entry.afterCast && !(node.used === 0 && castJustNow(state, c, entry.afterCast === "non-cantrip"))) continue;
+        // (B155: only while its rage lasts; B158, Mountain Stronghold: only while its own stance is on it.)
+        if (entry.whileRaging && !isRaging(c)) continue;
+        if (entry.requiresEffect && !(c.effects ?? []).some((effect) => effect.key === `self:${entry.requiresEffect}`)) continue;
+        let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1);
+        // Its measured change to the Strikes (Arcane Cascade's force damage): about three rounds of it.
+        const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);
+        let perRound = 0;
+        for (const strike of c.strikes ?? []) {
+            const parts = entry.model.strikeDeltas?.[strike.name] ?? [];
+            const extra = parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
+            perRound = Math.max(perRound, extra * 1.3 + 0.05 * (entry.model.attackDeltas?.[strike.name] ?? 0) * 10);
+        }
+        // (For as long as it lasts, up to three rounds: "until the start of its next turn", this turn's Strikes, B69.)
+        const span = Number.isFinite(entry.model.rounds) ? Math.max(0.5, Math.min(3, entry.model.rounds)) : 3;
+        benefit += span * perRound / threatHere;
+        // (B286, Conductive Shell: its damage on each foe that hits it in melee — about one hit in two from each foe in its Melee a round.)
+        if (entry.model.hitBack) {
+            const average = parseDamage(entry.model.hitBack).reduce((sum, instance) => sum + (instance.constant ?? 0) + (instance.dice ?? []).reduce((total, term) => total + (term.factor ?? 1) * term.count * (term.die + 1) / 2, 0), 0);
+            benefit += span * 0.5 * ctx.enemies.filter((enemy) => isActive(enemy) && sameMelee(c, enemy)).length * average / threatHere;
+        }
+        if (entry.strikes?.length && ctx.enemies.length) {
+            const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
+            const expected = (strike) => {
+                const hit = Math.min(0.95, Math.max(0.05, (21 - (ac - strike.bonus)) / 20));
+                return hit * strike.damage.reduce((sum, part) => sum + ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1), 0);
+            };
+            const best = (list) => Math.max(0, ...list.filter((strike) => strike.melee && strikeUsable(c, strike)).map(expected));
+            // About three rounds of the better Strike, twice a round.
+            benefit += 3 * 2 * Math.max(0, best(entry.strikes) - best(c.strikes ?? [])) / Math.max(1, state.threat?.get(c.id) ?? 1);
+        }
+        const gain = ctx.ownValue * benefit * ROUND_TO_KILL;
+        const cost = entry.shell ? remaining : entry.actions;
+        if (gain > 0) children.push(child(node, { type: "selfEffect", index, actions: cost }, cost, gain, { cast: `self${index}` }));
+    }
+}
+
+// Exploit Vulnerability, Devise a Stratagem, Taunt, Overdrive, Hunt Prey, engaging a target and picking up a dropped weapon. (Part of expand, split up so the optimizer takes it.)
+function expandTactics(env) {
+    const { state, c, ctx, node, remaining, inAnyMelee, mobile, noAttacks, raging, threatOf, children } = env;
+    // Exploit Vulnerability (once a round): the weakness it'd bring on about three rounds of hits.
+    if (c.exploit && node.used === 0 && !c.usedThisTurn?.has("exploit")) {
+        for (const target of ctx.enemies) {
+            if (target.status !== "active" || c.exploited?.targetId === target.id) continue;
+            const gain = ctx.ownValue * ROUND_TO_KILL * 3 * 1.2 * exploitValue(c, target) / threatOf;
+            children.push(child(node, { type: "exploit", targetId: target.id }, 1, gain));
+        }
+    }
+    // Devise a Stratagem (once a round): the next Strike at the creature, rolled in advance with Intelligence and Strategic Strike's dice.
+    if (c.stratagemFeature && node.used === 0 && c.stratagem?.round !== state.round && !noAttacks) {
+        for (const target of ctx.enemies) {
+            if (target.status !== "active") continue;
+            const bonus = Math.max(0, ...Object.values(c.stratagemFeature.strikeBonus));
+            const gain = targetValue(state, target, c) * Math.min(1, (c.stratagemFeature.dice * 3.5 * 0.65 + bonus * 0.05 * 10) / remainingHp(target));
+            children.push(child(node, { type: "stratagem", targetId: target.id }, 1, gain));
+        }
+    }
+    // Taunt (a guardian): an enemy within 30 feet attacks anyone else at −1, and off-guard.
+    if (c.taunt && !raging && ctx.allies.length) {
+        for (const target of ctx.enemies) {
+            if (target.status !== "active" || target.tauntedBy === c.id || target.band === "far" || node.casts.includes("taunt")) continue;
+            children.push(child(node, { type: "taunt", targetId: target.id }, 1, targetValue(state, target, c) * 0.2 * ROUND_TO_KILL, { cast: "taunt" }));
+        }
+    }
+    // Overdrive (once a round, until it works): its Strikes' extra damage over about three rounds.
+    if (c.overdrive && !c.overdriveDone && !c.usedThisTurn?.has("overdrive") && node.used === 0) {
+        const odds = degreeDistribution(c.overdrive.modifier, levelDC(c.overdrive.level));
+        const current = (c.activeBuffs ?? []).some((buff) => buff.name === c.overdrive.name) ? 1 : 0;
+        const bonus = odds[3] * c.overdrive.intMod + odds[2] * Math.floor(c.overdrive.intMod / 2) + odds[1] * 1 - current;
+        if (bonus > 0) children.push(child(node, { type: "overdrive" }, 1, ctx.ownValue * ROUND_TO_KILL * 3 * 1.2 * bonus / threatOf));
+    }
+    // (B167, Tactical Direction: worth its allies' Attacks of Opportunity, a little each, when none has one of its own.)
+    if (c.grantAoo && !node.casts.includes("grant-aoo")) {
+        const allies = grantAooAllies(state, c);
+        if (allies.length) children.push(child(node, { type: "grantAoo", actions: c.grantAoo.actions }, c.grantAoo.actions, ctx.ownValue * 0.04 * allies.length, { cast: "grant-aoo" }));
+    }
+    // (B298: a summon — its creatures' threat for as long as they last, about three rounds at most; a minion's two actions of three; a
+    // sustained one less the action it costs each turn.)
+    for (const [index, entry] of (c.summons ?? []).entries()) {
+        if (entry.trigger || entry.actions > remaining || node.casts.includes(`summon${index}`) || !canSummon(state, c, entry) || !ctx.enemies.length) continue;
+        const pool = summonPool(state, entry);
+        const sample = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
+        const each = pool.length ? pool.reduce((sum, reserve) => sum + roundDamage(reserve, ctx.enemies[0], sample), 0) / pool.length : 0;
+        const many = Math.min(pool.length, entry.count?.formula ? Math.max(1, Math.round(entry.perUse / 2)) : Number(entry.count) || entry.perUse);
+        const span = Math.max(1, Math.min(3, entry.lasts ?? 3));
+        const share = entry.initiative === "minion" ? 2 / 3 : 1;
+        const gain = ctx.ownValue * ROUND_TO_KILL * span * (many * each * share - (entry.sustained ? threatOf / 3 : 0)) / threatOf;
+        if (gain > 0) children.push(child(node, { type: "summon", index, actions: entry.actions }, entry.actions, gain, { cast: `summon${index}` }));
+    }
+    // Hunt Prey: a new prey when the current one is gone or a better target is in reach.
+    if (c.huntPrey && node.used === 0 && !raging) {
+        const current = c.prey ? state.byId.get(c.prey) : null;
+        if (!current || !isActive(current)) {
+            const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
+            // (B308: a mark's extra damage on each hit, about 1.1 hits a round.)
+            const markDamage = c.huntPrey.edge === "parts" ? 1.1 * c.huntPrey.parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0) : 0;
+            const perRound = c.huntPrey.edge === "precision" ? (c.huntPrey.every ? 1.1 : 0.65) * (((c.huntPrey.die ?? 8) + 1) / 2) * (c.huntPrey.precisionDice ?? 1) : c.huntPrey.edge === "parts" ? markDamage : c.huntPrey.edge === "flurry" ? 0.25 * threat : 0.05 * threat;
+            const prey = ctx.enemies.filter((enemy) => enemy.status === "active").sort((a, b) => targetValue(state, b, c) - targetValue(state, a, c))[0];
+            if (prey) children.push(child(node, { type: "huntPrey", targetId: prey.id }, 1, ctx.ownValue * ROUND_TO_KILL * 3 * perRound / threat));
+        }
+    }
+    // Engage a target.
+    if (!ctx.wavering && mobile) {
+        for (const target of ctx.enemies) {
+            if (inMelee(node.pos, target)) continue;
+            const strides = stridesToEngage(ctx.mover(node.pos), target);
+            // Too far on the map to engage with one Stride: a Stride toward it.
+            if (strides > 1 && ctx.rootPlace && stridesToEngage({ ...ctx.mover(node.pos), areaFeet: undefined }, target) <= 1) {
+                const moved = approachPlace(ctx.placeOf(node.pos), { area: target.areaFeet, exit: target.exitFeet }, Math.max(5, c.speed ?? 25));
+                const next = child(node, { type: "stride", move: { kind: "approach", targetId: target.id } }, 1, 0, { pos: { ...ctx.away(node, node.pos.band === "engaged" ? "near" : node.pos.band), place: moved }, atItem: false });
+                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "approach");
+                children.push(next);
+            }
+            // Speed Surge (B72): two Strides for one action, three times a fight.
+            if (strides === 2 && c.speedSurge && (c.surgesUsed ?? 0) < c.speedSurge.uses && (c.surgeUntil ?? -Infinity) <= state.round && !node.casts.includes("surge")) {
+                const surged = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
+                const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id }, surge: true }, 1, 0, { pos: surged, moved: false, cast: "surge" });
+                if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
+                children.push(next);
+            }
+            if (strides !== 1) continue;
+            const pos = target.meleeId !== null
+                ? { band: "engaged", melee: target.meleeId, newWith: null }
+                : { band: "engaged", melee: "new", newWith: target.id };
+            const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id } }, 1, 0, { pos, moved: false });
+            if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
+            children.push(next);
+        }
+        if (node.pos.band === "far") {
+            children.push(child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: ctx.away(node, "near") }));
+        }
+    }
+    // A dropped weapon (Disarm): picking it up gives back its Strikes; a weakened grip, its -2.
+    if (node.used === 0) {
+        const best = (list) => Math.max(0, ...list.map((strike) => strike.bonus * 2 + strike.damage.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0)));
+        for (const name of c.dropped ?? []) {
+            const all = best(c.strikes ?? []);
+            const usable = best((c.strikes ?? []).filter((strike) => strikeUsable(c, strike)));
+            const gain = all > 0 ? (all - usable) / all : 0;
+            if (gain > 0) children.push(child(node, { type: "interact", what: "pickup", strikeName: name }, 1, 0.5 * ctx.ownValue * gain));
+        }
+        for (const [name] of c.weakGrip ?? []) children.push(child(node, { type: "interact", what: "regrip", strikeName: name }, 1, 0.1 * ctx.ownValue));
+    }
+    if (c.shield && !c.shield.broken && !node.shield && !node.carrying) {
+        children.push(child(node, { type: "raiseShield" }, 1, 0, { shield: true }));
+    }
+}
+
+// Battle Medicine, Mythic Points, Knocking Sweep, Poison Weapon, Retch, map objectives, dangers, the alarm and hazards. (Part of expand, split up so the optimizer takes it.)
+function expandOtherActions(env) {
+    const { state, c, ctx, node, remaining, inAnyMelee, mobile, restrained, noAttacks, children } = env;
+    // Battle Medicine: on a hurt ally in reach (or a downed one, or itself), once
+    // per ally, at its best Treat Wounds DC, valued as healing.
+    if (c.battleMedicine && !restrained) {
+        const best = battleMedicineOdds(c).sort((a, b) => b.heal - a.heal)[0];
+        for (const ally of [c, ...ctx.alliesAndDown]) {
+            if (c.battleMedicineGiven?.has(ally.id) || ally.hp.value >= ally.hp.max || node.casts.includes(`bm${ally.id}`)) continue;
+            const near = ally === c || ally.status !== "active" || (typeof node.pos.melee === "number" ? ally.meleeId === node.pos.melee : ally.meleeId === null && ally.band === node.pos.band);
+            if (!near || best.heal <= 0) continue;
+            const value = ally.status === "active" ? targetValue(state, ally, c) : Math.max(1, state.meanThreat?.[ally.side] ?? 1);
+            const urgency = ally.status !== "active" ? 3 : 2.5 * (1 - hpFraction(ally)) ** 1.5;
+            const gain = value * (Math.min(best.heal, ally.hp.max - Math.max(0, ally.hp.value)) / ally.hp.max) * urgency;
+            const next = child(node, { type: "battleMedicine", targetId: ally.id, tier: best.tier }, 1, gain, { cast: `bm${ally.id}` });
+            if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+            children.push(next);
+        }
+    }
+    // Mythic (B72): a Mythic Point to end its worst condition, or to regain a spent spell, a recharge, Quickened Casting.
+    if ((c.mythicPoints ?? 0) > 0 && remaining >= 1) {
+        const worst = c.mythic?.["remove-condition"] && !node.casts.includes("mythicRemove") ? worstCondition(c) : null;
+        if (worst && worst.worth > 0) children.push(child(node, { type: "mythicRemove", slug: worst.slug, actions: 1 }, 1, ctx.ownValue * 1.5 * worst.worth * ROUND_TO_KILL, { cast: "mythicRemove" }));
+        const recharge = c.mythic?.recharge && !node.casts.includes("mythicRecharge") && node.used === 0 ? c.mythic.recharge : null;
+        if (recharge) {
+            const pool = Object.entries(c.spellPools ?? {}).find(([name, left]) => left <= 0 && (c.spells ?? []).some((spell) => spell.pool === name))?.[0];
+            const recharging = recharge.abilities ? (c.spells ?? []).findIndex((spell) => (c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0)) : -1;
+            const what = pool ? { pool } : recharging >= 0 ? { spellIndex: recharging } : recharge.quickened && c.quickenedUsed ? { quickened: true } : null;
+            if (what) children.push(child(node, { type: "mythicRecharge", actions: 1, ...what }, 1, 0.35 * ctx.ownValue * ROUND_TO_KILL, { cast: "mythicRecharge" }));
+        }
+    }
+    // Knocking Sweep (B75): its basic action (Trip) at every enemy in its Melee, separate checks at the penalty it started with:
+    // worth what each would be.
+    for (const [sweepIndex, sweep] of (c.skillSweeps ?? []).entries()) {
+        if (restrained || noAttacks || sweep.actions > remaining || (sweep.oncePerTurn && (c.usedThisTurn?.has(sweep.name) || node.casts.includes(`sweep${sweepIndex}`)))) continue;
+        const index = sweepActionIndex(c, sweep);
+        const foes = index >= 0 ? ctx.enemies.filter((target) => target.status === "active" && inMelee(node.pos, target)) : [];
+        if (foes.length < 2) continue;
+        let gain = 0;
+        for (const [step, target] of foes.entries()) {
+            const effect = ctx.spellEffect(index, c.spells[index], [target], sweep.sameMap ? node.attacks : node.attacks + step, sweep.actions).find((entry) => entry.target === target);
+            if (!effect) continue;
+            const before = node.damage[target.id] ?? 0;
+            const hp = remainingHp(target);
+            gain += targetValue(state, target, c) * (Math.min(1, (before + (effect.damage ?? 0)) / hp) - Math.min(1, before / hp) + (effect.worth ?? 0) * ROUND_TO_KILL);
+        }
+        if (gain > 0) children.push(child(node, { type: "skillSweep", index: sweepIndex, actions: sweep.actions }, sweep.actions, ctx.profile.aggression * gain, { attacks: foes.length, ...(sweep.oncePerTurn ? { cast: `sweep${sweepIndex}` } : {}) }));
+    }
+    // Poison Weapon (B72): an Interact to poison its weapon before a Strike: the poison's worth on its best foe, times a hit's chance.
+    if (c.poisonWeapon && !c.weaponPoisoned && (c.poisonDoses ?? c.poisonWeapon.doses) > 0 && remaining >= 2 && !restrained && !node.casts.includes("poisonWeapon") && (c.strikes ?? []).some((strike) => strike.held && strikeUsable(c, strike))) {
+        let worth = 0;
+        for (const target of ctx.enemies) {
+            if (target.status !== "active") continue;
+            const effect = spellExpectation(state, c, c.poisonWeapon.spell, [target]).find((entry) => entry.target === target);
+            if (effect) worth = Math.max(worth, targetValue(state, target, c) * ((effect.damage ?? 0) / Math.max(1, remainingHp(target)) + (effect.worth ?? 0) * ROUND_TO_KILL));
+        }
+        const next = child(node, { type: "poisonWeapon", actions: 1 }, 1, ctx.profile.aggression * 0.6 * worth, { cast: "poisonWeapon" });
+        if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+        if (worth > 0) children.push(next);
+    }
+    // Retch: a sickened creature's Fortitude save to shake it off. Each point
+    // of sickened is about a quarter of a round of its threat over the fight.
+    if (node.used === 0 && c.cond.sickened > 0 && c.sickenedDC) {
+        const [success, critical] = retchOdds(c);
+        const points = success + critical * Math.min(2, c.cond.sickened);
+        children.push(child(node, { type: "retch" }, 1, ctx.ownValue * 0.24 * points * ROUND_TO_KILL));
+    }
+    if (node.prone) {
+        const next = child(node, { type: "stand" }, 1, 0, { prone: false });
+        if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+        children.push(next);
+    }
+    // Map objectives (O1–O3): toward the area, the item or the exit, and picking the item up.
+    if (ctx.map && mobile) {
+        const place = ctx.placeOf(node.pos);
+        const band = inAnyMelee ? "near" : node.pos.band;
+        const toward = (where) => {
+            const moved = strideToward(place, where, Math.max(5, c.speed ?? 25), state.objective.areaToExit);
+            const next = child(node, { type: "stride", move: { kind: where === "area" ? "toArea" : "toExit" } }, 1, 0, { pos: { band, melee: null, newWith: null, place: moved }, atItem: false });
+            if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "toExit");
+            children.push(next);
+        };
+        const item = state.objective.item;
+        if (place.area > 0 && (ctx.map.kind === "hold" || (!node.carrying && !item.dropped))) toward("area");
+        if (node.carrying && place.exit > 0) toward("exit");
+        const toItem = ctx.map.kind === "retrieve" && !node.carrying && item.dropped && !node.atItem ? stridesToItem(item, node.pos.band, c.speed, place) : 0;
+        if (toItem === 1) {
+            const there = item.meleeId !== null && [...(state.melees.get(item.meleeId) ?? [])].some((id) => state.byId.get(id).side !== c.side && isActive(state.byId.get(id)));
+            const spot = { area: item.area, exit: item.exit };
+            const next = child(node, { type: "stride", move: { kind: "toItem" } }, 1, 0, { pos: there ? { band: "engaged", melee: item.meleeId, newWith: null, place: spot } : { band: item.band, melee: null, newWith: null, place: spot }, atItem: true });
+            if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "toItem");
+            children.push(next);
+        } else if (toItem > 1 && stridesToItem(item, node.pos.band, c.speed) <= 1) {
+            // Further than a Stride on the map: toward it.
+            const next = child(node, { type: "stride", move: { kind: "approach", targetId: "item" } }, 1, 0, { pos: { band, melee: null, newWith: null, place: approachPlace(place, { area: item.area, exit: item.exit }, Math.max(5, c.speed ?? 25)) }, atItem: false });
+            if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "approach");
+            children.push(next);
+        }
+    }
+    if (ctx.map?.kind === "retrieve" && !node.carrying && !restrained && (state.objective.item.dropped ? node.atItem : ctx.placeOf(node.pos).area <= 0)) {
+        const item = state.objective.item;
+        const next = child(node, { type: "pickUp" }, 1, 0, { carrying: true, shield: false, ...(item.dropped ? { pos: { ...node.pos, place: { area: item.area, exit: item.exit } }, atItem: true } : {}) });
+        if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+        children.push(next);
+    }
+    // Out of a danger Region (E3): a Stride toward its nearest edge.
+    if (mobile && ctx.dangers.length) {
+        const regions = ctx.regionsOf(node.pos);
+        for (const danger of ctx.dangers) {
+            const place = regions[danger.region];
+            if (!place || place.to > 0) continue;
+            const edge = Math.max(0, place.edge - Math.max(5, c.speed ?? 25));
+            const pos = ctx.away(node, inAnyMelee ? "near" : node.pos.band);
+            pos.regions = { ...regions, [danger.region]: { to: edge > 0 ? 0 : 5, edge } };
+            const next = child(node, { type: "stride", move: { kind: "outOf", region: danger.region } }, 1, 0, { pos });
+            if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "outOf");
+            children.push(next);
+        }
+    }
+    // The alarm (E1): toward the gong and sound it, or (a runner) off the battlefield.
+    if (ctx.alarm && !node.alarmRaised) {
+        if (ctx.alarm.kind === "gong" && node.gong > 0 && mobile) {
+            const next = child(node, { type: "stride", move: { kind: "toGong" } }, 1, 0, { pos: ctx.away(node, inAnyMelee ? "near" : node.pos.band), gong: Math.max(0, node.gong - Math.max(5, c.speed ?? 25)) });
+            if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "toGong");
+            children.push(next);
+        }
+        if (ctx.alarm.kind === "gong" && node.gong <= 0 && !restrained) {
+            const next = child(node, { type: "soundGong" }, 1, 0, { alarmRaised: true });
+            if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+            children.push(next);
+        }
+        if (ctx.alarm.kind === "runner" && mobile && !inAnyMelee && node.pos.band === "far") children.push(child(node, { type: "stride", move: { kind: "leave" } }, 1, 0, { left: true, moved: true }));
+    }
+    // Disable a hazard (E4): 2 actions, valued as its share of putting the hazard out of the fight.
+    if (remaining >= 2 && c.kind === "pc" && !restrained && node.pos.band !== "far") {
+        for (const hazard of ctx.enemies) {
+            if (!isHazard(hazard) || node.casts.includes(`disable${hazard.id}`)) continue;
+            const pick = bestDisable(c, hazard);
+            if (!pick) continue;
+            const odds = degreeDistribution(pick.modifier, pick.option.dc);
+            const done = hazard.hazard.progress?.[`${pick.option.skill}:${pick.option.dc}`] ?? 0;
+            const left = Math.max(1, pick.option.needed - done);
+            const progress = Math.min(1, (odds[SUCCESS] + 2 * odds[CRITICAL_SUCCESS]) / left) - odds[CRITICAL_FAILURE] * 0.25;
+            if (progress <= 0) continue;
+            const next = child(node, { type: "disableHazard", targetId: hazard.id }, 2, targetValue(state, hazard, c) * progress, { cast: `disable${hazard.id}` });
+            if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+            children.push(next);
+        }
+    }
+    if (remaining >= 2 && canDoTask(state, c) && node.pos.band !== "far") {
+        const objective = state.objective;
+        const modifier = taskModifier(objective, c);
+        const dist = degreeDistribution(modifier, objective.dc);
+        const progress = dist[SUCCESS] + 2 * dist[CRITICAL_SUCCESS] - dist[CRITICAL_FAILURE] * (objective.needed / objective.dangerLimit);
+        const worth = (state.setup.objectivePriority ?? 1) * ctx.profile.objective * Math.max(state.meanThreat.foes, 1) * 3;
+        const next = child(node, { type: "task" }, 2, worth * Math.max(0, progress) / objective.needed);
+        if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+        children.push(next);
+    }
 }
 
 // The scored one-step options for the creature right now (for tests and tuning).

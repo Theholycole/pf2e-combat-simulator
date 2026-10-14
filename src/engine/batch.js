@@ -20,17 +20,34 @@ function interval(successes, runs) {
 // timeBudgetMs: stop early once this much time has passed and at least minRuns
 // fights are done (the odds check uses it so big fights stay quick).
 export function runBatch(snapshot, { runs = 500, seed = 1, options = {}, logSample = true, onProgress = null, timeBudgetMs = null, minRuns = 50 } = {}) {
-    const prepared = prepareSnapshot(options.adjust?.length ? applyAdjustments(snapshot, options.adjust) : snapshot);
+    const started = Date.now();
+    const results = runFights(snapshot, { runs, seed, options, logSample, onProgress, timeBudgetMs, minRuns });
+    return batchReport(snapshot, results, { seed, options, elapsedMs: Date.now() - started });
+}
+
+const prepareFor = (snapshot, options) => prepareSnapshot(options.adjust?.length ? applyAdjustments(snapshot, options.adjust) : snapshot);
+
+// The fights of a batch numbered from to to - 1 (each one's dice come from the batch's seed and its number alone, so
+// slices run apart, in Foundry's workers, give the same fights). onProgress(done, count) counts this slice's.
+export function runFights(snapshot, { runs = 500, seed = 1, options = {}, logSample = true, onProgress = null, timeBudgetMs = null, minRuns = 50, from = 0, to = runs } = {}) {
+    const prepared = prepareFor(snapshot, options);
     const runOptions = { ...options, moraleRules: options.moraleRules ?? mergeMoraleRules(prepared.moraleRules) };
     const results = [];
     const started = Date.now();
-    for (let index = 0; index < runs; index++) {
+    const count = to - from;
+    for (let index = from; index < to; index++) {
         results.push(simulate(prepared, runOptions, runSeed(seed, index), { log: logSample && index === 0 }));
-        if (onProgress && (index % 25 === 24 || index === runs - 1)) onProgress(index + 1, runs);
-        if (timeBudgetMs && index + 1 >= minRuns && Date.now() - started > timeBudgetMs) break;
+        const done = index - from + 1;
+        if (onProgress && (done % 25 === 0 || done === count)) onProgress(done, count);
+        if (timeBudgetMs && done >= minRuns && Date.now() - started > timeBudgetMs) break;
     }
-    const report = buildReport(prepared, results);
-    report.elapsedMs = Date.now() - started;
+    return results;
+}
+
+// The report of a batch from its fights, in their order.
+export function batchReport(snapshot, results, { seed = 1, options = {}, elapsedMs = 0 } = {}) {
+    const report = buildReport(prepareFor(snapshot, options), results);
+    report.elapsedMs = elapsedMs;
     report.seed = seed;
     report.options = { ...options, moraleRules: undefined };
     return report;
@@ -146,8 +163,14 @@ export function runCompare(snapshot, variants, { runs = 500, seed = 1, onProgres
             onProgress: onProgress ? (count) => onProgress(done + count, total) : null
         });
         done += runs;
-        return { name: variant.name, report };
+        return report;
     });
+    return compareFromReports(variants, reports);
+}
+
+// A comparison from each variant's batch report (in the variants' order).
+export function compareFromReports(variants, batchReports) {
+    const reports = variants.map((variant, index) => ({ name: variant.name, report: batchReports[index] }));
     const base = reports[0].report;
     for (const entry of reports) {
         entry.delta = {
@@ -185,15 +208,24 @@ export const COMPARE_PRESETS = Object.freeze({
 // switched off on its own. Rules that move the win rate by more than
 // flagThreshold are flagged, since morale should not decide fights.
 export function runMoraleImpact(snapshot, { runs = 300, seed = 1, flagThreshold = 0.02, onProgress = null } = {}) {
+    const variants = moraleImpactVariants(snapshot);
+    return moraleImpactFromReports(snapshot, variants, runCompare(snapshot, variants, { runs, seed, onProgress }), { runs, flagThreshold });
+}
+
+// Its batches: the baseline, morale off, the gate switched, and each enabled rule switched off.
+export function moraleImpactVariants(snapshot) {
     const rules = mergeMoraleRules(snapshot.moraleRules);
-    const ruleIds = listRuleIds(rules);
-    const variants = [
+    return [
         { name: "Morale on", options: { morale: true, moraleRules: rules } },
         { name: "Morale off", options: { morale: false, moraleRules: rules } },
         { name: "Losing gate", id: "losingGate", options: { morale: true, moraleRules: withLosingGate(rules, !rules.losingGate) } },
-        ...ruleIds.map((rule) => ({ name: rule.label, id: rule.id, options: { morale: true, moraleRules: withRulesDisabled(rules, [rule.id]) } }))
+        ...listRuleIds(rules).map((rule) => ({ name: rule.label, id: rule.id, options: { morale: true, moraleRules: withRulesDisabled(rules, [rule.id]) } }))
     ];
-    const reports = runCompare(snapshot, variants, { runs, seed, onProgress });
+}
+
+// The impact report from the comparison of those batches.
+export function moraleImpactFromReports(snapshot, variants, reports, { runs = 300, flagThreshold = 0.02 } = {}) {
+    const rules = mergeMoraleRules(snapshot.moraleRules);
     const baseline = reports[0];
     const off = reports[1];
     const rows = reports.slice(2).map((entry, index) => {
@@ -226,8 +258,17 @@ export function runMoraleImpact(snapshot, { runs = 300, seed = 1, flagThreshold 
 // "What would change the odds?": the encounter as it is, then each foe made
 // Weak, made Elite, or one of them removed, all on the same dice.
 export function runAdjustments(snapshot, { runs = 150, seed = 1, onProgress = null } = {}) {
-    const variants = [{ name: "As it is", options: {} }, ...adjustmentVariants(snapshot).map((variant) => ({ name: variant.name, options: { adjust: variant.adjust } }))];
-    const reports = runCompare(snapshot, variants, { runs, seed, onProgress });
+    const variants = adjustmentRunVariants(snapshot);
+    return adjustmentsFromReports(variants, runCompare(snapshot, variants, { runs, seed, onProgress }), { runs });
+}
+
+// Its batches: as it is, then each adjustment.
+export function adjustmentRunVariants(snapshot) {
+    return [{ name: "As it is", options: {} }, ...adjustmentVariants(snapshot).map((variant) => ({ name: variant.name, options: { adjust: variant.adjust } }))];
+}
+
+// The "what would change the odds?" report from the comparison of those batches.
+export function adjustmentsFromReports(variants, reports, { runs = 150 } = {}) {
     const base = reports[0].report;
     return {
         runs,

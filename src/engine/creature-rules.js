@@ -15,7 +15,7 @@ import { createCombatant, isActive, isOffGuard, saveModifier } from "./combatant
 import { CRITICAL_SUCCESS, DEGREE_NAMES, FAILURE, SUCCESS, degreeOf, flatCheck, levelDC } from "./checks.js";
 import { applyEffect } from "./effects.js";
 import { adjustInstance } from "./damage.js";
-import { saveBonusAgainst, sourceOptions } from "./abilities.js";
+import { readSourceOptions, saveBonusAgainst } from "./abilities.js";
 import { adjustedSaveDegree } from "./passives.js";
 import { engage } from "./space.js";
 import { log } from "./log.js";
@@ -199,7 +199,7 @@ export function berserkTurnStart(state, c) {
 export function elementalAnswers(state, c, event, { types = [], context = null, spell = null, applyCondition, recharge } = {}) {
     for (const rule of c.elemental ?? []) {
         if (rule.on !== event || !isActive(c)) continue;
-        const options = context ?? (spell ? sourceOptions(spell) : new Set());
+        const options = context ?? (spell ? readSourceOptions(spell) : new Set());
         const isSpell = spell ? !["ability", "basic"].includes(spell.kind) : Boolean(options.has?.("item:type:spell"));
         let fits = false;
         if (rule.types?.length) fits = types.some((type) => rule.types.includes(type));

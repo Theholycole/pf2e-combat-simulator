@@ -102,8 +102,19 @@ export function describeSpell(plan, actions) {
     return description;
 }
 
-// The action counts a spell can be cast with: its PF2e variants, or its one cost.
+// The action counts a spell can be cast with: its PF2e variants, or its one cost. Read once per spell (frozen: shared).
+const VARIANTS = new WeakMap();
 export function spellVariants(spell) {
+    if (!spell || typeof spell !== "object") return readVariants(spell);
+    let variants = VARIANTS.get(spell);
+    if (!variants) {
+        variants = Object.freeze(readVariants(spell));
+        VARIANTS.set(spell, variants);
+    }
+    return variants;
+}
+
+function readVariants(spell) {
     const variants = Object.keys(nativeOf(spell?.plan).byActions ?? {}).map(Number).filter((count) => count >= 1 && count <= 3).sort((a, b) => a - b);
     if (variants.length && describeSpell(spell.plan).actions !== null) return variants;
     const actions = describeSpell(spell?.plan).actions;
@@ -2004,19 +2015,29 @@ export function applyConstantSpells(state) {
 }
 
 export function canCast(c, spell) {
-    if (isConstant(spell)) return false;
-    if (!registry.familyFor(spell.plan?.resolution?.kind) || castsNothing(spell.plan)) return false;
+    if (!castableAtAll(spell)) return false;
     // (L5: a coven spell, only with its coven beside it.)
     if (spell.coven && !c.covenReady) return false;
     // Recharging (a breath weapon used a round ago).
     if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0)) return false;
     // (B256: not a zone it already has up.)
     if (spell.zone && c.activeZones?.has(spell.name)) return false;
-    if (!spellVariants(spell).some((actions) => {
-        const info = describeSpell(spell.plan, actions);
-        return info.area || info.targets || info.self;
-    })) return false;
     return !spell.pool || (c.spellPools?.[spell.pool] ?? 0) > 0;
+}
+
+// What about casting a spell never changes in a fight, read once per spell: not a constant one, a family the core
+// resolves, something it does, and a way to aim it.
+const CASTABLE = new WeakMap();
+function castableAtAll(spell) {
+    let castable = CASTABLE.get(spell);
+    if (castable === undefined) {
+        castable = !isConstant(spell) && Boolean(registry.familyFor(spell.plan?.resolution?.kind)) && !castsNothing(spell.plan) && spellVariants(spell).some((actions) => {
+            const info = describeSpell(spell.plan, actions);
+            return Boolean(info.area || info.targets || info.self);
+        });
+        CASTABLE.set(spell, castable);
+    }
+    return castable;
 }
 
 // How much a condition is worth, as a share of one round of the target's threat.
@@ -2129,7 +2150,8 @@ function oddsFor(caster, spell, target, attacks, actions) {
 }
 
 // The changes a spell has on one target at each degree, with average damage.
-// They don't change during a fight, so each pair is resolved once per fight.
+// They don't change during a fight, or from one fight of a snapshot to the next, so each pair is resolved once (fight.js
+// gives the fights of a snapshot one cache).
 function outcomesFor(state, caster, spell, target, actions) {
     state.spellOutcomes ??= new WeakMap();
     let byTarget = state.spellOutcomes.get(spell);

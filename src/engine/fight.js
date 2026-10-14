@@ -72,6 +72,18 @@ export function createFightState(snapshot, options = {}, seed = 1) {
     return state;
 }
 
+// A spell's outcomes on one target at each degree don't change from one fight of a snapshot to the next (its creatures and
+// spells are the same), so the fights of a batch share them (spells.js outcomesFor).
+const OUTCOME_CACHES = new WeakMap();
+function outcomeCache(snapshot) {
+    let cache = OUTCOME_CACHES.get(snapshot);
+    if (!cache) {
+        cache = new WeakMap();
+        OUTCOME_CACHES.set(snapshot, cache);
+    }
+    return cache;
+}
+
 function createState(snapshot, options, seed, withLog) {
     const list = snapshot.combatants.map(createCombatant);
     for (const c of list) keepPermanent(c);
@@ -92,6 +104,7 @@ function createState(snapshot, options, seed, withLog) {
         damageBy: { party: 0, foes: 0 },
         stats: { moraleChecks: 0, moraleFailures: 0, moraleBreaks: 0, moraleRecoveries: 0, moraleGated: 0, heroPointsSpent: 0, reactions: 0 },
         outcome: null,
+        spellOutcomes: outcomeCache(snapshot),
         surprisedSide: null,
         // The party's level (the morale DC in "partyLevel" mode).
         partyLevel: snapshot.partyLevel ?? Math.max(1, Math.round(list.filter((c) => c.kind === "pc").reduce((sum, c, _, pcs) => sum + c.level / pcs.length, 0)))

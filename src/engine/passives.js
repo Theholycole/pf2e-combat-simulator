@@ -7,7 +7,7 @@
 //   lessFrightened (Bravery), mobility (a short Stride triggers no reactions), extra reactions (abilities.js, combatant.js).
 
 import { CRITICAL_SUCCESS, CRITICAL_FAILURE } from "./checks.js";
-import { sourceOptions, testPredicate } from "./abilities.js";
+import { readSourceOptions, testPredicate } from "./abilities.js";
 import { log } from "./log.js";
 
 const DEGREE_KEYS = ["criticalFailure", "failure", "success", "criticalSuccess"];
@@ -30,7 +30,7 @@ export function adjustedSaveDegree(c, save, degree, spell = null) {
     let adjusted = degree;
     for (const entry of c.saveDegrees) {
         if (!entry.saves.includes(save)) continue;
-        if (entry.predicate && !testPredicate(entry.predicate, (options ??= sourceOptions(spell)))) continue;
+        if (entry.predicate && !testPredicate(entry.predicate, (options ??= readSourceOptions(spell)))) continue;
         const step = STEPS[entry.adjustment[DEGREE_KEYS[degree]] ?? entry.adjustment.all];
         if (step) adjusted = Math.max(CRITICAL_FAILURE, Math.min(CRITICAL_SUCCESS, step(adjusted)));
     }

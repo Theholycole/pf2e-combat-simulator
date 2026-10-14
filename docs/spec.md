@@ -427,7 +427,8 @@ How it plays:
 - **Compare:** variants run on the same seeds. Presets:
   - morale on/off, plus the per-rule impact ranking
   - hero points on/off
-- The engine runs in a Web Worker so Foundry stays responsive, with a fallback to the main thread.
+- The engine runs on a pool of Web Workers, one per spare core (at most 8), so Foundry stays responsive, with a fallback to the main thread (`scripts/runner.js`). Each batch is cut into one slice of its fights per worker (`runFights` from to to; a fight's dice come from the batch's seed and its number alone) and the main thread builds the report from the slices in order (`batchReport`), so it's the report one thread gives. Compare, the morale rule impact and the adjustments run their batches the same way and are assembled by `compareFromReports`, `moraleImpactFromReports` and `adjustmentsFromReports`.
+- **Speed (2026-10-14):** measured in `pftest` on a 16-core machine (8 workers), the same reports as one thread: 500 fights of four PCs against four foes in 2.3 s (one thread 12.8 s), a morale Compare 3.9× faster, the morale rule impact 3.6× faster; the odds check finishes its 200 fights in about 1.1 s. One thread is also about twice as fast as before: spell outcomes are shared by the fights of a batch, the planner's `expand` is split into parts the optimizer takes, and a spell's roll options, action counts and castability are read once.
 
 ## Benchmarks
 
