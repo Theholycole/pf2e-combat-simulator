@@ -74,3 +74,29 @@ function withRowFlags(plan) {
     }
     return Object.keys(flags).length ? { ...plan, rowFlags: { ...(plan.rowFlags ?? {}), ...flags } } : plan;
 }
+
+// Telekinetic Maneuver and kin (the plan's spellManeuver: "Disarm, Shove, Reposition, or Trip the target using a spell attack roll
+// instead of an Athletics check"): one way per basic action it names — that action's plan (basics: the ability module's basic actions)
+// with the caster's spell attack for the roll (the engine's "spell" statistic, the multiple attack penalty with it), at the spell's range,
+// actions and traits. [{ name, plan }]; none when it isn't one.
+export function maneuverWays(plan, basics) {
+    const maneuver = plan?.resolution?.spellManeuver;
+    if (plan?.resolution?.kind !== "spell-maneuver" || !maneuver?.actions?.length) return [];
+    return maneuver.actions.map((slug) => {
+        const basic = basics?.[slug];
+        if (!basic?.resolution?.check) return null;
+        const name = `${plan.source?.name ?? "Maneuver"} (${basic.source?.name ?? slug})`;
+        return {
+            name,
+            plan: {
+                ...basic,
+                source: { ...(basic.source ?? {}), name },
+                rank: plan.rank,
+                traits: [...new Set([...(plan.traits ?? []), "attack"])],
+                activation: plan.activation,
+                targeting: { ...(basic.targeting ?? {}), range: plan.targeting?.range ?? basic.targeting?.range ?? null },
+                resolution: { ...basic.resolution, check: { ...basic.resolution.check, statistic: "spell" } }
+            }
+        };
+    }).filter(Boolean);
+}

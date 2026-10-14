@@ -82,6 +82,11 @@ export function pacifyWorth(state, target, caster, entry, duration) {
 // Its own hostile action, done (2026-10-14; Invisibility: "If the target uses a hostile action, the spell ends after that hostile action is
 // completed"): the conditions that end with it (c.endsOnHostile, engine flags) go.
 export function ownHostility(state, c) {
+    // (Sanctuary on it ends too.)
+    if (c?.ward?.endsOnHostile) {
+        state.log?.push(`  ${c.ward.spell} on ${c.name} ends`);
+        c.ward = null;
+    }
     if (!c?.endsOnHostile?.size) return;
     for (const flag of c.endsOnHostile) {
         if (!c.cond?.[flag]) continue;

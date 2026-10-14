@@ -29,6 +29,7 @@ import { sightDC } from "./environment.js";
 import { adjustDamage, adjustInstance, rollStrikeDamage, spellContext, strikeContext } from "./damage.js";
 import { distanceBetween, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
+import { applyWard, wardBlocks, wardWorth } from "./wards.js";
 
 const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
 const registry = createRegistry();
@@ -181,7 +182,8 @@ function readSpell(base, actions) {
         healing,
         // A PF2e spell effect on its targets: aimed at allies as readily as at foes.
         // (Dispel Magic, Clear Mind: an ally's hindrance as readily as a foe's help.)
-        helpful: kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care",
+        // (Sanctuary: a ward on an ally.)
+        helpful: kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care" || kind === "attack-ward",
         // No target, range or area: the caster itself (the battle forms).
         self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self")) || conditionNote?.recipient === "source"
     };
@@ -1269,6 +1271,11 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     if (target.status !== "dead") applyAfflictionStage(state, target, change.effect);
                     break;
                 }
+                // (Sanctuary: its ward.)
+                if (change.effect?.kind === "attack-ward") {
+                    if (isActive(target)) applyWard(state, target, caster, spell, change.effect.ward, effectDC(spell));
+                    break;
+                }
                 // (A condition it can't reduce below a value while the spell or a state lasts.)
                 if (change.effect?.kind === "floor") {
                     if (isActive(target)) addFloor(state, target, caster, spell, change.effect.floor);
@@ -1400,6 +1407,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     // (T5: an elemental dragon's answer to a spell of an element aimed at it.)
     for (const target of targets) if (target.elemental && target !== caster) elementalAnswers(state, target, "targeted", { spell, applyCondition });
+    // (Sanctuary: an attack spell at a warded creature, a save first; stopped, not at it.)
+    if (info.attack) for (const target of [...targets]) if (wardBlocks(state, caster, target)) targets.splice(targets.indexOf(target), 1);
     // (A harmful spell at a foe is hostility: it ends Calm, and a charm the caster put on it.)
     if (!info.helpful && !info.healing) for (const target of targets) if (target !== caster && target.side !== caster.side) hostility(state, target, caster);
     // A magus's conflux spell recharges Spellstrike.
@@ -2479,6 +2488,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 } else if (change.op === "tempHp") {
                     // Temporary Hit Points (B61): what they add over its current ones, as healing that may go unused.
                     entry.heal += chance * 0.7 * Math.max(0, change.amount - (target.hp.temp ?? 0));
+                } else if (change.op === "effect" && change.effect?.kind === "attack-ward") {
+                    if (target.side === caster.side) entry.benefit += chance * wardWorth(state, target, caster, change.effect.ward, effectDC(spell));
                 } else if (change.op === "effect" && change.effect?.kind === "counteract") {
                     const best = bestCounter(state, caster, target, change.effect);
                     if (best) {
@@ -2663,7 +2674,7 @@ export function spellGaps(spell) {
                 if (model.unsupported.length) missing.add(`${model.name.replace(/^Spell Effect: /, "")}: ${model.unsupported.join(", ")}`);
             } else if (change.op === "effect" && change.effect?.kind === "modifier") {
                 if (!modifierModel(spell.name, change.effect.modifier)) missing.add(`modifier to ${change.effect.modifier?.selector}`);
-            } else if (change.op === "effect" && ["floor", "counteract", "affliction-stage"].includes(change.effect?.kind)) {
+            } else if (change.op === "effect" && ["floor", "counteract", "affliction-stage", "attack-ward"].includes(change.effect?.kind)) {
                 // (Played: floors.js, counteract.js, afflictions.)
             } else if (change.op === "effect" && change.effect?.kind === "note" && (pacifyOf(change.effect.note) || noteState(change.effect.note) || noteModel(spell, change.effect.note))) {
                 const model = pacifyOf(change.effect.note) || noteState(change.effect.note) ? null : noteModel(spell, change.effect.note);

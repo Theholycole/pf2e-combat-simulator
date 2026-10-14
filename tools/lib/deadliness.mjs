@@ -114,7 +114,7 @@ export function buildMonster(npc, variant = null) {
     if (variant?.type === "item") doc = { ...npc, items: npc.items.filter((item) => item._id !== variant.id) };
     if (variant?.type === "spells") doc = { ...npc, items: npc.items.filter((item) => item.type !== "spellcastingEntry" && item.type !== "spell") };
     const monster = combatant(doc);
-    const own = npcSpells(doc);
+    const own = npcSpells(doc, { basics: basicActions });
     monster.spells = [...monster.spells, ...own.spells];
     monster.spellPools = { ...(monster.spellPools ?? {}), ...own.spellPools };
     if (own.summons?.length) monster.summons = [...(monster.summons ?? []), ...own.summons];

@@ -5,7 +5,7 @@ const { compileAbility } = await import(`${W}/src/compiler/index.js`);
 const { readDocuments } = await import(new URL("../../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs", import.meta.url).href);
 const { effectModel } = await import("../../src/engine/effects.js");
 const { isStaffItem, itemCasts, SPELL_ITEMS, staffCharges, staffSpellList } = await import("../../src/adapter/items.js");
-const { withReading } = await import("../../src/engine/readings.js");
+const { maneuverWays, withReading } = await import("../../src/engine/readings.js");
 const { spellSummonEntry, summonEntries } = await import("../../src/engine/summons.js");
 
 export const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
@@ -42,7 +42,7 @@ export function spellNamed(name) {
 // A creature's spells as the simulator's entries, with their pools: cantrips at its cantrip rank, focus spells, innate uses, spontaneous
 // slots per rank, prepared slots. A coven's spells only with its coven (L5). onError(spell, error) for a spell that doesn't compile.
 // (S22: and its scrolls, wands and staff, npcItemSpells.)
-export function npcSpells(npc, { onError = () => {} } = {}) {
+export function npcSpells(npc, { onError = () => {}, basics = null } = {}) {
   const entries = (npc.items ?? []).filter((i) => i.type === "spellcastingEntry" && !["ritual", "items"].includes(i.system?.prepared?.value));
   const spells = [];
   const spellPools = {};
@@ -59,6 +59,12 @@ export function npcSpells(npc, { onError = () => {} } = {}) {
       let plan;
       try { plan = compileSpell(spell); } catch (e) { onError(spell, e); return; }
       // (L5: a coven's spells, castable only with its coven — not by a lone caster here.)
+      // (Telekinetic Maneuver: a way per basic action, with the spell attack; basics: the ability module's basic actions.)
+      const ways = maneuverWays(plan, basics);
+      if (ways.length) {
+        for (const way of ways) spells.push({ name: way.name, plan: way.plan, castRank, dc, attack, pool, effects: {} });
+        return;
+      }
       if (plan?.resolution?.kind === "summon") {
         summoned.push(spellSummonEntry({ name: spell.name, plan, castRank }, pool ? spellPools[pool] : 2));
         return;

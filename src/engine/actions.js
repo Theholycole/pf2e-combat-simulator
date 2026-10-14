@@ -19,6 +19,7 @@ import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
 import { log } from "./log.js";
 import { hostility, ownHostility } from "./pacify.js";
+import { wardBlocks } from "./wards.js";
 
 export function coverFor(state, defender) {
     return state.setup.cover?.[defender.side] ?? 0;
@@ -222,6 +223,8 @@ export function performStrike(state, attacker, target, strike, options = {}) {
 
 function strikeOnce(state, attacker, target, strike, { reaction = false, trigger = null, fortune = false } = {}) {
     if (!strikeUsable(attacker, strike)) return null;
+    // (Sanctuary: a save first; stopped, the action is wasted.)
+    if (wardBlocks(state, attacker, target)) return null;
     // (An attack, hit or miss, is hostility: it ends Calm, and a charm the attacker put on the target.)
     hostility(state, target, attacker);
     // (B255, Generate Bomb: the die picks the row — its damage, the save and conditions a hit brings.)

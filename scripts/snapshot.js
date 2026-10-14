@@ -6,7 +6,7 @@ import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js";
 import { levelDC } from "../src/engine/checks.js";
 import { isStaffItem, itemCasts, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
-import { withReading } from "../src/engine/readings.js";
+import { maneuverWays, withReading } from "../src/engine/readings.js";
 import { effectModel, iwrException } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
 import { requirementPlayable } from "../src/engine/needs.js";
@@ -912,6 +912,12 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
         const shield = Object.values(spec.effects ?? {}).find((model) => model?.spellShield)?.spellShield;
         if (shield) {
             spells.push({ ...spec, spellShield: shield });
+            continue;
+        }
+        // (Telekinetic Maneuver: a way per basic action it names, with the caster's spell attack — one cast between them.)
+        const ways = maneuverWays(plan, game.modules.get(ABILITY_MODULE_ID)?.api?.basicActions);
+        if (ways.length) {
+            for (const way of ways) spells.push({ ...spec, name: way.name, plan: way.plan, effects: {} });
             continue;
         }
         // (A summon spell: its creature as the engine's summons play them — its reserves made with the snapshot.)

@@ -461,3 +461,45 @@ test("Summon spells: an entry for the engine's summons — the best creature of 
     assert.equal(both[0].creature.pick.rank.max, 5);
     assert.equal(spellSummonEntry({ name: "Fireball", plan: { resolution: { kind: "save" } }, castRank: 3 }, 1), null);
 });
+
+test("Sanctuary: an attacker saves first (once a turn); a failure wastes the action, a critical failure bars it; the ward ends with its creature's hostile action", async () => {
+    const { wardChance } = await import("../src/engine/wards.js");
+    const sanctuary = { modelVersion: 12, source: { name: "Sanctuary" }, rank: 1, traits: ["abjuration"], activation: { time: "2" }, targeting: { target: "1 creature", range: "touch" },
+        resolution: { kind: "attack-ward", attackWard: { save: "will", durationSeconds: 60, endsOnHostile: true, rows: {} } } };
+    const [fighter, , , cleric] = martialParty(5);
+    const healer = { ...moderateCreature(5, "healer", "Healer"), side: "party", kind: "npc", spells: [{ name: "Sanctuary", plan: sanctuary, castRank: 1, dc: 22, attack: 12, pool: null }], spellPools: {}, engagement: 1 };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, healer, { ...moderateCreature(5, "brute", "Brute"), engagement: 1 }] }, {}, 1);
+    const caster = state.byId.get("healer");
+    const brute = state.byId.get("brute");
+    castSpell(state, caster, 0, ["healer"]);
+    assert.ok(caster.ward);
+    const chance = wardChance(state, brute, caster);
+    assert.ok(chance > 0 && chance < 1);
+    // A failed save (d20 2 → 2 + Will vs 22): stopped, and again this turn without a new save.
+    state.rng.d20 = () => 2;
+    state.log = [];
+    assert.equal(performStrike(state, brute, caster, brute.strikes[0]), null);
+    assert.ok(state.log.some((line) => line.includes("Brute saves against Sanctuary on Healer")), state.log.join("\n"));
+    assert.equal(wardChance(state, brute, caster), 0);
+    assert.equal(performStrike(state, brute, caster, brute.strikes[0]), null);
+    // The healer attacks: the ward ends.
+    performStrike(state, caster, brute, caster.strikes[0]);
+    assert.equal(caster.ward, null);
+});
+
+test("Telekinetic Maneuver: a way per basic action, with the caster's spell attack at 60 feet, one cast between them", async () => {
+    const { maneuverWays } = await import("../src/engine/readings.js");
+    const trip = { modelVersion: 13, source: { name: "Trip", slug: "trip" }, rank: 1, traits: ["attack"], activation: { time: "1", traits: ["attack"] }, targeting: { target: "1 creature", range: "touch" },
+        resolution: { kind: "check", check: { roll: "skill", statistic: "athletics", against: { dc: "target", statistic: "reflex" } }, outcomes: { criticalSuccess: row({ effects: [{ kind: "condition", slug: "prone", value: null, duration: null }] }), success: row({ effects: [{ kind: "condition", slug: "prone", value: null, duration: null }] }), failure: row(), criticalFailure: row() } } };
+    const spell = { modelVersion: 12, source: { name: "Telekinetic Maneuver", slug: "telekinetic-maneuver" }, rank: 2, traits: ["concentrate", "force", "manipulate"], activation: { time: "2" }, targeting: { target: "1 creature", range: "60 feet" }, resolution: { kind: "spell-maneuver", spellManeuver: { actions: ["trip", "grapple"], melee: false } } };
+    const ways = maneuverWays(spell, { trip });
+    assert.deepEqual(ways.map((way) => way.name), ["Telekinetic Maneuver (Trip)"]);
+    const way = ways[0].plan;
+    assert.deepEqual([way.resolution.check.statistic, way.targeting.range, way.activation.time, way.traits.includes("attack")], ["spell", "60 feet", "2", true]);
+    const mage = { ...moderateCreature(5, "mage", "Mage"), side: "party", kind: "npc", spells: [{ name: ways[0].name, plan: way, castRank: 2, dc: 22, attack: 14, pool: "s" }], spellPools: { s: 1 }, band: "near" };
+    const state = createFightState({ combatants: [mage, { ...moderateCreature(5, "foe", "Foe"), band: "far" }] }, {}, 1);
+    state.rng.d20 = () => 18;
+    castSpell(state, state.byId.get("mage"), 0, ["foe"]);
+    assert.equal(state.byId.get("foe").cond.prone, true, state.log.join("\n"));
+    assert.equal(state.byId.get("mage").spellPools.s, 0);
+});

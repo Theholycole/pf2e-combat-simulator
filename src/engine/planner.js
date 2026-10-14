@@ -28,6 +28,7 @@ import { needsMet, targetNeedsMet } from "./needs.js";
 import { calmedUntilHostility, pacifiedAll, spares } from "./pacify.js";
 import { floorOf } from "./floors.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
+import { wardChance } from "./wards.js";
 
 export const ROLE_PROFILES = Object.freeze({
     soldier: { aggression: 1, selfPreservation: 0.8, objective: 1 },
@@ -418,7 +419,8 @@ class PlanContext {
         };
         const plain = odds(ac);
         const flanked = flank > 0 ? odds(ac - (target.cond.offGuard || target.cond.prone ? 0 : 2)) : plain;
-        const finds = targetingChance(c);
+        // (Sanctuary on it: as likely to attack as its save to get through.)
+        const finds = targetingChance(c) * wardChance(state, c, target);
         const hitChance = finds * ((1 - flank) * plain[SUCCESS] + flank * flanked[SUCCESS]);
         const critChance = finds * ((1 - flank) * plain[CRITICAL_SUCCESS] + flank * flanked[CRITICAL_SUCCESS]);
         // Earlier attacks in the plan stand in for earlier attacks with this weapon.
