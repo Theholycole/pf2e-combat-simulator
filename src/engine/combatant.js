@@ -50,6 +50,15 @@ function countReactions(c) {
     return c;
 }
 
+// Shield, the spell (2026-10-14): a creature without a shield of its own that knows it has a magic shield it raises by casting it (+1 AC
+// until its next turn; Shield Block with it, without the feat, against spells too). No Hit Points: blocking ends the spell, and it
+// can't be cast again for 10 minutes (the fight), so the shield counts as broken after.
+function spellShield(spec) {
+    const spell = (spec.spells ?? []).find((entry) => entry.spellShield);
+    if (!spell) return null;
+    return { name: spell.name, ac: spell.spellShield.ac ?? 1, hardness: spell.spellShield.hardness ?? 5, hp: 1e9, maxHp: 1e9, bt: 0, raised: false, broken: false, spell: true };
+}
+
 export function createCombatant(spec) {
     const conditions = { ...EMPTY_CONDITIONS, ...(spec.conditions ?? {}) };
     const persistent = (spec.conditions?.persistent ?? []).map((entry) => ({ ...entry }));
@@ -71,7 +80,7 @@ export function createCombatant(spec) {
         startHp: spec.hp.max,
         cond: conditions,
         persistent,
-        shield: spec.shield ? { ...spec.shield, raised: !!spec.shield.raised } : null,
+        shield: spec.shield ? { ...spec.shield, raised: !!spec.shield.raised } : spellShield(spec),
         heroPoints: spec.heroPoints ?? 0,
         band: spec.band ?? "near",
         meleeId: null,

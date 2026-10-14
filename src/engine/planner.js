@@ -25,6 +25,7 @@ import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValu
 import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";
+import { pacifiedAll, spares } from "./pacify.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 export const ROLE_PROFILES = Object.freeze({
@@ -78,7 +79,8 @@ export function computeThreats(state) {
             continue;
         }
         const enemies = state.list.filter((other) => other.side !== c.side && isActive(other));
-        if (!enemies.length || (!c.strikes?.length && !c.spells?.length) || c.acts === false) {
+        // (Calm: no hostile actions while it lasts.)
+        if (!enemies.length || (!c.strikes?.length && !c.spells?.length) || c.acts === false || pacifiedAll(c)) {
             state.threat.set(c.id, 0);
             continue;
         }
@@ -236,7 +238,8 @@ class PlanContext {
         this.c = c;
         this.profile = profileOf(c);
         // (M38: the party lets a foe that gave up and is leaving go.)
-        this.enemies = state.list.filter((other) => other.side !== c.side && isActive(other) && !(c.side === "party" && other.moraleState?.leaving));
+        // (A charm: not the creature that charmed it.)
+        this.enemies = state.list.filter((other) => other.side !== c.side && isActive(other) && !(c.side === "party" && other.moraleState?.leaving) && !spares(c, other));
         this.enemyIndex = new Map(this.enemies.map((enemy, index) => [enemy.id, index]));
         this.allies = state.list.filter((other) => other.side === c.side && isActive(other) && other !== c);
         // Healing reaches downed PCs too.
@@ -548,7 +551,7 @@ class PlanContext {
     shieldBlockSaving(node, exposure, typicalHit) {
         const { c } = this;
         const shield = c.shield;
-        if (!node.shield || !shield || shield.broken || !c.reactions?.shieldBlock || typicalHit <= 0) return 0;
+        if (!node.shield || !shield || shield.broken || !(c.reactions?.shieldBlock || shield.spell) || typicalHit <= 0) return 0;
         if (shield.hp - Math.max(0, typicalHit - shield.hardness) <= shield.bt) return 0;
         const blocked = Math.min(shield.hardness, typicalHit);
         return blocked * Math.min(1, exposure / typicalHit);
@@ -699,7 +702,8 @@ function expand(ctx, node, actionsLeft) {
     const restrained = !!c.cond.restrained;
     // A form that forbids attacks and spells (Vapor Form: "can't cast spells … or use actions that have the attack … trait").
     const formLimits = (c.effects ?? []).map((effect) => effect.model ?? {});
-    const noAttacks = !!c.noAttacksThisTurn || node.casts.includes("finisher") || formLimits.some((model) => model.noAttacks);
+    // (Calm: no hostile actions — no attacks, and below, no spells or abilities but those that help.)
+    const noAttacks = !!c.noAttacksThisTurn || node.casts.includes("finisher") || formLimits.some((model) => model.noAttacks) || pacifiedAll(c);
     const noSpells = formLimits.some((model) => model.noSpells);
     // Raging: no actions with the concentrate trait unless they have the rage trait.
     const raging = (c.activeBuffs ?? []).some((buff) => buff.noConcentrate) || (c.effects ?? []).some((effect) => effect.model?.noConcentrate);
@@ -873,6 +877,7 @@ function expandSpells(env) {
             const info = describeSpell(spell.plan, actions);
             const quickFits = quickens && info.actions >= 2 && info.actions - 1 + extra <= remaining;
             const drawOnly = draw > 0 && draw <= remaining && info.actions + extra > remaining && !quickFits && node.used === 0;
+            if (pacifiedAll(c) && !(info.helpful || info.healing || info.self)) continue;
             if (!info.actions || (info.actions + extra > remaining && !quickFits && !drawOnly) || (restrained && (info.manipulate || info.attack || extra)) || (noAttacks && info.attack)) continue;
             const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, c, spell, {
                 enemies: ctx.enemies,
@@ -1527,7 +1532,8 @@ function expandTactics(env) {
         }
         for (const [name] of c.weakGrip ?? []) children.push(child(node, { type: "interact", what: "regrip", strikeName: name }, 1, 0.1 * ctx.ownValue));
     }
-    if (c.shield && !c.shield.broken && !node.shield && !node.carrying) {
+    // (Shield, the spell: cast to raise its magic shield, no hand needed.)
+    if (c.shield && !c.shield.broken && !node.shield && (!node.carrying || c.shield.spell)) {
         children.push(child(node, { type: "raiseShield" }, 1, 0, { shield: true }));
     }
 }

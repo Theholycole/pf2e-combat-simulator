@@ -18,6 +18,7 @@ import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
 import { log } from "./log.js";
+import { hostility } from "./pacify.js";
 
 export function coverFor(state, defender) {
     return state.setup.cover?.[defender.side] ?? 0;
@@ -215,6 +216,8 @@ export function performStrike(state, attacker, target, strike, options = {}) {
 
 function strikeOnce(state, attacker, target, strike, { reaction = false, trigger = null, fortune = false } = {}) {
     if (!strikeUsable(attacker, strike)) return null;
+    // (An attack, hit or miss, is hostility: it ends Calm, and a charm the attacker put on the target.)
+    hostility(state, target, attacker);
     // (B255, Generate Bomb: the die picks the row — its damage, the save and conditions a hit brings.)
     if (strike.randomDamage?.length) {
         const face = state.rng.die(strike.randomDie);
@@ -940,7 +943,8 @@ function rechargeOnCritical(state, c) {
 function shouldShieldBlock(defender, total) {
     const shield = defender.shield;
     if (!shield || shield.broken || !shield.raised) return false;
-    if (!defender.reactions?.shieldBlock || !canReact(defender, "Shield Block")) return false;
+    // (Shield, the spell: Shield Block with it, without the feat.)
+    if (!(defender.reactions?.shieldBlock || shield.spell) || !canReact(defender, "Shield Block")) return false;
     // Not worth the reaction for a hit the shield would mostly ignore anyway.
     if (total < Math.max(1, shield.hardness)) return false;
     const taken = Math.max(0, total - shield.hardness);
@@ -969,7 +973,10 @@ function guards(state, c, target, { physical = false, critical = false } = {}) {
 // (B193: spell { rank, targeted } — the damage of a spell aimed at it, for Divert Essence.)
 export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null } = {}) {
     // M38: the party harming a foe that gave up and is leaving refuses its surrender.
-    if (!intercepted) harmedAfterGivingUp(state, target, source);
+    if (!intercepted) {
+        harmedAfterGivingUp(state, target, source);
+        hostility(state, target, source);
+    }
     // Intercept Attack: a guardian next to the ally takes physical damage meant for it,
     // when the ally would drop or is the more hurt of the two.
     if (!intercepted && source && source.side !== target.side && instances.some((instance) => ["bludgeoning", "piercing", "slashing"].includes(instance.type))) {
@@ -1042,7 +1049,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
         }
     }
     let total = adjusted.total;
-    if (physical && shouldShieldBlock(target, total)) {
+    // (Shield, the spell: it blocks a spell's damage too, physical or not.)
+    if ((physical || (spell && target.shield?.spell)) && shouldShieldBlock(target, total)) {
         const shield = target.shield;
         // The shield prevents up to its Hardness; it and the creature each take the rest.
         const blocked = Math.min(total, shield.hardness);
@@ -1050,7 +1058,12 @@ export function applyDamage(state, target, instances, { source = null, critical 
         shield.hp -= total;
         if (shield.hp <= shield.bt) shield.broken = true;
         spendReaction(target, "Shield Block");
-        log(state, `  ${target.name} Shield Blocks (${blocked} prevented${shield.broken ? ", shield broken" : ""})`);
+        // (The spell ends once it blocks, and can't be cast again this fight.)
+        if (shield.spell) {
+            shield.broken = true;
+            shield.raised = false;
+        }
+        log(state, `  ${target.name} Shield Blocks (${blocked} prevented${shield.spell ? `, ${shield.name} ends` : shield.broken ? ", shield broken" : ""})`);
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
@@ -1695,7 +1708,7 @@ export function stand(state, c) {
 export function raiseShield(state, c) {
     if (c.shield && !c.shield.broken) {
         c.shield.raised = true;
-        log(state, `  ${c.name} Raises a Shield`);
+        log(state, c.shield.spell ? `  ${c.name} casts ${c.shield.name}` : `  ${c.name} Raises a Shield`);
     }
 }
 

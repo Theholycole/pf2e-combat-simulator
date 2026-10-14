@@ -904,6 +904,12 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
         const { result, error } = prepared.get(entry.spell.uuid) ?? {};
         const plan = result?.plan ? leanPlan(result.plan) : null;
         const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, ...(entry.coven ? { coven: true } : {}), ...entry.extra, effects: plan ? formLimits(entry.spell, await effectModels(plan, entry.castRank)) : {} };
+        // (Shield, the spell: the magic shield the creature raises by casting it — the engine's Raise a Shield and Shield Block.)
+        const shield = Object.values(spec.effects ?? {}).find((model) => model?.spellShield)?.spellShield;
+        if (shield) {
+            spells.push({ ...spec, spellShield: shield });
+            continue;
+        }
         if (!plan || !canCast({ spellPools: { [entry.pool]: poolCost(spec) }, covenReady: true, desperate: true }, spec)) {
             // Detect Magic, Translocate and the like: listed, but they don't count against the result.
             // (On the full plan: the slimmed one may have lost its effect references.)

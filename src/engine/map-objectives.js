@@ -130,8 +130,8 @@ function takeItem(objective, c) {
     item.dropped = false;
     item.at = new Set();
     c.carrying = true;
-    // A hand for the item: a two-handed weapon or a shield is let go (O3).
-    if (c.shield) c.shield.raised = false;
+    // A hand for the item: a two-handed weapon or a shield is let go (O3). (Not the Shield spell's: no hand.)
+    if (c.shield && !c.shield.spell) c.shield.raised = false;
 }
 
 // Interact (1 action, manipulate): it provokes, and a critical hit disrupts it.

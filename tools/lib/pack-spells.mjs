@@ -54,7 +54,10 @@ export function npcSpells(npc, { onError = () => {} } = {}) {
       let plan;
       try { plan = compileSpell(spell); } catch (e) { onError(spell, e); return; }
       // (L5: a coven's spells, castable only with its coven — not by a lone caster here.)
-      spells.push({ name: spell.name, plan, castRank, dc, attack, pool, ...(/\bcoven\b/i.test(entry.name ?? "") ? { coven: true } : {}), effects: effectModels(plan, castRank) });
+      const effects = effectModels(plan, castRank);
+      // (Shield, the spell: the magic shield the creature raises by casting it.)
+      const shield = Object.values(effects).find((model) => model?.spellShield)?.spellShield;
+      spells.push({ name: spell.name, plan, castRank, dc, attack, pool, ...(/\bcoven\b/i.test(entry.name ?? "") ? { coven: true } : {}), effects, ...(shield ? { spellShield: shield } : {}) });
     };
     for (const spell of own) {
       const traits = spell.system?.traits?.value ?? [];

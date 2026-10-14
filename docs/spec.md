@@ -133,6 +133,17 @@ The user asked: "can we get the simulator to treat scrolls, wands and staffs as 
   - All 43 PFTEST SIM actors read on 8.6.1 without errors, and the worker pool's 200-fight batch matches a single-thread run.
 - **Stowed items** (2026-10-14): a stowed scroll or wand is taken out with PF2e's retrieve cost (`spec.draw`: actions, and whether each cast needs it), as part of the cast or alone (`drawItem`) when the cast won't fit after it; `c.itemsAtHand` holds what's out.
 
+### More spells (2026-10-14)
+
+The user: "i want more spell coverage in the simulator. Spells like shield, Wails of the damned, evil eye, calm. These are just a few examples that need more work". Decisions S23–S27 in [spell-decisions.md](spell-decisions.md).
+
+- **Wails of the Damned:** only the creatures a spell can affect fill its area (S23); "Drained 1d4" is rolled (S24; the core keeps `valueRoll`).
+- **Shield** (S25): `effects.js` reads PF2e's Spell Effect: Shield as `spellShield` ({ ac, hardness }); `createCombatant` gives a creature without a shield a spell shield (`shield.spell`) the engine's Raise a Shield and Shield Block play.
+- **Calm and the charms** (S26): `src/engine/pacify.js` (`pacifyOf`, `pacify`, `hostility`, `pacifyTurnStart`, `pacifyWorth`). The core passes a note's degree, so Calm's critical failure is told apart.
+- **Notes with rules** (S27): `noteModel` in `spells.js`.
+- **Live check in `pftest`** (PF2e 8.6.1): Ezren's Shield cantrip reads as Hardness 10 at rank 3; in fights he casts it and Shield Blocks once; a scroll moved into his backpack reads as 2 actions to take out, and with his prepared Fireball gone he takes it out and casts it.
+- **Census** (scratchpad `spell-census.mjs`, every non-ritual PF2e spell): 231 fully modelled, 719 in part, 489 utility, 578 not cast. The biggest gaps: resolution kinds the engine doesn't resolve (409 spells), PF2e spell effects it reads only in part (302), GM notes (228), spells with no creature targets (102), lingering areas (127).
+
 ## Milestone 3 status (2026-10-08): monster abilities and basic actions
 
 - **Creatures use their abilities** through the ability module (`pf2e-automatic-ability-resolution`) and the core:

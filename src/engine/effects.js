@@ -93,6 +93,14 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
     const unsupported = new Set();
     for (const rule of item?.system?.rules ?? []) {
         if (!rule?.key || IGNORED.has(rule.key)) continue;
+        // (Shield, the spell, 2026-10-14: a magic shield — its AC and Hardness — the creature raises by casting it. The rules' predicate
+        // only asks for a character or an NPC.)
+        if (rule.key === "ActiveEffectLike" && /^system\.attributes\.shield(\.hardness)?$/.test(String(rule.path ?? ""))) {
+            model.spellShield ??= { ac: 1, hardness: 0 };
+            if (String(rule.path).endsWith(".hardness")) model.spellShield.hardness = numericValue(rule.value, rank) ?? 0;
+            else if (rule.value && typeof rule.value === "object") model.spellShield.ac = Number(rule.value.ac) || 1;
+            continue;
+        }
         const holds = predicateHolds(rule.predicate, rank);
         if (holds === false) continue;
         if (holds === null) {

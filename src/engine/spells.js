@@ -13,9 +13,10 @@
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
-import { applyEffect, effectBenefit, modifierModel, removeEffect } from "./effects.js";
+import { applyEffect, effectBenefit, effectModel, modifierModel, removeEffect } from "./effects.js";
 import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
 import { startZone } from "./zones.js";
+import { hostility, noteRounds, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
 import { allyStrike } from "./commander.js";
 import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
@@ -499,7 +500,10 @@ function stackedValue(target, change, after = false) {
 
 export function applyCondition(state, target, slug, value, duration, source, scope = null) {
     // M38: a hostile condition from the party on a foe that gave up and is leaving refuses its surrender.
-    if (source && source.side !== target.side) harmedAfterGivingUp(state, target, source);
+    if (source && source.side !== target.side) {
+        harmedAfterGivingUp(state, target, source);
+        hostility(state, target, source);
+    }
     // Off-guard to one creature's attacks only (Feint, Create a Diversion).
     if (slug === "off-guard" && scope?.attacker) {
         const entry = { attacker: scope.attacker, attacks: scope.attacks ?? "any", uses: scope.uses ?? null };
@@ -847,8 +851,23 @@ function recastShare(state, target, model, key) {
 // A PF2e effect the plan names (Bless), or a penalty an outcome gives (Bon Mot's -2 to Will).
 function outcomeEffect(spell, change) {
     if (change.effect?.kind === "native") return { model: spell.effects?.[change.effect.uuid] ?? null, key: change.effect.uuid };
+    // (2026-10-14: a note that carries PF2e rules — Calm's -1 to attack rolls — read as an effect.)
+    if (change.effect?.kind === "note") return { model: noteModel(spell, change.effect.note), key: `${spell.name}:${change.effect.note?.label}` };
     if (change.effect?.kind === "modifier") return { model: modifierModel(spell.name, change.effect.modifier), key: `${spell.name}:${change.effect.modifier?.selector}` };
     return { model: null, key: null };
+}
+
+const NOTE_MODELS = new WeakMap();
+function noteModel(spell, note) {
+    if (!note?.rules?.length) return null;
+    if (!NOTE_MODELS.has(note)) {
+        const { rounds } = noteRounds(note.duration);
+        const duration = rounds === Infinity ? { value: -1 } : { value: rounds, unit: "rounds" };
+        const model = effectModel({ name: note.label ?? spell.name, system: { rules: note.rules, duration } }, { rank: Number(spell.castRank) || 1 });
+        const any = model.modifiers.length || model.tempHp || model.fastHealing || model.resistances.length || model.weaknesses.length || model.immunities.length || model.conditions.length;
+        NOTE_MODELS.set(note, any ? model : null);
+    }
+    return NOTE_MODELS.get(note);
 }
 
 function applyNativeEffect(state, caster, spell, target, change) {
@@ -1161,6 +1180,14 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     applySwallow(state, caster, target, change.effect);
                     break;
                 }
+                // (Calm and the charm spells: "can't use hostile actions".)
+                if (change.effect?.kind === "note") {
+                    const entry = pacifyOf(change.effect.note, spell.plan?.resolution?.outcomes?.[change.effect.degree]?.rawText);
+                    if (entry) {
+                        if (isActive(target)) pacify(state, target, caster, spell, entry, change.effect.note.duration);
+                        break;
+                    }
+                }
                 applyNativeEffect(state, caster, spell, target, change);
                 break;
 
@@ -1269,6 +1296,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     // (T5: an elemental dragon's answer to a spell of an element aimed at it.)
     for (const target of targets) if (target.elemental && target !== caster) elementalAnswers(state, target, "targeted", { spell, applyCondition });
+    // (A harmful spell at a foe is hostility: it ends Calm, and a charm the caster put on it.)
+    if (!info.helpful && !info.healing) for (const target of targets) if (target !== caster && target.side !== caster.side) hostility(state, target, caster);
     // A magus's conflux spell recharges Spellstrike.
     if (caster.spellstrike && !caster.spellstrikeCharged && (spell.plan?.traits ?? []).includes("conflux") && (info.actions ?? 0) >= 1) {
         caster.spellstrikeCharged = true;
@@ -2332,7 +2361,10 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 } else if (change.op === "tempHp") {
                     // Temporary Hit Points (B61): what they add over its current ones, as healing that may go unused.
                     entry.heal += chance * 0.7 * Math.max(0, change.amount - (target.hp.temp ?? 0));
-                } else if (change.op === "effect" && ["native", "modifier"].includes(change.effect?.kind)) {
+                } else if (change.op === "effect" && change.effect?.kind === "note" && pacifyOf(change.effect.note)) {
+                    const held = pacifyOf(change.effect.note, spell.plan?.resolution?.outcomes?.[change.effect.degree]?.rawText);
+                    entry.worth += chance * pacifyWorth(state, target, caster, held, change.effect.note.duration);
+                } else if (change.op === "effect" && ["native", "modifier", "note"].includes(change.effect?.kind)) {
                     const { model, key } = outcomeEffect(spell, change);
                     if (model) entry.benefit += chance * recastShare(state, target, model, key) * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1);
                 }
@@ -2500,6 +2532,9 @@ export function spellGaps(spell) {
                 if (model.unsupported.length) missing.add(`${model.name.replace(/^Spell Effect: /, "")}: ${model.unsupported.join(", ")}`);
             } else if (change.op === "effect" && change.effect?.kind === "modifier") {
                 if (!modifierModel(spell.name, change.effect.modifier)) missing.add(`modifier to ${change.effect.modifier?.selector}`);
+            } else if (change.op === "effect" && change.effect?.kind === "note" && (pacifyOf(change.effect.note) || noteModel(spell, change.effect.note))) {
+                const model = pacifyOf(change.effect.note) ? null : noteModel(spell, change.effect.note);
+                if (model?.unsupported.length) missing.add(`${change.effect.note.label}: ${model.unsupported.join(", ")}`);
             } else if (change.op === "effect") missing.add(change.effect?.kind === "note" ? `note: ${change.effect.note?.label ?? "effect"}` : change.effect?.kind === "native" ? `effect: ${change.effect.label ?? change.effect.uuid}` : `effect: ${change.effect?.kind}`);
             else if (change.op === "note" && change.manual) missing.add("manual step");
             else if (!["damage", "condition", "move", "death", "followUp", "note", "heal", "tempHp"].includes(change.op)) missing.add(change.op);
