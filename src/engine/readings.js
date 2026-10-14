@@ -41,10 +41,26 @@ function withArea(plan) {
     return { ...plan, simulatorReading: true, targeting: { ...targeting, target: null, area: { type: "burst", value } } };
 }
 
-// The plan with the simulator's readings: a resolution where the compiled one resolves nothing, an area where it has none; the plan
-// unchanged otherwise.
+// A row whose own words give its conditions a recurring save the plan doesn't carry (Confusion's failure, a new save as every turn of
+// the creature ends): the conditions' durations get saveEnds against the spell's DC (dc "spell", read as it's applied).
+const NEW_SAVE = /(?:new save|attempt a(?:nother)? (?:\w+ )?save) at the end of each of its turns/i;
+function withRecurringSaves(plan) {
+    const resolution = plan?.resolution;
+    const save = resolution?.check?.statistic;
+    if (resolution?.kind !== "save" || !["fortitude", "reflex", "will"].includes(save)) return plan;
+    let changed = false;
+    const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
+        if (!NEW_SAVE.test(String(row?.rawText ?? "")) || !(row.effects ?? []).some((effect) => effect.kind === "condition" && !effect.duration?.saveEnds)) return [degree, row];
+        changed = true;
+        return [degree, { ...row, effects: row.effects.map((effect) => (effect.kind === "condition" && !effect.duration?.saveEnds ? { ...effect, duration: { ...(effect.duration ?? {}), saveEnds: { save, dc: "spell" } } } : effect)) }];
+    }));
+    return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
+}
+
+// The plan with the simulator's readings: a resolution where the compiled one resolves nothing, an area where it has none, recurring
+// saves its rows' words give; the plan unchanged otherwise.
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withArea(resolved);
+    return withRecurringSaves(withArea(resolved));
 }

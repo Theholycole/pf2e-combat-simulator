@@ -1202,6 +1202,15 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 const instances = change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext }));
                 const dealt = applyDamage(state, target, instances, { source: caster, nonlethal, spell: aimed });
                 log(state, `  ${target.name} takes ${dealt} ${change.instances.map((instance) => instance.type).join("/")}`);
+                // (2026-10-14, the vampiric spells: temporary Hit Points for the caster, a share of the damage dealt.)
+                const benefit = spell.plan?.resolution?.casterBenefit;
+                if (benefit?.kind === "temp-hp" && dealt > 0 && isActive(caster) && target.side !== caster.side) {
+                    const amount = Math.floor(dealt * (Number(benefit.fraction) || 0.5));
+                    if (amount > (caster.hp.temp ?? 0)) {
+                        caster.hp.temp = amount;
+                        log(state, `  ${caster.name} gains ${amount} temporary HP`);
+                    }
+                }
                 break;
             }
             case "condition":
@@ -1215,7 +1224,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 } else if (isActive(target) && change.escalate?.slug && (FLAGS[change.escalate.if] ? target.cond[FLAGS[change.escalate.if]] : (target.cond[change.escalate.if] ?? 0) > 0)) {
                     // (B103: already slowed — "a failed save causes it to be Petrified permanently": the worse condition.)
                     if (applyCondition(state, target, change.escalate.slug, change.escalate.value, change.escalate.duration, caster)) log(state, `  ${target.name} is ${change.escalate.slug}`);
-                } else if (isActive(target) && applyCondition(state, target, change.slug, stackedValue(target, change), change.duration, caster, change.scope ?? null)) {
+                } else if (isActive(target) && applyCondition(state, target, change.slug, stackedValue(target, change), change.duration?.saveEnds?.dc === "spell" ? { ...change.duration, saveEnds: { ...change.duration.saveEnds, dc: effectDC(spell) } } : change.duration, caster, change.scope ?? null)) {
                     // (Invisibility: gone after its own hostile action.)
                     if (change.endsOnHostile) (target.endsOnHostile ??= new Set()).add(FLAGS[change.slug] ?? change.slug);
                     // (What a counteract checks against: the spell's or ability's DC and rank.)
@@ -2410,7 +2419,14 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 }
                 if (change.op === "damage") {
                     damageContext ??= spellContext(spell, { isSpell: isSpellCast(spell), area: Boolean(describeSpell(spell.plan, actions).area) });
-                    entry.damage += chance * adjustDamage(target, change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext }))).total;
+                    const expected = chance * adjustDamage(target, change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext }))).total;
+                    entry.damage += expected;
+                    // (The vampiric spells: the caster's temporary Hit Points, a share of it — as healing that may go unused.)
+                    const benefit = spell.plan?.resolution?.casterBenefit;
+                    if (benefit?.kind === "temp-hp" && target.side !== caster.side) {
+                        self ??= { target: caster, damage: 0, worth: 0, heal: 0, benefit: 0 };
+                        self.heal += 0.7 * expected * (Number(benefit.fraction) || 0.5);
+                    }
                 } else if (change.op === "condition" && change.slug === "persistent-damage") {
                     if (!change.damage) continue;
                     entry.damage += chance * 2 * adjustInstance(target, change.damage.type, change.damage.amount);
@@ -2626,8 +2642,8 @@ export function spellGaps(spell) {
     if (!info.area && !info.targets && !info.self) missing.add("no creature targets");
     // Heal and Harm compiled before their healing payload: the healing half is missing.
     if (!healingOf(plan) && (plan.resolution?.sharedDamage?.components ?? []).some((component) => (component.kinds ?? []).includes("healing"))) missing.add("healing");
-    // (A lingering area: played as a zone.)
-    for (const gap of family.gaps?.(readPlan(plan)) ?? []) if (gap.what !== "lingering") missing.add(gap.what);
+    // (A lingering area: played as a zone; a caster's temporary Hit Points from the damage, with the damage.)
+    for (const gap of family.gaps?.(readPlan(plan)) ?? []) if (gap.what !== "lingering" && !(gap.what === "casterBenefit" && plan.resolution?.casterBenefit?.kind === "temp-hp")) missing.add(gap.what);
     // A dry run at each degree, for the changes the engine doesn't apply.
     const dummy = { id: "dummy", name: "dummy", traits: [], immunities: [], side: "x", saves: { fortitude: 0, reflex: 0, will: 0 }, ac: 10, cond: {}, hp: { value: 10, max: 10, temp: 0 } };
     const caster = { id: "caster", side: "y", cond: {}, strikes: [], attacksThisTurn: 0 };

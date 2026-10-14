@@ -399,3 +399,38 @@ test("Lingering spells (Toxic Cloud): the area stays as a zone; a foe starting i
     zoneTurn(state, caster, "start");
     assert.equal(state.zones.length, 0);
 });
+
+test("Vampiric temporary HP from the damage dealt; a Speed penalty while it lasts; Confusion's failure saves at each turn's end", async () => {
+    const { applyEffect, removeEffect, modifierModel } = await import("../src/engine/effects.js");
+    const { withReading } = await import("../src/engine/readings.js");
+    // Vampiric Feast: half the void damage dealt as the caster's temporary HP.
+    const feast = { modelVersion: 12, source: { name: "Vampiric Feast" }, rank: 6, traits: ["death", "void"], activation: { time: "2" }, targeting: { target: "1 living creature", range: "touch" },
+        resolution: { kind: "save", check: { statistic: "fortitude", basic: true }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "12d6", type: "void" }] },
+            casterBenefit: { kind: "temp-hp", aggregate: "single-target", condition: "always", fraction: 0.5, damageType: "void" },
+            outcomes: { criticalSuccess: row(), success: row({ damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] } }), failure: row({ damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] } }), criticalFailure: row({ damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] } }) } } };
+    const [fighter] = martialParty(11);
+    const vampire = { ...moderateCreature(11, "vamp", "Vampire"), spells: [{ name: "Vampiric Feast", plan: feast, castRank: 6, dc: 30, attack: 20, pool: null }], spellPools: {}, engagement: 1 };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, hp: { value: 500, max: 500 } }, vampire] }, {}, 1);
+    const caster = state.byId.get("vamp");
+    const pc = state.byId.get(fighter.id);
+    state.rng.d20 = () => 2;
+    state.rng.die = () => 4;
+    const before = pc.hp.value;
+    castSpell(state, caster, 0, [pc.id]);
+    const dealt = before - pc.hp.value;
+    assert.ok(dealt > 0);
+    assert.equal(caster.hp.temp, Math.floor(dealt / 2), state.log.join("\n"));
+    // Grasping Grave's -10 feet to its Speeds, for the effect's time.
+    const slowed = modifierModel("Grasping Grave", { kind: "speed-penalty", selector: "all-speeds", modifierType: "circumstance", value: -10, duration: { mode: "fixed", value: 1, unit: "rounds" } });
+    const speed = pc.speed;
+    const effect = applyEffect(state, pc, slowed, caster, { key: "grave" });
+    assert.equal(pc.speed, speed - 10);
+    removeEffect(pc, effect);
+    assert.equal(pc.speed, speed);
+    // Confusion: the failure's "new save at the end of each of its turns" read as saveEnds against the spell's DC.
+    const confusion = withReading({ modelVersion: 12, source: { name: "Confusion", slug: "confusion" }, targeting: { target: "1 creature", range: "30 feet" }, resolution: { kind: "save", check: { statistic: "will" }, outcomes: {
+        failure: { effects: [{ kind: "condition", slug: "confused", value: null, duration: { mode: "fixed", value: 1, unit: "minutes" } }], rawText: "The target is Confused for 1 minute. It can attempt a new save at the end of each of its turns to end the confusion." },
+        criticalFailure: { effects: [{ kind: "condition", slug: "confused", value: null, duration: { mode: "fixed", value: 1, unit: "minutes" } }], rawText: "The target is Confused for 1 minute, with no save to end early.", noRecurringSave: true } } } });
+    assert.deepEqual(confusion.resolution.outcomes.failure.effects[0].duration.saveEnds, { save: "will", dc: "spell" });
+    assert.equal(confusion.resolution.outcomes.criticalFailure.effects[0].duration.saveEnds, undefined);
+});

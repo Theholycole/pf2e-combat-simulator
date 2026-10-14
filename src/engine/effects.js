@@ -27,7 +27,11 @@ const SELECTORS = {
     "spell-attack-roll": ["spell"],
     "spell-dc": ["spell"],
     damage: ["damage"],
-    "strike-damage": ["damage"]
+    "strike-damage": ["damage"],
+    // (2026-10-14: Speed — Grasping Grave's -10 feet: the creature's Speed while it lasts.)
+    "all-speeds": ["speed"],
+    "land-speed": ["speed"],
+    speed: ["speed"]
 };
 // Rule keys with no effect on a fight as the engine plays it.
 const IGNORED = new Set(["Note", "RollOption", "Sense", "BaseSpeed", "TokenLight", "TokenImage", "TokenEffectIcon", "DexterityModifierCap", "ChoiceSet", "ItemAlteration", "SubstituteRoll", "MartialProficiency", "CriticalSpecialization", "Aura"]);
@@ -76,7 +80,7 @@ export function modifierModel(name, modifier) {
     const on = SELECTORS[modifier?.selector] ?? [];
     if (!on.length || !Number.isFinite(Number(modifier.value))) return null;
     const rounds = modifier.duration?.mode === "fixed" ? roundsOf(modifier.duration) : Infinity;
-    return { name, rounds, modifiers: on.map((stat) => ({ on: stat, type: modifier.type ?? "untyped", value: Number(modifier.value) })), tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
+    return { name, rounds, modifiers: on.map((stat) => ({ on: stat, type: modifier.type ?? modifier.modifierType ?? "untyped", value: Number(modifier.value) })), tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
 }
 
 // item: a PF2e effect item (or its source). conditionSlug(uuid): the slug of a
@@ -201,6 +205,13 @@ export function effectStatusPenalty(c, on) {
 
 function withDefences(target, effect, add) {
     const tag = (entry) => ({ ...entry, effectId: effect.id });
+    // (Speed: changed while it lasts, never below 5 feet; the change it made undone with it.)
+    const speed = (effect.model.modifiers ?? []).filter((modifier) => modifier.on === "speed").reduce((sum, modifier) => sum + modifier.value, 0);
+    if (speed && add) {
+        const before = target.speed ?? 25;
+        target.speed = Math.max(5, before + speed);
+        effect.speedDelta = target.speed - before;
+    } else if (effect.speedDelta && !add) target.speed = Math.max(5, (target.speed ?? 25) - effect.speedDelta);
     if (add) {
         if (effect.model.resistances.length) target.resistances = [...(target.resistances ?? []), ...effect.model.resistances.map(tag)];
         if (effect.model.weaknesses.length) target.weaknesses = [...(target.weaknesses ?? []), ...effect.model.weaknesses.map(tag)];
@@ -255,7 +266,7 @@ export function effectBenefit(model, target, conditionHarm, strikeShare = 1) {
     let benefit = 0;
     const strikes = (target.strikes ?? []).length > 0 ? strikeShare : 0;
     for (const modifier of model.modifiers) {
-        const per = { ac: 0.08, fortitude: 0.01, reflex: 0.01, will: 0.01, attack: 0.1 * strikes, damage: 0.04 * strikes, spell: 0.05 * (1 - strikes) }[modifier.on] ?? 0;
+        const per = { ac: 0.08, fortitude: 0.01, reflex: 0.01, will: 0.01, attack: 0.1 * strikes, damage: 0.04 * strikes, spell: 0.05 * (1 - strikes), speed: 0.003 }[modifier.on] ?? 0;
         benefit += per * modifier.value * rounds;
     }
     if (target.hp?.max > 0) {
