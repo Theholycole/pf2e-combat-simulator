@@ -133,13 +133,18 @@ if (!isMainThread) {
         }
         return curves;
     };
+    // (Past the ladder's top — a creature that kills PCs outright as no by-the-book creature does: on at the ladder's average rise from its
+    // own level to the top, an estimate.)
     const offsetOn = (curve, score) => {
         if (score <= curve[0][1]) return curve[0][0];
         for (let index = 1; index < curve.length; index++) {
             const [low, high] = [curve[index - 1], curve[index]];
             if (score <= high[1]) return low[0] + (high[1] > low[1] ? (score - low[1]) / (high[1] - low[1]) : 0) * (high[0] - low[0]);
         }
-        return curve.at(-1)[0];
+        const zero = curve.find(([offset]) => offset === 0)?.[1] ?? curve[0][1];
+        const [top, best] = curve.at(-1);
+        const rise = top > 0 && best > zero ? (best - zero) / top : null;
+        return top + (rise ? (score - best) / rise : 0);
     };
     const effectiveLevel = (curves, row) => {
         const party = Math.max(1, Math.min(20, row.level));

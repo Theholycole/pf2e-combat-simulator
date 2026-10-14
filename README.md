@@ -85,6 +85,7 @@ The design is in [docs/spec.md](docs/spec.md) and the vocabulary in [CONTEXT.md]
 - `node tools/bestiary-abilities.mjs [--map] [--escalate] [pack …]` runs every bestiary creature with its abilities against the martial benchmark party.
   - Both tools read creatures and spells through `tools/lib/` (`pack-creatures.mjs`, `pack-spells.mjs`).
 - `node tools/deadliest.mjs <out folder> screen|ladder|confirm|ablate|broad [--only=<refs file>]` ranks every creature (PF2e's packs and Battlezoo's) by how deadly it is for its level (2026-10-13).
+  - A fight's deadliness: the party's Hit Points taken (as a share), +0.25 a PC downed, +1 a PC killed, +1 a wipe.
   - Each creature fights the standard party of its level (`src/engine/party.js`: fighter, rogue, wizard, cleric, clamped to 1–20) to the death. The fighter and the rogue carry a bludgeoning backup and a bow beside their main weapons.
   - "For its level" is in levels: the level of a moderate creature from GM Core's tables (`tools/lib/creature-tables.mjs`) that does as much to the same party (the `ladder` phase), less that of the typical (median) creature of its level.
   - Left out of the ranking: likely data slips (a Strike's damage or attack bonus, or an AC, far past GM Core's extreme) and Paizo's April Fools blog creatures.

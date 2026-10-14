@@ -1,7 +1,8 @@
 // How deadly a creature is for its level (2026-10-13; the user's call: "test each monster in the simulator to find out which 10 monsters are
 // the most deadly for their level … fight a party of 4 player characters equal to the level of monster or closest they can be"): one
 // creature against the standard party (src/engine/party.js) of its level, clamped to 1–20, fighting to the death (no morale, no retreat).
-//   A fight's deadliness: the share of the party's Hit Points it took, +0.25 for each PC it downed, +0.5 for each it killed, +1 for a wipe.
+//   A fight's deadliness: the share of the party's Hit Points it took, +0.25 for each PC it downed, +1 for each it killed (a death is four
+//   times a PC who drops and can be healed: the user's call, 2026-10-14; it was +0.5), +1 for a wipe.
 //   "For its level": above the median creature of the same level (deadliest.mjs); a moderate creature of each level (GM Core's tables)
 //   fights too, for reference.
 //   What makes it strong: the same fights with one of its abilities, Strikes or its spellcasting left out, or one number brought down to
@@ -127,6 +128,7 @@ export function buildMonster(npc, variant = null) {
 }
 
 // The fights: [seed from, seed to). Per fight: the party's damage share, PCs downed and killed, a wipe; rounds; the creature killed.
+export const DEATH_WEIGHT = 1;
 export function fight(level, foes, from, to) {
     const party = partyFor(level);
     const partyHp = party.reduce((sum, c) => sum + c.hp.max, 0);
@@ -137,7 +139,7 @@ export function fight(level, foes, from, to) {
         const downs = result.party.filter((c) => c.down).length;
         const deaths = result.party.filter((c) => c.dead).length;
         const wipe = result.outcome === "defeat" ? 1 : 0;
-        const score = damage + 0.25 * downs + 0.5 * deaths + wipe;
+        const score = damage + 0.25 * downs + DEATH_WEIGHT * deaths + wipe;
         sum.n++;
         sum.damage += damage;
         sum.downs += downs;
