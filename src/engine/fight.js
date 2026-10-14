@@ -11,7 +11,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, provokedReaction, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { spendPool, applyAuras, provokedReaction, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -22,6 +22,7 @@ import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } fr
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
 import { lastingTurnStart } from "./lasting.js";
+import { noteStatesTurnStart } from "./note-states.js";
 import { floorOf } from "./floors.js";
 import { buildEnvironment, covenCast, covenTurnStart, hiddenAtTurnStart, lightAtStart, sunlightTurnEnd, terrainTurn } from "./environment.js";
 import { attachedTurnStart, berserkTurnStart, followAttached, headsMend, hydraRegrow, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
@@ -403,6 +404,8 @@ function startTurn(state, c) {
     summonTurnStart(state, c);
     // (Calm, the charm spells, a condition floor: those that ran out end; a sustained one, an action.)
     lastingTurnStart(state, c);
+    // (Command's actions, a dance's: spent as its turn starts.)
+    noteStatesTurnStart(state, c);
     // (B308: coming out of its shell takes an action.)
     if (c.inShell) {
         c.inShell = false;
@@ -762,6 +765,12 @@ function act(state, c, action) {
             if (goal && isActive(goal) && !sameMelee(c, goal) && canMove(c)) stride(state, c, { kind: "engage", targetId: goal.id });
             if (goal && (!isActive(goal) || !sameMelee(c, goal))) break;
             const traits = spell?.plan?.activation?.traits ?? spell?.plan?.traits ?? [];
+            // (Deafened: an auditory action needs a DC 5 flat check, or it's lost — a spell's slot with it.)
+            if (c.cond.deafened && traits.includes("auditory") && flatCheck(state.rng, 5) < SUCCESS) {
+                spendPool(c, spell);
+                state.log?.push(`  ${c.name} loses ${spell?.name ?? "the action"} (deafened)`);
+                break;
+            }
             let disrupted = traits.includes("manipulate") ? provoke(state, c, "manipulate") : false;
             if (canAct(c) && traits.includes("concentrate")) disrupted = provoke(state, c, "concentrate") || disrupted;
             // (B225: an auditory or a healing action, the reaction Strikes that say so.)

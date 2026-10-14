@@ -314,3 +314,43 @@ test("Clear Mind: lifts an ally's frightened from a spell; nothing to counteract
     castSpell(state, state.byId.get("cleric"), 0, ["witch"]);
     assert.ok(state.log.some((line) => line.includes("finds nothing to counteract on Witch")));
 });
+
+// Notes as states (2026-10-14): can't use reactions, Command, dancing; fascinated and deafened.
+const noteSave = (name, byDegree, extra = {}) => ({ modelVersion: 12, source: { name }, rank: 1, traits: ["mental"], activation: { time: "2" }, targeting: { target: "1 creature", range: "30 feet" },
+    resolution: { kind: "save", check: { statistic: "will", basic: false }, outcomes: { criticalSuccess: row(), success: row(byDegree.success ?? {}), failure: row(byDegree.failure ?? {}), criticalFailure: row(byDegree.criticalFailure ?? byDegree.failure ?? {}) } }, ...extra });
+
+test("Command: the target spends its next turn's first action (all of them on a critical failure) dropping prone", () => {
+    const command = noteSave("Command", {
+        failure: { noteEffects: [{ label: "Actions on its next turn", text: "For the first action on its next turn, the creature must use a single action to do as you command." }] },
+        criticalFailure: { noteEffects: [{ label: "Actions on its next turn", text: "The target must use all its actions on its next turn to obey your command." }] }
+    });
+    const mage = { ...moderateCreature(5, "mage", "Mage"), side: "party", kind: "npc", spells: [{ name: "Command", plan: command, castRank: 1, dc: 22, attack: 12, pool: null }], spellPools: {}, band: "near" };
+    const state = createFightState({ combatants: [mage, { ...moderateCreature(5, "foe", "Foe"), band: "near" }] }, {}, 1);
+    const foe = state.byId.get("foe");
+    state.rng.d20 = rollFor(foe, "failure");
+    castSpell(state, state.byId.get("mage"), 0, ["foe"]);
+    assert.deepEqual(foe.commanded, { by: "mage", spell: "Command", actions: 1 });
+    state.byId.get("mage").actionsLeft = 3;
+    assert.ok(scoreOptions(state, state.byId.get("mage")).options.some((option) => option.action.type === "cast" && option.value > 0));
+});
+
+test("Can't use reactions (Laughing Fit, Spirit Song's until its own turn); Uncontrollable Dance's actions; fascinated and deafened", async () => {
+    const { canReact } = await import("../src/engine/abilities.js");
+    const { noteState } = await import("../src/engine/note-states.js");
+    const { statusPenalty } = await import("../src/engine/combatant.js");
+    assert.deepEqual(noteState({ label: "Reactions", text: "It can't use reactions, it dances at half its Speed instead of moving normally, and it must spend at least 2 actions each turn dancing." }), { kind: "no-reactions", ownTurn: false, dance: 2 });
+    assert.deepEqual(noteState({ label: "No reactions", text: "The creature can't use reactions until the beginning of its turn." }), { kind: "no-reactions", ownTurn: true, dance: 0 });
+    const fit = noteSave("Laughing Fit", { failure: { noteEffects: [{ label: "Reactions", text: "The target can't use reactions.", duration: { mode: "fixed", value: 1, unit: "minutes" } }] } });
+    const mage = { ...moderateCreature(5, "mage", "Mage"), side: "party", kind: "npc", spells: [{ name: "Laughing Fit", plan: fit, castRank: 2, dc: 22, attack: 12, pool: null }], spellPools: {}, band: "near" };
+    const state = createFightState({ combatants: [mage, { ...moderateCreature(5, "foe", "Foe"), band: "near", reactions: { aoo: true, shieldBlock: false } }] }, {}, 1);
+    const foe = state.byId.get("foe");
+    assert.equal(canReact(foe), true);
+    state.rng.d20 = rollFor(foe, "failure");
+    castSpell(state, state.byId.get("mage"), 0, ["foe"]);
+    assert.equal(canReact(foe), false);
+    // Fascinated: -2 Perception, and hostility to any of its side ends it.
+    foe.cond.fascinated = true;
+    assert.equal(statusPenalty(foe, "perception"), 2);
+    applyDamage(state, foe, [{ type: "fire", amount: 1 }], { source: state.byId.get("mage") });
+    assert.equal(foe.cond.fascinated, false);
+});

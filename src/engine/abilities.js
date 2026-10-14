@@ -831,7 +831,8 @@ export function canReact(c, name = null) {
 
 // Whether it could react, its reaction aside.
 function ableToReact(c) {
-    return c.status === "active" && !c.noReactions && !c.cond.confused && !c.cond.unconscious && !c.cond.paralyzed && !c.cond.asleep && c.acts !== false;
+    // (A spell's "can't use reactions": c.reactionLocks, note-states.js.)
+    return c.status === "active" && !c.noReactions && !c.reactionLocks?.length && !c.cond.confused && !c.cond.unconscious && !c.cond.paralyzed && !c.cond.asleep && c.acts !== false;
 }
 
 // (B303: a reaction's name in one form — lower case, no plurals; Attack of Opportunity is Reactive Strike.)

@@ -2,12 +2,13 @@
 // (floors.js) — each an entry { by, spell, untilRound, sustained } in the creature's list. At the caster's turn start those that ran
 // out end, and a sustained spell costs it an action (PF2e's Sustain), or ends when it can't act or is gone.
 
-const LISTS = { pacified: "under", condFloors: "floor of" };
+const LISTS = { pacified: "under", condFloors: "floor of", reactionLocks: "reactions locked by", dancing: "dancing to" };
 
 export function endEntries(state, c, list, entries, why) {
     if (!entries.length) return;
     c[list] = (c[list] ?? []).filter((entry) => !entries.includes(entry));
-    for (const entry of entries) state.log?.push(`  ${c.name} is no longer ${list === "pacified" ? `under ${entry.spell}` : `held by ${entry.spell}`}${why ? ` (${why})` : ""}`);
+    const what = { pacified: (entry) => `under ${entry.spell}`, condFloors: (entry) => `held by ${entry.spell}`, reactionLocks: (entry) => `kept from reacting by ${entry.spell}`, dancing: (entry) => `dancing to ${entry.spell}` }[list];
+    for (const entry of entries) state.log?.push(`  ${c.name} is no longer ${what(entry)}${why ? ` (${why})` : ""}`);
 }
 
 export function lastingTurnStart(state, c, { canSustain = true } = {}) {
@@ -17,8 +18,10 @@ export function lastingTurnStart(state, c, { canSustain = true } = {}) {
             if (!other[list]?.length) continue;
             // (A sustained one whose caster is dead or gone: nobody sustains it.)
             endEntries(state, other, list, other[list].filter((entry) => entry.sustained && !["active", "down"].includes(state.byId.get(entry.by)?.status)), null);
-            const mine = (other[list] ?? []).filter((entry) => entry.by === c.id);
+            const mine = (other[list] ?? []).filter((entry) => entry.by === c.id && !entry.ownTurn);
             endEntries(state, other, list, mine.filter((entry) => state.round >= entry.untilRound || (entry.sustained && !canSustain)), null);
+            // (Spirit Song: "until the beginning of its turn" — its own.)
+            if (other === c) endEntries(state, other, list, (other[list] ?? []).filter((entry) => entry.ownTurn), null);
             for (const entry of (other[list] ?? []).filter((held) => held.by === c.id && held.sustained)) sustained.add(entry.spell);
         }
     }

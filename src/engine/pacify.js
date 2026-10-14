@@ -52,6 +52,12 @@ const end = (state, c, entries, why) => endEntries(state, c, "pacified", entries
 // Hostility toward target from source (an attack, damage, a harmful spell or condition): what it ends.
 export function hostility(state, target, source) {
     if (!source || source === target) return;
+    // (Fascinated: hostility to it or any of its allies ends it.)
+    for (const other of state.list) {
+        if (other.side !== target.side || !other.cond?.fascinated) continue;
+        other.cond.fascinated = false;
+        state.log?.push(`  ${other.name} is no longer fascinated`);
+    }
     if (target.pacified?.length) {
         end(state, target, target.pacified.filter((entry) => entry.endsOn === "any" || (entry.endsOn === "caster" && entry.by === source.id)), `${source.name} turned on it`);
     }

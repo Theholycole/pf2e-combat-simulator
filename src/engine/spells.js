@@ -19,6 +19,7 @@ import { startZone } from "./zones.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
 import { addFloor, floorOf } from "./floors.js";
 import { counterables, counterChance, counterRank, counterRoll } from "./counteract.js";
+import { applyNoteState, noteState, noteStateWorth } from "./note-states.js";
 import { allyStrike } from "./commander.js";
 import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
@@ -43,7 +44,10 @@ const FLAGS = {
     petrified: "paralyzed",
     immobilized: "immobilized", restrained: "restrained", grabbed: "grabbed", confused: "confused",
     // On itself (B53): concealed and hidden as attackers find them (Invisible plays as hidden).
-    concealed: "concealed", hidden: "hidden", invisible: "hidden"
+    concealed: "concealed", hidden: "hidden", invisible: "hidden",
+    // (2026-10-14: fascinated — -2 to Perception and skills, no concentrate actions, ends with hostility to it or its allies;
+    // deafened — an auditory action needs a DC 5 flat check.)
+    fascinated: "fascinated", deafened: "deafened"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -1261,6 +1265,11 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     if (isActive(target)) addFloor(state, target, caster, spell, change.effect.floor);
                     break;
                 }
+                // (Can't use reactions; Command's actions on its next turn.)
+                if (change.effect?.kind === "note" && noteState(change.effect.note)) {
+                    if (isActive(target)) applyNoteState(state, target, caster, spell, noteState(change.effect.note), change.effect.note.duration);
+                    break;
+                }
                 // (Calm and the charm spells: "can't use hostile actions".)
                 if (change.effect?.kind === "note") {
                     const entry = pacifyOf(change.effect.note, spell.plan?.resolution?.outcomes?.[change.effect.degree]?.rawText);
@@ -2253,6 +2262,11 @@ export function conditionWorth(slug, value, duration) {
         case "hidden":
         case "invisible":
             return -0.35 * Math.min(rounds === Infinity ? 3 : Math.max(1, rounds), 3);
+        // (Fascinated ends with any hostility to it or its allies; deafened costs an auditory action now and then.)
+        case "fascinated":
+            return 0.1 * Math.min(rounds === Infinity ? 2 : Math.max(1, rounds), 2);
+        case "deafened":
+            return 0.03 * Math.min(rounds === Infinity ? 3 : Math.max(1, rounds), 3);
         default:
             return 0;
     }
@@ -2455,6 +2469,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 } else if (change.op === "effect" && change.effect?.kind === "affliction-stage") {
                     // (About a third of a round of the creature's threat a stage.)
                     if ((target.afflictions ?? []).some((held) => held.stage > (change.effect.floor ?? 1))) entry.benefit += chance * 0.3 * (change.effect.by ?? 1);
+                } else if (change.op === "effect" && change.effect?.kind === "note" && noteState(change.effect.note)) {
+                    entry.worth += chance * noteStateWorth(target, noteState(change.effect.note), change.effect.note.duration);
                 } else if (change.op === "effect" && change.effect?.kind === "note" && pacifyOf(change.effect.note)) {
                     const held = pacifyOf(change.effect.note, spell.plan?.resolution?.outcomes?.[change.effect.degree]?.rawText);
                     entry.worth += chance * pacifyWorth(state, target, caster, held, change.effect.note.duration);
@@ -2628,8 +2644,8 @@ export function spellGaps(spell) {
                 if (!modifierModel(spell.name, change.effect.modifier)) missing.add(`modifier to ${change.effect.modifier?.selector}`);
             } else if (change.op === "effect" && ["floor", "counteract", "affliction-stage"].includes(change.effect?.kind)) {
                 // (Played: floors.js, counteract.js, afflictions.)
-            } else if (change.op === "effect" && change.effect?.kind === "note" && (pacifyOf(change.effect.note) || noteModel(spell, change.effect.note))) {
-                const model = pacifyOf(change.effect.note) ? null : noteModel(spell, change.effect.note);
+            } else if (change.op === "effect" && change.effect?.kind === "note" && (pacifyOf(change.effect.note) || noteState(change.effect.note) || noteModel(spell, change.effect.note))) {
+                const model = pacifyOf(change.effect.note) || noteState(change.effect.note) ? null : noteModel(spell, change.effect.note);
                 if (model?.unsupported.length) missing.add(`${change.effect.note.label}: ${model.unsupported.join(", ")}`);
             } else if (change.op === "effect") missing.add(change.effect?.kind === "note" ? `note: ${change.effect.note?.label ?? "effect"}` : change.effect?.kind === "native" ? `effect: ${change.effect.label ?? change.effect.uuid}` : `effect: ${change.effect?.kind}`);
             else if (change.op === "note" && change.manual) missing.add("manual step");

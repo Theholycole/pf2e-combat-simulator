@@ -843,6 +843,8 @@ function expandSpells(env) {
     for (const [index, spell] of (c.spells ?? []).entries()) {
         if (!canCast(c, spell) || node.casts.includes(index)) continue;
         if (raging && (spell.plan?.traits ?? []).includes("concentrate") && !(spell.plan?.traits ?? []).includes("rage")) continue;
+        // (Fascinated: no concentrate actions.)
+        if (c.cond.fascinated && (spell.plan?.traits ?? []).includes("concentrate")) continue;
         if (noSpells && (!spell.kind || spell.castsSpell)) continue;
         // (S22: a staff's charges, each spell its rank.)
         if (spell.pool && node.casts.reduce((sum, other) => sum + (typeof other === "number" && c.spells[other].pool === spell.pool ? poolCost(c.spells[other]) : 0), poolCost(spell)) > (c.spellPools[spell.pool] ?? 0)) continue;
