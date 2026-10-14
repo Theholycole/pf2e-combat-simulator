@@ -416,7 +416,8 @@ function berserkTurn(state, c) {
         const near = state.list.filter((other) => living(other) && sameMelee(c, other));
         const melee = (c.strikes ?? []).filter((strike) => strike.melee && strikeUsable(c, strike));
         const slam = (c.strikeActivities ?? []).findIndex((activity) => activity.requires === "berserk" && activity.actions <= c.actionsLeft);
-        if (near.length && slam >= 0) {
+        // (Its Berserk Slam needs a Strike to make: none left, none to slam with.)
+        if (near.length && slam >= 0 && melee.length) {
             const activity = c.strikeActivities[slam];
             const strikeIndex = activity.strike ? strikeNamed(c, activity.strike) : c.strikes.indexOf(melee[0]);
             c.actionsLeft -= activity.actions;

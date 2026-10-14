@@ -115,6 +115,9 @@ test("T4 Protean Anatomy, Split, Attach and Berserk", () => {
         if (log.some((line) => /^ {2}Golem [\w ]+ → Ally:/.test(line))) hitAlly++;
     }
     assert.ok(hitAlly > 0, `hit its ally in ${hitAlly} of 8`);
+    // (2026-10-13: a Berserk Slam with no Strike left to make — the study's golem with its Fist left out — passes instead of failing.)
+    const slammer = { ...golem, engagement: 1, goneBerserk: true, strikes: [], strikeActivities: [{ name: "Berserk Slam", actions: 2, strides: 0, strike: "fist", requires: "berserk", onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }] };
+    assert.doesNotThrow(() => simulate({ combatants: [{ ...martialParty(5)[0], engagement: 1 }, slammer] }, {}, 3));
 });
 
 test("T5 an elemental dragon: Countered by Fire's penalty after fire damage; Fed by Earth concealed when an earth spell targets it", () => {
