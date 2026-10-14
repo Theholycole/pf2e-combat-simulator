@@ -2554,7 +2554,7 @@ export function spellGaps(spell) {
                 if (model?.unsupported.length) missing.add(`${change.effect.note.label}: ${model.unsupported.join(", ")}`);
             } else if (change.op === "effect") missing.add(change.effect?.kind === "note" ? `note: ${change.effect.note?.label ?? "effect"}` : change.effect?.kind === "native" ? `effect: ${change.effect.label ?? change.effect.uuid}` : `effect: ${change.effect?.kind}`);
             else if (change.op === "note" && change.manual) missing.add("manual step");
-            else if (!["damage", "condition", "move", "death", "followUp", "note", "heal", "tempHp"].includes(change.op)) missing.add(change.op);
+            else if (!["damage", "condition", "move", "death", "followUp", "note", "heal", "tempHp", "end"].includes(change.op)) missing.add(change.op);
         }
     }
     return [...missing];
