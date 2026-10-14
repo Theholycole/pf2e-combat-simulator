@@ -131,6 +131,7 @@ The user asked: "can we get the simulator to treat scrolls, wands and staffs as 
   - The iconic's own "Staff of Fire" entry is skipped while Dailies has the staff, so its spells aren't counted twice.
   - In fights with only the staff's spells, Breathe Fire is cast at most 3 times a fight.
   - All 43 PFTEST SIM actors read on 8.6.1 without errors, and the worker pool's 200-fight batch matches a single-thread run.
+- **Stowed items** (2026-10-14): a stowed scroll or wand is taken out with PF2e's retrieve cost (`spec.draw`: actions, and whether each cast needs it), as part of the cast or alone (`drawItem`) when the cast won't fit after it; `c.itemsAtHand` holds what's out.
 
 ## Milestone 3 status (2026-10-08): monster abilities and basic actions
 

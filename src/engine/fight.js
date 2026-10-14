@@ -717,6 +717,14 @@ function act(state, c, action) {
         case "disableHazard":
             disableHazard(state, c, state.byId.get(action.targetId), { provoke, performStrike });
             break;
+        // (S22: a stowed scroll or wand taken out, for a cast that doesn't fit after it this turn.)
+        case "drawItem": {
+            const spell = c.spells[action.spellIndex];
+            if (!spell?.draw) break;
+            state.log?.push(`  ${c.name} takes out ${spell.from} (${spell.draw.actions} action${spell.draw.actions === 1 ? "" : "s"})`);
+            (c.itemsAtHand ??= new Set()).add(spell.item);
+            break;
+        }
         case "cast": {
             if (action.rider && !(rider && (rider.index === action.spellIndex || rider.also?.includes(action.spellIndex)))) break;
             if (action.quickened) {
@@ -728,11 +736,16 @@ function act(state, c, action) {
             const spell = c.spells[action.spellIndex];
             // (S22: Trick Magic Item first. A failure costs its own action, not the cast's, and the item can't be tried again this turn;
             // a critical failure, not again this fight.)
+            // (S22: a stowed item taken out first; it's at hand after, until a scroll is used up.)
+            if (action.draw && spell?.draw) {
+                state.log?.push(`  ${c.name} takes out ${spell.from} (${spell.draw.actions} action${spell.draw.actions === 1 ? "" : "s"})`);
+                (c.itemsAtHand ??= new Set()).add(spell.item);
+            }
             if (action.trick && spell?.trick) {
                 const { total, degree } = rollCheck(state.rng, spell.trick.modifier, spell.trick.dc);
                 state.log?.push(`  ${c.name} tries Trick Magic Item on ${spell.from} (${spell.trick.skill}): ${total} vs ${spell.trick.dc} → ${["critical failure", "failure", "success", "critical success"][degree]}`);
                 if (degree < SUCCESS) {
-                    c.actionsLeft += actionCost(c, action) - 1;
+                    c.actionsLeft += castActions(c, action);
                     (c.usedThisTurn ??= new Set()).add(`trick:${spell.item}`);
                     if (degree === CRITICAL_FAILURE) (c.itemsLocked ??= new Set()).add(spell.item);
                     break;
@@ -762,6 +775,7 @@ function act(state, c, action) {
             // (A follow-up by the Strike's degree, "Enfeebled 2 (or Enfeebled 3 on a critical hit)": that Strike's degree, B68.)
             const byStrike = action.rider && spell?.plan?.resolution?.check?.statistic === "strike" && Number.isFinite(rider?.degree);
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}) });
+            if (spell?.draw?.each) c.itemsAtHand?.delete(spell.item);
             // (L5: a coven spell — the coven's one this round, and its helpers' actions.)
             if (spell?.coven) {
                 covenCast(state, c);
@@ -1084,6 +1098,11 @@ export function performAction(state, c, action) {
     afterAction(state);
 }
 
+// A cast's own actions (Quickened Casting, B72: one fewer).
+function castActions(c, action) {
+    return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened ? 1 : 0));
+}
+
 function actionCost(c, action) {
     if (action.type === "strike") return 1 + (action.reload ?? 0);
     if (action.type === "reload") return action.actions;
@@ -1091,10 +1110,11 @@ function actionCost(c, action) {
     if (action.type === "spellstrike" || action.type === "strikeHard") return 2;
     if (action.type === "pincerAttack" || action.type === "bannersInspiration" || action.type === "shiftImmanence" || action.type === "transcend") return 1;
     if (action.type === "disableHazard") return 2;
+    if (action.type === "drawItem") return action.actions ?? 1;
     if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon" || action.type === "grantAoo" || action.type === "allyAdvance" || action.type === "summon") return action.actions ?? 1;
     // (Quickened Casting, B72: one action fewer.)
-    // (S22: Trick Magic Item first, an action more.)
-    if (action.type === "cast") return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened ? 1 : 0)) + (action.trick ? 1 : 0);
+    // (S22: Trick Magic Item first, an action more; a stowed item taken out, its retrieve actions.)
+    if (action.type === "cast") return castActions(c, action) + (action.trick ? 1 : 0) + (action.draw ? c.spells[action.spellIndex].draw?.actions ?? 1 : 0);
     return action.type === "task" ? 2 : 1;
 }
 

@@ -140,6 +140,41 @@ test("S22 Trick Magic Item: an action more, worth its odds; a failure costs only
     assert.equal(canCast(caster, scroll), false);
 });
 
+test("S22 stowed: taken out first (PF2e's 1 or 2 actions); a wand stays at hand, each scroll is taken out; alone when the cast won't fit after it", () => {
+    // A wand in a belt pouch (1 action): taken out and cast in one turn, then at hand.
+    const wand = fireball({ pool: "item:w", from: "Wand of Fireball", item: "w", draw: { actions: 1, each: false } });
+    const state = createFightState({ combatants: [...martialParty(5).map((pc) => ({ ...pc, engagement: 1 })), mage([wand], { "item:w": 2 })] });
+    const caster = state.byId.get("mage");
+    caster.actionsLeft = 3;
+    caster.usedThisTurn = new Set();
+    const cast = scoreOptions(state, caster).options.find((option) => option.action.type === "cast");
+    assert.equal(cast.action.draw, true);
+    caster.actionsLeft = 0;
+    performAction(state, caster, cast.action);
+    assert.ok(state.log.some((line) => line.includes("Mage takes out Wand of Fireball (1 action)")), state.log.join("\n"));
+    assert.ok(caster.itemsAtHand.has("w"));
+    caster.actionsLeft = 2;
+    assert.ok(!scoreOptions(state, caster).options.some((option) => option.action.type === "cast" && option.action.draw), "at hand now");
+    // A scroll in a backpack (2 actions) with a 2-action spell: taken out alone this turn, cast the next.
+    const scroll = fireball({ pool: "item:s", from: "Scroll of Fireball", item: "s", draw: { actions: 2, each: true } });
+    const other = createFightState({ combatants: [...martialParty(5).map((pc) => ({ ...pc, engagement: 1 })), mage([scroll], { "item:s": 2 })] });
+    const reader = other.byId.get("mage");
+    reader.actionsLeft = 3;
+    reader.usedThisTurn = new Set();
+    const options = scoreOptions(other, reader).options;
+    assert.ok(!options.some((option) => option.action.type === "cast"));
+    const take = options.find((option) => option.action.type === "drawItem");
+    assert.ok(take && take.value > 0);
+    performAction(other, reader, take.action);
+    assert.ok(reader.itemsAtHand.has("s"));
+    reader.actionsLeft = 3;
+    const next = scoreOptions(other, reader).options.find((option) => option.action.type === "cast");
+    assert.ok(next && !next.action.draw);
+    performAction(other, reader, next.action);
+    // Used up: the next scroll of the stack is taken out again.
+    assert.equal(reader.itemsAtHand.has("s"), false);
+});
+
 test("S22: whole fights with a wand, a scroll and a staff run, and the casts say what they came from", () => {
     const spells = [
         fireball({ pool: "item:w", from: "Wand of Fireball", item: "w" }),

@@ -365,3 +365,32 @@ test("Lay on Hands: allies are healed, undead foes save; a damage-type choice go
     assert.ok(second.log.some((line) => /takes \d+ bludgeoning/.test(line)), "bludgeoning, which it doesn't resist");
     assert.ok(bone.hp.value < hp);
 });
+
+test("Wails of the Damned (2026-10-14): only living enemies take the area's room and show as its targets; Drained 1d4 is rolled", () => {
+    const wails = plan("Wails of the Damned", 9, { range: null, area: { type: "emanation", value: 40 }, traits: ["death", "void"] }, {
+        check: { statistic: "fortitude", basic: false },
+        sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "8d10", type: "void" }] },
+        outcomes: rows({
+            success: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] } },
+            failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [{ kind: "condition", slug: "drained", value: null, duration: null, valueRoll: "1d4" }] },
+            criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] }, effects: [{ kind: "condition", slug: "drained", value: null, duration: null, valueRoll: "1d4" }] }
+        })
+    });
+    wails.targeting.actorConstraints = { predicates: [{ kind: "enemy-of-caster" }, { kind: "living-creature" }] };
+    const [fighter, ...rest] = martialParty(9);
+    const spell = { name: "Wails of the Damned", plan: wails, castRank: 9, dc: 30, attack: 20, pool: null };
+    const lich = { ...moderateCreature(9, "lich", "Lich"), spells: [spell], spellPools: {}, engagement: 1 };
+    const ghoul = { ...moderateCreature(9, "ghoul", "Ghoul"), traits: ["undead"], engagement: 1 };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, ...rest, lich, { ...moderateCreature(9, "ally", "Ally"), engagement: 1 }, ghoul] });
+    const caster = state.byId.get("lich");
+    const at = { enemies: state.list.filter((c) => c.side === "party"), allies: state.list.filter((c) => c.side === "foes" && c !== caster), inMelee: (other) => other.meleeId === caster.meleeId, distance: () => 0, meleeId: caster.meleeId };
+    const ids = targetSets(state, caster, spell, at).flatMap((set) => set.targets.map((c) => c.id));
+    assert.ok(ids.includes(fighter.id));
+    assert.ok(!ids.includes("ally") && !ids.includes("ghoul") && !ids.includes("lich"), ids.join(","));
+    // A failed save (critically): drained by the d4 (a 3).
+    state.rng.d20 = () => 2;
+    state.rng.die = (sides) => (sides === 4 ? 3 : 5);
+    state.log = [];
+    castSpell(state, caster, 0, [fighter.id]);
+    assert.equal(state.byId.get(fighter.id).cond.drained, 3, JSON.stringify(state.log) + JSON.stringify(state.byId.get(fighter.id).cond));
+});

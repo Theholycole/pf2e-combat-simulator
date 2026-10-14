@@ -929,11 +929,15 @@ function consumableSpells(actor, gaps, { fresh, spellPools }) {
     for (const item of actor.itemTypes?.consumable ?? []) {
         const category = item.category ?? item.system?.category;
         if (!SPELL_ITEMS.includes(category) || !item.system?.spell) continue;
-        // (Stowed in a pack, or not identified: not one PF2e lets it cast from.)
-        if (item.isStowed || item.isIdentified === false) {
-            gaps.push({ kind: item.isStowed ? "item, stowed" : "item, unidentified", name: item.name });
+        // (Not identified: not one PF2e lets it cast from.)
+        if (item.isIdentified === false) {
+            gaps.push({ kind: "item, unidentified", name: item.name });
             continue;
         }
+        // (Stowed: taken out first — the user, 2026-10-14, on a stowed Scroll of Wails of the Damned listed as not simulated. PF2e's own
+        // cost to retrieve a stowed item: 1 Interact, 2 from a backpack or a container meant to be held. A wand stays in hand after;
+        // each scroll is taken out for its cast.)
+        const draw = item.isStowed ? { actions: retrieveActions(item), each: category !== "wand" } : null;
         let spell = null;
         try {
             spell = item.embeddedSpell;
@@ -979,7 +983,7 @@ function consumableSpells(actor, gaps, { fresh, spellPools }) {
         }
         const pool = `item:${item.id}`;
         spellPools[pool] = casts;
-        const base = { spell, name: spell.name, castRank: spell.rank, ...castingNumbers(statistic), pool, tradition, extra: { from: item.name, item: item.id, ...(trick ? { trick } : {}) } };
+        const base = { spell, name: spell.name, castRank: spell.rank, ...castingNumbers(statistic), pool, tradition, extra: { from: item.name, item: item.id, ...(trick ? { trick } : {}), ...(draw ? { draw } : {}) } };
         listed.push(base);
         if (overcharge) {
             spellPools[`overcharge:${item.id}`] = 1;
@@ -987,6 +991,15 @@ function consumableSpells(actor, gaps, { fresh, spellPools }) {
         }
     }
     return listed;
+}
+
+// The Interact actions to take out a stowed item, as PF2e counts them for its weapons: 1 from a container in hand, 2 from a backpack or
+// a container meant to be held, otherwise 1.
+function retrieveActions(item) {
+    const container = item.container;
+    if (container?.isHeld) return 1;
+    const usage = container?.system?.usage;
+    return usage?.type === "held" || usage?.where === "backpack" ? 2 : 1;
 }
 
 // S22, a staff without PF2e Dailies, read as Dailies reads one: the spells its description lists by rank, its charges the creature's

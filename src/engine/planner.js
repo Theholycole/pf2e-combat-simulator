@@ -7,7 +7,8 @@
 // its threat. Exposure to enemy attacks costs the creature's own threat the
 // same way, weighted by self-preservation.
 
-import { degreeDistribution, CRITICAL_SUCCESS, SUCCESS, FAILURE, CRITICAL_FAILURE } from "./checks.js";
+import { degreeDistribution, degreeOf, CRITICAL_SUCCESS, SUCCESS, FAILURE, CRITICAL_FAILURE } from "./checks.js";
+import { adjustInstance } from "./damage.js";
 import { effectBenefit } from "./effects.js";
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
@@ -365,17 +366,20 @@ class PlanContext {
     }
 
     // Expected damage of one Strike from a hypothetical position.
-    strikeExpectation(strike, strikeIndex, target, attacks, pos, prone) {
+    // natural: Devise a Stratagem's d20, already rolled (the user, 2026-10-14: "assume the player will know the result"), for a
+    // Strike that uses it.
+    strikeExpectation(strike, strikeIndex, target, attacks, pos, prone, natural = null) {
         let perTarget = this.strikeCache.get(target);
         if (!perTarget) {
             perTarget = new Map();
             this.strikeCache.set(target, perTarget);
         }
+        const { state, c } = this;
+        const strategic = natural !== null && c.stratagemFeature?.strikeBonus?.[strike.name] !== undefined ? natural : null;
         const distance = distanceTo(pos, target, this.placeOf(pos));
-        const key = (((strikeIndex * 8 + Math.min(attacks, 7)) * 64 + Math.min(63, Math.ceil(distance / 5))) * 2 + (inMelee(pos, target) ? 1 : 0)) * 2 + (prone ? 1 : 0);
+        const key = ((((strikeIndex * 8 + Math.min(attacks, 7)) * 64 + Math.min(63, Math.ceil(distance / 5))) * 2 + (inMelee(pos, target) ? 1 : 0)) * 2 + (prone ? 1 : 0)) * 21 + (strategic ?? 0);
         const cached = perTarget.get(key);
         if (cached !== undefined) return cached;
-        const { state, c } = this;
         let modifier = strike.bonus - attackPenalty(c, strike, target, attacks) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack") - gripPenalty(c, strike);
         let circumstance = prone ? 2 : 0;
         // Taunted: −1 against anyone but the guardian.
@@ -401,8 +405,13 @@ class PlanContext {
         // (B302: off-guard to it by its own passive — Surprise Attack's first round, Dread Striker.)
         const feinted = !isOffGuard(target) && (offGuardTo(target, c, strike.melee) || offGuardFrom(state, c, target, { melee: strike.melee }));
         const ac = armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: feinted });
-        const plain = degreeDistribution(modifier, ac);
-        const flanked = flank > 0 ? degreeDistribution(modifier, ac - (target.cond.offGuard || target.cond.prone ? 0 : 2)) : plain;
+        // (A stratagem's roll: the one degree it gives, with Intelligence.)
+        const odds = strategic === null ? (dc) => degreeDistribution(modifier, dc) : (dc) => {
+            const total = strategic + modifier + c.stratagemFeature.strikeBonus[strike.name];
+            return [0, 1, 2, 3].map((degree) => (degree === degreeOf(total, dc, strategic) ? 1 : 0));
+        };
+        const plain = odds(ac);
+        const flanked = flank > 0 ? odds(ac - (target.cond.offGuard || target.cond.prone ? 0 : 2)) : plain;
         const finds = targetingChance(c);
         const hitChance = finds * ((1 - flank) * plain[SUCCESS] + flank * flanked[SUCCESS]);
         const critChance = finds * ((1 - flank) * plain[CRITICAL_SUCCESS] + flank * flanked[CRITICAL_SUCCESS]);
@@ -410,8 +419,10 @@ class PlanContext {
         // Pack Attack: allies within reach of the target (those in its Melee).
         const packAllies = c.strikeExtras?.length && target.meleeId !== null ? this.allies.filter((ally) => ally.meleeId === target.meleeId).length : 0;
         const extras = { bonus: forcefulBonus(strike, attacks), offGuardChance: isOffGuard(target) || feinted ? 1 : flank, packAllies };
-        const hitDamage = expectedHitDamage(c, strike, target, false, extras);
-        const damage = hitChance * hitDamage + critChance * expectedHitDamage(c, strike, target, true, extras);
+        // (Strategic Strike's precision dice with the stratagem's roll.)
+        const strategicDamage = strategic === null ? 0 : adjustInstance(target, strike.damage?.[0]?.type ?? "untyped", (c.stratagemFeature.dice ?? 1) * 3.5, true);
+        const hitDamage = expectedHitDamage(c, strike, target, false, extras) + strategicDamage;
+        const damage = hitChance * hitDamage + critChance * (expectedHitDamage(c, strike, target, true, extras) + 2 * strategicDamage);
         // (A failure's chance and a hit's damage, for Focused Assault's failure, B74.)
         const failChance = finds * ((1 - flank) * plain[FAILURE] + flank * flanked[FAILURE]);
         const result = { damage, hitChance: hitChance + critChance, failChance, hitDamage };
@@ -730,10 +741,12 @@ function expandStrikes(env) {
     // Strikes: only the two best weapons against each target are worth planning with.
     for (const target of ctx.enemies) {
         if (target.status !== "active" || restrained || noAttacks) continue;
+        // (Devise a Stratagem rolled at it this round: its first Strike at it uses the roll the investigator already knows.)
+        const natural = pendingStratagem(state, c, target) && !node.casts.includes("stratagem") ? c.stratagem.natural : null;
         const options = [];
         for (const [index, strike] of (c.strikes ?? []).entries()) {
             if (!strikeUsable(c, strike) || (strike.melee && !inMelee(node.pos, target))) continue;
-            const expectation = ctx.strikeExpectation(strike, index, target, node.attacks, node.pos, node.prone);
+            const expectation = ctx.strikeExpectation(strike, index, target, node.attacks, node.pos, node.prone, natural);
             if (expectation && expectation.damage > 0) options.push({ index, strike, expectation });
         }
         options.sort((a, b) => b.expectation.damage - a.expectation.damage);
@@ -745,10 +758,12 @@ function expandStrikes(env) {
             const hp = remainingHp(target);
             // A venom or Improved Grab the hit delivers for free.
             const gain = targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp)) + ctx.freeRiderGain(strike, target, expectation.hitChance) + ctx.splashGain(strike, target, expectation.hitChance);
+            const usesStratagem = natural !== null && c.stratagemFeature.strikeBonus[strike.name] !== undefined;
+            const marks = [...(strike.reload ? [`fired${index}`] : []), ...(usesStratagem ? ["stratagem"] : [])];
             const next = child(node, { type: "strike", targetId: target.id, strikeIndex: index, ...(reload ? { reload } : {}) }, 1 + reload, ctx.profile.aggression * gain, {
                 attack: true,
                 damage: { ...node.damage, [target.id]: before + expectation.damage },
-                ...(strike.reload ? { cast: `fired${index}` } : {})
+                ...(marks.length ? { cast: marks } : {})
             });
             if (!strike.melee && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
             children.push(next);
@@ -847,12 +862,18 @@ function expandSpells(env) {
         // Quickened Casting (B72): a spell of its rank or lower, one action fewer, once a fight.
         const quickens = c.quickenedCasting && !c.quickenedUsed && !node.casts.includes("quickened") && (!spell.kind || spell.castsSpell) && (c.quickenedCasting.maxRank == null || (spell.castRank ?? 1) <= c.quickenedCasting.maxRank);
         // (S22: an item it can't cast from by itself, Trick Magic Item first — an action more, worth as much as its check is likely,
-        // unless it tricked the item already this turn.)
+        // unless it tricked the item already this turn. A stowed one, taken out first: its retrieve actions.)
         const trick = spell.trick && !c.usedThisTurn?.has(`tricked:${spell.item}`) ? 1 : 0;
+        const draw = spell.draw && !c.itemsAtHand?.has(spell.item) && !node.casts.includes(`drawn${index}`) ? spell.draw.actions : 0;
+        const extra = trick + draw;
+        // (Taking it out alone, when the cast doesn't fit after it this turn — a 2-action spell from a backpack: worth part of the cast
+        // it readies, as a reload is.)
+        let readies = 0;
         for (const actions of spellVariants(spell)) {
             const info = describeSpell(spell.plan, actions);
-            const quickFits = quickens && info.actions >= 2 && info.actions - 1 + trick <= remaining;
-            if (!info.actions || (info.actions + trick > remaining && !quickFits) || (restrained && (info.manipulate || info.attack || trick)) || (noAttacks && info.attack)) continue;
+            const quickFits = quickens && info.actions >= 2 && info.actions - 1 + extra <= remaining;
+            const drawOnly = draw > 0 && draw <= remaining && info.actions + extra > remaining && !quickFits && node.used === 0;
+            if (!info.actions || (info.actions + extra > remaining && !quickFits && !drawOnly) || (restrained && (info.manipulate || info.attack || extra)) || (noAttacks && info.attack)) continue;
             const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, c, spell, {
                 enemies: ctx.enemies,
                 allies: ctx.alliesAndDown,
@@ -908,20 +929,25 @@ function expandSpells(env) {
                 if (trick) gain *= trickChance(spell.trick);
                 // (S22: a wand overcharged breaks it — the last thing it reaches for when another way does about as well.)
                 if (spell.overcharge) gain *= 0.95;
-                const tricks = trick ? { trick: true } : {};
-                if (info.actions + trick <= remaining) {
-                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + trick, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
+                if (drawOnly) {
+                    readies = Math.max(readies, gain);
+                    continue;
+                }
+                const tricks = { ...(trick ? { trick: true } : {}), ...(draw ? { draw: true } : {}) };
+                if (info.actions + extra <= remaining) {
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + extra, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
                     // Casting is a manipulate action: it provokes Attacks of Opportunity.
                     if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }
                 if (quickFits) {
-                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, quickened: true, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions - 1 + trick, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: [index, "quickened"] });
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, quickened: true, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions - 1 + extra, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: [index, "quickened"] });
                     if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }
             }
         }
+        if (readies > 0) children.push(child(node, { type: "drawItem", spellIndex: index, actions: draw }, draw, 0.6 * ctx.profile.aggression * readies, { cast: `drawn${index}` }));
     }
 }
 
@@ -1369,6 +1395,30 @@ function expandClassActions(env) {
     }
 }
 
+// Devise a Stratagem rolled at the target this round, not yet used.
+function pendingStratagem(state, c, target) {
+    return !!c.stratagem && !c.stratagem.used && c.stratagem.round === state.round && c.stratagem.targetId === target.id;
+}
+
+// What Devise a Stratagem at the target is worth now: the mean over the d20 of the better of its best Strike with that roll and its
+// best Strike as usual, less the latter, as a share of the target's HP. A melee investigator not yet beside it: the old estimate (its
+// precision dice at a typical hit chance, and Intelligence's bonus).
+function stratagemGain(ctx, node, target) {
+    const { state, c } = ctx;
+    const usable = (c.strikes ?? []).map((strike, index) => ({ strike, index })).filter(({ strike }) => strikeUsable(c, strike) && (!strike.melee || inMelee(node.pos, target)));
+    const best = (natural) => Math.max(0, ...usable.map(({ strike, index }) => ctx.strikeExpectation(strike, index, target, node.attacks, node.pos, node.prone, natural)?.damage ?? 0));
+    const value = targetValue(state, target, c);
+    const hp = remainingHp(target);
+    if (!usable.some(({ strike }) => c.stratagemFeature.strikeBonus[strike.name] !== undefined)) {
+        const bonus = Math.max(0, ...Object.values(c.stratagemFeature.strikeBonus));
+        return value * Math.min(1, (c.stratagemFeature.dice * 3.5 * 0.65 + bonus * 0.05 * 10) / hp);
+    }
+    const usual = best(null);
+    let known = 0;
+    for (let natural = 1; natural <= 20; natural++) known += Math.max(best(natural), usual) / 20;
+    return value * (Math.min(1, known / hp) - Math.min(1, usual / hp));
+}
+
 // Exploit Vulnerability, Devise a Stratagem, Taunt, Overdrive, Hunt Prey, engaging a target and picking up a dropped weapon. (Part of expand, split up so the optimizer takes it.)
 function expandTactics(env) {
     const { state, c, ctx, node, remaining, inAnyMelee, mobile, noAttacks, raging, threatOf, children } = env;
@@ -1381,12 +1431,14 @@ function expandTactics(env) {
         }
     }
     // Devise a Stratagem (once a round): the next Strike at the creature, rolled in advance with Intelligence and Strategic Strike's dice.
+    // The investigator sees the roll before it Strikes (the user, 2026-10-14: "assume the player will know the result and dont waste an
+    // action if their devise a stratagem rolls poorly"): worth, over the twenty rolls, the better of a Strike with the roll and what it
+    // would have done anyway (its best Strike there), less the latter.
     if (c.stratagemFeature && node.used === 0 && c.stratagem?.round !== state.round && !noAttacks) {
         for (const target of ctx.enemies) {
             if (target.status !== "active") continue;
-            const bonus = Math.max(0, ...Object.values(c.stratagemFeature.strikeBonus));
-            const gain = targetValue(state, target, c) * Math.min(1, (c.stratagemFeature.dice * 3.5 * 0.65 + bonus * 0.05 * 10) / remainingHp(target));
-            children.push(child(node, { type: "stratagem", targetId: target.id }, 1, gain));
+            const gain = stratagemGain(ctx, node, target);
+            if (gain > 0) children.push(child(node, { type: "stratagem", targetId: target.id }, 1, gain));
         }
     }
     // Taunt (a guardian): an enemy within 30 feet attacks anyone else at −1, and off-guard.

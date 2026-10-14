@@ -235,6 +235,40 @@ test("Devise a Stratagem: the first Strike at the creature this round uses the d
     assert.equal(c.stratagem.used, true);
 });
 
+test("Devise a Stratagem: the investigator knows its roll — after a poor one it strikes elsewhere, after a good one at the creature; the action is worth the choice", () => {
+    const [, , , rogue] = martialParty(5);
+    const quinn = { ...rogue, id: "quinn", name: "Quinn", engagement: 1, stratagemFeature: { name: "Devise a Stratagem", dice: 2, strikeBonus: { [rogue.strikes[0].name]: 2 } } };
+    const foe = (id) => ({ ...moderateCreature(5, id, id), engagement: 1, hp: { value: 999, max: 999 } });
+    const setUp = (natural) => {
+        const state = createFightState({ combatants: [quinn, foe("Mark"), foe("Other")] }, {}, 1);
+        state.round = 1;
+        state.log = [];
+        const c = state.byId.get("quinn");
+        c.actionsLeft = 3;
+        state.rng.d20 = dice(natural);
+        performAction(state, c, { type: "stratagem", targetId: "Mark" });
+        c.actionsLeft = 2;
+        return { state, c };
+    };
+    const best = ({ state, c }) => scoreOptions(state, c).options.sort((a, b) => b.score - a.score)[0].action;
+    const strikeAt = ({ state, c }, id) => Math.max(...scoreOptions(state, c).options.filter((option) => option.action.type === "strike" && option.action.targetId === id && option.action.strikeIndex === 0).map((option) => option.value));
+    // A 2: a sure miss at the mark, so not that Strike (a Strike at the other, or anything else).
+    const poor = setUp(2);
+    assert.ok(strikeAt(poor, "Mark") < 0.01, `${strikeAt(poor, "Mark")}`);
+    assert.ok(strikeAt(poor, "Other") > 0.05);
+    assert.ok(!(best(poor).type === "strike" && best(poor).targetId === "Mark"));
+    // A 19: a sure hit with Strategic Strike's dice, worth more than a Strike at the other.
+    const good = setUp(19);
+    assert.ok(strikeAt(good, "Mark") > strikeAt(good, "Other"));
+    assert.equal(best(good).targetId, "Mark");
+    // Before rolling, it's worth something: the better of the roll and a usual Strike, over the d20.
+    const fresh = createFightState({ combatants: [quinn, foe("Mark")] }, {}, 1);
+    fresh.round = 1;
+    const c = fresh.byId.get("quinn");
+    c.actionsLeft = 3;
+    assert.ok(scoreOptions(fresh, c).options.some((option) => option.action.type === "stratagem" && option.value > 0));
+});
+
 test("Panache: a successful Feint brings it; Precise Strike's damage; a finisher spends it and ends attacks for the turn; Opportune Riposte", () => {
     const [, , , rogue] = martialParty(5);
     const base = rogue.strikes[0];

@@ -1106,7 +1106,9 @@ function applyChanges(state, caster, spell, changes, context, io) {
     const aimed = isSpell ? { rank: Number(spell.castRank ?? spell.plan?.rank) || 1, targeted: !described.area } : null;
     // (I2: its context on its damage — area damage on a swarm, a holy spell on a fiend, a resistance to spells.)
     const damageContext = spellContext(spell, { isSpell, area: Boolean(described.area) });
-    for (const change of changes) {
+    for (let change of changes) {
+        // (A value the text rolls — Wails of the Damned's "Drained 1d4" — rolled now.)
+        if (change.op === "condition" && change.valueRoll && !Number.isFinite(change.value)) change = { ...change, value: rollCount(state, change.valueRoll) };
         const target = change.target !== undefined ? state.byId.get(change.target) : null;
         if (change.target !== undefined && !target) continue;
         switch (change.op) {
@@ -1483,6 +1485,12 @@ export function overdrive(state, c) {
 }
 
 // "1d4" or "3" → a number of rounds.
+// The average of a count the text rolls ("1d4": 2.5).
+function averageRoll(formula) {
+    const dice = /^(\d+)d(\d+)$/.exec(String(formula).trim());
+    return dice ? Number(dice[1]) * (Number(dice[2]) + 1) / 2 : Number(formula) || 1;
+}
+
 export function rollCount(state, formula) {
     const dice = /^(\d+)d(\d+)$/.exec(String(formula).trim());
     if (!dice) return Number(formula) || 1;
@@ -2260,7 +2268,9 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         for (const [degreeIndex, changes] of outcomes.entries()) {
             const chance = finds * odds[degreeIndex];
             if (!chance) continue;
-            for (const change of changes) {
+            for (let change of changes) {
+                // (A value the text rolls, at its average.)
+                if (change.op === "condition" && change.valueRoll && !Number.isFinite(change.value)) change = { ...change, value: averageRoll(change.valueRoll) };
                 if (change.target === caster.id && target !== caster) {
                     self ??= { target: caster, damage: 0, worth: 0, heal: 0, benefit: 0 };
                     if (change.op === "condition") self.worth += chance * conditionWorth(change.slug, change.value, change.duration);
@@ -2414,7 +2424,10 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     }
     const capacity = areaCapacity(info.area);
     const sets = [];
-    const members = (id) => [...(state.melees.get(id) ?? [])].map((memberId) => state.byId.get(memberId)).filter((other) => other && isActive(other) && notImmune(other));
+    // (Not those the spell can't affect — Wails of the Damned's "each living enemy": not the caster's allies, nor undead — so they don't
+    // take the area's room or show among its targets.)
+    const affected = (other) => !outsideTargets(caster, other, spell);
+    const members = (id) => [...(state.melees.get(id) ?? [])].map((memberId) => state.byId.get(memberId)).filter((other) => other && isActive(other) && notImmune(other) && affected(other));
     if (info.area.type === "emanation" && info.range === null) {
         // Around the caster: whoever shares its Melee. From 30 feet, also those
         // standing apart in the near band (and, for healing, downed PCs there).
@@ -2432,6 +2445,7 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         if (info.healing || info.helpful) around.push(caster);
         // (B229: foes only.)
         if (info.area.foes) around.splice(0, around.length, ...around.filter((other) => other.side !== caster.side));
+        around.splice(0, around.length, ...around.filter(affected));
         const helps = (info.healing && around.some((other) => other.side === caster.side && other.hp.value < other.hp.max)) || (info.helpful && around.some((other) => other.side === caster.side));
         if (helps || around.some((other) => other.side !== caster.side)) sets.push({ targets: around.slice(0, capacity) });
         return sets;
@@ -2447,7 +2461,7 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     }
     // Enemies standing apart in a band: spread out, so the area holds half as many.
     for (const band of ["near", "far"]) {
-        const loose = enemies.filter((enemy) => enemy.status === "active" && enemy.meleeId === null && enemy.band === band && reaches(enemy));
+        const loose = enemies.filter((enemy) => enemy.status === "active" && enemy.meleeId === null && enemy.band === band && reaches(enemy) && affected(enemy));
         if (loose.length) sets.push({ targets: loose.slice(0, Math.max(1, Math.ceil(capacity / 2))) });
     }
     return sets;
