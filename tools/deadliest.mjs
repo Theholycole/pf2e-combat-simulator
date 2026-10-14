@@ -77,7 +77,22 @@ if (!isMainThread) {
     // left out of the ranking.
     const usable = (row) => !row.error && !row.skipped && Number.isFinite(row.score);
     // (Also an attack or an AC far past extreme — a level-6 creature with its level-14 version's +28 Strikes, AC 35 at level 3.)
-    const suspect = (row) => (row.profile?.damage?.steps ?? 0) > 8 || (row.profile?.attack?.steps ?? 0) > 5.5 || (row.profile?.ac?.steps ?? 0) > 6;
+    // (And a Society scenario's subtier version, "Krosovahn Mendesil (7-8)", that keeps its base creature's level with AC and attack 2 or more
+    // higher: a level that wasn't updated.)
+    let slips = null;
+    const subtierSlips = () => {
+        if (slips) return slips;
+        const rows = read("screen.jsonl").filter((row) => !row.error && !row.skipped);
+        const index = new Map(rows.map((row) => [`${row.ref.pack}|${row.ref.name}`, row]));
+        slips = new Set(rows.filter((row) => {
+            const named = /^(.*) \((\d+)-(\d+)\)$/.exec(row.ref.name);
+            const base = named ? index.get(`${row.ref.pack}|${named[1]}`) : null;
+            const more = (key) => (row.profile?.[key]?.value ?? 0) - (base?.profile?.[key]?.value ?? 0);
+            return base && base.level === row.level && more("ac") >= 2 && more("attack") >= 2;
+        }).map((row) => row.ref.ref));
+        return slips;
+    };
+    const suspect = (row) => (row.profile?.damage?.steps ?? 0) > 8 || (row.profile?.attack?.steps ?? 0) > 5.5 || (row.profile?.ac?.steps ?? 0) > 6 || subtierSlips().has(row.ref.ref);
     // (Paizo's April Fools blog creatures — the Nonsequitaur — are jokes, not built to the tables: left out of the ranking too.)
     const joke = (row) => /april fool|foolish/i.test(row.publication ?? "");
     const baselines = () => {
