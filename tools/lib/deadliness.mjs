@@ -117,6 +117,7 @@ export function buildMonster(npc, variant = null) {
     const own = npcSpells(doc);
     monster.spells = [...monster.spells, ...own.spells];
     monster.spellPools = { ...(monster.spellPools ?? {}), ...own.spellPools };
+    if (own.summons?.length) monster.summons = [...(monster.summons ?? []), ...own.summons];
     if (variant?.type === "knockdown" && !KNOCKDOWNS[variant.id](monster, monster.level)) return null;
     let reserves = [];
     try {

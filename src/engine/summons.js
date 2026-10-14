@@ -68,6 +68,44 @@ function average(formula) {
     return dice ? Math.round(Number(dice[1]) * (Number(dice[2]) + 1) / 2) : Number(formula) || null;
 }
 
+// A summon spell's entry (2026-10-14, spell coverage: Summon Animal, Summon Undead, Summon Fiend…; the plan's resolution.summon): the
+// best rulebook creature with one of its traits at the highest level its rank allows (PF2e's summon table), one a cast, acting as a
+// minion and Sustained; as many uses as the creature has casts of it (its slots; two when it casts it at will). Entries of one spell
+// cast from several slots are one entry with their uses together (summonEntries).
+export function spellSummonEntry(spell, uses) {
+    const summon = spell?.plan?.resolution?.summon;
+    if (spell?.plan?.resolution?.kind !== "summon" || !summon?.traits?.length) return null;
+    const rank = Math.max(1, Math.min(10, Number(spell.castRank) || 1));
+    const time = /^[123]$/.exec(String(spell.plan?.activation?.time ?? "").trim());
+    return {
+        name: spell.name,
+        actions: time ? Number(time[0]) : 3,
+        creature: { pick: { rank: { base: rank, max: rank }, any: [...summon.traits] }, count: 1 },
+        count: 1,
+        perUse: 1,
+        uses: Math.max(1, Math.min(MAX_RESERVES, Number(uses) || 1)),
+        lasts: Number(summon.durationSeconds) > 0 ? Math.max(1, Math.round(Number(summon.durationSeconds) / 6)) : 10,
+        initiative: "minion",
+        ...(summon.sustained ? { sustained: true } : {}),
+        fromSpell: true,
+        reserveIds: []
+    };
+}
+
+// The summon spells' entries, one per spell name (their uses added up, at its highest rank).
+export function summonEntries(entries) {
+    const byName = new Map();
+    for (const entry of entries.filter(Boolean)) {
+        const held = byName.get(entry.name);
+        if (!held) byName.set(entry.name, { ...entry });
+        else {
+            held.uses = Math.min(MAX_RESERVES, held.uses + entry.uses);
+            if (entry.creature.pick.rank.max > held.creature.pick.rank.max) held.creature = entry.creature;
+        }
+    }
+    return [...byName.values()];
+}
+
 // How many reserves to make for it: a use's worth for each use, at most eight.
 export function reserveCount(entry) {
     return Math.min(MAX_RESERVES, entry.perUse * entry.uses);

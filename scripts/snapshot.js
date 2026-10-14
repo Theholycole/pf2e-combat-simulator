@@ -16,7 +16,7 @@ import { strikeIwr, versatileTypes } from "../src/engine/damage.js";
 import { immunityExceptions } from "../src/engine/immunities.js";
 import { MAP_KINDS, readMapFeet, readRegionFeet, regionToRegions, roundsHeld } from "./map.js";
 import { hazardSpec } from "./hazards.js";
-import { asReserve, bestOption, bestPick, reserveCount } from "../src/engine/summons.js";
+import { asReserve, bestOption, bestPick, reserveCount, spellSummonEntry, summonEntries as spellSummons } from "../src/engine/summons.js";
 
 export const MODULE_ID = "pf2e-combat-simulator";
 
@@ -837,6 +837,7 @@ function castingNumbers(statistic) {
 async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() } = {}) {
     const spells = [];
     const spellPools = {};
+    const summons = [];
     // (Not the entries the ability module makes for an ability's casting: the ability is read with the abilities.)
     let entries = (actor.spellcasting?.regular ?? actor.spellcasting?.contents ?? []).filter((entry) => !entry.isRitual && !entry.flags?.[ABILITY_MODULE_ID]?.abilityCast);
     // (S22: PF2e Dailies' staves and spell servers, entries of their own beside PF2e's. A staff Dailies prepared replaces a
@@ -913,6 +914,12 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
             spells.push({ ...spec, spellShield: shield });
             continue;
         }
+        // (A summon spell: its creature as the engine's summons play them — its reserves made with the snapshot.)
+        const summoned = spellSummonEntry(spec, entry.pool ? spellPools[entry.pool] : 2);
+        if (summoned) {
+            summons.push(summoned);
+            continue;
+        }
         if (!plan || !canCast({ spellPools: { [entry.pool]: poolCost(spec) }, covenReady: true, desperate: true }, spec)) {
             // Detect Magic, Translocate and the like: listed, but they don't count against the result.
             // (On the full plan: the slimmed one may have lost its effect references.)
@@ -924,7 +931,7 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
         if (missing.length) gaps.push({ kind: "spell, partly simulated", name: `${entry.name}: ${missing.join(", ")}` });
         spells.push(spec);
     }
-    return { spells, spellPools };
+    return { spells, spellPools, summons: spellSummons(summons) };
 }
 
 // S22, scrolls, wands and spell gems at hand (the user: "can we get the simulator to treat scrolls, wands and staffs as spells the
@@ -1259,7 +1266,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     }
     delete abilities.builtins.randomStrikeTables;
     readGaps(actor, gaps, abilities.handled);
-    const { spells, spellPools } = await readSpells(actor, gaps, { fresh, castSpells: abilities.castSpells });
+    const { spells, spellPools, summons: spellSummoned = [] } = await readSpells(actor, gaps, { fresh, castSpells: abilities.castSpells });
+    if (spellSummoned.length) abilities.builtins.summons = [...(abilities.builtins.summons ?? []), ...spellSummoned];
     spells.push(...abilities.abilities);
     // A Strike's riders are gaps unless an ability plays them.
     const riders = new Set(abilities.abilities.flatMap((ability) => (ability.plan?.trigger?.event === "strike" ? [ability.plan.trigger.attackEffect, ability.plan.source?.slug] : [])).filter(Boolean));

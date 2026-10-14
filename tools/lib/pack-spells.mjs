@@ -6,6 +6,7 @@ const { readDocuments } = await import(new URL("../../../PF2e AUTOMATIC ABILITY 
 const { effectModel } = await import("../../src/engine/effects.js");
 const { isStaffItem, itemCasts, SPELL_ITEMS, staffCharges, staffSpellList } = await import("../../src/adapter/items.js");
 const { withReading } = await import("../../src/engine/readings.js");
+const { spellSummonEntry, summonEntries } = await import("../../src/engine/summons.js");
 
 export const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 // As the spell module's official compile does: its native-effect catalog and
@@ -45,6 +46,8 @@ export function npcSpells(npc, { onError = () => {} } = {}) {
   const entries = (npc.items ?? []).filter((i) => i.type === "spellcastingEntry" && !["ritual", "items"].includes(i.system?.prepared?.value));
   const spells = [];
   const spellPools = {};
+  // (Summon spells: entries for the engine's summons — npcSpells' summons, made into reserves by summonReserves.)
+  const summoned = [];
   const cantripRank = Math.min(10, Math.max(1, Math.ceil((npc.system?.details?.level?.value ?? 1) / 2)));
   for (const entry of entries) {
     const kind = entry.system?.prepared?.value;
@@ -56,6 +59,10 @@ export function npcSpells(npc, { onError = () => {} } = {}) {
       let plan;
       try { plan = compileSpell(spell); } catch (e) { onError(spell, e); return; }
       // (L5: a coven's spells, castable only with its coven — not by a lone caster here.)
+      if (plan?.resolution?.kind === "summon") {
+        summoned.push(spellSummonEntry({ name: spell.name, plan, castRank }, pool ? spellPools[pool] : 2));
+        return;
+      }
       const effects = effectModels(plan, castRank);
       // (Shield, the spell: the magic shield the creature raises by casting it.)
       const shield = Object.values(effects).find((model) => model?.spellShield)?.spellShield;
@@ -84,7 +91,7 @@ export function npcSpells(npc, { onError = () => {} } = {}) {
     }
   }
   npcItemSpells(npc, spells, spellPools, { onError });
-  return { spells, spellPools };
+  return { spells, spellPools, summons: summonEntries(summoned) };
 }
 
 // S22, as PF2e has it for an NPC: a scroll, wand or spell gem cast by the spellcasting that can cast its spell (prepared or spontaneous

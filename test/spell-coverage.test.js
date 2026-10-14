@@ -445,3 +445,19 @@ test("Readings that need a row's own words survive the snapshot slimming them aw
     assert.equal(pacifyOf(calmNote, row("criticalFailure")).endsOn, null);
     assert.equal(pacifyOf(calmNote, row("failure")).endsOn, "any");
 });
+
+test("Summon spells: an entry for the engine's summons — the best creature of the spell's traits at its rank's level, sustained, as a minion; one spell from several slots, one entry", async () => {
+    const { spellSummonEntry, summonEntries, bestPick } = await import("../src/engine/summons.js");
+    const plan = (rank) => ({ modelVersion: 12, source: { name: "Summon Animal" }, rank: 1, activation: { time: "3" }, resolution: { kind: "summon", summon: { rangeFeet: 30, durationSeconds: 60, sustained: true, traits: ["animal"], levels: { table: "summon-trait", baseRank: 1 } } } });
+    const entry = spellSummonEntry({ name: "Summon Animal", plan: plan(), castRank: 3 }, 1);
+    assert.deepEqual({ actions: entry.actions, pick: entry.creature.pick, lasts: entry.lasts, sustained: entry.sustained, initiative: entry.initiative, uses: entry.uses }, { actions: 3, pick: { rank: { base: 3, max: 3 }, any: ["animal"] }, lasts: 10, sustained: true, initiative: "minion", uses: 1 });
+    // Rank 3: a level-2 creature at most (PF2e's summon table).
+    const pick = bestPick([{ name: "Wolf", level: 1, traits: ["animal"], type: "npc" }, { name: "Leopard", level: 2, traits: ["animal"], type: "npc" }, { name: "Grizzly Bear", level: 3, traits: ["animal"], type: "npc" }, { name: "Imp", level: 1, traits: ["fiend"], type: "npc" }], entry.creature.pick);
+    assert.equal(pick.name, "Leopard");
+    // Two slots (ranks 3 and 5): one entry, two uses, at rank 5.
+    const both = summonEntries([entry, spellSummonEntry({ name: "Summon Animal", plan: plan(), castRank: 5 }, 1)]);
+    assert.equal(both.length, 1);
+    assert.equal(both[0].uses, 2);
+    assert.equal(both[0].creature.pick.rank.max, 5);
+    assert.equal(spellSummonEntry({ name: "Fireball", plan: { resolution: { kind: "save" } }, castRank: 3 }, 1), null);
+});
