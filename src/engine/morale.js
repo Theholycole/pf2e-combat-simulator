@@ -2,7 +2,7 @@
 // Morale.md". Rules come from morale-rules.js; the Mn notes refer to
 // docs/morale-decisions.md.
 
-import { SURRENDERED, baseWill, canAct, hpFraction, isActive, statusPenalty } from "./combatant.js";
+import { SURRENDERED, baseWill, canAct, hpFraction, isActive, isDown, statusPenalty } from "./combatant.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistribution, degreeOf, levelDC } from "./checks.js";
 import { engagedAllies, engagedEnemies, removeFromSpace } from "./space.js";
 import { helpPending } from "./escalations.js";
@@ -105,14 +105,33 @@ export function hpShares(state) {
 // Whether the party is clearly winning, by the gate's measure.
 function partyWinning(state) {
     const rules = state.moraleRules;
+    const pcs = state.list.filter((c) => c.side === "party" && c.kind === "pc");
+    const down = pcs.filter(isDown);
+    const maxDown = rules.hpGate?.maxPcsDown;
+    if (maxDown !== null && maxDown !== undefined && down.length > maxDown) return false;
+    // recentPcDownRounds (null: off): shut while a PC dropped this round or in the last N.
+    const recent = rules.hpGate?.recentPcDownRounds;
+    if (Number.isFinite(recent) && down.some((c) => c.downRound !== undefined && state.round - c.downRound <= recent)) return false;
     if (rules.gateMode !== "hpShare") return foesLosing(state);
     const { party, foes } = hpShares(state);
+    if (rules.hpGate?.minPartyShare && party < rules.hpGate.minPartyShare) return false;
     if (rules.hpGate?.kind === "margin") return party - foes >= rules.hpGate.value;
-    return foes <= 0 || party / foes >= (rules.hpGate?.value ?? 2);
+    // perPcDown (null: off): the party must be that much further ahead for each PC down.
+    const needed = (rules.hpGate?.value ?? 2) + (Number(rules.hpGate?.perPcDown) || 0) * down.length;
+    return foes <= 0 || party / foes >= needed;
 }
 
 // Whether the gate holds checks back now: it's on and the party isn't clearly winning.
 const gated = (state) => state.moraleRules.losingGate && !partyWinning(state);
+
+// The rout: enough of the surviving foes broken (half by default), and the gate open if the rules ask for it.
+export function routReady(state, broken, survivors) {
+    const rout = state.moraleRules.rout ?? {};
+    return broken > 0 && broken >= survivors * (rout.fraction ?? 0.5) && !(rout.needsGate && gated(state));
+}
+
+// A check fear or fleeing set off that may only crack morale now: its critical failure gives up only while the gate is open.
+const crackOnlyNow = (state, reason) => !!state.moraleRules.triggers[reason]?.giveUpNeedsGate && gated(state);
 
 function activeCount(state, side) {
     return fighters(state, side).filter(isActive).length;
@@ -124,6 +143,8 @@ function eligible(state, c) {
     if (c.morale?.template === "none" || !c.morale) return false;
     // Fleeing from a spell or an ability, it still checks (M32); one that broke has given up.
     if (c.moraleState.broken) return false;
+    // M38: the party gave no quarter; it fights to the death.
+    if (c.moraleState.toTheDeath) return false;
     return true;
 }
 
@@ -469,6 +490,7 @@ export function moraleOutcome(state, c, degree, reason = null) {
     if (degree === SUCCESS) return { kind: "holds" };
     // M29: fear only cracks morale.
     if (degree === FAILURE && state.moraleRules.triggers[reason]?.onFailure === "frighten") return { kind: "frighten" };
+    if (degree === CRITICAL_FAILURE && crackOnlyNow(state, reason)) return { kind: "frighten" };
     // M24: a failure gives up too; before, it wavered and only a critical failure broke.
     if (degree === FAILURE && !state.moraleRules.failureGivesUp) return { kind: "waver" };
     return { kind: "giveUp", how: breakKind(c, templateOf(state, c).break) };
@@ -491,6 +513,7 @@ function individualCheck(state, c, reason) {
     state.stats.moraleChecks++;
     if (bossAutoPasses(c)) {
         state.log?.push(`  ${c.name} morale (${reason}): Boss Resolve, holds`);
+        readCheck(state, c, reason);
         return;
     }
     // M1: the threshold uses Will without condition penalties; the check takes them.
@@ -500,6 +523,116 @@ function individualCheck(state, c, reason) {
     const ignored = firstIgnored && c.moraleState.ignoredFirstFailure ? ", its first failure ignored (fanatical)" : "";
     state.log?.push(`  ${c.name} morale (${reason}): ${roll.total} vs ${roll.dc} → ${["critical failure", "failure", "success", "critical success"][degree]}${ignored}`);
     applyIndividualResult(state, c, degree, templateOf(state, c), reason);
+    if (degree >= SUCCESS) readCheck(state, c, reason);
+}
+
+// --- Read the fight (M38) ---------------------------------------------------------------------
+// With a side-losing check its morale held, while the gate is open: a Perception check (no action) to see the
+// fight is lost. Not fanatics, nor one already fleeing; a solo boss only once Boss Resolve would let it break.
+export function readsTheFight(state, c, reason) {
+    if (!state.moraleRules.readTheFight?.enabled || !state.options.morale) return false;
+    if (ignoresGate(state, reason) || gated(state)) return false;
+    if (!eligible(state, c) || c.cond.fleeing) return false;
+    if (templateOf(state, c).readsTheFight === false) return false;
+    if (c.morale.boss && !bossMayBreak(state, c)) return false;
+    return true;
+}
+
+// Its side's losing signs: the morale modifiers it names, as bonuses as large as their penalties.
+export function readTheFightParts(state, c) {
+    const signs = new Set(state.moraleRules.readTheFight?.signs ?? []);
+    return moraleModifierParts(state, c).filter((part) => signs.has(part.id) && part.value < 0).map((part) => ({ id: part.id, value: -part.value }));
+}
+
+const perceptionOf = (c) => Number(c.perception) || 0;
+
+function readCheck(state, c, reason) {
+    if (!readsTheFight(state, c, reason)) return;
+    const parts = readTheFightParts(state, c);
+    const natural = state.rng.d20();
+    const total = natural + perceptionOf(c) - statusPenalty(c, "perception") + parts.reduce((sum, part) => sum + part.value, 0);
+    const dc = moraleDC(state, perceptionOf(c));
+    const degree = degreeOf(total, dc, natural);
+    state.log?.push(`  ${c.name} reads the fight: ${total} vs ${dc} → ${["critical failure", "failure", "success", "critical success"][degree]}`);
+    if (degree >= SUCCESS) realizesLost(state, c);
+}
+
+// Whether it can offer to surrender: it speaks a language (a creature without a list: a humanoid).
+export function speaks(c) {
+    return Array.isArray(c.languages) ? c.languages.length > 0 : (c.traits ?? []).includes("humanoid");
+}
+
+// It sees the fight is lost: it yields if it can talk, otherwise it leaves.
+export function realizesLost(state, c) {
+    state.stats.moraleReads = (state.stats.moraleReads ?? 0) + 1;
+    if (speaks(c)) {
+        state.log?.push(`  ${c.name} sees the fight is lost and yields`);
+        offerSurrender(state, c);
+        return;
+    }
+    state.log?.push(`  ${c.name} sees the fight is lost and leaves`);
+    if (refusesQuarter(state, c)) {
+        noQuarter(state, c);
+        return;
+    }
+    leave(state, c);
+}
+
+// Leaving: fleeing without frightened, given up (it counts for the rout); the party lets it go.
+function leave(state, c) {
+    c.moraleState.broken = true;
+    c.moraleState.leaving = true;
+    c.timers = (c.timers ?? []).filter((timer) => timer.key !== "fleeing");
+    c.whileConditions = (c.whileConditions ?? []).filter((entry) => entry.slug !== "fleeing");
+    c.cond.fleeing = true;
+}
+
+// The simulated party gives no quarter with the setup's tick, and to a kill objective's target.
+export function refusesQuarter(state, c) {
+    if (situational(state, "noQuarter")) return true;
+    const objective = state.objective;
+    return objective?.kind === "target" && objective.mode === "kill" && objective.targetId === c.id && objective.status === "open";
+}
+
+// Every surrender is an offer (M38): accepted, it's captured; refused, it fights to the death.
+export function offerSurrender(state, c) {
+    if (refusesQuarter(state, c)) {
+        noQuarter(state, c);
+        return false;
+    }
+    surrender(state, c);
+    return true;
+}
+
+// The allies who saw it: those still fighting and not blinded (the simulator has no walls).
+export function alliesWhoSaw(state, c) {
+    return state.list.filter((other) => other !== c && other.side === c.side && isActive(other) && !other.cond?.blinded && other.kind !== "object" && other.kind !== "hazard");
+}
+
+// No quarter: it and the allies who saw fight to the death, with no more morale or Perception checks.
+export function noQuarter(state, c, saw = alliesWhoSaw(state, c)) {
+    for (const each of [c, ...saw]) fightToTheDeath(each);
+    state.stats.noQuarter = (state.stats.noQuarter ?? 0) + 1;
+    state.log?.push(`  No quarter: ${c.name}${saw.length ? ` and ${saw.length} ${saw.length === 1 ? "ally" : "allies"} who saw` : ""} fight to the death`);
+}
+
+export function fightToTheDeath(c) {
+    if (!c.moraleState) return;
+    // One that was leaving turns and fights.
+    if (c.moraleState.leaving) {
+        c.cond.fleeing = false;
+        c.moraleState.leaving = false;
+    }
+    c.moraleState.broken = false;
+    c.moraleState.toTheDeath = true;
+}
+
+// Harm from the party to one that gave up and is still on the field (leaving): no quarter. Reactive Strikes it
+// provokes by moving away don't count.
+export function harmedAfterGivingUp(state, target, source) {
+    if (!target.moraleState?.leaving || source?.side !== "party" || state.inReaction) return;
+    state.log?.push(`  ${source.name} attacks ${target.name} as it leaves`);
+    noQuarter(state, target);
 }
 
 // Simulated PCs who play for morale (a setup tick, M23; it changes how they act,
@@ -521,7 +654,7 @@ export function moraleOdds(state, c, { trigger, frightened = 0, extra = 0 }) {
     if (template.ignoreFirstFailure && !c.moraleState.ignoredFirstFailure) return none;
     // A check fear set off gives up only on a critical failure (M29).
     const crackOnly = state.moraleRules.triggers[trigger]?.onFailure === "frighten";
-    let breaks = odds[CRITICAL_FAILURE] + (state.moraleRules.failureGivesUp && !crackOnly ? odds[FAILURE] : 0);
+    let breaks = (crackOnlyNow(state, trigger) ? 0 : odds[CRITICAL_FAILURE]) + (state.moraleRules.failureGivesUp && !crackOnly ? odds[FAILURE] : 0);
     let wavers = state.moraleRules.failureGivesUp ? 0 : odds[FAILURE];
     if (c.morale.boss && !bossMayBreak(state, c)) {
         wavers = state.moraleRules.failureGivesUp ? 0 : wavers + breaks;
@@ -529,6 +662,12 @@ export function moraleOdds(state, c, { trigger, frightened = 0, extra = 0 }) {
     }
     // A berserk break keeps it fighting.
     if (template.break === "berserk") breaks = 0;
+    // M38: held, it may still read the fight and yield or leave (when the party would let it).
+    if (!crackOnly && readsTheFight(state, c, trigger) && !refusesQuarter(state, c)) {
+        const parts = readTheFightParts(state, c).reduce((sum, part) => sum + part.value, 0);
+        const read = degreeDistribution(perceptionOf(c) + parts - Math.max(statusPenalty(c, "perception"), frightened), moraleDC(state, perceptionOf(c)));
+        breaks += Math.max(0, 1 - breaks - wavers) * (read[SUCCESS] + read[CRITICAL_SUCCESS]);
+    }
     return { breaks, wavers };
 }
 
@@ -607,7 +746,7 @@ export function breakCreature(state, c, kind) {
     c.timers = (c.timers ?? []).filter((timer) => timer.key !== "fleeing");
     c.whileConditions = (c.whileConditions ?? []).filter((entry) => entry.slug !== "fleeing");
     if (resolved === "collapse") {
-        surrender(state, c);
+        offerSurrender(state, c);
         return;
     }
     c.cond.fleeing = true;

@@ -8,7 +8,7 @@ import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
 import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, resistancesOf, rollStrikeDamage, strikeContext } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
-import { isShaken } from "./morale.js";
+import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, removeEffect } from "./effects.js";
@@ -205,7 +205,19 @@ function computeHitDamage(attacker, strike, target, critical, penalty, offGuardC
 const dodges = (reaction, strike, state = null, c = null) => (!reaction.against || (reaction.against === "melee") === Boolean(strike.melee))
     && (reaction.requires !== "grabbed" || Boolean(state?.list?.some((other) => other.grabbedBy === c?.id && (other.cond.grabbed || other.cond.restrained))));
 
-export function performStrike(state, attacker, target, strike, { reaction = false, trigger = null, fortune = false } = {}) {
+// (M38: harm in a reaction — a Reactive Strike at a creature leaving — doesn't count as refusing its surrender.)
+export function performStrike(state, attacker, target, strike, options = {}) {
+    if (!options.reaction) return strikeOnce(state, attacker, target, strike, options);
+    const before = state.inReaction;
+    state.inReaction = true;
+    try {
+        return strikeOnce(state, attacker, target, strike, options);
+    } finally {
+        state.inReaction = before;
+    }
+}
+
+function strikeOnce(state, attacker, target, strike, { reaction = false, trigger = null, fortune = false } = {}) {
     if (!strikeUsable(attacker, strike)) return null;
     // (B255, Generate Bomb: the die picks the row — its damage, the save and conditions a hit brings.)
     if (strike.randomDamage?.length) {
@@ -960,6 +972,8 @@ function guards(state, c, target, { physical = false, critical = false } = {}) {
 
 // (B193: spell { rank, targeted } — the damage of a spell aimed at it, for Divert Essence.)
 export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null } = {}) {
+    // M38: the party harming a foe that gave up and is leaving refuses its surrender.
+    if (!intercepted) harmedAfterGivingUp(state, target, source);
     // Intercept Attack: a guardian next to the ally takes physical damage meant for it,
     // when the ally would drop or is the more hurt of the two.
     if (!intercepted && source && source.side !== target.side && instances.some((instance) => ["bludgeoning", "piercing", "slashing"].includes(instance.type))) {
@@ -1365,6 +1379,7 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     if (target.kind === "pc") {
         target.status = DOWN;
         target.everDown = true;
+        target.downRound = state.round;
         target.cond.unconscious = true;
         target.cond.prone = true;
         removeFromSpace(state, target);

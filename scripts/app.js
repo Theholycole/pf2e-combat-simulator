@@ -16,7 +16,7 @@ const COMPARE_CHOICES = [["adjust", "What would change the odds (Weak, Elite, re
 const WHEN_KINDS = [["round", "Round"], ["alarm", "The alarm is raised"], ["falls", "A creature falls"], ["foesHalf", "The foes are at half their HP"], ["firstFlee", "A foe flees"], ["enters", "A party creature enters a Region"]];
 const THEN_KINDS = [["arrive", "Creatures arrive"], ["hazard", "A hazard starts"], ["danger", "Danger starts"]];
 const DAMAGE_TYPES = ["fire", "cold", "acid", "electricity", "sonic", "force", "poison", "piercing", "slashing", "bludgeoning", "mental", "spirit", "vitality", "void", "bleed", "untyped"];
-const SITUATIONAL = [["defendingHome", "Foes defend their home (+1)"], ["noRetreat", "Foes have no retreat, surrender means death (+2)"], ["defendingLair", "Bestial foes defend young or lair (+2)"], ["unpaid", "Mercenaries unpaid or betrayed (−2)"], ["hatedEnemy", "Foes fight a hated enemy (+4, if enabled)"], ["playsForMorale", "Simulated PCs play for morale (fear first, the leader first)"]];
+const SITUATIONAL = [["defendingHome", "Foes defend their home (+1)"], ["noRetreat", "Foes have no retreat, surrender means death (+2)"], ["defendingLair", "Bestial foes defend young or lair (+2)"], ["unpaid", "Mercenaries unpaid or betrayed (−2)"], ["hatedEnemy", "Foes fight a hated enemy (+4, if enabled)"], ["playsForMorale", "Simulated PCs play for morale (fear first, the leader first)"], ["noQuarter", "The party gives no quarter (refuses every surrender)"]];
 
 function moraleRulesSetting() {
     try {

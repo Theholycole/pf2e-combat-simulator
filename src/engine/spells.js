@@ -24,7 +24,7 @@ import { elementalAnswers, hydraScaled, troopIgnores, troopSegmentLost } from ".
 import { sightDC } from "./environment.js";
 import { adjustDamage, adjustInstance, rollStrikeDamage, spellContext, strikeContext } from "./damage.js";
 import { distanceBetween, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
-import { moraleOdds } from "./morale.js";
+import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
 
 const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
 const registry = createRegistry();
@@ -487,6 +487,8 @@ function stackedValue(target, change, after = false) {
 }
 
 export function applyCondition(state, target, slug, value, duration, source, scope = null) {
+    // M38: a hostile condition from the party on a foe that gave up and is leaving refuses its surrender.
+    if (source && source.side !== target.side) harmedAfterGivingUp(state, target, source);
     // Off-guard to one creature's attacks only (Feint, Create a Diversion).
     if (slug === "off-guard" && scope?.attacker) {
         const entry = { attacker: scope.attacker, attacks: scope.attacks ?? "any", uses: scope.uses ?? null };

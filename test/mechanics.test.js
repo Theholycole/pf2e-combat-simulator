@@ -79,6 +79,8 @@ test("triggers marked once per creature fire only once", () => {
     // Improved Morale's waver (before M24): a failure doesn't take Alpha out, so its side's losses don't trigger more.
     const state = moraleState([moderateCreature(3, "a", "Alpha"), moderateCreature(3, "b", "Beta")], { failureGivesUp: false });
     const alpha = state.byId.get("a");
+    // A plain failure every time (Will +9 against 18), not a critical one.
+    state.rng.d20 = () => 5;
     for (let round = 1; round <= 3; round++) {
         state.round = round;
         state.pendingEvents.push({ type: "halfHp", victim: alpha });
@@ -169,7 +171,7 @@ test("weapon traits: forceful, sweep, backswing, volley and backstabber", () => 
 test("frightened 2+ from an enemy's effect sets off a morale check (M25; never raised before 2026-10-08)", async () => {
     const { applyCondition } = await import("../src/engine/spells.js");
     // Steady foes (they never fail, so nothing else follows from the check).
-    const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { templates: { typical: { modifier: 30 } } });
+    const state = moraleState([moderateCreature(3, "g", "Clerk"), moderateCreature(3, "o", "Other")], { templates: { typical: { modifier: 30 } } });
     const guard = state.byId.get("g");
     const pc = state.list.find((c) => c.kind === "pc");
     // Frightened 1 (a Demoralize's success) doesn't.
@@ -179,7 +181,7 @@ test("frightened 2+ from an enemy's effect sets off a morale check (M25; never r
     // Frightened 2 (its critical success) does.
     applyCondition(state, guard, "frightened", 2, null, pc);
     processMorale(state);
-    assert.ok(state.log.some((line) => /Guard morale \(frightenedByEnemy\)/.test(line)), state.log.join("\n"));
+    assert.ok(state.log.some((line) => /Clerk morale \(frightenedByEnemy\)/.test(line)), state.log.join("\n"));
     // Frightened again at the same value, or by an ally, doesn't (the check may have changed it: set it back).
     state.round = 2;
     guard.cond.frightened = 2;
@@ -273,7 +275,8 @@ test("fear only cracks morale (M29): a failed check fear set off raises frighten
 });
 
 test("retreat becomes reasonable (M31): each foe checks as the party's HP share first reaches 3×, 4× and 6× the foes'; not a solo boss", () => {
-    const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { triggers: { hopeless: { enabled: true } } });
+    // (Read the fight off: a natural 20 would have them yield after the first check.)
+    const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { readTheFight: { enabled: false }, triggers: { hopeless: { enabled: true, ratios: [3, 4, 6] } } });
     state.rng.d20 = () => 20;
     const foes = state.list.filter((c) => c.side === "foes");
     const setShare = (share) => {
@@ -297,7 +300,7 @@ test("retreat becomes reasonable (M31): each foe checks as the party's HP share 
     assert.equal(state.stats.moraleChecks, 4);
     assert.ok(state.log.some((line) => /Guard morale \(hopeless\)/.test(line)));
     // A solo boss keeps Boss Resolve and isn't asked (four against one sets off "outnumbered 3:1" though).
-    const boss = moraleState([moderateCreature(6, "boss", "Boss")], { triggers: { hopeless: { enabled: true } } });
+    const boss = moraleState([moderateCreature(6, "boss", "Boss")], { triggers: { hopeless: { enabled: true, ratios: [3, 4, 6] } } });
     boss.byId.get("boss").hp.value = 1;
     for (let round = 1; round <= 3; round++) {
         boss.round = round;
@@ -321,6 +324,80 @@ test("the rout counts foes who gave up as surviving and broken (M30)", () => {
     // Counting only those still on the field (before M30): the fight goes on.
     const before = fight({ routCountsGivenUp: false });
     assert.equal(fightOver(before), false);
+});
+
+test("the gate can stay shut while PCs are down or the party is low (hpGate.maxPcsDown, minPartyShare)", () => {
+    const check = (rules, setUp) => {
+        const state = moraleState([moderateCreature(3, "g", "Clerk"), moderateCreature(3, "o", "Other")], { losingGate: true, ...rules });
+        for (const c of state.list.filter((c) => c.side === "foes")) c.hp.value = Math.round(c.hp.max * 0.3);
+        setUp?.(state);
+        state.rng.d20 = () => 1;
+        state.pendingEvents.push({ type: "halfHp", victim: state.byId.get("g") });
+        processMorale(state);
+        return state.stats.moraleChecks;
+    };
+    const downOne = (state) => {
+        state.list.find((c) => c.kind === "pc").status = "down";
+    };
+    // Foes at 30% and one PC down: the party's share is still 2.5× theirs, so the gate is open by HP.
+    assert.equal(check({ hpGate: { maxPcsDown: null } }, downOne), 1);
+    assert.equal(check({ hpGate: { maxPcsDown: 0 } }, downOne), 0);
+    assert.equal(check({ hpGate: { maxPcsDown: 1 } }, downOne), 1);
+    assert.equal(check({ hpGate: { maxPcsDown: 0 } }), 1);
+    // The party at 50% of its HP: 1.7× the foes', but under a minimum share of 60%.
+    const halfParty = (state) => {
+        for (const pc of state.list.filter((c) => c.side === "party")) pc.hp.value = Math.round(pc.hp.max * 0.5);
+    };
+    assert.equal(check({ hpGate: { maxPcsDown: null } }, halfParty), 1);
+    assert.equal(check({ hpGate: { minPartyShare: 0.6 } }, halfParty), 0);
+    // perPcDown: one PC down needs 1.25 + 1 = 2.25×; the party's 2.5× clears it, 1.5 per PC down (2.75×) doesn't.
+    assert.equal(check({ hpGate: { maxPcsDown: null, perPcDown: 1 } }, downOne), 1);
+    assert.equal(check({ hpGate: { maxPcsDown: null, perPcDown: 1.5 } }, downOne), 0);
+    // recentPcDownRounds: shut while a PC dropped this round or the one before, open again after.
+    const droppedIn = (round) => (state) => {
+        const pc = state.list.find((c) => c.kind === "pc");
+        pc.status = "down";
+        pc.downRound = round;
+        state.round = 3;
+    };
+    assert.equal(check({ hpGate: { maxPcsDown: null, recentPcDownRounds: 1 } }, droppedIn(2)), 0);
+    assert.equal(check({ hpGate: { maxPcsDown: null, recentPcDownRounds: 1 } }, droppedIn(1)), 1);
+});
+
+test("the rout's fraction and whether it waits for the gate (rout.fraction, rout.needsGate)", () => {
+    const fight = (rules, pcDown = false) => {
+        const state = createFightState({ combatants: [...martialParty(3), ...["a", "b", "c"].map((id) => moderateCreature(3, id, `Foe ${id}`))] }, { moraleRules: mergeMoraleRules(rules) });
+        for (const c of state.list.filter((c) => c.side === "foes")) c.hp.value = Math.round(c.hp.max * 0.3);
+        if (pcDown) state.list.find((c) => c.kind === "pc").status = "down";
+        surrender(state, state.byId.get("a"));
+        return fightOver(state);
+    };
+    // One of three gave up: half isn't reached, a third is (M37's default, with the gate).
+    assert.equal(fight({ rout: { fraction: 0.5, needsGate: false } }), false);
+    assert.equal(fight({ rout: { fraction: 0.33, needsGate: false } }), true);
+    assert.equal(fight({}), true);
+    // Waiting for the gate: shut while a PC is down.
+    assert.equal(fight({ rout: { fraction: 0.33, needsGate: true }, hpGate: { maxPcsDown: 0 } }, true), false);
+    assert.equal(fight({ rout: { fraction: 0.33, needsGate: true }, hpGate: { maxPcsDown: 0 } }), true);
+});
+
+test("fear's critical failure can wait for the gate to give up (giveUpNeedsGate)", async () => {
+    const { applyCondition } = await import("../src/engine/spells.js");
+    const outcome = (rules) => {
+        // Both sides unhurt: 1×, the gate is shut.
+        const state = moraleState([moderateCreature(3, "g", "Clerk"), moderateCreature(3, "o", "Other")], { losingGate: true, ...rules });
+        const clerk = state.byId.get("g");
+        state.rng.d20 = () => 1;
+        applyCondition(state, clerk, "frightened", 2, null, state.list.find((c) => c.kind === "pc"));
+        processMorale(state);
+        return { status: clerk.status, fleeing: !!clerk.cond.fleeing, frightened: clerk.cond.frightened };
+    };
+    const now = outcome({});
+    assert.ok(now.status !== "active" || now.fleeing, "a critical failure gives up before the party is ahead");
+    const waits = outcome({ triggers: { frightenedByEnemy: { giveUpNeedsGate: true } } });
+    assert.equal(waits.status, "active");
+    assert.equal(waits.fleeing, false);
+    assert.equal(waits.frightened, 3);
 });
 
 test("fleeing from any effect sets off a check as it begins and each round it lasts, before the party is ahead too (M32)", async () => {

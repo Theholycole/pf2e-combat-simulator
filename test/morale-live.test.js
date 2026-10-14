@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { benchmarkEncounter } from "../src/engine/benchmarks.js";
 import { levelDC } from "../src/engine/checks.js";
 import { mergeMoraleRules } from "../src/engine/morale-rules.js";
-import { emptyMemory, liveMoraleApply, liveMoraleChecks, liveRout } from "../src/live/morale.js";
-import { allRolled, createMoraleCard, moraleCardHTML, outcomeLine, outcomeOps, recordMoraleRoll, rowTotal, toggleModifier } from "../src/live/morale-card.js";
+import { emptyMemory, liveAccept, liveMoraleApply, liveMoraleChecks, liveNoQuarter, liveRout } from "../src/live/morale.js";
+import { allRolled, createMoraleCard, moraleCardHTML, noQuarterCardHTML, outcomeLine, outcomeOps, readModifiers, readTotal, recordMoraleRoll, routCardHTML, rowTotal, settleYield, toggleModifier } from "../src/live/morale-card.js";
 
 const rules = mergeMoraleRules({});
 
@@ -126,4 +126,61 @@ test("the morale card: a row per foe, tick boxes, Roll and Apply, what Apply doe
     assert.deepEqual(outcomeOps({ kind: "frighten" }), [{ op: "frightened", delta: 1, max: 4 }]);
     assert.deepEqual(outcomeOps({ kind: "holds" }), []);
     assert.match(outcomeLine("Foe 2", { kind: "giveUp", how: "collapse" }), /surrenders/);
+});
+
+test("in play, Read the fight (M38): each row also rolls Perception; a held check with a successful read yields or leaves", () => {
+    const reading = mergeMoraleRules({ readTheFight: { enabled: true } });
+    const first = liveMoraleChecks({ snapshot: encounter(), memory: emptyMemory(), round: 1, rules: reading });
+    const dropped = liveMoraleChecks({ snapshot: encounter({ foe1: { hp: 0 } }), memory: first.memory, round: 1, rules: reading });
+    const row = dropped.checks[0].rows.find((each) => each.id === "foe2");
+    assert.equal(row.read.dc, levelDC(5));
+    assert.ok(row.read.signs.includes("sideLost25"));
+    // The card: the ticked losing signs, turned into Perception bonuses (a quarter fallen: −4 to morale, +4 here).
+    const card = createMoraleCard({ rules: reading, combatId: "c", round: 1, check: dropped.checks[0] });
+    const cardRow = card.rows.find((each) => each.id === "foe2");
+    assert.deepEqual(readModifiers(cardRow).map((modifier) => [modifier.id, modifier.value]), [["sideLost25", 4]]);
+    assert.equal(readTotal(toggleModifier(card, "foe2", "sideLost25").rows.find((each) => each.id === "foe2")), 0);
+    assert.match(moraleCardHTML(card), /Roll Will \(−\d+\) and Perception \(\+4\)/);
+    const rolled = recordMoraleRoll(card, "foe2", { total: 25, natural: 12, degree: 2, read: { total: 26, natural: 13, degree: 2 } });
+    assert.match(moraleCardHTML(rolled), /25: success · Perception 26: success/);
+    // Apply: held and read → yields (benchmark foes are humanoids without a language list: they talk).
+    const applied = liveMoraleApply({ snapshot: encounter({ foe1: { hp: 0 } }), memory: dropped.memory, round: 1, rules: reading, rows: [{ id: "foe2", reason: "quarterFallen", degree: 2, readDegree: 2 }, { id: "foe3", reason: "quarterFallen", degree: 2, readDegree: 1 }] });
+    assert.deepEqual(applied.results.map((result) => [result.id, result.outcome.kind]), [["foe2", "yields"], ["foe3", "holds"]]);
+    assert.equal(applied.memory.creatures.foe2.yielding, true);
+    assert.equal(applied.memory.creatures.foe2.broken, true);
+    assert.deepEqual(outcomeOps({ kind: "yields" }), [{ op: "marker", slug: "yielding-morale", name: "Yielding" }]);
+    assert.deepEqual(outcomeOps({ kind: "leaves" }).map((op) => op.op), ["condition", "marker"]);
+    assert.match(outcomeLine("Foe 2", { kind: "yields" }), /yields\. Accept or refuse below/);
+    // One that can't talk leaves.
+    const mute = encounter({ foe1: { hp: 0 } });
+    mute.combatants = mute.combatants.map((c) => (c.id === "foe3" ? { ...c, languages: [] } : c));
+    const leaves = liveMoraleApply({ snapshot: mute, memory: dropped.memory, round: 1, rules: reading, rows: [{ id: "foe3", reason: "quarterFallen", degree: 3, readDegree: 3 }] });
+    assert.equal(leaves.results[0].outcome.kind, "leaves");
+    assert.equal(leaves.memory.creatures.foe3.leaving, true);
+});
+
+test("in play, surrender offers (M38): Accept, Refuse, and no quarter for it and the allies who saw", () => {
+    const card = { ...createMoraleCard({ rules, combatId: "c", round: 1, check: { reason: "quarterFallen", rows: [] } }), status: "applied", yields: [{ id: "foe2", name: "Foe 2", status: "open" }] };
+    assert.match(moraleCardHTML(card), /data-sim-morale="accept"/);
+    assert.match(moraleCardHTML(settleYield(card, "foe2", "refused")), /refused: no quarter/);
+    const memory = { ...emptyMemory(), creatures: { foe2: { yielding: true, broken: true }, foe3: { checkedRound: 1 } } };
+    assert.deepEqual(liveAccept(memory, "foe2").creatures.foe2, { yielding: false, broken: true });
+    const refused = liveNoQuarter(memory, ["foe2", "foe3"]);
+    assert.deepEqual(refused.creatures.foe2, { yielding: false, leaving: false, broken: false, toTheDeath: true });
+    assert.equal(refused.creatures.foe3.toTheDeath, true);
+    assert.match(noQuarterCardHTML({ name: "Foe 2", cause: "refused", allies: [{ id: "foe3", name: "Foe 3" }] }), /Foe 2 and the ally who saw \(Foe 3\) fight to the death: the party refused its surrender/);
+    // Those fighting to the death make no more checks, and don't flee with a rout.
+    const first = look(encounter(), emptyMemory());
+    const marked = liveNoQuarter(first.memory, ["foe2"]);
+    const dropped = look(encounter({ foe1: { hp: 0 } }), marked);
+    assert.ok(!dropped.checks[0].rows.some((row) => row.id === "foe2"));
+    const given = { ...marked, creatures: { ...marked.creatures, foe3: { broken: true }, foe4: { broken: true } } };
+    const rout = liveRout({ snapshot: encounter({ foe1: { hp: 0 } }), memory: given, rules });
+    assert.equal(rout.routs, true);
+    assert.deepEqual(rout.rest, []);
+});
+
+test("in play: the rout card names the rules' share (M37: a third)", () => {
+    assert.match(routCardHTML({ rest: [{ id: "foe4", name: "Foe 4" }], fraction: 0.33 }), /A third or more of the surviving foes are broken: the rest flee \(Foe 4\)/);
+    assert.match(routCardHTML({ rest: [] }), /Half or more of the surviving foes are broken/);
 });

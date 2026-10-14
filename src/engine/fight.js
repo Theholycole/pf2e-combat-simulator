@@ -8,7 +8,7 @@ import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, kill
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
-import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
+import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
 import { applyAuras, provokedReaction, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
@@ -286,10 +286,20 @@ function checkEnd(state) {
             broken += gaveUp;
             survivors += gaveUp;
         }
-        if (surviving.length && !foes.some(coming) && broken >= survivors / 2 && broken > 0) {
-            pursuit(state, surviving);
-            finish(state, "rout");
-            return true;
+        if (surviving.length && !foes.some(coming) && routReady(state, broken, survivors)) {
+            // M38: those fighting to the death hold out; the rest flee, and the fight goes on.
+            const holdouts = surviving.filter((c) => c.moraleState?.toTheDeath && !c.cond.fleeing);
+            if (!holdouts.length) {
+                pursuit(state, surviving);
+                finish(state, "rout");
+                return true;
+            }
+            for (const c of surviving) {
+                if (holdouts.includes(c) || c.cond.fleeing || c.moraleState?.broken || !c.moraleState) continue;
+                c.moraleState.broken = true;
+                c.cond.fleeing = true;
+                state.log?.push(`  ${c.name} flees with the rout; ${holdouts.map((each) => each.name).join(", ")} fight${holdouts.length === 1 ? "s" : ""} on to the death`);
+            }
         }
     }
     return false;

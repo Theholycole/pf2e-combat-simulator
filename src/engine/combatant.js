@@ -136,7 +136,7 @@ export function statusPenalty(c, kind) {
     if (kind === "ranged" || kind === "ac" || kind === "reflex") penalty = Math.max(penalty, k.clumsy);
     if (kind === "melee") penalty = Math.max(penalty, k.enfeebled);
     if (kind === "fortitude") penalty = Math.max(penalty, k.drained);
-    if (kind === "will" || kind === "spell") penalty = Math.max(penalty, k.stupefied ?? 0);
+    if (kind === "will" || kind === "spell" || kind === "perception") penalty = Math.max(penalty, k.stupefied ?? 0);
     if (k.fatigued && (kind === "ac" || kind === "fortitude" || kind === "reflex" || kind === "will")) penalty = Math.max(penalty, 1);
     // Status penalties from spell effects don't stack with the conditions' either.
     if (c.effects?.length) penalty = Math.max(penalty, effectStatusPenalty(c, kind === "melee" || kind === "ranged" ? "attack" : kind));

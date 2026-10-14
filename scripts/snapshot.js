@@ -1131,6 +1131,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         // (T6: its class DC, for a critical specialization's save.)
         ...(Number.isFinite(actor.classDC?.dc?.value) ? { classDC: actor.classDC.dc.value } : {}),
         traits,
+        // (M38: a creature that speaks a language can offer to surrender.)
+        ...(kind === "pc" ? {} : { languages: [...(actor.system?.details?.languages?.value ?? [])] }),
         hp: fresh ? { value: hp.max, max: hp.max, temp: 0 } : { value: hp.value ?? 0, max: hp.max ?? 0, temp: hp.temp ?? 0 },
         ac: stripConditions(actor.armorClass?.value ?? actor.system?.attributes?.ac?.value ?? 10, actor.armorClass?.modifiers ?? []),
         // (B302: PF2e takes a creature's Hardness off all its damage — Construct Armor's, an animated object's.)

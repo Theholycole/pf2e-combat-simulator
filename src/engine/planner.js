@@ -191,7 +191,8 @@ class PlanContext {
         this.state = state;
         this.c = c;
         this.profile = profileOf(c);
-        this.enemies = state.list.filter((other) => other.side !== c.side && isActive(other));
+        // (M38: the party lets a foe that gave up and is leaving go.)
+        this.enemies = state.list.filter((other) => other.side !== c.side && isActive(other) && !(c.side === "party" && other.moraleState?.leaving));
         this.enemyIndex = new Map(this.enemies.map((enemy, index) => [enemy.id, index]));
         this.allies = state.list.filter((other) => other.side === c.side && isActive(other) && other !== c);
         // Healing reaches downed PCs too.

@@ -13,10 +13,12 @@
 
 import { createFightState } from "../engine/fight.js";
 import { FLED, baseWill, isActive } from "../engine/combatant.js";
-import { bossAutoPasses, checkCantAffect, claimCheck, collectMoraleChecks, finalMoraleDegree, moraleDC, moraleModifierParts, moraleOutcome } from "../engine/morale.js";
+import { bossAutoPasses, checkCantAffect, claimCheck, collectMoraleChecks, finalMoraleDegree, moraleDC, moraleModifierParts, moraleOutcome, readsTheFight, routReady, speaks } from "../engine/morale.js";
+import { SUCCESS } from "../engine/checks.js";
 import { bestOffense } from "../engine/planner.js";
 
-const CREATURE_KEYS = ["checkedRound", "extraUsed", "autoPassed", "ignoredFirstFailure", "broken", "failed"];
+// (M38: yielding, leaving and fighting to the death are kept too.)
+const CREATURE_KEYS = ["checkedRound", "extraUsed", "autoPassed", "ignoredFirstFailure", "broken", "failed", "yielding", "leaving", "toTheDeath"];
 
 export function emptyMemory() {
     return { roster: null, flags: null, creatures: {}, seen: {}, routPosted: false };
@@ -65,7 +67,8 @@ const look = (c) => ({ up: isActive(c), hp: Math.max(0, c.hp?.value ?? 0), frigh
 
 // The checks the encounter calls for now. turnStart: the combatant whose turn just began (fleeing
 // again, and "can't meaningfully affect an opponent", are looked at then).
-// → { checks: [{ reason, rows }], memory }. A row: { id, name, dc, will, parts: [{ id, value }], bossHolds }.
+// → { checks: [{ reason, rows }], memory }. A row: { id, name, dc, will, parts: [{ id, value }], bossHolds, read }; read (M38):
+// { dc, perception, signs } when it also reads the fight — its bonus is the ticked morale modifiers among the signs, turned around.
 export function liveMoraleChecks({ snapshot, memory = emptyMemory(), round = 1, turnStart = null, rules }) {
     const state = stateFor(snapshot, memory, { round, rules });
     const foes = state.list.filter((c) => c.side === "foes" && c.kind !== "object" && c.kind !== "hazard");
@@ -99,9 +102,10 @@ export function liveMoraleChecks({ snapshot, memory = emptyMemory(), round = 1, 
     for (const [id, reason] of triggered) {
         const c = state.byId.get(id);
         if (!claimCheck(state, c)) continue;
+        const read = readsTheFight(state, c, reason) ? { dc: moraleDC(state, Number(c.perception) || 0), perception: Number(c.perception) || 0, signs: [...(state.moraleRules.readTheFight?.signs ?? [])] } : null;
         const row = bossAutoPasses(c)
             ? { id, name: c.name, bossHolds: true }
-            : { id, name: c.name, dc: moraleDC(state, baseWill(c)), will: baseWill(c), parts: moraleModifierParts(state, c), template: c.morale?.template ?? "typical" };
+            : { id, name: c.name, dc: moraleDC(state, baseWill(c)), will: baseWill(c), parts: moraleModifierParts(state, c), template: c.morale?.template ?? "typical", ...(read ? { read } : {}) };
         if (!byReason.has(reason)) byReason.set(reason, []);
         byReason.get(reason).push(row);
     }
@@ -111,7 +115,8 @@ export function liveMoraleChecks({ snapshot, memory = emptyMemory(), round = 1, 
 }
 
 // The GM applies rolled checks: each row's final degree (a fanatic's first failure, Boss Resolve)
-// and what it does. rows: [{ id, reason, degree (0–3) }] → { results: [{ id, degree, outcome }], memory }.
+// and what it does. rows: [{ id, reason, degree (0–3), readDegree }] → { results: [{ id, degree, outcome, read }], memory }.
+// A held check with a successful read (M38): outcome "yields" (it talks; the GM accepts or refuses) or "leaves".
 export function liveMoraleApply({ snapshot, memory = emptyMemory(), round = 1, rules, rows }) {
     const state = stateFor(snapshot, memory, { round, rules });
     const results = [];
@@ -126,8 +131,16 @@ export function liveMoraleApply({ snapshot, memory = emptyMemory(), round = 1, r
         if (outcome.kind !== "holds" && outcome.kind !== "steady") c.moraleState.failed = (c.moraleState.failed ?? 0) + 1;
         // A berserk break keeps it fighting (and checking); every other way of giving up is final.
         if (outcome.kind === "giveUp" && outcome.how !== "berserk") c.moraleState.broken = true;
+        // M38: it held, but read the fight: it yields or leaves, and has given up.
+        let final = outcome;
+        const read = Number.isInteger(row.readDegree) ? { degree: row.readDegree } : null;
+        if ((outcome.kind === "holds" || outcome.kind === "steady") && read && row.readDegree >= SUCCESS) {
+            final = { kind: speaks(c) ? "yields" : "leaves", morale: outcome.kind };
+            c.moraleState.broken = true;
+            c.moraleState[final.kind === "yields" ? "yielding" : "leaving"] = true;
+        }
         // (B303: Bravery's lower frightened, for the card's line; the ability module lowers what PF2e applies.)
-        results.push({ id: row.id, name: c.name, degree, outcome, held, ...(c.lessFrightened ? { lessFrightened: c.lessFrightened } : {}) });
+        results.push({ id: row.id, name: c.name, degree, outcome: final, held, ...(read ? { read } : {}), ...(c.lessFrightened ? { lessFrightened: c.lessFrightened } : {}) });
     }
     return { results, memory: remember(state, memory) };
 }
@@ -146,8 +159,8 @@ export function noteChanges(memory, changes) {
     return { ...memory, seen, creatures };
 }
 
-// The rout ("Improved Morale.md", M30): half or more of the surviving foes broken, counting those who
-// gave up (fled or surrendered) and those fleeing from anything. → { routs, rest: [ids still fighting] }.
+// The rout ("Improved Morale.md", M30): half or more of the surviving foes broken (the rules' rout fraction), counting
+// those who gave up (fled or surrendered) and those fleeing from anything. → { routs, rest: [ids still fighting] }.
 export function liveRout({ snapshot, memory = emptyMemory(), rules }) {
     const state = stateFor(snapshot, memory, { round: 1, rules });
     const foes = state.list.filter((c) => c.side === "foes" && c.kind !== "object" && c.kind !== "hazard");
@@ -155,6 +168,21 @@ export function liveRout({ snapshot, memory = emptyMemory(), rules }) {
     const fighting = foes.filter((c) => isActive(c));
     const broken = fighting.filter((c) => c.cond?.fleeing || gaveUp(c)).length + foes.filter((c) => !isActive(c) && gaveUp(c)).length;
     const survivors = fighting.length + foes.filter((c) => !isActive(c) && gaveUp(c)).length;
-    const rest = fighting.filter((c) => !c.cond?.fleeing && !gaveUp(c)).map((c) => c.id);
-    return { routs: fighting.length > 0 && broken > 0 && broken >= survivors / 2, rest };
+    // (M38: those fighting to the death don't flee with the rest.)
+    const rest = fighting.filter((c) => !c.cond?.fleeing && !gaveUp(c) && !c.moraleState?.toTheDeath).map((c) => c.id);
+    return { routs: fighting.length > 0 && routReady(state, broken, survivors), rest };
+}
+
+// M38: the GM accepted a yield: it surrenders (still given up).
+export function liveAccept(memory, id) {
+    const creatures = { ...(memory.creatures ?? {}) };
+    creatures[id] = { ...(creatures[id] ?? {}), yielding: false, broken: true };
+    return { ...memory, creatures };
+}
+
+// M38: no quarter — the creature the party refused or harmed, and the allies who saw, fight to the death: no more checks.
+export function liveNoQuarter(memory, ids) {
+    const creatures = { ...(memory.creatures ?? {}) };
+    for (const id of ids) creatures[id] = { ...(creatures[id] ?? {}), yielding: false, leaving: false, broken: false, toTheDeath: true };
+    return { ...memory, creatures };
 }

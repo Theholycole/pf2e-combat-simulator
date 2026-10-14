@@ -25,7 +25,12 @@ export const MORALE_RULES = Object.freeze({
     // ("ratio") or that many points above it ("margin"); simple to judge at the table. "strength"
     // (before M28): HP × a forecast of damage per round (Lanchester), at least losingGateRatio times the foes'.
     gateMode: "hpShare",
-    hpGate: { kind: "ratio", value: 1.25 },
+    // PCs down (M37, 2026-10-14): fights morale turned from losses into wins mostly had PCs down when the first foe
+    // gave up. perPcDown: the party must be that much further ahead for each PC down (0.5: 1.75× with one down, 2.25×
+    // with two). Options, off: maxPcsDown (shut while more than that many are down; 0 halved those flips but cost a
+    // third of the rounds saved when the party can't heal), recentPcDownRounds (shut while a PC dropped this round or in
+    // the last N), minPartyShare (shut while the party has less than that share of its HP).
+    hpGate: { kind: "ratio", value: 1.25, perPcDown: 0.5, maxPcsDown: null, recentPcDownRounds: null, minPartyShare: null },
     // Whether a check the gate blocks waits to be rolled once the gate opens. Off (user,
     // 2026-10-08, M27): held checks piled up in close fights and fired together.
     holdGatedChecks: false,
@@ -40,6 +45,10 @@ export const MORALE_RULES = Object.freeze({
     // The rout ends the fight once half the surviving foes are broken ("Improved Morale.md"). M30 (user,
     // 2026-10-08): those who surrendered or fled on a failed check count as surviving and broken too.
     routCountsGivenUp: true,
+    // The rout's share of surviving foes broken, and whether it waits for the gate to be open (false: it
+    // ends the fight however the party is doing). A third, with the gate (user, 2026-10-14, M37; was
+    // "Improved Morale.md"'s half, without): one of three broken routs the rest while the party is clearly ahead.
+    rout: { fraction: 0.33, needsGate: true },
     extraCheckOnLeaderDeath: true,
     // M24: a failed check means the creature gives up (no wavering stage); false is Improved Morale's waver-then-break.
     failureGivesUp: true,
@@ -59,7 +68,8 @@ export const MORALE_RULES = Object.freeze({
         // M31 (user, 2026-10-08; "Improved Morale.md": retreat or surrender becomes reasonable): each foe checks
         // when the party's share of its HP left first reaches each ratio times the foes'. Not solo bosses
         // (bosses: false): one hits as hard at 20% HP, so the party still loses some of those fights.
-        hopeless: { enabled: true, label: "Retreat becomes reasonable (the party far ahead on HP share)", ratios: [3, 4, 6], bosses: false },
+        // 2×, 3× and 4× (user, 2026-10-14, M37; was 3×, 4×, 6×).
+        hopeless: { enabled: true, label: "Retreat becomes reasonable (the party far ahead on HP share)", ratios: [2, 3, 4], bosses: false },
         // oncePerCreature (user, 2026-10-07): a creature checks for these at most once per fight.
         // Off (user, 2026-10-08, M20): it decided close fights more than it shortened won ones.
         halfHp: { enabled: false, label: "Falls to half HP", oncePerCreature: true },
@@ -68,11 +78,12 @@ export const MORALE_RULES = Object.freeze({
         // minValue (user, 2026-10-08, M25): only when an enemy's effect takes it to frightened 2 or more.
         // onFailure "frighten" (M29): a failure raises frightened by 1; only a critical failure gives up.
         // ignoresGate (M24): fear counts before the party is ahead.
-        frightenedByEnemy: { enabled: true, label: "Becomes frightened 2+ from an enemy effect", minValue: 2, onFailure: "frighten", ignoresGate: true },
+        // giveUpNeedsGate: a critical failure gives up only while the gate is open; before, it frightens like a failure.
+        frightenedByEnemy: { enabled: true, label: "Becomes frightened 2+ from an enemy effect", minValue: 2, onFailure: "frighten", ignoresGate: true, giveUpNeedsGate: false },
         // M32 (user, 2026-10-08): fleeing for any reason (a spell, an ability; not its own broken morale) sets off a
         // check as it begins and at the start of each of its turns while it lasts. Like fear, a failure raises
         // frightened by 1, only a critical failure gives up, and it counts before the party is ahead.
-        fleeing: { enabled: true, label: "Fleeing from any effect, each round it lasts", onFailure: "frighten", ignoresGate: true },
+        fleeing: { enabled: true, label: "Fleeing from any effect, each round it lasts", onFailure: "frighten", ignoresGate: true, giveUpNeedsGate: false },
         // Off (M24): an early check that decides fights.
         surprised: { enabled: false, label: "Surprised (first round)", source: "Morale.md" },
         // Escalations (user, 2026-10-08): not a check; foe reinforcements arriving steady wavering foes
@@ -83,7 +94,8 @@ export const MORALE_RULES = Object.freeze({
     modifiers: {
         defendingHome: { enabled: true, value: 1, label: "Defending home, nest, altar or commander", situational: true },
         outnumbersEnemies: { enabled: true, value: 1, label: "Side outnumbers enemies" },
-        undamaged: { enabled: true, value: 2, label: "Has not yet taken damage" },
+        // Off (user, 2026-10-14, M37): foes give up sooner in fights the party is winning.
+        undamaged: { enabled: false, value: 2, label: "Has not yet taken damage" },
         noRetreat: { enabled: true, value: 2, label: "No retreat and surrender means death", situational: true },
         frightened: { enabled: true, value: -1, label: "Currently frightened" },
         halfHp: { enabled: true, value: -1, label: "At half HP" },
@@ -94,9 +106,9 @@ export const MORALE_RULES = Object.freeze({
         cantBypassDefense: { enabled: true, value: -2, label: "Can't bypass the enemy's main defence" },
         // Off (M24): a failed check takes the creature out, so there's no second one.
         alreadyFailed: { enabled: false, value: -2, label: "Already failed a morale check this encounter" },
-        // M24 (Morale.md): its side's losses.
-        sideLost25: { enabled: true, value: -2, label: "Its side's losses: a quarter fallen" },
-        sideLost50: { enabled: true, value: -4, label: "Its side's losses: half fallen" },
+        // M24 (Morale.md): its side's losses; −4 and −6 (user, 2026-10-14, M37; were −2 and −4).
+        sideLost25: { enabled: true, value: -4, label: "Its side's losses: a quarter fallen" },
+        sideLost50: { enabled: true, value: -6, label: "Its side's losses: half fallen" },
         quarterStrength: { enabled: true, value: -4, label: "Side reduced to one-quarter strength" },
         isolated: { enabled: true, value: -6, label: "Isolated from allies" },
         // Per level the creature is above the party (below: negative), M24.
@@ -113,13 +125,23 @@ export const MORALE_RULES = Object.freeze({
         surprisedPenalty: { enabled: false, value: -2, label: "Was surprised", source: "Morale.md" }
     },
 
+    // Read the fight (user, 2026-10-14, M38): with each side-losing check, while the gate is open, a foe whose morale
+    // held rolls Perception against the same DC; its side's losing signs (these morale modifiers) help by as much as
+    // they hurt its morale. A success: it sees the fight is lost. One that speaks a language yields (offers to
+    // surrender); one that can't leaves the fight (fleeing, not frightened). Not fanatics (readsTheFight: false) or
+    // creatures that never check; a solo boss only once Boss Resolve would let it break. Every surrender is an offer:
+    // the party accepting it captures the creature; harming it instead (setup "noQuarter", or a kill objective's
+    // target) makes it and the allies who saw fight to the death, with no more morale or Perception checks.
+    // On (2026-10-14): with M37 it saves more rounds than the old rules and turns fewer losses into wins.
+    readTheFight: { enabled: true, signs: ["sideLost25", "sideLost50", "quarterStrength", "outnumbered2to1", "isolated", "leaderDown"] },
+
     // M7, M8
     templates: {
         none: { label: "None (never checks)", modifier: 0 },
         cowardly: { label: "Cowardly / Skittish", modifier: -2, waver: "withdraw", break: "rout" },
         typical: { label: "Typical", modifier: 0, waver: "defensive", break: "auto" },
         disciplined: { label: "Disciplined", modifier: 2, waver: "formation", break: "disordered" },
-        fanatical: { label: "Fanatical", modifier: 4, waver: "defensive", break: "berserk", ignoreFirstFailure: true },
+        fanatical: { label: "Fanatical", modifier: 4, waver: "defensive", break: "berserk", ignoreFirstFailure: true, readsTheFight: false },
         bestial: { label: "Bestial", modifier: 0, waver: "defensive", break: "rout", defendingLair: 2, bloodied: -2 },
         mercenary: { label: "Mercenary", modifier: 0, waver: "defensive", break: "collapse", winning: 1, unpaid: -2 }
     },

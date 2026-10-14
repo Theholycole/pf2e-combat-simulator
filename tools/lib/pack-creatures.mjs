@@ -213,6 +213,8 @@ export function combatant(npc) {
         kind: "npc",
         level: system.details.level.value,
         traits: system.traits.value ?? [],
+        // (M38: one that speaks a language can offer to surrender.)
+        languages: system.details?.languages?.value ?? [],
         hp: { value: hp, max: hp },
         ac: system.attributes.ac.value,
         // (B302: PF2e takes a creature's Hardness off all its damage.)
