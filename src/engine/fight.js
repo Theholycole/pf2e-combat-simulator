@@ -11,7 +11,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { applyAuras, provokedReaction, applyCondition, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { applyAuras, provokedReaction, applyCondition, saveEndsAtTurnEnd, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -487,6 +487,8 @@ function swallowedTurn(state, c) {
 }
 
 function endTurn(state, c) {
+    // (B314: a new save against a condition that allows one.)
+    if (c.saveEnds?.length && c.status === ACTIVE) saveEndsAtTurnEnd(state, c);
     // Panache from a failed bravado action lasts only this turn.
     if (c.panache === "turn") c.panache = false;
     // (B167: Attack of Opportunity from Tactical Direction ends with this turn; B176, Call to Arms': with the granter's next turn.)
@@ -1093,7 +1095,14 @@ function takeTurn(state, c) {
         endTurn(state, c);
         return;
     }
-    if (!canAct(c)) return;
+    // (B314: a paralyzed or sleeping creature's turn still ends — its persistent damage, a new save against the condition.)
+    if (!canAct(c)) {
+        if (c.status === ACTIVE && c.acts !== false) {
+            state.log?.push(`${c.name} (${c.cond.paralyzed ? "paralyzed" : c.cond.asleep ? "asleep" : "unconscious"})`);
+            endTurn(state, c);
+        }
+        return;
+    }
     startTurn(state, c);
     state.log?.push(`${c.name} (${c.hp.value}/${c.hp.max} HP, ${c.band})`);
     // Petrifying Glance: an enemy's reaction to this turn starting near it (B47). Mind-Numbing Grasp: its holder's passive (B49).

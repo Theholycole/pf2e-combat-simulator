@@ -552,9 +552,32 @@ export function applyCondition(state, target, slug, value, duration, source, sco
         // "Until the end of your next turn" ends at the end of that turn; the rest at its start.
         (target.timers ??= []).push({ key: flag ?? slug, value: flag ? true : target.cond[slug], round: state.round + rounds, turnOf: source?.id ?? target.id, at: duration?.expiry === "turn-end" ? "end" : "start" });
     }
+    // (B314: "It can attempt a new save at the end of each of its turns" — the ability module's duration.saveEnds { save, dc, drop }.)
+    if (Number.isFinite(Number(duration?.saveEnds?.dc))) target.saveEnds = [...(target.saveEnds ?? []).filter((entry) => entry.slug !== slug), { slug, save: duration.saveEnds.save ?? "fortitude", dc: Number(duration.saveEnds.dc), drop: Number(duration.saveEnds.drop) || 0 }];
     // (B305: its reaction to gaining the condition — Quick Escape from a grab, Melt Time when slowed or stunned.)
     if (!before && isActive(target)) useReaction(state, target, source && source !== target ? source : null, (trigger) => trigger.event === "condition-gained" && (!trigger.slugs?.length || trigger.slugs.includes(slug)));
     return true;
+}
+
+// The new saves at the end of the creature's turn against conditions that say so (B314; the ghast's paralysis: "the DC cumulatively
+// decreases by 1"): a success ends the condition, a failure lowers the DC by the drop.
+export function saveEndsAtTurnEnd(state, c) {
+    for (const entry of [...(c.saveEnds ?? [])]) {
+        const flag = FLAGS[entry.slug];
+        const held = flag ? Boolean(c.cond[flag]) : (c.cond[entry.slug] ?? 0) > 0;
+        if (!held) {
+            c.saveEnds.splice(c.saveEnds.indexOf(entry), 1);
+            continue;
+        }
+        const natural = state.rng.d20();
+        if (degreeOf(natural + saveModifier(c, entry.save), entry.dc, natural) >= SUCCESS) {
+            if (flag) c.cond[flag] = false;
+            else c.cond[entry.slug] = 0;
+            c.timers = (c.timers ?? []).filter((timer) => timer.key !== (flag ?? entry.slug));
+            c.saveEnds.splice(c.saveEnds.indexOf(entry), 1);
+            log(state, `  ${c.name} is no longer ${entry.slug} (${entry.save} save against DC ${entry.dc})`);
+        } else entry.dc -= entry.drop;
+    }
 }
 
 // Ends conditions (Escape): grabbed and restrained also free the creature from its grabber.

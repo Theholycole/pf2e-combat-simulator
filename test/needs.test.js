@@ -70,3 +70,28 @@ test("B312 an unread requirement is never played; hpBelowHalf", () => {
     c.hp.value = Math.floor(c.hp.max / 2) - 1;
     assert.equal(needsMet(state, c, [{ hpBelowHalf: true }]), true);
 });
+
+// B314 (2026-10-13, found in the deadliest-creatures study): a new save at the end of each of the creature's turns ends a condition that
+// allows one, its DC lower after each failure; a paralyzed creature's turn still ends.
+test("B314 a new save at the end of each turn: ends the condition, the DC dropping; paralyzed creatures still end their turns", async () => {
+    const { applyCondition, saveEndsAtTurnEnd } = await import("../src/engine/spells.js");
+    const { simulate } = await import("../src/engine/fight.js");
+    const state = createFightState({ combatants: [...martialParty(5), moderateCreature(5, "ghast", "Ghast")] }, {}, 1);
+    const pc = state.byId.get("fighter");
+    applyCondition(state, pc, "paralyzed", null, { mode: "unlimited", saveEnds: { save: "fortitude", dc: 40, drop: 1 } }, state.byId.get("ghast"));
+    assert.equal(pc.cond.paralyzed, true);
+    saveEndsAtTurnEnd(state, pc);
+    assert.equal(pc.cond.paralyzed, true, "DC 40 isn't met");
+    assert.equal(pc.saveEnds[0].dc, 39);
+    pc.saveEnds[0].dc = -20;
+    saveEndsAtTurnEnd(state, pc);
+    assert.equal(pc.cond.paralyzed, false);
+    assert.equal(pc.saveEnds.length, 0);
+    // In a fight: the paralyzed fighter's turn is logged, its persistent damage taken, and the easy save ends the paralysis.
+    const party = martialParty(5).map((c) => (c.id === "fighter" ? { ...c, conditions: { paralyzed: true, persistent: [{ type: "fire", dice: 1, die: 4, bonus: 0 }] }, saveEnds: [{ slug: "paralyzed", save: "fortitude", dc: -20, drop: 1 }] } : c));
+    const { log } = simulate({ combatants: [...party, moderateCreature(5, "ghast", "Ghast")] }, {}, 3, { log: true });
+    const turn = log.indexOf("Fighter (paralyzed)");
+    assert.ok(turn >= 0, "its turn is logged");
+    assert.match(log.slice(turn, turn + 4).join("\n"), /Fighter is no longer paralyzed \(fortitude save against DC -20\)/);
+    assert.ok(log.slice(turn, turn + 4).some((line) => /Fighter takes \d+ persistent fire/.test(line)));
+});
