@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { createFightState, performAction, simulate } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
-import { scoreOptions } from "../src/engine/planner.js";
+import { chooseAction, scoreOptions } from "../src/engine/planner.js";
 import { endOfRoundObjective, settleObjectiveAfterWin, updateObjective } from "../src/engine/objectives.js";
 import { strideToward, stridesFor } from "../src/engine/map-objectives.js";
 import { strikeUsable } from "../src/engine/combatant.js";
@@ -130,7 +130,9 @@ test("O3 retrieve: picking it up takes a hand (no two-handed Strikes, no shield)
     assert.equal(state.objective.item.carrierId, "fighter");
     assert.ok(!strikeUsable(c, greatsword) && strikeUsable(c, fist));
     c.actionsLeft = 2;
-    assert.deepEqual(best(state, c).action, { type: "stride", move: { kind: "toExit" } });
+    // (Its turn's choice: the one-step scores are close — a Stride toward the far band or the exit — and the exit wins on the
+    // second Stride.)
+    assert.deepEqual(chooseAction(state, c), { type: "stride", move: { kind: "toExit" } });
     // The champion lets go of its shield to carry it.
     const other = createFightState({ combatants: [{ ...champion }, tough("foe", "Foe")], setup: { objective: { kind: "retrieve", carrierId: "champion" } } }, {}, 1);
     const carrier = other.byId.get("champion");

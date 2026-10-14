@@ -22,8 +22,10 @@ const distributionCache = new Map();
 
 // Probability of each degree for d20 + modifier against dc, as
 // [criticalFailure, failure, success, criticalSuccess].
+// (Cached by the exact difference: a threat estimate's average AC is fractional. Before, the key was truncated, so the first
+// fractional call stored its odds — a face off — where later whole-number checks found them.)
 export function degreeDistribution(modifier, dc) {
-    const key = (dc - modifier) | 0;
+    const key = dc - modifier;
     let cached = distributionCache.get(key);
     if (cached) return cached;
     cached = [0, 0, 0, 0];
