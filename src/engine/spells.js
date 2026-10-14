@@ -1197,7 +1197,7 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
 
 // Resolves a spell or ability (one of the creature's, or a rider's plan) at the targets.
 // Spellstrike (C20): forcedDegree is the Strike's result for a spell attack; disrupted, a spell lost to a critically missed Strike.
-export function castPlan(state, caster, spell, targetIds, actions, { forcedDegree = null, disrupted = false } = {}) {
+export function castPlan(state, caster, spell, targetIds, actions, { forcedDegree = null, disrupted = false, evenDown = false } = {}) {
     // A random effect table (B255): the die picks the way, played as the ability (a face with nothing to play does nothing; "roll twice"
     // rolls twice more, without that face). The ways share the ability's recharge.
     if (spell.randomWays?.length) {
@@ -1235,7 +1235,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         return;
     }
     const info = describeSpell(spell.plan, actions);
-    const reachable = (target) => isActive(target) || target === caster || ((info.healing || info.dying) && target.status === DOWN);
+    // (B316: evenDown — Death Strike at a creature the spell just dropped.)
+    const reachable = (target) => isActive(target) || target === caster || ((info.healing || info.dying || evenDown) && target.status === DOWN);
     const targets = targetIds.map((id) => state.byId.get(id)).filter((target) => target && reachable(target));
     if (spell.pool) caster.spellPools[spell.pool] = Math.max(0, (caster.spellPools[spell.pool] ?? 0) - 1);
     log(state, `  ${caster.name} casts ${spell.name}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
@@ -1383,6 +1384,13 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     if (info.immunity && info.immunityDegrees) markImmune(targets.filter((target) => !result.degrees[target.id] || info.immunityDegrees.includes(result.degrees[target.id])));
     applyChanges(state, caster, spell, result.changes, context, io);
+    // (B316, Death Strike: "… or that critically fails against any of its spells must succeed at a … save or die" — the caster's abilities
+    // that say so, at each foe that critically failed a save against one of its spells, standing or just dropped by it.)
+    const onCriticalFailure = isSpellCast(spell) ? (caster.spells ?? []).filter((entry) => entry.plan?.trigger?.spellCriticalFailure) : [];
+    for (const target of onCriticalFailure.length ? targets : []) {
+        if (result.degrees[target.id] !== "criticalFailure" || target.side === caster.side || !(isActive(target) || target.status === DOWN)) continue;
+        for (const entry of onCriticalFailure) castPlan(state, caster, entry, [target.id], undefined, { evenDown: true });
+    }
     // (B273: a foe's failed save against its own spell or ability — Mass Improved Grab, Siphon Faith: its reaction at that creature.)
     if (spell.plan?.resolution?.kind === "save") for (const target of targets) {
         if (!["failure", "criticalFailure"].includes(result.degrees[target.id]) || !isActive(target) || !isActive(caster) || target.side === caster.side) continue;
@@ -1910,7 +1918,25 @@ export function isUtility(plan) {
     return castsNothing(plan) && !/Compendium\.pf2e\.spell-effects\.Item\./.test(JSON.stringify(plan));
 }
 
+// Constant spells (B315): "Haste (Constant)" is always on. As the fight starts, each one the creature can aim at itself without a check
+// takes effect on it for good; none is cast during the fight. (Before, a creature spent two actions casting its constant Haste.)
+export const isConstant = (spell) => /\(Constant\)\s*$/i.test(String(spell?.name ?? ""));
+export function applyConstantSpells(state) {
+    for (const c of state.list) {
+        if (!isActive(c)) continue;
+        for (const [index, spell] of (c.spells ?? []).entries()) {
+            if (!isConstant(spell) || !registry.familyFor(spell.plan?.resolution?.kind) || castsNothing(spell.plan)) continue;
+            if (planDamages(spell.plan) || spell.plan?.resolution?.check?.roll || describeSpell(spell.plan).area) continue;
+            const timers = new Set(c.timers ?? []);
+            castSpell(state, c, index, [c.id]);
+            // For good: none of the timers this cast set.
+            c.timers = (c.timers ?? []).filter((timer) => timers.has(timer));
+        }
+    }
+}
+
 export function canCast(c, spell) {
+    if (isConstant(spell)) return false;
     if (!registry.familyFor(spell.plan?.resolution?.kind) || castsNothing(spell.plan)) return false;
     // (L5: a coven spell, only with its coven beside it.)
     if (spell.coven && !c.covenReady) return false;

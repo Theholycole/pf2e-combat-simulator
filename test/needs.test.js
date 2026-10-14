@@ -95,3 +95,19 @@ test("B314 a new save at the end of each turn: ends the condition, the DC droppi
     assert.match(log.slice(turn, turn + 4).join("\n"), /Fighter is no longer paralyzed \(fortitude save against DC -20\)/);
     assert.ok(log.slice(turn, turn + 4).some((line) => /Fighter takes \d+ persistent fire/.test(line)));
 });
+
+// B316 (2026-10-14; the user asked about the Grim Reaper's death effects): Death Strike also at a creature that critically fails a save
+// against one of its spells — even one the spell just dropped.
+test("B316 an ability on a critical failure against the creature's spells: Death Strike after a critically failed save", async () => {
+    const { castSpell } = await import("../src/engine/spells.js");
+    const rows = (death) => Object.fromEntries(["criticalSuccess", "success", "failure", "criticalFailure"].map((degree, index) => [degree, { damage: index ? { mode: "shared", multiplier: [0, 0.5, 1, 2][index], sourceComponentIds: ["0"] } : { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [], ...(death && index >= 2 ? { terminal: { kind: "death" } } : {}) }]));
+    const bolt = { modelVersion: 13, source: { name: "Test Bolt" }, rank: 3, traits: ["manipulate"], activation: { time: "2", traits: ["manipulate"] }, targeting: { target: "1 creature", range: "60 feet" }, resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: true, against: { dc: "fixed", value: 99 } }, sharedDamage: { components: [{ id: "0", formula: "1d4[void]" }] }, outcomes: rows(false) } };
+    const strike = { modelVersion: 13, source: { name: "Death Strike", slug: "death-strike" }, rank: 1, traits: ["death"], activation: { time: "passive", traits: [] }, targeting: { target: "the creature the Strike hits", range: "touch" }, trigger: { event: "strike", on: ["criticalSuccess"], attackEffect: "death-strike", cost: "free", map: false, spellCriticalFailure: true }, resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 99 } }, outcomes: { criticalSuccess: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, failure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [], terminal: { kind: "death" } }, criticalFailure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [], terminal: { kind: "death" } } } } };
+    const reaper = { ...moderateCreature(8, "reaper", "Reaper"), spells: [{ name: "Test Bolt", plan: bolt, castRank: 3, dc: 99, attack: 20, pool: null }, { name: "Death Strike", plan: strike, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" }] };
+    const state = createFightState({ combatants: [...martialParty(5), reaper] }, {}, 1, { log: true });
+    state.log = [];
+    state.rng.d20 = () => 1;
+    castSpell(state, state.byId.get("reaper"), 0, ["fighter"]);
+    assert.equal(state.byId.get("fighter").status, "dead", state.log.join("\n"));
+    assert.ok(state.log.some((line) => / Reaper casts Death Strike at Fighter$/.test(line)));
+});

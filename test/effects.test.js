@@ -149,3 +149,21 @@ test("Bless (left to PF2e's card, with native applications): the cleric blesses 
     assert.equal(state.byId.get("fighter").effects.length, 1);
     assert.equal(state.byId.get("foe").effects.length, 0);
 });
+
+// B315 (2026-10-14; the user asked about the Grim Reaper): a constant spell is on from the fight's start, for good, and never cast in it.
+test("B315 a constant Haste: the creature is quickened as the fight starts, for good, and never spends actions casting it", async () => {
+    const { simulate } = await import("../src/engine/fight.js");
+    const uuid = "Compendium.pf2e.spell-effects.Item.ElkXovNrHB0Doi6O";
+    const hastePlan = { modelVersion: 12, source: { name: "Haste" }, rank: 3, traits: ["manipulate"], activation: { time: "2", traits: ["manipulate"] }, targeting: { target: "1 creature", range: "30 feet" }, resolution: { kind: "effect", applications: [{ kind: "native-spell-effect", uuid }] } };
+    const reaper = { ...moderateCreature(8, "reaper", "Reaper"), spells: [{ name: "Haste (Constant)", plan: hastePlan, castRank: 3, dc: 25, attack: 15, pool: null, effects: { [uuid]: effectModel(HASTE, { rank: 3, conditionSlug }) } }] };
+    const { log } = simulate({ combatants: [...martialParty(5), reaper] }, {}, 1, { log: true });
+    const start = log.indexOf("— Round 1 —");
+    assert.ok(log.slice(0, start).includes("  Reaper gains Haste"), "on before the first round");
+    assert.equal(log.slice(start).filter((line) => /Reaper casts Haste/.test(line)).length, 0, "never cast in the fight");
+    const state = createFightState({ combatants: [...martialParty(5), reaper] }, {}, 1);
+    const { applyConstantSpells } = await import("../src/engine/spells.js");
+    applyConstantSpells(state);
+    const r = state.byId.get("reaper");
+    assert.equal(r.cond.quickened, true);
+    assert.equal((r.timers ?? []).length, 0, "no timer ends it");
+});
