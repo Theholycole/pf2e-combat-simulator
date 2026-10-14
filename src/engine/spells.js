@@ -1243,9 +1243,11 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // (I1: a creature immune to the effect's trait — a mindless one to a mental effect, a construct to a death effect — is unaffected.)
     for (const target of [...targets]) {
         const immunity = effectImmunity(target, spell);
-        if (!immunity) continue;
+        // (B317: outside who the spell can affect.)
+        const outside = immunity ? null : outsideTargets(caster, target, spell);
+        if (!immunity && !outside) continue;
         targets.splice(targets.indexOf(target), 1);
-        log(state, `  ${target.name} is immune (${immunity.replace(/-/g, " ")})`);
+        log(state, immunity ? `  ${target.name} is immune (${immunity.replace(/-/g, " ")})` : `  ${target.name} is unaffected (${outside})`);
     }
     // (T7: a troop ignores a non-damaging effect aimed at one creature — Demoralize, a Charm.)
     const damaging = planDamages(spell.plan);
@@ -1918,6 +1920,73 @@ export function isUtility(plan) {
     return castsNothing(plan) && !/Compendium\.pf2e\.spell-effects\.Item\./.test(JSON.stringify(plan));
 }
 
+// Who a spell can affect (B317; found checking the Grim Reaper's death effects for the user): the spell module's targeting.actorConstraints
+// — "Each living creature of 17th level or lower in the line" (Massacre), enemies only, a trait, a size, a condition. A reason when the target
+// is outside them, else null; a kind the simulation can't judge (the GM's call) lets it through. Before, Massacre killed level-20 PCs outright.
+const LEVEL_KEYS = (byRank, rank) => Object.keys(byRank ?? {}).map(Number).filter((key) => key <= rank).sort((a, b) => b - a)[0];
+export function outsideTargets(caster, target, spell) {
+    const predicates = spell?.plan?.targeting?.actorConstraints?.predicates;
+    if (!predicates?.length || !target) return null;
+    const traits = target.traits ?? [];
+    const construct = traits.includes("construct");
+    for (const predicate of predicates) {
+        switch (predicate.kind) {
+            case "living-creature":
+                if (isUndead(target) || construct) return "not living";
+                break;
+            case "living-or-undead":
+                if (construct) return "not living or undead";
+                break;
+            case "undead-or-void-healing":
+                if (!isUndead(target)) return "not undead";
+                break;
+            case "not-undead-or-void-healing":
+                if (isUndead(target)) return "undead";
+                break;
+            case "enemy-of-caster":
+            case "non-ally-of-caster":
+                if (target.side === caster.side) return "not an enemy";
+                break;
+            case "not-caster":
+                if (target === caster) return "the caster";
+                break;
+            case "trait":
+                if (traits.includes(predicate.slug) !== (predicate.present !== false)) return predicate.present === false ? `${predicate.slug}` : `not ${predicate.slug}`;
+                break;
+            case "size-at-most":
+                if (sizeRank(target.size) > sizeRank(predicate.size)) return "too big";
+                break;
+            case "level-at-most": {
+                const key = LEVEL_KEYS(predicate.byRank, spell.castRank ?? 0);
+                const level = key !== undefined ? predicate.byRank[key] : predicate.level;
+                if ((target.level ?? 0) > level) return `above level ${level}`;
+                break;
+            }
+            case "level-at-most-caster":
+                if ((target.level ?? 0) > (caster.level ?? 0) + (Number(predicate.offset) || 0)) return "too high a level";
+                break;
+            case "condition":
+                if (predicate.slug === "dying" ? target.status !== DOWN : !(target.cond?.[FLAGS[predicate.slug] ?? predicate.slug])) return `not ${predicate.slug}`;
+                break;
+            case "hp-zero":
+                if ((target.hp?.value ?? 1) > 0) return "not at 0 Hit Points";
+                break;
+            case "persistent-damage":
+                if (!(target.persistent ?? []).some((entry) => !predicate.damageType || entry.type === predicate.damageType)) return `no persistent ${predicate.damageType ?? "damage"}`;
+                break;
+            case "land-speed-above-caster":
+                if ((target.speed ?? 25) <= (caster.speed ?? 25)) return "not faster";
+                break;
+            case "not-immune-damage":
+                if ((target.immunities ?? []).includes(predicate.damageType)) return `immune to ${predicate.damageType}`;
+                break;
+            default:
+                break;
+        }
+    }
+    return null;
+}
+
 // Constant spells (B315): "Haste (Constant)" is always on. As the fight starts, each one the creature can aim at itself without a check
 // takes effect on it for good; none is cast during the fight. (Before, a creature spent two actions casting its constant Haste.)
 // ("Foresight (Constant) (Self Only)" too.)
@@ -2130,7 +2199,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         const entry = { target, damage: 0, worth: 0, heal: 0, benefit: 0 };
         result.push(entry);
         // (I1: nothing on a creature immune to it; T7: nor a non-damaging one aimed at one creature on a troop.)
-        if (effectImmunity(target, spell)) continue;
+        if (effectImmunity(target, spell) || outsideTargets(caster, target, spell)) continue;
         if (troopIgnores(target, { damaging: planDamages(spell.plan), targets: describeSpell(spell.plan, actions).area ? Infinity : targets.length })) continue;
         // Golem Antimagic (B56): only what its list says.
         const golem = golemAnswer(caster, spell, target, Boolean(describeSpell(spell.plan, actions).area));

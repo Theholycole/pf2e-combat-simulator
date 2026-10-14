@@ -111,3 +111,33 @@ test("B316 an ability on a critical failure against the creature's spells: Death
     assert.equal(state.byId.get("fighter").status, "dead", state.log.join("\n"));
     assert.ok(state.log.some((line) => / Reaper casts Death Strike at Fighter$/.test(line)));
 });
+
+// B317 (2026-10-14; found checking the Grim Reaper's death effects): who a spell can affect — the spell module's
+// targeting.actorConstraints. Massacre's "living creature of 17th level or lower" left level-20 PCs dead.
+test("B317 a spell's target limits: level caps by rank, living, enemies only, a trait, a size", async () => {
+    const { outsideTargets, castSpell } = await import("../src/engine/spells.js");
+    const predicates = [{ kind: "living-creature" }, { kind: "level-at-most", level: 17, byRank: { 10: 19 } }];
+    const massacre = (castRank) => ({ name: "Test Massacre", castRank, plan: { targeting: { area: { type: "line", value: 60 }, actorConstraints: { predicates } } } });
+    const caster = { id: "lich", side: "foes", level: 20 };
+    const pc = (level, extra = {}) => ({ id: "pc", side: "party", level, traits: ["humanoid"], ...extra });
+    assert.equal(outsideTargets(caster, pc(20), massacre(9)), "above level 17");
+    assert.equal(outsideTargets(caster, pc(19), massacre(10)), null, "level 19 at rank 10");
+    assert.equal(outsideTargets(caster, pc(20), massacre(10)), "above level 19");
+    assert.equal(outsideTargets(caster, pc(12, { traits: ["undead"] }), massacre(9)), "not living");
+    assert.equal(outsideTargets(caster, pc(12, { traits: ["construct"] }), massacre(9)), "not living");
+    const only = (predicate) => ({ name: "Test", castRank: 3, plan: { targeting: { actorConstraints: { predicates: [predicate] } } } });
+    assert.equal(outsideTargets(caster, { ...pc(5), side: "foes" }, only({ kind: "enemy-of-caster" })), "not an enemy");
+    assert.equal(outsideTargets(caster, pc(5, { traits: ["fire"] }), only({ kind: "trait", slug: "fire", present: true })), null);
+    assert.equal(outsideTargets(caster, pc(5), only({ kind: "trait", slug: "fire", present: true })), "not fire");
+    assert.equal(outsideTargets(caster, pc(5, { size: "huge" }), only({ kind: "size-at-most", size: "lg" })), "too big");
+    assert.equal(outsideTargets(caster, pc(5), only({ kind: "gm-confirmed" })), null, "the GM's call lets it through");
+    // In a cast: a level-8 PC above a level-5 cap is unaffected.
+    const rows = Object.fromEntries(["criticalSuccess", "success", "failure", "criticalFailure"].map((degree, index) => [degree, { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [], ...(index === 3 ? { terminal: { kind: "death" } } : {}) }]));
+    const doom = { modelVersion: 13, source: { name: "Test Doom" }, rank: 3, traits: ["death"], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "30 feet", actorConstraints: { predicates: [{ kind: "level-at-most", level: 5 }] } }, resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 99 } }, outcomes: rows } };
+    const state = createFightState({ combatants: [...martialParty(8), { ...moderateCreature(8, "lich", "Lich"), spells: [{ name: "Test Doom", plan: doom, castRank: 3, dc: 99, attack: 20, pool: null }] }] }, {}, 1, { log: true });
+    state.log = [];
+    state.rng.d20 = () => 1;
+    castSpell(state, state.byId.get("lich"), 0, ["fighter"]);
+    assert.equal(state.byId.get("fighter").status, "active");
+    assert.ok(state.log.includes("  Fighter is unaffected (above level 5)"), state.log.join("\n"));
+});
