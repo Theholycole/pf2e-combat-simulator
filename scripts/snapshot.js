@@ -837,9 +837,12 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
     const spells = [];
     const spellPools = {};
     // (Not the entries the ability module makes for an ability's casting: the ability is read with the abilities.)
-    const entries = (actor.spellcasting?.regular ?? actor.spellcasting?.contents ?? []).filter((entry) => !entry.isRitual && !entry.flags?.[ABILITY_MODULE_ID]?.abilityCast);
-    // (S22: PF2e Dailies' staves and spell servers, entries of their own beside PF2e's.)
+    let entries = (actor.spellcasting?.regular ?? actor.spellcasting?.contents ?? []).filter((entry) => !entry.isRitual && !entry.flags?.[ABILITY_MODULE_ID]?.abilityCast);
+    // (S22: PF2e Dailies' staves and spell servers, entries of their own beside PF2e's. A staff Dailies prepared replaces a
+    // spellcasting entry of the staff's name — the iconics' "Staff of Fire" — which would cast its spells a second time.)
     const charged = [...(actor.spellcasting?.contents ?? [])].filter((entry) => entry.category === "charges" && !entries.includes(entry));
+    const preparedStaves = new Set(charged.filter((entry) => entry.isStaff).map((entry) => String(entry.name ?? "").trim().toLowerCase()));
+    if (preparedStaves.size) entries = entries.filter((entry) => entry.category === "charges" || !preparedStaves.has(String(entry.name ?? "").trim().toLowerCase()));
     const registry = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api?.registry : null;
     const cantripRank = Math.min(10, Math.max(1, Math.ceil((actor.level ?? 1) / 2)));
     const listed = [];

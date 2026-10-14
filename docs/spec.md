@@ -125,6 +125,12 @@ The user asked: "can we get the simulator to treat scrolls, wands and staffs as 
   - Valeros tricks a Scroll of Fireball: Arcana +1 vs DC 20, then spell DC 16.
   - The Watchmage's Staff of Fire, read from its description: 3 charges.
   - In fights, Ezren casts from his scrolls once his prepared Fireball is spent, and Valeros' tricks roll and cast.
+- **Live check with PF2e Dailies 4.23.0 on PF2e 8.6.1** (2026-10-14):
+  - Ezren's Staff of Fire, prepared through Dailies' own dialog: 3 charges, DC 21, Ignition and Breathe Fire.
+  - It's read as a `charges` pool (Breathe Fire costs 1; 1 left after spending two, 3 when fresh).
+  - The iconic's own "Staff of Fire" entry is skipped while Dailies has the staff, so its spells aren't counted twice.
+  - In fights with only the staff's spells, Breathe Fire is cast at most 3 times a fight.
+  - All 43 PFTEST SIM actors read on 8.6.1 without errors, and the worker pool's 200-fight batch matches a single-thread run.
 
 ## Milestone 3 status (2026-10-08): monster abilities and basic actions
 
