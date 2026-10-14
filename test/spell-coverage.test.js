@@ -148,3 +148,53 @@ test("No hostile actions: the wordings — all of them (Calm) or none against th
     performStrike(state, caster, brute, caster.strikes[0]);
     assert.equal(spares(brute, caster), false);
 });
+
+test("Evil Eye: the simulator's reading when the compiler leaves it unplanned; sickened 1 that Retch can't shake while it's sustained", async () => {
+    const { withReading } = await import("../src/engine/readings.js");
+    const { floorOf } = await import("../src/engine/floors.js");
+    const { retch } = await import("../src/engine/spells.js");
+    const unplanned = { modelVersion: 12, source: { name: "Evil Eye", slug: "evil-eye" }, rank: 1, traits: ["cantrip", "curse", "hex", "manipulate"], activation: { time: "1" }, targeting: { target: "1 creature", range: "30 feet" },
+        lifecycle: { durationSpec: { mode: "sustained", maximum: { mode: "fixed", value: 1, unit: "minutes" } }, sustained: true }, resolution: { kind: "unsupported", native: { check: { statistic: "will", basic: false } } } };
+    const plan = withReading(unplanned);
+    assert.equal(plan.resolution.kind, "save");
+    assert.equal(plan.simulatorReading, true);
+    // A plan the compiler did build stays as it is.
+    assert.equal(withReading({ ...unplanned, resolution: { kind: "save", outcomes: {} } }).simulatorReading, undefined);
+    const witch = { ...moderateCreature(5, "witch", "Witch"), spells: [{ name: "Evil Eye", plan, castRank: 3, dc: 20, attack: 12, pool: null }], spellPools: {}, band: "near" };
+    const state = createFightState({ combatants: [{ ...martialParty(5)[0], band: "near" }, witch] }, {}, 1);
+    const caster = state.byId.get("witch");
+    const pc = state.list.find((c) => c.kind === "pc");
+    state.rng.d20 = () => Math.max(2, 19 - saveModifier(pc, "will"));
+    castSpell(state, caster, 0, [pc.id]);
+    assert.equal(pc.cond.sickened, 1);
+    assert.equal(floorOf(pc, "sickened"), 1);
+    pc.sickenedDC = 20;
+    state.rng.d20 = () => 20;
+    retch(state, pc);
+    assert.equal(pc.cond.sickened, 1, "not below 1 while it lasts");
+    // Its caster gone: nobody sustains it, and Retch works again.
+    caster.status = "dead";
+    const { lastingTurnStart } = await import("../src/engine/lasting.js");
+    lastingTurnStart(state, pc);
+    assert.equal(floorOf(pc, "sickened"), 0);
+    retch(state, pc);
+    assert.equal(pc.cond.sickened, 0);
+});
+
+test("Condition floors: frightened 1 while stupefied (Lift Nature's Caul), while bleeding (Horrifying Blood Loss)", async () => {
+    const { addFloor, floorOf } = await import("../src/engine/floors.js");
+    const state = createFightState({ combatants: [...martialParty(5).slice(0, 1), { ...moderateCreature(5, "foe", "Foe") }] }, {}, 1);
+    const pc = state.list.find((c) => c.kind === "pc");
+    const foe = state.byId.get("foe");
+    const spell = { name: "Lift Nature's Caul", plan: {} };
+    pc.cond.frightened = 2;
+    pc.cond.stupefied = 1;
+    addFloor(state, pc, foe, spell, { slug: "frightened", value: 1, lifetime: "while-condition", whileCondition: { slug: "stupefied" } });
+    assert.equal(floorOf(pc, "frightened"), 1);
+    pc.cond.stupefied = 0;
+    assert.equal(floorOf(pc, "frightened"), 0);
+    addFloor(state, pc, foe, { name: "Horrifying Blood Loss", plan: {} }, { slug: "frightened", value: 1, lifetime: "while-persistent", persistentDamage: "bleed" });
+    assert.equal(floorOf(pc, "frightened"), 0);
+    pc.persistent = [{ type: "bleed", dice: 1, die: 6 }];
+    assert.equal(floorOf(pc, "frightened"), 1);
+});

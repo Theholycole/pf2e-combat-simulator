@@ -4,6 +4,8 @@
 // Charm: none against the caster; Charm ends when the caster turns hostile to it, Glimmer of Charm when the caster does to it or its
 // allies. The entries are c.pacified: [{ by, spell, all, endsOn, allies, untilRound, sustained }].
 
+import { endEntries, lastingRounds } from "./lasting.js";
+
 const HOSTILE_NOTE = /\bno hostile actions\b/i;
 
 // A note's pacification, or null: { all, endsOn: "any" | "caster" | null, allies }. rowText: its outcome row's own words (Calm's
@@ -20,15 +22,7 @@ export function pacifyOf(note, rowText = "") {
 }
 
 // How long a note lasts, in rounds (until the caster's turn starts that many rounds on), and whether it's sustained.
-export function noteRounds(duration) {
-    if (!duration) return { rounds: 10, sustained: false };
-    const sustained = Boolean(duration.sustained);
-    if (duration.mode === "turn-boundary" || /start of your next turn/i.test(String(duration.sourceText ?? ""))) return { rounds: 1, sustained };
-    const value = Number(duration.value) || 1;
-    if (duration.unit === "rounds") return { rounds: value, sustained };
-    if (duration.unit === "minutes") return { rounds: value * 10, sustained };
-    return { rounds: Infinity, sustained };
-}
+export const noteRounds = lastingRounds;
 
 export function pacify(state, target, caster, spell, entry, duration) {
     const { rounds, sustained } = noteRounds(duration);
@@ -48,11 +42,7 @@ export function spares(c, other) {
     return (c.pacified ?? []).some((entry) => !entry.all && entry.by === other.id);
 }
 
-function end(state, c, entries, why) {
-    if (!entries.length) return;
-    c.pacified = c.pacified.filter((entry) => !entries.includes(entry));
-    for (const entry of entries) state.log?.push(`  ${c.name} is no longer under ${entry.spell}${why ? ` (${why})` : ""}`);
-}
+const end = (state, c, entries, why) => endEntries(state, c, "pacified", entries, why);
 
 // Hostility toward target from source (an attack, damage, a harmful spell or condition): what it ends.
 export function hostility(state, target, source) {
@@ -64,26 +54,6 @@ export function hostility(state, target, source) {
     for (const other of state.list) {
         if (other === target || other.side !== target.side || !other.pacified?.length) continue;
         end(state, other, other.pacified.filter((entry) => entry.endsOn === "caster" && entry.allies && entry.by === source.id), `${source.name} turned on its allies`);
-    }
-}
-
-// The caster's turn starting: its spells that ran out end; one it sustains costs it an action, or ends when it can't act.
-export function pacifyTurnStart(state, c, { canSustain = true } = {}) {
-    const sustained = new Set();
-    for (const other of state.list) {
-        if (!other.pacified?.length) continue;
-        // (A sustained one whose caster is dead or gone: nobody sustains it.)
-        end(state, other, other.pacified.filter((entry) => entry.sustained && !["active", "down"].includes(state.byId.get(entry.by)?.status)), null);
-        const mine = other.pacified.filter((entry) => entry.by === c.id);
-        end(state, other, mine.filter((entry) => state.round >= entry.untilRound || (entry.sustained && !canSustain)), null);
-        for (const entry of other.pacified.filter((held) => held.by === c.id && held.sustained)) sustained.add(entry.spell);
-    }
-    if (!canSustain) return;
-    for (const spell of sustained) {
-        if (c.actionsLeft > 0) {
-            c.actionsLeft -= 1;
-            state.log?.push(`  ${c.name} Sustains ${spell}`);
-        }
     }
 }
 

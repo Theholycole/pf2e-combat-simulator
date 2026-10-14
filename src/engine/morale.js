@@ -7,6 +7,7 @@ import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistributio
 import { engagedAllies, engagedEnemies, removeFromSpace } from "./space.js";
 import { helpPending } from "./escalations.js";
 import { frightenedAfter } from "./passives.js";
+import { floorOf } from "./floors.js";
 
 export const GROUP_STATES = ["steady", "shaken", "wavering", "broken"];
 
@@ -738,7 +739,7 @@ function bossMayBreak(state, c) {
 function applyIndividualResult(state, c, degree, template, reason = null) {
     const outcome = moraleOutcome(state, c, degree, reason);
     if (outcome.kind === "steady") {
-        c.cond.frightened = Math.max(0, c.cond.frightened - 1);
+        c.cond.frightened = Math.max(floorOf(c, "frightened"), c.cond.frightened - 1);
         return;
     }
     if (outcome.kind === "holds") return;
@@ -860,7 +861,7 @@ export function moraleRecovery(state, c) {
         c.moraleState.wavering = false;
         c.mustWithdraw = false;
         c.dropAggression = false;
-        if (roll.degree === CRITICAL_SUCCESS) c.cond.frightened = Math.max(0, c.cond.frightened - 1);
+        if (roll.degree === CRITICAL_SUCCESS) c.cond.frightened = Math.max(floorOf(c, "frightened"), c.cond.frightened - 1);
         state.log?.push(`  ${c.name} steadies`);
     }
 }

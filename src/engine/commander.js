@@ -15,6 +15,7 @@ import { attackModifier, expectedHitDamage, performStrike, stride } from "./acti
 import { canReact, withExtraDamage } from "./abilities.js";
 import { distanceBetween, rangePenalty, sameMelee, stridesToEngage } from "./space.js";
 import { log } from "./log.js";
+import { floorOf } from "./floors.js";
 
 export const inBanner = (commander, ally) => ally !== commander && distanceBetween(commander, ally) <= (commander.commander?.banner ?? 30);
 
@@ -114,7 +115,7 @@ export function bannersInspiration(state, commander) {
     const allies = inspirable(state, commander);
     log(state, `  ${commander.name} uses ${commander.commander.bannersInspiration}`);
     for (const ally of allies) {
-        ally.cond.frightened = Math.max(0, ally.cond.frightened - 1);
+        ally.cond.frightened = Math.max(floorOf(ally, "frightened"), ally.cond.frightened - 1);
         (commander.inspired ??= new Set()).add(ally.id);
         log(state, `  ${ally.name} is frightened ${ally.cond.frightened}`);
     }

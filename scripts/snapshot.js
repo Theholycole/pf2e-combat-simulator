@@ -6,6 +6,7 @@ import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js";
 import { levelDC } from "../src/engine/checks.js";
 import { isStaffItem, itemCasts, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
+import { withReading } from "../src/engine/readings.js";
 import { effectModel, iwrException } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
 import { requirementPlayable } from "../src/engine/needs.js";
@@ -902,7 +903,8 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
     const prepared = new Map((await registry.preparePlans(unique)).map(({ item, result, error }) => [item.uuid, { result, error }]));
     for (const entry of listed) {
         const { result, error } = prepared.get(entry.spell.uuid) ?? {};
-        const plan = result?.plan ? leanPlan(result.plan) : null;
+        // (2026-10-14: the simulator's own reading of a spell the compiler leaves without a plan — Evil Eye.)
+        const plan = result?.plan ? withReading(leanPlan(result.plan)) : null;
         const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, ...(entry.coven ? { coven: true } : {}), ...entry.extra, effects: plan ? formLimits(entry.spell, await effectModels(plan, entry.castRank)) : {} };
         // (Shield, the spell: the magic shield the creature raises by casting it — the engine's Raise a Shield and Shield Block.)
         const shield = Object.values(spec.effects ?? {}).find((model) => model?.spellShield)?.spellShield;

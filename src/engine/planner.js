@@ -26,6 +26,7 @@ import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";
 import { pacifiedAll, spares } from "./pacify.js";
+import { floorOf } from "./floors.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 export const ROLE_PROFILES = Object.freeze({
@@ -1603,8 +1604,10 @@ function expandOtherActions(env) {
     // of sickened is about a quarter of a round of its threat over the fight.
     if (node.used === 0 && c.cond.sickened > 0 && c.sickenedDC) {
         const [success, critical] = retchOdds(c);
-        const points = success + critical * Math.min(2, c.cond.sickened);
-        children.push(child(node, { type: "retch" }, 1, ctx.ownValue * 0.24 * points * ROUND_TO_KILL));
+        // (Only the points above its floor — Evil Eye's sickened 1 can't be shaken off while the spell lasts.)
+        const above = Math.max(0, c.cond.sickened - floorOf(c, "sickened"));
+        const points = success * Math.min(1, above) + critical * Math.min(2, above);
+        if (points > 0) children.push(child(node, { type: "retch" }, 1, ctx.ownValue * 0.24 * points * ROUND_TO_KILL));
     }
     if (node.prone) {
         const next = child(node, { type: "stand" }, 1, 0, { prone: false });

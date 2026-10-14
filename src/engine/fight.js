@@ -21,7 +21,8 @@ import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startD
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
-import { pacifyTurnStart } from "./pacify.js";
+import { lastingTurnStart } from "./lasting.js";
+import { floorOf } from "./floors.js";
 import { buildEnvironment, covenCast, covenTurnStart, hiddenAtTurnStart, lightAtStart, sunlightTurnEnd, terrainTurn } from "./environment.js";
 import { attachedTurnStart, berserkTurnStart, followAttached, headsMend, hydraRegrow, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
 
@@ -400,8 +401,8 @@ function startTurn(state, c) {
     c.actionsLeft = Math.min(actions, isHazard(c) ? 9 : MAX_ACTIONS_PER_TURN);
     // (B298: a minion's two actions; its summons' time, and a sustained one's action.)
     summonTurnStart(state, c);
-    // (Calm and the charm spells: those that ran out end; Calm sustained, an action.)
-    pacifyTurnStart(state, c);
+    // (Calm, the charm spells, a condition floor: those that ran out end; a sustained one, an action.)
+    lastingTurnStart(state, c);
     // (B308: coming out of its shell takes an action.)
     if (c.inShell) {
         c.inShell = false;
@@ -558,7 +559,8 @@ function endTurn(state, c) {
     // (L2–L3: sunlight's slowing grows; the ground's Speed back.)
     if (c.sunlight) sunlightTurnEnd(state, c, { killCreature });
     terrainTurn(state, c, "end");
-    if (c.cond.frightened > 0) {
+    // (A floor — Lift Nature's Caul's frightened 1 while stupefied — holds it.)
+    if (c.cond.frightened > floorOf(c, "frightened")) {
         c.cond.frightened--;
         // (Consume Fear, B76: a monster's reaction to a creature near it no longer frightened.)
         if (c.cond.frightened === 0) conditionLostAnswers(state, c, "frightened");
@@ -1159,14 +1161,14 @@ function takeTurn(state, c) {
     if (c.status === DOWN && c.kind !== "pc" && regenerating(c, state)) regenerateUp(state, c);
     if (c.status === DOWN) {
         state.log?.push(`${c.name} (down)`);
-        pacifyTurnStart(state, c, { canSustain: false });
+        lastingTurnStart(state, c, { canSustain: false });
         if (c.kind === "pc" && c.cond.dying > 0) recoveryCheck(state, c);
         endTurn(state, c);
         return;
     }
     // (B314: a paralyzed or sleeping creature's turn still ends — its persistent damage, a new save against the condition.)
     if (!canAct(c)) {
-        pacifyTurnStart(state, c, { canSustain: false });
+        lastingTurnStart(state, c, { canSustain: false });
         if (c.status === ACTIVE && c.acts !== false) {
             state.log?.push(`${c.name} (${c.cond.paralyzed ? "paralyzed" : c.cond.asleep ? "asleep" : "unconscious"})`);
             endTurn(state, c);

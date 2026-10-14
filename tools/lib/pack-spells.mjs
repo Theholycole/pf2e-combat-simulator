@@ -5,6 +5,7 @@ const { compileAbility } = await import(`${W}/src/compiler/index.js`);
 const { readDocuments } = await import(new URL("../../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs", import.meta.url).href);
 const { effectModel } = await import("../../src/engine/effects.js");
 const { isStaffItem, itemCasts, SPELL_ITEMS, staffCharges, staffSpellList } = await import("../../src/adapter/items.js");
+const { withReading } = await import("../../src/engine/readings.js");
 
 export const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 // As the spell module's official compile does: its native-effect catalog and
@@ -27,8 +28,9 @@ const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".")
 export const effectModels = (plan, castRank) => Object.fromEntries([...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}/g) ?? [])]
   .map((uuid) => [uuid, effectsById.get(uuid.split(".").pop())]).filter(([, item]) => item).map(([uuid, item]) => [uuid, effectModel(item, { rank: castRank, conditionSlug })]));
 
+// (2026-10-14: with the simulator's own reading of a spell the compiler leaves without a plan — Evil Eye.)
 export function compileSpell(spell) {
-  return compileAbility(spell, { nativeEffectCatalog, referencedSpells });
+  return withReading(compileAbility(spell, { nativeEffectCatalog, referencedSpells }));
 }
 
 // A PF2e spell by its name (remaster names), or null.

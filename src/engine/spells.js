@@ -17,6 +17,7 @@ import { applyEffect, effectBenefit, effectModel, modifierModel, removeEffect } 
 import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
 import { startZone } from "./zones.js";
 import { hostility, noteRounds, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
+import { addFloor, floorOf } from "./floors.js";
 import { allyStrike } from "./commander.js";
 import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
@@ -940,7 +941,8 @@ export function retch(state, c) {
     const natural = state.rng.d20();
     const degree = adjustedSaveDegree(c, "fortitude", degreeOf(natural + saveModifier(c, "fortitude"), c.sickenedDC ?? 10, natural));
     const drop = degree === 3 ? 2 : degree === 2 ? 1 : 0;
-    c.cond.sickened = Math.max(0, (c.cond.sickened ?? 0) - drop);
+    // (Evil Eye: not below its floor.)
+    c.cond.sickened = Math.max(floorOf(c, "sickened"), (c.cond.sickened ?? 0) - drop);
     if (!c.cond.sickened) {
         c.sickenedDC = null;
         // Conditions that lasted as long as it was sickened end with it.
@@ -1178,6 +1180,11 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 }
                 if (change.effect?.kind === "swallow") {
                     applySwallow(state, caster, target, change.effect);
+                    break;
+                }
+                // (A condition it can't reduce below a value while the spell or a state lasts.)
+                if (change.effect?.kind === "floor") {
+                    if (isActive(target)) addFloor(state, target, caster, spell, change.effect.floor);
                     break;
                 }
                 // (Calm and the charm spells: "can't use hostile actions".)
@@ -2532,6 +2539,8 @@ export function spellGaps(spell) {
                 if (model.unsupported.length) missing.add(`${model.name.replace(/^Spell Effect: /, "")}: ${model.unsupported.join(", ")}`);
             } else if (change.op === "effect" && change.effect?.kind === "modifier") {
                 if (!modifierModel(spell.name, change.effect.modifier)) missing.add(`modifier to ${change.effect.modifier?.selector}`);
+            } else if (change.op === "effect" && change.effect?.kind === "floor") {
+                // (Played: floors.js.)
             } else if (change.op === "effect" && change.effect?.kind === "note" && (pacifyOf(change.effect.note) || noteModel(spell, change.effect.note))) {
                 const model = pacifyOf(change.effect.note) ? null : noteModel(spell, change.effect.note);
                 if (model?.unsupported.length) missing.add(`${change.effect.note.label}: ${model.unsupported.join(", ")}`);
