@@ -186,7 +186,9 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
         // Riders the Strike lists (grab, knockdown, push); a gap unless an ability plays them.
         attackEffects: [...(item?.system?.attackEffects?.value ?? [])],
         // A weapon in hand (Disarm can knock it away); fists, jaws and claws can't be.
-        held: !unarmed && (item?.type === "weapon" || (item?.type === "melee" && !NATURAL_ATTACK.test(action.label ?? item?.name ?? ""))),
+        // (B313: a Strike PF2e links to a weapon item, or named as the creature's weapon or one of PF2e's base weapons; not a lava bomb,
+        // a force blast or a rock.)
+        held: !unarmed && (item?.type === "weapon" || (item?.type === "melee" && heldWeapon(actor, item, action.label ?? item?.name ?? ""))),
         // Two hands to wield: not while a hand carries an objective's item (O3).
         ...(item?.type === "weapon" && item.system?.usage?.value === "held-in-two-hands" ? { hands: 2 } : {}),
         // Light Bulk or less: usable from inside a swallower.
@@ -538,8 +540,16 @@ function readGaps(actor, gaps, handled = new Set()) {
 const CORE_ID = "pf2e-resolution-core";
 const ABILITY_MODULE_ID = "pf2e-automatic-ability-resolution";
 const BASIC_ACTION_SKILLS = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics", disarm: "athletics", reposition: "athletics", feint: "deception", "create-a-diversion": "deception", "administer-first-aid": "medicine" };
-// Natural attacks that lack PF2e's "unarmed" trait on some stat blocks: not held, so not disarmable.
-const NATURAL_ATTACK = /\b(?:jaws?|bite|claws?|talons?|tail|tusks?|horns?|hoof|hooves|slam|fist|tentacles?|wings?|sting|stinger|pincers?|mandibles?|beak|foot|feet|body|antlers?|spines?|quills?|fangs?|tongue|tendrils?|vines?|branch|roots?|pseudopods?)\b/i;
+// A melee Strike that is a weapon in hand (B313): PF2e links it to a weapon item, the creature carries a weapon of its name, or its name is
+// one of PF2e's base weapons. (Before, any Strike not named like a natural attack — a lava bomb, a force blast, a rock.)
+function heldWeapon(actor, item, name) {
+    if (item.linkedWeapon || item.flags?.pf2e?.linkedWeapon) return true;
+    const lower = String(name).toLowerCase();
+    if ((actor.itemTypes?.weapon ?? []).some((weapon) => weapon.name.toLowerCase() === lower)) return true;
+    const bases = globalThis.CONFIG?.PF2E?.baseWeaponTypes ?? {};
+    const slug = lower.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return slug in bases || Object.values(bases).some((label) => String(globalThis.game?.i18n?.localize?.(label) ?? label).toLowerCase() === lower);
+}
 
 // A creature's abilities with their plans (the ability module registers its
 // compiler with the core), the basic actions it uses, and the rules the engine
@@ -560,6 +570,13 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
     for (const { item, result: compiled } of prepared) {
         const plan = compiled?.plan;
         if (!plan) continue;
+        // (B312: a requirement the ability module couldn't read — "is standing in deep water": a state the simulation can't see, so not
+        // played, and listed.)
+        if (plan.requirementUnread) {
+            result.handled.add(item);
+            gaps.push({ kind: "unseen requirement", name: `${item.name}: ${plan.requirementUnread}` });
+            continue;
+        }
         // (B303: more reactions a reaction grants with itself — the grindylow's Reactive Strike, a hardscale's Shield Block.)
         if (!pc && plan.reactions && plan.builtin !== "passive-rules") addBuiltin(result.builtins, { builtin: "passive-rules", reactions: plan.reactions }, item.name);
         // "Frequency once per minute" and longer: once a fight.

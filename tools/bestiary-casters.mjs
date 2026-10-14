@@ -6,30 +6,10 @@
 // errors. Needs Node, the spell module's folder and Foundry's PF2e data.
 //
 //   node tools/bestiary-casters.mjs [pack …]
-const W = decodeURIComponent(new URL("../../PF2e AUTOMATIC SPELL RESOLUTION", import.meta.url).pathname);
-const { compileAbility } = await import(`${W}/src/compiler/index.js`);
-const { readDocuments } = await import(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs", import.meta.url).href);
 const { simulate } = await import("../src/engine/fight.js");
 const { moderateCreature, martialParty } = await import("../src/engine/benchmarks.js");
 const { canCast, isUtility, spellGaps } = await import("../src/engine/spells.js");
-const { effectModel } = await import("../src/engine/effects.js");
-const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
-// As the spell module's official compile does: its native-effect catalog and
-// the spells others reference, so plans match live play.
-const effectItems = readDocuments(`${PACK_ROOT}/spell-effects`).filter((d) => d.collection === "items");
-const nativeEffectCatalog = new Map(effectItems.map((effect) => [effect.name, {
-  id: effect._id ?? null, name: effect.name, type: effect.type,
-  automation: { ruleKeys: [...new Set((effect.system?.rules ?? []).map((rule) => rule.key).filter(Boolean))], requiresConfiguration: (effect.system?.rules ?? []).some((rule) => rule.key === "ChoiceSet"), removesAfterRoll: (effect.system?.rules ?? []).some((rule) => rule.removeAfterRoll != null) },
-  mechanics: { rules: effect.system?.rules ?? [], duration: effect.system?.duration ?? null, start: effect.system?.start ?? null },
-  ...(effect.system?.badge ? { badge: effect.system.badge } : {})
-}]));
-const referencedSpells = new Map(readDocuments(`${PACK_ROOT}/spells`).filter((d) => d.collection === "items" && d._id).map((spell) => [`Compendium.pf2e.spells-srd.Item.${spell._id}`, spell]));
-const effectsById = new Map(effectItems.map((effect) => [effect._id, effect]));
-const conditionNames = new Map(readDocuments(`${PACK_ROOT}/conditions`).filter((d) => d.collection === "items").map((condition) => [condition._id, condition.system?.slug ?? condition.name.toLowerCase().replace(/\s+/g, "-")]));
-const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".").pop()) ?? null;
-// The effect models a plan's PF2e spell effects make, at the cast rank.
-const effectModels = (plan, castRank) => Object.fromEntries([...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}/g) ?? [])]
-  .map((uuid) => [uuid, effectsById.get(uuid.split(".").pop())]).filter(([, item]) => item).map(([uuid, item]) => [uuid, effectModel(item, { rank: castRank, conditionSlug })]));
+const { PACK_ROOT, npcSpells, readDocuments } = await import("./lib/pack-spells.mjs");
 const PACKS = process.argv.slice(2).length ? process.argv.slice(2) : ["pathfinder-monster-core", "pathfinder-monster-core-2", "pathfinder-npc-core"];
 const stats = { npcs: 0, casters: 0, spells: 0, castable: 0, full: 0, fights: 0, casts: 0, errors: [] };
 const missing = new Map();
@@ -40,45 +20,7 @@ for (const pack of PACKS) {
   for (const npc of npcs) {
     stats.npcs++;
     const level = Math.max(-1, Math.min(14, npc.system?.details?.level?.value ?? 1));
-    const entries = (npc.items ?? []).filter((i) => i.type === "spellcastingEntry" && !["ritual", "items"].includes(i.system?.prepared?.value));
-    if (!entries.length) continue;
-    const spells = [];
-    const spellPools = {};
-    const cantripRank = Math.min(10, Math.max(1, Math.ceil((npc.system?.details?.level?.value ?? 1) / 2)));
-    for (const entry of entries) {
-      const kind = entry.system?.prepared?.value;
-      const dc = entry.system?.spelldc?.dc ?? 20;
-      const attack = entry.system?.spelldc?.value ?? 10;
-      const own = (npc.items ?? []).filter((i) => i.type === "spell" && i.system?.location?.value === entry._id && !(i.system?.traits?.value ?? []).includes("ritual"));
-      const byId = new Map(own.map((s) => [s._id, s]));
-      const add = (spell, castRank, pool) => {
-        let plan;
-        try { plan = compileAbility(spell, { nativeEffectCatalog, referencedSpells }); } catch (e) { stats.errors.push(`${npc.name}/${spell.name}: compile ${e.message}`); return; }
-        // (L5: a coven's spells, castable only with its coven — not by a lone caster here.)
-        spells.push({ name: spell.name, plan, castRank, dc, attack, pool, ...(/\bcoven\b/i.test(entry.name ?? "") ? { coven: true } : {}), effects: effectModels(plan, castRank) });
-      };
-      for (const spell of own) {
-        const traits = spell.system?.traits?.value ?? [];
-        const rank = spell.system?.location?.heightenedLevel ?? spell.system?.level?.value ?? 1;
-        if (traits.includes("cantrip")) add(spell, cantripRank, null);
-        else if (kind === "focus" || traits.includes("focus")) { spellPools.focus = npc.system?.resources?.focus?.max ?? 1; add(spell, cantripRank, "focus"); }
-        else if (kind === "innate") { const max = spell.system?.location?.uses?.max; const pool = max ? `${entry._id}:${spell._id}` : null; if (pool) spellPools[pool] = max; add(spell, rank, pool); }
-        else if (kind === "spontaneous") { const slot = entry.system?.slots?.[`slot${rank}`]; const pool = `${entry._id}:${rank}`; spellPools[pool] = slot?.max ?? 1; add(spell, rank, pool); }
-      }
-      if (kind === "prepared") {
-        for (const [key, slot] of Object.entries(entry.system?.slots ?? {})) {
-          const rank = Number(key.replace("slot", ""));
-          if (!rank) continue;
-          for (const [index, prepared] of (slot.prepared ?? []).entries()) {
-            const spell = byId.get(prepared.id);
-            if (!spell || (spell.system?.traits?.value ?? []).includes("cantrip")) continue;
-            const pool = `${entry._id}:${rank}:${index}`;
-            spellPools[pool] = 1;
-            add(spell, rank, pool);
-          }
-        }
-      }
-    }
+    const { spells, spellPools } = npcSpells(npc, { onError: (spell, e) => stats.errors.push(`${npc.name}/${spell.name}: compile ${e.message}`) });
     if (!spells.length) continue;
     stats.casters++;
     for (const spell of spells) {

@@ -5,7 +5,7 @@ import { DEAD, isActive, isOffGuard } from "./combatant.js";
 import { distanceBetween, engagedEnemies, sameMelee } from "./space.js";
 import { castJustNow, followsStrike, sizeRank } from "./abilities.js";
 
-const KNOWN = new Set(["corpse", "grabbing", "swallowing", "hpAtLeast", "hpBelow", "hurt", "regeneration", "notFatigued", "self", "shieldRaised", "enemyAdjacent", "allyAdjacent", "freeHand", "allyTrait", "afterCast", "afterStrike", "firstAction", "foe", "target", "any"]);
+const KNOWN = new Set(["corpse", "grabbing", "swallowing", "hpAtLeast", "hpBelow", "hpBelowHalf", "hurt", "regeneration", "notFatigued", "self", "shieldRaised", "enemyAdjacent", "allyAdjacent", "freeHand", "allyTrait", "afterCast", "afterStrike", "firstAction", "foe", "target", "any"]);
 
 // Whether every need is one the simulation checks.
 export function needsKnown(needs) {
@@ -25,6 +25,7 @@ function holds(state, c, need, { fresh = true } = {}) {
     if (need.swallowing !== undefined) return state.list.some((other) => other.swallowedBy === c.id && isActive(other)) === need.swallowing;
     if (need.hpAtLeast) return c.hp.value >= need.hpAtLeast;
     if (need.hpBelow) return c.hp.value < need.hpBelow;
+    if (need.hpBelowHalf) return c.hp.value < c.hp.max / 2;
     if (need.hurt) return c.hp.value < c.hp.max;
     if (need.regeneration) return Boolean(c.regeneration) && !c.regenerationOff;
     if (need.notFatigued) return !c.cond.fatigued;
@@ -71,5 +72,7 @@ export function targetNeedsMet(c, target, needs) {
 // Whether the simulation plays an ability with this requirement: none, a foe nearby in a state, one it tracks itself (after a cast,
 // raging, its breath recharging), or needs it checks.
 export function requirementPlayable(plan, played) {
+    // (B312: never one whose requirement the ability module couldn't read.)
+    if (plan?.requirementUnread) return false;
     return !plan?.requires || Boolean(plan.requiresFoe) || played.has(plan.requires) || needsKnown(plan.needs);
 }

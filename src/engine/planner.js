@@ -15,7 +15,7 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, isRaging, multiStrikeOrder, randomStrikeShare, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, isRaging, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
@@ -611,6 +611,8 @@ function mapPlan(state, c, profile) {
 }
 
 // The flourish trait: one flourish action a turn (this turn, or earlier in this plan).
+// The maneuvers PF2e limits to a target no more than one size larger than the creature (B313).
+const SIZE_LIMITED = new Set(["grapple", "reposition", "shove", "trip"]);
 const flourishUsed = (c, node) => !!c.usedThisTurn?.has("flourish") || node.casts.includes("flourish");
 
 // A spell a magus can Spellstrike with: 1 or 2 actions, one target, a spell attack or a save, and castable now.
@@ -772,7 +774,10 @@ function expand(ctx, node, actionsLeft) {
                     meleeId: typeof node.pos.melee === "number" ? node.pos.melee : null
                 }, actions);
                 // (B304: a target need — Drag's Prone creature — only at those.)
-                for (const set of spell.plan?.needs ? sets.filter((entry) => entry.targets.every((target) => target.side === c.side || targetNeedsMet(c, target, spell.plan.needs))) : sets) {
+                // (B313: Grapple, Reposition, Shove and Trip at a creature no more than one size larger.)
+                const sized = SIZE_LIMITED.has(spell.kind === "basic" ? spell.plan?.source?.slug ?? String(spell.name ?? "").toLowerCase() : null)
+                    ? sets.filter((entry) => entry.targets.every((target) => target.side === c.side || sizeRank(target.size) <= sizeRank(c.size) + 1)) : sets;
+                for (const set of spell.plan?.needs ? sized.filter((entry) => entry.targets.every((target) => target.side === c.side || targetNeedsMet(c, target, spell.plan.needs))) : sized) {
                     let gain = 0;
                     const damage = { ...node.damage };
                     for (const { target, damage: expected, worth, heal, benefit, breaks = 0 } of ctx.spellEffect(index, spell, set.targets, node.attacks, actions)) {

@@ -1243,7 +1243,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     if (info.attack) caster.attacksThisTurn++;
     // Stupefied: a DC 5 + value flat check, or the spell is lost.
-    const stupefied = caster.cond.stupefied ?? 0;
+    // (B313: a spell only, as PF2e has it — not an ability or a basic action such as Demoralize.)
+    const stupefied = isSpellCast(spell) ? (caster.cond.stupefied ?? 0) : 0;
     if (stupefied && flatCheck(state.rng, 5 + stupefied) < SUCCESS) {
         log(state, `  ${caster.name} loses the spell (stupefied ${stupefied})`);
         return;
@@ -2019,7 +2020,9 @@ function outcomesFor(state, caster, spell, target, actions) {
         byTarget = new Map();
         state.spellOutcomes.set(spell, byTarget);
     }
-    const key = `${target.id}|${actions ?? 0}`;
+    // (B313: by caster too — creatures sharing one action, a party's Disarm, each name themselves in "you become off-guard". Before, the
+    // first caster's id was kept, and the others counted their own critical failure as a condition on their target.)
+    const key = `${caster.id}|${target.id}|${actions ?? 0}`;
     let outcomes = byTarget.get(key);
     if (outcomes === undefined) {
         const context = simContext(state, caster, spell, [target], 0, actions);
@@ -2066,7 +2069,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         }
         return [...merged.values()];
     }
-    const stupefied = caster.cond.stupefied ?? 0;
+    const stupefied = isSpellCast(spell) ? (caster.cond.stupefied ?? 0) : 0;
     const casts = stupefied ? Math.max(0, 16 - stupefied) / 20 : 1;
     const finds = casts * (describeSpell(spell.plan, actions).area ? 1 : targetingChance(caster));
     const result = [];
@@ -2114,7 +2117,12 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     // (B303: Bravery's frightened 1 lower — none at all from frightened 1.)
                     const brave = change.slug === "frightened" && target.lessFrightened ? (change.value ?? 1) - target.lessFrightened : null;
                     if (brave !== null && brave <= 0) continue;
-                    entry.worth += chance * conditionWorth(change.slug, brave ?? change.value, change.duration);
+                    // (B313: only what it adds to a condition the target already has — nothing for Prone on a Prone creature, the step from
+                    // frightened 1 to 2. Before, the party tripped a creature already on the ground.)
+                    const flag = FLAGS[change.slug];
+                    const held = flag ? (target.cond?.[flag] ? 1 : 0) : Number(target.cond?.[change.slug] ?? 0) || 0;
+                    const full = conditionWorth(change.slug, brave ?? change.value, change.duration);
+                    entry.worth += chance * (flag ? (held ? 0 : full) : Math.max(0, full - (held ? conditionWorth(change.slug, held, change.duration) : 0)));
                     // The party plays for morale (M23): fear may break the foe, which takes it out of the fight.
                     if (change.slug === "frightened" && caster.side === "party" && target.side !== caster.side && state.setup.situational?.playsForMorale) {
                         // Only a rise in frightened sets off a check (and only to the trigger's minimum value: M25).
@@ -2133,8 +2141,13 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     entry.damage += chance * perRound * rounds;
                     entry.worth += chance * 0.9 * rounds;
                 } else if (change.op === "effect" && change.effect?.kind === "disarm") {
-                    // Worth something only against a weapon in hand: a dropped one costs an action to pick up.
-                    if ((target.strikes ?? []).some((strike) => strike.held && strikeUsable(target, strike))) entry.worth += chance * (change.effect.what === "drop" ? 0.5 : 0.25);
+                    // Worth something only against a weapon in hand: a dropped one costs an action to pick up (about a third of a round).
+                    // (B313: a weakened grip lasts until the start of the creature's turn, so it only hinders its reactions and helps the
+                    // next Disarm — worth about half a frightened 1; and nothing when the grip is already weak. Before, it was worth more
+                    // than a drop's half and the party Disarmed creatures with extreme AC again and again.)
+                    const held = (target.strikes ?? []).filter((strike) => strike.held && strikeUsable(target, strike));
+                    const weapon = held.length ? held.reduce((best, strike) => (strike.bonus > best.bonus ? strike : best)) : null;
+                    if (weapon && (change.effect.what === "drop" || !target.weakGrip?.has(weapon.name))) entry.worth += chance * (change.effect.what === "drop" ? 0.3 : 0.03);
                 } else if (change.op === "end" && change.what?.stabilize && target.status === DOWN) {
                     // First Aid: the chance it would otherwise die.
                     entry.benefit += chance * 3 * Math.min(1, ((target.cond.dying ?? 0) + 1) / (4 - (target.cond.doomed ?? 0)));

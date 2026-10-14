@@ -260,7 +260,9 @@ function checkEnd(state) {
         finish(state, mapOutcome(state.objective));
         return true;
     }
-    if (!pcs(state).some(isActive)) {
+    // (2026-10-13: a PC swallowed or engulfed is still in the fight — it can cut itself free or Escape; the party is beaten only when none is
+    // up, inside a creature or out.)
+    if (!pcs(state).some((c) => isActive(c) || (c.status === ACTIVE && c.swallowedBy))) {
         finish(state, "defeat");
         return true;
     }
@@ -344,6 +346,9 @@ function startTurn(state, c) {
     c.riderReady = null;
     c.rendUsed = false;
     c.withdrewThisTurn = false;
+    // (B313: a grip a Disarm weakened is firm again at the start of the creature's turn, as PF2e has it. Before, it stayed weak until the
+    // creature spent an action to regrip.)
+    c.weakGrip?.clear();
     // Flourishes (Flurry of Blows): once a turn. A finisher ends Strikes for the turn.
     c.usedThisTurn = new Set();
     // Actions this turn, and its last hit (Strike, Breathe, Rend needs one just before).

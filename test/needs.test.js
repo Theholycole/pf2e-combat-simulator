@@ -57,3 +57,16 @@ test("B304 needs in a fight: a corpse (one a use), a creature held, HP, its last
     c.actionCount = 2;
     assert.equal(needsMet(state, c, [{ afterStrike: { strike: "jaws", on: ["success", "criticalSuccess"] } }]), false);
 });
+
+// B312 (2026-10-13, found in the deadliest-creatures study): a requirement the ability module couldn't read isn't played; below half
+// its Hit Points is checked.
+test("B312 an unread requirement is never played; hpBelowHalf", () => {
+    assert.equal(requirementPlayable({ requirementUnread: "The test golem is standing in deep water" }, PLAYED_REQUIRES), false);
+    assert.equal(requirementPlayable({ ...feast.plan, requirementUnread: "The test ghoul is in a crypt" }, PLAYED_REQUIRES), false);
+    assert.equal(needsKnown([{ hpBelowHalf: true }]), true);
+    const state = createFightState({ combatants: [...martialParty(5), moderateCreature(5, "troll", "Troll")] }, {}, 1);
+    const c = state.byId.get("troll");
+    assert.equal(needsMet(state, c, [{ hpBelowHalf: true }]), false);
+    c.hp.value = Math.floor(c.hp.max / 2) - 1;
+    assert.equal(needsMet(state, c, [{ hpBelowHalf: true }]), true);
+});

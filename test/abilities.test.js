@@ -231,6 +231,40 @@ test("Disarm: a success weakens the grip (-2, +2 to the next Disarm), a critical
     assert.equal(strikeUsable(foe, sword), true);
 });
 
+// B313 (2026-10-13, found in the deadliest-creatures study).
+test("B313 a shared Disarm names each caster in its critical failure; a weakened grip is firm again at the creature's turn; maneuvers at one size larger at most", { skip }, async () => {
+    const { basic } = await abilities();
+    const [fighter, champion] = martialParty(5);
+    // One Disarm and one Trip for both, as the standard party's basic actions are.
+    const disarm = entry("Disarm", basic.disarm, "basic");
+    const trip = entry("Trip", basic.trip, "basic");
+    const pcs = [{ ...fighter, engagement: 1, skills: { athletics: 5 }, spells: [disarm, trip] }, { ...champion, engagement: 1, skills: { athletics: 5 }, spells: [disarm, trip] }];
+    const state = createFightState({ combatants: [...pcs, swordsman()] });
+    const foe = state.byId.get("foe");
+    const [first, second] = ["fighter", "champion"].map((id) => {
+        const caster = state.byId.get(id);
+        const effects = spellExpectation(state, caster, disarm, [foe]);
+        return { own: effects.find((each) => each.target === caster)?.worth ?? 0, foe: effects.find((each) => each.target === foe).worth };
+    });
+    assert.ok(first.own > 0 && second.own > 0, "each one's off-guard is its own");
+    assert.equal(second.foe, first.foe, "not the first caster's off-guard counted on the foe");
+    // The grip a Disarm weakens is firm again at the foe's turn: never an action spent to regrip.
+    let weakened = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+        const { log } = simulate({ combatants: [{ ...fighter, engagement: 1, strikes: [], skills: { athletics: 17 }, spells: [entry("Disarm", basic.disarm, "basic")] }, swordsman()] }, {}, seed, { log: true });
+        weakened += log.filter((line) => /grip on its Longsword weakens/.test(line)).length;
+        assert.ok(!log.some((line) => /gets a firm grip/.test(line)), `seed ${seed}`);
+    }
+    assert.ok(weakened > 0);
+    // Trip: at a Large foe, not at a Huge one.
+    for (const [size, offered] of [["lg", true], ["huge", false]]) {
+        const sized = createFightState({ combatants: [{ ...fighter, engagement: 1, skills: { athletics: 20 }, spells: [trip] }, { ...swordsman(), size }] });
+        const pc = sized.byId.get("fighter");
+        pc.actionsLeft = 3;
+        assert.equal(cast(sized, pc).some((option) => option.action.targetIds?.[0] === "foe"), offered, size);
+    }
+});
+
 test("Feint: off-guard to the feinter's melee attacks only; one attack on a success; the feinter on a critical failure", { skip }, async () => {
     const { basic } = await abilities();
     const [fighter, champion] = martialParty(5);

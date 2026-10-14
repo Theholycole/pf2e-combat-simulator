@@ -82,3 +82,10 @@ The design is in [docs/spec.md](docs/spec.md) and the vocabulary in [CONTEXT.md]
 - `src/adapter/formula.js` parses PF2e's readable damage formulas. It has been checked against all 1,027 Monster Core Strike formulas.
 - `src/engine/spells.js` imports the core's pure code from `../../../pf2e-resolution-core/`. The core's sibling alias in `~/Documents/ChatGPT` makes that path work in Node too.
 - `node tools/bestiary-casters.mjs [pack …]` runs every bestiary spellcaster's spells through the simulator and reports what's cast, what's missing and any errors.
+- `node tools/bestiary-abilities.mjs [--map] [--escalate] [pack …]` runs every bestiary creature with its abilities against the martial benchmark party.
+  - Both tools read creatures and spells through `tools/lib/` (`pack-creatures.mjs`, `pack-spells.mjs`).
+- `node tools/deadliest.mjs <out folder> screen|ladder|confirm|ablate|broad` ranks every creature (PF2e's packs and Battlezoo's) by how deadly it is for its level (2026-10-13).
+  - Each creature fights the standard party of its level (`src/engine/party.js`: fighter, rogue, wizard, cleric, clamped to 1–20) to the death. The fighter and the rogue carry a bludgeoning backup and a bow beside their main weapons.
+  - "For its level" is in levels: the level of a moderate creature from GM Core's tables (`tools/lib/creature-tables.mjs`) that does as much to the same party (the `ladder` phase), less that of the typical (median) creature of its level.
+  - Left out of the ranking: likely data slips (a Strike's damage or attack bonus, or an AC, far past GM Core's extreme) and Paizo's April Fools blog creatures.
+  - What makes the deadliest strong is found by leaving out each ability, Strike or spellcasting, or bringing a number down to moderate (`tools/lib/deadliness.mjs`).
