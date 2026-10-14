@@ -354,3 +354,48 @@ test("Can't use reactions (Laughing Fit, Spirit Song's until its own turn); Unco
     applyDamage(state, foe, [{ type: "fire", amount: 1 }], { source: state.byId.get("mage") });
     assert.equal(foe.cond.fascinated, false);
 });
+
+test("Readings of areas the compiler leaves without one: Grease's 4 contiguous squares, Shadow Blast's choice of areas", async () => {
+    const { withReading } = await import("../src/engine/readings.js");
+    const grease = withReading({ modelVersion: 12, source: { name: "Grease", slug: "grease" }, targeting: { target: "4 contiguous 5-foot squares", range: "30 feet", area: null }, resolution: { kind: "save", outcomes: {} } });
+    assert.deepEqual(grease.targeting.area, { type: "burst", value: 10 });
+    assert.equal(grease.targeting.range, "30 feet");
+    const blast = withReading({ modelVersion: 12, source: { name: "Shadow Blast", slug: "shadow-blast" }, targeting: { target: null, range: "varies", area: null }, resolution: { kind: "save", outcomes: {} } });
+    assert.deepEqual([blast.targeting.range, blast.targeting.area], ["120 feet", { type: "burst", value: 15 }]);
+    // A plan with its own area stays as it is.
+    const fireball = { modelVersion: 12, source: { name: "Fireball", slug: "fireball" }, targeting: { range: "500 feet", area: { type: "burst", value: 20 } }, resolution: { kind: "save" } };
+    assert.equal(withReading(fireball), fireball);
+});
+
+test("Lingering spells (Toxic Cloud): the area stays as a zone; a foe starting its turn in it saves again with the spell's DC; no recast while it's up; a sustained one costs its caster an action", async () => {
+    const { zoneTurn } = await import("../src/engine/zones.js");
+    const { canCast } = await import("../src/engine/spells.js");
+    const cloud = { modelVersion: 12, source: { name: "Toxic Cloud" }, rank: 5, traits: ["poison"], activation: { time: "3" }, targeting: { target: null, range: "120 feet", area: { type: "burst", value: 10 } },
+        resolution: { kind: "save", check: { statistic: "fortitude", basic: true },
+            sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "6d8", type: "poison" }] },
+            outcomes: { criticalSuccess: row(), success: row({ damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] } }), failure: row({ damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] } }), criticalFailure: row({ damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] } }) },
+            lingering: { events: ["turn-start"], initial: true, oncePerRound: false, excludeCaster: false, enemiesOnly: false, area: { type: "burst", value: 10 }, centre: "placed", durationSeconds: 60, sustained: false, concealment: true } } };
+    const [fighter] = martialParty(9);
+    const mage = { ...moderateCreature(9, "mage", "Mage"), spells: [{ name: "Toxic Cloud", plan: cloud, castRank: 5, dc: 28, attack: 18, pool: null }], spellPools: {}, band: "far" };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(9, "brute", "Brute"), engagement: 1 }, mage] }, {}, 1);
+    const caster = state.byId.get("mage");
+    const pc = state.byId.get(fighter.id);
+    castSpell(state, caster, 0, [pc.id]);
+    assert.equal(state.zones.length, 1);
+    assert.equal(state.zones[0].model.castAs.dc, 28);
+    assert.equal(canCast(caster, caster.spells[0]), false, "not again while it's up");
+    assert.equal(pc.cond.concealed, true);
+    state.log = [];
+    const before = pc.hp.value;
+    zoneTurn(state, pc, "start");
+    assert.ok(state.log.some((line) => line.includes("Toxic Cloud on Fighter")), state.log.join("\n"));
+    assert.ok(pc.hp.value <= before);
+    // Sustained: the caster's action each turn, or the area ends.
+    state.zones[0].model.sustained = true;
+    caster.actionsLeft = 3;
+    zoneTurn(state, caster, "start");
+    assert.equal(caster.actionsLeft, 2);
+    caster.actionsLeft = 0;
+    zoneTurn(state, caster, "start");
+    assert.equal(state.zones.length, 0);
+});

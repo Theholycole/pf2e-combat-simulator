@@ -24,9 +24,27 @@ function resolvesNothing(plan) {
     return plan?.resolution?.kind === "unsupported" && !(native.check && native.outcomes) && !native.missiles && !native.healing?.components?.length && !(native.applications ?? []).length;
 }
 
-// The plan with the simulator's reading in place of a resolution that resolves nothing; the plan unchanged otherwise.
+// Targeting the compiler leaves without an area: "N contiguous 5-foot squares" (Grease's 4) as a burst that holds about as many
+// creatures (S5's capacities: 5 feet 2, 10 feet 4, 15 feet 6, 20 feet 8); an area that "varies" by the spell's own choices (Shadow
+// Blast's cone, burst or line, the caster's pick) as its burst: 15 feet across its radius, at up to 120 feet.
+const AREAS = { "shadow-blast": { range: "120 feet", area: { type: "burst", value: 15 } } };
+
+function withArea(plan) {
+    const targeting = plan?.targeting ?? {};
+    if (!plan || targeting.area) return plan;
+    const named = AREAS[plan.source?.slug];
+    if (named) return { ...plan, simulatorReading: true, targeting: { ...targeting, ...named, target: null } };
+    const squares = /(\d+) contiguous 5-foot squares/i.exec(String(targeting.target ?? ""));
+    if (!squares) return plan;
+    const count = Number(squares[1]) || 1;
+    const value = count <= 2 ? 5 : count <= 4 ? 10 : count <= 6 ? 15 : count <= 8 ? 20 : 30;
+    return { ...plan, simulatorReading: true, targeting: { ...targeting, target: null, area: { type: "burst", value } } };
+}
+
+// The plan with the simulator's readings: a resolution where the compiled one resolves nothing, an area where it has none; the plan
+// unchanged otherwise.
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
-    if (!reading || !resolvesNothing(plan)) return plan;
-    return { ...plan, simulatorReading: true, resolution: reading() };
+    const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
+    return withArea(resolved);
 }

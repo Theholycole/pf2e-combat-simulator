@@ -72,9 +72,39 @@ export function startZone(state, owner, spell, targetIds) {
     log(state, `  ${owner.name}'s ${spell.name} covers the area${Number.isFinite(rounds) ? ` for ${rounds} rounds` : ""}`);
     for (const c of zoneMembers(state, zone)) {
         refresh(state, zone, c);
-        if (c.side !== zone.side) for (const save of model.saves ?? []) if (save.plan && save.when.includes("initial")) castPlan(state, owner, { name: spell.name, plan: save.plan, castRank: 1, pool: null, kind: "ability", effects: model.effects ?? {} }, [c.id]);
+        if (c.side !== zone.side) for (const save of model.saves ?? []) if (save.plan && save.when.includes("initial")) castPlan(state, owner, saveSpell(zone, save), [c.id]);
     }
     return zone;
+}
+
+// A zone's save as the engine casts it: an ability's at its own numbers; a lingering spell's (castAs) with the spell's rank, DC and
+// attack. (fromZone: it doesn't start another zone.)
+function saveSpell(zone, save) {
+    const as = zone.model.castAs;
+    return { name: zone.name, plan: save.plan, castRank: as?.castRank ?? 1, pool: null, ...(as ? { dc: as.dc, attack: as.attack, ...(as.kind ? { kind: as.kind } : {}) } : { kind: "ability" }), effects: zone.model.effects ?? {}, fromZone: true };
+}
+
+// A lingering spell's area (2026-10-14, spell coverage; the spell module's resolution.lingering): its later saves — at a creature's turn
+// start or end, on coming in, each time its caster Sustains it — as a zone's, with the spell's own numbers; concealment and difficult
+// terrain as a zone's. Its first save is the spell's own cast.
+const LINGER_WHEN = { "turn-start": "start", "round-start": "start", enter: "enter", "turn-end": "end", sustain: "sustain" };
+export function startLingering(state, caster, spell, targetIds) {
+    const lingering = spell.plan?.resolution?.lingering;
+    if (!lingering?.area) return null;
+    const rounds = Number.isFinite(Number(lingering.durationSeconds)) && Number(lingering.durationSeconds) > 0 ? Math.max(1, Math.round(Number(lingering.durationSeconds) / 6)) : null;
+    const when = [...new Set((lingering.events ?? []).map((event) => LINGER_WHEN[event]).filter(Boolean))];
+    const model = {
+        area: lingering.area,
+        centre: lingering.centre === "caster" ? "caster" : "placed",
+        lasts: rounds ? { value: rounds, unit: "rounds" } : null,
+        concealed: Boolean(lingering.concealment),
+        terrain: lingering.terrain ? [lingering.terrain] : [],
+        saves: when.length ? [{ plan: spell.plan, when }] : [],
+        sustained: Boolean(lingering.sustained),
+        castAs: { castRank: spell.castRank, dc: spell.dc, attack: spell.attack, kind: spell.kind ?? null },
+        effects: spell.effects ?? {}
+    };
+    return startZone(state, caster, { name: spell.name, kind: spell.kind, plan: spell.plan, zone: model }, targetIds);
 }
 
 function rollDice(state, formula) {
@@ -100,7 +130,23 @@ export function zoneTurn(state, c, phase) {
     if (phase === "start") {
         for (const zone of [...state.zones]) {
             const owner = state.byId.get(zone.ownerId);
-            if ((zone.ownerId === c.id && state.round >= zone.until) || (!Number.isFinite(zone.until) && !(owner && isActive(owner)))) endZone(state, zone);
+            if ((zone.ownerId === c.id && state.round >= zone.until) || (!Number.isFinite(zone.until) && !(owner && isActive(owner)))) {
+                endZone(state, zone);
+                continue;
+            }
+            // (A sustained lingering spell: its caster's action, or it ends; its saves "each time you Sustain".)
+            if (zone.model.sustained && zone.ownerId === c.id) {
+                if (!(c.actionsLeft > 0)) {
+                    endZone(state, zone);
+                    continue;
+                }
+                c.actionsLeft -= 1;
+                log(state, `  ${c.name} Sustains ${zone.name}`);
+                for (const save of zone.model.saves ?? []) {
+                    if (!save.when.includes("sustain")) continue;
+                    for (const member of zoneMembers(state, zone)) if (member.side !== zone.side && isActive(member)) castPlan(state, c, saveSpell(zone, save), [member.id]);
+                }
+            }
         }
     }
     const members = new Set();
@@ -130,7 +176,7 @@ export function zoneTurn(state, c, phase) {
         if (cameIn && zone.model.hazard?.formulas?.length) hurt(state, zone, owner, c, zone.model.hazard.formulas, "moves into");
         for (const save of zone.model.saves ?? []) {
             if (!save.plan || !isActive(c)) continue;
-            if ((phase === "start" && save.when.includes("start")) || (cameIn && save.when.includes("enter") && !save.when.includes("start")) || (phase === "end" && save.when.includes("end"))) castPlan(state, owner, { name: zone.name, plan: save.plan, castRank: 1, pool: null, kind: "ability", effects: zone.model.effects ?? {} }, [c.id]);
+            if ((phase === "start" && save.when.includes("start")) || (cameIn && save.when.includes("enter") && !save.when.includes("start")) || (phase === "end" && save.when.includes("end"))) castPlan(state, owner, saveSpell(zone, save), [c.id]);
         }
         for (const entry of zone.model.damage ?? []) if (entry.when === (phase === "start" ? "start" : "end") && isActive(c)) hurt(state, zone, owner, c, entry.formulas, phase === "start" ? "starts its turn in" : "ends its turn in");
     }

@@ -15,7 +15,7 @@ import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUC
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, effectModel, modifierModel, removeEffect } from "./effects.js";
 import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
-import { startZone } from "./zones.js";
+import { startLingering, startZone } from "./zones.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
 import { addFloor, floorOf } from "./floors.js";
 import { counterables, counterChance, counterRank, counterRoll } from "./counteract.js";
@@ -1370,7 +1370,9 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     const reachable = (target) => isActive(target) || target === caster || ((info.healing || info.dying || evenDown) && target.status === DOWN);
     const targets = targetIds.map((id) => state.byId.get(id)).filter((target) => target && reachable(target));
     spendPool(caster, spell);
-    log(state, `  ${caster.name} casts ${spell.name}${spell.from ? ` from ${spell.from}` : ""}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
+    // (A lingering area's later save: its own line, not a new cast.)
+    if (spell.fromZone) log(state, `  ${spell.name} on ${targets.map((target) => target.name).join(", ")}`);
+    else log(state, `  ${caster.name} casts ${spell.name}${spell.from ? ` from ${spell.from}` : ""}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
     // (I1: a creature immune to the effect's trait — a mindless one to a mental effect, a construct to a death effect — is unaffected.)
     for (const target of [...targets]) {
         const immunity = effectImmunity(target, spell);
@@ -1408,6 +1410,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         log(state, `  ${caster.name} loses the spell (stupefied ${stupefied})`);
         return;
     }
+    // (A lingering spell: its area stays, its later saves as a zone's — zones.js.)
+    if (spell.plan?.resolution?.lingering && !spell.fromZone) startLingering(state, caster, spell, targetIds);
     // Blinded or dazzled: each target of a targeted spell needs a flat check.
     // (L1: and each one the light or the weather hides from it.)
     const findDC = (target) => (info.area || target === caster ? 0 : Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, sightDC(state, caster, target)));
@@ -2150,8 +2154,8 @@ export function canCast(c, spell) {
     if (spell.coven && !c.covenReady) return false;
     // Recharging (a breath weapon used a round ago).
     if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0)) return false;
-    // (B256: not a zone it already has up.)
-    if (spell.zone && c.activeZones?.has(spell.name)) return false;
+    // (B256: not a zone it already has up; nor a lingering spell's area.)
+    if ((spell.zone || spell.plan?.resolution?.lingering) && c.activeZones?.has(spell.name)) return false;
     // (S22: a failed trick locks the item this turn; a critically failed one, all fight.)
     if (spell.trick && (c.itemsLocked?.has(spell.item) || c.usedThisTurn?.has(`trick:${spell.item}`))) return false;
     return poolReady(c, spell);
@@ -2622,7 +2626,8 @@ export function spellGaps(spell) {
     if (!info.area && !info.targets && !info.self) missing.add("no creature targets");
     // Heal and Harm compiled before their healing payload: the healing half is missing.
     if (!healingOf(plan) && (plan.resolution?.sharedDamage?.components ?? []).some((component) => (component.kinds ?? []).includes("healing"))) missing.add("healing");
-    for (const gap of family.gaps?.(readPlan(plan)) ?? []) missing.add(gap.what);
+    // (A lingering area: played as a zone.)
+    for (const gap of family.gaps?.(readPlan(plan)) ?? []) if (gap.what !== "lingering") missing.add(gap.what);
     // A dry run at each degree, for the changes the engine doesn't apply.
     const dummy = { id: "dummy", name: "dummy", traits: [], immunities: [], side: "x", saves: { fortitude: 0, reflex: 0, will: 0 }, ac: 10, cond: {}, hp: { value: 10, max: 10, temp: 0 } };
     const caster = { id: "caster", side: "y", cond: {}, strikes: [], attacksThisTurn: 0 };

@@ -937,6 +937,8 @@ function expandSpells(env) {
                 }
                 if (gain <= 0) continue;
                 if (trick) gain *= trickChance(spell.trick);
+                // (A lingering area: its later saves too — about half as much again.)
+                if (spell.plan?.resolution?.lingering?.events?.length && (Number(spell.plan.resolution.lingering.durationSeconds) || 0) >= 12) gain *= 1.5;
                 // (S22: a wand overcharged breaks it — the last thing it reaches for when another way does about as well.)
                 if (spell.overcharge) gain *= 0.95;
                 if (drawOnly) {
