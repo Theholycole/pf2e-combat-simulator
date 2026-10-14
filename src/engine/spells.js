@@ -18,6 +18,7 @@ import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCrea
 import { startZone } from "./zones.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
 import { addFloor, floorOf } from "./floors.js";
+import { counterables, counterChance, counterRank, counterRoll } from "./counteract.js";
 import { allyStrike } from "./commander.js";
 import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
@@ -72,7 +73,8 @@ function rangeFeet(range) {
 function targetCount(target) {
     const text = String(target ?? "").toLowerCase();
     if (!text) return 0;
-    if (!/creature|enem|foe|target|object|construct|undead|animal|humanoid|beast|fiend|spirit|dragon/.test(text)) return 0;
+    // (Dispel Magic: "1 spell effect" — on a creature.)
+    if (!/creature|enem|foe|target|object|construct|undead|animal|humanoid|beast|fiend|spirit|dragon|spell effect/.test(text)) return 0;
     const upTo = /up to (\d+|one|two|three|four|five|six|ten)/.exec(text);
     const words = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, ten: 10 };
     if (upTo) return Number(upTo[1]) || words[upTo[1]] || 1;
@@ -174,7 +176,8 @@ function readSpell(base, actions) {
         // Who its healing reaches: "living", "undead", "willing" or "any"; null when it doesn't heal.
         healing,
         // A PF2e spell effect on its targets: aimed at allies as readily as at foes.
-        helpful: kind === "effect" || applications.length > 0 || Boolean(helpsWith),
+        // (Dispel Magic, Clear Mind: an ally's hindrance as readily as a foe's help.)
+        helpful: kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care",
         // No target, range or area: the caster itself (the battle forms).
         self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self")) || conditionNote?.recipient === "source"
     };
@@ -874,10 +877,65 @@ function noteModel(spell, note) {
     return NOTE_MODELS.get(note);
 }
 
+// What a counteract is worth to its caster's side on the target: the best thing it can end there — a foe's help, an ally's
+// hindrance — as { pick, value } (value in rounds of the target's threat), or null.
+function bestCounter(state, caster, target, change) {
+    const ally = target.side === caster.side;
+    let best = null;
+    for (const entry of counterables(target, change, FLAGS)) {
+        let value;
+        if (entry.kind === "effect") {
+            const benefit = effectBenefit(entry.entry.model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1);
+            value = ally ? -benefit : benefit;
+        } else {
+            const harm = conditionWorth(entry.slug, target.cond?.[entry.slug], null);
+            value = ally ? harm : -harm;
+        }
+        if (value > 0 && (!best || value > best.value)) best = { pick: entry, value };
+    }
+    return best;
+}
+
+function applyCounteract(state, caster, spell, target, change) {
+    const best = bestCounter(state, caster, target, change);
+    if (!best) {
+        log(state, `  ${spell.name} finds nothing to counteract on ${target.name}`);
+        return;
+    }
+    const rank = counterRank(caster, spell, isSpellCast(spell));
+    const roll = counterRoll(state, Number(spell.attack) || 0, rank, best.pick);
+    log(state, `  ${spell.name} against ${best.pick.name} on ${target.name}: ${roll.total} vs ${best.pick.dc} → ${roll.success ? "counteracted" : "not counteracted"}`);
+    if (!roll.success) return;
+    if (best.pick.kind === "effect") {
+        const effect = best.pick.entry;
+        removeEffect(target, effect);
+        target.timers = (target.timers ?? []).filter((timer) => timer.effect !== effect);
+        for (const condition of effect.model?.conditions ?? []) clearCondition(target, condition.slug);
+    } else {
+        clearCondition(target, best.pick.slug);
+    }
+}
+
+function clearCondition(target, slug) {
+    const flag = FLAGS[slug];
+    if (flag) target.cond[flag] = false;
+    else if (VALUED.has(slug)) target.cond[slug] = 0;
+    if (target.condSources) delete target.condSources[slug];
+}
+
+// Cleanse Affliction: one affliction of its traits a stage lower, not below the floor.
+function applyAfflictionStage(state, target, change) {
+    const entry = (target.afflictions ?? []).filter((held) => held.stage > (change.floor ?? 1) && (!(change.traits ?? []).length || (held.data?.traits ?? []).some((trait) => change.traits.includes(trait)))).sort((a, b) => b.stage - a.stage)[0];
+    if (!entry) return;
+    setAfflictionStage(state, target, entry, Math.max(change.floor ?? 1, entry.stage - (change.by ?? 1)));
+    log(state, `  ${target.name}'s ${entry.name} eases to stage ${entry.stage}`);
+}
+
 function applyNativeEffect(state, caster, spell, target, change) {
     const { model, key } = outcomeEffect(spell, change);
     if (model && isActive(target)) {
-        applyEffect(state, target, model, caster, { applyCondition, key });
+        const isSpell = isSpellCast(spell);
+        applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell } });
         log(state, `  ${target.name} gains ${model.name.replace(/^Spell Effect: /, "")}${change.effect?.kind === "modifier" ? ` (${change.effect.modifier.value} ${change.effect.modifier.type} to ${change.effect.modifier.selector})` : ""}`);
     }
 }
@@ -1156,6 +1214,8 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 } else if (isActive(target) && applyCondition(state, target, change.slug, stackedValue(target, change), change.duration, caster, change.scope ?? null)) {
                     // (Invisibility: gone after its own hostile action.)
                     if (change.endsOnHostile) (target.endsOnHostile ??= new Set()).add(FLAGS[change.slug] ?? change.slug);
+                    // (What a counteract checks against: the spell's or ability's DC and rank.)
+                    (target.condSources ??= {})[change.slug] = { dc: effectDC(spell), rank: counterRank(caster, spell, isSpellCast(spell)), spell: isSpellCast(spell), name: spell.name };
                     log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${stackedValue(target, change, true)}` : ""}`);
                     // Retching: a Fortitude save against the DC of what made it sickened.
                     if (change.slug === "sickened") target.sickenedDC = Math.max(target.sickenedDC ?? 0, effectDC(spell) ?? 0) || null;
@@ -1185,6 +1245,15 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 }
                 if (change.effect?.kind === "swallow") {
                     applySwallow(state, caster, target, change.effect);
+                    break;
+                }
+                // (Dispel Magic, Clear Mind: a counteract; Cleanse Affliction: an affliction's stage.)
+                if (change.effect?.kind === "counteract") {
+                    if (isActive(target)) applyCounteract(state, caster, spell, target, change.effect);
+                    break;
+                }
+                if (change.effect?.kind === "affliction-stage") {
+                    if (target.status !== "dead") applyAfflictionStage(state, target, change.effect);
                     break;
                 }
                 // (A condition it can't reduce below a value while the spell or a state lasts.)
@@ -2376,6 +2445,16 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 } else if (change.op === "tempHp") {
                     // Temporary Hit Points (B61): what they add over its current ones, as healing that may go unused.
                     entry.heal += chance * 0.7 * Math.max(0, change.amount - (target.hp.temp ?? 0));
+                } else if (change.op === "effect" && change.effect?.kind === "counteract") {
+                    const best = bestCounter(state, caster, target, change.effect);
+                    if (best) {
+                        const share = counterChance(Number(spell.attack) || 0, counterRank(caster, spell, isSpellCast(spell)), best.pick) * best.value;
+                        if (target.side === caster.side) entry.benefit += chance * share;
+                        else entry.worth += chance * share;
+                    }
+                } else if (change.op === "effect" && change.effect?.kind === "affliction-stage") {
+                    // (About a third of a round of the creature's threat a stage.)
+                    if ((target.afflictions ?? []).some((held) => held.stage > (change.effect.floor ?? 1))) entry.benefit += chance * 0.3 * (change.effect.by ?? 1);
                 } else if (change.op === "effect" && change.effect?.kind === "note" && pacifyOf(change.effect.note)) {
                     const held = pacifyOf(change.effect.note, spell.plan?.resolution?.outcomes?.[change.effect.degree]?.rawText);
                     entry.worth += chance * pacifyWorth(state, target, caster, held, change.effect.note.duration);
@@ -2547,8 +2626,8 @@ export function spellGaps(spell) {
                 if (model.unsupported.length) missing.add(`${model.name.replace(/^Spell Effect: /, "")}: ${model.unsupported.join(", ")}`);
             } else if (change.op === "effect" && change.effect?.kind === "modifier") {
                 if (!modifierModel(spell.name, change.effect.modifier)) missing.add(`modifier to ${change.effect.modifier?.selector}`);
-            } else if (change.op === "effect" && change.effect?.kind === "floor") {
-                // (Played: floors.js.)
+            } else if (change.op === "effect" && ["floor", "counteract", "affliction-stage"].includes(change.effect?.kind)) {
+                // (Played: floors.js, counteract.js, afflictions.)
             } else if (change.op === "effect" && change.effect?.kind === "note" && (pacifyOf(change.effect.note) || noteModel(spell, change.effect.note))) {
                 const model = pacifyOf(change.effect.note) ? null : noteModel(spell, change.effect.note);
                 if (model?.unsupported.length) missing.add(`${change.effect.note.label}: ${model.unsupported.join(", ")}`);

@@ -25,7 +25,7 @@ import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValu
 import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";
-import { pacifiedAll, spares } from "./pacify.js";
+import { calmedUntilHostility, pacifiedAll, spares } from "./pacify.js";
 import { floorOf } from "./floors.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
@@ -211,7 +211,9 @@ function targetValue(state, target, attacker) {
     if (target.alarm && attacker.side !== target.side && alarmOpen(state)) threat += state.escalation.helpThreat ?? 0;
     // Playing for morale (M23): the foes' leader first, for the breaks its fall would bring.
     if (attacker.side === "party" && target.morale?.leader) threat += state.leaderDownWorth?.get(target.id) ?? 0;
-    return threat + objectiveBonus(state, target, attacker);
+    // (Calm: a foe any hostility would wake is left alone while its side has others standing — attacking it ends the Calm.)
+    const waking = attacker.side !== target.side && calmedUntilHostility(target) && state.list.some((other) => other.side === target.side && other !== target && isActive(other) && !pacifiedAll(other));
+    return (threat + objectiveBonus(state, target, attacker)) * (waking ? 0.2 : 1);
 }
 
 function remainingHp(target) {

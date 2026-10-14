@@ -249,3 +249,68 @@ test("Dirge of Doom: frightened 1 on the enemies around, not below 1 while it la
     performAction(other, healer, option.action);
     assert.equal(pc.cond.dying, 0);
 });
+
+test("Calm: its allies leave a calmed foe alone while another foe stands, and take it on once it's the last", () => {
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "calm", "Calmed"), engagement: 1 }, { ...moderateCreature(5, "other", "Other"), engagement: 1 }] }, {}, 1);
+    const calmed = state.byId.get("calm");
+    calmed.pacified = [{ by: "x", spell: "Calm", all: true, endsOn: "any", allies: false, untilRound: 10, sustained: false }];
+    const pc = state.byId.get(fighter.id);
+    pc.actionsLeft = 3;
+    const best = scoreOptions(state, pc).options.filter((option) => option.action.type === "strike").sort((a, b) => b.score - a.score)[0];
+    assert.equal(best.action.targetId, "other");
+    state.byId.get("other").status = "dead";
+    const last = scoreOptions(state, pc).options.filter((option) => option.action.type === "strike").sort((a, b) => b.score - a.score)[0];
+    assert.equal(last.action.targetId, "calm");
+});
+
+// Dispel Magic, Clear Mind (the core's affliction-care family, 2026-10-14).
+const carePlan = (name, operations, target) => ({ modelVersion: 12, source: { name }, rank: 2, traits: [], activation: { time: "2" }, targeting: { target, range: "120 feet" }, resolution: { kind: "affliction-care", recipient: "counteract-target", modes: [], operations } });
+
+test("Dispel Magic: counteracts a foe's spell effect (Haste and its quickened), by PF2e's counteract check and ranks; the planner aims it there", async () => {
+    const { applyEffect } = await import("../src/engine/effects.js");
+    const { counterChance } = await import("../src/engine/counteract.js");
+    const dispel = carePlan("Dispel Magic", [{ op: "counteract", pick: 1, source: "spell-effect", traits: [], grantsConditions: [], otherTargets: true }], "1 spell effect or unattended magic item");
+    const mage = { ...moderateCreature(7, "mage", "Mage"), side: "party", kind: "npc", spells: [{ name: "Dispel Magic", plan: dispel, castRank: 2, dc: 25, attack: 15, pool: null }], spellPools: {}, band: "near" };
+    const state = createFightState({ combatants: [mage, { ...moderateCreature(7, "foe", "Foe"), band: "near" }] }, {}, 1);
+    const caster = state.byId.get("mage");
+    const foe = state.byId.get("foe");
+    const haste = { name: "Spell Effect: Haste", rounds: 10, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [{ slug: "quickened", value: null }], unsupported: [], situational: 0 };
+    const { applyCondition } = await import("../src/engine/spells.js");
+    applyEffect(state, foe, haste, foe, { applyCondition, key: "haste", counter: { dc: 22, rank: 3, spell: true } });
+    assert.equal(foe.cond.quickened, true);
+    // A 2nd-rank Dispel (+15) against DC 22: a 3rd-rank effect on a success or better (a 7 or more), a 4th-rank one only on a
+    // critical success (17 or more), a 6th-rank one never.
+    assert.ok(Math.abs(counterChance(15, 2, { dc: 22, rank: 3 }) - 0.7) < 1e-9);
+    assert.ok(Math.abs(counterChance(15, 2, { dc: 22, rank: 4 }) - 0.2) < 1e-9);
+    assert.equal(counterChance(15, 2, { dc: 22, rank: 6 }), 0);
+    caster.actionsLeft = 3;
+    assert.ok(scoreOptions(state, caster).options.some((option) => option.action.type === "cast" && option.action.targetIds[0] === "foe" && option.value > 0));
+    state.rng.d20 = () => 18;
+    castSpell(state, caster, 0, ["foe"]);
+    assert.equal(foe.cond.quickened, false);
+    assert.ok(!(foe.effects ?? []).some((effect) => effect.key === "haste"));
+    assert.ok(state.log.some((line) => line.includes("Dispel Magic against Haste on Foe: 33 vs 22 → counteracted")), state.log.join("\n"));
+});
+
+test("Clear Mind: lifts an ally's frightened from a spell; nothing to counteract on a foe without one", () => {
+    const fear = { modelVersion: 12, source: { name: "Fear", uuid: "Compendium.pf2e.spells-srd.Item.x" }, rank: 1, traits: ["emotion", "fear", "mental"], activation: { time: "2" }, targeting: { target: "1 creature", range: "30 feet" },
+        resolution: { kind: "save", check: { statistic: "will", basic: false }, outcomes: { criticalSuccess: row(), success: row({ effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }), failure: row({ effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] }), criticalFailure: row({ effects: [{ kind: "condition", slug: "frightened", value: 3, duration: null }] }) } } };
+    const clear = carePlan("Clear Mind", [{ op: "counteract", pick: 1, source: "effect", traits: [], grantsConditions: ["fleeing", "frightened", "stupefied"] }], "1 willing creature");
+    clear.resolution.recipient = "target";
+    const [fighter] = martialParty(5);
+    const witch = { ...moderateCreature(5, "witch", "Witch"), spells: [{ name: "Fear", plan: fear, castRank: 1, dc: 20, attack: 12, pool: null }], spellPools: {}, band: "near" };
+    const cleric = { ...moderateCreature(5, "cleric", "Cleric"), side: "party", kind: "npc", spells: [{ name: "Clear Mind", plan: clear, castRank: 3, dc: 22, attack: 14, pool: null }], spellPools: {}, band: "near" };
+    const state = createFightState({ combatants: [{ ...fighter, band: "near" }, cleric, witch] }, {}, 1);
+    const pc = state.byId.get(fighter.id);
+    state.rng.d20 = () => 2;
+    castSpell(state, state.byId.get("witch"), 0, [pc.id]);
+    assert.ok(pc.cond.frightened >= 2);
+    assert.equal(pc.condSources.frightened.rank, 1);
+    state.rng.d20 = () => 10;
+    castSpell(state, state.byId.get("cleric"), 0, [pc.id]);
+    assert.equal(pc.cond.frightened, 0, state.log.join("\n"));
+    state.log = [];
+    castSpell(state, state.byId.get("cleric"), 0, ["witch"]);
+    assert.ok(state.log.some((line) => line.includes("finds nothing to counteract on Witch")));
+});

@@ -37,6 +37,11 @@ export function pacifiedAll(c) {
     return (c.pacified ?? []).some((entry) => entry.all);
 }
 
+// Calmed until any hostility wakes it (Calm's failure).
+export function calmedUntilHostility(c) {
+    return (c.pacified ?? []).some((entry) => entry.all && entry.endsOn === "any");
+}
+
 // Whether c can't use hostile actions against other.
 export function spares(c, other) {
     return (c.pacified ?? []).some((entry) => !entry.all && entry.by === other.id);

@@ -232,9 +232,10 @@ export function removeEffect(target, effect) {
 // Puts an effect on a creature; the same effect again replaces it. A finite
 // duration ends it at the start of the source's turn that many rounds later.
 // applyCondition: the spells layer's, for the conditions the effect grants.
-export function applyEffect(state, target, model, source, { applyCondition, key = model.name } = {}) {
+// counter: { dc, rank, spell } — what a counteract (Dispel Magic) checks against (counteract.js).
+export function applyEffect(state, target, model, source, { applyCondition, key = model.name, counter = null } = {}) {
     for (const existing of (target.effects ?? []).filter((effect) => effect.key === key)) removeEffect(target, existing);
-    const effect = { id: nextEffectId++, key, model, sourceId: source?.id ?? null };
+    const effect = { id: nextEffectId++, key, model, sourceId: source?.id ?? null, ...(counter ? { counter } : {}) };
     target.effects = [...(target.effects ?? []), effect];
     withDefences(target, effect, true);
     if (model.tempHp > 0) target.hp.temp = Math.max(target.hp.temp ?? 0, model.tempHp);
