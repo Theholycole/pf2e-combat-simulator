@@ -16,7 +16,7 @@ import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isA
 import { applyEffect, effectBenefit, effectModel, modifierModel, removeEffect } from "./effects.js";
 import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
 import { startZone } from "./zones.js";
-import { hostility, noteRounds, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
+import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
 import { addFloor, floorOf } from "./floors.js";
 import { allyStrike } from "./commander.js";
 import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
@@ -140,6 +140,9 @@ function readSpell(base, actions) {
     const healingVariant = variants.find((variant) => variant.healing?.components?.length);
     const healing = healingOf(plan) ? healingOf(plan).recipients ?? "any" : healingVariant ? healingVariant.healing.recipients ?? "any" : null;
     const kind = plan?.resolution?.kind;
+    // (2026-10-14: a condition on its recipients — Invisibility, Blur on a target; Dirge of Doom on the enemies around.)
+    const conditionNote = kind === "condition-note" ? plan.resolution.conditionNote ?? null : null;
+    const helpsWith = conditionNote && NOT_HARMFUL.has(conditionNote.condition?.slug) && conditionNote.recipient !== "area-enemies";
     return {
         actions: plan?.castActions ?? actionCost(plan?.activation?.time),
         range: rangeFeet(targeting.range),
@@ -162,8 +165,8 @@ function readSpell(base, actions) {
         // Swallow Whole: the largest size it can swallow; Trample: { size, strides }.
         swallow: Object.values(plan?.resolution?.outcomes ?? {}).some((outcome) => outcome?.effects?.some((effect) => effect.kind === "swallow")) ? targeting.size ?? "medium" : null,
         trample: targeting.trample ?? null,
-        // Administer First Aid: dying allies.
-        dying: Boolean(targeting.dying),
+        // Administer First Aid, Stabilize: dying allies.
+        dying: Boolean(targeting.dying) || kind === "stabilize",
         escape: plan?.source?.slug === "escape",
         manipulate: (plan?.activation?.traits ?? plan?.traits ?? []).includes("manipulate"),
         nonlethal: (plan?.traits ?? []).includes("nonlethal"),
@@ -171,9 +174,9 @@ function readSpell(base, actions) {
         // Who its healing reaches: "living", "undead", "willing" or "any"; null when it doesn't heal.
         healing,
         // A PF2e spell effect on its targets: aimed at allies as readily as at foes.
-        helpful: kind === "effect" || applications.length > 0,
+        helpful: kind === "effect" || applications.length > 0 || Boolean(helpsWith),
         // No target, range or area: the caster itself (the battle forms).
-        self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self"))
+        self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self")) || conditionNote?.recipient === "source"
     };
 }
 
@@ -1151,6 +1154,8 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     // (B103: already slowed — "a failed save causes it to be Petrified permanently": the worse condition.)
                     if (applyCondition(state, target, change.escalate.slug, change.escalate.value, change.escalate.duration, caster)) log(state, `  ${target.name} is ${change.escalate.slug}`);
                 } else if (isActive(target) && applyCondition(state, target, change.slug, stackedValue(target, change), change.duration, caster, change.scope ?? null)) {
+                    // (Invisibility: gone after its own hostile action.)
+                    if (change.endsOnHostile) (target.endsOnHostile ??= new Set()).add(FLAGS[change.slug] ?? change.slug);
                     log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${stackedValue(target, change, true)}` : ""}`);
                     // Retching: a Fortitude save against the DC of what made it sickened.
                     if (change.slug === "sickened") target.sickenedDC = Math.max(target.sickenedDC ?? 0, effectDC(spell) ?? 0) || null;
@@ -1238,6 +1243,9 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
     // (B304, Consume Flesh: "from any given corpse only once" — each use takes one of the fight's corpses.)
     if ((spell?.plan?.needs ?? []).some((need) => need.corpse || need.any?.some((each) => each.corpse))) caster.corpsesUsed = (caster.corpsesUsed ?? 0) + 1;
     castPlan(state, caster, spell, targetIds, actions, options);
+    // (Invisibility: it ends once a harmful spell is cast.)
+    const info = spell?.plan ? describeSpell(spell.plan, actions) : null;
+    if (info && !info.helpful && !info.healing && !info.self) ownHostility(state, caster);
 }
 
 // Resolves a spell or ability (one of the creature's, or a rider's plan) at the targets.

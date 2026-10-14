@@ -198,3 +198,54 @@ test("Condition floors: frightened 1 while stupefied (Lift Nature's Caul), while
     pc.persistent = [{ type: "bleed", dice: 1, die: 6 }];
     assert.equal(floorOf(pc, "frightened"), 1);
 });
+
+// The core's condition-note and stabilize families (2026-10-14).
+const conditionNotePlan = (name, note, durationSpec, targeting) => ({ modelVersion: 12, source: { name }, rank: 2, traits: ["illusion"], activation: { time: "2" }, targeting, lifecycle: { durationSpec },
+    resolution: { kind: "condition-note", conditionNote: note } });
+
+test("Invisibility: on an ally (the planner's pick), hidden to its foes; its attack leaves the target off-guard, then it ends", async () => {
+    const { offGuardFrom } = await import("../src/engine/passives.js");
+    const invisibility = conditionNotePlan("Invisibility", { recipient: "target", condition: { slug: "invisible", value: null }, text: "Illusions bend light around the target, rendering it Invisible. If the target uses a hostile action, the spell ends after that hostile action is completed.", heightened: [{ rank: 4, text: "The spell doesn't end if the target uses a hostile action." }] }, { mode: "fixed", value: 10, unit: "minutes" }, { target: "1 creature", range: "touch" });
+    const [fighter, rogue] = martialParty(5);
+    const mage = { ...moderateCreature(5, "mage", "Mage"), side: "party", kind: "npc", spells: [{ name: "Invisibility", plan: invisibility, castRank: 2, dc: 20, attack: 12, pool: null }], spellPools: {}, engagement: 1 };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...rogue, engagement: 1 }, mage, { ...moderateCreature(5, "foe", "Foe"), engagement: 1, hp: { value: 300, max: 300 } }] }, {}, 1);
+    const caster = state.byId.get("mage");
+    caster.actionsLeft = 3;
+    const cast = scoreOptions(state, caster).options.filter((option) => option.action.type === "cast");
+    assert.ok(cast.length && cast.every((option) => state.byId.get(option.action.targetIds[0]).side === "party"), "aimed at its side");
+    const ally = state.byId.get(fighter.id);
+    castSpell(state, caster, 0, [ally.id]);
+    assert.equal(ally.cond.hidden, true);
+    const foe = state.byId.get("foe");
+    assert.equal(offGuardFrom(state, ally, foe), true);
+    performStrike(state, ally, foe, ally.strikes[0]);
+    assert.equal(ally.cond.hidden, false);
+    assert.ok(state.log.some((line) => line.includes(`${ally.name} is no longer invisible`)), state.log.join("\n"));
+});
+
+test("Dirge of Doom: frightened 1 on the enemies around, not below 1 while it lasts; Stabilize: a dying ally stable", async () => {
+    const { floorOf } = await import("../src/engine/floors.js");
+    const dirge = conditionNotePlan("Dirge of Doom", { recipient: "area-enemies", condition: { slug: "frightened", value: 1 }, text: "Enemies within the area are Frightened 1. They can't reduce their frightened value below 1 while they remain in the area." }, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start" }, { target: null, range: null, area: { type: "emanation", value: 30 } });
+    const [fighter] = martialParty(5);
+    const bard = { ...moderateCreature(5, "bard", "Bard"), side: "party", kind: "npc", spells: [{ name: "Dirge of Doom", plan: dirge, castRank: 3, dc: 20, attack: 12, pool: null }], spellPools: {}, engagement: 1 };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, bard, { ...moderateCreature(5, "foe", "Foe"), engagement: 1 }] }, {}, 1);
+    const caster = state.byId.get("bard");
+    castSpell(state, caster, 0, ["foe", fighter.id]);
+    assert.equal(state.byId.get("foe").cond.frightened, 1);
+    assert.equal(state.byId.get(fighter.id).cond.frightened, 0, "not its own side");
+    assert.equal(floorOf(state.byId.get("foe"), "frightened"), 1);
+    // Stabilize.
+    const stabilize = { modelVersion: 12, source: { name: "Stabilize" }, rank: 1, traits: ["cantrip", "healing"], activation: { time: "2" }, targeting: { target: "1 dying creature", range: "30 feet" }, resolution: { kind: "stabilize", stabilize: { sourceText: "The target loses the Dying condition" } } };
+    const cleric = { ...moderateCreature(5, "cleric", "Cleric"), side: "party", kind: "npc", spells: [{ name: "Stabilize", plan: stabilize, castRank: 3, dc: 20, attack: 12, pool: null }], spellPools: {}, band: "near" };
+    const other = createFightState({ combatants: [{ ...fighter, band: "near" }, cleric, { ...moderateCreature(5, "foe", "Foe"), band: "far" }] }, {}, 1);
+    const pc = other.byId.get(fighter.id);
+    pc.hp.value = 0;
+    pc.status = "down";
+    pc.cond.dying = 2;
+    const healer = other.byId.get("cleric");
+    healer.actionsLeft = 3;
+    const option = scoreOptions(other, healer).options.find((entry) => entry.action.type === "cast");
+    assert.ok(option && option.value > 0);
+    performAction(other, healer, option.action);
+    assert.equal(pc.cond.dying, 0);
+});

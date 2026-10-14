@@ -18,7 +18,7 @@ import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
 import { log } from "./log.js";
-import { hostility } from "./pacify.js";
+import { hostility, ownHostility } from "./pacify.js";
 
 export function coverFor(state, defender) {
     return state.setup.cover?.[defender.side] ?? 0;
@@ -204,13 +204,19 @@ const dodges = (reaction, strike, state = null, c = null) => (!reaction.against 
 
 // (M38: harm in a reaction — a Reactive Strike at a creature leaving — doesn't count as refusing its surrender.)
 export function performStrike(state, attacker, target, strike, options = {}) {
-    if (!options.reaction) return strikeOnce(state, attacker, target, strike, options);
+    if (!options.reaction) {
+        const result = strikeOnce(state, attacker, target, strike, options);
+        // (Invisibility: it ends once the attack is done.)
+        ownHostility(state, attacker);
+        return result;
+    }
     const before = state.inReaction;
     state.inReaction = true;
     try {
         return strikeOnce(state, attacker, target, strike, options);
     } finally {
         state.inReaction = before;
+        ownHostility(state, attacker);
     }
 }
 

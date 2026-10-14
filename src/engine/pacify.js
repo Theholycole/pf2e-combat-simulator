@@ -67,3 +67,15 @@ export function pacifyWorth(state, target, caster, entry, duration) {
     const foes = state.list.filter((other) => other.side === caster.side && other.status === "active").length;
     return (per * span) / Math.max(1, foes);
 }
+
+// Its own hostile action, done (2026-10-14; Invisibility: "If the target uses a hostile action, the spell ends after that hostile action is
+// completed"): the conditions that end with it (c.endsOnHostile, engine flags) go.
+export function ownHostility(state, c) {
+    if (!c?.endsOnHostile?.size) return;
+    for (const flag of c.endsOnHostile) {
+        if (!c.cond?.[flag]) continue;
+        c.cond[flag] = false;
+        state.log?.push(`  ${c.name} is no longer ${flag === "hidden" ? "invisible" : flag}`);
+    }
+    c.endsOnHostile.clear();
+}

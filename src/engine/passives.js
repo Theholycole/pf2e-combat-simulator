@@ -70,6 +70,8 @@ function hasCondition(c, slug) {
 // (with a Stealth initiative when it says so; Deny Advantage of its level or higher stops it), Dread Striker on a frightened creature.
 // spell: a spell attack; melee: a melee Strike.
 export function offGuardFrom(state, attacker, target, { melee = true, spell = false } = {}) {
+    // (2026-10-14: a hidden attacker — Invisibility — leaves its target off-guard, PF2e's rule.)
+    if (attacker?.cond?.hidden) return true;
     for (const entry of attacker?.makesOffGuard ?? []) {
         if (spell ? !entry.spells : (entry.strikes === "melee" && !melee) || (entry.strikes === "ranged" && melee)) continue;
         const when = entry.when ?? {};
