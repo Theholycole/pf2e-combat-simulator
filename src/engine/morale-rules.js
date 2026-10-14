@@ -19,15 +19,21 @@ export const MORALE_RULES = Object.freeze({
     // party (frightened 2+, M25) counts anyway. The rules are the same whether
     // or not the players play for morale (user, 2026-10-08, M26).
     losingGate: true,
-    losingGateRatio: 2,
-    // How the gate tells the party is winning (user, 2026-10-08, M28): "hpShare", the share of
-    // its starting HP each side has left, the party's at least hpGate.value times the foes'
-    // ("ratio") or that many points above it ("margin"); simple to judge at the table. "strength"
-    // (before M28): HP × a forecast of damage per round (Lanchester), at least losingGateRatio times the foes'.
-    gateMode: "hpShare",
+    // 3.25× with damage potential (2026-10-14, M40; 3.5× with this round's damage, M39; 2× before M28).
+    losingGateRatio: 3.25,
+    // How the gate tells the party is winning: "strength" (user, 2026-10-14, M39; it was HP share from M28, simple to
+    // judge at the table): HP × a forecast of damage per round (Lanchester), at least losingGateRatio times the foes'.
+    // It sees a foe that's low on HP but still hits hard, so it turns fewer losses into wins for the same rounds saved.
+    // "hpShare" (M28): the share of its starting HP each side has left, the party's at least hpGate.value times the
+    // foes' ("ratio") or that many points above it ("margin").
+    gateMode: "strength",
+    // What a creature's damage is in its strength (M40): "potential", its damage per round over the next rounds with
+    // its limited spells and abilities only as often as it has uses left (a drained caster, a disarmed fighter count for
+    // less); "thisRound", what it can deal this round.
+    strengthBy: "potential",
     // PCs down (M37, 2026-10-14): fights morale turned from losses into wins mostly had PCs down when the first foe
-    // gave up. perPcDown: the party must be that much further ahead for each PC down (0.5: 1.75× with one down, 2.25×
-    // with two). Options, off: maxPcsDown (shut while more than that many are down; 0 halved those flips but cost a
+    // gave up. perPcDown (HP share only; the strength gate counts a PC down as no HP and no damage): the party must be
+    // that much further ahead for each PC down (0.5: 1.75× with one down, 2.25× with two). Options, off: maxPcsDown (shut while more than that many are down; 0 halved those flips but cost a
     // third of the rounds saved when the party can't heal), recentPcDownRounds (shut while a PC dropped this round or in
     // the last N), minPartyShare (shut while the party has less than that share of its HP).
     hpGate: { kind: "ratio", value: 1.25, perPcDown: 0.5, maxPcsDown: null, recentPcDownRounds: null, minPartyShare: null },
@@ -68,8 +74,8 @@ export const MORALE_RULES = Object.freeze({
         // M31 (user, 2026-10-08; "Improved Morale.md": retreat or surrender becomes reasonable): each foe checks
         // when the party's share of its HP left first reaches each ratio times the foes'. Not solo bosses
         // (bosses: false): one hits as hard at 20% HP, so the party still loses some of those fights.
-        // 2×, 3× and 4× (user, 2026-10-14, M37; was 3×, 4×, 6×).
-        hopeless: { enabled: true, label: "Retreat becomes reasonable (the party far ahead on HP share)", ratios: [2, 3, 4], bosses: false },
+        // 1.5×, 2× and 3× (user, 2026-10-14, M39; 2×, 3×, 4× with M37; 3×, 4×, 6× before), behind the strength gate.
+        hopeless: { enabled: true, label: "Retreat becomes reasonable (the party far ahead on HP share)", ratios: [1.5, 2, 3], bosses: false },
         // oncePerCreature (user, 2026-10-07): a creature checks for these at most once per fight.
         // Off (user, 2026-10-08, M20): it decided close fights more than it shortened won ones.
         halfHp: { enabled: false, label: "Falls to half HP", oncePerCreature: true },
@@ -78,12 +84,13 @@ export const MORALE_RULES = Object.freeze({
         // minValue (user, 2026-10-08, M25): only when an enemy's effect takes it to frightened 2 or more.
         // onFailure "frighten" (M29): a failure raises frightened by 1; only a critical failure gives up.
         // ignoresGate (M24): fear counts before the party is ahead.
-        // giveUpNeedsGate: a critical failure gives up only while the gate is open; before, it frightens like a failure.
-        frightenedByEnemy: { enabled: true, label: "Becomes frightened 2+ from an enemy effect", minValue: 2, onFailure: "frighten", ignoresGate: true, giveUpNeedsGate: false },
+        // giveUpNeedsGate (user, 2026-10-14, M39): a critical failure gives up only while the gate is open; before, it
+        // frightens like a failure.
+        frightenedByEnemy: { enabled: true, label: "Becomes frightened 2+ from an enemy effect", minValue: 2, onFailure: "frighten", ignoresGate: true, giveUpNeedsGate: true },
         // M32 (user, 2026-10-08): fleeing for any reason (a spell, an ability; not its own broken morale) sets off a
         // check as it begins and at the start of each of its turns while it lasts. Like fear, a failure raises
         // frightened by 1, only a critical failure gives up, and it counts before the party is ahead.
-        fleeing: { enabled: true, label: "Fleeing from any effect, each round it lasts", onFailure: "frighten", ignoresGate: true, giveUpNeedsGate: false },
+        fleeing: { enabled: true, label: "Fleeing from any effect, each round it lasts", onFailure: "frighten", ignoresGate: true, giveUpNeedsGate: true },
         // Off (M24): an early check that decides fights.
         surprised: { enabled: false, label: "Surprised (first round)", source: "Morale.md" },
         // Escalations (user, 2026-10-08): not a check; foe reinforcements arriving steady wavering foes
@@ -133,7 +140,8 @@ export const MORALE_RULES = Object.freeze({
     // the party accepting it captures the creature; harming it instead (setup "noQuarter", or a kill objective's
     // target) makes it and the allies who saw fight to the death, with no more morale or Perception checks.
     // On (2026-10-14): with M37 it saves more rounds than the old rules and turns fewer losses into wins.
-    readTheFight: { enabled: true, signs: ["sideLost25", "sideLost50", "quarterStrength", "outnumbered2to1", "isolated", "leaderDown"] },
+    // dcOffset: its DC against the morale check's (0: the same).
+    readTheFight: { enabled: true, dcOffset: 0, signs: ["sideLost25", "sideLost50", "quarterStrength", "outnumbered2to1", "isolated", "leaderDown"] },
 
     // M7, M8
     templates: {

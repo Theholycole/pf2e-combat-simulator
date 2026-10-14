@@ -62,7 +62,8 @@ test("persistent damage is set aside and recorded on the target", () => {
 // HP-share trigger (M31) is off so moving HP around sets off no checks of its own.
 function moraleState(foes, rules = {}) {
     const party = martialParty(3);
-    const state = createFightState({ combatants: [...party, ...foes] }, { moraleRules: mergeMoraleRules({ losingGate: false, ...rules, triggers: { halfHp: { enabled: true }, hopeless: { enabled: false }, ...(rules.triggers ?? {}) } }) });
+    // (The HP-share gate, M28, when a test turns the gate on: simple to set up by HP alone.)
+    const state = createFightState({ combatants: [...party, ...foes] }, { moraleRules: mergeMoraleRules({ losingGate: false, gateMode: "hpShare", ...rules, triggers: { halfHp: { enabled: true }, hopeless: { enabled: false }, ...(rules.triggers ?? {}) } }) });
     return state;
 }
 
@@ -202,7 +203,8 @@ test("the party plays for morale (M23): fear is worth the chance it breaks a foe
     const demoralize = { name: "Terrify", plan: { traits: ["concentrate"], activation: { time: "1" }, targeting: { target: "1 creature", range: "30 feet" }, resolution: { kind: "check", check: { roll: "skill", statistic: "intimidation", against: { dc: "target", statistic: "will" } }, outcomes: { criticalSuccess: { effects: [{ kind: "condition", slug: "frightened", value: 3 }] }, success: { effects: [{ kind: "condition", slug: "frightened", value: 2 }] }, failure: { effects: [] }, criticalFailure: { effects: [] } } } }, castRank: 1, pool: null, kind: "basic" };
     const [fighter] = martialParty(3);
     const value = (plays) => {
-        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, skills: { ...fighter.skills, intimidation: 12 }, spells: [demoralize] }, { ...moderateCreature(3, "g", "Guard"), engagement: 1 }, moderateCreature(3, "o", "Other")], setup: { situational: { playsForMorale: plays } } });
+        // (Fear's critical failure gives up before the party is ahead here, as before M39.)
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, skills: { ...fighter.skills, intimidation: 12 }, spells: [demoralize] }, { ...moderateCreature(3, "g", "Guard"), engagement: 1 }, moderateCreature(3, "o", "Other")], setup: { situational: { playsForMorale: plays } } }, { moraleRules: mergeMoraleRules({ triggers: { frightenedByEnemy: { giveUpNeedsGate: false } } }) });
         const pc = state.byId.get("fighter");
         pc.actionsLeft = 3;
         return scoreOptions(state, pc).options.find((option) => option.action.type === "cast")?.value ?? 0;
@@ -392,7 +394,7 @@ test("fear's critical failure can wait for the gate to give up (giveUpNeedsGate)
         processMorale(state);
         return { status: clerk.status, fleeing: !!clerk.cond.fleeing, frightened: clerk.cond.frightened };
     };
-    const now = outcome({});
+    const now = outcome({ triggers: { frightenedByEnemy: { giveUpNeedsGate: false } } });
     assert.ok(now.status !== "active" || now.fleeing, "a critical failure gives up before the party is ahead");
     const waits = outcome({ triggers: { frightenedByEnemy: { giveUpNeedsGate: true } } });
     assert.equal(waits.status, "active");
@@ -403,7 +405,8 @@ test("fear's critical failure can wait for the gate to give up (giveUpNeedsGate)
 test("fleeing from any effect sets off a check as it begins and each round it lasts, before the party is ahead too (M32)", async () => {
     const { applyCondition } = await import("../src/engine/spells.js");
     const setUp = (natural) => {
-        const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { losingGate: true });
+        // (M32 as decided: a critical failure gives up even before the party is ahead; M39 waits for the gate.)
+        const state = moraleState([moderateCreature(3, "g", "Guard"), moderateCreature(3, "o", "Other")], { losingGate: true, triggers: { fleeing: { giveUpNeedsGate: false } } });
         // Close: the foes as strong as the party, so the gate is shut.
         for (const c of state.list.filter((other) => other.side === "foes")) c.hp.value = c.hp.max = 400;
         state.rng.d20 = () => natural;
@@ -441,7 +444,8 @@ test("fleeing from any effect sets off a check as it begins and each round it la
 test("fleeing with no stated end lasts while the creature is frightened; one fleeing from an effect comes back, one that gave up leaves", async () => {
     const { applyCondition } = await import("../src/engine/spells.js");
     const party = martialParty(5);
-    const state = createFightState({ combatants: [...party, moderateCreature(5, "m", "Monster")] });
+    // (The HP-share gate: shut while both sides are unhurt, so the lone monster doesn't check and yield on its own here.)
+    const state = createFightState({ combatants: [...party, moderateCreature(5, "m", "Monster")] }, { moraleRules: mergeMoraleRules({ gateMode: "hpShare" }) });
     const monster = state.byId.get("m");
     // Vision of Death's critical failure: frightened 4 and fleeing for as long as it's frightened (no end in its plan).
     const pc = state.byId.get(party[0].id);

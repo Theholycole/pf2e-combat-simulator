@@ -13,7 +13,7 @@
 
 import { createFightState } from "../engine/fight.js";
 import { FLED, baseWill, isActive } from "../engine/combatant.js";
-import { bossAutoPasses, checkCantAffect, claimCheck, collectMoraleChecks, finalMoraleDegree, moraleDC, moraleModifierParts, moraleOutcome, readsTheFight, routReady, speaks } from "../engine/morale.js";
+import { bossAutoPasses, checkCantAffect, claimCheck, collectMoraleChecks, finalMoraleDegree, moraleDC, moraleModifierParts, moraleOutcome, readTheFightDC, readsTheFight, routReady, speaks } from "../engine/morale.js";
 import { SUCCESS } from "../engine/checks.js";
 import { bestOffense } from "../engine/planner.js";
 
@@ -102,7 +102,7 @@ export function liveMoraleChecks({ snapshot, memory = emptyMemory(), round = 1, 
     for (const [id, reason] of triggered) {
         const c = state.byId.get(id);
         if (!claimCheck(state, c)) continue;
-        const read = readsTheFight(state, c, reason) ? { dc: moraleDC(state, Number(c.perception) || 0), perception: Number(c.perception) || 0, signs: [...(state.moraleRules.readTheFight?.signs ?? [])] } : null;
+        const read = readsTheFight(state, c, reason) ? { dc: readTheFightDC(state, c), perception: Number(c.perception) || 0, signs: [...(state.moraleRules.readTheFight?.signs ?? [])] } : null;
         const row = bossAutoPasses(c)
             ? { id, name: c.name, bossHolds: true }
             : { id, name: c.name, dc: moraleDC(state, baseWill(c)), will: baseWill(c), parts: moraleModifierParts(state, c), template: c.morale?.template ?? "typical", ...(read ? { read } : {}) };

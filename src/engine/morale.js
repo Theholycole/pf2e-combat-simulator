@@ -58,15 +58,17 @@ function fighters(state, side) {
 }
 
 // Lanchester's square law: a side's fighting strength is its remaining HP
-// times its damage per round. Above 1 the party is ahead.
-export function partyAdvantage(state) {
+// times its damage per round. Above 1 the party is ahead. potential (M40, morale's strength): each creature's damage
+// potential over the next rounds, its limited spells and abilities only as often as it has uses (planner.js); otherwise
+// what it deals this round (the party's retreat).
+export function partyAdvantage(state, { potential = false } = {}) {
     let partyHp = 0;
     let partyDamage = 0;
     let foeHp = 0;
     let foeDamage = 0;
     for (const c of state.list) {
         if (!isActive(c) || c.kind === "object" || c.kind === "hazard") continue;
-        const threat = state.threat?.get(c.id) ?? 0;
+        const threat = (potential ? state.potential?.get(c.id) : null) ?? state.threat?.get(c.id) ?? 0;
         if (c.side === "party") {
             partyHp += Math.max(0, c.hp.value);
             partyDamage += threat;
@@ -83,7 +85,7 @@ export function partyAdvantage(state) {
 
 // The losing gate (M2, on since M24): the party is clearly winning.
 export function foesLosing(state) {
-    return partyAdvantage(state) >= state.moraleRules.losingGateRatio;
+    return partyAdvantage(state, { potential: state.moraleRules.strengthBy !== "thisRound" }) >= state.moraleRules.losingGateRatio;
 }
 
 // Each side's HP left, as a share of what it started with (creatures down, fled or
@@ -423,7 +425,7 @@ function personalModifiers(state, c) {
         if (hpFraction(c) <= state.moraleRules.measures.bloodiedFraction && !isSurrounded(state, c)) push("template.bestial.bloodied", template.bloodied ?? 0);
     }
     if (c.morale.template === "mercenary") {
-        if (partyAdvantage(state) < 1) push("template.mercenary.winning", template.winning ?? 0);
+        if (partyAdvantage(state, { potential: state.moraleRules.strengthBy !== "thisRound" }) < 1) push("template.mercenary.winning", template.winning ?? 0);
         if (situational(state, "unpaid")) push("template.mercenary.unpaid", template.unpaid ?? 0);
     }
     return parts;
@@ -546,12 +548,17 @@ export function readTheFightParts(state, c) {
 
 const perceptionOf = (c) => Number(c.perception) || 0;
 
+// Its DC: the morale check's, plus the rules' offset (dcOffset; 0: the same).
+export function readTheFightDC(state, c) {
+    return moraleDC(state, perceptionOf(c)) + (Number(state.moraleRules.readTheFight?.dcOffset) || 0);
+}
+
 function readCheck(state, c, reason) {
     if (!readsTheFight(state, c, reason)) return;
     const parts = readTheFightParts(state, c);
     const natural = state.rng.d20();
     const total = natural + perceptionOf(c) - statusPenalty(c, "perception") + parts.reduce((sum, part) => sum + part.value, 0);
-    const dc = moraleDC(state, perceptionOf(c));
+    const dc = readTheFightDC(state, c);
     const degree = degreeOf(total, dc, natural);
     state.log?.push(`  ${c.name} reads the fight: ${total} vs ${dc} → ${["critical failure", "failure", "success", "critical success"][degree]}`);
     if (degree >= SUCCESS) realizesLost(state, c);
@@ -665,7 +672,7 @@ export function moraleOdds(state, c, { trigger, frightened = 0, extra = 0 }) {
     // M38: held, it may still read the fight and yield or leave (when the party would let it).
     if (!crackOnly && readsTheFight(state, c, trigger) && !refusesQuarter(state, c)) {
         const parts = readTheFightParts(state, c).reduce((sum, part) => sum + part.value, 0);
-        const read = degreeDistribution(perceptionOf(c) + parts - Math.max(statusPenalty(c, "perception"), frightened), moraleDC(state, perceptionOf(c)));
+        const read = degreeDistribution(perceptionOf(c) + parts - Math.max(statusPenalty(c, "perception"), frightened), readTheFightDC(state, c));
         breaks += Math.max(0, 1 - breaks - wavers) * (read[SUCCESS] + read[CRITICAL_SUCCESS]);
     }
     return { breaks, wavers };

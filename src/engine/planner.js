@@ -69,6 +69,8 @@ function profileOf(c) {
 // Per-round threat: expected damage per round against a typical enemy.
 export function computeThreats(state) {
     state.threat = new Map();
+    // M40: what it can still deal, for the morale gate's strength.
+    state.potential = new Map();
     state.strikeShare = new Map();
     for (const c of state.list) {
         if (!isActive(c)) {
@@ -83,8 +85,10 @@ export function computeThreats(state) {
         const sample = enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / enemies.length;
         const target = enemies[0];
         const strikes = roundDamage(c, target, sample);
-        const spells = spellThreat(state, c, target);
+        const castable = spellDamages(state, c, target);
+        const spells = Math.max(0, ...castable.map((entry) => entry.damage));
         state.threat.set(c.id, Math.max(strikes, spells));
+        state.potential.set(c.id, potentialDamage(c, castable, roundDamage(c, target, sample, 3, { grip: true })));
         // How much of its threat comes from Strikes: what an extra action or an attack bonus helps.
         state.strikeShare.set(c.id, strikes + spells > 0 ? strikes / Math.max(strikes, spells) : 1);
     }
@@ -98,25 +102,63 @@ export function computeThreats(state) {
     if (state.setup?.situational?.playsForMorale) for (const c of state.list) if (c.morale?.leader && isActive(c)) state.leaderDownWorth.set(c.id, leaderDownWorth(state, c));
 }
 
-// Expected damage of the creature's best spell it can still cast, against one
-// target (two for an area).
-function spellThreat(state, c, target) {
-    let best = 0;
+// Expected damage of each spell the creature can still cast, against one target (two for an area):
+// [{ spell, damage, recharges }]. Its threat takes the best.
+function spellDamages(state, c, target) {
+    const out = [];
     for (const spell of c.spells ?? []) {
         if (!canCast(c, spell)) continue;
+        let damage = 0;
+        let recharges = false;
         for (const actions of spellVariants(spell)) {
             const info = describeSpell(spell.plan, actions);
+            if (info.recharge) recharges = true;
             const copies = info.area ? 2 : Math.max(1, Math.min(info.targets, 2));
             const [expected] = spellExpectation(state, c, spell, [target], 0, actions);
-            if (expected) best = Math.max(best, expected.damage * copies);
+            if (expected) damage = Math.max(damage, expected.damage * copies);
         }
+        out.push({ spell, damage, recharges });
     }
-    return best;
+    return out;
+}
+
+// Its damage potential (M40; the user: "Strength should take into account potential damage. A melee disarmed and a
+// caster who spent their best spell slots have much lower potential than they did previously"): its damage per round
+// over the next POTENTIAL_ROUNDS rounds, spending what it has left well. Each round its best way still open: a limited
+// spell or ability as many times as it has uses (one that recharges, once), otherwise its best Strike (a weakened grip
+// counted; a dropped weapon gone) or at-will spell.
+export const POTENTIAL_ROUNDS = 3;
+export function potentialDamage(c, castable, strikes) {
+    const limited = [];
+    let atWill = 0;
+    for (const { spell, damage, recharges } of castable) {
+        if (!spell.pool && !recharges) atWill = Math.max(atWill, damage);
+        else if (damage > 0) limited.push({ damage, pool: spell.pool ?? null, once: recharges ? (spell.rechargeGroup ?? spell) : null });
+    }
+    const base = Math.max(strikes, atWill, 0);
+    const pools = { ...(c.spellPools ?? {}) };
+    const used = new Set();
+    let total = 0;
+    for (let round = 0; round < POTENTIAL_ROUNDS; round++) {
+        let pick = null;
+        for (const option of limited) {
+            if (option.damage <= base || (option.pool && !((pools[option.pool] ?? 0) > 0)) || (option.once && used.has(option.once))) continue;
+            if (!pick || option.damage > pick.damage) pick = option;
+        }
+        if (!pick) {
+            total += base;
+            continue;
+        }
+        total += pick.damage;
+        if (pick.pool) pools[pick.pool] -= 1;
+        if (pick.once) used.add(pick.once);
+    }
+    return total / POTENTIAL_ROUNDS;
 }
 
 // Expected damage from a round of Strikes (the third at half weight).
-// attacks: how many Strikes the creature has left after moving.
-function roundDamage(c, target, ac, attacks = 3, { meleeOnly = false, rangedOnly = false } = {}) {
+// attacks: how many Strikes the creature has left after moving. grip: a weakened grip's penalty (Disarm) counted.
+function roundDamage(c, target, ac, attacks = 3, { meleeOnly = false, rangedOnly = false, grip = false } = {}) {
     let best = 0;
     for (const strike of c.strikes ?? []) {
         if (!strikeUsable(c, strike)) continue;
@@ -126,7 +168,7 @@ function roundDamage(c, target, ac, attacks = 3, { meleeOnly = false, rangedOnly
         const crit = expectedHitDamage(c, strike, target, true);
         let total = 0;
         for (let attack = 0; attack < attacks; attack++) {
-            const modifier = strike.bonus - multipleAttackPenalty(strike, attack) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack");
+            const modifier = strike.bonus - multipleAttackPenalty(strike, attack) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack") - (grip ? gripPenalty(c, strike) : 0);
             const dist = degreeDistribution(modifier, ac);
             total += (dist[SUCCESS] * hit + dist[CRITICAL_SUCCESS] * crit) * (attack === 2 ? 0.5 : 1);
         }

@@ -6,10 +6,12 @@ import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { applyDamage } from "../src/engine/actions.js";
 import { processMorale, readTheFightParts, speaks } from "../src/engine/morale.js";
 import { MORALE_RULES, mergeMoraleRules } from "../src/engine/morale-rules.js";
+import { POTENTIAL_ROUNDS, computeThreats, potentialDamage } from "../src/engine/planner.js";
 
 // Two foes at 30% of their HP against an unhurt party (the gate open), Read the fight on; halfHp sets off a check.
 function setUp(foes, { rules = {}, setup = {}, share = 0.3 } = {}) {
-    const state = createFightState({ combatants: [...martialParty(3), ...foes], setup }, { moraleRules: mergeMoraleRules({ readTheFight: { enabled: true }, triggers: { halfHp: { enabled: true }, hopeless: { enabled: false } }, ...rules }) });
+    // (The HP-share gate, M28: open or shut by HP alone.)
+    const state = createFightState({ combatants: [...martialParty(3), ...foes], setup }, { moraleRules: mergeMoraleRules({ gateMode: "hpShare", readTheFight: { enabled: true }, triggers: { halfHp: { enabled: true }, hopeless: { enabled: false } }, ...rules }) });
     for (const c of state.list.filter((each) => each.side === "foes")) c.hp.value = Math.round(c.hp.max * share);
     return state;
 }
@@ -35,7 +37,13 @@ test("M37 defaults: the party further ahead per PC down, a rout at a third behin
     assert.equal(MORALE_RULES.modifiers.sideLost25.value, -4);
     assert.equal(MORALE_RULES.modifiers.sideLost50.value, -6);
     assert.equal(MORALE_RULES.modifiers.undamaged.enabled, false);
-    assert.deepEqual([...MORALE_RULES.triggers.hopeless.ratios], [2, 3, 4]);
+    assert.deepEqual([...MORALE_RULES.triggers.hopeless.ratios], [1.5, 2, 3]);
+    // M39–M40: the strength gate at 3.25×, by damage potential; fear and fleeing give up only once the party is clearly ahead.
+    assert.equal(MORALE_RULES.gateMode, "strength");
+    assert.equal(MORALE_RULES.strengthBy, "potential");
+    assert.equal(MORALE_RULES.losingGateRatio, 3.25);
+    assert.equal(MORALE_RULES.triggers.frightenedByEnemy.giveUpNeedsGate, true);
+    assert.equal(MORALE_RULES.triggers.fleeing.giveUpNeedsGate, true);
 });
 
 test("M38: a foe whose morale held reads the fight; one that talks yields and the party accepts", () => {
@@ -139,4 +147,36 @@ test("M38: the losing signs help Perception by as much as they hurt morale; who 
     assert.equal(speaks({ languages: [], traits: ["humanoid"] }), false);
     assert.equal(speaks({ traits: ["humanoid"] }), true);
     assert.equal(speaks({ traits: ["beast"] }), false);
+});
+
+test("M40: strength counts damage potential: limited spells only as often as they have uses, a recharge once", () => {
+    assert.equal(POTENTIAL_ROUNDS, 3);
+    const fireball = { name: "Fireball", pool: "r3" };
+    const cantrip = { name: "Ignition" };
+    const breath = { name: "Breath Weapon", rechargeGroup: "breath" };
+    // Strikes 10 a round; Fireball 30 (two slots left of three rounds), a cantrip 12.
+    const full = potentialDamage({ spellPools: { r3: 2 } }, [{ spell: fireball, damage: 30 }, { spell: cantrip, damage: 12 }], 10);
+    assert.equal(full, (30 + 30 + 12) / 3);
+    // One slot left: less potential; none left (canCast drops it): just the cantrip.
+    assert.equal(potentialDamage({ spellPools: { r3: 1 } }, [{ spell: fireball, damage: 30 }, { spell: cantrip, damage: 12 }], 10), (30 + 12 + 12) / 3);
+    assert.equal(potentialDamage({ spellPools: {} }, [{ spell: cantrip, damage: 12 }], 10), 12);
+    // A breath weapon that recharges counts once in the three rounds; Strikes the rest.
+    assert.equal(potentialDamage({}, [{ spell: breath, damage: 40, recharges: true }], 15), (40 + 15 + 15) / 3);
+    // A disarmed fighter: its weapon's Strike gone, its fist left (the caller passes the best usable Strike).
+    assert.ok(potentialDamage({}, [], 4) < potentialDamage({}, [], 14));
+});
+
+test("M40: in a fight, a weakened grip and a dropped weapon lower a creature's potential", () => {
+    const state = setUp([clerk(), other()]);
+    const pc = state.list.find((c) => c.kind === "pc" && c.strikes?.length);
+    computeThreats(state);
+    const armed = state.potential.get(pc.id);
+    const strike = pc.strikes[0];
+    pc.weakGrip = new Map([[strike.name, 2]]);
+    computeThreats(state);
+    const weak = state.potential.get(pc.id);
+    pc.dropped = new Set(pc.strikes.map((each) => each.name));
+    computeThreats(state);
+    assert.ok(weak < armed, `${weak} < ${armed}`);
+    assert.equal(state.potential.get(pc.id), 0);
 });

@@ -7,7 +7,8 @@ import { mergeMoraleRules } from "../src/engine/morale-rules.js";
 import { emptyMemory, liveAccept, liveMoraleApply, liveMoraleChecks, liveNoQuarter, liveRout } from "../src/live/morale.js";
 import { allRolled, createMoraleCard, moraleCardHTML, noQuarterCardHTML, outcomeLine, outcomeOps, readModifiers, readTotal, recordMoraleRoll, routCardHTML, rowTotal, settleYield, toggleModifier } from "../src/live/morale-card.js";
 
-const rules = mergeMoraleRules({});
+// (The HP-share gate, M28: these encounters open and shut it by HP alone.)
+const rules = mergeMoraleRules({ gateMode: "hpShare" });
 
 // Level 5 party against four level-5 foes, as it stands now: changes by id ({ hp, conditions, status, gone }).
 function encounter(changes = {}) {
@@ -129,7 +130,7 @@ test("the morale card: a row per foe, tick boxes, Roll and Apply, what Apply doe
 });
 
 test("in play, Read the fight (M38): each row also rolls Perception; a held check with a successful read yields or leaves", () => {
-    const reading = mergeMoraleRules({ readTheFight: { enabled: true } });
+    const reading = mergeMoraleRules({ gateMode: "hpShare", readTheFight: { enabled: true } });
     const first = liveMoraleChecks({ snapshot: encounter(), memory: emptyMemory(), round: 1, rules: reading });
     const dropped = liveMoraleChecks({ snapshot: encounter({ foe1: { hp: 0 } }), memory: first.memory, round: 1, rules: reading });
     const row = dropped.checks[0].rows.find((each) => each.id === "foe2");
@@ -183,4 +184,16 @@ test("in play, surrender offers (M38): Accept, Refuse, and no quarter for it and
 test("in play: the rout card names the rules' share (M37: a third)", () => {
     assert.match(routCardHTML({ rest: [{ id: "foe4", name: "Foe 4" }], fraction: 0.33 }), /A third or more of the surviving foes are broken: the rest flee \(Foe 4\)/);
     assert.match(routCardHTML({ rest: [] }), /Half or more of the surviving foes are broken/);
+});
+
+test("in play, the strength gate (M39, the default): HP × damage per round, counted live", () => {
+    const defaults = mergeMoraleRules({});
+    const first = liveMoraleChecks({ snapshot: encounter(), memory: emptyMemory(), round: 1, rules: defaults });
+    // One foe falls, the rest barely hurt: the foes still hit as hard, not 3.5× behind yet.
+    const close = liveMoraleChecks({ snapshot: encounter({ foe1: { hp: 0 } }), memory: first.memory, round: 1, rules: defaults });
+    assert.deepEqual(close.checks, []);
+    // The rest at a tenth of their HP: far behind, so the next fall brings a card.
+    const low = { foe2: { hp: 8 }, foe3: { hp: 8 }, foe4: { hp: 8 } };
+    const later = liveMoraleChecks({ snapshot: encounter({ foe1: { hp: 0 }, ...low, foe2: { hp: 0 } }), memory: close.memory, round: 2, rules: defaults });
+    assert.ok(later.checks.length > 0, "a card once the party is far ahead");
 });
