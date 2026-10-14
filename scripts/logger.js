@@ -8,7 +8,7 @@
 import { MODULE_ID, actorKind, readFlag, savedSetup, sideOf } from "./snapshot.js";
 import { predictOdds } from "./odds.js";
 import { OUTCOMES, guessOutcome } from "../src/engine/calibration.js";
-import { escape } from "./render.js";
+import { escape } from "../src/html.js";
 
 // Outcomes only some objectives can end a fight with.
 const OBJECTIVE_OUTCOMES = { survived: ["survive"], held: ["hold"], escaped: ["escort", "retrieve"] };

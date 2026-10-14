@@ -7,10 +7,6 @@ import { isActive } from "./combatant.js";
 
 export const DISTANCE_FEET = Object.freeze({ engaged: 5, near: 30, far: 60 });
 
-export function meleeMembers(state, meleeId) {
-    return state.melees.get(meleeId) ?? null;
-}
-
 export function sameMelee(a, b) {
     return a.meleeId !== null && a.meleeId === b.meleeId;
 }
@@ -109,13 +105,6 @@ export function rangePenalty(strike, distance) {
     if (increments > 6) return null;
     const volley = strike.volley && distance <= strike.volley ? 2 : 0;
     return 2 * (increments - 1) + volley;
-}
-
-// Whether a creature can make this Strike against the target from where it is.
-export function strikeReaches(strike, attacker, target) {
-    if (strike.melee) return sameMelee(attacker, target);
-    if (target.band === "gone") return false;
-    return rangePenalty(strike, distanceBetween(attacker, target)) !== null;
 }
 
 // Strides needed to engage the target from the attacker's current band; with

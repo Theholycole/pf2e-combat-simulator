@@ -16,12 +16,8 @@ import { applyCondition, applyMove, castPlan, castSpell, deathThroes, nearbyDeat
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
-import { aimsAtHead, cauterizeStumps, strikeHead } from "./creature-rules.js";
-import { attachAfterHit, bestStrikeType, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, troopAfterDamage } from "./creature-rules.js";
-
-function log(state, text) {
-    state.log?.push(text);
-}
+import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
+import { log } from "./log.js";
 
 export function coverFor(state, defender) {
     return state.setup.cover?.[defender.side] ?? 0;

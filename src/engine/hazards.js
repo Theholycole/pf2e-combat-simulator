@@ -13,8 +13,7 @@
 
 import { ACTIVE, DEAD, PENDING, canAct, isActive, statusPenalty } from "./combatant.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, SUCCESS, rollCheck } from "./checks.js";
-
-const log = (state, line) => state.log?.push(line);
+import { log } from "./log.js";
 
 export const isHazard = (c) => c?.kind === "hazard";
 

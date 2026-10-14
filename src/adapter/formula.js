@@ -168,14 +168,6 @@ export function averageOf(parts) {
     return parts.reduce((sum, part) => sum + (part.dice * (part.die + 1) / 2 + part.bonus) * part.multiplier, 0);
 }
 
-// The plain-arithmetic average of a readable formula, for checking the parser.
-export function referenceAverage(text) {
-    const arithmetic = text
-        .replace(/(\d+)d(\d+)/g, (_, n, m) => `(${n}*(${m}+1)/2)`)
-        .replace(/[a-z][a-z\s-]*/gi, " ");
-    return Function(`"use strict"; return (${arithmetic.replace(/\)\s+\(/g, ")+(").replace(/(\d|\))\s+(\(|\d)/g, "$1+$2")});`)();
-}
-
 // A Strike whose damage a die picks from a table (B255, Generate Bomb): each row as the engine reads a Strike's damage
 // ("3d10[acid]" and its splash "3[acid]" → 3d10 acid, 3 acid splash), with its save and conditions on a hit; a row with only a save
 // deals no damage. [{ name, faces, damage, hitSpell?, conditions? }]

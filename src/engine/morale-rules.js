@@ -47,7 +47,6 @@ export const MORALE_RULES = Object.freeze({
     // cancelled and only the modifiers counted.
     dcMode: "partyLevel",
     levelOffset: 0,
-    checksPerRound: 1,
     // The rout ends the fight once half the surviving foes are broken ("Improved Morale.md"). M30 (user,
     // 2026-10-08): those who surrendered or fled on a failed check count as surviving and broken too.
     routCountsGivenUp: true,
@@ -164,7 +163,6 @@ export const MORALE_RULES = Object.freeze({
     },
 
     boss: {
-        levelsAboveParty: 2,
         breakBelowHp: 0.25
     },
 

@@ -102,10 +102,6 @@ export function isActive(c) {
     return c.status === ACTIVE && !c.swallowedBy;
 }
 
-export function isPresent(c) {
-    return c.status === ACTIVE || c.status === DOWN;
-}
-
 // asleep: a spell's unconsciousness (Sleep), which damage ends; the creature stays in the fight.
 export function canAct(c) {
     return c.status === ACTIVE && !c.cond.unconscious && !c.cond.paralyzed && !c.cond.asleep && c.acts !== false;
@@ -200,12 +196,4 @@ export function deathThreshold(c) {
 
 export function hpFraction(c) {
     return c.hp.max > 0 ? Math.max(0, c.hp.value) / c.hp.max : 0;
-}
-
-export function enemiesOf(state, c) {
-    return state.list.filter((other) => other.side !== c.side);
-}
-
-export function alliesOf(state, c) {
-    return state.list.filter((other) => other.side === c.side && other !== c);
 }

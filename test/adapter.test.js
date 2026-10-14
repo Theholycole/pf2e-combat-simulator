@@ -1,8 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { averageOf, parseReadableDamage, referenceAverage } from "../src/adapter/formula.js";
+import { averageOf, parseReadableDamage } from "../src/adapter/formula.js";
 import { stripConditions } from "../scripts/snapshot.js";
+
+// The plain-arithmetic average of a readable formula, for checking the parser.
+function referenceAverage(text) {
+    const arithmetic = text
+        .replace(/(\d+)d(\d+)/g, (_, n, m) => `(${n}*(${m}+1)/2)`)
+        .replace(/[a-z][a-z\s-]*/gi, " ");
+    return Function(`"use strict"; return (${arithmetic.replace(/\)\s+\(/g, ")+(").replace(/(\d|\))\s+(\(|\d)/g, "$1+$2")});`)();
+}
 
 // Patterns seen across all 492 Monster Core creatures (1,027 formulas, all
 // parsed exactly in the live check of 2026-10-07).

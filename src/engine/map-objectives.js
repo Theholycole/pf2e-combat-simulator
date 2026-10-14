@@ -9,6 +9,7 @@
 
 import { DEAD, DOWN, canAct, canMove, isActive } from "./combatant.js";
 import { mapGap, stridesToEngage } from "./space.js";
+import { log } from "./log.js";
 
 export const MAP_KINDS = new Set(["hold", "escort", "retrieve"]);
 export const isMapObjective = (objective) => MAP_KINDS.has(objective?.kind);
@@ -17,8 +18,6 @@ export const isMapObjective = (objective) => MAP_KINDS.has(objective?.kind);
 const TYPED_STRIDE = 25;
 // Typed Strides when nothing else is given.
 const DEFAULT_STRIDES = Object.freeze({ party: { area: 1, exit: 2 }, foes: { area: 1, exit: 2 } });
-
-const log = (state, line) => state.log?.push(line);
 
 // Strides a creature needs to cover some feet.
 export const stridesFor = (c, feet) => (feet > 0 ? Math.ceil(feet / Math.max(5, c.speed ?? 25)) : 0);

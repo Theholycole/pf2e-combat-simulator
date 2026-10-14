@@ -145,7 +145,3 @@ export function settleObjectiveAfterLoss(state) {
     const objective = state.objective;
     if (objective && objective.status === "open") objective.status = "failed";
 }
-
-export function objectiveFailedOrImpossible(state) {
-    return state.objective?.status === "failed";
-}

@@ -14,8 +14,7 @@ import { armorClass, canAct, isActive, strikeUsable } from "./combatant.js";
 import { attackModifier, expectedHitDamage, performStrike, stride } from "./actions.js";
 import { canReact, withExtraDamage } from "./abilities.js";
 import { distanceBetween, rangePenalty, sameMelee, stridesToEngage } from "./space.js";
-
-const log = (state, line) => state.log?.push(line);
+import { log } from "./log.js";
 
 export const inBanner = (commander, ally) => ally !== commander && distanceBetween(commander, ally) <= (commander.commander?.banner ?? 30);
 

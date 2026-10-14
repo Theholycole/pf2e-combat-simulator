@@ -744,10 +744,6 @@ function afflictionValue(target, data) {
     return { damage: damage * repeats, worth };
 }
 
-export function hasTimer(c, key) {
-    return (c.timers ?? []).some((timer) => timer.key === key);
-}
-
 // --- Golem Antimagic (B56) ---------------------------------------------------
 
 // A golem is immune to others' magic (spells, and abilities of a tradition or with the magical trait), but magic of the kinds

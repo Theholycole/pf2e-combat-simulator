@@ -1,12 +1,6 @@
 // HTML for reports. Pure functions of the report data.
 
-export function escape(value) {
-    return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-}
+import { escape } from "../src/html.js";
 
 const pct = (value) => (value === null || value === undefined ? "—" : `${Math.round(value * 100)}%`);
 const signedPts = (value) => (value === null || value === undefined ? "—" : `${value >= 0 ? "+" : "−"}${Math.abs(value * 100).toFixed(1)} pts`);

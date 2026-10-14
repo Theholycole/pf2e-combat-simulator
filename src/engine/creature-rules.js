@@ -11,16 +11,15 @@
 //   T7 Troop Defenses: thresholds lower its maximum Hit Points; immune to non-damaging effects aimed at one creature; one that takes a
 //      segment out of the fight costs it a threshold.
 
-import { createCombatant, isActive, isOffGuard } from "./combatant.js";
+import { createCombatant, isActive, isOffGuard, saveModifier } from "./combatant.js";
 import { CRITICAL_SUCCESS, DEGREE_NAMES, FAILURE, SUCCESS, degreeOf, flatCheck, levelDC } from "./checks.js";
 import { applyEffect } from "./effects.js";
 import { adjustInstance } from "./damage.js";
 import { saveBonusAgainst, sourceOptions } from "./abilities.js";
-import { saveModifier } from "./combatant.js";
 import { adjustedSaveDegree } from "./passives.js";
 import { engage } from "./space.js";
+import { log } from "./log.js";
 
-const log = (state, line) => state.log?.push(line);
 const camel = (slug) => String(slug).replace(/-([a-z])/g, (_all, letter) => letter.toUpperCase());
 
 // Whether a creature has a condition, by PF2e's slug.
@@ -81,7 +80,6 @@ export function bestStrikeType(attacker, strike, target, type, amount = 6, preci
     if (choices.length < 2) return type;
     return choices.reduce((best, choice) => (adjustInstance(target, choice, amount, precision) > adjustInstance(target, best, amount, precision) ? choice : best), type);
 }
-
 
 // --- T4: Protean Anatomy, Split, Attach, Berserk ----------------------------------------
 

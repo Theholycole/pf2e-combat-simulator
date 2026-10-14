@@ -15,13 +15,12 @@ import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffG
 import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, isRaging, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { canReact, castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
 import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, worstCondition } from "./spells.js";
-import { canReact, grantAooAllies, levelDC } from "./abilities.js";
 import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";

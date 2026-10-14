@@ -10,7 +10,7 @@
 // (src/live/morale.js) is kept here between looks and saved on the combat when a
 // card is posted or applied, not on every hit.
 
-import { MODULE_ID, buildSnapshot, entriesFromCombat, readFlag, savedSetup } from "./snapshot.js";
+import { MODULE_ID, buildSnapshot, entriesFromCombat, moraleRulesSetting, readFlag, savedSetup } from "./snapshot.js";
 import { mergeMoraleRules } from "../src/engine/morale-rules.js";
 import { emptyMemory, liveAccept, liveMoraleApply, liveMoraleChecks, liveNoQuarter, liveRout, noteChanges } from "../src/live/morale.js";
 import { MORALE_MARKERS, allRolled, createMoraleCard, moraleCardHTML, noQuarterCardHTML, outcomeLine, outcomeOps, readModifiers, recordMoraleRoll, routCardHTML, settleYield, toRoll, toggleModifier } from "../src/live/morale-card.js";
@@ -52,16 +52,7 @@ function enabled() {
 const isLeadGM = () => game.user.isGM && (game.users.activeGM ? game.users.activeGM.isSelf : true);
 const gmIds = () => ChatMessage.getWhisperRecipients("GM").map((user) => user.id);
 
-function overrides() {
-    try {
-        const text = game.settings.get(MODULE_ID, "moraleRules");
-        return text ? JSON.parse(text) : null;
-    } catch {
-        return null;
-    }
-}
-
-const rulesNow = () => mergeMoraleRules(overrides() ?? {});
+const rulesNow = () => mergeMoraleRules(moraleRulesSetting() ?? {});
 
 function memoryOf(combat) {
     return memories.get(combat.id) ?? readFlag(combat, MEMORY) ?? emptyMemory();
@@ -74,7 +65,7 @@ async function keep(combat, memory, { save = false } = {}) {
 
 async function snapshotOf(combat) {
     const { setup, overrides: perRun } = savedSetup(combat);
-    return buildSnapshot(entriesFromCombat(combat), { setup, overrides: perRun, combat, moraleRules: overrides() });
+    return buildSnapshot(entriesFromCombat(combat), { setup, overrides: perRun, combat, moraleRules: moraleRulesSetting() });
 }
 
 // --- Watching the fight -------------------------------------------------------------

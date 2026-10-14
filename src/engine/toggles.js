@@ -8,8 +8,8 @@ import { effectModel } from "./effects.js";
 import { deltasFor } from "./abilities.js";
 import { adjustInstance } from "./damage.js";
 import { isActive } from "./combatant.js";
+import { log } from "./log.js";
 
-const log = (state, line) => state.log?.push(line);
 // Rules about a toggle with nothing for a fight here, and those its ways are read from; any other (a weapon changed, a size, an aura) leaves
 // the choice unread.
 const HARMLESS = new Set(["RollOption", "Note", "TokenLight", "TokenImage", "TokenEffectIcon", "BaseSpeed"]);

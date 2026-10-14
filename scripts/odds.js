@@ -1,25 +1,17 @@
 // The in-play odds check: the fight as it stands, a small fast batch.
 
-import { MODULE_ID, buildSnapshot, entriesFromCombat, savedSetup } from "./snapshot.js";
+import { MODULE_ID, buildSnapshot, entriesFromCombat, moraleRulesSetting, savedSetup } from "./snapshot.js";
 import { rememberOdds } from "./logger.js";
 import { runJob } from "./runner.js";
-import { escape, renderAdjustments, renderSummary } from "./render.js";
+import { renderAdjustments, renderSummary } from "./render.js";
+import { escape } from "../src/html.js";
 
 let running = false;
-
-function moraleRules() {
-    try {
-        const text = game.settings.get(MODULE_ID, "moraleRules");
-        return text ? JSON.parse(text) : null;
-    } catch {
-        return null;
-    }
-}
 
 // The fight as it stands, simulated. Returns null when there are no PCs.
 export async function predictOdds(combat, { runs = game.settings.get(MODULE_ID, "oddsRuns") } = {}) {
     const { setup, overrides } = savedSetup(combat);
-    const snapshot = await buildSnapshot(entriesFromCombat(combat), { setup, overrides, combat, moraleRules: moraleRules() });
+    const snapshot = await buildSnapshot(entriesFromCombat(combat), { setup, overrides, combat, moraleRules: moraleRulesSetting() });
     if (!snapshot.combatants.some((c) => c.side === "party" && c.kind === "pc")) return null;
     const report = await runJob("batch", snapshot, { runs, seed: Math.floor(Math.random() * 2 ** 31), logSample: false, timeBudgetMs: 2500, minRuns: 80 });
     return { snapshot, report };

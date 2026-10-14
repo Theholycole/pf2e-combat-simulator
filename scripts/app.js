@@ -1,11 +1,12 @@
 // The Combat Simulator window: encounter setup, then results.
 
-import { MODULE_ID, buildSnapshot, entriesFromCombat, entriesFromTokens, readActor, readFlag, defaultSide } from "./snapshot.js";
+import { MODULE_ID, buildSnapshot, entriesFromCombat, entriesFromTokens, moraleRulesSetting, readActor, readFlag, defaultSide } from "./snapshot.js";
 import { runJob } from "./runner.js";
 import { FightLogApp } from "./log-app.js";
 import { MORALE_RULES } from "../src/engine/morale-rules.js";
 import { ROLE_PROFILES } from "../src/engine/planner.js";
-import { renderAdjustments, renderReport, renderCompare, renderMoraleImpact, escape } from "./render.js";
+import { renderAdjustments, renderReport, renderCompare, renderMoraleImpact } from "./render.js";
+import { escape } from "../src/html.js";
 import { MAP_KINDS, regionChoices, roundsHeld } from "./map.js";
 
 const { ApplicationV2 } = foundry.applications.api;
@@ -17,16 +18,6 @@ const WHEN_KINDS = [["round", "Round"], ["alarm", "The alarm is raised"], ["fall
 const THEN_KINDS = [["arrive", "Creatures arrive"], ["hazard", "A hazard starts"], ["danger", "Danger starts"]];
 const DAMAGE_TYPES = ["fire", "cold", "acid", "electricity", "sonic", "force", "poison", "piercing", "slashing", "bludgeoning", "mental", "spirit", "vitality", "void", "bleed", "untyped"];
 const SITUATIONAL = [["defendingHome", "Foes defend their home (+1)"], ["noRetreat", "Foes have no retreat, surrender means death (+2)"], ["defendingLair", "Bestial foes defend young or lair (+2)"], ["unpaid", "Mercenaries unpaid or betrayed (−2)"], ["hatedEnemy", "Foes fight a hated enemy (+4, if enabled)"], ["playsForMorale", "Simulated PCs play for morale (fear first, the leader first)"], ["noQuarter", "The party gives no quarter (refuses every surrender)"]];
-
-function moraleRulesSetting() {
-    try {
-        const text = game.settings.get(MODULE_ID, "moraleRules");
-        return text ? JSON.parse(text) : null;
-    } catch (error) {
-        ui.notifications.warn(`Combat Simulator: the morale rules setting isn't valid JSON (${error.message}); using defaults.`);
-        return null;
-    }
-}
 
 function option(value, label, selected) {
     return `<option value="${escape(value)}"${String(selected) === String(value) ? " selected" : ""}>${escape(label)}</option>`;
@@ -497,7 +488,7 @@ export class SimulatorApp extends ApplicationV2 {
         }
         // A pre-fight test ignores the tracker's turn: it's a fresh encounter.
         const combat = this.source.combat?.started ? this.source.combat : null;
-        return buildSnapshot(this.entries, { setup: this.setup, overrides: this.overrides, fresh: this.fresh, combat: this.fresh ? null : combat, moraleRules: moraleRulesSetting() });
+        return buildSnapshot(this.entries, { setup: this.setup, overrides: this.overrides, fresh: this.fresh, combat: this.fresh ? null : combat, moraleRules: moraleRulesSetting({ warn: true }) });
     }
 
     async #run(kind, settings) {

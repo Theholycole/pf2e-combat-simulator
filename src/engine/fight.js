@@ -8,7 +8,7 @@ import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, kill
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
-import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
+import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
 import { applyAuras, provokedReaction, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
@@ -18,13 +18,11 @@ import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from
 import { shiftImmanence, sparkAtInitiative, transcend } from "./exemplar.js";
 import { isMapObjective, mapOutcome, pickUpItem, placeOnMap } from "./map-objectives.js";
 import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startDanger } from "./escalations.js";
-import { helpArrives } from "./morale.js";
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
 import { buildEnvironment, covenCast, covenTurnStart, hiddenAtTurnStart, lightAtStart, sunlightTurnEnd, terrainTurn } from "./environment.js";
-import { headsMend, hydraRegrow } from "./creature-rules.js";
-import { attachedTurnStart, berserkTurnStart, followAttached, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
+import { attachedTurnStart, berserkTurnStart, followAttached, headsMend, hydraRegrow, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,

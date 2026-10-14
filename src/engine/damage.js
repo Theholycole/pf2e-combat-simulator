@@ -309,11 +309,6 @@ export function adjustPart(defender, instance, context = null) {
     return Math.max(0, result);
 }
 
-export function averagePersistent(instance) {
-    if (instance.dice && instance.die) return (averageDice(instance.dice, instance.die) + (instance.bonus ?? 0)) * (instance.multiplier ?? 1);
-    return instance.amount ?? 0;
-}
-
 export function rollPersistent(rng, instance) {
     if (instance.dice && instance.die) return (rollDice(rng, instance.dice, instance.die) + (instance.bonus ?? 0)) * (instance.multiplier ?? 1);
     return instance.amount ?? 0;

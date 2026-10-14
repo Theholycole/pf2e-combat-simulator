@@ -2,16 +2,14 @@
 // fallen"), a row per foe with its DC and modifiers as tick boxes, Roll / Roll all, then Apply.
 // Pure: scripts/morale-live.js posts it, rolls and applies.
 
+import { escape } from "../html.js";
+
 export const MORALE_CARD_VERSION = 1;
 
 const DEGREES = ["critical failure", "failure", "success", "critical success"];
 
 // The GM's calls: ticked when the encounter's saved situation says so, otherwise offered unticked.
 const GM_CALLS = ["defendingHome", "noRetreat", "hatedEnemy"];
-
-function escape(text) {
-    return String(text ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
-}
 
 const signed = (value) => `${value >= 0 ? "+" : "−"}${Math.abs(value)}`;
 

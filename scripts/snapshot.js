@@ -1267,6 +1267,17 @@ export function readFlag(document, key) {
     return document?.flags?.[MODULE_ID]?.[key] ?? null;
 }
 
+// The world setting's morale rule overrides (JSON), or null. warn: tell the GM when it isn't valid JSON.
+export function moraleRulesSetting({ warn = false } = {}) {
+    try {
+        const text = game.settings.get(MODULE_ID, "moraleRules");
+        return text ? JSON.parse(text) : null;
+    } catch (error) {
+        if (warn) ui.notifications.warn(`Combat Simulator: the morale rules setting isn't valid JSON (${error.message}); using defaults.`);
+        return null;
+    }
+}
+
 function profileFlag(actor) {
     return readFlag(actor, "profile") ?? {};
 }

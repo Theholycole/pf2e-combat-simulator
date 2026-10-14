@@ -15,8 +15,7 @@ import { applyDamage, expectedHitDamage } from "./actions.js";
 import { degreeDistribution, rollCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS } from "./checks.js";
 import { rollInstances } from "./spells.js";
 import { adjustedSaveDegree, adjustedSaveOdds } from "./passives.js";
-
-const log = (state, line) => state.log?.push(line);
+import { log } from "./log.js";
 
 const FALLEN = new Set([DOWN, DEAD, FLED, SURRENDERED]);
 

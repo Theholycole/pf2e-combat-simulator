@@ -1,6 +1,6 @@
 # Ability module plan (draft)
 
-Draft written 2026-10-07 while the user was away. It plans `pf2e-automatic-ability-resolution` (milestone 3). **Nothing here is built yet, and the open questions at the end are the user's to decide.**
+Draft written 2026-10-07 while the user was away. It planned `pf2e-automatic-ability-resolution` (milestone 3), since built in its own repository; this plan stays for its family list, which that module's `docs/milestone-3.md` points to.
 
 ## What it is
 

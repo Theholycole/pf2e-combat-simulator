@@ -2,12 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createFightState, fightOver, prepareSnapshot, simulate, turnEnd } from "../src/engine/fight.js";
-import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
+import { benchmarkEncounter, martialParty, moderateCreature } from "../src/engine/benchmarks.js";
 import { applyDamage, attackModifier, expectedHitDamage, forcefulBonus, stride } from "../src/engine/actions.js";
 import { canStepOut, leaveMelee, rangePenalty } from "../src/engine/space.js";
 import { breakCreature, fleeingAtTurnStart, processMorale, surrender } from "../src/engine/morale.js";
 import { scoreOptions } from "../src/engine/planner.js";
-import { benchmarkEncounter } from "../src/engine/benchmarks.js";
 import { mergeMoraleRules } from "../src/engine/morale-rules.js";
 
 function fighterAndFoe({ foe = {}, fighter = {} } = {}) {

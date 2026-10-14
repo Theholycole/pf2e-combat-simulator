@@ -163,5 +163,3 @@ export function benchmarkEncounter(level, threat) {
         setup: {}
     };
 }
-
-export const BENCHMARK_THREATS = Object.freeze(Object.keys(THREATS));

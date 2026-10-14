@@ -10,8 +10,7 @@ import { applyEffect, removeEffect } from "./effects.js";
 import { applyDamage } from "./actions.js";
 import { applyHeal } from "./spells.js";
 import { isActive } from "./combatant.js";
-
-const log = (state, line) => state.log?.push(line);
+import { log } from "./log.js";
 
 export const ikonOf = (c, slug) => c.exemplar?.ikons.find((ikon) => ikon.slug === slug) ?? null;
 

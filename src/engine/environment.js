@@ -14,8 +14,8 @@
 // The fight's roll options (lighting, terrain, climate) are the creatures' own predicates' (abilities.js's selfOptions).
 
 import { isActive } from "./combatant.js";
+import { log } from "./log.js";
 
-const log = (state, line) => state.log?.push(line);
 const LIGHT_OPTIONS = { bright: "lighting:bright-light", dim: "lighting:dim-light", dark: "lighting:darkness" };
 
 export function buildEnvironment(setup = {}) {

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { applyEffect, effectBenefit, effectBonus, effectModel, numericValue, removeEffect } from "../src/engine/effects.js";
+import { applyEffect, effectBenefit, effectModel, numericValue, removeEffect } from "../src/engine/effects.js";
 import { createFightState } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { armorClass, saveModifier, statusPenalty } from "../src/engine/combatant.js";

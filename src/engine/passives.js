@@ -8,8 +8,8 @@
 
 import { CRITICAL_SUCCESS, CRITICAL_FAILURE } from "./checks.js";
 import { sourceOptions, testPredicate } from "./abilities.js";
+import { log } from "./log.js";
 
-const log = (state, line) => state.log?.push(line);
 const DEGREE_KEYS = ["criticalFailure", "failure", "success", "criticalSuccess"];
 const STEPS = {
     "one-degree-better": (degree) => degree + 1,
