@@ -526,3 +526,47 @@ test("Truesight: a counteract check against a foe's Invisibility; seen through, 
     assert.ok(state.log.some((line) => line.includes("Seer sees through")), state.log.join("\n"));
     assert.equal(offGuardFrom(state, pc, caster), false);
 });
+
+test("Dominate: a failed save puts the target on its controller's side until its end-of-turn save frees it; the save read from PF2e's own row", async () => {
+    const { withReading } = await import("../src/engine/readings.js");
+    const { controlTurnStart } = await import("../src/engine/control.js");
+    const { turnEnd } = await import("../src/engine/fight.js");
+    const controlled = (rawText) => row({ effects: [{ kind: "condition", slug: "controlled", value: null, duration: { mode: "fixed", value: 1, unit: "days" } }], rawText });
+    // As the spell module has it: its rows rewritten ("Controlled for 1 day"), PF2e's own in the compiler's evidence.
+    const dominate = withReading({ modelVersion: 12, source: { name: "Dominate", slug: "dominate" }, rank: 6, traits: ["incapacitation", "mental"], activation: { time: "2" }, targeting: { target: "1 creature", range: "30 feet" },
+        compilerEvidence: { savedRows: ["Failure You control the target. It gains the Controlled condition, but it can attempt a Will save at the end of each of its turns. On a success, the spell ends.", "Critical Failure As a failure, but the target receives a new save only if you give it a new order that is against its nature."] },
+        resolution: { kind: "save", check: { statistic: "will", basic: false }, outcomes: { criticalSuccess: row(), success: row({ effects: [{ kind: "condition", slug: "stunned", value: 1, duration: null }] }), failure: controlled("The target is Controlled for 1 day."), criticalFailure: controlled("The target is Controlled for 1 day.") } } });
+    assert.deepEqual(dominate.resolution.outcomes.failure.effects[0].duration.saveEnds, { save: "will", dc: "spell" });
+    assert.equal(dominate.resolution.outcomes.criticalFailure.effects[0].duration.saveEnds, undefined);
+    const spec = { name: "Dominate", plan: dominate, castRank: 6, dc: 30, attack: 20, pool: null };
+    const mage = { ...moderateCreature(11, "mage", "Mage"), side: "party", kind: "npc", spells: [spec], spellPools: {}, band: "near" };
+    const state = createFightState({ combatants: [mage, { ...moderateCreature(9, "foe", "Foe"), band: "near" }, { ...moderateCreature(9, "other", "Other"), band: "near" }] }, {}, 1);
+    state.log = [];
+    const caster = state.byId.get("mage");
+    const foe = state.byId.get("foe");
+    caster.actionsLeft = 3;
+    assert.ok(scoreOptions(state, caster).options.some((option) => option.action.type === "cast" && option.value > 0));
+    // A failure: 28 against DC 30.
+    state.rng.d20 = () => Math.max(2, Math.min(19, 28 - saveModifier(foe, "will")));
+    castSpell(state, caster, 0, ["foe"]);
+    assert.equal(foe.side, "party", state.log.join("\n"));
+    assert.ok(state.log.includes("  Foe is controlled by Mage"));
+    // The other foe now counts it an enemy, the mage an ally.
+    state.byId.get("other").actionsLeft = 3;
+    assert.ok(scoreOptions(state, state.byId.get("other")).options.some((option) => option.action.move?.kind === "engage" && option.action.move.targetId === "foe"));
+    // Its turn ends: a failed save keeps it; a success ends the condition, and as the next turn starts it's back on its side.
+    state.rng.d20 = () => 2;
+    turnEnd(state, foe);
+    controlTurnStart(state);
+    assert.equal(foe.side, "party");
+    state.rng.d20 = () => 19;
+    turnEnd(state, foe);
+    controlTurnStart(state);
+    assert.equal(foe.side, "foes");
+    assert.ok(state.log.includes("  Foe is no longer controlled"), state.log.join("\n"));
+    // Whole fights with it run and end.
+    for (let seed = 1; seed <= 5; seed++) {
+        const result = simulate({ combatants: [{ ...mage, spellPools: {} }, ...martialParty(11).slice(0, 2), { ...moderateCreature(11, "foe", "Foe"), band: "near" }, { ...moderateCreature(11, "other", "Other"), band: "near" }] }, {}, seed);
+        assert.ok(result.outcome, `seed ${seed}`);
+    }
+});

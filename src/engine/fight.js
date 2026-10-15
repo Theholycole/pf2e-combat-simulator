@@ -26,6 +26,7 @@ import { noteStatesTurnStart } from "./note-states.js";
 import { floorOf } from "./floors.js";
 import { buildEnvironment, covenCast, covenTurnStart, hiddenAtTurnStart, lightAtStart, sunlightTurnEnd, terrainTurn } from "./environment.js";
 import { attachedTurnStart, berserkTurnStart, followAttached, headsMend, hydraRegrow, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
+import { controlTurnStart } from "./control.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -404,6 +405,7 @@ function startTurn(state, c) {
     summonTurnStart(state, c);
     // (Calm, the charm spells, a condition floor: those that ran out end; a sustained one, an action.)
     lastingTurnStart(state, c);
+
     // (Command's actions, a dance's: spent as its turn starts.)
     noteStatesTurnStart(state, c);
     // (B308: coming out of its shell takes an action.)
@@ -1167,6 +1169,8 @@ function fleeTurn(state, c) {
 function takeTurn(state, c) {
     // Conditions this creature's spells timed end at the start of its turn, whatever its state.
     expireTimers(state, c);
+    // (Dominate: whoever's no longer controlled is back on its own side.)
+    controlTurnStart(state);
     if (c.status === DOWN && c.kind !== "pc" && regenerating(c, state)) regenerateUp(state, c);
     if (c.status === DOWN) {
         state.log?.push(`${c.name} (down)`);

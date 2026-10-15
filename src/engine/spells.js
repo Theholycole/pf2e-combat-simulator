@@ -32,6 +32,7 @@ import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
 import { applyWard, wardBlocks, wardWorth } from "./wards.js";
 import { hiddenFrom } from "./sight.js";
 import { lastingRounds } from "./lasting.js";
+import { takeControl } from "./control.js";
 
 const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
 const registry = createRegistry();
@@ -50,7 +51,9 @@ const FLAGS = {
     concealed: "concealed", hidden: "hidden", invisible: "hidden",
     // (2026-10-14: fascinated — -2 to Perception and skills, no concentrate actions, ends with hostility to it or its allies;
     // deafened — an auditory action needs a DC 5 flat check.)
-    fascinated: "fascinated", deafened: "deafened"
+    fascinated: "fascinated", deafened: "deafened",
+    // (Dominate: it fights for its controller — control.js.)
+    controlled: "controlled"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -566,6 +569,7 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     const before = target.cond[flag ?? slug] ?? 0;
     if (flag) target.cond[flag] = true;
     else target.cond[slug] = Math.max(target.cond[slug] ?? 0, Number.isFinite(value) ? value : 1);
+    if (slug === "controlled" && !before) takeControl(state, target, source);
     // Quickened on its own turn (Shrieking Frenzy, Alchemical Amplification): the extra action now (B53).
     if (slug === "quickened" && !before && state.acting === target.id && Number.isFinite(target.actionsLeft)) target.actionsLeft += 1;
     // Fleeing for any reason is a morale trigger (M32).
@@ -2300,6 +2304,9 @@ export function conditionWorth(slug, value, duration) {
         // (Fascinated ends with any hostility to it or its allies; deafened costs an auditory action now and then.)
         case "fascinated":
             return 0.1 * Math.min(rounds === Infinity ? 2 : Math.max(1, rounds), 2);
+        // (Its threat gone from its side and on the controller's: more than paralysis.)
+        case "controlled":
+            return 1.6 * Math.min(rounds === Infinity ? 3 : Math.max(1, rounds), 3);
         case "deafened":
             return 0.03 * Math.min(rounds === Infinity ? 3 : Math.max(1, rounds), 3);
         default:

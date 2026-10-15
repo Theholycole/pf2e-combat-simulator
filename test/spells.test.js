@@ -154,9 +154,9 @@ test("target sets: single targets in range, areas by Melee and loose enemies", (
 
 test("gaps: what of a spell the simulation can't model", () => {
     assert.deepEqual(spellGaps(fireball()), []);
-    // (Fascinated is modelled since 2026-10-14; controlled isn't.)
-    const controlling = plan("Dominate", 6, { target: "1 creature" }, { check: { statistic: "will" }, outcomes: rows({ failure: { effects: [condition("controlled", null)], noteEffects: [{ label: "Glare" }] } }) });
-    assert.deepEqual(spellGaps({ plan: controlling, castRank: 6 }), ["condition: controlled", "note: Glare"]);
+    // (Fascinated and controlled are modelled since 2026-10-14; encumbered isn't.)
+    const burden = plan("Heavy Burden", 6, { target: "1 creature" }, { check: { statistic: "will" }, outcomes: rows({ failure: { effects: [condition("encumbered", null)], noteEffects: [{ label: "Glare" }] } }) });
+    assert.deepEqual(spellGaps({ plan: burden, castRank: 6 }), ["condition: encumbered", "note: Glare"]);
     assert.deepEqual(spellGaps({ plan: { ...FIREBALL, resolution: { kind: "summon" } }, castRank: 3 }), ['resolution kind "summon" isn\'t resolved yet']);
 });
 

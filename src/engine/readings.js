@@ -43,14 +43,22 @@ function withArea(plan) {
 
 // A row whose own words give its conditions a recurring save the plan doesn't carry (Confusion's failure, a new save as every turn of
 // the creature ends): the conditions' durations get saveEnds against the spell's DC (dc "spell", read as it's applied).
-const NEW_SAVE = /(?:new save|attempt a(?:nother)? (?:\w+ )?save) at the end of each of its turns/i;
+const NEW_SAVE = /(?:new save|attempt a(?:nother)? (?:\w+ ){0,2}save) at the end of each of its turns/i;
+// A row's words: its own, and the original's where the spell module rewrote it (Dominate's failure, "Controlled for 1 day" in place of
+// PF2e's row; the compiler keeps the original rows in its evidence, the snapshot slims them away after the readings).
+const DEGREE_LABELS = { criticalSuccess: "Critical Success", success: "Success", failure: "Failure", criticalFailure: "Critical Failure" };
+function rowWords(plan, degree, row) {
+    const label = DEGREE_LABELS[degree];
+    const saved = (plan?.compilerEvidence?.savedRows ?? []).filter((text) => typeof text === "string" && label && text.startsWith(`${label} `));
+    return [row?.rawText ?? "", ...saved].join(" ");
+}
 function withRecurringSaves(plan) {
     const resolution = plan?.resolution;
     const save = resolution?.check?.statistic;
     if (resolution?.kind !== "save" || !["fortitude", "reflex", "will"].includes(save)) return plan;
     let changed = false;
     const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
-        if (!NEW_SAVE.test(String(row?.rawText ?? "")) || !(row.effects ?? []).some((effect) => effect.kind === "condition" && !effect.duration?.saveEnds)) return [degree, row];
+        if (!NEW_SAVE.test(rowWords(plan, degree, row)) || !(row.effects ?? []).some((effect) => effect.kind === "condition" && !effect.duration?.saveEnds)) return [degree, row];
         changed = true;
         return [degree, { ...row, effects: row.effects.map((effect) => (effect.kind === "condition" && !effect.duration?.saveEnds ? { ...effect, duration: { ...(effect.duration ?? {}), saveEnds: { save, dc: "spell" } } } : effect)) }];
     }));
