@@ -245,6 +245,21 @@
     overflow: auto;
     white-space: pre-wrap;
     font-size: 0.85em;
+    /* (Selectable, to copy a part of it: Foundry turns text selection off in its windows.) */
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
+}
+
+.pf2e-combat-sim .sim-log-tools {
+    display: flex;
+    justify-content: flex-end;
+    margin: 4px 0;
+}
+
+.pf2e-combat-sim .sim-log-tools button {
+    flex: 0 0 auto;
+    width: auto;
 }
 
 /* Escalation rules (E1–E4): one rule a line, its fields wrapping. */

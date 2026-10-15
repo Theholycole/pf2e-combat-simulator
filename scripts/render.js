@@ -75,7 +75,9 @@ export function renderReport(report) {
     </div>
     <section><h3>Foes</h3><table><thead><tr><th></th><th>Damage / fight</th><th>PCs downed</th><th>Killed</th><th>Fled</th><th>Gave up</th></tr></thead>${foes}</table></section>
     ${renderGaps(report.gaps)}
-    ${report.sampleLog ? `<details class="sim-log"><summary>Sample fight</summary><pre>${escape(report.sampleLog.join("\n"))}</pre></details>` : ""}
+    ${report.sampleLog ? `<details class="sim-log"><summary>Sample fight</summary>
+        <div class="sim-log-tools"><button type="button" data-action="copySampleLog" title="Copy the sample fight as plain text, to share it"><i class="fa-solid fa-copy"></i> Copy</button></div>
+        <pre class="sim-copyable">${escape(report.sampleLog.join("\n"))}</pre></details>` : ""}
     <p class="muted">Simulated in ${Math.round(report.elapsedMs ?? 0)} ms. Spells are cast where the resolution core can resolve them (saves and spell attacks so far); healing and class features aren't simulated yet. See gaps.</p>`;
 }
 

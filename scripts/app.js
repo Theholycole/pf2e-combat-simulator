@@ -38,7 +38,8 @@ export class SimulatorApp extends ApplicationV2 {
             openLog: () => new FightLogApp().render(true),
             back: SimulatorApp.#onBack,
             addRule: SimulatorApp.#onAddRule,
-            removeRule: SimulatorApp.#onRemoveRule
+            removeRule: SimulatorApp.#onRemoveRule,
+            copySampleLog: SimulatorApp.#onCopySampleLog
         }
     };
 
@@ -557,5 +558,22 @@ export class SimulatorApp extends ApplicationV2 {
     static #onBack() {
         this.view = "setup";
         this.render();
+    }
+
+    // (2026-10-15, the user: "for the sample fight can we make that text copyable for sharing?") The sample fight as plain text on the
+    // clipboard; where the clipboard is refused, the text selected for Ctrl+C.
+    static async #onCopySampleLog(event, target) {
+        const lines = this.result?.data?.sampleLog ?? [];
+        if (!lines.length) return;
+        const text = lines.join("\n");
+        try {
+            if (game.clipboard?.copyPlainText) await game.clipboard.copyPlainText(text);
+            else await navigator.clipboard.writeText(text);
+            ui.notifications.info("Sample fight copied to the clipboard.");
+        } catch {
+            const pre = target?.closest(".sim-log")?.querySelector("pre");
+            if (pre) window.getSelection()?.selectAllChildren(pre);
+            ui.notifications.warn("The clipboard isn't available here: the sample fight is selected — press Ctrl+C to copy it.");
+        }
     }
 }
