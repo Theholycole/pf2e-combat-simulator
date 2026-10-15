@@ -35,7 +35,7 @@ const result = { date: new Date().toISOString().slice(0, 10), fights: FIGHTS, it
 
 // How many times a fight's log has one of these creatures use the option ("casts", "uses", "drinks", "feeds").
 function uses(logs, actors, name) {
-    const line = new RegExp(`^  (?:${actors.map(escape).join("|")})(?:'s)? (?:casts|uses|drinks|feeds) ${escape(name)}(?: |$)`);
+    const line = new RegExp(`^  (?:${actors.map(escape).join("|")})(?:'s)? (?:casts|uses|drinks|feeds|applies) ${escape(name)}(?: |$)`);
     return logs.reduce((sum, log) => sum + log.filter((entry) => line.test(entry)).length, 0);
 }
 
@@ -168,6 +168,7 @@ function writeDoc(data, path) {
         "## Noted by hand",
         "",
         "- **Fear Gem** (U7): 2 actions for a Strike and frightened 1 (2 on a critical hit). At level 5 it's worth 4.05 at no margin, less than a Strike and a second one at the attack penalty (about 6.7), so at the consumable margin of 1.5 the benchmark party never uses it; with no margin, about 0.7 a fight (1.0 with Intimidating Strike). Weak in PF2e's action economy too.",
+        "- **Counteract consumables** (U10: Surging Serum, Bottled Catharsis, Panacea, Contagion Metabolizer, Salve of Antiparalysis, Moon Radish Soup, Dragon's Blood Pudding …): the benchmark's foes give no conditions or afflictions, so here they show as never used. Against bestiary creatures they work: Salve of Antiparalysis (Greater) was applied to paralyzed PCs 8 times in 12 fights against two Ghoul Razorclaws (level 13), all counteracted, and the basic salve 2 times against Ghasts; the basic salve can't reach a level-13 ghoul's paralysis (rank 7) and isn't used. Surging Serum (Moderate) isn't drunk against Siora Fallowglade's enfeebled 3: the simulation values enfeebled at 0.16 of a round of threat a point, so ending it rarely beats a turn's other options at the 1.5 margin. Worth testing whether enfeebled and clumsy are valued too low.",
         "",
         `## Items never used, even with no margin (${never.length} of ${items.length})`,
         "",

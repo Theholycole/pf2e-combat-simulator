@@ -349,3 +349,69 @@ test("a third-party item's own Effect (an application with verify) is kept only 
     assert.deepEqual(verifiedPlan(plan, () => false).resolution.applications, [pf2e]);
     assert.equal(verifiedPlan(ELIXIR, () => false), ELIXIR, "nothing to check");
 });
+
+// U10 (2026-10-15; the user: "add the counteract consumables to the simulator"): the item module's plan.item.counteract.
+const counteractItem = (name, slug, counteract, extra = {}) => ({ modelVersion: 13, source: { name, slug, uuid: `Compendium.pf2e.equipment-srd.Item.${slug}`, type: "consumable" }, rank: 1, traits: ["consumable", "healing"], activation: { time: "1", traits: ["manipulate"] }, builtin: "counteract", targeting: { target: "the drinker" }, trigger: { event: "use" },
+    item: { ...itemInfo("other", 4), recipient: extra.recipient ?? "drinker", counteract: { traits: [], afflictions: [], conditions: [], pick: "each", ...counteract } } });
+const SERUM = counteractItem("Test Serum", "test-serum", { modifier: 8, rank: 2, conditions: ["clumsy", "enfeebled"], pick: "each" });
+const METABOLIZER = counteractItem("Test Metabolizer", "test-metabolizer", { modifier: 11, rank: 3, afflictions: ["disease", "poison"], pick: "highest" });
+const SOUP = counteractItem("Test Soup", "test-soup", { modifier: 6, rank: 1, conditions: ["stupefied"], pick: "one", reduce: { success: 1, criticalSuccess: 2 } });
+const SALVE = counteractItem("Test Salve", "test-salve", { modifier: 22, rank: 3, conditions: ["paralyzed"], pick: "one" }, { recipient: "user" });
+
+function withItem(plan, quantity = 1) {
+    const setup = setUp({ potions: 0 });
+    const entry = itemEntry(plan, { id: plan.source.slug, quantity });
+    setup.pc.spells = [...setup.pc.spells, entry];
+    setup.pc.spellPools[entry.pool] = entry.casts;
+    setup.index = setup.pc.spells.length - 1;
+    setup.state.rng.d20 = () => 15;
+    return setup;
+}
+
+test("U10: an item that only counteracts is a drink (or an oil applied) with its counteract beside it; nothing to counteract, nothing worth it", async () => {
+    const { itemCounteractWorth } = await import("../src/engine/spells.js");
+    const serum = itemEntry(SERUM, { id: "s" });
+    assert.deepEqual([serum.kind, serum.plan.resolution.kind, serum.drinker, serum.counteract.modifier, serum.counteract.conditions], ["item", "check", true, 8, ["clumsy", "enfeebled"]]);
+    assert.equal(itemEntry(SALVE, { id: "v" }).drinker, true, "an oil goes on whoever it's used on");
+    const { state, pc } = withItem(SERUM);
+    assert.equal(itemCounteractWorth(state, serum, pc), 0);
+    // Clumsy 2 from a spell (its DC and rank recorded): worth the chance of ending it.
+    pc.cond.clumsy = 2;
+    pc.condSources = { clumsy: { dc: 18, rank: 2, spell: true, name: "Test Hex", traits: [] } };
+    assert.ok(itemCounteractWorth(state, serum, pc) > 0);
+});
+
+test("U10: drunk, it counteracts each condition it names that a spell gave; an affliction of its kinds; a soup lowers the value instead", () => {
+    let { state, pc, index } = withItem(SERUM);
+    pc.cond.clumsy = 2;
+    pc.cond.enfeebled = 1;
+    pc.condSources = { clumsy: { dc: 18, rank: 2, spell: true, name: "Test Hex", traits: [] }, enfeebled: { dc: 18, rank: 2, spell: true, name: "Test Hex", traits: [] } };
+    castSpell(state, pc, index, [pc.id]);
+    assert.deepEqual([pc.cond.clumsy, pc.cond.enfeebled], [0, 0], state.log.join("\n"));
+    assert.ok(state.log.some((line) => line.includes("Test Serum against clumsy (Test Hex)") && line.includes("counteracted")));
+    // A poison: its DC, and half its source's level as its rank.
+    ({ state, pc, index } = withItem(METABOLIZER));
+    const brute = state.byId.get("brute");
+    pc.afflictions = [{ name: "Test Venom", source: brute.id, data: { name: "Test Venom", dc: 20, traits: ["poison"], stages: [{ conditions: [{ slug: "enfeebled", value: 1 }] }] }, stages: [{ conditions: [] }], stage: 1, conditions: [{ slug: "enfeebled", value: 1 }] }];
+    pc.cond.enfeebled = 1;
+    castSpell(state, pc, index, [pc.id]);
+    assert.equal(pc.afflictions.length, 0, state.log.join("\n"));
+    assert.equal(pc.cond.enfeebled, 0);
+    // Moon Radish Soup: stupefied 3 → 2 on a success (15 + 6 = 21 vs DC 18).
+    ({ state, pc, index } = withItem(SOUP));
+    pc.cond.stupefied = 3;
+    pc.condSources = { stupefied: { dc: 18, rank: 1, spell: true, name: "Test Curse", traits: [] } };
+    castSpell(state, pc, index, [pc.id]);
+    assert.equal(pc.cond.stupefied, 2, state.log.join("\n"));
+});
+
+test("U10: a PC beside a paralyzed ally applies the salve to it", () => {
+    const { state, pc, ally, index } = withItem(SALVE);
+    ally.cond.paralyzed = true;
+    ally.condSources = { paralyzed: { dc: 22, rank: 3, spell: true, name: "Test Paralyze", traits: [] } };
+    const action = chooseAction(state, pc);
+    assert.deepEqual([action?.type, action?.spellIndex, action?.targetIds], ["cast", index, [ally.id]]);
+    castSpell(state, pc, action.spellIndex, action.targetIds);
+    assert.ok(state.log.some((line) => line.includes(`${pc.name} applies Test Salve to ${ally.name}`)), state.log.join("\n"));
+    assert.equal(ally.cond.paralyzed, false);
+});

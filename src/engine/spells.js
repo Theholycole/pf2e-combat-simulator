@@ -964,6 +964,85 @@ function clearCondition(target, slug, { keepSource = false } = {}) {
     if (target.condSources && !keepSource) delete target.condSources[slug];
 }
 
+// U10 (2026-10-15; the user: "add the counteract consumables to the simulator"): the item module's plan.item.counteract — Surging Serum,
+// Bottled Catharsis, Panacea, Contagion Metabolizer, Salve of Antiparalysis, Moon Radish Soup … — the item's own counteract check (its
+// modifier and rank) against what it names on the creature it's used on:
+//   conditions: one a spell or ability gave (c.condSources, with that source's DC and counteract rank);
+//   traits: an effect or a condition from a source with one of those traits (emotion, mental, transmutation);
+//   afflictions: an affliction of those kinds (disease, poison, curse) — its DC, and half its source creature's level as its rank.
+// pick: "each" (a check against each), "one" (the one worth the most), "highest" (the highest rank). reduce: a success lowers the
+// condition's value instead of ending it (Moon Radish Soup: by 1, by 2 on a critical success). Only what hinders the creature.
+function itemCounterables(state, target, spec) {
+    const out = [];
+    const traitMatch = (traits) => (spec.traits ?? []).some((trait) => (traits ?? []).includes(trait));
+    for (const entry of target.effects ?? []) {
+        if (!entry.counter || !traitMatch(entry.counter.traits)) continue;
+        const harm = -effectBenefit(entry.model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1);
+        if (harm > 0) out.push({ kind: "effect", entry, dc: entry.counter.dc, rank: entry.counter.rank, name: String(entry.model?.name ?? "an effect").replace(/^Spell Effect: /, ""), worth: harm });
+    }
+    for (const [slug, info] of Object.entries(target.condSources ?? {})) {
+        const flag = FLAGS[slug];
+        const value = flag ? (target.cond?.[flag] ? null : 0) : Number(target.cond?.[slug]) || 0;
+        if ((flag && !target.cond?.[flag]) || (!flag && value <= 0)) continue;
+        if (!(spec.conditions ?? []).includes(slug) && !traitMatch(info.traits)) continue;
+        const worth = conditionWorth(slug, flag ? null : value, null);
+        if (worth > 0) out.push({ kind: "condition", slug, value, dc: info.dc, rank: info.rank, name: `${slug} (${info.name})`, worth });
+    }
+    for (const entry of target.afflictions ?? []) {
+        if (!(spec.afflictions ?? []).some((kind) => (entry.data?.traits ?? []).includes(kind))) continue;
+        const source = state.byId.get(entry.source);
+        const worth = 0.3 * Math.max(1, entry.stage) + entry.conditions.reduce((sum, held) => sum + Math.max(0, conditionWorth(held.slug, held.value ?? null, null)), 0);
+        out.push({ kind: "affliction", entry, dc: entry.data?.dc, rank: Math.max(1, Math.ceil((Number(source?.level) || 1) / 2)), name: entry.name, worth });
+    }
+    return out.filter((entry) => Number.isFinite(entry.dc) && Number.isFinite(entry.rank));
+}
+
+// What it would end: all of them for "each", else the one worth the most ("one") or of the highest rank ("highest").
+function itemCounterPicks(spec, found) {
+    if (spec.pick === "each" || !found.length) return found;
+    if (spec.pick === "highest") return [found.reduce((best, entry) => (entry.rank > best.rank ? entry : best))];
+    return [found.reduce((best, entry) => (entry.worth > best.worth ? entry : best))];
+}
+
+// (A reduction, Moon Radish Soup's: what lowering the condition by that much is worth.)
+function itemReduceWorth(spec, pick, degree) {
+    const by = Number(spec.reduce?.[degree === CRITICAL_SUCCESS ? "criticalSuccess" : "success"]) || 0;
+    if (pick.kind !== "condition" || !Number.isFinite(pick.value) || !by) return pick.worth;
+    return pick.worth - Math.max(0, conditionWorth(pick.slug, Math.max(0, pick.value - by), null));
+}
+
+export function itemCounteractWorth(state, spell, target) {
+    const spec = spell.counteract;
+    let worth = 0;
+    for (const pick of itemCounterPicks(spec, itemCounterables(state, target, spec))) {
+        const chance = counterChance(Number(spec.modifier) || 0, Number(spec.rank) || 1, pick);
+        worth += chance * (spec.reduce ? itemReduceWorth(spec, pick, SUCCESS) : pick.worth);
+    }
+    return worth;
+}
+
+function applyItemCounteract(state, caster, spell, target) {
+    const spec = spell.counteract;
+    const picks = itemCounterPicks(spec, itemCounterables(state, target, spec));
+    if (!picks.length) {
+        log(state, `  ${spell.name} finds nothing to counteract on ${target.name}`);
+        return;
+    }
+    for (const pick of picks) {
+        const roll = counterRoll(state, Number(spec.modifier) || 0, Number(spec.rank) || 1, pick);
+        const by = spec.reduce && pick.kind === "condition" && Number.isFinite(pick.value) ? Number(spec.reduce[roll.degree === CRITICAL_SUCCESS ? "criticalSuccess" : "success"]) || 0 : 0;
+        log(state, `  ${spell.name} against ${pick.name} on ${target.name}: ${roll.total} vs ${pick.dc} → ${roll.success ? (by ? `${pick.slug} ${Math.max(0, pick.value - by)}` : "counteracted") : "not counteracted"}`);
+        if (!roll.success) continue;
+        if (pick.kind === "affliction") setAfflictionStage(state, target, pick.entry, 0);
+        else if (pick.kind === "effect") {
+            removeEffect(target, pick.entry);
+            target.timers = (target.timers ?? []).filter((timer) => timer.effect !== pick.entry);
+            for (const condition of pick.entry.model?.conditions ?? []) clearCondition(target, condition.slug);
+        } else if (by && pick.value - by > 0) target.cond[pick.slug] = pick.value - by;
+        else clearCondition(target, pick.slug);
+    }
+}
+
 // Cleanse Affliction: one affliction of its traits a stage lower, not below the floor.
 function applyAfflictionStage(state, target, change) {
     const entry = (target.afflictions ?? []).filter((held) => held.stage > (change.floor ?? 1) && (!(change.traits ?? []).length || (held.data?.traits ?? []).some((trait) => change.traits.includes(trait)))).sort((a, b) => b.stage - a.stage)[0];
@@ -1230,7 +1309,8 @@ function planDamages(plan) {
 const DRUNK = new Set(["potion", "elixir", "mutagen", "drug"]);
 function itemWords(spell, caster, targets) {
     const other = targets.find((target) => target !== caster);
-    if (spell.drinker) return other ? `feeds ${spell.name} to ${other.name}` : `${DRUNK.has(spell.category) ? "drinks" : "uses"} ${spell.name}`;
+    // (An oil or a salve is applied, not fed.)
+    if (spell.drinker) return other ? `${DRUNK.has(spell.category) ? "feeds" : "applies"} ${spell.name} to ${other.name}` : `${DRUNK.has(spell.category) ? "drinks" : "uses"} ${spell.name}`;
     return `uses ${spell.name}${targets.length ? ` on ${targets.map((target) => target.name).join(", ")}` : ""}`;
 }
 
@@ -1399,6 +1479,11 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
     // (B304, Consume Flesh: "from any given corpse only once" — each use takes one of the fight's corpses.)
     if ((spell?.plan?.needs ?? []).some((need) => need.corpse || need.any?.some((each) => each.corpse))) caster.corpsesUsed = (caster.corpsesUsed ?? 0) + 1;
     castPlan(state, caster, spell, targetIds, actions, options);
+    // (U10: an item's own counteract — Surging Serum, Panacea — on those it was used on.)
+    if (spell?.counteract) for (const id of targetIds ?? []) {
+        const target = state.byId.get(id);
+        if (target && (isActive(target) || target.status === DOWN)) applyItemCounteract(state, caster, spell, target);
+    }
     // (Invisibility: it ends once a harmful spell is cast.)
     const info = spell?.plan ? describeSpell(spell.plan, actions) : null;
     if (info && !info.helpful && !info.healing && !info.self && !spell.drinker) ownHostility(state, caster);
@@ -2566,6 +2651,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     let reach = 1;
     for (const target of targets) {
         const entry = { target, damage: 0, worth: 0, heal: 0, benefit: 0 };
+        // (U10: an item's own counteract — the chance it ends each thing it names on the creature, times what that thing costs it.)
+        if (spell.counteract) entry.benefit += itemCounteractWorth(state, spell, target);
         result.push(entry);
         // (I1: nothing on a creature immune to it; T7: nor a non-damaging one aimed at one creature on a troop.)
         if (effectImmunity(target, spell) || outsideTargets(caster, target, spell)) continue;

@@ -62,6 +62,9 @@ export function staffSpellList(html, maxRank = 10) {
 }
 
 const DRUNK_OR_APPLIED = ["potion", "elixir", "mutagen", "drug", "oil"];
+// (U10: the resolution of an item that only counteracts: nothing more, its counteract played beside it.)
+const NOTHING = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
+const COUNTERACT_ONLY = Object.freeze({ kind: "check", check: { roll: "automatic" }, outcomes: { criticalSuccess: NOTHING, success: NOTHING, failure: NOTHING, criticalFailure: NOTHING } });
 
 // U1 (2026-10-15), consumables. The user: "monsters should use their items freely. Players should use rechargeable or reusable items
 // freely but consumables should be weighted to be used when they provide significant more value than other options. Healing items
@@ -78,6 +81,9 @@ const DRUNK_OR_APPLIED = ["potion", "elixir", "mutagen", "drug", "oil"];
 // { effectModel, effects }: the simulation's zone, as an ability's (zones.js), thrown where it's worth it.
 export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false, cast = null, onStrike = null, zone = null } = {}) {
     if (plan?.builtin === "zone") return zoneEntry(plan, { id, name, quantity, uses, draw, fresh, zone });
+    // (U10: an item that only counteracts — Surging Serum, Panacea: nothing of its own on the drinker, its counteract the item's rider below.)
+    const counteractOnly = plan?.builtin === "counteract" && Boolean(plan.item?.counteract);
+    if (counteractOnly) plan = { ...plan, builtin: undefined, resolution: COUNTERACT_ONLY };
     // (One of the user's own Strikes with riders added — Fear Gem, plan.strike: not yet.)
     if (plan?.strike) return null;
     const casting = plan?.builtin === "cast-spell" && cast?.plan?.resolution ? cast : null;
@@ -94,7 +100,8 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
     const left = stock > 20 ? undefined : uses?.value;
     const casts = itemCasts({ category: reusable ? "wand" : "consumable", quantity, uses: { max, value: left }, fresh: reusable && fresh });
     if (!casts) return null;
-    const drinker = item.recipient === "drinker";
+    // (U10: one that only counteracts goes on whoever it's used on, as a drink does — Salve of Antiparalysis, an oil, applied.)
+    const drinker = item.recipient === "drinker" || counteractOnly;
     // (Its own Activate line's cost and traits — "Activate [one-action] (manipulate)": a manipulate action provokes. A copy whose text has
     // none, a bestiary creature's short one: PF2e's usual Activate for what's drunk or applied.)
     const own = item.activations?.[0] ?? (DRUNK_OR_APPLIED.includes(item.category) ? { time: "1", traits: ["manipulate"] } : null);
@@ -121,7 +128,9 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         category: item.category ?? null,
         consumable: !reusable,
         ...(drinker ? { drinker: true } : {}),
-        ...(draw > 0 && !coated ? { draw: { actions: draw, each: !reusable } } : {})
+        ...(draw > 0 && !coated ? { draw: { actions: draw, each: !reusable } } : {}),
+        // (U10: its counteract check — the item module's plan.item.counteract, beside a plan of its own or alone.)
+        ...(item.counteract ? { counteract: { ...item.counteract } } : {})
     };
 }
 

@@ -10,8 +10,9 @@ Measured 2026-10-15 with `node tools/low-value.mjs` (12 fights for each item and
 ## Noted by hand
 
 - **Fear Gem** (U7): 2 actions for a Strike and frightened 1 (2 on a critical hit). At level 5 it's worth 4.05 at no margin, less than a Strike and a second one at the attack penalty (about 6.7), so at the consumable margin of 1.5 the benchmark party never uses it; with no margin, about 0.7 a fight (1.0 with Intimidating Strike). Weak in PF2e's action economy too.
+- **Counteract consumables** (U10: Surging Serum, Bottled Catharsis, Panacea, Contagion Metabolizer, Salve of Antiparalysis, Moon Radish Soup, Dragon's Blood Pudding …): the benchmark's foes give no conditions or afflictions, so here they show as never used. Against bestiary creatures they work: Salve of Antiparalysis (Greater) was applied to paralyzed PCs 8 times in 12 fights against two Ghoul Razorclaws (level 13), all counteracted, and the basic salve 2 times against Ghasts; the basic salve can't reach a level-13 ghoul's paralysis (rank 7) and isn't used. Surging Serum (Moderate) isn't drunk against Siora Fallowglade's enfeebled 3: the simulation values enfeebled at 0.16 of a round of threat a point, so ending it rarely beats a turn's other options at the 1.5 margin. Worth testing whether enfeebled and clumsy are valued too low.
 
-## Items never used, even with no margin (301 of 465)
+## Items never used, even with no margin (322 of 485)
 
 | Item | Category | Level | Uses a fight (1.5 / none) | Not simulated |
 |---|---|---|---|---|
@@ -31,12 +32,19 @@ Measured 2026-10-15 with `node tools/low-value.mjs` (12 fights for each item and
 | Blood Booster (Moderate) | elixir | 11 | 0.00 / 0.00 | Effect: Blood Booster: Resistance (conditional) |
 | Bomber's Eye Elixir (Greater) | elixir | 14 | 0.00 / 0.00 |  |
 | Bomber's Eye Elixir (Lesser) | elixir | 4 | 0.00 / 0.00 |  |
+| Bottled Catharsis (Greater) | elixir | 12 | 0.00 / 0.00 |  |
+| Bottled Catharsis (Lesser) | elixir | 4 | 0.00 / 0.00 |  |
+| Bottled Catharsis (Major) | elixir | 14 | 0.00 / 0.00 |  |
+| Bottled Catharsis (Moderate) | elixir | 8 | 0.00 / 0.00 |  |
 | Boulderhead Bock | elixir | 2 | 0.00 / 0.00 | Effect: Boulderhead Bock: FlatModifier (conditional) |
 | Bravo's Brew (Lesser) | elixir | 2 | 0.00 / 0.00 |  |
 | Cheetah's Elixir (Lesser) | elixir | 1 | 0.00 / 0.00 |  |
 | Chromatic Jellyfish Oil (Greater) | elixir | 14 | 0.00 / 0.00 | Effect: Chromatic Jellyfish Oil: Resistance (conditional) |
 | Chromatic Jellyfish Oil (Lesser) | elixir | 9 | 0.00 / 0.00 | Effect: Chromatic Jellyfish Oil: Resistance (conditional) |
 | Chromatic Jellyfish Oil (Moderate) | elixir | 14 | 0.00 / 0.00 | Effect: Chromatic Jellyfish Oil: Resistance (conditional) |
+| Contagion Metabolizer (Greater) | elixir | 14 | 0.00 / 0.00 |  |
+| Contagion Metabolizer (Lesser) | elixir | 5 | 0.00 / 0.00 |  |
+| Contagion Metabolizer (Moderate) | elixir | 11 | 0.00 / 0.00 |  |
 | Darkvision Elixir (Greater) | elixir | 8 | 0.00 / 0.00 |  |
 | Darkvision Elixir (Lesser) | elixir | 2 | 0.00 / 0.00 |  |
 | Darkvision Elixir (Moderate) | elixir | 4 | 0.00 / 0.00 |  |
@@ -71,6 +79,10 @@ Measured 2026-10-15 with `node tools/low-value.mjs` (12 fights for each item and
 | Spiderfoot Brew (Lesser) | elixir | 3 | 0.00 / 0.00 |  |
 | Spiderfoot Brew (Moderate) | elixir | 9 | 0.00 / 0.00 |  |
 | Stone Fist Elixir | elixir | 4 | 0.00 / 0.00 | Effect: Stone Fist Elixir: Strike |
+| Surging Serum (Greater) | elixir | 12 | 0.00 / 0.00 |  |
+| Surging Serum (Lesser) | elixir | 4 | 0.00 / 0.00 |  |
+| Surging Serum (Major) | elixir | 14 | 0.00 / 0.00 |  |
+| Surging Serum (Moderate) | elixir | 8 | 0.00 / 0.00 |  |
 | Theatrical Mutagen (Lesser) | elixir | 1 | 0.00 / 0.00 |  |
 | Theatrical Mutagen (Moderate) | elixir | 3 | 0.00 / 0.00 |  |
 | War Blood Mutagen (Greater) | elixir | 11 | 0.00 / 0.00 |  |
@@ -142,6 +154,8 @@ Measured 2026-10-15 with `node tools/low-value.mjs` (12 fights for each item and
 | Oil of Potency (Greater) | oil | 12 | 0.00 / 0.00 |  |
 | Oil of Potency (Major) | oil | 14 | 0.00 / 0.00 |  |
 | Oil of Repulsion | oil | 11 | 0.00 / 0.00 |  |
+| Salve of Antiparalysis | oil | 6 | 0.00 / 0.00 |  |
+| Salve of Antiparalysis (Greater) | oil | 12 | 0.00 / 0.00 |  |
 | Shielding Salve | oil | 1 | 0.00 / 0.00 |  |
 | Topology Protoplasm | oil | 7 | 0.00 / 0.00 |  |
 | Tricky Liniment | oil | 5 | 0.00 / 0.00 |  |
@@ -166,6 +180,7 @@ Measured 2026-10-15 with `node tools/low-value.mjs` (12 fights for each item and
 | Blast-Off Bottle (Lesser) | other | 5 | 0.00 / 0.00 |  |
 | Blast-Off Bottle (Moderate) | other | 9 | 0.00 / 0.00 |  |
 | Blood Pack Squib | other | 2 | 0.00 / 0.00 |  |
+| Bottled Catharsis (Minor) | other | 2 | 0.00 / 0.00 |  |
 | Brewer's Regret | other | 9 | 0.00 / 0.00 |  |
 | Brewer's Regret (Greater) | other | 14 | 0.00 / 0.00 |  |
 | Burglar's Rosebud | other | 3 | 0.00 / 0.00 |  |
@@ -179,6 +194,7 @@ Measured 2026-10-15 with `node tools/low-value.mjs` (12 fights for each item and
 | Colorful Coating (Violet) | other | 4 | 0.00 / 0.00 |  |
 | Delve Scale | other | 10 | 0.00 / 0.00 |  |
 | Devil's Breath Incense | other | 7 | 0.00 / 0.00 |  |
+| Dragon's Blood Pudding | other | 2 | 0.00 / 0.00 |  |
 | Energizing Pill | other | 10 | 0.00 / 0.00 | Effect: Energizing Pill: FlatModifier (conditional) |
 | Energy Toxin Bottle | other | 7 | 0.00 / 0.00 |  |
 | Ethereal Crescent | other | 3 | 0.00 / 0.00 |  |
@@ -187,6 +203,7 @@ Measured 2026-10-15 with `node tools/low-value.mjs` (12 fights for each item and
 | Feyfoul (Greater) | other | 14 | 0.00 / 0.00 |  |
 | Feyfoul (Lesser) | other | 1 | 0.00 / 0.00 |  |
 | Feyfoul (Moderate) | other | 8 | 0.00 / 0.00 |  |
+| Gearbinder Oil (Lesser) | other | 6 | 0.00 / 0.00 | manual step |
 | Ghost Ampoule | other | 4 | 0.00 / 0.00 |  |
 | Glow Rod | other | 1 | 0.00 / 0.00 |  |
 | Glowing Lantern Fruit | other | 1 | 0.00 / 0.00 |  |
@@ -200,6 +217,7 @@ Measured 2026-10-15 with `node tools/low-value.mjs` (12 fights for each item and
 | Insight Coffee (Greater) | other | 14 | 0.00 / 0.00 |  |
 | Journeybread (Power) | other | 4 | 0.00 / 0.00 | Effect: Journeybread (Power): FlatModifier (conditional) |
 | Mighty Counterweight | other | 4 | 0.00 / 0.00 |  |
+| Moon Radish Soup | other | 2 | 0.00 / 0.00 |  |
 | Moritype (Greater) | other | 14 | 0.00 / 0.00 | manual step |
 | Morph Jewel | other | 3 | 0.00 / 0.00 |  |
 | Ommatophoric Mutagen | other | 7 | 0.00 / 0.00 | Effect: Ommatophoric Mutagen: ActiveEffectLike, FlatModifier (conditional) |
@@ -229,6 +247,7 @@ Measured 2026-10-15 with `node tools/low-value.mjs` (12 fights for each item and
 | Sparking Pepper String | other | 3 | 0.00 / 0.00 |  |
 | Sparkler | other | 1 | 0.00 / 0.00 | Effect: Sparkler: Strike |
 | Spun Cloud (White) | other | 2 | 0.00 / 0.00 |  |
+| Surging Serum (Minor) | other | 2 | 0.00 / 0.00 |  |
 | Taper of Sanctification | other | 13 | 0.00 / 0.00 |  |
 | Toothy Knife | other | 5 | 0.00 / 0.00 |  |
 | Toothy Knife (Greater) | other | 14 | 0.00 / 0.00 |  |
@@ -238,6 +257,7 @@ Measured 2026-10-15 with `node tools/low-value.mjs` (12 fights for each item and
 | Tteokguk of Time Advancement | other | 5 | 0.00 / 0.00 |  |
 | Unassuming Face Paint | other | 3 | 0.00 / 0.00 |  |
 | Valorous Coin | other | 8 | 0.00 / 0.00 |  |
+| Vat-Grown Brain | other | 10 | 0.00 / 0.00 |  |
 | Vermin Repellent Agent (Greater) | other | 12 | 0.00 / 0.00 | manual step |
 | Vermin Repellent Agent (Lesser) | other | 3 | 0.00 / 0.00 | manual step |
 | Vermin Repellent Agent (Major) | other | 14 | 0.00 / 0.00 | manual step |
@@ -263,11 +283,13 @@ Measured 2026-10-15 with `node tools/low-value.mjs` (12 fights for each item and
 | Elysian Dew | potion | 12 | 0.00 / 0.00 |  |
 | Energizing Tea | potion | 4 | 0.00 / 0.00 |  |
 | Enigma-Sight Potion | potion | 11 | 0.00 / 0.00 |  |
+| Fu Water | potion | 5 | 0.00 / 0.00 |  |
 | Gecko Potion | potion | 1 | 0.00 / 0.00 | Effect: Gecko Potion: FlatModifier (conditional) |
 | Immovable Potion | potion | 10 | 0.00 / 0.00 | note: effect |
 | Longnight Tea | potion | 3 | 0.00 / 0.00 |  |
 | Moon Blossom Tea | potion | 9 | 0.00 / 0.00 |  |
 | Oak Potion | potion | 4 | 0.00 / 0.00 |  |
+| Panacea | potion | 13 | 0.00 / 0.00 |  |
 | Peace in Dreams Tea | potion | 6 | 0.00 / 0.00 |  |
 | Potion of Acid Resistance (Greater) | potion | 14 | 0.00 / 0.00 | Effect: Potion of Acid Resistance: Resistance (conditional) |
 | Potion of Acid Resistance (Lesser) | potion | 6 | 0.00 / 0.00 | Effect: Potion of Acid Resistance: Resistance (conditional) |
