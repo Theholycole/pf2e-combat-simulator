@@ -12,6 +12,8 @@ const { basicActions, readDocuments, PACK_ROOT } = await import("./pack-creature
 const { itemEntry } = await import("../../src/adapter/items.js");
 const { effectModel } = await import("../../src/engine/effects.js");
 const { canCast, isUtility } = await import("../../src/engine/spells.js");
+const { levelDC } = await import("../../src/engine/checks.js");
+const { compileSpell, spellNamed } = await import("./pack-spells.mjs");
 
 const docs = (name) => readDocuments(`${PACK_ROOT}/${name}`).filter((doc) => doc.collection === "items");
 const spellEffects = compiler ? compiler.spellEffectIndex(docs("spell-effects")) : {};
@@ -41,7 +43,20 @@ export function npcItems(npc, { fresh = true } = {}) {
             plan = null;
         }
         const draw = item.system?.equipped?.carryType === "held" ? 0 : 1;
-        const entry = itemEntry(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, draw, fresh });
+        // (U3: one that casts a spell — the spell module's plan for it, at the item's rank; its DC the item's own, else its level's.)
+        let cast = null;
+        if (plan?.builtin === "cast-spell") {
+            const spell = spellNamed(plan.spell?.name ?? "");
+            let spellPlan = null;
+            try {
+                spellPlan = spell ? compileSpell(spell) : null;
+            } catch {
+                spellPlan = null;
+            }
+            const dc = plan.dc ?? levelDC(Number(plan.item?.level) || 1);
+            if (spellPlan) cast = { plan: spellPlan, castRank: plan.rank ?? spell.system?.level?.value ?? 1, dc, attack: plan.attack ?? dc - 10 };
+        }
+        const entry = itemEntry(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, draw, fresh, cast });
         if (!entry) continue;
         const spec = { ...entry, effects: itemEffectModels(entry.plan, entry.castRank) };
         if (isUtility(plan) || !canCast({ spellPools: { [entry.pool]: entry.casts }, covenReady: true }, spec)) continue;

@@ -59,16 +59,20 @@ export function staffSpellList(html, maxRank = 10) {
     return out;
 }
 
+const DRUNK_OR_APPLIED = ["potion", "elixir", "mutagen", "drug", "oil"];
+
 // U1 (2026-10-15), consumables. The user: "monsters should use their items freely. Players should use rechargeable or reusable items
 // freely but consumables should be weighted to be used when they provide significant more value than other options. Healing items
 // should be used freely if they are projected to go down soon or if they are used on another player that is already down."
 // The item module's plan for one (plan.item: its category, level, uses, who it's for) as an action the creature can take: drunk by it or
 // fed to a creature beside it, thrown, used. A stack's uses are its pool. null: one the simulator leaves to the table — a snare (set up
-// beforehand), a poison put on a weapon, ammunition, a cast (the spell module's) or a note with nothing a fight plays.
+// beforehand), a poison put on a weapon, ammunition or a note with nothing a fight plays.
 // draw: the actions to have it in hand (PF2e's: none held, 1 Interact worn, more stowed); fresh: after a rest (a reusable item's uses back).
-const DRUNK_OR_APPLIED = ["potion", "elixir", "mutagen", "drug", "oil"];
-export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false } = {}) {
-    if (!plan?.resolution || plan.builtin || plan.noteOnly) return null;
+// cast (U3): for an item that casts a spell (Invisibility Potion), { plan, castRank, dc, attack } — the spell module's plan for the spell,
+// which the caller compiles: the item casts it, at its rank, as it's drunk or used.
+export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false, cast = null } = {}) {
+    const casting = plan?.builtin === "cast-spell" && cast?.plan?.resolution ? cast : null;
+    if (!casting && (!plan?.resolution || plan.builtin || plan.noteOnly)) return null;
     const item = plan.item ?? {};
     if (item.delivery === "injury" || ["snare", "ammo", "ammunition"].includes(item.category)) return null;
     const reusable = (uses?.autoDestroy ?? item.uses?.autoDestroy) === false;
@@ -82,15 +86,20 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
     // (Its own Activate line's cost and traits — "Activate [one-action] (manipulate)": a manipulate action provokes. A copy whose text has
     // none, a bestiary creature's short one: PF2e's usual Activate for what's drunk or applied.)
     const own = item.activations?.[0] ?? (DRUNK_OR_APPLIED.includes(item.category) ? { time: "1", traits: ["manipulate"] } : null);
-    const activation = { ...(plan.activation ?? {}), time: plan.activation?.time ?? own?.time ?? null, traits: [...new Set([...(plan.activation?.traits ?? []), ...(own?.traits ?? [])])] };
-    // (Drunk: by the user or a creature beside it, fed to it.)
-    const fitted = { ...plan, activation, ...(drinker ? { targeting: { ...(plan.targeting ?? {}), target: "1 willing creature", range: "touch" } } : {}) };
+    // (A cast takes the item's activation, not the spell's casting.)
+    const base = casting ? { ...casting.plan, item } : plan;
+    const activation = casting
+        ? { ...(base.activation ?? {}), time: own?.time ?? base.activation?.time ?? null, traits: [...(own?.traits ?? [])] }
+        : { ...(plan.activation ?? {}), time: plan.activation?.time ?? own?.time ?? null, traits: [...new Set([...(plan.activation?.traits ?? []), ...(own?.traits ?? [])])] };
+    // (Drunk: by the user or a creature beside it, fed to it. A cast "on you" that isn't drunk: on the user.)
+    const targeting = drinker ? { ...(base.targeting ?? {}), target: "1 willing creature", range: "touch" } : casting && plan.self ? { ...(base.targeting ?? {}), target: "self", range: null } : null;
+    const fitted = { ...base, activation, ...(targeting ? { targeting } : {}) };
     return {
         name: name ?? plan.source?.name ?? "Item",
         plan: fitted,
-        castRank: Math.max(1, Number(item.level) || 1),
-        dc: null,
-        attack: null,
+        castRank: casting ? Math.max(1, Number(casting.castRank) || 1) : Math.max(1, Number(item.level) || 1),
+        dc: casting?.dc ?? null,
+        attack: casting?.attack ?? null,
         pool: `item:${id}`,
         casts,
         kind: "item",

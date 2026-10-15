@@ -1160,7 +1160,9 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
             continue;
         }
         const draw = item.system?.equipped?.carryType === "held" ? 0 : item.isStowed ? retrieveActions(item) : 1;
-        const entry = itemEntry(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, draw, fresh });
+        // (U3: one that casts a spell — the spell module's plan for it.)
+        const cast = plan.builtin === "cast-spell" ? await itemCast(item, plan, core) : null;
+        const entry = itemEntry(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, draw, fresh, cast });
         if (!entry) continue;
         const spec = { ...entry, effects: await effectModels(entry.plan, entry.castRank) };
         if (isUtility(plan) || !canCast({ spellPools: { [entry.pool]: entry.casts }, covenReady: true }, spec)) continue;
@@ -1171,6 +1173,18 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
         result.spells.push(spec);
     }
     return result;
+}
+
+// U3: the spell an item casts (Invisibility Potion), as the core's registry compiles it (the spell module's plan), at the item's rank; its DC
+// and attack the item's own, else the DC for the item's level.
+async function itemCast(item, plan, core) {
+    const spell = await fromUuid(plan.spell?.uuid ?? "").catch(() => null);
+    if (!spell) return null;
+    const [prepared] = await core.registry.preparePlans([spell]);
+    const spellPlan = prepared?.result?.plan;
+    if (!spellPlan) return null;
+    const dc = plan.dc ?? levelDC(Number(item.level ?? item.system?.level?.value) || 1);
+    return { plan: leanPlan(withReading(spellPlan)), castRank: plan.rank ?? Number(spell.system?.level?.value) ?? 1, dc, attack: plan.attack ?? dc - 10 };
 }
 
 // The Interact actions to take out a stowed item, as PF2e counts them for its weapons: 1 from a container in hand, 2 from a backpack or

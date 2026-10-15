@@ -185,3 +185,16 @@ test("U2: a PC's bomb weighs as a consumable, a monster's in full", () => {
     assert.equal(consumableWeight(state, brute, thrown, [pc]), 1);
     assert.equal(consumableWeight(state, pc, { ...thrown, consumable: false }, [brute]), 1);
 });
+
+test("U3: an item that casts a spell plays the spell's plan at the item's rank, with the item's activation and its drinker", () => {
+    const castPlan = { source: { name: "Test Veil" }, traits: ["illusion"], activation: { time: "2", traits: ["concentrate", "manipulate"] }, targeting: { target: "1 creature", range: "touch" }, resolution: { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: BUFF, recipients: "target" }] } };
+    const potion = { builtin: "cast-spell", source: { name: "Veil Potion" }, spell: { uuid: "Compendium.pf2e.spells-srd.Item.x", name: "Test Veil" }, rank: 2, dc: null, attack: null, self: true, notes: [], item: itemInfo("potion", 4) };
+    const entry = itemEntry(potion, { id: "v", name: "Veil Potion", cast: { plan: castPlan, castRank: 2, dc: 18, attack: 8 } });
+    assert.deepEqual([entry.name, entry.kind, entry.castRank, entry.dc, entry.attack, entry.drinker], ["Veil Potion", "item", 2, 18, 8, true]);
+    assert.deepEqual(entry.plan.activation, { time: "1", traits: ["manipulate"] });
+    assert.deepEqual([entry.plan.targeting.target, entry.plan.resolution.kind], ["1 willing creature", "effect"]);
+    // A cast "on you" that isn't drunk: on the user. No spell plan: left out.
+    const band = itemEntry({ ...potion, item: { ...potion.item, category: "worn", recipient: "user" } }, { id: "b", cast: { plan: castPlan, castRank: 2, dc: 18, attack: 8 } });
+    assert.equal(band.plan.targeting.target, "self");
+    assert.equal(itemEntry(potion, { id: "n" }), null);
+});
