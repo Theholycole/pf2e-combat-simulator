@@ -245,8 +245,30 @@ export function readSenses(actor) {
 }
 
 function readFlies(actor) {
+    // (PF2e 8.6: system.movement.speeds — Eternal Wings' fly Speed; the older attributes.speed.otherSpeeds before it.)
+    if ((Number(actor?.system?.movement?.speeds?.fly?.value) || 0) > 0) return true;
     const speeds = actor?.attributes?.speed?.otherSpeeds ?? actor?.system?.attributes?.speed?.otherSpeeds ?? [];
     return speeds.some((speed) => speed?.type === "fly" && (Number(speed.total ?? speed.value) || 0) > 0);
+}
+
+// Its land Speed with everything PF2e counts (2026-10-15: PF2e 8.6 moved it to system.movement.speeds.land; before, attributes.speed).
+function landSpeed(actor) {
+    const moved = Number(actor?.system?.movement?.speeds?.land?.value);
+    if (Number.isFinite(moved) && moved > 0) return moved;
+    return actor.attributes?.speed?.total ?? actor.system?.attributes?.speed?.value ?? 25;
+}
+
+function deathAt(actor, kind) {
+    const max = Number(actor?.system?.attributes?.dying?.max);
+    return kind === "pc" && Number.isFinite(max) ? max + (Number(actor.system?.attributes?.doomed?.value) || 0) : 4;
+}
+
+// What its initiative adds to its Perception (Incredible Initiative's +2), when it rolls Perception for initiative.
+function initiativeOver(actor, perception) {
+    const initiative = actor?.system?.initiative ?? actor?.initiative;
+    if ((initiative?.statistic ?? "perception") !== "perception") return 0;
+    const total = Number(initiative?.totalModifier ?? initiative?.mod);
+    return Number.isFinite(total) && Number.isFinite(perception) ? Math.max(0, total - perception) : 0;
 }
 
 // (L1: the scene's light, for an environment set to "auto": its darkness level.)
@@ -455,6 +477,11 @@ function readClassFeatures(actor, strikes) {
         }
         if (item.slug === "ten-paces") {
             fields.initiativeBonus = 2;
+            result.handled.add(item);
+        }
+        // (C29, Sacred Defender: its resistances are PF2e's rules; a natural 20 against it doesn't improve the result.)
+        if (item.slug === "sacred-defender") {
+            fields.noNaturalTwenty = true;
             result.handled.add(item);
         }
         if (item.slug === "cover-fire" && strikes.some((strike) => strike.firearm && !strike.melee)) activity(item, { coverFire: true, oncePerRound: true });
@@ -1322,9 +1349,11 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         // (B303: the skills its abilities name for its own initiative, rolled when better than Perception.)
         initiativeSkills: readInitiativeSkills(actor),
         skills,
-        speed: actor.attributes?.speed?.total ?? actor.system?.attributes?.speed?.value ?? 25,
+        speed: landSpeed(actor),
         reach: actorReach,
         heroPoints: actor.system?.resources?.heroPoints?.value ?? 0,
+        // (Diehard: the dying value it dies at, as PF2e's sheet has it — its doomed added back, since PF2e takes that off and so does the engine.)
+        ...(deathAt(actor, kind) !== 4 ? { deathAt: deathAt(actor, kind) } : {}),
         // (Its Focus Points' most, for a familiar's Familiar Focus.)
         ...(Number(actor.system?.resources?.focus?.max) > 0 ? { focusMax: Number(actor.system.resources.focus.max) } : {}),
         shield: fresh && shield ? { ...shield, broken: false, raised: false } : shield,
@@ -1367,6 +1396,9 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         }
     }
     // A hazard (E4): its routine, Disable options and reactions.
+    // (Incredible Initiative: what PF2e's initiative adds to its Perception, as the engine's circumstance-like initiative bonus.)
+    const initiativeExtra = initiativeOver(actor, spec.perception);
+    if (initiativeExtra > (spec.initiativeBonus ?? 0)) spec.initiativeBonus = initiativeExtra;
     return kind === "hazard" ? hazardSpec(actor, spec) : spec;
 }
 

@@ -7,6 +7,7 @@
 // carries critDamage, PF2e's own critical formula, which is used as-is.
 
 import { sourceOptions, testPredicate } from "./abilities.js";
+import { ignoredResistances } from "./runes.js";
 
 const PHYSICAL = new Set(["bludgeoning", "piercing", "slashing"]);
 
@@ -299,8 +300,10 @@ export function adjustPart(defender, instance, context = null) {
         if (!ONCE.has(entry.type) && applies(entry, "weakness", options)) weakness = Math.max(weakness, Number(entry.value) || 0);
     }
     let resistance = 0;
+    // (A greater rune's damage ignores resistance to its type: greater frost's cold.)
+    const ignored = context ? ignoredResistances(options) : null;
     for (const entry of resistancesOf(defender)) {
-        if (!applies(entry, "resistance", options)) continue;
+        if (!applies(entry, "resistance", options) || ignored?.has(entry.type)) continue;
         const value = resistanceValue(entry, options);
         resistance = Math.max(resistance, entry.type === "critical-hits" ? Math.min(value, Math.floor(amount / 2)) : value);
     }

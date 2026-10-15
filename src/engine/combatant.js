@@ -203,8 +203,9 @@ export function baseWill(c) {
     return c.saves?.will ?? 0;
 }
 
+// (Diehard: dying 5, as PF2e's sheet has it — c.deathAt.)
 export function deathThreshold(c) {
-    return 4 - (c.cond.doomed ?? 0);
+    return (c.deathAt ?? 4) - (c.cond.doomed ?? 0);
 }
 
 export function hpFraction(c) {

@@ -22,6 +22,7 @@ import { hostility, ownHostility } from "./pacify.js";
 import { wardBlocks } from "./wards.js";
 import { hiddenFrom } from "./sight.js";
 import { lifelinkMaster } from "./familiars.js";
+import { keenCritical, runeCritEffects } from "./runes.js";
 
 export function coverFor(state, defender) {
     return state.setup.cover?.[defender.side] ?? 0;
@@ -360,6 +361,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         log(state, `  ${attacker.name} uses its stratagem (${natural})`);
     }
     let degree = degreeOf(natural + modifier + bonus, ac + defence, natural);
+    // (Sacred Defender: a natural 20 against it doesn't improve the result. Keen: a natural 19 that hits is a critical hit.)
+    if (natural === 20 && target.noNaturalTwenty) degree = degreeOf(natural + modifier + bonus, ac + defence, 10);
+    if (keenCritical(strike, natural, degree)) degree = CRITICAL_SUCCESS;
     // Hammer Block, Stygian Guardian (B94): an ally's +AC once the attack hits, when that turns it aside (its Strike back after, Reactive
     // Defense's).
     if (degree >= SUCCESS && !reaction) {
@@ -567,6 +571,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (T1, T6: a critical hit's rider — Brutal Beating's — and its weapon group's critical specialization.)
     if (critical && attacker.critRider) critRiderAnswer(state, attacker, target, { applyCondition, applyMove });
     if (critical) critSpecEffect(state, attacker, target, strike, natural + modifier + bonus, { applyCondition, applyMove, applyDamage, rollDie: (size) => state.rng.die(size) });
+    // (Its weapon's runes on a critical hit: frost's slowed, brilliant's blinded, fearsome's frightened …)
+    if (critical) runeCritEffects(state, attacker, target, strike, { applyCondition, applyMove });
     // (T4: attached to a larger creature it hits.)
     if (attacker.attach && isActive(attacker)) attachAfterHit(state, attacker, target, sizeRank);
     // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
