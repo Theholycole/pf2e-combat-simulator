@@ -1466,6 +1466,10 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         log(state, `  ${caster.name} loses the spell (stupefied ${stupefied})`);
         return;
     }
+    // (S59: a spell its caster can't cast again for minutes, once a fight; Sure Strike's attack also finds a concealed or hidden target
+    // without the flat check.)
+    if (castImmunityKey(spell) && !spell.fromZone) (caster.castImmune ??= new Set()).add(castImmunityKey(spell));
+    if ((spell.plan?.resolution?.gmNotes ?? []).some((text) => FINDS_HIDDEN.test(String(text)))) caster.fortuneFinds = true;
     // (A hex Cast: one a turn; its caster's familiar answers it — familiars.js.)
     if (isHex(spell) && !spell.fromZone) {
         (caster.usedThisTurn ??= new Set()).add("hex");
@@ -1477,7 +1481,9 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // (L1: and each one the light or the weather hides from it.)
     // (2026-10-14: a hidden or concealed target too — Invisibility, Blur — as a Strike's; Truesight sees through Invisibility.)
     // (A zone's save is the area's: nothing to find.)
-    const findDC = (target) => (info.area || spell.fromZone || target === caster ? 0 : Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, target.side !== caster.side ? (hiddenFrom(state, caster, target) ? 11 : target.cond?.concealed ? 5 : 0) : 0, sightDC(state, caster, target)));
+    // (S59, a spell attack Sure Strike rolls twice: no flat check for the target being concealed or hidden.)
+    const finds = info.attack && forcedDegree === null && caster.fortuneFinds && (caster.effects ?? []).some((effect) => effect.model?.fortune?.on === "attack");
+    const findDC = (target) => (info.area || spell.fromZone || target === caster ? 0 : Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, target.side !== caster.side && !finds ? (hiddenFrom(state, caster, target) ? 11 : target.cond?.concealed ? 5 : 0) : 0, sightDC(state, caster, target)));
     if (targets.some((target) => findDC(target) > 0)) {
         const found = targets.filter((target) => !findDC(target) || flatCheck(state.rng, findDC(target)) >= SUCCESS);
         if (found.length < targets.length) log(state, `  ${caster.name} fails to find ${targets.length - found.length} target(s)`);
@@ -1548,7 +1554,10 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     let ownFortune = () => null;
     if (info.attack && forcedDegree === null) {
         const keep = takeAttackFortune(caster);
-        if (keep) log(state, `  ${caster.name} rolls twice (${keep === "higher" ? "the better" : "the worse"} kept)`);
+        if (keep) {
+            log(state, `  ${caster.name} rolls twice (${keep === "higher" ? "the better" : "the worse"} kept)`);
+            caster.fortuneFinds = false;
+        }
         ownFortune = (statistic) => (statistic === "spell-attack" ? keep : null);
     }
     const roll = (statistic, given) => {
@@ -2261,6 +2270,8 @@ export function canCast(c, spell) {
     if (c.spellLocks?.length && spellLocked(c, spell)) return false;
     // (A witch's hexes: one a turn.)
     if (c.usedThisTurn?.has("hex") && isHex(spell)) return false;
+    // (S59, Sure Strike: "can't cast it again for 10 minutes" — once a fight.)
+    if (c.castImmune?.size && c.castImmune.has(castImmunityKey(spell))) return false;
     return poolReady(c, spell);
 }
 
@@ -2790,6 +2801,14 @@ export function spellGaps(spell) {
     return [...missing];
 }
 
+// A spell its caster can't cast again for minutes once cast (S59, Sure Strike's temporary immunity): its key, or null.
+const FINDS_HIDDEN = /ignores the flat check for the target being Concealed or Hidden/i;
+function castImmunityKey(spell) {
+    const immunity = spell?.plan?.resolution?.temporaryImmunity;
+    if (!immunity || immunity.startsWhen !== "cast" || !["minutes", "hours", "days"].includes(immunity.duration?.unit)) return null;
+    return immunity.key ?? spell.name;
+}
+
 // A spell with the hex trait (a witch's hexes: one Cast a turn; its familiar's patron ability answers each Cast and Sustain).
 export function isHex(spell) {
     return isSpellCast(spell) && (spell?.plan?.traits ?? []).includes("hex");
@@ -2823,6 +2842,10 @@ function chainFrom(first, foes, feet) {
 function playedGap(spell, what) {
     const resolution = spell.plan?.resolution ?? {};
     if (what === "chain" || what === "splash" || what === "magicItem" || what === "artifactFails") return true;
+    // (S59, Sure Strike: used up by the next attack roll, once a fight, and its note on concealed and hidden targets.)
+    if (what === "consumeOn") return resolution.consumeOn?.on === "attack-roll";
+    if (what === "temporaryImmunity") return Boolean(castImmunityKey(spell));
+    if (what === "gmNotes") return [].concat(resolution.gmNotes ?? []).every((text) => FINDS_HIDDEN.test(String(text)));
     if (what === "otherKinds") return [].concat(resolution.otherKinds ?? []).every((kind) => kind === "spell" || kind === "item");
     if (what === "rankGate") return (Number(spell.castRank) || Number(spell.plan?.rank) || 1) < (Number(resolution.rankGate?.minRank) || Infinity);
     return false;

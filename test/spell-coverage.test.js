@@ -752,3 +752,32 @@ test("Clear Mind heightened: confused from its 4th rank; a near miss sets the co
     assert.equal(pc.cond.confused, true);
     assert.ok(state.log.some((line) => line.includes("finds nothing to counteract")), state.log.join("\n"));
 });
+
+test("Sure Strike as the spell module plans it live: once a fight (can't cast it again for 10 minutes); its attack finds a hidden target without the flat check", async () => {
+    const { canCast, spellGaps } = await import("../src/engine/spells.js");
+    const { effectModel } = await import("../src/engine/effects.js");
+    const model = effectModel({ name: "Spell Effect: Sure Strike", system: { rules: [{ keep: "higher", key: "RollTwice", selector: "attack-roll" }], duration: { expiry: "turn-end", unit: "rounds", value: 0 } } }, { rank: 1 });
+    const uuid = "Compendium.pf2e.spell-effects.Item.fpGDAz2v5PG0zUSl";
+    const plan = { modelVersion: 12, source: { name: "Sure Strike", slug: "sure-strike" }, rank: 1, traits: ["concentrate", "fortune"], activation: { time: "1", traits: ["concentrate", "fortune"] }, targeting: { target: null, range: null, area: null },
+        resolution: { kind: "effect", check: null, sharedDamage: null, outcomes: { criticalSuccess: row(), success: row(), failure: row(), criticalFailure: row() }, postDamageTerminal: null, consumeOn: { on: "attack-roll" },
+            gmNotes: ["That attack also ignores the flat check for the target being Concealed or Hidden."], temporaryImmunity: { key: "sure-strike", duration: { value: 10, unit: "minutes" }, startsWhen: "cast" },
+            applications: [{ kind: "native-spell-effect", uuid, source: "nativeEffects.onUse" }] } };
+    const spec = { name: "Sure Strike", plan, castRank: 1, dc: 20, attack: 12, pool: null, effects: { [uuid]: model } };
+    assert.deepEqual(spellGaps(spec).filter((gap) => ["consumeOn", "gmNotes", "temporaryImmunity"].includes(gap)), []);
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, spells: [spec], spellPools: {} }, { ...moderateCreature(5, "brute", "Brute"), engagement: 1, hp: { value: 500, max: 500 } }] }, {}, 1);
+    state.log = [];
+    const pc = state.byId.get(fighter.id);
+    const brute = state.byId.get("brute");
+    castSpell(state, pc, 0, [pc.id]);
+    assert.equal(canCast(pc, pc.spells[0]), false, "not again this fight");
+    // The brute hidden: no flat check for this attack (a 1 on the flat check would fail it).
+    brute.cond.hidden = true;
+    const rolls = [1, 3, 17];
+    state.rng.d20 = () => rolls.shift() ?? 10;
+    state.rng.flat = undefined;
+    performStrike(state, pc, brute, pc.strikes[0]);
+    assert.ok(!state.log.some((line) => line.includes("flat check")), state.log.join("\n"));
+    assert.ok(state.log.includes(`  ${pc.name} rolls twice (the better kept)`), state.log.join("\n"));
+    assert.equal(pc.fortuneFinds, false);
+});

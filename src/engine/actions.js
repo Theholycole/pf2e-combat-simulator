@@ -281,7 +281,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const surprised = offGuardFrom(state, attacker, target, { melee: strike.melee });
     // Blinded or dazzled: a flat check to find the target first; a concealed or hidden target too (B41). (L1: the light and the weather.)
     // (Truesight: an invisible creature it sees through isn't hidden to it.)
-    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, hiddenFrom(state, attacker, target) ? 11 : target.cond?.concealed ? 5 : 0, sightDC(state, attacker, target));
+    // (S59, Sure Strike's attack: no flat check for the target being concealed or hidden.)
+    const finds = !reaction && attacker.fortuneFinds && (attacker.effects ?? []).some((effect) => effect.model?.fortune?.on === "attack");
+    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : hiddenFrom(state, attacker, target) ? 11 : target.cond?.concealed ? 5 : 0, sightDC(state, attacker, target));
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
         // Counterattack (B94): a miss from beside it because it's concealed, a Strike back.
@@ -331,6 +333,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     }
     // (S54, Sure Strike: its next attack roll twice, the better kept.)
     const own = reaction ? null : takeAttackFortune(attacker);
+    if (own) attacker.fortuneFinds = false;
     if (own) log(state, `  ${attacker.name} rolls twice (${own === "higher" ? "the better" : "the worse"} kept)`);
     if (own === "higher") fortune = true;
     else if (own === "lower") misfortune = true;
