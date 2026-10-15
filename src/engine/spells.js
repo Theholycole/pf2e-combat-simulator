@@ -808,7 +808,7 @@ function golemAnswer(caster, spell, target, area) {
     const golem = target?.golemAntimagic;
     if (!golem || target === caster) return null;
     const traits = (spell.plan?.traits ?? []).map((trait) => String(trait).toLowerCase());
-    const magic = !["ability", "basic"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "") || traits.some((trait) => MAGIC_TRAITS.includes(trait));
+    const magic = !["ability", "basic", "item"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "") || traits.some((trait) => MAGIC_TRAITS.includes(trait));
     if (!magic) return null;
     const formulas = planFormulas(spell.plan);
     const kinds = new Set([...traits, ...formulas.flatMap((formula) => parseDamage(formula).map((instance) => instance.type)), String(spell.plan?.source?.name ?? spell.name ?? "").toLowerCase()]);
@@ -1227,8 +1227,15 @@ function planDamages(plan) {
 }
 
 // A spell rather than an ability: not a monster's or a basic action, unless it is a spell from the spell list.
+const DRUNK = new Set(["potion", "elixir", "mutagen", "drug"]);
+function itemWords(spell, caster, targets) {
+    const other = targets.find((target) => target !== caster);
+    if (spell.drinker) return other ? `feeds ${spell.name} to ${other.name}` : `${DRUNK.has(spell.category) ? "drinks" : "uses"} ${spell.name}`;
+    return `uses ${spell.name}${targets.length ? ` on ${targets.map((target) => target.name).join(", ")}` : ""}`;
+}
+
 function isSpellCast(spell) {
-    return !["ability", "basic"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "");
+    return !["ability", "basic", "item"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "");
 }
 
 function applyChanges(state, caster, spell, changes, context, io) {
@@ -1394,7 +1401,7 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
     castPlan(state, caster, spell, targetIds, actions, options);
     // (Invisibility: it ends once a harmful spell is cast.)
     const info = spell?.plan ? describeSpell(spell.plan, actions) : null;
-    if (info && !info.helpful && !info.healing && !info.self) ownHostility(state, caster);
+    if (info && !info.helpful && !info.healing && !info.self && !spell.drinker) ownHostility(state, caster);
 }
 
 // Resolves a spell or ability (one of the creature's, or a rider's plan) at the targets.
@@ -1443,6 +1450,9 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     spendPool(caster, spell);
     // (A lingering area's later save: its own line, not a new cast.)
     if (spell.fromZone) log(state, `  ${spell.name} on ${targets.map((target) => target.name).join(", ")}`);
+    // (U1: an item drunk, fed to an ally, or used.)
+    else if (spell.kind === "item") log(state, `  ${caster.name} ${itemWords(spell, caster, targets)}`);
+    if (spell.kind === "item" && state.stats) state.stats[caster.side === "party" ? "partyItemsUsed" : "foeItemsUsed"]++;
     else log(state, `  ${caster.name} casts ${spell.name}${spell.from ? ` from ${spell.from}` : ""}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
     // (I1: a creature immune to the effect's trait — a mindless one to a mental effect, a construct to a death effect — is unaffected.)
     for (const target of [...targets]) {
@@ -1964,7 +1974,7 @@ function damagedStrike(state, target, source, types) {
 export function targetedAnswers(state, caster, spell, targets) {
     if (state.answering) return;
     const traits = spell.plan?.traits ?? [];
-    const isSpell = !["ability", "basic"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "");
+    const isSpell = !["ability", "basic", "item"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "");
     const sets = (trigger) => trigger?.event === "targeted-by" && (trigger.traits?.some((trait) => traits.includes(trait)) || (trigger.spells && isSpell));
     state.answering = true;
     try {
@@ -2717,6 +2727,11 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     if (immune?.size) enemies = enemies.filter(notImmune);
     // (B133: a move first, Tackle's — a creature within that many Strides too.)
     const reaches = (other) => other === caster || (info.touch ? inMelee(other) || (info.approach > 0 && canMove(caster) && distance(other) <= (info.approachFeet ?? (caster.speed ?? 25) * info.approach * (info.approachHalf ? 0.5 : 1))) : info.range === null || distance(other) <= info.range);
+    // (U1: an item drunk — by the creature, or fed to an ally beside it; a healing one to a downed PC too, as First Aid reaches one.)
+    if (spell.drinker && !info.area) {
+        const friends = [caster, ...allies].filter((ally) => ally === caster || (ally.status === ACTIVE && inMelee(ally)) || (info.healing && ally.status === DOWN && ally.kind === "pc"));
+        return (info.healing ? friends.filter((ally) => ally.hp.value < ally.hp.max) : friends).map((ally) => ({ targets: [ally] }));
+    }
     if (!info.area) {
         const sets = [];
         // (A spell for a willing creature — Vapor Form — goes to no enemy.)

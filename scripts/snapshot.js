@@ -5,7 +5,7 @@ import { extraDamageParts, parseReadableDamage, randomDamageRows } from "../src/
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js";
 import { levelDC } from "../src/engine/checks.js";
-import { isStaffItem, itemCasts, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
+import { isStaffItem, itemCasts, itemEntry, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { maneuverWays, withReading } from "../src/engine/readings.js";
 import { effectModel, iwrException } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
@@ -647,10 +647,10 @@ function readGaps(actor, gaps, handled = new Set()) {
         }
         gaps.push({ kind: type === "reaction" ? "reaction" : "feat action", name: item.name });
     }
-    // (Scrolls and wands: readSpells' since S22.)
+    // (Scrolls and wands: readSpells' since S22. U1: those the item module's plans play, readConsumables'.)
     for (const item of actor.itemTypes?.consumable ?? []) {
         const category = item.system?.category;
-        if (["potion", "elixir", "bomb", "oil", "talisman", "poison"].includes(category)) gaps.push({ kind: "consumable", name: item.name });
+        if (!handled.has(item) && ["potion", "elixir", "mutagen", "bomb", "oil", "talisman", "poison"].includes(category)) gaps.push({ kind: "consumable", name: item.name });
     }
 }
 
@@ -1117,7 +1117,8 @@ function consumableSpells(actor, gaps, { fresh, spellPools }) {
         }
         const pool = `item:${item.id}`;
         spellPools[pool] = casts;
-        const base = { spell, name: spell.name, castRank: spell.rank, ...castingNumbers(statistic), pool, tradition, extra: { from: item.name, item: item.id, ...(trick ? { trick } : {}), ...(draw ? { draw } : {}) } };
+        // (U1: a scroll or a spell gem is used up — a PC's weighed as a consumable; a wand's cast comes back.)
+        const base = { spell, name: spell.name, castRank: spell.rank, ...castingNumbers(statistic), pool, tradition, extra: { from: item.name, item: item.id, ...(category !== "wand" ? { consumable: true } : {}), ...(trick ? { trick } : {}), ...(draw ? { draw } : {}) } };
         listed.push(base);
         if (overcharge) {
             spellPools[`overcharge:${item.id}`] = 1;
@@ -1125,6 +1126,43 @@ function consumableSpells(actor, gaps, { fresh, spellPools }) {
         }
     }
     return listed;
+}
+
+// U1 (2026-10-15), consumables: the item module's plans (registered with the core) for the creature's potions, elixirs, mutagens,
+// talismans and the like, as actions it can take — each stack its uses; taken out first unless held (PF2e's Interact: 1 worn, more
+// stowed). A monster uses them freely; a PC weighs them (consumables.js). Without the item module, they stay among the gaps.
+async function readConsumables(actor, gaps, { fresh = false, handled = new Set() } = {}) {
+    const result = { spells: [], spellPools: {} };
+    const core = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api : null;
+    const items = (actor.itemTypes?.consumable ?? []).filter((item) => !SPELL_ITEMS.includes(item.category ?? item.system?.category) && (Number(item.quantity ?? item.system?.quantity ?? 1) || 0) > 0);
+    if (!core || !items.length) return result;
+    let prepared = [];
+    try {
+        prepared = await core.registry.preparePlans(items);
+    } catch {
+        return result;
+    }
+    for (const { item, result: compiled } of prepared) {
+        const plan = compiled?.plan;
+        // (Not the item module's plan: none here.)
+        if (!plan?.item) continue;
+        if (item.isIdentified === false) {
+            handled.add(item);
+            gaps.push({ kind: "item, unidentified", name: item.name });
+            continue;
+        }
+        const draw = item.system?.equipped?.carryType === "held" ? 0 : item.isStowed ? retrieveActions(item) : 1;
+        const entry = itemEntry(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, draw, fresh });
+        if (!entry) continue;
+        const spec = { ...entry, effects: await effectModels(entry.plan, entry.castRank) };
+        if (isUtility(plan) || !canCast({ spellPools: { [entry.pool]: entry.casts }, covenReady: true }, spec)) continue;
+        const missing = spellGaps(spec);
+        if (missing.length) gaps.push({ kind: "item, partly simulated", name: `${item.name}: ${missing.join(", ")}` });
+        handled.add(item);
+        result.spellPools[entry.pool] = entry.casts;
+        result.spells.push(spec);
+    }
+    return result;
 }
 
 // The Interact actions to take out a stowed item, as PF2e counts them for its weapons: 1 from a container in hand, 2 from a backpack or
@@ -1383,8 +1421,11 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         if (strike) strikes.push({ ...strike, randomDamage: rows, randomDie: table.die, ...(rows.some((row) => row.damage.some((part) => part.splash)) ? { splashKind: "bomb" } : {}) });
     }
     delete abilities.builtins.randomStrikeTables;
+    const consumables = await readConsumables(actor, gaps, { fresh, handled: abilities.handled });
     readGaps(actor, gaps, abilities.handled);
     const { spells, spellPools, summons: spellSummoned = [] } = await readSpells(actor, gaps, { fresh, castSpells: abilities.castSpells });
+    spells.push(...consumables.spells);
+    Object.assign(spellPools, consumables.spellPools);
     // (C33: Hero's Defiance, played as the champion's answer to a blow that would drop it — not a gap.)
     // (C35: Vital Luminance, played by luminance.js.)
     const played = new Set([...(features.fields.heroesDefiance ? ["Hero's Defiance"] : []), ...(features.fields.vitalLuminance ? ["Vital Luminance"] : [])]);

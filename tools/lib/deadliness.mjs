@@ -10,6 +10,7 @@
 import fs from "node:fs";
 const { basicActions, combatant, readDocuments, summonReserves, PACK_ROOT } = await import("./pack-creatures.mjs");
 const { compileSpell, effectModels, npcSpells, spellNamed } = await import("./pack-spells.mjs");
+const { npcItems } = await import("./pack-items.mjs");
 const { standardParty } = await import("../../src/engine/party.js");
 const { simulate } = await import("../../src/engine/fight.js");
 const { canCast, isUtility } = await import("../../src/engine/spells.js");
@@ -115,8 +116,10 @@ export function buildMonster(npc, variant = null) {
     if (variant?.type === "spells") doc = { ...npc, items: npc.items.filter((item) => item.type !== "spellcastingEntry" && item.type !== "spell") };
     const monster = combatant(doc);
     const own = npcSpells(doc, { basics: basicActions });
-    monster.spells = [...monster.spells, ...own.spells];
-    monster.spellPools = { ...(monster.spellPools ?? {}), ...own.spellPools };
+    // (U1: its potions, elixirs and the like, used freely.)
+    const items = npcItems(doc);
+    monster.spells = [...monster.spells, ...own.spells, ...items.spells];
+    monster.spellPools = { ...(monster.spellPools ?? {}), ...own.spellPools, ...items.spellPools };
     if (own.summons?.length) monster.summons = [...(monster.summons ?? []), ...own.summons];
     if (variant?.type === "knockdown" && !KNOCKDOWNS[variant.id](monster, monster.level)) return null;
     let reserves = [];

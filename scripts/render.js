@@ -69,7 +69,7 @@ export function renderReport(report) {
     ${renderSummary(report)}
     <div class="sim-columns">
         <section><h3>Outcomes</h3><table>${outcomes}</table>
-            <p class="muted">Average ${num(report.averageRounds)} rounds. Morale checks per fight ${num(report.moraleChecks, 2)}, breaks ${num(report.moraleBreaks, 2)}, fights ended by a rout ${pct(report.groupRoutRate)}. Hero points spent per fight ${num(report.heroPointsSpent, 2)}.</p>
+            <p class="muted">Average ${num(report.averageRounds)} rounds. Morale checks per fight ${num(report.moraleChecks, 2)}, breaks ${num(report.moraleBreaks, 2)}, fights ended by a rout ${pct(report.groupRoutRate)}. Hero points spent per fight ${num(report.heroPointsSpent, 2)}. Items used per fight: party ${num(report.partyItemsUsed ?? 0, 2)}, foes ${num(report.foeItemsUsed ?? 0, 2)}.</p>
         </section>
         <section><h3>Party</h3><table><thead><tr><th></th><th>Down</th><th>Dies</th></tr></thead>${party}</table></section>
     </div>
@@ -102,6 +102,7 @@ export function renderCompare(entries) {
         ${row("Rounds", (r) => r.averageRounds, (v) => num(v), (d) => signed(d.averageRounds))}
         ${row("Rounds (won fights)", (r) => r.averageWinRounds, (v) => num(v), (d) => signed(d.averageWinRounds))}
         ${row("Hero points spent", (r) => r.heroPointsSpent, (v) => num(v, 2), null)}
+        ${row("Items used (party)", (r) => r.partyItemsUsed ?? 0, (v) => num(v, 2), null)}
         ${row("Fights ended by a rout", (r) => r.groupRoutRate, pct, null)}
     </table>`;
 }

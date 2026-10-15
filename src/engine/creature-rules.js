@@ -200,7 +200,7 @@ export function elementalAnswers(state, c, event, { types = [], context = null, 
     for (const rule of c.elemental ?? []) {
         if (rule.on !== event || !isActive(c)) continue;
         const options = context ?? (spell ? readSourceOptions(spell) : new Set());
-        const isSpell = spell ? !["ability", "basic"].includes(spell.kind) : Boolean(options.has?.("item:type:spell"));
+        const isSpell = spell ? !["ability", "basic", "item"].includes(spell.kind) : Boolean(options.has?.("item:type:spell"));
         let fits = false;
         if (rule.types?.length) fits = types.some((type) => rule.types.includes(type));
         if (rule.traits?.length && (!rule.spell || isSpell)) fits ||= rule.traits.some((trait) => options.has?.(`item:trait:${trait}`) || options.has?.(trait));

@@ -109,7 +109,7 @@ function createState(snapshot, options, seed, withLog) {
         pendingEvents: [],
         log: withLog ? [] : null,
         damageBy: { party: 0, foes: 0 },
-        stats: { moraleChecks: 0, moraleFailures: 0, moraleBreaks: 0, moraleRecoveries: 0, moraleGated: 0, heroPointsSpent: 0, reactions: 0 },
+        stats: { moraleChecks: 0, moraleFailures: 0, moraleBreaks: 0, moraleRecoveries: 0, moraleGated: 0, heroPointsSpent: 0, reactions: 0, partyItemsUsed: 0, foeItemsUsed: 0 },
         outcome: null,
         spellOutcomes: outcomeCache(snapshot),
         surprisedSide: null,
@@ -761,7 +761,7 @@ function act(state, c, action) {
         case "drawItem": {
             const spell = c.spells[action.spellIndex];
             if (!spell?.draw) break;
-            state.log?.push(`  ${c.name} takes out ${spell.from} (${spell.draw.actions} action${spell.draw.actions === 1 ? "" : "s"})`);
+            state.log?.push(`  ${c.name} takes out ${spell.from ?? spell.name} (${spell.draw.actions} action${spell.draw.actions === 1 ? "" : "s"})`);
             (c.itemsAtHand ??= new Set()).add(spell.item);
             break;
         }
@@ -778,7 +778,7 @@ function act(state, c, action) {
             // a critical failure, not again this fight.)
             // (S22: a stowed item taken out first; it's at hand after, until a scroll is used up.)
             if (action.draw && spell?.draw) {
-                state.log?.push(`  ${c.name} takes out ${spell.from} (${spell.draw.actions} action${spell.draw.actions === 1 ? "" : "s"})`);
+                state.log?.push(`  ${c.name} takes out ${spell.from ?? spell.name} (${spell.draw.actions} action${spell.draw.actions === 1 ? "" : "s"})`);
                 (c.itemsAtHand ??= new Set()).add(spell.item);
             }
             if (action.trick && spell?.trick) {

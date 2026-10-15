@@ -58,3 +58,46 @@ export function staffSpellList(html, maxRank = 10) {
     }
     return out;
 }
+
+// U1 (2026-10-15), consumables. The user: "monsters should use their items freely. Players should use rechargeable or reusable items
+// freely but consumables should be weighted to be used when they provide significant more value than other options. Healing items
+// should be used freely if they are projected to go down soon or if they are used on another player that is already down."
+// The item module's plan for one (plan.item: its category, level, uses, who it's for) as an action the creature can take: drunk by it or
+// fed to a creature beside it, thrown, used. A stack's uses are its pool. null: one the simulator leaves to the table — a snare (set up
+// beforehand), a poison put on a weapon, ammunition, a cast (the spell module's) or a note with nothing a fight plays.
+// draw: the actions to have it in hand (PF2e's: none held, 1 Interact worn, more stowed); fresh: after a rest (a reusable item's uses back).
+const DRUNK_OR_APPLIED = ["potion", "elixir", "mutagen", "drug", "oil"];
+export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false } = {}) {
+    if (!plan?.resolution || plan.builtin || plan.noteOnly) return null;
+    const item = plan.item ?? {};
+    if (item.delivery === "injury" || ["snare", "ammo", "ammunition"].includes(item.category)) return null;
+    const reusable = (uses?.autoDestroy ?? item.uses?.autoDestroy) === false;
+    // (Hundreds of uses are a stock's doses — black powder's for firearms — not activations: a keg explodes once.)
+    const stock = Number(uses?.max ?? item.uses?.max) || 1;
+    const max = stock > 20 ? 1 : Math.max(1, stock);
+    const left = stock > 20 ? undefined : uses?.value;
+    const casts = itemCasts({ category: reusable ? "wand" : "consumable", quantity, uses: { max, value: left }, fresh: reusable && fresh });
+    if (!casts) return null;
+    const drinker = item.recipient === "drinker";
+    // (Its own Activate line's cost and traits — "Activate [one-action] (manipulate)": a manipulate action provokes. A copy whose text has
+    // none, a bestiary creature's short one: PF2e's usual Activate for what's drunk or applied.)
+    const own = item.activations?.[0] ?? (DRUNK_OR_APPLIED.includes(item.category) ? { time: "1", traits: ["manipulate"] } : null);
+    const activation = { ...(plan.activation ?? {}), time: plan.activation?.time ?? own?.time ?? null, traits: [...new Set([...(plan.activation?.traits ?? []), ...(own?.traits ?? [])])] };
+    // (Drunk: by the user or a creature beside it, fed to it.)
+    const fitted = { ...plan, activation, ...(drinker ? { targeting: { ...(plan.targeting ?? {}), target: "1 willing creature", range: "touch" } } : {}) };
+    return {
+        name: name ?? plan.source?.name ?? "Item",
+        plan: fitted,
+        castRank: Math.max(1, Number(item.level) || 1),
+        dc: null,
+        attack: null,
+        pool: `item:${id}`,
+        casts,
+        kind: "item",
+        item: id,
+        category: item.category ?? null,
+        consumable: !reusable,
+        ...(drinker ? { drinker: true } : {}),
+        ...(draw > 0 ? { draw: { actions: draw, each: !reusable } } : {})
+    };
+}

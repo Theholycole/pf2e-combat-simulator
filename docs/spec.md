@@ -133,6 +133,19 @@ The user asked: "can we get the simulator to treat scrolls, wands and staffs as 
   - All 43 PFTEST SIM actors read on 8.6.1 without errors, and the worker pool's 200-fight batch matches a single-thread run.
 - **Stowed items** (2026-10-14): a stowed scroll or wand is taken out with PF2e's retrieve cost (`spec.draw`: actions, and whether each cast needs it), as part of the cast or alone (`drawItem`) when the cast won't fit after it; `c.itemsAtHand` holds what's out.
 
+### Consumables (U1, 2026-10-15)
+
+The user's rule for when creatures use items is U1 in [item-decisions.md](item-decisions.md).
+
+- **Snapshot** (`readConsumables` in `scripts/snapshot.js`): the creature's consumables (not scrolls, wands or spell gems) through `core.registry.preparePlans`; the item module's plans carry `plan.item` (category, level, uses, recipient, activations). `itemEntry` (`src/adapter/items.js`) makes each a spec with `kind: "item"`, a pool `item:<id>` of its uses, `consumable`, `drinker` and `draw` (0 held, 1 worn, PF2e's retrieve cost stowed). Its PF2e effects are modelled at the item's level. Those it can't play stay gaps; partly played ones are listed as "item, partly simulated". Without the item module, consumables stay gaps as before.
+- **Engine:**
+  - `consumables.js`: `CONSUMABLE_MARGIN` (1.5; `options.consumableMargin`), `expectedIncoming`, `goingDown`, `urgentHealing` and `consumableWeight`, which the planner multiplies a cast's gain by.
+  - `targetSets`: a drinker item reaches the creature itself and allies in its Melee; a healing one also a downed PC.
+  - The log: "drinks", "feeds … to", "uses … on". The stats count items used by each side (`partyItemsUsed`, `foeItemsUsed`), shown in the report.
+  - Items aren't spells: no Quickened Casting, stupefied flat check, counterspell or Spellstrike; magical only by their traits.
+- **Bestiary tools** (`tools/lib/pack-items.mjs`, `npcItems`): NPCs' consumables compiled by the item module beside the simulator (read only; none without it), from the equipment pack's text when the creature's copy is short. 384 bestiary creatures carry consumables; 208 have at least one the simulation plays (healing potions, Elixirs of Life, darkvision and other elixirs, Potions of Flying). `deadliness.mjs` gives monsters theirs.
+- **Not live-checked yet** (pftest busy, 2026-10-15).
+
 ### More spells (2026-10-14)
 
 The user: "i want more spell coverage in the simulator. Spells like shield, Wails of the damned, evil eye, calm. These are just a few examples that need more work". Decisions S23–S27 in [spell-decisions.md](spell-decisions.md).

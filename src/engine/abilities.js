@@ -726,7 +726,7 @@ function buildSourceOptions(spell) {
     // (B302: its slug, for a predicate that names one — Otherworldly Will's Dominate.)
     if (spell?.name) options.add(`item:slug:${String(spell.name).toLowerCase().replace(/\s*\(.*\)$/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`);
     // Spells are magical; an ability is when it has the magical trait or a tradition's.
-    const ability = spell?.kind === "ability" || spell?.kind === "basic";
+    const ability = spell?.kind === "ability" || spell?.kind === "basic" || spell?.kind === "item";
     if (!ability || traits.some((trait) => trait === "magical" || TRADITIONS.has(trait))) {
         options.add("magical");
         options.add("item:magical");

@@ -29,7 +29,7 @@ export function effectImmunity(c, spell) {
     const immunities = c?.immunities ?? [];
     if (!immunities.length || !spell) return null;
     const options = sourceOptions(spell);
-    if (!["ability", "basic"].includes(spell.kind)) options.add("item:type:spell");
+    if (!["ability", "basic", "item"].includes(spell.kind)) options.add("item:type:spell");
     const excepted = (immunity) => (c.immunityExceptions?.[immunity] ?? []).some((exception) => (typeof exception === "string" ? options.has(exception) || options.has(`item:trait:${exception}`) : testPredicate(exception.definition, options)));
     for (const immunity of immunities) {
         if ((TRAITS[immunity] ?? []).some((trait) => options.has(trait)) && !excepted(immunity)) return immunity;

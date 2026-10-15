@@ -65,7 +65,7 @@ export function startZone(state, owner, spell, targetIds) {
         fixed: area.type === "cone" || area.type === "line" ? new Set(targetIds) : null,
         until: Number.isFinite(rounds) ? state.round + rounds : Infinity,
         // (I2: area damage, with its source's traits.)
-        context: spellContext(spell, { isSpell: !["ability", "basic"].includes(spell.kind), area: true })
+        context: spellContext(spell, { isSpell: !["ability", "basic", "item"].includes(spell.kind), area: true })
     };
     (state.zones ??= []).push(zone);
     (owner.activeZones ??= new Set()).add(spell.name);

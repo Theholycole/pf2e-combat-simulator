@@ -131,7 +131,7 @@ function npcItemSpells(npc, spells, spellPools, { onError }) {
     const castRank = spell.system?.location?.heightenedLevel ?? spell.system?.level?.value ?? 1;
     const pool = `item:${item._id}`;
     spellPools[pool] = itemCasts({ category: item.system.category, quantity: item.system?.quantity, uses: item.system?.uses, fresh: true });
-    const base = { pool, from: item.name, item: item._id };
+    const base = { pool, from: item.name, item: item._id, ...(item.system.category !== "wand" ? { consumable: true } : {}) };
     add(spell, castRank, entry, base);
     if (item.system.category === "wand") {
       spellPools[`overcharge:${item._id}`] = 1;

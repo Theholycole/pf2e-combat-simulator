@@ -64,6 +64,8 @@ export function buildReport(snapshot, results) {
     let anyDown = 0;
     let anyDeath = 0;
     let heroSpent = 0;
+    let partyItems = 0;
+    let foeItems = 0;
     let moraleChecks = 0;
     let moraleBreaks = 0;
     let groupRouts = 0;
@@ -83,6 +85,8 @@ export function buildReport(snapshot, results) {
         if (result.party.some((c) => c.kind === "pc" && c.down)) anyDown++;
         if (result.party.some((c) => c.kind === "pc" && c.dead)) anyDeath++;
         heroSpent += result.stats.heroPointsSpent;
+        partyItems += result.stats.partyItemsUsed ?? 0;
+        foeItems += result.stats.foeItemsUsed ?? 0;
         moraleChecks += result.stats.moraleChecks;
         moraleBreaks += result.stats.moraleBreaks;
         if (result.stats.groupRout) groupRouts++;
@@ -127,6 +131,9 @@ export function buildReport(snapshot, results) {
         foes: foeRows,
         mostDangerous: dangerous,
         heroPointsSpent: heroSpent / runs,
+        // (U1: consumables used, each side.)
+        partyItemsUsed: partyItems / runs,
+        foeItemsUsed: foeItems / runs,
         moraleChecks: moraleChecks / runs,
         moraleBreaks: moraleBreaks / runs,
         groupRoutRate: groupRouts / runs,

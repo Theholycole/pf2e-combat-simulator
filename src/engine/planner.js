@@ -32,6 +32,7 @@ import { wardChance } from "./wards.js";
 import { familiarFocusReady, familiarOf } from "./familiars.js";
 import { luminanceTarget } from "./luminance.js";
 import { hasConditional, strikeRollOptions } from "./effects.js";
+import { consumableWeight } from "./consumables.js";
 
 export const ROLE_PROFILES = Object.freeze({
     soldier: { aggression: 1, selfPreservation: 0.8, objective: 1 },
@@ -689,7 +690,7 @@ const flourishUsed = (c, node) => !!c.usedThisTurn?.has("flourish") || node.cast
 // A spell a magus can Spellstrike with: 1 or 2 actions, one target, a spell attack or a save, and castable now.
 function spellstrikeSpell(c, spell) {
     // (S22: not one from an item it must trick first.)
-    if (spell.kind === "basic" || spell.kind === "ability" || spell.trick || !canCast(c, spell)) return false;
+    if (spell.kind === "basic" || spell.kind === "ability" || spell.kind === "item" || spell.trick || !canCast(c, spell)) return false;
     const info = describeSpell(spell.plan);
     const check = info.check;
     return (info.actions === 1 || info.actions === 2) && info.targets === 1 && !info.area && (check?.statistic === "spell-attack" || check?.roll === "save");
@@ -892,7 +893,7 @@ function expandSpells(env) {
             const info = describeSpell(spell.plan, actions);
             const quickFits = quickens && info.actions >= 2 && info.actions - 1 + extra <= remaining;
             const drawOnly = draw > 0 && draw <= remaining && info.actions + extra > remaining && !quickFits && node.used === 0;
-            if (pacifiedAll(c) && !(info.helpful || info.healing || info.self)) continue;
+            if (pacifiedAll(c) && !(info.helpful || info.healing || info.self || spell.drinker)) continue;
             if (!info.actions || (info.actions + extra > remaining && !quickFits && !drawOnly) || (restrained && (info.manipulate || info.attack || extra)) || (noAttacks && info.attack)) continue;
             const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, c, spell, {
                 enemies: ctx.enemies,
@@ -946,6 +947,9 @@ function expandSpells(env) {
                     gain += 0.6 * ctx.ownValue * ROUND_TO_KILL * (3 * c.panacheStyle.precise + c.panacheStyle.finisherDice * 3.5 * 0.6) / threat;
                 }
                 if (gain <= 0) continue;
+                // (U1: a PC's consumable only when it's worth clearly more than what else the turn holds; healing freely when it's about to
+                // go down, or for a PC who is down.)
+                gain *= consumableWeight(state, c, spell, set.targets, actions);
                 // (A hex its familiar answers with its patron ability: about a fifth of a round of a foe's threat more.)
                 if (isHex(spell) && familiarOf(state, c)?.familiar?.hexAbility) gain += 0.2 * ROUND_TO_KILL * Math.max(1, state.meanThreat?.[c.side === "party" ? "foes" : "party"] ?? 1);
                 if (trick) gain *= trickChance(spell.trick);
