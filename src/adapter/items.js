@@ -1,6 +1,8 @@
 // S22, scrolls, wands and staves (the user: "can we get the simulator to treat scrolls, wands and staffs as spells the creature
 // can cast?"): what the snapshot and the bestiary tools read from them, without Foundry.
 
+import { zoneSpell } from "../engine/zones.js";
+
 // The consumables PF2e casts a spell from.
 export const SPELL_ITEMS = Object.freeze(["scroll", "wand", "spell-gem"]);
 
@@ -72,7 +74,10 @@ const DRUNK_OR_APPLIED = ["potion", "elixir", "mutagen", "drug", "oil"];
 // which the caller compiles: the item casts it, at its rank, as it's drunk or used.
 // onStrike (U4): an injury poison a creature's Strike lists among its attack effects ("plus lethargy poison"): delivered free by a hit with it,
 // a dose a hit, as the stat block has it.
-export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false, cast = null, onStrike = null } = {}) {
+// zone (U5): for an item that makes a lasting area (a smoke ball's cloud, a cryomister's ice), the models of the PF2e effects it applies,
+// { effectModel, effects }: the simulation's zone, as an ability's (zones.js), thrown where it's worth it.
+export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false, cast = null, onStrike = null, zone = null } = {}) {
+    if (plan?.builtin === "zone") return zoneEntry(plan, { id, name, quantity, uses, draw, fresh, zone });
     const casting = plan?.builtin === "cast-spell" && cast?.plan?.resolution ? cast : null;
     if (!casting && (!plan?.resolution || plan.builtin || plan.noteOnly)) return null;
     const item = plan.item ?? {};
@@ -115,5 +120,32 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         consumable: !reusable,
         ...(drinker ? { drinker: true } : {}),
         ...(draw > 0 && !coated ? { draw: { actions: draw, each: !reusable } } : {})
+    };
+}
+
+// (U5: a lasting area: the ability zone (zoneSpell) as one of its items — its stack, its draw, its own activation. Not a snare, set up
+// beforehand.)
+function zoneEntry(plan, { id, name, quantity, uses, draw, fresh, zone }) {
+    const item = plan.item ?? {};
+    if (["snare", "ammo", "ammunition"].includes(item.category) || plan.zone?.once) return null;
+    const label = name ?? plan.source?.name ?? "Item";
+    const spell = zoneSpell(label, plan, zone ?? {});
+    if (!spell) return null;
+    const reusable = (uses?.autoDestroy ?? item.uses?.autoDestroy) === false;
+    const casts = itemCasts({ category: reusable ? "wand" : "consumable", quantity, uses: { max: Math.max(1, Number(uses?.max ?? item.uses?.max) || 1), value: uses?.value }, fresh: reusable && fresh });
+    if (!casts) return null;
+    const own = item.activations?.[0] ?? null;
+    const activation = { ...(spell.plan.activation ?? {}), time: own?.time ?? spell.plan.activation?.time ?? "1", traits: [...(own?.traits ?? [])] };
+    return {
+        ...spell,
+        plan: { ...spell.plan, activation },
+        castRank: Math.max(1, Number(item.level) || 1),
+        pool: `item:${id}`,
+        casts,
+        kind: "item",
+        item: id,
+        category: item.category ?? null,
+        consumable: !reusable,
+        ...(draw > 0 ? { draw: { actions: draw, each: !reusable } } : {})
     };
 }

@@ -59,9 +59,12 @@ export function npcItems(npc, { fresh = true } = {}) {
             if (spellPlan) cast = { plan: spellPlan, castRank: plan.rank ?? spell.system?.level?.value ?? 1, dc, attack: plan.attack ?? dc - 10 };
         }
         const slug = item.system?.slug ?? plan?.source?.slug ?? null;
-        const entry = itemEntry(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, draw, fresh, cast, onStrike: slug && listed.has(slug) ? slug : null });
+        // (U5: a lasting area's effects, for its zone.)
+        const zoneEffects = plan?.builtin === "zone" ? itemEffectModels(plan, Number(plan.item?.level) || 1) : null;
+        const zone = zoneEffects ? { effectModel: plan.zone?.effect ? zoneEffects[plan.zone.effect.uuid] ?? null : null, effects: zoneEffects } : null;
+        const entry = itemEntry(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, draw, fresh, cast, onStrike: slug && listed.has(slug) ? slug : null, zone });
         if (!entry) continue;
-        const spec = { ...entry, effects: itemEffectModels(entry.plan, entry.castRank) };
+        const spec = { ...entry, effects: { ...(entry.effects ?? {}), ...itemEffectModels(entry.plan, entry.castRank) } };
         // (A poison its Strikes deliver isn't an action of its own: its hits play it.)
         const rider = entry.plan.trigger?.event === "strike";
         if (isUtility(plan) || (!rider && !canCast({ spellPools: { [entry.pool]: entry.casts }, covenReady: true }, spec))) continue;

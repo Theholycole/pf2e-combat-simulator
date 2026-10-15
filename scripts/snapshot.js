@@ -1165,9 +1165,15 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
         // (U4: an injury poison its Strikes list among their attack effects: delivered by their hits.)
         const slug = item.slug ?? item.system?.slug ?? null;
         const onStrike = slug && strikes.some((strike) => (strike.attackEffects ?? []).includes(slug)) ? slug : null;
-        const entry = itemEntry(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, draw, fresh, cast, onStrike });
+        // (U5: a lasting area's effects, for its zone, as an ability's.)
+        const level = Number(item.level ?? item.system?.level?.value) || 1;
+        const zone = plan.builtin === "zone" ? {
+            effectModel: plan.zone?.effect ? (await effectModels({ resolution: { outcomes: { success: { nativeEffects: [plan.zone.effect] } } } }, level))[plan.zone.effect.uuid] ?? null : null,
+            effects: Object.assign({}, ...(await Promise.all((plan.zone?.saves ?? []).map((save) => effectModels(save.plan, level)))))
+        } : null;
+        const entry = itemEntry(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, draw, fresh, cast, onStrike, zone });
         if (!entry) continue;
-        const spec = { ...entry, effects: await effectModels(entry.plan, entry.castRank) };
+        const spec = { ...entry, effects: { ...(entry.effects ?? {}), ...(await effectModels(entry.plan, entry.castRank)) } };
         // (A poison its Strikes deliver isn't an action of its own: its hits play it.)
         const rider = entry.plan.trigger?.event === "strike";
         if (isUtility(plan) || (!rider && !canCast({ spellPools: { [entry.pool]: entry.casts }, covenReady: true }, spec))) continue;

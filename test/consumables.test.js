@@ -226,3 +226,12 @@ test("U4: an injury poison a Strike lists is delivered free by its hits, a dose 
     assert.equal(state.log.filter((line) => line.includes("uses Test Venom on")).length, 1, state.log.join("\n"));
     assert.equal(them.spellPools[venom.pool], 0);
 });
+
+test("U5: an item's lasting area is the simulation's zone, as an ability's — with its stack, its draw and its own activation; a snare isn't", () => {
+    const ICE = { builtin: "zone", actions: 1, zone: { area: { type: "burst", value: 5 }, centre: "placed", range: 20, lasts: { mode: "fixed", value: 1, unit: "minutes", expiry: "turn-start" }, concealed: false, terrain: [{ movement: ["walk"], difficulty: 2 }], hazard: null, saves: [], damage: [{ when: "initial", formulas: ["1d6[cold]"] }], effect: null, modifiers: [], notes: [] }, item: { ...itemInfo("gadget", 1), recipient: "user" } };
+    const entry = itemEntry(ICE, { id: "ice", name: "Test Mister", quantity: 2, draw: 1 });
+    assert.deepEqual([entry.kind, entry.pool, entry.casts, entry.consumable, Boolean(entry.zone), entry.draw], ["item", "item:ice", 2, true, true, { actions: 1, each: true }]);
+    assert.deepEqual(entry.plan.activation, { time: "1", traits: ["manipulate"] });
+    assert.equal(itemEntry({ ...ICE, zone: { ...ICE.zone, once: true } }, { id: "snare" }), null);
+    assert.equal(itemEntry({ ...ICE, item: { ...ICE.item, category: "snare" } }, { id: "snare" }), null);
+});

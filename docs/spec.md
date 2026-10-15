@@ -147,6 +147,7 @@ The user's rule for when creatures use items is U1 in [item-decisions.md](item-d
 - **Bombs** (U2): `strike.ammo` ({ pool, count, reagents, startsEmpty }) with `consumable` and a reload of 1 (none with Quick Bomber); the pool `item:<weapon id>` and, for an alchemist, `reagents` in `spellPools`. `ammoLeft` and `spendAmmo` (`combatant.js`): `strikeUsable` needs one left, `strikeOnce` spends one, the planner plans no more throws than are left (its `fired` marks) and weighs a PC's. `c.unloaded` starts with bombs not in hand. The bestiary tools read an NPC's linked bomb weapons the same way.
 - **Item casts** (U3): `itemEntry`'s `cast` ({ plan, castRank, dc, attack }) from `itemCast` in the snapshot (the registry's plan for the spell) or `spellNamed`/`compileSpell` in `pack-items.mjs`.
 - **Poisons** (U4): `itemEntry`'s `onStrike` (an injury poison a Strike lists): the plan's trigger a free Strike rider; `triggerRiders` and `freeRiderGain` need a dose left (`poolReady`). `spellGaps` counts an affliction with stages as played.
+- **Lasting areas** (U5): `itemEntry`'s `zone` ({ effectModel, effects }) → `zoneEntry`: `zoneSpell`'s zone ability as an item (its pool, draw and activation); `castPlan`'s zone branch counts it as an item used.
 - **Not live-checked yet** (pftest busy, 2026-10-15).
 
 ### More spells (2026-10-14)

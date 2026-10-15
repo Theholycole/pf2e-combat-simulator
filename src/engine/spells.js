@@ -1440,6 +1440,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         const recharge = describeSpell(spell.plan, actions).recharge;
         if (recharge) (caster.rechargeUntil ??= new Map()).set(spell.rechargeGroup ?? spell, state.round + rollCount(state, recharge));
         log(state, `  ${caster.name} uses ${spell.name}`);
+        if (spell.kind === "item" && state.stats) state.stats[caster.side === "party" ? "partyItemsUsed" : "foeItemsUsed"]++;
         startZone(state, caster, spell, targetIds);
         return;
     }
