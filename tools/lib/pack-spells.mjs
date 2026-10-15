@@ -131,7 +131,9 @@ function npcItemSpells(npc, spells, spellPools, { onError }) {
     const castRank = spell.system?.location?.heightenedLevel ?? spell.system?.level?.value ?? 1;
     const pool = `item:${item._id}`;
     spellPools[pool] = itemCasts({ category: item.system.category, quantity: item.system?.quantity, uses: item.system?.uses, fresh: true });
-    const base = { pool, from: item.name, item: item._id, ...(item.system.category !== "wand" ? { consumable: true } : {}) };
+    // (Worn, 1 Interact to take out, the user 2026-10-15; held, none.)
+    const draw = item.system?.equipped?.carryType === "held" ? null : { actions: 1, each: item.system.category !== "wand" };
+    const base = { pool, from: item.name, item: item._id, ...(item.system.category !== "wand" ? { consumable: true } : {}), ...(draw ? { draw } : {}) };
     add(spell, castRank, entry, base);
     if (item.system.category === "wand") {
       spellPools[`overcharge:${item._id}`] = 1;

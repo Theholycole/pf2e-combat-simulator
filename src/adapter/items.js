@@ -78,6 +78,8 @@ const DRUNK_OR_APPLIED = ["potion", "elixir", "mutagen", "drug", "oil"];
 // { effectModel, effects }: the simulation's zone, as an ability's (zones.js), thrown where it's worth it.
 export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false, cast = null, onStrike = null, zone = null } = {}) {
     if (plan?.builtin === "zone") return zoneEntry(plan, { id, name, quantity, uses, draw, fresh, zone });
+    // (One of the user's own Strikes with riders added — Fear Gem, plan.strike: not yet.)
+    if (plan?.strike) return null;
     const casting = plan?.builtin === "cast-spell" && cast?.plan?.resolution ? cast : null;
     if (!casting && (!plan?.resolution || plan.builtin || plan.noteOnly)) return null;
     const item = plan.item ?? {};
@@ -148,4 +150,22 @@ function zoneEntry(plan, { id, name, quantity, uses, draw, fresh, zone }) {
         consumable: !reusable,
         ...(draw > 0 ? { draw: { actions: draw, each: !reusable } } : {})
     };
+}
+
+// The Interact actions to have an item in hand (the user, 2026-10-15: "Worn items take an action to take out"): none held, 1 worn, PF2e's
+// retrieve cost stowed (retrieve). U6, a belt (Adventures+'s variant rule, the user's: a worn belt holds up to four consumables of light
+// Bulk, drawn with an Interact as a free action): none for those in it (belted).
+export function drawActions({ carryType = "worn", stowed = false, retrieve = 1, belted = false } = {}) {
+    if (carryType === "held" || belted) return 0;
+    return stowed ? Math.max(1, Number(retrieve) || 1) : 1;
+}
+
+// Whether a container is that belt: worn, and named "Belt" (not PF2e's Belt Pouch, whose items take an Interact as any container's).
+export function isBelt({ name = "", carryType = null } = {}) {
+    return carryType === "worn" && /^\s*belt\b/i.test(String(name)) && !/\bpouch\b/i.test(String(name));
+}
+
+// The items a belt holds within easy reach: its first four consumables of light Bulk or less ({ id, bulk, consumable } in the belt's order).
+export function beltHeld(contents = []) {
+    return contents.filter((entry) => entry.consumable && (Number(entry.bulk) || 0) <= 0.1).slice(0, 4).map((entry) => entry.id);
 }

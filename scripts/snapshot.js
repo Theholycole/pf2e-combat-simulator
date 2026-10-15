@@ -5,7 +5,7 @@ import { extraDamageParts, parseReadableDamage, randomDamageRows } from "../src/
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js";
 import { levelDC } from "../src/engine/checks.js";
-import { isStaffItem, itemCasts, itemEntry, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
+import { beltHeld, drawActions, isBelt, isStaffItem, itemCasts, itemEntry, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { maneuverWays, withReading } from "../src/engine/readings.js";
 import { effectModel, iwrException } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
@@ -156,7 +156,9 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
     const weapon = item?.type === "weapon" ? item : item?.linkedWeapon ?? null;
     const weaponTraits = traitList(weapon?.system?.traits?.value);
     const bomb = Boolean(weapon) && weaponTraits.includes("consumable") && ((weapon.group ?? weapon.system?.group) === "bomb" || weaponTraits.includes("bomb"));
-    const quickBomber = bomb && hasItemSlug(actor, new Set(["quick-bomber"]));
+    // (U6: from a worn belt, every throw's draw is free, as Quick Bomber's.)
+    const quickBomber = bomb && (hasItemSlug(actor, new Set(["quick-bomber"])) || belted(weapon));
+    const bombDraw = bomb && !quickBomber ? (weapon.isStowed ? retrieveActions(weapon) : 1) : 0;
     let damage = [];
     let critDamage = null;
     if (tableDamage) {
@@ -223,7 +225,7 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
         backstabber: traits.includes("backstabber") && !offGuardExtra.length,
         volley: Number(traits.find((trait) => /^volley-\d+$/.test(trait))?.split("-")[1] ?? 0) || null,
         ...(reload > 0 ? { reload } : {}),
-        ...(bomb ? { ammo: { pool: `item:${weapon.id}`, count: Number(weapon.quantity ?? weapon.system?.quantity ?? 1) || 0, reagents: quickAlchemy(actor) && weaponTraits.includes("alchemical"), startsEmpty: !quickBomber && weapon.system?.equipped?.carryType !== "held" }, consumable: true, ...(quickBomber ? {} : { reload: 1 }) } : {}),
+        ...(bomb ? { ammo: { pool: `item:${weapon.id}`, count: Number(weapon.quantity ?? weapon.system?.quantity ?? 1) || 0, reagents: quickAlchemy(actor) && weaponTraits.includes("alchemical"), startsEmpty: !quickBomber && weapon.system?.equipped?.carryType !== "held" }, consumable: true, ...(quickBomber ? {} : { reload: bombDraw }) } : {}),
         // C16: firearms' and bombs' traits; the group for gunslinger deeds.
         ...(traits.includes("concussive") ? { concussive: true } : {}),
         // (B308: holy or unholy, for a reaction to damage of that trait; B309: and the weakness to it — sanctified by the creature's own,
@@ -1079,7 +1081,9 @@ function consumableSpells(actor, gaps, { fresh, spellPools }) {
         // (Stowed: taken out first — the user, 2026-10-14, on a stowed Scroll of Wails of the Damned listed as not simulated. PF2e's own
         // cost to retrieve a stowed item: 1 Interact, 2 from a backpack or a container meant to be held. A wand stays in hand after;
         // each scroll is taken out for its cast.)
-        const draw = item.isStowed ? { actions: retrieveActions(item), each: category !== "wand" } : null;
+        // (Worn too, since 2026-10-15: the user, "Worn items take an action to take out"; none from a belt.)
+        const drawn = itemDraw(item);
+        const draw = drawn > 0 ? { actions: drawn, each: category !== "wand" } : null;
         let spell = null;
         try {
             spell = item.embeddedSpell;
@@ -1159,7 +1163,7 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
             gaps.push({ kind: "item, unidentified", name: item.name });
             continue;
         }
-        const draw = item.system?.equipped?.carryType === "held" ? 0 : item.isStowed ? retrieveActions(item) : 1;
+        const draw = itemDraw(item);
         // (U3: one that casts a spell — the spell module's plan for it.)
         const cast = plan.builtin === "cast-spell" ? await itemCast(item, plan, core) : null;
         // (U4: an injury poison its Strikes list among their attack effects: delivered by their hits.)
@@ -1196,6 +1200,19 @@ async function itemCast(item, plan, core) {
     if (!spellPlan) return null;
     const dc = plan.dc ?? levelDC(Number(item.level ?? item.system?.level?.value) || 1);
     return { plan: leanPlan(withReading(spellPlan)), castRank: plan.rank ?? Number(spell.system?.level?.value) ?? 1, dc, attack: plan.attack ?? dc - 10 };
+}
+
+// The Interact actions to have an item in hand: none held or in a worn belt (U6), 1 worn, PF2e's retrieve cost stowed.
+function itemDraw(item) {
+    return drawActions({ carryType: item.system?.equipped?.carryType, stowed: Boolean(item.isStowed), retrieve: item.isStowed ? retrieveActions(item) : 1, belted: belted(item) });
+}
+
+// (U6: in a worn belt, among the four consumables of light Bulk it holds.)
+function belted(item) {
+    const belt = item.container;
+    if (!belt || !isBelt({ name: belt.name, carryType: belt.system?.equipped?.carryType })) return false;
+    const contents = [...(belt.contents ?? [])].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0)).map((entry) => ({ id: entry.id, bulk: entry.system?.bulk?.value ?? 0, consumable: entry.type === "consumable" || (entry.system?.traits?.value ?? []).includes("consumable") }));
+    return beltHeld(contents).includes(item.id);
 }
 
 // The Interact actions to take out a stowed item, as PF2e counts them for its weapons: 1 from a container in hand, 2 from a backpack or

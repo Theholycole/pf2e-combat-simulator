@@ -58,6 +58,8 @@ test("U1: the item module's plan as one of the creature's actions — drunk or f
     assert.equal(itemEntry({ ...POTION, item: { ...POTION.item, category: "snare" } }, { id: "x" }), null);
     assert.equal(itemEntry({ builtin: "cast-spell", item: POTION.item }, { id: "x" }), null);
     assert.equal(itemEntry({ ...POTION, noteOnly: true }, { id: "x" }), null);
+    // (A Strike of the user's own with riders added, Fear Gem's: not yet.)
+    assert.equal(itemEntry({ ...POTION, strike: { range: null, save: null } }, { id: "x" }), null);
     assert.equal(itemEntry(POTION, { id: "x", quantity: 0 }), null);
     // (A keg of black powder: 5,000 doses for firearms, one explosion.)
     assert.equal(itemEntry({ ...POTION, item: { ...POTION.item, uses: { max: 5000, autoDestroy: true } } }, { id: "k", quantity: 2, uses: { max: 5000, value: 4200, autoDestroy: true } }).casts, 2);
@@ -234,4 +236,15 @@ test("U5: an item's lasting area is the simulation's zone, as an ability's — w
     assert.deepEqual(entry.plan.activation, { time: "1", traits: ["manipulate"] });
     assert.equal(itemEntry({ ...ICE, zone: { ...ICE.zone, once: true } }, { id: "snare" }), null);
     assert.equal(itemEntry({ ...ICE, item: { ...ICE.item, category: "snare" } }, { id: "snare" }), null);
+});
+
+test("U6: worn items take an Interact to take out, held ones none, stowed PF2e's retrieve cost; a worn belt's four light consumables none", async () => {
+    const { beltHeld, drawActions, isBelt } = await import("../src/adapter/items.js");
+    assert.deepEqual([drawActions({ carryType: "held" }), drawActions({ carryType: "worn" }), drawActions({ carryType: "stowed", stowed: true, retrieve: 2 }), drawActions({ carryType: "stowed", stowed: true, belted: true })], [0, 1, 2, 0]);
+    assert.equal(isBelt({ name: "Belt", carryType: "worn" }), true);
+    assert.equal(isBelt({ name: "Belt (Adventures+)", carryType: "worn" }), true);
+    assert.equal(isBelt({ name: "Belt Pouch", carryType: "worn" }), false, "PF2e's belt pouch is any container");
+    assert.equal(isBelt({ name: "Belt", carryType: "stowed" }), false, "carried or stowed, not worn");
+    const held = beltHeld([{ id: "a", bulk: 0.1, consumable: true }, { id: "rope", bulk: 1, consumable: false }, { id: "b", bulk: 0.1, consumable: true }, { id: "big", bulk: 1, consumable: true }, { id: "c", bulk: 0, consumable: true }, { id: "d", bulk: 0.1, consumable: true }, { id: "e", bulk: 0.1, consumable: true }]);
+    assert.deepEqual(held, ["a", "b", "c", "d"]);
 });
