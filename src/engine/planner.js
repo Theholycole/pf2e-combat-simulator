@@ -30,6 +30,7 @@ import { floorOf } from "./floors.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { wardChance } from "./wards.js";
 import { familiarFocusReady, familiarOf } from "./familiars.js";
+import { luminanceTarget } from "./luminance.js";
 
 export const ROLE_PROFILES = Object.freeze({
     soldier: { aggression: 1, selfPreservation: 0.8, objective: 1 },
@@ -1571,6 +1572,24 @@ function expandTactics(env) {
 // Battle Medicine, Mythic Points, Knocking Sweep, Poison Weapon, Retch, map objectives, dangers, the alarm and hazards. (Part of expand, split up so the optimizer takes it.)
 function expandOtherActions(env) {
     const { state, c, ctx, node, remaining, inAnyMelee, mobile, restrained, noAttacks, children } = env;
+    // (C35, Vital Luminance: cast once allies start to hurt — worth part of the healing its reservoir will hold a turn on; Dismissed into the
+    // most hurt ally in its light (or an undead foe there), as a heal of its value.)
+    if (c.vitalLuminance && remaining >= 1 && !restrained && !node.casts.includes("luminance")) {
+        const heal = (other) => (other.status === "active" ? targetValue(state, other, c) : Math.max(1, state.meanThreat?.[other.side] ?? 1));
+        if (!c.luminance && (c.spellPools?.focus ?? 0) >= 1) {
+            const amount = c.vitalLuminance.start + c.vitalLuminance.perTurn;
+            let best = 0;
+            for (const ally of [c, ...ctx.alliesAndDown]) {
+                const missing = Math.max(0, ally.hp.max - Math.max(0, ally.hp.value));
+                if (missing <= 0 || ally.familiar) continue;
+                best = Math.max(best, heal(ally) * (Math.min(amount, missing) / ally.hp.max) * (ally.status !== "active" ? 3 : 2.5 * (1 - hpFraction(ally)) ** 1.5));
+            }
+            if (best > 0) children.push(child(node, { type: "luminance" }, 1, 0.5 * ctx.profile.aggression * best, { cast: "luminance" }));
+        } else if (c.luminance) {
+            const best = luminanceTarget(state, c, heal, (foe) => targetValue(state, foe, c));
+            if (best?.gain > 0) children.push(child(node, { type: "dismissLuminance", targetId: best.target.id }, 1, ctx.profile.aggression * best.gain, { cast: "luminance" }));
+        }
+    }
     // (C34, March of Law: once a round, toward an enemy that took a hostile action against it since its last turn — each enemy beside it
     // where it ends, frightened 2 (no save).)
     if (c.marchOfLaw && remaining >= 1 && !restrained && !c.usedThisTurn?.has("march-of-law") && !node.casts.includes("march")) {

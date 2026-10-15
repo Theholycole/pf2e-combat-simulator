@@ -29,6 +29,7 @@ import { attachedTurnStart, berserkTurnStart, followAttached, headsMend, hydraRe
 import { controlTurnStart } from "./control.js";
 import { familiarFocus, familiarKeepsUp } from "./familiars.js";
 import { championOpening, marchOfLaw, shatterDefenses, zealCritical } from "./champion.js";
+import { castLuminance, dismissLuminance, luminanceTurnStart } from "./luminance.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -393,6 +394,8 @@ function startTurn(state, c) {
     c.usedThisTurn = new Set();
     // (What it Sustains as the turn starts — a hex its familiar answers.)
     c.sustainedNow = [];
+    // (C35: Vital Luminance's reservoir grows.)
+    if (c.luminance) luminanceTurnStart(state, c);
     // (Its familiar beside it.)
     familiarKeepsUp(state, c);
     // (S22: a wand it may overcharge, only while the fight goes badly for its side.)
@@ -729,6 +732,12 @@ function act(state, c, action) {
             break;
         case "familiarFocus":
             familiarFocus(state, c);
+            break;
+        case "luminance":
+            castLuminance(state, c);
+            break;
+        case "dismissLuminance":
+            dismissLuminance(state, c, state.byId.get(action.targetId), { applyHeal, applyDamage });
             break;
         case "marchOfLaw":
             marchOfLaw(state, c, state.byId.get(action.targetId), { applyCondition, stride });

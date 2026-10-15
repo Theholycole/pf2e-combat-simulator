@@ -604,6 +604,11 @@ function readChampionSheet(actor, { items, find, level, fields, result, activity
     // in a fight.)
     if (Number(actor.system?.movement?.speeds?.fly?.value) > 0) take("divine-wings");
     take("diabolic-certitude");
+    // (C35, Vital Luminance: a focus spell, heightened to half its level; its reservoir 4 at 1st rank and a point more each rank, each turn.)
+    if ((actor.itemTypes?.spell ?? []).some((item) => item.slug === "vital-luminance")) {
+        const rank = Math.max(1, Math.ceil(level / 2));
+        fields.vitalLuminance = { name: "Vital Luminance", start: 3 + rank, perTurn: 3 + rank };
+    }
 }
 
 // (B303: the skills a creature's abilities name for its own initiative — "rolls Deception or Stealth for initiative" — by the ability
@@ -1381,7 +1386,9 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     readGaps(actor, gaps, abilities.handled);
     const { spells, spellPools, summons: spellSummoned = [] } = await readSpells(actor, gaps, { fresh, castSpells: abilities.castSpells });
     // (C33: Hero's Defiance, played as the champion's answer to a blow that would drop it — not a gap.)
-    if (features.fields.heroesDefiance) gaps.splice(0, gaps.length, ...gaps.filter((gap) => !(gap.kind === "spell" && gap.name === "Hero's Defiance")));
+    // (C35: Vital Luminance, played by luminance.js.)
+    const played = new Set([...(features.fields.heroesDefiance ? ["Hero's Defiance"] : []), ...(features.fields.vitalLuminance ? ["Vital Luminance"] : [])]);
+    if (played.size) gaps.splice(0, gaps.length, ...gaps.filter((gap) => !(gap.kind === "spell" && played.has(gap.name))));
     if (spellSummoned.length) abilities.builtins.summons = [...(abilities.builtins.summons ?? []), ...spellSummoned];
     spells.push(...abilities.abilities);
     // A Strike's riders are gaps unless an ability plays them.

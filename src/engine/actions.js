@@ -24,6 +24,7 @@ import { hiddenFrom } from "./sight.js";
 import { lifelinkMaster } from "./familiars.js";
 import { keenCritical, runeCritEffects } from "./runes.js";
 import { championTriggered, demoralize, exaltedStrikes, heroesDefiance, lastStand, retributionAfter } from "./champion.js";
+import { luminanceStrikesBack } from "./luminance.js";
 
 export function coverFor(state, defender) {
     return state.setup.cover?.[defender.side] ?? 0;
@@ -1314,6 +1315,8 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
     }
     // (M41: wounded from full, for a cowardly creature's first blood.)
     if (before >= target.hp.max && target.hp.value < target.hp.max && target.hp.value > 0) state.pendingEvents.push({ type: "hurt", victim: target });
+    // (C35, Vital Luminance: an undead that damaged its caster in its light takes half the reservoir.)
+    if (target.luminance && dealt > 0 && source) luminanceStrikesBack(state, target, source, { applyDamage });
     // (B298: a summon set off by damage on it, Splinter Sycophant's.)
     if (target.hp.value > 0 && target.summons?.length) summonsOnDamage(state, target, amount);
     // (B302: Construct Armor breaking below half its Hit Points, or on a critical hit.)

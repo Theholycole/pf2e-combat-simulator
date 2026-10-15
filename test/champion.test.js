@@ -162,3 +162,30 @@ test("March of Law: toward an enemy that attacked it since its last turn — fri
     assert.equal(foe.cond.frightened, 2, state.log.join("\n"));
     assert.ok(!scoreOptions(state, riah).options.some((option) => option.action.type === "marchOfLaw"), "once a round");
 });
+
+test("Vital Luminance: cast (a Focus Point), the reservoir grows each turn, an undead that hits it takes half, Dismissed into the most hurt ally", async () => {
+    const { luminanceTurnStart } = await import("../src/engine/luminance.js");
+    const { state, riah, ally, foe } = setUp({ foes: [{ traits: ["undead"], voidHealing: true }], extra: { vitalLuminance: { name: "Vital Luminance", start: 13, perTurn: 13 }, spellPools: { focus: 1 } } });
+    // Nobody hurt: not worth casting yet; the ally hurt, it is.
+    riah.actionsLeft = 3;
+    assert.ok(!scoreOptions(state, riah).options.some((option) => option.action.type === "luminance"));
+    ally.hp.value = Math.round(ally.hp.max * 0.3);
+    assert.ok(scoreOptions(state, riah).options.some((option) => option.action.type === "luminance"));
+    performAction(state, riah, { type: "luminance" });
+    assert.equal(riah.luminance.value, 13);
+    assert.equal(riah.spellPools.focus, 0);
+    state.round += 1;
+    luminanceTurnStart(state, riah);
+    assert.equal(riah.luminance.value, 26);
+    // The undead hits it: 13 vitality back, once this round.
+    const hp = foe.hp.value;
+    applyDamage(state, riah, [{ type: "slashing", amount: 10 }], { source: foe });
+    applyDamage(state, riah, [{ type: "slashing", amount: 10 }], { source: foe });
+    assert.equal(hp - foe.hp.value, 13, state.log.join("\n"));
+    // Dismissed: into the hurt ally, 26 HP.
+    const before = ally.hp.value;
+    assert.ok(scoreOptions(state, riah).options.some((option) => option.action.type === "dismissLuminance" && option.action.targetId === "ally"));
+    performAction(state, riah, { type: "dismissLuminance", targetId: "ally" });
+    assert.equal(ally.hp.value - before, 26);
+    assert.equal(riah.luminance, null);
+});
