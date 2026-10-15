@@ -16,7 +16,7 @@ try {
     claims = null;
 }
 const { basicActions, readDocuments, PACK_ROOT } = await import("./pack-creatures.mjs");
-const { itemEntry } = await import("../../src/adapter/items.js");
+const { itemEntry, itemStrikeActivity } = await import("../../src/adapter/items.js");
 const { effectModel } = await import("../../src/engine/effects.js");
 const { canCast, isUtility } = await import("../../src/engine/spells.js");
 const { levelDC } = await import("../../src/engine/checks.js");
@@ -35,11 +35,14 @@ const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".")
 export const itemEffectModels = (plan, rank) => Object.fromEntries([...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.[a-z-]+-effects\.Item\.[A-Za-z0-9]{16}/g) ?? [])]
     .map((uuid) => [uuid, effects.get(uuid)]).filter(([, effect]) => effect).map(([uuid, effect]) => [uuid, effectModel(effect, { rank, conditionSlug })]));
 
-// A creature's consumables the simulation plays: { spells, spellPools }. Held ones at hand; others taken out first (1 Interact).
+// A creature's consumables the simulation plays: { spells, spellPools, activities }. Held ones at hand; others taken out first (1 Interact).
+// (U7: activities, its items used by Striking — Fear Gem — as Strike activities.)
 export function npcItems(npc, { fresh = true } = {}) {
     const spells = [];
     const spellPools = {};
-    if (!compiler) return { spells, spellPools };
+    const activities = [];
+    if (!compiler) return { spells, spellPools, activities };
+    const feats = (npc.items ?? []).filter((entry) => ["feat", "action"].includes(entry.type)).map((entry) => entry.system?.slug ?? entry.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
     // (U4: the attack effects its Strikes list — an injury poison among them is delivered by their hits.)
     const listed = new Set(npc.items.filter((entry) => entry.type === "melee").flatMap((entry) => entry.system?.attackEffects?.value ?? []));
     const options = claims ? { claims } : {};
@@ -51,6 +54,14 @@ export function npcItems(npc, { fresh = true } = {}) {
             plan = compiler.compileItem({ ...item, ...(source ? { system: { ...item.system, description: source.system?.description ?? item.system?.description } } : {}), uuid }, { spellEffects, basicActions, ...options });
         } catch {
             plan = null;
+        }
+        if (plan?.strike) {
+            const activity = itemStrikeActivity(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, fresh, feats });
+            if (!activity) continue;
+            if (activity.riderSpell) activity.riderSpell.effects = itemEffectModels(activity.riderSpell.plan, activity.riderSpell.castRank);
+            spellPools[activity.pool] = activity.casts;
+            activities.push(activity);
+            continue;
         }
         const draw = item.system?.equipped?.carryType === "held" ? 0 : 1;
         // (U3: one that casts a spell — the spell module's plan for it, at the item's rank; its DC the item's own, else its level's.)
@@ -79,5 +90,5 @@ export function npcItems(npc, { fresh = true } = {}) {
         spellPools[entry.pool] = entry.casts;
         spells.push(spec);
     }
-    return { spells, spellPools };
+    return { spells, spellPools, activities };
 }

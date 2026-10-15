@@ -248,3 +248,44 @@ test("U6: worn items take an Interact to take out, held ones none, stowed PF2e's
     const held = beltHeld([{ id: "a", bulk: 0.1, consumable: true }, { id: "rope", bulk: 1, consumable: false }, { id: "b", bulk: 0.1, consumable: true }, { id: "big", bulk: 1, consumable: true }, { id: "c", bulk: 0, consumable: true }, { id: "d", bulk: 0.1, consumable: true }, { id: "e", bulk: 0.1, consumable: true }]);
     assert.deepEqual(held, ["a", "b", "c", "d"]);
 });
+
+// U7 (2026-10-15; the user: "Work on the fear gem so it works in the simulator"): Fear Gem's plan, as the item module compiles it.
+const none = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [], modifiers: [] };
+const FEAR_GEM = { source: { name: "Fear Gem", slug: "fear-gem" }, traits: ["consumable", "emotion", "fear", "magical", "mental", "talisman"], activation: { time: "2", traits: ["concentrate"] }, targeting: { target: "the creature the Strike hits" }, trigger: { event: "strike", on: ["success", "criticalSuccess"], cost: "free" },
+    resolution: { kind: "save", check: { roll: "attack", statistic: "strike", against: { dc: "target", statistic: "ac" } }, outcomes: { criticalSuccess: { ...none, effects: [{ kind: "condition", slug: "frightened", value: 2, duration: null }] }, success: { ...none, effects: [{ kind: "condition", slug: "frightened", value: 1, duration: null }] }, failure: none, criticalFailure: none } },
+    strike: { range: "melee", save: null }, item: { ...itemInfo("talisman", 4), recipient: "user", activations: [{ name: null, time: "2", traits: ["concentrate"] }] } };
+
+test("U7: an item used by Striking is a Strike activity — its riders on a hit and a critical hit, its stack its pool; Intimidating Strike raises Fear Gem's", async () => {
+    const { itemStrikeActivity } = await import("../src/adapter/items.js");
+    const gem = itemStrikeActivity(FEAR_GEM, { id: "gem", quantity: 2 });
+    assert.deepEqual([gem.name, gem.actions, gem.range, gem.pool, gem.casts, gem.consumable, gem.traits], ["Fear Gem", 2, "melee", "item:gem", 2, true, ["concentrate"]]);
+    assert.deepEqual([gem.onHit.conditions, gem.onHit.critical], [[{ slug: "frightened", value: 1, duration: null }], [{ slug: "frightened", value: 2, duration: null }]]);
+    const raised = itemStrikeActivity(FEAR_GEM, { id: "gem", feats: ["intimidating-strike"] });
+    assert.deepEqual([raised.onHit.conditions[0].value, raised.onHit.critical[0].value], [2, 3]);
+    assert.equal(itemStrikeActivity({ ...FEAR_GEM, strike: { range: null, save: null } }, { id: "g" }).range, "any");
+    // (A rider it can't carry: not played. Not that kind of item, or none left: none.)
+    assert.equal(itemStrikeActivity({ ...FEAR_GEM, resolution: { ...FEAR_GEM.resolution, outcomes: { ...FEAR_GEM.resolution.outcomes, success: { ...none, modifiers: [{ selector: "ac", value: -1 }] } } } }, { id: "g" }), null);
+    assert.equal(itemStrikeActivity(POTION, { id: "p" }), null);
+    assert.equal(itemStrikeActivity(FEAR_GEM, { id: "g", quantity: 0 }), null);
+    // And not an action of its own: itemEntry leaves it to the activity.
+    assert.equal(itemEntry(FEAR_GEM, { id: "g" }), null);
+});
+
+test("U7: in a fight the gem's Strike frightens on a hit, uses one up, and stops when they're gone", async () => {
+    const { simulate, prepareSnapshot } = await import("../src/engine/fight.js");
+    const { itemStrikeActivity } = await import("../src/adapter/items.js");
+    const [fighter] = martialParty(5);
+    const gem = itemStrikeActivity(FEAR_GEM, { id: "gem", quantity: 2 });
+    // (A monster's: used freely; plenty of Hit Points on both sides so the gems run out.)
+    const brute = { ...moderateCreature(5, "brute", "Brute"), band: "near", side: "foes", strikeActivities: [gem], spellPools: { [gem.pool]: 2 } };
+    const pc = { ...fighter, band: "near", side: "party", hp: { value: 600, max: 600, temp: 0 } };
+    brute.hp = { value: 600, max: 600, temp: 0 };
+    let frightened = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+        const result = simulate(prepareSnapshot({ combatants: [pc, brute] }), { morale: false }, seed, { log: true });
+        assert.equal(result.log.filter((line) => line.includes("Brute uses Fear Gem")).length, 2, result.log.slice(0, 40).join("\n"));
+        assert.equal(result.stats.foeItemsUsed, 2);
+        frightened += result.log.filter((line) => /Fighter is frightened [12]/.test(line)).length;
+    }
+    assert.ok(frightened > 0, "a hit frightens");
+});

@@ -1181,10 +1181,14 @@ function expandStrikeActivities(env) {
         if (activity.press && node.attacks < 1) continue;
         // Cover Fire (C19): a loaded firearm or crossbow, once a round.
         if (activity.coverFire && (c.usedThisTurn?.has("cover-fire") || node.casts.includes("coverFire"))) continue;
+        // (U7: an item used by Striking — Fear Gem — as long as one is left, those this plan uses counted.)
+        if (activity.pool && node.casts.filter((mark) => mark === `pool:${activity.pool}`).length >= (c.spellPools?.[activity.pool] ?? 0)) continue;
         const named = strikeNamed(c, activity.strike);
+        // (U7: its Strike melee, ranged or either, as the item says.)
+        const fits = (strike) => (activity.range === "any" ? true : activity.range === "ranged" ? !strike.melee : strike.melee);
         const candidates = activity.coverFire
             ? (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].firearm && !c.strikes[index].melee && !emptyNow(c, node, index, c.strikes[index]))
-            : named >= 0 ? [named] : activity.strike === "ranged" ? [] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
+            : named >= 0 ? [named] : activity.strike === "ranged" ? [] : (c.strikes ?? []).map((strike, index) => index).filter((index) => fits(c.strikes[index]));
         for (const target of ctx.enemies) {
             if (target.status !== "active") continue;
             // (At the creature it struck, unless it moves first: "Strides up to 10 feet and Strikes".)
@@ -1230,7 +1234,8 @@ function expandStrikeActivities(env) {
             const expected = best.expectation.damage + best.expectation.hitChance * rider.damage + (activity.failureDamage ? (best.expectation.failChance ?? 0) * (best.expectation.hitDamage ?? 0) : 0);
             // Set-Up Strike: off-guard for an ally's next attack, about a tenth more of its damage.
             const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * 0.12 / hp : 0;
-            const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + best.expectation.hitChance * rider.worth * ROUND_TO_KILL + setUpWorth);
+            // (U7: a PC's item used by Striking weighed as a consumable.)
+            const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + best.expectation.hitChance * rider.worth * ROUND_TO_KILL + setUpWorth) * consumableWeight(state, c, activity, [target]);
             if (gain <= 0) continue;
             // Exacting Strike: a miss doesn't raise the penalty for what follows (worth a little).
             const exacting = activity.exacting ? 0.15 * (1 - best.expectation.hitChance) * gain : 0;
@@ -1241,7 +1246,7 @@ function expandStrikeActivities(env) {
                 attacks: activity.noMap || activity.previousMap ? 0 : activity.countsAs ?? 1,
                 pos,
                 damage: { ...node.damage, [target.id]: before + expected },
-                ...(activity.finisher || activity.coverFire || activity.flourish || activity.oncePerTurn ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : []), ...(activity.oncePerTurn ? [`sa${activityIndex}`] : [])] } : {})
+                ...(activity.finisher || activity.coverFire || activity.flourish || activity.oncePerTurn || activity.pool ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : []), ...(activity.oncePerTurn ? [`sa${activityIndex}`] : []), ...(activity.pool ? [`pool:${activity.pool}`] : [])] } : {})
             });
             if (activity.strides && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
             children.push(next);

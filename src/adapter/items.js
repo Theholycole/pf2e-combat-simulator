@@ -169,3 +169,53 @@ export function isBelt({ name = "", carryType = null } = {}) {
 export function beltHeld(contents = []) {
     return contents.filter((entry) => entry.consumable && (Number(entry.bulk) || 0) <= 0.1).slice(0, 4).map((entry) => entry.id);
 }
+
+// U7 (2026-10-15; the user: "Work on the fear gem so it works in the simulator"): an item used by Striking (Fear Gem's plan.strike): one
+// of its user's own Strikes (melee, ranged or either, as it says) with the item's riders on a hit and on a critical hit, and a save for the
+// creature hit when it has one — a Strike activity, as Intimidating Strike is, the item's stack its pool. A feat that raises the item's
+// condition (FEAT_BOOSTS: Fear Gem with Intimidating Strike, frightened 1 more) when the user has it (feats: its slugs). null: not that kind
+// of item, none left, or a rider the activity can't carry.
+const FEAT_BOOSTS = Object.freeze({ "fear-gem": { feat: "intimidating-strike", slug: "frightened", by: 1 } });
+export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses = null, fresh = false, feats = [] } = {}) {
+    if (!plan?.strike || !plan.resolution?.outcomes) return null;
+    const item = plan.item ?? {};
+    const reusable = (uses?.autoDestroy ?? item.uses?.autoDestroy) === false;
+    const casts = itemCasts({ category: reusable ? "wand" : "consumable", quantity, uses: { max: Math.max(1, Number(uses?.max ?? item.uses?.max) || 1), value: uses?.value }, fresh: reusable && fresh });
+    if (!casts) return null;
+    const boost = FEAT_BOOSTS[plan.source?.slug];
+    const raised = boost && feats.includes(boost.feat) ? boost : null;
+    // (A hit's riders: its conditions only — anything else on the row and the item isn't played.)
+    const riders = (row) => {
+        if (!row) return [];
+        if ((row.modifiers ?? []).length || (row.nativeEffects ?? []).length || (row.damage && row.damage.mode !== "none")) return null;
+        const effects = row.effects ?? [];
+        if (effects.some((effect) => effect.kind !== "condition")) return null;
+        return effects.map(({ slug, value, duration }) => ({ slug, value: Number.isFinite(value) && raised?.slug === slug ? value + raised.by : value ?? null, duration: duration ?? null }));
+    };
+    const { success, criticalSuccess } = plan.resolution.outcomes;
+    const onHit = riders(success);
+    const onCritical = riders(criticalSuccess ?? success);
+    if (!onHit || !onCritical) return null;
+    const own = item.activations?.[0] ?? null;
+    const save = plan.strike.save?.resolution ? plan.strike.save : null;
+    return {
+        name: name ?? plan.source?.name ?? "Item",
+        actions: Number(own?.time ?? plan.activation?.time) || 1,
+        strides: 0,
+        strike: null,
+        range: plan.strike.range === "ranged" ? "ranged" : plan.strike.range === "melee" ? "melee" : "any",
+        attackBonus: 0,
+        damageBonus: 0,
+        damage: null,
+        offGuard: false,
+        requires: null,
+        oncePerFight: false,
+        onHit: { conditions: onHit, critical: onCritical, push: null, damage: [], save: null, size: null },
+        riderSpell: save ? { name: name ?? plan.source?.name ?? "Item", plan: save, castRank: Math.max(1, Number(item.level) || 1), dc: null, attack: null, pool: null, kind: "item", effects: {} } : null,
+        traits: [...(own?.traits ?? plan.activation?.traits ?? [])],
+        pool: `item:${id}`,
+        casts,
+        item: id,
+        consumable: !reusable
+    };
+}

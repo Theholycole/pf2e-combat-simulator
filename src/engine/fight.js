@@ -848,6 +848,11 @@ function act(state, c, action) {
             const activity = c.strikeActivities[action.index];
             const target = state.byId.get(action.targetId);
             state.log?.push(`  ${c.name} uses ${activity.name}`);
+            // (U7: an item used by Striking is used up.)
+            if (activity.pool) {
+                c.spellPools[activity.pool] = Math.max(0, (c.spellPools[activity.pool] ?? 0) - 1);
+                if (activity.item && state.stats) state.stats[c.side === "party" ? "partyItemsUsed" : "foeItemsUsed"]++;
+            }
             if (activity.oncePerFight) (c.activitiesUsed ??= new Set()).add(action.index);
             if (activity.flourish) c.usedThisTurn?.add("flourish");
             if (activity.oncePerTurn) (c.usedThisTurn ??= new Set()).add(activity.name);

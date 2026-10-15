@@ -149,6 +149,7 @@ The user's rule for when creatures use items is U1 in [item-decisions.md](item-d
 - **Poisons** (U4): `itemEntry`'s `onStrike` (an injury poison a Strike lists): the plan's trigger a free Strike rider; `triggerRiders` and `freeRiderGain` need a dose left (`poolReady`). `spellGaps` counts an affliction with stages as played.
 - **Lasting areas** (U5): `itemEntry`'s `zone` ({ effectModel, effects }) → `zoneEntry`: `zoneSpell`'s zone ability as an item (its pool, draw and activation); `castPlan`'s zone branch counts it as an item used.
 - **Taking items out** (U6): `drawActions`, `isBelt` and `beltHeld` (`src/adapter/items.js`); `itemDraw` and `belted` in the snapshot for scrolls, wands, consumables and bombs. The bestiary tools give an NPC's worn scrolls and wands a draw of 1.
+- **Items used by Striking** (U7): `itemStrikeActivity` (`src/adapter/items.js`) makes `plan.strike` a Strike activity with `range`, `pool`, `casts`, `item`, `consumable` and `traits` (FEAT_BOOSTS: Fear Gem with Intimidating Strike). The planner counts the pool (`pool:` marks), takes the Strike by `range` (unset: melee, as before) and weighs a PC's; `strikeActivity` spends one. `readConsumables` and `npcItems` return them as `activities`.
 - **Not live-checked yet** (pftest busy, 2026-10-15).
 
 ### More spells (2026-10-14)
