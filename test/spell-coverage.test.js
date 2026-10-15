@@ -644,3 +644,67 @@ function IGNITION_LIKE() {
         resolution: { kind: "save", check: { statistic: "reflex", basic: true }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "2d6", type: "fire" }] },
             outcomes: { criticalSuccess: row(), success: row({ damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] } }), failure: row({ damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] } }), criticalFailure: row({ damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] } }) } } };
 }
+
+test("Sure Strike: its next attack roll twice, the better kept, then gone; Chain Lightning arcs on until a critical success; Acid Splash's splash", async () => {
+    const { effectModel, applyEffect } = await import("../src/engine/effects.js");
+    const { spellGaps, spellExpectation } = await import("../src/engine/spells.js");
+    // Sure Strike: PF2e's effect, RollTwice on attack rolls.
+    const sure = effectModel({ name: "Spell Effect: Sure Strike", system: { rules: [{ keep: "higher", key: "RollTwice", selector: "attack-roll" }], duration: { expiry: "turn-end", unit: "rounds", value: 0 } } }, { rank: 1 });
+    assert.deepEqual([sure.fortune, sure.unsupported], [{ on: "attack", keep: "higher" }, []]);
+    const [fighter] = martialParty(5);
+    let state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(5, "brute", "Brute"), engagement: 1, hp: { value: 500, max: 500 } }] }, {}, 1);
+    state.log = [];
+    const pc = state.byId.get(fighter.id);
+    applyEffect(state, pc, sure, pc, { key: "sure-strike" });
+    const rolls = [3, 17];
+    state.rng.d20 = () => rolls.shift() ?? 10;
+    performStrike(state, pc, state.byId.get("brute"), pc.strikes[0]);
+    assert.ok(state.log.includes(`  ${pc.name} rolls twice (the better kept)`), state.log.join("\n"));
+    assert.ok(state.log.some((line) => line.includes(`${17 + pc.strikes[0].bonus} vs AC`)), state.log.join("\n"));
+    assert.equal(pc.effects.length, 0);
+
+    // Chain Lightning: a basic Reflex save from each, the damage rolled once; the second target's critical success ends the chain.
+    const chain = { modelVersion: 12, source: { name: "Chain Lightning", slug: "chain-lightning" }, rank: 6, traits: ["electricity"], activation: { time: "2" }, targeting: { target: "1 creature, plus any number of additional creatures", range: "500 feet" },
+        resolution: { kind: "save", check: { statistic: "reflex", basic: true }, chain: { feet: 30, endsOn: "criticalSuccess" }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "8d12", type: "electricity" }] },
+            outcomes: { criticalSuccess: row(), success: row({ damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] } }), failure: row({ damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] } }), criticalFailure: row({ damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] } }) } } };
+    assert.deepEqual(spellGaps({ name: "Chain Lightning", plan: chain, castRank: 6 }), []);
+    const mage = { ...moderateCreature(11, "mage", "Mage"), side: "party", kind: "npc", spells: [{ name: "Chain Lightning", plan: chain, castRank: 6, dc: 25, attack: 20, pool: null }], spellPools: {}, band: "near" };
+    const foes = ["a", "b", "c"].map((id) => ({ ...moderateCreature(9, id, `Foe ${id}`), band: "near", hp: { value: 500, max: 500 } }));
+    state = createFightState({ combatants: [mage, ...foes] }, {}, 1);
+    state.log = [];
+    const caster = state.byId.get("mage");
+    caster.actionsLeft = 3;
+    const options = scoreOptions(state, caster).options.filter((option) => option.action.type === "cast");
+    assert.ok(options.some((option) => option.action.targetIds?.length === 3), JSON.stringify(options.map((option) => option.action)));
+    // Each later target counts only as far as the chain reaches it.
+    const expectation = spellExpectation(state, caster, caster.spells[0], ["a", "b", "c"].map((id) => state.byId.get(id)));
+    assert.ok(expectation[2].damage <= expectation[0].damage);
+    const saves = [5, 20, 5];
+    state.rng.d20 = () => saves.shift() ?? 10;
+    state.rng.die = () => 6;
+    castSpell(state, caster, 0, ["a", "b", "c"]);
+    assert.ok(state.log.includes("  the chain ends at Foe b"), state.log.join("\n"));
+    assert.ok(state.byId.get("a").hp.value < 500);
+    assert.equal(state.byId.get("b").hp.value, 500);
+    assert.equal(state.byId.get("c").hp.value, 500);
+
+    // Acid Splash: a hit splashes the others in the target's Melee, the caster's ally too.
+    const splash = { modelVersion: 12, source: { name: "Acid Splash", slug: "acid-splash" }, rank: 1, traits: ["acid", "attack", "cantrip"], activation: { time: "2" }, targeting: { target: "1 creature", range: "30 feet" },
+        resolution: { kind: "save", check: { statistic: "spell-attack", basic: false }, splash: { radius: 5, componentIds: ["s"] }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "1d6", type: "acid" }, { id: "s", formula: "1", type: "acid", category: "splash" }] },
+            outcomes: { criticalSuccess: row({ damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0", "s"] } }), success: row({ damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0", "s"] } }), failure: row(), criticalFailure: row() } } };
+    const splasher = { ...moderateCreature(5, "mage", "Mage"), side: "party", kind: "npc", spells: [{ name: "Acid Splash", plan: splash, castRank: 1, dc: 20, attack: 12, pool: null }], spellPools: {}, band: "near" };
+    state = createFightState({ combatants: [splasher, { ...fighter, engagement: 1 }, { ...moderateCreature(5, "x", "Target"), engagement: 1 }, { ...moderateCreature(5, "y", "Beside"), engagement: 1 }] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 12;
+    state.rng.die = () => 3;
+    const hp = (id) => state.byId.get(id).hp.value;
+    const before = { x: hp("x"), y: hp("y"), pc: hp(fighter.id) };
+    castSpell(state, state.byId.get("mage"), 0, ["x"]);
+    assert.equal(before.x - hp("x"), 4, state.log.join("\n"));
+    assert.equal(before.y - hp("y"), 1);
+    assert.equal(before.pc - hp(fighter.id), 1);
+    // A rank gate's text matters only from its rank.
+    const gated = { ...splash, resolution: { ...splash.resolution, rankGate: { maxRank: 6, minRank: 7, sourceText: "The damage increases." } } };
+    assert.deepEqual(spellGaps({ name: "Gated", plan: gated, castRank: 6 }), []);
+    assert.deepEqual(spellGaps({ name: "Gated", plan: gated, castRank: 7 }), ["rankGate"]);
+});

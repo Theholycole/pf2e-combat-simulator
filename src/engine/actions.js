@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
-import { applyEffect, removeEffect } from "./effects.js";
+import { applyEffect, removeEffect, takeAttackFortune } from "./effects.js";
 import { applyCondition, applyMove, castPlan, castSpell, deathThroes, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
@@ -328,6 +328,11 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         spendReaction(target, target.acReaction.name);
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
     }
+    // (S54, Sure Strike: its next attack roll twice, the better kept.)
+    const own = reaction ? null : takeAttackFortune(attacker);
+    if (own) log(state, `  ${attacker.name} rolls twice (${own === "higher" ? "the better" : "the worse"} kept)`);
+    if (own === "higher") fortune = true;
+    else if (own === "lower") misfortune = true;
     // (A fortune Strike, B90: twice, the better; with misfortune too, neither.)
     const roll = () => (misfortune && !fortune ? Math.min(state.rng.d20(), state.rng.d20()) : fortune && !misfortune ? Math.max(state.rng.d20(), state.rng.d20()) : state.rng.d20());
     let natural = roll();

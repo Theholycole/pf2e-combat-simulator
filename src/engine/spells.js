@@ -13,7 +13,7 @@
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
-import { applyEffect, effectBenefit, effectModel, modifierModel, removeEffect } from "./effects.js";
+import { applyEffect, effectBenefit, effectModel, modifierModel, removeEffect, takeAttackFortune } from "./effects.js";
 import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
@@ -166,7 +166,8 @@ function readSpell(base, actions) {
         approachFeet: Number(plan?.approach?.feet) || null,
         approachHalf: Boolean(plan?.approach?.half),
         area,
-        targets: area ? 0 : targeting.allies ? 1 : targetCount(targeting.target),
+        // (S55, Chain Lightning: its first target and the foes it arcs on to — as many as there are.)
+        targets: area ? 0 : targeting.allies ? 1 : plan?.resolution?.chain ? 12 : targetCount(targeting.target),
         attack: statistic === "spell-attack" || statistic === "strike" || (check?.roll === "skill" && (plan?.traits ?? []).includes("attack") && plan?.trigger?.map !== false),
         // Abilities: when they're used, how often, and on whom.
         event: plan?.trigger?.event ?? "use",
@@ -1517,8 +1518,16 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         log(state, `  ${target.name} uses ${rule.name}: +${rule.value} AC against ${spell.name}`);
         return { ...options, dc: options.dc + rule.value };
     };
+    // (S54, Sure Strike: the caster's next attack roll — a spell attack too — twice, the better kept.)
+    let ownFortune = () => null;
+    if (info.attack && forcedDegree === null) {
+        const keep = takeAttackFortune(caster);
+        if (keep) log(state, `  ${caster.name} rolls twice (${keep === "higher" ? "the better" : "the worse"} kept)`);
+        ownFortune = (statistic) => (statistic === "spell-attack" ? keep : null);
+    }
     const roll = (statistic, given) => {
-        const options = raised(statistic, given);
+        const keep = ownFortune(statistic);
+        const options = raised(statistic, keep ? { ...given, [keep === "higher" ? "fortune" : "misfortune"]: true } : given);
         return betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
     };
     // (B195, Siphon Life: a foe's healing at its least — each die at 1, flat values halved — then temporary Hit Points on the siphoner.)
@@ -1553,12 +1562,24 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         if (temp > (siphon.hp.temp ?? 0)) siphon.hp.temp = temp;
         log(state, `  ${siphon.name} gains ${temp} temporary HP`);
     }
+    // (S55, Chain Lightning: the chain ends with the first target that critically succeeds — those after it aren't reached.)
+    if (spell.plan?.resolution?.chain) {
+        const stop = targets.findIndex((target) => result.degrees[target.id] === spell.plan.resolution.chain.endsOn);
+        if (stop >= 0 && stop < targets.length - 1) {
+            const missed = new Set(targets.slice(stop + 1).map((target) => target.id));
+            log(state, `  the chain ends at ${targets[stop].name}`);
+            targets.splice(stop + 1);
+            result.changes = result.changes.filter((change) => !missed.has(change.target));
+        }
+    }
     for (const target of targets) {
         const degree = result.degrees[target.id];
         if (degree) log(state, `  ${target.name}: ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
     }
     if (info.immunity && info.immunityDegrees) markImmune(targets.filter((target) => !result.degrees[target.id] || info.immunityDegrees.includes(result.degrees[target.id])));
     applyChanges(state, caster, spell, result.changes, context, io);
+    // (S56, Acid Splash: a hit's splash damage on the others within 5 feet of the target — its Melee — not doubled on a critical hit.)
+    if (spell.plan?.resolution?.splash) splashAround(state, caster, spell, targets, result);
     // (B316, Death Strike: "… or that critically fails against any of its spells must succeed at a … save or die" — the caster's abilities
     // that say so, at each foe that critically failed a save against one of its spells, standing or just dropped by it.)
     const onCriticalFailure = isSpellCast(spell) ? (caster.spells ?? []).filter((entry) => entry.plan?.trigger?.spellCriticalFailure) : [];
@@ -1596,6 +1617,22 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         } else if (degrees.includes("failure") && !caster.panache) {
             caster.panache = "turn";
             log(state, `  ${caster.name} gains panache until the end of its turn`);
+        }
+    }
+}
+
+// Splash damage (S56): each target hit, the splash instances of its damage on every other creature in its Melee (allies too, as PF2e
+// has it), halved back from a critical hit's doubling.
+function splashAround(state, caster, spell, targets, result) {
+    for (const target of targets) {
+        const degree = result.degrees[target.id];
+        if (degree !== "success" && degree !== "criticalSuccess") continue;
+        const splash = result.changes.filter((change) => change.op === "damage" && change.target === target.id).flatMap((change) => change.instances ?? []).filter((instance) => instance.category === "splash");
+        if (!splash.length || target.meleeId === null || target.meleeId === undefined) continue;
+        const others = state.list.filter((other) => other !== target && isActive(other) && sameMelee(other, target));
+        for (const other of others) {
+            const instances = splash.map((instance) => ({ type: instance.type, amount: degree === "criticalSuccess" ? Math.floor(instance.amount / 2) : instance.amount, persistent: false, precision: false, splash: true })).filter((instance) => instance.amount > 0);
+            if (instances.length) applyDamage(state, other, instances, { source: caster, spell: { rank: Number(spell.castRank) || 1, targeted: false } });
         }
     }
 }
@@ -2420,6 +2457,9 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     // What happens to the caster itself (Trip's critical failure, Escape's success).
     let self = null;
     let damageContext = null;
+    // (S55, a chain: each target counts as far as the chain reaches it — no critical success before it.)
+    const chain = spell.plan?.resolution?.chain;
+    let reach = 1;
     for (const target of targets) {
         const entry = { target, damage: 0, worth: 0, heal: 0, benefit: 0 };
         result.push(entry);
@@ -2437,8 +2477,10 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         const outcomes = outcomesFor(state, caster, spell, target, actions);
         const odds = outcomes && oddsFor(caster, spell, target, attacks, actions);
         if (!odds) continue;
+        const reached = reach;
+        if (chain) reach *= 1 - (odds[DEGREE_NAMES.indexOf(chain.endsOn ?? "criticalSuccess")] ?? 0);
         for (const [degreeIndex, changes] of outcomes.entries()) {
-            const chance = finds * odds[degreeIndex];
+            const chance = finds * reached * odds[degreeIndex];
             if (!chance) continue;
             for (let change of changes) {
                 // (A value the text rolls, at its average.)
@@ -2534,7 +2576,9 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     entry.worth += chance * pacifyWorth(state, target, caster, held, change.effect.note.duration);
                 } else if (change.op === "effect" && ["native", "modifier", "note"].includes(change.effect?.kind)) {
                     const { model, key } = outcomeEffect(spell, change);
-                    if (model) entry.benefit += chance * recastShare(state, target, model, key) * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1);
+                    // (S54, Sure Strike on itself: worth it only with an action left for the attack — it ends with the turn.)
+                    const unused = model?.fortune && target === caster && (caster.actionsLeft ?? 3) - (describeSpell(spell.plan, actions).actions ?? 1) < 1;
+                    if (model && !unused) entry.benefit += chance * recastShare(state, target, model, key) * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1);
                 }
             }
         }
@@ -2603,6 +2647,8 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         const inRange = willing ? [] : enemies.filter((enemy) => enemy.status === "active" && reaches(enemy));
         if (inRange.length) {
             if (info.targets <= 1) sets.push(...inRange.map((enemy) => ({ targets: [enemy] })));
+            // (S55, a chain: from each first target, on to the nearest foe within its feet of the last one — the bands' distances.)
+            else if (spell.plan?.resolution?.chain) sets.push(...inRange.map((first) => ({ targets: chainFrom(first, inRange, Number(spell.plan.resolution.chain.feet) || 30) })));
             else sets.push({ targets: inRange.slice(0, info.targets) });
         }
         if (info.self) return [{ targets: [caster] }];
@@ -2681,7 +2727,7 @@ export function spellGaps(spell) {
     // Heal and Harm compiled before their healing payload: the healing half is missing.
     if (!healingOf(plan) && (plan.resolution?.sharedDamage?.components ?? []).some((component) => (component.kinds ?? []).includes("healing"))) missing.add("healing");
     // (A lingering area: played as a zone; a caster's temporary Hit Points from the damage, with the damage.)
-    for (const gap of family.gaps?.(readPlan(plan)) ?? []) if (gap.what !== "lingering" && !(gap.what === "casterBenefit" && plan.resolution?.casterBenefit?.kind === "temp-hp")) missing.add(gap.what);
+    for (const gap of family.gaps?.(readPlan(plan)) ?? []) if (gap.what !== "lingering" && !(gap.what === "casterBenefit" && plan.resolution?.casterBenefit?.kind === "temp-hp") && !playedGap(spell, gap.what)) missing.add(gap.what);
     // A dry run at each degree, for the changes the engine doesn't apply.
     const dummy = { id: "dummy", name: "dummy", traits: [], immunities: [], side: "x", saves: { fortitude: 0, reflex: 0, will: 0 }, ac: 10, cond: {}, hp: { value: 10, max: 10, temp: 0 } };
     const caster = { id: "caster", side: "y", cond: {}, strikes: [], attacksThisTurn: 0 };
@@ -2714,6 +2760,31 @@ export function spellGaps(spell) {
         }
     }
     return [...missing];
+}
+
+// A chain's targets from its first (S55): each next one the closest foe left within the chain's feet of the last.
+function chainFrom(first, foes, feet) {
+    const chain = [first];
+    const left = new Set(foes.filter((foe) => foe !== first));
+    while (left.size) {
+        const last = chain[chain.length - 1];
+        const next = [...left].filter((foe) => distanceBetween(last, foe) <= feet).sort((a, b) => distanceBetween(last, a) - distanceBetween(last, b))[0];
+        if (!next) break;
+        chain.push(next);
+        left.delete(next);
+    }
+    return chain;
+}
+
+// Parts of a plan the core leaves that the simulation plays itself, or that change nothing in a fight (S55–S57): Chain Lightning's chain,
+// splash damage; a rank gate's text only from its rank (Stormburst's 7th); Dispel Magic's magic items and artifacts (no unattended items
+// in a fight; a spell effect it counteracts, counteract.js).
+function playedGap(spell, what) {
+    const resolution = spell.plan?.resolution ?? {};
+    if (what === "chain" || what === "splash" || what === "magicItem" || what === "artifactFails") return true;
+    if (what === "otherKinds") return [].concat(resolution.otherKinds ?? []).every((kind) => kind === "spell" || kind === "item");
+    if (what === "rankGate") return (Number(spell.castRank) || Number(spell.plan?.rank) || 1) < (Number(resolution.rankGate?.minRank) || Infinity);
+    return false;
 }
 
 // A creature dying, or dropping to 0 Hit Points, near it (B305; the ability module's nearby-death trigger, batch 300 — living creatures

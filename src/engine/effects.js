@@ -147,6 +147,13 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
             case "Immunity":
                 if (rule.type) model.immunities.push(rule.type);
                 break;
+            // (S54, Sure Strike: its next attack roll twice, the better kept — takeAttackFortune uses it up.)
+            case "RollTwice": {
+                const selectors = [].concat(rule.selector ?? []);
+                if (selectors.some((selector) => ["attack-roll", "strike-attack-roll", "spell-attack-roll", "attack"].includes(selector))) model.fortune = { on: "attack", keep: rule.keep === "lower" ? "lower" : "higher" };
+                else unsupported.add(rule.key);
+                break;
+            }
             case "GrantItem": {
                 const slug = conditionSlug(rule.uuid);
                 if (!slug) {
@@ -242,6 +249,14 @@ export function removeEffect(target, effect) {
     if ((target.strikes ?? []).some((strike) => strike.fromEffect === effect.key)) target.strikes = target.strikes.filter((strike) => strike.fromEffect !== effect.key);
 }
 
+// A roll-twice on its next attack roll (Sure Strike, S54): "higher" or "lower", the effect used up; null without one.
+export function takeAttackFortune(c) {
+    const effect = (c.effects ?? []).find((entry) => entry.model?.fortune?.on === "attack");
+    if (!effect) return null;
+    removeEffect(c, effect);
+    return effect.model.fortune.keep;
+}
+
 // Puts an effect on a creature; the same effect again replaces it. A finite
 // duration ends it at the start of the source's turn that many rounds later.
 // applyCondition: the spells layer's, for the conditions the effect grants.
@@ -282,6 +297,8 @@ export function effectBenefit(model, target, conditionHarm, strikeShare = 1) {
     for (const condition of model.conditions) {
         benefit += condition.slug === "quickened" ? 0.3 * rounds * Math.max(0.2, strikes) : -conditionHarm(condition.slug, condition.value, duration);
     }
+    // (S54: one attack roll twice — about +4 on it, a Strike's or a spell attack's.)
+    if (model.fortune?.on === "attack") benefit += (model.fortune.keep === "higher" ? 1 : -1) * (0.4 * strikes + 0.2 * (1 - strikes));
     // A form that keeps it from attacking or casting (Vapor Form): that part of its threat, lost for those rounds.
     if (model.noAttacks) benefit -= strikes * rounds;
     if (model.noSpells) benefit -= (1 - strikes) * rounds;
