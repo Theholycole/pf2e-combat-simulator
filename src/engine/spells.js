@@ -18,7 +18,7 @@ import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCrea
 import { startLingering, startZone } from "./zones.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
 import { addFloor, floorOf } from "./floors.js";
-import { counterables, counterChance, counterRank, counterRoll } from "./counteract.js";
+import { counterables, counterChance, counterRank, counterReaches, counterRoll } from "./counteract.js";
 import { applyNoteState, noteState, noteStateWorth, spellLocked } from "./note-states.js";
 import { allyStrike } from "./commander.js";
 import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
@@ -660,6 +660,16 @@ export function expireTimers(state, c, phase = "start") {
                 if (other.tauntedBy === timer.taunt) other.tauntedBy = null;
                 return false;
             }
+            // (S58: a condition set aside comes back.)
+            if (timer.restore) {
+                const flag = FLAGS[timer.restore.slug];
+                if (isActive(other)) {
+                    if (flag) other.cond[flag] = true;
+                    else other.cond[timer.restore.slug] = Math.max(other.cond[timer.restore.slug] ?? 0, Number(timer.restore.value) || 0);
+                    log(state, `  ${other.name} is ${timer.restore.slug} again`);
+                }
+                return false;
+            }
             const current = other.cond[timer.key];
             if (timer.value === true) other.cond[timer.key] = false;
             else if (current <= timer.value) other.cond[timer.key] = 0;
@@ -918,7 +928,17 @@ function applyCounteract(state, caster, spell, target, change) {
     }
     const rank = counterRank(caster, spell, isSpellCast(spell));
     const roll = counterRoll(state, Number(spell.attack) || 0, rank, best.pick);
-    log(state, `  ${spell.name} against ${best.pick.name} on ${target.name}: ${roll.total} vs ${best.pick.dc} → ${roll.success ? "counteracted" : "not counteracted"}`);
+    // (S58, Clear Mind's near miss: a failure that would have counteracted at 2 ranks higher sets the condition aside until the
+    // caster's next turn starts.)
+    const near = !roll.success && change.nearMiss && best.pick.kind === "condition" && counterReaches(roll.degree, rank + (Number(change.nearMiss.ranks) || 0), best.pick);
+    log(state, `  ${spell.name} against ${best.pick.name} on ${target.name}: ${roll.total} vs ${best.pick.dc} → ${roll.success ? "counteracted" : near ? "set aside until its caster's next turn" : "not counteracted"}`);
+    if (near) {
+        const slug = best.pick.slug;
+        const value = FLAGS[slug] ? true : target.cond[slug];
+        clearCondition(target, slug, { keepSource: true });
+        (target.timers ??= []).push({ restore: { slug, value }, round: state.round + 1, turnOf: caster.id });
+        return;
+    }
     if (!roll.success) return;
     if (best.pick.kind === "effect") {
         const effect = best.pick.entry;
@@ -930,11 +950,11 @@ function applyCounteract(state, caster, spell, target, change) {
     }
 }
 
-function clearCondition(target, slug) {
+function clearCondition(target, slug, { keepSource = false } = {}) {
     const flag = FLAGS[slug];
     if (flag) target.cond[flag] = false;
     else if (VALUED.has(slug)) target.cond[slug] = 0;
-    if (target.condSources) delete target.condSources[slug];
+    if (target.condSources && !keepSource) delete target.condSources[slug];
 }
 
 // Cleanse Affliction: one affliction of its traits a stage lower, not below the floor.
@@ -949,7 +969,7 @@ function applyNativeEffect(state, caster, spell, target, change) {
     const { model, key } = outcomeEffect(spell, change);
     if (model && isActive(target)) {
         const isSpell = isSpellCast(spell);
-        applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell } });
+        applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell, traits: spell.plan?.traits ?? [] } });
         log(state, `  ${target.name} gains ${model.name.replace(/^Spell Effect: /, "")}${change.effect?.kind === "modifier" ? ` (${change.effect.modifier.value} ${change.effect.modifier.type} to ${change.effect.modifier.selector})` : ""}`);
     }
 }
@@ -1238,7 +1258,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     // (Invisibility: gone after its own hostile action.)
                     if (change.endsOnHostile) (target.endsOnHostile ??= new Set()).add(FLAGS[change.slug] ?? change.slug);
                     // (What a counteract checks against: the spell's or ability's DC and rank.)
-                    (target.condSources ??= {})[change.slug] = { dc: effectDC(spell), rank: counterRank(caster, spell, isSpellCast(spell)), spell: isSpellCast(spell), name: spell.name };
+                    (target.condSources ??= {})[change.slug] = { dc: effectDC(spell), rank: counterRank(caster, spell, isSpellCast(spell)), spell: isSpellCast(spell), name: spell.name, traits: spell.plan?.traits ?? [] };
                     log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${stackedValue(target, change, true)}` : ""}`);
                     // Retching: a Fortitude save against the DC of what made it sickened.
                     if (change.slug === "sickened") target.sickenedDC = Math.max(target.sickenedDC ?? 0, effectDC(spell) ?? 0) || null;

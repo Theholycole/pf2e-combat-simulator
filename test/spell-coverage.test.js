@@ -708,3 +708,47 @@ test("Sure Strike: its next attack roll twice, the better kept, then gone; Chain
     assert.deepEqual(spellGaps({ name: "Gated", plan: gated, castRank: 6 }), []);
     assert.deepEqual(spellGaps({ name: "Gated", plan: gated, castRank: 7 }), ["rankGate"]);
 });
+
+test("Clear Mind heightened: confused from its 4th rank; a near miss sets the condition aside until the caster's next turn; not a curse's", async () => {
+    const { expireTimers } = await import("../src/engine/spells.js");
+    const confuse = (name, traits) => ({ modelVersion: 12, source: { name }, rank: 4, traits, activation: { time: "2" }, targeting: { target: "1 creature", range: "30 feet" },
+        resolution: { kind: "save", check: { statistic: "will", basic: false }, outcomes: { criticalSuccess: row(), success: row(), failure: row({ effects: [{ kind: "condition", slug: "confused", value: null, duration: null }] }), criticalFailure: row({ effects: [{ kind: "condition", slug: "confused", value: null, duration: null }] }) } } });
+    const clear = carePlan("Clear Mind", [{ op: "counteract", pick: 1, source: "effect", traits: [], grantsConditions: ["fleeing", "frightened", "stupefied"] }], "1 willing creature");
+    clear.resolution = { ...clear.resolution, recipient: "target", heightened: [{ rank: 4, changes: [{ addCounteractConditions: ["confused", "controlled", "slowed"] }] }], excludeTraits: ["curse", "disease"], nearMiss: { ranks: 2, setAside: { mode: "suppress", until: "caster-next-turn-start" } } };
+    const [fighter] = martialParty(9);
+    const setUp = (castRank, traits = ["mental"]) => {
+        const witch = { ...moderateCreature(9, "witch", "Witch"), spells: [{ name: "Confusion", plan: confuse("Confusion", traits), castRank: 4, dc: 28, attack: 18, pool: null }], spellPools: {}, band: "near" };
+        const cleric = { ...moderateCreature(9, "cleric", "Cleric"), side: "party", kind: "npc", spells: [{ name: "Clear Mind", plan: clear, castRank, dc: 26, attack: 16, pool: null }], spellPools: {}, band: "near" };
+        const state = createFightState({ combatants: [{ ...fighter, band: "near" }, cleric, witch] }, {}, 1);
+        const pc = state.byId.get(fighter.id);
+        state.rng.d20 = () => 2;
+        castSpell(state, state.byId.get("witch"), 0, [pc.id]);
+        assert.equal(pc.cond.confused, true);
+        state.log = [];
+        return { state, pc };
+    };
+    // At its 2nd rank Clear Mind doesn't touch confusion; at its 4th it counteracts it (a success: the 4th-rank Confusion is within a rank).
+    let { state, pc } = setUp(2);
+    state.rng.d20 = () => 15;
+    castSpell(state, state.byId.get("cleric"), 0, [pc.id]);
+    assert.equal(pc.cond.confused, true);
+    ({ state, pc } = setUp(4));
+    state.rng.d20 = () => 15;
+    castSpell(state, state.byId.get("cleric"), 0, [pc.id]);
+    assert.equal(pc.cond.confused, false, state.log.join("\n"));
+    // A failure that 2 ranks more would have turned: confused set aside, back as the cleric's next turn starts.
+    ({ state, pc } = setUp(4));
+    state.rng.d20 = () => 5;
+    castSpell(state, state.byId.get("cleric"), 0, [pc.id]);
+    assert.equal(pc.cond.confused, false, state.log.join("\n"));
+    assert.ok(state.log.some((line) => line.includes("set aside until its caster's next turn")));
+    state.round += 1;
+    expireTimers(state, state.byId.get("cleric"));
+    assert.equal(pc.cond.confused, true);
+    // A curse's confusion isn't Clear Mind's to lift.
+    ({ state, pc } = setUp(4, ["curse", "mental"]));
+    state.rng.d20 = () => 15;
+    castSpell(state, state.byId.get("cleric"), 0, [pc.id]);
+    assert.equal(pc.cond.confused, true);
+    assert.ok(state.log.some((line) => line.includes("finds nothing to counteract")), state.log.join("\n"));
+});

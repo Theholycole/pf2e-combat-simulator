@@ -14,11 +14,13 @@ export function counterRank(caster, spell, isSpell) {
 }
 
 // What the counteract can end on the target: [{ kind: "effect" | "condition", entry | slug, dc, rank, name }].
+// (S58: not what a source of the excluded traits gave — Clear Mind's curses and diseases; change.any: any effect, Empty Inside's 5th.)
 export function counterables(target, change, flags) {
-    const wants = change.grantsConditions ?? [];
+    const wants = change.any ? [] : change.grantsConditions ?? [];
+    const excluded = (traits) => (change.excludeTraits ?? []).some((trait) => (traits ?? []).includes(trait));
     const out = [];
     for (const entry of target.effects ?? []) {
-        if (!entry.counter) continue;
+        if (!entry.counter || excluded(entry.counter.traits)) continue;
         if (change.source === "spell-effect" && !entry.counter.spell) continue;
         if (change.source === "effect" && wants.length && !(entry.model?.conditions ?? []).some((condition) => wants.includes(condition.slug))) continue;
         out.push({ kind: "effect", entry, dc: entry.counter.dc, rank: entry.counter.rank, name: String(entry.model?.name ?? "an effect").replace(/^Spell Effect: /, "") });
@@ -26,7 +28,7 @@ export function counterables(target, change, flags) {
     for (const [slug, info] of Object.entries(target.condSources ?? {})) {
         const flag = flags[slug];
         const held = flag ? Boolean(target.cond?.[flag]) : (Number(target.cond?.[slug]) || 0) > 0;
-        if (!held) continue;
+        if (!held || excluded(info.traits)) continue;
         if (change.source === "spell-effect" && !info.spell) continue;
         if (change.source === "effect" && wants.length && !wants.includes(slug)) continue;
         out.push({ kind: "condition", slug, dc: info.dc, rank: info.rank, name: `${slug} (${info.name})` });
@@ -40,9 +42,14 @@ export function counterChance(modifier, rank, target) {
     return odds.reduce((sum, chance, degree) => sum + (target.rank <= rank + REACH[degree] ? chance : 0), 0);
 }
 
+// Whether a counteract check's degree reaches the target's rank.
+export function counterReaches(degree, rank, target) {
+    return target.rank <= rank + REACH[degree];
+}
+
 // Rolls it: true when it counteracts.
 export function counterRoll(state, modifier, rank, target) {
     const natural = state.rng.d20();
     const degree = degreeOf(natural + modifier, target.dc, natural);
-    return { total: natural + modifier, degree, success: target.rank <= rank + REACH[degree] };
+    return { total: natural + modifier, degree, success: counterReaches(degree, rank, target) };
 }
