@@ -8,6 +8,13 @@ try {
 } catch {
     compiler = null;
 }
+// (An item the spell module acts on — Djezet Dose, an item spellshape — isn't the item module's, as live: its claims(item), pure.)
+let claims = null;
+try {
+    ({ claims } = await import(new URL("../../../PF2e AUTOMATIC SPELL RESOLUTION/src/compiler/item-claims.js", import.meta.url).href));
+} catch {
+    claims = null;
+}
 const { basicActions, readDocuments, PACK_ROOT } = await import("./pack-creatures.mjs");
 const { itemEntry } = await import("../../src/adapter/items.js");
 const { effectModel } = await import("../../src/engine/effects.js");
@@ -35,12 +42,13 @@ export function npcItems(npc, { fresh = true } = {}) {
     if (!compiler) return { spells, spellPools };
     // (U4: the attack effects its Strikes list — an injury poison among them is delivered by their hits.)
     const listed = new Set(npc.items.filter((entry) => entry.type === "melee").flatMap((entry) => entry.system?.attackEffects?.value ?? []));
-    for (const item of (npc.items ?? []).filter((entry) => entry.type === "consumable" && compiler.handlesItem(entry))) {
+    const options = claims ? { claims } : {};
+    for (const item of (npc.items ?? []).filter((entry) => entry.type === "consumable" && compiler.handlesItem(entry, options))) {
         let plan = null;
         const uuid = item._stats?.compendiumSource ?? item.flags?.core?.sourceId ?? null;
         const source = equipment.get(uuid);
         try {
-            plan = compiler.compileItem({ ...item, ...(source ? { system: { ...item.system, description: source.system?.description ?? item.system?.description } } : {}), uuid }, { spellEffects, basicActions });
+            plan = compiler.compileItem({ ...item, ...(source ? { system: { ...item.system, description: source.system?.description ?? item.system?.description } } : {}), uuid }, { spellEffects, basicActions, ...options });
         } catch {
             plan = null;
         }
