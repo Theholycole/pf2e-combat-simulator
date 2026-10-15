@@ -23,6 +23,7 @@ import { wardBlocks } from "./wards.js";
 import { hiddenFrom } from "./sight.js";
 import { lifelinkMaster } from "./familiars.js";
 import { keenCritical, runeCritEffects } from "./runes.js";
+import { championTriggered, demoralize, exaltedStrikes, heroesDefiance, lastStand, retributionAfter } from "./champion.js";
 
 export function coverFor(state, defender) {
     return state.setup.cover?.[defender.side] ?? 0;
@@ -145,6 +146,10 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
     const precise = attacker.panacheStyle && strike.melee && (strike.agile || strike.finesse);
     if (precise && strike.finisher) parts.push({ dice: attacker.panacheStyle.finisherDice, die: 6, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
     else if (precise && attacker.panache) parts.push({ dice: 0, die: 0, bonus: attacker.panacheStyle.precise, type: strike.damage[0]?.type, precision: true, chance: 1 });
+    // (C31, Oath of the Slayer: spirit damage against its sworn kind, doubled after one set off its reaction, through its next turn.)
+    if (attacker.oath && (target.traits ?? []).includes(attacker.oath.trait)) parts.push({ dice: 0, die: 0, bonus: attacker.oath.value * ((attacker.oathDoubled ?? -Infinity) >= (attacker.round ?? 0) ? 2 : 1), type: "spirit", precision: false, chance: 1 });
+    // (C32, Fearsome Brute: double — triple, a master in Intimidation — the target's frightened value to the damage.)
+    if (attacker.fearsomeBrute && target.cond?.frightened > 0) parts.push({ dice: 0, die: 0, bonus: attacker.fearsomeBrute * target.cond.frightened, type: strike.damage?.[0]?.type, precision: false, chance: 1 });
     // Exploit Vulnerability: the weakness it found or imposed, once per hit (not doubled).
     if (attacker.exploited?.targetId === target.id) parts.push({ dice: 0, die: 0, bonus: attacker.exploited.value, type: "untyped", precision: false, noCrit: true, chance: 1 });
     // Gunslinger deeds (C18): One Shot, One Kill's precision dice on the first hit with a
@@ -573,6 +578,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (critical) critSpecEffect(state, attacker, target, strike, natural + modifier + bonus, { applyCondition, applyMove, applyDamage, rollDie: (size) => state.rng.die(size) });
     // (Its weapon's runes on a critical hit: frost's slowed, brilliant's blinded, fearsome's frightened …)
     if (critical) runeCritEffects(state, attacker, target, strike, { applyCondition, applyMove });
+    // (C32, Battle Cry: legendary in Intimidation, its reaction to Demoralize the creature it critically hit.)
+    if (critical && !reaction && attacker.battleCry?.reaction && isActive(target)) demoralize(state, attacker, target, { castPlan, reaction: true });
     // (T4: attached to a larger creature it hits.)
     if (attacker.attach && isActive(attacker)) attachAfterHit(state, attacker, target, sizeRank);
     // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
@@ -1056,6 +1063,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
         spendReaction(champion, reaction.name);
         state.stats.reactions++;
         log(state, `  ${champion.name} uses ${reaction.name}`);
+        // (C30: Blessed Counterstrike's enemy, Swift Retribution, Oath of the Slayer doubled, Divine Fervor.)
+        championTriggered(state, champion, source);
         if (reaction.slug === "glimpse-of-redemption" && adjusted.total <= reaction.resistance) {
             // The enemy repents: the ally is unharmed.
             log(state, `  ${source.name} repents: ${target.name} is unharmed`);
@@ -1136,7 +1145,9 @@ export function applyDamage(state, target, instances, { source = null, critical 
         }
     } else if (retribution && isActive(source) && canAct(retribution) && sameMelee(retribution, source)) {
         const strike = bestMeleeStrike(retribution, source);
-        if (strike) performStrike(state, retribution, source, strike, { reaction: true });
+        // (C30: Relentless Reaction's persistent spirit damage, Instrument of Zeal's critical hit, Exalted Reaction's allies.)
+        if (strike) retributionAfter(state, retribution, source, strike, performStrike(state, retribution, source, strike, { reaction: true }), { applyDamage, applyCondition });
+        exaltedStrikes(state, retribution, source, { bestMeleeStrike, performStrike });
     }
     return dealt;
 }
@@ -1289,6 +1300,8 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
             log(state, `  ${target.name}'s ${effect.model.name} ends`);
         }
     }
+    // (C33, Hero's Defiance: an attack that would drop it — its Hit Points first.)
+    if (target.heroesDefiance && remaining >= target.hp.value) heroesDefiance(state, target, remaining, source);
     const before = target.hp.value;
     const dealt = Math.min(before, remaining);
     target.hp.value -= remaining;
@@ -1305,7 +1318,8 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
     if (target.hp.value > 0 && target.summons?.length) summonsOnDamage(state, target, amount);
     // (B302: Construct Armor breaking below half its Hit Points, or on a critical hit.)
     if (target.constructArmor) constructArmorDamaged(state, target, critical);
-    if (target.hp.value <= 0) {
+    // (C33, Immortal Bastion: 1 Hit Point and 100 temporary ones instead, once a day.)
+    if (target.hp.value <= 0 && !(target.lastStand && lastStand(state, target))) {
         const overwhelming = amount >= target.hp.max * state.moraleRules.measures.overwhelmingFraction;
         const massive = amount >= target.hp.max * 2;
         knockOut(state, target, { source, critical, nonlethal, overwhelming, massive, before });

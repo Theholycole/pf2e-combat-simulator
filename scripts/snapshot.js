@@ -524,7 +524,86 @@ function readClassFeatures(actor, strikes) {
             dice: level >= 19 ? 6 : level >= 16 ? 5 : level >= 12 ? 4 : level >= 9 ? 3 : level >= 5 ? 2 : 1
         };
     }
+    readChampionSheet(actor, { items, find, level, fields, result, activity, meleeWeapons });
     return result;
+}
+
+// A champion's sheet, and the feats a two-handed fighter takes (C30–C34, 2026-10-15; the user's champion Riah: "Can we try to simulate her
+// whole character sheet as much as possible").
+const ZERO_RIDER = { conditions: [], critical: null, push: null, damage: [], save: null, size: null };
+function readChampionSheet(actor, { items, find, level, fields, result, activity, meleeWeapons }) {
+    const take = (slug) => {
+        const item = find(slug);
+        if (item) result.handled.add(item);
+        return item;
+    };
+    const intimidation = Number(actor.skills?.intimidation?.rank ?? 0);
+    const equipment = [...(actor.itemTypes?.equipment ?? []), ...(actor.itemTypes?.armor ?? [])].filter((item) => item.isInvested !== false);
+    const worn = (pattern) => equipment.find((item) => pattern.test(String(item.slug ?? item.name ?? "").toLowerCase()));
+    // (C30: Retributive Strike's upgrades — Relentless Reaction's persistent spirit damage, Exalted Reaction's allies' Strikes, Instrument of
+    // Zeal's critical hit, Swift Retribution's quickened turn, a Helm of Zeal's Divine Fervor.)
+    const reaction = fields.championReaction;
+    if (reaction) {
+        const justice = reaction.slug === "retributive-strike";
+        if (justice && take("relentless-reaction")) reaction.relentless = { amount: Math.max(1, Number(actor.abilities?.cha?.mod ?? 0)), type: "spirit" };
+        if (justice && take("exalted-reaction")) reaction.exalted = { penalty: 5 };
+        if (take("instrument-of-zeal")) reaction.zeal = true;
+        if (take("swift-retribution")) reaction.swift = true;
+        if (worn(/^helm-of-zeal/)) reaction.fervor = true;
+        // (Blessed Counterstrike: at the enemy that set off its reaction since its last turn, a weapon die more; a hit leaves the enemy
+        // weak to its side's Strikes — half its level — until its next turn.)
+        const counter = take("blessed-counterstrike");
+        if (counter) activity(counter, { requires: "champion-triggered", extraWeaponDice: 1, zeal: Boolean(reaction.zeal), onHit: { ...ZERO_RIDER, weakness: Math.floor(level / 2) } });
+    }
+    // (C31, Smite: a mark — +3 status damage, +4 with master proficiency, +4/+6 against the opposite sanctification — Hunt Prey's parts. It
+    // lasts while the enemy keeps up its hostility, as it does in a fight; another Smite moves it.)
+    const smite = take("smite");
+    if (smite && !fields.huntPrey) {
+        const master = Math.max(...["simple", "martial", "advanced", "unarmed"].map((key) => Number(actor.system?.proficiencies?.attacks?.[key]?.rank ?? 0))) >= 3;
+        const options = actor.rollOptions?.all ?? {};
+        const opposite = options["sanctification:holy"] || options["self:trait:holy"] ? "unholy" : options["sanctification:unholy"] || options["self:trait:unholy"] ? "holy" : null;
+        fields.huntPrey = { edge: "parts", every: true, name: "Smite", parts: [{ dice: 0, die: 0, bonus: master ? 4 : 3, ...(opposite ? { upgrade: { trait: opposite, value: master ? 6 : 4 } } : {}) }] };
+    }
+    // (C31, Oath of the Slayer: 1, 2 or 3 spirit damage on Strikes against its sworn kind, doubled after one sets off its reaction.)
+    const oath = find("oath-of-the-slayer");
+    const sworn = oath?.flags?.pf2e?.rulesSelections?.oathOfTheSlayer;
+    if (sworn) {
+        result.handled.add(oath);
+        fields.oath = { trait: sworn, value: level >= 14 ? 3 : level >= 7 ? 2 : 1 };
+    }
+    // (C32, Fearsome Brute: double — triple with master Intimidation — a frightened target's value to its Strikes' damage.)
+    if (take("fearsome-brute")) fields.fearsomeBrute = intimidation >= 3 ? 3 : 2;
+    // (C32, Battle Cry: a free Demoralize as initiative is rolled; legendary in Intimidation, its reaction to Demoralize after a critical hit.)
+    if (take("battle-cry")) fields.battleCry = { reaction: intimidation >= 4 };
+    // (C32, a Dread Blindfold: a creature that first sees it attempts a Will save at DC 37 or is frightened 1.)
+    if (worn(/^dread-blindfold/)) fields.dreadGaze = { dc: 37, value: 1 };
+    // (C33, Hero's Defiance: an attack that would drop it — its Hit Points first, a Focus Point, once until it Refocuses.)
+    const defiance = (actor.itemTypes?.spell ?? []).find((item) => item.slug === "heros-defiance");
+    const heal = /recover (\d+d\d+(?:\s*\+\s*\d+)?) Hit Points/i.exec(String(defiance?.system?.description?.value ?? "").replace(/<[^>]+>/g, " "))?.[1]?.replace(/\s+/g, "");
+    if (heal) fields.heroesDefiance = { heal };
+    // (C33, Immortal Bastion: its deflect — +2 circumstance to AC against melee attacks and 10 temporary HP to its next turn — and, once a
+    // day, 1 Hit Point and 100 temporary ones instead of dropping.)
+    if (worn(/^immortal-bastion/)) {
+        fields.lastStand = { name: "Immortal Bastion", tempHp: 100 };
+        fields.selfEffects = [...(fields.selfEffects ?? []), { name: "Deflect (Immortal Bastion)", actions: 1, model: { name: "Deflect (Immortal Bastion)", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 2 }], tempHp: 10, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }];
+    }
+    // (C34, a two-handed weapon's feats: Brutal Finish, Avalanche Strike, Shatter Defenses, Infernal Interference, March of Law.)
+    const twoHanded = meleeWeapons.find((strike) => strike.hands === 2) ?? null;
+    const finish = take("brutal-finish");
+    if (finish && twoHanded) activity(finish, { strike: twoHanded.name, press: true, extraWeaponDice: level >= 18 ? 2 : 1, endsTurn: true, failureDice: level >= 18 ? 2 : 1 });
+    const shatter = take("shatter-defenses");
+    if (shatter) activity(shatter, { requires: "frightened", press: true, shatter: true });
+    const avalanche = take("avalanche-strike");
+    if (avalanche && twoHanded) fields.multiStrikes = [...(fields.multiStrikes ?? []), { name: avalanche.name, actions: 3, strikes: [twoHanded.name], each: true, sameMap: true, flourish: true }];
+    const infernal = take("infernal-interference");
+    const main = meleeWeapons[0] ?? null;
+    if (infernal && main) fields.multiStrikes = [...(fields.multiStrikes ?? []), { name: infernal.name, actions: 2, strikes: [main.name, main.name], sameTarget: true, flourish: true,
+        hitRiders: [{ atLeast: 1, conditions: [{ slug: "stupefied", value: 1, rounds: 1 }], noReactions: true }, { atLeast: 2, conditions: [{ slug: "stupefied", value: 3, rounds: 1 }] }] }];
+    if (take("march-of-law")) fields.marchOfLaw = { name: "March of Law", frightened: 2, speedBonus: 10 };
+    // (Divine Wings with Eternal Wings: the fly Speed for good, read with its Speeds. Diabolic Certitude: Recall Knowledge about devils — nothing
+    // in a fight.)
+    if (Number(actor.system?.movement?.speeds?.fly?.value) > 0) take("divine-wings");
+    take("diabolic-certitude");
 }
 
 // (B303: the skills a creature's abilities name for its own initiative — "rolls Deception or Stealth for initiative" — by the ability
@@ -1301,6 +1380,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     delete abilities.builtins.randomStrikeTables;
     readGaps(actor, gaps, abilities.handled);
     const { spells, spellPools, summons: spellSummoned = [] } = await readSpells(actor, gaps, { fresh, castSpells: abilities.castSpells });
+    // (C33: Hero's Defiance, played as the champion's answer to a blow that would drop it — not a gap.)
+    if (features.fields.heroesDefiance) gaps.splice(0, gaps.length, ...gaps.filter((gap) => !(gap.kind === "spell" && gap.name === "Hero's Defiance")));
     if (spellSummoned.length) abilities.builtins.summons = [...(abilities.builtins.summons ?? []), ...spellSummoned];
     spells.push(...abilities.abilities);
     // A Strike's riders are gaps unless an ability plays them.
@@ -1360,7 +1441,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         ...abilities.builtins,
         ...features.fields,
         multiStrikes: [...(abilities.builtins.multiStrikes ?? []), ...(features.fields.multiStrikes ?? [])],
-        ...(selfEffects.length ? { selfEffects } : {}),
+        // (Its PF2e self-effects, and a class feature's — Immortal Bastion's deflect, C33.)
+        ...(selfEffects.length || features.fields.selfEffects?.length ? { selfEffects: [...(features.fields.selfEffects ?? []), ...selfEffects] } : {}),
         ...(exemplar ? { exemplar } : {}),
         reactions: { aoo: hasItemSlug(actor, AOO_SLUGS), shieldBlock: hasItemSlug(actor, new Set(["shield-block"])), ...abilities.builtins.reactions },
         size: actor.size ?? actor.system?.traits?.size?.value ?? "med",

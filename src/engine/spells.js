@@ -478,6 +478,11 @@ const NOT_HARMFUL = new Set(["off-guard", "quickened", "concealed", "hidden", "i
 export function bothHitRider(state, attacker, target, rider, { said = "Both Strikes hit" } = {}) {
     if (!isActive(target)) return;
     if (said) log(state, `  ${said} ${target.name}`);
+    // (C34, Infernal Interference: no reactions until the attacker's next turn begins.)
+    if (rider.noReactions) {
+        target.reactionLocks = [...(target.reactionLocks ?? []).filter((held) => held.by !== attacker.id), { by: attacker.id, spell: "no reactions", untilRound: state.round + 1, ownTurn: false, sustained: false }];
+        log(state, `  ${target.name} can't use reactions`);
+    }
     for (const entry of rider.conditions ?? []) {
         const duration = entry.rounds ? { mode: "fixed", value: entry.rounds, unit: "rounds", expiry: "turn-start", anchor: "source-turn" } : null;
         if (applyCondition(state, target, entry.slug, entry.value ?? null, duration, attacker)) log(state, `  ${target.name} is ${entry.slug}${Number.isFinite(entry.value) ? ` ${entry.value}` : ""}`);
@@ -1138,6 +1143,11 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
     }
     // (B130, Clobber: its save only against an off-guard target.)
     if (activity.riderSpell && isActive(target) && (rider.saveIf !== "off-guard" || isOffGuard(target))) castPlan(state, attacker, activity.riderSpell, [target.id]);
+    // (C30, Blessed Counterstrike: weak to its side's Strikes — half its level, as physical damage's weakness — until its next turn starts.)
+    if (rider.weakness && isActive(target)) {
+        applyEffect(state, target, { name: activity.name, rounds: 1, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [{ type: "physical", value: rider.weakness, exceptions: [] }], immunities: [], conditions: [], unsupported: [], situational: 0 }, attacker, { applyCondition, key: `weakness:${activity.name}` });
+        log(state, `  ${target.name} is weak ${rider.weakness} to Strikes (${activity.name})`);
+    }
     // (B153, Draining Touch: the Hit Points it regains on a hit.)
     // (B207, Devour Flesh: dice, "3d6", rolled.)
     const healed = typeof rider.selfHeal === "string" ? rollCount(state, rider.selfHeal) : rider.selfHeal;
@@ -1184,6 +1194,10 @@ export function strikeRiderValue(state, attacker, target, activity, strike = nul
     const dice = /^(\d+)d(\d+)$/.exec(String(rider.selfHeal ?? ""));
     const meanHeal = dice ? Number(dice[1]) * (Number(dice[2]) + 1) / 2 : Number(rider.selfHeal) || 0;
     if (meanHeal > 0) worth += 0.02 * Math.min(meanHeal, Math.max(0, attacker.hp.max - attacker.hp.value)) / Math.max(1, attacker.hp.max) * 10;
+    // (C30, Blessed Counterstrike's weakness: about two more hits from its side before it ends. C34, Shatter Defenses: off-guard while
+    // frightened, a round or two.)
+    if (rider.weakness) damage += 2 * rider.weakness;
+    if (activity.shatter && target.cond.frightened > 0 && !isOffGuard(target)) worth += conditionWorth("off-guard", null, { mode: "fixed", value: Math.min(2, target.cond.frightened), unit: "rounds" });
     if (activity.riderSpell && (rider.saveIf !== "off-guard" || isOffGuard(target))) {
         const entry = spellExpectation(state, attacker, activity.riderSpell, [target]).find((item) => item.target === target);
         damage += entry?.damage ?? 0;

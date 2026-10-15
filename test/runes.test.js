@@ -41,8 +41,9 @@ test("a critical hit's runes: greater frost's slowed on a failed DC 34 Fortitude
 test("a greater rune's damage ignores resistance to its type; Sacred Defender: a natural 20 against it doesn't improve the result", () => {
     const options = new Set(["item:rune:property:greaterFrost"]);
     assert.deepEqual([...ignoredResistances(options)], ["cold"]);
+    assert.equal(ignoredResistances(new Set(["item:rune:property:keen"])), null);
     const defender = { resistances: [{ type: "cold", value: 10, exceptions: [] }, { type: "fire", value: 10, exceptions: [] }], weaknesses: [], immunities: [] };
-    const context = options;
+    const context = Object.assign(new Set(options), { ignored: ignoredResistances(options) });
     assert.equal(adjustDamage(defender, [{ type: "cold", amount: 15, context }]).total, 15);
     assert.equal(adjustDamage(defender, [{ type: "fire", amount: 15, context }]).total, 5);
     // Sacred Defender: a natural 20 that would miss stays a miss (without it, a hit).

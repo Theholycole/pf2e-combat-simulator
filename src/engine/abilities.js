@@ -668,9 +668,12 @@ export function chargeStrike(strike, charge) {
     const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
     // Vicious Swing: extra dice of the weapon's own damage (PF2e's critical formula would leave them out).
+    // (C34: PF2e's critical formula kept — deadly, critical specialization, flaming's persistent fire — with the dice in its doubled part.)
     if (charge.extraWeaponDice) {
         changed.damage = changed.damage.map((part, index) => (index === 0 ? { ...part, dice: (part.dice ?? 0) + charge.extraWeaponDice } : part));
-        delete changed.critDamage;
+        const doubled = (strike.critDamage ?? []).findIndex((part) => part.type === strike.damage[0]?.type && (part.multiplier ?? 1) === 2 && part.die === strike.damage[0]?.die);
+        if (doubled >= 0) changed.critDamage = strike.critDamage.map((part, index) => (index === doubled ? { ...part, dice: (part.dice ?? 0) + charge.extraWeaponDice } : part));
+        else delete changed.critDamage;
     }
     const dice = charge.damage ? /(\d+)d(\d+)\s*(?:([+-])\s*(\d+))?/.exec(charge.damage) : null;
     if (dice) {
@@ -851,9 +854,12 @@ export function reactionWord(text) {
 }
 
 // The reactions kept for one thing only ({ names, count } a round, B302–B303): the first with a use left for this one (any, with none), or -1.
+// (C30: one kept for "your champion's reaction" — Divine Reflexes, Divine Fervor — is its champion's reaction by whatever name: before, it
+// matched no reaction.)
 function spareIndex(c, name) {
     const word = name ? reactionWord(name) : null;
-    return (c.spareReactions ?? []).findIndex((entry, index) => (c.spareUsed?.[index] ?? 0) < entry.count && (!word || entry.names.includes(word)));
+    const champion = c.championReaction && word === reactionWord(c.championReaction.name);
+    return (c.spareReactions ?? []).findIndex((entry, index) => (c.spareUsed?.[index] ?? 0) < entry.count && (!word || entry.names.includes(word) || (champion && entry.names.some((each) => /^champion'?s? reaction$/.test(each)))));
 }
 
 // Spends a reaction on it (name: the reaction): one kept for it first, else its reaction.

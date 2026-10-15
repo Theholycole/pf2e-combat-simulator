@@ -44,11 +44,17 @@ export function keenCritical(strike, natural, degree) {
     return degree === SUCCESS && natural === 19 && runesOf(strike).includes("keen") && ["slashing", "piercing"].includes(strike?.damage?.[0]?.type);
 }
 
-// The resistance types a damage's context ignores (its Strike's runes, as roll options).
-export function ignoredResistances(options) {
-    const out = new Set();
-    for (const [rune, types] of Object.entries(RUNE_IGNORES)) if (options?.has?.(`item:rune:property:${rune}`)) for (const type of types) out.add(type);
+// The resistance types a Strike's property runes ignore — null for none (damage.js keeps it on the Strike's context).
+export function runeIgnores(runes) {
+    let out = null;
+    for (const rune of runes ?? []) for (const type of RUNE_IGNORES[rune] ?? []) (out ??= new Set()).add(type);
     return out;
+}
+
+// The same from a context's roll options (a test's, or one made without strikeContext).
+export function ignoredResistances(context) {
+    if (context?.ignored !== undefined) return context.ignored;
+    return runeIgnores(Object.keys(RUNE_IGNORES).filter((rune) => context?.has?.(`item:rune:property:${rune}`)));
 }
 
 // A critical hit's rune effects on the target. applyCondition and applyMove: the engine's.

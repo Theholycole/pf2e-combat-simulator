@@ -58,6 +58,8 @@ const end = (state, c, entries, why) => endEntries(state, c, "pacified", entries
 // Hostility toward target from source (an attack, damage, a harmful spell or condition): what it ends.
 export function hostility(state, target, source) {
     if (!source || source === target) return;
+    // (C34, March of Law's requirement: an enemy that took a hostile action against it since its last turn.)
+    if (target.marchOfLaw && source.side !== target.side) (target.wrongedBy ??= new Set()).add(source.id);
     // (Fascinated: hostility to it or any of its allies ends it.)
     for (const other of state.list) {
         if (other.side !== target.side || !other.cond?.fascinated) continue;

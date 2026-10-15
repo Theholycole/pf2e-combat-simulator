@@ -7,7 +7,7 @@
 // carries critDamage, PF2e's own critical formula, which is used as-is.
 
 import { sourceOptions, testPredicate } from "./abilities.js";
-import { ignoredResistances } from "./runes.js";
+import { runeIgnores } from "./runes.js";
 
 const PHYSICAL = new Set(["bludgeoning", "piercing", "slashing"]);
 
@@ -136,6 +136,9 @@ export function strikeContext(attacker, strike, critical = false) {
         if (strike.held) options.add("held-weapon");
         if ((iwr.materials ?? []).some((material) => ["duskwood", "peachwood"].includes(material)) || ["bow", "club"].includes(iwr.group) || /\b(?:staff|club|wooden|cudgel|bo)\b/i.test(strike.name ?? "")) options.add("wooden");
         cached = { normal: options, critical: new Set([...options, CRITICAL]) };
+        // (C29: the resistances its greater runes ignore, kept on the context for adjustPart.)
+        const ignored = runeIgnores(iwr.runes);
+        if (ignored) cached.normal.ignored = cached.critical.ignored = ignored;
         strikeContexts.set(strike, cached);
     }
     return critical ? cached.critical : cached.normal;
@@ -301,7 +304,7 @@ export function adjustPart(defender, instance, context = null) {
     }
     let resistance = 0;
     // (A greater rune's damage ignores resistance to its type: greater frost's cold.)
-    const ignored = context ? ignoredResistances(options) : null;
+    const ignored = context?.ignored;
     for (const entry of resistancesOf(defender)) {
         if (!applies(entry, "resistance", options) || ignored?.has(entry.type)) continue;
         const value = resistanceValue(entry, options);

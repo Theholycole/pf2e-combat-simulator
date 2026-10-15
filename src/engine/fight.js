@@ -2,7 +2,7 @@
 
 import { createRng } from "./rng.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCCESS } from "./checks.js";
-import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, keepPermanent, strikeUsable } from "./combatant.js";
+import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
@@ -28,6 +28,7 @@ import { buildEnvironment, covenCast, covenTurnStart, hiddenAtTurnStart, lightAt
 import { attachedTurnStart, berserkTurnStart, followAttached, headsMend, hydraRegrow, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
 import { controlTurnStart } from "./control.js";
 import { familiarFocus, familiarKeepsUp } from "./familiars.js";
+import { championOpening, marchOfLaw, shatterDefenses, zealCritical } from "./champion.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -374,6 +375,12 @@ function startTurn(state, c) {
     keepPermanent(c);
     c.reactionUsed = false;
     c.spareUsed = null;
+    // (C30: Divine Fervor's extra reaction is gone as its turn starts; C33: temporary HP that last to its next turn — Immortal Bastion's.)
+    if (c.spareReactions?.some((entry) => entry.untilTurn)) c.spareReactions = c.spareReactions.filter((entry) => !entry.untilTurn);
+    if (c.tempHpUntilTurn) {
+        c.hp.temp = 0;
+        c.tempHpUntilTurn = false;
+    }
     c.attacksThisTurn = 0;
     c.round = state.round;
     c.riderReady = null;
@@ -532,6 +539,9 @@ function swallowedTurn(state, c) {
 }
 
 function endTurn(state, c) {
+    // (C30, C34: who set off its champion's reaction, or took a hostile action against it, since its last turn — counted from this one's end.)
+    c.triggeredBy?.clear();
+    c.wrongedBy?.clear();
     // (B314: a new save against a condition that allows one.)
     if (c.saveEnds?.length && c.status === ACTIVE) saveEndsAtTurnEnd(state, c);
     // Panache from a failed bravado action lasts only this turn.
@@ -720,6 +730,9 @@ function act(state, c, action) {
         case "familiarFocus":
             familiarFocus(state, c);
             break;
+        case "marchOfLaw":
+            marchOfLaw(state, c, state.byId.get(action.targetId), { applyCondition, stride });
+            break;
         case "stand":
             stand(state, c);
             break;
@@ -839,6 +852,8 @@ function act(state, c, action) {
             if (activity.noMap) c.attacksThisTurn = 0;
             // "using the previous Strike's multiple attack penalty" (B68): that Strike's penalty, and no more after it.
             if (activity.previousMap) c.attacksThisTurn = Math.max(0, attacksBefore - 1);
+            // (C34, Shatter Defenses: whether it was off-guard to it before the hit.)
+            const offGuardBefore = activity.shatter ? isOffGuard(target) : false;
             const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...activity, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : activity));
             if (activity.noMap || activity.previousMap) c.attacksThisTurn = attacksBefore;
             if (fired?.reload) (c.unloaded ??= new Set()).add(fired.name);
@@ -863,6 +878,19 @@ function act(state, c, action) {
                 state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
             }
             if (result && result.degree >= SUCCESS && isActive(target)) applyStrikeRider(state, c, target, activity, result.degree === 3, fired);
+            // (C30: Instrument of Zeal's critical hit with Blessed Counterstrike.)
+            if (activity.zeal && result?.degree === CRITICAL_SUCCESS && isActive(target)) zealCritical(state, c, target, fired, { applyDamage, applyCondition });
+            // (C34, Brutal Finish: a failure still deals a die or two of the weapon's; then its turn ends.)
+            if (activity.failureDice && result?.degree === FAILURE && isActive(target) && fired?.damage?.[0]?.die) {
+                let amount = 0;
+                for (let die = 0; die < activity.failureDice; die++) amount += state.rng.die(fired.damage[0].die);
+                const dealt = applyDamage(state, target, [{ type: fired.damage[0].type, amount, persistent: false, precision: false, context: strikeContext(c, fired) }], { source: c, physical: true });
+                state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
+            }
+            // (C34, Shatter Defenses: a hit that deals damage leaves it off-guard while it's frightened; already off-guard to it, its frightened
+            // can't drop below 1 until the attacker's next turn.)
+            if (activity.shatter && result?.degree >= SUCCESS && (result.damage ?? 1) > 0 && isActive(target)) shatterDefenses(state, c, target, offGuardBefore, { applyCondition });
+            if (activity.endsTurn) c.actionsLeft = 0;
             // (B156, Battering Blow: "then Shoves the same creature" — hit or miss.)
             if (result && activity.afterStrike && isActive(target) && canAct(c)) bothHitRider(state, c, target, { follow: activity.afterStrike }, { said: null });
             // Set-Up Strike: its hit leaves the target off-guard to an ally's next attack.
@@ -1003,6 +1031,8 @@ function act(state, c, action) {
             c.suppressMomentum = false;
             // (B212, a Battlezoo creature's bites: at least that many hits on one creature, not every Strike.)
             // (B213, Frightening Flurry: Frightened as many as the Strikes that hit it.)
+            // (C34, Infernal Interference: what one hit brings, and what both do.)
+            for (const entry of ability.hitRiders ?? []) if (struck && hits >= entry.atLeast) bothHitRider(state, c, struck, entry, { said: entry.atLeast > 1 ? undefined : `${ability.name} hits` });
             const rider = ability.bothHit?.perHit ? { ...ability.bothHit, conditions: ability.bothHit.conditions.map((entry) => ({ ...entry, value: hits })) } : ability.bothHit;
             if (ability.bothHit && struck && (ability.bothHit.atLeast ? hits >= ability.bothHit.atLeast : made >= 2 && hits === made)) bothHitRider(state, c, struck, rider, ability.bothHit.atLeast ? { said: `${hits} Strike${hits === 1 ? "" : "s"} hit` } : {});
             // (B152, Haunting Assault: "…, then Demoralizes that creature" — its basic action after the Strikes.)
@@ -1072,7 +1102,8 @@ function act(state, c, action) {
             const target = state.byId.get(action.targetId);
             if (target && isActive(target)) {
                 c.prey = target.id;
-                state.log?.push(`  ${c.name} hunts ${target.name} as its prey`);
+                // (C31: Smite by its name.)
+                state.log?.push(c.huntPrey?.name ? `  ${c.name} uses ${c.huntPrey.name} on ${target.name}` : `  ${c.name} hunts ${target.name} as its prey`);
             }
             break;
         }
@@ -1359,6 +1390,8 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
     // Frightful Presence and other auras: each enemy in range saves when the fight starts.
     if (!resuming) applyAuras(state);
     if (!resuming) initiativeDeeds(state);
+    // (C32: a Dread Blindfold's gaze and Battle Cry's Demoralize as the fight begins.)
+    if (!resuming) for (const c of state.list) if (c.dreadGaze || c.battleCry) championOpening(state, c, { applyCondition, castPlan });
     // Chilling Cry, Predestined Defeat: a monster's reaction to rolling initiative (B47).
     if (!resuming) initiativeReactions(state);
     if (!resuming) initiativeStrikes(state);

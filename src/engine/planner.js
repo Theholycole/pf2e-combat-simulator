@@ -1063,6 +1063,8 @@ function expandMultiStrikes(env) {
             let expected = 0;
             // (B106: a second Strike only after a first that hits, worth that chance.)
             let firstHits = 1;
+            // (C34: each Strike's chance to hit, for riders on one hit or on both.)
+            const hitChances = [];
             for (const [step, index] of order.entries()) {
                 // Double Slice: both at the current penalty, the second -2 unless agile (B62: not a monster's). A penalty on each
                 // (Frenzied Slashes' -2).
@@ -1076,11 +1078,19 @@ function expandMultiStrikes(env) {
                 // (B255: a random multi-Strike's Strike, as often as its faces give it.)
                 expected += (expectation?.damage ?? 0) * (ability.ifFirstHits && step > 0 ? firstHits : 1) * randomStrikeShare(ability, c, index);
                 if (step === 0) firstHits = expectation?.hitChance ?? 0;
+                hitChances.push(expectation?.hitChance ?? 0);
             }
             if (expected <= 0) continue;
             const before = node.damage[target.id] ?? 0;
             const hp = remainingHp(target);
-            const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp));
+            // (Infernal Interference: stupefied 1 and no reactions on one hit, stupefied 3 on both — at their chances.)
+            let riderWorth = 0;
+            for (const entry of ability.hitRiders ?? []) {
+                const chance = entry.atLeast <= 1 ? 1 - hitChances.reduce((miss, hit) => miss * (1 - hit), 1) : hitChances.reduce((all, hit) => all * hit, 1);
+                const worth = (entry.conditions ?? []).reduce((sum, { slug, value }) => sum + Math.max(0, conditionWorth(slug, value, { mode: "fixed", value: 1, unit: "rounds" }) - (slug === "stupefied" ? conditionWorth(slug, target.cond.stupefied ?? 0, null) : 0)), 0) + (entry.noReactions ? 0.05 : 0);
+                riderWorth += chance * worth;
+            }
+            const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + riderWorth * ROUND_TO_KILL);
             const next = child(node, { type: "multiStrike", ability: abilityIndex, targetId: target.id, actions: ability.actions }, ability.actions, ctx.profile.aggression * gain, {
                 attacks: ability.countsAs ?? (ability.random ? Math.round(order.reduce((sum, index) => sum + randomStrikeShare(ability, c, index), 0)) : order.length),
                 ...(pos !== node.pos ? { pos } : {}),
@@ -1154,6 +1164,8 @@ function expandStrikeActivities(env) {
         // (B147: straight after a spell it cast.)
         if (activity.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, activity.nonCantrip))) continue;
         if (activity.strides && (!mobile || ctx.wavering)) continue;
+        // (C34, press: only with a multiple attack penalty — an attack made this turn.)
+        if (activity.press && node.attacks < 1) continue;
         // Cover Fire (C19): a loaded firearm or crossbow, once a round.
         if (activity.coverFire && (c.usedThisTurn?.has("cover-fire") || node.casts.includes("coverFire"))) continue;
         const named = strikeNamed(c, activity.strike);
@@ -1176,6 +1188,8 @@ function expandStrikeActivities(env) {
             // (B104: Terrifying Smite's "an enemy that has one of its allies within its reach".)
             if (activity.requires === "ally-adjacent" && !state.list.some((other) => other !== c && other.side === c.side && isActive(other) && sameMelee(other, target))) continue;
             if (activity.requires === "free-hand" && state.list.some((other) => other.grabbedBy === c.id && (other.cond.grabbed || other.cond.restrained))) continue;
+            // (C30, Blessed Counterstrike: at an enemy that set off its champion's reaction since its last turn.)
+            if (activity.requires === "champion-triggered" && !c.triggeredBy?.has(target.id)) continue;
             let pos = node.pos;
             if (activity.strides) {
                 // (A follow-up's, "Strides up to 10 feet and Strikes", B68: also at a creature already in reach.)
@@ -1209,7 +1223,8 @@ function expandStrikeActivities(env) {
             const exacting = activity.exacting ? 0.15 * (1 - best.expectation.hitChance) * gain : 0;
             // (B139: Off-Guard on itself costs, a guard helps, for about a round.)
             const selfWorth = activity.selfAfter?.length ? ctx.ownValue * ROUND_TO_KILL * effectBenefit({ rounds: 1, modifiers: activity.selfAfter.map((entry) => ({ on: "ac", value: entry.ac ?? -2 })), tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [] }, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1) : 0;
-            const next = child(node, { type: "strikeActivity", index: activityIndex, targetId: target.id, strikeIndex: best.index, actions: activity.actions }, activity.actions, ctx.profile.aggression * (gain + exacting) + selfWorth, {
+            // (C34, Brutal Finish: its turn ends after it — what's left of the turn goes with it.)
+            const next = child(node, { type: "strikeActivity", index: activityIndex, targetId: target.id, strikeIndex: best.index, actions: activity.actions }, activity.endsTurn ? remaining : activity.actions, ctx.profile.aggression * (gain + exacting) + selfWorth, {
                 attacks: activity.noMap || activity.previousMap ? 0 : activity.countsAs ?? 1,
                 pos,
                 damage: { ...node.damage, [target.id]: before + expected },
@@ -1556,6 +1571,27 @@ function expandTactics(env) {
 // Battle Medicine, Mythic Points, Knocking Sweep, Poison Weapon, Retch, map objectives, dangers, the alarm and hazards. (Part of expand, split up so the optimizer takes it.)
 function expandOtherActions(env) {
     const { state, c, ctx, node, remaining, inAnyMelee, mobile, restrained, noAttacks, children } = env;
+    // (C34, March of Law: once a round, toward an enemy that took a hostile action against it since its last turn — each enemy beside it
+    // where it ends, frightened 2 (no save).)
+    if (c.marchOfLaw && remaining >= 1 && !restrained && !c.usedThisTurn?.has("march-of-law") && !node.casts.includes("march")) {
+        for (const target of ctx.enemies) {
+            if (target.status !== "active" || !c.wrongedBy?.has(target.id)) continue;
+            const here = inMelee(node.pos, target);
+            if (!here && (!mobile || ctx.wavering || stridesToEngage(ctx.mover(node.pos), target) > 1)) continue;
+            const pos = here ? node.pos : target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
+            let gain = 0;
+            for (const foe of ctx.enemies) {
+                if (foe.status !== "active" || !inMelee(pos, foe) || foe.cond.blinded) continue;
+                const now = foe.cond.frightened ?? 0;
+                if (now >= c.marchOfLaw.frightened) continue;
+                gain += targetValue(state, foe, c) * (conditionWorth("frightened", c.marchOfLaw.frightened, null) - conditionWorth("frightened", now, null)) * ROUND_TO_KILL;
+            }
+            if (gain <= 0) continue;
+            const next = child(node, { type: "marchOfLaw", targetId: target.id }, 1, ctx.profile.aggression * gain, { cast: "march", ...(pos !== node.pos ? { pos } : {}) });
+            if (pos !== node.pos && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+            children.push(next);
+        }
+    }
     // (Familiar Focus: its familiar commanded to restore a Focus Point once its pool is spent — worth part of the focus spell it readies.)
     if (c.focusMax && node.used === 0 && remaining >= 1 && !node.casts.includes("familiarFocus") && familiarFocusReady(state, c)) {
         children.push(child(node, { type: "familiarFocus" }, 1, 0.4 * ctx.profile.aggression * ctx.ownValue * ROUND_TO_KILL * 3, { cast: "familiarFocus" }));
