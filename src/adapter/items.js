@@ -187,6 +187,8 @@ export function beltHeld(contents = []) {
 const FEAT_BOOSTS = Object.freeze({ "fear-gem": { feat: "intimidating-strike", slug: "frightened", by: 1 } });
 export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses = null, fresh = false, feats = [] } = {}) {
     if (!plan?.strike || !plan.resolution?.outcomes) return null;
+    // (Extras on the Strike itself — more damage dice, an attack bonus, an alteration: not yet, so not played without them.)
+    if (plan.strike.damage?.length || plan.strike.attack || plan.strike.alteration) return null;
     const item = plan.item ?? {};
     const reusable = (uses?.autoDestroy ?? item.uses?.autoDestroy) === false;
     const casts = itemCasts({ category: reusable ? "wand" : "consumable", quantity, uses: { max: Math.max(1, Number(uses?.max ?? item.uses?.max) || 1), value: uses?.value }, fresh: reusable && fresh });

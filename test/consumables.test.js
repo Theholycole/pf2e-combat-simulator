@@ -267,6 +267,8 @@ test("U7: an item used by Striking is a Strike activity — its riders on a hit 
     assert.equal(itemStrikeActivity({ ...FEAR_GEM, resolution: { ...FEAR_GEM.resolution, outcomes: { ...FEAR_GEM.resolution.outcomes, success: { ...none, modifiers: [{ selector: "ac", value: -1 }] } } } }, { id: "g" }), null);
     assert.equal(itemStrikeActivity(POTION, { id: "p" }), null);
     assert.equal(itemStrikeActivity(FEAR_GEM, { id: "g", quantity: 0 }), null);
+    // (Extras on the Strike itself, more damage or an attack bonus: not played without them.)
+    assert.equal(itemStrikeActivity({ ...FEAR_GEM, strike: { ...FEAR_GEM.strike, damage: [{ diceNumber: 4, dieSize: "d6", damageType: "mental" }] } }, { id: "g" }), null);
     // And not an action of its own: itemEntry leaves it to the activity.
     assert.equal(itemEntry(FEAR_GEM, { id: "g" }), null);
 });

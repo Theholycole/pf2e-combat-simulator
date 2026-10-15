@@ -31,6 +31,8 @@ const { compileSpell, spellNamed } = await import("./pack-spells.mjs");
 
 const docs = (name) => readDocuments(`${PACK_ROOT}/${name}`).filter((doc) => doc.collection === "items");
 const spellEffects = compiler ? compiler.spellEffectIndex(docs("spell-effects")) : {};
+// (Casts named in words — Oil of Mending's — by PF2e's spells, as the item module's live compile reads them.)
+const spells = compiler?.spellIndex ? compiler.spellIndex(docs("spells")) : null;
 // (A creature's copy has a short text, often without its Activate line: the equipment pack's own, when it has one.)
 const equipment = new Map(compiler ? docs("equipment").map((doc) => [`Compendium.pf2e.equipment-srd.Item.${doc._id}`, doc]) : []);
 const EFFECT_PACKS = ["spell-effects", "equipment-effects", "other-effects", "bestiary-effects"];
@@ -60,7 +62,7 @@ export function npcItems(npc, { fresh = true } = {}) {
         const uuid = item._stats?.compendiumSource ?? item.flags?.core?.sourceId ?? null;
         const source = equipment.get(uuid);
         try {
-            plan = compiler.compileItem({ ...item, ...(source ? { system: { ...item.system, description: source.system?.description ?? item.system?.description } } : {}), uuid }, { spellEffects, basicActions, ...options });
+            plan = compiler.compileItem({ ...item, ...(source ? { system: { ...item.system, description: source.system?.description ?? item.system?.description } } : {}), uuid }, { spellEffects, basicActions, ...(spells ? { spells } : {}), ...options });
         } catch {
             plan = null;
         }
