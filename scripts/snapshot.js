@@ -369,7 +369,7 @@ function readClassFeatures(actor, strikes) {
     // Feats with actions, as the engine's Strike activities, charges and multi-Strikes.
     const activity = (item, fields) => {
         result.handled.add(item);
-        (result.fields.strikeActivities ??= []).push({ name: item.name, actions: Number(item.system?.actions?.value) || 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: null, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null, ...(flourish(item) ? { flourish: true } : {}), ...fields });
+        (result.fields.strikeActivities ??= []).push({ name: item.name, actions: Number(item.system?.actions?.value) || 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: null, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null, traits: [...(item.system?.traits?.value ?? [])], ...(flourish(item) ? { flourish: true } : {}), ...fields });
     };
     const meleeWeapons = strikes.filter((strike) => strike.melee && !strike.name.includes("(")).sort((a, b) => value(b) - value(a));
     const rangedWeapons = strikes.filter((strike) => !strike.melee && strike.held && !strike.name.includes("(")).sort((a, b) => value(b) - value(a));
@@ -806,7 +806,8 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
             continue;
         }
         if (plan.builtin) {
-            if (!pc && addBuiltin(result.builtins, plan, item.name)) result.handled.add(item);
+            // (Its traits with it, for a Strike activity's concentrate.)
+            if (!pc && addBuiltin(result.builtins, { ...plan, traits: plan.traits ?? [...(item.system?.traits?.value ?? [])] }, item.name)) result.handled.add(item);
             continue;
         }
         if (!plan.resolution) continue;

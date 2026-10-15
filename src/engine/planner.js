@@ -21,7 +21,7 @@ import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
-import { isHex, battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition } from "./spells.js";
+import { actionTraits, isHex, battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition, traitsAllowed } from "./spells.js";
 import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";
@@ -858,9 +858,8 @@ function expandSpells(env) {
     // caught by damage, and foes healed, count against the cast.
     for (const [index, spell] of (c.spells ?? []).entries()) {
         if (!canCast(c, spell) || node.casts.includes(index)) continue;
-        if (raging && (spell.plan?.traits ?? []).includes("concentrate") && !(spell.plan?.traits ?? []).includes("rage")) continue;
-        // (Fascinated: no concentrate actions.)
-        if (c.cond.fascinated && (spell.plan?.traits ?? []).includes("concentrate")) continue;
+        // (Raging or fascinated: no concentrate actions — the spell's traits or an item's activation's, 2026-10-15.)
+        if (!traitsAllowed(c, actionTraits(spell), { raging })) continue;
         if (noSpells && (!spell.kind || spell.castsSpell)) continue;
         // (S22: a staff's charges, each spell its rank.)
         if (spell.pool && node.casts.reduce((sum, other) => sum + (typeof other === "number" && c.spells[other].pool === spell.pool ? poolCost(c.spells[other]) : 0), poolCost(spell)) > (c.spellPools[spell.pool] ?? 0)) continue;
@@ -1181,6 +1180,8 @@ function expandStrikeActivities(env) {
         if (activity.press && node.attacks < 1) continue;
         // Cover Fire (C19): a loaded firearm or crossbow, once a round.
         if (activity.coverFire && (c.usedThisTurn?.has("cover-fire") || node.casts.includes("coverFire"))) continue;
+        // (2026-10-15: a concentrate one — Fear Gem's activation, Hunter's Aim — not while raging or fascinated.)
+        if (activity.traits?.length && !traitsAllowed(c, activity.traits, { raging: isRaging(c) })) continue;
         // (U7: an item used by Striking — Fear Gem — as long as one is left, those this plan uses counted.)
         if (activity.pool && node.casts.filter((mark) => mark === `pool:${activity.pool}`).length >= (c.spellPools?.[activity.pool] ?? 0)) continue;
         const named = strikeNamed(c, activity.strike);

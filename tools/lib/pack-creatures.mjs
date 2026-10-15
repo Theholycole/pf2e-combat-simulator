@@ -189,7 +189,8 @@ export function combatant(npc) {
                 used.add(item.name);
             }
         } else if (plan.builtin) {
-            if (addBuiltin(builtins, plan, item.name)) used.add(item.name);
+            // (Its traits with it, for a Strike activity's concentrate.)
+            if (addBuiltin(builtins, { ...plan, traits: plan.traits ?? [...(item.system?.traits?.value ?? [])] }, item.name)) used.add(item.name);
         } else if (plan.resolution && requirementPlayable(plan, PLAYED_REQUIRES)) {
             used.add(item.name);
             // (B230: once a fight in its words; B262: its recharge by name, shared when it says so.)

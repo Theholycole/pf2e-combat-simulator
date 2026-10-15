@@ -518,6 +518,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.selfAfter?.length ? { selfAfter: plan.selfAfter.map((entry) => ({ ...entry })) } : {}),
                 // (B199, Uncanny Pounce: as it rolls initiative only.)
                 ...(plan.initiative ? { initiative: true } : {}),
+                // (2026-10-15: its traits — a concentrate one, Hunter's Aim, provokes what concentrate does.)
+                ...(plan.traits?.length ? { traits: [...plan.traits] } : {}),
                 onHit: plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];

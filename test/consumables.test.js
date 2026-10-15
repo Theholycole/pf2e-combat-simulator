@@ -289,3 +289,53 @@ test("U7: in a fight the gem's Strike frightens on a hit, uses one up, and stops
     }
     assert.ok(frightened > 0, "a hit frightens");
 });
+
+// The concentrate trait (2026-10-15; the user: "Work on the concentrate trait interactions").
+test("concentrate: an action's traits are its own, its plan's and its activation's; none while raging (unless rage) or fascinated", async () => {
+    const { actionTraits, traitsAllowed } = await import("../src/engine/spells.js");
+    assert.deepEqual(actionTraits({ traits: ["fear"], plan: { traits: ["talisman"], activation: { traits: ["concentrate"] } } }).sort(), ["concentrate", "fear", "talisman"]);
+    const calm = { cond: {} };
+    assert.equal(traitsAllowed(calm, ["concentrate"]), true);
+    assert.equal(traitsAllowed(calm, ["concentrate"], { raging: true }), false);
+    assert.equal(traitsAllowed(calm, ["concentrate", "rage"], { raging: true }), true);
+    assert.equal(traitsAllowed({ cond: { fascinated: true } }, ["concentrate"]), false);
+    assert.equal(traitsAllowed({ cond: { fascinated: true } }, ["manipulate"]), true);
+});
+
+test("concentrate: a Fear Gem isn't used while raging or fascinated, and a reaction to concentrate that disrupts it spends it with no Strike", async () => {
+    const { itemStrikeActivity } = await import("../src/adapter/items.js");
+    const [fighter] = martialParty(5);
+    const gem = itemStrikeActivity(FEAR_GEM, { id: "gem", quantity: 1 });
+    const brute = { ...moderateCreature(5, "brute", "Brute"), band: "near", engagement: 1 };
+    // (Its reaction: a Strike at a creature using a concentrate action within its reach, which disrupts it on a hit.)
+    brute.reactionStrikes = [{ name: "Test Disruption", triggers: ["concentrate"], strike: null, penalty: 0, disrupts: true }];
+    const state = createFightState({ combatants: [{ ...fighter, band: "near", engagement: 1, strikeActivities: [gem], spellPools: { [gem.pool]: 1 } }, brute] }, { consumableMargin: 1 }, 1);
+    state.log = [];
+    state.round = 1;
+    const pc = state.byId.get(fighter.id);
+    pc.actionsLeft = 3;
+    computeThreats(state);
+    const offered = () => scoreOptions(state, pc).options.some((option) => option.action?.type === "strikeActivity");
+    assert.equal(offered(), true);
+    pc.activeBuffs = [{ name: "Rage", noConcentrate: true }];
+    assert.equal(offered(), false, "raging");
+    pc.activeBuffs = [];
+    pc.cond.fascinated = true;
+    assert.equal(offered(), false, "fascinated");
+    pc.cond.fascinated = false;
+    // Used: the brute's reaction hits (every d20 a 15) and disrupts it.
+    const { simulate, prepareSnapshot } = await import("../src/engine/fight.js");
+    let disrupted = 0;
+    for (let seed = 1; seed <= 8 && !disrupted; seed++) {
+        const result = simulate(prepareSnapshot({ combatants: [{ ...fighter, band: "near", side: "party", strikeActivities: [gem], spellPools: { [gem.pool]: 1 } }, { ...brute, side: "foes" }] }), { morale: false, consumableMargin: 1 }, seed, { log: true });
+        const at = result.log.findIndex((line) => line.includes("uses Fear Gem"));
+        if (at < 0) continue;
+        const end = result.log.findIndex((line, index) => index > at && line.includes("Fear Gem is disrupted"));
+        if (end < 0) continue;
+        disrupted++;
+        // (The reaction first, then the disruption — and no Strike of the gem's between.)
+        assert.ok(result.log.slice(at, end).some((line) => line.includes("uses Test Disruption")), result.log.slice(at, end + 1).join("\n"));
+        assert.ok(!result.log.slice(at, end).some((line) => line.includes("Fighter Greatsword")), result.log.slice(at, end + 1).join("\n"));
+    }
+    assert.ok(disrupted > 0, "disrupted in some fight");
+});

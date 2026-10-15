@@ -2307,6 +2307,20 @@ export function applyConstantSpells(state) {
     }
 }
 
+// The traits an action has (2026-10-15, the concentrate trait): its own, its plan's and its activation's — an item's "Activate (concentrate)",
+// a spell's casting traits.
+export function actionTraits(entry) {
+    return [...new Set([...(entry?.traits ?? []), ...(entry?.plan?.traits ?? []), ...(entry?.plan?.activation?.traits ?? [])])];
+}
+
+// Whether a creature may use an action of these traits now: not a concentrate one while raging (unless it has the rage trait) or
+// fascinated.
+export function traitsAllowed(c, traits, { raging = false } = {}) {
+    if (!traits.includes("concentrate")) return true;
+    if (c.cond?.fascinated) return false;
+    return !(raging && !traits.includes("rage"));
+}
+
 export function canCast(c, spell) {
     if (!castableAtAll(spell)) return false;
     // (L5: a coven spell, only with its coven beside it.)

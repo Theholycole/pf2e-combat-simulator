@@ -853,6 +853,21 @@ function act(state, c, action) {
                 c.spellPools[activity.pool] = Math.max(0, (c.spellPools[activity.pool] ?? 0) - 1);
                 if (activity.item && state.stats) state.stats[c.side === "party" ? "partyItemsUsed" : "foeItemsUsed"]++;
             }
+            // (2026-10-15, its own traits — Fear Gem's concentrate activation, Hunter's Aim: as a spell's, a deafened creature's auditory one
+            // needs a DC 5 flat check, and it provokes the reactions its traits set off (a manipulate one, Reactive Strike). Disrupted, it
+            // ends with nothing more: its actions and its item are spent, as PF2e has it.)
+            const activityTraits = activity.traits ?? [];
+            if (c.cond.deafened && activityTraits.includes("auditory") && flatCheck(state.rng, 5) < SUCCESS) {
+                state.log?.push(`  ${c.name} loses ${activity.name} (deafened)`);
+                break;
+            }
+            let disrupted = activityTraits.includes("manipulate") ? provoke(state, c, "manipulate") : false;
+            for (const kind of ["concentrate", "auditory", "linguistic", "emotion"]) if (canAct(c) && activityTraits.includes(kind)) disrupted = provoke(state, c, kind) || disrupted;
+            if (!canAct(c)) break;
+            if (disrupted) {
+                state.log?.push(`  ${c.name}'s ${activity.name} is disrupted`);
+                break;
+            }
             if (activity.oncePerFight) (c.activitiesUsed ??= new Set()).add(action.index);
             if (activity.flourish) c.usedThisTurn?.add("flourish");
             if (activity.oncePerTurn) (c.usedThisTurn ??= new Set()).add(activity.name);
