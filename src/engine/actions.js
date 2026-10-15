@@ -5,7 +5,7 @@
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatCheck, rollCheck } from "./checks.js";
 import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
 import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
-import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, strikeUsable } from "./combatant.js";
+import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, spendAmmo, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, resistancesOf, rollStrikeDamage, strikeContext } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { harmedAfterGivingUp, isShaken } from "./morale.js";
@@ -239,6 +239,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (!strikeUsable(attacker, strike)) return null;
     // (Sanctuary: a save first; stopped, the action is wasted.)
     if (wardBlocks(state, attacker, target)) return null;
+    // (U2: a bomb is used up as it's thrown, hit or miss.)
+    spendAmmo(attacker, strike);
     // (An attack, hit or miss, is hostility: it ends Calm, and a charm the attacker put on the target.)
     hostility(state, target, attacker);
     // (B255, Generate Bomb: the die picks the row — its damage, the save and conditions a hit brings.)

@@ -597,6 +597,12 @@ function endTurn(state, c) {
     processMorale(state);
 }
 
+// (U2: a bomb taken out, or made with Quick Alchemy once the stack is gone.)
+function reloadWords(c, strike) {
+    if (!strike?.ammo) return `reloads ${strike?.name}`;
+    return (c.spellPools?.[strike.ammo.pool] ?? 0) > 0 ? `takes out ${strike.name}` : `makes ${strike.name} with Quick Alchemy`;
+}
+
 function act(state, c, action) {
     // A rider (Grab, Knockdown) must follow the Strike straight away.
     const rider = c.riderReady;
@@ -611,7 +617,7 @@ function act(state, c, action) {
             const strike = c.strikes[action.strikeIndex];
             // Reloading it first (Interact, the weapon's reload actions), then the shot empties it again.
             if (action.reload) {
-                state.log?.push(`  ${c.name} reloads ${strike.name}`);
+                state.log?.push(`  ${c.name} ${reloadWords(c, strike)}`);
                 c.unloaded?.delete(strike.name);
             }
             performStrike(state, c, target, strike);
@@ -620,7 +626,7 @@ function act(state, c, action) {
         }
         case "reload": {
             const strike = c.strikes[action.strikeIndex];
-            state.log?.push(`  ${c.name} reloads ${strike?.name}`);
+            state.log?.push(`  ${c.name} ${reloadWords(c, strike)}`);
             if (strike) c.unloaded?.delete(strike.name);
             break;
         }

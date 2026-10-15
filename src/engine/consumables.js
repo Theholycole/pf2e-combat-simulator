@@ -33,7 +33,7 @@ export function goingDown(state, c) {
 
 // A healing item drunk by a PC about to go down, or fed to a PC who is down: used freely.
 export function urgentHealing(state, c, spell, targets, actions) {
-    if (!describeSpell(spell.plan, actions).healing) return false;
+    if (!spell.plan || !describeSpell(spell.plan, actions).healing) return false;
     return targets.some((target) => (target !== c && target.kind === "pc" && target.status === "down") || (target === c && goingDown(state, c)));
 }
 

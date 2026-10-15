@@ -74,6 +74,7 @@ function defaultOptions(npc, predicates) {
 export function combatant(npc) {
     const system = npc.system;
     const strikes = [];
+    const bombStock = {};
     // (B255: a Strike with no damage of its own, for an ability that gives it a table of damage — Generate Bomb's bomb.)
     const bare = [];
     for (const item of npc.items.filter((entry) => entry.type === "melee")) {
@@ -82,6 +83,11 @@ export function combatant(npc) {
         if (!damage.length) bare.push(item);
         if (!damage.length) continue;
         const increment = Number(traits.find((trait) => /^range-increment-\d+$/.test(trait))?.split("-").pop()) || Number(traits.find((trait) => /^range-\d+$/.test(trait))?.split("-").pop()) || null;
+        // (U2: a bomb its Strike links to: as many as it carries, taken out before each throw unless held or with Quick Bomber.)
+        const weapon = npc.items.find((entry) => entry.type === "weapon" && entry._id === item.flags?.pf2e?.linkedWeapon);
+        const bomb = Boolean(weapon) && traits.includes("bomb") && (weapon.system?.traits?.value ?? []).includes("consumable");
+        const quickBomber = bomb && npc.items.some((entry) => ["action", "feat"].includes(entry.type) && (entry.system?.slug ?? entry.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")) === "quick-bomber");
+        if (bomb) bombStock[`item:${weapon._id}`] = Number(weapon.system?.quantity ?? 1) || 0;
         strikes.push({
             name: item.name,
             bonus: item.system.bonus?.value ?? 0,
@@ -105,7 +111,8 @@ export function combatant(npc) {
             // As the live snapshot reads them (C14, C16).
             ...(Number(traits.find((trait) => /^reload-\d+$/.test(trait))?.split("-")[1]) > 0 ? { reload: Number(traits.find((trait) => /^reload-\d+$/.test(trait)).split("-")[1]) } : {}),
             ...(traits.includes("concussive") ? { concussive: true } : {}),
-            ...(traits.includes("splash") ? { splashKind: "bomb" } : traits.some((trait) => /^scatter-\d+$/.test(trait)) ? { splashKind: "scatter" } : {})
+            ...(traits.includes("splash") ? { splashKind: "bomb" } : traits.some((trait) => /^scatter-\d+$/.test(trait)) ? { splashKind: "scatter" } : {}),
+            ...(bomb ? { ammo: { pool: `item:${weapon._id}`, count: bombStock[`item:${weapon._id}`], reagents: false, startsEmpty: !quickBomber && weapon.system?.equipped?.carryType !== "held" }, consumable: true, ...(quickBomber ? {} : { reload: 1 }) } : {})
         });
     }
     const spells = [];
@@ -219,7 +226,7 @@ export function combatant(npc) {
         ac: system.attributes.ac.value,
         // (B302: PF2e takes a creature's Hardness off all its damage.)
         hardness: system.attributes.hardness?.value ?? 0,
-        spellPools: { ...Object.fromEntries(spells.filter((spell) => spell.pool).map((spell) => [spell.pool, 1])), ...frequencyUses },
+        spellPools: { ...Object.fromEntries(spells.filter((spell) => spell.pool).map((spell) => [spell.pool, 1])), ...frequencyUses, ...bombStock },
         saves: { fortitude: system.saves.fortitude.value, reflex: system.saves.reflex.value, will: system.saves.will.value },
         perception: system.perception?.mod ?? 0,
         // (L1, L3: its senses and whether it flies.)

@@ -12,7 +12,7 @@ import { adjustInstance, strikeContext } from "./damage.js";
 import { effectBenefit } from "./effects.js";
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
-import { canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
+import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
@@ -764,6 +764,8 @@ function expandStrikes(env) {
         const options = [];
         for (const [index, strike] of (c.strikes ?? []).entries()) {
             if (!strikeUsable(c, strike) || (strike.melee && !inMelee(node.pos, target))) continue;
+            // (U2: no more bombs than it has left, those this plan throws counted.)
+            if (strike.ammo && node.casts.filter((mark) => mark === `fired${index}`).length >= ammoLeft(c, strike)) continue;
             const expectation = ctx.strikeExpectation(strike, index, target, node.attacks, node.pos, node.prone, natural);
             if (expectation && expectation.damage > 0) options.push({ index, strike, expectation });
         }
@@ -775,9 +777,10 @@ function expandStrikes(env) {
             const before = node.damage[target.id] ?? 0;
             const hp = remainingHp(target);
             // A venom or Improved Grab the hit delivers for free.
-            const gain = targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp)) + ctx.freeRiderGain(strike, target, expectation.hitChance) + ctx.splashGain(strike, target, expectation.hitChance);
+            // (U2: a PC's bomb weighed as a consumable.)
+            const gain = (targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp)) + ctx.freeRiderGain(strike, target, expectation.hitChance) + ctx.splashGain(strike, target, expectation.hitChance)) * consumableWeight(state, c, strike, [target]);
             const usesStratagem = natural !== null && c.stratagemFeature.strikeBonus[strike.name] !== undefined;
-            const marks = [...(strike.reload ? [`fired${index}`] : []), ...(usesStratagem ? ["stratagem"] : [])];
+            const marks = [...(strike.reload || strike.ammo ? [`fired${index}`] : []), ...(usesStratagem ? ["stratagem"] : [])];
             const next = child(node, { type: "strike", targetId: target.id, strikeIndex: index, ...(reload ? { reload } : {}) }, 1 + reload, ctx.profile.aggression * gain, {
                 attack: true,
                 damage: { ...node.damage, [target.id]: before + expectation.damage },
@@ -804,7 +807,7 @@ function expandStrikes(env) {
         // and, with it, a Shove or a melee Strike at a foe in reach, or Demoralize or Create a Diversion.
         if (c.slingersReload && remaining >= 1 && !noAttacks) {
             for (const [index, strike] of (c.strikes ?? []).entries()) {
-                if (strike.reload !== 1 || !emptyNow(c, node, index, strike) || !strikeUsable(c, strike)) continue;
+                if (strike.reload !== 1 || strike.ammo || !emptyNow(c, node, index, strike) || !strikeUsable(c, strike)) continue;
                 let shot = 0;
                 for (const target of ctx.enemies) {
                     if (target.status !== "active") continue;

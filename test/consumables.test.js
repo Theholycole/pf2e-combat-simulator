@@ -143,3 +143,45 @@ test("U1: the margin divides a PC's consumable option", () => {
     assert.ok(full > 0);
     assert.ok(Math.abs(value(1.5) - full / 1.5) < 1e-9, `${value(1.5)} vs ${full / 1.5}`);
 });
+
+// U2 (2026-10-15), bombs: a thrown consumable weapon counted by its stack, taken out before each throw; an alchemist's reagents make more.
+const bomb = (extra = {}) => ({ name: "Test Fire", bonus: 14, melee: false, increment: 20, thrown: true, splashKind: "bomb", splashAmount: 2, damage: [{ dice: 2, die: 6, bonus: 0, type: "fire" }], ammo: { pool: "item:bomb", count: 2, reagents: false, startsEmpty: true }, consumable: true, reload: 1, ...extra });
+
+function bomber({ stock = 2, reagents = 0, ammo = {}, seed = 1 } = {}) {
+    const [fighter] = martialParty(5);
+    const strike = bomb({ ammo: { pool: "item:bomb", count: stock, reagents: reagents > 0, startsEmpty: true, ...ammo } });
+    // (Hit Points enough that the throws aren't cut short.)
+    const pc = { ...fighter, band: "near", hp: { value: 2000, max: 2000, temp: 0 }, strikes: [strike], spellPools: { "item:bomb": stock, ...(reagents ? { reagents } : {}) } };
+    const foe = { ...moderateCreature(5, "foe", "Foe"), band: "near" };
+    foe.hp = { value: 400, max: 400, temp: 0 };
+    return { pc, foe, seed };
+}
+
+test("U2: a bomb starts out of hand, is taken out before each throw, and runs out; then Quick Alchemy makes more from reagents", async () => {
+    const { simulate, prepareSnapshot } = await import("../src/engine/fight.js");
+    const { ammoLeft, createCombatant, strikeUsable } = await import("../src/engine/combatant.js");
+    const { pc, foe } = bomber();
+    const made = createCombatant({ ...pc, side: "party" });
+    assert.equal(made.unloaded.has("Test Fire"), true);
+    assert.equal(ammoLeft(made, made.strikes[0]), 2);
+    const result = simulate(prepareSnapshot({ combatants: [{ ...pc, side: "party" }, { ...foe, side: "foes" }] }), { morale: false }, 1, { log: true });
+    const throws = result.log.filter((line) => line.includes(`${pc.name} Test Fire →`)).length;
+    assert.equal(throws, 2, result.log.slice(0, 30).join("\n"));
+    assert.equal(result.log.filter((line) => line.includes(`${pc.name} takes out Test Fire`)).length, 2);
+    // With two reagents: four in all, the last two made with Quick Alchemy.
+    const alchemist = bomber({ reagents: 2 });
+    const more = simulate(prepareSnapshot({ combatants: [{ ...alchemist.pc, side: "party" }, { ...alchemist.foe, side: "foes" }] }), { morale: false }, 1, { log: true });
+    assert.equal(more.log.filter((line) => line.includes(`${pc.name} Test Fire →`)).length, 4);
+    assert.equal(more.log.filter((line) => line.includes("makes Test Fire with Quick Alchemy")).length, 2, more.log.join("\n"));
+    // None left: not usable.
+    made.spellPools["item:bomb"] = 0;
+    assert.equal(strikeUsable(made, made.strikes[0]), false);
+});
+
+test("U2: a PC's bomb weighs as a consumable, a monster's in full", () => {
+    const { state, pc, brute } = setUp({ potions: 0 });
+    const thrown = bomb();
+    assert.equal(consumableWeight(state, pc, thrown, [brute]), 1 / 1.5);
+    assert.equal(consumableWeight(state, brute, thrown, [pc]), 1);
+    assert.equal(consumableWeight(state, pc, { ...thrown, consumable: false }, [brute]), 1);
+});

@@ -99,6 +99,8 @@ export function createCombatant(spec) {
         spells: spec.spells ?? [],
         effects: [],
         spellPools: { ...(spec.spellPools ?? {}) },
+        // (U2: a bomb not in hand is taken out — or made with Quick Alchemy — before the first throw.)
+        ...((spec.strikes ?? []).some((strike) => strike.ammo?.startsEmpty) ? { unloaded: new Set(spec.strikes.filter((strike) => strike.ammo?.startsEmpty).map((strike) => strike.name)) } : {}),
         // A free critical-hit defence's uses are the fight's own.
         ...(spec.critDowngrade ? { critDowngrade: { ...spec.critDowngrade } } : {}),
         // A magus starts a fight with Spellstrike charged.
@@ -162,7 +164,27 @@ export function isOffGuard(c) {
 // A Strike a disarmed creature can't make until it picks its weapon up (Disarm),
 // or a two-handed one while a hand carries an objective's item.
 export function strikeUsable(c, strike) {
-    return !c.dropped?.has(strike.name) && !(c.carrying && strike.hands === 2);
+    return !c.dropped?.has(strike.name) && !(c.carrying && strike.hands === 2) && (!strike.ammo || ammoLeft(c, strike) > 0);
+}
+
+// U2 (2026-10-15), bombs: a Strike with a thrown consumable (strike.ammo: { pool, reagents, startsEmpty }) — its stack, and for an alchemist
+// with Quick Alchemy the infused reagents that make more.
+export function ammoLeft(c, strike) {
+    return (c.spellPools?.[strike.ammo.pool] ?? 0) + (strike.ammo.reagents ? c.spellPools?.reagents ?? 0 : 0);
+}
+
+// One thrown: from the stack first, then a reagent. Returns where it came from ("stock" or "reagent"), or null.
+export function spendAmmo(c, strike) {
+    if (!strike?.ammo) return null;
+    if ((c.spellPools?.[strike.ammo.pool] ?? 0) > 0) {
+        c.spellPools[strike.ammo.pool]--;
+        return "stock";
+    }
+    if (strike.ammo.reagents && (c.spellPools?.reagents ?? 0) > 0) {
+        c.spellPools.reagents--;
+        return "reagent";
+    }
+    return null;
 }
 
 // The circumstance penalty a weakened grip gives a Strike (Disarm's success).

@@ -144,6 +144,7 @@ The user's rule for when creatures use items is U1 in [item-decisions.md](item-d
   - The log: "drinks", "feeds … to", "uses … on". The stats count items used by each side (`partyItemsUsed`, `foeItemsUsed`), shown in the report.
   - Items aren't spells: no Quickened Casting, stupefied flat check, counterspell or Spellstrike; magical only by their traits.
 - **Bestiary tools** (`tools/lib/pack-items.mjs`, `npcItems`): NPCs' consumables compiled by the item module beside the simulator (read only; none without it), from the equipment pack's text when the creature's copy is short. 384 bestiary creatures carry consumables; 208 have at least one the simulation plays (healing potions, Elixirs of Life, darkvision and other elixirs, Potions of Flying). `deadliness.mjs` gives monsters theirs.
+- **Bombs** (U2): `strike.ammo` ({ pool, count, reagents, startsEmpty }) with `consumable` and a reload of 1 (none with Quick Bomber); the pool `item:<weapon id>` and, for an alchemist, `reagents` in `spellPools`. `ammoLeft` and `spendAmmo` (`combatant.js`): `strikeUsable` needs one left, `strikeOnce` spends one, the planner plans no more throws than are left (its `fired` marks) and weighs a PC's. `c.unloaded` starts with bombs not in hand. The bestiary tools read an NPC's linked bomb weapons the same way.
 - **Not live-checked yet** (pftest busy, 2026-10-15).
 
 ### More spells (2026-10-14)

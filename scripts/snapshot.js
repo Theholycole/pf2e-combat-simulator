@@ -150,6 +150,13 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
     // or an NPC's "reload-1" trait). "-" needs none; "1 min" can't be done in a fight.
     const reloadValue = String(item?.reload ?? item?.system?.reload?.value ?? traits.find((trait) => /^reload-\d+$/.test(trait))?.split("-")[1] ?? "-");
     const reload = /^\d+$/.test(reloadValue) ? Number(reloadValue) : reloadValue === "-" || !reloadValue ? 0 : 99;
+    // (U2: a bomb — a thrown consumable weapon, a PC's or the one an NPC's Strike links to: its stack a pool (strike.ammo), taken out before
+    // each throw unless in hand (a reload of 1), or with Quick Bomber as part of the Strike; an alchemist's infused reagents make more with
+    // Quick Alchemy.)
+    const weapon = item?.type === "weapon" ? item : item?.linkedWeapon ?? null;
+    const weaponTraits = traitList(weapon?.system?.traits?.value);
+    const bomb = Boolean(weapon) && weaponTraits.includes("consumable") && ((weapon.group ?? weapon.system?.group) === "bomb" || weaponTraits.includes("bomb"));
+    const quickBomber = bomb && hasItemSlug(actor, new Set(["quick-bomber"]));
     let damage = [];
     let critDamage = null;
     if (tableDamage) {
@@ -216,6 +223,7 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
         backstabber: traits.includes("backstabber") && !offGuardExtra.length,
         volley: Number(traits.find((trait) => /^volley-\d+$/.test(trait))?.split("-")[1] ?? 0) || null,
         ...(reload > 0 ? { reload } : {}),
+        ...(bomb ? { ammo: { pool: `item:${weapon.id}`, count: Number(weapon.quantity ?? weapon.system?.quantity ?? 1) || 0, reagents: quickAlchemy(actor) && weaponTraits.includes("alchemical"), startsEmpty: !quickBomber && weapon.system?.equipped?.carryType !== "held" }, consumable: true, ...(quickBomber ? {} : { reload: 1 }) } : {}),
         // C16: firearms' and bombs' traits; the group for gunslinger deeds.
         ...(traits.includes("concussive") ? { concussive: true } : {}),
         // (B308: holy or unholy, for a reaction to damage of that trait; B309: and the weakness to it — sanctified by the creature's own,
@@ -1351,6 +1359,12 @@ async function readExemplar(actor, actions, strikes, handled) {
     return { ikons, transcendences };
 }
 
+// (U2: an alchemist's Quick Alchemy, as PF2e's crafting tab finds it.)
+function quickAlchemy(actor) {
+    const options = actor.rollOptions?.all ?? {};
+    return Boolean(options["feature:quick-alchemy"] || options["feat:quick-alchemy"]) && Boolean(actor.system?.resources?.crafting?.infusedReagents);
+}
+
 function hasItemSlug(actor, slugs) {
     return [...(actor.itemTypes?.action ?? []), ...(actor.itemTypes?.feat ?? [])].some((item) => slugs.has(item.slug));
 }
@@ -1424,6 +1438,12 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     const consumables = await readConsumables(actor, gaps, { fresh, handled: abilities.handled });
     readGaps(actor, gaps, abilities.handled);
     const { spells, spellPools, summons: spellSummoned = [] } = await readSpells(actor, gaps, { fresh, castSpells: abilities.castSpells });
+    // (U2: each bomb's stack; an alchemist's infused reagents, all of them after a rest.)
+    for (const strike of strikes) if (strike.ammo) spellPools[strike.ammo.pool] = strike.ammo.count;
+    if (strikes.some((strike) => strike.ammo?.reagents)) {
+        const reagents = actor.system.resources.crafting.infusedReagents;
+        spellPools.reagents = Number(fresh ? reagents.max : reagents.value) || 0;
+    }
     spells.push(...consumables.spells);
     Object.assign(spellPools, consumables.spellPools);
     // (C33: Hero's Defiance, played as the champion's answer to a blow that would drop it — not a gap.)
