@@ -130,7 +130,8 @@ test("reinforcements arrive on their round", () => {
 
 test("benchmarks: win rates fall in order with threat", () => {
     for (const level of [1, 5]) {
-        const rates = ["trivial", "low", "moderate", "severe", "extreme"].map((threat) => runBatch(benchmarkEncounter(level, threat), { runs: 300 }).winRate);
+        // (The encounters' own danger, without hero points: since 2026-10-15 a PC rerolls a missed attack with its first point too.)
+        const rates = ["trivial", "low", "moderate", "severe", "extreme"].map((threat) => runBatch(benchmarkEncounter(level, threat), { runs: 300, options: { heroPoints: false } }).winRate);
         assert.ok(rates[0] >= 0.95 && rates[1] >= 0.95, `L${level}: trivial/low ${rates}`);
         for (let i = 1; i < rates.length; i++) assert.ok(rates[i] <= rates[i - 1] + 0.02, `L${level}: ${rates}`);
         assert.ok(rates[4] < 0.95, `L${level}: extreme should be dangerous (${rates[4]})`);

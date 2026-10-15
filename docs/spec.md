@@ -309,9 +309,12 @@ The outcomes are decisive, rout, defeat, retreat, survived and timeout (round ca
 
 ### Hero points
 
-- Heroic Recovery (spend all) when a PC's dying value would reach death.
-- With 2 or more points, reroll a missed attack that would have dropped its target.
-- A toggle removes hero points for comparison.
+"When it matters" (2026-10-15, the user's choice; `src/engine/heroes.js`):
+
+- Reroll a critically failed save, or a failed save against something that would take the PC out (damage that would drop it; paralyzed, stunned, slowed, blinded, confused, controlled, petrified, unconscious, fleeing; a death effect). The new result stands.
+- Reroll a missed attack (a Strike or a spell attack) that would have dropped its target — with the first point too (before, only with two or more).
+- Heroic Recovery (spend all) when a PC's dying value would reach death; a PC below a third of its Hit Points keeps its last point for it.
+- A toggle removes hero points for comparison. Before this, PCs spent 0.1–0.3 of the party's 4 points in an extreme fight; now about 0.4–1.0 (benchmarks, whose monsters cast no spells — save rerolls add to it against casters).
 
 ## Morale
 

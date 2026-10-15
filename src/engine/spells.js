@@ -35,6 +35,7 @@ import { lastingRounds } from "./lasting.js";
 import { takeControl } from "./control.js";
 import { noteKnown } from "./readings.js";
 import { hexFamiliar } from "./familiars.js";
+import { canSpendHero, saveWorthReroll, spendHeroPoint, takesOut } from "./heroes.js";
 
 const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
 const registry = createRegistry();
@@ -1579,7 +1580,28 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     const roll = (statistic, given) => {
         const keep = ownFortune(statistic);
         const options = raised(statistic, keep ? { ...given, [keep === "higher" ? "fortune" : "misfortune"]: true } : given);
-        return betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
+        const result = betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
+        return heroReroll(statistic, options, result) ?? result;
+    };
+    // (2026-10-15, hero points "when it matters": a PC's critically failed save, or a failed one that would take it out; its missed spell
+    // attack that would have dropped the target — rerolled, the new result kept.)
+    const heroReroll = (statistic, options, result) => {
+        const degree = DEGREE_NAMES.indexOf(result?.degree);
+        if (forcedDegree !== null || degree < 0 || degree > 1) return null;
+        const saver = SAVE_SLUGS.has(statistic) ? options?.actor : null;
+        if (saver?.id && saver !== caster && isActive(saver) && canSpendHero(state, saver) && saveWorthReroll(saver, degree, outcomesFor(state, caster, spell, saver, actions)?.[degree])) {
+            spendHeroPoint(state, saver, `its ${statistic} save`);
+            return adjusted(statistic, options, rolled(statistic, options));
+        }
+        const target = statistic === "spell-attack" ? options?.target : null;
+        if (target?.id && isActive(target) && canSpendHero(state, caster)) {
+            const hit = outcomesFor(state, caster, spell, target, actions)?.[2];
+            if (takesOut(target, hit)) {
+                spendHeroPoint(state, caster, "its spell attack");
+                return rolled(statistic, options);
+            }
+        }
+        return null;
     };
     // (B195, Siphon Life: a foe's healing at its least — each die at 1, flat values halved — then temporary Hit Points on the siphoner.)
     const siphon = info.healing ? state.list.find((c) => c.healSiphon && c.side !== caster.side && isActive(c) && canReact(c)

@@ -25,6 +25,7 @@ import { lifelinkMaster } from "./familiars.js";
 import { keenCritical, runeCritEffects } from "./runes.js";
 import { championTriggered, demoralize, exaltedStrikes, heroesDefiance, lastStand, retributionAfter } from "./champion.js";
 import { luminanceStrikesBack } from "./luminance.js";
+import { canSpendHero, spendHeroPoint } from "./heroes.js";
 
 export function coverFor(state, defender) {
     return state.setup.cover?.[defender.side] ?? 0;
@@ -438,14 +439,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             if (flat >= downgrade.dc) degree = SUCCESS;
         }
     }
-    if (degree <= FAILURE && attacker.kind === "pc" && state.options.heroPoints && attacker.heroPoints >= 2) {
+    // (Hero points, 2026-10-15 "when it matters": a missed Strike that would have dropped its target, rerolled — with the first point too,
+    // unless the PC is below a third of its Hit Points and keeps its last for Heroic Recovery. Before, only with two points or more.)
+    if (degree <= FAILURE && canSpendHero(state, attacker)) {
         const wouldDrop = expectedHitDamage(attacker, strike, target, false) >= target.hp.value + target.hp.temp;
         if (wouldDrop) {
-            attacker.heroPoints--;
-            state.stats.heroPointsSpent++;
+            spendHeroPoint(state, attacker, "its attack");
             natural = roll();
             degree = degreeOf(natural + modifier + bonus, ac + defence, natural);
-            log(state, `  ${attacker.name} spends a hero point to reroll`);
         }
     }
     // Flash of Brutality (B118): once a day (again after its Ferocity, where it says so), its first hit a critical one.
