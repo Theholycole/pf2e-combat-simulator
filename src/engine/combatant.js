@@ -184,8 +184,9 @@ export function multipleAttackPenalty(strike, attacksMade) {
 }
 
 // AC against a specific attack. flanked: whether the attacker is flanking.
-export function armorClass(defender, { ranged = false, coverBonus = 0, flanked = false, shieldRaised } = {}) {
-    let ac = defender.ac - statusPenalty(defender, "ac") + effectBonus(defender, "ac");
+// options: the attack's roll options, for an effect's conditional AC (Tempest Cloak's against ranged physical attacks).
+export function armorClass(defender, { ranged = false, coverBonus = 0, flanked = false, shieldRaised, options = null } = {}) {
+    let ac = defender.ac - statusPenalty(defender, "ac") + effectBonus(defender, "ac", options);
     const raised = shieldRaised ?? defender.shield?.raised;
     const shieldBonus = raised && defender.shield && !defender.shield.broken ? defender.shield.ac : 0;
     const cover = ranged && defender.band !== "engaged" ? coverBonus : 0;
@@ -204,8 +205,10 @@ export function baseWill(c) {
 }
 
 // (Diehard: dying 5, as PF2e's sheet has it — c.deathAt.)
+// (2026-10-15, Death Ward: an effect that suppresses Doomed — its value doesn't count while it lasts.)
 export function deathThreshold(c) {
-    return (c.deathAt ?? 4) - (c.cond.doomed ?? 0);
+    const suppressed = c.effects?.some((effect) => effect.suppress?.includes("doomed"));
+    return (c.deathAt ?? 4) - (suppressed ? 0 : c.cond.doomed ?? 0);
 }
 
 export function hpFraction(c) {

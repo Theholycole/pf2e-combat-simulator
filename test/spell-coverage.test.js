@@ -781,3 +781,57 @@ test("Sure Strike as the spell module plans it live: once a fight (can't cast it
     assert.ok(state.log.includes(`  ${pc.name} rolls twice (the better kept)`), state.log.join("\n"));
     assert.equal(pc.fortuneFinds, false);
 });
+
+test("Death Ward (the user: \"have it play in the simulator\"): +4 to saves against death and void effects, void resistance 10, Doomed suppressed", async () => {
+    const { effectModel, applyEffect, removeEffect } = await import("../src/engine/effects.js");
+    const { saveBonusAgainst } = await import("../src/engine/abilities.js");
+    const { deathThreshold } = await import("../src/engine/combatant.js");
+    const { withReading } = await import("../src/engine/readings.js");
+    // PF2e's Spell Effect: Death Ward rules, as they are.
+    const ward = effectModel({ name: "Spell Effect: Death Ward", system: { duration: { unit: "minutes", value: 10 }, rules: [{ key: "FlatModifier", predicate: [{ or: ["item:trait:void", "item:trait:death"] }], selector: "saving-throw", type: "status", value: 4 }, { key: "Resistance", type: "void", value: 10 }] } }, { rank: 5 });
+    assert.deepEqual([ward.situational, ward.unsupported, ward.resistances.map((entry) => `${entry.type} ${entry.value}`)], [0, [], ["void 10"]]);
+    // The spell's text: "suppresses the effects of the Doomed condition" — read from its native effect's evidence.
+    const plan = withReading({ modelVersion: 12, source: { name: "Death Ward", slug: "death-ward" }, rank: 5, traits: ["manipulate"], targeting: { target: "1 living creature touched", range: "touch" },
+        nativeEffects: { onUse: [{ triggerAnalysis: { evidence: "It receives a +4 status bonus to saves against death and void effects, gains void resistance 10, and suppresses the effects of the @UUID[Compendium.pf2e.conditionitems.Item.3uh1r86TzbQvosxv]{Doomed} condition." } }] },
+        resolution: { kind: "effect", outcomes: {} } });
+    assert.deepEqual(plan.suppresses, ["doomed"]);
+    // (Kept past the live snapshot's slimming of the plan.)
+    const slim = JSON.parse(JSON.stringify(plan, (key, value) => (["compilerEvidence", "diagnostics", "delegations", "semanticCoverage", "rawText", "sourceText", "raw"].includes(key) ? undefined : value)));
+    assert.deepEqual(slim.suppresses, ["doomed"]);
+    const [fighter] = martialParty(9);
+    const state = createFightState({ combatants: [{ ...fighter, band: "near" }, { ...moderateCreature(9, "foe", "Foe"), band: "near" }] }, {}, 1);
+    const pc = state.byId.get(fighter.id);
+    const effect = applyEffect(state, pc, ward, pc, { key: "death-ward" });
+    effect.suppress = plan.suppresses;
+    const spell = (traits) => ({ name: "X", plan: { traits }, castRank: 5 });
+    assert.equal(saveBonusAgainst(pc, "fortitude", spell(["death", "void"])), 4);
+    assert.equal(saveBonusAgainst(pc, "will", spell(["death"])), 4);
+    assert.equal(saveBonusAgainst(pc, "reflex", spell(["fire"])), 0);
+    pc.cond.doomed = 2;
+    assert.equal(deathThreshold(pc), 4, "Doomed suppressed");
+    removeEffect(pc, effect);
+    assert.equal(saveBonusAgainst(pc, "fortitude", spell(["death"])), 0);
+    assert.equal(deathThreshold(pc), 2);
+});
+
+test("conditional effect rules at the roll: AC against ranged physical attacks (Tempest Cloak), dice on unarmed Strikes only (Flame Dancer); one the engine can't test is reported", async () => {
+    const { effectModel, applyEffect, effectBonus, strikeRollOptions } = await import("../src/engine/effects.js");
+    const { strikeContext } = await import("../src/engine/damage.js");
+    const cloak = effectModel({ name: "Spell Effect: Tempest Cloak", system: { rules: [{ key: "FlatModifier", predicate: ["item:damage:category:physical", "item:ranged"], selector: "ac", type: "circumstance", value: 2 }] } });
+    const dancer = effectModel({ name: "Spell Effect: Flame Dancer", system: { rules: [{ key: "DamageDice", predicate: ["unarmed"], selector: "strike-damage", diceNumber: 2, dieSize: "d6", damageType: "fire" }] } });
+    const marked = effectModel({ name: "Spell Effect: Vision of Weakness", system: { rules: [{ key: "FlatModifier", predicate: ["target:mark:vision-of-weakness"], selector: "attack", type: "status", value: 2 }] } });
+    assert.deepEqual(marked.unsupported, ["FlatModifier (conditional)"]);
+    const [fighter, , ranger] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, band: "near" }, { ...ranger, band: "near" }, { ...moderateCreature(5, "foe", "Foe"), band: "near" }] }, {}, 1);
+    const pc = state.byId.get(fighter.id);
+    const archer = state.byId.get(ranger.id);
+    applyEffect(state, pc, cloak, pc, { key: "cloak" });
+    const bow = archer.strikes.find((strike) => !strike.melee);
+    const sword = pc.strikes[0];
+    assert.equal(effectBonus(pc, "ac", strikeRollOptions(archer, bow, pc, strikeContext(archer, bow))), 2);
+    assert.equal(effectBonus(pc, "ac", strikeRollOptions(archer, sword, pc, strikeContext(archer, sword))), 0, "not against a melee Strike");
+    applyEffect(state, pc, dancer, pc, { key: "dancer" });
+    const fist = { ...sword, name: "Fist", unarmed: true };
+    assert.equal(effectBonus(pc, "damage", strikeRollOptions(pc, fist, archer, strikeContext(pc, fist))), 7);
+    assert.equal(effectBonus(pc, "damage", strikeRollOptions(pc, sword, archer, strikeContext(pc, sword))), 0);
+});

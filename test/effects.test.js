@@ -44,7 +44,11 @@ test("models: modifiers by selector and rank, level predicates, granted conditio
     assert.deepEqual(effectModel(HASTE, { conditionSlug }).conditions, [{ slug: "quickened", value: null }]);
     const anthem = effectModel(ANTHEM);
     assert.deepEqual(anthem.modifiers.map((m) => `${m.on} ${m.value}`), ["attack 1", "damage 1"]);
-    assert.equal(anthem.situational, 2, "the fear-only save bonus and Discordant Voice's dice");
+    // (2026-10-15: the fear-only save bonus is played, as a save bonus against fear effects; Discordant Voice's dice stay conditional,
+    // reported among what's left out.)
+    assert.deepEqual(anthem.saveBonuses, [{ saves: ["fortitude", "reflex", "will"], type: "status", value: 1, predicate: ["item:trait:fear"] }]);
+    assert.equal(anthem.situational, 1, "Discordant Voice's dice");
+    assert.deepEqual(anthem.unsupported, ["DamageDice (conditional)"]);
     assert.deepEqual(effectModel(FORM).unsupported, ["BattleForm"]);
 });
 

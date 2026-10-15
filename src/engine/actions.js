@@ -11,7 +11,7 @@ import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leave
 import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
-import { applyEffect, removeEffect, takeAttackFortune } from "./effects.js";
+import { applyEffect, hasConditional, strikeRollOptions, removeEffect, takeAttackFortune } from "./effects.js";
 import { applyCondition, applyMove, castPlan, castSpell, deathThroes, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
@@ -60,7 +60,9 @@ export function attackPenalty(attacker, strike, target, attacksMade) {
 }
 
 export function attackModifier(state, attacker, target, strike, attacksMade, { prone, history = attacker.turnAttacks ?? [] } = {}) {
-    let modifier = strike.bonus - attackPenalty(attacker, strike, target, attacksMade) + effectBonus(attacker, "attack") - gripPenalty(attacker, strike);
+    // (2026-10-15: an effect's conditional attack bonus — against a trait, with this kind of attack.)
+    const options = hasConditional(attacker) ? strikeRollOptions(attacker, strike, target, strikeContext(attacker, strike)) : null;
+    let modifier = strike.bonus - attackPenalty(attacker, strike, target, attacksMade) + effectBonus(attacker, "attack", options) - gripPenalty(attacker, strike);
     // A stance's change to this Strike, as PF2e made it (C13).
     for (const effect of attacker.effects ?? []) modifier += effect.model?.attackDeltas?.[strike.name] ?? 0;
     modifier -= statusPenalty(attacker, strike.melee ? "melee" : "ranged");
@@ -91,7 +93,9 @@ export function targetAC(state, attacker, target, strike, flanked) {
     // (T4: attached — the pickled punk's +2 while not held itself; the bee borer's target off-guard to it too.)
     const attached = target.attachedTo && target.attach?.acBonus && !target.cond.grabbed && !target.cond.restrained ? target.attach.acBonus : 0;
     const borne = !isOffGuard(target) && state.list.some((other) => other.attachedTo === target.id && other.attach?.both && isActive(other));
-    return armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: flanked || feinted || borne }) - berserkPenalty(state, target) + outwit + attached;
+    // (2026-10-15: an effect's conditional AC — against ranged attacks, auditory ones, an unholy creature's.)
+    const options = hasConditional(target) ? strikeRollOptions(attacker, strike, target, strikeContext(attacker, strike)) : null;
+    return armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached;
 }
 
 // Cache of expected hit damage per Strike object (shared by every run of a
@@ -509,7 +513,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // A hit on its own turn, for Strike, Breathe, Rend's "last action was a successful Strike" (C26).
     if (!reaction) attacker.lastHit = { strike: strike.name, targetId: target.id, action: attacker.actionCount ?? 0, round: state.round };
     const earlier = history.filter((entry) => entry.strike === strike.name).length;
-    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage");
+    // (2026-10-15: an effect's conditional damage — unarmed Strikes' extra dice, melee ones', against a trait.)
+    const damageOptions = hasConditional(attacker) ? strikeRollOptions(attacker, strike, target, strikeContext(attacker, strike)) : null;
+    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage", damageOptions);
     const instances = rollStrikeDamage(state.rng, strike, { critical, penalty });
     if (strike.backstabber && offGuard) {
         instances.push({ type: strike.damage[0].type, amount: critical ? 2 : 1, precision: true, persistent: false });

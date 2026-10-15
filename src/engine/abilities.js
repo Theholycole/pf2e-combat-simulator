@@ -740,6 +740,7 @@ export function testPredicate(predicate, options) {
     if (typeof predicate === "string") return options.has(predicate);
     if (predicate?.or) return predicate.or.some((term) => testPredicate(term, options));
     if (predicate?.and) return predicate.and.every((term) => testPredicate(term, options));
+    if (predicate?.nor) return !predicate.nor.some((term) => testPredicate(term, options));
     if (predicate?.not !== undefined) return !testPredicate(predicate.not, options);
     return false;
 }

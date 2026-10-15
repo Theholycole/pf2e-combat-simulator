@@ -8,7 +8,7 @@
 // same way, weighted by self-preservation.
 
 import { degreeDistribution, degreeOf, CRITICAL_SUCCESS, SUCCESS, FAILURE, CRITICAL_FAILURE } from "./checks.js";
-import { adjustInstance } from "./damage.js";
+import { adjustInstance, strikeContext } from "./damage.js";
 import { effectBenefit } from "./effects.js";
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
@@ -31,6 +31,7 @@ import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { wardChance } from "./wards.js";
 import { familiarFocusReady, familiarOf } from "./familiars.js";
 import { luminanceTarget } from "./luminance.js";
+import { hasConditional, strikeRollOptions } from "./effects.js";
 
 export const ROLE_PROFILES = Object.freeze({
     soldier: { aggression: 1, selfPreservation: 0.8, objective: 1 },
@@ -392,7 +393,9 @@ class PlanContext {
         const key = ((((strikeIndex * 8 + Math.min(attacks, 7)) * 64 + Math.min(63, Math.ceil(distance / 5))) * 2 + (inMelee(pos, target) ? 1 : 0)) * 2 + (prone ? 1 : 0)) * 21 + (strategic ?? 0);
         const cached = perTarget.get(key);
         if (cached !== undefined) return cached;
-        let modifier = strike.bonus - attackPenalty(c, strike, target, attacks) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack") - gripPenalty(c, strike);
+        // (2026-10-15: an effect's conditional attack bonus, as the roll would have it.)
+        const conditional = hasConditional(c) ? strikeRollOptions(c, strike, target, strikeContext(c, strike)) : null;
+        let modifier = strike.bonus - attackPenalty(c, strike, target, attacks) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack", conditional) - gripPenalty(c, strike);
         let circumstance = prone ? 2 : 0;
         // Taunted: −1 against anyone but the guardian.
         if (c.tauntedBy && c.tauntedBy !== target.id && isActive(state.byId.get(c.tauntedBy) ?? {})) circumstance = Math.max(circumstance, 1);

@@ -10,6 +10,10 @@
 //   conditions: [{ slug, value }],
 //   unsupported: [rule key…]   mechanics the engine doesn't model (battle forms, new Strikes…)
 //   situational: n             rules that apply only in situations the engine can't see (predicates)
+//   conditional: [{ on, type, value, predicate }]   (2026-10-15) a modifier to AC, attack or damage only when its PF2e predicate holds
+//                              at the roll: the attack's traits and kind, its damage type, the target's traits and conditions
+//   saveBonuses: [{ saves, type, value, predicate }]   a bonus to saves only against effects its predicate names (Death Ward's +4
+//                              against death and void effects), joined to the creature's saveBonuses while the effect lasts
 // }
 
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
@@ -57,14 +61,89 @@ export function numericValue(value, rank) {
 function predicateHolds(predicate, rank) {
     if (!predicate || (Array.isArray(predicate) && !predicate.length)) return true;
     const terms = Array.isArray(predicate) ? predicate : [predicate];
-    const compare = { gte: (a, b) => a >= b, gt: (a, b) => a > b, lte: (a, b) => a <= b, lt: (a, b) => a < b, eq: (a, b) => a === b };
     for (const term of terms) {
-        if (!term || typeof term !== "object") return null;
-        const [operator, args] = Object.entries(term)[0] ?? [];
-        if (!compare[operator] || !Array.isArray(args) || !/^(parent|item):(level|rank)$/.test(String(args[0]))) return null;
-        if (!compare[operator](rank, Number(args[1]))) return false;
+        const held = rankTerm(term, rank);
+        if (held === null) return null;
+        if (!held) return false;
     }
     return true;
+}
+
+// A term the effect's rank settles — its level as PF2e writes it ("parent:origin:item:level", "{item|level}" too), or "a character or an
+// NPC", which a creature in a fight is: true or false; null for another.
+const COMPARE = { gte: (a, b) => a >= b, gt: (a, b) => a > b, lte: (a, b) => a <= b, lt: (a, b) => a < b, eq: (a, b) => a === b };
+const RANK_ARG = /^(?:(?:parent|item|parent:origin:item):(?:level|rank)|\{item\|level\})$/;
+function rankTerm(term, rank) {
+    if (!term || typeof term !== "object") return null;
+    if (Array.isArray(term.or) && term.or.length && term.or.every((each) => /^self:type:(?:character|npc)$/.test(String(each)))) return true;
+    const [operator, args] = Object.entries(term)[0] ?? [];
+    if (!COMPARE[operator] || !Array.isArray(args) || !RANK_ARG.test(String(args[0]))) return null;
+    return COMPARE[operator](rank, Number(args[1]));
+}
+
+// (2026-10-15, the user: "have it play in the simulator" — Death Ward's +4 against death and void effects.) A predicate the engine can test
+// when the roll is made, normalized: the incoming effect's traits (item:trait:, a bare trait word as PF2e's older predicates write it, its
+// creature's origin:trait:), the attack's kind and damage, the target's and the bearer's traits and conditions; the rank's terms settled
+// now. Returns the predicate (an array), false when the rank rules it out, or null for one it can't test (a caster's choice, a mark).
+const TRAIT_WORDS = new Set(["fear", "emotion", "mental", "death", "void", "poison", "disease", "curse", "possession", "sleep", "auditory", "visual", "linguistic", "illusion", "incapacitation", "fire", "cold", "electricity", "acid", "sonic", "vitality", "force", "polymorph", "light", "darkness", "olfactory", "divine", "occult", "arcane", "primal", "magical", "healing", "spirit"]);
+const USE_TERM = /^(?:item:trait:|origin:trait:|item:damage:type:|item:damage:category:|target:trait:|target:condition:|self:trait:|self:condition:)[a-z0-9-]+$|^item:(?:melee|ranged|magical|type:spell)$|^item:category:unarmed$/;
+function useTerm(term, rank) {
+    if (typeof term === "string") {
+        if (TRAIT_WORDS.has(term)) return `item:trait:${term}`;
+        if (term === "unarmed") return "item:category:unarmed";
+        if (term === "spell") return "item:type:spell";
+        return USE_TERM.test(term) ? term : null;
+    }
+    if (!term || typeof term !== "object") return null;
+    for (const key of ["or", "and", "nor"]) {
+        if (!Array.isArray(term[key])) continue;
+        const parts = term[key].map((each) => useTerm(each, rank));
+        return parts.every((part) => typeof part === "string" || (part && typeof part === "object")) ? { [key]: parts } : null;
+    }
+    if (term.not !== undefined) {
+        const part = useTerm(term.not, rank);
+        return typeof part === "string" || (part && typeof part === "object") ? { not: part } : null;
+    }
+    return null;
+}
+export function usePredicate(predicate, rank) {
+    const out = [];
+    for (const term of Array.isArray(predicate) ? predicate : [predicate]) {
+        const held = rankTerm(term, rank);
+        if (held === false) return false;
+        if (held === true) continue;
+        const part = useTerm(term, rank);
+        if (part === null) return null;
+        out.push(part);
+    }
+    return out;
+}
+
+// Whether a predicate holds for these roll options (PF2e's terms: a string, or, and, nor, not).
+export function predicateTest(predicate, options) {
+    if (Array.isArray(predicate)) return predicate.every((term) => predicateTest(term, options));
+    if (typeof predicate === "string") return options.has(predicate);
+    if (predicate?.or) return predicate.or.some((term) => predicateTest(term, options));
+    if (predicate?.and) return predicate.and.every((term) => predicateTest(term, options));
+    if (predicate?.nor) return !predicate.nor.some((term) => predicateTest(term, options));
+    if (predicate?.not !== undefined) return !predicateTest(predicate.not, options);
+    return false;
+}
+
+// Selectors a conditional modifier can take, and what they read: the engine's statistic, and the kind of attack where the selector names it.
+const CONDITIONAL_SELECTORS = {
+    ac: { on: "ac" }, attack: { on: "attack" }, "attack-roll": { on: "attack" }, "strike-attack-roll": { on: "attack" },
+    "melee-strike-attack-roll": { on: "attack", kind: "item:melee" }, "ranged-strike-attack-roll": { on: "attack", kind: "item:ranged" },
+    damage: { on: "damage" }, "strike-damage": { on: "damage" }, "melee-strike-damage": { on: "damage", kind: "item:melee" }, "ranged-strike-damage": { on: "damage", kind: "item:ranged" }
+};
+const SAVE_SELECTORS = { "saving-throw": ["fortitude", "reflex", "will"], fortitude: ["fortitude"], reflex: ["reflex"], will: ["will"] };
+// Rules on what a fight is made of: a conditional one the engine can't test is reported, not dropped unseen.
+const FIGHT_KEYS = new Set(["FlatModifier", "DamageDice", "Resistance", "Weakness", "TempHP", "FastHealing", "Immunity"]);
+const FIGHT_SELECTORS = new Set([...Object.keys(CONDITIONAL_SELECTORS), ...Object.keys(SAVE_SELECTORS), "all-speeds", "land-speed", "speed", "perception", "spell-attack-roll", "spell-dc"]);
+function fightRule(rule) {
+    if (!FIGHT_KEYS.has(rule.key)) return false;
+    const selectors = [].concat(rule.selector ?? []);
+    return !selectors.length || selectors.some((selector) => FIGHT_SELECTORS.has(selector));
 }
 
 function roundsOf(duration) {
@@ -109,9 +188,16 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
         }
         const holds = predicateHolds(rule.predicate, rank);
         if (holds === false) continue;
+        // (2026-10-15: a predicate the roll can settle — kept with the rule; another, reported when the rule is about a fight.)
+        let when = null;
         if (holds === null) {
-            model.situational++;
-            continue;
+            when = usePredicate(rule.predicate, rank);
+            if (when === false) continue;
+            if (!when || !["FlatModifier", "DamageDice", "Resistance", "Weakness"].includes(rule.key)) {
+                model.situational++;
+                if (fightRule(rule)) unsupported.add(`${rule.key} (conditional)`);
+                continue;
+            }
         }
         const value = numericValue(rule.value, rank);
         switch (rule.key) {
@@ -121,16 +207,38 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
                     model.situational++;
                     break;
                 }
-                for (const selector of selectors) for (const on of SELECTORS[selector] ?? []) model.modifiers.push({ on, type: rule.type ?? "untyped", value });
+                for (const selector of selectors) {
+                    // (A save bonus against what its predicate names: Death Ward's +4 against death and void effects.)
+                    if (when && SAVE_SELECTORS[selector]) {
+                        (model.saveBonuses ??= []).push({ saves: SAVE_SELECTORS[selector], type: rule.type ?? "untyped", value, predicate: when });
+                        continue;
+                    }
+                    // (AC, attack or damage when the predicate holds at the roll; "melee-strike-damage" and the like, for that kind of attack.)
+                    const conditional = CONDITIONAL_SELECTORS[selector];
+                    if (conditional && (when || conditional.kind)) {
+                        (model.conditional ??= []).push({ on: conditional.on, type: rule.type ?? "untyped", value, predicate: [...(when ?? []), ...(conditional.kind ? [conditional.kind] : [])] });
+                        continue;
+                    }
+                    if (when) {
+                        model.situational++;
+                        if (fightRule({ key: rule.key, selector })) unsupported.add(`${rule.key} (conditional)`);
+                        continue;
+                    }
+                    for (const on of SELECTORS[selector] ?? []) model.modifiers.push({ on, type: rule.type ?? "untyped", value });
+                }
                 break;
             }
             case "DamageDice": {
                 // Extra dice on Strikes, as their average.
                 const selectors = [].concat(rule.selector ?? []);
-                if (!selectors.some((selector) => selector === "strike-damage" || selector === "damage")) break;
+                const strikeSelector = selectors.find((selector) => ["strike-damage", "damage", "melee-strike-damage", "ranged-strike-damage"].includes(selector));
+                if (!strikeSelector) break;
                 const dice = Number(rule.diceNumber) || 1;
                 const die = Number(String(rule.dieSize ?? "d6").replace("d", "")) || 6;
-                model.modifiers.push({ on: "damage", type: "dice", value: Math.round(dice * (die + 1) / 2) });
+                const kind = CONDITIONAL_SELECTORS[strikeSelector].kind;
+                // (Only on some attacks — unarmed Strikes, against a trait, melee ones: when its predicate holds.)
+                if (when || kind) (model.conditional ??= []).push({ on: "damage", type: "dice", value: Math.round(dice * (die + 1) / 2), predicate: [...(when ?? []), ...(kind ? [kind] : [])] });
+                else model.modifiers.push({ on: "damage", type: "dice", value: Math.round(dice * (die + 1) / 2) });
                 break;
             }
             case "TempHP":
@@ -142,7 +250,8 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
             case "Resistance":
             case "Weakness":
                 // (I2: one for each type a rule lists; a resistance doubled against what it names.)
-                if (value !== null && rule.type) for (const type of [].concat(rule.type)) (rule.key === "Resistance" ? model.resistances : model.weaknesses).push({ type, value, exceptions: [].concat(rule.exceptions ?? []).map(iwrException), ...(rule.definition ? { definition: rule.definition } : {}), ...(rule.key === "Resistance" && [].concat(rule.doubleVs ?? []).length ? { doubleVs: [].concat(rule.doubleVs) } : {}) });
+                // (A conditional one: its predicate joins its definition, tested against the damage's options.)
+                if (value !== null && rule.type) for (const type of [].concat(rule.type)) (rule.key === "Resistance" ? model.resistances : model.weaknesses).push({ type, value, exceptions: [].concat(rule.exceptions ?? []).map(iwrException), ...(rule.definition || when ? { definition: [...[].concat(rule.definition ?? []), ...(when ?? [])] } : {}), ...(rule.key === "Resistance" && [].concat(rule.doubleVs ?? []).length ? { doubleVs: [].concat(rule.doubleVs) } : {}) });
                 break;
             case "Immunity":
                 if (rule.type) model.immunities.push(rule.type);
@@ -178,11 +287,13 @@ let nextEffectId = 1;
 
 // The net modifier from a creature's effects to one statistic, without status
 // penalties (the condition rules take the worst status penalty: effectStatusPenalty).
-export function effectBonus(c, on) {
+// options: the roll's options, for the conditional modifiers (without them, those are left out).
+export function effectBonus(c, on, options = null) {
     if (!c.effects?.length) return 0;
     const byType = new Map();
     for (const effect of c.effects) {
-        for (const modifier of effect.model.modifiers) {
+        const conditional = options && effect.model.conditional ? effect.model.conditional.filter((modifier) => modifier.on === on && predicateTest(modifier.predicate, options)) : null;
+        for (const modifier of conditional?.length ? [...effect.model.modifiers, ...conditional] : effect.model.modifiers) {
             if (modifier.on !== on) continue;
             if (modifier.type === "status" && modifier.value < 0) continue;
             if (modifier.type === "untyped" || modifier.type === "dice") {
@@ -198,6 +309,26 @@ export function effectBonus(c, on) {
     let total = 0;
     for (const entry of byType.values()) total += entry.high + entry.low;
     return total;
+}
+
+// Whether any effect on it has conditional modifiers (the roll's options are worth making).
+export function hasConditional(c) {
+    return Boolean(c?.effects?.some((effect) => effect.model?.conditional?.length));
+}
+
+// A Strike's roll options for the conditional modifiers: its own (traits, runes, material — strikeContext's, its creature's traits as
+// origin:trait), its kind and damage, the target's traits and conditions, the attacker's traits and conditions.
+export function strikeRollOptions(attacker, strike, target, context) {
+    const options = new Set(context ?? []);
+    options.add(strike?.melee ? "item:melee" : "item:ranged");
+    for (const part of strike?.damage ?? []) {
+        options.add(`item:damage:type:${part.type}`);
+        if (["bludgeoning", "piercing", "slashing"].includes(part.type)) options.add("item:damage:category:physical");
+    }
+    for (const trait of target?.traits ?? []) options.add(`target:trait:${trait}`);
+    for (const [slug, held] of Object.entries(target?.cond ?? {})) if (held) options.add(`target:condition:${slug === "offGuard" ? "off-guard" : slug}`);
+    for (const trait of attacker?.traits ?? []) options.add(`origin:trait:${trait}`);
+    return options;
 }
 
 // The worst status penalty from a creature's effects to one statistic, as a positive number.
@@ -244,6 +375,8 @@ function withDefences(target, effect, add) {
 
 export function removeEffect(target, effect) {
     target.effects = (target.effects ?? []).filter((other) => other !== effect);
+    // (Its save bonuses against what it names, gone with it.)
+    if (effect.model?.saveBonuses?.length) target.saveBonuses = (target.saveBonuses ?? []).filter((bonus) => bonus.effectId !== effect.id);
     withDefences(target, effect, false);
     // A Strike the effect gave (Tiger Stance's tiger claw) goes with it.
     if ((target.strikes ?? []).some((strike) => strike.fromEffect === effect.key)) target.strikes = target.strikes.filter((strike) => strike.fromEffect !== effect.key);
@@ -266,6 +399,8 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
     const effect = { id: nextEffectId++, key, model, sourceId: source?.id ?? null, ...(counter ? { counter } : {}) };
     target.effects = [...(target.effects ?? []), effect];
     withDefences(target, effect, true);
+    // (Death Ward's +4 against death and void effects: the creature's save bonuses, while it lasts.)
+    if (model.saveBonuses?.length) target.saveBonuses = [...(target.saveBonuses ?? []), ...model.saveBonuses.map((bonus) => ({ ...bonus, effectId: effect.id }))];
     if (model.tempHp > 0) target.hp.temp = Math.max(target.hp.temp ?? 0, model.tempHp);
     const duration = Number.isFinite(model.rounds) ? { mode: "fixed", value: model.rounds, unit: "rounds" } : null;
     for (const condition of model.conditions) applyCondition?.(state, target, condition.slug, condition.value, duration, source);

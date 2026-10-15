@@ -70,7 +70,16 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withNoteReadings(withRowFlags(withRecurringSaves(withArea(resolved))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withArea(resolved)))));
+}
+
+// (2026-10-15, Death Ward: "suppresses the effects of the Doomed condition" — in its text, not its PF2e effect's rules.) plan.suppresses: the
+// conditions the effect it applies keeps from counting while it lasts (kept past the snapshot's slimming, as rowFlags are).
+const SUPPRESSES = /suppress(?:es)? the effects of the (?:@UUID\[[^\]]+\]\{)?(doomed|wounded|drained|enfeebled|clumsy|stupefied)\}?/gi;
+function withSuppression(plan) {
+    const text = JSON.stringify(plan?.nativeEffects ?? {}) + JSON.stringify(plan?.resolution?.outcomes ?? {}) + JSON.stringify(plan?.compilerEvidence?.residualProse ?? "");
+    const found = [...new Set([...text.matchAll(SUPPRESSES)].map((match) => match[1].toLowerCase()))];
+    return found.length ? { ...plan, suppresses: found } : plan;
 }
 
 // Suggestion and Telepathic Demand (S50): "The target immediately follows your suggestion" — in a fight, the suggestion to stop
