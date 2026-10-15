@@ -7,12 +7,18 @@
 import { endEntries, lastingRounds } from "./lasting.js";
 
 const HOSTILE_NOTE = /\bno hostile actions\b/i;
+// (S49: an attitude note that says so itself — Charm's and Glimmer of Charm's critical failures — in a sentence that isn't a condition:
+// Glimmer of Charm's success, "If that improves its attitude to at least Indifferent, it can't take hostile actions against you", is
+// one step from hostile, not enough in a fight. Only attitudes: Overwhelming Presence's tribute says it too, but its tribute actions
+// and fascination aren't played yet, so it stays the GM's.)
+const HOSTILE_TEXT = /\bcan't (?:use|take) hostile actions against you\b/i;
+const saysHostile = (text) => String(text).split(/(?<=\.)\s+/).some((sentence) => HOSTILE_TEXT.test(sentence) && !/^\s*if\b/i.test(sentence));
 
 // A note's pacification, or null: { all, endsOn: "any" | "caster" | null, allies }. row: what its outcome row says — its own words, or
 // the reading's flags (Calm's critical failure says only "As failure, but hostility doesn't end the effect").
 export function pacifyOf(note, row = null) {
-    if (!HOSTILE_NOTE.test(String(note?.label ?? ""))) return null;
-    const text = String(note.text ?? note.sourceText ?? "");
+    const text = String(note?.text ?? note?.sourceText ?? "");
+    if (!HOSTILE_NOTE.test(String(note?.label ?? "")) && !(note?.label === "Attitude" && saysHostile(text))) return null;
     const all = !/\bagainst you\b/i.test(text);
     if (row?.hostilityPersists || /hostility (?:doesn't|does not) end/i.test(String(row?.rawText ?? ""))) return { all, endsOn: null, allies: false };
     if (/subject to hostility from any/i.test(text)) return { all, endsOn: "any", allies: false };

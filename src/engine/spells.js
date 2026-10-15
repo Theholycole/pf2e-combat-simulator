@@ -19,7 +19,7 @@ import { startLingering, startZone } from "./zones.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
 import { addFloor, floorOf } from "./floors.js";
 import { counterables, counterChance, counterRank, counterRoll } from "./counteract.js";
-import { applyNoteState, noteState, noteStateWorth } from "./note-states.js";
+import { applyNoteState, noteState, noteStateWorth, spellLocked } from "./note-states.js";
 import { allyStrike } from "./commander.js";
 import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
@@ -33,6 +33,7 @@ import { applyWard, wardBlocks, wardWorth } from "./wards.js";
 import { hiddenFrom } from "./sight.js";
 import { lastingRounds } from "./lasting.js";
 import { takeControl } from "./control.js";
+import { noteKnown } from "./readings.js";
 
 const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
 const registry = createRegistry();
@@ -2193,6 +2194,8 @@ export function canCast(c, spell) {
     if ((spell.zone || spell.plan?.resolution?.lingering) && c.activeZones?.has(spell.name)) return false;
     // (S22: a failed trick locks the item this turn; a critically failed one, all fight.)
     if (spell.trick && (c.itemsLocked?.has(spell.item) || c.usedThisTurn?.has(`trick:${spell.item}`))) return false;
+    // (Crisis of Faith: its divine spells locked.)
+    if (c.spellLocks?.length && spellLocked(c, spell)) return false;
     return poolReady(c, spell);
 }
 
@@ -2703,6 +2706,8 @@ export function spellGaps(spell) {
             } else if (change.op === "effect" && change.effect?.kind === "note" && (pacifyOf(change.effect.note) || noteState(change.effect.note) || noteModel(spell, change.effect.note))) {
                 const model = pacifyOf(change.effect.note) || noteState(change.effect.note) ? null : noteModel(spell, change.effect.note);
                 if (model?.unsupported.length) missing.add(`${change.effect.note.label}: ${model.unsupported.join(", ")}`);
+            } else if (change.op === "effect" && change.effect?.kind === "note" && noteKnown(plan, change.effect.note)) {
+                // (Played another way, or nothing in a fight: readings.js.)
             } else if (change.op === "effect") missing.add(change.effect?.kind === "note" ? `note: ${change.effect.note?.label ?? "effect"}` : change.effect?.kind === "native" ? `effect: ${change.effect.label ?? change.effect.uuid}` : `effect: ${change.effect?.kind}`);
             else if (change.op === "note" && change.manual) missing.add("manual step");
             else if (!["damage", "condition", "move", "death", "followUp", "note", "heal", "tempHp", "end"].includes(change.op)) missing.add(change.op);

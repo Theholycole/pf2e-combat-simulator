@@ -31,7 +31,9 @@ const SELECTORS = {
     // (2026-10-14: Speed — Grasping Grave's -10 feet: the creature's Speed while it lasts.)
     "all-speeds": ["speed"],
     "land-speed": ["speed"],
-    speed: ["speed"]
+    speed: ["speed"],
+    // (Sleep's success: -1 status to Perception for a round — a morale check's and Read the fight's Perception, statusPenalty.)
+    perception: ["perception"]
 };
 // Rule keys with no effect on a fight as the engine plays it.
 const IGNORED = new Set(["Note", "RollOption", "Sense", "BaseSpeed", "TokenLight", "TokenImage", "TokenEffectIcon", "DexterityModifierCap", "ChoiceSet", "ItemAlteration", "SubstituteRoll", "MartialProficiency", "CriticalSpecialization", "Aura"]);

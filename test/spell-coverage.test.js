@@ -570,3 +570,77 @@ test("Dominate: a failed save puts the target on its controller's side until its
         assert.ok(result.outcome, `seed ${seed}`);
     }
 });
+
+test("Notes in a fight: Charm's critical failure stops attacks on the caster; Suggestion stops the fight; a lost turn; locked divine spells; notes with nothing in a fight", async () => {
+    const { withReading, noteKnown } = await import("../src/engine/readings.js");
+    const { canReact } = await import("../src/engine/abilities.js");
+    const { canCast, spellGaps } = await import("../src/engine/spells.js");
+    const { statusPenalty } = await import("../src/engine/combatant.js");
+    const { pacifiedAll, calmedUntilHostility } = await import("../src/engine/pacify.js");
+    const { lastingTurnStart } = await import("../src/engine/lasting.js");
+    const { noteStatesTurnStart } = await import("../src/engine/note-states.js");
+    const hour = { mode: "fixed", value: 1, unit: "hours" };
+    const fight = (spells) => {
+        const mage = { ...moderateCreature(5, "mage", "Mage"), side: "party", kind: "npc", spells: spells.map(([name, plan]) => ({ name, plan, castRank: 4, dc: 40, attack: 12, pool: null })), spellPools: {}, band: "near" };
+        const state = createFightState({ combatants: [mage, { ...moderateCreature(5, "foe", "Foe"), band: "near", reactions: { aoo: true, shieldBlock: false } }] }, {}, 1);
+        state.log = [];
+        // (DC 40: a 2 on the die is a critical failure.)
+        state.rng.d20 = () => 2;
+        return { state, mage: state.byId.get("mage"), foe: state.byId.get("foe") };
+    };
+    // Charm's critical failure says it in its attitude note (no "No hostile actions" note on that row): none against the caster.
+    const charm = noteSave("Charm", { failure: { noteEffects: [{ label: "Attitude", text: "The target's attitude becomes Friendly toward you. If you use hostile actions against the target, the spell ends.", duration: hour }] },
+        criticalFailure: { noteEffects: [{ label: "Attitude", text: "The target's attitude becomes Helpful toward you, and it can't use hostile actions against you. If you use hostile actions against the target, the spell ends.", duration: hour }] } });
+    let { state, mage, foe } = fight([["Charm", charm]]);
+    castSpell(state, mage, 0, ["foe"]);
+    assert.deepEqual(foe.pacified.map((entry) => [entry.all, entry.endsOn]), [[false, "caster"]], state.log.join("\n"));
+    // A step of attitude that isn't enough in a fight isn't one (Glimmer of Charm's success), and isn't a gap.
+    const glimmer = noteSave("Glimmer of Charm", { success: { noteEffects: [{ label: "Attitude", text: "The creature's attitude toward you improves by one step. If that improves its attitude to at least Indifferent, it can't take hostile actions against you." }] } });
+    assert.deepEqual(spellGaps({ name: "Glimmer of Charm", plan: glimmer, castRank: 5 }), []);
+    // Suggestion: read as the suggestion to stop fighting — no hostile actions at all, until hostility toward it.
+    const suggestion = withReading(noteSave("Suggestion", { failure: { noteEffects: [{ label: "GM note", gmPlays: true, text: "The target immediately follows your suggestion. The spell has a duration of 1 minute.", duration: { mode: "fixed", value: 1, unit: "minutes" } }] } }));
+    ({ state, mage, foe } = fight([["Suggestion", suggestion]]));
+    castSpell(state, mage, 0, ["foe"]);
+    assert.equal(pacifiedAll(foe), true);
+    assert.equal(calmedUntilHostility(foe), true);
+    assert.deepEqual(spellGaps({ name: "Suggestion", plan: suggestion, castRank: 4 }), []);
+    // Laughing Fit: its success's "GM note" locks reactions; its critical failure's "can't use actions or reactions for 1 round" takes
+    // the target's next turn.
+    const fit = noteSave("Laughing Fit", { success: { noteEffects: [{ label: "GM note", text: "The target is plagued with uncontrollable laughter. It can't use reactions." }] },
+        criticalFailure: { noteEffects: [{ label: "GM note", text: "The target falls Prone and can't use actions or reactions for 1 round.", duration: { mode: "fixed", value: 1, unit: "rounds" } }] } });
+    const { noteState } = await import("../src/engine/note-states.js");
+    assert.equal(noteState(fit.resolution.outcomes.success.noteEffects[0])?.kind, "no-reactions");
+    ({ state, mage, foe } = fight([["Laughing Fit", fit]]));
+    castSpell(state, mage, 0, ["foe"]);
+    assert.equal(canReact(foe), false);
+    foe.actionsLeft = 3;
+    noteStatesTurnStart(state, foe);
+    assert.equal(foe.actionsLeft, 0);
+    assert.ok(state.log.includes("  Foe can't act (Laughing Fit)"), state.log.join("\n"));
+    // Crisis of Faith's critical failure: its divine spells locked for the round, then free again.
+    const crisis = noteSave("Crisis of Faith", { criticalFailure: { noteEffects: [{ label: "Faith shaken", text: "It can't cast divine spells.", duration: { mode: "fixed", value: 1, unit: "rounds" } }] } });
+    ({ state, mage, foe } = fight([["Crisis of Faith", crisis]]));
+    foe.spells = [{ name: "Divine Lance", plan: IGNITION_LIKE(), castRank: 3, dc: 22, attack: 12, pool: null, tradition: "divine" }, { name: "Ignition", plan: IGNITION_LIKE(), castRank: 3, dc: 22, attack: 12, pool: null, tradition: "arcane" }];
+    castSpell(state, mage, 0, ["foe"]);
+    assert.deepEqual(foe.spells.map((spell) => canCast(foe, spell)), [false, true]);
+    state.round += 1;
+    lastingTurnStart(state, mage);
+    assert.deepEqual(foe.spells.map((spell) => canCast(foe, spell)), [true, true]);
+    // Notes the engine plays another way, or with nothing in a fight.
+    assert.equal(noteKnown({ source: { slug: "mind-reading" } }, { label: "Mind read" }), "none");
+    assert.equal(noteKnown({ source: { slug: "dominate" } }, { label: "Dominated" }), "played");
+    assert.equal(noteKnown({ source: { slug: "outcasts-curse" } }, { label: "Attitude" }), "none");
+    assert.equal(noteKnown({ source: { slug: "earthbind" } }, { label: "GM note" }), null);
+    // Sleep's success: -1 status to Perception, as a status penalty.
+    const { effectModel } = await import("../src/engine/effects.js");
+    const { applyEffect } = await import("../src/engine/effects.js");
+    applyEffect(state, foe, effectModel({ name: "Perception penalty", system: { rules: [{ key: "FlatModifier", selector: "perception", type: "status", value: -1 }], duration: { value: 1, unit: "rounds" } } }, { rank: 1 }), mage, { key: "sleep" });
+    assert.equal(statusPenalty(foe, "perception"), 1);
+});
+
+// A cantrip-like attack spell for the tradition lock.
+function IGNITION_LIKE() {
+    return { modelVersion: 12, source: { name: "Bolt" }, rank: 1, traits: ["cantrip", "fire"], activation: { time: "2" }, targeting: { target: "1 creature", range: "30 feet" },
+        resolution: { kind: "save", check: { statistic: "reflex", basic: true }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "2d6", type: "fire" }] },
+            outcomes: { criticalSuccess: row(), success: row({ damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] } }), failure: row({ damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] } }), criticalFailure: row({ damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] } }) } } };
+}

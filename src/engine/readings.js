@@ -70,7 +70,54 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withRowFlags(withRecurringSaves(withArea(resolved)));
+    return withNoteReadings(withRowFlags(withRecurringSaves(withArea(resolved))));
+}
+
+// Suggestion and Telepathic Demand (S50): "The target immediately follows your suggestion" — in a fight, the suggestion to stop
+// fighting: it can't use hostile actions, and hostility toward it ends that (as Calm's failure; an attack is the suggestion's "obvious
+// negative effects"). The GM's note becomes the engine's "No hostile actions" note.
+const FOLLOWS = /immediately follows (?:your|the caster's) (?:suggestion|message)/i;
+const STOP_FIGHTING = { label: "No hostile actions (the suggestion: stop fighting)", text: "It follows the suggestion to stop fighting: it can't use hostile actions. If it is subject to hostility from any creature, it ceases to be affected." };
+function withNoteReadings(plan) {
+    if (plan?.resolution?.kind !== "save") return plan;
+    let changed = false;
+    const outcomes = Object.fromEntries(Object.entries(plan.resolution.outcomes ?? {}).map(([degree, row]) => {
+        if (!(row?.noteEffects ?? []).some((note) => FOLLOWS.test(String(note?.text ?? "")))) return [degree, row];
+        changed = true;
+        return [degree, { ...row, noteEffects: row.noteEffects.map((note) => (FOLLOWS.test(String(note?.text ?? "")) ? { ...note, ...STOP_FIGHTING, gmPlays: false } : note)) }];
+    }));
+    return changed ? { ...plan, simulatorReading: true, resolution: { ...plan.resolution, outcomes } } : plan;
+}
+
+// Notes the engine plays another way, or that change nothing in a fight, by the spell's slug and the note's label ("*": all its
+// notes): not gaps (S51). Played: Dominate's critical failure (no new save — the engine gives none), Sleep's waking (the engine's
+// sleep ends with damage; a minute is past a fight), Enthrall's (its fascination ends with hostility, as the engine's does; the GM's
+// save when it disagrees isn't a fight's). Nothing in a fight: what the caster learns or the target believes, social checks.
+const NOTES_KNOWN = {
+    dominate: { Dominated: "played" },
+    sleep: { "Wakes up": "played" },
+    enthrall: { Enthralled: "played" },
+    "mind-reading": { "*": "none" },
+    "ring-of-truth": { "*": "none" },
+    "talking-corpse": { "*": "none" },
+    nightmare: { "*": "none" },
+    "rewrite-memory": { "*": "none" },
+    "zenith-star": { "*": "none" },
+    "sudden-recollection": { "*": "none" },
+    "casters-imposition": { "*": "none" },
+    "sculpt-sound": { "*": "none" },
+    "forced-quiet": { "*": "none" },
+    "fabricated-truth": { "*": "none" },
+    // (Its critical success: the creature knows the caster tried; its failures are the suggestion, above.)
+    "telepathic-demand": { "Telepathic demand": "none" }
+};
+// "played" | "none" | null (a gap). An attitude (Charm, Tame, Outcast's Curse) counts in a fight only as far as it stops hostile
+// actions — the "No hostile actions" note, or the note's own words (pacify.js reads both); the rest of it is the GM's.
+export function noteKnown(plan, note) {
+    const known = NOTES_KNOWN[plan?.source?.slug];
+    const label = String(note?.label ?? "");
+    if (known && (known[label] ?? known["*"])) return known[label] ?? known["*"];
+    return label === "Attitude" ? "none" : null;
 }
 
 // What the engine needs at cast time from a row's own words, kept as plan.rowFlags (the snapshot slims the rows' text away; the core
