@@ -339,3 +339,13 @@ test("concentrate: a Fear Gem isn't used while raging or fascinated, and a react
     }
     assert.ok(disrupted > 0, "disrupted in some fight");
 });
+
+test("a third-party item's own Effect (an application with verify) is kept only when the item module's check passes", async () => {
+    const { verifiedPlan } = await import("../src/adapter/items.js");
+    const own = { kind: "native-spell-effect", uuid: "Compendium.plus.effects.Item.own000000000001", recipients: "target", verify: "<p>+1 item bonus</p>" };
+    const pf2e = { kind: "native-spell-effect", uuid: BUFF, recipients: "target" };
+    const plan = { ...ELIXIR, resolution: { kind: "effect", applications: [pf2e, own] } };
+    assert.deepEqual(verifiedPlan(plan, () => true).resolution.applications, [pf2e, own]);
+    assert.deepEqual(verifiedPlan(plan, () => false).resolution.applications, [pf2e]);
+    assert.equal(verifiedPlan(ELIXIR, () => false), ELIXIR, "nothing to check");
+});

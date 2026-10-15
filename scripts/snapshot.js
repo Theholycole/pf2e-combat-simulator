@@ -5,7 +5,7 @@ import { extraDamageParts, parseReadableDamage, randomDamageRows } from "../src/
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js";
 import { levelDC } from "../src/engine/checks.js";
-import { beltHeld, drawActions, isBelt, isStaffItem, itemCasts, itemEntry, itemStrikeActivity, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
+import { beltHeld, drawActions, isBelt, isStaffItem, itemCasts, itemEntry, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { maneuverWays, withReading } from "../src/engine/readings.js";
 import { effectModel, iwrException } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
@@ -1157,7 +1157,8 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
         return result;
     }
     for (const { item, result: compiled } of prepared) {
-        const plan = compiled?.plan;
+        // (A third-party item's own Effect only when its rules match its text, as the item module plays it.)
+        const plan = compiled?.plan ? await verifiedEffects(compiled.plan) : null;
         // (Not the item module's plan: none here.)
         if (!plan?.item) continue;
         if (item.isIdentified === false) {
@@ -1200,6 +1201,30 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
         result.spells.push(spec);
     }
     return result;
+}
+
+// (2026-10-15) A third-party item's own linked Effect is played only when its rules match the item's text: the item module's
+// verifyEffectRules (src/compiler/verify-effect.js), as its live play does. Without the item module's check, not at all.
+let effectVerifier;
+async function verifiedEffects(plan) {
+    if (!(plan?.resolution?.applications ?? []).some((application) => application?.verify)) return plan;
+    effectVerifier ??= await import("../../pf2e-automatic-item-resolution/src/compiler/verify-effect.js").then((module) => module.verifyEffectRules).catch(() => null);
+    const verdicts = new Map();
+    for (const application of plan.resolution.applications.filter((entry) => entry?.verify)) {
+        const effect = effectVerifier ? await effectItem(application.uuid) : null;
+        const rules = effect?.system?.rules ?? [];
+        const conditionNames = Object.fromEntries(rules.filter((rule) => rule.key === "GrantItem" && rule.uuid).map((rule) => [String(rule.uuid).split(".").at(-1), conditionName(rule.uuid)]).filter(([, name]) => name));
+        verdicts.set(application, Boolean(effect && effectVerifier(rules, application.verify, { conditionNames })?.ok));
+    }
+    return verifiedPlan(plan, (application) => verdicts.get(application) === true);
+}
+
+function conditionName(uuid) {
+    try {
+        return fromUuidSync?.(uuid)?.name ?? null;
+    } catch {
+        return null;
+    }
 }
 
 // U3: the spell an item casts (Invisibility Potion), as the core's registry compiles it (the spell module's plan), at the item's rank; its DC

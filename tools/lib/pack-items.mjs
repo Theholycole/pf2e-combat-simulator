@@ -16,7 +16,14 @@ try {
     claims = null;
 }
 const { basicActions, readDocuments, PACK_ROOT } = await import("./pack-creatures.mjs");
-const { itemEntry, itemStrikeActivity } = await import("../../src/adapter/items.js");
+const { itemEntry, itemStrikeActivity, verifiedPlan } = await import("../../src/adapter/items.js");
+// (A third-party item's own Effect only when its rules match its text: the item module's check, as its live play.)
+let verifyEffectRules = null;
+try {
+    ({ verifyEffectRules } = await import(`${I}/src/compiler/verify-effect.js`));
+} catch {
+    verifyEffectRules = null;
+}
 const { effectModel } = await import("../../src/engine/effects.js");
 const { canCast, isUtility } = await import("../../src/engine/spells.js");
 const { levelDC } = await import("../../src/engine/checks.js");
@@ -30,6 +37,8 @@ const EFFECT_PACKS = ["spell-effects", "equipment-effects", "other-effects", "be
 const effects = new Map(compiler ? EFFECT_PACKS.flatMap((pack) => docs(pack).map((effect) => [`Compendium.pf2e.${pack}.Item.${effect._id}`, effect])) : []);
 const conditionNames = new Map(docs("conditions").map((condition) => [condition._id, condition.system?.slug ?? condition.name.toLowerCase().replace(/\s+/g, "-")]));
 const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".").pop()) ?? null;
+// (PF2e's conditions by id → name, for the item module's check of a GrantItem rule.)
+const CONDITION_NAMES = Object.fromEntries(docs("conditions").map((condition) => [condition._id, condition.name]));
 
 // The models of the PF2e effects a plan applies, at the item's level.
 export const itemEffectModels = (plan, rank) => Object.fromEntries([...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.[a-z-]+-effects\.Item\.[A-Za-z0-9]{16}/g) ?? [])]
@@ -55,6 +64,10 @@ export function npcItems(npc, { fresh = true } = {}) {
         } catch {
             plan = null;
         }
+        if (plan) plan = verifiedPlan(plan, (application) => {
+            const effect = effects.get(application.uuid);
+            return Boolean(effect && verifyEffectRules && verifyEffectRules(effect.system?.rules ?? [], application.verify, { conditionNames: CONDITION_NAMES }).ok);
+        });
         if (plan?.strike) {
             const activity = itemStrikeActivity(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, fresh, feats });
             if (!activity) continue;

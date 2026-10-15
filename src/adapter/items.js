@@ -219,3 +219,13 @@ export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses =
         consumable: !reusable
     };
 }
+
+// (2026-10-15, the item module's third-party Effects: an application with `verify`, the item's text, is a module's own Effect, played only
+// when its rules match what the text says — the item module's verifyEffectRules, which the caller runs: passes(application) → true.)
+// The plan without the applications that don't pass; an effect plan left with none plays nothing.
+export function verifiedPlan(plan, passes) {
+    const applications = plan?.resolution?.applications;
+    if (!Array.isArray(applications) || !applications.some((application) => application?.verify)) return plan;
+    const kept = applications.filter((application) => !application?.verify || passes(application));
+    return { ...plan, resolution: { ...plan.resolution, applications: kept } };
+}
