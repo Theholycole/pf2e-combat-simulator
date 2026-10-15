@@ -87,6 +87,7 @@ The design is in [docs/spec.md](docs/spec.md) and the vocabulary in [CONTEXT.md]
 - `node tools/bestiary-casters.mjs [pack …]` runs every bestiary spellcaster's spells through the simulator and reports what's cast, what's missing and any errors.
 - `node tools/bestiary-abilities.mjs [--map] [--escalate] [pack …]` runs every bestiary creature with its abilities against the martial benchmark party.
   - Both tools read creatures and spells through `tools/lib/` (`pack-creatures.mjs`, `pack-spells.mjs`).
+- `node tools/low-value.mjs <out.json> [items,spells,abilities] [fights]` measures how often the planner picks each consumable, spell and monster ability when it has it; `node tools/low-value.mjs doc <out.json> docs/low-value.md` writes the list of low-value options for testing later ([docs/low-value.md](docs/low-value.md), 2026-10-15).
 - `node tools/deadliest.mjs <out folder> screen|ladder|confirm|ablate|broad [--only=<refs file>]` ranks every creature (PF2e's packs and Battlezoo's) by how deadly it is for its level (2026-10-13).
   - A fight's deadliness: the party's Hit Points taken (as a share), +0.25 a PC downed, +1 a PC killed, +1 a wipe.
   - Each creature fights the standard party of its level (`src/engine/party.js`: fighter, rogue, wizard, cleric, clamped to 1–20) to the death. The fighter and the rogue carry a bludgeoning backup and a bow beside their main weapons.
