@@ -30,6 +30,7 @@ import { controlTurnStart } from "./control.js";
 import { familiarFocus, familiarKeepsUp } from "./familiars.js";
 import { championOpening, marchOfLaw, shatterDefenses, zealCritical } from "./champion.js";
 import { castLuminance, dismissLuminance, luminanceTurnStart } from "./luminance.js";
+import { initiativeFortune } from "./fortune-items.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -207,13 +208,17 @@ function rollInitiative(state, snapshot) {
         const near = (ally) => !c.initiativeWarning.within || c.initiativeWarning.within > 10 || sameMelee(ally, c);
         for (const ally of state.list) if (ally !== c && ally.side === c.side && near(ally)) warned.set(ally.id, Math.max(warned.get(ally.id) ?? 0, c.initiativeWarning.value));
     }
+    // (U11: whose side is the weaker, for a PC's initiative talisman.)
+    if (state.list.some((c) => c.fortuneItems?.some((entry) => entry.selector === "initiative"))) computeThreats(state);
     const rolled = state.list.map((c) => {
         const roll = state.initiativeStat.get(c.id);
         if (roll.stat === "stealth") state.stealthInitiative.add(c.id);
         if (roll.stat !== "perception" && !usesStealth(c)) state.log?.push(`  ${c.name} rolls ${roll.stat.replace(/-/g, " ")} for initiative`);
         // Ten Paces: +2 circumstance to the initiative roll (C18); not with another circumstance bonus.
         const modifier = roll.value + Math.max(c.initiativeBonus ?? 0, warned.get(c.id) ?? 0);
-        return { c, total: state.rng.d20() + modifier, modifier };
+        // (U11, Eye of Apprehension: Perception for initiative rolled twice, the higher kept.)
+        const twice = roll.stat === "perception" && c.fortuneItems?.length && initiativeFortune(state, c);
+        return { c, total: (twice ? Math.max(state.rng.d20(), state.rng.d20()) : state.rng.d20()) + modifier, modifier };
     });
     rolled.sort((a, b) => (b.total - a.total) || ((a.c.side === "foes" ? 0 : 1) - (b.c.side === "foes" ? 0 : 1)) || (b.modifier - a.modifier));
     state.order = rolled.map((entry) => entry.c.id);

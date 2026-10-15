@@ -5,7 +5,7 @@ import { extraDamageParts, parseReadableDamage, randomDamageRows } from "../src/
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js";
 import { levelDC } from "../src/engine/checks.js";
-import { beltHeld, drawActions, isBelt, isStaffItem, itemCasts, itemEntry, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
+import { beltHeld, drawActions, isBelt, isStaffItem, itemCasts, itemEntry, itemFortune, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { maneuverWays, withReading } from "../src/engine/readings.js";
 import { effectModel, iwrException } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
@@ -1145,7 +1145,7 @@ function consumableSpells(actor, gaps, { fresh, spellPools }) {
 // talismans and the like, as actions it can take — each stack its uses; taken out first unless held (PF2e's Interact: 1 worn, more
 // stowed). A monster uses them freely; a PC weighs them (consumables.js). Without the item module, they stay among the gaps.
 async function readConsumables(actor, gaps, { fresh = false, handled = new Set(), strikes = [] } = {}) {
-    const result = { spells: [], spellPools: {}, activities: [] };
+    const result = { spells: [], spellPools: {}, activities: [], fortunes: [] };
     const feats = [...(actor.itemTypes?.feat ?? []), ...(actor.itemTypes?.action ?? [])].map((feat) => feat.slug).filter(Boolean);
     const core = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api : null;
     const items = (actor.itemTypes?.consumable ?? []).filter((item) => !SPELL_ITEMS.includes(item.category ?? item.system?.category) && (Number(item.quantity ?? item.system?.quantity ?? 1) || 0) > 0);
@@ -1164,6 +1164,17 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
         if (item.isIdentified === false) {
             handled.add(item);
             gaps.push({ kind: "item, unidentified", name: item.name });
+            continue;
+        }
+        // (U11: a roll-twice talisman — Gorum's Tear, Eye of Apprehension — used as its roll comes; Eye of Apprehension for a master in
+        // Perception.)
+        if (plan.builtin === "roll-twice") {
+            const fortune = itemFortune(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, fresh });
+            // (A monster has no proficiency ranks: its stat block carries it, so it qualifies.)
+            if (!fortune || (fortune.requires === "master-perception" && actorKind(actor) === "pc" && !(Number(actor.perception?.rank) >= 3))) continue;
+            handled.add(item);
+            result.spellPools[fortune.pool] = fortune.casts;
+            result.fortunes.push(fortune);
             continue;
         }
         // (U7: one used by Striking — Fear Gem: a Strike activity, its stack its pool.)
@@ -1589,6 +1600,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         ...features.fields,
         multiStrikes: [...(abilities.builtins.multiStrikes ?? []), ...(features.fields.multiStrikes ?? [])],
         // (U7: items used by Striking, after the creature's own activities.)
+        ...(consumables.fortunes.length ? { fortuneItems: consumables.fortunes } : {}),
         ...(consumables.activities.length ? { strikeActivities: [...(abilities.builtins.strikeActivities ?? []), ...(features.fields.strikeActivities ?? []), ...consumables.activities] } : {}),
         // (Its PF2e self-effects, and a class feature's — Immortal Bastion's deflect, C33.)
         ...(selfEffects.length || features.fields.selfEffects?.length ? { selfEffects: [...(features.fields.selfEffects ?? []), ...selfEffects] } : {}),

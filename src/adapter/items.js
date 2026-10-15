@@ -240,3 +240,22 @@ export function verifiedPlan(plan, passes) {
     const kept = applications.filter((application) => !application?.verify || passes(application));
     return { ...plan, resolution: { ...plan.resolution, applications: kept } };
 }
+
+// U11 (2026-10-15; the user: "add gorum's tear and eye of apprehension to the simulator"): the item module's "roll-twice" talismans as the
+// creature's fortune items (src/engine/fortune-items.js): { name, selector, pool, casts, item, consumable, … } for an attack roll or
+// initiative, the item's own extras by its slug (FORTUNE_EXTRAS). null: another roll (a save, a skill) — not yet — or none left.
+const FORTUNE_EXTRAS = Object.freeze({
+    // "ignoring any circumstance penalties. You then become Off-Guard to the creature you targeted until the beginning of your next turn";
+    // "You make an attack with the affixed weapon".
+    "gorums-tear": { ignoreCircumstance: true, offGuardAfter: true, weapon: true },
+    // "Requirements You are a master in Perception": the snapshot checks it.
+    "eye-of-apprehension": { requires: "master-perception" }
+});
+export function itemFortune(plan, { id, name = null, quantity = 1, uses = null, fresh = false } = {}) {
+    if (plan?.builtin !== "roll-twice" || plan.rollTwice?.keep !== "higher" || !["attack-roll", "initiative"].includes(plan.rollTwice.selector)) return null;
+    const item = plan.item ?? {};
+    const reusable = (uses?.autoDestroy ?? item.uses?.autoDestroy) === false;
+    const casts = itemCasts({ category: reusable ? "wand" : "consumable", quantity, uses: { max: Math.max(1, Number(uses?.max ?? item.uses?.max) || 1), value: uses?.value }, fresh: reusable && fresh });
+    if (!casts) return null;
+    return { name: name ?? plan.source?.name ?? "Item", selector: plan.rollTwice.selector, pool: `item:${id}`, casts, item: id, consumable: !reusable, ...(FORTUNE_EXTRAS[plan.source?.slug] ?? {}) };
+}

@@ -18,6 +18,7 @@ import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
 import { log } from "./log.js";
+import { afterAttackFortune, attackFortune } from "./fortune-items.js";
 import { hostility, ownHostility } from "./pacify.js";
 import { wardBlocks } from "./wards.js";
 import { hiddenFrom } from "./sight.js";
@@ -67,14 +68,19 @@ export function attackModifier(state, attacker, target, strike, attacksMade, { p
     // A stance's change to this Strike, as PF2e made it (C13).
     for (const effect of attacker.effects ?? []) modifier += effect.model?.attackDeltas?.[strike.name] ?? 0;
     modifier -= statusPenalty(attacker, strike.melee ? "melee" : "ranged");
+    modifier -= circumstancePenalty(state, attacker, target, strike, { prone });
+    modifier += traitAttackBonus(strike, target, history);
+    if (!strike.melee) modifier -= rangePenalty(strike, distanceBetween(attacker, target)) ?? 0;
+    return modifier;
+}
+
+// The circumstance penalty to a creature's attack: prone, shaken, a nonlethal attack with a lethal weapon (the highest applies).
+export function circumstancePenalty(state, attacker, target, strike, { prone } = {}) {
     let circumstance = 0;
     if (prone ?? attacker.cond.prone) circumstance = Math.max(circumstance, 2);
     if (isShaken(attacker)) circumstance = Math.max(circumstance, state.moraleRules.group.shakenAttackPenalty);
     if (nonlethalAgainst(state, attacker, target) && !strike.nonlethal) circumstance = Math.max(circumstance, 2);
-    modifier -= circumstance;
-    modifier += traitAttackBonus(strike, target, history);
-    if (!strike.melee) modifier -= rangePenalty(strike, distanceBetween(attacker, target)) ?? 0;
-    return modifier;
+    return circumstance;
 }
 
 export function flankersAgainst(state, target, attacker) {
@@ -351,11 +357,17 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (own) log(state, `  ${attacker.name} rolls twice (${own === "higher" ? "the better" : "the worse"} kept)`);
     if (own === "higher") fortune = true;
     else if (own === "lower") misfortune = true;
+    // (U11, Gorum's Tear: an attack talisman used now — twice, the better kept, ignoring circumstance penalties.)
+    const talisman = !reaction && !fortune && !misfortune && attacker.fortuneItems?.length
+        ? attackFortune(state, attacker, target, strike, { modifier, circumstance: circumstancePenalty(state, attacker, target, strike) + (attacker.rollPenalty ?? 0), ac: ac + defence, damage: [expectedHitDamage(attacker, strike, target, false), expectedHitDamage(attacker, strike, target, true)] })
+        : null;
+    if (talisman) fortune = true;
     // (A fortune Strike, B90: twice, the better; with misfortune too, neither.)
     const roll = () => (misfortune && !fortune ? Math.min(state.rng.d20(), state.rng.d20()) : fortune && !misfortune ? Math.max(state.rng.d20(), state.rng.d20()) : state.rng.d20());
     let natural = roll();
     // (Tail Lash's hit, B70: "the creature takes a –2 circumstance penalty to the triggering roll".)
-    let bonus = reaction ? 0 : -(attacker.rollPenalty ?? 0);
+    // (U11: Gorum's Tear ignores the circumstance penalties — the attack's, and this one.)
+    let bonus = reaction ? 0 : -(attacker.rollPenalty ?? 0) + (talisman ? talisman.bonus : 0);
     if (!reaction) attacker.rollPenalty = 0;
     // Taunted: attacking someone other than the guardian costs −1, and leaves it off-guard.
     const taunter = attacker.tauntedBy ? state.byId.get(attacker.tauntedBy) : null;
@@ -377,6 +389,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (Sacred Defender: a natural 20 against it doesn't improve the result. Keen: a natural 19 that hits is a critical hit.)
     if (natural === 20 && target.noNaturalTwenty) degree = degreeOf(natural + modifier + bonus, ac + defence, 10);
     if (keenCritical(strike, natural, degree)) degree = CRITICAL_SUCCESS;
+    // (U11: Gorum's Tear leaves its user off-guard to that creature until its next turn.)
+    if (talisman) afterAttackFortune(state, attacker, target, talisman);
     // Hammer Block, Stygian Guardian (B94): an ally's +AC once the attack hits, when that turns it aside (its Strike back after, Reactive
     // Defense's).
     if (degree >= SUCCESS && !reaction) {

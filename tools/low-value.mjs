@@ -53,9 +53,9 @@ if (parts.includes("items")) {
         const entries = [...own.spells.map((spell) => ({ name: spell.name, gaps: spellGaps(spell) })), ...own.activities.map((activity) => ({ name: activity.name, gaps: [] }))];
         // (Played only as a Strike's rider: no PC's Strike lists it.)
         const usable = own.spells.filter((spell) => spell.plan?.trigger?.event !== "strike");
-        if (!usable.length && !own.activities.length) continue;
+        if (!usable.length && !own.activities.length && !own.fortunes.length) continue;
         const level = studyLevel(doc.system?.level?.value ?? 1);
-        const party = partyFor(level).map((pc) => ({ ...pc, spells: [...(pc.spells ?? []), ...usable.map((spell) => ({ ...spell }))], strikeActivities: [...(pc.strikeActivities ?? []), ...own.activities.map((activity) => ({ ...activity }))], spellPools: { ...(pc.spellPools ?? {}), ...Object.fromEntries(Object.keys(own.spellPools).map((pool) => [pool, 2])) } }));
+        const party = partyFor(level).map((pc) => ({ ...pc, spells: [...(pc.spells ?? []), ...usable.map((spell) => ({ ...spell }))], strikeActivities: [...(pc.strikeActivities ?? []), ...own.activities.map((activity) => ({ ...activity }))], fortuneItems: [...(pc.fortuneItems ?? []), ...own.fortunes.map((fortune) => ({ ...fortune }))], spellPools: { ...(pc.spellPools ?? {}), ...Object.fromEntries(Object.keys(own.spellPools).map((pool) => [pool, 2])) } }));
         const combatants = [...party, ...foesAt(level)];
         const actors = party.map((pc) => pc.name);
         const row = { name: doc.name, category: doc.system?.category ?? null, level, gaps: [...new Set(entries.flatMap((entry) => entry.gaps))] };

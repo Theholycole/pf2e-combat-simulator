@@ -16,7 +16,7 @@ try {
     claims = null;
 }
 const { basicActions, readDocuments, PACK_ROOT } = await import("./pack-creatures.mjs");
-const { itemEntry, itemStrikeActivity, verifiedPlan } = await import("../../src/adapter/items.js");
+const { itemEntry, itemFortune, itemStrikeActivity, verifiedPlan } = await import("../../src/adapter/items.js");
 // (A third-party item's own Effect only when its rules match its text: the item module's check, as its live play.)
 let verifyEffectRules = null;
 try {
@@ -52,7 +52,9 @@ export function npcItems(npc, { fresh = true } = {}) {
     const spells = [];
     const spellPools = {};
     const activities = [];
-    if (!compiler) return { spells, spellPools, activities };
+    // (U11: roll-twice talismans, used as their roll comes.)
+    const fortunes = [];
+    if (!compiler) return { spells, spellPools, activities, fortunes };
     const feats = (npc.items ?? []).filter((entry) => ["feat", "action"].includes(entry.type)).map((entry) => entry.system?.slug ?? entry.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
     // (U4: the attack effects its Strikes list — an injury poison among them is delivered by their hits.)
     const listed = new Set(npc.items.filter((entry) => entry.type === "melee").flatMap((entry) => entry.system?.attackEffects?.value ?? []));
@@ -70,6 +72,14 @@ export function npcItems(npc, { fresh = true } = {}) {
             const effect = effects.get(application.uuid);
             return Boolean(effect && verifyEffectRules && verifyEffectRules(effect.system?.rules ?? [], application.verify, { conditionNames: CONDITION_NAMES }).ok);
         });
+        if (plan?.builtin === "roll-twice") {
+            const fortune = itemFortune(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, fresh });
+            if (fortune) {
+                spellPools[fortune.pool] = fortune.casts;
+                fortunes.push(fortune);
+            }
+            continue;
+        }
         if (plan?.strike) {
             const activity = itemStrikeActivity(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, fresh, feats });
             if (!activity) continue;
@@ -105,5 +115,5 @@ export function npcItems(npc, { fresh = true } = {}) {
         spellPools[entry.pool] = entry.casts;
         spells.push(spec);
     }
-    return { spells, spellPools, activities };
+    return { spells, spellPools, activities, fortunes };
 }

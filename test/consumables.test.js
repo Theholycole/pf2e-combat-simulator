@@ -417,3 +417,64 @@ test("U10: a PC beside a paralyzed ally applies the salve to it", () => {
     assert.ok(state.log.some((line) => line.includes(`${pc.name} applies Test Salve to ${ally.name}`)), state.log.join("\n"));
     assert.equal(ally.cond.paralyzed, false);
 });
+
+// U11 (2026-10-15; the user: "add gorum's tear and eye of apprehension to the simulator"): the item module's roll-twice talismans.
+const rollTwice = (name, slug, selector) => ({ builtin: "roll-twice", source: { name, slug }, rollTwice: { selector, keep: "higher" }, notes: [], item: { ...itemInfo("talisman", 8), recipient: "user", activations: [{ time: "free", traits: ["concentrate", "fortune"] }] } });
+const TEAR = rollTwice("Gorum's Tear", "gorums-tear", "attack-roll");
+const EYE = rollTwice("Eye of Apprehension", "eye-of-apprehension", "initiative");
+
+test("U11: a roll-twice talisman as a fortune item — Gorum's Tear's extras, Eye of Apprehension's requirement; other rolls not yet", async () => {
+    const { itemFortune } = await import("../src/adapter/items.js");
+    const tear = itemFortune(TEAR, { id: "t", quantity: 2 });
+    assert.deepEqual([tear.selector, tear.pool, tear.casts, tear.ignoreCircumstance, tear.offGuardAfter, tear.weapon], ["attack-roll", "item:t", 2, true, true, true]);
+    assert.deepEqual([itemFortune(EYE, { id: "e" }).selector, itemFortune(EYE, { id: "e" }).requires], ["initiative", "master-perception"]);
+    assert.equal(itemFortune(rollTwice("Test Charm", "test-charm", "saving-throw"), { id: "s" }), null);
+    assert.equal(itemFortune(TEAR, { id: "t", quantity: 0 }), null);
+});
+
+test("U11: Gorum's Tear — rolled twice, then off-guard to the target until its user's next turn; a PC only when it's worth the margin more than the off-guard", async () => {
+    const { itemFortune } = await import("../src/adapter/items.js");
+    const { attackFortune } = await import("../src/engine/fortune-items.js");
+    const { performStrike } = await import("../src/engine/actions.js");
+    const { state, pc, brute } = setUp({ potions: 0 });
+    const tear = itemFortune(TEAR, { id: "t", quantity: 1 });
+    brute.fortuneItems = [tear];
+    brute.spellPools[tear.pool] = 1;
+    state.rng.d20 = () => 12;
+    performStrike(state, brute, pc, brute.strikes[0]);
+    assert.ok(state.log.some((line) => line.includes("Brute uses Gorum's Tear: rolls twice")), state.log.join("\n"));
+    assert.ok(state.log.some((line) => line.includes("Brute is off-guard to Fighter (Gorum's Tear)")));
+    assert.equal(brute.spellPools[tear.pool], 0);
+    assert.ok(brute.offGuardTo.some((entry) => entry.attacker === pc.id));
+    // A PC's: weighed. Worth it against a dangerous foe while it has Hit Points to spare; not when the off-guard could drop it.
+    pc.fortuneItems = [{ ...tear }];
+    pc.spellPools[tear.pool] = 1;
+    state.threat = new Map([[pc.id, 10], [brute.id, 10]]);
+    const ask = () => attackFortune(state, pc, brute, pc.strikes[0], { modifier: 10, ac: 20, damage: [20, 40] });
+    pc.hp.value = 5;
+    state.threat.set(brute.id, 100);
+    assert.equal(ask(), null);
+    pc.hp.value = pc.hp.max;
+    state.threat.set(brute.id, 10);
+    assert.ok(ask());
+});
+
+test("U11: Eye of Apprehension — a monster rolls initiative twice; a PC only in a hard fight (the foes last two thirds as long as its side)", async () => {
+    const { itemFortune } = await import("../src/adapter/items.js");
+    const { initiativeFortune } = await import("../src/engine/fortune-items.js");
+    const { state, pc, ally, brute } = setUp({ potions: 0 });
+    const eye = itemFortune(EYE, { id: "e" });
+    for (const c of [pc, brute]) {
+        c.fortuneItems = [{ ...eye }];
+        c.spellPools[eye.pool] = 1;
+    }
+    assert.equal(initiativeFortune(state, brute), true);
+    // (The brute alone against two PCs: it lasts its HP over their damage; they, theirs over its.)
+    brute.hp.value = 40;
+    state.threat = new Map([[pc.id, 10], [ally.id, 10], [brute.id, 10]]);
+    assert.equal(initiativeFortune(state, pc), false, "an easy fight");
+    brute.hp.value = 400;
+    assert.equal(initiativeFortune(state, pc), true);
+    assert.equal(pc.spellPools[eye.pool], 0);
+    assert.ok(state.log.some((line) => line.includes("uses Eye of Apprehension: rolls initiative twice")));
+});
