@@ -1139,7 +1139,7 @@ function consumableSpells(actor, gaps, { fresh, spellPools }) {
 // U1 (2026-10-15), consumables: the item module's plans (registered with the core) for the creature's potions, elixirs, mutagens,
 // talismans and the like, as actions it can take — each stack its uses; taken out first unless held (PF2e's Interact: 1 worn, more
 // stowed). A monster uses them freely; a PC weighs them (consumables.js). Without the item module, they stay among the gaps.
-async function readConsumables(actor, gaps, { fresh = false, handled = new Set() } = {}) {
+async function readConsumables(actor, gaps, { fresh = false, handled = new Set(), strikes = [] } = {}) {
     const result = { spells: [], spellPools: {} };
     const core = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api : null;
     const items = (actor.itemTypes?.consumable ?? []).filter((item) => !SPELL_ITEMS.includes(item.category ?? item.system?.category) && (Number(item.quantity ?? item.system?.quantity ?? 1) || 0) > 0);
@@ -1162,10 +1162,15 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
         const draw = item.system?.equipped?.carryType === "held" ? 0 : item.isStowed ? retrieveActions(item) : 1;
         // (U3: one that casts a spell — the spell module's plan for it.)
         const cast = plan.builtin === "cast-spell" ? await itemCast(item, plan, core) : null;
-        const entry = itemEntry(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, draw, fresh, cast });
+        // (U4: an injury poison its Strikes list among their attack effects: delivered by their hits.)
+        const slug = item.slug ?? item.system?.slug ?? null;
+        const onStrike = slug && strikes.some((strike) => (strike.attackEffects ?? []).includes(slug)) ? slug : null;
+        const entry = itemEntry(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, draw, fresh, cast, onStrike });
         if (!entry) continue;
         const spec = { ...entry, effects: await effectModels(entry.plan, entry.castRank) };
-        if (isUtility(plan) || !canCast({ spellPools: { [entry.pool]: entry.casts }, covenReady: true }, spec)) continue;
+        // (A poison its Strikes deliver isn't an action of its own: its hits play it.)
+        const rider = entry.plan.trigger?.event === "strike";
+        if (isUtility(plan) || (!rider && !canCast({ spellPools: { [entry.pool]: entry.casts }, covenReady: true }, spec))) continue;
         const missing = spellGaps(spec);
         if (missing.length) gaps.push({ kind: "item, partly simulated", name: `${item.name}: ${missing.join(", ")}` });
         handled.add(item);
@@ -1449,7 +1454,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         if (strike) strikes.push({ ...strike, randomDamage: rows, randomDie: table.die, ...(rows.some((row) => row.damage.some((part) => part.splash)) ? { splashKind: "bomb" } : {}) });
     }
     delete abilities.builtins.randomStrikeTables;
-    const consumables = await readConsumables(actor, gaps, { fresh, handled: abilities.handled });
+    const consumables = await readConsumables(actor, gaps, { fresh, handled: abilities.handled, strikes });
     readGaps(actor, gaps, abilities.handled);
     const { spells, spellPools, summons: spellSummoned = [] } = await readSpells(actor, gaps, { fresh, castSpells: abilities.castSpells });
     // (U2: each bomb's stack; an alchemist's infused reagents, all of them after a rest.)
@@ -1467,7 +1472,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     if (spellSummoned.length) abilities.builtins.summons = [...(abilities.builtins.summons ?? []), ...spellSummoned];
     spells.push(...abilities.abilities);
     // A Strike's riders are gaps unless an ability plays them.
-    const riders = new Set(abilities.abilities.flatMap((ability) => (ability.plan?.trigger?.event === "strike" ? [ability.plan.trigger.attackEffect, ability.plan.source?.slug] : [])).filter(Boolean));
+    const riders = new Set([...abilities.abilities, ...consumables.spells].flatMap((ability) => (ability.plan?.trigger?.event === "strike" ? [ability.plan.trigger.attackEffect, ability.plan.source?.slug] : [])).filter(Boolean));
     for (const strike of strikes) for (const effect of strike.attackEffects ?? []) if (!riders.has(effect)) gaps.push({ kind: "attack effect", name: effect });
     if (!strikes.length && !spells.length && !["object", "hazard"].includes(actorKind(actor))) {
         // Swarms and troops attack with area abilities, which aren't simulated yet.

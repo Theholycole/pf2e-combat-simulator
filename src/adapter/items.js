@@ -66,15 +66,20 @@ const DRUNK_OR_APPLIED = ["potion", "elixir", "mutagen", "drug", "oil"];
 // should be used freely if they are projected to go down soon or if they are used on another player that is already down."
 // The item module's plan for one (plan.item: its category, level, uses, who it's for) as an action the creature can take: drunk by it or
 // fed to a creature beside it, thrown, used. A stack's uses are its pool. null: one the simulator leaves to the table — a snare (set up
-// beforehand), a poison put on a weapon, ammunition or a note with nothing a fight plays.
+// beforehand), a poison put on a weapon, an ingested or contact poison, a drug, ammunition or a note with nothing a fight plays.
 // draw: the actions to have it in hand (PF2e's: none held, 1 Interact worn, more stowed); fresh: after a rest (a reusable item's uses back).
 // cast (U3): for an item that casts a spell (Invisibility Potion), { plan, castRank, dc, attack } — the spell module's plan for the spell,
 // which the caller compiles: the item casts it, at its rank, as it's drunk or used.
-export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false, cast = null } = {}) {
+// onStrike (U4): an injury poison a creature's Strike lists among its attack effects ("plus lethargy poison"): delivered free by a hit with it,
+// a dose a hit, as the stat block has it.
+export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false, cast = null, onStrike = null } = {}) {
     const casting = plan?.builtin === "cast-spell" && cast?.plan?.resolution ? cast : null;
     if (!casting && (!plan?.resolution || plan.builtin || plan.noteOnly)) return null;
     const item = plan.item ?? {};
-    if (item.delivery === "injury" || ["snare", "ammo", "ammunition"].includes(item.category)) return null;
+    const coated = item.delivery === "injury" && onStrike ? onStrike : null;
+    if ((item.delivery === "injury" && !coated) || ["snare", "ammo", "ammunition"].includes(item.category)) return null;
+    // (An ingested or contact poison, or a drug: eaten, touched or taken by its user, not a fight's action.)
+    if (["ingested", "contact"].includes(item.delivery) || item.category === "drug") return null;
     const reusable = (uses?.autoDestroy ?? item.uses?.autoDestroy) === false;
     // (Hundreds of uses are a stock's doses — black powder's for firearms — not activations: a keg explodes once.)
     const stock = Number(uses?.max ?? item.uses?.max) || 1;
@@ -93,7 +98,9 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         : { ...(plan.activation ?? {}), time: plan.activation?.time ?? own?.time ?? null, traits: [...new Set([...(plan.activation?.traits ?? []), ...(own?.traits ?? [])])] };
     // (Drunk: by the user or a creature beside it, fed to it. A cast "on you" that isn't drunk: on the user.)
     const targeting = drinker ? { ...(base.targeting ?? {}), target: "1 willing creature", range: "touch" } : casting && plan.self ? { ...(base.targeting ?? {}), target: "self", range: null } : null;
-    const fitted = { ...base, activation, ...(targeting ? { targeting } : {}) };
+    const fitted = coated
+        ? { ...base, activation, trigger: { ...(base.trigger ?? {}), event: "strike", attackEffect: coated, cost: "free" } }
+        : { ...base, activation, ...(targeting ? { targeting } : {}) };
     return {
         name: name ?? plan.source?.name ?? "Item",
         plan: fitted,
@@ -107,6 +114,6 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         category: item.category ?? null,
         consumable: !reusable,
         ...(drinker ? { drinker: true } : {}),
-        ...(draw > 0 ? { draw: { actions: draw, each: !reusable } } : {})
+        ...(draw > 0 && !coated ? { draw: { actions: draw, each: !reusable } } : {})
     };
 }

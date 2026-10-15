@@ -198,3 +198,31 @@ test("U3: an item that casts a spell plays the spell's plan at the item's rank, 
     assert.equal(band.plan.targeting.target, "self");
     assert.equal(itemEntry(potion, { id: "n" }), null);
 });
+
+test("U4: an injury poison a Strike lists is delivered free by its hits, a dose each, until none are left; drinkable poisons and drugs are left out", async () => {
+    const { performStrike } = await import("../src/engine/actions.js");
+    const row = (extra = {}) => ({ damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [], ...extra });
+    const VENOM = { source: { name: "Test Venom", slug: "test-venom" }, traits: ["injury", "poison"], activation: { time: "free", traits: [] }, targeting: { target: "the creature the Strike hits" }, trigger: { event: "strike", on: ["success", "criticalSuccess"], attackEffect: "test-venom", cost: "free", map: false },
+        resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 40 } }, outcomes: { criticalSuccess: row(), success: row(), failure: row({ effects: [{ kind: "condition", slug: "sickened", value: 1, duration: null }] }), criticalFailure: row({ effects: [{ kind: "condition", slug: "sickened", value: 2, duration: null }] }) } },
+        item: { ...itemInfo("poison", 3), recipient: "user", delivery: "injury" } };
+    assert.equal(itemEntry(VENOM, { id: "v" }), null, "not listed by a Strike: a PC's coating, not yet");
+    const venom = itemEntry(VENOM, { id: "v", quantity: 1, draw: 1, onStrike: "test-venom" });
+    assert.deepEqual([venom.plan.trigger.event, venom.plan.trigger.cost, venom.draw, venom.casts], ["strike", "free", undefined, 1]);
+    assert.equal(itemEntry({ ...VENOM, item: { ...VENOM.item, delivery: "ingested" } }, { id: "i", onStrike: "test-venom" }), null);
+    assert.equal(itemEntry({ ...POTION, item: { ...POTION.item, category: "drug" } }, { id: "d" }), null);
+    // One dose: the first hit poisons, the second doesn't.
+    const [fighter] = martialParty(5);
+    const brute = { ...moderateCreature(5, "brute", "Brute"), band: "near", engagement: 1 };
+    brute.strikes = brute.strikes.map((strike) => ({ ...strike, attackEffects: ["test-venom"] }));
+    brute.spells = [venom];
+    brute.spellPools = { [venom.pool]: 1 };
+    const state = createFightState({ combatants: [{ ...fighter, band: "near", engagement: 1, hp: { value: 500, max: 500, temp: 0 } }, brute] }, {}, 1);
+    state.log = [];
+    state.rng.d20 = () => 15;
+    const me = state.byId.get(fighter.id);
+    const them = state.byId.get("brute");
+    performStrike(state, them, me, them.strikes[0]);
+    performStrike(state, them, me, them.strikes[0]);
+    assert.equal(state.log.filter((line) => line.includes("uses Test Venom on")).length, 1, state.log.join("\n"));
+    assert.equal(them.spellPools[venom.pool], 0);
+});

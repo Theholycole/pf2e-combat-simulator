@@ -33,6 +33,8 @@ export function npcItems(npc, { fresh = true } = {}) {
     const spells = [];
     const spellPools = {};
     if (!compiler) return { spells, spellPools };
+    // (U4: the attack effects its Strikes list — an injury poison among them is delivered by their hits.)
+    const listed = new Set(npc.items.filter((entry) => entry.type === "melee").flatMap((entry) => entry.system?.attackEffects?.value ?? []));
     for (const item of (npc.items ?? []).filter((entry) => entry.type === "consumable" && compiler.handlesItem(entry))) {
         let plan = null;
         const uuid = item._stats?.compendiumSource ?? item.flags?.core?.sourceId ?? null;
@@ -56,10 +58,13 @@ export function npcItems(npc, { fresh = true } = {}) {
             const dc = plan.dc ?? levelDC(Number(plan.item?.level) || 1);
             if (spellPlan) cast = { plan: spellPlan, castRank: plan.rank ?? spell.system?.level?.value ?? 1, dc, attack: plan.attack ?? dc - 10 };
         }
-        const entry = itemEntry(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, draw, fresh, cast });
+        const slug = item.system?.slug ?? plan?.source?.slug ?? null;
+        const entry = itemEntry(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, draw, fresh, cast, onStrike: slug && listed.has(slug) ? slug : null });
         if (!entry) continue;
         const spec = { ...entry, effects: itemEffectModels(entry.plan, entry.castRank) };
-        if (isUtility(plan) || !canCast({ spellPools: { [entry.pool]: entry.casts }, covenReady: true }, spec)) continue;
+        // (A poison its Strikes deliver isn't an action of its own: its hits play it.)
+        const rider = entry.plan.trigger?.event === "strike";
+        if (isUtility(plan) || (!rider && !canCast({ spellPools: { [entry.pool]: entry.casts }, covenReady: true }, spec))) continue;
         spellPools[entry.pool] = entry.casts;
         spells.push(spec);
     }

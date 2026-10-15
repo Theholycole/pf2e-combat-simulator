@@ -1815,6 +1815,8 @@ export function triggerRiders(state, attacker, target, strike, degree = SUCCESS)
         const listed = strike.attackEffects ?? [];
         const named = (trigger?.strikes ?? []).includes(String(strike.name ?? "").toLowerCase());
         if (trigger?.event !== "strike" || !(listed.includes(trigger.attackEffect) || listed.includes(spell.plan.source?.slug) || named)) continue;
+        // (U4: a poison on the weapon, as long as doses are left.)
+        if (spell.kind === "item" && !poolReady(attacker, spell)) continue;
         if (!(trigger.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree])) continue;
         // (Its results by the Strike's degree, "Enfeebled 1 (or Enfeebled 2 on a critical hit)": that degree, B66.)
         const byStrike = spell.plan?.resolution?.check?.statistic === "strike";
@@ -2848,6 +2850,8 @@ export function spellGaps(spell) {
                 // (Played another way, or nothing in a fight: readings.js.)
             } else if (change.op === "effect") missing.add(change.effect?.kind === "note" ? `note: ${change.effect.note?.label ?? "effect"}` : change.effect?.kind === "native" ? `effect: ${change.effect.label ?? change.effect.uuid}` : `effect: ${change.effect?.kind}`);
             else if (change.op === "note" && change.manual) missing.add("manual step");
+            // (An affliction with its stages: played, applyAffliction.)
+            else if (change.op === "affliction" && Array.isArray(change.data?.stages)) continue;
             else if (!["damage", "condition", "move", "death", "followUp", "note", "heal", "tempHp", "end"].includes(change.op)) missing.add(change.op);
         }
     }

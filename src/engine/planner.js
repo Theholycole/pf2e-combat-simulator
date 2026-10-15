@@ -21,7 +21,7 @@ import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
-import { isHex, battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, poolCost, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition } from "./spells.js";
+import { isHex, battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition } from "./spells.js";
 import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";
@@ -472,6 +472,8 @@ class PlanContext {
             const trigger = spell.plan?.trigger;
             if (trigger?.event !== "strike" || trigger.cost !== "free") continue;
             if (!listed.includes(trigger.attackEffect) && !listed.includes(spell.plan.source?.slug) && !(trigger.strikes ?? []).includes(String(strike.name ?? "").toLowerCase())) continue;
+            // (U4: a poison on the weapon, as long as doses are left.)
+            if (spell.kind === "item" && !poolReady(this.c, spell)) continue;
             // (A critical hit's only: about a fifth of the hits.)
             const share = (trigger.on ?? []).length === 1 && trigger.on[0] === "criticalSuccess" ? 0.2 : 1;
             for (const { target: affected, damage, worth } of this.spellEffect(index, spell, [target], 0)) {
