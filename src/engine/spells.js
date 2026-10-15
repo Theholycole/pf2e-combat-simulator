@@ -34,6 +34,7 @@ import { hiddenFrom } from "./sight.js";
 import { lastingRounds } from "./lasting.js";
 import { takeControl } from "./control.js";
 import { noteKnown } from "./readings.js";
+import { hexFamiliar } from "./familiars.js";
 
 const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
 const registry = createRegistry();
@@ -1465,6 +1466,11 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         log(state, `  ${caster.name} loses the spell (stupefied ${stupefied})`);
         return;
     }
+    // (A hex Cast: one a turn; its caster's familiar answers it — familiars.js.)
+    if (isHex(spell) && !spell.fromZone) {
+        (caster.usedThisTurn ??= new Set()).add("hex");
+        hexFamiliar(state, caster, spell.name, { applyCondition });
+    }
     // (A lingering spell: its area stays, its later saves as a zone's — zones.js.)
     if (spell.plan?.resolution?.lingering && !spell.fromZone) startLingering(state, caster, spell, targetIds);
     // Blinded or dazzled: each target of a targeted spell needs a flat check.
@@ -2253,6 +2259,8 @@ export function canCast(c, spell) {
     if (spell.trick && (c.itemsLocked?.has(spell.item) || c.usedThisTurn?.has(`trick:${spell.item}`))) return false;
     // (Crisis of Faith: its divine spells locked.)
     if (c.spellLocks?.length && spellLocked(c, spell)) return false;
+    // (A witch's hexes: one a turn.)
+    if (c.usedThisTurn?.has("hex") && isHex(spell)) return false;
     return poolReady(c, spell);
 }
 
@@ -2780,6 +2788,19 @@ export function spellGaps(spell) {
         }
     }
     return [...missing];
+}
+
+// A spell with the hex trait (a witch's hexes: one Cast a turn; its familiar's patron ability answers each Cast and Sustain).
+export function isHex(spell) {
+    return isSpellCast(spell) && (spell?.plan?.traits ?? []).includes("hex");
+}
+
+// Its master Sustained hexes as its turn started (lasting.js and zones.js note what they Sustain): the familiar answers each.
+export function hexSustains(state, c) {
+    for (const name of c.sustainedNow ?? []) {
+        const spell = (c.spells ?? []).find((entry) => entry.name === name);
+        if (spell && isHex(spell)) hexFamiliar(state, c, name, { applyCondition });
+    }
 }
 
 // A chain's targets from its first (S55): each next one the closest foe left within the chain's feet of the last.

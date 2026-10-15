@@ -21,7 +21,7 @@ import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
-import { battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, poolCost, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition } from "./spells.js";
+import { isHex, battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, poolCost, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition } from "./spells.js";
 import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";
@@ -29,6 +29,7 @@ import { calmedUntilHostility, pacifiedAll, spares } from "./pacify.js";
 import { floorOf } from "./floors.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { wardChance } from "./wards.js";
+import { familiarFocusReady, familiarOf } from "./familiars.js";
 
 export const ROLE_PROFILES = Object.freeze({
     soldier: { aggression: 1, selfPreservation: 0.8, objective: 1 },
@@ -97,7 +98,7 @@ export function computeThreats(state) {
         state.strikeShare.set(c.id, strikes + spells > 0 ? strikes / Math.max(strikes, spells) : 1);
     }
     const mean = (side) => {
-        const values = state.list.filter((c) => c.side === side && isActive(c) && c.kind !== "object").map((c) => state.threat.get(c.id) ?? 0);
+        const values = state.list.filter((c) => c.side === side && isActive(c) && c.kind !== "object" && !c.familiar).map((c) => state.threat.get(c.id) ?? 0);
         return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
     };
     state.meanThreat = { party: mean("party"), foes: mean("foes") };
@@ -204,6 +205,9 @@ function objectiveBonus(state, target, attacker) {
 }
 
 function targetValue(state, target, attacker) {
+    // (A familiar needn't be beaten to end the fight: worth a little of its master's threat — a share more with a patron ability its
+    // master's hexes set off.)
+    if (target.familiar) return (target.familiar.hexAbility ? 0.15 : 0.05) * (state.threat.get(target.familiar.masterId) ?? 0);
     let threat = state.threat.get(target.id) ?? 0;
     // A creature the simulator can't make attack (a swarm with only area
     // attacks) still has to be beaten to end the fight, so it's never worthless.
@@ -938,6 +942,8 @@ function expandSpells(env) {
                     gain += 0.6 * ctx.ownValue * ROUND_TO_KILL * (3 * c.panacheStyle.precise + c.panacheStyle.finisherDice * 3.5 * 0.6) / threat;
                 }
                 if (gain <= 0) continue;
+                // (A hex its familiar answers with its patron ability: about a fifth of a round of a foe's threat more.)
+                if (isHex(spell) && familiarOf(state, c)?.familiar?.hexAbility) gain += 0.2 * ROUND_TO_KILL * Math.max(1, state.meanThreat?.[c.side === "party" ? "foes" : "party"] ?? 1);
                 if (trick) gain *= trickChance(spell.trick);
                 // (A lingering area: its later saves too — about half as much again.)
                 if (spell.plan?.resolution?.lingering?.events?.length && (Number(spell.plan.resolution.lingering.durationSeconds) || 0) >= 12) gain *= 1.5;
@@ -1550,6 +1556,10 @@ function expandTactics(env) {
 // Battle Medicine, Mythic Points, Knocking Sweep, Poison Weapon, Retch, map objectives, dangers, the alarm and hazards. (Part of expand, split up so the optimizer takes it.)
 function expandOtherActions(env) {
     const { state, c, ctx, node, remaining, inAnyMelee, mobile, restrained, noAttacks, children } = env;
+    // (Familiar Focus: its familiar commanded to restore a Focus Point once its pool is spent — worth part of the focus spell it readies.)
+    if (c.focusMax && node.used === 0 && remaining >= 1 && !node.casts.includes("familiarFocus") && familiarFocusReady(state, c)) {
+        children.push(child(node, { type: "familiarFocus" }, 1, 0.4 * ctx.profile.aggression * ctx.ownValue * ROUND_TO_KILL * 3, { cast: "familiarFocus" }));
+    }
     // Battle Medicine: on a hurt ally in reach (or a downed one, or itself), once
     // per ally, at its best Treat Wounds DC, valued as healing.
     if (c.battleMedicine && !restrained) {

@@ -142,6 +142,7 @@ export function zoneTurn(state, c, phase) {
                 }
                 c.actionsLeft -= 1;
                 log(state, `  ${c.name} Sustains ${zone.name}`);
+                (c.sustainedNow ??= []).push(zone.name);
                 for (const save of zone.model.saves ?? []) {
                     if (!save.when.includes("sustain")) continue;
                     for (const member of zoneMembers(state, zone)) if (member.side !== zone.side && isActive(member)) castPlan(state, c, saveSpell(zone, save), [member.id]);

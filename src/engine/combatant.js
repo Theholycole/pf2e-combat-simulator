@@ -76,6 +76,8 @@ export function createCombatant(spec) {
         ...(spec.spareReactions?.length ? { spareReactions: spec.spareReactions.map((entry) => ({ ...entry, names: [...entry.names] })) } : {}),
         // (T4: immunities its abilities add, Protean Anatomy's polymorph.)
         ...(spec.addedImmunities?.length ? { immunities: [...new Set([...(spec.immunities ?? []), ...spec.addedImmunities])] } : {}),
+        // (A familiar's own state, this fight's: Familiar Focus used.)
+        ...(spec.familiar ? { familiar: { ...spec.familiar } } : {}),
         hp: { value: spec.hp.value, max: spec.hp.max, temp: spec.hp.temp ?? 0 },
         startHp: spec.hp.max,
         cond: conditions,

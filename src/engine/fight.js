@@ -11,7 +11,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { spendPool, applyAuras, provokedReaction, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { spendPool, applyAuras, provokedReaction, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -27,6 +27,7 @@ import { floorOf } from "./floors.js";
 import { buildEnvironment, covenCast, covenTurnStart, hiddenAtTurnStart, lightAtStart, sunlightTurnEnd, terrainTurn } from "./environment.js";
 import { attachedTurnStart, berserkTurnStart, followAttached, headsMend, hydraRegrow, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
 import { controlTurnStart } from "./control.js";
+import { familiarFocus, familiarKeepsUp } from "./familiars.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -383,6 +384,10 @@ function startTurn(state, c) {
     c.weakGrip?.clear();
     // Flourishes (Flurry of Blows): once a turn. A finisher ends Strikes for the turn.
     c.usedThisTurn = new Set();
+    // (What it Sustains as the turn starts — a hex its familiar answers.)
+    c.sustainedNow = [];
+    // (Its familiar beside it.)
+    familiarKeepsUp(state, c);
     // (S22: a wand it may overcharge, only while the fight goes badly for its side.)
     if (c.spells?.some((spell) => spell.overcharge)) c.desperate = desperate(state, c);
     // Actions this turn, and its last hit (Strike, Breathe, Rend needs one just before).
@@ -711,6 +716,9 @@ function act(state, c, action) {
             break;
         case "raiseShield":
             raiseShield(state, c);
+            break;
+        case "familiarFocus":
+            familiarFocus(state, c);
             break;
         case "stand":
             stand(state, c);
@@ -1198,6 +1206,8 @@ function takeTurn(state, c) {
     grabTurnAnswers(state, c, "start");
     // (B256: the zones it starts its turn in.)
     zoneTurn(state, c, "start");
+    // (A hex it Sustained: its familiar's patron ability.)
+    if (c.sustainedNow?.length) hexSustains(state, c);
     // Shrieking Frenzy: its own free action as its turn begins (B53).
     ownTurnStart(state, c);
     // (T4: a flesh golem's Berserk; an attached creature's Strike damage, the pickled punk's.)

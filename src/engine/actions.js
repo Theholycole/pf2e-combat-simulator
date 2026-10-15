@@ -21,6 +21,7 @@ import { log } from "./log.js";
 import { hostility, ownHostility } from "./pacify.js";
 import { wardBlocks } from "./wards.js";
 import { hiddenFrom } from "./sight.js";
+import { lifelinkMaster } from "./familiars.js";
 
 export function coverFor(state, defender) {
     return state.setup.cover?.[defender.side] ?? 0;
@@ -992,6 +993,16 @@ export function applyDamage(state, target, instances, { source = null, critical 
     if (!intercepted) {
         harmedAfterGivingUp(state, target, source);
         hostility(state, target, source);
+    }
+    // (A familiar's Lifelink: damage that would drop it, its master takes instead.)
+    if (!intercepted && target.familiar?.lifelink) {
+        const master = lifelinkMaster(state, target, adjustDamage(target, instances).total, { canReact });
+        if (master) {
+            spendReaction(master, "Lifelink");
+            state.stats.reactions++;
+            log(state, `  ${master.name} uses Lifelink for ${target.name}`);
+            return applyDamage(state, master, instances, { source, critical, nonlethal, physical, intercepted: true });
+        }
     }
     // Intercept Attack: a guardian next to the ally takes physical damage meant for it,
     // when the ally would drop or is the more hurt of the two.

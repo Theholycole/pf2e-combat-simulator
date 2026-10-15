@@ -30,6 +30,7 @@ export function lastingTurnStart(state, c, { canSustain = true } = {}) {
         if (c.actionsLeft > 0) {
             c.actionsLeft -= 1;
             state.log?.push(`  ${c.name} Sustains ${spell}`);
+            (c.sustainedNow ??= []).push(spell);
         }
     }
 }

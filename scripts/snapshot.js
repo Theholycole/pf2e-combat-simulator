@@ -17,6 +17,7 @@ import { immunityExceptions } from "../src/engine/immunities.js";
 import { MAP_KINDS, readMapFeet, readRegionFeet, regionToRegions, roundsHeld } from "./map.js";
 import { hazardSpec } from "./hazards.js";
 import { asReserve, bestOption, bestPick, reserveCount, spellSummonEntry, summonEntries as spellSummons } from "../src/engine/summons.js";
+import { HEX_FAMILIARS } from "../src/engine/familiars.js";
 
 export const MODULE_ID = "pf2e-combat-simulator";
 
@@ -1324,6 +1325,8 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         speed: actor.attributes?.speed?.total ?? actor.system?.attributes?.speed?.value ?? 25,
         reach: actorReach,
         heroPoints: actor.system?.resources?.heroPoints?.value ?? 0,
+        // (Its Focus Points' most, for a familiar's Familiar Focus.)
+        ...(Number(actor.system?.resources?.focus?.max) > 0 ? { focusMax: Number(actor.system.resources.focus.max) } : {}),
         shield: fresh && shield ? { ...shield, broken: false, raised: false } : shield,
         ...abilities.builtins,
         ...features.fields,
@@ -1508,6 +1511,16 @@ export async function buildSnapshot(entries, { setup = {}, overrides = {}, fresh
         placed.push({ combatant: adjusted, token: entry.token });
     }
     if (canvas?.ready) placeFromTokens(placed.filter((entry) => tokenObject(entry.token)));
+    // (A PC's familiar: it can't join the combat tracker, so it comes in beside its master — familiars.js. One already in the tracker is
+    // the same familiar, its master's minion.)
+    for (const master of combatants.filter((c) => c.kind === "pc")) {
+        const actor = game.actors?.get(master.actorId);
+        for (const familiar of actor ? familiarsOf(actor) : []) {
+            const known = combatants.find((c) => c.actorId === familiar.id);
+            if (known) Object.assign(known, { acts: false, strikes: [], side: master.side, familiar: familiarSpec(familiar, master) });
+            else if (overrides[`familiar-${familiar.id}`]?.include !== false) combatants.push(readFamiliar(familiar, master, { fresh }));
+        }
+    }
     // (B298: a summon's creatures, made now as reserves waiting off the field.)
     for (const maker of [...combatants]) if (maker.summons?.length) combatants.push(...(await summonReserves(maker)));
     // (L1: the light "auto" — as the scene's darkness has it.)
@@ -1635,6 +1648,58 @@ function readEscalations(snapshot, placed, combat) {
     for (const rule of rules) if (rule.id && fired[rule.id] !== undefined) rule.fired = fired[rule.id];
     const alarm = combat?.started && escalations.alarm?.raisedRound ? { raisedRound: Number(escalations.alarm.raisedRound) } : null;
     snapshot.setup = { ...snapshot.setup, escalations: { ...escalations, rules, alarm } };
+}
+
+// A PC's familiars (2026-10-14): the familiar actors whose master it is.
+export function familiarsOf(actor) {
+    return (game.actors?.contents ?? [...(game.actors ?? [])]).filter((other) => other.type === "familiar" && other.system?.master?.id === actor.id);
+}
+
+// What a familiar does for its master (familiars.js): its patron ability for hexes, Lifelink, Familiar Focus.
+function familiarSpec(actor, master) {
+    const slugs = [...(actor.items ?? [])].map((item) => item.system?.slug ?? String(item.name ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""));
+    return { masterId: master.id, hexAbility: slugs.find((slug) => HEX_FAMILIARS.has(slug)) ?? null, lifelink: slugs.includes("lifelink"), focus: slugs.includes("familiar-focus") };
+}
+
+// A familiar as a combatant: PF2e's numbers for it (its master's level, AC and saves; 5 Hit Points a level), no Strikes, no turns of
+// its own; on its master's side and in its band.
+export function readFamiliar(actor, master, { fresh = false } = {}) {
+    const hp = actor.system?.attributes?.hp ?? { value: 0, max: 0, temp: 0 };
+    return {
+        id: `familiar-${actor.id}`,
+        actorId: actor.id,
+        actorUuid: actor.uuid,
+        name: actor.name,
+        kind: "npc",
+        acts: false,
+        level: actor.level ?? master.level ?? 0,
+        senses: readSenses(actor),
+        ...(readFlies(actor) ? { flies: true } : {}),
+        traits: [...(actor.traits ?? actor.system?.traits?.value ?? []), "minion"],
+        hp: fresh ? { value: hp.max ?? 0, max: hp.max ?? 0, temp: 0 } : { value: hp.value ?? 0, max: hp.max ?? 0, temp: hp.temp ?? 0 },
+        ac: stripConditions(actor.armorClass?.value ?? actor.system?.attributes?.ac?.value ?? master.ac ?? 10, actor.armorClass?.modifiers ?? []),
+        hardness: 0,
+        saves: { fortitude: statValue(actor.saves?.fortitude), reflex: statValue(actor.saves?.reflex), will: statValue(actor.saves?.will) },
+        perception: statValue(actor.perception),
+        skills: {},
+        speed: actor.attributes?.speed?.total ?? actor.system?.attributes?.speed?.value ?? 25,
+        reach: 5,
+        heroPoints: 0,
+        shield: null,
+        reactions: { aoo: false, shieldBlock: false },
+        size: actor.size ?? actor.system?.traits?.size?.value ?? "tiny",
+        resistances: readIwr(actor.attributes?.resistances),
+        weaknesses: readIwr(actor.attributes?.weaknesses),
+        immunities: (actor.attributes?.immunities ?? []).map((entry) => entry.type),
+        strikes: [],
+        spells: [],
+        spellPools: {},
+        conditions: fresh ? {} : readConditions(actor),
+        side: master.side,
+        band: master.band ?? "near",
+        familiar: familiarSpec(actor, master),
+        gaps: []
+    };
 }
 
 export function entriesFromCombat(combat) {

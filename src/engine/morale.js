@@ -54,8 +54,9 @@ export function defaultMoraleProfile(spec, { foes, partyLevel, objective }) {
 }
 
 // A runner gone to fetch help (escalations) isn't a loss.
+// (A familiar isn't one of its side's fighters: it doesn't count toward outnumbering nor a side's losses.)
 function fighters(state, side) {
-    return state.list.filter((c) => c.side === side && c.kind !== "object" && c.kind !== "hazard" && c.status !== "pending" && !c.ranForHelp);
+    return state.list.filter((c) => c.side === side && c.kind !== "object" && c.kind !== "hazard" && c.status !== "pending" && !c.ranForHelp && !c.familiar);
 }
 
 // Lanchester's square law: a side's fighting strength is its remaining HP
