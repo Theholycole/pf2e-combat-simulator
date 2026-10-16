@@ -945,3 +945,18 @@ test("U22: a bomb's rider only for some creatures (plan.item.riderOnly) — Ghos
     assert.equal(throwAt("living", ["construct"]), 0);
     assert.equal(throwAt("living", ["humanoid"]), 1);
 });
+
+test("2026-10-16: an item's damage choices that differ only in type (Explosive Missive's) are the core's damage-type choice — the type its target minds most", () => {
+    const shared = { rollOnce: true, components: [{ id: "0", formula: "4d6[untyped]", type: null, category: null }] };
+    const MISSIVE = { ...POTION, source: { name: "Test Missive" }, targeting: { target: "1 creature", range: "30 feet", area: null }, item: { ...POTION.item, recipient: "user" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 30 } }, sharedDamage: shared, outcomes: { criticalSuccess: { ...none }, success: { ...none, damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] } }, failure: { ...none, damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] } }, criticalFailure: { ...none, damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] } } } },
+        damageChoices: ["acid", "cold", "fire"].map((type) => ({ label: type, formula: `4d6[${type}]` })) };
+    const entry = itemEntry(MISSIVE, { id: "m" });
+    assert.deepEqual(entry.plan.resolution.native.damageTypeChoices, { 0: ["acid", "cold", "fire"] });
+    assert.equal(itemEntry({ ...MISSIVE, damageChoices: [{ label: "At night", formula: "7d8[fire]" }, { label: "Else", formula: "7d6[fire]" }] }, { id: "n" }).plan.resolution.native, undefined, "other dice: the plan's own");
+    const { state, pc, brute } = withItem(MISSIVE);
+    brute.weaknesses = [{ type: "cold", value: 5, exceptions: [] }];
+    state.rng.d20 = () => 2;
+    castSpell(state, pc, pc.spells.length - 1, [brute.id]);
+    assert.ok(state.log.some((line) => / takes \d+ cold/.test(line)), state.log.join("\n"));
+});

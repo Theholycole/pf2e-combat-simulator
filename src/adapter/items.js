@@ -114,6 +114,27 @@ export function itemTriggered(plan, options = {}) {
     return entry ? { ...entry, triggerOn: { ...on } } : null;
 }
 
+// (2026-10-16: the item module's damageChoices — Explosive Missive's "4d6 acid, cold, electricity, fire or sonic" — when they differ only in
+// their type, as the core's own damage-type choice (resolution.native.damageTypeChoices), which the simulation answers with the type its
+// targets mind most. Choices of other dice (Moonlit Spellgun's at night or not) stay the plan's own, its first.)
+function withTypeChoices(plan) {
+    const choices = plan?.damageChoices ?? [];
+    const components = plan?.resolution?.sharedDamage?.components ?? [];
+    if (choices.length < 2 || components.length !== 1) return plan;
+    const read = choices.map((choice) => /^(.+)\[([a-z-]+)\]$/.exec(String(choice.formula ?? "").replace(/\s+/g, "")));
+    if (read.some((match) => !match) || new Set(read.map((match) => match[1])).size !== 1) return plan;
+    const types = [...new Set(read.map((match) => match[2]))];
+    const [component] = components;
+    return {
+        ...plan,
+        resolution: {
+            ...plan.resolution,
+            sharedDamage: { ...plan.resolution.sharedDamage, components: [{ ...component, formula: `${read[0][1]}[untyped]`, type: null }] },
+            native: { ...(plan.resolution.native ?? {}), damageTypeChoices: { ...(plan.resolution.native?.damageTypeChoices ?? {}), [component.id]: types } }
+        }
+    };
+}
+
 // U1 (2026-10-15), consumables. The user: "monsters should use their items freely. Players should use rechargeable or reusable items
 // freely but consumables should be weighted to be used when they provide significant more value than other options. Healing items
 // should be used freely if they are projected to go down soon or if they are used on another player that is already down."
@@ -130,6 +151,7 @@ export function itemTriggered(plan, options = {}) {
 export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false, cast = null, onStrike = null, zone = null, triggered = false } = {}) {
     if (triggered && [undefined, null, "use"].includes(plan?.trigger?.event) && !onStrike) return null;
     if (plan?.builtin === "zone") return zoneEntry(plan, { id, name, quantity, uses, draw, fresh, zone });
+    plan = withTypeChoices(plan);
     // (U17: an item used as part of one of PF2e's actions — the item module's plan.action, the Alchemists+ plants' Shove and Grapple: that
     // action's own plan (the ability module's), at the higher of its user's skill and the item's value (action.minimum), with the item's
     // bonus (action.bonus) or another skill (action.statistic). A choice of actions, not yet.)

@@ -80,7 +80,7 @@ export function npcItems(npc, { fresh = true } = {}) {
         const description = source?.system?.description ?? item.system?.description;
         try {
             // (Its owner's level and ability modifiers, as live play passes them: Wolf Fang's Strength damage, "if you're at least 15th level".)
-            plan = compiler.compileItem({ ...item, ...(source ? { system: { ...item.system, description } } : {}), uuid, ownerLevel: Number(npc.system?.details?.level?.value) || 0, ownerAbilities: ownerAbilities(npc) }, { spellEffects, basicActions, ...(spells ? { spells } : {}), ...options });
+            plan = compiler.compileItem({ ...item, ...(source ? { system: { ...item.system, description } } : {}), uuid, ownerLevel: Number(npc.system?.details?.level?.value) || 0, ownerAbilities: ownerAbilities(npc), ownerFeats: feats }, { spellEffects, basicActions, ...(spells ? { spells } : {}), ...options });
         } catch {
             plan = null;
         }
