@@ -26,7 +26,7 @@ import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } f
 import { effectImmunity, immuneToCondition } from "./immunities.js";
 import { elementalAnswers, hydraScaled, troopIgnores, troopSegmentLost } from "./creature-rules.js";
 import { sightDC } from "./environment.js";
-import { adjustDamage, adjustInstance, rollStrikeDamage, spellContext, strikeContext } from "./damage.js";
+import { adjustDamage, adjustInstance, adjustPart, rollStrikeDamage, spellContext, strikeContext } from "./damage.js";
 import { distanceBetween, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
 import { applyWard, wardBlocks, wardWorth } from "./wards.js";
@@ -464,8 +464,9 @@ function persistentInstance(damage) {
     const terms = damage.dice ?? [];
     const die = terms[0]?.die;
     const sameDie = terms.length && terms.every((term) => term.die === die && Number.isInteger(term.factor) && term.factor > 0);
-    if (sameDie) return { type: damage.type, persistent: true, dice: terms.reduce((sum, term) => sum + term.count * term.factor, 0), die, bonus: damage.constant ?? 0, multiplier: 1, amount: damage.amount };
-    return { type: damage.type, persistent: true, amount: damage.amount };
+    const materials = damage.materials?.length ? { materials: damage.materials } : {};
+    if (sameDie) return { type: damage.type, persistent: true, dice: terms.reduce((sum, term) => sum + term.count * term.factor, 0), die, bonus: damage.constant ?? 0, multiplier: 1, amount: damage.amount, ...materials };
+    return { type: damage.type, persistent: true, amount: damage.amount, ...materials };
 }
 
 function durationRounds(duration) {
@@ -1517,7 +1518,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
         if (change.target !== undefined && !target) continue;
         switch (change.op) {
             case "damage": {
-                const instances = change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext }));
+                const instances = change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext, ...(instance.materials?.length ? { materials: instance.materials } : {}) }));
                 const dealt = applyDamage(state, target, instances, { source: caster, nonlethal, spell: aimed });
                 log(state, `  ${target.name} takes ${dealt} ${change.instances.map((instance) => instance.type).join("/")}`);
                 // (2026-10-14, the vampiric spells: temporary Hit Points for the caster, a share of the damage dealt.)
@@ -2891,7 +2892,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 }
                 if (change.op === "damage") {
                     damageContext ??= spellContext(spell, { isSpell: isSpellCast(spell), area: Boolean(describeSpell(spell.plan, actions).area) });
-                    const expected = chance * adjustDamage(target, change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext }))).total;
+                    const expected = chance * adjustDamage(target, change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext, ...(instance.materials?.length ? { materials: instance.materials } : {}) }))).total;
                     entry.damage += expected;
                     // (The vampiric spells: the caster's temporary Hit Points, a share of it — as healing that may go unused.)
                     const benefit = spell.plan?.resolution?.casterBenefit;
@@ -2901,7 +2902,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     }
                 } else if (change.op === "condition" && change.slug === "persistent-damage") {
                     if (!change.damage) continue;
-                    entry.damage += chance * 2 * adjustInstance(target, change.damage.type, change.damage.amount);
+                    entry.damage += chance * 2 * adjustPart(target, { type: change.damage.type, amount: change.damage.amount, ...(change.damage.materials?.length ? { materials: change.damage.materials } : {}) });
                 } else if (change.op === "condition" && change.scope) {
                     // Feint, Create a Diversion: the attacker's own attacks hit more often (+2): about a
                     // tenth of a hit's damage per attack (one for a single use, three otherwise).

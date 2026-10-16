@@ -94,6 +94,16 @@ test("I2 materials: silver and cold iron (dawnsilver and sovereign steel too) on
     assert.equal(hit(strikeContext({}, {}), { type: "slashing", amount: 8, weapon: true }).total, 8);
 });
 
+test("2026-10-16: a material an instance carries itself (the core's instance.materials: a spellgun's fire treated as silver) meets a weakness to it", () => {
+    target = { weaknesses: [{ type: "silver", value: 5, exceptions: [] }, { type: "cold-iron", value: 7, exceptions: [] }] };
+    const context = spellContext({ plan: { traits: ["fire"] } }, { isSpell: false });
+    assert.equal(hit(context, { type: "fire", amount: 10, materials: ["silver"] }).total, 15);
+    assert.equal(hit(context, { type: "fire", amount: 10 }).total, 10);
+    // (Two instances of one type, one silver: only that one meets the weakness.)
+    assert.equal(hit(context, { type: "fire", amount: 10, materials: ["silver"] }, { type: "fire", amount: 4 }).total, 19);
+    assert.equal(hit(context, { type: "slashing", amount: 6, materials: ["sovereign-steel"] }).total, 13);
+});
+
 test("I2 a resistance's exceptions and doubling: adamantine, ghost touch, magical; double against non-magical damage", () => {
     target = { resistances: [{ type: "physical", value: 5, exceptions: ["adamantine"] }, { type: "all-damage", value: 3, exceptions: ["force", "ghost-touch"], doubleVs: ["non-magical"] }] };
     const plain = strikeContext({}, {});

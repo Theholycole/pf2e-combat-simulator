@@ -1293,7 +1293,7 @@ function releaseAllSwallowed(state, swallower, how) {
 function addPersistent(target, instance) {
     if ((target.immunities ?? []).includes(instance.type)) return;
     const existing = target.persistent.find((entry) => entry.type === instance.type);
-    const candidate = { type: instance.type, dice: instance.dice, die: instance.die, bonus: instance.bonus ?? 0, multiplier: instance.multiplier ?? 1, amount: instance.amount };
+    const candidate = { type: instance.type, dice: instance.dice, die: instance.die, bonus: instance.bonus ?? 0, multiplier: instance.multiplier ?? 1, amount: instance.amount, ...(instance.materials?.length ? { materials: instance.materials } : {}) };
     if (!existing) target.persistent.push(candidate);
     else if ((candidate.amount ?? 0) > (existing.amount ?? 0)) Object.assign(existing, candidate);
 }

@@ -72,7 +72,8 @@ function describe(type, kind) {
     return DESCRIBED.get(key);
 }
 
-// One damage instance's roll options over its source's: its type, category and components; a material only on a weapon's own damage.
+// One damage instance's roll options over its source's: its type, category and components; a material only on a weapon's own damage, or
+// one the instance carries itself (2026-10-16: the core's instance.materials — a spellgun's "3d8[fire,silver]").
 function optionsOf(instance, context) {
     return {
         has(option) {
@@ -82,7 +83,7 @@ function optionsOf(instance, context) {
             if (option.startsWith("damage:category:")) return option === `damage:category:${CATEGORY[instance.type]}` || (option === "damage:category:persistent" && !!instance.persistent);
             if (option === "damage:component:precision") return !!instance.precision;
             if (option === "damage:component:splash") return !!instance.splash;
-            if (option.startsWith("damage:material:")) return !!instance.weapon && !!context?.has(option);
+            if (option.startsWith("damage:material:")) return (instance.materials ?? []).includes(option.slice("damage:material:".length)) || (!!instance.weapon && !!context?.has(option));
             return false;
         }
     };
@@ -254,8 +255,9 @@ export function adjustDamage(defender, instances) {
             persistent.push(instance);
             continue;
         }
-        const key = instance.precision ? `${instance.type}|precision` : instance.type;
-        const entry = immediate.get(key) ?? { type: instance.type, precision: instance.precision, amount: 0, splash: false, weapon: false };
+        const materials = instance.materials?.length ? [...instance.materials].sort() : null;
+        const key = `${instance.precision ? `${instance.type}|precision` : instance.type}${materials ? `|${materials.join(",")}` : ""}`;
+        const entry = immediate.get(key) ?? { type: instance.type, precision: instance.precision, amount: 0, splash: false, weapon: false, ...(materials ? { materials } : {}) };
         entry.amount += instance.amount;
         // (Splash damage and a weapon's own are components of the instance they join.)
         entry.splash ||= !!instance.splash;

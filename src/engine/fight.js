@@ -6,7 +6,7 @@ import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, create
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
-import { adjustInstance, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
+import { adjustInstance, adjustPart, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
@@ -577,7 +577,8 @@ function endTurn(state, c) {
     }
     for (const entry of [...c.persistent]) {
         if (c.status === DEAD || c.status === FLED || c.status === SURRENDERED) break;
-        const amount = adjustInstance(c, entry.type, rollPersistent(state.rng, entry));
+        // (2026-10-16: with its materials — persistent fire treated as silver.)
+        const amount = entry.materials?.length ? adjustPart(c, { type: entry.type, amount: rollPersistent(state.rng, entry), materials: entry.materials }) : adjustInstance(c, entry.type, rollPersistent(state.rng, entry));
         state.log?.push(`  ${c.name} takes ${amount} persistent ${entry.type}`);
         dealDamage(state, c, amount);
         if (flatCheck(state.rng, 15) >= SUCCESS) c.persistent.splice(c.persistent.indexOf(entry), 1);
