@@ -161,6 +161,7 @@ The user's rule for when creatures use items is U1 in [item-decisions.md](item-d
 - **Item actions** (U17): `itemEntry` turns `builtin: "item-action"` into the action's own plan (`action.basic`, another skill by `action.statistic`) with `itemAction` { slug, minimum, bonus }; `simContext` rolls the higher of the user's skill and `minimum.value`, plus `bonus`; the planner's size limit reads `itemAction.slug`.
 - **Generic Spellgun** (U18): an entry whose plan has `spellgun.spell` is played at `plan.rank`.
 - **Owner DCs** (U19): `itemEntry`'s `ownerDC` ("class", "spell", "class-spell"); `prepareSnapshot` runs `ownerDCs` (consumables.js), which sets the entry's `dc` (and a cast's `attack`).
+- **Triggered items** (U20): `hasTrigger(html)` (a Trigger in the Activate block, before the first `<hr>`); `itemEntry`'s `triggered` option returns null for a plan whose trigger is "use"; `npcItems` and `readConsumables` pass it (the snapshot adds a gap). `npcItems` passes `ownerLevel` and `ownerAbilities` to `compileItem`.
 - **Low-value options** (2026-10-15, the user: "Make a note of that and any other item, spell or ability that is low value in the simulator for testing later"): `tools/low-value.mjs` and [low-value.md](low-value.md). 301 of 465 playable consumables are never used even with no margin (18 used the most, possibly over-valued), 324 of 997 spells are never cast alone, 240 PF2e ability names on several creatures and 768 of one creature are never used.
 - **Not live-checked yet** (pftest busy, 2026-10-15).
 

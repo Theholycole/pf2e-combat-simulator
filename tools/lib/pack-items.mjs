@@ -16,7 +16,7 @@ try {
     claims = null;
 }
 const { basicActions, readDocuments, PACK_ROOT } = await import("./pack-creatures.mjs");
-const { itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan } = await import("../../src/adapter/items.js");
+const { hasTrigger, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan } = await import("../../src/adapter/items.js");
 // (A third-party item's own Effect only when its rules match its text: the item module's check, as its live play.)
 let verifyEffectRules = null;
 try {
@@ -46,6 +46,9 @@ const CONDITION_NAMES = Object.fromEntries(docs("conditions").map((condition) =>
 export const itemEffectModels = (plan, rank) => Object.fromEntries([...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.[a-z-]+-effects\.Item\.[A-Za-z0-9]{16}/g) ?? [])]
     .map((uuid) => [uuid, effects.get(uuid)]).filter(([, effect]) => effect).map(([uuid, effect]) => [uuid, effectModel(effect, { rank, conditionSlug })]));
 
+// (An NPC's ability modifiers: { str: 4, … }.)
+const ownerAbilities = (npc) => Object.fromEntries(Object.entries(npc.system?.abilities ?? {}).map(([key, value]) => [key, Number(value?.mod) || 0]));
+
 // A creature's consumables the simulation plays: { spells, spellPools, activities }. Held ones at hand; others taken out first (1 Interact).
 // (U7: activities, its items used by Striking — Fear Gem — as Strike activities.)
 export function npcItems(npc, { fresh = true } = {}) {
@@ -65,8 +68,10 @@ export function npcItems(npc, { fresh = true } = {}) {
         let plan = null;
         const uuid = item._stats?.compendiumSource ?? item.flags?.core?.sourceId ?? null;
         const source = equipment.get(uuid);
+        const description = source?.system?.description ?? item.system?.description;
         try {
-            plan = compiler.compileItem({ ...item, ...(source ? { system: { ...item.system, description: source.system?.description ?? item.system?.description } } : {}), uuid }, { spellEffects, basicActions, ...(spells ? { spells } : {}), ...options });
+            // (Its owner's level and ability modifiers, as live play passes them: Wolf Fang's Strength damage, "if you're at least 15th level".)
+            plan = compiler.compileItem({ ...item, ...(source ? { system: { ...item.system, description } } : {}), uuid, ownerLevel: Number(npc.system?.details?.level?.value) || 0, ownerAbilities: ownerAbilities(npc) }, { spellEffects, basicActions, ...(spells ? { spells } : {}), ...options });
         } catch {
             plan = null;
         }
@@ -114,7 +119,7 @@ export function npcItems(npc, { fresh = true } = {}) {
         // (U5: a lasting area's effects, for its zone.)
         const zoneEffects = plan?.builtin === "zone" ? itemEffectModels(plan, Number(plan.item?.level) || 1) : null;
         const zone = zoneEffects ? { effectModel: plan.zone?.effect ? zoneEffects[plan.zone.effect.uuid] ?? null : null, effects: zoneEffects } : null;
-        const entry = itemEntry(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, draw, fresh, cast, onStrike: slug && listed.has(slug) ? slug : null, zone });
+        const entry = itemEntry(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, draw, fresh, cast, onStrike: slug && listed.has(slug) ? slug : null, zone, triggered: hasTrigger(description?.value) });
         if (!entry) continue;
         const spec = { ...entry, effects: { ...(entry.effects ?? {}), ...itemEffectModels(entry.plan, entry.castRank) } };
         // (A poison its Strikes deliver isn't an action of its own: its hits play it.)

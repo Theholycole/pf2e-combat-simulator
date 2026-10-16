@@ -5,7 +5,7 @@ import { extraDamageParts, parseReadableDamage, randomDamageRows } from "../src/
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js";
 import { levelDC } from "../src/engine/checks.js";
-import { beltHeld, drawActions, isBelt, isStaffItem, itemCasts, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
+import { beltHeld, drawActions, hasTrigger, isBelt, isStaffItem, itemCasts, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { maneuverWays, withReading } from "../src/engine/readings.js";
 import { effectModel, iwrException } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
@@ -1210,8 +1210,13 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
             effectModel: plan.zone?.effect ? (await effectModels({ resolution: { outcomes: { success: { nativeEffects: [plan.zone.effect] } } } }, level))[plan.zone.effect.uuid] ?? null : null,
             effects: Object.assign({}, ...(await Promise.all((plan.zone?.saves ?? []).map((save) => effectModels(save.plan, level)))))
         } : null;
-        const entry = itemEntry(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, draw, fresh, cast, onStrike, zone });
-        if (!entry) continue;
+        // (2026-10-16: one activated in answer to something its plan doesn't keep — Wolf Fang's Trip — isn't an action at will.)
+        const triggered = hasTrigger(item.system?.description?.value);
+        const entry = itemEntry(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, draw, fresh, cast, onStrike, zone, triggered });
+        if (!entry) {
+            if (triggered) gaps.push({ kind: "item, triggered (not simulated yet)", name: item.name });
+            continue;
+        }
         const spec = { ...entry, effects: { ...(entry.effects ?? {}), ...(await effectModels(entry.plan, entry.castRank)) } };
         // (A poison its Strikes deliver isn't an action of its own: its hits play it.)
         const rider = entry.plan.trigger?.event === "strike";

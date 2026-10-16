@@ -802,3 +802,13 @@ test("U19: a save against its owner's DC — its class DC, its best spell DC, or
     assert.equal(held.dc, ownerDC(pc, "class-spell"));
     assert.equal(held.dc, fighter.classDC);
 });
+
+// U20 (2026-10-16): items activated in answer to something.
+test("U20: an item whose Activate has a Trigger its plan doesn't keep isn't used at will; a granted reaction's Trigger, further down, doesn't count", async () => {
+    const { hasTrigger } = await import("../src/adapter/items.js");
+    assert.equal(hasTrigger("<p><strong>Activate</strong> <span>F</span> (concentrate)</p> <p><strong>Trigger</strong> You successfully Trip a foe</p> <hr /> <p>This wolf fang…</p>"), true);
+    assert.equal(hasTrigger("<p><strong>Activate</strong> <span>1</span> Interact</p><hr /><p><strong>Benefit</strong> … the following reaction:</p> <p><strong>Trigger</strong> You are targeted by a Strike</p>"), false);
+    assert.equal(itemEntry(ELIXIR, { id: "t", triggered: true }), null);
+    assert.ok(itemEntry(ELIXIR, { id: "u" }));
+    assert.ok(itemEntry({ ...ELIXIR, trigger: { event: "damaged" } }, { id: "d", triggered: true }), "a trigger its plan keeps");
+});

@@ -79,6 +79,13 @@ function retaliationOf(plan) {
     return { parts, adjacentMelee: Boolean(plan.retaliation?.adjacentMelee), rounds: Number(plan.retaliation?.rounds) || 10 };
 }
 
+// (2026-10-16: an item activated in answer to something — its Activate's "Trigger You successfully Trip a foe" (Wolf Fang), "You lose
+// the Dying condition" (Snarling Badger) — whose plan doesn't say so (trigger.event "use", the plan read without its trigger): not an
+// action to take at will. Those the simulation plays have their own paths — Lion Badge's, the roll-twice talismans', a plan whose trigger
+// is kept (Rhino Hide Brooch's "damaged"). Only its Activate's own Trigger, before the text's first rule: a reaction an item grants
+// (Prey Mutagen's Timely Dodge) has one further down, and the item is still drunk.)
+export const hasTrigger = (html) => /<strong>\s*Trigger\s*<\/strong>/i.test(String(html ?? "").split(/<hr\b/i)[0]);
+
 // U1 (2026-10-15), consumables. The user: "monsters should use their items freely. Players should use rechargeable or reusable items
 // freely but consumables should be weighted to be used when they provide significant more value than other options. Healing items
 // should be used freely if they are projected to go down soon or if they are used on another player that is already down."
@@ -92,7 +99,8 @@ function retaliationOf(plan) {
 // a dose a hit, as the stat block has it.
 // zone (U5): for an item that makes a lasting area (a smoke ball's cloud, a cryomister's ice), the models of the PF2e effects it applies,
 // { effectModel, effects }: the simulation's zone, as an ability's (zones.js), thrown where it's worth it.
-export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false, cast = null, onStrike = null, zone = null } = {}) {
+export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false, cast = null, onStrike = null, zone = null, triggered = false } = {}) {
+    if (triggered && [undefined, null, "use"].includes(plan?.trigger?.event) && !onStrike) return null;
     if (plan?.builtin === "zone") return zoneEntry(plan, { id, name, quantity, uses, draw, fresh, zone });
     // (U17: an item used as part of one of PF2e's actions — the item module's plan.action, the Alchemists+ plants' Shove and Grapple: that
     // action's own plan (the ability module's), at the higher of its user's skill and the item's value (action.minimum), with the item's
