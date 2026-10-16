@@ -613,3 +613,63 @@ test("U14: fired, it rolls the better after each one's penalties — clumsy lowe
     assert.equal(brute.hp.value < hp, 24 >= brute.ac, state.log.join("\n"));
     assert.equal(pc.spellPools[gun.pool], 1);
 });
+
+// U15 (2026-10-16; the item module's plan.retaliation): Potions of Fire Retaliation and the like.
+const retaliationPotion = (formula, extra = {}) => ({ modelVersion: 13, source: { name: "Test Retaliation", slug: "test-retaliation" }, rank: 1, traits: ["consumable", "magical", "potion"], activation: { time: "1", traits: ["manipulate"] },
+    automation: { level: "automatic" }, targeting: { target: "the creature that touches you", range: null, area: null }, trigger: { event: "use" }, retaliation: true,
+    resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula, type: "fire", category: null }] },
+        outcomes: { criticalSuccess: { ...none }, success: shot(1), failure: { ...none }, criticalFailure: { ...none } } }, item: itemInfo("potion", 3), ...extra });
+
+test("U15: a retaliation potion is a drink with nothing at once — its damage kept for whoever touches the drinker; the moderate grade's adjacent melee hits too", () => {
+    const lesser = itemEntry(retaliationPotion("1d4"), { id: "r" });
+    assert.deepEqual([lesser.drinker, lesser.plan.resolution.kind, lesser.retaliation], [true, "check", { parts: [{ dice: 1, die: 4, bonus: 0, type: "fire" }], adjacentMelee: false, rounds: 10 }]);
+    assert.deepEqual(itemEntry(retaliationPotion("1"), { id: "m" }).retaliation.parts, [{ dice: 0, die: 0, bonus: 1, type: "fire" }]);
+    assert.equal(itemEntry(retaliationPotion("2d4", { retaliation: { adjacentMelee: true } }), { id: "o" }).retaliation.adjacentMelee, true);
+    assert.equal(itemEntry(retaliationPotion("lots"), { id: "x" }), null, "damage it can't read: left out");
+});
+
+test("U15: drunk, an unarmed hit on the drinker burns the attacker for a minute; a weapon hit only with the moderate grade, a miss never", async () => {
+    const { performStrike } = await import("../src/engine/actions.js");
+    for (const adjacentMelee of [false, true]) {
+        const { state, pc, index, brute } = withItem(retaliationPotion("2d4", { retaliation: { adjacentMelee } }));
+        castSpell(state, pc, index, [pc.id]);
+        assert.ok(state.log.some((line) => line.includes("Fighter glows with Test Retaliation")), state.log.join("\n"));
+        state.rng.die = (size) => size;
+        const claw = { ...brute.strikes[0], name: "Claw", unarmed: true };
+        const sword = { ...brute.strikes[0], name: "Sword", unarmed: false };
+        const hp = () => brute.hp.value;
+        let before = hp();
+        state.rng.d20 = () => 19;
+        performStrike(state, brute, pc, claw);
+        assert.equal(before - hp(), 8, state.log.join("\n"));
+        before = hp();
+        performStrike(state, brute, pc, sword);
+        assert.equal(before - hp(), adjacentMelee ? 8 : 0);
+        before = hp();
+        state.rng.d20 = () => 1;
+        performStrike(state, brute, pc, claw);
+        assert.equal(before - hp(), 0, "a miss doesn't touch");
+        // A minute later, gone.
+        state.round += 10;
+        state.rng.d20 = () => 19;
+        before = hp();
+        performStrike(state, brute, pc, claw);
+        assert.equal(before - hp(), 0);
+    }
+});
+
+test("U15: worth the burns its drinker's foes can expect — none from a foe with only weapons (lesser), some from one with claws", async () => {
+    const { spellExpectation } = await import("../src/engine/spells.js");
+    const { state, pc, index, brute } = withItem(retaliationPotion("2d4"));
+    const potion = pc.spells[index];
+    const onBrute = () => spellExpectation(state, pc, potion, [pc]).find((entry) => entry.target === brute);
+    brute.strikes = [{ ...brute.strikes[0], unarmed: false }];
+    assert.equal(onBrute(), undefined);
+    brute.strikes = [{ ...brute.strikes[0], unarmed: true }];
+    const entry = onBrute();
+    // Three rounds, two Strikes a round on the fighter (shared with the ally in its Melee), each 5 fire at its chance to hit.
+    assert.ok(entry && entry.damage > 0 && entry.damage <= 3 * 2 * 5, JSON.stringify(entry));
+    // Already glowing for long enough: nothing more.
+    castSpell(state, pc, index, [pc.id]);
+    assert.equal(onBrute(), undefined);
+});

@@ -66,6 +66,17 @@ const DRUNK_OR_APPLIED = ["potion", "elixir", "mutagen", "drug", "oil"];
 const NOTHING = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
 const COUNTERACT_ONLY = Object.freeze({ kind: "check", check: { roll: "automatic" }, outcomes: { criticalSuccess: NOTHING, success: NOTHING, failure: NOTHING, criticalFailure: NOTHING } });
 
+// (U15: a retaliation potion's damage — the item module's plan.retaliation, its sharedDamage: "1", "2d4", "3d6+2" — as dice, a minute;
+// from the moderate grade, plan.retaliation.adjacentMelee: "or is adjacent to you and hits you with a melee weapon strike". null: none read.)
+function retaliationOf(plan) {
+    const parts = (plan.resolution?.sharedDamage?.components ?? []).map((component) => {
+        const match = String(component.formula ?? "").replace(/\s+/g, "").match(/^(?:(\d+)d(\d+))?(?:\+?(\d+))?$/);
+        return match && (match[1] || match[3]) && component.type ? { dice: Number(match[1]) || 0, die: Number(match[2]) || 0, bonus: Number(match[3]) || 0, type: component.type } : null;
+    });
+    if (!parts.length || parts.some((part) => !part)) return null;
+    return { parts, adjacentMelee: Boolean(plan.retaliation?.adjacentMelee), rounds: Number(plan.retaliation?.rounds) || 10 };
+}
+
 // U1 (2026-10-15), consumables. The user: "monsters should use their items freely. Players should use rechargeable or reusable items
 // freely but consumables should be weighted to be used when they provide significant more value than other options. Healing items
 // should be used freely if they are projected to go down soon or if they are used on another player that is already down."
@@ -84,6 +95,10 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
     // (U10: an item that only counteracts — Surging Serum, Panacea: nothing of its own on the drinker, its counteract the item's rider below.)
     const counteractOnly = plan?.builtin === "counteract" && Boolean(plan.item?.counteract);
     if (counteractOnly) plan = { ...plan, builtin: undefined, resolution: COUNTERACT_ONLY };
+    // (U15: a retaliation potion — nothing at once on the drinker, its damage kept for whoever touches it, spells.js touchRetaliation.)
+    const retaliation = plan?.retaliation ? retaliationOf(plan) : null;
+    if (plan?.retaliation && !retaliation) return null;
+    if (retaliation) plan = { ...plan, resolution: COUNTERACT_ONLY, targeting: { target: "the drinker", range: null, area: null } };
     // (One of the user's own Strikes with riders added — Fear Gem, plan.strike: not yet.)
     if (plan?.strike) return null;
     const casting = plan?.builtin === "cast-spell" && cast?.plan?.resolution ? cast : null;
@@ -144,6 +159,7 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         ...(item.counteract ? { counteract: { ...item.counteract } } : {}),
         // (U13: the conditions it lowers — on whoever it's used on for a drink or one for others ("targets"), else on its user.)
         ...(item.reduce?.length ? { reduce: item.reduce.map((entry) => ({ ...entry, on: drinker || entry.who === "targets" ? "targets" : "user" })) } : {}),
+        ...(retaliation ? { retaliation } : {}),
         // (U12: a flat check to end persistent damage of its types at once — Quenching Potion's — used freely, the user's call.)
         ...(item.recovery?.types?.length ? { recovery: { types: [...item.recovery.types], dc: Number(item.recovery.dc) || 15 }, free: true } : {})
     };

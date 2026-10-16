@@ -1128,6 +1128,57 @@ function applyItemRecovery(state, spell, target) {
     }
 }
 
+// U15 (2026-10-16; the item module's plan.retaliation): Potions of Acid, Cold, Electricity and Fire Retaliation — "For 1 minute after
+// drinking …, a creature that touches you (such as by making an unarmed attack or using a spell with a range of touch against you) …
+// takes fire damage", and from the moderate grade one that "is adjacent to you and hits you with a melee weapon strike". On the drinker for
+// its minute (a second of the same potion starts it again); each touch, its damage on the creature.
+const retaliationsOn = (state, c) => (c.retaliations ?? []).filter((entry) => (state.round ?? 0) < entry.until);
+function applyItemRetaliation(state, spell, target) {
+    target.retaliations = [...retaliationsOn(state, target).filter((entry) => entry.name !== spell.name), { name: spell.name, ...spell.retaliation, until: (state.round ?? 0) + spell.retaliation.rounds }];
+    log(state, `  ${target.name} glows with ${spell.name}`);
+}
+
+// A touch on a creature with a retaliation: an unarmed Strike's hit or a touch spell at it (how "unarmed" / "spell"), or a melee weapon
+// Strike's hit from beside it (how "weapon": one without reach, as "adjacent" — only from the moderate grade).
+export function touchRetaliation(state, defender, attacker, how) {
+    if (!how || !defender || !attacker || attacker === defender || !isActive(attacker)) return;
+    for (const entry of retaliationsOn(state, defender)) {
+        if (how === "weapon" && !entry.adjacentMelee) continue;
+        const instances = entry.parts.map((part) => {
+            let amount = part.bonus;
+            for (let die = 0; die < part.dice; die++) amount += state.rng.die(part.die);
+            return { type: part.type, amount, persistent: false, precision: false };
+        });
+        const dealt = applyDamage(state, attacker, instances, { source: defender });
+        log(state, `  ${attacker.name} touches ${defender.name}'s ${entry.name}: ${dealt} ${entry.parts.map((part) => part.type).join(" and ")}`);
+        if (!isActive(attacker)) return;
+    }
+}
+
+// What drinking it is worth: the damage its foes can be expected to take from it in about three rounds (as an effect is weighed,
+// effects.js) — each foe whose best touching Strike (unarmed; a melee one without reach for the moderate grade) is likely to hit the
+// drinker, a round's Strikes on it about two, shared with the drinker's side in that foe's Melee. Entries on those foes, as damage.
+const RETALIATION_ROUNDS = 3;
+function itemRetaliationEntries(state, spell, target) {
+    if (retaliationsOn(state, target).some((entry) => entry.name === spell.name && entry.until - (state.round ?? 0) > RETALIATION_ROUNDS)) return [];
+    const side = state.list.filter((other) => other.side === target.side && isActive(other) && other.kind !== "object");
+    const entries = [];
+    for (const foe of state.list) {
+        if (foe.side === target.side || !isActive(foe)) continue;
+        const touching = (foe.strikes ?? []).filter((strike) => strike.melee && (strike.unarmed || (spell.retaliation.adjacentMelee && !((strike.reach ?? 5) > 5))));
+        if (!touching.length) continue;
+        const bonus = Math.max(...touching.map((strike) => strike.bonus ?? 0));
+        const hits = Math.min(0.95, Math.max(0.05, (21 + bonus - armorClass(target)) / 20));
+        const share = foe.meleeId !== null && foe.meleeId !== undefined
+            ? (foe.meleeId === target.meleeId ? 1 / Math.max(1, side.filter((other) => other.meleeId === foe.meleeId).length) : 0)
+            : 1 / Math.max(1, side.length);
+        const each = spell.retaliation.parts.reduce((sum, part) => sum + adjustInstance(foe, part.type, part.dice * (part.die + 1) / 2 + part.bonus), 0);
+        const damage = RETALIATION_ROUNDS * 2 * hits * share * each;
+        if (damage > 0) entries.push({ target: foe, damage, worth: 0, heal: 0, benefit: 0 });
+    }
+    return entries;
+}
+
 // Cleanse Affliction: one affliction of its traits a stage lower, not below the floor.
 function applyAfflictionStage(state, target, change) {
     const entry = (target.afflictions ?? []).filter((held) => held.stage > (change.floor ?? 1) && (!(change.traits ?? []).length || (held.data?.traits ?? []).some((trait) => change.traits.includes(trait)))).sort((a, b) => b.stage - a.stage)[0];
@@ -1578,6 +1629,12 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
         const target = state.byId.get(id);
         if (target && (isActive(target) || target.status === DOWN)) applyItemRecovery(state, spell, target);
     }
+    // (U15: a retaliation potion on the drinker; a touch spell at a creature with one, its damage on the caster.)
+    if (spell?.retaliation) for (const id of targetIds ?? []) {
+        const target = state.byId.get(id);
+        if (target && isActive(target)) applyItemRetaliation(state, spell, target);
+    }
+    if (spell?.plan && isSpellCast(spell) && describeSpell(spell.plan, actions).touch) for (const id of targetIds ?? []) touchRetaliation(state, state.byId.get(id), caster, "spell");
     // (Invisibility: it ends once a harmful spell is cast.)
     const info = spell?.plan ? describeSpell(spell.plan, actions) : null;
     if (info && !info.helpful && !info.healing && !info.self && !spell.drinker) ownHostility(state, caster);
@@ -2874,6 +2931,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         }
     }
     if (self) result.push(self);
+    // (U15: a retaliation potion — the damage its drinker's foes can expect from it.)
+    if (spell.retaliation) for (const target of targets) result.push(...itemRetaliationEntries(state, spell, target));
     return result;
 }
 

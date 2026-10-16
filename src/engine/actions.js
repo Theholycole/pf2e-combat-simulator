@@ -12,7 +12,7 @@ import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, hasConditional, strikeRollOptions, removeEffect, takeAttackFortune } from "./effects.js";
-import { applyCondition, applyMove, castPlan, castSpell, deathThroes, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { applyCondition, applyMove, castPlan, castSpell, deathThroes, touchRetaliation, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
@@ -624,6 +624,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // Defensive Quills, Searing Heat: the monster's passive answers a melee hit on it (B43).
     const dealtTypes = dealt > 0 ? instances.map((instance) => instance.type) : [];
     if (isActive(attacker)) hitByAnswers(state, target, attacker, strike, degree, dealtTypes);
+    // (U15: a retaliation potion's damage on a creature that hit its drinker with an unarmed Strike, or a melee weapon from beside it.)
+    if (isActive(attacker) && strike.melee && target.retaliations?.length) touchRetaliation(state, target, attacker, strike.unarmed ? "unarmed" : (strike.reach ?? 5) > 5 ? null : "weapon");
     // Shrapnel Splash, Reactive Thrash: the monster's reaction to the hit (B44).
     if (isActive(attacker)) reactToHit(state, target, attacker, strike, degree, dealtTypes);
     // Pin Prey, Storm Smite: the attacker's reaction to its own hit (B47).
