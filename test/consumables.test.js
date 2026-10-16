@@ -960,3 +960,12 @@ test("2026-10-16: an item's damage choices that differ only in type (Explosive M
     castSpell(state, pc, pc.spells.length - 1, [brute.id]);
     assert.ok(state.log.some((line) => / takes \d+ cold/.test(line)), state.log.join("\n"));
 });
+
+test("2026-10-16: an item's condition floor for a fixed time (Timpani of Panic's) lasts that long, not for good", async () => {
+    const { addFloor, floorOf } = await import("../src/engine/floors.js");
+    const { state, pc, brute } = setUp({ potions: 0 });
+    addFloor(state, brute, pc, { name: "Test Timpani", plan: {} }, { slug: "frightened", value: 1, lifetime: "fixed", duration: { value: 1, unit: "minutes" } });
+    addFloor(state, brute, pc, { name: "Test Drum", plan: {} }, { slug: "sickened", value: 1, lifetime: "fixed", duration: { value: 1, unit: "rounds" } });
+    assert.deepEqual(brute.condFloors.map((entry) => entry.untilRound - state.round), [10, 1]);
+    assert.equal(floorOf(brute, "frightened"), 1);
+});

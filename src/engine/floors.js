@@ -7,7 +7,9 @@ import { lastingRounds } from "./lasting.js";
 const FLAG_CONDITIONS = new Set(["quickened", "offGuard", "prone", "fleeing", "unconscious", "fatigued", "paralyzed", "asleep", "blinded", "dazzled", "immobilized", "restrained", "grabbed", "confused"]);
 
 export function addFloor(state, target, caster, spell, floor) {
-    const { rounds, sustained } = floor.lifetime === "spell" ? lastingRounds(spell.plan?.lifecycle?.durationSpec ?? null) : { rounds: Infinity, sustained: false };
+    // (2026-10-16, the item module's floors: "fixed", for its own duration — Timpani of Panic's 1 round or 1 minute.)
+    const { rounds, sustained } = floor.lifetime === "spell" ? lastingRounds(spell.plan?.lifecycle?.durationSpec ?? null)
+        : floor.lifetime === "fixed" && floor.duration ? lastingRounds({ mode: "fixed", ...floor.duration }) : { rounds: Infinity, sustained: false };
     const list = (target.condFloors ??= []).filter((held) => !(held.by === caster.id && held.spell === spell.name && held.slug === floor.slug));
     list.push({ slug: floor.slug, value: Number(floor.value) || 1, by: caster.id, spell: spell.name, lifetime: floor.lifetime ?? null, whileCondition: floor.whileCondition?.slug ?? null, persistent: floor.persistentDamage ?? null, untilRound: state.round + rounds, sustained });
     target.condFloors = list;
