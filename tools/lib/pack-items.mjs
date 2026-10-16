@@ -16,7 +16,14 @@ try {
     claims = null;
 }
 const { basicActions, readDocuments, PACK_ROOT } = await import("./pack-creatures.mjs");
-const { hasTrigger, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, itemTriggered, verifiedPlan } = await import("../../src/adapter/items.js");
+const { bombRider, hasTrigger, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, itemTriggered, verifiedPlan } = await import("../../src/adapter/items.js");
+// (U22: a bomb's riders, the item module's compileBomb.)
+let compileBomb = null;
+try {
+    ({ compileBomb } = await import(`${I}/src/compiler/bombs.js`));
+} catch {
+    compileBomb = null;
+}
 // (A third-party item's own Effect only when its rules match its text: the item module's check, as its live play.)
 let verifyEffectRules = null;
 try {
@@ -139,6 +146,20 @@ export function npcItems(npc, { fresh = true } = {}) {
         if (isUtility(plan) || (!rider && !canCast({ spellPools: { [entry.pool]: entry.casts }, covenReady: true }, spec))) continue;
         spellPools[entry.pool] = entry.casts;
         spells.push(spec);
+    }
+    // (U22: the riders of the bombs its Strikes throw, by the Strike's name.)
+    for (const strike of (npc.items ?? []).filter((entry) => entry.type === "melee" && entry.flags?.pf2e?.linkedWeapon)) {
+        const weapon = npc.items.find((entry) => entry.type === "weapon" && entry._id === strike.flags.pf2e.linkedWeapon);
+        if (!weapon || !compileBomb) continue;
+        const source = equipment.get(weapon._stats?.compendiumSource ?? weapon.flags?.core?.sourceId);
+        let plan = null;
+        try {
+            plan = compileBomb({ ...weapon, ...(source ? { system: { ...weapon.system, description: source.system?.description ?? weapon.system?.description } } : {}) });
+        } catch {
+            plan = null;
+        }
+        const rider = plan ? bombRider(plan, strike.name) : null;
+        if (rider) spells.push(rider);
     }
     return { spells, spellPools, activities, fortunes, reduceTriggers, triggered };
 }

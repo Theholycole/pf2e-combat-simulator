@@ -5,7 +5,7 @@ import { extraDamageParts, parseReadableDamage, randomDamageRows } from "../src/
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js";
 import { levelDC } from "../src/engine/checks.js";
-import { beltHeld, drawActions, hasTrigger, isBelt, itemTriggered, isStaffItem, itemCasts, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
+import { beltHeld, bombRider, drawActions, hasTrigger, isBelt, itemTriggered, isStaffItem, itemCasts, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { maneuverWays, withReading } from "../src/engine/readings.js";
 import { effectModel, iwrException } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
@@ -1238,6 +1238,23 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
     return result;
 }
 
+// U22: a bomb Strike's riders — the item module's compileBomb on the bomb (a PC's weapon, or the one an NPC's Strike links to); without the
+// item module, none.
+let bombCompiler;
+async function bombRiderOf(action, strikeName) {
+    const weapon = action.item?.type === "weapon" ? action.item : action.item?.linkedWeapon ?? null;
+    if (!weapon || (weapon.group ?? weapon.system?.group) !== "bomb") return null;
+    bombCompiler ??= await import("../../pf2e-automatic-item-resolution/src/compiler/bombs.js").then((module) => module.compileBomb).catch(() => null);
+    if (!bombCompiler) return null;
+    let plan = null;
+    try {
+        plan = bombCompiler(weapon);
+    } catch {
+        plan = null;
+    }
+    return plan ? bombRider(plan, strikeName) : null;
+}
+
 // (2026-10-15) A third-party item's own linked Effect is played only when its rules match the item's text: the item module's
 // verifyEffectRules (src/compiler/verify-effect.js), as its live play does. Without the item module's check, not at all.
 let effectVerifier;
@@ -1521,12 +1538,16 @@ export function actorKind(actor) {
 export async function readActor(actor, { id, name, fresh = false } = {}) {
     const gaps = [];
     const strikes = [];
+    const bombRiders = [];
     // Weapons that are carried but not held count too: a PC draws them when the
     // fight starts (the Interact action is not simulated).
     for (const action of actor.system?.actions ?? []) {
         if (action.type && action.type !== "strike") continue;
         const strike = await readStrike(actor, action, gaps);
         if (strike) strikes.push(strike);
+        // (U22: a bomb's riders, the item module's compileBomb.)
+        const rider = strike?.ammo ? await bombRiderOf(action, strike.name) : null;
+        if (rider) bombRiders.push(rider);
         for (const alt of action.altUsages ?? []) {
             const altStrike = await readStrike(actor, alt, gaps);
             if (altStrike) strikes.push({ ...altStrike, name: `${altStrike.name} (${alt.item?.isThrown ? "thrown" : "alt"})` });
@@ -1565,7 +1586,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
     const played = new Set([...(features.fields.heroesDefiance ? ["Hero's Defiance"] : []), ...(features.fields.vitalLuminance ? ["Vital Luminance"] : [])]);
     if (played.size) gaps.splice(0, gaps.length, ...gaps.filter((gap) => !(gap.kind === "spell" && played.has(gap.name))));
     if (spellSummoned.length) abilities.builtins.summons = [...(abilities.builtins.summons ?? []), ...spellSummoned];
-    spells.push(...abilities.abilities);
+    spells.push(...abilities.abilities, ...bombRiders);
     // A Strike's riders are gaps unless an ability plays them.
     const riders = new Set([...abilities.abilities, ...consumables.spells].flatMap((ability) => (ability.plan?.trigger?.event === "strike" ? [ability.plan.trigger.attackEffect, ability.plan.source?.slug] : [])).filter(Boolean));
     for (const strike of strikes) for (const effect of strike.attackEffects ?? []) if (!riders.has(effect)) gaps.push({ kind: "attack effect", name: effect });

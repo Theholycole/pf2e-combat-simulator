@@ -86,6 +86,17 @@ function retaliationOf(plan) {
 // (Prey Mutagen's Timely Dodge) has one further down, and the item is still drunk.)
 export const hasTrigger = (html) => /<strong>\s*Trigger\s*<\/strong>/i.test(String(html ?? "").split(/<hr\b/i)[0]);
 
+// U22 (2026-10-16; the item module's compileBomb): a bomb's riders on a hit — "On a hit, the target becomes off-guard until the start of your
+// next turn", Frost Vial's Speed penalty, Atrophy Bomb's enfeebled — as a free rider of the bomb's Strike (spells.js triggerRiders), its
+// degree the Strike's. null when it has none: PF2e's own Strike deals the damage, persistent damage and splash. Its save (a bomb that
+// blinds on a failed save) isn't played yet.
+export function bombRider(plan, strikeName) {
+    const rows = plan?.resolution?.outcomes ?? {};
+    const does = (row) => (row?.effects ?? []).length || (row?.modifiers ?? []).length;
+    if (!strikeName || (!does(rows.success) && !does(rows.criticalSuccess))) return null;
+    return { name: plan.source?.name ?? strikeName, plan: { ...plan, trigger: { ...(plan.trigger ?? {}), event: "strike", cost: "free", strikes: [String(strikeName).toLowerCase()] } }, castRank: 1, pool: null, kind: "ability", bombRider: true };
+}
+
 // U21 (2026-10-16): the triggers the simulation plays, by the item module's triggerOn event; an item for one is its entry with triggerOn,
 // kept apart from the creature's actions (c.triggeredItems, triggered-items.js). Only one that acts on the creature its trigger names (a
 // save or a check at it): an Effect its user puts on itself (Bloodseeker Beak's on the Strike's damage) isn't read yet.

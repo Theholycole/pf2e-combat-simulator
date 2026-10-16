@@ -821,9 +821,9 @@ const DAZING = { modelVersion: 13, source: { name: "Test Coil", slug: "test-coil
 
 function coiled({ monster = false } = {}) {
     const { itemTriggered } = itemsModule;
-    const entry = itemTriggered(DAZING, { id: "coil", quantity: 1 });
+    const entry = itemTriggered(DAZING, { id: "coil", quantity: 2 });
     const [fighter, second] = martialParty(5);
-    const pc = { ...fighter, band: "near", engagement: 1, kind: monster ? "npc" : fighter.kind, triggeredItems: [entry], spellPools: { ...(fighter.spellPools ?? {}), [entry.pool]: 1 } };
+    const pc = { ...fighter, band: "near", engagement: 1, kind: monster ? "npc" : fighter.kind, triggeredItems: [entry], spellPools: { ...(fighter.spellPools ?? {}), [entry.pool]: entry.casts } };
     const brute = { ...moderateCreature(5, "brute", "Brute"), band: "near", engagement: 1, saves: { fortitude: 10, reflex: 10, will: 5 } };
     // (No ally beside it: a flanked brute would be off-guard.)
     const state = createFightState({ combatants: [pc, { ...second, band: "far", engagement: 0 }, brute] }, {}, 1);
@@ -856,7 +856,8 @@ test("U21: a monster's coil stuns an off-guard creature its weapon hits — not 
     performStrike(state, pc, brute, weapon);
     assert.equal(brute.cond.stunned, 1, state.log.join("\n"));
     assert.ok(state.log.some((line) => line.includes("Fighter uses Test Coil on Brute")));
-    assert.equal(pc.spellPools["item:coil"], 0);
+    assert.equal(pc.spellPools["item:coil"], 1, "one of two used");
+    assert.equal(state.log.filter((line) => line.includes("Test Coil")).length, 1, "logged once");
 });
 
 test("U21: a PC uses its coil only in a hard fight", async () => {
@@ -877,4 +878,32 @@ test("U21: a PC uses its coil only in a hard fight", async () => {
     assert.equal(hardFight(state, pc), true);
     performStrike(state, pc, brute, weapon);
     assert.equal(brute.cond.stunned, 1, state.log.join("\n"));
+});
+
+// U22 (2026-10-16; the item module's compileBomb): a bomb's riders on a hit.
+test("U22: a bomb's riders play on its Strike's hit — Frost Vial's Speed penalty, Atrophy Bomb's enfeebled 1 — not on a miss; none without a rider", async () => {
+    const { bombRider } = await import("../src/adapter/items.js");
+    const { performStrike } = await import("../src/engine/actions.js");
+    const row = (extra) => ({ damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [], modifiers: [], ...extra });
+    const bombPlan = (name, success) => ({ modelVersion: 13, source: { name, slug: null }, rank: 1, traits: ["alchemical", "bomb", "consumable"], activation: { time: "1", traits: ["manipulate"] }, automation: { level: "automatic" },
+        targeting: { target: "the creature the bomb hits", range: 20, area: null }, trigger: { event: "strike", on: ["success", "criticalSuccess"], cost: "free" },
+        resolution: { kind: "save", check: { roll: "attack", statistic: "strike", against: { dc: "target", statistic: "ac" } }, outcomes: { criticalSuccess: row(success), success: row(success), failure: row({}), criticalFailure: row({}) } }, item: { type: "weapon", group: "bomb", level: 1, splash: null, save: null } });
+    const atrophy = bombPlan("Test Atrophy Bomb", { effects: [{ kind: "condition", slug: "enfeebled", value: 1, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" } }] });
+    assert.equal(bombRider(bombPlan("Test Flask", {}), "Test Flask"), null, "nothing but PF2e's damage");
+    const rider = bombRider(atrophy, "Test Atrophy Bomb");
+    assert.deepEqual([rider.plan.trigger.event, rider.plan.trigger.cost, rider.plan.trigger.strikes], ["strike", "free", ["test atrophy bomb"]]);
+    const [fighter] = martialParty(5);
+    const bomb = { name: "Test Atrophy Bomb", bonus: 14, melee: false, increment: 20, thrown: true, damage: [{ dice: 1, die: 6, bonus: 0, type: "void" }], attackEffects: [] };
+    const pc = { ...moderateCreature(5, "chemist", "Chemist"), band: "near", engagement: 1, strikes: [bomb], spells: [rider] };
+    const state = createFightState({ combatants: [pc, { ...fighter, band: "near", engagement: 1 }] }, {}, 1);
+    state.log = [];
+    state.round = 1;
+    const thrower = state.byId.get("chemist");
+    const target = state.byId.get(fighter.id);
+    state.rng.d20 = () => 1;
+    performStrike(state, thrower, target, thrower.strikes[0]);
+    assert.equal(target.cond.enfeebled ?? 0, 0, "a miss");
+    state.rng.d20 = () => 15;
+    performStrike(state, thrower, target, thrower.strikes[0]);
+    assert.equal(target.cond.enfeebled, 1, state.log.join("\n"));
 });

@@ -35,9 +35,7 @@ export function afterStrikeItems(state, attacker, target, strike, degree, { offG
         if (!targetFits(on.target, attacker, target, offGuard)) continue;
         if (!traitsAllowed(attacker, actionTraits(entry), { raging: isRaging(attacker) })) continue;
         if (attacker.kind === "pc" && !hardFight(state, attacker)) continue;
-        attacker.spellPools[entry.pool] = Math.max(0, attacker.spellPools[entry.pool] - 1);
-        if (state.stats) state.stats[attacker.side === "party" ? "partyItemsUsed" : "foeItemsUsed"]++;
-        // (castPlan logs its use.)
+        // (castPlan spends it, counts it and logs it.)
         castPlan(state, attacker, entry, [target.id]);
     }
 }
