@@ -602,7 +602,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (critical && attacker.critRider) critRiderAnswer(state, attacker, target, { applyCondition, applyMove });
     if (critical) critSpecEffect(state, attacker, target, strike, natural + modifier + bonus, { applyCondition, applyMove, applyDamage, rollDie: (size) => state.rng.die(size) });
     // (Its weapon's runes on a critical hit: frost's slowed, brilliant's blinded, fearsome's frightened …)
-    if (critical) runeCritEffects(state, attacker, target, strike, { applyCondition, applyMove });
+    if (critical) runeCritEffects(state, attacker, target, strike, { applyCondition, applyMove, applyDamage });
     // (C32, Battle Cry: legendary in Intimidation, its reaction to Demoralize the creature it critically hit.)
     if (critical && !reaction && attacker.battleCry?.reaction && isActive(target)) demoralize(state, attacker, target, { castPlan, reaction: true });
     // (T4: attached to a larger creature it hits.)

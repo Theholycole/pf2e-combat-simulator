@@ -29,7 +29,22 @@ export const RUNE_CRITS = {
     greaterImpactful: { save: "fortitude", dc: 37, push: 10 },
     // (U16: Vitalizing and Greater Vitalizing, PF2e's disrupting runes — on undead and void-healing creatures only.)
     disrupting: { undead: true, conditions: [["enfeebled", 1, UNTIL_SOURCE_TURN_END]] },
-    greaterDisrupting: { undead: true, conditions: [["enfeebled", 1, WHILE_VITALITY], ["stupefied", 1, WHILE_VITALITY]] }
+    greaterDisrupting: { undead: true, conditions: [["enfeebled", 1, WHILE_VITALITY], ["stupefied", 1, WHILE_VITALITY]] },
+    // (2026-10-16, the rest PF2e's rune text gives a critical hit — the item module's list: Flickering's dazzled for 1 round; Merciful's
+    // fascinated for 1 minute (its wielder's choice over critical specialization, taken); Nightmare's stupefied 1, frightened 2 as well
+    // on one already stupefied; Bloodthirsty's drained 1 on a target taking persistent bleed; Giant-Killing's enfeebled 1 on a giant, the
+    // greater rune's Fortitude save instead, by degree with mental damage — its "ignores mental resistance" not kept.)
+    flickering: { conditions: [["dazzled", null, ONE_ROUND]] },
+    merciful: { conditions: [["fascinated", null, MINUTE]] },
+    nightmare: { conditions: [["stupefied", 1, null]], already: { stupefied: [["frightened", 2, null]] } },
+    bloodthirsty: { bleeding: true, conditions: [["drained", 1, null]] },
+    giantKilling: { trait: "giant", conditions: [["enfeebled", 1, UNTIL_SOURCE_TURN_END]] },
+    greaterGiantKilling: { trait: "giant", save: "fortitude", dc: 34, rows: {
+        criticalSuccess: { conditions: [["enfeebled", 1, UNTIL_SOURCE_TURN_END]] },
+        success: { conditions: [["enfeebled", 2, UNTIL_SOURCE_TURN_END]], damage: { dice: 1, die: 10, type: "mental" } },
+        failure: { conditions: [["enfeebled", 2, MINUTE]], damage: { dice: 2, die: 10, type: "mental" } },
+        criticalFailure: { conditions: [["enfeebled", 4, MINUTE]], damage: { dice: 4, die: 10, type: "mental" } }
+    } }
 };
 
 // U16 (2026-10-16; the item module's plan.item.rune): a property rune an item lends a weapon for a while — Burial Oil's Vitalizing,
@@ -78,22 +93,44 @@ export function ignoredResistances(context) {
     return runeIgnores(Object.keys(RUNE_IGNORES).filter((rune) => context?.has?.(`item:rune:property:${rune}`)));
 }
 
-// A critical hit's rune effects on the target. applyCondition and applyMove: the engine's.
-export function runeCritEffects(state, attacker, target, strike, { applyCondition, applyMove }) {
-    for (const rune of runesHeld(attacker, strike)) {
+// Who a rune's critical hit is for: undead, a giant, a target taking persistent bleed damage.
+const critFits = (effect, target) => (!effect.undead || isUndead(target)) && (!effect.trait || (target.traits ?? []).includes(effect.trait))
+    && (!effect.bleeding || (target.persistent ?? []).some((entry) => entry.type === "bleed"));
+
+// A critical hit's rune effects on the target. applyCondition, applyMove and applyDamage: the engine's.
+export function runeCritEffects(state, attacker, target, strike, { applyCondition, applyMove, applyDamage = null }) {
+    // (Merciful's fascinated last: the same hit's other riders aren't a hostile action after it.)
+    for (const rune of [...runesHeld(attacker, strike)].sort((a, b) => (a === "merciful") - (b === "merciful"))) {
         const effect = RUNE_CRITS[rune];
-        if (!effect || !isActive(target) || (effect.undead && !isUndead(target))) continue;
+        if (!effect || !isActive(target) || !critFits(effect, target)) continue;
+        const label = rune.replace(/([A-Z])/g, " $1").toLowerCase();
+        // (Nightmare: what it adds on one that's already stupefied, as it was before this hit.)
+        const already = Object.entries(effect.already ?? {}).filter(([slug]) => (target.cond?.[slug] ?? 0) > 0).flatMap(([, conditions]) => conditions);
+        let conditions = effect.conditions ?? [];
         if (effect.save) {
             const natural = state.rng.d20();
             const modifier = saveModifier(target, effect.save) + saveBonusAgainst(target, effect.save, { kind: "ability", plan: { traits: ["magical"] } });
             const degree = adjustedSaveDegree(target, effect.save, degreeOf(natural + modifier, effect.dc, natural), { kind: "ability", plan: { traits: ["magical"] } });
-            log(state, `  ${target.name} saves against ${attacker.name}'s ${rune.replace(/([A-Z])/g, " $1").toLowerCase()} rune (${effect.save}, DC ${effect.dc}): ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}`);
-            if (degree >= SUCCESS) continue;
-            // (Thundering: an hour on a critical failure — past the fight either way.)
-            if (degree === CRITICAL_SUCCESS || degree > FAILURE) continue;
+            log(state, `  ${target.name} saves against ${attacker.name}'s ${label} rune (${effect.save}, DC ${effect.dc}): ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}`);
+            // (Greater Giant-Killing: a row for each degree.)
+            const row = effect.rows?.[DEGREE_NAMES[degree]];
+            if (row) {
+                conditions = row.conditions ?? [];
+                if (row.damage && applyDamage) {
+                    let amount = 0;
+                    for (let die = 0; die < row.damage.dice; die++) amount += state.rng.die(row.damage.die);
+                    const dealt = applyDamage(state, target, [{ type: row.damage.type, amount, persistent: false, precision: false }], { source: attacker });
+                    log(state, `  ${target.name} takes ${dealt} ${row.damage.type} (${label} rune)`);
+                }
+            } else {
+                if (degree >= SUCCESS) continue;
+                // (Thundering: an hour on a critical failure — past the fight either way.)
+                if (degree === CRITICAL_SUCCESS || degree > FAILURE) continue;
+            }
         }
-        for (const [slug, value, duration] of effect.conditions ?? []) {
-            if (applyCondition(state, target, slug, value, duration, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""} (${rune.replace(/([A-Z])/g, " $1").toLowerCase()} rune)`);
+        for (const [slug, value, duration] of [...conditions, ...already]) {
+            if (!isActive(target)) break;
+            if (applyCondition(state, target, slug, value, duration, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""} (${label} rune)`);
         }
         if (effect.push) applyMove(state, target, { kind: "push", distance: effect.push });
     }

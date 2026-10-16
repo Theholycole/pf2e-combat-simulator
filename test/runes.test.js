@@ -38,6 +38,33 @@ test("a critical hit's runes: greater frost's slowed on a failed DC 34 Fortitude
     assert.ok(state.log.some((line) => line.includes("greater frost rune (fortitude, DC 34)")));
 });
 
+test("2026-10-16, the rest of PF2e's critical-hit runes: flickering's dazzled, merciful's fascinated, nightmare's stupefied (frightened 2 on one already stupefied)", () => {
+    let { state, pc, foe } = duel(["flickering", "merciful", "nightmare"]);
+    state.rng.d20 = () => 20;
+    performStrike(state, pc, foe, pc.strikes[0]);
+    assert.deepEqual([foe.cond.dazzled, foe.cond.fascinated, foe.cond.stupefied, foe.cond.frightened ?? 0], [true, true, 1, 0], state.log.join("\n"));
+    performStrike(state, pc, foe, pc.strikes[0]);
+    assert.equal(foe.cond.frightened, 2, "already stupefied");
+});
+
+test("2026-10-16: bloodthirsty's drained 1 only on a target taking persistent bleed; giant-killing's enfeebled 1 only on a giant, the greater rune's save by degree", () => {
+    let { state, pc, foe } = duel(["bloodthirsty", "giantKilling"]);
+    state.rng.d20 = () => 20;
+    performStrike(state, pc, foe, pc.strikes[0]);
+    assert.deepEqual([foe.cond.drained ?? 0, foe.cond.enfeebled ?? 0], [0, 0], state.log.join("\n"));
+    foe.persistent = [{ type: "bleed", dice: 1, die: 6, bonus: 0, multiplier: 1 }];
+    foe.traits = [...(foe.traits ?? []), "giant"];
+    performStrike(state, pc, foe, pc.strikes[0]);
+    assert.deepEqual([foe.cond.drained, foe.cond.enfeebled], [1, 1], state.log.join("\n"));
+    ({ state, pc, foe } = duel(["greaterGiantKilling"], { target: { traits: ["giant"] } }));
+    // A critical hit, then a critically failed DC 34 Fortitude save: enfeebled 4 and 4d10 mental.
+    const rolls = [20, 1];
+    state.rng.d20 = () => rolls.shift() ?? 10;
+    performStrike(state, pc, foe, pc.strikes[0]);
+    assert.equal(foe.cond.enfeebled, 4, state.log.join("\n"));
+    assert.ok(state.log.some((line) => /takes \d+ mental \(greater giant killing rune\)/.test(line)), state.log.join("\n"));
+});
+
 test("a greater rune's damage ignores resistance to its type; Sacred Defender: a natural 20 against it doesn't improve the result", () => {
     const options = new Set(["item:rune:property:greaterFrost"]);
     assert.deepEqual([...ignoredResistances(options)], ["cold"]);
