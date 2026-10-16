@@ -207,6 +207,11 @@ export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses =
     const onHit = riders(success);
     const onCritical = riders(criticalSuccess ?? success);
     if (!onHit || !onCritical) return null;
+    // (A push on a hit — Battering Ammunition's 5 feet — the activity's own push; another forced movement isn't played.)
+    const pushOf = (row) => (row?.forcedMovement ? (row.forcedMovement.kind === "push" && Number(row.forcedMovement.distance) > 0 ? Number(row.forcedMovement.distance) : NaN) : null);
+    const push = pushOf(success);
+    const criticalPush = pushOf(criticalSuccess ?? success);
+    if (Number.isNaN(push) || Number.isNaN(criticalPush)) return null;
     const own = item.activations?.[0] ?? null;
     const save = plan.strike.save?.resolution ? plan.strike.save : null;
     return {
@@ -221,7 +226,7 @@ export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses =
         offGuard: false,
         requires: null,
         oncePerFight: false,
-        onHit: { conditions: onHit, critical: onCritical, push: null, damage: [], save: null, size: null },
+        onHit: { conditions: onHit, critical: onCritical, push, ...(criticalPush !== push ? { criticalPush } : {}), damage: [], save: null, size: null },
         riderSpell: save ? { name: name ?? plan.source?.name ?? "Item", plan: save, castRank: Math.max(1, Number(item.level) || 1), dc: null, attack: null, pool: null, kind: "item", effects: {} } : null,
         traits: [...(own?.traits ?? plan.activation?.traits ?? [])],
         pool: `item:${id}`,
