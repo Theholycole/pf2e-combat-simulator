@@ -55,6 +55,15 @@
         "type": "module",
         "manifest": "https://github.com/Theholycole/pf2e-automatic-spell-resolution/releases/latest/download/module.json",
         "reason": "Spells in the simulated fights come from its compiler."
+      },
+      {
+        "id": "pf2e-automatic-item-resolution",
+        "type": "module",
+        "manifest": "https://github.com/Theholycole/pf2e-automatic-item-resolution/releases/latest/download/module.json",
+        "reason": "Consumables in the simulated fights (potions, elixirs, bombs, talismans) come from its compiler.",
+        "compatibility": {
+          "minimum": "0.1.0"
+        }
       }
     ]
   },
