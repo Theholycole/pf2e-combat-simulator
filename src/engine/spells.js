@@ -1005,7 +1005,7 @@ function itemCounterPicks(spec, found) {
 }
 
 // (A reduction, Moon Radish Soup's: what lowering the condition by that much is worth.)
-function itemReduceWorth(spec, pick, degree) {
+function counterReduceWorth(spec, pick, degree) {
     const by = Number(spec.reduce?.[degree === CRITICAL_SUCCESS ? "criticalSuccess" : "success"]) || 0;
     if (pick.kind !== "condition" || !Number.isFinite(pick.value) || !by) return pick.worth;
     return pick.worth - Math.max(0, conditionWorth(pick.slug, Math.max(0, pick.value - by), null));
@@ -1016,7 +1016,7 @@ export function itemCounteractWorth(state, spell, target) {
     let worth = 0;
     for (const pick of itemCounterPicks(spec, itemCounterables(state, target, spec))) {
         const chance = counterChance(Number(spec.modifier) || 0, Number(spec.rank) || 1, pick);
-        worth += chance * (spec.reduce ? itemReduceWorth(spec, pick, SUCCESS) : pick.worth);
+        worth += chance * (spec.reduce ? counterReduceWorth(spec, pick, SUCCESS) : pick.worth);
     }
     return worth;
 }
@@ -1041,6 +1041,60 @@ function applyItemCounteract(state, caster, spell, target) {
         } else if (by && pick.value - by > 0) target.cond[pick.slug] = pick.value - by;
         else clearCondition(target, pick.slug);
     }
+}
+
+// U13 (2026-10-16; the user: "Yes add them"): the item module's plan.item.reduce — Pepper Poultice, Sun Orchid Poultice, Brewer's Regret,
+// Serene Smelling Salts, Cinnamon Nostalgia Bun, Preserved Moonflower: each condition it names lower by its "by" (to 0 for "all"; of
+// "choose", the one that helps most), on those the item was used on ("targets") or on its user. Worth what each step down takes off the
+// condition's cost (doomed and wounded, which conditionWorth doesn't price, at 0.5 and 0.3 a point).
+const REDUCE_WORTH = { doomed: 0.5, wounded: 0.3 };
+function reducedWorth(slug, value) {
+    if (!(value > 0)) return 0;
+    return REDUCE_WORTH[slug] !== undefined ? REDUCE_WORTH[slug] * value : Math.max(0, conditionWorth(slug, value, null));
+}
+// The step each entry would take on this creature: [{ slug, from, to }]. (An entry "on" its user only on the user; one on the targets only
+// on a creature the item was used on — targeted — the user too when it was.)
+function reduceSteps(spell, target, caster, targeted = true) {
+    const steps = [];
+    for (const entry of spell.reduce ?? []) {
+        if (entry.on === "user" ? target !== caster : !targeted) continue;
+        const slugs = entry.choose?.length ? entry.choose : [entry.slug];
+        const options = slugs.filter((slug) => VALUED.has(slug) && (Number(target.cond?.[slug]) || 0) > 0).map((slug) => {
+            const from = Number(target.cond[slug]) || 0;
+            const to = entry.by === "all" ? 0 : Math.max(0, from - (Number(entry.by) || 1));
+            return { slug, from, to, gain: reducedWorth(slug, from) - reducedWorth(slug, to) };
+        });
+        if (!options.length) continue;
+        steps.push(...(entry.choose?.length ? [options.reduce((best, option) => (option.gain > best.gain ? option : best))] : options));
+    }
+    return steps;
+}
+
+export function itemReduceWorth(spell, target, caster) {
+    return reduceSteps(spell, target, caster).reduce((sum, step) => sum + reducedWorth(step.slug, step.from) - reducedWorth(step.slug, step.to), 0);
+}
+
+function applyItemReduce(state, caster, spell, targets) {
+    const on = [...new Set([...targets, ...((spell.reduce ?? []).some((entry) => entry.on === "user") ? [caster] : [])])];
+    for (const target of on) {
+        for (const step of reduceSteps(spell, target, caster, targets.includes(target))) {
+            target.cond[step.slug] = step.to;
+            if (!step.to && target.condSources) delete target.condSources[step.slug];
+            log(state, `  ${target.name}'s ${step.slug} ${step.from} → ${step.to} (${spell.name})`);
+        }
+    }
+}
+
+// (U13, Lion Badge: a condition just gained from a save of that kind, lowered by the talisman that triggers on it; used up. A creature
+// always uses it: it costs nothing else and the condition is there.)
+export function reduceOnGain(state, c, slug, save) {
+    const entry = (c.reduceTriggers ?? []).find((each) => each.on === slug && (!each.save || each.save === save) && (c.spellPools?.[each.pool] ?? 0) > 0);
+    const value = Number(c.cond?.[slug]) || 0;
+    if (!entry || !(value > 0)) return;
+    c.spellPools[entry.pool]--;
+    if (state.stats) state.stats[c.side === "party" ? "partyItemsUsed" : "foeItemsUsed"]++;
+    c.cond[slug] = Math.max(0, value - (Number(entry.by) || 1));
+    log(state, `  ${c.name} uses ${entry.name}: ${slug} ${value} → ${c.cond[slug]}`);
 }
 
 // U12 (2026-10-16; the user: "Add the persistent damage recovery items freely"): the item module's plan.item.recovery — Quenching Potion,
@@ -1395,6 +1449,8 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${stackedValue(target, change, true)}` : ""}`);
                     // Retching: a Fortitude save against the DC of what made it sickened.
                     if (change.slug === "sickened") target.sickenedDC = Math.max(target.sickenedDC ?? 0, effectDC(spell) ?? 0) || null;
+                    // (U13, Lion Badge: frightened from a Will save — its talisman lowers it.)
+                    if (target.reduceTriggers?.length) reduceOnGain(state, target, change.slug, describeSpell(spell.plan).check?.statistic ?? null);
                 }
                 break;
             case "move":
@@ -1512,6 +1568,8 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
         const target = state.byId.get(id);
         if (target && (isActive(target) || target.status === DOWN)) applyItemCounteract(state, caster, spell, target);
     }
+    // (U13: the conditions it lowers — on those it was used on, or its user.)
+    if (spell?.reduce) applyItemReduce(state, caster, spell, (targetIds ?? []).map((id) => state.byId.get(id)).filter(Boolean));
     // (U12: its persistent damage recovery — Quenching Potion's flat check.)
     if (spell?.recovery) for (const id of targetIds ?? []) {
         const target = state.byId.get(id);
@@ -2686,6 +2744,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         const entry = { target, damage: 0, worth: 0, heal: 0, benefit: 0 };
         // (U10: an item's own counteract — the chance it ends each thing it names on the creature, times what that thing costs it.)
         if (spell.counteract) entry.benefit += itemCounteractWorth(state, spell, target);
+        // (U13: the conditions it lowers on this creature.)
+        if (spell.reduce) entry.benefit += itemReduceWorth(spell, target, caster);
         // (U12: its persistent damage recovery — the damage it saves the creature, as damage not taken: its share of the creature's Hit
         // Points, however hurt it is already.)
         if (spell.recovery) entry.damage -= itemRecoveryWorth(spell, target);

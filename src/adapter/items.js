@@ -87,7 +87,9 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
     // (One of the user's own Strikes with riders added — Fear Gem, plan.strike: not yet.)
     if (plan?.strike) return null;
     const casting = plan?.builtin === "cast-spell" && cast?.plan?.resolution ? cast : null;
-    if (!casting && (!plan?.resolution || plan.builtin || plan.noteOnly)) return null;
+    // (U13: a note-only item that lowers a condition — Serene Smelling Salts: its reduction is what's played.)
+    const extras = Boolean(plan?.item?.reduce?.length || plan?.item?.recovery?.types?.length);
+    if (!casting && (!plan?.resolution || plan.builtin || (plan.noteOnly && !extras))) return null;
     const item = plan.item ?? {};
     const coated = item.delivery === "injury" && onStrike ? onStrike : null;
     if ((item.delivery === "injury" && !coated) || ["snare", "ammo", "ammunition"].includes(item.category)) return null;
@@ -101,7 +103,12 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
     const casts = itemCasts({ category: reusable ? "wand" : "consumable", quantity, uses: { max, value: left }, fresh: reusable && fresh });
     if (!casts) return null;
     // (U10: one that only counteracts goes on whoever it's used on, as a drink does — Salve of Antiparalysis, an oil, applied.)
-    const drinker = item.recipient === "drinker" || counteractOnly;
+    // (U13: one for the creatures it names, "targets", whose plan names no number of them — Therapeutic Snap Peas: one, as a drink is,
+    // until the plan says how many.)
+    const named = Boolean(plan.targeting?.range || plan.targeting?.area) || /\b(?:creature|ally|allies|target|enemy|foe)s?\b/i.test(String(plan.targeting?.target ?? "").replace(/\bthe drinker\b/i, ""));
+    const drinker = item.recipient === "drinker" || counteractOnly || (item.recipient === "targets" && !named);
+    // (U13: one that lowers its user's own condition and names no target — Pepper Poultice: on its user.)
+    const onUser = item.recipient === "user" && Boolean(item.reduce?.length) && !named && !(plan.resolution?.applications ?? []).length;
     // (Its own Activate line's cost and traits — "Activate [one-action] (manipulate)": a manipulate action provokes. A copy whose text has
     // none, a bestiary creature's short one: PF2e's usual Activate for what's drunk or applied.)
     const own = item.activations?.[0] ?? (DRUNK_OR_APPLIED.includes(item.category) ? { time: "1", traits: ["manipulate"] } : null);
@@ -111,7 +118,7 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         ? { ...(base.activation ?? {}), time: own?.time ?? base.activation?.time ?? null, traits: [...(own?.traits ?? [])] }
         : { ...(plan.activation ?? {}), time: plan.activation?.time ?? own?.time ?? null, traits: [...new Set([...(plan.activation?.traits ?? []), ...(own?.traits ?? [])])] };
     // (Drunk: by the user or a creature beside it, fed to it. A cast "on you" that isn't drunk: on the user.)
-    const targeting = drinker ? { ...(base.targeting ?? {}), target: "1 willing creature", range: "touch" } : casting && plan.self ? { ...(base.targeting ?? {}), target: "self", range: null } : null;
+    const targeting = drinker ? { ...(base.targeting ?? {}), target: "1 willing creature", range: "touch" } : (casting && plan.self) || onUser ? { ...(base.targeting ?? {}), target: "self", range: null } : null;
     const fitted = coated
         ? { ...base, activation, trigger: { ...(base.trigger ?? {}), event: "strike", attackEffect: coated, cost: "free" } }
         : { ...base, activation, ...(targeting ? { targeting } : {}) };
@@ -131,6 +138,8 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         ...(draw > 0 && !coated ? { draw: { actions: draw, each: !reusable } } : {}),
         // (U10: its counteract check — the item module's plan.item.counteract, beside a plan of its own or alone.)
         ...(item.counteract ? { counteract: { ...item.counteract } } : {}),
+        // (U13: the conditions it lowers — on whoever it's used on for a drink or one for others ("targets"), else on its user.)
+        ...(item.reduce?.length ? { reduce: item.reduce.map((entry) => ({ ...entry, on: drinker || entry.who === "targets" ? "targets" : "user" })) } : {}),
         // (U12: a flat check to end persistent damage of its types at once — Quenching Potion's — used freely, the user's call.)
         ...(item.recovery?.types?.length ? { recovery: { types: [...item.recovery.types], dc: Number(item.recovery.dc) || 15 }, free: true } : {})
     };
@@ -265,4 +274,19 @@ export function itemFortune(plan, { id, name = null, quantity = 1, uses = null, 
     const casts = itemCasts({ category: reusable ? "wand" : "consumable", quantity, uses: { max: Math.max(1, Number(uses?.max ?? item.uses?.max) || 1), value: uses?.value }, fresh: reusable && fresh });
     if (!casts) return null;
     return { name: name ?? plan.source?.name ?? "Item", selector: plan.rollTwice.selector, pool: `item:${id}`, casts, item: id, consumable: !reusable, ...(FORTUNE_EXTRAS[plan.source?.slug] ?? {}) };
+}
+
+// U13 (2026-10-16; the user: "Yes add them"): a talisman that lowers a condition as it's gained — Lion Badge ("Trigger You gain the
+// Frightened condition as a result of a Will save … reduce the value of your frightened condition by 1"; a PC expert in Will saves) — as the
+// creature's reduce trigger: { name, on, save, by, pool, casts, item, consumable, requires }. Its trigger by its slug (REDUCE_TRIGGERS).
+const REDUCE_TRIGGERS = Object.freeze({ "lion-badge": { on: "frightened", save: "will", requires: "expert-will" } });
+export function itemReduceTrigger(plan, { id, name = null, quantity = 1, uses = null, fresh = false } = {}) {
+    const trigger = REDUCE_TRIGGERS[plan?.source?.slug];
+    const reduce = (plan?.item?.reduce ?? []).find((entry) => entry.slug === trigger?.on);
+    if (!trigger || !reduce) return null;
+    const item = plan.item ?? {};
+    const reusable = (uses?.autoDestroy ?? item.uses?.autoDestroy) === false;
+    const casts = itemCasts({ category: reusable ? "wand" : "consumable", quantity, uses: { max: Math.max(1, Number(uses?.max ?? item.uses?.max) || 1), value: uses?.value }, fresh: reusable && fresh });
+    if (!casts) return null;
+    return { name: name ?? plan.source?.name ?? "Item", ...trigger, by: reduce.by, pool: `item:${id}`, casts, item: id, consumable: !reusable };
 }

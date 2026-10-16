@@ -504,3 +504,61 @@ test("U12: a recovery item — its flat check ends persistent damage of its type
     assert.deepEqual(pc.persistent.map((each) => each.type), ["bleed"], state.log.join("\n"));
     assert.ok(state.log.some((line) => line.includes("persistent fire: flat check DC 10 → ended (Test Quench)")));
 });
+
+// U13 (2026-10-16; the user: "Yes add them"): plan.item.reduce, the "targets" recipient, and Lion Badge's trigger.
+const fearRow = (value) => ({ damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: value ? [{ kind: "condition", slug: "frightened", value, duration: null }] : [] });
+const PARALYZE_LIKE = { modelVersion: 12, source: { name: "Test Scare" }, rank: 3, traits: ["mental"], activation: { time: "2" }, targeting: { target: "1 creature", range: "30 feet" },
+    resolution: { kind: "save", check: { statistic: "will", basic: false }, outcomes: { criticalSuccess: fearRow(0), success: fearRow(1), failure: fearRow(2), criticalFailure: fearRow(3) } } };
+const reducer = (name, slug, reduce, extra = {}) => ({ modelVersion: 13, source: { name, slug }, rank: 1, traits: ["consumable"], activation: { time: "1", traits: ["manipulate"] }, targeting: { target: extra.target ?? null }, trigger: { event: "use" },
+    resolution: { kind: "check", check: { roll: "automatic" }, outcomes: { success: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] } } }, ...(extra.noteOnly ? { noteOnly: true } : {}),
+    item: { ...itemInfo("other", 3), recipient: extra.recipient ?? "drinker", reduce } });
+
+test("U13: an item lowers the conditions it names — on the one it's used on (a drink), or its user; the step that helps most for a choice; all for \"all\"", async () => {
+    const { itemReduceWorth } = await import("../src/engine/spells.js");
+    // A bun, drunk (note-only text aside: its reduction is played).
+    let { state, pc, index } = withItem(reducer("Test Bun", "test-bun", [{ slug: "frightened", by: 1 }], { noteOnly: true }));
+    const bun = pc.spells[index];
+    assert.deepEqual([bun.drinker, bun.reduce], [true, [{ slug: "frightened", by: 1, on: "targets" }]]);
+    assert.equal(itemReduceWorth(bun, pc, pc), 0);
+    pc.cond.frightened = 2;
+    assert.ok(itemReduceWorth(bun, pc, pc) > 0);
+    castSpell(state, pc, index, [pc.id]);
+    assert.equal(pc.cond.frightened, 1, state.log.join("\n"));
+    assert.ok(state.log.some((line) => line.includes("frightened 2 → 1 (Test Bun)")));
+    // A poultice on its user: no target named, on itself.
+    ({ state, pc, index } = withItem(reducer("Test Poultice", "test-poultice", [{ slug: "sickened", by: 1 }], { recipient: "user" })));
+    assert.equal(pc.spells[index].plan.targeting.target, "self");
+    pc.cond.sickened = 2;
+    castSpell(state, pc, index, [pc.id]);
+    assert.equal(pc.cond.sickened, 1);
+    // One of several (the one that helps most) and "all".
+    ({ state, pc, index } = withItem(reducer("Test Salts", "test-salts", [{ choose: ["clumsy", "frightened"], by: 1 }, { slug: "stupefied", by: "all" }])));
+    // (Frightened 3 → 2 is worth more than clumsy 1 → 0.)
+    Object.assign(pc.cond, { clumsy: 1, frightened: 3, stupefied: 2 });
+    castSpell(state, pc, index, [pc.id]);
+    assert.deepEqual([pc.cond.clumsy, pc.cond.frightened, pc.cond.stupefied], [1, 2, 0]);
+});
+
+test("U13: an item for \"targets\" that names none plays on one creature, as a drink; Lion Badge lowers frightened from a Will save, used up", async () => {
+    const { itemReduceTrigger } = await import("../src/adapter/items.js");
+    const peas = itemEntry({ ...POTION, targeting: { target: "the drinker" }, item: { ...POTION.item, recipient: "targets" } }, { id: "p" });
+    assert.equal(peas.drinker, true);
+    const lantern = itemEntry({ ...ELIXIR, targeting: { target: "1 creature", range: "15 feet" }, item: { ...ELIXIR.item, recipient: "targets" } }, { id: "l" });
+    assert.equal(lantern.drinker, undefined, "it names its own targets");
+    const badge = itemReduceTrigger(reducer("Lion Badge", "lion-badge", [{ slug: "frightened", by: 1 }], { recipient: "user" }), { id: "b" });
+    assert.deepEqual([badge.on, badge.save, badge.by, badge.requires], ["frightened", "will", 1, "expert-will"]);
+    const { state, pc, brute } = setUp({ potions: 0 });
+    pc.reduceTriggers = [badge];
+    pc.spellPools[badge.pool] = 1;
+    brute.spells = [{ name: "Test Scare", plan: { ...PARALYZE_LIKE, resolution: { ...PARALYZE_LIKE.resolution, check: { roll: "save", statistic: "will", basic: false } } }, castRank: 3, dc: 40, attack: 30, pool: null }];
+    pc.heroPoints = 0;
+    state.rng.d20 = () => 2;
+    castSpell(state, brute, 0, [pc.id]);
+    // (A critical failure, frightened 3: one lower.)
+    assert.equal(pc.cond.frightened, 2, state.log.join("\n"));
+    assert.ok(state.log.some((line) => line.includes("uses Lion Badge: frightened 3 → 2")));
+    assert.equal(pc.spellPools[badge.pool], 0);
+    // Used up: the next fright stays.
+    castSpell(state, brute, 0, [pc.id]);
+    assert.equal(pc.cond.frightened, 3);
+});
