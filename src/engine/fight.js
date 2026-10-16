@@ -31,6 +31,7 @@ import { familiarFocus, familiarKeepsUp } from "./familiars.js";
 import { championOpening, marchOfLaw, shatterDefenses, zealCritical } from "./champion.js";
 import { castLuminance, dismissLuminance, luminanceTurnStart } from "./luminance.js";
 import { initiativeFortune } from "./fortune-items.js";
+import { ownAttacks } from "./consumables.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -65,6 +66,8 @@ export function prepareSnapshot(snapshot) {
             c.morale = { ...auto, ...(c.morale ?? {}) };
         }
         c.reactions = { aoo: false, shieldBlock: false, ...(c.reactions ?? {}) };
+        // (U14: a spellgun's attack, the creature's better spell or firearm attack.)
+        if (c.spells?.some((spell) => spell.ownAttack)) c.spells = ownAttacks(c);
         // A self-effect's extra damage, on the Strikes it names (B69).
         if (c.selfEffects?.some((entry) => entry.model?.strikeParts)) c.selfEffects = c.selfEffects.map((entry) => (entry.model?.strikeParts ? { ...entry, model: { ...entry.model, strikeDeltas: deltasFor(c.strikes ?? [], entry.model.strikeParts) } } : entry));
     }

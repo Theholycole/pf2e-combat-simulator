@@ -562,3 +562,54 @@ test("U13: an item for \"targets\" that names none plays on one creature, as a d
     castSpell(state, brute, 0, [pc.id]);
     assert.equal(pc.cond.frightened, 3);
 });
+
+// U14 (2026-10-16; the item module's spellguns): "a spell attack roll or a firearm attack roll" — its user's better one.
+const shot = (multiplier) => ({ damage: { mode: "shared", multiplier, sourceComponentIds: ["0"] }, effects: [], modifiers: [] });
+const SPELLGUN = { modelVersion: 13, source: { name: "Test Spellgun", slug: "test-spellgun" }, rank: 1, traits: ["consumable", "magical", "spellgun"], activation: { time: "1", traits: ["manipulate"] }, automation: { level: "automatic" },
+    targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" }, ownCheck: { kind: "attack", modifier: null, choose: ["spell", "firearm"] },
+    resolution: { kind: "check", check: { roll: "skill", statistic: "attack", against: { dc: "target", statistic: "ac" } }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "4d6", type: "fire", category: null }] },
+        outcomes: { criticalSuccess: shot(2), success: shot(1), failure: { ...none }, criticalFailure: { ...none } } }, item: { ...itemInfo("other", 5), recipient: "user" } };
+
+function gunner({ firearm = null, spellAttack = null } = {}) {
+    const [fighter] = martialParty(5);
+    const entry = itemEntry(SPELLGUN, { id: "gun", quantity: 2 });
+    const strikes = [...fighter.strikes, ...(firearm !== null ? [{ name: "Test Pistol", bonus: firearm, melee: false, increment: 30, firearm: true, damage: [{ dice: 1, die: 4, bonus: 0, type: "piercing" }] }, { name: "Test Crossbow", bonus: firearm + 5, melee: false, increment: 120, firearm: true, crossbow: true, damage: [{ dice: 1, die: 8, bonus: 0, type: "piercing" }] }] : [])];
+    const known = spellAttack !== null ? [{ name: "Test Ray", plan: PARALYZE_LIKE, castRank: 1, dc: spellAttack + 10, attack: spellAttack, pool: null }] : [];
+    const pc = { ...fighter, band: "near", engagement: 1, strikes, spells: [...known, entry], spellPools: { [entry.pool]: entry.casts } };
+    const brute = { ...moderateCreature(5, "brute", "Brute"), band: "near", engagement: 1 };
+    const state = createFightState({ combatants: [pc, brute] }, {}, 1);
+    state.log = [];
+    state.round = 1;
+    return { state, pc: state.byId.get(fighter.id), brute: state.byId.get("brute") };
+}
+
+test("U14: a spellgun is an attack with its user's better attack — a spell attack or a firearm's (not a crossbow's); with neither it's left out", () => {
+    const entry = itemEntry(SPELLGUN, { id: "gun" });
+    assert.deepEqual([entry.ownAttack, entry.plan.traits.includes("attack")], [["spell", "firearm"], true]);
+    assert.equal(itemEntry({ ...SPELLGUN, ownCheck: { kind: "attack", modifier: 14 } }, { id: "c" }).ownAttack, undefined, "an item's own +14 isn't its user's");
+    const gun = (pc) => pc.spells.find((spell) => spell.ownAttack);
+    assert.deepEqual(gun(gunner({ firearm: 14, spellAttack: 11 }).pc).ownAttacks, { spell: 11, firearm: 14 });
+    assert.deepEqual(gun(gunner({ spellAttack: 11 }).pc).ownAttacks, { spell: 11 });
+    assert.equal(gun(gunner().pc), undefined, "no spell attack, no firearm: not usable");
+});
+
+test("U14: fired, it rolls the better after each one's penalties — clumsy lowers the firearm's, stupefied the spell's", async () => {
+    const { ownAttackModifier } = await import("../src/engine/consumables.js");
+    const { state, pc, brute } = gunner({ firearm: 14, spellAttack: 12 });
+    const index = pc.spells.findIndex((spell) => spell.ownAttack);
+    const gun = pc.spells[index];
+    assert.equal(ownAttackModifier(gun, pc), 14);
+    pc.cond.clumsy = 3;
+    assert.equal(ownAttackModifier(gun, pc), 12, "the spell attack's 12 beats the clumsy firearm's 11");
+    pc.cond.stupefied = 2;
+    assert.equal(ownAttackModifier(gun, pc), 11);
+    pc.cond.clumsy = 0;
+    pc.cond.stupefied = 0;
+    // A 10 on the die: 10 + 14 = 24 against its AC.
+    state.rng.d20 = () => 10;
+    const hp = brute.hp.value;
+    castSpell(state, pc, index, [brute.id]);
+    assert.ok(state.log.some((line) => /Test Spellgun/.test(line)), state.log.join("\n"));
+    assert.equal(brute.hp.value < hp, 24 >= brute.ac, state.log.join("\n"));
+    assert.equal(pc.spellPools[gun.pool], 1);
+});

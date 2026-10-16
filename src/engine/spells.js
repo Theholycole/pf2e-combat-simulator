@@ -36,6 +36,7 @@ import { takeControl } from "./control.js";
 import { noteKnown } from "./readings.js";
 import { hexFamiliar } from "./familiars.js";
 import { canSpendHero, saveWorthReroll, spendHeroPoint, takesOut } from "./heroes.js";
+import { ownAttackModifier } from "./consumables.js";
 
 const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
 const registry = createRegistry();
@@ -267,6 +268,8 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
             // Spell attacks have the attack trait, so the multiple attack penalty applies.
             if (slug === "spell") return { modifier: (spell.attack ?? 0) - checkPenalty - mapPenalty() + effectBonus(c, "spell") + effectBonus(c, "attack"), dc: (spell.dc ?? 10) - checkPenalty + effectBonus(c, "spell") };
             if (slug === "strike") return { modifier: Math.max(0, ...(c.strikes ?? []).map((strike) => strike.bonus)) - checkPenalty - mapPenalty() + effectBonus(c, "attack") };
+            // (U14: a spellgun's attack — its user's own, set as the fight is prepared, with the multiple attack penalty.)
+            if (slug === "attack" && spell.ownAttack && c === caster) return { modifier: ownAttackModifier(spell, c) - mapPenalty() + effectBonus(c, "attack") };
             if (slug === "fortitude" || slug === "reflex" || slug === "will") {
                 // +1 status to all saves vs. magic and the like, against this spell or ability.
                 const modifier = saveModifier(c, slug) + (c !== caster ? saveBonusAgainst(c, slug, spell) : 0);
