@@ -1043,6 +1043,34 @@ function applyItemCounteract(state, caster, spell, target) {
     }
 }
 
+// U12 (2026-10-16; the user: "Add the persistent damage recovery items freely"): the item module's plan.item.recovery — Quenching Potion,
+// Antivenom Potion, Searing Suture, Cauterizing Torch: a flat check (the item's DC, DC 10 for "particularly appropriate help") against each
+// persistent damage of its types on the creature it's used on, which ends it on a success. Worth the damage it saves: the chance times about
+// two rounds of it (as a persistent damage is valued when it's dealt).
+const recovering = (spell, target) => (target.persistent ?? []).filter((entry) => spell.recovery.types.includes(entry.type));
+function persistentAverage(target, entry) {
+    const each = Number.isFinite(entry.amount) ? entry.amount : ((entry.dice ?? 0) * ((entry.die ?? 0) + 1) / 2 + (entry.bonus ?? 0)) * (entry.multiplier ?? 1);
+    return adjustInstance(target, entry.type, Math.max(0, each));
+}
+
+export function itemRecoveryWorth(spell, target) {
+    const chance = Math.min(1, Math.max(0, (21 - spell.recovery.dc) / 20));
+    return recovering(spell, target).reduce((sum, entry) => sum + chance * 2 * persistentAverage(target, entry), 0);
+}
+
+function applyItemRecovery(state, spell, target) {
+    const entries = recovering(spell, target);
+    if (!entries.length) {
+        log(state, `  ${spell.name} finds no persistent damage to end on ${target.name}`);
+        return;
+    }
+    for (const entry of entries) {
+        const success = flatCheck(state.rng, spell.recovery.dc) >= SUCCESS;
+        log(state, `  ${target.name}'s persistent ${entry.type}: flat check DC ${spell.recovery.dc} → ${success ? "ended" : "goes on"} (${spell.name})`);
+        if (success) target.persistent.splice(target.persistent.indexOf(entry), 1);
+    }
+}
+
 // Cleanse Affliction: one affliction of its traits a stage lower, not below the floor.
 function applyAfflictionStage(state, target, change) {
     const entry = (target.afflictions ?? []).filter((held) => held.stage > (change.floor ?? 1) && (!(change.traits ?? []).length || (held.data?.traits ?? []).some((trait) => change.traits.includes(trait)))).sort((a, b) => b.stage - a.stage)[0];
@@ -1483,6 +1511,11 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
     if (spell?.counteract) for (const id of targetIds ?? []) {
         const target = state.byId.get(id);
         if (target && (isActive(target) || target.status === DOWN)) applyItemCounteract(state, caster, spell, target);
+    }
+    // (U12: its persistent damage recovery — Quenching Potion's flat check.)
+    if (spell?.recovery) for (const id of targetIds ?? []) {
+        const target = state.byId.get(id);
+        if (target && (isActive(target) || target.status === DOWN)) applyItemRecovery(state, spell, target);
     }
     // (Invisibility: it ends once a harmful spell is cast.)
     const info = spell?.plan ? describeSpell(spell.plan, actions) : null;
@@ -2653,6 +2686,9 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         const entry = { target, damage: 0, worth: 0, heal: 0, benefit: 0 };
         // (U10: an item's own counteract — the chance it ends each thing it names on the creature, times what that thing costs it.)
         if (spell.counteract) entry.benefit += itemCounteractWorth(state, spell, target);
+        // (U12: its persistent damage recovery — the damage it saves the creature, as damage not taken: its share of the creature's Hit
+        // Points, however hurt it is already.)
+        if (spell.recovery) entry.damage -= itemRecoveryWorth(spell, target);
         result.push(entry);
         // (I1: nothing on a creature immune to it; T7: nor a non-damaging one aimed at one creature on a troop.)
         if (effectImmunity(target, spell) || outsideTargets(caster, target, spell)) continue;

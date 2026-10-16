@@ -130,7 +130,9 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         ...(drinker ? { drinker: true } : {}),
         ...(draw > 0 && !coated ? { draw: { actions: draw, each: !reusable } } : {}),
         // (U10: its counteract check — the item module's plan.item.counteract, beside a plan of its own or alone.)
-        ...(item.counteract ? { counteract: { ...item.counteract } } : {})
+        ...(item.counteract ? { counteract: { ...item.counteract } } : {}),
+        // (U12: a flat check to end persistent damage of its types at once — Quenching Potion's — used freely, the user's call.)
+        ...(item.recovery?.types?.length ? { recovery: { types: [...item.recovery.types], dc: Number(item.recovery.dc) || 15 }, free: true } : {})
     };
 }
 

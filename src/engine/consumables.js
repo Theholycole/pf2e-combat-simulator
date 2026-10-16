@@ -40,6 +40,7 @@ export function urgentHealing(state, c, spell, targets, actions) {
 // What the planner weighs an option's value by: 1, or for a PC's consumable 1 / the margin (state.options.consumableMargin, else
 // CONSUMABLE_MARGIN) unless it's urgent healing.
 export function consumableWeight(state, c, spell, targets, actions) {
-    if (!spell?.consumable || c.kind !== "pc" || urgentHealing(state, c, spell, targets, actions)) return 1;
+    // (U12: an item to be used freely, the user's call — the persistent damage recovery ones.)
+    if (!spell?.consumable || spell.free || c.kind !== "pc" || urgentHealing(state, c, spell, targets, actions)) return 1;
     return 1 / Math.max(1, Number(state.options?.consumableMargin) || CONSUMABLE_MARGIN);
 }

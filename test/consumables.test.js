@@ -482,3 +482,25 @@ test("U11: Eye of Apprehension — a monster rolls initiative twice; a PC only i
     assert.equal(pc.spellPools[eye.pool], 0);
     assert.ok(state.log.some((line) => line.includes("uses Eye of Apprehension: rolls initiative twice")));
 });
+
+// U12 (2026-10-16; the user: "Add the persistent damage recovery items freely"): the item module's plan.item.recovery.
+const QUENCH = { modelVersion: 13, source: { name: "Test Quench", slug: "test-quench" }, rank: 1, traits: ["consumable", "potion"], activation: { time: "1", traits: ["manipulate"] }, targeting: { target: null }, trigger: { event: "use" },
+    resolution: { kind: "check", check: { roll: "automatic" }, outcomes: { success: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] } } }, item: { ...itemInfo("potion", 3), recovery: { types: ["acid", "fire"], dc: 10 } } };
+
+test("U12: a recovery item — its flat check ends persistent damage of its types; used freely, worth the damage it saves", async () => {
+    const { itemRecoveryWorth } = await import("../src/engine/spells.js");
+    const entry = itemEntry(QUENCH, { id: "q", quantity: 1 });
+    assert.deepEqual([entry.recovery, entry.free, entry.drinker], [{ types: ["acid", "fire"], dc: 10 }, true, true]);
+    const { state, pc } = withItem(QUENCH);
+    const quench = pc.spells.at(-1);
+    assert.equal(consumableWeight(state, pc, quench, [pc]), 1, "used freely");
+    assert.equal(itemRecoveryWorth(quench, pc), 0);
+    // Burning badly (6d6 fire): drunk, and on a 15 (DC 10) the fire ends; bleed stays.
+    pc.persistent = [{ type: "fire", dice: 6, die: 6, bonus: 0, multiplier: 1 }, { type: "bleed", dice: 1, die: 6, bonus: 0, multiplier: 1 }];
+    assert.ok(Math.abs(itemRecoveryWorth(quench, pc) - 0.55 * 2 * 21) < 1e-9);
+    const action = chooseAction(state, pc);
+    assert.deepEqual([action?.type, action?.spellIndex], ["cast", pc.spells.length - 1], JSON.stringify(action));
+    castSpell(state, pc, action.spellIndex, action.targetIds);
+    assert.deepEqual(pc.persistent.map((each) => each.type), ["bleed"], state.log.join("\n"));
+    assert.ok(state.log.some((line) => line.includes("persistent fire: flat check DC 10 → ended (Test Quench)")));
+});
