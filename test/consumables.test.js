@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 
 import { createFightState } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
@@ -740,4 +741,39 @@ test("U16: Oil of Swiftness — quickened for the minute, its extra action from 
     assert.equal(burial(), 0);
     state.byId.get("brute").traits = ["undead"];
     assert.ok(burial() > 0);
+});
+
+// U17 (2026-10-16; the item module's plan.action): an item used as part of one of PF2e's actions — the Alchemists+ plants.
+const BASIC_PACKS = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
+const basicsAvailable = existsSync(`${BASIC_PACKS}/actions`) && existsSync(new URL("../../PF2e AUTOMATIC ABILITY RESOLUTION/src/compiler/index.js", import.meta.url));
+test("U17: a plant used as part of a Grapple — PF2e's Grapple at the higher of its user's Athletics and the item's +5; a choice of actions not yet", { skip: !basicsAvailable && "the ability module or PF2e's packs not found" }, async () => {
+    const { readDocuments } = await import("../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs");
+    const { compileBasicActions } = await import("../../PF2e AUTOMATIC ABILITY RESOLUTION/src/compiler/index.js");
+    const basics = compileBasicActions(readDocuments(`${BASIC_PACKS}/actions`).filter((doc) => doc.collection === "items"));
+    const flytrap = { modelVersion: 13, source: { name: "Test Flytrap", slug: "test-flytrap" }, rank: 1, traits: ["alchemical", "consumable", "plant"], activation: { time: "1", traits: [] }, builtin: "item-action", automation: { level: "automatic" },
+        targeting: { target: "the creature targeted", range: null, area: null }, trigger: { event: "use" }, action: { slug: "grapple", name: "Grapple", bonus: null, minimum: { value: 5, skill: "athletics" }, targeted: true, basic: basics.grapple }, item: { ...itemInfo("other", 1), recipient: "user" } };
+    const entry = itemEntry(flytrap, { id: "f" });
+    assert.deepEqual([entry.itemAction, entry.plan.resolution.check.statistic, entry.plan.activation.traits.includes("attack")], [{ slug: "grapple", minimum: { value: 5, skill: "athletics" } }, "athletics", true]);
+    assert.equal(itemEntry({ ...flytrap, action: { ...flytrap.action, slugs: ["grapple", "trip"], basics: { grapple: basics.grapple, trip: basics.trip } } }, { id: "c" }), null);
+    const { state, pc, index, brute } = withItem(flytrap);
+    pc.skills = { ...(pc.skills ?? {}), athletics: 2 };
+    // Fortitude DC 18: a 13 fails at +2 but succeeds at +5.
+    brute.saves = { ...brute.saves, fortitude: 8 };
+    state.rng.d20 = () => 13;
+    castSpell(state, pc, index, [brute.id]);
+    assert.equal(brute.cond.grabbed, true, state.log.join("\n"));
+    // Without the item's +5, the same 13 fails.
+    const plain = withItem({ ...flytrap, action: { ...flytrap.action, minimum: null } });
+    plain.pc.skills = { ...(plain.pc.skills ?? {}), athletics: 2 };
+    plain.brute.saves = { ...plain.brute.saves, fortitude: 8 };
+    plain.state.rng.d20 = () => 13;
+    castSpell(plain.state, plain.pc, plain.index, [plain.brute.id]);
+    assert.equal(Boolean(plain.brute.cond.grabbed), false, plain.state.log.join("\n"));
+    // Its own Athletics when higher: +12 against the same die.
+    const second = withItem(flytrap);
+    second.pc.skills = { ...(second.pc.skills ?? {}), athletics: 12 };
+    second.brute.saves = { ...second.brute.saves, fortitude: 8 };
+    second.state.rng.d20 = () => 6;
+    castSpell(second.state, second.pc, second.index, [second.brute.id]);
+    assert.equal(second.brute.cond.grabbed, true);
 });

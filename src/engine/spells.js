@@ -283,7 +283,9 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
             // A skill check: the actor's roll (with the multiple attack penalty
             // for an attack-trait action), or another creature's DC.
             if (isCheckStatistic(slug)) {
-                if (c === caster) return { modifier: skillValue(c, slug) - statusPenalty(c, "skill") - (describeSpell(spell.plan, actions).attack ? mapPenalty() : 0) };
+                // (U17: an item's action — the higher of the user's skill and the item's, its bonus.)
+                const own = spell.itemAction?.minimum?.skill === slug ? Math.max(skillValue(c, slug), spell.itemAction.minimum.value) : skillValue(c, slug);
+                if (c === caster) return { modifier: own + (spell.itemAction?.bonus ?? 0) - statusPenalty(c, "skill") - (describeSpell(spell.plan, actions).attack ? mapPenalty() : 0) };
                 // (B105: its reaction making the Escape harder, Tighten Coils.)
                 return { modifier: skillValue(c, slug) - statusPenalty(c, "skill"), dc: (escapeDCAgainst(caster, c, spell, actions) ?? defenceDC(c, slug)) + (c.escapeGuardActive ?? 0) };
             }

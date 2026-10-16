@@ -94,6 +94,17 @@ function retaliationOf(plan) {
 // { effectModel, effects }: the simulation's zone, as an ability's (zones.js), thrown where it's worth it.
 export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, draw = 0, fresh = false, cast = null, onStrike = null, zone = null } = {}) {
     if (plan?.builtin === "zone") return zoneEntry(plan, { id, name, quantity, uses, draw, fresh, zone });
+    // (U17: an item used as part of one of PF2e's actions — the item module's plan.action, the Alchemists+ plants' Shove and Grapple: that
+    // action's own plan (the ability module's), at the higher of its user's skill and the item's value (action.minimum), with the item's
+    // bonus (action.bonus) or another skill (action.statistic). A choice of actions, not yet.)
+    let itemAction = null;
+    if (plan?.builtin === "item-action") {
+        const action = plan.action ?? {};
+        if ((action.slugs?.length ?? 0) > 1 || !action.basic?.resolution?.check || action.basic.builtin) return null;
+        const check = action.statistic ? { ...action.basic.resolution.check, statistic: action.statistic } : action.basic.resolution.check;
+        itemAction = { slug: action.slug, ...(action.minimum ? { minimum: { value: Number(action.minimum.value) || 0, skill: action.minimum.skill } } : {}), ...(action.bonus?.value ? { bonus: Number(action.bonus.value) || 0 } : {}) };
+        plan = { ...action.basic, source: plan.source, item: plan.item, builtin: undefined, resolution: { ...action.basic.resolution, check } };
+    }
     // (U10: an item that only counteracts — Surging Serum, Panacea: nothing of its own on the drinker, its counteract the item's rider below.)
     const counteractOnly = plan?.builtin === "counteract" && Boolean(plan.item?.counteract);
     if (counteractOnly) plan = { ...plan, builtin: undefined, resolution: COUNTERACT_ONLY };
@@ -169,6 +180,7 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         ...(item.reduce?.length ? { reduce: item.reduce.map((entry) => ({ ...entry, on: drinker || entry.who === "targets" ? "targets" : "user" })) } : {}),
         ...(retaliation ? { retaliation } : {}),
         ...(rune ? { rune } : {}),
+        ...(itemAction ? { itemAction } : {}),
         // (U12: a flat check to end persistent damage of its types at once — Quenching Potion's — used freely, the user's call.)
         ...(item.recovery?.types?.length ? { recovery: { types: [...item.recovery.types], dc: Number(item.recovery.dc) || 15 }, free: true } : {})
     };

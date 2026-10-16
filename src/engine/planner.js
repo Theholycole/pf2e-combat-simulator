@@ -908,7 +908,8 @@ function expandSpells(env) {
             }, actions);
             // (B304: a target need — Drag's Prone creature — only at those.)
             // (B313: Grapple, Reposition, Shove and Trip at a creature no more than one size larger.)
-            const sized = SIZE_LIMITED.has(spell.kind === "basic" ? spell.plan?.source?.slug ?? String(spell.name ?? "").toLowerCase() : null)
+            // (U17: an item's action, as that action.)
+            const sized = SIZE_LIMITED.has(spell.kind === "basic" ? spell.plan?.source?.slug ?? String(spell.name ?? "").toLowerCase() : spell.itemAction?.slug ?? null)
                 ? sets.filter((entry) => entry.targets.every((target) => target.side === c.side || sizeRank(target.size) <= sizeRank(c.size) + 1)) : sets;
             for (const set of spell.plan?.needs ? sized.filter((entry) => entry.targets.every((target) => target.side === c.side || targetNeedsMet(c, target, spell.plan.needs))) : sized) {
                 let gain = 0;
