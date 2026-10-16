@@ -16,7 +16,7 @@ try {
     claims = null;
 }
 const { basicActions, readDocuments, PACK_ROOT } = await import("./pack-creatures.mjs");
-const { hasTrigger, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan } = await import("../../src/adapter/items.js");
+const { hasTrigger, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, itemTriggered, verifiedPlan } = await import("../../src/adapter/items.js");
 // (A third-party item's own Effect only when its rules match its text: the item module's check, as its live play.)
 let verifyEffectRules = null;
 try {
@@ -59,7 +59,9 @@ export function npcItems(npc, { fresh = true } = {}) {
     const fortunes = [];
     // (U13: talismans that lower a condition as it's gained.)
     const reduceTriggers = [];
-    if (!compiler) return { spells, spellPools, activities, fortunes, reduceTriggers };
+    // (U21: items activated as their trigger comes — Dazing Coil on a hit.)
+    const triggered = [];
+    if (!compiler) return { spells, spellPools, activities, fortunes, reduceTriggers, triggered };
     const feats = (npc.items ?? []).filter((entry) => ["feat", "action"].includes(entry.type)).map((entry) => entry.system?.slug ?? entry.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
     // (U4: the attack effects its Strikes list — an injury poison among them is delivered by their hits.)
     const listed = new Set(npc.items.filter((entry) => entry.type === "melee").flatMap((entry) => entry.system?.attackEffects?.value ?? []));
@@ -119,7 +121,17 @@ export function npcItems(npc, { fresh = true } = {}) {
         // (U5: a lasting area's effects, for its zone.)
         const zoneEffects = plan?.builtin === "zone" ? itemEffectModels(plan, Number(plan.item?.level) || 1) : null;
         const zone = zoneEffects ? { effectModel: plan.zone?.effect ? zoneEffects[plan.zone.effect.uuid] ?? null : null, effects: zoneEffects } : null;
-        const entry = itemEntry(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, draw, fresh, cast, onStrike: slug && listed.has(slug) ? slug : null, zone, triggered: hasTrigger(description?.value) });
+        const answering = hasTrigger(description?.value) || Boolean(plan?.item?.activations?.[0]?.trigger);
+        const trigger = answering && plan ? itemTriggered(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, fresh }) : null;
+        if (trigger) {
+            const spec = { ...trigger, effects: { ...(trigger.effects ?? {}), ...itemEffectModels(trigger.plan, trigger.castRank) } };
+            if (!isUtility(trigger.plan)) {
+                spellPools[trigger.pool] = trigger.casts;
+                triggered.push(spec);
+            }
+            continue;
+        }
+        const entry = itemEntry(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, draw, fresh, cast, onStrike: slug && listed.has(slug) ? slug : null, zone, triggered: answering });
         if (!entry) continue;
         const spec = { ...entry, effects: { ...(entry.effects ?? {}), ...itemEffectModels(entry.plan, entry.castRank) } };
         // (A poison its Strikes deliver isn't an action of its own: its hits play it.)
@@ -128,5 +140,5 @@ export function npcItems(npc, { fresh = true } = {}) {
         spellPools[entry.pool] = entry.casts;
         spells.push(spec);
     }
-    return { spells, spellPools, activities, fortunes, reduceTriggers };
+    return { spells, spellPools, activities, fortunes, reduceTriggers, triggered };
 }

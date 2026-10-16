@@ -86,6 +86,21 @@ function retaliationOf(plan) {
 // (Prey Mutagen's Timely Dodge) has one further down, and the item is still drunk.)
 export const hasTrigger = (html) => /<strong>\s*Trigger\s*<\/strong>/i.test(String(html ?? "").split(/<hr\b/i)[0]);
 
+// U21 (2026-10-16): the triggers the simulation plays, by the item module's triggerOn event; an item for one is its entry with triggerOn,
+// kept apart from the creature's actions (c.triggeredItems, triggered-items.js). Only one that acts on the creature its trigger names (a
+// save or a check at it): an Effect its user puts on itself (Bloodseeker Beak's on the Strike's damage) isn't read yet.
+const PLAYED_TRIGGERS = new Set(["after-strike"]);
+export function itemTriggered(plan, options = {}) {
+    const on = plan?.item?.activations?.[0]?.triggerOn;
+    if (!PLAYED_TRIGGERS.has(on?.event) || plan.builtin || !["save", "check"].includes(plan.resolution?.kind)) return null;
+    if (!/\bcreature\b/i.test(String(plan.targeting?.target ?? ""))) return null;
+    // (A row that does something played: not Grinning Pugwampi's misfortune, a GM's instruction for now.)
+    const does = (row) => (row?.damage?.mode ?? "none") !== "none" || ["effects", "nativeEffects", "modifiers"].some((part) => (row?.[part] ?? []).length);
+    if (!Object.values(plan.resolution.outcomes ?? {}).some(does)) return null;
+    const entry = itemEntry(plan, { ...options, triggered: false });
+    return entry ? { ...entry, triggerOn: { ...on } } : null;
+}
+
 // U1 (2026-10-15), consumables. The user: "monsters should use their items freely. Players should use rechargeable or reusable items
 // freely but consumables should be weighted to be used when they provide significant more value than other options. Healing items
 // should be used freely if they are projected to go down soon or if they are used on another player that is already down."

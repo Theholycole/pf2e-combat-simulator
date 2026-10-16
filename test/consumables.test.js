@@ -812,3 +812,69 @@ test("U20: an item whose Activate has a Trigger its plan doesn't keep isn't used
     assert.ok(itemEntry(ELIXIR, { id: "u" }));
     assert.ok(itemEntry({ ...ELIXIR, trigger: { event: "damaged" } }, { id: "d", triggered: true }), "a trigger its plan keeps");
 });
+
+// U21 (2026-10-16): items played as their trigger comes — a hit with a Strike (the item module's triggerOn "after-strike").
+const DAZING = { modelVersion: 13, source: { name: "Test Coil", slug: "test-coil" }, rank: 1, traits: ["consumable", "magical", "talisman"], activation: { time: "free", traits: ["concentrate"] }, automation: { level: "automatic" },
+    targeting: { target: "1 creature", range: null, area: null }, trigger: { event: "use" },
+    resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 40 } }, outcomes: { criticalSuccess: { ...none }, success: { ...none }, failure: { ...none, effects: [{ kind: "condition", slug: "stunned", value: 1, duration: null }] }, criticalFailure: { ...none, effects: [{ kind: "condition", slug: "stunned", value: 1, duration: null }] } } },
+    item: { ...itemInfo("talisman", 14), recipient: "user", activations: [{ time: "free", traits: ["concentrate"], trigger: "You deal damage to an off-guard creature with the affixed weapon", triggerOn: { event: "after-strike", degrees: ["success", "criticalSuccess"], target: { condition: "off-guard" }, weapon: "affixed" } }] } };
+
+function coiled({ monster = false } = {}) {
+    const { itemTriggered } = itemsModule;
+    const entry = itemTriggered(DAZING, { id: "coil", quantity: 1 });
+    const [fighter, second] = martialParty(5);
+    const pc = { ...fighter, band: "near", engagement: 1, kind: monster ? "npc" : fighter.kind, triggeredItems: [entry], spellPools: { ...(fighter.spellPools ?? {}), [entry.pool]: 1 } };
+    const brute = { ...moderateCreature(5, "brute", "Brute"), band: "near", engagement: 1, saves: { fortitude: 10, reflex: 10, will: 5 } };
+    // (No ally beside it: a flanked brute would be off-guard.)
+    const state = createFightState({ combatants: [pc, { ...second, band: "far", engagement: 0 }, brute] }, {}, 1);
+    state.log = [];
+    state.round = 1;
+    computeThreats(state);
+    return { state, pc: state.byId.get(fighter.id), brute: state.byId.get("brute"), entry };
+}
+const itemsModule = await import("../src/adapter/items.js");
+
+test("U21: an item set off by a hit is kept apart from the creature's actions, only when its plan acts on the creature hit", () => {
+    const { itemTriggered } = itemsModule;
+    const entry = itemTriggered(DAZING, { id: "c" });
+    assert.deepEqual([entry.triggerOn.event, entry.triggerOn.target, entry.consumable], ["after-strike", { condition: "off-guard" }, true]);
+    assert.equal(itemTriggered({ ...DAZING, resolution: { kind: "effect", applications: [{ uuid: "x", recipients: "self" }] }, targeting: { target: null } }, { id: "s" }), null, "an Effect on its user: not yet");
+    assert.equal(itemTriggered({ ...DAZING, item: { ...DAZING.item, activations: [{ ...DAZING.item.activations[0], triggerOn: { event: "damaged" } }] } }, { id: "d" }), null, "another trigger: not yet");
+});
+
+test("U21: a monster's coil stuns an off-guard creature its weapon hits — not one that isn't off-guard, not with an unarmed attack, not when raging; used up", async () => {
+    const { performStrike } = await import("../src/engine/actions.js");
+    const { state, pc, brute } = coiled({ monster: true });
+    const weapon = pc.strikes.find((strike) => !strike.unarmed);
+    state.rng.d20 = () => 15;
+    performStrike(state, pc, brute, weapon);
+    assert.equal(brute.cond.stunned ?? 0, 0, "not off-guard");
+    brute.cond.offGuard = true;
+    performStrike(state, pc, brute, { ...weapon, unarmed: true, name: "Fist" });
+    assert.equal(brute.cond.stunned ?? 0, 0, "an unarmed attack isn't the affixed weapon");
+    // The save: a 15 + 5 against DC 40 fails.
+    performStrike(state, pc, brute, weapon);
+    assert.equal(brute.cond.stunned, 1, state.log.join("\n"));
+    assert.ok(state.log.some((line) => line.includes("Fighter uses Test Coil on Brute")));
+    assert.equal(pc.spellPools["item:coil"], 0);
+});
+
+test("U21: a PC uses its coil only in a hard fight", async () => {
+    const { performStrike } = await import("../src/engine/actions.js");
+    const { hardFight } = await import("../src/engine/fortune-items.js");
+    const { state, pc, brute } = coiled();
+    brute.cond.offGuard = true;
+    state.rng.d20 = () => 15;
+    const weapon = pc.strikes.find((strike) => !strike.unarmed);
+    // An easy fight first (a brute with 5 Hit Points left): kept.
+    brute.hp.value = 5;
+    brute.hp.max = 500;
+    assert.equal(hardFight(state, pc), false);
+    performStrike(state, pc, brute, { ...weapon, damage: [{ dice: 0, die: 0, bonus: 0, type: weapon.damage[0].type }] });
+    assert.equal(Boolean(brute.cond.stunned), false, state.log.join("\n"));
+    // A hard one (the brute's 500): used.
+    brute.hp.value = 500;
+    assert.equal(hardFight(state, pc), true);
+    performStrike(state, pc, brute, weapon);
+    assert.equal(brute.cond.stunned, 1, state.log.join("\n"));
+});

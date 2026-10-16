@@ -123,6 +123,7 @@ export function buildMonster(npc, variant = null) {
     if (items.activities.length) monster.strikeActivities = [...(monster.strikeActivities ?? []), ...items.activities];
     if (items.fortunes.length) monster.fortuneItems = [...(monster.fortuneItems ?? []), ...items.fortunes];
     if (items.reduceTriggers.length) monster.reduceTriggers = [...(monster.reduceTriggers ?? []), ...items.reduceTriggers];
+    if (items.triggered?.length) monster.triggeredItems = [...(monster.triggeredItems ?? []), ...items.triggered];
     if (own.summons?.length) monster.summons = [...(monster.summons ?? []), ...own.summons];
     if (variant?.type === "knockdown" && !KNOCKDOWNS[variant.id](monster, monster.level)) return null;
     let reserves = [];

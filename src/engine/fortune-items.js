@@ -65,13 +65,17 @@ export function initiativeFortune(state, c) {
     if (!entry) return false;
     // (A PC's: in a hard fight — the foes would last against its side's damage at least HARD_FIGHT of the time its side lasts against
     // theirs. Nothing else competes with it as initiative is rolled, so the margin doesn't apply: it's the fight that has to be worth it.)
-    if (c.kind === "pc") {
-        const foes = c.side === "party" ? "foes" : "party";
-        const members = (side) => state.list.filter((other) => other.side === side && other.status === "active");
-        const hp = (side) => members(side).reduce((sum, other) => sum + other.hp.value + (other.hp.temp ?? 0), 0);
-        const damage = (side) => Math.max(1, members(side).reduce((sum, other) => sum + (state.threat?.get(other.id) ?? 0), 0));
-        if (hp(foes) / damage(c.side) < HARD_FIGHT * (hp(c.side) / damage(foes))) return false;
-    }
+    if (c.kind === "pc" && !hardFight(state, c)) return false;
     spend(state, c, entry, "rolls initiative twice, the higher kept");
     return true;
+}
+
+// A hard fight for the creature's side: the foes would last against its side's damage at least HARD_FIGHT of the time its side lasts
+// against theirs.
+export function hardFight(state, c) {
+    const foes = c.side === "party" ? "foes" : "party";
+    const members = (side) => state.list.filter((other) => other.side === side && other.status === "active");
+    const hp = (side) => members(side).reduce((sum, other) => sum + other.hp.value + (other.hp.temp ?? 0), 0);
+    const damage = (side) => Math.max(1, members(side).reduce((sum, other) => sum + (state.threat?.get(other.id) ?? 0), 0));
+    return hp(foes) / damage(c.side) >= HARD_FIGHT * (hp(c.side) / damage(foes));
 }

@@ -5,7 +5,7 @@ import { extraDamageParts, parseReadableDamage, randomDamageRows } from "../src/
 import { eliteAdjust, weakAdjust } from "../src/engine/adjust.js";
 import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js";
 import { levelDC } from "../src/engine/checks.js";
-import { beltHeld, drawActions, hasTrigger, isBelt, isStaffItem, itemCasts, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
+import { beltHeld, drawActions, hasTrigger, isBelt, itemTriggered, isStaffItem, itemCasts, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { maneuverWays, withReading } from "../src/engine/readings.js";
 import { effectModel, iwrException } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
@@ -1147,7 +1147,7 @@ function consumableSpells(actor, gaps, { fresh, spellPools }) {
 // talismans and the like, as actions it can take — each stack its uses; taken out first unless held (PF2e's Interact: 1 worn, more
 // stowed). A monster uses them freely; a PC weighs them (consumables.js). Without the item module, they stay among the gaps.
 async function readConsumables(actor, gaps, { fresh = false, handled = new Set(), strikes = [] } = {}) {
-    const result = { spells: [], spellPools: {}, activities: [], fortunes: [], reduceTriggers: [] };
+    const result = { spells: [], spellPools: {}, activities: [], fortunes: [], reduceTriggers: [], triggered: [] };
     const feats = [...(actor.itemTypes?.feat ?? []), ...(actor.itemTypes?.action ?? [])].map((feat) => feat.slug).filter(Boolean);
     const core = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api : null;
     const items = (actor.itemTypes?.consumable ?? []).filter((item) => !SPELL_ITEMS.includes(item.category ?? item.system?.category) && (Number(item.quantity ?? item.system?.quantity ?? 1) || 0) > 0);
@@ -1210,8 +1210,16 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
             effectModel: plan.zone?.effect ? (await effectModels({ resolution: { outcomes: { success: { nativeEffects: [plan.zone.effect] } } } }, level))[plan.zone.effect.uuid] ?? null : null,
             effects: Object.assign({}, ...(await Promise.all((plan.zone?.saves ?? []).map((save) => effectModels(save.plan, level)))))
         } : null;
-        // (2026-10-16: one activated in answer to something its plan doesn't keep — Wolf Fang's Trip — isn't an action at will.)
-        const triggered = hasTrigger(item.system?.description?.value);
+        // (2026-10-16: one activated in answer to something its plan doesn't keep — Wolf Fang's Trip — isn't an action at will; U21: one
+        // whose trigger the simulation plays, used as it comes.)
+        const triggered = hasTrigger(item.system?.description?.value) || Boolean(plan.item?.activations?.[0]?.trigger);
+        const trigger = triggered ? itemTriggered(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, fresh }) : null;
+        if (trigger && !isUtility(trigger.plan)) {
+            handled.add(item);
+            result.spellPools[trigger.pool] = trigger.casts;
+            result.triggered.push({ ...trigger, effects: { ...(trigger.effects ?? {}), ...(await effectModels(trigger.plan, trigger.castRank)) } });
+            continue;
+        }
         const entry = itemEntry(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, draw, fresh, cast, onStrike, zone, triggered });
         if (!entry) {
             if (triggered) gaps.push({ kind: "item, triggered (not simulated yet)", name: item.name });
@@ -1618,6 +1626,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         // (U7: items used by Striking, after the creature's own activities.)
         ...(consumables.fortunes.length ? { fortuneItems: consumables.fortunes } : {}),
         ...(consumables.reduceTriggers.length ? { reduceTriggers: consumables.reduceTriggers } : {}),
+        ...(consumables.triggered.length ? { triggeredItems: consumables.triggered } : {}),
         ...(consumables.activities.length ? { strikeActivities: [...(abilities.builtins.strikeActivities ?? []), ...(features.fields.strikeActivities ?? []), ...consumables.activities] } : {}),
         // (Its PF2e self-effects, and a class feature's — Immortal Bastion's deflect, C33.)
         ...(selfEffects.length || features.fields.selfEffects?.length ? { selfEffects: [...(features.fields.selfEffects ?? []), ...selfEffects] } : {}),
