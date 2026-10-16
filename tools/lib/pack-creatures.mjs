@@ -111,6 +111,10 @@ export function combatant(npc) {
             // As the live snapshot reads them (C14, C16).
             ...(Number(traits.find((trait) => /^reload-\d+$/.test(trait))?.split("-")[1]) > 0 ? { reload: Number(traits.find((trait) => /^reload-\d+$/.test(trait)).split("-")[1]) } : {}),
             ...(traits.includes("concussive") ? { concussive: true } : {}),
+            // (As the live snapshot: a firearm or a crossbow for the gunslinger's and "firearm Strike" abilities — before 2026-10-16 none
+            // offline; U14: a crossbow marked, not a firearm for a spellgun.)
+            ...(["firearm", "crossbow"].includes(weaponGroup(item, traits)) ? { firearm: true } : {}),
+            ...(weaponGroup(item, traits) === "crossbow" ? { crossbow: true } : {}),
             ...(traits.includes("splash") ? { splashKind: "bomb" } : traits.some((trait) => /^scatter-\d+$/.test(trait)) ? { splashKind: "scatter" } : {}),
             ...(bomb ? { ammo: { pool: `item:${weapon._id}`, count: bombStock[`item:${weapon._id}`], reagents: false, startsEmpty: !quickBomber && weapon.system?.equipped?.carryType !== "held" }, consumable: true, ...(quickBomber ? {} : { reload: 1 }) } : {})
         });
