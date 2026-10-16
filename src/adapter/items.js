@@ -162,7 +162,8 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
     return {
         name: name ?? plan.source?.name ?? "Item",
         plan: fitted,
-        castRank: casting ? Math.max(1, Number(casting.castRank) || 1) : Math.max(1, Number(item.level) || 1),
+        // (U18: the item module's Generic Spellgun — a spell's rows heightened to the rank picked, plan.rank: played at that rank.)
+        castRank: casting ? Math.max(1, Number(casting.castRank) || 1) : plan.spellgun?.spell ? Math.max(1, Number(plan.rank) || 1) : Math.max(1, Number(item.level) || 1),
         dc: casting?.dc ?? null,
         attack: casting?.attack ?? null,
         pool: `item:${id}`,

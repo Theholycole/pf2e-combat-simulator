@@ -1241,7 +1241,7 @@ function applyNativeEffect(state, caster, spell, target, change) {
         const effect = applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell, traits: spell.plan?.traits ?? [] } });
         // (2026-10-15, Death Ward: the conditions its text suppresses while it lasts — Doomed.)
         if (spell.plan?.suppresses?.length) effect.suppress = [...spell.plan.suppresses];
-        log(state, `  ${target.name} gains ${model.name.replace(/^Spell Effect: /, "")}${change.effect?.kind === "modifier" ? ` (${change.effect.modifier.value} ${change.effect.modifier.type} to ${change.effect.modifier.selector})` : ""}`);
+        log(state, `  ${target.name} gains ${model.name.replace(/^Spell Effect: /, "")}${change.effect?.kind === "modifier" ? ` (${change.effect.modifier.value} ${change.effect.modifier.type ?? change.effect.modifier.modifierType ?? "untyped"} to ${change.effect.modifier.selector})` : ""}`);
     }
 }
 

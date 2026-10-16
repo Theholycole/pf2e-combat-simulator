@@ -777,3 +777,9 @@ test("U17: a plant used as part of a Grapple — PF2e's Grapple at the higher of
     castSpell(second.state, second.pc, second.index, [second.brute.id]);
     assert.equal(second.brute.cond.grabbed, true);
 });
+
+test("U18: the item module's Generic Spellgun — a spell's rows heightened to the rank picked, played at that rank (not the item's level)", () => {
+    const generic = { ...SPELLGUN, rank: 3, spellgun: { spell: { uuid: null, name: "Test Fear", rank: 1 }, mapping: "save" }, item: { ...SPELLGUN.item, level: 5 } };
+    assert.equal(itemEntry(generic, { id: "g" }).castRank, 3);
+    assert.equal(itemEntry(SPELLGUN, { id: "p" }).castRank, 5, "PF2e's own spellguns: the item's level");
+});
