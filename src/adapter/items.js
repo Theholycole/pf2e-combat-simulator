@@ -156,6 +156,9 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
     // (U14: an attack its user makes with its own attack — a spellgun's, "a spell attack roll or a firearm attack roll": an attack, the
     // creature's better one set as the fight is prepared, consumables.js ownAttacks.)
     const ownAttack = plan.ownCheck?.kind === "attack" && !Number.isFinite(plan.ownCheck.modifier) ? [...(plan.ownCheck.choose ?? ["spell", "firearm"])] : null;
+    // (U19: a save against its owner's own DC — PF2e's "against:class-spell", the item module's check.against { dc: "owner", statistic },
+    // or a cast at it, plan.ownerDC: "class", "spell" or "class-spell", set as the fight is prepared, consumables.js ownerDCs.)
+    const ownerDC = plan.ownerDC ?? (plan.resolution?.check?.against?.dc === "owner" ? plan.resolution.check.against.statistic ?? "class-spell" : null);
     const fitted = coated
         ? { ...base, activation, trigger: { ...(base.trigger ?? {}), event: "strike", attackEffect: coated, cost: "free" } }
         : { ...base, activation, ...(targeting ? { targeting } : {}), ...(ownAttack ? { traits: [...new Set([...(base.traits ?? []), "attack"])] } : {}) };
@@ -174,6 +177,7 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         consumable: !reusable,
         ...(drinker ? { drinker: true } : {}),
         ...(ownAttack ? { ownAttack } : {}),
+        ...(ownerDC ? { ownerDC } : {}),
         ...(draw > 0 && !coated ? { draw: { actions: draw, each: !reusable } } : {}),
         // (U10: its counteract check — the item module's plan.item.counteract, beside a plan of its own or alone.)
         ...(item.counteract ? { counteract: { ...item.counteract } } : {}),

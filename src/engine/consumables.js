@@ -5,6 +5,7 @@
 // beats another option only when it's worth half as much again; a reusable item (a wand, a staff, one whose uses come back) and every
 // item of a monster's, its full value.
 import { isActive, statusPenalty } from "./combatant.js";
+import { levelDC } from "./checks.js";
 import { describeSpell } from "./spells.js";
 
 export const CONSUMABLE_MARGIN = 1.5;
@@ -63,4 +64,24 @@ export function ownAttacks(c) {
 // Strike's (clumsy); frightened and sickened either way.
 export function ownAttackModifier(spell, c) {
     return Math.max(...Object.entries(spell.ownAttacks ?? { spell: spell.attack ?? 0 }).map(([kind, value]) => value - statusPenalty(c, kind === "spell" ? "spell" : "ranged")));
+}
+
+// U19 (2026-10-16, the item module): an item whose save is against its owner's own DC (PF2e's "against:class-spell" — Penultimate Heartbeat,
+// Chroma Kaleidoscope — or a cast at it): its class DC (PF2e's, else its level's), its best spell DC (its spells', not its items'), or
+// "class-spell" the higher; a cast's attack that DC less 10. Set once as the fight is prepared (fight.js prepareSnapshot).
+export function ownerDC(c, kind) {
+    const classDC = Number.isFinite(c.classDC) ? c.classDC : levelDC(Number(c.level) || 1);
+    const spellDCs = (c.spells ?? []).filter((spell) => !spell.kind && Number.isFinite(spell.dc)).map((spell) => spell.dc);
+    const spellDC = spellDCs.length ? Math.max(...spellDCs) : null;
+    if (kind === "class") return classDC;
+    if (kind === "spell") return spellDC ?? classDC;
+    return Math.max(classDC, spellDC ?? -Infinity);
+}
+
+export function ownerDCs(c) {
+    return (c.spells ?? []).map((spell) => {
+        if (!spell.ownerDC) return spell;
+        const dc = ownerDC(c, spell.ownerDC);
+        return { ...spell, dc, ...(Number.isFinite(spell.attack) ? { attack: dc - 10 } : {}) };
+    });
 }

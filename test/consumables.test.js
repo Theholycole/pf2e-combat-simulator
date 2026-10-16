@@ -783,3 +783,22 @@ test("U18: the item module's Generic Spellgun — a spell's rows heightened to t
     assert.equal(itemEntry(generic, { id: "g" }).castRank, 3);
     assert.equal(itemEntry(SPELLGUN, { id: "p" }).castRank, 5, "PF2e's own spellguns: the item's level");
 });
+
+// U19 (2026-10-16; the item module): a save against its owner's own DC — PF2e's "against:class-spell" (Chroma Kaleidoscope).
+test("U19: a save against its owner's DC — its class DC, its best spell DC, or the higher; a creature without either, its level's", async () => {
+    const { ownerDC } = await import("../src/engine/consumables.js");
+    const { levelDC } = await import("../src/engine/checks.js");
+    const kaleidoscope = { ...PARALYZE_LIKE, source: { name: "Test Kaleidoscope" }, resolution: { ...PARALYZE_LIKE.resolution, check: { roll: "save", statistic: "will", basic: false, against: { dc: "owner", statistic: "class-spell" } } }, item: { ...itemInfo("other", 7), recipient: "user" } };
+    const entry = itemEntry(kaleidoscope, { id: "k" });
+    assert.deepEqual([entry.ownerDC, entry.dc], ["class-spell", null]);
+    const caster = { level: 7, classDC: 25, spells: [{ name: "Test Ray", dc: 27 }, { ...entry, dc: 99 }] };
+    assert.deepEqual([ownerDC(caster, "class"), ownerDC(caster, "spell"), ownerDC(caster, "class-spell")], [25, 27, 27]);
+    assert.deepEqual([ownerDC({ level: 7, classDC: 25, spells: [] }, "spell"), ownerDC({ level: 7, spells: [] }, "class-spell")], [25, levelDC(7)]);
+    // In a fight: set as it's prepared (before, its save was against DC 10), the item's own DC from then on.
+    const [fighter] = martialParty(5);
+    const state = createFightState({ combatants: [{ ...fighter, spells: [...(fighter.spells ?? []), entry], spellPools: { [entry.pool]: 1 } }, moderateCreature(5, "brute", "Brute")] }, {}, 1);
+    const pc = state.byId.get(fighter.id);
+    const held = pc.spells.find((spell) => spell.ownerDC);
+    assert.equal(held.dc, ownerDC(pc, "class-spell"));
+    assert.equal(held.dc, fighter.classDC);
+});
