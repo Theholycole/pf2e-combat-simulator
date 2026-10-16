@@ -2104,6 +2104,8 @@ export function triggerRiders(state, attacker, target, strike, degree = SUCCESS)
         if (trigger?.event !== "strike" || !(listed.includes(trigger.attackEffect) || listed.includes(spell.plan.source?.slug) || named)) continue;
         // (U4: a poison on the weapon, as long as doses are left.)
         if (spell.kind === "item" && !poolReady(attacker, spell)) continue;
+        // (U22: a bomb's rider only for some creatures — undead and void-healing ones, or the living; another, none.)
+        if (spell.riderOnly && !(spell.riderOnly === "void-healing" ? isUndead(target) : spell.riderOnly === "living" ? !isUndead(target) && !(target.traits ?? []).includes("construct") : false)) continue;
         if (!(trigger.on ?? ["success", "criticalSuccess"]).includes(DEGREE_NAMES[degree])) continue;
         // (Its results by the Strike's degree, "Enfeebled 1 (or Enfeebled 2 on a critical hit)": that degree, B66.)
         const byStrike = spell.plan?.resolution?.check?.statistic === "strike";

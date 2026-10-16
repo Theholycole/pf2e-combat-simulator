@@ -94,7 +94,9 @@ export function bombRider(plan, strikeName) {
     const rows = plan?.resolution?.outcomes ?? {};
     const does = (row) => (row?.effects ?? []).length || (row?.modifiers ?? []).length;
     if (!strikeName || (!does(rows.success) && !does(rows.criticalSuccess))) return null;
-    return { name: plan.source?.name ?? strikeName, plan: { ...plan, trigger: { ...(plan.trigger ?? {}), event: "strike", cost: "free", strikes: [String(strikeName).toLowerCase()] } }, castRank: 1, pool: null, kind: "ability", bombRider: true };
+    // (Who it's for, plan.item.riderOnly: "void-healing" — Ghost Charge's enfeebled, undead and void-healing creatures —, "living" — Tallow
+    // Bomb's sickened, not undead or constructs.)
+    return { name: plan.source?.name ?? strikeName, plan: { ...plan, trigger: { ...(plan.trigger ?? {}), event: "strike", cost: "free", strikes: [String(strikeName).toLowerCase()] } }, castRank: 1, pool: null, kind: "ability", bombRider: true, ...(plan.item?.riderOnly ? { riderOnly: plan.item.riderOnly } : {}) };
 }
 
 // U21 (2026-10-16): the triggers the simulation plays, by the item module's triggerOn event; an item for one is its entry with triggerOn,

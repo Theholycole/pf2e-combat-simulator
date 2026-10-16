@@ -923,3 +923,25 @@ test("2026-10-16: an item that's ammunition (Roc-Shaft Arrow's arrows) is shot o
     assert.ok(used({ ...ranged, ammoType: "arrows" }) > 0);
     assert.equal(used({ ...ranged, name: "Test Knife", thrown: true, increment: 10 }), 0, "a thrown knife takes no arrows");
 });
+
+test("U22: a bomb's rider only for some creatures (plan.item.riderOnly) — Ghost Charge's for undead, Tallow Bomb's for the living", async () => {
+    const { bombRider } = await import("../src/adapter/items.js");
+    const { performStrike } = await import("../src/engine/actions.js");
+    const row = (extra) => ({ damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [], modifiers: [], ...extra });
+    const enfeebling = { effects: [{ kind: "condition", slug: "enfeebled", value: 1, duration: null }] };
+    const plan = (riderOnly) => ({ modelVersion: 13, source: { name: "Test Charge" }, rank: 1, traits: ["bomb"], activation: { time: "1", traits: ["manipulate"] }, targeting: { target: "the creature the bomb hits" }, trigger: { event: "strike", on: ["success", "criticalSuccess"], cost: "free" },
+        resolution: { kind: "save", check: { roll: "attack", statistic: "strike", against: { dc: "target", statistic: "ac" } }, outcomes: { criticalSuccess: row(enfeebling), success: row(enfeebling), failure: row({}), criticalFailure: row({}) } }, item: { type: "weapon", group: "bomb", level: 1, riderOnly } });
+    const throwAt = (riderOnly, traits) => {
+        const [fighter] = martialParty(5);
+        const bomb = { name: "Test Charge", bonus: 14, melee: false, increment: 20, damage: [{ dice: 1, die: 6, bonus: 0, type: "vitality" }], attackEffects: [] };
+        const state = createFightState({ combatants: [{ ...moderateCreature(5, "chemist", "Chemist"), band: "near", engagement: 1, strikes: [bomb], spells: [bombRider(plan(riderOnly), "Test Charge")] }, { ...fighter, band: "near", engagement: 1, traits }] }, {}, 1);
+        state.log = [];
+        state.rng.d20 = () => 15;
+        performStrike(state, state.byId.get("chemist"), state.byId.get(fighter.id), bomb);
+        return state.byId.get(fighter.id).cond.enfeebled ?? 0;
+    };
+    assert.equal(throwAt("void-healing", ["undead"]), 1);
+    assert.equal(throwAt("void-healing", ["humanoid"]), 0);
+    assert.equal(throwAt("living", ["construct"]), 0);
+    assert.equal(throwAt("living", ["humanoid"]), 1);
+});
