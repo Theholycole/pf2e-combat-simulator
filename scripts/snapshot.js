@@ -237,6 +237,8 @@ async function readStrike(actor, action, gaps, { tableDamage = null } = {}) {
         // (a scatter weapon's 1 per weapon die; a bomb's listed splash; an NPC's splash damage roll).
         ...(splashAmount(item, traits) > 0 ? { splashAmount: splashAmount(item, traits) } : {}),
         ...(["firearm", "crossbow"].includes(item?.group ?? item?.system?.group) ? { firearm: true } : {}),
+        // (2026-10-16: its ammunition, PF2e's ammo base type — for an arrow used with it, Roc-Shaft Arrow's.)
+        ...((weapon ?? item)?.system?.ammo?.baseType ? { ammoType: (weapon ?? item).system.ammo.baseType } : {}),
         // (U14: a crossbow, the gunslinger's but not a firearm — a spellgun's "firearm attack roll" isn't its.)
         ...((item?.group ?? item?.system?.group) === "crossbow" ? { crossbow: true } : {}),
         ...(traits.includes("parry") ? { parry: true } : {}),

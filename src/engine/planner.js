@@ -1187,7 +1187,9 @@ function expandStrikeActivities(env) {
         if (activity.pool && node.casts.filter((mark) => mark === `pool:${activity.pool}`).length >= (c.spellPools?.[activity.pool] ?? 0)) continue;
         const named = strikeNamed(c, activity.strike);
         // (U7: its Strike melee, ranged or either, as the item says.)
-        const fits = (strike) => (activity.range === "any" ? true : activity.range === "ranged" ? !strike.melee : strike.melee);
+        // (Ammunition — an arrow: a weapon whose ammunition it is, PF2e's base type or, for "rounds", one of a firearm's rounds.)
+        const loads = (strike) => !activity.ammunition || activity.ammunition.some((type) => strike.ammoType === type || String(strike.ammoType ?? "").startsWith(`${type}-`));
+        const fits = (strike) => loads(strike) && (activity.range === "any" ? true : activity.range === "ranged" ? !strike.melee : strike.melee);
         const candidates = activity.coverFire
             ? (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].firearm && !c.strikes[index].melee && !emptyNow(c, node, index, c.strikes[index]))
             : named >= 0 ? [named] : activity.strike === "ranged" ? [] : (c.strikes ?? []).map((strike, index) => index).filter((index) => fits(c.strikes[index]));

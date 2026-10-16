@@ -18,10 +18,14 @@ const { strikeIwr, versatileTypes } = await import("../../src/engine/damage.js")
 export const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 // (T6: PF2e's weapons by name and slug → their group, for an NPC attack named after one.)
 const WEAPON_GROUPS = new Map();
+// (A weapon's ammunition, PF2e's ammo base type — "arrows" for a longbow.)
+const WEAPON_AMMO = new Map();
 for (const doc of readDocuments(`${PACK_ROOT}/equipment`).filter((entry) => entry.collection === "items" && entry.type === "weapon" && entry.system?.group)) {
     WEAPON_GROUPS.set(String(doc.name).toLowerCase(), doc.system.group);
     if (doc.system.slug) WEAPON_GROUPS.set(doc.system.slug, doc.system.group);
+    if (doc.system.ammo?.baseType) for (const key of [String(doc.name).toLowerCase(), doc.system.slug].filter(Boolean)) WEAPON_AMMO.set(key, doc.system.ammo.baseType);
 }
+const weaponAmmo = (item, weapon) => weapon?.system?.ammo?.baseType ?? WEAPON_AMMO.get(String(item.name).toLowerCase()) ?? WEAPON_AMMO.get(String(item.name).toLowerCase().replace(/[^a-z0-9]+/g, "-")) ?? null;
 const weaponGroup = (item, traits) => (traits.includes("unarmed") ? "brawling" : WEAPON_GROUPS.get(String(item.name).toLowerCase()) ?? WEAPON_GROUPS.get(String(item.name).toLowerCase().replace(/[^a-z0-9]+/g, "-")) ?? null);
 export const basicActions = compileBasicActions(readDocuments(`${PACK_ROOT}/actions`).filter((doc) => doc.collection === "items"));
 const SKILL_OF = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics", disarm: "athletics", reposition: "athletics", feint: "deception", "create-a-diversion": "deception", "administer-first-aid": "medicine" };
@@ -111,6 +115,7 @@ export function combatant(npc) {
             // As the live snapshot reads them (C14, C16).
             ...(Number(traits.find((trait) => /^reload-\d+$/.test(trait))?.split("-")[1]) > 0 ? { reload: Number(traits.find((trait) => /^reload-\d+$/.test(trait)).split("-")[1]) } : {}),
             ...(traits.includes("concussive") ? { concussive: true } : {}),
+            ...(weaponAmmo(item, weapon) ? { ammoType: weaponAmmo(item, weapon) } : {}),
             // (As the live snapshot: a firearm or a crossbow for the gunslinger's and "firearm Strike" abilities — before 2026-10-16 none
             // offline; U14: a crossbow marked, not a firearm for a spellgun.)
             ...(["firearm", "crossbow"].includes(weaponGroup(item, traits)) ? { firearm: true } : {}),

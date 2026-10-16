@@ -907,3 +907,19 @@ test("U22: a bomb's riders play on its Strike's hit — Frost Vial's Speed penal
     performStrike(state, thrower, target, thrower.strikes[0]);
     assert.equal(target.cond.enfeebled, 1, state.log.join("\n"));
 });
+
+test("2026-10-16: an item that's ammunition (Roc-Shaft Arrow's arrows) is shot only from a weapon that takes it", async () => {
+    const { simulate, prepareSnapshot } = await import("../src/engine/fight.js");
+    const { itemStrikeActivity } = await import("../src/adapter/items.js");
+    const arrow = itemStrikeActivity({ ...FEAR_GEM, source: { name: "Test Arrow", slug: "test-arrow" }, activation: { time: "1", traits: [] }, strike: { ...FEAR_GEM.strike, range: "ranged", ammunition: ["arrows"] } }, { id: "arrow", quantity: 2 });
+    assert.deepEqual(arrow.ammunition, ["arrows"]);
+    const [fighter] = martialParty(5);
+    const used = (strike) => {
+        const archer = { ...moderateCreature(5, "archer", "Archer"), band: "far", side: "foes", strikes: [strike], strikeActivities: [arrow], spellPools: { [arrow.pool]: 2 }, hp: { value: 600, max: 600, temp: 0 } };
+        const result = simulate(prepareSnapshot({ combatants: [{ ...fighter, band: "far", side: "party", hp: { value: 600, max: 600, temp: 0 } }, archer] }), { morale: false }, 1, { log: true });
+        return result.log.filter((line) => line.includes("uses Test Arrow")).length;
+    };
+    const ranged = { name: "Test Bow", bonus: 14, melee: false, increment: 60, damage: [{ dice: 1, die: 8, bonus: 3, type: "piercing" }], attackEffects: [] };
+    assert.ok(used({ ...ranged, ammoType: "arrows" }) > 0);
+    assert.equal(used({ ...ranged, name: "Test Knife", thrown: true, increment: 10 }), 0, "a thrown knife takes no arrows");
+});

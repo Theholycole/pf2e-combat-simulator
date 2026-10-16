@@ -311,6 +311,8 @@ export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses =
         strides: 0,
         strike: null,
         range: plan.strike.range === "ranged" ? "ranged" : plan.strike.range === "melee" ? "melee" : "any",
+        // (2026-10-16: ammunition — Roc-Shaft Arrow's "arrows": PF2e's ammo base types it fits, with a weapon that takes them.)
+        ...((plan.strike.ammunition ?? []).length ? { ammunition: [...plan.strike.ammunition] } : {}),
         attackBonus: 0,
         damageBonus: 0,
         damage: null,
