@@ -2,6 +2,8 @@
 // can cast?"): what the snapshot and the bestiary tools read from them, without Foundry.
 
 import { zoneSpell } from "../engine/zones.js";
+import { lastingRounds } from "../engine/lasting.js";
+import { RUNE_LOANS, runeLoanKey } from "../engine/runes.js";
 
 // The consumables PF2e casts a spell from.
 export const SPELL_ITEMS = Object.freeze(["scroll", "wand", "spell-gem"]);
@@ -99,6 +101,11 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
     const retaliation = plan?.retaliation ? retaliationOf(plan) : null;
     if (plan?.retaliation && !retaliation) return null;
     if (retaliation) plan = { ...plan, resolution: COUNTERACT_ONLY, targeting: { target: "the drinker", range: null, area: null } };
+    // (U16: an oil lending its user's weapon a property rune for a while — plan.item.rune: one the simulator knows (runes.js RUNE_LOANS),
+    // on its user, nothing else at once; another, left out.)
+    const rune = plan?.item?.rune ? { key: runeLoanKey(plan.item.rune.key), name: plan.item.rune.name ?? plan.item.rune.key, rounds: lastingRounds(plan.item.rune.duration).rounds } : null;
+    if (rune && !RUNE_LOANS[rune.key]) return null;
+    if (rune) plan = { ...plan, resolution: COUNTERACT_ONLY, targeting: { target: "self", range: null, area: null } };
     // (One of the user's own Strikes with riders added — Fear Gem, plan.strike: not yet.)
     if (plan?.strike) return null;
     const casting = plan?.builtin === "cast-spell" && cast?.plan?.resolution ? cast : null;
@@ -121,7 +128,8 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
     // (U13: one for the creatures it names, "targets", whose plan names no number of them — Therapeutic Snap Peas: one, as a drink is,
     // until the plan says how many.)
     const named = Boolean(plan.targeting?.range || plan.targeting?.area) || /\b(?:creature|ally|allies|target|enemy|foe)s?\b/i.test(String(plan.targeting?.target ?? "").replace(/\bthe drinker\b/i, ""));
-    const drinker = item.recipient === "drinker" || counteractOnly || (item.recipient === "targets" && !named);
+    // (U16: a lent rune is on its user's own weapon.)
+    const drinker = !rune && (item.recipient === "drinker" || counteractOnly || (item.recipient === "targets" && !named));
     // (U13: one that lowers its user's own condition and names no target — Pepper Poultice: on its user.)
     const onUser = item.recipient === "user" && Boolean(item.reduce?.length) && !named && !(plan.resolution?.applications ?? []).length;
     // (Its own Activate line's cost and traits — "Activate [one-action] (manipulate)": a manipulate action provokes. A copy whose text has
@@ -160,6 +168,7 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         // (U13: the conditions it lowers — on whoever it's used on for a drink or one for others ("targets"), else on its user.)
         ...(item.reduce?.length ? { reduce: item.reduce.map((entry) => ({ ...entry, on: drinker || entry.who === "targets" ? "targets" : "user" })) } : {}),
         ...(retaliation ? { retaliation } : {}),
+        ...(rune ? { rune } : {}),
         // (U12: a flat check to end persistent damage of its types at once — Quenching Potion's — used freely, the user's call.)
         ...(item.recovery?.types?.length ? { recovery: { types: [...item.recovery.types], dc: Number(item.recovery.dc) || 15 }, free: true } : {})
     };

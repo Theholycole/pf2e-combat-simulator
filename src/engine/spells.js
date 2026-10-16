@@ -36,6 +36,7 @@ import { takeControl } from "./control.js";
 import { noteKnown } from "./readings.js";
 import { hexFamiliar } from "./familiars.js";
 import { canSpendHero, saveWorthReroll, spendHeroPoint, takesOut } from "./heroes.js";
+import { RUNE_LOANS } from "./runes.js";
 import { ownAttackModifier } from "./consumables.js";
 
 const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
@@ -575,6 +576,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     }
     // "As long as it's sickened" (Stench), "fleeing as long as it's frightened": ends when that condition does.
     if (duration?.mode === "while" && duration.condition) (target.whileConditions ??= []).push({ slug, value, while: duration.condition });
+    // (U16: "as long as it has the persistent damage from this rune", Greater Vitalizing's: ends with that persistent damage.)
+    else if (duration?.mode === "while" && duration.persistent) (target.whileConditions ??= []).push({ slug, value, whilePersistent: duration.persistent });
     // Fleeing with no stated end (Vision of Death, Aversion Beam): while it's frightened, or else its next turn (user, 2026-10-08).
     else if (slug === "fleeing" && !duration) (target.whileConditions ??= []).push({ slug, value, while: "frightened" });
     const rounds = durationRounds(duration);
@@ -1179,6 +1182,48 @@ function itemRetaliationEntries(state, spell, target) {
     return entries;
 }
 
+// U16 (2026-10-16; the item module's plan.item.rune): an oil lending a weapon a property rune for a while (runes.js RUNE_LOANS) — on its
+// user's weapon that gains the most: its best-hitting Strike with a weapon (not an unarmed attack, unless that's all it has with a held
+// weapon). Quickstrike's quickened gives its extra action from the next turn, as quickened does.
+function runeLoanStrike(c) {
+    const weapons = (c.strikes ?? []).filter((strike) => !strike.unarmed && strikeUsable(c, strike));
+    const average = (strike) => (strike.damage ?? []).reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
+    return weapons.sort((a, b) => (b.bonus ?? 0) + average(b) - (a.bonus ?? 0) - average(a))[0] ?? null;
+}
+
+function applyItemRune(state, c, spell) {
+    const loan = RUNE_LOANS[spell.rune.key];
+    const strike = runeLoanStrike(c);
+    if (!loan || !strike) {
+        log(state, `  ${c.name} has no weapon for ${spell.name}`);
+        return;
+    }
+    const before = Boolean(c.cond.quickened);
+    const model = { name: spell.name, rounds: spell.rune.rounds, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: loan.quickened ? [{ slug: "quickened", value: null }] : [], unsupported: [], situational: 0,
+        ...(loan.parts ? { strikeDeltas: { [strike.name]: loan.parts.map((part) => ({ ...part })) } } : {}), runeLoans: { [strike.name]: [spell.rune.key] } };
+    applyEffect(state, c, model, c, { applyCondition, key: `rune-loan:${strike.name}:${spell.rune.key}` });
+    if (loan.quickened && !before && c.cond.quickened && state.acting === c.id && Number.isFinite(c.actionsLeft)) c.actionsLeft = Math.max(0, c.actionsLeft - 1);
+    log(state, `  ${c.name}'s ${strike.name} gains ${spell.rune.name} (${spell.name})`);
+}
+
+// What it's worth: a lent damage rune, its average damage a hit (a persistent part about two rounds of it) as a damage bonus is weighed
+// (effects.js), times the share of its foes it harms; Quickstrike's quickened, as quickened is. None already lent to that weapon.
+function itemRuneWorth(state, spell, c) {
+    const loan = RUNE_LOANS[spell.rune.key];
+    const strike = runeLoanStrike(c);
+    if (!loan || !strike || (c.effects ?? []).some((effect) => effect.key === `rune-loan:${strike.name}:${spell.rune.key}`)) return 0;
+    const share = state.strikeShare?.get(c.id) ?? 1;
+    const rounds = Math.min(3, spell.rune.rounds);
+    let worth = loan.quickened ? 0.3 * rounds * Math.max(0.2, share) : 0;
+    if (loan.parts) {
+        const foes = state.list.filter((other) => other.side !== c.side && isActive(other));
+        const undead = foes.filter((foe) => isUndead(foe)).length / Math.max(1, foes.length);
+        const perHit = loan.parts.reduce((sum, part) => sum + (part.dice * (part.die + 1) / 2 + part.bonus) * (part.persistent ? 2 : 1), 0);
+        worth += 0.04 * share * perHit * undead * rounds;
+    }
+    return worth;
+}
+
 // Cleanse Affliction: one affliction of its traits a stage lower, not below the floor.
 function applyAfflictionStage(state, target, change) {
     const entry = (target.afflictions ?? []).filter((held) => held.stage > (change.floor ?? 1) && (!(change.traits ?? []).length || (held.data?.traits ?? []).some((trait) => change.traits.includes(trait)))).sort((a, b) => b.stage - a.stage)[0];
@@ -1244,7 +1289,7 @@ function effectDC(spell) {
 export function endWhileConditions(c) {
     const left = [];
     for (const entry of c.whileConditions ?? []) {
-        if (c.cond[FLAGS[entry.while] ?? entry.while]) {
+        if (entry.whilePersistent ? (c.persistent ?? []).some((held) => held.type === entry.whilePersistent) : c.cond[FLAGS[entry.while] ?? entry.while]) {
             left.push(entry);
             continue;
         }
@@ -1629,6 +1674,8 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
         const target = state.byId.get(id);
         if (target && (isActive(target) || target.status === DOWN)) applyItemRecovery(state, spell, target);
     }
+    // (U16: a rune lent its user's weapon.)
+    if (spell?.rune) applyItemRune(state, caster, spell);
     // (U15: a retaliation potion on the drinker; a touch spell at a creature with one, its damage on the caster.)
     if (spell?.retaliation) for (const id of targetIds ?? []) {
         const target = state.byId.get(id);
@@ -2809,6 +2856,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         // (U12: its persistent damage recovery — the damage it saves the creature, as damage not taken: its share of the creature's Hit
         // Points, however hurt it is already.)
         if (spell.recovery) entry.damage -= itemRecoveryWorth(spell, target);
+        // (U16: a rune lent its user's weapon.)
+        if (spell.rune && target === caster) entry.benefit += itemRuneWorth(state, spell, caster);
         result.push(entry);
         // (I1: nothing on a creature immune to it; T7: nor a non-damaging one aimed at one creature on a troop.)
         if (effectImmunity(target, spell) || outsideTargets(caster, target, spell)) continue;

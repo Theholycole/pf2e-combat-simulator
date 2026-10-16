@@ -3,13 +3,15 @@
 // its property runes in strike.iwr.runes (the snapshot's strikeIwr).
 import { CRITICAL_SUCCESS, DEGREE_NAMES, FAILURE, SUCCESS, degreeOf } from "./checks.js";
 import { isActive, saveModifier } from "./combatant.js";
-import { saveBonusAgainst } from "./abilities.js";
+import { isUndead, saveBonusAgainst } from "./abilities.js";
 import { adjustedSaveDegree } from "./passives.js";
 import { log } from "./log.js";
 
 const UNTIL_SOURCE_TURN_END = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" };
 const ONE_ROUND = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start" };
 const MINUTE = { mode: "fixed", value: 1, unit: "minutes" };
+// (Greater Vitalizing's "as long as it has the persistent damage from this rune".)
+const WHILE_VITALITY = { mode: "while", persistent: "vitality" };
 
 // A critical hit's effect, by rune: a save at the rune's DC first where it has one; conditions; a push.
 export const RUNE_CRITS = {
@@ -24,8 +26,25 @@ export const RUNE_CRITS = {
     crushing: { conditions: [["clumsy", 1, UNTIL_SOURCE_TURN_END], ["enfeebled", 1, UNTIL_SOURCE_TURN_END]] },
     greaterCrushing: { conditions: [["clumsy", 2, UNTIL_SOURCE_TURN_END], ["enfeebled", 2, UNTIL_SOURCE_TURN_END]] },
     impactful: { save: "fortitude", dc: 27, push: 5 },
-    greaterImpactful: { save: "fortitude", dc: 37, push: 10 }
+    greaterImpactful: { save: "fortitude", dc: 37, push: 10 },
+    // (U16: Vitalizing and Greater Vitalizing, PF2e's disrupting runes — on undead and void-healing creatures only.)
+    disrupting: { undead: true, conditions: [["enfeebled", 1, UNTIL_SOURCE_TURN_END]] },
+    greaterDisrupting: { undead: true, conditions: [["enfeebled", 1, WHILE_VITALITY], ["stupefied", 1, WHILE_VITALITY]] }
 };
+
+// U16 (2026-10-16; the item module's plan.item.rune): a property rune an item lends a weapon for a while — Burial Oil's Vitalizing,
+// Greater Burial Oil's Greater Vitalizing, Oil of Swiftness's Quickstrike — by PF2e's rune key. Its damage from PF2e's rune data (an
+// effect's extra damage on that Strike, effect.model.strikeDeltas, against undead and void-healing creatures: vsUndead), its critical hit
+// by RUNE_CRITS (effect.model.runeLoans), Quickstrike's quickened while it lasts — its extra action not kept to that weapon's Strikes, as
+// Haste's isn't kept to Strike and Stride. Another rune: not yet (the item's left out).
+const persistentVitality = (dice) => ({ dice, die: 6, bonus: 0, multiplier: 1, type: "vitality", persistent: true, precision: false, vsUndead: true });
+export const RUNE_LOANS = {
+    disrupting: { parts: [persistentVitality(1)] },
+    greaterDisrupting: { parts: [persistentVitality(2)] },
+    speed: { quickened: true }
+};
+// (The item module's key in PF2e's spelling: "greater-disrupting" is greaterDisrupting.)
+export const runeLoanKey = (key) => String(key ?? "").replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 
 // The damage types a greater rune's damage ignores resistance to.
 export const RUNE_IGNORES = {
@@ -38,6 +57,8 @@ export const RUNE_IGNORES = {
 };
 
 const runesOf = (strike) => strike?.iwr?.runes ?? [];
+// (U16: with those an item lent it for now.)
+const runesHeld = (attacker, strike) => [...runesOf(strike), ...(attacker?.effects ?? []).flatMap((effect) => effect.model?.runeLoans?.[strike?.name] ?? [])];
 
 // Keen: a natural 19 that hits with a slashing or piercing weapon is a critical hit.
 export function keenCritical(strike, natural, degree) {
@@ -59,9 +80,9 @@ export function ignoredResistances(context) {
 
 // A critical hit's rune effects on the target. applyCondition and applyMove: the engine's.
 export function runeCritEffects(state, attacker, target, strike, { applyCondition, applyMove }) {
-    for (const rune of runesOf(strike)) {
+    for (const rune of runesHeld(attacker, strike)) {
         const effect = RUNE_CRITS[rune];
-        if (!effect || !isActive(target)) continue;
+        if (!effect || !isActive(target) || (effect.undead && !isUndead(target))) continue;
         if (effect.save) {
             const natural = state.rng.d20();
             const modifier = saveModifier(target, effect.save) + saveBonusAgainst(target, effect.save, { kind: "ability", plan: { traits: ["magical"] } });

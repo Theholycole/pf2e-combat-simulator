@@ -673,3 +673,71 @@ test("U15: worth the burns its drinker's foes can expect — none from a foe wit
     castSpell(state, pc, index, [pc.id]);
     assert.equal(onBrute(), undefined);
 });
+
+// U16 (2026-10-16; the item module's plan.item.rune): oils lending a weapon a property rune for a while.
+const runeOil = (name, key, runeName, level = 3) => ({ modelVersion: 13, source: { name, slug: name.toLowerCase().replace(/[^a-z]+/g, "-") }, rank: 1, traits: ["consumable", "magical", "oil"], activation: { time: "1", traits: ["manipulate"] },
+    automation: { level: "automatic" }, targeting: { target: null, range: null, area: null }, trigger: { event: "use" },
+    resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, outcomes: { criticalSuccess: { ...none }, success: { ...none }, failure: { ...none }, criticalFailure: { ...none } } },
+    item: { ...itemInfo("oil", level), recipient: "user", rune: { key, name: runeName, duration: { mode: "fixed", value: 1, unit: "minutes", expiry: "turn-start" }, own: false } } });
+const BURIAL = runeOil("Burial Oil", "disrupting", "Vitalizing");
+const GREATER_BURIAL = runeOil("Burial Oil (Greater)", "greater-disrupting", "Greater Vitalizing", 11);
+const SWIFTNESS = runeOil("Oil of Swiftness", "speed", "Quickstrike", 6);
+
+test("U16: a rune oil is used on its user's own weapon, the rune it lends by PF2e's key; one the simulator doesn't know is left out", () => {
+    const entry = itemEntry(GREATER_BURIAL, { id: "g" });
+    assert.deepEqual([entry.rune, entry.drinker, entry.plan.targeting.target], [{ key: "greaterDisrupting", name: "Greater Vitalizing", rounds: 10 }, undefined, "self"]);
+    assert.equal(itemEntry(runeOil("Test Oil", "ghost-touch", "Ghost Touch"), { id: "t" }), null);
+});
+
+test("U16: Burial Oil — its weapon deals 1d6 persistent vitality to undead only, and a critical hit enfeebles the undead until the end of its user's next turn", async () => {
+    const { performStrike } = await import("../src/engine/actions.js");
+    const { state, pc, index, brute } = withItem(BURIAL);
+    castSpell(state, pc, index, [pc.id]);
+    const weapon = pc.strikes.find((strike) => !strike.unarmed);
+    assert.ok(state.log.some((line) => line.includes(`${weapon.name} gains Vitalizing (Burial Oil)`)), state.log.join("\n"));
+    state.rng.d20 = () => 15;
+    performStrike(state, pc, brute, weapon);
+    assert.deepEqual(brute.persistent.map((entry) => entry.type), [], "not undead: nothing");
+    brute.traits = [...(brute.traits ?? []), "undead"];
+    performStrike(state, pc, brute, weapon);
+    assert.deepEqual(brute.persistent.map((entry) => entry.type), ["vitality"], state.log.join("\n"));
+    assert.equal(brute.cond.enfeebled ?? 0, 0);
+    state.rng.d20 = () => 20;
+    performStrike(state, pc, brute, weapon);
+    assert.equal(brute.cond.enfeebled, 1, state.log.join("\n"));
+    assert.ok(state.log.some((line) => line.includes("enfeebled 1 (disrupting rune)")));
+});
+
+test("U16: Greater Burial Oil — a critical hit on undead: enfeebled 1 and stupefied 1 as long as the persistent vitality lasts", async () => {
+    const { performStrike } = await import("../src/engine/actions.js");
+    const { endWhileConditions } = await import("../src/engine/spells.js");
+    const { state, pc, index, brute } = withItem(GREATER_BURIAL);
+    brute.traits = [...(brute.traits ?? []), "undead"];
+    castSpell(state, pc, index, [pc.id]);
+    state.rng.d20 = () => 20;
+    performStrike(state, pc, brute, pc.strikes.find((strike) => !strike.unarmed));
+    assert.deepEqual([brute.cond.enfeebled, brute.cond.stupefied], [1, 1], state.log.join("\n"));
+    endWhileConditions(brute);
+    assert.deepEqual([brute.cond.enfeebled, brute.cond.stupefied], [1, 1], "still burning");
+    brute.persistent = brute.persistent.filter((entry) => entry.type !== "vitality");
+    endWhileConditions(brute);
+    assert.deepEqual([brute.cond.enfeebled, brute.cond.stupefied], [0, 0]);
+});
+
+test("U16: Oil of Swiftness — quickened for the minute, its extra action from the next turn; worth nothing more once lent, Burial Oil nothing against the living", async () => {
+    const { spellExpectation } = await import("../src/engine/spells.js");
+    let { state, pc, index } = withItem(SWIFTNESS);
+    state.acting = pc.id;
+    pc.actionsLeft = 3;
+    const worth = () => spellExpectation(state, pc, pc.spells[index], [pc]).find((entry) => entry.target === pc)?.benefit ?? 0;
+    assert.ok(worth() > 0);
+    castSpell(state, pc, index, [pc.id]);
+    assert.equal(pc.cond.quickened, true);
+    assert.equal(pc.actionsLeft, 3, "no extra action added this turn");
+    assert.equal(worth(), 0);
+    ({ state, pc, index } = withItem(BURIAL));
+    const burial = () => spellExpectation(state, pc, pc.spells[index], [pc]).find((entry) => entry.target === pc)?.benefit ?? 0;
+    assert.equal(burial(), 0);
+    state.byId.get("brute").traits = ["undead"];
+    assert.ok(burial() > 0);
+});

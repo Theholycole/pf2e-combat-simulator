@@ -9,7 +9,7 @@ import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBo
 import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, resistancesOf, rollStrikeDamage, strikeContext } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { harmedAfterGivingUp, isShaken } from "./morale.js";
-import { canReact, chargeStrike, extraApplies, hasOwnEffect, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
+import { canReact, chargeStrike, extraApplies, hasOwnEffect, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, hasConditional, strikeRollOptions, removeEffect, takeAttackFortune } from "./effects.js";
 import { applyCondition, applyMove, castPlan, castSpell, deathThroes, touchRetaliation, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
@@ -150,7 +150,8 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
     if (offGuard && strike.offGuardExtra?.length) for (const part of strike.offGuardExtra) parts.push({ ...part, chance: offGuard });
     for (const buff of attacker.activeBuffs ?? []) for (const part of buff.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
     // (B241: a part only against creatures with a trait, Imbue Righteousness's.)
-    for (const effect of attacker.effects ?? []) for (const part of effect.model?.strikeDeltas?.[strike.name] ?? []) if (!part.vsTrait || (target.traits ?? []).includes(part.vsTrait)) parts.push({ ...part, chance: 1 });
+    // (U16: a lent rune's, against undead and void-healing creatures only.)
+    for (const effect of attacker.effects ?? []) for (const part of effect.model?.strikeDeltas?.[strike.name] ?? []) if ((!part.vsTrait || (target.traits ?? []).includes(part.vsTrait)) && (!part.vsUndead || isUndead(target))) parts.push({ ...part, chance: 1 });
     // (B308: a mark's extra damage — Smite's +4, +8 against an unholy target.)
     if (attacker.huntPrey?.edge === "parts" && attacker.prey === target.id) for (const part of attacker.huntPrey.parts) parts.push({ dice: part.dice, die: part.die, bonus: part.upgrade && (target.traits ?? []).includes(part.upgrade.trait) ? Math.max(part.bonus, part.upgrade.value) : part.bonus, multiplier: 1, type: part.type ?? strike.damage?.[0]?.type, precision: false, persistent: false, chance: 1 });
     if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id && (firstPreyHit || attacker.huntPrey.every)) parts.push({ dice: attacker.huntPrey.precisionDice ?? 1, die: attacker.huntPrey.die ?? 8, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
