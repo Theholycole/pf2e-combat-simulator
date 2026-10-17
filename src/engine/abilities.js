@@ -666,7 +666,7 @@ export function withExtraDamage(strike, formulas) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard === true ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree) return strike;
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead) return strike;
     // (2026-10-16: Sniper's Bead's, no range penalty out to that many increments — space.js rangePenalty.)
     const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
@@ -682,6 +682,11 @@ export function chargeStrike(strike, charge) {
     if (dice) {
         const type = /\[([a-z]+)\]/.exec(charge.damage)?.[1] ?? strike.damage[0]?.type ?? "untyped";
         changed.damage = [{ dice: Number(dice[1]), die: Number(dice[2]), bonus: (dice[3] === "-" ? -1 : 1) * Number(dice[4] ?? 0), multiplier: 1, type, persistent: false, precision: false }, ...strike.damage.slice(1)];
+    }
+    // (2026-10-16: damage in place of the weapon's, all of it — Big Rock Bullet's; doubled on a critical hit as damage is.)
+    if (charge.instead?.hit) {
+        changed.damage = [{ ...charge.instead.hit }];
+        delete changed.critDamage;
     }
     // (B69: "This Strike gains the fatal d12 trait", "the deadly d4 trait for this attack"; "The Strike deals half damage".)
     if (charge.fatal) changed.fatal = charge.fatal;

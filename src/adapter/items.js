@@ -321,7 +321,8 @@ export function beltHeld(contents = []) {
 // condition (FEAT_BOOSTS: Fear Gem with Intimidating Strike, frightened 1 more) when the user has it (feats: its slugs). null: not that kind
 // of item, none left, or a rider the activity can't carry.
 const FEAT_BOOSTS = Object.freeze({ "fear-gem": { feat: "intimidating-strike", slug: "frightened", by: 1 } });
-export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses = null, fresh = false, feats = [] } = {}) {
+// ammunition: the weapons' ammo base types it fits when the plan doesn't say (an ammo item's PF2e system.craftableAs, "sling-bullets").
+export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses = null, fresh = false, feats = [], ammunition = null } = {}) {
     if (!plan?.strike || !plan.resolution?.outcomes) return null;
     // (Extras on the Strike itself — more damage dice, an attack bonus, an alteration: not yet, so not played without them.)
     if (plan.strike.damage?.length || plan.strike.attack || plan.strike.alteration) return null;
@@ -353,17 +354,29 @@ export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses =
     // (2026-10-16: PF2e's roll options on its Strike — Sniper's Bead's "ignore-range-penalty:2", no range penalty out to the second
     // increment —; another option, or a modifier it drops (Alchemist's Damper's kickback), isn't played.)
     const rangeFree = Math.max(0, ...(plan.strike.options ?? []).map((option) => Number(/^ignore-range-penalty:(\d+)$/.exec(option)?.[1]) || 0));
-    // (One that adds nothing played — no rider, push, save or option — isn't an activity: it would only spend the item.)
-    if (!onHit.length && !onCritical.length && !push && !criticalPush && !save && !rangeFree) return null;
+    // (2026-10-16: damage in place of the weapon's — Big Rock Bullet's 4d6 on a hit, 2d6 on a failure: plan.strike.instead.)
+    const dice = (entry) => {
+        const match = /^(\d+)d(\d+)(?:\+(\d+))?$/.exec(String(entry?.formula ?? "").replace(/\s+/g, ""));
+        return match && entry.type ? { dice: Number(match[1]), die: Number(match[2]), bonus: Number(match[3] ?? 0), multiplier: 1, type: entry.type, persistent: false, precision: false } : null;
+    };
+    const instead = plan.strike.instead?.hit && dice(plan.strike.instead.hit) ? { hit: dice(plan.strike.instead.hit), failure: dice(plan.strike.instead.failure) } : null;
+    // (One that adds nothing played — no rider, push, save, option or damage of its own — isn't an activity: it would only spend the item.)
+    if (!onHit.length && !onCritical.length && !push && !criticalPush && !save && !rangeFree && !instead) return null;
+    // (Ammunition — an arrow, a bullet: activated, then shot with a Strike — the activation's actions and the Strike's.)
+    const loads = plan.strike.ammunition?.length ? plan.strike.ammunition : ammunition?.length ? ammunition : null;
+    const isAmmo = Boolean(plan.strike.ammo || loads);
+    const time = own?.time ?? plan.activation?.time;
+    const activationActions = ["free", "reaction"].includes(String(time)) ? 0 : Number(time) || 1;
     return {
         name: name ?? plan.source?.name ?? "Item",
-        actions: Number(own?.time ?? plan.activation?.time) || 1,
+        actions: isAmmo ? activationActions + 1 : Number(time) || 1,
         strides: 0,
         strike: null,
         range: plan.strike.range === "ranged" ? "ranged" : plan.strike.range === "melee" ? "melee" : "any",
         ...(rangeFree ? { rangeFree } : {}),
+        ...(instead ? { instead } : {}),
         // (2026-10-16: ammunition — Roc-Shaft Arrow's "arrows": PF2e's ammo base types it fits, with a weapon that takes them.)
-        ...((plan.strike.ammunition ?? []).length ? { ammunition: [...plan.strike.ammunition] } : {}),
+        ...(loads ? { ammunition: [...loads] } : {}),
         attackBonus: 0,
         damageBonus: 0,
         damage: null,

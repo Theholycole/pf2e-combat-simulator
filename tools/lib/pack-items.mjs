@@ -17,6 +17,13 @@ try {
 }
 const { basicActions, readDocuments, PACK_ROOT } = await import("./pack-creatures.mjs");
 const { bombRider, hasTrigger, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, itemTriggered, verifiedPlan } = await import("../../src/adapter/items.js");
+// (2026-10-16: ammunition, PF2e's "ammo" items, through the item module's compileActivations — Big Rock Bullet, Rattling Bolt.)
+let compileActivations = null;
+try {
+    ({ compileActivations } = await import(`${I}/src/compiler/permanent.js`));
+} catch {
+    compileActivations = null;
+}
 // (U22: a bomb's riders, the item module's compileBomb.)
 let compileBomb = null;
 try {
@@ -146,6 +153,22 @@ export function npcItems(npc, { fresh = true } = {}) {
         if (isUtility(plan) || (!rider && !canCast({ spellPools: { [entry.pool]: entry.casts }, covenReady: true }, spec))) continue;
         spellPools[entry.pool] = entry.casts;
         spells.push(spec);
+    }
+    // (2026-10-16: its ammunition used by Striking — Big Rock Bullet's damage in place of the sling's —, with the weapons it fits.)
+    for (const item of (npc.items ?? []).filter((entry) => entry.type === "ammo" && compileActivations)) {
+        const source = equipment.get(item._stats?.compendiumSource ?? item.flags?.core?.sourceId);
+        let activations = [];
+        try {
+            activations = compileActivations({ ...item, ...(source ? { system: { ...item.system, description: source.system?.description ?? item.system?.description } } : {}) }, { spellEffects, basicActions });
+        } catch {
+            activations = [];
+        }
+        const plan = activations.map((entry) => entry.plan).find((entry) => entry?.strike);
+        const activity = plan ? itemStrikeActivity(plan, { id: item._id, name: item.name, quantity: item.system?.quantity ?? 1, uses: item.system?.uses, fresh, feats, ammunition: item.system?.craftableAs ?? (source?.system?.craftableAs ?? null) }) : null;
+        if (!activity) continue;
+        if (activity.riderSpell) activity.riderSpell.effects = itemEffectModels(activity.riderSpell.plan, activity.riderSpell.castRank);
+        spellPools[activity.pool] = activity.casts;
+        activities.push(activity);
     }
     // (U22: the riders of the bombs its Strikes throw, by the Strike's name.)
     for (const strike of (npc.items ?? []).filter((entry) => entry.type === "melee" && entry.flags?.pf2e?.linkedWeapon)) {

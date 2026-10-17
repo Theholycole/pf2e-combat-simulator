@@ -1153,6 +1153,11 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
     const feats = [...(actor.itemTypes?.feat ?? []), ...(actor.itemTypes?.action ?? [])].map((feat) => feat.slug).filter(Boolean);
     const core = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api : null;
     const items = (actor.itemTypes?.consumable ?? []).filter((item) => !SPELL_ITEMS.includes(item.category ?? item.system?.category) && (Number(item.quantity ?? item.system?.quantity ?? 1) || 0) > 0);
+    // (2026-10-16: its ammunition used by Striking — Big Rock Bullet —, through the item module's compileActivations.)
+    for (const activity of await ammoActivities(actor, { fresh, feats })) {
+        result.spellPools[activity.pool] = activity.casts;
+        result.activities.push(activity);
+    }
     if (!core || !items.length) return result;
     let prepared = [];
     try {
@@ -1238,6 +1243,31 @@ async function readConsumables(actor, gaps, { fresh = false, handled = new Set()
         result.spells.push(spec);
     }
     return result;
+}
+
+// (2026-10-16) Ammunition used by Striking — PF2e's "ammo" items, through the item module's compileActivations (Big Rock Bullet, Rattling
+// Bolt): Strike activities with the weapons they fit (PF2e's craftableAs). Without the item module, none.
+let activationCompiler;
+async function ammoActivities(actor, { fresh = false, feats = [] } = {}) {
+    const ammo = (actor.itemTypes?.ammo ?? []).filter((item) => (Number(item.quantity ?? item.system?.quantity ?? 1) || 0) > 0);
+    if (!ammo.length) return [];
+    activationCompiler ??= await import("../../pf2e-automatic-item-resolution/src/compiler/permanent.js").then((module) => module.compileActivations).catch(() => null);
+    if (!activationCompiler) return [];
+    const out = [];
+    for (const item of ammo) {
+        let activations = [];
+        try {
+            activations = activationCompiler(item) ?? [];
+        } catch {
+            activations = [];
+        }
+        const plan = activations.map((entry) => entry.plan).find((entry) => entry?.strike);
+        const activity = plan ? itemStrikeActivity(leanPlan(plan), { id: item.id, name: item.name, quantity: item.quantity ?? item.system?.quantity, uses: item.system?.uses, fresh, feats, ammunition: item.system?.craftableAs ?? null }) : null;
+        if (!activity) continue;
+        if (activity.riderSpell) activity.riderSpell.effects = await effectModels(activity.riderSpell.plan, activity.riderSpell.castRank);
+        out.push(activity);
+    }
+    return out;
 }
 
 // U22: a bomb Strike's riders — the item module's compileBomb on the bomb (a PC's weapon, or the one an NPC's Strike links to); without the

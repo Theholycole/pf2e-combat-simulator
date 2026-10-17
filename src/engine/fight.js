@@ -926,6 +926,14 @@ function act(state, c, action) {
             if (result && result.degree >= SUCCESS && isActive(target)) applyStrikeRider(state, c, target, activity, result.degree === 3, fired);
             // (C30: Instrument of Zeal's critical hit with Blessed Counterstrike.)
             if (activity.zeal && result?.degree === CRITICAL_SUCCESS && isActive(target)) zealCritical(state, c, target, fired, { applyDamage, applyCondition });
+            // (2026-10-16: Big Rock Bullet's failure — not a critical one — still deals its own damage.)
+            if (activity.instead?.failure && result?.degree === FAILURE && isActive(target)) {
+                const part = activity.instead.failure;
+                let amount = part.bonus ?? 0;
+                for (let die = 0; die < part.dice; die++) amount += state.rng.die(part.die);
+                const dealt = applyDamage(state, target, [{ type: part.type, amount, persistent: false, precision: false, context: strikeContext(c, fired) }], { source: c, physical: true });
+                state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
+            }
             // (C34, Brutal Finish: a failure still deals a die or two of the weapon's; then its turn ends.)
             if (activity.failureDice && result?.degree === FAILURE && isActive(target) && fired?.damage?.[0]?.die) {
                 let amount = 0;

@@ -1029,3 +1029,23 @@ test("2026-10-16: an item that restores (Elixir of Rejuvenation) — all its dri
     assert.equal(pc.hp.value, pc.hp.max);
     assert.deepEqual(pc.afflictions.filter((held) => held.stage > 0).map((held) => held.name), ["High Curse"], state.log.join("\n"));
 });
+
+// 2026-10-16: ammunition (PF2e's "ammo" items, the item module's compileActivations) — Big Rock Bullet's damage in place of the sling's.
+test("2026-10-16: Big Rock Bullet — activated then shot (2 actions), from a sling; its 4d6 in place of the sling's on a hit, 2d6 on a failure", async () => {
+    const { itemStrikeActivity } = await import("../src/adapter/items.js");
+    const { chargeStrike } = await import("../src/engine/abilities.js");
+    const quiet = { criticalSuccess: none, success: none, failure: none, criticalFailure: none };
+    const bullet = { source: { name: "Test Rock" }, traits: ["consumable", "magical"], activation: { time: "1", traits: [] }, trigger: { event: "use" }, resolution: { kind: "check", check: { roll: "automatic" }, outcomes: quiet },
+        strike: { range: "ranged", save: null, ammo: true, instead: { hit: { formula: "4d6", type: "bludgeoning" }, failure: { formula: "2d6", type: "bludgeoning" } } }, item: { ...itemInfo("other", 7), recipient: "user", activations: [{ time: "1", traits: [] }] } };
+    const activity = itemStrikeActivity(bullet, { id: "rock", quantity: 2, ammunition: ["sling-bullets"] });
+    assert.deepEqual([activity.actions, activity.ammunition, activity.instead.hit.dice, activity.instead.failure.dice], [2, ["sling-bullets"], 4, 2]);
+    const sling = { name: "Test Sling", bonus: 12, melee: false, increment: 50, ammoType: "sling-bullets", damage: [{ dice: 1, die: 6, bonus: 2, type: "bludgeoning" }], critDamage: [{ dice: 2, die: 6, type: "bludgeoning" }] };
+    const loaded = chargeStrike(sling, activity);
+    assert.deepEqual([loaded.damage, loaded.critDamage], [[{ dice: 4, die: 6, bonus: 0, multiplier: 1, type: "bludgeoning", persistent: false, precision: false }], undefined]);
+    // In a fight: a monster slinger throws it (a miss of 1 on the die: nothing; a failure: the 2d6).
+    const { simulate, prepareSnapshot } = await import("../src/engine/fight.js");
+    const [fighter] = martialParty(5);
+    const slinger = { ...moderateCreature(5, "slinger", "Slinger"), band: "far", side: "foes", strikes: [sling], strikeActivities: [activity], spellPools: { [activity.pool]: 2 }, hp: { value: 600, max: 600, temp: 0 } };
+    const result = simulate(prepareSnapshot({ combatants: [{ ...fighter, band: "far", side: "party", hp: { value: 600, max: 600, temp: 0 } }, slinger] }), { morale: false }, 3, { log: true });
+    assert.ok(result.log.some((line) => /Test Sling \(Test Rock\)/.test(line)), result.log.slice(0, 30).join("\n"));
+});
