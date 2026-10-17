@@ -206,7 +206,9 @@ export function endZone(state, zone) {
 export function zoneSpell(name, plan, extra = {}) {
     const zone = plan?.zone;
     if (plan?.builtin !== "zone" || !zone?.area || !["use", "initiative"].includes(plan.trigger?.event ?? "use")) return null;
-    const save = (zone.saves ?? []).find((entry) => entry.plan?.resolution && entry.when.some((when) => ["initial", "start", "enter"].includes(when)));
+    // (2026-10-16: or one at the end of a turn in it — Noisome Garum's, an aura's "ends its turn within" —, valued the same; zoneTurn plays it.)
+    const save = (zone.saves ?? []).find((entry) => entry.plan?.resolution && entry.when.some((when) => ["initial", "start", "enter"].includes(when)))
+        ?? (zone.saves ?? []).find((entry) => entry.plan?.resolution && entry.when.includes("end"));
     const trigger = { event: plan.trigger?.event ?? "use", ...(plan.trigger?.reaction ? { reaction: true } : {}), ...(plan.trigger?.free ? { free: true } : {}), ...(plan.trigger?.recharge ? { recharge: { ...plan.trigger.recharge } } : {}) };
     const activation = { time: plan.trigger?.reaction ? (plan.trigger.free ? "free" : "reaction") : String(plan.actions || 1), traits: [] };
     // (B262: a square as the burst around its middle square.)

@@ -969,3 +969,19 @@ test("2026-10-16: an item's condition floor for a fixed time (Timpani of Panic's
     assert.deepEqual(brute.condFloors.map((entry) => entry.untilRound - state.round), [10, 1]);
     assert.equal(floorOf(brute, "frightened"), 1);
 });
+
+test("2026-10-16: a zone whose only save is at the end of a turn in it (Noisome Garum's) is played: the creature saves as its turn ends", async () => {
+    const { zoneSpell, zoneTurn } = await import("../src/engine/zones.js");
+    const savePlan = { ...PARALYZE_LIKE, resolution: { ...PARALYZE_LIKE.resolution, check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 40 } } } };
+    const plan = { builtin: "zone", trigger: { event: "use" }, actions: 1, zone: { area: { type: "emanation", value: 5 }, centre: "self", lasts: { mode: "fixed", value: 1, unit: "minutes" }, saves: [{ when: ["end"], plan: savePlan }] } };
+    const spell = zoneSpell("Test Garum", plan, {});
+    assert.ok(spell, "played");
+    const { state, pc, brute } = setUp({ potions: 0 });
+    pc.spells = [...pc.spells, { ...spell, pool: null }];
+    state.rng.d20 = () => 2;
+    castSpell(state, pc, pc.spells.length - 1, [pc.id]);
+    zoneTurn(state, brute, "start");
+    assert.equal(brute.cond.frightened ?? 0, 0, "not at its turn's start");
+    zoneTurn(state, brute, "end");
+    assert.ok((brute.cond.frightened ?? 0) > 0, state.log.join("\n"));
+});
