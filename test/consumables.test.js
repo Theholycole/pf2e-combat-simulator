@@ -999,3 +999,18 @@ test("2026-10-16: a Strike activity's roll options — Sniper's Bead's no range 
     const aimed = chargeStrike(bow, bead);
     assert.deepEqual([rangePenalty(aimed, 50), rangePenalty(aimed, 80)], [0, 4], "the second increment free, the third not");
 });
+
+test("2026-10-16: an item's extra Strike damage (Martial Mayhem Mutagen's precision die on melee Strikes at off-guard creatures) on its drinker", async () => {
+    const { featureParts } = await import("../src/engine/actions.js");
+    const strikeDamage = [{ diceNumber: 1, dieSize: "d6", category: "precision", damageType: null, predicate: ["item:melee", "target:condition:off-guard"], duration: { mode: "fixed", value: 10, unit: "minutes" } }];
+    const mutagen = { ...ELIXIR, source: { name: "Test Mutagen" }, item: { ...ELIXIR.item, category: "mutagen", strikeDamage } };
+    const entry = itemEntry(mutagen, { id: "m" });
+    assert.deepEqual(entry.strikeDamage[0].parts[0], { dice: 1, die: 6, bonus: 0, multiplier: 1, type: null, precision: true, persistent: false, whenOffGuard: true });
+    assert.equal(itemEntry({ ...mutagen, item: { ...mutagen.item, strikeDamage: [{ ...strikeDamage[0], predicate: ["target:trait:dragon"] }] } }, { id: "n" }).strikeDamage, undefined, "a predicate it doesn't read");
+    const { state, pc, brute } = withItem(mutagen);
+    const index = pc.spells.length - 1;
+    castSpell(state, pc, index, [pc.id]);
+    const melee = pc.strikes.find((strike) => strike.melee);
+    assert.equal(featureParts(pc, melee, brute, { offGuard: 0 }).filter((part) => part.precision).length, 0, "not off-guard: nothing");
+    assert.deepEqual(featureParts(pc, melee, brute, { offGuard: 0.5 }).filter((part) => part.precision).map((part) => [part.dice, part.die, part.chance]), [[1, 6, 0.5]]);
+});

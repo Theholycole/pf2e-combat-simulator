@@ -135,6 +135,24 @@ function withTypeChoices(plan) {
     };
 }
 
+// (2026-10-16: the item module's plan.item.strikeDamage — Martial Mayhem Mutagen's "your melee Strikes deal 1d4 additional precision damage to
+// off-guard creatures", its predicate ["item:melee", "target:condition:off-guard"] — as extra damage parts on its user's Strikes for its
+// duration: { parts: [{ dice, die, bonus, type, precision, persistent, whenOffGuard }], melee, ranged, rounds }. An entry whose predicate
+// says more than these isn't read.)
+const STRIKE_PREDICATES = new Set(["item:melee", "item:ranged", "target:condition:off-guard"]);
+function strikeDamageOf(item) {
+    return (item?.strikeDamage ?? []).flatMap((entry) => {
+        const predicate = entry.predicate ?? [];
+        if (predicate.some((term) => typeof term !== "string" || !STRIKE_PREDICATES.has(term))) return [];
+        const dice = Number(entry.diceNumber) || 0;
+        const die = Number(String(entry.dieSize ?? "").replace(/^d/, "")) || 0;
+        const bonus = Number(entry.value) || 0;
+        if (!(dice && die) && !bonus) return [];
+        return [{ parts: [{ dice: dice && die ? dice : 0, die: dice && die ? die : 0, bonus: dice && die ? 0 : bonus, multiplier: 1, type: entry.damageType ?? null, precision: entry.category === "precision", persistent: entry.category === "persistent", ...(predicate.includes("target:condition:off-guard") ? { whenOffGuard: true } : {}) }],
+            melee: !predicate.includes("item:ranged"), ranged: !predicate.includes("item:melee"), rounds: lastingRounds(entry.duration).rounds }];
+    });
+}
+
 // U1 (2026-10-15), consumables. The user: "monsters should use their items freely. Players should use rechargeable or reusable items
 // freely but consumables should be weighted to be used when they provide significant more value than other options. Healing items
 // should be used freely if they are projected to go down soon or if they are used on another player that is already down."
@@ -244,6 +262,7 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         ...(retaliation ? { retaliation } : {}),
         ...(rune ? { rune } : {}),
         ...(itemAction ? { itemAction } : {}),
+        ...(strikeDamageOf(item).length ? { strikeDamage: strikeDamageOf(item) } : {}),
         // (U12: a flat check to end persistent damage of its types at once — Quenching Potion's — used freely, the user's call.)
         ...(item.recovery?.types?.length ? { recovery: { types: [...item.recovery.types], dc: Number(item.recovery.dc) || 15 }, free: true } : {})
     };

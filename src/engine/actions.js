@@ -152,7 +152,8 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
     for (const buff of attacker.activeBuffs ?? []) for (const part of buff.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
     // (B241: a part only against creatures with a trait, Imbue Righteousness's.)
     // (U16: a lent rune's, against undead and void-healing creatures only.)
-    for (const effect of attacker.effects ?? []) for (const part of effect.model?.strikeDeltas?.[strike.name] ?? []) if ((!part.vsTrait || (target.traits ?? []).includes(part.vsTrait)) && (!part.vsUndead || isUndead(target))) parts.push({ ...part, chance: 1 });
+    // (2026-10-16: an item's against an off-guard creature only — Martial Mayhem Mutagen's precision dice —, by the off-guard chance.)
+    for (const effect of attacker.effects ?? []) for (const part of effect.model?.strikeDeltas?.[strike.name] ?? []) if ((!part.vsTrait || (target.traits ?? []).includes(part.vsTrait)) && (!part.vsUndead || isUndead(target)) && (!part.whenOffGuard || offGuard)) parts.push({ ...part, chance: part.whenOffGuard ? offGuard : 1 });
     // (B308: a mark's extra damage — Smite's +4, +8 against an unholy target.)
     if (attacker.huntPrey?.edge === "parts" && attacker.prey === target.id) for (const part of attacker.huntPrey.parts) parts.push({ dice: part.dice, die: part.die, bonus: part.upgrade && (target.traits ?? []).includes(part.upgrade.trait) ? Math.max(part.bonus, part.upgrade.value) : part.bonus, multiplier: 1, type: part.type ?? strike.damage?.[0]?.type, precision: false, persistent: false, chance: 1 });
     if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id && (firstPreyHit || attacker.huntPrey.every)) parts.push({ dice: attacker.huntPrey.precisionDice ?? 1, die: attacker.huntPrey.die ?? 8, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });

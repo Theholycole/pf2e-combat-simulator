@@ -1227,6 +1227,29 @@ function itemRuneWorth(state, spell, c) {
     return worth;
 }
 
+// (2026-10-16: an item's extra Strike damage — the adapter's strikeDamage — as an effect with those parts on the creature's Strikes it
+// names (melee, ranged), for its time. Worth, as a lent rune's: the damage a hit, as a damage bonus is weighed, about two fifths of it
+// when only against an off-guard creature.)
+function applyItemStrikeDamage(state, spell, c) {
+    for (const [index, entry] of spell.strikeDamage.entries()) {
+        const strikes = (c.strikes ?? []).filter((strike) => (strike.melee ? entry.melee : entry.ranged));
+        if (!strikes.length) continue;
+        const model = { name: spell.name, rounds: entry.rounds, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0,
+            strikeDeltas: Object.fromEntries(strikes.map((strike) => [strike.name, entry.parts.map((part) => ({ ...part }))])) };
+        applyEffect(state, c, model, c, { applyCondition, key: `strike-damage:${spell.name}:${index}` });
+    }
+}
+
+function itemStrikeDamageWorth(state, spell, c) {
+    if ((c.effects ?? []).some((effect) => String(effect.key).startsWith(`strike-damage:${spell.name}:`))) return 0;
+    const share = state.strikeShare?.get(c.id) ?? 1;
+    return spell.strikeDamage.reduce((sum, entry) => {
+        if (!(c.strikes ?? []).some((strike) => (strike.melee ? entry.melee : entry.ranged))) return sum;
+        const perHit = entry.parts.reduce((total, part) => total + (part.dice * (part.die + 1) / 2 + part.bonus) * (part.whenOffGuard ? 0.4 : 1), 0);
+        return sum + 0.04 * share * perHit * Math.min(3, entry.rounds);
+    }, 0);
+}
+
 // Cleanse Affliction: one affliction of its traits a stage lower, not below the floor.
 function applyAfflictionStage(state, target, change) {
     const entry = (target.afflictions ?? []).filter((held) => held.stage > (change.floor ?? 1) && (!(change.traits ?? []).length || (held.data?.traits ?? []).some((trait) => change.traits.includes(trait)))).sort((a, b) => b.stage - a.stage)[0];
@@ -1679,6 +1702,11 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
     }
     // (U16: a rune lent its user's weapon.)
     if (spell?.rune) applyItemRune(state, caster, spell);
+    // (2026-10-16: an item's extra Strike damage on those it was used on — Martial Mayhem Mutagen's, on its drinker.)
+    if (spell?.strikeDamage) for (const id of targetIds ?? []) {
+        const target = state.byId.get(id);
+        if (target && isActive(target)) applyItemStrikeDamage(state, spell, target);
+    }
     // (U15: a retaliation potion on the drinker; a touch spell at a creature with one, its damage on the caster.)
     if (spell?.retaliation) for (const id of targetIds ?? []) {
         const target = state.byId.get(id);
@@ -2863,6 +2891,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         if (spell.recovery) entry.damage -= itemRecoveryWorth(spell, target);
         // (U16: a rune lent its user's weapon.)
         if (spell.rune && target === caster) entry.benefit += itemRuneWorth(state, spell, caster);
+        // (2026-10-16: an item's extra Strike damage on this creature.)
+        if (spell.strikeDamage && target.side === caster.side) entry.benefit += itemStrikeDamageWorth(state, spell, target);
         result.push(entry);
         // (I1: nothing on a creature immune to it; T7: nor a non-damaging one aimed at one creature on a troop.)
         if (effectImmunity(target, spell) || outsideTargets(caster, target, spell)) continue;
