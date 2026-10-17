@@ -329,12 +329,18 @@ export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses =
     if (Number.isNaN(push) || Number.isNaN(criticalPush)) return null;
     const own = item.activations?.[0] ?? null;
     const save = plan.strike.save?.resolution ? plan.strike.save : null;
+    // (2026-10-16: PF2e's roll options on its Strike — Sniper's Bead's "ignore-range-penalty:2", no range penalty out to the second
+    // increment —; another option, or a modifier it drops (Alchemist's Damper's kickback), isn't played.)
+    const rangeFree = Math.max(0, ...(plan.strike.options ?? []).map((option) => Number(/^ignore-range-penalty:(\d+)$/.exec(option)?.[1]) || 0));
+    // (One that adds nothing played — no rider, push, save or option — isn't an activity: it would only spend the item.)
+    if (!onHit.length && !onCritical.length && !push && !criticalPush && !save && !rangeFree) return null;
     return {
         name: name ?? plan.source?.name ?? "Item",
         actions: Number(own?.time ?? plan.activation?.time) || 1,
         strides: 0,
         strike: null,
         range: plan.strike.range === "ranged" ? "ranged" : plan.strike.range === "melee" ? "melee" : "any",
+        ...(rangeFree ? { rangeFree } : {}),
         // (2026-10-16: ammunition — Roc-Shaft Arrow's "arrows": PF2e's ammo base types it fits, with a weapon that takes them.)
         ...((plan.strike.ammunition ?? []).length ? { ammunition: [...plan.strike.ammunition] } : {}),
         attackBonus: 0,

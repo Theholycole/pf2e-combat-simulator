@@ -104,7 +104,8 @@ export function rangePenalty(strike, distance) {
     const increments = Math.max(1, Math.ceil(distance / strike.increment));
     if (increments > 6) return null;
     const volley = strike.volley && distance <= strike.volley ? 2 : 0;
-    return 2 * (increments - 1) + volley;
+    // (2026-10-16: no penalty out to rangeFree increments — Sniper's Bead.)
+    return (strike.rangeFree && increments <= strike.rangeFree ? 0 : 2 * (increments - 1)) + volley;
 }
 
 // Strides needed to engage the target from the attacker's current band; with

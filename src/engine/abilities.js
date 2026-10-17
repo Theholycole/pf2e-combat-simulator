@@ -666,8 +666,9 @@ export function withExtraDamage(strike, formulas) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard === true ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1)) return strike;
-    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}) };
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree) return strike;
+    // (2026-10-16: Sniper's Bead's, no range penalty out to that many increments — space.js rangePenalty.)
+    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
     // Vicious Swing: extra dice of the weapon's own damage (PF2e's critical formula would leave them out).
     // (C34: PF2e's critical formula kept — deadly, critical specialization, flaming's persistent fire — with the dice in its doubled part.)

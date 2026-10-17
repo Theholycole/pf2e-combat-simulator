@@ -985,3 +985,17 @@ test("2026-10-16: a zone whose only save is at the end of a turn in it (Noisome 
     zoneTurn(state, brute, "end");
     assert.ok((brute.cond.frightened ?? 0) > 0, state.log.join("\n"));
 });
+
+test("2026-10-16: a Strike activity's roll options — Sniper's Bead's no range penalty out to the second increment; one that adds nothing played isn't an activity", async () => {
+    const { itemStrikeActivity } = await import("../src/adapter/items.js");
+    const { rangePenalty } = await import("../src/engine/space.js");
+    const { chargeStrike } = await import("../src/engine/abilities.js");
+    const plain = { ...FEAR_GEM, resolution: { ...FEAR_GEM.resolution, outcomes: { criticalSuccess: none, success: none, failure: none, criticalFailure: none } } };
+    const bead = itemStrikeActivity({ ...plain, source: { name: "Test Bead" }, strike: { range: "ranged", save: null, options: ["ignore-range-penalty:2"] } }, { id: "b" });
+    assert.equal(bead.rangeFree, 2);
+    assert.equal(itemStrikeActivity({ ...plain, source: { name: "Test Damper" }, strike: { range: "ranged", save: null, suppress: ["kickback"] } }, { id: "d" }), null, "nothing played: not an activity");
+    const bow = { name: "Test Bow", bonus: 10, melee: false, increment: 30, damage: [{ dice: 1, die: 6, bonus: 0, type: "piercing" }] };
+    assert.deepEqual([rangePenalty(bow, 50), rangePenalty(bow, 80)], [2, 4]);
+    const aimed = chargeStrike(bow, bead);
+    assert.deepEqual([rangePenalty(aimed, 50), rangePenalty(aimed, 80)], [0, 4], "the second increment free, the third not");
+});
