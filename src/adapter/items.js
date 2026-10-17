@@ -178,7 +178,8 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         const action = plan.action ?? {};
         if ((action.slugs?.length ?? 0) > 1 || !action.basic?.resolution?.check || action.basic.builtin) return null;
         const check = action.statistic ? { ...action.basic.resolution.check, statistic: action.statistic } : action.basic.resolution.check;
-        itemAction = { slug: action.slug, ...(action.minimum ? { minimum: { value: Number(action.minimum.value) || 0, skill: action.minimum.skill } } : {}), ...(action.bonus?.value ? { bonus: Number(action.bonus.value) || 0 } : {}) };
+        // (2026-10-17: action.minimum.ownBonus — Greater Ravenous Flytrap's +2 item to the user's own Athletics when that's the higher.)
+        itemAction = { slug: action.slug, ...(action.minimum ? { minimum: { value: Number(action.minimum.value) || 0, skill: action.minimum.skill, ...(Number(action.minimum.ownBonus?.value) ? { ownBonus: Number(action.minimum.ownBonus.value) } : {}) } } : {}), ...(action.bonus?.value ? { bonus: Number(action.bonus.value) || 0 } : {}) };
         plan = { ...action.basic, source: plan.source, item: plan.item, builtin: undefined, resolution: { ...action.basic.resolution, check } };
     }
     // (U10: an item that only counteracts — Surging Serum, Panacea: nothing of its own on the drinker, its counteract the item's rider below.)
@@ -324,8 +325,17 @@ const FEAT_BOOSTS = Object.freeze({ "fear-gem": { feat: "intimidating-strike", s
 // ammunition: the weapons' ammo base types it fits when the plan doesn't say (an ammo item's PF2e system.craftableAs, "sling-bullets").
 export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses = null, fresh = false, feats = [], ammunition = null } = {}) {
     if (!plan?.strike || !plan.resolution?.outcomes) return null;
-    // (Extras on the Strike itself — more damage dice, an attack bonus, an alteration: not yet, so not played without them.)
-    if (plan.strike.damage?.length || plan.strike.attack || plan.strike.alteration) return null;
+    // (Extras on the Strike itself — an attack bonus, an alteration: not yet, so not played without them. 2026-10-17: more damage dice —
+    // Shatterpoint Ammunition's persistent sonic — added to its damage, when they're plain dice or a number of a type.)
+    if (plan.strike.attack || plan.strike.alteration) return null;
+    const extraDamage = (plan.strike.damage ?? []).map((entry) => {
+        const dice = Number(entry.diceNumber) || 0;
+        const die = Number(String(entry.dieSize ?? "").replace(/^d/, "")) || 0;
+        const bonus = Number(entry.value) || 0;
+        if (!entry.damageType || (!(dice && die) && !bonus) || ![null, undefined, "persistent", "precision"].includes(entry.category)) return null;
+        return { dice: dice && die ? dice : 0, die: dice && die ? die : 0, bonus: dice && die ? 0 : bonus, multiplier: 1, type: entry.damageType, persistent: entry.category === "persistent", precision: entry.category === "precision" };
+    });
+    if (extraDamage.some((part) => !part)) return null;
     const item = plan.item ?? {};
     const reusable = (uses?.autoDestroy ?? item.uses?.autoDestroy) === false;
     const casts = itemCasts({ category: reusable ? "wand" : "consumable", quantity, uses: { max: Math.max(1, Number(uses?.max ?? item.uses?.max) || 1), value: uses?.value }, fresh: reusable && fresh });
@@ -361,7 +371,7 @@ export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses =
     };
     const instead = plan.strike.instead?.hit && dice(plan.strike.instead.hit) ? { hit: dice(plan.strike.instead.hit), failure: dice(plan.strike.instead.failure) } : null;
     // (One that adds nothing played — no rider, push, save, option or damage of its own — isn't an activity: it would only spend the item.)
-    if (!onHit.length && !onCritical.length && !push && !criticalPush && !save && !rangeFree && !instead) return null;
+    if (!onHit.length && !onCritical.length && !push && !criticalPush && !save && !rangeFree && !instead && !extraDamage.length) return null;
     // (Ammunition — an arrow, a bullet: activated, then shot with a Strike — the activation's actions and the Strike's.)
     const loads = plan.strike.ammunition?.length ? plan.strike.ammunition : ammunition?.length ? ammunition : null;
     const isAmmo = Boolean(plan.strike.ammo || loads);
@@ -375,6 +385,7 @@ export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses =
         range: plan.strike.range === "ranged" ? "ranged" : plan.strike.range === "melee" ? "melee" : "any",
         ...(rangeFree ? { rangeFree } : {}),
         ...(instead ? { instead } : {}),
+        ...(extraDamage.length ? { extraDamage } : {}),
         // (2026-10-16: ammunition — Roc-Shaft Arrow's "arrows": PF2e's ammo base types it fits, with a weapon that takes them.)
         ...(loads ? { ammunition: [...loads] } : {}),
         attackBonus: 0,

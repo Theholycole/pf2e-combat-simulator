@@ -272,8 +272,11 @@ test("U7: an item used by Striking is a Strike activity — its riders on a hit 
     const shove = (kind) => ({ ...FEAR_GEM, resolution: { ...FEAR_GEM.resolution, outcomes: { ...FEAR_GEM.resolution.outcomes, success: { ...FEAR_GEM.resolution.outcomes.success, forcedMovement: { kind, distance: 5 } }, criticalSuccess: { ...FEAR_GEM.resolution.outcomes.criticalSuccess, forcedMovement: { kind, distance: 5 } } } } });
     assert.equal(itemStrikeActivity(shove("push"), { id: "g" }).onHit.push, 5);
     assert.equal(itemStrikeActivity(shove("pull"), { id: "g" }), null);
-    // (Extras on the Strike itself, more damage or an attack bonus: not played without them.)
-    assert.equal(itemStrikeActivity({ ...FEAR_GEM, strike: { ...FEAR_GEM.strike, damage: [{ diceNumber: 4, dieSize: "d6", damageType: "mental" }] } }, { id: "g" }), null);
+    // (Extras on the Strike itself: an attack bonus isn't played without it; 2026-10-17, plain extra damage dice are carried — Shatterpoint
+    // Ammunition's persistent sonic.)
+    assert.equal(itemStrikeActivity({ ...FEAR_GEM, strike: { ...FEAR_GEM.strike, attack: { value: 2 } } }, { id: "g" }), null);
+    assert.deepEqual(itemStrikeActivity({ ...FEAR_GEM, strike: { ...FEAR_GEM.strike, damage: [{ diceNumber: 1, dieSize: "d8", category: "persistent", damageType: "sonic" }] } }, { id: "g" }).extraDamage, [{ dice: 1, die: 8, bonus: 0, multiplier: 1, type: "sonic", persistent: true, precision: false }]);
+    assert.equal(itemStrikeActivity({ ...FEAR_GEM, strike: { ...FEAR_GEM.strike, damage: [{ diceNumber: 1, dieSize: "d8", category: "splash", damageType: "sonic" }] } }, { id: "g" }), null, "a kind of damage it doesn't carry");
     // And not an action of its own: itemEntry leaves it to the activity.
     assert.equal(itemEntry(FEAR_GEM, { id: "g" }), null);
 });
@@ -1048,4 +1051,16 @@ test("2026-10-16: Big Rock Bullet — activated then shot (2 actions), from a sl
     const slinger = { ...moderateCreature(5, "slinger", "Slinger"), band: "far", side: "foes", strikes: [sling], strikeActivities: [activity], spellPools: { [activity.pool]: 2 }, hp: { value: 600, max: 600, temp: 0 } };
     const result = simulate(prepareSnapshot({ combatants: [{ ...fighter, band: "far", side: "party", hp: { value: 600, max: 600, temp: 0 } }, slinger] }), { morale: false }, 3, { log: true });
     assert.ok(result.log.some((line) => /Test Sling \(Test Rock\)/.test(line)), result.log.slice(0, 30).join("\n"));
+});
+
+test("2026-10-17: a Strike activity's extra damage dice (Shatterpoint Ammunition's persistent sonic) join its damage and its critical formula; an item action's ownBonus (Greater Ravenous Flytrap)", async () => {
+    const { chargeStrike } = await import("../src/engine/abilities.js");
+    const extra = [{ dice: 1, die: 8, bonus: 0, multiplier: 1, type: "sonic", persistent: true, precision: false }];
+    const bow = { name: "Test Bow", bonus: 10, melee: false, increment: 60, damage: [{ dice: 1, die: 8, bonus: 0, type: "piercing" }], critDamage: [{ dice: 1, die: 8, type: "piercing", multiplier: 2 }] };
+    const shot = chargeStrike(bow, { name: "Test Shatterpoint", extraDamage: extra });
+    assert.deepEqual(shot.damage.map((part) => `${part.dice}d${part.die} ${part.persistent ? "persistent " : ""}${part.type}`), ["1d8 piercing", "1d8 persistent sonic"]);
+    assert.deepEqual(shot.critDamage.at(-1), { ...extra[0], multiplier: 2 });
+    const entry = itemEntry({ modelVersion: 13, source: { name: "Test Trap" }, rank: 1, traits: [], builtin: "item-action", targeting: { target: "the creature targeted" }, trigger: { event: "use" },
+        action: { slug: "grapple", name: "Grapple", minimum: { value: 16, skill: "athletics", ownBonus: { value: 2, type: "item" } }, targeted: true, basic: { resolution: { kind: "save", check: { roll: "skill", statistic: "athletics", against: { dc: "target", statistic: "fortitude" } }, outcomes: {} }, targeting: { target: "1 creature" }, activation: { time: "1", traits: ["attack"] } } }, item: { ...itemInfo("other", 8), recipient: "user" } }, { id: "t" });
+    assert.deepEqual(entry.itemAction.minimum, { value: 16, skill: "athletics", ownBonus: 2 });
 });
