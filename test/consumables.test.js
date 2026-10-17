@@ -1064,3 +1064,25 @@ test("2026-10-17: a Strike activity's extra damage dice (Shatterpoint Ammunition
         action: { slug: "grapple", name: "Grapple", minimum: { value: 16, skill: "athletics", ownBonus: { value: 2, type: "item" } }, targeted: true, basic: { resolution: { kind: "save", check: { roll: "skill", statistic: "athletics", against: { dc: "target", statistic: "fortitude" } }, outcomes: {} }, targeting: { target: "1 creature" }, activation: { time: "1", traits: ["attack"] } } }, item: { ...itemInfo("other", 8), recipient: "user" } }, { id: "t" });
     assert.deepEqual(entry.itemAction.minimum, { value: 16, skill: "athletics", ownBonus: 2 });
 });
+
+test("2026-10-17: an item's resistance (Potion of Resistance's choice of energy) on its drinker, the type its foes deal; worth nothing against foes that don't", async () => {
+    const { spellExpectation } = await import("../src/engine/spells.js");
+    const potion = { ...POTION, source: { name: "Test Resistance" }, resolution: { kind: "check", check: { roll: "automatic" }, outcomes: { success: { ...none } } },
+        item: { ...POTION.item, resist: [{ type: null, choose: ["acid", "cold", "fire"], value: 10, duration: { mode: "fixed", value: 1, unit: "hours" } }] } };
+    const entry = itemEntry(potion, { id: "r" });
+    assert.deepEqual(entry.resist, [{ choose: ["acid", "cold", "fire"], value: 10, rounds: Infinity }]);
+    assert.equal(itemEntry({ ...potion, item: { ...potion.item, resist: [{ type: "custom", value: 5, from: ["unholy"], damage: ["spirit"] }] } }, { id: "c" }).resist, undefined, "a custom one: not yet");
+    const { state, pc, index, brute } = withItem(potion);
+    const worth = () => spellExpectation(state, pc, pc.spells[index], [pc]).find((row) => row.target === pc)?.benefit ?? 0;
+    assert.equal(worth(), 0, "the brute's slashing: none of its types");
+    brute.strikes = brute.strikes.map((strike) => ({ ...strike, damage: strike.damage.map((part) => ({ ...part, type: "cold" })) }));
+    assert.ok(worth() > 0);
+    castSpell(state, pc, index, [pc.id]);
+    assert.ok((pc.resistances ?? []).some((entry) => entry.type === "cold" && entry.value === 10), JSON.stringify(pc.resistances));
+    assert.ok(state.log.some((line) => line.includes("gains resistance 10 to cold")));
+});
+
+test("2026-10-17: a Strike plan whose hit does only what its words say (strike.fromNotes) isn't an activity", async () => {
+    const { itemStrikeActivity } = await import("../src/adapter/items.js");
+    assert.equal(itemStrikeActivity({ ...FEAR_GEM, strike: { ...FEAR_GEM.strike, fromNotes: true } }, { id: "g" }), null);
+});

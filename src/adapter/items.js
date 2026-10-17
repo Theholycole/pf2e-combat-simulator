@@ -135,6 +135,13 @@ function withTypeChoices(plan) {
     };
 }
 
+const resistOf = (item) => (item?.resist ?? []).flatMap((entry) => {
+    const value = Number(entry.value) || 0;
+    const choose = (entry.choose ?? []).filter((type) => typeof type === "string");
+    if (!(value > 0) || entry.type === "custom" || (!entry.type && !choose.length)) return [];
+    return [{ ...(entry.type ? { type: entry.type } : { choose }), value, rounds: lastingRounds(entry.duration).rounds }];
+});
+
 // (2026-10-16: the item module's plan.item.strikeDamage — Martial Mayhem Mutagen's "your melee Strikes deal 1d4 additional precision damage to
 // off-guard creatures", its predicate ["item:melee", "target:condition:off-guard"] — as extra damage parts on its user's Strikes for its
 // duration: { parts: [{ dice, die, bonus, type, precision, persistent, whenOffGuard }], melee, ranged, rounds }. An entry whose predicate
@@ -264,6 +271,9 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         ...(rune ? { rune } : {}),
         ...(itemAction ? { itemAction } : {}),
         ...(strikeDamageOf(item).length ? { strikeDamage: strikeDamageOf(item) } : {}),
+        // (2026-10-17: the item module's plan.item.resist — Potion of Resistance's "resistance 5 to acid, cold, electricity, fire or sonic",
+        // Maelstromic Destabilizer's spirit: [{ type | choose, value, rounds }]; a custom one, against some creatures only, not yet.)
+        ...(resistOf(item).length ? { resist: resistOf(item) } : {}),
         // (2026-10-16: the item module's plan.item.restore — Elixir of Rejuvenation: all its Hit Points, its afflictions of that level or lower gone.)
         ...(item.restore ? { restore: { hp: item.restore.hp === "max" ? "max" : null, afflictionLevel: Number.isFinite(Number(item.restore.afflictions?.level)) ? Number(item.restore.afflictions.level) : null } } : {}),
         // (U12: a flat check to end persistent damage of its types at once — Quenching Potion's — used freely, the user's call.)
@@ -325,6 +335,8 @@ const FEAT_BOOSTS = Object.freeze({ "fear-gem": { feat: "intimidating-strike", s
 // ammunition: the weapons' ammo base types it fits when the plan doesn't say (an ammo item's PF2e system.craftableAs, "sling-bullets").
 export function itemStrikeActivity(plan, { id, name = null, quantity = 1, uses = null, fresh = false, feats = [], ammunition = null } = {}) {
     if (!plan?.strike || !plan.resolution?.outcomes) return null;
+    // (2026-10-17: what a hit does only in words — Magekiller Bullet's curse, strike.fromNotes —: the GM's, not played.)
+    if (plan.strike.fromNotes) return null;
     // (Extras on the Strike itself — an attack bonus, an alteration: not yet, so not played without them. 2026-10-17: more damage dice —
     // Shatterpoint Ammunition's persistent sonic — added to its damage, when they're plain dice or a number of a type.)
     if (plan.strike.attack || plan.strike.alteration) return null;

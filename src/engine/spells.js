@@ -1227,6 +1227,48 @@ function itemRuneWorth(state, spell, c) {
     return worth;
 }
 
+// (2026-10-17) An item's resistance: a set type, or of a choice the one the creature's foes deal the most of — their Strikes' damage
+// types, their damaging spells' and abilities' (the share of their parts of it). Worth, as an effect's resistance is weighed, times that share.
+function foeDamageShares(state, c) {
+    const counts = new Map();
+    let total = 0;
+    for (const foe of state.list) {
+        if (foe.side === c.side || !isActive(foe)) continue;
+        for (const strike of foe.strikes ?? []) for (const part of strike.damage ?? []) if (part.type) {
+            counts.set(part.type, (counts.get(part.type) ?? 0) + 1);
+            total++;
+        }
+        for (const spell of foe.spells ?? []) for (const component of spell.plan?.resolution?.sharedDamage?.components ?? []) if (component.type) {
+            counts.set(component.type, (counts.get(component.type) ?? 0) + 1);
+            total++;
+        }
+    }
+    return (type) => (total ? (counts.get(type) ?? 0) / total : 0);
+}
+
+function resistType(state, entry, c) {
+    if (entry.type) return entry.type;
+    const share = foeDamageShares(state, c);
+    return entry.choose.reduce((best, type) => (share(type) > share(best) ? type : best), entry.choose[0]);
+}
+
+function applyItemResist(state, spell, c) {
+    for (const [index, entry] of spell.resist.entries()) {
+        const type = resistType(state, entry, c);
+        const model = { name: spell.name, rounds: entry.rounds, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [{ type, value: entry.value, exceptions: [] }], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
+        applyEffect(state, c, model, c, { applyCondition, key: `resist:${spell.name}:${index}` });
+        log(state, `  ${c.name} gains resistance ${entry.value} to ${type} (${spell.name})`);
+    }
+}
+
+function itemResistWorth(state, spell, c) {
+    const share = foeDamageShares(state, c);
+    return spell.resist.reduce((sum, entry, index) => {
+        if ((c.effects ?? []).some((effect) => effect.key === `resist:${spell.name}:${index}`)) return sum;
+        return sum + 0.02 * entry.value * Math.min(3, entry.rounds) * share(resistType(state, entry, c)) * 3;
+    }, 0);
+}
+
 // An affliction's level: its own, else its source creature's.
 const afflictionLevel = (state, entry) => Number(entry.data?.level ?? state.byId.get(entry.source)?.level ?? 0) || 0;
 
@@ -1713,6 +1755,11 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
         if (Number.isFinite(spell.restore.afflictionLevel)) for (const entry of [...(target.afflictions ?? [])]) {
             if (entry.stage > 0 && afflictionLevel(state, entry) <= spell.restore.afflictionLevel) setAfflictionStage(state, target, entry, 0);
         }
+    }
+    // (2026-10-17: an item's resistance on those it was used on — Potion of Resistance's, its type the one the foes deal most.)
+    if (spell?.resist) for (const id of targetIds ?? []) {
+        const target = state.byId.get(id);
+        if (target && isActive(target)) applyItemResist(state, spell, target);
     }
     // (2026-10-16: an item's extra Strike damage on those it was used on — Martial Mayhem Mutagen's, on its drinker.)
     if (spell?.strikeDamage) for (const id of targetIds ?? []) {
@@ -2905,6 +2952,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         if (spell.rune && target === caster) entry.benefit += itemRuneWorth(state, spell, caster);
         // (2026-10-16: an item that restores — its Hit Points back, as healing.)
         if (spell.restore?.hp === "max" && target.side === caster.side && target.status !== "dead") entry.heal += Math.max(0, target.hp.max - Math.max(0, target.hp.value));
+        // (2026-10-17: an item's resistance on this creature.)
+        if (spell.resist && target.side === caster.side) entry.benefit += itemResistWorth(state, spell, target);
         // (2026-10-16: an item's extra Strike damage on this creature.)
         if (spell.strikeDamage && target.side === caster.side) entry.benefit += itemStrikeDamageWorth(state, spell, target);
         result.push(entry);
