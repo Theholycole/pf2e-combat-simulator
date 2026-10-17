@@ -34,7 +34,8 @@ export function goingDown(state, c) {
 
 // A healing item drunk by a PC about to go down, or fed to a PC who is down: used freely.
 export function urgentHealing(state, c, spell, targets, actions) {
-    if (!spell.plan || !describeSpell(spell.plan, actions).healing) return false;
+    // (2026-10-16: or one that restores all its Hit Points, Elixir of Rejuvenation.)
+    if (!spell.plan || !(describeSpell(spell.plan, actions).healing || spell.restore?.hp === "max")) return false;
     return targets.some((target) => (target !== c && target.kind === "pc" && target.status === "down") || (target === c && goingDown(state, c)));
 }
 

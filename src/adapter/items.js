@@ -263,6 +263,8 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         ...(rune ? { rune } : {}),
         ...(itemAction ? { itemAction } : {}),
         ...(strikeDamageOf(item).length ? { strikeDamage: strikeDamageOf(item) } : {}),
+        // (2026-10-16: the item module's plan.item.restore — Elixir of Rejuvenation: all its Hit Points, its afflictions of that level or lower gone.)
+        ...(item.restore ? { restore: { hp: item.restore.hp === "max" ? "max" : null, afflictionLevel: Number.isFinite(Number(item.restore.afflictions?.level)) ? Number(item.restore.afflictions.level) : null } } : {}),
         // (U12: a flat check to end persistent damage of its types at once — Quenching Potion's — used freely, the user's call.)
         ...(item.recovery?.types?.length ? { recovery: { types: [...item.recovery.types], dc: Number(item.recovery.dc) || 15 }, free: true } : {})
     };

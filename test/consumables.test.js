@@ -1014,3 +1014,18 @@ test("2026-10-16: an item's extra Strike damage (Martial Mayhem Mutagen's precis
     assert.equal(featureParts(pc, melee, brute, { offGuard: 0 }).filter((part) => part.precision).length, 0, "not off-guard: nothing");
     assert.deepEqual(featureParts(pc, melee, brute, { offGuard: 0.5 }).filter((part) => part.precision).map((part) => [part.dice, part.die, part.chance]), [[1, 6, 0.5]]);
 });
+
+test("2026-10-16: an item that restores (Elixir of Rejuvenation) — all its drinker's Hit Points, its afflictions of that level or lower ended; urgent healing for a PC", async () => {
+    const { urgentHealing } = await import("../src/engine/consumables.js");
+    const elixir = { ...ELIXIR, source: { name: "Test Rejuvenation" }, resolution: { kind: "check", check: { roll: "automatic" }, outcomes: { success: { ...none } } }, item: { ...ELIXIR.item, recipient: "drinker", restore: { hp: "max", afflictions: { level: 5 } } } };
+    const entry = itemEntry(elixir, { id: "r" });
+    assert.deepEqual(entry.restore, { hp: "max", afflictionLevel: 5 });
+    const { state, pc, index } = withItem(elixir);
+    pc.hp.value = 3;
+    pc.afflictions = [{ name: "Low Poison", source: "brute", data: { level: 3, traits: ["poison"] }, stages: [{ conditions: [] }], stage: 1, conditions: [], endRound: 99 }, { name: "High Curse", source: "brute", data: { level: 9, traits: ["curse"] }, stages: [{ conditions: [] }], stage: 1, conditions: [], endRound: 99 }];
+    state.threat?.set?.("brute", 50);
+    assert.equal(urgentHealing(state, pc, pc.spells[index], [pc]), true, "about to go down");
+    castSpell(state, pc, index, [pc.id]);
+    assert.equal(pc.hp.value, pc.hp.max);
+    assert.deepEqual(pc.afflictions.filter((held) => held.stage > 0).map((held) => held.name), ["High Curse"], state.log.join("\n"));
+});

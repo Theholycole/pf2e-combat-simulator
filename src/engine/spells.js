@@ -1227,6 +1227,9 @@ function itemRuneWorth(state, spell, c) {
     return worth;
 }
 
+// An affliction's level: its own, else its source creature's.
+const afflictionLevel = (state, entry) => Number(entry.data?.level ?? state.byId.get(entry.source)?.level ?? 0) || 0;
+
 // (2026-10-16: an item's extra Strike damage — the adapter's strikeDamage — as an effect with those parts on the creature's Strikes it
 // names (melee, ranged), for its time. Worth, as a lent rune's: the damage a hit, as a damage bonus is weighed, about two fifths of it
 // when only against an off-guard creature.)
@@ -1702,6 +1705,15 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
     }
     // (U16: a rune lent its user's weapon.)
     if (spell?.rune) applyItemRune(state, caster, spell);
+    // (2026-10-16: an item that restores — Elixir of Rejuvenation: all the drinker's Hit Points, its afflictions of that level or lower ended.)
+    if (spell?.restore) for (const id of targetIds ?? []) {
+        const target = state.byId.get(id);
+        if (!target) continue;
+        if (spell.restore.hp === "max" && (isActive(target) || target.status === DOWN)) applyHeal(state, target, target.hp.max - Math.max(0, target.hp.value));
+        if (Number.isFinite(spell.restore.afflictionLevel)) for (const entry of [...(target.afflictions ?? [])]) {
+            if (entry.stage > 0 && afflictionLevel(state, entry) <= spell.restore.afflictionLevel) setAfflictionStage(state, target, entry, 0);
+        }
+    }
     // (2026-10-16: an item's extra Strike damage on those it was used on — Martial Mayhem Mutagen's, on its drinker.)
     if (spell?.strikeDamage) for (const id of targetIds ?? []) {
         const target = state.byId.get(id);
@@ -2891,6 +2903,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         if (spell.recovery) entry.damage -= itemRecoveryWorth(spell, target);
         // (U16: a rune lent its user's weapon.)
         if (spell.rune && target === caster) entry.benefit += itemRuneWorth(state, spell, caster);
+        // (2026-10-16: an item that restores — its Hit Points back, as healing.)
+        if (spell.restore?.hp === "max" && target.side === caster.side && target.status !== "dead") entry.heal += Math.max(0, target.hp.max - Math.max(0, target.hp.value));
         // (2026-10-16: an item's extra Strike damage on this creature.)
         if (spell.strikeDamage && target.side === caster.side) entry.benefit += itemStrikeDamageWorth(state, spell, target);
         result.push(entry);
