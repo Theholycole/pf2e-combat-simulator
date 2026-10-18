@@ -1086,3 +1086,19 @@ test("2026-10-17: a Strike plan whose hit does only what its words say (strike.f
     const { itemStrikeActivity } = await import("../src/adapter/items.js");
     assert.equal(itemStrikeActivity({ ...FEAR_GEM, strike: { ...FEAR_GEM.strike, fromNotes: true } }, { id: "g" }), null);
 });
+
+test("2026-10-18: a zone's save only for creatures with some traits (Sanctified Beans' undead and the like) passes the others by", async () => {
+    const { zoneSpell, zoneTurn } = await import("../src/engine/zones.js");
+    const savePlan = { ...PARALYZE_LIKE, resolution: { ...PARALYZE_LIKE.resolution, check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 40 } } } };
+    const plan = { builtin: "zone", trigger: { event: "use" }, actions: 1, zone: { area: { type: "emanation", value: 5 }, centre: "self", lasts: { mode: "fixed", value: 1, unit: "minutes" }, saves: [{ when: ["end"], plan: savePlan, only: { traits: ["undead", "fiend"] } }] } };
+    for (const [traits, frightened] of [[["humanoid"], false], [["undead"], true]]) {
+        const { state, pc, brute } = setUp({ potions: 0 });
+        brute.traits = traits;
+        pc.spells = [...pc.spells, { ...zoneSpell("Test Beans", plan, {}), pool: null }];
+        state.rng.d20 = () => 2;
+        castSpell(state, pc, pc.spells.length - 1, [pc.id]);
+        zoneTurn(state, brute, "start");
+        zoneTurn(state, brute, "end");
+        assert.equal((brute.cond.frightened ?? 0) > 0, frightened, JSON.stringify(traits));
+    }
+});

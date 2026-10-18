@@ -72,7 +72,7 @@ export function startZone(state, owner, spell, targetIds) {
     log(state, `  ${owner.name}'s ${spell.name} covers the area${Number.isFinite(rounds) ? ` for ${rounds} rounds` : ""}`);
     for (const c of zoneMembers(state, zone)) {
         refresh(state, zone, c);
-        if (c.side !== zone.side) for (const save of model.saves ?? []) if (save.plan && save.when.includes("initial")) castPlan(state, owner, saveSpell(zone, save), [c.id]);
+        if (c.side !== zone.side) for (const save of model.saves ?? []) if (save.plan && save.when.includes("initial") && onlyFits(save, c)) castPlan(state, owner, saveSpell(zone, save), [c.id]);
     }
     return zone;
 }
@@ -125,6 +125,10 @@ function refresh(state, zone, c) {
 }
 
 // A creature's turn starting or ending: the zones' doings on it, and zones whose time is up.
+// (2026-10-18: a save or damage only for creatures with some traits — entry.only.traits, any of them: Sanctified Beans' fiends, fey,
+// ghosts, spirits and undead —, as live play's.)
+const onlyFits = (entry, c) => !entry?.only?.traits?.length || entry.only.traits.some((trait) => (c.traits ?? []).includes(trait));
+
 export function zoneTurn(state, c, phase) {
     if (!state.zones?.length) return;
     if (phase === "start") {
@@ -145,7 +149,7 @@ export function zoneTurn(state, c, phase) {
                 (c.sustainedNow ??= []).push(zone.name);
                 for (const save of zone.model.saves ?? []) {
                     if (!save.when.includes("sustain")) continue;
-                    for (const member of zoneMembers(state, zone)) if (member.side !== zone.side && isActive(member)) castPlan(state, c, saveSpell(zone, save), [member.id]);
+                    for (const member of zoneMembers(state, zone)) if (member.side !== zone.side && isActive(member) && onlyFits(save, member)) castPlan(state, c, saveSpell(zone, save), [member.id]);
                 }
             }
         }
@@ -176,10 +180,10 @@ export function zoneTurn(state, c, phase) {
         }
         if (cameIn && zone.model.hazard?.formulas?.length) hurt(state, zone, owner, c, zone.model.hazard.formulas, "moves into");
         for (const save of zone.model.saves ?? []) {
-            if (!save.plan || !isActive(c)) continue;
+            if (!save.plan || !isActive(c) || !onlyFits(save, c)) continue;
             if ((phase === "start" && save.when.includes("start")) || (cameIn && save.when.includes("enter") && !save.when.includes("start")) || (phase === "end" && save.when.includes("end"))) castPlan(state, owner, saveSpell(zone, save), [c.id]);
         }
-        for (const entry of zone.model.damage ?? []) if (entry.when === (phase === "start" ? "start" : "end") && isActive(c)) hurt(state, zone, owner, c, entry.formulas, phase === "start" ? "starts its turn in" : "ends its turn in");
+        for (const entry of zone.model.damage ?? []) if (entry.when === (phase === "start" ? "start" : "end") && isActive(c) && onlyFits(entry, c)) hurt(state, zone, owner, c, entry.formulas, phase === "start" ? "starts its turn in" : "ends its turn in");
     }
     if (phase === "end" && c.zoneSpeed) {
         c.speed = c.zoneSpeed;
