@@ -51,12 +51,16 @@ export function consumableWeight(state, c, spell, targets, actions) {
 // spell.ownAttack: the kinds it allows) — the creature's better one: its best spell attack, its best firearm Strike. A creature with
 // neither can't use it, so it's left out. Set once as the fight is prepared (fight.js prepareSnapshot): spell.ownAttacks { spell, firearm },
 // each its best; the roll takes the better after each one's penalties (ownAttackModifier). (A crossbow is the gunslinger's, not a firearm.)
+// (2026-10-18, the item module's thrown items — Oil, Life Salt, Sack of Rotten Fruit: "thrown", Dexterity and simple weapon proficiency:
+// its best thrown Strike's attack, else its best ranged one's.)
 export function ownAttacks(c) {
     const spellAttack = Math.max(-Infinity, ...(c.spells ?? []).filter((other) => !other.kind && Number.isFinite(other.attack)).map((other) => other.attack));
     const firearmAttack = Math.max(-Infinity, ...(c.strikes ?? []).filter((strike) => strike.firearm && !strike.crossbow).map((strike) => strike.bonus));
+    const thrown = (c.strikes ?? []).filter((strike) => strike.thrown);
+    const thrownAttack = Math.max(-Infinity, ...(thrown.length ? thrown : (c.strikes ?? []).filter((strike) => !strike.melee)).map((strike) => strike.bonus));
     return (c.spells ?? []).flatMap((spell) => {
         if (!spell.ownAttack) return [spell];
-        const attacks = Object.fromEntries([["spell", spellAttack], ["firearm", firearmAttack]].filter(([kind, value]) => spell.ownAttack.includes(kind) && Number.isFinite(value)));
+        const attacks = Object.fromEntries([["spell", spellAttack], ["firearm", firearmAttack], ["thrown", thrownAttack]].filter(([kind, value]) => spell.ownAttack.includes(kind) && Number.isFinite(value)));
         return Object.keys(attacks).length ? [{ ...spell, ownAttacks: attacks, attack: Math.max(...Object.values(attacks)) }] : [];
     });
 }

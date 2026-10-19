@@ -261,6 +261,8 @@ export function itemEntry(plan, { id, name = null, quantity = 1, uses = null, dr
         consumable: !reusable,
         ...(drinker ? { drinker: true } : {}),
         ...(ownAttack ? { ownAttack } : {}),
+        // (2026-10-18: a save at the creature its attack hit — Sack of Rotten Fruit's, Life Salt's: plan.thenSave.)
+        ...(plan.thenSave?.resolution ? { thenSave: plan.thenSave } : {}),
         ...(ownerDC ? { ownerDC } : {}),
         ...(draw > 0 && !coated ? { draw: { actions: draw, each: !reusable } } : {}),
         // (U10: its counteract check — the item module's plan.item.counteract, beside a plan of its own or alone.)

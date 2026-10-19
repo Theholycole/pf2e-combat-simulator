@@ -1102,3 +1102,22 @@ test("2026-10-18: a zone's save only for creatures with some traits (Sanctified 
         assert.equal((brute.cond.frightened ?? 0) > 0, frightened, JSON.stringify(traits));
     }
 });
+
+test("2026-10-18: a thrown item (Sack of Rotten Fruit) — its user's thrown Strike's attack, then its save at the creature hit; no save on a miss", () => {
+    const save = { ...PARALYZE_LIKE, resolution: { ...PARALYZE_LIKE.resolution, check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 40 } } } };
+    const sack = { ...SPELLGUN, source: { name: "Test Sack" }, ownCheck: { kind: "attack", modifier: null, choose: ["thrown"] }, thenSave: save };
+    const entry = itemEntry(sack, { id: "s", quantity: 2 });
+    assert.deepEqual([entry.ownAttack, Boolean(entry.thenSave)], [["thrown"], true]);
+    for (const [die, frightened] of [[15, true], [1, false]]) {
+        const [fighter] = martialParty(5);
+        const knife = { name: "Test Knife", bonus: 13, melee: false, thrown: true, increment: 10, damage: [{ dice: 1, die: 4, bonus: 0, type: "piercing" }] };
+        const state = createFightState({ combatants: [{ ...fighter, band: "near", engagement: 1, strikes: [...fighter.strikes, knife], spells: [entry], spellPools: { [entry.pool]: 2 } }, { ...moderateCreature(5, "brute", "Brute"), band: "near", engagement: 1 }] }, {}, 1);
+        state.log = [];
+        state.round = 1;
+        const pc = state.byId.get(fighter.id);
+        assert.deepEqual(pc.spells[0].ownAttacks, { thrown: 13 });
+        state.rng.d20 = () => die;
+        castSpell(state, pc, 0, ["brute"]);
+        assert.equal((state.byId.get("brute").cond.frightened ?? 0) > 0, frightened, state.log.join("\n"));
+    }
+});

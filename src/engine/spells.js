@@ -2065,6 +2065,10 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         const answer = (caster.reactionStrikes ?? []).find((entry) => entry.triggers.includes("tripped"));
         if (answer && isActive(caster) && isActive(target) && canAct(caster) && canReact(caster, answer.name) && !caster.cond.fleeing) reactionStrikeAt(state, caster, target, answer, "tripped");
     }
+    // (2026-10-18: the item's save at each creature its attack hit — Sack of Rotten Fruit's, Life Salt's.)
+    if (spell.thenSave) for (const target of targets) {
+        if (["success", "criticalSuccess"].includes(result.degrees[target.id]) && isActive(target)) castPlan(state, caster, { name: spell.name, plan: spell.thenSave, castRank: spell.castRank, pool: null, kind: "ability" }, [target.id]);
+    }
     // A swashbuckler's bravado action: panache on a success, until the end of the turn on a failure.
     if (caster.panacheStyle && (caster.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
         const degrees = targets.map((target) => result.degrees[target.id]).filter(Boolean);
