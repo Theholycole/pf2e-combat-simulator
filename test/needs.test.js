@@ -96,6 +96,34 @@ test("B314 a new save at the end of each turn: ends the condition, the DC droppi
     assert.ok(log.slice(turn, turn + 4).some((line) => /Fighter takes \d+ persistent fire/.test(line)));
 });
 
+// (2026-10-20, for the item module) saveEnds' modes: "escalate" (its value up on a failure, down on a success, to a most; gone at 0 with what
+// else it ends), "reduce" (a critical success ends it), timing "start", from "next" and a number of turns.
+test("a repeated save's modes: escalate to its most and down, reduce, at the turn's start, not the first turn, for some turns", async () => {
+    const { applyCondition, saveEndsAtTurnEnd } = await import("../src/engine/spells.js");
+    const state = createFightState({ combatants: [...martialParty(5), moderateCreature(5, "tinker", "Tinker")] }, {}, 1);
+    const pc = state.byId.get("fighter");
+    const tinker = state.byId.get("tinker");
+    applyCondition(state, pc, "slowed", 1, { mode: "unlimited", saveEnds: { save: "fortitude", dc: 200, mode: "escalate", escalate: { criticalFailure: 1, failure: 1, success: -1, criticalSuccess: "end" }, max: 2, alsoEnds: ["fatigued"], rounds: 3 } }, tinker);
+    applyCondition(state, pc, "fatigued", null, null, tinker);
+    saveEndsAtTurnEnd(state, pc);
+    saveEndsAtTurnEnd(state, pc);
+    assert.equal(pc.cond.slowed, 2, "up to its most");
+    pc.saveEnds[0].dc = -50;
+    saveEndsAtTurnEnd(state, pc);
+    assert.ok(!pc.cond.slowed && !pc.cond.fatigued && !pc.saveEnds.length, "a critical success ends it and the fatigue");
+    applyCondition(state, pc, "stupefied", 1, { mode: "unlimited", saveEnds: { save: "will", dc: 200, rounds: 1, timing: "start", from: "next" } }, tinker);
+    saveEndsAtTurnEnd(state, pc);
+    assert.equal(pc.saveEnds.length, 1, "not at the turn's end");
+    saveEndsAtTurnEnd(state, pc, "start");
+    saveEndsAtTurnEnd(state, pc, "start");
+    assert.equal(pc.cond.stupefied, 1, "the first start skipped, the second a failure");
+    saveEndsAtTurnEnd(state, pc, "start");
+    assert.ok(!pc.cond.stupefied, "its one turn is over");
+    applyCondition(state, pc, "clumsy", 1, { mode: "fixed", value: 4, unit: "rounds", saveEnds: { save: "reflex", dc: -50, mode: "reduce" } }, tinker);
+    saveEndsAtTurnEnd(state, pc);
+    assert.ok(!pc.cond.clumsy, "a critical success ends a reduce");
+});
+
 // B316 (2026-10-14; the user asked about the Grim Reaper's death effects): Death Strike also at a creature that critically fails a save
 // against one of its spells — even one the spell just dropped.
 test("B316 an ability on a critical failure against the creature's spells: Death Strike after a critically failed save", async () => {

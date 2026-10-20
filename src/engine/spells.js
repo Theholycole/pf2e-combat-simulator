@@ -606,31 +606,72 @@ export function applyCondition(state, target, slug, value, duration, source, sco
         // "Until the end of your next turn" ends at the end of that turn; the rest at its start.
         (target.timers ??= []).push({ key: flag ?? slug, value: flag ? true : target.cond[slug], round: state.round + rounds, turnOf: source?.id ?? target.id, at: duration?.expiry === "turn-end" ? "end" : "start" });
     }
-    // (B314: "It can attempt a new save at the end of each of its turns" — the ability module's duration.saveEnds { save, dc, drop }.)
-    if (Number.isFinite(Number(duration?.saveEnds?.dc))) target.saveEnds = [...(target.saveEnds ?? []).filter((entry) => entry.slug !== slug), { slug, save: duration.saveEnds.save ?? "fortitude", dc: Number(duration.saveEnds.dc), drop: Number(duration.saveEnds.drop) || 0 }];
+    // (B314: "It can attempt a new save at the end of each of its turns" — the ability module's duration.saveEnds { save, dc, drop }; 2026-10-20,
+    // for the item module: timing "start", from "next" (not the first such turn), rounds (it ends after that many of its turns), alsoEnds, and
+    // mode "reduce" (a success a round off its time, a critical success ends it) or "escalate" (its value up or down by the degree's step, to
+    // max; at 0 or "end", gone). A gate — "if it took an action with the attack, manipulate or move trait" — taken as met.)
+    const ends = duration?.saveEnds;
+    if (Number.isFinite(Number(ends?.dc))) target.saveEnds = [...(target.saveEnds ?? []).filter((entry) => entry.slug !== slug), { slug, save: ends.save ?? "fortitude", dc: Number(ends.dc), drop: Number(ends.drop) || 0, timing: ends.timing === "start" ? "start" : "end", mode: ["reduce", "escalate"].includes(ends.mode) ? ends.mode : "end", ...(ends.escalate ? { escalate: { ...ends.escalate } } : {}), ...(Number.isFinite(Number(ends.max)) ? { max: Number(ends.max) } : {}), alsoEnds: [...(ends.alsoEnds ?? [])], ...(Number(ends.rounds) > 0 ? { rounds: Number(ends.rounds) } : {}), skipFirst: ends.from === "next", turns: 0 }];
     // (B305: its reaction to gaining the condition — Quick Escape from a grab, Melt Time when slowed or stunned.)
     if (!before && isActive(target)) useReaction(state, target, source && source !== target ? source : null, (trigger) => trigger.event === "condition-gained" && (!trigger.slugs?.length || trigger.slugs.includes(slug)));
     return true;
 }
 
-// The new saves at the end of the creature's turn against conditions that say so (B314; the ghast's paralysis: "the DC cumulatively
-// decreases by 1"): a success ends the condition, a failure lowers the DC by the drop.
-export function saveEndsAtTurnEnd(state, c) {
+// The new saves at the end (or start) of the creature's turn against conditions that say so (B314; the ghast's paralysis: "the DC cumulatively
+// decreases by 1"): by the entry's mode — "end": a success ends the condition, a failure lowers the DC by the drop; "reduce": a critical
+// success ends it, a success takes a round off its time; "escalate": the degree's step on its value. timing: which of its turn's ends this is.
+export function saveEndsAtTurnEnd(state, c, timing = "end") {
     for (const entry of [...(c.saveEnds ?? [])]) {
+        if ((entry.timing ?? "end") !== timing) continue;
         const flag = FLAGS[entry.slug];
         const held = flag ? Boolean(c.cond[flag]) : (c.cond[entry.slug] ?? 0) > 0;
         if (!held) {
             c.saveEnds.splice(c.saveEnds.indexOf(entry), 1);
             continue;
         }
-        const natural = state.rng.d20();
-        if (degreeOf(natural + saveModifier(c, entry.save), entry.dc, natural) >= SUCCESS) {
-            if (flag) c.cond[flag] = false;
-            else c.cond[entry.slug] = 0;
-            c.timers = (c.timers ?? []).filter((timer) => timer.key !== (flag ?? entry.slug));
+        const end = (why) => {
+            for (const slug of [entry.slug, ...(entry.alsoEnds ?? [])]) {
+                const own = FLAGS[slug];
+                if (own) c.cond[own] = false;
+                else if (c.cond[slug]) c.cond[slug] = 0;
+                c.timers = (c.timers ?? []).filter((timer) => timer.key !== (own ?? slug));
+            }
             c.saveEnds.splice(c.saveEnds.indexOf(entry), 1);
-            log(state, `  ${c.name} is no longer ${entry.slug} (${entry.save} save against DC ${entry.dc})`);
-        } else entry.dc -= entry.drop;
+            log(state, `  ${c.name} is no longer ${entry.slug} (${why})`);
+        };
+        if (entry.skipFirst) {
+            entry.skipFirst = false;
+            continue;
+        }
+        entry.turns = (entry.turns ?? 0) + 1;
+        if (entry.rounds && entry.turns > entry.rounds) {
+            end("its time is up");
+            continue;
+        }
+        const natural = state.rng.d20();
+        const degree = degreeOf(natural + saveModifier(c, entry.save), entry.dc, natural);
+        const why = `${entry.save} save against DC ${entry.dc}`;
+        if (entry.mode === "escalate" && !flag) {
+            const step = entry.escalate?.[DEGREE_NAMES[degree]];
+            if (step === "end") {
+                end(why);
+                continue;
+            }
+            const value = Math.max(0, Math.min(entry.max ?? Infinity, (c.cond[entry.slug] ?? 0) + (Number(step) || 0)));
+            if (value <= 0) end(why);
+            else if (value !== c.cond[entry.slug]) {
+                c.cond[entry.slug] = value;
+                log(state, `  ${c.name}'s ${entry.slug} is ${value} (${why})`);
+            }
+        } else if (entry.mode === "reduce") {
+            if (degree === CRITICAL_SUCCESS) end(why);
+            else if (degree === SUCCESS) {
+                const timer = (c.timers ?? []).find((each) => each.key === (flag ?? entry.slug));
+                if (!timer || timer.round - 1 <= state.round) end(why);
+                else timer.round -= 1;
+            }
+        } else if (degree >= SUCCESS) end(why);
+        else entry.dc -= entry.drop;
     }
 }
 
@@ -1618,7 +1659,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
                         target.cond[change.slug] = Math.max(0, now + Number(change.stack.by));
                         log(state, `  ${target.name}'s ${change.slug} drops to ${target.cond[change.slug]}`);
                     }
-                } else if (isActive(target) && applyCondition(state, target, change.slug, stackedValue(target, change), change.duration?.saveEnds?.dc === "spell" ? { ...change.duration, saveEnds: { ...change.duration.saveEnds, dc: effectDC(spell) } } : change.duration, caster, change.scope ?? null)) {
+                } else if (isActive(target) && applyCondition(state, target, change.slug, stackedValue(target, change), change.duration?.saveEnds && (change.duration.saveEnds.dc === "spell" || change.duration.saveEnds.dc == null) ? { ...change.duration, saveEnds: { ...change.duration.saveEnds, dc: effectDC(spell) } } : change.duration, caster, change.scope ?? null)) {
                     // (Invisibility: gone after its own hostile action.)
                     if (change.endsOnHostile) (target.endsOnHostile ??= new Set()).add(FLAGS[change.slug] ?? change.slug);
                     // (What a counteract checks against: the spell's or ability's DC and rank.)

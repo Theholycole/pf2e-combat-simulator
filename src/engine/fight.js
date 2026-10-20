@@ -384,6 +384,8 @@ function multiStrikeAfter(state, c, ability) {
 
 function startTurn(state, c) {
     keepPermanent(c);
+    // (2026-10-20: a new save at the start of its turn, the item module's.)
+    if (c.saveEnds?.some((entry) => entry.timing === "start") && c.status === ACTIVE) saveEndsAtTurnEnd(state, c, "start");
     c.reactionUsed = false;
     c.spareUsed = null;
     // (C30: Divine Fervor's extra reaction is gone as its turn starts; C33: temporary HP that last to its next turn — Immortal Bastion's.)
