@@ -2,13 +2,15 @@
 // the median creature of the same level). Runs in phases, each
 // reading the ones before it from the output folder, on worker threads:
 //
-//   node tools/deadliest.mjs <out folder> screen    every creature, 24 fights; and a moderate creature of each level, 400
+//   node tools/deadliest.mjs <out folder> screen    every creature, 24 fights (--fights=N); and a moderate creature of each level, 400
 //   node tools/deadliest.mjs <out folder> ladder    moderate creatures 3 levels below to 10 above each party level, 400 fights each
 //   node tools/deadliest.mjs <out folder> confirm   the 100 deadliest for their level again, 300 fights each
 //   node tools/deadliest.mjs <out folder> ablate    the 12 deadliest up to level 20 and 6 above, each ability, Strike, spellcasting and
 //                                                   number left out, 300 fights
 //   node tools/deadliest.mjs <out folder> broad     every creature, each of those left out, on its first 16 screening fights
 //                                                   (--only=<file of refs>: just those creatures, into broad-only.jsonl)
+//   node tools/deadliest.mjs <out folder> ratings   every creature's danger for its level (levels above the typical creature of its level),
+//                                                   by compendium and id: the simulator's compendium numbers (--write=src/data/danger-ratings.json)
 //
 //   --workers N (default: the cores less two)
 import fs from "node:fs";
@@ -31,6 +33,8 @@ if (!isMainThread) {
     const [out, phase] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
     const workersArg = process.argv.find((arg) => arg.startsWith("--workers="));
     const WORKERS = Number(workersArg?.split("=")[1]) || Math.max(1, os.cpus().length - 2);
+    // (--fights N: the screen's fights per creature, 24 by default; 2026-10-20, the danger ratings, more.)
+    const FIGHTS = Number(process.argv.find((arg) => arg.startsWith("--fights="))?.split("=")[1]) || 24;
     if (!out || !phase) {
         console.error("node tools/deadliest.mjs <out folder> screen|ladder|confirm|ablate|broad [--workers=N]");
         process.exit(1);
@@ -39,24 +43,32 @@ if (!isMainThread) {
     const read = (name) => (fs.existsSync(`${out}/${name}`) ? fs.readFileSync(`${out}/${name}`, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : []);
 
     // Runs tasks on the workers, writing each result as a line of the file.
-    async function run(tasks, file) {
-        const stream = fs.createWriteStream(`${out}/${file}`, { flags: "w" });
+    // (append: onto what the file already has — a resumed screen.)
+    // (2026-10-20: a worker grows by megabytes a creature, so each is replaced by a fresh one after RECYCLE tasks — the full screen at 8
+    // workers had filled the machine's memory.)
+    const RECYCLE = 150;
+    async function run(tasks, file, { append = false } = {}) {
+        const stream = fs.createWriteStream(`${out}/${file}`, { flags: append ? "a" : "w" });
         const started = Date.now();
         let next = 0;
         let done = 0;
         await new Promise((resolve, reject) => {
-            const workers = [];
+            let live = 0;
             const feed = (worker) => {
-                if (next < tasks.length) worker.postMessage(tasks[next++]);
-                else {
-                    worker.terminate();
-                    if (workers.every((each) => each.finished || each === worker)) resolve();
-                    worker.finished = true;
+                if (next < tasks.length && worker.tasks < RECYCLE) {
+                    worker.tasks++;
+                    worker.postMessage(tasks[next++]);
+                    return;
                 }
+                worker.terminate();
+                live--;
+                if (next < tasks.length) start();
+                else if (!live) resolve();
             };
-            for (let index = 0; index < Math.min(WORKERS, tasks.length); index++) {
+            const start = () => {
                 const worker = new Worker(new URL(import.meta.url));
-                workers.push(worker);
+                worker.tasks = 0;
+                live++;
                 worker.on("error", reject);
                 worker.on("message", (message) => {
                     if (!message.ready) {
@@ -66,7 +78,8 @@ if (!isMainThread) {
                     }
                     feed(worker);
                 });
-            }
+            };
+            for (let index = 0; index < Math.min(WORKERS, tasks.length); index++) start();
             if (!tasks.length) resolve();
         });
         await new Promise((resolve) => stream.end(resolve));
@@ -185,8 +198,11 @@ if (!isMainThread) {
         const refs = creatureRefs().sort((a, b) => a.path.localeCompare(b.path));
         console.log(`${refs.length} creatures`);
         const levels = [...new Set(refs.map((ref) => Math.max(-1, Math.min(25, ref.level))))].sort((a, b) => a - b);
-        await run(levels.flatMap((level) => chunks({ kind: "baseline", level }, 1, 401)), "baseline.jsonl");
-        await run(refs.map((ref) => ({ kind: "screen", ref, from: 1, to: 25 })), "screen.jsonl");
+        // (--resume: the baseline as it is, and only the creatures the screen hasn't done, after those it has — a run stopped part way.)
+        const resume = process.argv.includes("--resume");
+        const done = resume ? new Set(read("screen.jsonl").map((row) => row.ref?.ref)) : new Set();
+        if (!resume || !read("baseline.jsonl").length) await run(levels.flatMap((level) => chunks({ kind: "baseline", level }, 1, 401)), "baseline.jsonl");
+        await run(refs.filter((ref) => !done.has(ref.ref)).map((ref) => ({ kind: "screen", ref, from: 1, to: 1 + FIGHTS })), "screen.jsonl", { append: resume });
     } else if (phase === "ladder") {
         // Moderate creatures from 3 levels below each party level (1–20) to 10 above it, 400 fights each: the yardstick for "fights like a
         // creature N levels higher".
@@ -218,6 +234,30 @@ if (!isMainThread) {
         const only = onlyArg ? new Set(fs.readFileSync(onlyArg.split("=")[1], "utf8").split("\n").map((line) => line.trim()).filter(Boolean)) : null;
         const rows = read("screen.jsonl").filter((row) => !row.error && !row.skipped && Number.isFinite(row.score) && (!only || only.has(row.ref.ref)));
         await run(rows.flatMap((row) => (row.variants ?? []).map((variant) => ({ kind: "broad", ref: row.ref, variant, from: 1, to: 17 }))), only ? "broad-only.jsonl" : "broad.jsonl");
+    } else if (phase === "ratings") {
+        // (2026-10-20, the user: every creature's danger for its level, "a number next to their name in the compendium that we can also sort
+        // by" — levels above (or below) the typical creature of its level, as the ranking counts it, by compendium and id. --write=<file>: there,
+        // else ratings.json in the output folder. Data slips and April Fools creatures get none, as in the ranking.)
+        const { PACK_ROOT } = await import("./lib/pack-creatures.mjs");
+        const system = JSON.parse(fs.readFileSync(`${PACK_ROOT}/../system.json`, "utf8"));
+        const packNames = new Map(system.packs.map((pack) => [String(pack.path).replace(/\/$/, "").split("/").at(-1), pack.name]));
+        const rows = ranked(read("screen.jsonl"), baselines());
+        // (Past the ladder's top, an estimate — "above"; at or under its foot, at most — "below": bounds.)
+        const curves = ladder();
+        const ratings = {};
+        const bounds = {};
+        for (const row of rows) {
+            if (!Number.isFinite(row.excess)) continue;
+            const collection = row.ref.source === "pf2e" ? `pf2e.${packNames.get(row.ref.pack) ?? row.ref.pack}` : row.ref.pack.replace("/", ".");
+            (ratings[collection] ??= {})[row.ref.id] = Math.round(row.excess * 10) / 10;
+            const curve = curves.get(Math.max(1, Math.min(20, row.level)));
+            const bound = curve && row.score > curve.at(-1)[1] ? "above" : curve && row.score <= curve[0][1] ? "below" : null;
+            if (bound) (bounds[collection] ??= {})[row.ref.id] = bound;
+        }
+        const target = process.argv.find((arg) => arg.startsWith("--write="))?.split("=")[1] ?? `${out}/ratings.json`;
+        const fights = Math.max(0, ...rows.map((row) => row.n ?? 0));
+        fs.writeFileSync(target, `${JSON.stringify({ version: 1, generated: new Date().toISOString().slice(0, 10), fights, party: ["fighter", "rogue", "wizard", "cleric"], ratings, bounds })}\n`);
+        console.log(`${Object.values(ratings).reduce((sum, pack) => sum + Object.keys(pack).length, 0)} creatures rated in ${Object.keys(ratings).length} compendiums → ${target}`);
     } else {
         console.error(`Unknown phase ${phase}`);
         process.exit(1);

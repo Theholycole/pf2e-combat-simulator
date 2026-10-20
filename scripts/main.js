@@ -6,6 +6,7 @@ import { FightLogApp } from "./log-app.js";
 import { setUpMapTracking } from "./map.js";
 import { setUpEscalationTracking } from "./escalation-tracking.js";
 import { registerMoraleSetting, setUpMoraleInPlay } from "./morale-live.js";
+import { registerDangerSetting, setUpDanger } from "./danger.js";
 
 function openSimulator({ combat = null, tokens = null } = {}) {
     if (!game.user.isGM) return ui.notifications.warn("Combat Simulator is for the GM.");
@@ -19,6 +20,9 @@ function openSimulator({ combat = null, tokens = null } = {}) {
 }
 
 Hooks.once("init", () => {
+    // (2026-10-20: each creature's danger for its level in compendium windows, scripts/danger.js.)
+    registerDangerSetting();
+    setUpDanger();
     game.settings.register(MODULE_ID, "defaultRuns", {
         name: "Fights per simulation",
         hint: "How many fights a full simulation plays. 500 gives win rates within about ±4 points.",

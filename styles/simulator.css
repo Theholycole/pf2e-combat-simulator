@@ -337,3 +337,23 @@
     margin-top: 4px;
 }
 
+/* Danger for its level in compendium windows (scripts/danger.js). */
+.directory-item.entry .pcs-danger {
+    flex: 0 0 auto;
+    align-self: center;
+    margin-left: 0.4em;
+    padding: 0 0.35em;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    font-size: var(--font-size-11, 11px);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+.pcs-danger-high { background: #8f1d1d; color: #fff; }
+.pcs-danger-up { background: #c0602b; color: #fff; }
+.pcs-danger-even { border-color: currentColor; opacity: 0.75; }
+.pcs-danger-down { background: #3f6f8f; color: #fff; }
+.pcs-danger-low { background: #2f4f6a; color: #fff; }
+.pcs-danger-sort.active { color: var(--color-text-hyperlink, #ff6400); }
+
