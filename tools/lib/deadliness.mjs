@@ -12,12 +12,13 @@ const { basicActions, combatant, readDocuments, summonReserves, PACK_ROOT } = aw
 const { compileSpell, effectModels, npcSpells, spellNamed } = await import("./pack-spells.mjs");
 const { npcItems } = await import("./pack-items.mjs");
 const { standardParty } = await import("../../src/engine/party.js");
-const { simulate } = await import("../../src/engine/fight.js");
 const { canCast, isUtility } = await import("../../src/engine/spells.js");
-const { moderate, moderateCreatureAt, steps, tier } = await import("./creature-tables.mjs");
+const { moderate, moderateCreatureAt } = await import("./creature-tables.mjs");
+// (The counting, the profile and the ranking: src/engine/danger-scale.js, shared with the in-Foundry run.)
+const { DANGER_OPTIONS, DEATH_WEIGHT: SHARED_DEATH_WEIGHT, canFight, dangerFights, dangerProfile, dangerSummary, realSpells, strikeAverage } = await import("../../src/engine/danger-scale.js");
 
 const MODULES = `${process.env.HOME}/.local/share/FoundryVTT/Data/modules`;
-export const OPTIONS = Object.freeze({ morale: false, retreat: false });
+export const OPTIONS = DANGER_OPTIONS;
 
 // Every NPC: PF2e's packs, and the Battlezoo bestiaries' Actor packs.
 export function creatureRefs() {
@@ -72,8 +73,6 @@ export function partyFor(level) {
 }
 
 const average = (part) => ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1);
-const strikeAverage = (strike) => (strike.damage ?? []).filter((part) => !part.splash && !part.persistent).reduce((sum, part) => sum + average(part), 0);
-const realSpells = (monster) => (monster.spells ?? []).filter((entry) => !entry.kind);
 
 // One number brought down to moderate for its level (only when it's above).
 const KNOCKDOWNS = {
@@ -135,59 +134,16 @@ export function buildMonster(npc, variant = null) {
     return { monster, reserves };
 }
 
-// The fights: [seed from, seed to). Per fight: the party's damage share, PCs downed and killed, a wipe; rounds; the creature killed.
-export const DEATH_WEIGHT = 1;
+// The fights: [seed from, seed to), against the standard party of its level (src/engine/danger-scale.js counts them).
+export const DEATH_WEIGHT = SHARED_DEATH_WEIGHT;
 export function fight(level, foes, from, to) {
-    const party = partyFor(level);
-    const partyHp = party.reduce((sum, c) => sum + c.hp.max, 0);
-    const sum = { n: 0, damage: 0, downs: 0, deaths: 0, wipes: 0, rounds: 0, killed: 0, timeouts: 0, score: 0, scores: [] };
-    for (let seed = from; seed < to; seed++) {
-        const result = simulate({ combatants: [...party, ...foes] }, OPTIONS, seed);
-        const damage = (result.damageBy?.foes ?? 0) / partyHp;
-        const downs = result.party.filter((c) => c.down).length;
-        const deaths = result.party.filter((c) => c.dead).length;
-        const wipe = result.outcome === "defeat" ? 1 : 0;
-        const score = damage + 0.25 * downs + DEATH_WEIGHT * deaths + wipe;
-        sum.n++;
-        sum.damage += damage;
-        sum.downs += downs;
-        sum.deaths += deaths;
-        sum.wipes += wipe;
-        sum.rounds += result.rounds;
-        sum.killed += result.foes.some((c) => c.id === "monster" && c.status === "dead") ? 1 : 0;
-        sum.timeouts += result.outcome === "decisive" || result.outcome === "defeat" ? 0 : 1;
-        sum.score += score;
-        sum.scores.push(Math.round(score * 1000) / 1000);
-    }
-    return sum;
+    return dangerFights(partyFor(level), foes, from, to);
 }
 
-export function summary(sum) {
-    const n = Math.max(1, sum.n);
-    const mean = sum.score / n;
-    const variance = sum.scores.reduce((total, value) => total + (value - mean) ** 2, 0) / Math.max(1, n - 1);
-    return { n: sum.n, score: mean, se: Math.sqrt(variance / n), damage: sum.damage / n, downs: sum.downs / n, deaths: sum.deaths / n, wipes: sum.wipes / n, rounds: sum.rounds / n, killed: sum.killed / n, timeouts: sum.timeouts / n, scores: sum.scores };
-}
+export const summary = dangerSummary;
 
 // Where its numbers sit for its level.
-export function profile(monster) {
-    const level = monster.level;
-    const bestStrike = (monster.strikes ?? []).reduce((best, strike) => (!best || strikeAverage(strike) > strikeAverage(best) ? strike : best), null);
-    const attack = Math.max(-Infinity, ...(monster.strikes ?? []).map((strike) => strike.bonus));
-    const damage = bestStrike ? strikeAverage(bestStrike) : 0;
-    const dc = Math.max(-Infinity, ...realSpells(monster).map((entry) => entry.dc ?? -Infinity));
-    const saves = Object.values(monster.saves ?? {});
-    const stat = (name, value) => (Number.isFinite(value) ? { value, tier: tier(name, level, value), steps: Math.round(steps(name, level, value) * 100) / 100 } : null);
-    return {
-        ac: stat("ac", monster.ac), hp: stat("hp", monster.hp.max), attack: stat("attack", attack), damage: stat("damage", damage),
-        fortitude: stat("save", monster.saves?.fortitude), reflex: stat("save", monster.saves?.reflex), will: stat("save", monster.saves?.will),
-        bestSave: stat("save", Math.max(...saves)), worstSave: stat("save", Math.min(...saves)), perception: stat("save", monster.perception),
-        spellDC: stat("spellDC", dc),
-        strikes: (monster.strikes ?? []).length, abilities: monster.usedAbilities?.size ?? 0, spells: realSpells(monster).length,
-        regeneration: monster.regeneration?.value ?? 0, fastHealing: monster.fastHealing ?? 0, resistances: (monster.resistances ?? []).length,
-        immunities: (monster.immunities ?? []).length, weaknesses: (monster.weaknesses ?? []).length, reach: monster.reach, speed: monster.speed, flies: !!monster.flies
-    };
-}
+export const profile = dangerProfile;
 
 // What to leave out, one at a time: each ability it plays, each Strike, its spellcasting, each number above moderate.
 export function variantsOf(npc, monster) {
@@ -225,7 +181,7 @@ export function runTask(task) {
     }
     if (!built) return { ...task, skipped: true };
     const { monster, reserves } = built;
-    if (!monster.strikes.length && !monster.spells.some((entry) => !entry.kind || entry.kind === "ability")) return { ...task, skipped: true, reason: "nothing to fight with" };
+    if (!canFight(monster)) return { ...task, skipped: true, reason: "nothing to fight with" };
     try {
         const result = summary(fight(monster.level, [monster, ...reserves], task.from, task.to));
         const extra = task.kind === "screen" ? { profile: profile(monster), variants: variantsOf(npc, monster), traits: monster.traits, rarity: npc.system?.traits?.rarity ?? null, publication: npc.system?.details?.publication?.title ?? null } : {};

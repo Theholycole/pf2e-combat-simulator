@@ -2,6 +2,7 @@
 // side by side, and put back in order, so the report is the one a single thread would give. Falls back to the main thread.
 
 import { COMPARE_PRESETS, adjustmentRunVariants, adjustmentsFromReports, batchReport, compareFromReports, moraleImpactFromReports, moraleImpactVariants, runAdjustments, runBatch, runCompare, runMoraleImpact } from "../src/engine/batch.js";
+import { dangerFights, dangerSummary, mergeSummaries } from "../src/engine/danger-scale.js";
 
 const POOL_SIZE = Math.max(1, Math.min(8, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1));
 
@@ -55,7 +56,7 @@ function dispatch() {
         const task = waiting.shift();
         entry.task = task;
         running.set(task.id, task);
-        entry.worker.postMessage({ id: task.id, snapshot: task.snapshot, settings: task.settings });
+        entry.worker.postMessage({ id: task.id, ...(task.message ?? { snapshot: task.snapshot, settings: task.settings }) });
     }
 }
 
@@ -135,3 +136,28 @@ export async function runJob(kind, snapshot, settings = {}, onProgress = null) {
         return runOnMainThread(kind, snapshot, settings, onProgress);
     }
 }
+
+// How many fight tasks run side by side: the workers, or the main thread alone.
+export const parallelFights = () => (workers() ? POOL_SIZE : 1);
+
+// One creature's danger fights (src/engine/danger-scale.js; seeds [from, to)) on the next free worker; without workers, on the main thread
+// ten at a time, letting the UI breathe between them.
+export async function runDangerFights(party, foes, from, to) {
+    if (workers()) {
+        try {
+            return await new Promise((resolve, reject) => {
+                waiting.push({ id: nextId++, message: { kind: "danger", party, foes, from, to }, resolve, reject });
+                dispatch();
+            });
+        } catch (error) {
+            if (!poolFailed) throw error;
+        }
+    }
+    const parts = [];
+    for (let start = from; start < to; start += 10) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        parts.push(dangerSummary(dangerFights(party, foes, start, Math.min(to, start + 10))));
+    }
+    return mergeSummaries(parts);
+}
+

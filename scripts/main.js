@@ -7,6 +7,7 @@ import { setUpMapTracking } from "./map.js";
 import { setUpEscalationTracking } from "./escalation-tracking.js";
 import { registerMoraleSetting, setUpMoraleInPlay } from "./morale-live.js";
 import { registerDangerSetting, setUpDanger } from "./danger.js";
+import { registerDangerRun } from "./danger-run.js";
 
 function openSimulator({ combat = null, tokens = null } = {}) {
     if (!game.user.isGM) return ui.notifications.warn("Combat Simulator is for the GM.");
@@ -22,6 +23,8 @@ function openSimulator({ combat = null, tokens = null } = {}) {
 Hooks.once("init", () => {
     // (2026-10-20: each creature's danger for its level in compendium windows, scripts/danger.js.)
     registerDangerSetting();
+    // (And a settings button that runs the simulator again for them, kept in the world: scripts/danger-run.js.)
+    registerDangerRun();
     setUpDanger();
     game.settings.register(MODULE_ID, "defaultRuns", {
         name: "Fights per simulation",

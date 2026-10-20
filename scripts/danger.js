@@ -2,20 +2,27 @@
 // src/data/danger-ratings.json, from `node tools/deadliest.mjs <run> ratings`), and a button beside the search that sorts the list by it —
 // the most dangerous for their level first, unrated ones after; pressed again, the compendium's own order. And in PF2e's Compendium Browser
 // (its Bestiary tab): the number beside each creature's level, and "Danger for level" in its sort. A client setting turns it off.
+// (A world that ran the simulator again — scripts/danger-run.js — has its own numbers, used before the module's file.)
 
 import { MODULE_ID } from "./snapshot.js";
+import { worldRatings } from "./danger-run.js";
 import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, ratingOf, ratingOfUuid, sortByDanger } from "../src/live/danger.js";
 
 const SETTING = "dangerRatings";
+// The numbers in use (the world's or the module's), and the module's own file once read.
 let data = null;
-let loading = null;
+let shipped = null;
 // The compendiums sorted by danger, this session.
 const sorted = new Set();
 
+// The module's own numbers (src/data/danger-ratings.json), or null.
+export function shippedRatings() {
+    shipped ??= fetch(`modules/${MODULE_ID}/src/data/danger-ratings.json`).then((response) => (response.ok ? response.json() : null)).catch(() => null);
+    return shipped;
+}
+
 async function ratings() {
-    if (data) return data;
-    loading ??= fetch(`modules/${MODULE_ID}/src/data/danger-ratings.json`).then((response) => (response.ok ? response.json() : null)).catch(() => null);
-    data = await loading;
+    data = worldRatings() ?? (await shippedRatings());
     return data;
 }
 
@@ -45,6 +52,15 @@ export function setUpDanger() {
     });
     // (PF2e makes its Compendium Browser at its own ready, before a module's.)
     Hooks.once("ready", () => setUpBrowser().catch((error) => console.error(`${MODULE_ID} | danger ratings in the Compendium Browser`, error)));
+    // (The world's own numbers made, or given up for the module's: every window shows the ones in use.)
+    Hooks.on(`${MODULE_ID}.dangerRatingsChanged`, () => {
+        ratings().then(() => {
+            for (const app of compendiumApps()) app.render();
+            syncBrowserOrder();
+            const browser = game.pf2e?.compendiumBrowser;
+            if (browser?.rendered) markBrowser(browser);
+        });
+    });
 }
 
 // A creature's badge: its number, coloured by band, its words when hovered.
@@ -119,15 +135,14 @@ async function setUpBrowser() {
     const browser = game.pf2e?.compendiumBrowser;
     const tab = browser?.tabs?.bestiary;
     if (!tab || typeof tab.sortResult !== "function" || tab.pcsDanger) return;
-    const known = await ratings();
-    if (!known?.ratings) return;
+    await ratings();
     tab.pcsDanger = true;
     const ownSort = tab.sortResult.bind(tab);
     tab.sortResult = function (result) {
         const order = this.filterData?.order;
         if (order?.by !== BROWSER_ORDER) return ownSort(result);
         const lang = game.i18n.lang;
-        return sortByDanger(result, (entry) => ratingOfUuid(known, entry.uuid)?.value ?? null, { descending: order.direction === "desc", compare: (a, b) => a.localeCompare(b, lang) });
+        return sortByDanger(result, (entry) => ratingOfUuid(data, entry.uuid)?.value ?? null, { descending: order.direction === "desc", compare: (a, b) => a.localeCompare(b, lang) });
     };
     syncBrowserOrder();
     Hooks.on("renderCompendiumBrowser", (app) => watchBrowser(app));

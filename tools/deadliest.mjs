@@ -85,97 +85,12 @@ if (!isMainThread) {
         await new Promise((resolve) => stream.end(resolve));
     }
 
-    // Each level's yardstick: the median screened creature of that level (a moderate creature's score where fewer than five were screened).
-    // "For its level" is how far a creature's deadliness is above it. A Strike far past GM Core's extreme damage (a data slip, 2d8+154) is
-    // left out of the ranking.
-    const usable = (row) => !row.error && !row.skipped && Number.isFinite(row.score);
-    // (Also an attack or an AC far past extreme — a level-6 creature with its level-14 version's +28 Strikes, AC 35 at level 3.)
-    // (And a Society scenario's subtier version, "Krosovahn Mendesil (7-8)", that keeps its base creature's level with AC and attack 2 or more
-    // higher: a level that wasn't updated.)
-    let slips = null;
-    const subtierSlips = () => {
-        if (slips) return slips;
-        const rows = read("screen.jsonl").filter((row) => !row.error && !row.skipped);
-        const index = new Map(rows.map((row) => [`${row.ref.pack}|${row.ref.name}`, row]));
-        slips = new Set(rows.filter((row) => {
-            const named = /^(.*) \((\d+)-(\d+)\)$/.exec(row.ref.name);
-            const base = named ? index.get(`${row.ref.pack}|${named[1]}`) : null;
-            const more = (key) => (row.profile?.[key]?.value ?? 0) - (base?.profile?.[key]?.value ?? 0);
-            return base && base.level === row.level && more("ac") >= 2 && more("attack") >= 2;
-        }).map((row) => row.ref.ref));
-        return slips;
-    };
-    const suspect = (row) => (row.profile?.damage?.steps ?? 0) > 8 || (row.profile?.attack?.steps ?? 0) > 5.5 || (row.profile?.ac?.steps ?? 0) > 6 || subtierSlips().has(row.ref.ref);
-    // (Paizo's April Fools blog creatures — the Nonsequitaur — are jokes, not built to the tables: left out of the ranking too.)
-    const joke = (row) => /april fool|foolish/i.test(row.publication ?? "");
-    const baselines = () => {
-        const moderate = new Map();
-        for (const row of read("baseline.jsonl")) {
-            const entry = moderate.get(row.level) ?? { n: 0, score: 0 };
-            entry.score += row.score * row.n;
-            entry.n += row.n;
-            moderate.set(row.level, entry);
-        }
-        const scores = new Map();
-        for (const row of read("screen.jsonl").filter(usable)) scores.set(row.level, [...(scores.get(row.level) ?? []), row.score]);
-        const median = (values) => {
-            const sorted = [...values].sort((a, b) => a - b);
-            return sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
-        };
-        const levels = new Set([...moderate.keys(), ...scores.keys()]);
-        return new Map([...levels].map((level) => [level, (scores.get(level)?.length ?? 0) >= 5 ? median(scores.get(level)) : (moderate.get(level)?.score ?? 0) / Math.max(1, moderate.get(level)?.n ?? 1)]));
-    };
-    // (Once the ladder has run: "for its level" in levels — the level of the moderate creature that does as much to the party, less the
-    // typical (median) creature's of the same level. Levels 21 and up fight the level-20 party, whose scores spread far wider, so levels
-    // compare them fairly where the score doesn't.)
-    const ladder = () => {
-        const sums = new Map();
-        for (const row of read("ladder.jsonl")) {
-            const key = `${row.party}|${row.level - row.party}`;
-            const entry = sums.get(key) ?? { party: row.party, offset: row.level - row.party, n: 0, score: 0 };
-            entry.score += row.score * row.n;
-            entry.n += row.n;
-            sums.set(key, entry);
-        }
-        const curves = new Map();
-        for (const entry of sums.values()) curves.set(entry.party, [...(curves.get(entry.party) ?? []), [entry.offset, entry.score / entry.n]]);
-        for (const [party, curve] of curves) {
-            curve.sort((a, b) => a[0] - b[0]);
-            const peak = curve.reduce((best, point, index) => (point[1] > curve[best][1] ? index : best), 0);
-            curves.set(party, curve.slice(0, peak + 1));
-        }
-        return curves;
-    };
-    // (Past the ladder's top — a creature that kills PCs outright as no by-the-book creature does: on at the ladder's average rise from its
-    // own level to the top, an estimate.)
-    const offsetOn = (curve, score) => {
-        if (score <= curve[0][1]) return curve[0][0];
-        for (let index = 1; index < curve.length; index++) {
-            const [low, high] = [curve[index - 1], curve[index]];
-            if (score <= high[1]) return low[0] + (high[1] > low[1] ? (score - low[1]) / (high[1] - low[1]) : 0) * (high[0] - low[0]);
-        }
-        const zero = curve.find(([offset]) => offset === 0)?.[1] ?? curve[0][1];
-        const [top, best] = curve.at(-1);
-        const rise = top > 0 && best > zero ? (best - zero) / top : null;
-        return top + (rise ? (score - best) / rise : 0);
-    };
-    const effectiveLevel = (curves, row) => {
-        const party = Math.max(1, Math.min(20, row.level));
-        return curves.has(party) ? party + offsetOn(curves.get(party), row.score) : null;
-    };
-    const ranked = (rows, base) => {
-        const curves = ladder();
-        const kept = rows.filter((row) => usable(row) && !suspect(row) && !joke(row));
-        if (!curves.size) return kept.map((row) => ({ ...row, excess: row.score - (base.get(row.level) ?? 0) })).sort((a, b) => b.excess - a.excess);
-        const byLevel = new Map();
-        for (const row of read("screen.jsonl").filter(usable)) byLevel.set(row.level, [...(byLevel.get(row.level) ?? []), effectiveLevel(curves, row)]);
-        const median = (values) => {
-            const sorted = [...values].sort((a, b) => a - b);
-            return sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
-        };
-        const typical = new Map([...byLevel].map(([level, values]) => [level, median(values)]));
-        return kept.map((row) => ({ ...row, excess: effectiveLevel(curves, row) - (typical.get(row.level) ?? row.level) })).sort((a, b) => b.excess - a.excess);
-    };
+    // The ranking (src/engine/danger-scale.js, shared with the in-Foundry run): each level's yardstick, the ladder's curves, a creature's
+    // effective level and its excess over the typical creature of its level; data slips and April Fools creatures left out. Its rows: a
+    // key, a group (the pack) and a name, from the ref.
+    const { rankRows, ratingsOf } = await import("../src/engine/danger-scale.js");
+    const asScale = (row) => ({ ...row, key: row.ref?.ref, group: row.ref?.pack, name: row.ref?.name });
+    const ranked = (rows) => rankRows(rows.map(asScale), { screen: read("screen.jsonl").map(asScale), baseline: read("baseline.jsonl"), ladder: read("ladder.jsonl") });
     // One per creature: the same name, level and numbers in several packs counts once.
     const distinct = (rows) => {
         const seen = new Set();
@@ -210,7 +125,7 @@ if (!isMainThread) {
         for (let party = 1; party <= 20; party++) for (let offset = -3; offset <= 10; offset++) if (party + offset >= -1) tasks.push(...chunks({ kind: "ladder", party, level: party + offset }, 1, 401));
         await run(tasks, "ladder.jsonl");
     } else if (phase === "confirm") {
-        const top = distinct(ranked(read("screen.jsonl"), baselines())).slice(0, 100);
+        const top = distinct(ranked(read("screen.jsonl"))).slice(0, 100);
         await run(top.flatMap((row) => chunks({ kind: "confirm", ref: row.ref }, 1, 301)), "confirm.jsonl");
     } else if (phase === "ablate") {
         const merged = new Map();
@@ -220,9 +135,8 @@ if (!isMainThread) {
             entry.n += row.n;
             merged.set(row.ref.ref, entry);
         }
-        const base = baselines();
         const screen = new Map(read("screen.jsonl").map((row) => [row.ref.ref, row]));
-        const top = ranked([...merged.values()].map((entry) => ({ ...entry, ...(screen.get(entry.ref.ref) ? { profile: screen.get(entry.ref.ref).profile, publication: screen.get(entry.ref.ref).publication } : {}), score: entry.score / entry.n })), base);
+        const top = ranked([...merged.values()].map((entry) => ({ ...entry, ...(screen.get(entry.ref.ref) ? { profile: screen.get(entry.ref.ref).profile, publication: screen.get(entry.ref.ref).publication } : {}), score: entry.score / entry.n })));
         // The 12 deadliest of levels −1 to 20 and the 6 of 21 and up (they fight the level-20 party, the cap), by name.
         const names = new Set();
         const distinctTop = top.filter((entry) => !names.has(entry.ref.name) && names.add(entry.ref.name));
@@ -241,19 +155,9 @@ if (!isMainThread) {
         const { PACK_ROOT } = await import("./lib/pack-creatures.mjs");
         const system = JSON.parse(fs.readFileSync(`${PACK_ROOT}/../system.json`, "utf8"));
         const packNames = new Map(system.packs.map((pack) => [String(pack.path).replace(/\/$/, "").split("/").at(-1), pack.name]));
-        const rows = ranked(read("screen.jsonl"), baselines());
+        const rows = ranked(read("screen.jsonl")).map((row) => ({ ...row, collection: row.ref.source === "pf2e" ? `pf2e.${packNames.get(row.ref.pack) ?? row.ref.pack}` : row.ref.pack.replace("/", "."), id: row.ref.id }));
         // (Past the ladder's top, an estimate — "above"; at or under its foot, at most — "below": bounds.)
-        const curves = ladder();
-        const ratings = {};
-        const bounds = {};
-        for (const row of rows) {
-            if (!Number.isFinite(row.excess)) continue;
-            const collection = row.ref.source === "pf2e" ? `pf2e.${packNames.get(row.ref.pack) ?? row.ref.pack}` : row.ref.pack.replace("/", ".");
-            (ratings[collection] ??= {})[row.ref.id] = Math.round(row.excess * 10) / 10;
-            const curve = curves.get(Math.max(1, Math.min(20, row.level)));
-            const bound = curve && row.score > curve.at(-1)[1] ? "above" : curve && row.score <= curve[0][1] ? "below" : null;
-            if (bound) (bounds[collection] ??= {})[row.ref.id] = bound;
-        }
+        const { ratings, bounds } = ratingsOf(rows, read("ladder.jsonl"));
         const target = process.argv.find((arg) => arg.startsWith("--write="))?.split("=")[1] ?? `${out}/ratings.json`;
         const fights = Math.max(0, ...rows.map((row) => row.n ?? 0));
         fs.writeFileSync(target, `${JSON.stringify({ version: 1, generated: new Date().toISOString().slice(0, 10), fights, party: ["fighter", "rogue", "wizard", "cleric"], ratings, bounds })}\n`);

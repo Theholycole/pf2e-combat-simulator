@@ -357,6 +357,26 @@
 .pcs-danger-down { background: #3f6f8f; color: #fff; }
 .pcs-danger-low { background: #2f4f6a; color: #fff; }
 .pcs-danger-sort.active { color: var(--color-text-hyperlink, #ff6400); }
+/* The danger ratings run window (scripts/danger-run.js). */
+.pcs-danger-run .window-content { overflow-y: auto; }
+.pcs-danger-run-body { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.25rem 0.5rem; }
+.pcs-danger-run-body p { margin: 0; }
+.pcs-run-note { font-size: var(--font-size-12, 12px); opacity: 0.8; }
+.pcs-run-warning { color: var(--color-level-warning, #c0602b); }
+.pcs-run-fights { display: flex; align-items: center; gap: 0.5rem; }
+.pcs-run-fights input { width: 5em; }
+.pcs-run-packs-head { display: flex; align-items: center; gap: 0.5rem; }
+.pcs-run-packs-head span { flex: 1; opacity: 0.8; }
+.pcs-run-packs-head button { flex: none; width: auto; line-height: 1.4; padding: 0 0.6em; }
+.pcs-run-packs { list-style: none; margin: 0; padding: 0.25rem; max-height: 16rem; overflow-y: auto; border: 1px solid var(--color-border-light-tertiary, #7a7971); border-radius: 3px; }
+.pcs-run-packs label { display: flex; align-items: center; gap: 0.4em; }
+.pcs-run-packs label span { margin-left: auto; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.pcs-run-packs label em { opacity: 0.7; font-size: var(--font-size-12, 12px); }
+.pcs-run-estimate { font-weight: bold; }
+.pcs-run-progress { display: flex; flex-direction: column; gap: 0.4rem; }
+.pcs-run-bar { height: 0.8rem; border: 1px solid var(--color-border-light-tertiary, #7a7971); border-radius: 3px; overflow: hidden; }
+.pcs-run-bar > div { height: 100%; background: #8f1d1d; transition: width 0.4s; }
+
 /* In PF2e's Compendium Browser: a column before the level. */
 .pcs-danger-cell {
     flex: none;

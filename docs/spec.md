@@ -540,3 +540,12 @@ Encounters are built from the GM Core creature-building tables and a level-match
 
 Milestone 1 has no spells, healing or class features, so the bands are loose and tighten as content arrives.
 
+
+## Danger ratings (2026-10-20)
+
+The user: "rank each monster in the compendium based on how dangerous they are for their level … a number next to their name in the compendium that we can also sort by", then "in the compendium browser", then "add a button in the settings for people to run the simulator again for the compendium danger numbers".
+
+- **The number:** a creature's danger for its level, in levels above (+) or below (−) the typical creature of its level, by the deadliest-creatures study's method: each creature against the standard party of its level (src/engine/party.js) to the end; a ladder of moderate creatures (GM Core's tables) for "fights like a creature N levels higher"; the median creature of each level as the typical one (a by-the-book creature where a level has fewer than five). "≈" past the ladder's top (an estimate), "≤" at its foot (at most). Data slips and April Fools creatures get none. The counting and the ranking are src/engine/danger-scale.js, shared by the offline tool and the in-Foundry run.
+- **The module's numbers:** src/data/danger-ratings.json, from `node tools/deadliest.mjs <folder> screen --fights=100`, `ladder`, `ratings --write=src/data/danger-ratings.json` (every PF2e and Battlezoo creature; ids and numbers only).
+- **Where they show:** Foundry's compendium windows (a badge beside each name, a skull button to sort) and PF2e's Compendium Browser's Bestiary tab (a column before the level, "Danger for level" in its sort): scripts/danger.js, src/live/danger.js. A client setting turns them off.
+- **Run again in a world:** a settings menu (scripts/danger-run.js) runs the same method in the GM's browser on the simulator's workers (src/engine/worker.js, kind "danger"): the ladder (its fights 4 times a creature's), then every creature of the ticked compendiums, read as in play (readActor), the party's spells from the core's registry and its basic actions from the ability module. The result is a world setting, used before the module's file until the GM goes back to the module's numbers.

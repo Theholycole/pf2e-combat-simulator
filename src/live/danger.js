@@ -2,7 +2,7 @@
 // level … a number next to their name in the compendium that we can also sort by"): src/data/danger-ratings.json, written by
 // `node tools/deadliest.mjs <run> ratings` — each creature's levels above (or below) the typical creature of its level, against a party of
 // four at its level (fighter, rogue, wizard, cleric) fighting to the end, as in the deadliest-creatures study. Pure.
-//   data { version, generated, fights, party, ratings: { "<compendium id>": { "<actor id>": 2.3 } }, bounds?: { "<compendium id>": { "<actor id>":
+//   data { version, source? ("world": a world's own run, scripts/danger-run.js), generated, fights, party, ratings: { "<compendium id>": { "<actor id>": 2.3 } }, bounds?: { "<compendium id>": { "<actor id>":
 //   "above" | "below" } } } — above: deadlier than the ladder's deadliest yardstick (10 levels up), its number an estimate; below: weaker than its
 //   weakest (3 levels down), its number the most it could be.
 
@@ -40,7 +40,7 @@ export function dangerTooltip(value, data, bound = null) {
     if (!Number.isFinite(value)) return "";
     const rounded = Math.round(value * 10) / 10;
     const how = rounded === 0 ? "like a typical creature of its level" : `like a creature ${Math.abs(rounded).toFixed(1)} level${Math.abs(rounded) === 1 ? "" : "s"} ${rounded > 0 ? "above" : "below"} a typical one of its level`;
-    const run = [data?.generated, Number(data?.fights) > 0 ? `${data.fights} fights` : null].filter(Boolean).join(", ");
+    const run = [data?.source === "world" ? "this world's run" : null, data?.generated, Number(data?.fights) > 0 ? `${data.fights} fights` : null].filter(Boolean).join(", ");
     const note = bound === "above" ? " It's deadlier than any by-the-book creature the scale goes up to, so this is an estimate." : bound === "below" ? " It's weaker than the weakest creature on the scale, so it's at most this." : "";
     return `Danger for its level: fights ${how}, against a party of four at its level (Combat Simulator${run ? `, ${run}` : ""}).${note}`;
 }

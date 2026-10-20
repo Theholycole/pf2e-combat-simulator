@@ -14,6 +14,7 @@ test("a creature's rating by compendium and id, its label, band and words", () =
     assert.equal(dangerTooltip(2.34, data), "Danger for its level: fights like a creature 2.3 levels above a typical one of its level, against a party of four at its level (Combat Simulator, 2026-10-20, 100 fights).");
     assert.match(dangerTooltip(-1, data), /1\.0 level below/);
     assert.match(dangerTooltip(0, data), /like a typical creature of its level/);
+    assert.match(dangerTooltip(1, { ...data, source: "world" }), /\(Combat Simulator, this world's run, 2026-10-20, 100 fights\)/);
 });
 
 test("sorted most dangerous first, unrated after in their first order", () => {

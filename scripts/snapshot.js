@@ -668,8 +668,8 @@ function readGaps(actor, gaps, handled = new Set()) {
     }
 }
 
-const CORE_ID = "pf2e-resolution-core";
-const ABILITY_MODULE_ID = "pf2e-automatic-ability-resolution";
+export const CORE_ID = "pf2e-resolution-core";
+export const ABILITY_MODULE_ID = "pf2e-automatic-ability-resolution";
 const BASIC_ACTION_SKILLS = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics", disarm: "athletics", reposition: "athletics", feint: "deception", "create-a-diversion": "deception", "administer-first-aid": "medicine" };
 // A melee Strike that is a weapon in hand (B313): PF2e links it to a weapon item, the creature carries a weapon of its name, or its name is
 // one of PF2e's base weapons. (Before, any Strike not named like a natural attack — a lava bomb, a force blast, a rock.)
@@ -912,7 +912,7 @@ function bestSpellStatistic(actor) {
 // Plan fields the engine never reads: left out of the snapshot sent to the worker.
 const PLAN_EXTRAS = new Set(["compilerEvidence", "diagnostics", "delegations", "semanticCoverage", "rawText", "sourceText", "raw"]);
 
-function leanPlan(plan) {
+export function leanPlan(plan) {
     return JSON.parse(JSON.stringify(plan, (key, value) => (PLAN_EXTRAS.has(key) ? undefined : value)));
 }
 
@@ -931,7 +931,7 @@ function conditionSlug(uuid) {
 
 // The engine's models of the PF2e spell effects a plan applies, at the cast rank, and of the effects an effect
 // plan applies (a monster's Battle Cry: PF2e's bestiary effects or a module's).
-async function effectModels(plan, castRank) {
+export async function effectModels(plan, castRank) {
     // (A zone's save with no plan of its own — Trail of Runes' runes: none.)
     if (!plan) return {};
     const applied = [
@@ -1936,7 +1936,7 @@ async function summonDocument(from) {
     return null;
 }
 
-async function summonReserves(maker) {
+export async function summonReserves(maker) {
     const out = [];
     for (const entry of maker.summons) {
         let creature = entry.creature;
