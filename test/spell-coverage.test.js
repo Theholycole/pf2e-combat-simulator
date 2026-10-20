@@ -68,7 +68,8 @@ const rollFor = (brute, degree) => () => Math.max(2, Math.min(19, (degree === "f
 function calmFight({ apart = false } = {}) {
     const calm = { name: "Calm", plan: CALM, castRank: 2, dc: 20, attack: 20, pool: null };
     const mage = { ...moderateCreature(5, "mage", "Mage"), side: "party", kind: "npc", spells: [calm], spellPools: {}, band: "near" };
-    const brute = { ...moderateCreature(5, "brute", "Brute"), ...(apart ? { band: "near" } : { engagement: 1 }), hp: { value: 300, max: 300 } };
+    // (Level 4: not above twice Calm's rank 2, so its incapacitation doesn't better the brute's save.)
+    const brute = { ...moderateCreature(4, "brute", "Brute"), ...(apart ? { band: "near" } : { engagement: 1 }), hp: { value: 300, max: 300 } };
     const [fighter] = martialParty(5);
     const state = createFightState({ combatants: [{ ...fighter, ...(apart ? { band: "far" } : { engagement: 1 }) }, mage, brute] }, {}, 1);
     state.log = [];

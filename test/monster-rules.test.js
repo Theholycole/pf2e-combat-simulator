@@ -327,6 +327,35 @@ test("Afflictions: a failed save afflicts at stage 1 (2 on a critical failure); 
     assert.equal(pc.afflictions.length, 0);
 });
 
+test("Incapacitation (2026-10-20): a save against it by a creature above twice its rank in level is a degree better; not at or below", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const gaze = (traits) => ({ modelVersion: 13, source: { name: "Test Gaze" }, rank: 1, traits, activation: { time: "1", traits }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [{ kind: "condition", slug: "slowed", value: 1, duration: null }] }, criticalFailure: { damage: { ...none }, effects: [{ kind: "condition", slug: "paralyzed", value: null, duration: null }] } } } });
+    const played = (level, traits) => {
+        const [fighter] = martialParty(level);
+        const basilisk = { ...moderateCreature(4, "bas", "Basilisk"), engagement: 1, spells: [entry("Test Gaze", gaze(traits))] };
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1, saves: { fortitude: 5, reflex: 5, will: 5 } }, basilisk] });
+        state.rng.d20 = () => 10;
+        castSpell(state, state.byId.get("bas"), 0, [fighter.id]);
+        const pc = state.byId.get(fighter.id);
+        return pc.cond.paralyzed ? "paralyzed" : pc.cond.slowed ? "slowed" : "none";
+    };
+    // (A level-4 creature's ability is rank 2: a level-10 fighter is above 4.)
+    assert.deepEqual([played(10, ["incapacitation"]), played(10, []), played(4, ["incapacitation"])], ["slowed", "paralyzed", "paralyzed"]);
+});
+
+test("Dispelling a creature under control (2026-10-20): its controller doesn't free it; its own side's casters do", async () => {
+    const { bestCounter } = await import("../src/engine/spells.js");
+    const [fighter, wizard] = martialParty(10);
+    const rakshasa = { ...moderateCreature(12, "rak", "Rakshasa"), engagement: 1 };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, wizard, rakshasa] });
+    const pc = state.byId.get(fighter.id);
+    Object.assign(pc, { originalSide: pc.side, side: "foes", controlledBy: "rak", cond: { ...pc.cond, controlled: true }, condSources: { controlled: { dc: 30, rank: 6, spell: true, name: "Dominate", traits: [] } } });
+    const change = { any: true };
+    assert.equal(bestCounter(state, state.byId.get("rak"), pc, change), null);
+    assert.equal(bestCounter(state, state.byId.get(wizard.id), pc, change)?.pick?.slug, "controlled");
+});
+
 test("An affliction's stage Effect (2026-10-20, Grit's \"Effect: Grit (Stage 1)\"): on the creature for that stage, gone with it", async () => {
     const { effectModel } = await import("../src/engine/effects.js");
     const [fighter] = martialParty(3);

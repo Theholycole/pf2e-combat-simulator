@@ -968,8 +968,10 @@ function noteModel(spell, note) {
 
 // What a counteract is worth to its caster's side on the target: the best thing it can end there — a foe's help, an ally's
 // hindrance — as { pick, value } (value in rounds of the target's threat), or null.
-function bestCounter(state, caster, target, change) {
-    const ally = target.side === caster.side;
+export function bestCounter(state, caster, target, change) {
+    // (2026-10-20: a creature under control by its own side — the Wizard a rakshasa dominated — by the side it belongs to: not freed by its
+    // controller, freed by its friends.)
+    const ally = (target.originalSide ?? target.side) === caster.side;
     let best = null;
     for (const entry of counterables(target, change, FLAGS)) {
         let value;
@@ -1619,6 +1621,15 @@ function isSpellCast(spell) {
     return !["ability", "basic", "item"].includes(spell.kind) || /spells-srd/.test(spell.plan?.source?.uuid ?? "");
 }
 
+// (2026-10-20, found ranking every creature's danger: a level-23 creature controlled by a level-20 cleric's Dominate.) Incapacitation: a save
+// against an effect with the trait, by a creature more than twice the effect's rank in level, is one degree better. Its rank: a spell's cast
+// rank; an item's, half its level rounded up (castRank holds the item's level); an ability's, half its user's level rounded up.
+export function incapacitated(spell, caster, target) {
+    if (!(spell?.plan?.traits ?? []).includes("incapacitation") || !target) return false;
+    const rank = isSpellCast(spell) ? Number(spell.castRank) || 1 : Math.ceil((Number(spell.kind === "item" ? spell.castRank : caster?.level) || 1) / 2);
+    return (Number(target.level) || 0) > 2 * rank;
+}
+
 function applyChanges(state, caster, spell, changes, context, io) {
     // (I2: with its actions — Heal's three-action area.)
     const described = describeSpell(spell.plan, context?.actions);
@@ -1995,7 +2006,12 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         return { natural, total, dc: options.dc, degree: DEGREE_NAMES[degreeOf(total, options.dc, natural)] };
     };
     // (B302: Evasion, Juggernaut, Bravery … — the save's degree adjusted, before any reaction.)
-    const adjusted = (statistic, options, result) => (SAVE_SLUGS.has(statistic) && options?.actor?.saveDegrees && result?.degree ? { ...result, degree: DEGREE_NAMES[adjustedSaveDegree(options.actor, statistic, DEGREE_NAMES.indexOf(result.degree), spell)] } : result);
+    // (2026-10-20: and incapacitation's degree better against a creature of more than twice the effect's rank in level.)
+    const adjusted = (statistic, options, result) => {
+        let next = SAVE_SLUGS.has(statistic) && options?.actor?.saveDegrees && result?.degree ? { ...result, degree: DEGREE_NAMES[adjustedSaveDegree(options.actor, statistic, DEGREE_NAMES.indexOf(result.degree), spell)] } : result;
+        if (SAVE_SLUGS.has(statistic) && next?.degree && incapacitated(spell, caster, options?.actor)) next = { ...next, degree: DEGREE_NAMES[Math.min(3, DEGREE_NAMES.indexOf(next.degree) + 1)] };
+        return next;
+    };
     // (A failed save a reaction makes better, B80.)
     // (B308, Reflect Spell: a reaction raising its AC against a spell attack — a ranged one where it says so.)
     const raised = (statistic, options) => {
@@ -2926,8 +2942,9 @@ function oddsFor(caster, spell, target, attacks, actions) {
     const slug = slugs.reduce((best, entry) => (saveModifier(target, entry) + saveBonusAgainst(target, entry, spell) > saveModifier(target, best) + saveBonusAgainst(target, best, spell) ? entry : best));
     const save = saveModifier(target, slug) + saveBonusAgainst(target, slug, spell);
     const dc = check.against?.dc === "fixed" ? check.against.value : (spell.dc ?? 10) - penalty + effectBonus(caster, "spell");
-    // (B302: its Evasion and the like.)
-    return adjustedSaveOdds(target, slug, degreeDistribution(save, dc), spell);
+    // (B302: its Evasion and the like; 2026-10-20, incapacitation's degree better.)
+    const odds = adjustedSaveOdds(target, slug, degreeDistribution(save, dc), spell);
+    return incapacitated(spell, caster, target) ? [0, odds[0], odds[1], odds[2] + odds[3]] : odds;
 }
 
 // The changes a spell has on one target at each degree, with average damage.
