@@ -112,11 +112,14 @@ function fold(parts) {
     return result;
 }
 
+// (2026-10-20, the danger ratings: a dash for a minus, "1d4–1" (Angry Raven), reads as one; a type with no amount before it, a Strike's
+// empty damage row (Doblagub's " bludgeoning"), is no damage.)
 export function parseReadableDamage(text) {
     if (!text || typeof text !== "string") return [];
     const parts = [];
     let pending = [];
-    for (const chunk of splitTop(text.trim())) {
+    for (const chunk of splitTop(text.trim().replace(/[\u2012-\u2015\u2212]/g, "-"))) {
+        if (!pending.length && /^[a-z][a-z\s-]*$/i.test(chunk)) continue;
         const match = chunk.match(/^(.*?)\s+([a-z][a-z\s-]*)$/i);
         if (!match || /\d/.test(match[2])) {
             pending.push(chunk);

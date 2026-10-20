@@ -39,6 +39,12 @@ test("persistent, bleed and doubled parts are recognised", () => {
     assert.equal(bleed[0].multiplier, 2);
 });
 
+test("a dash for a minus reads as one; a type with no amount is no damage", () => {
+    assert.deepEqual(parseReadableDamage("1d4\u20131 piercing"), parseReadableDamage("1d4 - 1 piercing"));
+    assert.deepEqual(parseReadableDamage(" bludgeoning"), []);
+    assert.equal(averageOf(parseReadableDamage("1d6 + 1d6 fire")), 7);
+});
+
 test("the weapon's own damage comes first", () => {
     const parts = parseReadableDamage("(2 * 1d8) mental + (2 * (3d8 + 14)) piercing");
     assert.equal(parts[0].type, "piercing");
