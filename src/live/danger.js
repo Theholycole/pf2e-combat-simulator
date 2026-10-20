@@ -12,6 +12,15 @@ export function ratingOf(data, collection, id) {
     return Number.isFinite(value) ? value : null;
 }
 
+// A creature's rating by its compendium uuid ("Compendium.pf2e.pathfinder-monster-core.Actor.<id>", as PF2e's Compendium Browser keeps its
+// entries): { value, bound }, or null.
+export function ratingOfUuid(data, uuid) {
+    const match = /^Compendium\.(.+)\.Actor\.([^.]+)$/.exec(String(uuid ?? ""));
+    if (!match) return null;
+    const value = ratingOf(data, match[1], match[2]);
+    return value === null ? null : { value, bound: boundOf(data, match[1], match[2]) };
+}
+
 // Whether its number is an estimate past the ladder's top ("above") or the most it could be ("below"), or null.
 export function boundOf(data, collection, id) {
     const bound = data?.bounds?.[collection]?.[id];
@@ -50,4 +59,15 @@ export function dangerOrder(entries) {
         if (Number.isFinite(a.value) && b.value !== a.value) return b.value - a.value;
         return (a.order ?? 0) - (b.order ?? 0);
     });
+}
+
+// PF2e's Compendium Browser's entries ({ name, … }) by danger, as its own sorts go: ascending (the least dangerous first) or descending, ties
+// by name; those with no rating after either way, by name. valueOf(entry): its rating or null.
+export function sortByDanger(entries, valueOf, { descending = false, compare = (a, b) => a.localeCompare(b) } = {}) {
+    const values = new Map(entries.map((entry) => [entry, valueOf(entry)]));
+    const byName = (a, b) => compare(String(a.name ?? ""), String(b.name ?? ""));
+    const rated = entries.filter((entry) => Number.isFinite(values.get(entry)));
+    const unrated = entries.filter((entry) => !Number.isFinite(values.get(entry)));
+    rated.sort((a, b) => (descending ? values.get(b) - values.get(a) : values.get(a) - values.get(b)) || byName(a, b));
+    return [...rated, ...unrated.sort(byName)];
 }

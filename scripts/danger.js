@@ -1,9 +1,10 @@
 // Live: each creature's danger for its level beside its name in Foundry's compendium windows (src/live/danger.js; the numbers in
 // src/data/danger-ratings.json, from `node tools/deadliest.mjs <run> ratings`), and a button beside the search that sorts the list by it —
-// the most dangerous for their level first, unrated ones after; pressed again, the compendium's own order. A client setting turns it off.
+// the most dangerous for their level first, unrated ones after; pressed again, the compendium's own order. And in PF2e's Compendium Browser
+// (its Bestiary tab): the number beside each creature's level, and "Danger for level" in its sort. A client setting turns it off.
 
 import { MODULE_ID } from "./snapshot.js";
-import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, ratingOf } from "../src/live/danger.js";
+import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, ratingOf, ratingOfUuid, sortByDanger } from "../src/live/danger.js";
 
 const SETTING = "dangerRatings";
 let data = null;
@@ -30,6 +31,9 @@ export function registerDangerSetting() {
         default: true,
         onChange: () => {
             for (const app of compendiumApps()) app.render();
+            syncBrowserOrder();
+            const browser = game.pf2e?.compendiumBrowser;
+            if (browser?.rendered) markBrowser(browser);
         }
     });
 }
@@ -39,6 +43,18 @@ export function setUpDanger() {
         if (!game.settings.get(MODULE_ID, SETTING)) return;
         mark(app, element instanceof HTMLElement ? element : element?.[0]).catch((error) => console.error(`${MODULE_ID} | danger ratings`, error));
     });
+    // (PF2e makes its Compendium Browser at its own ready, before a module's.)
+    Hooks.once("ready", () => setUpBrowser().catch((error) => console.error(`${MODULE_ID} | danger ratings in the Compendium Browser`, error)));
+}
+
+// A creature's badge: its number, coloured by band, its words when hovered.
+function badgeFor(value, bound, known) {
+    const badge = document.createElement("span");
+    badge.className = `pcs-danger pcs-danger-${dangerBand(value)}`;
+    badge.textContent = dangerLabel(value, bound);
+    badge.dataset.tooltip = dangerTooltip(value, known, bound);
+    badge.setAttribute("aria-label", badge.dataset.tooltip);
+    return badge;
 }
 
 async function mark(app, root) {
@@ -56,13 +72,7 @@ async function mark(app, root) {
             return;
         }
         item.dataset.pcsDanger = String(value);
-        const badge = document.createElement("span");
-        badge.className = `pcs-danger pcs-danger-${dangerBand(value)}`;
-        const bound = boundOf(known, pack.collection, item.dataset.entryId);
-        badge.textContent = dangerLabel(value, bound);
-        badge.dataset.tooltip = dangerTooltip(value, known, bound);
-        badge.setAttribute("aria-label", badge.dataset.tooltip);
-        item.append(badge);
+        item.append(badgeFor(value, boundOf(known, pack.collection, item.dataset.entryId), known));
     });
     const search = root.querySelector("search");
     let button = search?.querySelector(".pcs-danger-sort");
@@ -96,3 +106,95 @@ function order(root, collection) {
         for (const { item } of next) list.append(item);
     }
 }
+
+// --- PF2e's Compendium Browser ------------------------------------------------------
+// (A Svelte app: its Bestiary tab keeps entries { name, uuid, level, … } and draws a row for each of its sorted results, in order, with no id
+// on the row — so a row is its result by place, checked by name. Its sort: the tab's filterData.order { by, direction, options }, read
+// through tab.sortResult.)
+
+const BROWSER_ORDER = "pcsDanger";
+const watchedBrowsers = new WeakSet();
+
+async function setUpBrowser() {
+    const browser = game.pf2e?.compendiumBrowser;
+    const tab = browser?.tabs?.bestiary;
+    if (!tab || typeof tab.sortResult !== "function" || tab.pcsDanger) return;
+    const known = await ratings();
+    if (!known?.ratings) return;
+    tab.pcsDanger = true;
+    const ownSort = tab.sortResult.bind(tab);
+    tab.sortResult = function (result) {
+        const order = this.filterData?.order;
+        if (order?.by !== BROWSER_ORDER) return ownSort(result);
+        const lang = game.i18n.lang;
+        return sortByDanger(result, (entry) => ratingOfUuid(known, entry.uuid)?.value ?? null, { descending: order.direction === "desc", compare: (a, b) => a.localeCompare(b, lang) });
+    };
+    syncBrowserOrder();
+    Hooks.on("renderCompendiumBrowser", (app) => watchBrowser(app));
+    if (browser.rendered) watchBrowser(browser);
+}
+
+// "Danger for level" among the Bestiary tab's sorts while the setting is on (its filters now and those it resets to).
+function syncBrowserOrder() {
+    const tab = game.pf2e?.compendiumBrowser?.tabs?.bestiary;
+    if (!tab?.pcsDanger) return;
+    const on = game.settings.get(MODULE_ID, SETTING);
+    for (const filters of [tab.filterData, tab.defaultFilterData]) {
+        const order = filters?.order;
+        if (!order?.options) continue;
+        if (on) order.options[BROWSER_ORDER] ??= { label: "Danger for level", type: "numeric" };
+        else {
+            delete order.options[BROWSER_ORDER];
+            if (order.by === BROWSER_ORDER) order.by = "level";
+        }
+    }
+}
+
+// Marks its rows as they're drawn (a new tab, a search, a sort, more rows on scrolling): once for each batch of Svelte's changes (an
+// observer's callback comes after them), not watching its own. (Not a frame later: a hidden window draws no frames.)
+function watchBrowser(app) {
+    const root = app?.element;
+    if (!root) return;
+    if (watchedBrowsers.has(root)) return markBrowser(app);
+    watchedBrowsers.add(root);
+    const observer = new MutationObserver(() => {
+        observer.disconnect();
+        try {
+            markBrowser(app);
+        } finally {
+            observer.observe(root, { childList: true, subtree: true });
+        }
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    markBrowser(app);
+}
+
+// Each Bestiary row's number, in its own column before the level; none on other tabs, or with the setting off.
+function markBrowser(app) {
+    const root = app?.element;
+    if (!root) return;
+    const on = data && game.settings.get(MODULE_ID, SETTING) && app.activeTabName === "bestiary";
+    const results = on ? app.tabs?.bestiary?.results ?? [] : [];
+    for (const list of root.querySelectorAll("ul.result-list")) {
+        [...list.children].forEach((item, index) => {
+            const entry = results[index];
+            const name = item.querySelector(".result-link")?.textContent?.trim();
+            const rating = entry && name === String(entry.name ?? "").trim() ? ratingOfUuid(data, entry.uuid) : null;
+            const key = rating ? `${entry.uuid}|${rating.value}|${rating.bound ?? ""}` : "";
+            if ((item.dataset.pcsBrowserDanger ?? "") === key) return;
+            item.querySelector(":scope > .pcs-danger-cell")?.remove();
+            if (!rating) {
+                delete item.dataset.pcsBrowserDanger;
+                return;
+            }
+            item.dataset.pcsBrowserDanger = key;
+            const cell = document.createElement("div");
+            cell.className = "pcs-danger-cell";
+            cell.append(badgeFor(rating.value, rating.bound, data));
+            const level = item.querySelector(":scope > .level");
+            if (level) level.before(cell);
+            else item.append(cell);
+        });
+    }
+}
+

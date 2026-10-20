@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, ratingOf } from "../src/live/danger.js";
+import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, ratingOf, ratingOfUuid, sortByDanger } from "../src/live/danger.js";
 
 // Danger for its level in compendium windows (2026-10-20, src/live/danger.js; scripts/danger.js draws it).
 
@@ -27,5 +27,20 @@ test("an estimate past the scale's top, and the most it could be under its foot:
     assert.deepEqual([dangerLabel(9.06, "above"), dangerLabel(-5.1, "below")], ["≈+9.1", "≤−5.1"]);
     assert.match(dangerTooltip(9.06, data, "above"), /an estimate\.$/);
     assert.match(dangerTooltip(-5.1, data, "below"), /at most this\.$/);
+});
+
+test("PF2e's Compendium Browser: a rating by compendium uuid, and its sort by danger", () => {
+    const data = { ratings: { "pf2e.pathfinder-monster-core": { a: 2.3, b: -5.1 }, "battlezoo-bestiary-pf2e.pf2e-battlezoo-bestiary": { c: 1 } }, bounds: { "pf2e.pathfinder-monster-core": { b: "below" } } };
+    assert.deepEqual(ratingOfUuid(data, "Compendium.pf2e.pathfinder-monster-core.Actor.a"), { value: 2.3, bound: null });
+    assert.deepEqual(ratingOfUuid(data, "Compendium.pf2e.pathfinder-monster-core.Actor.b"), { value: -5.1, bound: "below" });
+    assert.deepEqual(ratingOfUuid(data, "Compendium.battlezoo-bestiary-pf2e.pf2e-battlezoo-bestiary.Actor.c"), { value: 1, bound: null });
+    assert.equal(ratingOfUuid(data, "Compendium.pf2e.pathfinder-monster-core.Actor.z"), null);
+    assert.equal(ratingOfUuid(data, "Actor.a"), null);
+    const values = { Ogre: 1, Bat: null, Lich: 3, Rat: -1, Ant: null, Bear: 1 };
+    const entries = Object.keys(values).map((name) => ({ name }));
+    const order = (options) => sortByDanger(entries, (entry) => values[entry.name], options).map((entry) => entry.name);
+    assert.deepEqual(order(), ["Rat", "Bear", "Ogre", "Lich", "Ant", "Bat"]);
+    assert.deepEqual(order({ descending: true }), ["Lich", "Bear", "Ogre", "Rat", "Ant", "Bat"]);
+    assert.deepEqual(entries.map((entry) => entry.name), Object.keys(values), "the entries themselves left as they were");
 });
 

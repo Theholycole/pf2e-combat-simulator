@@ -338,7 +338,8 @@
 }
 
 /* Danger for its level in compendium windows (scripts/danger.js). */
-.directory-item.entry .pcs-danger {
+.directory-item.entry .pcs-danger,
+.pcs-danger-cell .pcs-danger {
     flex: 0 0 auto;
     align-self: center;
     margin-left: 0.4em;
@@ -356,4 +357,12 @@
 .pcs-danger-down { background: #3f6f8f; color: #fff; }
 .pcs-danger-low { background: #2f4f6a; color: #fff; }
 .pcs-danger-sort.active { color: var(--color-text-hyperlink, #ff6400); }
+/* In PF2e's Compendium Browser: a column before the level. */
+.pcs-danger-cell {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 3.6em;
+}
 
