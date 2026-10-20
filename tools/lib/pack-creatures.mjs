@@ -51,7 +51,8 @@ function effectItem(uuid) {
 // The models of the effects an effect plan applies (a monster's Battle Cry), at its level.
 function effectModels(plan, level) {
     const models = {};
-    const uuids = [...(plan?.resolution?.kind === "effect" ? plan.resolution.applications ?? [] : []).map((application) => application?.uuid), ...Object.values(plan?.resolution?.outcomes ?? {}).flatMap((row) => (row?.nativeEffects ?? []).map((native) => native?.uuid))];
+    // (2026-10-20: and the Effects an affliction's stages link, "Effect: Grit (Stage 1)".)
+    const uuids = [...(plan?.resolution?.kind === "effect" ? plan.resolution.applications ?? [] : []).map((application) => application?.uuid), ...Object.values(plan?.resolution?.outcomes ?? {}).flatMap((row) => (row?.nativeEffects ?? []).map((native) => native?.uuid)), ...(plan?.resolution?.afflictionHandoff?.stages ?? []).flatMap((stage) => (stage?.effects ?? []).map((effect) => effect?.uuid))];
     for (const uuid of uuids.filter(Boolean)) {
         const item = effectItem(uuid);
         if (item) models[uuid] = effectModel(item, { rank: level });

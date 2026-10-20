@@ -327,6 +327,27 @@ test("Afflictions: a failed save afflicts at stage 1 (2 on a critical failure); 
     assert.equal(pc.afflictions.length, 0);
 });
 
+test("An affliction's stage Effect (2026-10-20, Grit's \"Effect: Grit (Stage 1)\"): on the creature for that stage, gone with it", async () => {
+    const { effectModel } = await import("../src/engine/effects.js");
+    const [fighter] = martialParty(3);
+    const uuid = "Compendium.pf2e.equipment-effects.Item.TESTSTAGEONE0001";
+    const data = { name: "test drug", traits: ["poison"], statistic: "fortitude", dc: 20, maximumDuration: { value: 6, unit: "rounds" }, onset: null, stages: [{ stage: 1, damage: [], conditions: [], duration: { value: 1, unit: "rounds" }, effects: [{ uuid, label: "Test Drug (Stage 1)" }] }, { stage: 2, damage: [], conditions: [{ slug: "stupefied", value: 1 }], duration: { value: 1, unit: "rounds" } }] };
+    const plan = { modelVersion: 13, source: { name: "test drug", slug: "test-drug" }, rank: 1, traits: ["poison"], targeting: { target: "a creature", range: "touch" }, trigger: { event: "use" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 20 } }, outcomes: { criticalSuccess: { effects: [] }, success: { effects: [] }, failure: { effects: [], affliction: { stage: 1 } }, criticalFailure: { effects: [], affliction: { stage: 1 } } }, afflictionHandoff: data } };
+    const model = effectModel({ name: "Effect: Test Drug (Stage 1)", system: { duration: { value: 10, unit: "minutes" }, rules: [{ key: "FlatModifier", selector: "ac", type: "item", value: 1 }] } });
+    const monster = { ...moderateCreature(3, "m", "M"), engagement: 1, spells: [{ ...entry("test drug", plan), effects: { [uuid]: model } }] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, saves: { fortitude: 5, reflex: 5, will: 5 } }, monster] });
+    state.rng.d20 = () => 10;
+    castSpell(state, state.byId.get("m"), 0, ["fighter"]);
+    const pc = state.byId.get("fighter");
+    assert.deepEqual([pc.afflictions[0].stage, (pc.effects ?? []).filter((effect) => effect.key === "test drug:stage").length], [1, 1]);
+    // (Its next save failed: stage 2, the stage 1 Effect gone.)
+    state.round = 3;
+    for (const timer of [...pc.timers.filter((each) => each.affliction)]) timer.round = 3;
+    expireTimers(state, state.byId.get("m"), "start");
+    assert.deepEqual([pc.afflictions[0].stage, (pc.effects ?? []).filter((effect) => effect.key === "test drug:stage").length, pc.cond.stupefied], [2, 0, 1]);
+});
+
 test("Afflictions: immunity to poison, a disease measured in days, a stage that kills", () => {
     const [fighter, champion] = martialParty(3);
     const plan = (data) => ({

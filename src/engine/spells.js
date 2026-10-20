@@ -748,7 +748,8 @@ function spanRounds(span) {
 // Exposure: a failed save afflicts the creature at stage 1 (2 on a critical
 // failure). A creature already afflicted by the same poison goes up that many
 // stages; a disease or curse it already has does nothing.
-function applyAffliction(state, source, target, data) {
+// (models: the PF2e Effects its stages link, by uuid — Grit's "Effect: Grit (Stage 1)": on the creature while that stage lasts, 2026-10-20.)
+function applyAffliction(state, source, target, data, models = {}) {
     if (!isActive(target) || (data.traits ?? []).some((trait) => (target.immunities ?? []).includes(trait))) return;
     const existing = (target.afflictions ??= []).find((entry) => entry.name === data.name);
     if (existing) {
@@ -756,7 +757,7 @@ function applyAffliction(state, source, target, data) {
         return;
     }
     const maximum = spanRounds(data.maximumDuration);
-    const entry = { name: data.name, source: source.id, data, stages: data.stages, stage: 0, endRound: state.round + maximum, conditions: [] };
+    const entry = { name: data.name, source: source.id, data, stages: data.stages, stage: 0, endRound: state.round + maximum, conditions: [], models, stageEffects: [] };
     target.afflictions.push(entry);
     // An onset longer than the fight: nothing happens yet.
     const onset = data.onset ? spanRounds(data.onset) : 0;
@@ -779,6 +780,8 @@ function setAfflictionStage(state, target, entry, stage) {
         else if (VALUED.has(slug) && (target.cond[slug] ?? 0) <= (value ?? 1)) target.cond[slug] = 0;
     }
     entry.conditions = [];
+    for (const effect of entry.stageEffects ?? []) removeEffect(target, effect);
+    entry.stageEffects = [];
     target.timers = (target.timers ?? []).filter((timer) => timer.affliction !== entry);
     if (stage <= 0) {
         target.afflictions = target.afflictions.filter((other) => other !== entry);
@@ -804,6 +807,11 @@ function setAfflictionStage(state, target, entry, stage) {
             entry.conditions.push({ slug, value });
             if (slug === "sickened") target.sickenedDC = Math.max(target.sickenedDC ?? 0, entry.data.dc ?? 0) || null;
         }
+    }
+    // (The stage's own PF2e Effect, for as long as the stage lasts: its own time left out.)
+    for (const { uuid } of current.effects ?? []) {
+        const model = entry.models?.[uuid];
+        if (model) entry.stageEffects.push(applyEffect(state, target, { ...model, rounds: Infinity }, source, { applyCondition, key: `${entry.name}:stage` }));
     }
     const rounds = spanRounds(current.duration);
     if (Number.isFinite(rounds)) (target.timers ??= []).push({ affliction: entry, round: state.round + Math.max(1, rounds), turnOf: entry.source, at: "start" });
@@ -1760,7 +1768,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 if (target.status !== "dead" && (change.ifReducedTo === undefined || target.hp.value <= change.ifReducedTo)) killCreature(state, target);
                 break;
             case "affliction":
-                if (Array.isArray(change.data?.stages)) applyAffliction(state, caster, target, change.data);
+                if (Array.isArray(change.data?.stages)) applyAffliction(state, caster, target, change.data, spell.effects ?? {});
                 break;
             case "followUp":
                 if (isActive(target) && change.plan?.resolution?.kind && registry.familyFor(change.plan.resolution.kind)) {

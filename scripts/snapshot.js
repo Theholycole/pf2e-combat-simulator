@@ -823,7 +823,8 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
         if (pool) result.pools[pool] = frequency?.value ?? frequency?.max ?? 1;
         result.handled.add(item);
         // A PF2e effect it applies (Battle Cry), modelled at the creature's level.
-        const effects = plan.resolution.kind === "effect" || Object.values(plan.resolution.outcomes ?? {}).some((row) => row?.nativeEffects?.length) ? await effectModels(plan, actor.level ?? 1) : undefined;
+        // (2026-10-20: also an affliction's stage Effects.)
+        const effects = plan.resolution.kind === "effect" || Object.values(plan.resolution.outcomes ?? {}).some((row) => row?.nativeEffects?.length) || (plan.resolution.afflictionHandoff?.stages ?? []).some((stage) => stage?.effects?.length) ? await effectModels(plan, actor.level ?? 1) : undefined;
         // (B262: its recharge by name, shared with another ability's when it says so — a reshaped Breath Weapon's.)
         result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: plan.sharesRecharge ?? item.name, ...(effects ? { effects } : {}) });
     }
@@ -936,7 +937,9 @@ async function effectModels(plan, castRank) {
     const applied = [
         ...(plan?.resolution?.kind === "effect" ? plan.resolution.applications ?? [] : []).map((application) => application?.uuid),
         // …and the effects a save's or check's results apply (an ability's "Effect: Downcast" on a failure).
-        ...Object.values(plan?.resolution?.outcomes ?? {}).flatMap((row) => (row?.nativeEffects ?? []).map((native) => native?.uuid))
+        ...Object.values(plan?.resolution?.outcomes ?? {}).flatMap((row) => (row?.nativeEffects ?? []).map((native) => native?.uuid)),
+        // …and an affliction's stage Effects ("Effect: Grit (Stage 1)", 2026-10-20).
+        ...(plan?.resolution?.afflictionHandoff?.stages ?? []).flatMap((stage) => (stage?.effects ?? []).map((effect) => effect?.uuid))
     ].filter(Boolean);
     const uuids = [...new Set([...(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}/g) ?? []), ...applied])];
     const models = {};
