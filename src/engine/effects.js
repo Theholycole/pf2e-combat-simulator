@@ -158,6 +158,9 @@ function roundsOf(duration) {
 // PF2e's FlatModifier terms, as the core passes it: Bon Mot's -2 status to Will),
 // as an effect model. null when the engine reads none of its selectors (Perception, skill checks).
 export function modifierModel(name, modifier) {
+    // (2026-10-20, Gleaming Cuirass: "attack rolls against creatures other than you" — not one the engine can scope to its attacks; left out
+    // rather than on its attacks at the source too.)
+    if (modifier?.against === "others") return null;
     const on = SELECTORS[modifier?.selector] ?? [];
     if (!on.length || !Number.isFinite(Number(modifier.value))) return null;
     const rounds = modifier.duration?.mode === "fixed" ? roundsOf(modifier.duration) : Infinity;

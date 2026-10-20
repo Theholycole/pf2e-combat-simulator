@@ -1611,6 +1611,13 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 } else if (isActive(target) && change.escalate?.slug && (FLAGS[change.escalate.if] ? target.cond[FLAGS[change.escalate.if]] : (target.cond[change.escalate.if] ?? 0) > 0)) {
                     // (B103: already slowed — "a failed save causes it to be Petrified permanently": the worse condition.)
                     if (applyCondition(state, target, change.escalate.slug, change.escalate.value, change.escalate.duration, caster)) log(state, `  ${target.name} is ${change.escalate.slug}`);
+                } else if (Number(change.stack?.by) < 0) {
+                    // (2026-10-20, Gearbinder Oil: "The target reduces its slowed condition by 1" — the stack below 0: that much lower, none at 0.)
+                    const now = Number(target.cond[change.slug]) || 0;
+                    if (isActive(target) && now > 0 && VALUED.has(change.slug)) {
+                        target.cond[change.slug] = Math.max(0, now + Number(change.stack.by));
+                        log(state, `  ${target.name}'s ${change.slug} drops to ${target.cond[change.slug]}`);
+                    }
                 } else if (isActive(target) && applyCondition(state, target, change.slug, stackedValue(target, change), change.duration?.saveEnds?.dc === "spell" ? { ...change.duration, saveEnds: { ...change.duration.saveEnds, dc: effectDC(spell) } } : change.duration, caster, change.scope ?? null)) {
                     // (Invisibility: gone after its own hostile action.)
                     if (change.endsOnHostile) (target.endsOnHostile ??= new Set()).add(FLAGS[change.slug] ?? change.slug);

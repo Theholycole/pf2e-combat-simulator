@@ -2383,6 +2383,31 @@ test("A condition that grows with each later failure, to its maximum (2026-10-11
     assert.equal(f.cond.stupefied, 3, "to its maximum");
 });
 
+test("A condition lowered (2026-10-20, Gearbinder Oil's \"reduces its slowed condition by 1\"): one less, none at 0, nothing when it has none", () => {
+    const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
+    const lower = { damage: { ...none }, effects: [{ kind: "condition", slug: "slowed", value: 0, duration: null, stack: { by: -1 } }] };
+    const oil = { modelVersion: 13, source: { name: "Test Oil" }, rank: 1, traits: [], activation: { time: "1", traits: [] }, targeting: { target: "1 creature", range: "touch", area: null }, trigger: { event: "use" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: lower, criticalFailure: lower } } };
+    const [fighter] = martialParty(5);
+    const tinker = { ...moderateCreature(5, "tnk", "Tinker"), engagement: 1, spells: [entry("Test Oil", oil)] };
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, tinker] }, {}, 1);
+    state.log = [];
+    const f = state.byId.get(fighter.id);
+    castSpell(state, state.byId.get("tnk"), 0, [f.id]);
+    assert.ok(!f.cond.slowed, "not slowed: nothing to lower, none given");
+    f.cond.slowed = 2;
+    castSpell(state, state.byId.get("tnk"), 0, [f.id]);
+    assert.equal(f.cond.slowed, 1, state.log.join("\n"));
+    castSpell(state, state.byId.get("tnk"), 0, [f.id]);
+    assert.equal(f.cond.slowed, 0);
+});
+
+test("A penalty to attack rolls against creatures other than its source (2026-10-20, Gleaming Cuirass): left out, not on every attack", async () => {
+    const { modifierModel } = await import("../src/engine/effects.js");
+    assert.equal(modifierModel("Face Me", { selector: "attack-roll", against: "others", value: -1, type: "status", duration: null }), null);
+    assert.ok(modifierModel("Plain", { selector: "attack-roll", value: -1, type: "status", duration: null }));
+});
+
 test("A worse condition for a creature that already has the first: slowed, then petrified (2026-10-11, B103)", () => {
     const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
     const slowed = { kind: "condition", slug: "slowed", value: 1, duration: null, escalate: { if: "slowed", slug: "petrified", value: null, duration: null } };
