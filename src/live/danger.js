@@ -46,10 +46,12 @@ export function ratingOfUuid(data, uuid) {
     return value === null ? null : { value, bound: boundOf(data, match[1], match[2]) };
 }
 
-// Whether its number is an estimate past the ladder's top ("above") or the most it could be ("below"), or null.
+// Whether its number is an estimate past the ladder's top ("above") or the most it could be ("below"), or for a spell at least ("atLeast")
+// or at most ("atMost") this; else null.
+const BOUNDS = new Set(["above", "below", "atLeast", "atMost"]);
 export function boundOf(data, collection, id) {
     const bound = data?.bounds?.[collection]?.[id];
-    return bound === "above" || bound === "below" ? bound : null;
+    return BOUNDS.has(bound) ? bound : null;
 }
 
 // "+2.3", "−0.4", "0.0"; "≈+9.1" past the ladder's top, "≤−5.1" under its foot.

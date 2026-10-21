@@ -62,6 +62,7 @@ test("creatures rated again on their own, laid over the numbers they were rated 
 test("a spell's power: its label, and its words with its fights, heightened ranks that differ and traits it does more against", () => {
     const data = { kind: "spells", generated: "2026-10-21", fights: 100, ratings: { "pf2e.spells-srd": { sun: 0.8 } }, detail: { "pf2e.spells-srd": { sun: { rank: 7, boss: 1.1, group: 2.3, typical: 0.9, ranks: { 8: 0.6, 9: 0.1, 10: -0.4 }, vs: { undead: 2.6 } } } } };
     assert.deepEqual(ratingOfUuid(data, "Compendium.pf2e.spells-srd.Item.sun"), { value: 0.8, bound: null });
+    assert.deepEqual(ratingOfUuid({ ...data, bounds: { "pf2e.spells-srd": { sun: "atLeast" } } }, "Compendium.pf2e.spells-srd.Item.sun"), { value: 0.8, bound: "atLeast" }, "a spell's bound kept");
     assert.deepEqual([powerLabel(0.8), powerLabel(6, "atLeast"), powerLabel(-2, "atMost")], ["+0.8", "≥+6.0", "≤−2.0"]);
     const words = powerTooltip(0.8, data, null, powerDetailOf(data, "pf2e.spells-srd", "sun"));
     assert.match(words, /^Power for its rank: 0\.8 levels stronger than a typical rank-7 spell \(Combat Simulator, 2026-10-21, 100 fights\)\./);
