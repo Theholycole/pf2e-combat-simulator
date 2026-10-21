@@ -152,6 +152,8 @@ export function reachable(map, mover, { blockedBy = new Set(), occupied = new Se
     const width = map.width;
     const height = map.height;
     const cells = width * height;
+    // (Incorporeal, 2026-10-21: through walls, blocked squares and others' spaces — ending in none of them.)
+    const through = (mover.traits ?? []).includes("incorporeal");
     // (Each top-left square: whether the space fits there, what entering it costs, whether it may end there.)
     const fits = new Uint8Array(cells);
     const enter = new Uint8Array(cells);
@@ -164,6 +166,10 @@ export function reachable(map, mover, { blockedBy = new Set(), occupied = new Se
             for (let i = 0; i < n && ok; i++) for (let j = 0; j < n; j++) {
                 const square = key(x + i, y + j);
                 if (map.blocked?.has(square) || blockedBy.has(square)) {
+                    if (through) {
+                        clear = 0;
+                        continue;
+                    }
                     ok = 0;
                     break;
                 }
@@ -197,7 +203,7 @@ export function reachable(map, mover, { blockedBy = new Set(), occupied = new Se
             const ny = y + dy;
             if (nx < 0 || ny < 0 || nx > width - n || ny > height - n) continue;
             const next = ny * width + nx;
-            if (!fits[next] || (walls && crossesWall(map, x, y, dx, dy, n))) continue;
+            if (!fits[next] || (walls && !through && crossesWall(map, x, y, dx, dy, n))) continue;
             const diagonal = dx !== 0 && dy !== 0;
             const total = here + enter[next] + (diagonal && parity === 1 ? SQUARE_FEET : 0);
             if (total > maxCost) continue;

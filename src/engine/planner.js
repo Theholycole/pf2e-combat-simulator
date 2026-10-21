@@ -13,7 +13,7 @@ import { effectBenefit } from "./effects.js";
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
-import { canStepOut, fliesNow, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
+import { canStepOut, fliesNow, flankChance, isIncorporeal, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { gridFlanked, gridStrides, planStride, strideGoes } from "./grid-fight.js";
 import { distanceFeet, reaches as gridReaches, sightLine, squareOf } from "./grid.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
@@ -762,6 +762,9 @@ class PlanContext {
     terminal(node) {
         // A runner that left: what its help is worth, and no more fighting.
         if (node.left) return this.alarmValue(node);
+        // (Inside the floor — incorporeal: no one reaches it next round; next turn, slowed 1, it rises beside a foe of its choosing for a
+        // Strike — as one from a Stride off, a little less for the action the slowing takes.)
+        if (node.sunk) return NEXT_TURN_WEIGHT * this.profile.aggression * 0.8 * this.offenseNext({ ...node, pos: { band: "near", melee: null, newWith: null } });
         const key = this.positionKey(node);
         let cached = this.terminalCache.get(key);
         if (cached === undefined) {
@@ -804,6 +807,7 @@ function child(node, action, cost, value, changes = {}) {
         gong: changes.gong ?? node.gong,
         alarmRaised: changes.alarmRaised ?? node.alarmRaised,
         left: changes.left ?? node.left,
+        sunk: changes.sunk ?? node.sunk,
         atItem: changes.atItem ?? (changes.pos && changes.pos !== node.pos && changes.pos.melee !== null ? false : node.atItem),
         first: node.first ?? action
     };
@@ -872,10 +876,21 @@ function emptyNow(c, node, index, strike) {
 }
 
 function expand(ctx, node, actionsLeft) {
+    const children = expandAll(ctx, node, actionsLeft);
+    // (Incorporeal, starting its turn inside the floor — space.js: its first action a move, out where it is or on to where it goes.)
+    if (ctx.c.emerging && node.used === 0) {
+        const moves = children.filter((next) => next.first?.type === "stride" || next.first?.type === "step");
+        if (canMove(ctx.c)) moves.push(child(node, { type: "stride", move: { kind: "rise" } }, 1, 0, { moved: true }));
+        return moves;
+    }
+    return children;
+}
+
+function expandAll(ctx, node, actionsLeft) {
     const { state, c } = ctx;
     const children = [];
     const remaining = actionsLeft - node.used;
-    if (remaining <= 0 || node.left) return children;
+    if (remaining <= 0 || node.left || node.sunk) return children;
     const mustWithdraw = c.mustWithdraw && !node.moved && !c.withdrewThisTurn && canMove(c);
     const inAnyMelee = node.pos.melee !== null;
     const mobile = canMove(c);
@@ -916,6 +931,13 @@ function expand(ctx, node, actionsLeft) {
         }
     } else if (node.pos.band === "near" && ctx.strideGoes(node.pos, "toFar")) {
         children.push(child(node, { type: "stride", move: { kind: "toFar" } }, 1, 0, { pos: ctx.away(node, "far"), moved: true }));
+    }
+    // Incorporeal (space.js): into the floor, out of everyone's reach until its next turn — not on a turn it started inside (ending that
+    // one inside again is leaving the fight).
+    if (mobile && isIncorporeal(c) && !node.carrying && !c.startedInside) {
+        const next = child(node, { type: "stride", move: { kind: "sink" } }, 1, 0, { pos: { band: node.pos.band === "far" ? "far" : "near", melee: null, newWith: null }, moved: true, sunk: true });
+        if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "sink");
+        children.push(next);
     }
     return children;
 }
@@ -2022,7 +2044,9 @@ export function chooseAction(state, c) {
         atItem: ctx.map?.kind === "retrieve" && !!state.objective.item.dropped && atItem(state, c),
         first: null
     };
-    const rootScore = ctx.terminal(root);
+    // (Incorporeal, starting its turn inside the floor: doing nothing is staying in — leaving the fight —, so some move out, whatever it's
+    // worth; a creature that wants to leave stays in before planning — fight.js insideTurnStart.)
+    const rootScore = c.emerging ? -Infinity : ctx.terminal(root);
     let best = null;
     let bestScore = rootScore + 0.01;
     let beam = [root];

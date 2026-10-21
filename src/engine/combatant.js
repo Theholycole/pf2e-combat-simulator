@@ -110,9 +110,10 @@ export function createCombatant(spec) {
     return spec.reactionsPerRound > 1 ? countReactions(c) : c;
 }
 
-// Swallowed creatures (Swallow Whole) are still fighting, but out of everyone else's reach.
+// Swallowed creatures (Swallow Whole) are still fighting, but out of everyone else's reach; so is an incorporeal one inside the floor or a
+// wall (space.js isIncorporeal).
 export function isActive(c) {
-    return c.status === ACTIVE && !c.swallowedBy;
+    return c.status === ACTIVE && !c.swallowedBy && !c.insideObject;
 }
 
 // asleep: a spell's unconsciousness (Sleep), which damage ends; the creature stays in the fight.

@@ -136,6 +136,13 @@ export function rangePenalty(strike, distance) {
 // Flying (2026-10-21, the user's foe traits: flying and incorporeal). A creature flies by its own fly Speed or an effect's (Fly's).
 export const fliesNow = (c) => Boolean(c?.flies) || (c?.effects ?? []).some((effect) => effect.model?.flies);
 
+// Incorporeal (2026-10-21, the user: "They should always have the option to fly into the floor for safety but gain slowed 1 if they end in
+// the floor/wall"; PF2e's trait): it passes through solid things — on the grid, walls, blocked squares and others' spaces, ending in none
+// of them (grid.js reachable) — and can sink into the floor or a wall as a Stride: there it is out of everyone's reach and sight, and they
+// out of its (c.insideObject; isActive is false). Starting a turn inside, it's slowed 1 and comes out with its first move; staying in
+// from one turn to the next (the user: "Long stay = fled") is leaving the fight (fight.js insideTurnStart). The other side waits it out.
+export const isIncorporeal = (c) => (c?.traits ?? []).includes("incorporeal");
+
 // Aloft: a flier in no Melee (not prone, held or immobilized) — out of reach of a creature that doesn't fly; it comes down to Strike, and
 // can be struck while it's in a Melee.
 export function aloft(c) {

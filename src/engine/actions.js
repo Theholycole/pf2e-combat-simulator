@@ -1708,6 +1708,9 @@ function endMoveEffects(state, c) {
 
 export function stride(state, c, move) {
     if (!canMove(c)) return;
+    // (Incorporeal, space.js: out of the floor with its first move — rising where it is, or on to where it goes.)
+    if (c.insideObject) emerge(state, c);
+    if (move.kind === "rise") return;
     if (state.grid && c.square && GRID_MOVES.has(move.kind)) return gridStride(state, c, move);
     endMoveEffects(state, c);
     // Grapple: "unless you move".
@@ -1724,6 +1727,10 @@ export function stride(state, c, move) {
             log(state, `  ${c.name}'s move is disrupted`);
             return;
         }
+    }
+    if (move.kind === "sink") {
+        sinkInto(state, c);
+        return;
     }
     if (left.length && move.kind !== "leave") {
         strideTo(state, c, move);
@@ -1847,6 +1854,23 @@ function strideTo(state, c, move) {
     } else if (move.kind === "leave") {
         leaveField(state, c);
     }
+}
+
+// Incorporeal (space.js): into the floor — out of its Melee and everyone's reach, its turn over (it can't affect anything outside).
+function sinkInto(state, c) {
+    releaseGrabs(state, c);
+    c.insideObject = { round: state.round };
+    leaveMelee(state, c, c.band === "far" ? "far" : "near");
+    c.actionsLeft = 0;
+    log(state, `  ${c.name} sinks into the floor (incorporeal: out of reach)`);
+}
+
+// Out of the floor again, where it is (on the grid, in the Melee of any foe beside its square).
+export function emerge(state, c) {
+    c.insideObject = null;
+    c.emerging = false;
+    log(state, `  ${c.name} rises out of the floor`);
+    if (state.grid && c.square) regroup(state);
 }
 
 export function leaveField(state, c) {

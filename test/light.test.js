@@ -206,3 +206,37 @@ test("a Strike's range read from PF2e's data (system.range) when it has no range
     assert.equal(stone.melee, false);
     assert.equal(stone.increment, 60);
 });
+
+test("incorporeal: sinks into the floor out of reach; starting a turn inside, slowed 1 and out with its first move — or, fleeing, gone", async () => {
+    const { takeTurn } = await import("../src/engine/fight.js");
+    const { stride } = await import("../src/engine/actions.js");
+    const { isActive } = await import("../src/engine/combatant.js");
+    const ghost = () => ({ ...moderateCreatureAt(5, "monster"), id: "monster", name: "Test Ghost", traits: ["incorporeal", "undead"], flies: true });
+    let state = createFightState({ combatants: [...standardParty(5), ghost()] }, { morale: false, retreat: false }, 1, { log: true });
+    state.log = [];
+    let g = state.byId.get("monster");
+    g.actionsLeft = 3;
+    stride(state, g, { kind: "sink" });
+    assert.ok(!isActive(g) && g.insideObject && g.actionsLeft === 0, "inside: out of everyone's reach, its turn over");
+    takeTurn(state, g);
+    assert.ok(state.log.some((line) => /slowed 1 inside the floor/.test(line)));
+    assert.ok(state.log.some((line) => /rises out of the floor/.test(line)));
+    assert.ok(isActive(g) && !g.insideObject);
+    // (The user: "Long stay = fled" — starting a turn inside and staying in is leaving the fight.)
+    state = createFightState({ combatants: [...standardParty(5), ghost()] }, { morale: false, retreat: false }, 1);
+    g = state.byId.get("monster");
+    g.actionsLeft = 3;
+    stride(state, g, { kind: "sink" });
+    g.cond.fleeing = true;
+    takeTurn(state, g);
+    assert.equal(g.status, "fled");
+});
+
+test("incorporeal on the grid: through a blocked square, never ending in it", async () => {
+    const { reachable } = await import("../src/engine/grid.js");
+    const map = { width: 5, height: 1, blocked: new Set(["2,0"]), walls: new Set(["2,0|3,0"]), difficult: new Map() };
+    assert.equal(reachable(map, { square: [0, 0], size: "med" }).has("3,0"), false);
+    const ghostly = reachable(map, { square: [0, 0], size: "med", traits: ["incorporeal"] });
+    assert.equal(ghostly.get("3,0")?.ends, true);
+    assert.equal(ghostly.get("2,0")?.ends, false);
+});

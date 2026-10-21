@@ -3,7 +3,7 @@
 import { createRng } from "./rng.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
-import { engage, engagedEnemies, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
+import { engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
@@ -306,7 +306,7 @@ function checkEnd(state) {
     }
     // (2026-10-13: a PC swallowed or engulfed is still in the fight — it can cut itself free or Escape; the party is beaten only when none is
     // up, inside a creature or out.)
-    if (!pcs(state).some((c) => isActive(c) || (c.status === ACTIVE && c.swallowedBy))) {
+    if (!pcs(state).some((c) => isActive(c) || (c.status === ACTIVE && (c.swallowedBy || c.insideObject)))) {
         finish(state, "defeat");
         return true;
     }
@@ -562,7 +562,41 @@ function swallowedTurn(state, c) {
     }
 }
 
+// Incorporeal (space.js), starting its turn inside the floor or a wall: slowed 1 for this turn, and out with its first move (the planner's
+// first action a move: emerging). Fleeing, or unable to move, it stays in — and staying in from one turn to the next is leaving the fight
+// (the user: "Long stay = fled"). True when it's gone.
+function insideTurnStart(state, c) {
+    if (!c.insideObject) return false;
+    // (Slowed 1 until its turn ends: no more than a slowed it has already.)
+    if (!(c.cond.slowed >= 1)) c.actionsLeft = Math.max(0, c.actionsLeft - 1);
+    state.log?.push(`  ${c.name} is slowed 1 inside the floor`);
+    if (c.cond.fleeing || c.moraleState?.broken || !canMove(c) || c.actionsLeft <= 0) {
+        staysInside(state, c);
+        return true;
+    }
+    c.startedInside = true;
+    c.emerging = true;
+    // (Confused: it comes up where it is.)
+    if (c.cond.confused) {
+        stride(state, c, { kind: "rise" });
+        c.actionsLeft--;
+    }
+    return false;
+}
+
+function staysInside(state, c) {
+    state.log?.push(`  ${c.name} stays inside the floor: gone from the fight`);
+    c.insideObject = null;
+    c.emerging = false;
+    leaveField(state, c);
+    processMorale(state);
+}
+
 function endTurn(state, c) {
+    // (Incorporeal: a turn it started inside the floor and ends there — up and back down again or never up — gone from the fight.)
+    if (c.insideObject && c.startedInside && c.status === ACTIVE) staysInside(state, c);
+    c.emerging = false;
+    c.startedInside = false;
     // (C30, C34: who set off its champion's reaction, or took a hostile action against it, since its last turn — counted from this one's end.)
     c.triggeredBy?.clear();
     c.wrongedBy?.clear();
@@ -1257,6 +1291,11 @@ function escortTurn(state, c) {
 
 // A fleeing creature spends its actions getting away.
 function fleeTurn(state, c) {
+    // (Incorporeal: into the floor, its way out — staying in from one turn to the next is leaving the fight.)
+    if (isIncorporeal(c) && !c.insideObject && c.actionsLeft > 0 && canAct(c) && canMove(c)) {
+        stride(state, c, { kind: "sink" });
+        return;
+    }
     while (c.actionsLeft > 0 && canAct(c) && c.status === ACTIVE && canMove(c)) {
         if (c.band === "engaged") {
             if (!step(state, c)) stride(state, c, { kind: "toNear" });
@@ -1296,7 +1335,11 @@ export function takeTurn(state, c) {
         return;
     }
     startTurn(state, c);
-    state.log?.push(`${c.name} (${c.hp.value}/${c.hp.max} HP, ${c.band})`);
+    state.log?.push(`${c.name} (${c.hp.value}/${c.hp.max} HP, ${c.insideObject ? "inside the floor" : c.band})`);
+    if (insideTurnStart(state, c)) {
+        if (!checkEnd(state)) endTurn(state, c);
+        return;
+    }
     // Petrifying Glance: an enemy's reaction to this turn starting near it (B47). Mind-Numbing Grasp: its holder's passive (B49).
     state.acting = c.id;
     turnStartReactions(state, c);
