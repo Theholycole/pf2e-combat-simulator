@@ -1,10 +1,12 @@
 // A spell's power for its rank, offline (src/engine/spell-power.js has the method): the spells of every installed compendium — PF2e's and
 // each module's Item compendiums, not Starfinder's; rituals left out — and one task for a worker (tools/spell-power.mjs).
 import fs from "node:fs";
-const { readDocuments, PACK_ROOT } = await import("./pack-creatures.mjs");
+const { readDocuments, PACK_ROOT, combatant, summonCandidates } = await import("./pack-creatures.mjs");
 const { compileSpell, effectModels } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
-const { POWER_KINDS, RATED_POOL, castPower, partyLevelForRank, powerConditions, powerFoes, powerRanks, wizardCasting } = await import("../../src/engine/spell-power.js");
+const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, textDamageShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
+const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
+const { SUMMON_LEVELS, spellSummonEntry } = await import("../../src/engine/summons.js");
 const { canCast, isUtility, spellGaps } = await import("../../src/engine/spells.js");
 
 const MODULES = `${process.env.HOME}/.local/share/FoundryVTT/Data/modules`;
@@ -72,6 +74,166 @@ export function ranksOf(ref) {
     return doc ? powerRanks(doc) : [];
 }
 
+// A summon spell's pick at a rank ({ rank, any }), or null: its plan's creature traits, or the trait its name gives ("Summon Fiend Aspect").
+const CREATURE_TRAITS = new Set(["aberration", "animal", "astral", "beast", "celestial", "construct", "dragon", "elemental", "ethereal", "fey", "fiend", "fungus", "giant", "humanoid", "monitor", "ooze", "plant", "spirit", "undead"]);
+const TRAIT_WORDS = { thurse: "giant" };
+function summonPick(doc, plan, rank) {
+    const entry = spellSummonEntry({ name: doc.name, plan, castRank: rank, pool: null }, 1);
+    if (entry?.creature?.pick) return entry.creature.pick;
+    const named = /^Summon (\w+) Aspect$/i.exec(doc.name);
+    const trait = named ? TRAIT_WORDS[named[1].toLowerCase()] ?? named[1].toLowerCase() : null;
+    return plan?.resolution?.kind === "summon" && CREATURE_TRAITS.has(trait) ? { rank: { base: rank, max: rank }, any: [trait] } : null;
+}
+
+// The creatures' danger numbers, for the best summon: the strongest for their level (level plus danger) are tried first.
+let dangers = null;
+const dangerOf = (pack, id) => {
+    dangers ??= JSON.parse(fs.readFileSync(new URL("../../src/data/danger-ratings.json", import.meta.url), "utf8"));
+    return Number(dangers.ratings?.[`pf2e.${pack}`]?.[id]) || 0;
+};
+const summonCache = new Map();
+// The candidates tried: the strongest this many it allows. A trait's foes listed when its best creature does this much more against them
+// (a tenth more).
+const SUMMON_TRIED = 10;
+const SUMMON_MORE = 0.1;
+
+// A summon spell at a rank, against both encounters: { results, traits, creature, creatures } — its best creature (of the strongest it
+// allows, the one worth most) and what it's worth, and against each trait's foes the one worth most there where that's especially useful
+// (SUMMON_MORE more: a celestial's holy Strikes on fiends weak to them); null when nothing it allows comes.
+function summonResults(doc, plan, rank, party, level) {
+    const pick = summonPick(doc, plan, rank);
+    if (!pick) return null;
+    const key = `${JSON.stringify(pick)}|${level}`;
+    if (!summonCache.has(key)) {
+        const tried = summonCandidates(pick).map(({ pack, doc: actor }) => ({ actor, strength: Number(actor.system?.details?.level?.value) + dangerOf(pack, actor._id) })).sort((a, b) => b.strength - a.strength).slice(0, SUMMON_TRIED);
+        const built = [];
+        for (const { actor } of tried) {
+            try {
+                built.push({ name: actor.name, creature: combatant(actor) });
+            } catch {
+                continue;
+            }
+        }
+        const results = {};
+        const creatures = {};
+        const mean = {};
+        for (const trait of [null, ...POWER_TRAITS]) {
+            let best = null;
+            for (const { name, creature } of built) {
+                const found = {};
+                for (const encounter of POWER_KINDS) {
+                    const share = summonShare(partyWithSpell(party), powerFoes(encounter, level, trait), creature, 1);
+                    if (share) found[encounter] = share;
+                }
+                const value = POWER_KINDS.reduce((sum, encounter) => sum + (found[encounter]?.levels ?? 0), 0) / POWER_KINDS.length;
+                if (value > 0 && (!best || value > best.value)) best = { name, found, value };
+            }
+            if (!best) continue;
+            mean[trait ?? ""] = best.value;
+            creatures[trait ?? ""] = best.name;
+            for (const [encounter, found] of Object.entries(best.found)) results[`${encounter}|${trait ?? ""}`] = { share: Math.round(found.share * 1e4) / 1e4, levels: Math.round(found.levels * 1e4) / 1e4, ...(found.bound ? { bound: found.bound } : {}), targets: 1, creature: best.name };
+        }
+        const traits = POWER_TRAITS.filter((trait) => (mean[trait] ?? 0) > 0 && (mean[trait] ?? 0) >= (mean[""] ?? 0) * (1 + SUMMON_MORE));
+        for (const trait of POWER_TRAITS) if (!traits.includes(trait)) for (const encounter of POWER_KINDS) delete results[`${encounter}|${trait}`];
+        const found = Object.keys(results).length ? { results, traits, creature: creatures[""] ?? null, creatures: Object.fromEntries(traits.map((trait) => [trait, creatures[trait]])) } : null;
+        if (summonCache.size > 200) summonCache.delete(summonCache.keys().next().value);
+        summonCache.set(key, found);
+    }
+    return summonCache.get(key);
+}
+
+// Words of a fight effect in a utility spell's text (damage, conditions, bonuses and penalties, concealment, terrain): one cast in actions
+// with them may matter in a fight; the rest don't (no rank).
+const FIGHT_WORDS = /\b(\d+d\d+|damage|frightened|stunned|slowed|paralyzed|blinded|dazzled|clumsy|enfeebled|sickened|off-guard|prone|immobilized|restrained|grabbed|confused|fleeing|status bonus|circumstance bonus|status penalty|temporary Hit Points|concealed|hidden|invisible|difficult terrain|resistance|weakness|Strike|attack roll|AC|saving throw)\b/i;
+
+// A spell's text, plain.
+const textOf = (doc) => String(doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+
+// The creature a spell on one's own minion, companion or eidolon goes to, already out (the user: "minion spells assuming you already have
+// a minion out"): a summoned minion is a moderate creature of the level the rank summons; a companion or eidolon, of the party's level less
+// two; undead when the spell asks for an undead one. Familiars aren't in the fight: none.
+function minionFor(doc, rank, level) {
+    const target = String(doc.system?.target?.value ?? "");
+    if (!/\b(minion|companion|eidolon)\b|\byou summoned\b|\bsummoned by you\b/i.test(target)) return null;
+    const summoned = /\bminion\b|\bsummoned\b/i.test(target) && !/\b(companion|eidolon)\b/i.test(target);
+    const creature = moderateCreatureAt(summoned ? SUMMON_LEVELS[rank] ?? -1 : Math.max(-1, level - 2), "minion", "Minion");
+    return { ...creature, traits: [...(/\bundead\b/i.test(target) ? ["undead"] : /\bcompanion\b/i.test(target) ? ["animal"] : creature.traits), "minion"] };
+}
+
+// A spell shield it raises: Shield's ({ ac, hardness } for the round), or a spell shield or temporary shield held for its duration
+// (Bone Shield's made again each Sustain; Shielded Arm's while its Hit Points last), at the rank: { shield, rounds } or null.
+function shieldOf(plan, entry, doc, rank) {
+    const model = Object.values(entry.effects ?? {}).find((each) => each?.spellShield)?.spellShield;
+    if (model) {
+        // (Its Hardness as its effect gives it, or else as its text does — Fire Shield's effect reads only a halving; its Hit Points from
+        // the text, none for one that ends with its Shield Block; held for its duration.)
+        const text = textOf(doc);
+        const hardness = Number(model.hardness) >= 1 ? Number(model.hardness) : Number(/\bHardness (\d+)/i.exec(text)?.[1]) || 0;
+        const hp = Number(/\bHardness \d+[^.]*?\b(\d+) (?:HP|Hit Points)\b/i.exec(text)?.[1]) || 0;
+        return { shield: { ac: model.ac ?? 1, hardness, hp }, rounds: durationRounds(plan) };
+    }
+    const base = Math.max(1, Number(doc.system?.level?.value) || 1);
+    const steps = (step) => (step?.interval ? Math.floor((rank - base) / Number(step.interval)) : 0);
+    const spellShield = plan?.resolution?.spellShield;
+    if (spellShield) return { shield: { ac: spellShield.acBonus ?? 1, hardness: (Number(spellShield.hardness) || 0) + steps(spellShield.step) * (Number(spellShield.step?.hardness) || 0), hp: spellShield.recreateOnSustain ? Infinity : spellShield.hp }, rounds: Math.min(POWER_ROUNDS, Math.floor((Number(spellShield.durationSeconds) || 6) / 6)) };
+    const temporary = plan?.resolution?.temporaryShield;
+    if (temporary) return { shield: { ac: temporary.acBonus ?? 1, hardness: (Number(temporary.hardness) || 0) + steps(temporary.heightening) * (Number(temporary.heightening?.hardness) || 0), hp: (Number(temporary.hp) || 0) + steps(temporary.heightening) * (Number(temporary.heightening?.hp) || 0) }, rounds: Math.min(POWER_ROUNDS, Math.floor((Number(temporary.durationSeconds) || 6) / 6)) };
+    return null;
+}
+
+// A wall the simulator doesn't play: its kind (wallKind), or null for a spell that isn't one.
+const WALL_KINDS = new Set(["damaging-wall", "scene-walls", "flesh-wall", "shrub-wall"]);
+function wallOf(plan, doc) {
+    const text = textOf(doc);
+    const wall = WALL_KINDS.has(plan?.resolution?.kind) || /^Wall of /i.test(doc.name) || /\bYou (?:create|raise|conjure|form|call forth) an? (?:(?!(?:through|in|into|on|across|around|behind)\b)[\w-]+ ){0,3}wall\b/i.test(text.slice(0, 400));
+    return wall ? wallKind(plan, text) : null;
+}
+
+// A spell the simulator reads only as text (a utility spell, as its compiler leaves it): the damage its text deals — the first "XdY type
+// damage" (inline rolls read as such), heightened as its text says ("Heightened (+N) … increases by XdY", each N ranks), against the save
+// it names or its spell attack — and where it goes (an area: every foe; else the number of creatures its target names). Null without one.
+export function textDamageOf(doc, rank) {
+    const text = String(doc?.system?.description?.value ?? "").replace(/@Damage\[\(?([^\[\]]*?)\)?(?:\[([a-z,]+)\])?\]/gi, (all, formula, kinds) => `${formula} ${String(kinds ?? "").split(",").find((kind) => !["persistent", "splash", "precision"].includes(kind)) ?? ""} damage`).replace(/<[^>]+>/g, " ").replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/\s+/g, " ");
+    const at = text.search(/\bHeightened\b/i);
+    const head = at >= 0 ? text.slice(0, at) : text;
+    const heightened = at >= 0 ? text.slice(at) : "";
+    const found = /(\d+)d(\d+)(?:\s*\+\s*(\d+))?\s+(?:([a-z]+)\s+)?damage/i.exec(head);
+    if (!found) return null;
+    const save = /\b(Reflex|Fortitude|Will) save/i.exec(head)?.[1]?.toLowerCase() ?? null;
+    const attack = !save && /\bspell attack\b/i.test(head);
+    if (!save && !attack) return null;
+    const base = Math.max(1, Number(doc.system?.level?.value) || 1);
+    const step = /Heightened \(\+(\d+)\)[^.]*?(\d+)d(\d+)/i.exec(heightened);
+    const extra = step && Number(step[3]) === Number(found[2]) ? Math.floor((rank - base) / Number(step[1])) * Number(step[2]) : 0;
+    const area = Boolean(doc.system?.area?.type);
+    const named = /\bup to (\d+)|^(\d+) (?:creature|target|enem)/i.exec(String(doc.system?.target?.value ?? "").trim());
+    return { dice: Number(found[1]) + extra, faces: Number(found[2]), bonus: Number(found[3]) || 0, type: found[4]?.toLowerCase() ?? "untyped", save, attack, targets: area ? Infinity : Number(named?.[1] ?? named?.[2]) || 1 };
+}
+
+// A utility spell's terrain: an area its text makes difficult terrain (hindering foes as a wall that slows them does) — not one that takes
+// difficult terrain away, or lets creatures ignore it.
+const terrainOf = (plan, doc) => {
+    const text = textOf(doc);
+    return isUtility(plan) && doc.system?.area?.type && /\b(?:is|are|becomes?|counts? as|turns? into|into) (?:greater )?difficult terrain\b/i.test(text) && !/\bno longer (?:greater )?difficult terrain|\bignore\w* (?:greater )?difficult terrain|\bisn't difficult terrain|\bremov\w*[^.]*difficult terrain/i.test(text) ? "hinder" : null;
+};
+
+// The estimates for what the simulator doesn't play — a wall's, a shield's, a utility spell's damage or terrain — against both encounters,
+// or null.
+function estimateResults(plan, entry, doc, rank, party, level) {
+    const shield = shieldOf(plan, entry, doc, rank);
+    const wall = shield ? null : wallOf(plan, doc);
+    const text = shield || wall || !isUtility(plan) ? null : textDamageOf(doc, rank);
+    const terrain = shield || wall || text ? null : terrainOf(plan, doc);
+    if (!shield && !wall && !text && !terrain) return null;
+    const results = {};
+    for (const encounter of POWER_KINDS) {
+        const foes = powerFoes(encounter, level);
+        const found = shield ? shieldShare(party, foes, shield.shield, shield.rounds) : wall || terrain ? wallShare(party, foes, entry, wall ?? terrain) : textDamageShare(party, foes, entry, text);
+        if (found) results[`${encounter}|`] = { share: Math.round(found.share * 1e4) / 1e4, levels: Math.round(found.levels * 1e4) / 1e4, ...(found.bound ? { bound: found.bound } : {}), actions: found.actions, targets: found.targets };
+    }
+    return { results, traits: [], estimate: shield ? "shield" : wall ? `wall (${wall})` : text ? "text damage" : "terrain" };
+}
+
 // One task: { ref, rank } — the spell at that rank, cast once into both encounters (and those of each trait it does more against).
 export function runPowerTask(task) {
     const { ref, rank } = task;
@@ -84,17 +246,25 @@ export function runPowerTask(task) {
     const casting = wizardCasting(party);
     const entry = { name: doc.name, plan, castRank: rank, dc: casting?.dc ?? 10 + level, attack: casting?.attack ?? level, pool: ref.cantrip ? null : RATED_POOL, tradition: "arcane", effects: effectModels(plan, rank) };
     const head = { kind: "screen", ref: { ref: ref.ref, collection: ref.collection, path: ref.path, id: ref.id, name: ref.name, cantrip: ref.cantrip, focus: ref.focus }, collection: ref.collection, id: ref.id, name: ref.name, rank, cantrip: ref.cantrip, level };
-    // (A spell on one's own minion, companion, eidolon or familiar — Final Sacrifice explodes one — has nothing to work on in the party.)
-    if (OWN_CREATURE.test(String(doc.system?.target?.value ?? ""))) return { ...head, skipped: true, reason: "needs a minion, companion, eidolon or familiar" };
-    if (isUtility(plan) || !canCast({ spellPools: { [RATED_POOL]: 1 } }, entry)) return { ...head, skipped: true, reason: isUtility(plan) ? "utility" : "the simulator can't cast it" };
+    // (A summon: its best creature's worth.)
+    const summoned = summonResults(doc, plan, rank, party, level);
+    if (summoned) return { ...head, ...summoned, summon: true };
+    // (A wall, a shield: estimated.)
+    const estimated = estimateResults(plan, entry, doc, rank, party, level);
+    if (estimated && Object.keys(estimated.results).length) return { ...head, ...estimated };
+    // (A spell on one's own minion, companion or eidolon: one already out. On a familiar, or one the simulator can't play: none.)
+    const own = OWN_CREATURE.test(String(doc.system?.target?.value ?? ""));
+    const minion = own ? minionFor(doc, rank, level) : null;
+    if (own && !minion) return { ...head, skipped: true, reason: "a familiar's" };
+    if (isUtility(plan) || !canCast({ spellPools: { [RATED_POOL]: 1 } }, entry)) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
     const traits = powerConditions(plan);
     const results = {};
     for (const encounter of POWER_KINDS) {
         for (const trait of [null, ...traits]) {
-            const found = castPower(party, powerFoes(encounter, level, trait), entry);
-            if (found) results[`${encounter}|${trait ?? ""}`] = { share: Math.round(found.share * 1e4) / 1e4, levels: Math.round(found.levels * 1e4) / 1e4, ...(found.bound ? { bound: found.bound } : {}), actions: found.actions, targets: found.targets };
+            const found = castPower(party, powerFoes(encounter, level, trait), entry, { minion, lost: Boolean(minion) && /\bminion\b[^.]*\bexplode/i.test(textOf(doc)) });
+            if (found) results[`${encounter}|${trait ?? ""}`] = { share: Math.round(found.share * 1e4) / 1e4, levels: Math.round(found.levels * 1e4) / 1e4, ...(found.bound ? { bound: found.bound } : {}), actions: found.actions, targets: found.targets, ...(found.alliesHit ? { alliesHit: found.alliesHit } : {}) };
         }
     }
     const gaps = spellGaps(entry);
-    return { ...head, traits, results, ...(gaps.length ? { partial: gaps } : {}) };
+    return { ...head, traits, results, ...(minion ? { minion: true } : {}), ...(gaps.length ? { partial: gaps } : {}) };
 }

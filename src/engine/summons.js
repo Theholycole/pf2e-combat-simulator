@@ -114,7 +114,7 @@ export function reserveCount(entry) {
 // The best of a list of index entries [{ uuid, name, level, traits, type }] for a pick: its level (or up to it), one of `any` and all of `all`
 // traits; the highest level, then the first by name. The summon trait's levels by rank for a pick heightened by the damage it took: its
 // highest rank (the fight can't know the damage before it's dealt).
-const SUMMON_LEVELS = { 1: -1, 2: 1, 3: 2, 4: 3, 5: 5, 6: 7, 7: 9, 8: 11, 9: 13, 10: 15 };
+export const SUMMON_LEVELS = Object.freeze({ 1: -1, 2: 1, 3: 2, 4: 3, 5: 5, 6: 7, 7: 9, 8: 11, 9: 13, 10: 15 });
 export function bestPick(entries, pick) {
     const maxLevel = Number.isFinite(pick?.maxLevel) ? pick.maxLevel : pick?.rank ? SUMMON_LEVELS[Math.min(10, pick.rank.max ?? pick.rank.base)] : null;
     const fits = entries.filter((entry) => (!entry.type || entry.type === "npc")

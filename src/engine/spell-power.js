@@ -8,16 +8,21 @@
 //   simulator's own expectation of it (spells.js spellExpectation: saves against its DC, resistances and immunities, heightened damage, extra
 //   damage by a target's traits, conditions and spell effects at the simulator's worth for them).
 //   Its share of the fight: damage as a share of the foes' Hit Points; conditions on a foe, and spell effects on an ally, in rounds of its
-//   threat over a three-round fight, by its share of its side; healing as Hit Points (the party starts at half, so healing has room), counted
-//   like damage; harm to its own side taken off; a lingering area half as much again, as the planner counts it. In levels: a fight that
-//   much smaller is that many levels easier, as encounter XP goes (0.7 a level).
+//   threat over a three-round fight, by its share of its side; healing (the party starts at half, so healing has room), and harm to its own
+//   side, as a share of the foes' harm over the fight; over its duration (castRepeats). In levels: a fight that much smaller is that many
+//   levels easier, as encounter XP goes (0.7 a level). Summons (summonShare), walls (wallShare), shields (shieldShare) and the damage a
+//   utility spell's text deals (textDamageShare) have their own measures, below.
 //   Its power: the average over the boss and the group, less the typical spell's of the same rank (the median; cantrips among cantrips).
 //   Against a trait (undead for Sunburst; the traits its extra damage, its vitality damage or its targets name): the same with foes of that
 //   trait.
 
 import { moderateCreatureAt } from "./creature-tables.js";
 import { createFightState } from "./fight.js";
-import { isActive } from "./combatant.js";
+import { armorClass, isActive, multipleAttackPenalty, saveModifier, strikeUsable } from "./combatant.js";
+import { degreeDistribution } from "./checks.js";
+import { expectedHitDamage } from "./actions.js";
+import { adjustDamage, spellContext } from "./damage.js";
+import { computeThreats, potentialDamage, spellDamages } from "./planner.js";
 import { describeSpell, spellExpectation, spellVariants, targetSets } from "./spells.js";
 
 export const POWER_KINDS = Object.freeze(["boss", "group"]);
@@ -31,23 +36,27 @@ const LEVEL_STEP = 0.7;
 // The party's level for a rank: the lowest that casts it.
 export const partyLevelForRank = (rank) => Math.max(1, Math.min(20, 2 * (Number(rank) || 1) - 1));
 
-// Traits a foe can be given, each with what such creatures usually have (undead: the Monster Core undead's immunities).
+// Traits a foe can be given, each with what such creatures usually have (undead: the Monster Core undead's immunities; fiends and
+// celestials: their weakness to holy, or unholy — 57 of the Monster Core's 73 fiends, 29 of its 37 celestials — at about its level).
 const TRAIT_PACKAGES = {
     undead: { traits: ["undead", "unholy"], immunities: ["death-effects", "disease", "paralyzed", "poison", "unconscious", "bleed"] },
-    fiend: { traits: ["fiend", "unholy"], immunities: [] },
-    celestial: { traits: ["celestial", "holy"], immunities: [] },
+    fiend: { traits: ["fiend", "unholy"], immunities: [], weaknesses: ["holy"] },
+    celestial: { traits: ["celestial", "holy"], immunities: [], weaknesses: ["unholy"] },
     construct: { traits: ["construct"], immunities: ["bleed", "death-effects", "disease", "doomed", "drained", "fatigued", "healing", "nonlethal", "paralyzed", "poison", "sickened", "spirit", "unconscious", "vitality", "void"] },
     elemental: { traits: ["elemental"], immunities: ["bleed", "paralyzed", "poison", "sleep"] }
 };
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
 export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
 
+// A weakness's usual value at a level (the Monster Core's fiends and celestials: 3 at 1st and 2nd, 5 to 8th, 10 to 14th, 15 to 20th).
+const typicalWeakness = (level) => (level <= 2 ? 3 : level <= 8 ? 5 : level <= 14 ? 10 : level <= 20 ? 15 : 20);
+
 // The foes of an encounter: kind "boss" (one, 2 levels up) or "group" (four, 2 levels down), of a trait.
 export function powerFoes(kind, level, trait = null) {
     const pack = trait ? TRAIT_PACKAGES[trait] : null;
     const make = (lv, id) => {
         const foe = moderateCreatureAt(Math.max(-1, Math.min(25, lv)), id);
-        return pack ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities] } : foe;
+        return pack ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities], weaknesses: (pack.weaknesses ?? []).map((type) => ({ type, value: typicalWeakness(foe.level) })) } : foe;
     };
     if (kind === "boss") return [make(level + 2, "monster")];
     return [0, 1, 2, 3].map((index) => make(level - 2, index ? `monster-${index}` : "monster"));
@@ -75,17 +84,20 @@ export function wizardCasting(party) {
 }
 
 // The ranks a spell is rated at: its own, and those its heightening changes it at (PF2e's heightening data — every N ranks, or the ranks
-// listed — or, without it, its text's "Heightened (+N)" and "Heightened (Nth)"). doc: the spell's data.
+// listed — or, without it, its text's "Heightened (+N)" and "Heightened (Nth)"; a summon heightened as its trait lists, every rank: the
+// creature's level goes up with each). doc: the spell's data.
 export function powerRanks(doc) {
     const base = Math.max(1, Math.min(10, Number(doc?.system?.level?.value) || 1));
     const ranks = new Set([base]);
     const heightening = doc?.system?.heightening;
-    if (heightening?.type === "interval" && Number(heightening.interval) > 0) {
+    const text = String(doc?.system?.description?.value ?? "");
+    if ((doc?.system?.traits?.value ?? []).includes("summon") && /Heightened(?:<\/strong>)?\s*As listed/i.test(text)) {
+        for (let rank = base + 1; rank <= 10; rank++) ranks.add(rank);
+    } else if (heightening?.type === "interval" && Number(heightening.interval) > 0) {
         for (let rank = base + Number(heightening.interval); rank <= 10; rank += Number(heightening.interval)) ranks.add(rank);
     } else if (heightening?.type === "fixed" && heightening.levels) {
         for (const rank of Object.keys(heightening.levels)) if (Number(rank) > base && Number(rank) <= 10) ranks.add(Number(rank));
     } else {
-        const text = String(doc?.system?.description?.value ?? "");
         const every = /Heightened \(\+(\d+)\)/i.exec(text);
         if (every) for (let rank = base + Number(every[1]); rank <= 10; rank += Number(every[1])) ranks.add(rank);
         for (const match of text.matchAll(/Heightened \((\d+)(?:st|nd|rd|th)\)/gi)) if (Number(match[1]) > base && Number(match[1]) <= 10) ranks.add(Number(match[1]));
@@ -93,9 +105,12 @@ export function powerRanks(doc) {
     return [...ranks].sort((a, b) => a - b);
 }
 
-// The traits a spell does more against (or works only against): its extra damage's, vitality damage's (undead), and its targets'.
+// The traits a spell does more against (or works only against): its extra damage's, vitality damage's (undead), a holy spell's (fiends,
+// weak to it) and an unholy one's (celestials), and its targets'.
 export function powerConditions(plan) {
     const traits = new Set();
+    if ((plan?.traits ?? []).includes("holy")) traits.add("fiend");
+    if ((plan?.traits ?? []).includes("unholy")) traits.add("celestial");
     for (const entry of plan?.resolution?.conditionalDamage ?? []) if (entry?.trait) traits.add(entry.trait);
     const json = JSON.stringify({ resolution: plan?.resolution ?? null, targeting: plan?.targeting ?? null });
     if (/"type":"vitality"|\[vitality\]/.test(json)) traits.add("undead");
@@ -110,25 +125,86 @@ export function shareToLevels(share) {
     return { levels: Math.log(1 - capped) / Math.log(LEVEL_STEP), bound: share >= MOST ? "atLeast" : null };
 }
 
-// One cast of entry (the rated spell) by the party's wizard into foes: { share, levels, bound, actions, targets } at its best, or null when it
-// can do nothing there. The party starts at half its Hit Points; everyone stands in the near band, a touch spell's target within reach.
-export function castPower(party, foes, entry) {
-    const combatants = [...partyWithSpell(party, entry).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
+// The Hit Points the foes can be expected to take off side over the fight: each one's damage potential a round (the planner's: its best
+// Strikes, or a spell or ability while it has them), over POWER_ROUNDS. Hit Points on the party's side are measured against it — healing
+// a tenth of it is as good as a tenth of the foes gone.
+export function foeHarm(state, side) {
+    return damageRate(state, (c) => c.side !== side) * POWER_ROUNDS;
+}
+
+// The damage creatures (those `which` takes) can be expected to do a round: each one's damage potential, the planner's.
+export function damageRate(state, which) {
+    if (!state.potential) computeThreats(state);
+    return state.list.filter((c) => isActive(c) && which(c)).reduce((sum, c) => sum + (state.potential.get(c.id) ?? 0), 0);
+}
+
+// The rounds a fight lasts, about: the foes' Hit Points at side's damage a round, from one round to POWER_ROUNDS.
+export function fightRounds(state, side) {
+    const foeHp = state.list.filter((c) => c.side !== side && isActive(c)).reduce((sum, c) => sum + Math.max(0, c.hp.value), 0);
+    const rate = damageRate(state, (c) => c.side === side);
+    return rate > 0 ? Math.max(1, Math.min(POWER_ROUNDS, foeHp / rate)) : POWER_ROUNDS;
+}
+
+// --- Duration (2026-10-21, the user: "Make sure to rate spells based on their duration too so you dont give walls a bad rating by
+// evaluating effects upon cast only") ---------------------------------------------------------------------------------------------------
+
+// The rounds of the fight a spell lasts: its duration, up to POWER_ROUNDS (Sustained: all of them); 1 for an instant one, or one whose
+// outcome or text says (its conditions carry their own).
+export function durationRounds(plan) {
+    const spec = plan?.lifecycle?.durationSpec;
+    if (plan?.lifecycle?.sustained || ["sustained", "unlimited", "daily-preparations"].includes(spec?.mode)) return POWER_ROUNDS;
+    if (spec?.mode === "fixed" || spec?.mode === "turn-boundary") {
+        const per = { rounds: 1, minutes: 10 }[spec.unit] ?? (spec.unit ? Infinity : 1);
+        return Math.max(1, Math.min(POWER_ROUNDS, (Number(spec.value) || 1) * per));
+    }
+    return 1;
+}
+
+// How much more a cast does over its duration, in casts, in a fight of `rounds` rounds: a lingering area's effect again each round it
+// lasts, as often as foes stay in it (half the time; a quarter for one that acts only as they enter; three quarters for one the caster aims
+// each Sustain); a spell Sustained to strike again, or used again each turn, once more a round (once more in all, one that must recharge).
+export function castRepeats(plan, rounds = POWER_ROUNDS) {
+    const fight = Math.max(1, Math.min(POWER_ROUNDS, rounds));
+    let again = 0;
+    const lingering = plan?.resolution?.lingering;
+    if (lingering?.events?.length) {
+        const lasts = Math.max(1, Math.min(fight, Math.floor((Number(lingering.durationSeconds) || 0) / 6)));
+        const stay = lingering.events.includes("sustain") ? 0.75 : lingering.events.every((event) => event === "enter") ? 0.25 : 0.5;
+        again = Math.max(again, (lasts - 1) * stay);
+    }
+    const repeatable = plan?.resolution?.repeatable;
+    let more = 0;
+    if (["sustain", "duration"].includes(repeatable?.window)) more = Math.min(fight, durationRounds(plan)) - 1;
+    else if (repeatable?.window === "subsequent-turns") more = Math.min(fight - 1, Number(repeatable.attacks) || 1);
+    if (repeatable?.recharge) more = Math.min(1, more);
+    return Math.max(again, more);
+}
+
+// One cast of entry (the rated spell) by the party's wizard into foes: { share, levels, bound, actions, targets, alliesHit? } at its best
+// (below zero when its area can't help catching allies, and hurts them more than the foes), or null when it can do nothing there. The party starts at half its Hit Points; everyone stands in the near band, a touch spell's target within reach.
+// minion: a creature of the wizard's already out, as hurt as the party (a spell on one's minion, companion or eidolon — the user: "minion
+// spells assuming you already have a minion out"), the one ally the spell can go to; lost: the spell spends it (Final Sacrifice explodes
+// it), what it would have done the rest of the fight taken off (summonShare).
+export function castPower(party, foes, entry, { minion = null, lost = false } = {}) {
+    const helper = minion ? [{ ...minion, id: "minion", side: "party", kind: "npc", reserve: false, summons: undefined, minion: true, controlledBy: "wizard" }] : [];
+    const combatants = [...[...partyWithSpell(party, entry), ...helper].map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
     const state = createFightState({ combatants }, { morale: false, retreat: false }, 1);
     const caster = state.byId.get("wizard");
     const spell = (caster?.spells ?? []).find((each) => each.name === entry.name && (each.pool ?? null) === (entry.pool ?? null));
     if (!spell) return null;
     const enemies = state.list.filter((c) => c.side !== caster.side && isActive(c));
     const allies = state.list.filter((c) => c.side === caster.side && isActive(c));
+    const aimed = minion ? allies.filter((c) => c.id === "minion") : allies;
     const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
     if (!(foeHp > 0)) return null;
-    const lingering = spell.plan?.resolution?.lingering?.events?.length && (Number(spell.plan.resolution.lingering.durationSeconds) || 0) >= 12 ? 1.5 : 1;
+    const harm = foeHarm(state, caster.side);
+    const again = castRepeats(spell.plan, fightRounds(state, caster.side));
     let best = null;
     for (const actions of spellVariants(spell)) {
         let sets = [];
         try {
             // (A touch spell reaches its target: the wizard steps up to cast it.)
-            sets = targetSets(state, caster, spell, { enemies, allies, inMelee: () => true, distance: () => 30, meleeId: null }, actions);
+            sets = targetSets(state, caster, spell, { enemies, allies: aimed, inMelee: () => true, distance: () => 30, meleeId: null }, actions);
         } catch {
             sets = [];
         }
@@ -140,21 +216,196 @@ export function castPower(party, foes, entry) {
                 entries = [];
             }
             let share = 0;
+            let alliesHit = 0;
             for (const { target, damage = 0, worth = 0, heal = 0, benefit = 0 } of entries) {
                 const foe = target.side !== caster.side;
+                if (!foe && damage > 0) alliesHit++;
                 const part = foe ? target.hp.max / foeHp : 1 / Math.max(1, allies.length);
                 const sign = foe ? 1 : -1;
-                share += sign * Math.min(Math.max(0, damage), Math.max(0, target.hp.value)) / foeHp;
-                share += sign * worth * part / POWER_ROUNDS;
-                share -= sign * benefit * part / POWER_ROUNDS;
-                share -= sign * Math.max(0, heal) / foeHp;
+                // (Over its duration: its damage and healing each time it comes, up to what the creature has, or lacks; conditions and spell
+                // effects half as much again each time, as some are on still. Hit Points on the party's side count against the foes' harm.)
+                const lasting = 1 + again / 2;
+                const dealt = Math.min(Math.max(0, damage) * (1 + again), Math.max(0, target.hp.value));
+                const healed = Math.min(Math.max(0, heal) * (1 + again), Math.max(0, target.hp.max - Math.max(0, target.hp.value)));
+                share += foe ? dealt / foeHp : -dealt / harm;
+                share += sign * Math.min(POWER_ROUNDS, worth * lasting) * part / POWER_ROUNDS;
+                share -= sign * benefit * lasting * part / POWER_ROUNDS;
+                share += foe ? -healed / foeHp : healed / harm;
             }
-            share *= lingering;
-            if (!best || share > best.share) best = { share, actions: actions ?? describeSpell(spell.plan).actions ?? null, targets: set.targets.length };
+            if (!best || share > best.share) best = { share, actions: actions ?? describeSpell(spell.plan).actions ?? null, targets: set.targets.length, ...(alliesHit ? { alliesHit } : {}) };
         }
     }
-    if (!best || !(best.share > 0)) return null;
+    if (best && minion && lost) best.share -= summonShare(partyWithSpell(party), foes, minion)?.share ?? 0;
+    // (Nothing at all: none. Worse than nothing — an area that catches allies standing near the caster, their Hit Points counted against
+    // it as the foes' would be: below zero.)
+    if (!best || !best.share || !(best.share > 0 || best.alliesHit)) return null;
     return { ...best, ...shareToLevels(best.share) };
+}
+
+// --- Summons (2026-10-21, the user: "get the simulator to run summons picking the best possible summoned creature") -------------------
+
+// The damage a creature's Strikes can be expected to do to a target in a round of `attacks` Strikes (its best one, the multiple attack
+// penalty counted).
+export function strikeRound(attacker, target, attacks = 2) {
+    let best = 0;
+    const ac = armorClass(target);
+    for (const strike of attacker.strikes ?? []) {
+        if (!strikeUsable(attacker, strike)) continue;
+        const hit = expectedHitDamage(attacker, strike, target, false);
+        const crit = expectedHitDamage(attacker, strike, target, true);
+        let total = 0;
+        for (let attack = 0; attack < attacks; attack++) {
+            const odds = degreeDistribution(strike.bonus - multipleAttackPenalty(strike, attack), ac);
+            total += odds[2] * hit + odds[3] * crit;
+        }
+        best = Math.max(best, total);
+    }
+    return best;
+}
+
+// The share of its rounds a summoned creature fights: it acts as it comes (its two actions), the first round partly spent closing in, then
+// each round it's Sustained.
+export const SUMMON_ROUNDS = POWER_ROUNDS - 0.5;
+
+// What summoned creatures (creature, count of them) are worth to the party against foes, as a share of the fight: their damage a round
+// (the planner's damage potential at two actions — two Strikes, or a spell or ability it has, a breath weapon as it recharges) as a share
+// of the party's with it, the fight that much shorter; and the foes' attacks they draw as more bodies on the party's side, up to their Hit
+// Points, against the foes' harm. { share, levels, bound, targets }, or null for one that does nothing.
+export function summonShare(party, foes, creature, count = 1) {
+    const summoned = Array.from({ length: count }, (_, index) => ({ ...creature, id: `summoned-${index}`, side: "party", kind: "npc", reserve: false, summons: undefined }));
+    const state = createFightState({ combatants: [...party, ...summoned, ...foes] }, { morale: false, retreat: false }, 1);
+    const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
+    const helpers = state.list.filter((c) => c.id.startsWith("summoned-"));
+    const side = state.list.filter((c) => c.side === "party" && isActive(c)).length;
+    const harm = foeHarm(state, "party");
+    if (!helpers.length || !enemies.length) return null;
+    const own = damageRate(state, (c) => c.side === "party" && !c.id.startsWith("summoned-"));
+    const drawn = harm / POWER_ROUNDS * SUMMON_ROUNDS / Math.max(1, side);
+    let rate = 0;
+    let soaked = 0;
+    for (const helper of helpers) {
+        rate += potentialDamage(helper, spellDamages(state, helper, enemies[0]), strikeRound(helper, enemies[0], 2)) * SUMMON_ROUNDS / POWER_ROUNDS;
+        soaked += Math.min(helper.hp.max, drawn);
+    }
+    const share = (rate > 0 ? rate / (own + rate) : 0) + (harm > 0 ? soaked / harm : 0);
+    return share > 0 ? { share, ...shareToLevels(share), targets: helpers.length } : null;
+}
+
+// --- Walls (2026-10-21, the user: "walls and shield"): the simulator doesn't play them — a rule of thumb, over the wall's duration ------
+
+// Of the foes, the share a wall put between them and the party stands in the way of (a line 60 feet long, or a ring, cast where they'd
+// come).
+const WALL_PAST = 0.75;
+
+// A wall's kind, from its plan and text: "hinder" (creatures cross it slowly — damage each move into it, difficult terrain, water to Swim
+// through), "barrier" (it stops them until they go around or break through: it has Hardness or Hit Points), "damaging" (they cross it,
+// hurt), "screen" (it only hides).
+export function wallKind(plan, text = "") {
+    const wall = plan?.resolution?.damagingWall?.control;
+    if (wall?.perAction) return "hinder";
+    if (/\bhardness\b|\bHit Points\b/i.test(text)) return "barrier";
+    if (/difficult terrain|\bSwim through\b/i.test(text)) return "hinder";
+    if (wall) return "damaging";
+    if (/\b(?:blocks? (?:movement|creatures)|can't (?:pass|move) through|impassable|solid)\b/i.test(text)) return "barrier";
+    return "screen";
+}
+
+// What a wall (entry, of kind) is worth against foes, as a share of the fight. It's raised between the party and the foes as the fight
+// starts, in the way of most of them (WALL_PAST): a barrier costs each of those a round going around or through it (while it lasts, up to
+// one), a hindering wall an action crossing it and its damage each of the two moves through it, a damaging wall its damage as they cross
+// it and a tenth of a round (it hides the party), a screen that tenth only. Its damage at its rank, by each foe's weaknesses and
+// resistances.
+export function wallShare(party, foes, entry, kind) {
+    const state = createFightState({ combatants: [...partyWithSpell(party), ...foes] }, { morale: false, retreat: false }, 1);
+    const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
+    const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
+    if (!(foeHp > 0)) return null;
+    const wall = entry.plan?.resolution?.damagingWall?.control;
+    const rank = Number(entry.castRank) || Number(entry.plan?.resolution?.damagingWall?.baseRank) || 1;
+    const base = Number(entry.plan?.resolution?.damagingWall?.baseRank) || rank;
+    const dice = wall ? (Number(wall.count) || 0) + (wall.step ? Math.floor(Math.max(0, rank - base) / (Number(wall.step.interval) || 1)) * (Number(wall.step.dice) || 0) : 0) : 0;
+    const context = spellContext(entry, { isSpell: true, area: true });
+    const lasts = Math.min(1, durationRounds(entry.plan));
+    let share = 0;
+    for (const foe of enemies) {
+        const part = foe.hp.max / foeHp;
+        const hurt = wall && dice ? adjustDamage(foe, [{ type: wall.type, amount: dice * ((Number(wall.faces) || 0) + 1) / 2, persistent: false, context }]).total : 0;
+        let worth = 0;
+        let damage = 0;
+        if (kind === "barrier") worth = WALL_PAST * lasts;
+        else if (kind === "hinder") {
+            worth = WALL_PAST / 3;
+            damage = WALL_PAST * hurt * (wall?.perAction ? 2 : 1);
+        } else if (kind === "damaging") {
+            worth = WALL_PAST * 0.1;
+            damage = WALL_PAST * hurt;
+        } else worth = WALL_PAST * 0.1;
+        share += Math.min(damage, Math.max(0, foe.hp.value)) / foeHp + worth * part / POWER_ROUNDS;
+    }
+    return share > 0 ? { share, ...shareToLevels(share), actions: describeSpell(entry.plan).actions ?? null, targets: enemies.length } : null;
+}
+
+// --- Text (2026-10-21, the user: "utility spells"): a spell the simulator reads only as text, rated from it where its fight effect is
+// plain damage ---------------------------------------------------------------------------------------------------------------------------
+
+// What damage from a spell's text ({ dice, faces, bonus, type, save: "reflex" | "fortitude" | "will" | null, attack, targets }) does to
+// foes, as a share of the fight: at each foe's basic save against the caster's spell DC (or its spell attack against AC; else in full),
+// by its weaknesses and resistances, up to its Hit Points — every foe in an area (targets Infinity), else as many as it names.
+export function textDamageShare(party, foes, entry, damage) {
+    const state = createFightState({ combatants: [...partyWithSpell(party), ...foes] }, { morale: false, retreat: false }, 1);
+    const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
+    const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
+    if (!(foeHp > 0) || !(damage?.dice > 0)) return null;
+    const amount = damage.dice * ((Number(damage.faces) || 0) + 1) / 2 + (Number(damage.bonus) || 0);
+    const context = spellContext(entry, { isSpell: true, area: !Number.isFinite(damage.targets) });
+    const hit = enemies.map((foe) => {
+        const full = adjustDamage(foe, [{ type: damage.type ?? "untyped", amount, persistent: false, context }]).total;
+        let times = 1;
+        if (damage.save) {
+            const [critFail, fail, success] = degreeDistribution(saveModifier(foe, damage.save), Number(entry.dc) || 10);
+            times = 2 * critFail + fail + 0.5 * success;
+        } else if (damage.attack) {
+            const odds = degreeDistribution(Number(entry.attack) || 0, armorClass(foe));
+            times = odds[2] + 2 * odds[3];
+        }
+        return { foe, dealt: Math.min(full * times, Math.max(0, foe.hp.value)) };
+    }).sort((a, b) => b.dealt - a.dealt).slice(0, Number.isFinite(damage.targets) ? Math.max(1, damage.targets) : Infinity);
+    const share = hit.reduce((sum, { dealt }) => sum + dealt, 0) / foeHp;
+    return share > 0 ? { share, ...shareToLevels(share), actions: describeSpell(entry.plan).actions ?? null, targets: hit.length } : null;
+}
+
+// --- Shield (the cantrip, and spells like it: a spell shield raised) -------------------------------------------------------------------
+
+// What a spell shield ({ ac, hardness, hp }) raised is worth to the caster over `rounds` rounds, as a share of the fight: the foes' Strikes
+// at it less likely to hit (its share of their attacks, one of its side's), and a Shield Block a round — a hit's damage less, up to the
+// hardness, as likely as it's hit that round — while the shield's Hit Points last; against the foes' harm.
+export function shieldShare(party, foes, shield, rounds = 1) {
+    const state = createFightState({ combatants: [...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes] }, { morale: false, retreat: false }, 1);
+    const wizard = state.byId.get("wizard");
+    const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
+    const side = state.list.filter((c) => c.side === "party" && isActive(c)).length;
+    const harm = foeHarm(state, "party");
+    if (!wizard || !enemies.length || !(harm > 0)) return null;
+    const hardness = Number(shield.hardness) || 0;
+    const bare = enemies.reduce((sum, enemy) => sum + strikeRound(enemy, wizard, 2), 0);
+    wizard.shield = { name: "Shield", ac: Number(shield.ac) || 1, hardness, hp: 1e9, maxHp: 1e9, bt: 0, raised: true, broken: false, spell: true };
+    const raised = enemies.reduce((sum, enemy) => sum + strikeRound(enemy, wizard, 2), 0);
+    let hits = 0;
+    let perHit = 0;
+    for (const enemy of enemies) {
+        const strike = (enemy.strikes ?? []).filter((each) => strikeUsable(enemy, each)).sort((a, b) => b.bonus - a.bonus)[0];
+        if (!strike) continue;
+        for (let attack = 0; attack < 2; attack++) {
+            const odds = degreeDistribution(strike.bonus - multipleAttackPenalty(strike, attack), armorClass(wizard));
+            hits += odds[2] + odds[3];
+        }
+        perHit = Math.max(perHit, expectedHitDamage(enemy, strike, wizard, false));
+    }
+    const lasts = Math.max(1, Math.min(POWER_ROUNDS, rounds));
+    const blocks = Number.isFinite(Number(shield.hp)) ? Math.max(1, Math.ceil(Number(shield.hp) / Math.max(1, perHit - hardness))) : Infinity;
+    const blocked = Math.min(1, hits / Math.max(1, side)) * Math.min(hardness, perHit) * Math.min(lasts, blocks);
+    const share = (lasts * (bare - raised) / Math.max(1, side) + blocked) / harm;
+    return share > 0 ? { share, ...shareToLevels(share), actions: 1, targets: 1 } : null;
 }
 
 const median = (values) => {
@@ -162,7 +413,8 @@ const median = (values) => {
     return sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
 };
 
-// Screen rows { collection, id, name, rank, cantrip, level, traits, results: { "<encounter>|<trait or ''>": { share, levels, bound } } } →
+// Screen rows { collection, id, name, rank, cantrip, level, traits, results: { "<encounter>|<trait or ''>": { share, levels, bound } }, and
+// a summon's creature and creatures: { "<trait>": its best against them } } →
 // each spell rank's { …, boss, group, value, bound, power, vs: { <trait>: power }, typical }: levels a cast makes each fight easier, their
 // average, and power relative to the typical spell (cantrip) of its rank. A spell that does nothing in either fight, or against its traits'
 // foes, gets none.
@@ -198,7 +450,9 @@ const tenth = (value) => Math.round(value * 10) / 10;
 
 // The compendium numbers (src/data/spell-ratings.json): ratings { "<compendium id>": { "<item id>": power at its own rank } }, bounds
 // ("atLeast"), and detail { "<compendium id>": { "<item id>": { rank, boss, group, typical, cantrip?, partial?, ranks: { "<rank>": power }
-// (heightened), vs: { "<trait>": power } } }.
+// (heightened), vs: { "<trait>": power }, creature? (a summon's best), creatures? { "<trait>": its best against them }, summons? { "<rank>":
+// its best heightened }, estimate? (what the simulator doesn't play, rated by a rule of thumb: "shield", "wall (<kind>)", "text damage",
+// "terrain"), minion? (cast on a minion already out), alliesHit? (its area catches allies near the caster) } } }.
 export function spellRatingsOf(ranked) {
     const ratings = {};
     const bounds = {};
@@ -214,7 +468,12 @@ export function spellRatingsOf(ranked) {
         (detail[own.collection] ??= {})[own.id] = {
             rank: own.rank, boss: tenth(own.boss), group: tenth(own.group), typical: tenth(own.typical), ...(own.cantrip ? { cantrip: true } : {}), ...(own.partial ? { partial: true } : {}),
             ranks: Object.fromEntries(higher.filter((row) => Number.isFinite(row.power)).map((row) => [row.rank, tenth(row.power)])),
-            vs: Object.fromEntries(Object.entries(own.vs ?? {}).map(([trait, value]) => [trait, tenth(value)]))
+            vs: Object.fromEntries(Object.entries(own.vs ?? {}).map(([trait, value]) => [trait, tenth(value)])),
+            ...(own.creature ? { creature: own.creature, ...(Object.keys(own.creatures ?? {}).length ? { creatures: own.creatures } : {}) } : {}),
+            ...(higher.some((row) => row.creature) ? { summons: Object.fromEntries(higher.filter((row) => row.creature && Number.isFinite(row.power)).map((row) => [row.rank, row.creature])) } : {}),
+            ...(own.estimate ? { estimate: own.estimate } : {}),
+            ...(own.minion ? { minion: true } : {}),
+            ...(POWER_KINDS.some((kind) => own.results?.[`${kind}|`]?.alliesHit) ? { alliesHit: true } : {})
         };
     }
     return { ratings, bounds, detail };

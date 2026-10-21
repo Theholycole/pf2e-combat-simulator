@@ -36,7 +36,7 @@ const KINDS = {
         documentName: "Item", type: "spell", setting: SPELL_SETTING, tab: "spell", order: "pcsPower", orderLabel: "Power for rank", ownOrder: "rank",
         sortIcon: "fa-wand-sparkles", sortTip: "Sort by power for their rank (Combat Simulator)",
         load: () => fetchJSON("spell-ratings.json"),
-        badge: (value, bound, known, collection, id) => ({ className: "pcs-power", label: powerLabel(value, bound), tooltip: powerTooltip(value, known, bound, powerDetailOf(known, collection, id)) })
+        badge: (value, bound, known, collection, id) => ({ className: "pcs-power", label: powerLabel(value, bound, powerDetailOf(known, collection, id)), tooltip: powerTooltip(value, known, bound, powerDetailOf(known, collection, id)) })
     }
 };
 const kindOfDocument = (documentName) => Object.values(KINDS).find((kind) => kind.documentName === documentName) ?? null;

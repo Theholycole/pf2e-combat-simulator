@@ -10,6 +10,7 @@ const { addBuiltin, PLAYED_REQUIRES, predicateOptions } = await import("../../sr
 const { requirementPlayable } = await import("../../src/engine/needs.js");
 const { markParts, toggleWays } = await import("../../src/engine/toggles.js");
 const { effectModel, iwrException } = await import("../../src/engine/effects.js");
+const { SUMMON_LEVELS } = await import("../../src/engine/summons.js");
 const { immunityExceptions } = await import("../../src/engine/immunities.js");
 const { asReserve, bestOption, bestPick, reserveCount } = await import("../../src/engine/summons.js");
 const { eliteAdjust, weakAdjust } = await import("../../src/engine/adjust.js");
@@ -289,6 +290,18 @@ function summonDocument(from) {
     }
     return null;
 }
+
+// The rulebook bestiaries' creatures a summon's pick allows ({ rank, any, all, maxLevel }), as docs — the spell ratings' choice of the best
+// of them (2026-10-21).
+export function summonCandidates(pick) {
+    const maxLevel = Number.isFinite(pick?.maxLevel) ? pick.maxLevel : pick?.rank ? SUMMON_LEVELS[Math.min(10, pick.rank.max ?? pick.rank.base)] : null;
+    return SUMMON_PACKS.flatMap((pack) => actorsOf(pack).filter((actor) => actor.type === "npc"
+        && (maxLevel === null || Number(actor.system?.details?.level?.value) <= maxLevel)
+        && (!pick?.any?.length || pick.any.some((trait) => (actor.system?.traits?.value ?? []).includes(trait)))
+        && (!pick?.all?.length || pick.all.every((trait) => (actor.system?.traits?.value ?? []).includes(trait))))
+        .map((actor) => ({ pack, doc: actor })));
+}
+
 export function summonReserves(maker) {
     const out = [];
     for (const entry of maker.summons ?? []) {

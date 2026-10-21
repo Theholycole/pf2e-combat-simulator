@@ -103,16 +103,35 @@ export function sortByDanger(entries, valueOf, { descending = false, compare = (
 // --- Spells (2026-10-21: src/data/spell-ratings.json, from `node tools/spell-power.mjs <run> ratings`; src/engine/spell-power.js) -------
 //   data { version, kind: "spells", run, generated, fights, ratings: { "<compendium id>": { "<item id>": power } }, bounds: { …:
 //   "atLeast" | "atMost" }, detail: { …: { rank, boss, group, typical, cantrip?, partial?, ranks: { "<rank>": power }, vs: { "<trait>":
-//   power } } } } — power: levels above (or below) the typical spell of its rank; boss, group, typical: how many levels easier one cast makes
-//   those fights.
+//   power }, creature?, creatures?: { "<trait>": creature }, summons?: { "<rank>": creature }, estimate?, minion?, alliesHit? } } } — power: levels
+//   above (or below) the typical spell of its rank; boss, group, typical: how many levels easier one cast makes those fights; a summon's
+//   creature: the best it brings (against a trait's foes, the best there); estimate: what the simulator doesn't play, by a rule of thumb.
 
 export const powerDetailOf = (data, collection, id) => data?.detail?.[collection]?.[id] ?? null;
 
-// "+0.8"; "≥+6.0" when it eased fights past the scale's easiest (at least that), "≤−2.0" when it made them harder than its hardest.
-export function powerLabel(value, bound = null) {
-    if (!Number.isFinite(value)) return "";
-    return `${bound === "atLeast" ? "≥" : bound === "atMost" ? "≤" : ""}${dangerLabel(value)}`;
+// The traits' foes a spell is more useful against (its power there above its own): [[trait, power]], the most first.
+export function moreUsefulAgainst(value, detail) {
+    return Object.entries(detail?.vs ?? {}).map(([trait, power]) => [trait, Number(power)]).filter(([, power]) => Number.isFinite(power) && power > value).sort((a, b) => b[1] - a[1]);
 }
+
+// "+0.8"; "≥+6.0" when it eased fights past the scale's easiest (at least that), "≤−2.0" when it made them harder than its hardest. With
+// its detail: "~" before an estimate (a rule of thumb's: the simulator doesn't play it), "*" after a spell more useful against some foes.
+export function powerLabel(value, bound = null, detail = null) {
+    if (!Number.isFinite(value)) return "";
+    return `${detail?.estimate ? "~" : ""}${bound === "atLeast" ? "≥" : bound === "atMost" ? "≤" : ""}${dangerLabel(value)}${moreUsefulAgainst(value, detail).length ? "*" : ""}`;
+}
+
+// The words for a trait's foes, and for an estimate.
+const FOES = { undead: "undead", fiend: "fiends", celestial: "celestials", construct: "constructs", elemental: "elementals" };
+const ESTIMATES = {
+    shield: "its shield raised (more AC, and a Shield Block while it lasts)",
+    "text damage": "the damage its text gives, at the foes' saves",
+    terrain: "its difficult terrain slowing most foes for an action",
+    "wall (barrier)": "a wall in the way of most foes, a round lost going around or through it",
+    "wall (hinder)": "a wall in the way of most foes, an action lost crossing it and its damage",
+    "wall (damaging)": "a wall in the way of most foes, its damage as they cross it",
+    "wall (screen)": "a wall in the way of most foes, hiding the party from them"
+};
 
 const ordinal = (n) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
 const levels = (value) => `${Math.abs(Math.round(value * 10) / 10).toFixed(1)} level${Math.abs(Math.round(value * 10) / 10) === 1 ? "" : "s"}`;
@@ -133,9 +152,16 @@ export function powerTooltip(value, data, bound = null, detail = null) {
     const note = bound === "atLeast" ? " It eased fights past the scale's easiest, so it's at least this." : bound === "atMost" ? " It made fights harder than the scale's hardest, so it's at most this." : "";
     const heightened = Object.entries(detail?.ranks ?? {}).map(([at, power]) => [Number(at), Number(power)]).filter(([, power]) => Number.isFinite(power));
     const differ = heightened.filter(([, power]) => Math.abs(power - value) >= 0.5);
-    const higher = heightened.length ? (differ.length ? ` Heightened: ${differ.map(([at, power]) => `${ordinal(at)} ${dangerLabel(power)}`).join(", ")}.` : " Heightened: within half a level of this at every rank.") : "";
-    const against = Object.entries(detail?.vs ?? {}).filter(([, power]) => Number.isFinite(power)).map(([trait, power]) => ` Against ${trait}: ${dangerLabel(power)}.`).join("");
+    const summoned = (at) => (detail?.summons?.[at] ? ` (${detail.summons[at]})` : "");
+    const higher = heightened.length ? (differ.length ? ` Heightened: ${differ.map(([at, power]) => `${ordinal(at)} ${dangerLabel(power)}${summoned(at)}`).join(", ")}.` : " Heightened: within half a level of this at every rank.") : "";
+    const creature = detail?.creature ? ` Its best summon here: ${detail.creature}.` : "";
+    const more = moreUsefulAgainst(value, detail);
+    const useful = more.length ? ` * More useful against ${more.map(([trait, power]) => `${FOES[trait] ?? trait}: ${dangerLabel(power)}${detail?.creatures?.[trait] ? ` (summoning ${detail.creatures[trait]})` : ""}`).join("; ")}.` : "";
+    const less = Object.entries(detail?.vs ?? {}).filter(([trait, power]) => Number.isFinite(power) && !more.some(([other]) => other === trait)).map(([trait, power]) => ` Against ${FOES[trait] ?? trait}: ${dangerLabel(power)}.`).join("");
+    const minion = detail?.minion ? " Cast on a minion of the caster's already out." : "";
+    const allies = detail?.alliesHit ? " Its area catches allies near the caster: their Hit Points count against it." : "";
+    const estimate = detail?.estimate ? ` ~ Estimated by a rule of thumb, as the simulator doesn't play it: ${ESTIMATES[detail.estimate] ?? detail.estimate}.` : "";
     const partial = detail?.partial ? " Partly simulated: the simulator doesn't play all of it." : "";
-    return `Power for its rank: ${how} (Combat Simulator${run ? `, ${run}` : ""}).${fights}${note}${higher}${against}${partial}`;
+    return `Power for its rank: ${how} (Combat Simulator${run ? `, ${run}` : ""}).${fights}${note}${creature}${higher}${useful}${less}${minion}${allies}${estimate}${partial}`;
 }
 

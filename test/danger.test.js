@@ -69,7 +69,23 @@ test("a spell's power: its label, and its words with its fights, heightened rank
     assert.match(words, /a party of four at level 13 makes a fight with a boss 1\.1 levels easier and one with a group 2\.3 levels easier \(a typical rank-7 spell: 0\.9 levels easier on average\)/);
     assert.match(words, /Heightened: 9th \+0\.1, 10th −0\.4\./, "only the ranks half a level or more from it");
     assert.doesNotMatch(words, /8th/);
-    assert.match(words, /Against undead: \+2\.6\.$/);
+    assert.match(words, /\* More useful against undead: \+2\.6\.$/);
     assert.match(powerTooltip(0, data, null, { rank: 1, cantrip: true, boss: 0.2, group: 0.4, ranks: { 2: 0.1 } }), /about as strong as a typical cantrip at rank 1.*Cast at will.*Heightened: within half a level of this at every rank\./);
+});
+
+test("a spell's label marks an estimate and a spell more useful against some foes; its words name a summon's creatures", () => {
+    const sun = { rank: 7, boss: 1.1, group: 2.3, typical: 0.9, ranks: {}, vs: { undead: 2.6, construct: -1 } };
+    assert.equal(powerLabel(0.8, null, sun), "+0.8*");
+    assert.equal(powerLabel(0.8, null, { ...sun, vs: { construct: -1 } }), "+0.8", "only when it does more somewhere");
+    assert.equal(powerLabel(-0.4, null, { rank: 4, estimate: "wall (damaging)" }), "~−0.4");
+    const words = powerTooltip(0.8, null, null, sun);
+    assert.match(words, /\* More useful against undead: \+2\.6\. Against constructs: −1\.0\./);
+    const summon = { rank: 1, boss: 0.9, group: 0.9, typical: 1, ranks: { 2: 0.1, 5: 1.2 }, vs: { fiend: 0.4 }, creature: "Soulrider (Celestial)", creatures: { fiend: "Soulrider (Celestial)" }, summons: { 2: "Wolf", 5: "Bear" } };
+    const summonWords = powerTooltip(-0.1, null, null, summon);
+    assert.match(summonWords, /Its best summon here: Soulrider \(Celestial\)\./);
+    assert.match(summonWords, /Heightened: 5th \+1\.2 \(Bear\)\./);
+    assert.match(summonWords, /More useful against fiends: \+0\.4 \(summoning Soulrider \(Celestial\)\)\./);
+    assert.match(powerTooltip(-0.4, null, null, { rank: 4, boss: 0.3, group: 0.5, estimate: "wall (damaging)" }), /~ Estimated by a rule of thumb, as the simulator doesn't play it: a wall in the way of most foes, its damage as they cross it\./);
+    assert.match(powerTooltip(0.2, null, null, { rank: 2, boss: 0.3, group: 0.5, minion: true }), /Cast on a minion of the caster's already out\./);
 });
 

@@ -116,7 +116,7 @@ export function computeThreats(state) {
 
 // Expected damage of each spell the creature can still cast, against one target (two for an area):
 // [{ spell, damage, recharges }]. Its threat takes the best.
-function spellDamages(state, c, target) {
+export function spellDamages(state, c, target) {
     const out = [];
     for (const spell of c.spells ?? []) {
         if (!canCast(c, spell)) continue;
