@@ -152,3 +152,13 @@ test("healing, temporary Hit Points and AC from text: Hit Points to the most hur
     assert.ok(ac.share > textHelpShare(party, powerFoes("boss", 5), { ac: 1, targets: Infinity, rounds: 1 }).share);
     assert.equal(textHelpShare(party, powerFoes("boss", 5), { targets: 1 }), null);
 });
+
+test("one-offs: a mark's weakness and off-guard on a foe; a tree's Hit Points in an ally's place; Circle of Protection only against holy or unholy foes", () => {
+    const mark = readingPower(standardParty(1), powerFoes("boss", 1), entry(1, plan("spell-mark", { spellMark: { strikeWeakness: { base: 1, perRank: 1 }, durationSeconds: 60 } }, null)));
+    assert.ok(mark && mark.share > 0);
+    const tree = readingPower(standardParty(1), powerFoes("boss", 1), entry(1, plan("strike-absorber", { strikeAbsorber: { ac: 10, hp: 10, step: { interval: 1, hp: 10 }, durationSeconds: 60 } }, null)));
+    assert.ok(tree && tree.share > 0);
+    const circle = plan("protection-circle", { protectionCircle: { radius: 10, seconds: 60, low: 1, high: 3 } }, null);
+    assert.equal(readingPower(standardParty(5), powerFoes("group", 5), entry(3, circle)), null, "plain foes: nothing");
+    assert.ok(readingPower(standardParty(5), powerFoes("group", 5, "fiend"), entry(3, circle)).share > 0, "against fiends");
+});

@@ -377,7 +377,8 @@ export function runPowerTask(task) {
         const traits = powerConditions(plan);
         const read = { ...entry, doc };
         const row = { ...head, traits, results: resultsOf(traits, (foes) => readingPower(party, foes, read), level), estimate: `reading (${plan.resolution.kind})` };
-        return withChoke(row, (foes, choke) => readingPower(party, foes, read, { choke }), level);
+        // (Nothing read: on to the text's estimates below.)
+        if (Object.keys(row.results).length) return withChoke(row, (foes, choke) => readingPower(party, foes, read, { choke }), level);
     }
     // (Nothing else: the damage its text deals, against a save or a spell attack — estimated.)
     const textDamage = !castable && !isUtility(plan) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? textDamageOf(doc, rank) : null;

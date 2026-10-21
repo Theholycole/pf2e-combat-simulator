@@ -526,12 +526,177 @@ function embeddedReader(ctx) {
     return best ? { entries: best.entries, targets: best.entries.length } : null;
 }
 
+// --- One-offs (2026-10-21, batch 8) --------------------------------------------------------------------------------------------------
+
+// A foe's damage a round on a creature of armour class `ac`: its best Strike twice (the second at −5), critical hits doubled.
+function strikeDamageOn(foe, ac) {
+    let best = 0;
+    for (const strike of foe.strikes ?? []) {
+        const average = (strike.damage ?? []).reduce((sum, part) => sum + (Number(part.dice) || 0) * ((Number(part.die) || 0) + 1) / 2 + (Number(part.bonus) || 0), 0);
+        let total = 0;
+        for (let attack = 0; attack < 2; attack++) {
+            const odds = degreeDistribution((Number(strike.bonus) || 0) - attack * (strike.agile ? 4 : 5), ac);
+            total += (odds[2] + 2 * odds[3]) * average;
+        }
+        best = Math.max(best, total);
+    }
+    return best;
+}
+
+// The Hit Points a better AC (by `bonus`) keeps off a creature over `rounds`: the foes' damage on it less, its share of their attacks.
+function acSaved(ctx, ally, bonus, rounds) {
+    const ac = Number(ally.ac) || 15;
+    const side = Math.max(1, ctx.allies.length);
+    return ctx.enemies.reduce((sum, foe) => sum + strikeDamageOn(foe, ac) - strikeDamageOn(foe, ac + bonus), 0) * rounds / side;
+}
+
+// Hit Points as healing on allies (the rating counts healing up to what each lacks, against the foes' harm): entries.
+const healEntries = (allies, amount) => allies.map((ally) => ({ target: ally, damage: 0, worth: 0, heal: amount, benefit: 0 }));
+
+READERS["spell-mark"] = (ctx) => {
+    // (Invoke True Name: off-guard to the caster's side and a weakness to their next hit — each of the party's hits a round, its share of
+    // the fight; once, where it says so. Glimpse Weakness: a weakness to the party's Strikes for its duration.)
+    const mark = ctx.entry.plan.resolution.spellMark ?? {};
+    const lasts = lastsRounds(mark.durationSeconds ?? 60, ctx.rounds);
+    const hits = 2;
+    const entries = ctx.enemies.map((foe) => {
+        const weakness = mark.weakness ? (Number(mark.weakness.perRank) || 0) * ctx.rank * (mark.weakness.once ? 1 : hits * lasts) : 0;
+        const strikeWeakness = mark.strikeWeakness ? ((Number(mark.strikeWeakness.base) || 0) + (Number(mark.strikeWeakness.perRank) || 0) * ctx.rank) * hits * lasts : 0;
+        const worth = mark.offGuard ? conditionWorth("off-guard", null, { mode: "fixed", value: lasts, unit: "rounds" }) : 0;
+        return { target: foe, damage: weakness + strikeWeakness, worth, heal: 0, benefit: 0 };
+    }).sort((a, b) => b.damage / b.target.hp.max + b.worth / 3 - (a.damage / a.target.hp.max + a.worth / 3));
+    return entries.length && (entries[0].damage > 0 || entries[0].worth > 0) ? { entries: entries.slice(0, 1), targets: 1 } : null;
+};
+
+READERS["protection-circle"] = (ctx) => {
+    // (Circle of Protection: its status bonus to AC for the caster's side in it — against foes of the alignment it's against: unholy or
+    // holy ones; the low bonus.)
+    const circle = ctx.entry.plan.resolution.protectionCircle ?? {};
+    if (!ctx.enemies.some((foe) => (foe.traits ?? []).some((trait) => trait === "unholy" || trait === "holy"))) return null;
+    const lasts = lastsRounds(circle.seconds, ctx.rounds);
+    const entries = ctx.allies.map((ally) => ({ target: ally, damage: 0, worth: 0, heal: acSaved(ctx, ally, Number(circle.low) || 1, lasts), benefit: 0 }));
+    return { entries, targets: entries.length };
+};
+
+READERS["interposing-cover"] = (ctx) => {
+    // (Interposing Earth: cover for an ally against the round's attacks — its AC bonus — and the damage reduction; as a raised wall at the
+    // 4th rank, more.)
+    const cover = ctx.entry.plan.resolution.interposingCover ?? {};
+    const raised = cover.raised && ctx.rank >= Number(cover.raised.rank) ? cover.raised : null;
+    const reduction = Number(raised?.reduction ?? cover.reduction) || 0;
+    const ally = ctx.allies.slice().sort((a, b) => (a.ac ?? 0) - (b.ac ?? 0))[0];
+    if (!ally) return null;
+    const hits = ctx.enemies.length / Math.max(1, ctx.allies.length);
+    return { entries: healEntries([ally], acSaved(ctx, ally, Number(cover.cover?.ac) || 2, 1) + reduction * hits), targets: 1 };
+};
+
+READERS["strike-absorber"] = (ctx) => {
+    // (Protector Tree: its Hit Points taken in place of an ally's — the hits on those beside it, as long as it stands.)
+    const tree = ctx.entry.plan.resolution.strikeAbsorber ?? {};
+    const hp = (Number(tree.hp) || 0) + Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / (Number(tree.step?.interval) || 1)) * (Number(tree.step?.hp) || 0);
+    const lasts = lastsRounds(tree.durationSeconds, ctx.rounds);
+    const drawn = ctx.enemies.reduce((sum, foe) => sum + strikeDamageOn(foe, Number(tree.ac) || 10), 0) * lasts / Math.max(1, ctx.allies.length);
+    return hp > 0 ? { entries: healEntries([ctx.allies[0]], Math.min(hp, drawn)), targets: 1 } : null;
+};
+
+READERS["rebound-barrier"] = (ctx) => {
+    // (Rebounding Barrier: its resistance off a physical hit on the caster — the biggest of the foes' — and its damage back on the one who
+    // struck.)
+    const barrier = ctx.entry.plan.resolution.reboundBarrier ?? {};
+    const steps = Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / (Number(barrier.step?.interval) || 1);
+    const resistance = (Number(barrier.resistance) || 0) + Math.floor(steps) * (Number(barrier.step?.resistance) || 0);
+    const back = (Number(barrier.damage) || 0) + Math.floor(steps) * (Number(barrier.step?.damage) || 0);
+    const foe = ctx.enemies.slice().sort((a, b) => strikeDamageOn(b, ctx.caster.ac ?? 15) - strikeDamageOn(a, ctx.caster.ac ?? 15))[0];
+    if (!foe) return null;
+    const hit = strikeDamageOn(foe, ctx.caster.ac ?? 15) / 2;
+    return { entries: [...healEntries([ctx.caster], Math.min(resistance, hit)), { target: foe, damage: back, worth: 0, heal: 0, benefit: 0 }], targets: 2 };
+};
+
+READERS["death-ward"] = (ctx) => {
+    // (Phoenix Ward: the healing as the ally would fall — its dice at the rank.)
+    const ward = ctx.entry.plan.resolution.deathWard ?? {};
+    const heal = ward.heal ? ((Number(ward.heal.dice) || 0) + Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / (Number(ward.heal.step?.interval) || 1)) * (Number(ward.heal.step?.dice) || 0)) * ((Number(ward.heal.faces) || 0) + 1) / 2 : 0;
+    return heal > 0 ? { entries: healEntries([ctx.allies[0]], heal), targets: 1 } : null;
+};
+
+READERS["turn-healing"] = (ctx) => {
+    // (Positive Attunement, Fated Healing: its healing as cast and at each turn's end it lasts — on the ally it's worth most on; its
+    // heightened dice. Not one aimed at foes too.)
+    const turns = ctx.entry.plan.resolution.turnHealing ?? {};
+    if (turns.endsForHostile) return null;
+    const base = Number(ctx.entry.plan.rank) || ctx.rank;
+    const extra = turns.heightening?.interval ? Math.floor(Math.max(0, ctx.rank - base) / Number(turns.heightening.interval)) : 0;
+    const each = averageOn({ immunities: [], resistances: [], weaknesses: [] }, String(turns.formula ?? "1d8")) * (1 + extra);
+    const lasts = lastsRounds(turns.durationSeconds, ctx.rounds);
+    const times = lasts + (turns.immediate ? 1 : 0) - 1;
+    return { entries: healEntries(ctx.allies.slice(0, Math.max(1, Number(turns.targets) || 1)), each * Math.max(1, times)), targets: Math.max(1, Number(turns.targets) || 1) };
+};
+
+READERS.luminance = (ctx) => {
+    // (Vital Luminance: its reservoir as it grows over the fight — what it starts with and gains each turn, more a rank — Dismissed into
+    // the most hurt ally.)
+    const light = ctx.entry.plan.resolution.luminance ?? {};
+    const steps = Math.max(0, ctx.rank - (Number(light.baseRank) || ctx.rank)) * (Number(light.step) || 0);
+    const pool = (Number(light.start) || 0) + steps + ((Number(light.perTurn) || 0) + steps) * Math.max(0, ctx.rounds - 1);
+    return pool > 0 ? { entries: healEntries([ctx.allies[0]], pool), targets: 1 } : null;
+};
+
+READERS.wisps = (ctx) => {
+    // (Flame Wisp: a wisp flung at a foe after each of the caster's damaging Strikes — one a round while there are wisps, as the caster
+    // Strikes each round at its best.)
+    const wisps = ctx.entry.plan.resolution.wisps ?? {};
+    const dice = (Number(wisps.dice) || 1) + Math.floor(Math.max(0, ctx.rank - (Number(wisps.baseRank) || ctx.rank)) / (Number(wisps.heightening?.interval) || 2)) * (Number(wisps.heightening?.dice) || 0);
+    const times = Math.min(Number(wisps.count) || 1, lastsRounds(wisps.durationSeconds, ctx.rounds));
+    const context = spellContext(ctx.entry, { isSpell: true, area: false });
+    const foe = ctx.enemies[0];
+    return foe ? { entries: [{ target: foe, damage: times * averageOn(foe, `${dice}d${Number(wisps.die) || 4}[${wisps.type ?? "fire"}]`, wisps.type, context), worth: 0, heal: 0, benefit: 0 }], targets: 1 } : null;
+};
+
+READERS["aura-turn-effect"] = (ctx) => {
+    // (Unblinking Flame Ignition: its aura burns each foe in range — at the beginning of each of their turns — every round it lasts.)
+    const aura = ctx.entry.plan.resolution.auraTurnEffect ?? {};
+    if (!aura.damage?.formula) return null;
+    const lasts = lastsRounds(aura.durationSeconds, ctx.rounds);
+    const context = spellContext(ctx.entry, { isSpell: true, area: true });
+    const entries = caught(ctx.enemies, aura.area ?? { type: "emanation", value: 5 }).map((foe) => ({ target: foe, damage: lasts * averageOn(foe, aura.damage.formula, "untyped", context), worth: 0, heal: 0, benefit: 0 }));
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
+READERS["thrall-summon"] = (ctx) => {
+    // (Skeletal Lancers and the like: what the thralls do of themselves — damage each time a foe near one makes a Strike (two a round),
+    // every foe near one of them; their charges and the rest wait on other spells.)
+    const thralls = ctx.entry.plan.resolution.thrallSummon ?? {};
+    const hit = (thralls.controls ?? []).find((control) => control.kind === "damage" && control.formula);
+    if (!hit) return null;
+    const lasts = lastsRounds(thralls.seconds, ctx.rounds);
+    const context = spellContext(ctx.entry, { isSpell: true, area: false });
+    const entries = ctx.enemies.slice(0, Math.max(1, Number(thralls.count) || 1)).map((foe) => ({ target: foe, damage: 2 * lasts * averageOn(foe, hit.formula, "untyped", context), worth: 0, heal: 0, benefit: 0 }));
+    return { entries, targets: entries.length };
+};
+
+READERS["illusory-creature"] = (ctx) => {
+    // (Illusory Creature, Shadow Illusion: the illusion's Strike — the caster's spell attack against a foe's AC, its damage at the rank —
+    // each round of the fight, its two actions a Strike and a Stride; till it's disbelieved, not counted.)
+    const illusion = ctx.entry.plan.resolution.illusoryCreature ?? {};
+    const strike = illusion.strike;
+    if (!strike?.dice) return null;
+    const dice = Number(strike.dice) + Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / (Number(strike.step?.interval) || 1)) * (Number(strike.step?.dice) || 0);
+    const context = spellContext(ctx.entry, { isSpell: true, area: false });
+    const entries = ctx.enemies.map((foe) => {
+        const odds = degreeDistribution(Number(ctx.entry.attack) || 0, Number(foe.ac) || 15);
+        return { target: foe, damage: (odds[2] + 2 * odds[3]) * averageOn(foe, `${dice}d${Number(strike.faces) || 4}[${strike.type ?? "bludgeoning"}]`, strike.type, context) * ctx.rounds, worth: 0, heal: 0, benefit: 0 };
+    }).sort((a, b) => b.damage / b.target.hp.max - a.damage / a.target.hp.max);
+    return entries.length ? { entries: entries.slice(0, 1), targets: 1 } : null;
+};
+
 // The reading for a plan the engine can't cast, or null: its family's, or the plans its payload carries.
 export function powerReading(plan) {
     const own = READERS[plan?.resolution?.kind];
-    if (own) return own;
     const { kind, ...payload } = plan?.resolution ?? {};
-    return kind && embeddedPlans(payload).length ? embeddedReader : null;
+    const carried = kind && embeddedPlans(payload).length ? embeddedReader : null;
+    // (Its family's reading, or where that finds nothing, the plans it carries.)
+    if (own) return carried ? (ctx) => own(ctx) ?? carried(ctx) : own;
+    return carried;
 }
 
 export const READING_KINDS = Object.freeze(Object.keys(READERS));

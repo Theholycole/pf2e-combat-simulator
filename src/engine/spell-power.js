@@ -115,6 +115,8 @@ export function powerConditions(plan) {
     const traits = new Set();
     if ((plan?.traits ?? []).includes("holy")) traits.add("fiend");
     if ((plan?.traits ?? []).includes("unholy")) traits.add("celestial");
+    // (Circle of Protection: against unholy or holy foes.)
+    if (plan?.resolution?.protectionCircle) for (const trait of ["fiend", "celestial"]) traits.add(trait);
     for (const entry of plan?.resolution?.conditionalDamage ?? []) if (entry?.trait) traits.add(entry.trait);
     const json = JSON.stringify({ resolution: plan?.resolution ?? null, targeting: plan?.targeting ?? null });
     if (/"type":"vitality"|\[vitality\]/.test(json)) traits.add("undead");
