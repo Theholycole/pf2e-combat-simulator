@@ -4,6 +4,7 @@ import { createRng } from "./rng.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
+import { placeArrival, setUpGrid } from "./grid-fight.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, adjustPart, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
@@ -139,6 +140,10 @@ function createState(snapshot, options, seed, withLog) {
     setUpHazards(state, snapshot.setup?.escalations);
     placeCombatants(state);
     placeOnMap(state);
+    // (2026-10-21: on the square grid, an option of the run — its layout, or the scene's map and squares; not with a map objective's
+    // distances, which have their own.)
+    const grid = options.grid ?? snapshot.setup?.grid ?? null;
+    if (grid && !isMapObjective(state.objective)) setUpGrid(state, grid);
     initMorale(state);
     // (L1–L5: the fight's light, weather and ground; light blindness and sunlight as it starts.)
     state.environment = buildEnvironment(snapshot.setup?.environment);
@@ -268,6 +273,7 @@ function arrivals(state) {
                 c.exitFeet = c.arrivePlace.exit ?? c.exitFeet;
             }
             insertArrival(state, c);
+            placeArrival(state, c);
             state.log?.push(`  ${c.name} arrives (${c.band})`);
             if (c.side === "foes" && c.kind !== "object") foesArrived = true;
         }

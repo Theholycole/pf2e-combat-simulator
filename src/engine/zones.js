@@ -11,6 +11,8 @@ import { applyDamage, log } from "./actions.js";
 import { spellContext } from "./damage.js";
 import { applyCondition, castPlan, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
+import { areaPlacements, inSquares, regroup } from "./grid-fight.js";
+import { emanationSquares } from "./grid.js";
 
 let nextZoneId = 1;
 
@@ -33,8 +35,13 @@ function near(anchor, other, radius) {
     return other.band !== "far" || anchor.band === "far";
 }
 
-// The creatures in a zone now.
+// The creatures in a zone now. (On the grid: those in its squares — an emanation's about its maker as it stands now.)
 export function zoneMembers(state, zone) {
+    if (state.grid && zone.squares) return inSquares(state, zone.squares);
+    if (state.grid && zone.around) {
+        const anchor = state.byId.get(zone.anchorId);
+        return anchor?.square && anchor.band !== "gone" ? inSquares(state, emanationSquares(state.grid, anchor, zone.radius)) : [];
+    }
     if (zone.fixed) return state.list.filter((c) => zone.fixed.has(c.id) && isActive(c));
     const anchor = state.byId.get(zone.anchorId);
     if (!anchor || anchor.band === "gone") return [];
@@ -67,6 +74,9 @@ export function startZone(state, owner, spell, targetIds) {
         // (I2: area damage, with its source's traits.)
         context: spellContext(spell, { isSpell: !["ability", "basic", "item"].includes(spell.kind), area: true })
     };
+    // (On the grid: its squares — where it was placed, the placement that holds the most of those it was cast at; an emanation about
+    // its maker, as it moves; its difficult terrain on the map while it lasts.)
+    if (state.grid && owner.square) placeOnGrid(state, zone, owner, area, targetIds);
     (state.zones ??= []).push(zone);
     (owner.activeZones ??= new Set()).add(spell.name);
     log(state, `  ${owner.name}'s ${spell.name} covers the area${Number.isFinite(rounds) ? ` for ${rounds} rounds` : ""}`);
@@ -105,6 +115,39 @@ export function startLingering(state, caster, spell, targetIds) {
         effects: spell.effects ?? {}
     };
     return startZone(state, caster, { name: spell.name, kind: spell.kind, plan: spell.plan, zone: model }, targetIds);
+}
+
+function placeOnGrid(state, zone, owner, area, targetIds) {
+    if (zone.anchorId === owner.id && area.type !== "cone" && area.type !== "line") {
+        zone.around = true;
+        return;
+    }
+    const wanted = new Set(targetIds);
+    const around = targetIds.map((id) => state.byId.get(id)).filter((c) => c?.square);
+    let best = null;
+    for (const placement of areaPlacements(state, owner, { type: area.type ?? "burst", value: Number(area.value) || 5 }, Infinity, around.length ? around : [state.byId.get(zone.anchorId)].filter(Boolean))) {
+        const caught = inSquares(state, placement.squares).filter((c) => wanted.has(c.id)).length;
+        if (!best || caught > best.caught) best = { caught, squares: placement.squares };
+    }
+    if (!best) return;
+    zone.squares = new Set(best.squares);
+    zone.fixed = null;
+    if ((zone.model.terrain ?? []).some((entry) => (entry.movement ?? ["walk"]).some((move) => ["walk", "climb"].includes(move)))) {
+        state.gridTerrain ??= new Map();
+        for (const square of zone.squares) state.gridTerrain.set(square, Math.max(state.gridTerrain.get(square) ?? 1, 2));
+        regroup(state);
+    }
+}
+
+// The difficult terrain the zones lay on the grid, again (one has ended).
+function terrainAgain(state) {
+    if (!state.grid) return;
+    state.gridTerrain = new Map();
+    for (const zone of state.zones ?? []) {
+        if (!zone.squares || !(zone.model.terrain ?? []).length) continue;
+        for (const square of zone.squares) state.gridTerrain.set(square, Math.max(state.gridTerrain.get(square) ?? 1, 2));
+    }
+    regroup(state);
 }
 
 function rollDice(state, formula) {
@@ -174,7 +217,8 @@ export function zoneTurn(state, c, phase) {
         const cameIn = phase === "end" && !(c.zonesAtStart ?? new Set()).has(zone.id);
         // (T2, Inexorable: no difficult terrain for it; L3: a plant zone's for a creature with Woodland Stride.)
         const strides = (c.terrainStride ?? []).includes("plants") && ["plant", "fungus", "wood"].some((trait) => zone.context?.has?.(`item:trait:${trait}`));
-        if (phase === "start" && !strides && c.inexorable?.difficultTerrain !== false && (zone.model.terrain ?? []).some((entry) => (entry.movement ?? ["walk"]).some((move) => ["walk", "climb"].includes(move))) && !c.zoneSpeed) {
+        // (On the grid its difficult terrain is on the map: the way through it costs double.)
+        if (phase === "start" && !state.grid && !strides && c.inexorable?.difficultTerrain !== false && (zone.model.terrain ?? []).some((entry) => (entry.movement ?? ["walk"]).some((move) => ["walk", "climb"].includes(move))) && !c.zoneSpeed) {
             c.zoneSpeed = c.speed ?? 25;
             c.speed = Math.max(5, Math.floor((c.speed ?? 25) / 2 / 5) * 5);
         }
@@ -199,6 +243,7 @@ function hurt(state, zone, owner, c, formulas, how) {
 
 export function endZone(state, zone) {
     state.zones = (state.zones ?? []).filter((entry) => entry !== zone);
+    if (zone.squares && (zone.model.terrain ?? []).length) terrainAgain(state);
     state.byId.get(zone.ownerId)?.activeZones?.delete(zone.name);
     for (const c of state.list) for (const effect of (c.effects ?? []).filter((entry) => entry.key === `zone:${zone.id}`)) removeEffect(c, effect);
     log(state, `  ${zone.name} ends`);

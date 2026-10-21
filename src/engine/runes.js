@@ -132,6 +132,6 @@ export function runeCritEffects(state, attacker, target, strike, { applyConditio
             if (!isActive(target)) break;
             if (applyCondition(state, target, slug, value, duration, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""} (${label} rune)`);
         }
-        if (effect.push) applyMove(state, target, { kind: "push", distance: effect.push });
+        if (effect.push) applyMove(state, target, { kind: "push", distance: effect.push }, attacker);
     }
 }

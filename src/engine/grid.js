@@ -98,35 +98,43 @@ function enterCost(map, squares) {
 
 const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
-// A small binary heap of [cost, …] entries, cheapest first.
+// A binary heap of (cost, index) pairs, cheapest first.
 function heap() {
-    const items = [];
+    const costs = [];
+    const indexes = [];
+    const swap = (i, j) => {
+        [costs[i], costs[j]] = [costs[j], costs[i]];
+        [indexes[i], indexes[j]] = [indexes[j], indexes[i]];
+    };
     return {
         get size() {
-            return items.length;
+            return costs.length;
         },
-        push(entry) {
-            items.push(entry);
-            for (let i = items.length - 1; i > 0;) {
+        push(cost, index) {
+            costs.push(cost);
+            indexes.push(index);
+            for (let i = costs.length - 1; i > 0;) {
                 const parent = (i - 1) >> 1;
-                if (items[parent][0] <= items[i][0]) break;
-                [items[parent], items[i]] = [items[i], items[parent]];
+                if (costs[parent] <= costs[i]) break;
+                swap(parent, i);
                 i = parent;
             }
         },
         pop() {
-            const top = items[0];
-            const last = items.pop();
-            if (items.length) {
-                items[0] = last;
+            const top = [costs[0], indexes[0]];
+            const lastCost = costs.pop();
+            const lastIndex = indexes.pop();
+            if (costs.length) {
+                costs[0] = lastCost;
+                indexes[0] = lastIndex;
                 for (let i = 0; ;) {
                     const l = 2 * i + 1;
                     const r = l + 1;
                     let low = i;
-                    if (l < items.length && items[l][0] < items[low][0]) low = l;
-                    if (r < items.length && items[r][0] < items[low][0]) low = r;
+                    if (l < costs.length && costs[l] < costs[low]) low = l;
+                    if (r < costs.length && costs[r] < costs[low]) low = r;
                     if (low === i) break;
-                    [items[low], items[i]] = [items[i], items[low]];
+                    swap(low, i);
                     i = low;
                 }
             }
@@ -135,49 +143,100 @@ function heap() {
     };
 }
 
-// Every place a creature can get to from its square: Map of "x,y" → { cost, from, ends } — the feet it takes (difficult terrain double,
+// Every place a creature can get to from its square: Map of "x,y" → { cost, ends } — the feet it takes (difficult terrain double,
 // greater triple, every second diagonal 10), through its allies' spaces but not its foes' (blockedBy: a Set of the squares it can't
-// enter), ending only where no one else stands (ends false where its space would take one of `occupied`'s squares). maxCost: none past
-// it. from: the place before it on the cheapest way.
+// enter), ending only where no one else stands (ends false where its space would take one of `occupied`'s squares); none past maxCost.
+// Its wayTo(place): [{ square, cost } …] from the start along the cheapest way there.
 export function reachable(map, mover, { blockedBy = new Set(), occupied = new Set(), maxCost = Infinity } = {}) {
     const n = spaceOf(mover);
+    const width = map.width;
+    const height = map.height;
+    const cells = width * height;
+    // (Each top-left square: whether the space fits there, what entering it costs, whether it may end there.)
+    const fits = new Uint8Array(cells);
+    const enter = new Uint8Array(cells);
+    const free = new Uint8Array(cells);
+    for (let x = 0; x <= width - n; x++) {
+        for (let y = 0; y <= height - n; y++) {
+            let ok = 1;
+            let factor = 1;
+            let clear = 1;
+            for (let i = 0; i < n && ok; i++) for (let j = 0; j < n; j++) {
+                const square = key(x + i, y + j);
+                if (map.blocked?.has(square) || blockedBy.has(square)) {
+                    ok = 0;
+                    break;
+                }
+                factor = Math.max(factor, map.difficult?.get(square) ?? 1);
+                if (occupied.has(square)) clear = 0;
+            }
+            const at = y * width + x;
+            fits[at] = ok;
+            enter[at] = SQUARE_FEET * factor;
+            free[at] = clear;
+        }
+    }
+    // (States: the square and the parity of diagonals taken — the next diagonal's cost depends on it.)
+    const cost = new Float64Array(cells * 2).fill(Infinity);
+    const from = new Int32Array(cells * 2).fill(-1);
     const [sx, sy] = mover.square;
-    // (States by square and the parity of diagonals taken: the next diagonal's cost depends on it.)
-    const states = new Map([[`${key(sx, sy)}|0`, { cost: 0, from: null }]]);
-    const best = new Map([[key(sx, sy), { cost: 0, from: null, state: `${key(sx, sy)}|0`, ends: true }]]);
+    const start = (sy * width + sx) * 2;
+    cost[start] = 0;
     const queue = heap();
-    queue.push([0, sx, sy, 0]);
+    queue.push(0, start);
+    const walls = Boolean(map.walls?.size);
     while (queue.size) {
-        const [cost, x, y, parity] = queue.pop();
-        const here = `${key(x, y)}|${parity}`;
-        if ((states.get(here)?.cost ?? Infinity) < cost) continue;
+        const [here, state] = queue.pop();
+        if (here > cost[state]) continue;
+        const parity = state & 1;
+        const cell = state >> 1;
+        const x = cell % width;
+        const y = (cell - x) / width;
         for (const [dx, dy] of STEPS) {
             const nx = x + dx;
             const ny = y + dy;
-            const squares = coveredSquares(map, nx, ny, n);
-            if (!squares || squares.some((square) => blockedBy.has(square)) || crossesWall(map, x, y, dx, dy, n)) continue;
+            if (nx < 0 || ny < 0 || nx > width - n || ny > height - n) continue;
+            const next = ny * width + nx;
+            if (!fits[next] || (walls && crossesWall(map, x, y, dx, dy, n))) continue;
             const diagonal = dx !== 0 && dy !== 0;
-            const total = cost + enterCost(map, squares) + (diagonal && parity === 1 ? SQUARE_FEET : 0);
+            const total = here + enter[next] + (diagonal && parity === 1 ? SQUARE_FEET : 0);
             if (total > maxCost) continue;
-            const nextParity = diagonal ? 1 - parity : parity;
-            const state = `${key(nx, ny)}|${nextParity}`;
-            if ((states.get(state)?.cost ?? Infinity) <= total) continue;
-            states.set(state, { cost: total, from: here });
-            queue.push([total, nx, ny, nextParity]);
-            const known = best.get(key(nx, ny));
-            if (!known || known.cost > total) best.set(key(nx, ny), { cost: total, state, ends: !squares.some((square) => occupied.has(square)) });
+            const nextState = next * 2 + (diagonal ? 1 - parity : parity);
+            if (cost[nextState] <= total) continue;
+            cost[nextState] = total;
+            from[nextState] = state;
+            queue.push(total, nextState);
         }
     }
-    for (const entry of best.values()) entry.from = entry.state;
-    best.states = states;
+    const best = new Map();
+    const bestState = new Map();
+    for (let cell = 0; cell < cells; cell++) {
+        const a = cost[cell * 2];
+        const b = cost[cell * 2 + 1];
+        if (a === Infinity && b === Infinity) continue;
+        const x = cell % width;
+        const y = (cell - x) / width;
+        const place = key(x, y);
+        const pick = a <= b ? cell * 2 : cell * 2 + 1;
+        best.set(place, { cost: Math.min(a, b), ends: cell === sy * width + sx || free[cell] === 1 });
+        bestState.set(place, pick);
+    }
+    best.wayTo = (place) => {
+        const way = [];
+        for (let state = bestState.get(place) ?? -1; state >= 0; state = from[state]) {
+            const cell = state >> 1;
+            const x = cell % width;
+            way.unshift({ square: key(x, (cell - x) / width), cost: cost[state] });
+            if (state === start) break;
+        }
+        return way;
+    };
     return best;
 }
 
 // The way to a place in a reachable() map: ["x,y" …] from the start.
 export function pathTo(found, place) {
-    const path = [];
-    for (let at = found.get(place)?.state; at; at = found.states.get(at)?.from) path.unshift(at.split("|")[0]);
-    return path;
+    return found.wayTo(place).map((step) => step.square);
 }
 
 // The cheapest place a creature can stand where `goal(x, y)` holds: { place, cost, path } or null.

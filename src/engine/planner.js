@@ -14,6 +14,8 @@ import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from 
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
+import { gridFlanked, gridStrides, planStride } from "./grid-fight.js";
+import { distanceFeet, reaches as gridReaches, sightLine, squareOf } from "./grid.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
 import { canReact, castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
@@ -235,7 +237,14 @@ function remainingHp(target) {
 
 // Position helpers. A hypothetical position is { band, melee, newWith }:
 // melee is a real Melee id, or "new" when engaging a lone target (newWith).
+// (On the grid, 2026-10-21: at, where it stands — { square, size, reach } — when that's known: where it began, where a Stride toward a
+// creature took it; reaching, there, by the squares.)
+function rootPos(c) {
+    return { band: c.band, melee: c.meleeId, newWith: null, ...(c.square ? { at: { square: c.square, size: c.size, reach: c.reach } } : {}) };
+}
+
 function inMelee(pos, other) {
+    if (pos.at && other.square) return gridReaches(pos.at, other) || gridReaches(other, pos.at);
     if (pos.melee === null) return false;
     if (pos.melee === "new") return other.id === pos.newWith;
     return other.meleeId === pos.melee;
@@ -243,6 +252,7 @@ function inMelee(pos, other) {
 
 // place: where the position is on the map (map objectives), or null.
 function distanceTo(pos, other, place = null) {
+    if (pos.at && other.square) return distanceFeet(pos.at, other);
     if (inMelee(pos, other)) return DISTANCE_FEET.engaged;
     const band = pos.band === "far" || other.band === "far" ? DISTANCE_FEET.far : DISTANCE_FEET.near;
     return place ? Math.max(band, mapGap({ areaFeet: place.area, exitFeet: place.exit }, other)) : band;
@@ -317,6 +327,21 @@ class PlanContext {
         const pos = place ? { band, melee: null, newWith: null, place } : { band, melee: null, newWith: null };
         if (this.dangers.length) pos.regions = this.regionsOf(node.pos);
         return pos;
+    }
+
+    // Where a position stands on the grid: its own square, or beside the creature it engaged (that creature's square); null off it.
+    gridAt(pos) {
+        if (!this.state.grid || !this.c.square) return null;
+        if (pos.at) return pos.at;
+        const target = pos.melee === "new" ? this.state.byId.get(pos.newWith) : pos.melee !== null ? this.enemies.find((enemy) => enemy.meleeId === pos.melee) : null;
+        return { square: target?.square ?? this.c.square, size: this.c.size, reach: this.c.reach };
+    }
+
+    // Strides from a position to reach a creature: the grid's paths there, else the bands' count.
+    strides(pos, target) {
+        const at = this.gridAt(pos);
+        if (at && target.square) return gridStrides(this.state, this.c, target, at.square);
+        return stridesToEngage(this.mover(pos), target);
     }
 
     // The creature at a position, for stridesToEngage.
@@ -419,7 +444,10 @@ class PlanContext {
         const { state, c } = this;
         const strategic = natural !== null && c.stratagemFeature?.strikeBonus?.[strike.name] !== undefined ? natural : null;
         const distance = distanceTo(pos, target, this.placeOf(pos));
-        const key = ((((strikeIndex * 8 + Math.min(attacks, 7)) * 64 + Math.min(63, Math.ceil(distance / 5))) * 2 + (inMelee(pos, target) ? 1 : 0)) * 2 + (prone ? 1 : 0)) * 21 + (strategic ?? 0);
+        const numeric = ((((strikeIndex * 8 + Math.min(attacks, 7)) * 64 + Math.min(63, Math.ceil(distance / 5))) * 2 + (inMelee(pos, target) ? 1 : 0)) * 2 + (prone ? 1 : 0)) * 21 + (strategic ?? 0);
+        // (On the grid: where it stands too — its line to the target, the cover on it.)
+        const at = pos.at && target.square ? pos.at : null;
+        const key = at ? `${numeric}|${at.square[0]},${at.square[1]}` : numeric;
         const cached = perTarget.get(key);
         if (cached !== undefined) return cached;
         // (2026-10-15: an effect's conditional attack bonus, as the roll would have it.)
@@ -431,6 +459,11 @@ class PlanContext {
         if (isShaken(c)) circumstance = Math.max(circumstance, state.moraleRules.group.shakenAttackPenalty);
         if (nonlethalAgainst(state, c, target) && !strike.nonlethal) circumstance = Math.max(circumstance, 2);
         modifier -= circumstance;
+        const sight = at && state.grid ? sightLine(state.grid, { ...c, square: at.square }, target, state.list.filter((other) => isActive(other) && other.square && other !== c)) : null;
+        if (sight && !sight.effect) {
+            perTarget.set(key, null);
+            return null;
+        }
         if (!strike.melee) {
             const penalty = rangePenalty(strike, distance);
             if (penalty === null) {
@@ -444,11 +477,14 @@ class PlanContext {
             const others = target.meleeId !== null && inMelee(pos, target)
                 ? this.allies.filter((ally) => ally.meleeId === target.meleeId && canAct(ally)).length
                 : 0;
-            flank = flankableBy(target, c) ? flankChance(state, others + 1) : 0;
+            // (On the grid: from its square, flanked or not; engaging, half the time where an ally already reaches the target.)
+            const at = this.gridAt(pos);
+            const geometric = at && target.square ? (pos.at ? (gridFlanked(state, { ...c, square: at.square }, target, canAct) ? 1 : 0) : this.allies.some((ally) => ally.square && canAct(ally) && gridReaches(ally, target)) ? 0.5 : 0) : null;
+            flank = flankableBy(target, c) ? (geometric ?? flankChance(state, others + 1)) : 0;
         }
         // (B302: off-guard to it by its own passive — Surprise Attack's first round, Dread Striker.)
         const feinted = !isOffGuard(target) && (offGuardTo(target, c, strike.melee) || offGuardFrom(state, c, target, { melee: strike.melee }));
-        const ac = armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: feinted });
+        const ac = armorClass(target, { ranged: !strike.melee, coverBonus: Math.max(coverFor(state, target), sight && !strike.melee ? sight.cover : 0), flanked: feinted });
         // (A stratagem's roll: the one degree it gives, with Intelligence.)
         const odds = strategic === null ? (dc) => degreeDistribution(modifier, dc) : (dc) => {
             const total = strategic + modifier + c.stratagemFeature.strikeBonus[strike.name];
@@ -574,7 +610,8 @@ class PlanContext {
         const here = this.mover(pos);
         // A melee enemy that must Stride first keeps its remaining Strikes, so
         // stepping back only costs it its weakest attacks.
-        const stridesOf = (enemy) => (inMelee(pos, enemy) ? 0 : stridesToEngage({ band: enemy.band, meleeId: null, speed: enemy.speed, reach: enemy.reach, areaFeet: enemy.areaFeet, exitFeet: enemy.exitFeet }, { band: pos.band, meleeId: null, areaFeet: here.areaFeet, exitFeet: here.exitFeet }));
+        const at = this.gridAt(pos);
+        const stridesOf = (enemy) => (inMelee(pos, enemy) ? 0 : at && enemy.square ? Math.min(3, gridStrides(state, enemy, { ...c, square: at.square })) : stridesToEngage({ band: enemy.band, meleeId: null, speed: enemy.speed, reach: enemy.reach, areaFeet: enemy.areaFeet, exitFeet: enemy.exitFeet }, { band: pos.band, meleeId: null, areaFeet: here.areaFeet, exitFeet: here.exitFeet }));
         // (Mirror Image: the images' share over the round's attacks — two a round from each enemy that can reach it, as their Strikes go.)
         const imagesYou = this.imageYou(node, ac, (enemy) => Math.min(2, Math.max(1, 3 - stridesOf(enemy))));
         for (const enemy of this.enemies) {
@@ -618,7 +655,7 @@ class PlanContext {
             for (const target of this.enemies) {
                 let factor = 1;
                 if (strike.melee && !inMelee(node.pos, target)) {
-                    const strides = stridesToEngage(this.mover(node.pos), target);
+                    const strides = this.strides(node.pos, target);
                     // Further off on the map: less and less (0.25 at 2 Strides, as before).
                     factor = strides === 1 ? 0.6 : 0.25 / Math.max(1, strides - 1);
                 }
@@ -1061,7 +1098,7 @@ function expandMultiStrikes(env) {
             const places = [{ pos: node.pos, first: null }];
             if (ability.strides && !ranged && mobile && !ctx.wavering) {
                 for (const target of ctx.enemies) {
-                    if (target.status !== "active" || inMelee(node.pos, target) || stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
+                    if (target.status !== "active" || inMelee(node.pos, target) || ctx.strides(node.pos, target) > ability.strides) continue;
                     places.push({ pos: target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id }, first: target });
                 }
             }
@@ -1095,7 +1132,7 @@ function expandMultiStrikes(env) {
             // (B108, Chase Prey: a Stride to it first, when it's that close.)
             let pos = node.pos;
             if (ability.strides && !inMelee(node.pos, target)) {
-                if (!mobile || ctx.wavering || stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
+                if (!mobile || ctx.wavering || ctx.strides(node.pos, target) > ability.strides) continue;
                 pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
             }
             if (order.some((index) => c.strikes[index].melee && !inMelee(pos, target))) continue;
@@ -1167,7 +1204,7 @@ function expandMultiStrikes(env) {
         const candidates = named >= 0 ? [named] : (c.strikes ?? []).map((strike, index) => index).filter((index) => c.strikes[index].melee);
         for (const target of ctx.enemies) {
             if (target.status !== "active" || inMelee(node.pos, target)) continue;
-            if (stridesToEngage(ctx.mover(node.pos), target) > ability.strides) continue;
+            if (ctx.strides(node.pos, target) > ability.strides) continue;
             const pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
             let best = null;
             for (const index of candidates) {
@@ -1255,7 +1292,7 @@ function expandStrikeActivities(env) {
             if (activity.strides) {
                 // (A follow-up's, "Strides up to 10 feet and Strikes", B68: also at a creature already in reach.)
                 const here = inMelee(node.pos, target);
-                if ((here && !activity.after) || (!here && stridesToEngage(ctx.mover(node.pos), target) > activity.strides)) continue;
+                if ((here && !activity.after) || (!here && ctx.strides(node.pos, target) > activity.strides)) continue;
                 if (!here) pos = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
             }
             let best = null;
@@ -1586,13 +1623,23 @@ function expandTactics(env) {
     if (!ctx.wavering && mobile) {
         for (const target of ctx.enemies) {
             if (inMelee(node.pos, target)) continue;
-            const strides = stridesToEngage(ctx.mover(node.pos), target);
+            const strides = ctx.strides(node.pos, target);
             // Too far on the map to engage with one Stride: a Stride toward it.
             if (strides > 1 && ctx.rootPlace && stridesToEngage({ ...ctx.mover(node.pos), areaFeet: undefined }, target) <= 1) {
                 const moved = approachPlace(ctx.placeOf(node.pos), { area: target.areaFeet, exit: target.exitFeet }, Math.max(5, c.speed ?? 25));
                 const next = child(node, { type: "stride", move: { kind: "approach", targetId: target.id } }, 1, 0, { pos: { ...ctx.away(node, node.pos.band === "engaged" ? "near" : node.pos.band), place: moved }, atItem: false });
                 if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "approach");
                 children.push(next);
+            }
+            // (On the grid, too far for one Stride: a Stride toward it, to where its way takes it.)
+            const from = strides > 1 && Number.isFinite(strides) ? ctx.gridAt(node.pos) : null;
+            if (from) {
+                const moved = planStride(state, { ...c, square: from.square }, { kind: "approach", targetId: target.id });
+                if (moved?.end && moved.end !== from.square.join(",")) {
+                    const next = child(node, { type: "stride", move: { kind: "approach", targetId: target.id } }, 1, 0, { pos: { ...ctx.away(node, node.pos.band === "engaged" ? "near" : node.pos.band), at: { square: squareOf(moved.end), size: c.size, reach: c.reach } }, atItem: false });
+                    if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "approach");
+                    children.push(next);
+                }
             }
             // Speed Surge (B72): two Strides for one action, three times a fight.
             if (strides === 2 && c.speedSurge && (c.surgesUsed ?? 0) < c.speedSurge.uses && (c.surgeUntil ?? -Infinity) <= state.round && !node.casts.includes("surge")) {
@@ -1657,7 +1704,7 @@ function expandOtherActions(env) {
         for (const target of ctx.enemies) {
             if (target.status !== "active" || !c.wrongedBy?.has(target.id)) continue;
             const here = inMelee(node.pos, target);
-            if (!here && (!mobile || ctx.wavering || stridesToEngage(ctx.mover(node.pos), target) > 1)) continue;
+            if (!here && (!mobile || ctx.wavering || ctx.strides(node.pos, target) > 1)) continue;
             const pos = here ? node.pos : target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
             let gain = 0;
             for (const foe of ctx.enemies) {
@@ -1840,7 +1887,7 @@ function expandOtherActions(env) {
 // The scored one-step options for the creature right now (for tests and tuning).
 export function scoreOptions(state, c) {
     const ctx = new PlanContext(state, c);
-    const root = { value: 0, pos: { band: c.band, melee: c.meleeId, newWith: null }, shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, gong: c.gongFeet ?? 0, alarmRaised: false, left: false, atItem: ctx.map?.kind === "retrieve" && !!state.objective.item.dropped && atItem(state, c), first: null };
+    const root = { value: 0, pos: rootPos(c), shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, gong: c.gongFeet ?? 0, alarmRaised: false, left: false, atItem: ctx.map?.kind === "retrieve" && !!state.objective.item.dropped && atItem(state, c), first: null };
     const rootTerminal = ctx.terminal(root);
     return {
         stay: rootTerminal,
@@ -1856,7 +1903,7 @@ export function bestCastNow(state, c, spellIndices) {
     c.actionsLeft = 3;
     try {
         const ctx = new PlanContext(state, c);
-        const root = { value: 0, pos: { band: c.band, melee: c.meleeId, newWith: null }, shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, gong: c.gongFeet ?? 0, alarmRaised: false, left: false, atItem: false, first: null };
+        const root = { value: 0, pos: rootPos(c), shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, gong: c.gongFeet ?? 0, alarmRaised: false, left: false, atItem: false, first: null };
         const best = expand(ctx, root, 3).filter((node) => node.first?.type === "cast" && wanted.has(node.first.spellIndex) && !node.first.quickened && node.value > 0).sort((a, b) => b.value - a.value)[0];
         return best ? { spellIndex: best.first.spellIndex, targetIds: best.first.targetIds, actions: best.first.actions } : null;
     } finally {
@@ -1869,7 +1916,7 @@ export function chooseAction(state, c) {
     const ctx = new PlanContext(state, c);
     const root = {
         value: 0,
-        pos: { band: c.band, melee: c.meleeId, newWith: null },
+        pos: rootPos(c),
         shield: !!c.shield?.raised,
         prone: !!c.cond.prone,
         attacks: c.attacksThisTurn,

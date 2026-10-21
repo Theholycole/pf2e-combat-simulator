@@ -8,6 +8,8 @@ import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
 import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, spendAmmo, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, resistancesOf, rollStrikeDamage, strikeContext } from "./damage.js";
 import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
+import { gridFlanked, moveTo as moveOnGrid, planStep, planStride, regroup } from "./grid-fight.js";
+import { reaches as gridReaches, sightLine, squareOf } from "./grid.js";
 import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
@@ -30,8 +32,12 @@ import { championTriggered, demoralize, exaltedStrikes, heroesDefiance, lastStan
 import { luminanceStrikesBack } from "./luminance.js";
 import { canSpendHero, spendHeroPoint } from "./heroes.js";
 
-export function coverFor(state, defender) {
-    return state.setup.cover?.[defender.side] ?? 0;
+// (On the grid, against an attacker: what stands between them — a creature, lesser cover; a wall's corner, standard — or the run's cover
+// for the side, the more.)
+export function coverFor(state, defender, attacker = null) {
+    const set = state.setup.cover?.[defender.side] ?? 0;
+    if (!state.grid || !attacker?.square || !defender.square) return set;
+    return Math.max(set, sightLine(state.grid, attacker, defender, state.list.filter((other) => isActive(other) && other.square)).cover);
 }
 
 export function nonlethalAgainst(state, attacker, target) {
@@ -104,7 +110,7 @@ export function targetAC(state, attacker, target, strike, flanked) {
     const borne = !isOffGuard(target) && state.list.some((other) => other.attachedTo === target.id && other.attach?.both && isActive(other));
     // (2026-10-15: an effect's conditional AC — against ranged attacks, auditory ones, an unholy creature's.)
     const options = hasConditional(target) ? strikeRollOptions(attacker, strike, target, strikeContext(attacker, strike)) : null;
-    return armorClass(target, { ranged: !strike.melee, coverBonus: coverFor(state, target), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached;
+    return armorClass(target, { ranged: !strike.melee, coverBonus: strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached;
 }
 
 // Cache of expected hit damage per Strike object (shared by every run of a
@@ -297,9 +303,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (B302: not All-Around Vision; not Deny Advantage against a flanker of its level or lower.)
     if (strike.melee && flankableBy(target, attacker)) {
         const flankers = flankersAgainst(state, target, attacker);
+        // (On the grid: flanked where an ally across from it can act — grid-fight.js.)
+        const geometric = gridFlanked(state, attacker, target, canAct);
         // (T1, Gang Up: within reach of it and an ally is enough.)
-        const chance = attacker.flanking?.gangUp && flankers >= 2 ? 1 : flankChance(state, flankers);
-        if (chance > 0) flanked = state.rng.chance(chance);
+        if (geometric !== null) flanked = geometric || Boolean(attacker.flanking?.gangUp && flankers >= 2);
+        else {
+            const chance = attacker.flanking?.gangUp && flankers >= 2 ? 1 : flankChance(state, flankers);
+            if (chance > 0) flanked = state.rng.chance(chance);
+        }
     }
     // (B302: off-guard to it by its own passive — Surprise Attack's first round, Dread Striker's frightened target.)
     const surprised = offGuardFrom(state, attacker, target, { melee: strike.melee });
@@ -1597,11 +1608,12 @@ function disruptedBy(state, reaction, result, mover) {
     return roll.degree < SUCCESS;
 }
 
-export function provoke(state, mover, kind) {
+export function provoke(state, mover, kind, among = null) {
     let disrupted = false;
     const own = OWN_KINDS.has(kind);
     // (A concentrate action provokes only the reactions that say so, B51: no Reactive Strike.)
-    for (const enemy of engagedEnemies(state, mover)) {
+    // (among: on the grid, the foes whose reach a move leaves — grid-fight.js.)
+    for (const enemy of among ?? engagedEnemies(state, mover)) {
         if (!canAct(mover)) break;
         // (B302–B303: a reaction kept for Reactive Strikes, or another it has, counts — spent on its own reaction first.)
         if (!canReact(enemy, "*") || enemy.cond.fleeing) continue;
@@ -1670,6 +1682,7 @@ function endMoveEffects(state, c) {
 
 export function stride(state, c, move) {
     if (!canMove(c)) return;
+    if (state.grid && c.square && GRID_MOVES.has(move.kind)) return gridStride(state, c, move);
     endMoveEffects(state, c);
     // Grapple: "unless you move".
     releaseGrabs(state, c);
@@ -1692,6 +1705,48 @@ export function stride(state, c, move) {
         return;
     }
     strideTo(state, c, move);
+}
+
+// A Stride on the square grid (2026-10-21, grid-fight.js): its way, as far as its Speed takes it — toward a creature until it reaches it,
+// out of the foes' reach, or as far off as it gets. Each foe whose reach it leaves on the way (where it stands, and each square it passes)
+// gets its reactions as it leaves that square, once; a hit that disrupts the move, or one that drops it, stops it there.
+const GRID_MOVES = new Set(["engage", "approach", "toNear", "toFar"]);
+function gridStride(state, c, move) {
+    const plan = planStride(state, c, move);
+    const start = c.square.join(",");
+    if (!plan?.end || plan.end === start) {
+        log(state, `  ${c.name} finds no way to move`);
+        return;
+    }
+    endMoveEffects(state, c);
+    releaseGrabs(state, c);
+    const left = engagedEnemies(state, c);
+    const safe = move.safe || mobileStride(c, move);
+    const provoked = new Set();
+    for (const square of plan.way.slice(0, -1)) {
+        if (safe) break;
+        c.square = squareOf(square);
+        const threats = state.list.filter((enemy) => enemy.side !== c.side && isActive(enemy) && enemy.square && !provoked.has(enemy) && gridReaches(enemy, c));
+        if (!threats.length) continue;
+        regroup(state);
+        for (const enemy of threats) provoked.add(enemy);
+        const disrupted = provoke(state, c, "move", threats);
+        if (!canAct(c) || !isActive(c) || disrupted) {
+            if (disrupted && isActive(c)) log(state, `  ${c.name}'s move is disrupted`);
+            regroup(state);
+            return;
+        }
+    }
+    const target = move.targetId ? state.byId.get(move.targetId) : null;
+    moveOnGrid(state, c, plan.end);
+    const feet = (plan.way.length - 1) * 5;
+    log(state, `  ${c.name} Strides${target ? ` toward ${target.name}` : move.kind === "toFar" ? " away" : " off"} (${plan.end}${target && sameMelee(c, target) ? ", in reach" : ""}, about ${feet} feet)`);
+    if (target && sameMelee(c, target)) {
+        approachAnswers(state, c);
+        for (const enemy of engagedEnemies(state, c)) if (isActive(c) && canAct(c)) withdrawAnswer(state, enemy, c, { approach: true });
+    }
+    const behind = left.filter((enemy) => !sameMelee(enemy, c));
+    if (behind.length && !safe) followAnswers(state, c, behind);
 }
 
 // No Escape, Reactive Pursuit (B117): a creature that moved away from monsters with one, followed — each Strides after it and stays in its
@@ -1787,7 +1842,9 @@ export function step(state, c) {
     endMoveEffects(state, c);
     releaseGrabs(state, c);
     const left = engagedEnemies(state, c);
-    leaveMelee(state, c, "near");
+    // (On the grid: to a square 5 feet off out of every foe's reach.)
+    if (state.grid && c.square) moveOnGrid(state, c, planStep(state, c)?.end);
+    else leaveMelee(state, c, "near");
     log(state, `  ${c.name} Steps away`);
     followAnswers(state, c, left);
     return true;

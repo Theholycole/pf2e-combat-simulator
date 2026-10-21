@@ -3,15 +3,25 @@
 // A Melee is a set of creatures from both sides who can all reach each other.
 // Joining one takes a Stride; leaving one takes a Step or a Stride.
 
+//   On the grid (2026-10-21, grid-fight.js): creatures keep squares, and those who reach one another are in each other's Melee — the
+// Melees and bands follow from the squares after every move.
+
 import { isActive } from "./combatant.js";
+import { distanceFeet, reaches } from "./grid.js";
+import { placeBeside, planStep, regroup } from "./grid-fight.js";
 
 export const DISTANCE_FEET = Object.freeze({ engaged: 5, near: 30, far: 60 });
 
+// (On the grid: one reaches the other.)
 export function sameMelee(a, b) {
+    if (a?.square && b?.square) return a !== b && (reaches(a, b) || reaches(b, a));
     return a.meleeId !== null && a.meleeId === b.meleeId;
 }
 
+const gridNeighbours = (state, c, enemies) => state.list.filter((other) => other !== c && (enemies ? other.side !== c.side : other.side === c.side) && isActive(other) && other.square && sameMelee(c, other));
+
 export function engagedEnemies(state, c) {
+    if (state.grid && c.square) return gridNeighbours(state, c, true);
     if (c.meleeId === null) return [];
     const members = state.melees.get(c.meleeId);
     if (!members) return [];
@@ -24,6 +34,7 @@ export function engagedEnemies(state, c) {
 }
 
 export function engagedAllies(state, c) {
+    if (state.grid && c.square) return gridNeighbours(state, c, false);
     if (c.meleeId === null) return [];
     const members = state.melees.get(c.meleeId);
     if (!members) return [];
@@ -53,6 +64,12 @@ function dissolveIfOneSided(state, meleeId) {
 }
 
 export function leaveMelee(state, c, band = "near") {
+    // (On the grid its square says where it is: only leaving the field changes that; its Melee follows its square.)
+    if (state.grid && c.square) {
+        c.band = band === "gone" ? "gone" : c.band === "gone" ? "near" : c.band;
+        regroup(state);
+        return;
+    }
     if (c.meleeId !== null) {
         const meleeId = c.meleeId;
         state.melees.get(meleeId)?.delete(c.id);
@@ -65,6 +82,11 @@ export function leaveMelee(state, c, band = "near") {
 }
 
 export function engage(state, c, target) {
+    // (On the grid: at once beside it — a teleport, an arrival into its Melee; a Stride takes its way, grid-fight.js.)
+    if (state.grid && c.square && target.square) {
+        if (!sameMelee(c, target)) placeBeside(state, c, target);
+        return;
+    }
     if (c.meleeId !== null && c.meleeId === target.meleeId) return;
     if (c.meleeId !== null) leaveMelee(state, c, "near");
     let meleeId = target.meleeId;
@@ -93,6 +115,7 @@ export function mapGap(a, b) {
 
 // Distance in feet between two creatures for range increments.
 export function distanceBetween(a, b) {
+    if (a?.square && b?.square) return distanceFeet(a, b);
     if (sameMelee(a, b)) return DISTANCE_FEET.engaged;
     const band = a.band === "far" || b.band === "far" ? DISTANCE_FEET.far : DISTANCE_FEET.near;
     return Math.max(band, mapGap(a, b));
@@ -126,8 +149,9 @@ export function flankChance(state, count) {
     return table[Math.min(count, table.length - 1)];
 }
 
-// Steps leave a Melee only if no engaged enemy has reach over 5 feet.
+// Steps leave a Melee only if no engaged enemy has reach over 5 feet. (On the grid: a square 5 feet off out of every foe's reach.)
 export function canStepOut(state, c) {
+    if (state.grid && c.square) return engagedEnemies(state, c).length > 0 && planStep(state, c) !== null;
     if (c.meleeId === null) return false;
     return engagedEnemies(state, c).every((enemy) => (enemy.reach ?? 5) <= 5);
 }

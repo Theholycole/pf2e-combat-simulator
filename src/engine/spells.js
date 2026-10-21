@@ -36,6 +36,8 @@ import { lastingRounds } from "./lasting.js";
 import { takeControl } from "./control.js";
 import { noteKnown } from "./readings.js";
 import { hexFamiliar } from "./familiars.js";
+import { forcedMove, gridAreaSets } from "./grid-fight.js";
+import { sightLine } from "./grid.js";
 import { canSpendHero, saveWorthReroll, spendHeroPoint, takesOut } from "./heroes.js";
 import { RUNE_LOANS } from "./runes.js";
 import { ownAttackModifier } from "./consumables.js";
@@ -1541,7 +1543,7 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
         if (isActive(target) && applyCondition(state, target, slug, value ?? null, duration ?? null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
     }
     const push = critical && rider.criticalPush ? rider.criticalPush : rider.push;
-    if (push && isActive(target)) applyMove(state, target, { kind: "push", distance: push });
+    if (push && isActive(target)) applyMove(state, target, { kind: "push", distance: push }, attacker);
     // (B258, Resonating Kick: more damage against a creature with a trait it names.)
     const againstTrait = (rider.vsTraits ?? []).filter((entry) => entry.traits.some((trait) => (target.traits ?? []).includes(trait))).flatMap((entry) => entry.damage);
     for (const formula of [...(rider.damage ?? []).map((entry) => hydraScaled(attacker, entry)).filter(Boolean), ...(prone ? rider.proneDamage ?? [] : []), ...againstTrait]) {
@@ -1614,8 +1616,14 @@ export function strikeRiderValue(state, attacker, target, activity, strike = nul
     return { damage, worth };
 }
 
-export function applyMove(state, target, change) {
+export function applyMove(state, target, change, source = null) {
     if (!isActive(target)) return;
+    // (On the grid: pushed straight away from its source, or pulled toward it, as far as the squares let it go.)
+    if (state.grid && target.square && source?.square && source !== target && (change.kind === "push" || change.kind === "pull")) {
+        const moved = forcedMove(state, target, source, change.kind === "push" ? 1 : -1, Number(change.distance) || 5);
+        if (moved) log(state, `  ${target.name} is ${change.kind === "push" ? "pushed" : "pulled"} ${moved} feet`);
+        return;
+    }
     if (change.kind === "push" && change.distance >= 5 && target.meleeId !== null) {
         leaveMelee(state, target, "near");
         log(state, `  ${target.name} is pushed out of the melee`);
@@ -1719,7 +1727,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 }
                 break;
             case "move":
-                applyMove(state, target, change);
+                applyMove(state, target, change, caster);
                 break;
             case "heal": {
                 // (Any excess as temporary Hit Points, B63: Drink Blood's.)
@@ -3259,7 +3267,9 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     const notImmune = (other) => !immune?.has(other.id);
     if (immune?.size) enemies = enemies.filter(notImmune);
     // (B133: a move first, Tackle's — a creature within that many Strides too.)
-    const reaches = (other) => other === caster || (info.touch ? inMelee(other) || (info.approach > 0 && canMove(caster) && distance(other) <= (info.approachFeet ?? (caster.speed ?? 25) * info.approach * (info.approachHalf ? 0.5 : 1))) : info.range === null || distance(other) <= info.range);
+    const inRangeOf = (other) => other === caster || (info.touch ? inMelee(other) || (info.approach > 0 && canMove(caster) && distance(other) <= (info.approachFeet ?? (caster.speed ?? 25) * info.approach * (info.approachHalf ? 0.5 : 1))) : info.range === null || distance(other) <= info.range);
+    // (On the grid: and in its line of effect — no wall between.)
+    const reaches = (other) => inRangeOf(other) && (other === caster || !state.grid || !caster.square || !other.square || sightLine(state.grid, caster, other).effect);
     // (U1: an item drunk — by the creature, or fed to an ally beside it; a healing one to a downed PC too, as First Aid reaches one.)
     if (spell.drinker && !info.area) {
         const friends = [caster, ...allies].filter((ally) => ally === caster || (ally.status === ACTIVE && inMelee(ally)) || (info.healing && ally.status === DOWN && ally.kind === "pc"));
@@ -3300,6 +3310,8 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     // (Not those the spell can't affect — Wails of the Damned's "each living enemy": not the caster's allies, nor undead — so they don't
     // take the area's room or show among its targets.)
     const affected = (other) => !outsideTargets(caster, other, spell);
+    // (On the grid, 2026-10-21: whoever its template catches where it can go — grid-fight.js.)
+    if (state.grid && caster.square) return gridAreaSets(state, caster, info.area, info.range, { affected: (other) => affected(other) && notImmune(other), healing: Boolean(info.healing), helpful: Boolean(info.helpful), foesOnly: Boolean(info.area.foes) });
     const members = (id) => [...(state.melees.get(id) ?? [])].map((memberId) => state.byId.get(memberId)).filter((other) => other && isActive(other) && notImmune(other) && affected(other));
     if (info.area.type === "emanation" && info.range === null) {
         // Around the caster: whoever shares its Melee. From 30 feet, also those

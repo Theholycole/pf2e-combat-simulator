@@ -55,7 +55,7 @@ export function critRiderAnswer(state, attacker, target, { applyCondition, apply
     if (!rider || !isActive(target)) return;
     log(state, `  ${attacker.name}'s critical hit: its ${rider.name ?? "rider"}`);
     for (const { slug, value } of rider.conditions ?? []) if (applyCondition(state, target, slug, value ?? null, null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
-    if (rider.push && isActive(target)) applyMove(state, target, { kind: "push", distance: rider.push });
+    if (rider.push && isActive(target)) applyMove(state, target, { kind: "push", distance: rider.push }, attacker);
 }
 
 // --- T2: Inexorable ------------------------------------------------------------------
@@ -259,8 +259,8 @@ export function critSpecEffect(state, attacker, target, strike, total, { applyCo
         case "mental": return save("will") && condition("stupefied", 1, SOURCE_TURN_START);
         case "poison": return save("fortitude") && condition("sickened", 1, SOURCE_TURN_START);
         case "laser": return save("fortitude") && condition("dazzled", null, SOURCE_TURN_START);
-        case "club": return applyMove(state, target, { kind: "push", distance: 10 });
-        case "polearm": case "shield": return applyMove(state, target, { kind: "push", distance: 5 });
+        case "club": return applyMove(state, target, { kind: "push", distance: 10 }, attacker);
+        case "polearm": case "shield": return applyMove(state, target, { kind: "push", distance: 5 }, attacker);
         case "axe": {
             const other = state.list.find((entry) => entry !== target && entry.side === target.side && isActive(entry) && entry.meleeId !== null && entry.meleeId === target.meleeId && (entry.ac ?? 99) < total);
             if (!other) return;
