@@ -4,8 +4,9 @@ import fs from "node:fs";
 const { readDocuments, PACK_ROOT, combatant, summonCandidates } = await import("./pack-creatures.mjs");
 const { compileSpell, effectModels } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
-const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, textDamageShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
+const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, readingPower, textDamageShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
+const { powerReading } = await import("../../src/engine/power-readings.js");
 const { SUMMON_LEVELS, spellSummonEntry } = await import("../../src/engine/summons.js");
 const { canCast, isUtility, spellGaps } = await import("../../src/engine/spells.js");
 
@@ -256,6 +257,18 @@ export function runPowerTask(task) {
     const own = OWN_CREATURE.test(String(doc.system?.target?.value ?? ""));
     const minion = own ? minionFor(doc, rank, level) : null;
     if (own && !minion) return { ...head, skipped: true, reason: "a familiar's" };
+    // (One the engine can't cast in a fight, that the rating reads itself: power-readings.js.)
+    if (!canCast({ spellPools: { [RATED_POOL]: 1 } }, entry) && powerReading(plan)) {
+        const traits = powerConditions(plan);
+        const results = {};
+        for (const encounter of POWER_KINDS) {
+            for (const trait of [null, ...traits]) {
+                const found = readingPower(party, powerFoes(encounter, level, trait), entry);
+                if (found) results[`${encounter}|${trait ?? ""}`] = { share: Math.round(found.share * 1e4) / 1e4, levels: Math.round(found.levels * 1e4) / 1e4, ...(found.bound ? { bound: found.bound } : {}), actions: found.actions, targets: found.targets };
+            }
+        }
+        return { ...head, traits, results, estimate: `reading (${plan.resolution.kind})` };
+    }
     if (isUtility(plan) || !canCast({ spellPools: { [RATED_POOL]: 1 } }, entry)) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
     const traits = powerConditions(plan);
     const results = {};

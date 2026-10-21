@@ -24,6 +24,7 @@ import { expectedHitDamage } from "./actions.js";
 import { adjustDamage, spellContext } from "./damage.js";
 import { computeThreats, potentialDamage, spellDamages } from "./planner.js";
 import { describeSpell, spellExpectation, spellVariants, targetSets } from "./spells.js";
+import { powerReading } from "./power-readings.js";
 
 export const POWER_KINDS = Object.freeze(["boss", "group"]);
 // The wizard's slot for the rated spell.
@@ -180,6 +181,30 @@ export function castRepeats(plan, rounds = POWER_ROUNDS) {
     return Math.max(again, more);
 }
 
+// A cast's expectation ([{ target, damage, worth, heal, benefit }], spellExpectation's) as a share of the fight for side: damage over the
+// foes' Hit Points; conditions on a foe, and spell effects on an ally, in rounds of its threat over the fight's rounds, by its share of its
+// side (of allies: one of them); healing, and damage on its own side, over the foes' harm. Over its duration (again, castRepeats'): its
+// damage and healing each time it comes, up to what the creature has, or lacks; conditions and spell effects half as much again each time,
+// as some are on still. { share, alliesHit }.
+export function entriesShare(entries, { side, foeHp, harm, allies, again = 0 }) {
+    let share = 0;
+    let alliesHit = 0;
+    for (const { target, damage = 0, worth = 0, heal = 0, benefit = 0 } of entries) {
+        const foe = target.side !== side;
+        if (!foe && damage > 0) alliesHit++;
+        const part = foe ? target.hp.max / foeHp : 1 / Math.max(1, allies);
+        const sign = foe ? 1 : -1;
+        const lasting = 1 + again / 2;
+        const dealt = Math.min(Math.max(0, damage) * (1 + again), Math.max(0, target.hp.value));
+        const healed = Math.min(Math.max(0, heal) * (1 + again), Math.max(0, target.hp.max - Math.max(0, target.hp.value)));
+        share += foe ? dealt / foeHp : -dealt / harm;
+        share += sign * Math.min(POWER_ROUNDS, worth * lasting) * part / POWER_ROUNDS;
+        share -= sign * benefit * lasting * part / POWER_ROUNDS;
+        share += foe ? -healed / foeHp : healed / harm;
+    }
+    return { share, alliesHit };
+}
+
 // One cast of entry (the rated spell) by the party's wizard into foes: { share, levels, bound, actions, targets, alliesHit? } at its best
 // (below zero when its area can't help catching allies, and hurts them more than the foes), or null when it can do nothing there. The party starts at half its Hit Points; everyone stands in the near band, a touch spell's target within reach.
 // minion: a creature of the wizard's already out, as hurt as the party (a spell on one's minion, companion or eidolon — the user: "minion
@@ -215,23 +240,7 @@ export function castPower(party, foes, entry, { minion = null, lost = false } = 
             } catch {
                 entries = [];
             }
-            let share = 0;
-            let alliesHit = 0;
-            for (const { target, damage = 0, worth = 0, heal = 0, benefit = 0 } of entries) {
-                const foe = target.side !== caster.side;
-                if (!foe && damage > 0) alliesHit++;
-                const part = foe ? target.hp.max / foeHp : 1 / Math.max(1, allies.length);
-                const sign = foe ? 1 : -1;
-                // (Over its duration: its damage and healing each time it comes, up to what the creature has, or lacks; conditions and spell
-                // effects half as much again each time, as some are on still. Hit Points on the party's side count against the foes' harm.)
-                const lasting = 1 + again / 2;
-                const dealt = Math.min(Math.max(0, damage) * (1 + again), Math.max(0, target.hp.value));
-                const healed = Math.min(Math.max(0, heal) * (1 + again), Math.max(0, target.hp.max - Math.max(0, target.hp.value)));
-                share += foe ? dealt / foeHp : -dealt / harm;
-                share += sign * Math.min(POWER_ROUNDS, worth * lasting) * part / POWER_ROUNDS;
-                share -= sign * benefit * lasting * part / POWER_ROUNDS;
-                share += foe ? -healed / foeHp : healed / harm;
-            }
+            const { share, alliesHit } = entriesShare(entries, { side: caster.side, foeHp, harm, allies: allies.length, again });
             if (!best || share > best.share) best = { share, actions: actions ?? describeSpell(spell.plan).actions ?? null, targets: set.targets.length, ...(alliesHit ? { alliesHit } : {}) };
         }
     }
@@ -240,6 +249,32 @@ export function castPower(party, foes, entry, { minion = null, lost = false } = 
     // it as the foes' would be: below zero.)
     if (!best || !best.share || !(best.share > 0 || best.alliesHit)) return null;
     return { ...best, ...shareToLevels(best.share) };
+}
+
+// One cast of a spell the engine can't cast in a fight, as its reading has it (power-readings.js, 2026-10-21): the same fights and the same
+// share as castPower's. { share, levels, bound, actions, targets }, or null when the reading finds nothing it does.
+export function readingPower(party, foes, entry) {
+    const read = powerReading(entry.plan);
+    if (!read) return null;
+    const combatants = [...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
+    const state = createFightState({ combatants }, { morale: false, retreat: false }, 1);
+    const caster = state.byId.get("wizard");
+    if (!caster) return null;
+    const enemies = state.list.filter((c) => c.side !== caster.side && isActive(c));
+    const allies = state.list.filter((c) => c.side === caster.side && isActive(c));
+    const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
+    if (!(foeHp > 0)) return null;
+    const actions = describeSpell(entry.plan).actions ?? null;
+    const found = read({ state, caster, enemies, allies, entry, rank: Number(entry.castRank) || 1, rounds: fightRounds(state, caster.side), actions });
+    const harm = foeHarm(state, caster.side);
+    let best = null;
+    for (const option of found?.options ?? (found ? [found] : [])) {
+        if (!option?.entries?.length) continue;
+        const { share, alliesHit } = entriesShare(option.entries, { side: caster.side, foeHp, harm, allies: allies.length });
+        if (!best || share > best.share) best = { share, alliesHit, actions: option.actions ?? found.actions ?? actions, targets: option.targets ?? option.entries.length };
+    }
+    if (!best || !best.share || !(best.share > 0 || best.alliesHit)) return null;
+    return { share: best.share, ...shareToLevels(best.share), actions: best.actions, targets: best.targets };
 }
 
 // --- Summons (2026-10-21, the user: "get the simulator to run summons picking the best possible summoned creature") -------------------

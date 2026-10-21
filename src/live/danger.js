@@ -132,6 +132,14 @@ const ESTIMATES = {
     "wall (damaging)": "a wall in the way of most foes, its damage as they cross it",
     "wall (screen)": "a wall in the way of most foes, hiding the party from them"
 };
+// What a reading (src/engine/power-readings.js: a spell fights don't cast yet, read for the rating) counts, by its kind.
+const READINGS = {
+    "web-area": "foes held up on their way to the party (its checks, its difficult terrain)",
+    "tentacle-area": "foes grabbed and hurt on their way to the party",
+    "terrain-area": "its difficult terrain slowing foes on their way to the party",
+    "hazard-area": "its hazard hurting and slowing foes on their way to the party",
+    "concealing-area": "the party concealed as the foes come, or its damage on them"
+};
 
 const ordinal = (n) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
 const levels = (value) => `${Math.abs(Math.round(value * 10) / 10).toFixed(1)} level${Math.abs(Math.round(value * 10) / 10) === 1 ? "" : "s"}`;
@@ -160,7 +168,8 @@ export function powerTooltip(value, data, bound = null, detail = null) {
     const less = Object.entries(detail?.vs ?? {}).filter(([trait, power]) => Number.isFinite(power) && !more.some(([other]) => other === trait)).map(([trait, power]) => ` Against ${FOES[trait] ?? trait}: ${dangerLabel(power)}.`).join("");
     const minion = detail?.minion ? " Cast on a minion of the caster's already out." : "";
     const allies = detail?.alliesHit ? " Its area catches allies near the caster: their Hit Points count against it." : "";
-    const estimate = detail?.estimate ? ` ~ Estimated by a rule of thumb, as the simulator doesn't play it: ${ESTIMATES[detail.estimate] ?? detail.estimate}.` : "";
+    const reading = /^reading \((.+)\)$/.exec(String(detail?.estimate ?? ""))?.[1];
+    const estimate = reading ? ` ~ Read for the rating, as fights don't cast it yet: ${READINGS[reading] ?? "its effect, as the simulator reads it"}.` : detail?.estimate ? ` ~ Estimated by a rule of thumb, as the simulator doesn't play it: ${ESTIMATES[detail.estimate] ?? detail.estimate}.` : "";
     const partial = detail?.partial ? " Partly simulated: the simulator doesn't play all of it." : "";
     return `Power for its rank: ${how} (Combat Simulator${run ? `, ${run}` : ""}).${fights}${note}${creature}${higher}${useful}${less}${minion}${allies}${estimate}${partial}`;
 }
