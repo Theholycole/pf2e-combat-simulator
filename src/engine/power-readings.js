@@ -227,6 +227,50 @@ const READERS = {
     }
 };
 
+// --- Castable as written another way --------------------------------------------------------------------------------------------------
+
+// A spell the engine can't cast only for how its time or targets are written, made castable for the rating (spell-power castPower casts
+// it): a reaction or a free action cast as an action (its effect is what's rated, not its timing), "1 or 2" actions as the more; its
+// targets — "the triggering creature" and the like ("the creature you hit", "your hunted prey") as 1 creature, an ally's words ("1 ally",
+// "the triggering ally", "up to 6 allies") as willing creatures, an area its data or its text gives ("@Template[burst|distance:10]"), no
+// target at all as 1 creature for a save, else the caster; a weapon's ("one club or staff you're wielding") as its wielder's. An effect
+// note's PF2e effect (effect-note) applied as the effect family applies one. Left alone (null): a spell cast in minutes or longer, and
+// targets that aren't creatures (an object, a stone, a spell). doc: the spell's data ({ system: { time, area, description } }).
+const TEMPLATE = /@Template\[(?:type:)?(burst|cone|line|emanation|cylinder|square)\|distance:(\d+)/i;
+export function castableReading(plan, doc) {
+    if (!plan?.resolution) return null;
+    const time = String(doc?.system?.time?.value ?? plan.activation?.time ?? "").trim().toLowerCase();
+    if (/minute|hour|day/.test(time)) return null;
+    const actions = /^(?:reaction|free)$/.test(time) ? "1" : /^([123]) or ([123])$/.exec(time)?.[2] ?? /^([123]) to \d+ rounds$/.exec(time)?.[1] ?? null;
+    const targeting = { ...(plan.targeting ?? {}) };
+    const target = String(targeting.target ?? "").trim().toLowerCase();
+    const text = String(doc?.system?.description?.value ?? "");
+    const template = TEMPLATE.exec(text);
+    const docArea = doc?.system?.area?.type ? { type: doc.system.area.type, value: Number(doc.system.area.value) || 5 } : template ? { type: template[1].toLowerCase(), value: Number(template[2]) } : null;
+    const written = /^(\d+)-foot (burst|emanation|cone|line)/.exec(target);
+    if (/\btrigger/.test(target)) targeting.target = /\ball(?:y|ies)\b/.test(target) ? "1 willing creature" : "1 creature";
+    else if (/\ball(?:y|ies)\b/.test(target)) targeting.target = /up to (\d+)/.test(target) ? `up to ${/up to (\d+)/.exec(target)[1]} willing creatures` : "1 willing creature";
+    else if (/^(?:the creature|your hunted prey|one creature|a creature)\b/.test(target)) targeting.target = "1 creature";
+    else if (written) {
+        targeting.target = null;
+        targeting.area = { type: written[2], value: Number(written[1]) };
+    } else if (/\b(?:weapon|club|staff)s?\b/.test(target) && plan.resolution.kind !== "save") targeting.target = "1 willing creature";
+    else if (!target && !targeting.area?.type) {
+        if (docArea) targeting.area = docArea;
+        else targeting.target = plan.resolution.kind === "save" ? "1 creature" : "self";
+    } else if (target && !/creature|enem|foe|target/.test(target)) return null;
+    let resolution = plan.resolution.kind === "effect-note" && plan.resolution.effectNote?.effect?.uuid
+        ? { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: plan.resolution.effectNote.effect.uuid, label: plan.resolution.effectNote.effect.label ?? null, recipients: plan.resolution.effectNote.recipient === "self" ? "self" : "target" }] }
+        : plan.resolution;
+    // (Its action counts' areas without their shape — Disorienting Flash's "10 feet" for two actions —: the shape its data gives.)
+    const byActions = resolution.native?.byActions;
+    const shape = targeting.area?.type ?? docArea?.type;
+    if (byActions && shape && Object.values(byActions).some((variant) => variant?.targeting?.area && !variant.targeting.area.type)) {
+        resolution = { ...resolution, native: { ...resolution.native, byActions: Object.fromEntries(Object.entries(byActions).map(([count, variant]) => [count, variant?.targeting?.area && !variant.targeting.area.type ? { ...variant, targeting: { ...variant.targeting, area: { type: shape, ...variant.targeting.area } } } : variant])) } };
+    }
+    return { ...plan, simulatorReading: "rating", targeting, resolution, ...(actions ? { activation: { ...(plan.activation ?? {}), time: actions } } : {}) };
+}
+
 // The reading for a plan the engine can't cast, or null.
 export function powerReading(plan) {
     return READERS[plan?.resolution?.kind] ?? null;

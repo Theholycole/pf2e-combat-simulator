@@ -248,7 +248,8 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
                 if (value !== null) model.tempHp = Math.max(model.tempHp, value);
                 break;
             case "FastHealing":
-                if (value !== null && (rule.type ?? "fast-healing") === "fast-healing") model.fastHealing = Math.max(model.fastHealing, value);
+                // (2026-10-21: regeneration as fast healing too — Regenerate's; what turns it off, acid or fire, isn't played.)
+                if (value !== null && ["fast-healing", "regeneration"].includes(rule.type ?? "fast-healing")) model.fastHealing = Math.max(model.fastHealing, value);
                 break;
             case "Resistance":
             case "Weakness":

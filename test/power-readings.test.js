@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ROUND_WEIGHT, approach, approachLoss, powerReading } from "../src/engine/power-readings.js";
+import { ROUND_WEIGHT, approach, approachLoss, castableReading, powerReading } from "../src/engine/power-readings.js";
 import { RATED_POOL, powerFoes, readingPower } from "../src/engine/spell-power.js";
 import { standardParty } from "../src/engine/party.js";
 
@@ -65,4 +65,20 @@ test("a hazard: damage for the squares crossed; a cloud over the party conceals 
     const mist = readingPower(standardParty(3), powerFoes("boss", 3), entry(2, plan("concealing-area", { concealingArea: { area: { type: "burst", value: 20 }, durationSeconds: 60 } }, { type: "burst", value: 20 })));
     assert.ok(mist && mist.share > 0 && mist.targets === 4);
     assert.equal(powerReading(plan("unknown-kind", {})), null);
+});
+
+test("castable as written another way: a reaction on its trigger as an action, an ally's words, an area from the data, an effect note's effect", () => {
+    const base = (target, kind = "save", extra = {}) => ({ modelVersion: 13, source: { name: "Test" }, rank: 1, traits: [], activation: { time: "reaction" }, targeting: { target, range: "30 feet", area: null }, trigger: { event: "use" }, resolution: { kind, ...extra } });
+    const doc = (time, extra = {}) => ({ system: { time: { value: time }, description: { value: "" }, ...extra } });
+    const trigger = castableReading(base("the triggering creature"), doc("reaction"));
+    assert.deepEqual([trigger.targeting.target, trigger.activation.time], ["1 creature", "1"]);
+    assert.equal(castableReading(base("the triggering ally"), doc("reaction")).targeting.target, "1 willing creature");
+    assert.equal(castableReading(base("you and up to 9 allies", "effect"), doc("2")).targeting.target, "up to 9 willing creatures");
+    assert.deepEqual(castableReading(base("", "save"), doc("2", { area: { type: "cone", value: 15 } })).targeting.area, { type: "cone", value: 15 });
+    assert.deepEqual(castableReading(base("", "save"), { system: { time: { value: "2" }, description: { value: "<p>@Template[burst|distance:10]</p>" } } }).targeting.area, { type: "burst", value: 10 });
+    assert.equal(castableReading(base("", "save"), doc("1 or 2")).activation.time, "2");
+    assert.equal(castableReading(base("1 creature"), doc("10 minutes")), null, "cast in minutes: not in a fight");
+    assert.equal(castableReading(base("1 magic item", "affliction-care"), doc("2")), null, "not a creature");
+    const note = castableReading(base("1 willing creature", "effect-note", { effectNote: { recipient: "target", effect: { uuid: "Compendium.pf2e.spell-effects.Item.x", label: "Spell Effect: X" } } }), doc("2"));
+    assert.deepEqual(note.resolution, { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: "Compendium.pf2e.spell-effects.Item.x", label: "Spell Effect: X", recipients: "target" }] });
 });

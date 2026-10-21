@@ -138,7 +138,9 @@ const READINGS = {
     "tentacle-area": "foes grabbed and hurt on their way to the party",
     "terrain-area": "its difficult terrain slowing foes on their way to the party",
     "hazard-area": "its hazard hurting and slowing foes on their way to the party",
-    "concealing-area": "the party concealed as the foes come, or its damage on them"
+    "concealing-area": "the party concealed as the foes come, or its damage on them",
+    targets: "cast on the creatures its words name (a reaction's on its trigger, an ally's on an ally), as an action",
+    "effect-note": "its PF2e spell effect on its target"
 };
 
 const ordinal = (n) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;

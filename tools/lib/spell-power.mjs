@@ -6,7 +6,7 @@ const { compileSpell, effectModels } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
 const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, readingPower, textDamageShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
-const { powerReading } = await import("../../src/engine/power-readings.js");
+const { castableReading, powerReading } = await import("../../src/engine/power-readings.js");
 const { SUMMON_LEVELS, spellSummonEntry } = await import("../../src/engine/summons.js");
 const { canCast, isUtility, spellGaps } = await import("../../src/engine/spells.js");
 
@@ -235,6 +235,18 @@ function estimateResults(plan, entry, doc, rank, party, level) {
     return { results, traits: [], estimate: shield ? "shield" : wall ? `wall (${wall})` : text ? "text damage" : "terrain" };
 }
 
+// Both encounters' results, and those against each trait's foes: rate(foes) → { share, levels, bound, actions, targets, alliesHit } or null.
+function resultsOf(traits, rate, level) {
+    const results = {};
+    for (const encounter of POWER_KINDS) {
+        for (const trait of [null, ...traits]) {
+            const found = rate(powerFoes(encounter, level, trait));
+            if (found) results[`${encounter}|${trait ?? ""}`] = { share: Math.round(found.share * 1e4) / 1e4, levels: Math.round(found.levels * 1e4) / 1e4, ...(found.bound ? { bound: found.bound } : {}), actions: found.actions, targets: found.targets, ...(found.alliesHit ? { alliesHit: found.alliesHit } : {}) };
+        }
+    }
+    return results;
+}
+
 // One task: { ref, rank } — the spell at that rank, cast once into both encounters (and those of each trait it does more against).
 export function runPowerTask(task) {
     const { ref, rank } = task;
@@ -257,27 +269,25 @@ export function runPowerTask(task) {
     const own = OWN_CREATURE.test(String(doc.system?.target?.value ?? ""));
     const minion = own ? minionFor(doc, rank, level) : null;
     if (own && !minion) return { ...head, skipped: true, reason: "a familiar's" };
+    // (One the engine can't cast in a fight only for how its time or targets are written: cast as the rating reads it.)
+    const castable = canCast({ spellPools: { [RATED_POOL]: 1 } }, entry);
+    const rewritten = !castable && !isUtility(plan) ? castableReading(plan, doc) : null;
+    if (rewritten && canCast({ spellPools: { [RATED_POOL]: 1 } }, { ...entry, plan: rewritten })) {
+        const read = { ...entry, plan: rewritten };
+        const traits = powerConditions(rewritten);
+        const gaps = spellGaps(read);
+        const results = resultsOf(traits, (foes) => castPower(party, foes, read, { minion }), level);
+        return { ...head, traits, results, estimate: `reading (${plan.resolution.kind === "effect-note" ? "effect-note" : "targets"})`, ...(gaps.length ? { partial: gaps } : {}) };
+    }
     // (One the engine can't cast in a fight, that the rating reads itself: power-readings.js.)
-    if (!canCast({ spellPools: { [RATED_POOL]: 1 } }, entry) && powerReading(plan)) {
+    if (!castable && powerReading(plan)) {
         const traits = powerConditions(plan);
-        const results = {};
-        for (const encounter of POWER_KINDS) {
-            for (const trait of [null, ...traits]) {
-                const found = readingPower(party, powerFoes(encounter, level, trait), entry);
-                if (found) results[`${encounter}|${trait ?? ""}`] = { share: Math.round(found.share * 1e4) / 1e4, levels: Math.round(found.levels * 1e4) / 1e4, ...(found.bound ? { bound: found.bound } : {}), actions: found.actions, targets: found.targets };
-            }
-        }
-        return { ...head, traits, results, estimate: `reading (${plan.resolution.kind})` };
+        return { ...head, traits, results: resultsOf(traits, (foes) => readingPower(party, foes, entry), level), estimate: `reading (${plan.resolution.kind})` };
     }
-    if (isUtility(plan) || !canCast({ spellPools: { [RATED_POOL]: 1 } }, entry)) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
+    if (isUtility(plan) || !castable) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
     const traits = powerConditions(plan);
-    const results = {};
-    for (const encounter of POWER_KINDS) {
-        for (const trait of [null, ...traits]) {
-            const found = castPower(party, powerFoes(encounter, level, trait), entry, { minion, lost: Boolean(minion) && /\bminion\b[^.]*\bexplode/i.test(textOf(doc)) });
-            if (found) results[`${encounter}|${trait ?? ""}`] = { share: Math.round(found.share * 1e4) / 1e4, levels: Math.round(found.levels * 1e4) / 1e4, ...(found.bound ? { bound: found.bound } : {}), actions: found.actions, targets: found.targets, ...(found.alliesHit ? { alliesHit: found.alliesHit } : {}) };
-        }
-    }
+    const lost = Boolean(minion) && /\bminion\b[^.]*\bexplode/i.test(textOf(doc));
+    const results = resultsOf(traits, (foes) => castPower(party, foes, entry, { minion, lost }), level);
     const gaps = spellGaps(entry);
     return { ...head, traits, results, ...(minion ? { minion: true } : {}), ...(gaps.length ? { partial: gaps } : {}) };
 }
