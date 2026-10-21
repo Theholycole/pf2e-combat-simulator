@@ -4,13 +4,13 @@ import fs from "node:fs";
 const { readDocuments, PACK_ROOT } = await import("./pack-creatures.mjs");
 const { compileSpell, effectModels } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
-const { dangerFights, dangerSummary } = await import("../../src/engine/danger-scale.js");
-const { RATED_POOL, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, wizardCasting } = await import("../../src/engine/spell-power.js");
+const { POWER_KINDS, RATED_POOL, castPower, partyLevelForRank, powerConditions, powerFoes, powerRanks, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { canCast, isUtility, spellGaps } = await import("../../src/engine/spells.js");
 
 const MODULES = `${process.env.HOME}/.local/share/FoundryVTT/Data/modules`;
 
 const isRitual = (doc) => Boolean(doc.system?.ritual) || (doc.system?.traits?.value ?? []).includes("ritual");
+const OWN_CREATURE = /\b(minion|companion|eidolon|familiar)\b|\byou summoned\b/i;
 
 // Every spell: { ref, source, collection, path, id, name, rank, cantrip, focus }.
 export function spellRefs() {
@@ -72,15 +72,8 @@ export function ranksOf(ref) {
     return doc ? powerRanks(doc) : [];
 }
 
-// One task: { kind: "ladder", level, kind2: "boss"|"group", offset, trait?, from, to } — the party with no spell of the wizard's own; or
-// { kind: "screen", ref, rank, from, to } — the spell at that rank, against both encounters (and those of each trait it does more against).
+// One task: { ref, rank } — the spell at that rank, cast once into both encounters (and those of each trait it does more against).
 export function runPowerTask(task) {
-    if (task.kind === "ladder") {
-        const foes = powerFoes(task.encounter, task.level, task.offset, task.trait ?? null);
-        if (!foes) return { ...task, skipped: true };
-        const { scores, ...summary } = dangerSummary(dangerFights(partyWithSpell(partyFor(task.level)), foes, task.from, task.to));
-        return { ...task, ...summary };
-    }
     const { ref, rank } = task;
     const doc = spellOf(ref);
     if (!doc) return { ...task, error: "not found" };
@@ -91,14 +84,15 @@ export function runPowerTask(task) {
     const casting = wizardCasting(party);
     const entry = { name: doc.name, plan, castRank: rank, dc: casting?.dc ?? 10 + level, attack: casting?.attack ?? level, pool: ref.cantrip ? null : RATED_POOL, tradition: "arcane", effects: effectModels(plan, rank) };
     const head = { kind: "screen", ref: { ref: ref.ref, collection: ref.collection, path: ref.path, id: ref.id, name: ref.name, cantrip: ref.cantrip, focus: ref.focus }, collection: ref.collection, id: ref.id, name: ref.name, rank, cantrip: ref.cantrip, level };
+    // (A spell on one's own minion, companion, eidolon or familiar — Final Sacrifice explodes one — has nothing to work on in the party.)
+    if (OWN_CREATURE.test(String(doc.system?.target?.value ?? ""))) return { ...head, skipped: true, reason: "needs a minion, companion, eidolon or familiar" };
     if (isUtility(plan) || !canCast({ spellPools: { [RATED_POOL]: 1 } }, entry)) return { ...head, skipped: true, reason: isUtility(plan) ? "utility" : "the simulator can't cast it" };
     const traits = powerConditions(plan);
     const results = {};
-    const armed = partyWithSpell(party, entry);
-    for (const encounter of ["boss", "group"]) {
+    for (const encounter of POWER_KINDS) {
         for (const trait of [null, ...traits]) {
-            const { scores, ...summary } = dangerSummary(dangerFights(armed, powerFoes(encounter, level, 0, trait), task.from, task.to));
-            results[`${encounter}|${trait ?? ""}`] = { n: summary.n, score: summary.score, damage: summary.damage, downs: summary.downs, rounds: summary.rounds };
+            const found = castPower(party, powerFoes(encounter, level, trait), entry);
+            if (found) results[`${encounter}|${trait ?? ""}`] = { share: Math.round(found.share * 1e4) / 1e4, levels: Math.round(found.levels * 1e4) / 1e4, ...(found.bound ? { bound: found.bound } : {}), actions: found.actions, targets: found.targets };
         }
     }
     const gaps = spellGaps(entry);

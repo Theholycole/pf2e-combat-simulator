@@ -1,25 +1,32 @@
 // A spell's power for its rank (2026-10-21, the user: "rate spells and give them a score just like creatures. be sure to include
 // different scores for heightened versions if significantly different as well as a conditional score for spells that sometimes do more such
 // as Sunburst doing more damage against undead"; their choices: in the party caster's hands, against a boss and a group, every installed
-// spell compendium). Pure.
-//   A spell at a rank: the standard party (src/engine/party.js) at the lowest level that casts that rank (2 × rank − 1), its wizard with
-//   its cantrips and that one spell — one cast (a cantrip at will, in place of its own) — and no other slot, fighting to the end two moderate encounters: a boss (one
-//   creature 2 levels above the party) and a group (four creatures 2 levels below). Each fight is counted as the creature numbers count a
-//   creature's (the foes' danger: damage share, downs, deaths, a wipe; src/engine/danger-scale.js).
-//   The ladder: the same encounters with the foes 6 levels easier to 2 harder, against the party with the wizard's cantrips alone. A
-//   spell's value in an encounter: how many levels easier it makes it — the foes' score with the spell, placed on that ladder. Its power:
-//   the average over the boss and the group, less the typical spell's of the same rank (the median; cantrips among cantrips).
-//   Against a trait (undead for Sunburst; the traits its extra damage, its vitality damage or its targets name): the same fights with foes
-//   of that trait, against the party's own fights with such foes.
+// spell compendium; then, the fights' numbers proving noisy and shaped by the AI's play, "Effect of one cast"). Pure.
+//   One cast: the wizard of the standard party (src/engine/party.js) at the lowest level that casts the rank (2 × rank − 1), with its spell
+//   DC and attack, casts the spell once into two moderate encounters standing in the near band — a boss (one creature 2 levels above the
+//   party) and a group (four creatures 2 levels below) — at its best: the target set and action count that do the most. What it does is the
+//   simulator's own expectation of it (spells.js spellExpectation: saves against its DC, resistances and immunities, heightened damage, extra
+//   damage by a target's traits, conditions and spell effects at the simulator's worth for them).
+//   Its share of the fight: damage as a share of the foes' Hit Points; conditions on a foe, and spell effects on an ally, in rounds of its
+//   threat over a three-round fight, by its share of its side; healing as Hit Points (the party starts at half, so healing has room), counted
+//   like damage; harm to its own side taken off; a lingering area half as much again, as the planner counts it. In levels: a fight that
+//   much smaller is that many levels easier, as encounter XP goes (0.7 a level).
+//   Its power: the average over the boss and the group, less the typical spell's of the same rank (the median; cantrips among cantrips).
+//   Against a trait (undead for Sunburst; the traits its extra damage, its vitality damage or its targets name): the same with foes of that
+//   trait.
 
 import { moderateCreatureAt } from "./creature-tables.js";
-import { offsetOn } from "./danger-scale.js";
+import { createFightState } from "./fight.js";
+import { isActive } from "./combatant.js";
+import { describeSpell, spellExpectation, spellVariants, targetSets } from "./spells.js";
 
-export const POWER_OFFSETS = Object.freeze([-6, -5, -4, -3, -2, -1, 0, 1, 2]);
 export const POWER_KINDS = Object.freeze(["boss", "group"]);
-export const POWER_RANKS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 // The wizard's slot for the rated spell.
 export const RATED_POOL = "wizard:rated";
+// The rounds a fight lasts, for what conditions and spell effects are worth; the share of a fight that's as good as all of it.
+export const POWER_ROUNDS = 3;
+const MOST = 0.95;
+const LEVEL_STEP = 0.7;
 
 // The party's level for a rank: the lowest that casts it.
 export const partyLevelForRank = (rank) => Math.max(1, Math.min(20, 2 * (Number(rank) || 1) - 1));
@@ -28,33 +35,26 @@ export const partyLevelForRank = (rank) => Math.max(1, Math.min(20, 2 * (Number(
 const TRAIT_PACKAGES = {
     undead: { traits: ["undead", "unholy"], immunities: ["death-effects", "disease", "paralyzed", "poison", "unconscious", "bleed"] },
     fiend: { traits: ["fiend", "unholy"], immunities: [] },
-    unholy: { traits: ["fiend", "unholy"], immunities: [] },
     celestial: { traits: ["celestial", "holy"], immunities: [] },
-    holy: { traits: ["celestial", "holy"], immunities: [] },
     construct: { traits: ["construct"], immunities: ["bleed", "death-effects", "disease", "doomed", "drained", "fatigued", "healing", "nonlethal", "paralyzed", "poison", "sickened", "spirit", "unconscious", "vitality", "void"] },
     elemental: { traits: ["elemental"], immunities: ["bleed", "paralyzed", "poison", "sleep"] }
 };
-export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES).filter((trait) => !["unholy", "holy"].includes(trait)));
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
+export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
 
-// The foes of an encounter: kind "boss" (one, 2 levels up) or "group" (four, 2 levels down), offset levels harder, of a trait; null where
-// there's no such encounter (a boss below level −1). A group below level −1 (a low party's easier rungs) is fewer level −1 creatures
-// instead, about 0.7 as many a level, as encounter XP goes.
-export function powerFoes(kind, level, offset = 0, trait = null) {
+// The foes of an encounter: kind "boss" (one, 2 levels up) or "group" (four, 2 levels down), of a trait.
+export function powerFoes(kind, level, trait = null) {
     const pack = trait ? TRAIT_PACKAGES[trait] : null;
     const make = (lv, id) => {
         const foe = moderateCreatureAt(Math.max(-1, Math.min(25, lv)), id);
         return pack ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities] } : foe;
     };
-    if (kind === "boss") return level + 2 + offset < -1 ? null : [make(level + 2 + offset, "monster")];
-    const at = level - 2 + offset;
-    const count = at >= -1 ? 4 : Math.max(1, Math.round(4 * 0.7 ** (-1 - at)));
-    return Array.from({ length: count }, (_, index) => make(Math.max(-1, at), index ? `monster-${index}` : "monster"));
+    if (kind === "boss") return [make(level + 2, "monster")];
+    return [0, 1, 2, 3].map((index) => make(level - 2, index ? `monster-${index}` : "monster"));
 }
 
-// The party with the wizard's slot spells taken away — its cantrips and basic actions kept, as a caster always has them (a wizard with
-// nothing at all draws no fire, and one spell then made it the foes' target: a spell looked worse than none). With entry: that spell as
-// one cast more; a cantrip in place of the wizard's own.
+// The party with the wizard's slot spells taken away — its cantrips and basic actions kept, as a caster always has them. With entry: that
+// spell as one cast more; a cantrip in place of the wizard's own.
 export function partyWithSpell(party, entry = null) {
     return party.map((c) => {
         if (c.id !== "wizard") return c;
@@ -104,35 +104,57 @@ export function powerConditions(plan) {
     return [...new Set([...traits].map((trait) => TRAIT_ALIASES[trait] ?? trait).filter((trait) => TRAIT_PACKAGES[trait]))].sort();
 }
 
-// The ladder's curves: "<level>|<encounter>|<trait or ''>" → [[offset, mean score]] by offset, only as far as the score keeps rising.
-export function powerCurves(ladder) {
-    const sums = new Map();
-    for (const row of ladder) {
-        if (row.skipped || row.error || !Number.isFinite(row.score)) continue;
-        const key = `${row.level}|${row.encounter}|${row.trait ?? ""}`;
-        const points = sums.get(key) ?? new Map();
-        const entry = points.get(row.offset) ?? { n: 0, score: 0 };
-        entry.score += row.score * row.n;
-        entry.n += row.n;
-        points.set(row.offset, entry);
-        sums.set(key, points);
-    }
-    const curves = new Map();
-    for (const [key, points] of sums) {
-        const curve = [...points].sort((a, b) => a[0] - b[0]).map(([offset, entry]) => [offset, entry.score / entry.n]);
-        const peak = curve.reduce((best, point, index) => (point[1] > curve[best][1] ? index : best), 0);
-        curves.set(key, curve.slice(0, peak + 1));
-    }
-    return curves;
+// A share of a fight as levels: that much smaller is that many levels easier (0.7 a level); "atLeast" from MOST of it on.
+export function shareToLevels(share) {
+    const capped = Math.min(MOST, share);
+    return { levels: Math.log(1 - capped) / Math.log(LEVEL_STEP), bound: share >= MOST ? "atLeast" : null };
 }
 
-// How many levels easier a score makes an encounter whose curve this is, against its own (no-spell) score: { value, bound } — bound
-// "atLeast" when the spell took it past the ladder's easiest (the value the least it is), "atMost" past its hardest.
-export function powerValue(curve, score, baseline = null) {
-    if (!curve?.length) return null;
-    const zero = baseline === null ? 0 : offsetOn(curve, baseline);
-    const at = offsetOn(curve, score);
-    return { value: zero - at, bound: score <= curve[0][1] ? "atLeast" : score > curve.at(-1)[1] ? "atMost" : null };
+// One cast of entry (the rated spell) by the party's wizard into foes: { share, levels, bound, actions, targets } at its best, or null when it
+// can do nothing there. The party starts at half its Hit Points; everyone stands in the near band, a touch spell's target within reach.
+export function castPower(party, foes, entry) {
+    const combatants = [...partyWithSpell(party, entry).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
+    const state = createFightState({ combatants }, { morale: false, retreat: false }, 1);
+    const caster = state.byId.get("wizard");
+    const spell = (caster?.spells ?? []).find((each) => each.name === entry.name && (each.pool ?? null) === (entry.pool ?? null));
+    if (!spell) return null;
+    const enemies = state.list.filter((c) => c.side !== caster.side && isActive(c));
+    const allies = state.list.filter((c) => c.side === caster.side && isActive(c));
+    const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
+    if (!(foeHp > 0)) return null;
+    const lingering = spell.plan?.resolution?.lingering?.events?.length && (Number(spell.plan.resolution.lingering.durationSeconds) || 0) >= 12 ? 1.5 : 1;
+    let best = null;
+    for (const actions of spellVariants(spell)) {
+        let sets = [];
+        try {
+            // (A touch spell reaches its target: the wizard steps up to cast it.)
+            sets = targetSets(state, caster, spell, { enemies, allies, inMelee: () => true, distance: () => 30, meleeId: null }, actions);
+        } catch {
+            sets = [];
+        }
+        for (const set of sets) {
+            let entries = [];
+            try {
+                entries = spellExpectation(state, caster, spell, set.targets, 0, actions);
+            } catch {
+                entries = [];
+            }
+            let share = 0;
+            for (const { target, damage = 0, worth = 0, heal = 0, benefit = 0 } of entries) {
+                const foe = target.side !== caster.side;
+                const part = foe ? target.hp.max / foeHp : 1 / Math.max(1, allies.length);
+                const sign = foe ? 1 : -1;
+                share += sign * Math.min(Math.max(0, damage), Math.max(0, target.hp.value)) / foeHp;
+                share += sign * worth * part / POWER_ROUNDS;
+                share -= sign * benefit * part / POWER_ROUNDS;
+                share -= sign * Math.max(0, heal) / foeHp;
+            }
+            share *= lingering;
+            if (!best || share > best.share) best = { share, actions: actions ?? describeSpell(spell.plan).actions ?? null, targets: set.targets.length };
+        }
+    }
+    if (!best || !(best.share > 0)) return null;
+    return { ...best, ...shareToLevels(best.share) };
 }
 
 const median = (values) => {
@@ -140,47 +162,26 @@ const median = (values) => {
     return sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
 };
 
-// Screen rows { collection, id, name, rank, cantrip, level, traits, results: { "<encounter>|<trait or ''>": { score, n } } } and the
-// ladder's rows { level, encounter, trait, offset, n, score } → each spell's ratings: { collection, id, rank, value, bound, boss, group, power, vs:
-// { <trait>: power } }, power relative to the typical spell (cantrip) of its rank.
-// Whether a spell went unused in every fight: its fights are the party's own (the same seeds, the ladder's first hundred at the encounter's
-// level) to the last score — never cast, or nothing it does counts here. Such a spell gets no number rather than a weak one.
-export function unusedSpell(row, ladder) {
-    const results = Object.entries(row.results ?? {});
-    return results.length > 0 && results.every(([key, result]) => {
-        const [encounter, trait] = key.split("|");
-        const own = ladder.find((entry) => entry.level === row.level && entry.encounter === encounter && (entry.trait ?? "") === trait && entry.offset === 0 && entry.from === 1 && entry.n === result.n);
-        return own && Math.abs(own.score - result.score) < 1e-12;
-    });
-}
-
-export function rankSpells(rows, ladder) {
-    const curves = powerCurves(ladder);
+// Screen rows { collection, id, name, rank, cantrip, level, traits, results: { "<encounter>|<trait or ''>": { share, levels, bound } } } →
+// each spell rank's { …, boss, group, value, bound, power, vs: { <trait>: power }, typical }: levels a cast makes each fight easier, their
+// average, and power relative to the typical spell (cantrip) of its rank. A spell that does nothing in either fight, or against its traits'
+// foes, gets none.
+export function rankSpells(rows) {
     const rated = [];
     for (const row of rows) {
-        if (row.error || row.skipped || unusedSpell(row, ladder)) continue;
-        const parts = {};
-        let bound = null;
-        for (const kind of POWER_KINDS) {
-            const result = row.results?.[`${kind}|`];
-            const found = result && powerValue(curves.get(`${row.level}|${kind}|`), result.score);
-            if (!found) continue;
-            parts[kind] = found.value;
-            bound ??= found.bound;
-        }
-        if (POWER_KINDS.some((kind) => !Number.isFinite(parts[kind]))) continue;
+        if (row.error || row.skipped) continue;
+        const parts = Object.fromEntries(POWER_KINDS.map((kind) => [kind, row.results?.[`${kind}|`]?.levels ?? null]));
+        const traitHelps = (row.traits ?? []).some((trait) => POWER_KINDS.some((kind) => row.results?.[`${kind}|${trait}`]));
+        if (POWER_KINDS.every((kind) => parts[kind] === null) && !traitHelps) continue;
+        const bound = POWER_KINDS.some((kind) => row.results?.[`${kind}|`]?.bound === "atLeast") ? "atLeast" : null;
         const vs = {};
         for (const trait of row.traits ?? []) {
-            const values = POWER_KINDS.map((kind) => {
-                const result = row.results?.[`${kind}|${trait}`];
-                const curve = curves.get(`${row.level}|${kind}|`);
-                const baseline = ladder.filter((entry) => entry.level === row.level && entry.encounter === kind && entry.trait === trait && entry.offset === 0 && Number.isFinite(entry.score));
-                const n = baseline.reduce((sum, entry) => sum + entry.n, 0);
-                return result && n ? powerValue(curve, result.score, baseline.reduce((sum, entry) => sum + entry.score * entry.n, 0) / n)?.value : null;
-            });
-            if (values.every(Number.isFinite)) vs[trait] = (values[0] + values[1]) / 2;
+            const values = POWER_KINDS.map((kind) => row.results?.[`${kind}|${trait}`]?.levels ?? 0);
+            vs[trait] = (values[0] + values[1]) / 2;
         }
-        rated.push({ ...row, boss: parts.boss, group: parts.group, value: (parts.boss + parts.group) / 2, bound, vs });
+        const boss = parts.boss ?? 0;
+        const group = parts.group ?? 0;
+        rated.push({ ...row, boss, group, value: (boss + group) / 2, bound, vs });
     }
     // The typical spell of each rank (and cantrip of each rank): the median value, where five or more were rated (else none: 0).
     const groupKey = (row) => `${row.cantrip ? "cantrip" : "spell"}|${row.rank}`;
@@ -195,16 +196,16 @@ export function rankSpells(rows, ladder) {
 
 const tenth = (value) => Math.round(value * 10) / 10;
 
-// The compendium numbers (src/data/spell-ratings.json): ratings { "<compendium id>": { "<item id>": power at its own rank } }, bounds as the
-// creature numbers' ("atLeast"/"atMost"), and detail { "<compendium id>": { "<item id>": { rank, boss, group, typical, cantrip?,
-// partial?, ranks: { "<rank>": power } (heightened), vs: { "<trait>": power } } }.
+// The compendium numbers (src/data/spell-ratings.json): ratings { "<compendium id>": { "<item id>": power at its own rank } }, bounds
+// ("atLeast"), and detail { "<compendium id>": { "<item id>": { rank, boss, group, typical, cantrip?, partial?, ranks: { "<rank>": power }
+// (heightened), vs: { "<trait>": power } } }.
 export function spellRatingsOf(ranked) {
     const ratings = {};
     const bounds = {};
     const detail = {};
-    const byspell = new Map();
-    for (const row of ranked) byspell.set(`${row.collection}|${row.id}`, [...(byspell.get(`${row.collection}|${row.id}`) ?? []), row]);
-    for (const rows of byspell.values()) {
+    const bySpell = new Map();
+    for (const row of ranked) bySpell.set(`${row.collection}|${row.id}`, [...(bySpell.get(`${row.collection}|${row.id}`) ?? []), row]);
+    for (const rows of bySpell.values()) {
         rows.sort((a, b) => a.rank - b.rank);
         const [own, ...higher] = rows;
         if (!Number.isFinite(own.power)) continue;

@@ -1,20 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { RATED_POOL, partyLevelForRank, partyWithSpell, powerConditions, powerCurves, powerFoes, powerRanks, powerValue, rankSpells, spellRatingsOf, unusedSpell } from "../src/engine/spell-power.js";
+import { RATED_POOL, castPower, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, rankSpells, shareToLevels, spellRatingsOf } from "../src/engine/spell-power.js";
+import { standardParty } from "../src/engine/party.js";
 
-// A spell's power for its rank (2026-10-21, src/engine/spell-power.js): the method's parts.
+// A spell's power for its rank (2026-10-21, src/engine/spell-power.js): one cast's effect, and the method's parts.
 
-test("the encounters: a boss two levels up, a group of four two down (fewer below level −1), and foes of a trait", () => {
+test("the encounters: a boss two levels up, a group of four two down, and foes of a trait", () => {
     assert.equal(partyLevelForRank(3), 5);
     assert.equal(partyLevelForRank(10), 19);
     const boss = powerFoes("boss", 5);
     assert.deepEqual([boss.length, boss[0].level], [1, 7]);
-    const group = powerFoes("group", 5, -1);
-    assert.deepEqual([group.length, group[0].level, new Set(group.map((foe) => foe.id)).size], [4, 2, 4]);
-    assert.equal(powerFoes("boss", 1, -5), null, "no boss below level −1");
-    assert.deepEqual([1, 0, -1, -2, -3, -4].map((offset) => powerFoes("group", 1, offset).length), [4, 4, 3, 2, 1, 1], "a level-1 party's easier groups: fewer level −1 creatures");
-    const undead = powerFoes("boss", 13, 0, "undead")[0];
+    const group = powerFoes("group", 5);
+    assert.deepEqual([group.length, group[0].level, new Set(group.map((foe) => foe.id)).size], [4, 3, 4]);
+    assert.equal(powerFoes("group", 1)[0].level, -1);
+    const undead = powerFoes("boss", 13, "undead")[0];
     assert.ok(undead.traits.includes("undead") && undead.immunities.includes("death-effects"));
 });
 
@@ -39,38 +39,40 @@ test("heightened ranks from PF2e's data or the text; the traits a spell does mor
     assert.deepEqual(powerConditions({ resolution: { sharedDamage: { components: [{ type: "fire" }] } } }), []);
 });
 
-test("a spell's value on the ladder, and its power over the typical spell of its rank", () => {
-    // Level 5's curves: the foes' score 0.1 a level, 0.4 at the encounter's own level.
-    const ladder = [5, 9].flatMap((level) => ["boss", "group"].flatMap((encounter) => [-6, -5, -4, -3, -2, -1, 0, 1, 2].map((offset) => ({ level, encounter, trait: null, offset, n: 100, score: 0.4 + 0.05 * offset }))));
-    ladder.push({ level: 5, encounter: "boss", trait: "undead", offset: 0, n: 100, score: 0.45 }, { level: 5, encounter: "group", trait: "undead", offset: 0, n: 100, score: 0.45 });
-    const curve = powerCurves(ladder).get("5|boss|");
-    const round = ({ value, bound }) => ({ value: Math.round(value * 1e6) / 1e6, bound });
-    assert.deepEqual(round(powerValue(curve, 0.3)), { value: 2, bound: null }, "two levels easier");
-    assert.deepEqual(round(powerValue(curve, 0.05)), { value: 6, bound: "atLeast" }, "past the easiest rung: at least");
-    const row = (id, boss, group, extra = {}) => ({ collection: "pf2e.spells-srd", id, name: id, rank: 3, level: 5, cantrip: false, traits: [], results: { "boss|": { n: 100, score: boss }, "group|": { n: 100, score: group } }, ...extra });
-    const rows = [row("a", 0.35, 0.35), row("b", 0.3, 0.3), row("c", 0.25, 0.3), row("d", 0.35, 0.3), row("e", 0.3, 0.25),
-        row("sun", 0.2, 0.2, { traits: ["undead"], results: { "boss|": { n: 100, score: 0.2 }, "group|": { n: 100, score: 0.2 }, "boss|undead": { n: 100, score: 0.15 }, "group|undead": { n: 100, score: 0.15 } } }),
-        row("sun", 0.25, 0.25, { rank: 5, level: 9 }), row("bad", 0, 0, { skipped: true })];
-    const ranked = rankSpells(rows, ladder);
+test("a share of a fight in levels: 30% smaller is a level easier; most of it, at least the cap", () => {
+    assert.equal(Math.round(shareToLevels(0.3).levels * 100) / 100, 1);
+    assert.equal(Math.round(shareToLevels(0.51).levels * 100) / 100, 2);
+    assert.deepEqual([shareToLevels(0.97).bound, shareToLevels(0.5).bound], ["atLeast", null]);
+});
+
+test("one cast's share of a fight: a burst into the group takes more than into the boss, with no harm to the party", () => {
+    const party = standardParty(5);
+    const burst = { name: "Test Burst", castRank: 3, dc: 22, attack: 14, pool: RATED_POOL, tradition: "arcane", effects: {},
+        plan: { modelVersion: 13, source: { name: "Test Burst", slug: "test-burst" }, rank: 3, traits: ["fire"], activation: { time: "2" }, targeting: { target: null, range: { value: 500 }, area: { type: "burst", value: 20 } }, trigger: { event: "use" },
+            resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "spell" } }, sharedDamage: { components: [{ id: "c0", formula: "6d6", type: "fire", kinds: ["damage"] }] }, outcomes: { criticalSuccess: { damage: { mode: "none", multiplier: 0 } }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["c0"] } }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["c0"] } }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["c0"] } } } } } };
+    const boss = castPower(party, powerFoes("boss", 5), burst);
+    const group = castPower(party, powerFoes("group", 5), burst);
+    assert.ok(boss && group, "it does something to both");
+    assert.equal(boss.targets, 1);
+    assert.ok(group.targets >= 3, `the burst catches the group (${group.targets})`);
+    assert.ok(group.share > boss.share, `${group.share} > ${boss.share}`);
+    assert.ok(group.levels > boss.levels);
+});
+
+test("power over the typical spell of its rank; heightened ranks and traits kept apart; a spell that does nothing gets none", () => {
+    const row = (id, boss, group, extra = {}) => ({ collection: "pf2e.spells-srd", id, name: id, rank: 3, level: 5, cantrip: false, traits: [], results: { ...(boss === null ? {} : { "boss|": { share: 0, levels: boss } }), ...(group === null ? {} : { "group|": { share: 0, levels: group } }) }, ...extra });
+    const rows = [row("a", 1, 1), row("b", 2, 2), row("c", 3, 2), row("d", 1, 2), row("e", 2, 3),
+        row("sun", 4, 4, { traits: ["undead"], results: { "boss|": { levels: 4 }, "group|": { levels: 4 }, "boss|undead": { levels: 6 }, "group|undead": { levels: 7 } } }),
+        row("sun", 1, 1, { rank: 5, level: 9 }), row("bad", null, null), row("skip", 1, 1, { skipped: true })];
+    const ranked = rankSpells(rows);
     const sun = ranked.find((entry) => entry.id === "sun" && entry.rank === 3);
-    // Values: a 1, b 2, c 2.5, d 1.5, e 2.5, sun 4 — the typical rank-3 spell 2.25 (the median of six); against undead: 0.45 → 0.15 is
-    // 6 levels, 3.75 over the typical spell.
-    assert.equal(Math.round(sun.typical * 1e6) / 1e6, 2.25);
-    assert.equal(Math.round(sun.power * 1e6) / 1e6, 1.75);
-    assert.equal(Math.round(sun.vs.undead * 1e6) / 1e6, 3.75);
+    // Values: a 1, b 2, c 2.5, d 1.5, e 2.5, sun 4 — the typical rank-3 spell 2.25 (the median of six).
+    assert.equal(sun.typical, 2.25);
+    assert.equal(sun.power, 1.75);
+    assert.equal(sun.vs.undead, 6.5 - 2.25);
+    assert.equal(ranked.some((entry) => entry.id === "bad" || entry.id === "skip"), false);
     const { ratings, detail } = spellRatingsOf(ranked);
-    assert.equal(ratings["pf2e.spells-srd"].sun, Math.round(sun.power * 10) / 10);
-    assert.equal(detail["pf2e.spells-srd"].sun.vs.undead, Math.round(sun.vs.undead * 10) / 10);
+    assert.equal(ratings["pf2e.spells-srd"].sun, Math.round(1.75 * 10) / 10);
     assert.deepEqual(Object.keys(detail["pf2e.spells-srd"].sun.ranks), ["5"], "its heightened rank, apart");
-    assert.equal(detail["pf2e.spells-srd"].sun.rank, 3);
-    assert.equal(ratings["pf2e.spells-srd"].bad, undefined, "skipped: no number");
+    assert.deepEqual([detail["pf2e.spells-srd"].sun.rank, detail["pf2e.spells-srd"].sun.boss, detail["pf2e.spells-srd"].sun.group], [3, 4, 4]);
 });
-
-test("a spell never cast (its fights the party's own, score for score) gets no number; one used only against undead does", () => {
-    const ladder = [{ level: 5, encounter: "boss", trait: null, offset: 0, from: 1, n: 100, score: 0.35 }, { level: 5, encounter: "group", trait: null, offset: 0, from: 1, n: 100, score: 0.15 }, { level: 5, encounter: "boss", trait: "undead", offset: 0, from: 1, n: 100, score: 0.31 }, { level: 5, encounter: "group", trait: "undead", offset: 0, from: 1, n: 100, score: 0.2 }];
-    const row = (results) => ({ level: 5, results });
-    assert.equal(unusedSpell(row({ "boss|": { n: 100, score: 0.35 }, "group|": { n: 100, score: 0.15 } }), ladder), true);
-    assert.equal(unusedSpell(row({ "boss|": { n: 100, score: 0.35 }, "group|": { n: 100, score: 0.14 } }), ladder), false);
-    assert.equal(unusedSpell(row({ "boss|": { n: 100, score: 0.35 }, "group|": { n: 100, score: 0.15 }, "boss|undead": { n: 100, score: 0.2 }, "group|undead": { n: 100, score: 0.2 } }), ladder), false, "used against undead");
-});
-
