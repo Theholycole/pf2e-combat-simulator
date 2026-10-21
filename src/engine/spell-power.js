@@ -19,6 +19,7 @@
 import { moderateCreatureAt } from "./creature-tables.js";
 import { createFightState } from "./fight.js";
 import { armorClass, isActive, multipleAttackPenalty, saveModifier, strikeUsable } from "./combatant.js";
+import { engage } from "./space.js";
 import { degreeDistribution } from "./checks.js";
 import { expectedHitDamage } from "./actions.js";
 import { adjustDamage, spellContext } from "./damage.js";
@@ -216,7 +217,7 @@ export function entriesShare(entries, { side, foeHp, harm, allies, again = 0 }) 
 // minion: a creature of the wizard's already out, as hurt as the party (a spell on one's minion, companion or eidolon — the user: "minion
 // spells assuming you already have a minion out"), the one ally the spell can go to; lost: the spell spends it (Final Sacrifice explodes
 // it), what it would have done the rest of the fight taken off (summonShare).
-export function castPower(party, foes, entry, { minion = null, lost = false, choke = false } = {}) {
+export function castPower(party, foes, entry, { minion = null, lost = false, choke = false, close = false } = {}) {
     const helper = minion ? [{ ...minion, id: "minion", side: "party", kind: "npc", reserve: false, summons: undefined, minion: true, controlledBy: "wizard" }] : [];
     const combatants = [...[...partyWithSpell(party, entry), ...helper].map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
     const state = createFightState({ combatants }, { morale: false, retreat: false, ...(choke ? { grid: CHOKE } : {}) }, 1);
@@ -228,6 +229,8 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
     const aimed = minion ? allies.filter((c) => c.id === "minion") : allies;
     const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
     if (!(foeHp > 0)) return null;
+    // (close: the foes come up to the caster, in its Melee — a harmful emanation about it, Bane's, reaching them as the fight goes on.)
+    if (close) for (const foe of enemies) engage(state, foe, caster);
     const harm = foeHarm(state, caster.side);
     const again = castRepeats(spell.plan, fightRounds(state, caster.side), { choke });
     let best = null;
@@ -235,7 +238,7 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
         let sets = [];
         try {
             // (A touch spell reaches its target: the wizard steps up to cast it.)
-            sets = targetSets(state, caster, spell, { enemies, allies: aimed, inMelee: () => true, distance: () => 30, meleeId: null }, actions);
+            sets = targetSets(state, caster, spell, { enemies, allies: aimed, inMelee: () => true, distance: () => 30, meleeId: caster.meleeId ?? null }, actions);
         } catch {
             sets = [];
         }
@@ -251,6 +254,9 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
         }
     }
     if (best && minion && lost) best.share -= summonShare(partyWithSpell(party), foes, minion)?.share ?? 0;
+    // (A harmful emanation about the caster that reaches no foe where they stand: as they come up to it.)
+    const about = describeSpell(spell.plan).area;
+    if (!close && !best?.share && about?.type === "emanation" && describeSpell(spell.plan).range === null && !describeSpell(spell.plan).helpful && !describeSpell(spell.plan).healing) return castPower(party, foes, entry, { minion, lost, choke, close: true });
     // (Nothing at all: none. Worse than nothing — an area that catches allies standing near the caster, their Hit Points counted against
     // it as the foes' would be: below zero.)
     if (!best || !best.share || !(best.share > 0 || best.alliesHit)) return null;
