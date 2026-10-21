@@ -3,8 +3,8 @@
 import { createRng } from "./rng.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
-import { engage, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
-import { placeArrival, setUpGrid } from "./grid-fight.js";
+import { engage, engagedEnemies, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
+import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
 import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, adjustPart, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
@@ -47,7 +47,9 @@ export const DEFAULT_OPTIONS = Object.freeze({
     retreatRatio: 0.5,
     retreatBy: "potential",
     roundCap: 20,
-    flankChances: [0, 0, 0.5, 0.75, 0.9]
+    flankChances: [0, 0, 0.5, 0.75, 0.9],
+    // (2026-10-21, the user: "Let players delay so the enemy moves closer then the player can stride and strike in the same turn".)
+    delay: true
 });
 
 const MAX_ACTIONS_PER_TURN = 6;
@@ -1269,6 +1271,8 @@ function fleeTurn(state, c) {
 }
 
 export function takeTurn(state, c) {
+    // (A turn it Delayed through the whole round: lost.)
+    if (c.delaying) c.delaying = null;
     // Conditions this creature's spells timed end at the start of its turn, whatever its state.
     expireTimers(state, c);
     // (Dominate: whoever's no longer controlled is back on its own side.)
@@ -1344,21 +1348,99 @@ export function takeTurn(state, c) {
     } else if (state.objective?.kind === "escort" && state.objective.escortId === c.id && state.objective.status === "open") {
         escortTurn(state, c);
     } else {
-        let guard = 0;
-        while (c.actionsLeft > 0 && canAct(c) && !c.cond.fleeing && guard++ < 8) {
-            const action = chooseAction(state, c);
-            if (!action) break;
-            c.actionsLeft -= actionCost(c, action);
-            act(state, c, action);
-            afterAction(state);
-            c.actionCount = (c.actionCount ?? 0) + 1;
-            processMorale(state);
-            if (checkEnd(state)) return;
+        // (Delay: a PC that would only walk up to be struck first waits for the foe to come to it.)
+        const waiting = state.options.delay ? delayFor(state, c) : null;
+        if (waiting) {
+            c.delaying = waiting;
+            state.log?.push(`  ${c.name} Delays, for ${state.byId.get(waiting.foeId)?.name ?? "a foe"} to come to it`);
+            return;
         }
-        if (c.cond.fleeing && canAct(c)) fleeTurn(state, c);
+        if (!playActions(state, c)) return;
     }
     if (state.outcome) return;
     endTurn(state, c);
+}
+
+// Its turn's actions, as the planner picks them; false when the fight ended in them.
+function playActions(state, c) {
+    let guard = 0;
+    while (c.actionsLeft > 0 && canAct(c) && !c.cond.fleeing && guard++ < 8) {
+        const action = chooseAction(state, c);
+        if (!action) break;
+        c.actionsLeft -= actionCost(c, action);
+        act(state, c, action);
+        afterAction(state);
+        c.actionCount = (c.actionCount ?? 0) + 1;
+        processMorale(state);
+        if (checkEnd(state)) return false;
+    }
+    if (c.cond.fleeing && canAct(c)) fleeTurn(state, c);
+    return true;
+}
+
+// --- Delay (2026-10-21, the user: "Add the option to delay in case moving closer would allow the enemy to strike you first. Let players
+// delay so the enemy moves closer then the player can stride and strike in the same turn") ---------------------------------------------
+// PF2e's Delay: as its turn begins, a creature waits, out of the initiative order, and comes back at the end of another creature's turn —
+// that place in the order its own from then on. A turn Delayed through a whole round is lost.
+
+// Strides from one creature to reach another: the grid's paths, or the bands'.
+const stridesTo = (state, from, to) => (state.grid && from.square && to.square ? gridStrides(state, from, to) : stridesToEngage(from, to));
+
+// Whether a PC Delays as its turn begins: { foeId, round } or null. It does when its best start is a Stride toward a foe it can't reach
+// with one (so it would strike once at most, then take the foe's full round first), and a foe with melee Strikes that acts after it
+// this round could come to it within two Strides — not with a map objective's errands, nor in a Melee already.
+function delayFor(state, c) {
+    if (c.kind !== "pc" || c.side !== "party" || c.acts === false || isMapObjective(state.objective) || state.objective?.kind === "escort") return null;
+    if (engagedEnemies(state, c).length) return null;
+    const foes = state.list.filter((foe) => foe.side !== c.side && isActive(foe));
+    if (!foes.length || foes.some((foe) => stridesTo(state, c, foe) < 2)) return null;
+    const mine = state.order.indexOf(c.id);
+    const coming = foes.filter((foe) => canAct(foe) && canMove(foe) && !foe.cond.fleeing && foe.acts !== false && state.order.indexOf(foe.id) > mine
+        && (foe.strikes ?? []).some((strike) => strike.melee && strikeUsable(foe, strike)) && stridesTo(state, foe, c) <= 2);
+    if (!coming.length) return null;
+    // (Only when its best start is to walk up: not a ranged Strike, a spell, a buff it would rather do now.)
+    const first = chooseAction(state, c);
+    if (first?.type !== "stride" || !["engage", "approach"].includes(first.move?.kind)) return null;
+    const target = state.byId.get(first.move.targetId);
+    return { foeId: (coming.includes(target) ? target : coming[0]).id, round: state.round };
+}
+
+// Whether a Delaying creature comes back now, at the end of `ended`'s turn: a foe in its reach or a Stride off, the foe it waited for has
+// had its turn, or the round is ending.
+function returnsNow(state, d, ended, last) {
+    if (last || ended?.id === d.delaying.foeId || engagedEnemies(state, d).length) return true;
+    return state.list.some((foe) => foe.side !== d.side && isActive(foe) && stridesTo(state, d, foe) <= 1);
+}
+
+// After the turn at `index` ends: each Delaying creature that comes back takes its turn now, placed after it in the order. The index of
+// the last turn played.
+function delayedReturns(state, index) {
+    const ended = state.byId.get(state.order[index]);
+    const last = index === state.order.length - 1;
+    for (const id of [...state.order]) {
+        const d = state.byId.get(id);
+        if (!d?.delaying || d === ended) continue;
+        // (Down, or unable to act, while it waited: its turn is lost.)
+        if (!isActive(d) || !canAct(d)) {
+            d.delaying = null;
+            continue;
+        }
+        if (!returnsNow(state, d, ended, last)) continue;
+        const from = state.order.indexOf(d.id);
+        state.order.splice(from, 1);
+        if (from < index) index--;
+        state.order.splice(index + 1, 0, d.id);
+        index++;
+        state.initiative?.set(d.id, (state.initiative.get(ended.id) ?? 0) - 0.01);
+        d.delaying = null;
+        state.acting = d.id;
+        state.log?.push(`${d.name} returns from Delay (${d.hp.value}/${d.hp.max} HP, ${d.band})`);
+        if (playActions(state, d) && !state.outcome) endTurn(state, d);
+        expireTimers(state, d, "end");
+        if (state.outcome || checkEnd(state)) return index;
+        return delayedReturns(state, index);
+    }
+    return index;
 }
 
 // What waits for the action to end (B70): Fast Swallow on a creature just grabbed (its reaction, its own Swallow Whole).
@@ -1475,9 +1557,11 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
             for (; turnIndex < state.order.length && !state.outcome; turnIndex++) {
                 const c = state.byId.get(state.order[turnIndex]);
                 takeTurn(state, c);
-                // "Until the end of your next turn" runs out here.
-                expireTimers(state, c, "end");
+                // "Until the end of your next turn" runs out here (not for one that Delays: its turn hasn't ended).
+                if (!c.delaying) expireTimers(state, c, "end");
                 if (!state.outcome) checkEnd(state);
+                // (A creature that Delayed, back after this turn.)
+                if (!state.outcome) turnIndex = delayedReturns(state, turnIndex);
             }
             if (state.outcome) break;
             turnIndex = 0;

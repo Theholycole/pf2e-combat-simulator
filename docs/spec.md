@@ -581,3 +581,13 @@ The user: "We should build an option for grid based movement in the simulator fo
 - **Areas:** each placement worth trying (a burst at the intersections about the creatures it might catch, within range and line of effect; a cone or line toward each; an emanation where the caster stands) and who's in it — the best few as the spell's target sets. Zones keep the squares they were placed on (an emanation about its maker, as it moves); their difficult terrain is on the map while they last.
 - **Not on the grid:** map objectives (their own distances: a run with one stays on the bands); escalation Regions' moves.
 - Band fights are unchanged (fingerprint 13bdec112c925c85). A fight on the open field takes about 50 ms, eight times a band fight.
+
+## Delay (2026-10-21)
+
+The user: "Add the option to delay in case moving closer would allow the enemy to strike you first. Let players delay so the enemy moves closer then the player can stride and strike in the same turn."
+
+- PF2e's Delay (src/engine/fight.js; options.delay, on by default): as its turn begins — its start-of-turn effects done, its actions untouched — a PC waits out of the initiative order, and comes back at the end of another creature's turn, taking that place in the order from then on. A turn Delayed through a whole round is lost; a PC downed or unable to act while it waits loses it too.
+- **When it Delays:** a PC (not in a Melee, no map objective's errands) whose foes are all two Strides or more away (the grid's paths, or the bands' count), when a foe with melee Strikes that acts after it this round could come to it within two Strides, and the planner's best start is a Stride toward a foe — not a ranged Strike, a spell or anything else it would rather do now.
+- **When it comes back:** a foe in its reach or one Stride off, the foe it waited for has had its turn, or the round is ending.
+- Band fights where the sides start near (one Stride apart), as the danger and spell screens' do, never Delay: their fingerprint is unchanged (13bdec112c925c85).
+
