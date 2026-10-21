@@ -1482,15 +1482,36 @@ export function rollInstances(state, parsed) {
 
 const averageOf = (instance) => (instance.constant ?? 0) + (instance.dice ?? []).reduce((sum, term) => sum + (term.factor ?? 1) * term.count * (term.die + 1) / 2, 0);
 
-// How many more creatures a swallower can take: one of its listed size fills
-// it; one size smaller, two; smaller still, four.
-function swallowRoom(state, swallower, size, target) {
+// Whether a swallower can take a creature more. Swallow Whole: one of its listed size fills it; one size smaller, two; smaller still, four
+// (PF2e: "the GM determines the maximum"). Engulf (2026-10-20, the user: "they can only swallow up to their size, so 1 medium creature"):
+// PF2e's Engulf holds what fits in the engulfer's own space — counted in squares, Tiny a quarter of one: a Medium engulfer holds one Small
+// or Medium creature, a Large one four. pending: those it takes in the same use, before this one.
+const SQUARES = [0.25, 1, 1, 4, 9, 16];
+function swallowRoom(state, swallower, size, target, { engulf = false, pending = [] } = {}) {
     const max = sizeRank(size);
     if (sizeRank(target.size) > max) return false;
-    const inside = state.list.filter((other) => other.swallowedBy === swallower.id);
+    const inside = [...state.list.filter((other) => other.swallowedBy === swallower.id), ...pending];
+    if (engulf) return inside.reduce((sum, other) => sum + SQUARES[sizeRank(other.size)], 0) + SQUARES[sizeRank(target.size)] <= SQUARES[sizeRank(swallower.size)];
     if (inside.some((other) => sizeRank(other.size) >= max)) return false;
     const room = max - sizeRank(target.size) >= 2 ? 4 : max - sizeRank(target.size) === 1 ? 2 : 1;
     return inside.length < room;
+}
+
+// (Engulf, 2026-10-20: a creature that fails once the engulfer is full isn't pulled in — no swallow, and none of the damage it takes "when
+// first engulfed".) The ids of the targets left out, in the order they'd be taken in.
+function swallowOverflow(state, caster, spell, changes) {
+    const swallows = changes.filter((change) => change.op === "effect" && change.effect?.kind === "swallow" && change.target !== undefined);
+    if (!swallows.length) return null;
+    const engulf = Boolean(describeSpell(spell.plan).trample);
+    const taken = [];
+    const left = new Set();
+    for (const change of swallows) {
+        const target = state.byId.get(change.target);
+        if (!target) continue;
+        if (swallowRoom(state, caster, change.effect.size ?? caster.size, target, { engulf, pending: taken })) taken.push(target);
+        else left.add(target.id);
+    }
+    return left.size ? left : null;
 }
 
 // About how many rounds a creature stays swallowed: it tries to Escape with each action.
@@ -1639,6 +1660,11 @@ function applyChanges(state, caster, spell, changes, context, io) {
     const aimed = isSpell ? { rank: Number(spell.castRank ?? spell.plan?.rank) || 1, targeted: !described.area } : null;
     // (I2: its context on its damage — area damage on a swarm, a holy spell on a fiend, a resistance to spells.)
     const damageContext = spellContext(spell, { isSpell, area: Boolean(described.area) });
+    const overflow = swallowOverflow(state, caster, spell, changes);
+    if (overflow) {
+        for (const id of overflow) log(state, `  ${state.byId.get(id)?.name} doesn't fit inside ${caster.name}`);
+        changes = changes.filter((change) => !(overflow.has(change.target) && (change.op === "damage" || (change.op === "effect" && change.effect?.kind === "swallow"))));
+    }
     for (let change of changes) {
         // (A value the text rolls — Wails of the Damned's "Drained 1d4" — rolled now.)
         if (change.op === "condition" && change.valueRoll && !Number.isFinite(change.value)) change = { ...change, value: rollCount(state, change.valueRoll) };
@@ -3179,7 +3205,8 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     // Trample: the enemies of the listed size or smaller in one Melee, or standing apart nearby.
     if (info.trample) {
         if (!canMove(caster)) return [];
-        const fits = (enemy) => isActive(enemy) && enemy.side !== caster.side && sizeRank(enemy.size) <= sizeRank(info.trample.size);
+        // (Engulf: only while one more fits inside.)
+        const fits = (enemy) => isActive(enemy) && enemy.side !== caster.side && sizeRank(enemy.size) <= sizeRank(info.trample.size) && (!info.swallow || swallowRoom(state, caster, info.swallow, enemy, { engulf: true }));
         const sets = [];
         for (const members of state.melees.values()) {
             const group = [...members].map((id) => state.byId.get(id)).filter((other) => other && fits(other) && enemies.includes(other));

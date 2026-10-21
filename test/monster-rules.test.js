@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 
-import { createFightState, performAction, simulate, turnEnd } from "../src/engine/fight.js";
+import { createFightState, performAction, simulate, takeTurn, turnEnd } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { applyDamage, dealDamage, expectedHitDamage, featureParts, performStrike, provoke as provokeFor, reactionStrikeAt, step, stride } from "../src/engine/actions.js";
@@ -603,6 +603,41 @@ test("Engulf: an engulfed creature Escapes against the listed DC, not the monste
     state.rng.d20 = dice(10);
     castSpell(state, pc, 0, ["tar"]);
     assert.equal(pc.swallowedBy, null);
+});
+
+test("Engulf holds as many as fit in its space: a Medium engulfer one Medium creature (no damage for one that doesn't fit), a Large one four", { skip }, async () => {
+    const { basic } = await packAbilities();
+    const { readDocuments } = await import("../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs");
+    const { compileMonsterAbility } = await import(ABILITIES);
+    const mouther = readDocuments(`${PACKS}/pathfinder-bestiary`).find((doc) => doc.collection === "actors" && doc.name === "Gibbering Mouther");
+    const engulf = compileMonsterAbility(mouther.items.find((item) => item.name === "Engulf"), { actor: mouther });
+    const fight = (size) => {
+        const [fighter, , , rogue] = martialParty(5);
+        const helpless = { band: "near", engagement: 1, saves: { fortitude: 0, reflex: -40, will: 0 }, spells: [entry("Escape", basic.escape, "basic")] };
+        const state = createFightState({ combatants: [{ ...fighter, ...helpless }, { ...rogue, ...helpless }, { ...moderateCreature(5, "mouther", "Mouther"), band: "near", engagement: 1, size, spells: [entry("Engulf", engulf)] }] }, {}, 1);
+        state.log = [];
+        return state;
+    };
+    const state = fight("med");
+    const m = state.byId.get("mouther");
+    const [f, r] = [state.byId.get("fighter"), state.byId.get("rogue")];
+    const hp = r.hp.value;
+    castSpell(state, m, 0, ["fighter", "rogue"]);
+    assert.equal(f.swallowedBy, "mouther");
+    assert.equal(r.swallowedBy ?? null, null, "full: the rogue isn't pulled in");
+    assert.equal(r.hp.value, hp, "and takes none of the damage of being engulfed");
+    assert.ok(state.log.some((line) => /Rogue doesn't fit inside Mouther/.test(line)));
+    assert.equal(targetSetsFor(state, m, m.spells[0], { enemies: [r], allies: [m], inMelee: () => true, distance: () => 5, meleeId: null }).length, 0, "no Engulf while it's full");
+    const large = fight("lg");
+    castSpell(large, large.byId.get("mouther"), 0, ["fighter", "rogue"]);
+    assert.deepEqual(["fighter", "rogue"].map((id) => large.byId.get(id).swallowedBy), ["mouther", "mouther"]);
+    // Out by an Escape with actions left, it plays the rest of its turn.
+    f.skills = { ...(f.skills ?? {}), athletics: 60 };
+    f.actionsLeft = 3;
+    takeTurn(state, f);
+    assert.equal(f.swallowedBy, null);
+    const escaped = state.log.findIndex((line) => /Fighter escapes from Mouther/.test(line));
+    assert.ok(escaped >= 0 && state.log.slice(escaped + 1).some((line) => /^ {2}Fighter .*→ Mouther/.test(line)), "a Strike after the Escape");
 });
 
 test("a monster's Retributive Strike (the glossary's): its ally resists 2 + its level, and it Strikes the attacker", () => {

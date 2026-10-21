@@ -1261,7 +1261,7 @@ function fleeTurn(state, c) {
     }
 }
 
-function takeTurn(state, c) {
+export function takeTurn(state, c) {
     // Conditions this creature's spells timed end at the start of its turn, whatever its state.
     expireTimers(state, c);
     // (Dominate: whoever's no longer controlled is back on its own side.)
@@ -1322,6 +1322,10 @@ function takeTurn(state, c) {
     if (c.swallowedBy) {
         swallowedTurn(state, c);
         if (state.outcome) return;
+    }
+    // (2026-10-20: out by an Escape with actions left — it plays the rest of its turn.)
+    if (c.swallowedBy) {
+        // (Still inside: its turn was its tries to get out.)
     } else if (c.cond.confused) {
         confusedTurn(state, c);
         if (state.outcome) return;
