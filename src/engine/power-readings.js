@@ -532,8 +532,9 @@ const PHASE_READERS = {
         }
         return gain > 0 ? [{ target: foe, damage: gain, worth: 0, heal: 0, benefit: 0 }] : [];
     },
-    // (Moment of Renewal: a day's rest for its targets — twice a night's Hit Points, its Constitution modifier a level, B482.)
-    renewal: (ctx, phase) => ctx.allies.slice(0, Math.max(1, Number(phase.count) || 6)).flatMap((ally) => healEntries([ally], 2 * Math.max(1, Number(ally.con) || 1) * (Number(ally.level) || 1)))
+    // (Moment of Renewal: its targets' Hit Points as from a rest — the user (2026-10-21): "As per the resting rules: The character regains
+    // Hit Points equal to their Constitution modifier (minimum 1) multiplied by their level".)
+    renewal: (ctx, phase) => ctx.allies.slice(0, Math.max(1, Number(phase.count) || 6)).flatMap((ally) => healEntries([ally], Math.max(1, Number(ally.con) || 1) * (Number(ally.level) || 1)))
 };
 
 // A conjured object's cover for the allies beside it (Ice Guardian): at its best all of them, Sustained for its better cover, while it
