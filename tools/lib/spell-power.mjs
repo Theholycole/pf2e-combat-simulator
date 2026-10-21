@@ -295,8 +295,9 @@ export function runPowerTask(task) {
     // (One the engine can't cast in a fight, that the rating reads itself: power-readings.js.)
     if (!castable && powerReading(plan)) {
         const traits = powerConditions(plan);
-        const row = { ...head, traits, results: resultsOf(traits, (foes) => readingPower(party, foes, entry), level), estimate: `reading (${plan.resolution.kind})` };
-        return withChoke(row, (foes, choke) => readingPower(party, foes, entry, { choke }), level);
+        const read = { ...entry, doc };
+        const row = { ...head, traits, results: resultsOf(traits, (foes) => readingPower(party, foes, read), level), estimate: `reading (${plan.resolution.kind})` };
+        return withChoke(row, (foes, choke) => readingPower(party, foes, read, { choke }), level);
     }
     if (isUtility(plan) || !castable) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
     const traits = powerConditions(plan);

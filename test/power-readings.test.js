@@ -95,3 +95,17 @@ test("in a choke point (the foes coming down a corridor): every foe crosses Web 
     const party = standardParty(9);
     assert.ok(wallShare(party, powerFoes("boss", 9), stone, "barrier", { choke: true }).share > wallShare(party, powerFoes("boss", 9), stone, "barrier").share);
 });
+
+test("an incarnate spell: its phases added up, the best of its options; phases a die picks among weighted by their faces", () => {
+    const save = (statistic, formula) => ({ modelVersion: 13, source: { name: "Phase" }, rank: 5, traits: [], activation: { time: "3" }, targeting: { target: null, range: "120 feet", area: { type: "burst", value: 20 } }, trigger: { event: "use" },
+        resolution: { kind: "save", check: { roll: "save", statistic, basic: true, against: { dc: "spell" } }, sharedDamage: { components: [{ id: "c0", formula, type: "fire", kinds: ["damage"] }] }, outcomes: { criticalSuccess: { damage: { mode: "none", multiplier: 0 } }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["c0"] } }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["c0"] } }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["c0"] } } } } });
+    const incarnate = (payload) => entry(5, plan("incarnate", { incarnate: payload }, { type: "burst", value: 20 }));
+    const party = standardParty(9);
+    const one = readingPower(party, powerFoes("group", 9), incarnate({ phases: [{ key: "arrive", plan: save("reflex", "6d6") }] }));
+    const two = readingPower(party, powerFoes("group", 9), incarnate({ phases: [{ key: "arrive", plan: save("reflex", "6d6") }, { key: "depart", plan: save("reflex", "6d6") }] }));
+    assert.ok(one && two && two.share > one.share * 1.5, "arrival and departure");
+    const options = readingPower(party, powerFoes("group", 9), incarnate({ phases: [], options: { choices: [{ phases: [{ key: "a", plan: save("reflex", "2d6") }] }, { phases: [{ key: "b", plan: save("reflex", "6d6") }] }] } }));
+    assert.ok(Math.abs(options.share - one.share) < 1e-9, "the better option");
+    const rolled = readingPower(party, powerFoes("group", 9), incarnate({ phases: [{ key: "roll", die: 2, table: { 1: "hot" } }, { key: "hot", hidden: true, plan: save("reflex", "6d6") }] }));
+    assert.ok(Math.abs(rolled.share - one.share / 2) < 0.02, `a face in two: half (${rolled.share} vs ${one.share})`);
+});

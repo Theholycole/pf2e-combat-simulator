@@ -9,7 +9,7 @@ import { DISTANCE_FEET } from "./space.js";
 import { degreeDistribution } from "./checks.js";
 import { saveModifier } from "./combatant.js";
 import { adjustDamage, spellContext } from "./damage.js";
-import { areaCapacity, skillValue, spellExpectation } from "./spells.js";
+import { areaCapacity, canCast, skillValue, spellExpectation, spellVariants, targetSets } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 // A round's Strikes as the planner's threat weighs them: the third at half.
@@ -274,6 +274,83 @@ export function castableReading(plan, doc) {
     }
     return { ...plan, simulatorReading: "rating", targeting, resolution, ...(actions ? { activation: { ...(plan.activation ?? {}), time: actions } } : {}) };
 }
+
+// --- Incarnate spells: phases ------------------------------------------------------------------------------------------------------------
+
+// A phase's plan cast as the spell (its rank, DC and attack; entry.doc, its data, for a phase that doesn't say where it goes) at its best
+// targets: the expectation entries of the target set worth most (a
+// rough measure — damage over Hit Points and conditions' rounds over three on foes, less on allies), or [] when the engine can't cast it.
+function phaseEntries(ctx, phasePlan) {
+    const make = (plan) => ({ name: `${ctx.entry.name} (phase)`, plan, castRank: ctx.rank, dc: ctx.entry.dc, attack: ctx.entry.attack, pool: null, tradition: ctx.entry.tradition, effects: ctx.entry.effects ?? {} });
+    let spell = make(phasePlan);
+    // (A phase that names no target or area of its own: as the spell's data or text has them — castableReading, the spell's doc. A new
+    // spell for it: what can be cast is remembered by the spell.)
+    if (!canCast({}, spell) && ctx.entry.doc) {
+        const read = castableReading(phasePlan, ctx.entry.doc);
+        if (read) spell = make(read);
+    }
+    if (!canCast({}, spell)) return [];
+    const worth = (entries) => entries.reduce((sum, { target, damage = 0, worth = 0, heal = 0, benefit = 0 }) => sum + (target.side === ctx.caster.side ? -1 : 1) * (damage / Math.max(1, target.hp.max) + worth / 3 - heal / Math.max(1, target.hp.max) - benefit / 3), 0);
+    let best = [];
+    let bestWorth = 0;
+    for (const actions of spellVariants(spell)) {
+        let sets = [];
+        try {
+            sets = targetSets(ctx.state, ctx.caster, spell, { enemies: ctx.enemies, allies: ctx.allies, inMelee: () => true, distance: () => 30, meleeId: null }, actions);
+        } catch {
+            sets = [];
+        }
+        for (const set of sets) {
+            let entries = [];
+            try {
+                entries = spellExpectation(ctx.state, ctx.caster, spell, set.targets, 0, actions);
+            } catch {
+                entries = [];
+            }
+            const value = worth(entries);
+            if (value > bestWorth) {
+                best = entries;
+                bestWorth = value;
+            }
+        }
+    }
+    return best;
+}
+
+// Entries for the same creatures added up.
+function mergeEntries(lists) {
+    const merged = new Map();
+    for (const entry of lists.flat()) {
+        const sum = merged.get(entry.target) ?? { target: entry.target, damage: 0, worth: 0, heal: 0, benefit: 0 };
+        for (const field of ["damage", "worth", "heal", "benefit"]) sum[field] += entry[field] ?? 0;
+        merged.set(entry.target, sum);
+    }
+    return [...merged.values()];
+}
+
+// Entries scaled by a chance.
+const scaled = (entries, chance) => entries.map((entry) => ({ ...entry, damage: (entry.damage ?? 0) * chance, worth: (entry.worth ?? 0) * chance, heal: (entry.heal ?? 0) * chance, benefit: (entry.benefit ?? 0) * chance }));
+
+READERS.incarnate = (ctx) => {
+    // (An incarnate spell: each phase that carries a plan the engine resolves — its arrival, what it does after, its departure — once, at
+    // its best targets, added up; of its options, the best. Phases a die picks among — Prismatic Spray's beams, "hidden", run by a phase
+    // with a die and a table — each as likely as its faces, and the face that runs two (twice) as two of them on average.)
+    const incarnate = ctx.entry.plan.resolution.incarnate ?? {};
+    const choices = incarnate.options?.choices?.length ? incarnate.options.choices.map((choice) => choice.phases ?? []) : [incarnate.phases ?? []];
+    const options = choices.map((phases) => {
+        const lists = phases.filter((phase) => phase?.plan?.resolution && !phase.hidden).map((phase) => phaseEntries(ctx, phase.plan));
+        for (const roll of phases.filter((phase) => Number(phase?.die) > 0 && phase.table)) {
+            const die = Number(roll.die);
+            const byKey = new Map(phases.filter((phase) => phase?.hidden && phase.plan?.resolution).map((phase) => [phase.key, phaseEntries(ctx, phase.plan)]));
+            const faces = Object.values(roll.table);
+            for (const [key, entries] of byKey) lists.push(scaled(entries, faces.filter((face) => face === key).length / die));
+            if (roll.twice && byKey.size) for (const entries of byKey.values()) lists.push(scaled(entries, 2 / byKey.size / die));
+        }
+        const entries = mergeEntries(lists);
+        return { entries, targets: entries.length };
+    }).filter((option) => option.entries.length);
+    return options.length ? { options } : null;
+};
 
 // The reading for a plan the engine can't cast, or null.
 export function powerReading(plan) {

@@ -140,7 +140,8 @@ const READINGS = {
     "hazard-area": "its hazard hurting and slowing foes on their way to the party",
     "concealing-area": "the party concealed as the foes come, or its damage on them",
     targets: "cast on the creatures its words name (a reaction's on its trigger, an ally's on an ally), as an action",
-    "effect-note": "its PF2e spell effect on its target"
+    "effect-note": "its PF2e spell effect on its target",
+    incarnate: "its phases (its arrival, what follows, its departure) at their best targets, the best of its options"
 };
 
 const ordinal = (n) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
