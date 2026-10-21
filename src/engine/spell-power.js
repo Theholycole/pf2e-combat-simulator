@@ -57,7 +57,13 @@ const TRAIT_PACKAGES = {
     "light-blind": { lightBlindness: {}, environment: { light: "dark" } },
     dark: { environment: { light: "dark" } },
     // (Invisible foes, as by Invisibility or by nature: hidden — sight.js.)
-    invisible: { permanent: [{ slug: "invisible" }] }
+    invisible: { permanent: [{ slug: "invisible" }] },
+    // (Flying foes that shoot from the air: a fly Speed and a ranged Strike like their best — aloft, out of a grounded creature's reach,
+    // space.js.)
+    flying: { flies: true, rangedStrike: true },
+    // (Incorporeal foes, as the Monster Core's ghosts: resistance to all damage but force, ghost touch, spirit and vitality, doubled against
+    // non-magical, at about their level; their immunities.)
+    incorporeal: { traits: ["incorporeal", "undead", "unholy"], immunities: ["death-effects", "disease", "paralyzed", "poison", "precision", "unconscious", "bleed"], resistances: [{ type: "all-damage", exceptions: ["force", "ghost-touch", "spirit", "vitality"], doubleVs: ["non-magical"] }] }
 };
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
 export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
@@ -84,6 +90,9 @@ export function powerFoes(kind, level, trait = null) {
         if (pack?.lightBlindness) foe.lightBlindness = { ...pack.lightBlindness };
         if (pack?.permanent) foe.permanent = [...(foe.permanent ?? []), ...pack.permanent.map((entry) => ({ ...entry }))];
         if (pack?.strikeType) foe.strikes = (foe.strikes ?? []).map((strike) => ({ ...strike, damage: (strike.damage ?? []).map((part) => ({ ...part, type: pack.strikeType })) }));
+        if (pack?.flies) foe.flies = true;
+        if (pack?.rangedStrike && (foe.strikes ?? []).length) foe.strikes = [...foe.strikes, { ...foe.strikes[0], name: `${foe.strikes[0].name ?? "Strike"} (ranged)`, melee: false, increment: 60, reach: undefined }];
+        if (pack?.resistances) foe.resistances = [...(foe.resistances ?? []), ...pack.resistances.map((entry) => ({ ...entry, value: typicalWeakness(foe.level) }))];
         return pack?.traits ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities], weaknesses: (pack.weaknesses ?? []).map((type) => ({ type, value: typicalWeakness(foe.level) })) } : foe;
     };
     const foes = kind === "boss" ? [make(level + 2, "monster")] : [0, 1, 2, 3].map((index) => make(level - 2, index ? `monster-${index}` : "monster"));
@@ -159,6 +168,11 @@ export function powerConditions(plan, effects = null, text = "") {
         if ((model?.senses ?? []).some((sense) => /darkvision|low-light/.test(sense))) traits.add("dark");
         // (See invisibility: against invisible foes.)
         if ((model?.senses ?? []).includes("see-invisibility")) traits.add("invisible");
+        // (A fly Speed: against foes aloft; ghost touch: against incorporeal ones.)
+        if (model?.flies) traits.add("flying");
+        if ((model?.strikeAdds?.runes ?? []).includes("ghost-touch")) traits.add("incorporeal");
+        if ((model?.strikeAdds?.traits ?? []).includes("holy")) traits.add("fiend");
+        if ((model?.strikeAdds?.traits ?? []).includes("unholy")) traits.add("celestial");
     }
     // (An outline — Faerie Fire, Revealing Light —: against invisible foes.)
     if (/"slug":"outlined"/.test(JSON.stringify(plan?.resolution ?? null))) traits.add("invisible");

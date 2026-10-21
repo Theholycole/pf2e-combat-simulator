@@ -146,3 +146,33 @@ test("rated: resistance to a damage type more useful against foes whose Strikes 
     assert.deepEqual(powerConditions({ resolution: { kind: "effect" } }, { r: { resistances: [{ type: "choice", choices: ["acid", "fire"], value: 5 }] } }), ["deals:acid", "deals:fire"]);
     assert.deepEqual(powerConditions({ resolution: { kind: "effect" } }, null, "Each affected creature gains resistance 5 to bludgeoning and piercing damage."), ["deals:bludgeoning", "deals:piercing"]);
 });
+
+test("flying: a flier in no Melee is aloft, out of a grounded creature's reach; a Fly effect lets one reach it", async () => {
+    const { aloft, fliesNow, stridesToEngage } = await import("../src/engine/space.js");
+    const flier = { flies: true, meleeId: null, band: "near", cond: {} };
+    assert.ok(aloft(flier));
+    assert.equal(stridesToEngage({ band: "near", meleeId: null, speed: 25 }, flier), Infinity);
+    assert.equal(stridesToEngage({ band: "near", meleeId: null, speed: 25, flies: true }, flier), 1);
+    assert.ok(!aloft({ ...flier, meleeId: 1 }), "come down to Strike: in reach");
+    assert.ok(!aloft({ ...flier, cond: { prone: true } }));
+    const fly = effectModel({ name: "Fly", system: { duration: { unit: "minutes", value: 5 }, rules: [{ key: "BaseSpeed", selector: "fly", value: "max(20,@actor.system.movement.speeds.land.value)" }] } }, { rank: 4 });
+    assert.equal(fly.flies, true);
+    assert.ok(fliesNow({ effects: [{ model: fly }] }));
+});
+
+test("incorporeal: ghost touch an effect adds gets past its resistance; rated against incorporeal and flying foes", async () => {
+    const { expectedHitDamage } = await import("../src/engine/actions.js");
+    const ghostly = effectModel({ name: "Ghostly Weapon", system: { duration: { unit: "minutes", value: 5 }, rules: [{ key: "AdjustStrike", mode: "add", property: "property-runes", value: "ghost-touch", definition: ["item:id:x"] }, { key: "AdjustStrike", mode: "add", property: "traits", value: "magical", definition: ["item:id:x"] }] } }, { rank: 3 });
+    assert.deepEqual(ghostly.strikeAdds, { runes: ["ghost-touch"], traits: ["magical"] });
+    const state = createFightState({ combatants: [...standardParty(5), ...powerFoes("boss", 5, "incorporeal")] }, { morale: false, retreat: false }, 1);
+    const fighter = state.byId.get("fighter");
+    const ghost = state.list.find((c) => c.side !== "party");
+    assert.equal(ghost.resistances[0].type, "all-damage");
+    const strike = fighter.strikes[0];
+    const plain = expectedHitDamage(fighter, strike, ghost, false);
+    const armed = expectedHitDamage({ ...fighter, effects: [{ model: ghostly }] }, strike, ghost, false);
+    assert.ok(armed > plain, `${armed} > ${plain}`);
+    assert.deepEqual(powerConditions({ resolution: { kind: "effect" } }, { g: ghostly }), ["incorporeal"]);
+    const [flier] = powerFoes("boss", 5, "flying");
+    assert.ok(flier.flies && flier.strikes.some((each) => !each.melee));
+});

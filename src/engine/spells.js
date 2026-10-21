@@ -14,7 +14,7 @@ import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf,
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune } from "./effects.js";
-import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
+import { applyDamage, expectedHitDamage, flightBenefit, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
@@ -3231,7 +3231,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     const unused = model?.fortune && target === caster && (caster.actionsLeft ?? 3) - (describeSpell(spell.plan, actions).actions ?? 1) < 1;
                     if (model && !unused) {
                         const share = chance * recastShare(state, target, model, key);
-                        entry.benefit += share * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, { state, senseLight: senseLightBenefit });
+                        entry.benefit += share * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit });
                         // (Its resistances: the Hit Points they keep off it from the foes' Strikes, as healing — 2026-10-21.)
                         if (model.resistances?.length) entry.heal += share * resistanceKept(state, model, target, Math.min(3, model.rounds));
                     }

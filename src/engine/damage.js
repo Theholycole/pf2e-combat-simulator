@@ -142,7 +142,20 @@ export function strikeContext(attacker, strike, critical = false) {
         if (ignored) cached.normal.ignored = cached.critical.ignored = ignored;
         strikeContexts.set(strike, cached);
     }
-    return critical ? cached.critical : cached.normal;
+    const base = critical ? cached.critical : cached.normal;
+    // (2026-10-21: runes and traits its effects add to its Strikes — Ghostly Weapon's ghost touch, a plane's holy — effects.js strikeAdds.)
+    const adds = (attacker?.effects ?? []).map((effect) => effect.model?.strikeAdds).filter(Boolean);
+    if (!adds.length) return base;
+    const options = new Set(base);
+    for (const add of adds) {
+        for (const rune of add.runes ?? []) options.add(`item:rune:property:${rune}`);
+        for (const trait of add.traits ?? []) {
+            options.add(`item:trait:${trait}`);
+            if (trait === "magical") options.add("item:magical");
+        }
+    }
+    if (base.ignored) options.ignored = base.ignored;
+    return options;
 }
 
 // A spell's or an ability's context: its traits (and magical, as sourceOptions says), a spell's own type, its area.

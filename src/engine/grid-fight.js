@@ -6,6 +6,7 @@
 
 import { isActive } from "./combatant.js";
 import { burstSquares, coneSquares, distanceFeet, emanationSquares, flanks, layout, lineSquares, occupiedBy, placeSide, reachable, reaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
+import { aloft, fliesNow } from "./space.js";
 
 const ACTIVE_BANDS = new Set(["engaged", "near", "far"]);
 
@@ -187,6 +188,8 @@ function bestReachPlace(state, c, target, square = c.square, prefer = null) {
 export function gridStrides(state, c, target, square = c.square) {
     if (!square || !target?.square) return Infinity;
     if (reaches({ ...c, square }, target)) return 0;
+    // (A flier aloft, out of reach of one that doesn't fly — space.js.)
+    if (!fliesNow(c) && aloft(target)) return Infinity;
     const best = bestReachPlace(state, c, target, square);
     return best ? Math.max(1, Math.ceil(best.cost / Math.max(5, c.speed ?? 25))) : Infinity;
 }

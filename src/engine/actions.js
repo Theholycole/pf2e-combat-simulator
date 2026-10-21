@@ -7,7 +7,7 @@ import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } fro
 import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
 import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, spendAmmo, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, resistancesOf, rollStrikeDamage, strikeContext } from "./damage.js";
-import { canStepOut, distanceBetween, engage, engagedEnemies, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
+import { aloft, canStepOut, distanceBetween, engage, engagedEnemies, fliesNow, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { gridFlanked, moveTo as moveOnGrid, planStep, planStride, regroup } from "./grid-fight.js";
 import { reaches as gridReaches, sightLine, squareOf } from "./grid.js";
 import { harmedAfterGivingUp, isShaken } from "./morale.js";
@@ -134,6 +134,28 @@ function defenceId(target) {
 // Expected damage of one hit or critical hit after the defender's adjustments.
 // bonus: a circumstance damage bonus (forceful); offGuardChance: for backstabber
 // and Sneak Attack; packAllies: the attacker's allies within reach of the target (Pack Attack).
+// What runes and traits an effect adds to a creature's Strikes (Ghostly Weapon's ghost touch) are worth to it over rounds, in rounds of
+// its threat: its Strikes' damage on its foes with them over without, as a share, its Strikes' part of its threat (2026-10-21).
+export function strikeAddBenefit(state, model, c, rounds) {
+    const foes = (state.list ?? []).filter((other) => other.side !== c.side && isActive(other));
+    const strikes = (c.strikes ?? []).filter((strike) => strikeUsable(c, strike));
+    if (!foes.length || !strikes.length || !model.strikeAdds) return 0;
+    // (Its added runes and traits alone: its bonuses are effectBenefit's own.)
+    const armed = { ...c, effects: [...(c.effects ?? []), { model: { name: model.name, rounds: model.rounds, modifiers: [], strikeAdds: model.strikeAdds } }] };
+    const total = (who) => foes.reduce((sum, foe) => sum + Math.max(0, ...strikes.map((strike) => expectedHitDamage(who, strike, foe, false))), 0);
+    const own = total(c);
+    return own > 0 ? Math.max(0, total(armed) - own) / own * (state.strikeShare?.get(c.id) ?? 1) * rounds : 0;
+}
+
+// What a fly Speed an effect gives (Fly's) is worth to a creature that doesn't fly, over rounds, in rounds of its threat: the foes aloft out
+// of its reach it can now go up to — their share of its foes, half its threat (2026-10-21).
+export function flightBenefit(state, c, rounds) {
+    if (fliesNow(c)) return 0;
+    const foes = (state.list ?? []).filter((other) => other.side !== c.side && isActive(other));
+    if (!foes.length || !(c.strikes ?? []).some((strike) => strike.melee)) return 0;
+    return foes.filter((foe) => aloft(foe)).length / foes.length * 0.5 * (state.strikeShare?.get(c.id) ?? 1) * rounds;
+}
+
 export function expectedHitDamage(attacker, strike, target, critical, { bonus = 0, offGuardChance = 0, packAllies = 0 } = {}) {
     // Hazards and objects: immune to critical hits, and Hardness off each hit.
     if (critical && target.immunities?.includes("critical-hits")) critical = false;
@@ -198,6 +220,8 @@ function expectedExtras(attacker, strike, target, critical, offGuardChance, pack
 
 function baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance) {
     const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - bonus - effectBonus(attacker, "damage");
+    // (Runes or traits its effects add — Ghostly Weapon's ghost touch —: the damage worked out afresh, not the Strike's own.)
+    if ((attacker.effects ?? []).some((effect) => effect.model?.strikeAdds)) return computeHitDamage(attacker, strike, target, critical, penalty, offGuardChance);
     let cache = hitDamageCache.get(strike);
     if (!cache) {
         cache = new Map();

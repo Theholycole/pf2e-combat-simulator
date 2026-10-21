@@ -133,8 +133,19 @@ export function rangePenalty(strike, distance) {
 
 // Strides needed to engage the target from the attacker's current band; with
 // a map objective, at least those its distance on the map takes.
+// Flying (2026-10-21, the user's foe traits: flying and incorporeal). A creature flies by its own fly Speed or an effect's (Fly's).
+export const fliesNow = (c) => Boolean(c?.flies) || (c?.effects ?? []).some((effect) => effect.model?.flies);
+
+// Aloft: a flier in no Melee (not prone, held or immobilized) — out of reach of a creature that doesn't fly; it comes down to Strike, and
+// can be struck while it's in a Melee.
+export function aloft(c) {
+    return fliesNow(c) && (c.meleeId === null || c.meleeId === undefined) && !c.cond?.prone && !c.cond?.grabbed && !c.cond?.restrained && !c.cond?.immobilized && !c.cond?.paralyzed;
+}
+
 export function stridesToEngage(attacker, target) {
     if (sameMelee(attacker, target)) return 0;
+    // (Aloft, out of reach of one that doesn't fly: none.)
+    if (!fliesNow(attacker) && aloft(target)) return Infinity;
     const attackerFar = attacker.band === "far";
     const targetFar = target.band === "far";
     const bands = attackerFar === targetFar || (attacker.speed ?? 25) >= 50 ? 1 : 2;

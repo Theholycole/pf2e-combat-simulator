@@ -193,6 +193,14 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
             const radius = numericValue(rule.radius, rank);
             if (radius > 0) model.light = { bright: radius, dim: 0, rank };
         }
+        // (Flying and incorporeal, 2026-10-21: a fly Speed it gives — Fly's —, model.flies; runes and traits it adds to Strikes — Ghostly
+        // Weapon's ghost touch, a plane's holy —, model.strikeAdds, on the creature's Strikes at its best.)
+        if (rule?.key === "BaseSpeed" && rule.selector === "fly" && !rule.predicate?.length) model.flies = true;
+        if (rule?.key === "AdjustStrike" && rule.mode === "add" && ["property-runes", "traits"].includes(rule.property) && typeof rule.value === "string" && !rule.value.includes("{")) {
+            model.strikeAdds ??= { runes: [], traits: [] };
+            model.strikeAdds[rule.property === "traits" ? "traits" : "runes"].push(rule.value);
+            continue;
+        }
         if (!rule?.key || IGNORED.has(rule.key)) continue;
         // (Shield, the spell, 2026-10-14: a magic shield — its AC and Hardness — the creature raises by casting it. The rules' predicate
         // only asks for a character or an NPC.)
@@ -518,6 +526,9 @@ export function effectBenefit(model, target, conditionHarm, strikeShare = 1, con
     const rounds = Math.min(3, model.rounds);
     let benefit = 0;
     if (context?.state && context.senseLight && (model.senses?.length || model.light)) benefit += context.senseLight(context.state, model, target, rounds);
+    // (Flying and incorporeal: a fly Speed it gives against foes aloft; runes and traits it adds to Strikes — actions.js.)
+    if (context?.state && context.flight && model.flies) benefit += context.flight(context.state, target, rounds);
+    if (context?.state && context.strikeAdd && model.strikeAdds) benefit += context.strikeAdd(context.state, model, target, rounds);
     const strikes = (target.strikes ?? []).length > 0 ? strikeShare : 0;
     for (const modifier of model.modifiers) {
         const per = { ac: 0.08, fortitude: 0.01, reflex: 0.01, will: 0.01, attack: 0.1 * strikes, damage: 0.04 * strikes, spell: 0.05 * (1 - strikes), speed: 0.003 }[modifier.on] ?? 0;

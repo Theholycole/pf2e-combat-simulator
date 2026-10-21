@@ -13,7 +13,7 @@ import { effectBenefit } from "./effects.js";
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
-import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
+import { canStepOut, fliesNow, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { gridFlanked, gridStrides, planStride, strideGoes } from "./grid-fight.js";
 import { distanceFeet, reaches as gridReaches, sightLine, squareOf } from "./grid.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
@@ -350,10 +350,10 @@ class PlanContext {
         return stridesToEngage(this.mover(pos), target);
     }
 
-    // The creature at a position, for stridesToEngage.
+    // The creature at a position, for stridesToEngage (whether it flies: aloft foes are out of reach otherwise).
     mover(pos) {
         const place = this.placeOf(pos);
-        return { band: pos.band, meleeId: null, speed: this.c.speed, reach: this.c.reach, ...(place ? { areaFeet: place.area, exitFeet: place.exit } : {}) };
+        return { band: pos.band, meleeId: null, speed: this.c.speed, reach: this.c.reach, flies: fliesNow(this.c), ...(place ? { areaFeet: place.area, exitFeet: place.exit } : {}) };
     }
 
     // Strides to the objective's item from a plan's end (0 at it).
@@ -617,7 +617,7 @@ class PlanContext {
         // A melee enemy that must Stride first keeps its remaining Strikes, so
         // stepping back only costs it its weakest attacks.
         const at = this.gridAt(pos);
-        const stridesOf = (enemy) => (inMelee(pos, enemy) ? 0 : at && enemy.square ? Math.min(3, gridStrides(state, enemy, { ...c, square: at.square })) : stridesToEngage({ band: enemy.band, meleeId: null, speed: enemy.speed, reach: enemy.reach, areaFeet: enemy.areaFeet, exitFeet: enemy.exitFeet }, { band: pos.band, meleeId: null, areaFeet: here.areaFeet, exitFeet: here.exitFeet }));
+        const stridesOf = (enemy) => (inMelee(pos, enemy) ? 0 : at && enemy.square ? Math.min(3, gridStrides(state, enemy, { ...c, square: at.square, meleeId: pos.band === "engaged" ? "here" : null })) : stridesToEngage({ band: enemy.band, meleeId: null, speed: enemy.speed, reach: enemy.reach, flies: fliesNow(enemy), areaFeet: enemy.areaFeet, exitFeet: enemy.exitFeet }, { band: pos.band, meleeId: pos.band === "engaged" ? "here" : null, flies: fliesNow(c), areaFeet: here.areaFeet, exitFeet: here.exitFeet }));
         // (Mirror Image: the images' share over the round's attacks — two a round from each enemy that can reach it, as their Strikes go.)
         const imagesYou = this.imageYou(node, ac, (enemy) => Math.min(2, Math.max(1, 3 - stridesOf(enemy))));
         for (const enemy of this.enemies) {
