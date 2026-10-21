@@ -357,6 +357,11 @@
 .pcs-danger-down { background: #3f6f8f; color: #fff; }
 .pcs-danger-low { background: #2f4f6a; color: #fff; }
 .pcs-danger-sort.active { color: var(--color-text-hyperlink, #ff6400); }
+/* A spell's power for its rank (scripts/danger.js): the same bands in a spellbook's colours. */
+.pcs-power.pcs-danger-high { background: #5a2d91; color: #fff; }
+.pcs-power.pcs-danger-up { background: #3d6db5; color: #fff; }
+.pcs-power.pcs-danger-down { background: #6e6a62; color: #fff; }
+.pcs-power.pcs-danger-low { background: #4a4741; color: #fff; }
 /* The danger ratings run window (scripts/danger-run.js). */
 .pcs-danger-run .window-content { overflow-y: auto; }
 .pcs-danger-run-body { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.25rem 0.5rem; }

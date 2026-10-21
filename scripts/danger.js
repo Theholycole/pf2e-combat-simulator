@@ -3,40 +3,63 @@
 // the most dangerous for their level first, unrated ones after; pressed again, the compendium's own order. And in PF2e's Compendium Browser
 // (its Bestiary tab): the number beside each creature's level, and "Danger for level" in its sort. A client setting turns it off.
 // (A world that ran the simulator again — scripts/danger-run.js — has its own numbers, used before the module's file.)
+// Spells the same way (2026-10-21, the user: "rate spells and give them a score just like creatures"): each spell's power for its rank
+// (src/data/spell-ratings.json, from `node tools/spell-power.mjs <run> ratings`) beside its name, a button to sort by it, and the
+// Compendium Browser's Spells tab; a setting of their own.
 
 import { MODULE_ID } from "./snapshot.js";
 import { aloneRatings, worldRatings } from "./danger-run.js";
-import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, ratingOf, ratingOfUuid, sortByDanger, withAlone } from "../src/live/danger.js";
+import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, powerDetailOf, powerLabel, powerTooltip, ratingOf, ratingOfUuid, sortByDanger, withAlone } from "../src/live/danger.js";
 
 const SETTING = "dangerRatings";
-// The numbers in use (the world's or the module's), and the module's own file once read.
-let data = null;
-let shipped = null;
-// The compendiums sorted by danger, this session.
+const SPELL_SETTING = "spellPower";
+// The numbers in use for each kind (creatures: the world's or the module's; spells: the module's), and the module's files once read.
+const numbers = { creatures: null, spells: null };
+const files = {};
+// The compendiums sorted by their numbers, this session.
 const sorted = new Set();
 
-// The module's own numbers (src/data/danger-ratings.json), or null.
-export function shippedRatings() {
-    shipped ??= fetch(`modules/${MODULE_ID}/src/data/danger-ratings.json`).then((response) => (response.ok ? response.json() : null)).catch(() => null);
-    return shipped;
-}
+const fetchJSON = (name) => (files[name] ??= fetch(`modules/${MODULE_ID}/src/data/${name}`).then((response) => (response.ok ? response.json() : null)).catch(() => null));
 
-async function ratings() {
-    data = withAlone(worldRatings() ?? (await shippedRatings()), aloneRatings());
-    return data;
-}
+// The module's own creature numbers (src/data/danger-ratings.json), or null.
+export const shippedRatings = () => fetchJSON("danger-ratings.json");
 
-// The numbers shown now (the world's or the module's, with the creatures rated again on their own).
-export const dangerRatingsInUse = () => ratings();
-
-// When a creature was rated again on its own (a date, or null when the date's unknown), or undefined when it wasn't.
-const aloneOn = (known, collection, id) => known?.aloneOn?.[collection]?.[id];
-const aloneOnUuid = (known, uuid) => {
-    const match = /^Compendium\.(.+)\.Actor\.([^.]+)$/.exec(String(uuid ?? ""));
-    return match ? aloneOn(known, match[1], match[2]) : undefined;
+// What each kind is: its documents, its setting, its numbers, its badge and its place in PF2e's Compendium Browser.
+const KINDS = {
+    creatures: {
+        documentName: "Actor", type: "npc", setting: SETTING, tab: "bestiary", order: "pcsDanger", orderLabel: "Danger for level", ownOrder: "level",
+        sortIcon: "fa-skull", sortTip: "Sort by danger for their level (Combat Simulator)",
+        load: async () => withAlone(worldRatings() ?? (await shippedRatings()), aloneRatings()),
+        badge: (value, bound, known, collection, id) => ({ className: "", label: dangerLabel(value, bound), tooltip: dangerTooltip(value, known, bound, { alone: known?.aloneOn?.[collection]?.[id] }) })
+    },
+    spells: {
+        documentName: "Item", type: "spell", setting: SPELL_SETTING, tab: "spell", order: "pcsPower", orderLabel: "Power for rank", ownOrder: "rank",
+        sortIcon: "fa-wand-sparkles", sortTip: "Sort by power for their rank (Combat Simulator)",
+        load: () => fetchJSON("spell-ratings.json"),
+        badge: (value, bound, known, collection, id) => ({ className: "pcs-power", label: powerLabel(value, bound), tooltip: powerTooltip(value, known, bound, powerDetailOf(known, collection, id)) })
+    }
 };
+const kindOfDocument = (documentName) => Object.values(KINDS).find((kind) => kind.documentName === documentName) ?? null;
+const kindOfTab = (tabName) => Object.values(KINDS).find((kind) => kind.tab === tabName) ?? null;
+const keyOf = (kind) => Object.keys(KINDS).find((key) => KINDS[key] === kind);
+const shown = (kind) => game.settings.get(MODULE_ID, kind.setting);
+
+async function load(kind) {
+    numbers[keyOf(kind)] = await kind.load();
+    return numbers[keyOf(kind)];
+}
+
+// The creature numbers shown now (the world's or the module's, with the creatures rated again on their own).
+export const dangerRatingsInUse = () => load(KINDS.creatures);
 
 const compendiumApps = () => [...(foundry.applications.instances?.values?.() ?? [])].filter((app) => app instanceof foundry.applications.sidebar.apps.Compendium);
+
+function refreshAll() {
+    for (const app of compendiumApps()) app.render();
+    syncBrowserOrders();
+    const browser = game.pf2e?.compendiumBrowser;
+    if (browser?.rendered) markBrowser(browser);
+}
 
 export function registerDangerSetting() {
     game.settings.register(MODULE_ID, SETTING, {
@@ -46,67 +69,68 @@ export function registerDangerSetting() {
         config: true,
         type: Boolean,
         default: true,
-        onChange: () => {
-            for (const app of compendiumApps()) app.render();
-            syncBrowserOrder();
-            const browser = game.pf2e?.compendiumBrowser;
-            if (browser?.rendered) markBrowser(browser);
-        }
+        onChange: refreshAll
+    });
+    game.settings.register(MODULE_ID, SPELL_SETTING, {
+        name: "Spell power in compendiums",
+        hint: "Show each spell's power for its rank beside its name in compendium windows and PF2e's Compendium Browser, with a button to sort by it: levels above (+) or below (−) a typical spell of its rank, from the simulator's fights with one cast in a party's hands.",
+        scope: "client",
+        config: true,
+        type: Boolean,
+        default: true,
+        onChange: refreshAll
     });
 }
 
 export function setUpDanger() {
     Hooks.on("renderCompendium", (app, element) => {
-        if (!game.settings.get(MODULE_ID, SETTING)) return;
-        mark(app, element instanceof HTMLElement ? element : element?.[0]).catch((error) => console.error(`${MODULE_ID} | danger ratings`, error));
+        const kind = kindOfDocument(app.collection?.documentName);
+        if (!kind || !shown(kind)) return;
+        mark(app, element instanceof HTMLElement ? element : element?.[0], kind).catch((error) => console.error(`${MODULE_ID} | ${keyOf(kind)} numbers`, error));
     });
     // (PF2e makes its Compendium Browser at its own ready, before a module's.)
-    Hooks.once("ready", () => setUpBrowser().catch((error) => console.error(`${MODULE_ID} | danger ratings in the Compendium Browser`, error)));
+    Hooks.once("ready", () => setUpBrowser().catch((error) => console.error(`${MODULE_ID} | numbers in the Compendium Browser`, error)));
     // (The world's own numbers made, or given up for the module's: every window shows the ones in use.)
-    Hooks.on(`${MODULE_ID}.dangerRatingsChanged`, () => {
-        ratings().then(() => {
-            for (const app of compendiumApps()) app.render();
-            syncBrowserOrder();
-            const browser = game.pf2e?.compendiumBrowser;
-            if (browser?.rendered) markBrowser(browser);
-        });
-    });
+    Hooks.on(`${MODULE_ID}.dangerRatingsChanged`, () => load(KINDS.creatures).then(refreshAll));
 }
 
-// A creature's badge: its number, coloured by band, its words when hovered.
-function badgeFor(value, bound, known, alone = undefined) {
+// A badge: its number, coloured by band, its words when hovered.
+function badgeFor(kind, value, bound, known, collection, id) {
+    const made = kind.badge(value, bound, known, collection, id);
     const badge = document.createElement("span");
-    badge.className = `pcs-danger pcs-danger-${dangerBand(value)}`;
-    badge.textContent = dangerLabel(value, bound);
-    badge.dataset.tooltip = dangerTooltip(value, known, bound, { alone });
-    badge.setAttribute("aria-label", badge.dataset.tooltip);
+    badge.className = `pcs-danger pcs-danger-${dangerBand(value)}${made.className ? ` ${made.className}` : ""}`;
+    badge.textContent = made.label;
+    badge.dataset.tooltip = made.tooltip;
+    badge.setAttribute("aria-label", made.tooltip);
     return badge;
 }
 
-async function mark(app, root) {
+async function mark(app, root, kind) {
     const pack = app.collection;
-    if (!root || pack?.documentName !== "Actor") return;
-    const known = await ratings();
+    if (!root || !pack) return;
+    const known = await load(kind);
     if (!known?.ratings?.[pack.collection]) return;
     const entries = [...root.querySelectorAll("li.directory-item.entry[data-entry-id]")];
     entries.forEach((item, index) => {
         if (item.dataset.pcsOrder === undefined) item.dataset.pcsOrder = String(index);
         item.querySelector(".pcs-danger")?.remove();
-        const value = ratingOf(known, pack.collection, item.dataset.entryId);
+        const id = item.dataset.entryId;
+        // (A compendium of items of every kind: its spells only.)
+        const value = pack.index?.get?.(id)?.type && pack.index.get(id).type !== kind.type ? null : ratingOf(known, pack.collection, id);
         if (value === null) {
             delete item.dataset.pcsDanger;
             return;
         }
         item.dataset.pcsDanger = String(value);
-        item.append(badgeFor(value, boundOf(known, pack.collection, item.dataset.entryId), known, aloneOn(known, pack.collection, item.dataset.entryId)));
+        item.append(badgeFor(kind, value, boundOf(known, pack.collection, id), known, pack.collection, id));
     });
     const search = root.querySelector("search");
     let button = search?.querySelector(".pcs-danger-sort");
     if (search && !button) {
         button = document.createElement("button");
         button.type = "button";
-        button.className = "inline-control icon fa-solid fa-skull pcs-danger-sort";
-        button.dataset.tooltip = "Sort by danger for their level (Combat Simulator)";
+        button.className = `inline-control icon fa-solid ${kind.sortIcon} pcs-danger-sort`;
+        button.dataset.tooltip = kind.sortTip;
         button.setAttribute("aria-label", button.dataset.tooltip);
         button.addEventListener("click", () => {
             if (sorted.has(pack.collection)) sorted.delete(pack.collection);
@@ -122,7 +146,7 @@ async function mark(app, root) {
     order(root, pack.collection);
 }
 
-// Each list's entries (a folder's, or the compendium's own) by danger, or back in their first order; folders stay where they are.
+// Each list's entries (a folder's, or the compendium's own) by their numbers, or back in their first order; folders stay where they are.
 function order(root, collection) {
     const on = sorted.has(collection);
     const lists = new Set([...root.querySelectorAll("li.directory-item.entry[data-entry-id]")].map((item) => item.parentElement));
@@ -134,43 +158,48 @@ function order(root, collection) {
 }
 
 // --- PF2e's Compendium Browser ------------------------------------------------------
-// (A Svelte app: its Bestiary tab keeps entries { name, uuid, level, … } and draws a row for each of its sorted results, in order, with no id
-// on the row — so a row is its result by place, checked by name. Its sort: the tab's filterData.order { by, direction, options }, read
-// through tab.sortResult.)
+// (A Svelte app: its Bestiary and Spells tabs keep entries { name, uuid, level or rank, … } and draw a row for each of their sorted results,
+// in order, with no id on the row — so a row is its result by place, checked by name. A tab's sort: its filterData.order { by, direction,
+// options }, read through tab.sortResult.)
 
-const BROWSER_ORDER = "pcsDanger";
 const watchedBrowsers = new WeakSet();
 
 async function setUpBrowser() {
     const browser = game.pf2e?.compendiumBrowser;
-    const tab = browser?.tabs?.bestiary;
-    if (!tab || typeof tab.sortResult !== "function" || tab.pcsDanger) return;
-    await ratings();
-    tab.pcsDanger = true;
-    const ownSort = tab.sortResult.bind(tab);
-    tab.sortResult = function (result) {
-        const order = this.filterData?.order;
-        if (order?.by !== BROWSER_ORDER) return ownSort(result);
-        const lang = game.i18n.lang;
-        return sortByDanger(result, (entry) => ratingOfUuid(data, entry.uuid)?.value ?? null, { descending: order.direction === "desc", compare: (a, b) => a.localeCompare(b, lang) });
-    };
-    syncBrowserOrder();
+    if (!browser?.tabs) return;
+    for (const kind of Object.values(KINDS)) {
+        const tab = browser.tabs[kind.tab];
+        if (!tab || typeof tab.sortResult !== "function" || tab[kind.order]) continue;
+        await load(kind);
+        tab[kind.order] = true;
+        const ownSort = tab.sortResult.bind(tab);
+        tab.sortResult = function (result) {
+            const order = this.filterData?.order;
+            if (order?.by !== kind.order) return ownSort(result);
+            const lang = game.i18n.lang;
+            const known = numbers[keyOf(kind)];
+            return sortByDanger(result, (entry) => ratingOfUuid(known, entry.uuid)?.value ?? null, { descending: order.direction === "desc", compare: (a, b) => a.localeCompare(b, lang) });
+        };
+    }
+    syncBrowserOrders();
     Hooks.on("renderCompendiumBrowser", (app) => watchBrowser(app));
     if (browser.rendered) watchBrowser(browser);
 }
 
-// "Danger for level" among the Bestiary tab's sorts while the setting is on (its filters now and those it resets to).
-function syncBrowserOrder() {
-    const tab = game.pf2e?.compendiumBrowser?.tabs?.bestiary;
-    if (!tab?.pcsDanger) return;
-    const on = game.settings.get(MODULE_ID, SETTING);
-    for (const filters of [tab.filterData, tab.defaultFilterData]) {
-        const order = filters?.order;
-        if (!order?.options) continue;
-        if (on) order.options[BROWSER_ORDER] ??= { label: "Danger for level", type: "numeric" };
-        else {
-            delete order.options[BROWSER_ORDER];
-            if (order.by === BROWSER_ORDER) order.by = "level";
+// Each kind's sort among its tab's while its setting is on (the tab's filters now and those it resets to).
+function syncBrowserOrders() {
+    for (const kind of Object.values(KINDS)) {
+        const tab = game.pf2e?.compendiumBrowser?.tabs?.[kind.tab];
+        if (!tab?.[kind.order]) continue;
+        const on = shown(kind);
+        for (const filters of [tab.filterData, tab.defaultFilterData]) {
+            const order = filters?.order;
+            if (!order?.options) continue;
+            if (on) order.options[kind.order] ??= { label: kind.orderLabel, type: "numeric" };
+            else {
+                delete order.options[kind.order];
+                if (order.by === kind.order) order.by = kind.ownOrder;
+            }
         }
     }
 }
@@ -194,18 +223,22 @@ function watchBrowser(app) {
     markBrowser(app);
 }
 
-// Each Bestiary row's number, in its own column before the level; none on other tabs, or with the setting off.
+// Each row's number on the Bestiary and Spells tabs, in its own column before the level (or rank); none on other tabs, or with the setting off.
 function markBrowser(app) {
     const root = app?.element;
     if (!root) return;
-    const on = data && game.settings.get(MODULE_ID, SETTING) && app.activeTabName === "bestiary";
-    const results = on ? app.tabs?.bestiary?.results ?? [] : [];
+    const kind = kindOfTab(app.activeTabName);
+    const known = kind ? numbers[keyOf(kind)] : null;
+    const on = known && shown(kind);
+    const results = on ? app.tabs?.[kind.tab]?.results ?? [] : [];
     for (const list of root.querySelectorAll("ul.result-list")) {
         [...list.children].forEach((item, index) => {
             const entry = results[index];
             const name = item.querySelector(".result-link")?.textContent?.trim();
-            const rating = entry && name === String(entry.name ?? "").trim() ? ratingOfUuid(data, entry.uuid) : null;
-            const key = rating ? `${entry.uuid}|${rating.value}|${rating.bound ?? ""}|${aloneOnUuid(data, entry.uuid) ?? ""}` : "";
+            const rating = entry && name === String(entry.name ?? "").trim() ? ratingOfUuid(known, entry.uuid) : null;
+            const match = rating ? /^Compendium\.(.+)\.(?:Actor|Item)\.([^.]+)$/.exec(entry.uuid) : null;
+            const [collection, id] = match ? [match[1], match[2]] : [null, null];
+            const key = rating ? `${entry.uuid}|${rating.value}|${rating.bound ?? ""}|${known?.aloneOn?.[collection]?.[id] ?? ""}` : "";
             if ((item.dataset.pcsBrowserDanger ?? "") === key) return;
             item.querySelector(":scope > .pcs-danger-cell")?.remove();
             if (!rating) {
@@ -215,11 +248,10 @@ function markBrowser(app) {
             item.dataset.pcsBrowserDanger = key;
             const cell = document.createElement("div");
             cell.className = "pcs-danger-cell";
-            cell.append(badgeFor(rating.value, rating.bound, data, aloneOnUuid(data, entry.uuid)));
+            cell.append(badgeFor(kind, rating.value, rating.bound, known, collection, id));
             const level = item.querySelector(":scope > .level");
             if (level) level.before(cell);
             else item.append(cell);
         });
     }
 }
-

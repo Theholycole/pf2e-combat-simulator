@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, ratingOf, ratingOfUuid, sortByDanger, stampOf, withAlone } from "../src/live/danger.js";
+import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, powerDetailOf, powerLabel, powerTooltip, ratingOf, ratingOfUuid, sortByDanger, stampOf, withAlone } from "../src/live/danger.js";
 
 // Danger for its level in compendium windows (2026-10-20, src/live/danger.js; scripts/danger.js draws it).
 
@@ -57,5 +57,18 @@ test("creatures rated again on their own, laid over the numbers they were rated 
     assert.equal(withAlone(other, alone), other, "rated on other numbers: left out");
     assert.equal(stampOf({ generated: "2026-10-20" }), "2026-10-20");
     assert.match(dangerTooltip(1.4, data, null, { alone: "2026-10-22" }), /Rated again on its own on 2026-10-22\.$/);
+});
+
+test("a spell's power: its label, and its words with its fights, heightened ranks that differ and traits it does more against", () => {
+    const data = { kind: "spells", generated: "2026-10-21", fights: 100, ratings: { "pf2e.spells-srd": { sun: 0.8 } }, detail: { "pf2e.spells-srd": { sun: { rank: 7, boss: 1.1, group: 2.3, typical: 0.9, ranks: { 8: 0.6, 9: 0.1, 10: -0.4 }, vs: { undead: 2.6 } } } } };
+    assert.deepEqual(ratingOfUuid(data, "Compendium.pf2e.spells-srd.Item.sun"), { value: 0.8, bound: null });
+    assert.deepEqual([powerLabel(0.8), powerLabel(6, "atLeast"), powerLabel(-2, "atMost")], ["+0.8", "≥+6.0", "≤−2.0"]);
+    const words = powerTooltip(0.8, data, null, powerDetailOf(data, "pf2e.spells-srd", "sun"));
+    assert.match(words, /^Power for its rank: 0\.8 levels stronger than a typical rank-7 spell \(Combat Simulator, 2026-10-21, 100 fights\)\./);
+    assert.match(words, /a party of four at level 13 makes a fight with a boss 1\.1 levels easier and one with a group 2\.3 levels easier \(a typical rank-7 spell: 0\.9 levels easier on average\)/);
+    assert.match(words, /Heightened: 9th \+0\.1, 10th −0\.4\./, "only the ranks half a level or more from it");
+    assert.doesNotMatch(words, /8th/);
+    assert.match(words, /Against undead: \+2\.6\.$/);
+    assert.match(powerTooltip(0, data, null, { rank: 1, cantrip: true, boss: 0.2, group: 0.4, ranks: { 2: 0.1 } }), /about as strong as a typical cantrip at rank 1.*Cast at will.*Heightened: within half a level of this at every rank\./);
 });
 

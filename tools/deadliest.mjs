@@ -16,25 +16,16 @@
 //
 //   --workers N (default: the cores less two)
 import fs from "node:fs";
-import os from "node:os";
-import { Worker, isMainThread, parentPort } from "node:worker_threads";
+import { isMainThread } from "node:worker_threads";
+import { defaultWorkers, runPool, workerLoop } from "./lib/pool.mjs";
 
 if (!isMainThread) {
     const lib = await import("./lib/deadliness.mjs");
-    parentPort.on("message", (task) => {
-        let result;
-        try {
-            result = lib.runTask(task);
-        } catch (error) {
-            result = { ...task, error: `task: ${error.message}` };
-        }
-        parentPort.postMessage(result);
-    });
-    parentPort.postMessage({ ready: true });
+    workerLoop((task) => lib.runTask(task));
 } else {
     const [out, phase] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
     const workersArg = process.argv.find((arg) => arg.startsWith("--workers="));
-    const WORKERS = Number(workersArg?.split("=")[1]) || Math.max(1, os.cpus().length - 2);
+    const WORKERS = Number(workersArg?.split("=")[1]) || defaultWorkers();
     // (--fights N: the screen's fights per creature, 24 by default; 2026-10-20, the danger ratings, more.)
     const FIGHTS = Number(process.argv.find((arg) => arg.startsWith("--fights="))?.split("=")[1]) || 24;
     if (!out || !phase) {
@@ -44,48 +35,9 @@ if (!isMainThread) {
     fs.mkdirSync(out, { recursive: true });
     const read = (name) => (fs.existsSync(`${out}/${name}`) ? fs.readFileSync(`${out}/${name}`, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : []);
 
-    // Runs tasks on the workers, writing each result as a line of the file.
-    // (append: onto what the file already has — a resumed screen.)
-    // (2026-10-20: a worker grows by megabytes a creature, so each is replaced by a fresh one after RECYCLE tasks — the full screen at 8
-    // workers had filled the machine's memory.)
-    const RECYCLE = 150;
-    async function run(tasks, file, { append = false } = {}) {
-        const stream = fs.createWriteStream(`${out}/${file}`, { flags: append ? "a" : "w" });
-        const started = Date.now();
-        let next = 0;
-        let done = 0;
-        await new Promise((resolve, reject) => {
-            let live = 0;
-            const feed = (worker) => {
-                if (next < tasks.length && worker.tasks < RECYCLE) {
-                    worker.tasks++;
-                    worker.postMessage(tasks[next++]);
-                    return;
-                }
-                worker.terminate();
-                live--;
-                if (next < tasks.length) start();
-                else if (!live) resolve();
-            };
-            const start = () => {
-                const worker = new Worker(new URL(import.meta.url));
-                worker.tasks = 0;
-                live++;
-                worker.on("error", reject);
-                worker.on("message", (message) => {
-                    if (!message.ready) {
-                        stream.write(`${JSON.stringify(message)}\n`);
-                        done++;
-                        if (done % 200 === 0 || done === tasks.length) console.log(`${file}: ${done}/${tasks.length} in ${Math.round((Date.now() - started) / 1000)} s`);
-                    }
-                    feed(worker);
-                });
-            };
-            for (let index = 0; index < Math.min(WORKERS, tasks.length); index++) start();
-            if (!tasks.length) resolve();
-        });
-        await new Promise((resolve) => stream.end(resolve));
-    }
+    // Runs tasks on the workers (tools/lib/pool.mjs), writing each result as a line of the file. (append: onto what the file already has — a
+    // resumed screen.)
+    const run = (tasks, file, { append = false } = {}) => runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/${file}`, append });
 
     // The ranking (src/engine/danger-scale.js, shared with the in-Foundry run): each level's yardstick, the ladder's curves, a creature's
     // effective level and its excess over the typical creature of its level; data slips and April Fools creatures left out. Its rows: a
