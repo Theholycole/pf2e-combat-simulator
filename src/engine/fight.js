@@ -26,6 +26,7 @@ import { lastingTurnStart } from "./lasting.js";
 import { noteStatesTurnStart } from "./note-states.js";
 import { floorOf } from "./floors.js";
 import { buildEnvironment, covenCast, covenTurnStart, hiddenAtTurnStart, lightAtStart, sunlightTurnEnd, terrainTurn } from "./environment.js";
+import { lightTurnStart } from "./light.js";
 import { attachedTurnStart, berserkTurnStart, followAttached, headsMend, hydraRegrow, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
 import { controlTurnStart } from "./control.js";
 import { familiarFocus, familiarKeepsUp } from "./familiars.js";
@@ -1312,6 +1313,8 @@ export function takeTurn(state, c) {
     berserkTurnStart(state, c);
     // (L3–L5: the ground's difficult terrain; Hidden Movement; a coven's readiness and the actions it lent.)
     terrainTurn(state, c, "start");
+    // (A spell's bright light on a light-blind creature — light.js.)
+    if (state.lit) lightTurnStart(state, c, { applyCondition });
     hiddenAtTurnStart(state, c);
     covenTurnStart(state, c);
     if (c.attach?.strike) attachedTurnStart(state, c, { applyDamage, rollStrikeDamage, strikeNamed });

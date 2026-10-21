@@ -155,7 +155,7 @@ export function powerLabel(value, bound = null, detail = null) {
 }
 
 // The words for a trait's foes, and for an estimate.
-const FOES = { undead: "undead", fiend: "fiends", celestial: "celestials", construct: "constructs", elemental: "elementals" };
+const FOES = { undead: "undead", fiend: "fiends", celestial: "celestials", construct: "constructs", elemental: "elementals", "no-darkvision": "foes without darkvision", "light-blind": "light-blind foes" };
 const ESTIMATES = {
     shield: "its shield raised (more AC, and a Shield Block while it lasts)",
     "text damage": "the damage its text gives, at the foes' saves",
@@ -260,9 +260,9 @@ export function powerTooltip(value, data, bound = null, detail = null) {
     const higher = heightened.length ? (differ.length ? ` Heightened: ${differ.map(([at, power]) => `${ordinal(at)} ${dangerLabel(power)}${summoned(at)}`).join(", ")}.` : " Heightened: within half a level of this at every rank.") : "";
     const creature = detail?.creature ? ` Its best summon here: ${detail.creature}.` : "";
     const more = moreUsefulAgainst(value, detail);
-    const where = (trait) => (trait === "choke" ? "in a choke point (the foes coming down a corridor)" : `against ${FOES[trait] ?? trait}`);
+    const where = (trait) => (trait === "choke" ? "in a choke point (the foes coming down a corridor)" : trait === "dark" ? "in an unlit fight (the party's humans without darkvision)" : `against ${FOES[trait] ?? trait}`);
     const useful = more.length ? ` * More useful ${more.map(([trait, power]) => `${where(trait)}: ${dangerLabel(power)}${detail?.creatures?.[trait] ? ` (summoning ${detail.creatures[trait]})` : ""}`).join("; ")}.` : "";
-    const less = Object.entries(detail?.vs ?? {}).filter(([trait, power]) => Number.isFinite(power) && !more.some(([other]) => other === trait)).map(([trait, power]) => ` Against ${FOES[trait] ?? trait}: ${dangerLabel(power)}.`).join("");
+    const less = Object.entries(detail?.vs ?? {}).filter(([trait, power]) => Number.isFinite(power) && !more.some(([other]) => other === trait)).map(([trait, power]) => ` ${where(trait).replace(/^./, (first) => first.toUpperCase())}: ${dangerLabel(power)}.`).join("");
     const minion = detail?.minion ? " Cast on a minion of the caster's already out." : "";
     const allies = detail?.alliesHit ? " Its area catches allies near the caster: their Hit Points count against it." : "";
     const reading = /^reading \((.+)\)$/.exec(String(detail?.estimate ?? ""))?.[1];

@@ -16,6 +16,7 @@ import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isA
 import { applyEffect, effectBenefit, effectModel, modifierModel, removeEffect, takeAttackFortune } from "./effects.js";
 import { applyDamage, expectedHitDamage, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
+import { lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
 import { addFloor, floorOf } from "./floors.js";
 import { counterables, counterChance, counterRank, counterReaches, counterRoll } from "./counteract.js";
@@ -1915,7 +1916,9 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         }
         return;
     }
-    // A zone (B256): its area made; what it does then and over the turns is zones.js's.
+    // A zone (B256): its area made; what it does then and over the turns is zones.js's. (Light or darkness — light.js —: its zone.)
+    const lightZone = spell.zone ? null : lightZoneOf(spell);
+    if (lightZone) spell = { ...spell, zone: lightZone };
     if (spell.zone) {
         spendPool(caster, spell);
         const recharge = describeSpell(spell.plan, actions).recharge;
@@ -2721,6 +2724,8 @@ export function castsNothing(plan) {
 export function isUtility(plan) {
     const kind = plan?.resolution?.kind;
     if (kind === "spell-note" || kind === "message") return true;
+    // (Light or darkness a zone holds — light.js, 2026-10-21: the fight's sight.)
+    if (lightZoneModel(plan)) return false;
     return castsNothing(plan) && !/Compendium\.pf2e\.spell-effects\.Item\./.test(JSON.stringify(plan));
 }
 
@@ -2830,7 +2835,7 @@ export function canCast(c, spell) {
     // Recharging (a breath weapon used a round ago).
     if ((c.rechargeUntil?.get(spell.rechargeGroup ?? spell) ?? -Infinity) > (c.round ?? 0)) return false;
     // (B256: not a zone it already has up; nor a lingering spell's area.)
-    if ((spell.zone || spell.plan?.resolution?.lingering) && c.activeZones?.has(spell.name)) return false;
+    if ((spell.zone || spell.plan?.resolution?.lingering || lightZoneOf(spell)) && c.activeZones?.has(spell.name)) return false;
     // (S22: a failed trick locks the item this turn; a critically failed one, all fight.)
     if (spell.trick && (c.itemsLocked?.has(spell.item) || c.usedThisTurn?.has(`trick:${spell.item}`))) return false;
     // (Crisis of Faith: its divine spells locked.)
@@ -2871,7 +2876,9 @@ const CASTABLE = new WeakMap();
 function castableAtAll(spell) {
     let castable = CASTABLE.get(spell);
     if (castable === undefined) {
-        castable = !isConstant(spell) && Boolean(registry.familyFor(spell.plan?.resolution?.kind)) && !castsNothing(spell.plan) && spellVariants(spell).some((actions) => {
+        // (Light or darkness a zone holds — light.js —: cast as its zone, its family the engine's own.)
+        const light = Boolean(lightZoneOf(spell));
+        castable = !isConstant(spell) && (light || (Boolean(registry.familyFor(spell.plan?.resolution?.kind)) && !castsNothing(spell.plan))) && spellVariants(spell).some((actions) => {
             const info = describeSpell(spell.plan, actions);
             return Boolean(info.area || info.targets || info.self);
         });
@@ -3043,6 +3050,8 @@ function faceShare(faces, die, dice = 1) {
 // worth (harm from conditions) and benefit (from a PF2e spell effect, negative
 // for a hindrance) in rounds of the target's threat.
 export function spellExpectation(state, caster, spell, targets, attacks = caster.attacksThisTurn ?? 0, actions = undefined) {
+    // (Light or darkness — light.js —: how much harder or easier it makes each side to see.)
+    if (!spell.zone && lightZoneOf(spell)) return lightZoneEntries(state, caster, spell, targets, conditionWorth);
     // A random effect table (B255): each way's expectation, weighted by its share of the die's faces (a way on itself, on itself).
     if (spell.randomWays?.length) {
         const merged = new Map();
@@ -3203,7 +3212,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     const { model, key } = outcomeEffect(spell, change);
                     // (S54, Sure Strike on itself: worth it only with an action left for the attack — it ends with the turn.)
                     const unused = model?.fortune && target === caster && (caster.actionsLeft ?? 3) - (describeSpell(spell.plan, actions).actions ?? 1) < 1;
-                    if (model && !unused) entry.benefit += chance * recastShare(state, target, model, key) * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1);
+                    if (model && !unused) entry.benefit += chance * recastShare(state, target, model, key) * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, { state, senseLight: senseLightBenefit });
                 }
             }
         }
@@ -3311,7 +3320,7 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     // take the area's room or show among its targets.)
     const affected = (other) => !outsideTargets(caster, other, spell);
     // (On the grid, 2026-10-21: whoever its template catches where it can go — grid-fight.js.)
-    if (state.grid && caster.square) return gridAreaSets(state, caster, info.area, info.range, { affected: (other) => affected(other) && notImmune(other), healing: Boolean(info.healing), helpful: Boolean(info.helpful), foesOnly: Boolean(info.area.foes) });
+    if (state.grid && caster.square) return gridAreaSets(state, caster, info.area, info.range, { affected: (other) => affected(other) && notImmune(other), healing: Boolean(info.healing), helpful: Boolean(info.helpful) || Boolean(lightZoneOf(spell)), foesOnly: Boolean(info.area.foes) });
     const members = (id) => [...(state.melees.get(id) ?? [])].map((memberId) => state.byId.get(memberId)).filter((other) => other && isActive(other) && notImmune(other) && affected(other));
     if (info.area.type === "emanation" && info.range === null) {
         // Around the caster: whoever shares its Melee. From 30 feet, also those
@@ -3349,6 +3358,11 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         const loose = enemies.filter((enemy) => enemy.status === "active" && enemy.meleeId === null && enemy.band === band && reaches(enemy) && affected(enemy));
         if (loose.length) sets.push({ targets: loose.slice(0, Math.max(1, Math.ceil(capacity / 2))) });
     }
+    // (Light or darkness — light.js —: over its own side too, where that does more.)
+    if (lightZoneOf(spell)) {
+        const own = [caster, ...allies.filter((ally) => ally !== caster)].filter((ally) => isActive(ally) && reaches(ally) && affected(ally));
+        if (own.length) sets.push({ targets: own.slice(0, capacity) });
+    }
     return sets;
 }
 
@@ -3358,6 +3372,8 @@ export function spellGaps(spell) {
     const kind = plan?.resolution?.kind;
     const family = kind ? registry.familyFor(kind) : null;
     if (!plan) return ["no plan"];
+    // (Light or darkness a zone holds — light.js: the engine's own.)
+    if (lightZoneOf(spell)) return [];
     if (!family) return [`resolution kind "${kind}" isn't resolved yet`];
     const info = describeSpell(plan);
     const missing = new Set();

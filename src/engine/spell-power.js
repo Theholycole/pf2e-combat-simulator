@@ -26,6 +26,7 @@ import { adjustDamage, spellContext } from "./damage.js";
 import { computeThreats, potentialDamage, spellDamages } from "./planner.js";
 import { areaCapacity, describeSpell, spellExpectation, spellVariants, targetSets } from "./spells.js";
 import { powerReading } from "./power-readings.js";
+import { lightZoneModel } from "./light.js";
 
 export const POWER_KINDS = Object.freeze(["boss", "group"]);
 // The choke point the ratings try area spells in: the corridor layout.
@@ -42,29 +43,45 @@ export const partyLevelForRank = (rank) => Math.max(1, Math.min(20, 2 * (Number(
 
 // Traits a foe can be given, each with what such creatures usually have (undead: the Monster Core undead's immunities; fiends and
 // celestials: their weakness to holy, or unholy — 57 of the Monster Core's 73 fiends, 29 of its 37 celestials — at about its level).
+// And (2026-10-21, the user: "I also want spells that need foe traits since i want those to be tracked too in the simulator") states of
+// sight and light: foes without darkvision (the rated foes have it — the user's choice, as 75% of the rulebook bestiaries' monsters do),
+// light-blind foes (a drow's Light Blindness), and a fight in darkness (the party's humans without darkvision: environment).
 const TRAIT_PACKAGES = {
     undead: { traits: ["undead", "unholy"], immunities: ["death-effects", "disease", "paralyzed", "poison", "unconscious", "bleed"] },
     fiend: { traits: ["fiend", "unholy"], immunities: [], weaknesses: ["holy"] },
     celestial: { traits: ["celestial", "holy"], immunities: [], weaknesses: ["unholy"] },
     construct: { traits: ["construct"], immunities: ["bleed", "death-effects", "disease", "doomed", "drained", "fatigued", "healing", "nonlethal", "paralyzed", "poison", "sickened", "spirit", "unconscious", "vitality", "void"] },
-    elemental: { traits: ["elemental"], immunities: ["bleed", "paralyzed", "poison", "sleep"] }
+    elemental: { traits: ["elemental"], immunities: ["bleed", "paralyzed", "poison", "sleep"] },
+    "no-darkvision": { senses: [] },
+    // (Met in the dark, as drow are: the fight unlit too.)
+    "light-blind": { lightBlindness: {}, environment: { light: "dark" } },
+    dark: { environment: { light: "dark" } }
 };
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
 export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
+// The creature-type traits (a summon's foes are tried against these).
+export const SUMMON_FOE_TRAITS = Object.freeze(["undead", "fiend", "celestial", "construct", "elemental"]);
+// The rated foes' senses (the user's choice: darkvision).
+const FOE_SENSES = Object.freeze(["darkvision"]);
 
 // A weakness's usual value at a level (the Monster Core's fiends and celestials: 3 at 1st and 2nd, 5 to 8th, 10 to 14th, 15 to 20th).
 const typicalWeakness = (level) => (level <= 2 ? 3 : level <= 8 ? 5 : level <= 14 ? 10 : level <= 20 ? 15 : 20);
 
-// The foes of an encounter: kind "boss" (one, 2 levels up) or "group" (four, 2 levels down), of a trait.
+// The foes of an encounter: kind "boss" (one, 2 levels up) or "group" (four, 2 levels down), of a trait — with darkvision. A trait for the
+// fight itself (dark): the list's environment, which the fights it's rated in take (fightSetup).
 export function powerFoes(kind, level, trait = null) {
     const pack = trait ? TRAIT_PACKAGES[trait] : null;
     const make = (lv, id) => {
-        const foe = moderateCreatureAt(Math.max(-1, Math.min(25, lv)), id);
-        return pack ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities], weaknesses: (pack.weaknesses ?? []).map((type) => ({ type, value: typicalWeakness(foe.level) })) } : foe;
+        const foe = { ...moderateCreatureAt(Math.max(-1, Math.min(25, lv)), id), senses: [...(pack?.senses ?? FOE_SENSES)] };
+        if (pack?.lightBlindness) foe.lightBlindness = { ...pack.lightBlindness };
+        return pack?.traits ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities], weaknesses: (pack.weaknesses ?? []).map((type) => ({ type, value: typicalWeakness(foe.level) })) } : foe;
     };
-    if (kind === "boss") return [make(level + 2, "monster")];
-    return [0, 1, 2, 3].map((index) => make(level - 2, index ? `monster-${index}` : "monster"));
+    const foes = kind === "boss" ? [make(level + 2, "monster")] : [0, 1, 2, 3].map((index) => make(level - 2, index ? `monster-${index}` : "monster"));
+    return pack?.environment ? Object.assign(foes, { environment: { ...pack.environment } }) : foes;
 }
+
+// The snapshot of a rating's fight: its combatants, and the foes' environment where it has one (a fight in darkness).
+const fightSetup = (combatants, foes) => ({ combatants, ...(foes?.environment ? { setup: { environment: foes.environment } } : {}) });
 
 // The party with the wizard's slot spells taken away — its cantrips and basic actions kept, as a caster always has them. With entry: that
 // spell as one cast more; a cantrip in place of the wizard's own.
@@ -111,8 +128,17 @@ export function powerRanks(doc) {
 
 // The traits a spell does more against (or works only against): its extra damage's, vitality damage's (undead), a holy spell's (fiends,
 // weak to it) and an unholy one's (celestials), and its targets'.
-export function powerConditions(plan) {
+export function powerConditions(plan, effects = null) {
     const traits = new Set();
+    // (Sight and light — light.js, 2026-10-21: darkness against foes without darkvision; light in an unlit fight and on light-blind foes;
+    // senses an effect gives, in an unlit fight.)
+    const zone = lightZoneModel(plan);
+    if (zone?.light?.level === "dark") traits.add("no-darkvision");
+    if (zone?.light?.level === "bright") for (const trait of ["dark", "light-blind"]) traits.add(trait);
+    for (const model of Object.values(effects ?? {})) {
+        if (model?.light) for (const trait of ["dark", "light-blind"]) traits.add(trait);
+        if (model?.senses?.length) traits.add("dark");
+    }
     if ((plan?.traits ?? []).includes("holy")) traits.add("fiend");
     if ((plan?.traits ?? []).includes("unholy")) traits.add("celestial");
     // (Circle of Protection: against unholy or holy foes.)
@@ -232,7 +258,7 @@ export function entriesShare(entries, { side, foeHp, harm, allies, again = 0 }) 
 export function castPower(party, foes, entry, { minion = null, lost = false, choke = false, close = false } = {}) {
     const helper = minion ? [{ ...minion, id: "minion", side: "party", kind: "npc", reserve: false, summons: undefined, minion: true, controlledBy: "wizard" }] : [];
     const combatants = [...[...partyWithSpell(party, entry), ...helper].map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
-    const state = createFightState({ combatants }, { morale: false, retreat: false, ...(choke ? { grid: CHOKE } : {}) }, 1);
+    const state = createFightState(fightSetup(combatants, foes), { morale: false, retreat: false, ...(choke ? { grid: CHOKE } : {}) }, 1);
     const caster = state.byId.get("wizard");
     const spell = (caster?.spells ?? []).find((each) => each.name === entry.name && (each.pool ?? null) === (entry.pool ?? null));
     if (!spell) return null;
@@ -293,7 +319,7 @@ export function readingPower(party, foes, entry, { choke = false, rules = {} } =
     const read = powerReading(entry.plan);
     if (!read) return null;
     const combatants = [...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
-    const state = createFightState({ combatants }, { morale: false, retreat: false }, 1);
+    const state = createFightState(fightSetup(combatants, foes), { morale: false, retreat: false }, 1);
     const caster = state.byId.get("wizard");
     if (!caster) return null;
     const enemies = state.list.filter((c) => c.side !== caster.side && isActive(c));
@@ -344,7 +370,7 @@ export const SUMMON_ROUNDS = POWER_ROUNDS - 0.5;
 // Points, against the foes' harm. { share, levels, bound, targets }, or null for one that does nothing.
 export function summonShare(party, foes, creature, count = 1) {
     const summoned = Array.from({ length: count }, (_, index) => ({ ...creature, id: `summoned-${index}`, side: "party", kind: "npc", reserve: false, summons: undefined }));
-    const state = createFightState({ combatants: [...party, ...summoned, ...foes] }, { morale: false, retreat: false }, 1);
+    const state = createFightState(fightSetup([...party, ...summoned, ...foes], foes), { morale: false, retreat: false }, 1);
     const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
     const helpers = state.list.filter((c) => c.id.startsWith("summoned-"));
     const side = state.list.filter((c) => c.side === "party" && isActive(c)).length;
@@ -378,7 +404,7 @@ export function formAC(form, level) {
 // side's), against the foes' harm. { share, levels, bound, targets }, or null when it does nothing more.
 export function formShare(party, foes, form) {
     if (!form?.strikes?.length) return null;
-    const state = createFightState({ combatants: [...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes] }, { morale: false, retreat: false }, 1);
+    const state = createFightState(fightSetup([...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes], foes), { morale: false, retreat: false }, 1);
     const wizard = state.byId.get("wizard");
     const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
     if (!wizard || !enemies.length) return null;
@@ -421,7 +447,7 @@ export function wallKind(plan, text = "") {
 // it and a tenth of a round (it hides the party), a screen that tenth only. Its damage at its rank, by each foe's weaknesses and
 // resistances.
 export function wallShare(party, foes, entry, kind, { choke = false } = {}) {
-    const state = createFightState({ combatants: [...partyWithSpell(party), ...foes] }, { morale: false, retreat: false }, 1);
+    const state = createFightState(fightSetup([...partyWithSpell(party), ...foes], foes), { morale: false, retreat: false }, 1);
     const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
     const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
     if (!(foeHp > 0)) return null;
@@ -461,7 +487,7 @@ export function wallShare(party, foes, entry, kind, { choke = false } = {}) {
 // foes, as a share of the fight: at each foe's basic save against the caster's spell DC (or its spell attack against AC; else in full),
 // by its weaknesses and resistances, up to its Hit Points — every foe in an area (targets Infinity), else as many as it names.
 export function textDamageShare(party, foes, entry, damage) {
-    const state = createFightState({ combatants: [...partyWithSpell(party), ...foes] }, { morale: false, retreat: false }, 1);
+    const state = createFightState(fightSetup([...partyWithSpell(party), ...foes], foes), { morale: false, retreat: false }, 1);
     const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
     const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
     if (!(foeHp > 0) || !(damage?.dice > 0)) return null;
@@ -488,7 +514,7 @@ export function textDamageShare(party, foes, entry, damage) {
 // up to what each lacks), temporary Hit Points at 0.7 (as the engine counts them: some go unused), an AC bonus as the foes' Strikes it
 // keeps off them for its rounds (each one's share of the foes' attacks) — against the foes' harm.
 export function textHelpShare(party, foes, help) {
-    const state = createFightState({ combatants: [...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes] }, { morale: false, retreat: false }, 1);
+    const state = createFightState(fightSetup([...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes], foes), { morale: false, retreat: false }, 1);
     const allies = state.list.filter((c) => c.side === "party" && isActive(c)).sort((a, b) => a.hp.value / a.hp.max - b.hp.value / b.hp.max);
     const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
     const harm = foeHarm(state, "party");
@@ -511,7 +537,7 @@ export function textHelpShare(party, foes, help) {
 // at it less likely to hit (its share of their attacks, one of its side's), and a Shield Block a round — a hit's damage less, up to the
 // hardness, as likely as it's hit that round — while the shield's Hit Points last; against the foes' harm.
 export function shieldShare(party, foes, shield, rounds = 1) {
-    const state = createFightState({ combatants: [...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes] }, { morale: false, retreat: false }, 1);
+    const state = createFightState(fightSetup([...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes], foes), { morale: false, retreat: false }, 1);
     const wizard = state.byId.get("wizard");
     const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
     const side = state.list.filter((c) => c.side === "party" && isActive(c)).length;

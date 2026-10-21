@@ -70,7 +70,25 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withArea(resolved)))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withConcealedTo(withArea(resolved))))));
+}
+
+// Shroud of Night (2026-10-21, sight and light — the user: "I also want spells that need foe traits since i want those to be tracked too in
+// the simulator"): a save's row whose words say "all creatures are Concealed to it", with nothing of its own — dazzled (B53: everything
+// concealed to it) for the spell's time.
+const CONCEALED_TO = /\ball creatures are (?:@UUID\[[^\]]*\]\{)?Concealed\}? to it\b/i;
+function withConcealedTo(plan) {
+    const resolution = plan?.resolution;
+    if (resolution?.kind !== "save") return plan;
+    const spec = plan.lifecycle?.durationSpec;
+    const duration = spec?.mode === "fixed" && spec.unit ? { mode: "fixed", value: Number(spec.value) || 1, unit: spec.unit } : { mode: "fixed", value: 1, unit: "minutes" };
+    let changed = false;
+    const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
+        if ((row?.effects ?? []).length || !CONCEALED_TO.test(rowWords(plan, degree, row))) return [degree, row];
+        changed = true;
+        return [degree, { ...row, effects: [{ kind: "condition", slug: "dazzled", value: null, duration }] }];
+    }));
+    return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
 }
 
 // (2026-10-15, Death Ward: "suppresses the effects of the Doomed condition" — in its text, not its PF2e effect's rules.) plan.suppresses: the

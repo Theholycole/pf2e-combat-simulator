@@ -78,6 +78,8 @@ export function startZone(state, owner, spell, targetIds) {
     // its maker, as it moves; its difficult terrain on the map while it lasts.)
     if (state.grid && owner.square) placeOnGrid(state, zone, owner, area, targetIds);
     (state.zones ??= []).push(zone);
+    // (A spell's light or darkness: the fight has one now — light.js.)
+    if (model.light) state.lit = true;
     (owner.activeZones ??= new Set()).add(spell.name);
     log(state, `  ${owner.name}'s ${spell.name} covers the area${Number.isFinite(rounds) ? ` for ${rounds} rounds` : ""}`);
     for (const c of zoneMembers(state, zone)) {

@@ -5,7 +5,7 @@ const { readDocuments, PACK_ROOT, basicActions, combatant, creatureFrom, summonC
 const { maneuverWays } = await import("../../src/engine/readings.js");
 const { compileSpell, effectModels } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
-const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, formShare, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
+const { POWER_KINDS, POWER_ROUNDS, RATED_POOL, SUMMON_FOE_TRAITS, castPower, durationRounds, formShare, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
 const { RULE_CHOICES, castableReading, powerReading } = await import("../../src/engine/power-readings.js");
 const { battleFormAt, effectModel } = await import("../../src/engine/effects.js");
@@ -120,7 +120,7 @@ function summonResults(doc, plan, rank, party, level) {
         const results = {};
         const creatures = {};
         const mean = {};
-        for (const trait of [null, ...POWER_TRAITS]) {
+        for (const trait of [null, ...SUMMON_FOE_TRAITS]) {
             let best = null;
             for (const { name, creature } of built) {
                 const found = {};
@@ -136,8 +136,8 @@ function summonResults(doc, plan, rank, party, level) {
             creatures[trait ?? ""] = best.name;
             for (const [encounter, found] of Object.entries(best.found)) results[`${encounter}|${trait ?? ""}`] = { share: Math.round(found.share * 1e4) / 1e4, levels: Math.round(found.levels * 1e4) / 1e4, ...(found.bound ? { bound: found.bound } : {}), targets: 1, creature: best.name };
         }
-        const traits = POWER_TRAITS.filter((trait) => (mean[trait] ?? 0) > 0 && (mean[trait] ?? 0) >= (mean[""] ?? 0) * (1 + SUMMON_MORE));
-        for (const trait of POWER_TRAITS) if (!traits.includes(trait)) for (const encounter of POWER_KINDS) delete results[`${encounter}|${trait}`];
+        const traits = SUMMON_FOE_TRAITS.filter((trait) => (mean[trait] ?? 0) > 0 && (mean[trait] ?? 0) >= (mean[""] ?? 0) * (1 + SUMMON_MORE));
+        for (const trait of SUMMON_FOE_TRAITS) if (!traits.includes(trait)) for (const encounter of POWER_KINDS) delete results[`${encounter}|${trait}`];
         const found = Object.keys(results).length ? { results, traits, creature: creatures[""] ?? null, creatures: Object.fromEntries(traits.map((trait) => [trait, creatures[trait]])) } : null;
         if (summonCache.size > 200) summonCache.delete(summonCache.keys().next().value);
         summonCache.set(key, found);
@@ -424,7 +424,7 @@ export function runPowerTask(task) {
     const healedBefore = rewritten?.preCast && plan.resolution?.kind === "healing" && /\bspends? (?:the full |an? |\d+ )?(?:hours?|minutes?)\b[^.]*\bregains?\b|\bregains?\b[^.]*\bafter \d+ (?:minutes|hours)\b/i.test(textOf(doc));
     if (rewritten && !healedBefore && canCast({ spellPools: { [RATED_POOL]: 1 } }, { ...entry, plan: rewritten })) {
         const read = { ...entry, plan: rewritten };
-        const traits = powerConditions(rewritten);
+        const traits = powerConditions(rewritten, entry.effects);
         const gaps = spellGaps(read);
         const reads = casterSwaps(read);
         const results = resultsOf(traits, (foes) => bestCast(reads, (each) => castPower(party, foes, each, { minion })), level);
@@ -433,7 +433,7 @@ export function runPowerTask(task) {
     }
     // (One the engine can't cast in a fight, that the rating reads itself: power-readings.js.)
     if (!castable && powerReading(plan)) {
-        const traits = powerConditions(plan);
+        const traits = powerConditions(plan, entry.effects);
         const read = { ...entry, doc };
         const row = { ...head, traits, results: resultsOf(traits, (foes) => readingPower(party, foes, read), level), estimate: preCastOf(doc) ? "pre-cast" : `reading (${plan.resolution.kind})` };
         // (Under the GM's other choices of a rule its reading depends on — Moment of Renewal's rest —: those results too.)
@@ -457,7 +457,7 @@ export function runPowerTask(task) {
     if (helped && (isUtility(plan) || !castable)) return helped;
     if (healedBefore) return { ...head, skipped: true, reason: "utility" };
     if (isUtility(plan) || !castable) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
-    const traits = powerConditions(plan);
+    const traits = powerConditions(plan, entry.effects);
     const lost = Boolean(minion) && /\bminion\b[^.]*\bexplode/i.test(textOf(doc));
     const entries = casterSwaps(entry);
     const results = resultsOf(traits, (foes) => bestCast(entries, (each) => castPower(party, foes, each, { minion, lost })), level);

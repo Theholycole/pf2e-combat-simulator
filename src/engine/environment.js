@@ -15,6 +15,7 @@
 
 import { isActive } from "./combatant.js";
 import { log } from "./log.js";
+import { lightAt, sightDCIn } from "./light.js";
 
 const LIGHT_OPTIONS = { bright: "lighting:bright-light", dim: "lighting:dim-light", dark: "lighting:darkness" };
 
@@ -26,16 +27,15 @@ export function buildEnvironment(setup = {}) {
     return { light, sunlight, terrain, difficult: setup.difficult || null, weather: setup.weather || null, climate: setup.climate || null, options };
 }
 
-const hasSense = (c, ...types) => types.some((type) => (c?.senses ?? []).includes(type));
-
-// L1: the flat check the viewer needs to find the target, by the light and the weather (0 for none).
+// L1: the flat check the viewer needs to find the target, by the light where the target stands (the fight's, or a spell's over it —
+// light.js, 2026-10-21) and the weather (0 for none). Senses: the viewer's own and its effects'.
 export function sightDC(state, viewer, target) {
     const env = state?.environment;
     if (!env || !viewer || !target) return 0;
-    let dc = 0;
-    const dark = hasSense(viewer, "darkvision", "greater-darkvision");
-    if (env.light === "dark" && !dark) dc = 11;
-    else if (env.light === "dim" && !dark && !hasSense(viewer, "low-light-vision")) dc = target.dimConcealDC ?? 5;
+    const light = lightAt(state, target);
+    let dc = sightDCIn(viewer, light);
+    // (Shadow Blending's dim light: DC 7.)
+    if (dc === 5 && light.level === "dim" && target.dimConcealDC) dc = target.dimConcealDC;
     if (env.weather === "fog" || env.weather === "rain" || (env.weather === "snow" && !viewer.snowVision)) dc = Math.max(dc, 5);
     return dc;
 }

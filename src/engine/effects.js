@@ -180,6 +180,18 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
     const model = { name: item?.name ?? "Effect", rounds: roundsOf(item?.system?.duration), modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
     const unsupported = new Set();
     for (const rule of item?.system?.rules ?? []) {
+        // (Sight and light, 2026-10-21 — the user: "I also want spells that need foe traits since i want those to be tracked too in the
+        // simulator": the senses an effect gives — Darkvision's —, model.senses; the light it sheds — the Light cantrip's, a lantern's light
+        // aura — model.light { bright, dim } in feet, at its rank.)
+        if (rule?.key === "Sense" && rule.selector && !rule.predicate?.length) (model.senses ??= []).push(String(rule.selector));
+        if (rule?.key === "TokenLight") {
+            const bright = numericValue(rule.value?.bright, rank);
+            if (bright > 0) model.light = { bright, dim: Math.max(0, numericValue(rule.value?.dim, rank) ?? 0), rank };
+        }
+        if (rule?.key === "Aura" && [].concat(rule.traits ?? []).includes("light")) {
+            const radius = numericValue(rule.radius, rank);
+            if (radius > 0) model.light = { bright: radius, dim: 0, rank };
+        }
         if (!rule?.key || IGNORED.has(rule.key)) continue;
         // (Shield, the spell, 2026-10-14: a magic shield — its AC and Hardness — the creature raises by casting it. The rules' predicate
         // only asks for a character or an NPC.)
@@ -436,6 +448,8 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
     for (const existing of (target.effects ?? []).filter((effect) => effect.key === key)) removeEffect(target, existing);
     const effect = { id: nextEffectId++, key, model, sourceId: source?.id ?? null, ...(counter ? { counter } : {}) };
     target.effects = [...(target.effects ?? []), effect];
+    // (Light it sheds: the fight has a spell's light now — light.js.)
+    if (model.light && state) state.lit = true;
     withDefences(target, effect, true);
     // (Death Ward's +4 against death and void effects: the creature's save bonuses, while it lasts.)
     if (model.saveBonuses?.length) target.saveBonuses = [...(target.saveBonuses ?? []), ...model.saveBonuses.map((bonus) => ({ ...bonus, effectId: effect.id }))];
@@ -451,9 +465,11 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
 // spells layer's condition weighting. strikeShare: the part of the creature's
 // threat its Strikes make (1 for a warrior, little for a caster), which is all
 // an attack or damage bonus, or quickened's extra Strike or Stride, can help.
-export function effectBenefit(model, target, conditionHarm, strikeShare = 1) {
+// context: { state, senseLight } — the fight, and light.js's senseLightBenefit, for what its senses and light do there.
+export function effectBenefit(model, target, conditionHarm, strikeShare = 1, context = null) {
     const rounds = Math.min(3, model.rounds);
     let benefit = 0;
+    if (context?.state && context.senseLight && (model.senses?.length || model.light)) benefit += context.senseLight(context.state, model, target, rounds);
     const strikes = (target.strikes ?? []).length > 0 ? strikeShare : 0;
     for (const modifier of model.modifiers) {
         const per = { ac: 0.08, fortitude: 0.01, reflex: 0.01, will: 0.01, attack: 0.1 * strikes, damage: 0.04 * strikes, spell: 0.05 * (1 - strikes), speed: 0.003 }[modifier.on] ?? 0;
