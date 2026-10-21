@@ -300,6 +300,9 @@ async function startRun(collections, fights) {
 // --- One creature alone --------------------------------------------------------------
 
 let ratingAlone = false;
+// The last creature rated alone on this client: its fights and what fought, for a look from the console.
+let lastAlone = null;
+export const lastAloneRating = () => lastAlone;
 
 // One creature rated again on its own (its compendium id and actor id), on the numbers in use: as many fights as theirs (the same seeds a
 // full run gives it), across the workers, placed on the scale kept with them; kept in the world over them.
@@ -327,6 +330,7 @@ export async function rateCreatureAlone(collection, id) {
             for (let from = 1; from < 1 + fights; from += size) slices.push([from, Math.min(1 + fights, from + size)]);
             const summary = mergeSummaries(await Promise.all(slices.map(([from, to]) => runDangerFights(party, foes, from, to))));
             rated = rateAlone(scale, { ...row, ...summary, profile: dangerProfile(monster) });
+            lastAlone = { name: actor.name, level: monster.level, summary, rated, party, monster, reserves };
         }
         const shown = await dangerRatingsInUse();
         const before = ratingOf(shown, collection, id);
