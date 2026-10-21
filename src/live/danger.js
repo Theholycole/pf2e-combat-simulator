@@ -126,6 +126,7 @@ const FOES = { undead: "undead", fiend: "fiends", celestial: "celestials", const
 const ESTIMATES = {
     shield: "its shield raised (more AC, and a Shield Block while it lasts)",
     "text damage": "the damage its text gives, at the foes' saves",
+    "text help": "the healing, temporary Hit Points or AC bonus its text gives",
     terrain: "its difficult terrain slowing most foes for an action",
     "wall (barrier)": "a wall in the way of most foes, a round lost going around or through it",
     "wall (hinder)": "a wall in the way of most foes, an action lost crossing it and its damage",

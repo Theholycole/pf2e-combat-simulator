@@ -450,6 +450,28 @@ export function textDamageShare(party, foes, entry, damage) {
     return share > 0 ? { share, ...shareToLevels(share), actions: describeSpell(entry.plan).actions ?? null, targets: hit.length } : null;
 }
 
+// What healing, temporary Hit Points or an AC bonus from a spell's text ({ heal, tempHp, ac, rounds, targets }) does for the party, as a
+// share of the fight: Hit Points to those most hurt (as many as it names; an area: everyone; the party at half its Hit Points, healing
+// up to what each lacks), temporary Hit Points at 0.7 (as the engine counts them: some go unused), an AC bonus as the foes' Strikes it
+// keeps off them for its rounds (each one's share of the foes' attacks) — against the foes' harm.
+export function textHelpShare(party, foes, help) {
+    const state = createFightState({ combatants: [...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes] }, { morale: false, retreat: false }, 1);
+    const allies = state.list.filter((c) => c.side === "party" && isActive(c)).sort((a, b) => a.hp.value / a.hp.max - b.hp.value / b.hp.max);
+    const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
+    const harm = foeHarm(state, "party");
+    if (!allies.length || !enemies.length || !(harm > 0)) return null;
+    const helped = allies.slice(0, Number.isFinite(help.targets) ? Math.max(1, help.targets) : allies.length);
+    const rounds = Math.max(1, Math.min(POWER_ROUNDS, Number(help.rounds) || 1));
+    let saved = 0;
+    for (const ally of helped) {
+        saved += Math.min(Math.max(0, Number(help.heal) || 0), ally.hp.max - ally.hp.value);
+        saved += 0.7 * Math.max(0, Number(help.tempHp) || 0);
+        if (help.ac > 0) saved += enemies.reduce((sum, enemy) => sum + strikeRound(enemy, ally, 2) - strikeRound(enemy, { ...ally, ac: armorClass(ally) + help.ac }, 2), 0) * rounds / Math.max(1, allies.length);
+    }
+    const share = saved / harm;
+    return share > 0 ? { share, ...shareToLevels(share), actions: null, targets: helped.length } : null;
+}
+
 // --- Shield (the cantrip, and spells like it: a spell shield raised) -------------------------------------------------------------------
 
 // What a spell shield ({ ac, hardness, hp }) raised is worth to the caster over `rounds` rounds, as a share of the fight: the foes' Strikes

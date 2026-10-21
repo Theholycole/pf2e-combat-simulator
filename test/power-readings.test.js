@@ -141,3 +141,14 @@ test("a family with no reading of its own: the plan its payload carries, cast at
     assert.ok(found && found.share > 0 && found.targets >= 3);
     assert.equal(powerReading(plan("some-new-kind", { somethingNew: { notes: [] } })), null);
 });
+
+test("healing, temporary Hit Points and AC from text: Hit Points to the most hurt, an AC bonus as the Strikes it keeps off", async () => {
+    const { textHelpShare } = await import("../src/engine/spell-power.js");
+    const party = standardParty(5);
+    const one = textHelpShare(party, powerFoes("boss", 5), { heal: 20, targets: 1, rounds: 1 });
+    const all = textHelpShare(party, powerFoes("boss", 5), { heal: 20, targets: Infinity, rounds: 1 });
+    assert.ok(one && all && Math.abs(all.share - 4 * one.share) < 1e-9);
+    const ac = textHelpShare(party, powerFoes("boss", 5), { ac: 1, targets: Infinity, rounds: 3 });
+    assert.ok(ac.share > textHelpShare(party, powerFoes("boss", 5), { ac: 1, targets: Infinity, rounds: 1 }).share);
+    assert.equal(textHelpShare(party, powerFoes("boss", 5), { targets: 1 }), null);
+});

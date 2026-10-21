@@ -4,7 +4,7 @@ import fs from "node:fs";
 const { readDocuments, PACK_ROOT, combatant, summonCandidates } = await import("./pack-creatures.mjs");
 const { compileSpell, effectModels } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
-const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, formShare, readingPower, textDamageShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
+const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, formShare, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
 const { castableReading, powerReading } = await import("../../src/engine/power-readings.js");
 const { battleFormAt, effectModel } = await import("../../src/engine/effects.js");
@@ -215,6 +215,48 @@ export function textDamageOf(doc, rank) {
     return { dice: Number(found[1]) + extra, faces: Number(found[2]), bonus: Number(found[3]) || 0, type: found[4]?.toLowerCase() ?? "untyped", save, attack, targets: area ? Infinity : Number(named?.[1] ?? named?.[2]) || 1 };
 }
 
+// Healing, temporary Hit Points or an AC bonus its text gives (the last resort for a spell nothing else reads): { heal, tempHp, ac,
+// rounds, targets } — the first sentence that says "regains XdY Hit Points" (heightened as its text says), "gains N temporary Hit Points",
+// or "a +N status (circumstance) bonus to AC" with no "against" (a bonus only against some attacks isn't counted); its duration's rounds;
+// every ally in an area, else as many as its target names. Null without one.
+export function textHelpOf(doc, rank) {
+    // (Not one aimed at foes as well — Fated Healing's "2 creatures who are hostile toward each other".)
+    if (/\bhostile\b|\benem(?:y|ies)\b|\bfoes?\b/i.test(String(doc?.system?.target?.value ?? ""))) return null;
+    const text = String(doc?.system?.description?.value ?? "").replace(/@Damage\[\(?([^\[\]]*?)\)?(?:\[[a-z,]+\])?\]/gi, "$1").replace(/<[^>]+>/g, " ").replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/\s+/g, " ");
+    const at = text.search(/\bHeightened\b/i);
+    const head = at >= 0 ? text.slice(0, at) : text;
+    const heightened = at >= 0 ? text.slice(at) : "";
+    const sentences = head.split(/(?<=[.!?])\s+/).filter((each) => !/^\s*If\b/i.test(each));
+    const average = (dice, faces, bonus) => Number(dice) * (Number(faces) + 1) / 2 + (Number(bonus) || 0);
+    const base = Math.max(1, Number(doc.system?.level?.value) || 1);
+    let heal = 0;
+    let perTurn = false;
+    let tempHp = 0;
+    let ac = 0;
+    for (const sentence of sentences) {
+        const healed = /\bregains? (\d+)d(\d+)(?:\s*\+\s*(\d+))?[^.]{0,20}Hit Points/i.exec(sentence) ?? /\bregains? (\d+)[^.\d]{0,20}Hit Points/i.exec(sentence);
+        // (Not healing that waits on something — "if it remains … for the full duration" —; healing each turn, for each of the rounds.)
+        if (!heal && healed && !/\bif\b|full duration|after \d+ (?:minutes|hours)/i.test(sentence)) {
+            const step = /Heightened \(\+(\d+)\)[^.]*?(\d+)d(\d+)/i.exec(heightened);
+            const extra = healed[2] && step && Number(step[3]) === Number(healed[2]) ? Math.floor((rank - base) / Number(step[1])) * Number(step[2]) * (Number(step[3]) + 1) / 2 : 0;
+            heal = (healed[2] ? average(healed[1], healed[2], healed[3]) : Number(healed[1])) + extra;
+            perTurn = /\beach of (?:its|their|your) (?:own )?turns|\beach round|\bstart of each\b|\bend of each\b/i.test(sentence);
+        }
+        const temporary = /\b(?:gains?|grants?)[^.]{0,30}?\b(\d+)(?:d(\d+))? temporary Hit Points/i.exec(sentence);
+        if (!tempHp && temporary) tempHp = temporary[2] ? average(temporary[1], temporary[2], 0) : Number(temporary[1]);
+        const armour = /\+(\d) (?:status|circumstance) bonus to (?:its |your |their )?AC\b([^.]*)/i.exec(sentence);
+        if (!ac && armour && !/\bagainst\b/i.test(armour[2])) ac = Number(armour[1]);
+    }
+    if (!heal && !tempHp && !ac) return null;
+    const area = Boolean(doc.system?.area?.type);
+    const named = /\bup to (\d+)|^(\d+) (?:creature|target|all(?:y|ies)|willing)/i.exec(String(doc.system?.target?.value ?? "").trim());
+    const duration = String(doc.system?.duration?.value ?? "");
+    const rounds = /minute|hour|day|sustained/i.test(duration) ? POWER_ROUNDS : Number(/(\d+) rounds?/.exec(duration)?.[1]) || 1;
+    // (A heal each turn: once for each round it lasts in the fight.)
+    if (perTurn) heal *= Math.min(POWER_ROUNDS, rounds);
+    return { heal, tempHp, ac, rounds, targets: area ? Infinity : Number(named?.[1] ?? named?.[2]) || 1 };
+}
+
 // A utility spell's terrain: an area its text makes difficult terrain (hindering foes as a wall that slows them does) — not one that takes
 // difficult terrain away, or lets creatures ignore it.
 const terrainOf = (plan, doc) => {
@@ -261,6 +303,15 @@ function resultsOf(traits, rate, level) {
         }
     }
     return results;
+}
+
+// A row from the healing, temporary Hit Points or AC a spell's text gives (estimated), or null; not for a spell cast in minutes or longer.
+function textHelpRow(head, doc, rank, party, level) {
+    if (/minute|hour|day/i.test(String(doc.system?.time?.value ?? ""))) return null;
+    const help = textHelpOf(doc, rank);
+    if (!help) return null;
+    const results = resultsOf([], (foes) => textHelpShare(party, foes, help), level);
+    return Object.keys(results).length ? { ...head, traits: [], results, estimate: "text help" } : null;
 }
 
 // One task: { ref, rank } — the spell at that rank, cast once into both encounters (and those of each trait it does more against).
@@ -334,10 +385,18 @@ export function runPowerTask(task) {
         const results = resultsOf([], (foes) => textDamageShare(party, foes, entry, textDamage), level);
         if (Object.keys(results).length) return { ...head, traits: [], results, estimate: "text damage" };
     }
+    // (Or the healing, temporary Hit Points or AC its text gives.)
+    const helped = textHelpRow(head, doc, rank, party, level);
+    if (helped && (isUtility(plan) || !castable)) return helped;
     if (isUtility(plan) || !castable) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
     const traits = powerConditions(plan);
     const lost = Boolean(minion) && /\bminion\b[^.]*\bexplode/i.test(textOf(doc));
     const results = resultsOf(traits, (foes) => castPower(party, foes, entry, { minion, lost }), level);
+    // (Cast, but with no effect the engine counts: the healing, temporary Hit Points or AC its text gives, if it says.)
+    if (!Object.keys(results).length) {
+        const helped = textHelpRow(head, doc, rank, party, level);
+        if (helped) return helped;
+    }
     const gaps = spellGaps(entry);
     const row = { ...head, traits, results, ...(minion ? { minion: true } : {}), ...(gaps.length ? { partial: gaps } : {}) };
     return hasArea(plan, doc) ? withChoke(row, (foes, choke) => castPower(party, foes, entry, { minion, lost, choke }), level) : row;
