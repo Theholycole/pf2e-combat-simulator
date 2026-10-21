@@ -7,7 +7,9 @@
 
 import { DISTANCE_FEET } from "./space.js";
 import { degreeDistribution } from "./checks.js";
-import { saveModifier } from "./combatant.js";
+import { armorClass, multipleAttackPenalty, saveModifier } from "./combatant.js";
+import { expectedHitDamage } from "./actions.js";
+import { weaponRunesAt } from "./party.js";
 import { adjustDamage, spellContext } from "./damage.js";
 import { areaCapacity, canCast, conditionWorth, skillValue, spellExpectation, spellVariants, targetSets } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
@@ -106,11 +108,12 @@ export function approachLoss(foe, hinder, rounds = 3) {
 }
 
 // An instance list's average after a creature's resistances and weaknesses (formulas as PF2e writes them; a typeless one as `type`).
-function averageOn(target, formulas, type = "untyped", context = null) {
+// tick: persistent damage (bleed always is) as a round's of it, counted as it's taken then.
+function averageOn(target, formulas, type = "untyped", context = null, tick = false) {
     const instances = [formulas].flat().filter(Boolean).flatMap((formula) => parseDamage(String(formula))).map((instance) => ({
         type: instance.type === "untyped" ? type : instance.type,
         amount: (instance.constant ?? 0) + (instance.dice ?? []).reduce((sum, term) => sum + (term.factor ?? 1) * term.count * (term.die + 1) / 2, 0),
-        persistent: instance.category === "persistent",
+        persistent: !tick && instance.category === "persistent",
         context
     }));
     return instances.length ? adjustDamage(target, instances).total : 0;
@@ -528,10 +531,11 @@ function embeddedReader(ctx) {
 
 // --- One-offs (2026-10-21, batch 8) --------------------------------------------------------------------------------------------------
 
-// A foe's damage a round on a creature of armour class `ac`: its best Strike twice (the second at −5), critical hits doubled.
-function strikeDamageOn(foe, ac) {
+// A foe's damage a round on a creature of armour class `ac`: its best Strike twice (the second at −5), critical hits doubled; of its
+// Strikes, those `which` takes.
+function strikeDamageOn(foe, ac, which = () => true) {
     let best = 0;
-    for (const strike of foe.strikes ?? []) {
+    for (const strike of (foe.strikes ?? []).filter(which)) {
         const average = (strike.damage ?? []).reduce((sum, part) => sum + (Number(part.dice) || 0) * ((Number(part.die) || 0) + 1) / 2 + (Number(part.bonus) || 0), 0);
         let total = 0;
         for (let attack = 0; attack < 2; attack++) {
@@ -746,6 +750,302 @@ READERS["tree-pair"] = (ctx) => {
     }
     if (trees.heal) entries.push(...healEntries(caught(ctx.allies, { type: "burst", value: Number(trees.canopy) || 10 }), ctx.rank * ((Number(trees.heal.faces) || 4) + 1) / 2 * lasts));
     return entries.length ? { entries, targets: entries.length } : null;
+};
+
+// --- Strikes (2026-10-21, batch 10): a spell that is a Strike, adds to one, or arms one -----------------------------------------------
+
+// A Strike's expected damage on a foe — the engine's hit and critical hit, after its resistances — at the multiple attack penalty of the
+// `attacks` before it, `bonus` to hit, the foe off-guard (2 lower; a rogue's sneak attack on), and `extra` damage on a hit (an average,
+// doubled on a critical hit).
+function strikeOn(striker, strike, foe, { attacks = 0, bonus = 0, offGuard = false, extra = 0 } = {}) {
+    const odds = degreeDistribution((Number(strike.bonus) || 0) + bonus - multipleAttackPenalty(strike, attacks), armorClass(foe) - (offGuard ? 2 : 0));
+    const options = { offGuardChance: offGuard ? 1 : 0 };
+    return odds[2] * (expectedHitDamage(striker, strike, foe, false, options) + extra) + odds[3] * (expectedHitDamage(striker, strike, foe, true, options) + 2 * extra);
+}
+
+// A Strike's chance to hit (a hit or a critical hit), as strikeOn rolls it.
+function hitChance(strike, foe, { attacks = 0, bonus = 0, offGuard = false } = {}) {
+    const odds = degreeDistribution((Number(strike.bonus) || 0) + bonus - multipleAttackPenalty(strike, attacks), armorClass(foe) - (offGuard ? 2 : 0));
+    return odds[2] + odds[3];
+}
+
+// The Strike a spell's caster makes, at its best (the user: "Dont lower the ranking of spells based on how hard they are to use
+// practically"): the party's best weapon Strike of the kind on the first foe — a martial's, as a magus or a monk makes it: "melee",
+// "ranged", or "unarmed" (a fist: the best melee Strike's bonus and dice, d6s, agile). { striker, strike }, or null.
+function bestStrike(ctx, kind = "melee") {
+    const foe = ctx.enemies[0];
+    if (!foe) return null;
+    let best = null;
+    for (const ally of ctx.allies) {
+        for (const strike of ally.strikes ?? []) {
+            if ((kind === "ranged") === Boolean(strike.melee) || !strike.damage?.length) continue;
+            const value = strikeOn(ally, strike, foe);
+            if (!best || value > best.value) best = { striker: ally, strike, value };
+        }
+    }
+    if (!best || kind !== "unarmed") return best;
+    const [part] = best.strike.damage;
+    return { striker: best.striker, strike: { name: "Fist", bonus: best.strike.bonus, melee: true, agile: true, traits: ["agile", "finesse", "nonlethal", "unarmed"], damage: [{ dice: Number(part.dice) || 1, die: 6, bonus: Number(part.bonus) || 0, type: "bludgeoning" }] } };
+}
+
+// The rounds a foe stays held (grabbed) when it tries to Escape each turn — the better of its Athletics and Acrobatics against dc — up
+// to `most`.
+function heldRounds(foe, dc, most) {
+    const [, , success, critical] = bestOdds(foe, ["athletics", "acrobatics"], dc);
+    let total = 0;
+    let still = 1;
+    for (let round = 0; round < most; round++) {
+        total += still;
+        still *= 1 - (success + critical);
+    }
+    return total;
+}
+
+// Damage spread over foes, each up to its Hit Points, the first first: entries.
+function spreadDamage(enemies, total) {
+    const entries = [];
+    let left = total;
+    for (const foe of enemies) {
+        if (!(left > 0)) break;
+        const dealt = Math.min(left, Math.max(0, foe.hp.value));
+        entries.push({ target: foe, damage: dealt, worth: 0, heal: 0, benefit: 0 });
+        left -= dealt;
+    }
+    return entries;
+}
+
+// The entry dealing most to a foe, as a share of its Hit Points: those entries sorted so.
+const byShare = (entries) => entries.sort((a, b) => b.damage / b.target.hp.max + b.worth / 3 - (a.damage / a.target.hp.max + a.worth / 3));
+
+READERS["spell-strike"] = (ctx) => {
+    // (Shooting Star, Spinning Staff, Shielding Strike, Tracking Mayflies and the like: the Strike or Strikes it makes — the caster's at its
+    // best, the multiple attack penalty on the second, against another foe where it says — its conditions on a hit (a grab held while the
+    // foe fails to Escape), a shield raised first; the target off-guard where it can be. Its movement and other riders not counted.)
+    const spec = ctx.entry.plan.resolution.spellStrike ?? {};
+    const best = bestStrike(ctx, spec.unarmed ? "unarmed" : spec.range === "ranged" ? "ranged" : "melee");
+    if (!best) return null;
+    const count = Math.max(1, Number(spec.count) || 1);
+    const offGuard = Boolean(spec.offGuardQuestion);
+    const riders = [spec.hitCondition, ...(spec.hitConditions ?? [])].filter((rider) => rider?.slug);
+    const onFoe = (foe, attacks) => {
+        const worth = riders.reduce((sum, rider) => {
+            const rounds = rider.escapeEnds ? heldRounds(foe, ctx.entry.dc, lastsRounds((Number(rider.minutes) || 1) * 60, ctx.rounds)) : Number(rider.rounds) || null;
+            return sum + conditionWorth(rider.slug, rider.value ?? null, rounds ? { mode: "fixed", value: rounds, unit: "rounds" } : null);
+        }, 0);
+        return { target: foe, damage: strikeOn(best.striker, best.strike, foe, { attacks, offGuard }), worth: hitChance(best.strike, foe, { attacks, offGuard }) * worth, heal: 0, benefit: 0 };
+    };
+    const firsts = byShare(ctx.enemies.map((foe) => onFoe(foe, 0)));
+    const entries = spec.differentTargets
+        ? firsts.slice(0, count).map((first, attacks) => (attacks ? onFoe(first.target, attacks) : first))
+        : mergeEntries(Array.from({ length: count }, (_, attacks) => [onFoe(firsts[0].target, attacks)]));
+    if (spec.preAction === "raise-a-shield") entries.push(...healEntries([best.striker], acSaved(ctx, best.striker, 2, 1)));
+    return { entries, targets: entries.length };
+};
+
+READERS["strike-effects"] = (ctx) => {
+    // (Inner Upheaval, Force Fling, Fulminating Impact: the Strike it makes — a Flurry of Blows' two, where it can — with what its effects
+    // add to it (the attack and damage of those before it), and to the caster's Strikes the rest of the fight (those after it: two
+    // Strikes a round, spread over the foes).)
+    const resolution = ctx.entry.plan.resolution;
+    const text = (resolution.strike?.rules ?? []).join(" ");
+    const kind = /\bunarmed Strike\b/i.test(text) ? "unarmed" : /\branged Strike\b/i.test(text) && !/\bmelee Strike\b/i.test(text) ? "ranged" : "melee";
+    const best = bestStrike(ctx, kind);
+    if (!best) return null;
+    const terms = new Set(kind === "ranged" ? ["item:ranged"] : ["item:melee", ...(kind === "unarmed" ? ["item:unarmed", "item:category:unarmed"] : [])]);
+    const models = (after) => (resolution.applications ?? []).filter((application) => (application.phase === "after") === after).map((application) => ctx.entry.effects?.[application.uuid]).filter(Boolean);
+    const added = (after, on) => models(after).reduce((sum, model) => sum + [...(model.modifiers ?? []), ...(model.conditional ?? []).filter((modifier) => (modifier.predicate ?? []).every((term) => terms.has(term)))]
+        .filter((modifier) => modifier.on === on).reduce((total, modifier) => total + (Number(modifier.value) || 0), 0), 0);
+    const strikes = /Flurry of Blows/i.test(text) ? 2 : 1;
+    const now = { bonus: added(false, "attack"), extra: added(false, "damage") };
+    const cast = byShare(ctx.enemies.map((foe) => ({ target: foe, damage: Array.from({ length: strikes }, (_, attacks) => strikeOn(best.striker, best.strike, foe, { attacks, ...now })).reduce((sum, each) => sum + each, 0), worth: 0, heal: 0, benefit: 0 })))[0];
+    const later = { bonus: added(true, "attack"), extra: added(true, "damage") };
+    const lasts = Math.max(0, ...models(true).map((model) => lastsRounds((Number(model.rounds) || 1) * 6, ctx.rounds))) - 1;
+    const foe = ctx.enemies[0];
+    const more = lasts > 0 && (later.bonus > 0 || later.extra > 0)
+        ? [0, 1].reduce((sum, attacks) => sum + strikeOn(best.striker, best.strike, foe, { attacks, ...later }) - strikeOn(best.striker, best.strike, foe, { attacks }), 0) * lasts
+        : 0;
+    const entries = mergeEntries([[cast], spreadDamage(ctx.enemies, more)]);
+    return { entries, targets: entries.length };
+};
+
+READERS["stance-strike"] = (ctx) => {
+    // (Wild Winds Stance, Clinging Shadows Stance: a monk's stance at its best — a Strike reaching past a fist's saves the Stride into
+    // reach: a third Strike the first round, at its penalty, with the stance's damage die and type; its AC bonus against the foes' ranged
+    // Strikes, the fight long. Its other riders not counted.)
+    const rules = ctx.entry.plan.resolution.stanceStrike?.rules ?? [];
+    const rule = rules.find((each) => each.key === "Strike");
+    const fist = bestStrike(ctx, "unarmed");
+    const foe = ctx.enemies[0];
+    if (!rule || !fist || !foe) return null;
+    const traits = rule.traits ?? [];
+    const range = Number(rule.range?.max) || 0;
+    const entries = [];
+    if (range > 0 || traits.includes("reach")) {
+        const [part] = fist.strike.damage;
+        const strike = { ...fist.strike, name: rule.label ?? "Stance Strike", melee: !(range > 0), agile: traits.includes("agile"), traits, damage: [{ ...part, die: Number(String(rule.damage?.base?.die ?? "d6").replace(/^d/, "")) || 6, type: rule.damage?.base?.damageType ?? part.type }] };
+        entries.push({ target: foe, damage: strikeOn(fist.striker, strike, foe, { attacks: 2 }), worth: 0, heal: 0, benefit: 0 });
+    }
+    const bonus = rules.filter((each) => each.key === "FlatModifier" && each.selector === "ac" && JSON.stringify(each.predicate ?? []).includes("ranged")).reduce((sum, each) => sum + (Number(each.value) || 0), 0);
+    if (bonus > 0) {
+        const ac = Number(fist.striker.ac) || 15;
+        const ranged = (strike) => !strike.melee;
+        const saved = ctx.enemies.reduce((sum, enemy) => sum + strikeDamageOn(enemy, ac, ranged) - strikeDamageOn(enemy, ac + bonus, ranged), 0) * ctx.rounds / Math.max(1, ctx.allies.length);
+        if (saved > 0) entries.push(...healEntries([fist.striker], saved));
+    }
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
+READERS["blink-strike"] = (ctx) => {
+    // (Blink Charge: the teleport and the caster's Strike, with its force dice on a hit — doubled on a critical hit — and its force die on a
+    // miss; a die more each step it heightens. Its dice on a hit: the text's, or twice a miss's.)
+    const blink = ctx.entry.plan.resolution.blinkStrike ?? {};
+    const best = bestStrike(ctx, "melee");
+    if (!best) return null;
+    const steps = Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / (Number(blink.interval) || 2)) * (Number(blink.stepDice) || 0);
+    const miss = blink.failure ?? { dice: 1, faces: 8, type: "force" };
+    const written = /plus an additional (\d+)d(\d+) (\w+) damage/i.exec(String(ctx.entry.doc?.system?.description?.value ?? ""));
+    const hit = written ? { dice: Number(written[1]), faces: Number(written[2]), type: written[3].toLowerCase() } : { ...miss, dice: 2 * (Number(miss.dice) || 1) };
+    const context = spellContext(ctx.entry, { isSpell: true, area: false });
+    const entries = byShare(ctx.enemies.map((foe) => {
+        const odds = degreeDistribution(Number(best.strike.bonus) || 0, armorClass(foe));
+        const extra = averageOn(foe, `${hit.dice + steps}d${hit.faces}[${hit.type}]`, hit.type, context);
+        const missed = averageOn(foe, `${(Number(miss.dice) || 1) + steps}d${Number(miss.faces) || 8}[${miss.type ?? "force"}]`, miss.type, context);
+        return { target: foe, damage: strikeOn(best.striker, best.strike, foe, { extra }) + odds[1] * missed, worth: 0, heal: 0, benefit: 0 };
+    }));
+    return entries.length ? { entries: entries.slice(0, 1), targets: 1 } : null;
+};
+
+// A thrall's Strike dice at its caster's level, by the thrall rules (the spell module's): 1d6, a die more at 5th level and every 4 after.
+const thrallDice = (level, strike = {}) => 1 + Math.max(0, Math.floor(((Number(level) || 1) - ((Number(strike.firstStepLevel) || 5) - (Number(strike.every) || 4))) / (Number(strike.every) || 4)));
+
+// A thrall's Strike on a foe: the caster's spell attack against its AC, its dice (d6s) and `more` damage on a hit — of the thrall's
+// damage types, the one the foe takes most from — doubled on a critical hit.
+function thrallStrikeOn(ctx, foe, dice, more = 0, types = ["bludgeoning", "piercing", "slashing"], die = 6) {
+    const odds = degreeDistribution(Number(ctx.entry.attack) || 0, armorClass(foe));
+    const hit = Math.max(...types.map((type) => averageOn(foe, `${dice}d${die}[${type}]`, type))) + more;
+    return odds[2] * hit + odds[3] * 2 * hit;
+}
+
+READERS["thrall-strike"] = (ctx) => {
+    // (Thrall Charge, a thrall of the caster's out at its best — the user: "minion spells assuming you already have a minion out": its
+    // Stride and Strike by the thrall rules, with the charge's dice — of the Strike's type — destroyed for the rank's status bonus to the
+    // damage.)
+    const charge = ctx.entry.plan.resolution.thrallStrike ?? {};
+    const dice = (charge.ranks ?? []).filter((step) => ctx.rank >= Number(step.rank)).at(-1)?.dice ?? 1;
+    const die = Number(String(charge.dieSize ?? "d6").replace(/^d/, "")) || 6;
+    const own = thrallDice(ctx.caster.level);
+    const destroyed = charge.destroyBonus === "rank" ? ctx.rank : 0;
+    const entries = byShare(ctx.enemies.map((foe) => {
+        const extra = Math.max(...["bludgeoning", "piercing", "slashing"].map((type) => averageOn(foe, `${dice}d${die}[${type}]`, type)));
+        return { target: foe, damage: thrallStrikeOn(ctx, foe, own, extra + destroyed), worth: 0, heal: 0, benefit: 0 };
+    }));
+    return entries.length ? { entries: entries.slice(0, 1), targets: 1 } : null;
+};
+
+READERS["giant-thrall"] = (ctx) => {
+    // (Conglomerate of Limbs: its Huge thrall, Commanded to Strike each round it lasts at its best (an action), its Strike by the thrall
+    // rules; and its Hit Points taken in the party's stead — the foes' Strikes on it as one of the party, every one a hit (checks against a
+    // thrall succeed). Its two Strikes and holds under Thrall Charge wait on that spell.)
+    const giant = ctx.entry.plan.resolution.giantThrall ?? {};
+    const steps = giant.hpStep ? Math.floor(Math.max(0, ctx.rank - (Number(giant.baseRank) || ctx.rank)) / (Number(giant.hpStep.every) || 1)) * (Number(giant.hpStep.add) || 0) : 0;
+    const hp = (Number(giant.hp) || 0) + steps;
+    const lasts = lastsRounds(giant.seconds, ctx.rounds);
+    const strike = giant.thrall?.strike ?? {};
+    const foe = ctx.enemies[0];
+    if (!foe || !(hp > 0)) return null;
+    const dealt = thrallStrikeOn(ctx, foe, thrallDice(ctx.caster.level, strike), 0, strike.types ?? undefined, Number(strike.die) || 6) * lasts;
+    const average = (enemy) => Math.max(0, ...(enemy.strikes ?? []).map((each) => (each.damage ?? []).reduce((sum, part) => sum + (Number(part.dice) || 0) * ((Number(part.die) || 0) + 1) / 2 + (Number(part.bonus) || 0), 0)));
+    const drawn = ctx.enemies.reduce((sum, enemy) => sum + 2 * average(enemy), 0) * lasts / (ctx.allies.length + 1);
+    const soaked = Math.min(hp, drawn);
+    const entries = [...spreadDamage(ctx.enemies, dealt), ...(soaked > 0 ? healEntries(ctx.allies, soaked / Math.max(1, ctx.allies.length)) : [])];
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
+READERS["gore-field"] = (ctx) => {
+    // (Blossoming Gore, a thrall of the caster's out at its best: its field's persistent bleed on the foes in it each round they start there
+    // (half of them, as a lingering area's; all in a choke point), more as it heightens, and its Fortitude save as one ends a turn
+    // bleeding there — drained, its Hit Points too; the thralls it makes not counted.)
+    const gore = ctx.entry.plan.resolution.goreField ?? {};
+    const bleed = (Number(gore.bleed?.amount) || 0) + Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) * (Number(gore.bleed?.step) || 0);
+    if (!(bleed > 0)) return null;
+    const lasts = lastsRounds(gore.seconds, ctx.rounds);
+    const stay = ctx.choke ? 1 : 0.5;
+    const context = spellContext(ctx.entry, { isSpell: true, area: true });
+    const rows = gore.rows ?? {};
+    const entries = caught(ctx.enemies, { type: "burst", value: Number(gore.radius) || 20 }, ctx.choke).map((foe) => {
+        // (Persistent damage, each round's: as the damage it is then.)
+        const bleeding = averageOn(foe, `${bleed}[${gore.bleed?.type ?? "bleed"}]`, "bleed", context, true);
+        const odds = degreeDistribution(saveModifier(foe, gore.statistic ?? "fortitude"), Number(ctx.entry.dc) || 10);
+        const drained = bleeding > 0 ? [rows.criticalFailure, rows.failure, rows.success].reduce((sum, row, index) => sum + odds[index] * (Number(row?.value) || 0), 0) : 0;
+        const worth = bleeding > 0 ? [rows.criticalFailure, rows.failure, rows.success].reduce((sum, row, index) => sum + odds[index] * conditionWorth("drained", Number(row?.value) || 0, null), 0) : 0;
+        return { target: foe, damage: bleeding * lasts * stay + drained * (Number(foe.level) || 1), worth, heal: 0, benefit: 0 };
+    });
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
+// What a conjured weapon (runes: { potency, striking, property }) is worth to an ally a round over its own: its runes in place of the
+// party's at its level on the ally's best melee Strike (weaponRunesAt), the same weapon — of `type` where it sets one, flaming's fire die
+// on a hit — its two Strikes a round on the first foe.
+function armedGain(ctx, ally, runes, type = null) {
+    const foe = ctx.enemies[0];
+    const strike = (ally.strikes ?? []).filter((each) => each.melee && each.damage?.length).sort((a, b) => strikeOn(ally, b, foe) - strikeOn(ally, a, foe))[0];
+    if (!strike || !foe) return 0;
+    const own = weaponRunesAt(Number(ally.level) || 1);
+    const [part, ...rest] = strike.damage;
+    const flaming = (runes.property ?? []).some((property) => /flaming/i.test(property));
+    const armed = { ...strike, bonus: strike.bonus - own.potency + (Number(runes.potency) || 0), damage: [{ ...part, dice: 1 + (Number(runes.striking) || 0), type: type ?? part.type }, ...rest, ...(flaming ? [{ dice: 1, die: 6, bonus: 0, type: "fire" }] : [])] };
+    const round = (each) => strikeOn(ally, each, foe) + strikeOn(ally, each, foe, { attacks: 1 });
+    return Math.max(0, round(armed) - round(strike));
+}
+
+// A conjured weapon's reading: for the allies it can arm (`limit`), those it's worth most to, over the rounds it lasts — spread over the
+// foes.
+function armedReading(ctx, runes, limit, seconds, type = null) {
+    if (!runes) return null;
+    const gains = ctx.allies.map((ally) => armedGain(ctx, ally, runes, type)).sort((a, b) => b - a).slice(0, Math.max(1, limit));
+    const total = gains.reduce((sum, gain) => sum + gain, 0) * lastsRounds(seconds, ctx.rounds);
+    const entries = spreadDamage(ctx.enemies, total);
+    return entries.length ? { entries, targets: entries.length } : null;
+}
+
+READERS["conjured-weapons"] = (ctx) => {
+    // (Blazing Armory: its fire weapons for the allies it can arm at the rank — their runes over the party's own at its level.)
+    const armory = ctx.entry.plan.resolution.conjuredWeapons ?? {};
+    const runes = (armory.runes ?? []).filter((step) => ctx.rank >= Number(step.minRank)).at(-1) ?? null;
+    const limit = (armory.targets ?? []).filter((step) => ctx.rank >= Number(step.minRank)).at(-1)?.limit ?? 1;
+    return armedReading(ctx, runes, limit, armory.durationSeconds, armory.damageType ?? null);
+};
+
+READERS["conjured-item"] = (ctx) => {
+    // (Arms of Nature: its weapon in the caster's hands — at its best, the party's best Striker's — its runes over the party's own.)
+    const item = ctx.entry.plan.resolution.conjuredItem ?? {};
+    if (!item.weapon) return null;
+    const runes = (item.runes ?? []).filter((step) => ctx.rank >= Number(step.minRank)).at(-1) ?? null;
+    return armedReading(ctx, runes, 1, item.seconds);
+};
+
+// Erupting Spurs, Bone Flense's reaction (PF2e's action): its piercing dice, a basic Fortitude save; more each step the spell heightens
+// (its text's).
+const ERUPTING_SPURS = { dice: 6, faces: 6, type: "piercing" };
+
+READERS["weapon-imbue"] = (ctx) => {
+    // (Bone Flense, on the party's best Striker's weapon at its best (a Red Mantis's), against a foe with bones: its persistent bleed from
+    // the first hit the fight long — or, more, Erupting Spurs at that bleed: once, a basic Fortitude save.)
+    const text = String(ctx.entry.doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    const bleed = /(\d+)d(\d+) persistent bleed/i.exec(text);
+    const step = /Heightened \(\+(\d+)\) The persistent bleed damage increases by (\d+)d\d+\.(?: The damage from Erupting Spurs increases by (\d+)d\d+)?/i.exec(text);
+    const best = bestStrike(ctx, "melee");
+    if (!bleed || !best) return null;
+    const steps = step ? Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / Number(step[1])) : 0;
+    const context = spellContext(ctx.entry, { isSpell: true, area: false });
+    const entries = byShare(ctx.enemies.map((foe) => {
+        const first = 1 - (1 - hitChance(best.strike, foe)) * (1 - hitChance(best.strike, foe, { attacks: 1 }));
+        const bleeding = averageOn(foe, `${Number(bleed[1]) + steps * (Number(step?.[2]) || 0)}d${bleed[2]}[bleed]`, "bleed", context, true) * ctx.rounds;
+        const [critFail, fail, success] = degreeDistribution(saveModifier(foe, "fortitude"), Number(ctx.entry.dc) || 10);
+        const spurs = (2 * critFail + fail + 0.5 * success) * averageOn(foe, `${ERUPTING_SPURS.dice + steps * (Number(step?.[3]) || 0)}d${ERUPTING_SPURS.faces}[${ERUPTING_SPURS.type}]`, ERUPTING_SPURS.type, context);
+        return { target: foe, damage: first * Math.max(bleeding, spurs), worth: 0, heal: 0, benefit: 0 };
+    }));
+    return entries.length ? { entries: entries.slice(0, 1), targets: 1 } : null;
 };
 
 // The reading for a plan the engine can't cast, or null: its family's, or the plans its payload carries.

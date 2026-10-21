@@ -162,3 +162,48 @@ test("one-offs: a mark's weakness and off-guard on a foe; a tree's Hit Points in
     assert.equal(readingPower(standardParty(5), powerFoes("group", 5), entry(3, circle)), null, "plain foes: nothing");
     assert.ok(readingPower(standardParty(5), powerFoes("group", 5, "fiend"), entry(3, circle)).share > 0, "against fiends");
 });
+
+test("Strike spells at their best: the party's best Strike — two against two foes, off-guard where it can be, a shield raised first", () => {
+    const strike = (spec) => entry(1, plan("spell-strike", { spellStrike: { range: "melee", count: 1, ...spec } }, null));
+    const one = readingPower(standardParty(1), powerFoes("group", 1), strike({}));
+    const two = readingPower(standardParty(1), powerFoes("group", 1), strike({ count: 2, differentTargets: true }));
+    assert.ok(one && two && one.targets === 1 && two.targets === 2 && two.share > one.share, `${one?.share} ${two?.share}`);
+    assert.equal(readingPower(standardParty(1), powerFoes("boss", 1), strike({ count: 2, differentTargets: true })).targets, 1, "one foe: one Strike");
+    const boss = readingPower(standardParty(1), powerFoes("boss", 1), strike({})).share;
+    assert.ok(readingPower(standardParty(1), powerFoes("boss", 1), strike({ offGuardQuestion: { question: "?" } })).share > boss, "a group's foes go down to one hit anyway: the boss");
+    assert.ok(readingPower(standardParty(1), powerFoes("group", 1), strike({ preAction: "raise-a-shield" })).share > one.share, "the shield's AC");
+    const grabbing = strike({ unarmed: true, hitConditions: [{ slug: "grabbed", minutes: 1, escapeEnds: true }] });
+    assert.ok(readingPower(standardParty(1), powerFoes("group", 1), grabbing).share > readingPower(standardParty(1), powerFoes("group", 1), strike({ unarmed: true })).share);
+});
+
+test("a Strike's effects: their bonuses on it (a flurry's two Strikes), and on the caster's Strikes after it while they last", () => {
+    const effects = (spec, models) => ({ ...entry(1, plan("strike-effects", spec, null)), effects: models });
+    const bare = { strike: { rules: ["Make an unarmed Strike or Flurry of Blows."] }, applications: [] };
+    const before = { ...bare, applications: [{ kind: "native-spell-effect", uuid: "now", phase: "before" }] };
+    const after = { strike: { rules: ["Make a melee Strike."] }, applications: [{ kind: "native-spell-effect", uuid: "later", phase: "after" }] };
+    const plain = readingPower(standardParty(1), powerFoes("boss", 1), effects(bare, {}));
+    const added = readingPower(standardParty(1), powerFoes("boss", 1), effects(before, { now: { rounds: 1, modifiers: [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "dice", value: 4 }] } }));
+    assert.ok(plain && added && added.share > plain.share);
+    const lasting = (rounds) => readingPower(standardParty(1), powerFoes("boss", 1), effects(after, { later: { rounds, modifiers: [], conditional: [{ on: "damage", type: "untyped", value: 2, predicate: ["item:melee"] }] } })).share;
+    assert.ok(lasting(10) > lasting(1), "the rest of the fight's Strikes");
+});
+
+test("thralls out at their best: Thrall Charge's Strike more as it heightens; Conglomerate of Limbs' Strikes and Hit Points; Blossoming Gore more in a choke point", () => {
+    const charge = plan("thrall-strike", { thrallStrike: { dieSize: "d6", ranks: [{ rank: 1, dice: 1 }, { rank: 2, dice: 2 }, { rank: 6, dice: 3 }, { rank: 10, dice: 4 }], destroyBonus: "rank", range: 30 } }, null);
+    const low = readingPower(standardParty(11), powerFoes("boss", 11), entry(1, charge));
+    const high = readingPower(standardParty(11), powerFoes("boss", 11), entry(6, charge));
+    assert.ok(low && high && high.share > low.share);
+    const giant = plan("giant-thrall", { giantThrall: { seconds: 60, hp: 40, hpStep: { every: 1, add: 10 }, baseRank: 4, thrall: { strike: { die: 6, types: ["bludgeoning"], firstStepLevel: 5, every: 4 } } } }, null);
+    assert.ok(readingPower(standardParty(7), powerFoes("group", 7), entry(4, giant)).share > 0);
+    const gore = plan("gore-field", { goreField: { seconds: 60, radius: 20, bleed: { amount: 10, type: "bleed", step: 2 }, statistic: "fortitude", rows: { success: { value: 1 }, failure: { value: 1 }, criticalFailure: { value: 2 } } } }, null);
+    const open = readingPower(standardParty(9), powerFoes("group", 9), entry(5, gore));
+    const choke = readingPower(standardParty(9), powerFoes("group", 9), entry(5, gore), { choke: true });
+    assert.ok(open && choke && choke.share > open.share && open.share > 0, "bleed counted each round");
+});
+
+test("a conjured weapon: worth its runes over the party's own — a striking rune at 3rd level, only the wizard's staff where the party has one", () => {
+    const armory = plan("conjured-weapons", { conjuredWeapons: { damageType: "fire", durationSeconds: 300, runes: [{ minRank: 2, potency: 1, striking: 1, property: [] }], targets: [{ minRank: 2, limit: 1 }] } }, null);
+    const early = readingPower(standardParty(3), powerFoes("boss", 3), entry(2, armory));
+    const later = readingPower(standardParty(5), powerFoes("boss", 5), entry(2, armory));
+    assert.ok(early && later && early.share > 3 * later.share, `${early?.share} ${later?.share}`);
+});

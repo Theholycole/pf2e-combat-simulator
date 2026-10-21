@@ -13,6 +13,8 @@ const rank = (level, steps) => steps.reduce((value, [from, prof]) => (level >= f
 const key = (level) => (level >= 20 ? 7 : level >= 17 ? 6 : level >= 10 ? 5 : 4);
 const potency = (level) => (level >= 16 ? 3 : level >= 10 ? 2 : level >= 2 ? 1 : 0);
 const striking = (level) => (level >= 19 ? 4 : level >= 12 ? 3 : level >= 4 ? 2 : 1);
+// A weapon's runes at a level, as the party has them (GM Core's treasure table): { potency, dice } (dice: the striking runes' damage dice).
+export const weaponRunesAt = (level) => ({ potency: potency(level), dice: striking(level) });
 const armorPotency = (level) => (level >= 18 ? 3 : level >= 11 ? 2 : level >= 5 ? 1 : 0);
 const resilient = (level) => (level >= 20 ? 3 : level >= 14 ? 2 : level >= 8 ? 1 : 0);
 const primarySkill = (level) => rank(level, [[1, T], [3, E], [7, M], [15, L]]);
