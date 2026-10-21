@@ -155,7 +155,7 @@ export function powerLabel(value, bound = null, detail = null) {
 }
 
 // The words for a trait's foes, and for an estimate.
-const FOES = { undead: "undead", fiend: "fiends", celestial: "celestials", construct: "constructs", elemental: "elementals", "no-darkvision": "foes without darkvision", "light-blind": "light-blind foes" };
+const FOES = { undead: "undead", fiend: "fiends", celestial: "celestials", construct: "constructs", elemental: "elementals", "no-darkvision": "foes without darkvision", "light-blind": "light-blind foes", invisible: "invisible foes" };
 const ESTIMATES = {
     shield: "its shield raised (more AC, and a Shield Block while it lasts)",
     "text damage": "the damage its text gives, at the foes' saves",

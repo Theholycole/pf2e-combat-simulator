@@ -55,7 +55,9 @@ const TRAIT_PACKAGES = {
     "no-darkvision": { senses: [] },
     // (Met in the dark, as drow are: the fight unlit too.)
     "light-blind": { lightBlindness: {}, environment: { light: "dark" } },
-    dark: { environment: { light: "dark" } }
+    dark: { environment: { light: "dark" } },
+    // (Invisible foes, as by Invisibility or by nature: hidden — sight.js.)
+    invisible: { permanent: [{ slug: "invisible" }] }
 };
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
 export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
@@ -74,6 +76,7 @@ export function powerFoes(kind, level, trait = null) {
     const make = (lv, id) => {
         const foe = { ...moderateCreatureAt(Math.max(-1, Math.min(25, lv)), id), senses: [...(pack?.senses ?? FOE_SENSES)] };
         if (pack?.lightBlindness) foe.lightBlindness = { ...pack.lightBlindness };
+        if (pack?.permanent) foe.permanent = [...(foe.permanent ?? []), ...pack.permanent.map((entry) => ({ ...entry }))];
         return pack?.traits ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities], weaknesses: (pack.weaknesses ?? []).map((type) => ({ type, value: typicalWeakness(foe.level) })) } : foe;
     };
     const foes = kind === "boss" ? [make(level + 2, "monster")] : [0, 1, 2, 3].map((index) => make(level - 2, index ? `monster-${index}` : "monster"));
@@ -137,8 +140,12 @@ export function powerConditions(plan, effects = null) {
     if (zone?.light?.level === "bright") for (const trait of ["dark", "light-blind"]) traits.add(trait);
     for (const model of Object.values(effects ?? {})) {
         if (model?.light) for (const trait of ["dark", "light-blind"]) traits.add(trait);
-        if (model?.senses?.length) traits.add("dark");
+        if ((model?.senses ?? []).some((sense) => /darkvision|low-light/.test(sense))) traits.add("dark");
+        // (See invisibility: against invisible foes.)
+        if ((model?.senses ?? []).includes("see-invisibility")) traits.add("invisible");
     }
+    // (An outline — Faerie Fire, Revealing Light —: against invisible foes.)
+    if (/"slug":"outlined"/.test(JSON.stringify(plan?.resolution ?? null))) traits.add("invisible");
     if ((plan?.traits ?? []).includes("holy")) traits.add("fiend");
     if ((plan?.traits ?? []).includes("unholy")) traits.add("celestial");
     // (Circle of Protection: against unholy or holy foes.)

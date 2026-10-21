@@ -32,7 +32,7 @@ import { distanceBetween, engagedEnemies, leaveMelee, sameMelee } from "./space.
 import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
 import { applyWard, wardBlocks, wardWorth } from "./wards.js";
 import { applyImages, imageOdds, imageShare, imageTakes, imagesWorth } from "./images.js";
-import { hiddenFrom } from "./sight.js";
+import { hiddenDC, hiddenFrom, outlineWorth } from "./sight.js";
 import { lastingRounds } from "./lasting.js";
 import { takeControl } from "./control.js";
 import { noteKnown } from "./readings.js";
@@ -62,7 +62,9 @@ const FLAGS = {
     // deafened — an auditory action needs a DC 5 flat check.)
     fascinated: "fascinated", deafened: "deafened",
     // (Dominate: it fights for its controller — control.js.)
-    controlled: "controlled"
+    controlled: "controlled",
+    // (2026-10-21, Faerie Fire, Revealing Light: not concealed, an invisible one concealed instead — sight.js.)
+    outlined: "outlined"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -1995,7 +1997,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // (A zone's save is the area's: nothing to find.)
     // (S59, a spell attack Sure Strike rolls twice: no flat check for the target being concealed or hidden.)
     const finds = info.attack && forcedDegree === null && caster.fortuneFinds && (caster.effects ?? []).some((effect) => effect.model?.fortune?.on === "attack");
-    const findDC = (target) => (info.area || spell.fromZone || target === caster ? 0 : Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, target.side !== caster.side && !finds ? (hiddenFrom(state, caster, target) ? 11 : target.cond?.concealed ? 5 : 0) : 0, sightDC(state, caster, target)));
+    const findDC = (target) => (info.area || spell.fromZone || target === caster ? 0 : Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, target.side !== caster.side && !finds ? hiddenDC(state, caster, target) : 0, target.cond?.outlined && sightDC(state, caster, target) < 11 ? 0 : sightDC(state, caster, target)));
     if (targets.some((target) => findDC(target) > 0)) {
         const found = targets.filter((target) => !findDC(target) || flatCheck(state.rng, findDC(target)) >= SUCCESS);
         if (found.length < targets.length) log(state, `  ${caster.name} fails to find ${targets.length - found.length} target(s)`);
@@ -3073,6 +3075,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     const result = [];
     // What happens to the caster itself (Trip's critical failure, Escape's success).
     let self = null;
+    // (Its parts so far, by change: each counted once — the most likely.)
+    let selfParts = null;
     let damageContext = null;
     // (S55, a chain: each target counts as far as the chain reaches it — no critical success before it.)
     const chain = spell.plan?.resolution?.chain;
@@ -3119,8 +3123,18 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 if (change.op === "condition" && change.valueRoll && !Number.isFinite(change.value)) change = { ...change, value: averageRoll(change.valueRoll) };
                 if (change.target === caster.id && target !== caster) {
                     self ??= { target: caster, damage: 0, worth: 0, heal: 0, benefit: 0 };
-                    if (change.op === "condition") self.worth += chance * conditionWorth(change.slug, change.value, change.duration);
-                    else if (change.op === "end") self.benefit += chance * (change.what?.conditions ?? []).reduce((sum, slug) => sum + (caster.cond[FLAGS[slug] ?? slug] ? conditionWorth(slug, null, null) : 0), 0);
+                    // (Once a cast for each degree, however many targets carry it — Shared Invisibility's "you and all targets": before,
+                    // once for each of them. Invisibility that ends with its hostile action: about a round of it.)
+                    const key = `${degreeIndex}:${change.op}:${change.slug ?? (change.what?.conditions ?? []).join(",")}`;
+                    const lasting = change.endsOnHostile ? { mode: "fixed", value: 1, unit: "rounds" } : change.duration;
+                    const value = change.op === "condition" ? chance * conditionWorth(change.slug, change.value, lasting)
+                        : change.op === "end" ? chance * (change.what?.conditions ?? []).reduce((sum, slug) => sum + (caster.cond[FLAGS[slug] ?? slug] ? conditionWorth(slug, null, null) : 0), 0) : 0;
+                    const field = change.op === "condition" ? "worth" : "benefit";
+                    const before = (selfParts ??= new Map()).get(key) ?? 0;
+                    if (Math.abs(value) > Math.abs(before)) {
+                        self[field] += value - before;
+                        selfParts.set(key, value);
+                    }
                     continue;
                 }
                 if (change.op === "damage") {
@@ -3148,7 +3162,10 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     // frightened 1 to 2. Before, the party tripped a creature already on the ground.)
                     const flag = FLAGS[change.slug];
                     const held = flag ? (target.cond?.[flag] ? 1 : 0) : Number(target.cond?.[change.slug] ?? 0) || 0;
-                    const full = conditionWorth(change.slug, brave ?? change.value, change.duration);
+                    // (Invisibility that ends with the creature's hostile action: about a round of it in a fight. Outlined: what it changes in how
+                    // the other side finds the creature — sight.js.)
+                    const lasting = change.endsOnHostile ? { mode: "fixed", value: 1, unit: "rounds" } : change.duration;
+                    const full = change.slug === "outlined" ? outlineWorth(state, target, Math.min(3, durationRounds(change.duration)), sightDC) : conditionWorth(change.slug, brave ?? change.value, lasting);
                     entry.worth += chance * (flag ? (held ? 0 : full) : Math.max(0, full - (held ? conditionWorth(change.slug, held, change.duration) : 0)));
                     // The party plays for morale (M23): fear may break the foe, which takes it out of the fight.
                     if (change.slug === "frightened" && caster.side === "party" && target.side !== caster.side && state.setup.situational?.playsForMorale) {
@@ -3339,6 +3356,8 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         if (info.healing || info.helpful) around.push(caster);
         // (B229: foes only.)
         if (info.area.foes) around.splice(0, around.length, ...around.filter((other) => other.side !== caster.side));
+        // (2026-10-21: "you and up to 5 willing creatures" — Shared Invisibility's —: its own side only.)
+        if (String(spell.plan?.targeting?.target ?? "").split(/\bor\b/i).every((choice) => /\bwilling\b/i.test(choice))) around.splice(0, around.length, ...around.filter((other) => other.side === caster.side));
         around.splice(0, around.length, ...around.filter(affected));
         const helps = (info.healing && around.some((other) => other.side === caster.side && other.hp.value < other.hp.max)) || (info.helpful && around.some((other) => other.side === caster.side));
         if (helps || around.some((other) => other.side !== caster.side)) sets.push({ targets: around.slice(0, capacity) });

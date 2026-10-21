@@ -24,7 +24,7 @@ import { afterAttackFortune, attackFortune } from "./fortune-items.js";
 import { hostility, ownHostility } from "./pacify.js";
 import { wardBlocks } from "./wards.js";
 import { imageTakes } from "./images.js";
-import { hiddenFrom } from "./sight.js";
+import { hiddenDC, hiddenFrom } from "./sight.js";
 import { lifelinkMaster } from "./familiars.js";
 import { keenCritical, runeCritEffects } from "./runes.js";
 import { afterStrikeItems } from "./triggered-items.js";
@@ -318,7 +318,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (Truesight: an invisible creature it sees through isn't hidden to it.)
     // (S59, Sure Strike's attack: no flat check for the target being concealed or hidden.)
     const finds = !reaction && attacker.fortuneFinds && (attacker.effects ?? []).some((effect) => effect.model?.fortune?.on === "attack");
-    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : hiddenFrom(state, attacker, target) ? 11 : target.cond?.concealed ? 5 : 0, sightDC(state, attacker, target));
+    // (Outlined — Faerie Fire —: not concealed by the light either, short of its darkness.)
+    const lightDC = sightDC(state, attacker, target);
+    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : hiddenDC(state, attacker, target), target.cond?.outlined && lightDC < 11 ? 0 : lightDC);
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
         // Counterattack (B94): a miss from beside it because it's concealed, a Strike back.

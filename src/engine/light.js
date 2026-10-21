@@ -137,6 +137,9 @@ export function senseLightBenefit(state, model, target, rounds) {
     if (model.senses?.length) {
         const foes = state.list.filter((other) => other.side !== target.side && isActive(other));
         if (foes.length) benefit += foes.reduce((sum, foe) => sum + unseenCost(sightDCIn(target, lightAt(state, foe))) - unseenCost(sightDCIn(target, lightAt(state, foe), model.senses)), 0) / foes.length * rounds;
+        // (See invisibility — See the Unseen —: an invisible foe concealed to it, not hidden; sight.js.)
+        const invisible = (foe) => foe.cond?.hidden && (foe.condSources?.invisible || (foe.permanent ?? []).some((entry) => entry.slug === "invisible"));
+        if (foes.length && model.senses.includes("see-invisibility") && !hasSense(target, "see-invisibility")) benefit += foes.filter(invisible).length * (unseenCost(11) - unseenCost(5)) / foes.length * rounds;
     }
     if (model.light?.bright > 0) {
         const lit = state.list.filter((other) => isActive(other) && (other === target || distanceBetween(target, other) <= model.light.bright + (model.light.dim ?? 0)));

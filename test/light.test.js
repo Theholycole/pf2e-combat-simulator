@@ -94,3 +94,34 @@ test("rated: foes with darkvision by default; Darkness more useful against foes 
     const blind = castPower(standardParty(3), powerFoes("group", 3, "no-darkvision"), entry);
     assert.ok(blind && blind.share > 0.2 && blind.targets === 4, `${blind?.share}`);
 });
+
+test("invisible foes: hidden, concealed instead to see invisibility and while outlined; an outline takes concealment away", async () => {
+    const { hiddenDC, invisibleOf } = await import("../src/engine/sight.js");
+    const state = { round: 1 };
+    const ghost = { id: "g", cond: { hidden: true }, permanent: [{ slug: "invisible" }] };
+    assert.ok(invisibleOf(ghost));
+    assert.equal(hiddenDC(state, { senses: [] }, ghost), 11);
+    assert.equal(hiddenDC(state, { senses: ["see-invisibility"] }, ghost), 5);
+    assert.equal(hiddenDC(state, { senses: [] }, { ...ghost, cond: { hidden: true, outlined: true } }), 5);
+    assert.equal(hiddenDC(state, { senses: [] }, { id: "h", cond: { hidden: true } }), 11, "hidden another way: still hidden");
+    assert.equal(hiddenDC(state, { senses: [] }, { id: "c", cond: { concealed: true, outlined: true } }), 0);
+});
+
+test("Faerie Fire read as outlining everyone in its burst; Revealing Light's rows dazzled and outlined for their time", () => {
+    const faerie = withReading({ modelVersion: 13, source: { name: "Faerie Fire" }, rank: 2, traits: [], activation: { time: "2" }, targeting: { target: null, range: "120 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "outline", outline: { area: { type: "burst", value: 10 }, duration: { value: 5, unit: "minutes" } } } });
+    assert.deepEqual(faerie.targeting.area, { type: "burst", value: 10 });
+    assert.deepEqual(faerie.resolution.outcomes.success.effects, [{ kind: "condition", slug: "outlined", value: null, duration: { mode: "fixed", value: 5, unit: "minutes" } }]);
+    const revealing = withReading({ modelVersion: 13, source: { name: "Revealing Light" }, rank: 2, traits: [], activation: { time: "2" }, targeting: { area: { type: "burst", value: 10 } }, trigger: { event: "use" }, resolution: { kind: "save", check: { statistic: "reflex" }, outcomes: { criticalSuccess: { effects: [], rawText: "The target is unaffected." }, success: { effects: [], rawText: "The light affects the creature for 2 rounds." }, failure: { effects: [], rawText: "The light affects the creature for 1 minute." } } } });
+    assert.deepEqual(revealing.resolution.outcomes.success.effects.map((effect) => [effect.slug, effect.duration.value, effect.duration.unit]), [["dazzled", 2, "rounds"], ["outlined", 2, "rounds"]]);
+    assert.deepEqual(revealing.resolution.outcomes.criticalSuccess.effects, []);
+    assert.deepEqual(powerConditions(faerie), ["invisible"]);
+    assert.ok(powerFoes("boss", 3, "invisible")[0].permanent.some((entry) => entry.slug === "invisible"));
+});
+
+test("Faerie Fire rated: nothing on foes seen plainly; against invisible foes, them concealed instead of hidden", () => {
+    const faerie = withReading({ modelVersion: 13, source: { name: "Faerie Fire" }, rank: 2, traits: [], activation: { time: "2" }, targeting: { target: null, range: "120 feet", area: null }, trigger: { event: "use" }, resolution: { kind: "outline", outline: { area: { type: "burst", value: 10 }, duration: { value: 5, unit: "minutes" } } } });
+    const entry = { name: "Faerie Fire", plan: faerie, castRank: 2, dc: 19, attack: 9, pool: RATED_POOL, tradition: "arcane", effects: {} };
+    assert.equal(castPower(standardParty(3), powerFoes("boss", 3), entry), null);
+    const found = castPower(standardParty(3), powerFoes("boss", 3, "invisible"), entry);
+    assert.ok(found && found.share > 0.1, `${found?.share}`);
+});

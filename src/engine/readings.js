@@ -70,7 +70,31 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withConcealedTo(withArea(resolved))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withOutline(withConcealedTo(withArea(resolved)))))));
+}
+
+// Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
+// (sight.js). Faerie Fire's outline ("outline": its burst, its time) as an automatic check outlining every creature in it; Revealing Light's
+// rows ("The light affects the creature for 2 rounds") dazzled and outlined for that time.
+const NONE_ROW = { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] };
+const LIGHT_AFFECTS = /\bThe light affects the creature for (\d+) (round|minute)s?\b/i;
+function withOutline(plan) {
+    const resolution = plan?.resolution;
+    if (resolution?.kind === "outline" && resolution.outline?.area) {
+        const duration = { mode: "fixed", value: Number(resolution.outline.duration?.value) || 1, unit: resolution.outline.duration?.unit ?? "minutes" };
+        return { ...plan, simulatorReading: true, targeting: { ...(plan.targeting ?? {}), target: null, area: resolution.outline.area },
+            resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { ...NONE_ROW }, success: { ...NONE_ROW, effects: [{ kind: "condition", slug: "outlined", value: null, duration }] }, failure: { ...NONE_ROW }, criticalFailure: { ...NONE_ROW } } } };
+    }
+    if (resolution?.kind !== "save") return plan;
+    let changed = false;
+    const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
+        const lasts = LIGHT_AFFECTS.exec(rowWords(plan, degree, row));
+        if ((row?.effects ?? []).length || !lasts) return [degree, row];
+        changed = true;
+        const duration = { mode: "fixed", value: Number(lasts[1]), unit: `${lasts[2].toLowerCase()}s` };
+        return [degree, { ...row, effects: [{ kind: "condition", slug: "dazzled", value: null, duration }, { kind: "condition", slug: "outlined", value: null, duration }] }];
+    }));
+    return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
 }
 
 // Shroud of Night (2026-10-21, sight and light — the user: "I also want spells that need foe traits since i want those to be tracked too in
