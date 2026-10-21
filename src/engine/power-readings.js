@@ -495,9 +495,43 @@ READERS["lantern-aura"] = (ctx) => {
     return entries.length ? { entries, targets: entries.length } : null;
 };
 
-// The reading for a plan the engine can't cast, or null.
+// --- Any other: the plans it carries -------------------------------------------------------------------------------------------------
+
+// The plans a payload carries (a save, an attack, a heal the spell runs), depth first: [plan…].
+function embeddedPlans(value, out = [], depth = 0) {
+    if (!value || typeof value !== "object" || depth > 8 || out.length > 24) return out;
+    if (Array.isArray(value)) {
+        for (const item of value) embeddedPlans(item, out, depth + 1);
+        return out;
+    }
+    if (value.resolution?.kind && value.targeting !== undefined) {
+        out.push(value);
+        return out;
+    }
+    for (const [key, item] of Object.entries(value)) if (key !== "outcomes" && key !== "native") embeddedPlans(item, out, depth + 1);
+    return out;
+}
+
+// A family with no reading of its own: of the plans its payload carries, the one worth most cast at its best targets (castableReading
+// where it says nowhere it goes); null with none the engine resolves.
+function embeddedReader(ctx) {
+    const { kind, ...payload } = ctx.entry.plan.resolution;
+    let best = null;
+    for (const inner of embeddedPlans(payload)) {
+        const entries = phaseEntries(ctx, inner);
+        const value = entries.reduce((sum, entry) => sum + (entry.target.side === ctx.caster.side ? -1 : 1) * ((entry.damage ?? 0) / Math.max(1, entry.target.hp.max) + (entry.worth ?? 0) / 3), 0)
+            + entries.filter((entry) => entry.target.side === ctx.caster.side).reduce((sum, entry) => sum + (entry.heal ?? 0) / Math.max(1, entry.target.hp.max) + (entry.benefit ?? 0) / 3, 0);
+        if (entries.length && (!best || value > best.value)) best = { value, entries };
+    }
+    return best ? { entries: best.entries, targets: best.entries.length } : null;
+}
+
+// The reading for a plan the engine can't cast, or null: its family's, or the plans its payload carries.
 export function powerReading(plan) {
-    return READERS[plan?.resolution?.kind] ?? null;
+    const own = READERS[plan?.resolution?.kind];
+    if (own) return own;
+    const { kind, ...payload } = plan?.resolution ?? {};
+    return kind && embeddedPlans(payload).length ? embeddedReader : null;
 }
 
 export const READING_KINDS = Object.freeze(Object.keys(READERS));

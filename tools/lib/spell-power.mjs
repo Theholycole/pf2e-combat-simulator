@@ -191,15 +191,18 @@ function wallOf(plan, doc) {
     return wall ? wallKind(plan, text) : null;
 }
 
-// A spell the simulator reads only as text (a utility spell, as its compiler leaves it): the damage its text deals — the first "XdY type
-// damage" (inline rolls read as such), heightened as its text says ("Heightened (+N) … increases by XdY", each N ranks), against the save
+// A spell the simulator reads only as text (a utility spell, as its compiler leaves it; one it can't cast): the damage its text deals — the
+// first "XdY type damage" dealt to someone else (inline rolls read as such), heightened as its text says ("Heightened (+N) … increases by XdY", each N ranks), against the save
 // it names or its spell attack — and where it goes (an area: every foe; else the number of creatures its target names). Null without one.
 export function textDamageOf(doc, rank) {
     const text = String(doc?.system?.description?.value ?? "").replace(/@Damage\[\(?([^\[\]]*?)\)?(?:\[([a-z,]+)\])?\]/gi, (all, formula, kinds) => `${formula} ${String(kinds ?? "").split(",").find((kind) => !["persistent", "splash", "precision"].includes(kind)) ?? ""} damage`).replace(/<[^>]+>/g, " ").replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/\s+/g, " ");
     const at = text.search(/\bHeightened\b/i);
     const head = at >= 0 ? text.slice(0, at) : text;
     const heightened = at >= 0 ? text.slice(at) : "";
-    const found = /(\d+)d(\d+)(?:\s*\+\s*(\d+))?\s+(?:([a-z]+)\s+)?damage/i.exec(head);
+    // (The first sentence that deals it to someone else: not the caster's own ("you're expelled … and take 10d6"), not one that hangs on
+    // an if ("If you cast the spell on an object…").)
+    const sentence = head.split(/(?<=[.!?])\s+/).find((each) => /\d+d\d+(?:\s*\+\s*\d+)?\s+(?:[a-z]+\s+)?damage/i.test(each) && !/\byou(?:'re| are)?\b[^.]{0,60}\btakes?\b/i.test(each) && !/^\s*If\b/i.test(each));
+    const found = sentence ? /(\d+)d(\d+)(?:\s*\+\s*(\d+))?\s+(?:([a-z]+)\s+)?damage/i.exec(sentence) : null;
     if (!found) return null;
     const save = /\b(Reflex|Fortitude|Will) save/i.exec(head)?.[1]?.toLowerCase() ?? null;
     const attack = !save && /\bspell attack\b/i.test(head);
@@ -324,6 +327,12 @@ export function runPowerTask(task) {
         const read = { ...entry, doc };
         const row = { ...head, traits, results: resultsOf(traits, (foes) => readingPower(party, foes, read), level), estimate: `reading (${plan.resolution.kind})` };
         return withChoke(row, (foes, choke) => readingPower(party, foes, read, { choke }), level);
+    }
+    // (Nothing else: the damage its text deals, against a save or a spell attack — estimated.)
+    const textDamage = !castable && !isUtility(plan) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? textDamageOf(doc, rank) : null;
+    if (textDamage) {
+        const results = resultsOf([], (foes) => textDamageShare(party, foes, entry, textDamage), level);
+        if (Object.keys(results).length) return { ...head, traits: [], results, estimate: "text damage" };
     }
     if (isUtility(plan) || !castable) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
     const traits = powerConditions(plan);

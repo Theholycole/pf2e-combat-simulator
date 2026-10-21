@@ -131,3 +131,13 @@ test("Power Words by the target's level: death at the low tier (level 13 foes), 
     assert.ok(Math.abs(low.share - 0.25) < 1e-9, "one of four foes gone");
     assert.ok(high.share > 0 && high.share < 0.25, "50 of the boss's Hit Points");
 });
+
+test("a family with no reading of its own: the plan its payload carries, cast at its best targets", () => {
+    const inner = { modelVersion: 13, source: { name: "Inner" }, rank: 3, traits: [], activation: { time: "2" }, targeting: { target: null, range: "60 feet", area: { type: "burst", value: 20 } }, trigger: { event: "use" },
+        resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "spell" } }, sharedDamage: { components: [{ id: "c0", formula: "6d6", type: "acid", kinds: ["damage"] }] }, outcomes: { criticalSuccess: { damage: { mode: "none", multiplier: 0 } }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["c0"] } }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["c0"] } }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["c0"] } } } } };
+    const odd = plan("some-new-kind", { somethingNew: { savePlan: inner, notes: ["…"] } });
+    assert.ok(powerReading(odd), "read through the plan it carries");
+    const found = readingPower(standardParty(5), powerFoes("group", 5), entry(3, odd));
+    assert.ok(found && found.share > 0 && found.targets >= 3);
+    assert.equal(powerReading(plan("some-new-kind", { somethingNew: { notes: [] } })), null);
+});
