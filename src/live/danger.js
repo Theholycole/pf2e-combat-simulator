@@ -195,7 +195,9 @@ const READINGS = {
     "cannibal-hunger": "the hungering foe's better answer as others fall: eating, or its mental damage",
     "stored-charge": "the damage its resistance keeps off, flung back with its spell attack",
     "option-mantle": "the best two of its options on a battle caster: its Strike, damage, healing, cover, resistances, aura",
-    "generated-form": "the best two of its options on a battle caster: its Strike, damage, healing, cover, resistances, aura"
+    "generated-form": "the best two of its options on a battle caster: its Strike, damage, healing, cover, resistances, aura",
+    "damage-share": "its healing as cast on the allies it links",
+    "winning-streak": "a Quickened Striker's extra Strike each round the party keeps critically hitting"
 };
 const ESTIMATE_MORE = { "battle form": "the caster in its best form, its Strikes in place of its spells, its temporary Hit Points and AC" };
 

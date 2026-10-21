@@ -313,3 +313,15 @@ test("a mantle's options from its text, and the best pair of them for a battle c
     const found = readingPower(standardParty(9), powerFoes("boss", 9), mantle);
     assert.ok(found && found.share > 0);
 });
+
+test("modes of two slots read from the text, the best pair; Life Link's healing on as many as its rank links; Winning Streak while the party crits", () => {
+    const text = "<p><strong>Calm (key)</strong> Enemies take a –2 status penalty to attack rolls.</p><p><strong>Loud (key)</strong> Nothing.</p><p><strong>Fast (time)</strong> You and your allies gain a +2 status bonus to attack rolls.</p><p><strong>Slow (time)</strong> You and your allies gain a +2 status bonus to Armor Class and Reflex saving throws.</p>";
+    const phases = [["Calm (key)", 1], ["Loud (key)", 1], ["Fast (time)", 2], ["Slow (time)", 2]].map(([title, slot]) => ({ key: title, title, kind: "mode", state: { slot } }));
+    const shift = { ...entry(8, plan("incarnate", { incarnate: { phases } }, null)), doc: { system: { description: { value: text } } } };
+    const found = readingPower(standardParty(15), powerFoes("group", 15), shift);
+    assert.ok(found && found.share > 0.1, `${found?.share}`);
+    const link = (rank) => ({ ...entry(rank, plan("damage-share", { damageShare: { ranks: [{ rank: 0, targets: 1 }, { rank: 3, targets: 2 }] } }, null)), doc: { system: { description: { value: "When you first Cast the Spell, the target recovers 1d4 Hit Points. Heightened (3rd) You can target 2 creatures other than you. The initial healing increases to 3d4 Hit Points." } } } });
+    assert.equal(readingPower(standardParty(5), powerFoes("boss", 5), link(1)).targets, 1);
+    assert.equal(readingPower(standardParty(5), powerFoes("boss", 5), link(3)).targets, 2);
+    assert.ok(readingPower(standardParty(7), powerFoes("boss", 7), entry(4, plan("winning-streak", { winningStreak: {} }, null))).share > 0);
+});

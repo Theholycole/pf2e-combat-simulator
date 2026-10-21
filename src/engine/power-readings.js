@@ -384,6 +384,8 @@ READERS.incarnate = (ctx) => {
     // its best targets, added up; of its options, the best. Phases a die picks among — Prismatic Spray's beams, "hidden", run by a phase
     // with a die and a table — each as likely as its faces, and the face that runs two (twice) as two of them on average.)
     const incarnate = ctx.entry.plan.resolution.incarnate ?? {};
+    // (Modes — Musical Shift's key and time signatures —: one of each slot, read from the text, the best pair.)
+    if ((incarnate.phases ?? []).length && incarnate.phases.every((phase) => phase.kind === "mode")) return modeReading(ctx, incarnate.phases);
     const choices = incarnate.options?.choices?.length ? incarnate.options.choices.map((choice) => choice.phases ?? []) : [incarnate.phases ?? []];
     const options = choices.map((phases) => {
         const lists = phases.filter((phase) => phase?.plan?.resolution && !phase.hidden).map((phase) => phaseEntries(ctx, phase.plan));
@@ -1568,6 +1570,84 @@ READERS["stored-charge"] = (ctx) => {
     const odds = degreeDistribution(Number(ctx.entry.attack) || 0, armorClass(foe));
     const back = (odds[2] + 2 * odds[3]) * averageOn(foe, `${resistance}[${charge.type ?? "electricity"}]`, charge.type, spellContext(ctx.entry, { isSpell: true, area: false }));
     return { entries: [...healEntries([ctx.caster], resistance), { target: foe, damage: back, worth: 0, heal: 0, benefit: 0 }], targets: 2 };
+};
+
+// --- Modes, a link, a streak (2026-10-21, batch 16) ---------------------------------------------------------------------------------------
+
+// A mode's effect from its text (after its title): the foes' attack penalty, bleed when they take piercing or slashing damage, the
+// party's attack or AC bonus. { foesAttack?, bleed?: { formula, types }, alliesAttack?, alliesAC? }
+function modeEffect(part) {
+    const effect = {};
+    const penalty = /Enemies take a [–-](\d+) status penalty to attack rolls/i.exec(part);
+    if (penalty) effect.foesAttack = Number(penalty[1]);
+    const bleed = /Whenever an enemy takes (\w+) or (\w+) damage, they also take (\d+)d(\d+) persistent (\w+) damage/i.exec(part);
+    if (bleed) effect.bleed = { formula: `${bleed[3]}d${bleed[4]}[${bleed[5].toLowerCase()}]`, types: [bleed[1].toLowerCase(), bleed[2].toLowerCase()] };
+    const attack = /allies gain a \+(\d+) status bonus to attack rolls/i.exec(part);
+    if (attack) effect.alliesAttack = Number(attack[1]);
+    const ac = /allies gain a \+(\d+) status bonus to Armor Class/i.exec(part);
+    if (ac) effect.alliesAC = Number(ac[1]);
+    return effect;
+}
+
+// Musical Shift: a mode of each slot while it lasts (Sustained), on the foes and the party in its emanation — at its best all of them —
+// the best pair: the foes' penalty as the hits it keeps off the party, their bleed each round from the party's piercing and slashing
+// Strikes, the party's bonus to hit, its AC.
+function modeReading(ctx, phases) {
+    const plain = String(ctx.entry.doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    const lasts = lastsRounds(60, ctx.rounds);
+    const read = phases.map((phase) => {
+        const title = String(phase.title ?? "");
+        const index = plain.indexOf(title);
+        const next = phases.map((other) => plain.indexOf(String(other.title ?? ""))).filter((at) => at > index).sort((a, b) => a - b)[0] ?? plain.length;
+        return { slot: phase.state?.slot ?? 1, effect: index >= 0 ? modeEffect(plain.slice(index + title.length, next)) : {} };
+    });
+    const foe = toughest(ctx.enemies);
+    if (!foe) return null;
+    const context = spellContext(ctx.entry, { isSpell: true, area: true });
+    const entriesOf = ({ foesAttack, bleed, alliesAttack, alliesAC }) => {
+        const lists = [];
+        if (foesAttack) lists.push(healEntries(ctx.allies, ctx.enemies.reduce((sum, enemy) => sum + penaltySaved(ctx, enemy, foesAttack, 0, lasts), 0) / ctx.allies.length));
+        if (bleed && ctx.allies.some((ally) => (ally.strikes ?? []).some((strike) => bleed.types.includes(strike.damage?.[0]?.type)))) lists.push(ctx.enemies.map((enemy) => ({ target: enemy, damage: averageOn(enemy, bleed.formula, "bleed", context, true) * lasts, worth: 0, heal: 0, benefit: 0 })));
+        if (alliesAttack) lists.push(spreadDamage(ctx.enemies, partyStrikeGain(ctx, foe, { bonus: alliesAttack }, lasts)));
+        if (alliesAC) lists.push(ctx.allies.flatMap((ally) => healEntries([ally], acSaved(ctx, ally, alliesAC, lasts))));
+        return lists;
+    };
+    const slots = [...new Set(read.map((each) => each.slot))];
+    let combos = [[]];
+    for (const slot of slots) combos = combos.flatMap((combo) => read.filter((each) => each.slot === slot).map((each) => [...combo, each.effect]));
+    const options = combos.map((combo) => mergeEntries(combo.flatMap((effect) => entriesOf(effect)))).filter((entries) => entries.length).map((entries) => ({ entries, targets: entries.length }));
+    return options.length ? { options } : null;
+}
+
+READERS["damage-share"] = (ctx) => {
+    // (Life Link: its healing as cast on as many allies as its rank lets it link (its text's dice); the harm it shares between them and the
+    // caster after, the party's Hit Points no more or less — not counted.)
+    const link = ctx.entry.plan.resolution.damageShare ?? {};
+    const text = String(ctx.entry.doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/@Damage\[([^\]]*)\]/g, "$1").replace(/\s+/g, " ");
+    const base = /recovers (\d+)d(\d+)(?:\[\w+\])? Hit Points/i.exec(text);
+    if (!base) return null;
+    let dice = `${base[1]}d${base[2]}`;
+    for (const match of text.matchAll(/Heightened \((\d+)(?:st|nd|rd|th)\)[^.]*\.\s*The initial healing increases to (\d+d\d+)/gi)) if (ctx.rank >= Number(match[1])) dice = match[2];
+    const targets = (link.ranks ?? []).filter((step) => ctx.rank >= Number(step.rank)).at(-1)?.targets ?? 1;
+    const heal = averageOn({ immunities: [], resistances: [], weaknesses: [] }, dice);
+    const allies = ctx.allies.filter((ally) => ally !== ctx.caster).slice(0, targets);
+    return allies.length ? { entries: healEntries(allies, heal), targets: allies.length } : null;
+};
+
+READERS["winning-streak"] = (ctx) => {
+    // (Winning Streak: the best Striker Quickened — a fourth action, a Strike at its worst penalty — each round the streak lasts: while the
+    // party critically hits the foes at least once a round (each one's two Strikes on the toughest).)
+    const best = bestStrike(ctx, "melee");
+    const foe = toughest(ctx.enemies);
+    if (!best || !foe) return null;
+    let none = 1;
+    for (const ally of ctx.allies) {
+        const strike = (ally.strikes ?? []).filter((each) => each.damage?.length).sort((a, b) => strikeOn(ally, b, foe) - strikeOn(ally, a, foe))[0];
+        if (strike) for (const attacks of [0, 1]) none *= 1 - degreeDistribution((Number(strike.bonus) || 0) - multipleAttackPenalty(strike, attacks), armorClass(foe))[3];
+    }
+    let rounds = 0;
+    for (let round = 0, held = 1; round < ctx.rounds; round++, held *= 1 - none) rounds += held;
+    return { entries: [{ target: foe, damage: strikeOn(best.striker, best.strike, foe, { attacks: 2 }) * rounds, worth: 0, heal: 0, benefit: 0 }], targets: 1 };
 };
 
 // --- Mantles (2026-10-21, batch 15): pick two of its options ------------------------------------------------------------------------------
