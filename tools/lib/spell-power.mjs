@@ -322,12 +322,28 @@ function withChoke(row, rate, level) {
     for (const encounter of POWER_KINDS) if (choke[`${encounter}|`]) results[`${encounter}|choke`] = choke[`${encounter}|`];
     return { ...row, results, traits: [...(row.traits ?? []), "choke"] };
 }
-// Healing over a long duration (ten minutes or more, until its daily preparations): a spell that heals far more out of a fight than its one
-// fight shows (the user, 2026-10-21: "some healing spells are very powerful out of combat since they heal over a long time") — its
-// rating's words say so.
+// Healing over a long time: a spell that heals far more out of a fight than its one fight shows (the user, 2026-10-21: "some healing
+// spells are very powerful out of combat since they heal over a long time"; "Garden of healing is a spell known for being good out of
+// combat too") — healing that lasts ten minutes or more (until its daily preparations), or that comes again and again (each round, each
+// Sustain, fast healing, regeneration) for a minute or more. Its rating's words say so.
 const LONG_DURATION = /\b(?:hours?|days?|daily preparations|unlimited|until (?:the next time|your next)|[1-9]\d+ minutes)\b/i;
-const HEALS = /\bregains?\b[^.]*\bHit Points\b|\brestores?\b[^.]*\bHit Points\b|\bfast healing\b|\bheals?\b/i;
-const healsOutOfCombat = (doc) => LONG_DURATION.test(String(doc?.system?.duration?.value ?? "")) && HEALS.test(textOf(doc));
+const MINUTE_OR_MORE = /\b(?:minutes?|hours?|days?|daily preparations|unlimited|until (?:the next time|your next))\b/i;
+// (Its own healing: a creature regaining, recovering or restored Hit Points, or gaining fast healing or regeneration — not one that stops
+// or weighs healing ("would regain", "can't", "your healing spells"). Again and again: on a repeat — each round or turn, starting or ending
+// its turns there, each Sustain, any time during the duration — or fast healing and regeneration themselves.)
+const HEALING = /\b(?:regains?|recovers?|recovering|restores?|heals?)\b[^.]*?(?:\b\d+(?:d\d+)?\b|@Damage\[)[^.]*?\bHit Points\b|\b(?:gains?|have|has) (?:fast healing|regeneration) (?:\d+|@|equal)|\bheals? (?:\d+(?:d\d+)?\b|@Damage\[)/i;
+const NOT_OWN = /\bwould regain\b|\bcan(?:no|')t (?:regain|heal|be healed)\b|\bdoes(?:n't| not)\b[^.]*\b(?:regeneration|heal)|\byour healing spells?\b|\bprevents?\b[^.]*\bheal/i;
+const AGAIN = /\b(?:each|every) (?:round|turn)\b|\beach of (?:your|its|their) turns\b|\bstarts? (?:its|their|your) turns?\b|\b(?:start|end) of each\b|\bSustain\b|\bany time during the duration\b|\b(?:fast healing|regeneration) (?:\d+|@|equal)/i;
+function healsOutOfCombat(doc) {
+    const duration = String(doc?.system?.duration?.value ?? "");
+    // (Inline rolls' "@item.rank" read as a word, so a sentence isn't cut at its dot.)
+    const own = textOf(doc).replace(/@(?:item|actor)\.[\w.]+/g, "R").split(/(?<=[.!?])\s+/).filter((sentence) => HEALING.test(sentence) && !NOT_OWN.test(sentence));
+    if (!own.length) return false;
+    if (LONG_DURATION.test(duration)) return true;
+    // (A minute or more; Sustained with no time of its own as well — not a few rounds, about a fight's.)
+    if (!MINUTE_OR_MORE.test(duration) && !(doc?.system?.duration?.sustained && !/\brounds?\b/i.test(duration))) return false;
+    return own.some((sentence) => AGAIN.test(sentence));
+}
 
 // Cast in minutes or longer: before the fight (the user, 2026-10-21: "count spells you can cast a minute or more before a fight").
 const preCastOf = (doc) => /minute|hour|day/i.test(String(doc?.system?.time?.value ?? ""));

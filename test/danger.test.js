@@ -71,7 +71,7 @@ test("a spell's power: its label, and its words with its fights, heightened rank
     assert.match(words, /Heightened: 9th \+0\.1, 10th −0\.4\./, "only the ranks half a level or more from it");
     assert.doesNotMatch(words, /8th/);
     assert.match(words, /\* More useful against undead: \+2\.6\. Rated for combat only/);
-    assert.match(powerTooltip(0.8, data, null, { ...powerDetailOf(data, "pf2e.spells-srd", "sun"), outOfCombat: true }), /Its healing over its long duration, outside a fight, isn't counted\.$/);
+    assert.match(powerTooltip(0.8, data, null, { ...powerDetailOf(data, "pf2e.spells-srd", "sun"), outOfCombat: true }), /It heals over a long time: its healing outside a fight isn't counted\.$/);
     assert.match(powerTooltip(0, data, null, { rank: 1, cantrip: true, boss: 0.2, group: 0.4, ranks: { 2: 0.1 } }), /about as strong as a typical cantrip at rank 1.*Cast at will.*Heightened: within half a level of this at every rank\./);
 });
 

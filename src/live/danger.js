@@ -284,7 +284,7 @@ export function powerTooltip(value, data, bound = null, detail = null) {
     const rule = other && inUse ? ` The GM's setting counts ${RULE_SUBJECTS[inUse.replace(/:.*/, "")] ?? "it"} as ${RULE_WORDS[inUse] ?? inUse}; as ${RULE_WORDS[other.key] ?? other.key}: ${dangerLabel(other.power)}.` : "";
     // (Combat only — the user, 2026-10-21: "Make sure its clear that spell power is rated only in combat. I know some healing spells are very
     // powerful out of combat since they heal over a long time".)
-    const longHealing = detail?.outOfCombat ? " Its healing over its long duration, outside a fight, isn't counted." : "";
+    const longHealing = detail?.outOfCombat ? " It heals over a long time: its healing outside a fight isn't counted." : "";
     return `Power for its rank in combat: ${how} (Combat Simulator${run ? `, ${run}` : ""}).${fights}${note}${creature}${higher}${useful}${less}${minion}${allies}${estimate}${partial}${rule} Rated for combat only: what it does outside a fight isn't counted.${longHealing}`;
 }
 
