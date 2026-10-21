@@ -118,7 +118,7 @@ function createState(snapshot, options, seed, withLog) {
         objective: options.objective ? createObjective(snapshot.setup?.objective, snapshot.partyLevel) : null,
         pendingEvents: [],
         log: withLog ? [] : null,
-        damageBy: { party: 0, foes: 0 },
+        damageBy: { party: 0, foes: 0, foesInduced: 0 },
         stats: { moraleChecks: 0, moraleFailures: 0, moraleBreaks: 0, moraleRecoveries: 0, moraleGated: 0, heroPointsSpent: 0, reactions: 0, partyItemsUsed: 0, foeItemsUsed: 0 },
         outcome: null,
         spellOutcomes: outcomeCache(snapshot),

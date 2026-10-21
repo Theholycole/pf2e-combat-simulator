@@ -1363,6 +1363,13 @@ function addPersistent(target, instance) {
     else if ((candidate.amount ?? 0) > (existing.amount ?? 0)) Object.assign(existing, candidate);
 }
 
+// (2026-10-21: damage the foes made the party deal itself — a confused member's on its own side, or the party's on a member the foes control
+// (Dominate). The danger score counts it as the foes', src/engine/danger-scale.js. Ordinary friendly fire — a party Fireball catching an
+// ally — stays out; a controlled member's own damage is on the foes' side already.)
+const homeSide = (c) => c.originalSide ?? c.side;
+const turned = (c) => !!c.originalSide && c.originalSide !== c.side;
+export const foesInduced = (source, target) => source.side === "party" && homeSide(source) === "party" && homeSide(target) === "party" && (!!source.cond?.confused || turned(target));
+
 // Applies already-adjusted damage.
 export function dealDamage(state, target, amount, { source = null, critical = false, nonlethal = false } = {}) {
     if (amount <= 0) return 0;
@@ -1402,7 +1409,10 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
     target.hp.value -= remaining;
     if (source) {
         source.damageDealt += dealt;
-        if (state.damageBy) state.damageBy[source.side] += dealt;
+        if (state.damageBy) {
+            state.damageBy[source.side] += dealt;
+            if (foesInduced(source, target)) state.damageBy.foesInduced += dealt;
+        }
     }
     if (before > target.hp.max / 2 && target.hp.value <= target.hp.max / 2 && target.hp.value > 0) {
         state.pendingEvents.push({ type: "halfHp", victim: target });

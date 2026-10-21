@@ -2,7 +2,8 @@
 // tool (tools/deadliest.mjs, tools/lib/deadliness.mjs) and the in-Foundry run (scripts/danger-run.js, the user: "add a button in the settings
 // for people to run the simulator again for the compendium danger numbers") count and rank with, so they agree. Pure.
 //   A fight: one creature (and its summons) against the standard party of its level, clamped to 1–20, to the end (no morale, no retreat).
-//   Its deadliness: the share of the party's Hit Points it took, +0.25 for each PC it downed, +1 for each it killed (a death is four downs:
+//   Its deadliness: the share of the party's Hit Points it took (with what it made the party deal itself — confused members striking
+//   their own, the party fighting a member it controls: damageBy.foesInduced, 2026-10-21), +0.25 for each PC it downed, +1 for each it killed (a death is four downs:
 //   the user's call, 2026-10-14), +1 for a wipe.
 //   The ladder: moderate creatures (GM Core's tables) from 3 levels below each party level to 10 above, the yardstick for "fights like a
 //   creature N levels higher" — a creature's effective level. "For its level": its effective level less the typical (median) creature's
@@ -38,7 +39,7 @@ export function dangerFights(party, foes, from, to) {
     const sum = { n: 0, damage: 0, downs: 0, deaths: 0, wipes: 0, rounds: 0, killed: 0, timeouts: 0, score: 0, scores: [] };
     for (let seed = from; seed < to; seed++) {
         const result = simulate({ combatants: [...party, ...foes] }, DANGER_OPTIONS, seed);
-        const damage = (result.damageBy?.foes ?? 0) / partyHp;
+        const damage = ((result.damageBy?.foes ?? 0) + (result.damageBy?.foesInduced ?? 0)) / partyHp;
         const downs = result.party.filter((c) => c.down).length;
         const deaths = result.party.filter((c) => c.dead).length;
         const wipe = result.outcome === "defeat" ? 1 : 0;
