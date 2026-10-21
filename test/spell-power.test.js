@@ -136,7 +136,7 @@ test("a summon: its damage a round beside the party's and the attacks it draws; 
     assert.ok(stronger.share > summonShare(party, powerFoes("boss", 5), { ...moderateCreatureAt(1, "small", "Test Small"), side: "party" }).share, "a stronger creature is worth more");
 });
 
-test("walls: their kind from their text, and their worth in the way of most foes; damage at the rank they're cast", () => {
+test("walls: their kind from their text, and their worth in the way of every foe; damage at the rank they're cast", () => {
     assert.equal(wallKind({ resolution: { damagingWall: { control: { perAction: true } } } }, "Each section has Hardness 10."), "hinder");
     assert.equal(wallKind({ resolution: {} }, "Each 10-foot section has AC 10, Hardness 14 and 50 Hit Points."), "barrier");
     assert.equal(wallKind({ resolution: {} }, "A creature traversing the wall needs to Swim through."), "hinder");
@@ -148,7 +148,7 @@ test("walls: their kind from their text, and their worth in the way of most foes
     const at6 = wallShare(party, powerFoes("group", 7), fire(6), "damaging");
     assert.ok(at4 && at6 && at6.share > at4.share, "two dice more at the 6th rank");
     const barrier = wallShare(party, powerFoes("boss", 7), { ...fire(4), plan: { resolution: { kind: "spell-note" }, lifecycle: { durationSpec: { mode: "fixed", value: 1, unit: "minutes" } } } }, "barrier");
-    assert.ok(Math.abs(barrier.share - 0.25) < 1e-9, `a round lost by three in four: ${barrier.share}`);
+    assert.ok(Math.abs(barrier.share - 1 / 3) < 1e-9, `a round lost by every foe: ${barrier.share}`);
     assert.ok(wallShare(party, powerFoes("boss", 7), fire(4), "screen").share < barrier.share);
 });
 

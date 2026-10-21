@@ -249,14 +249,21 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
             } catch {
                 entries = [];
             }
+            // (2026-10-21, the user: "Dont lower the ranking of spells based on how hard they are to use practically": an area is placed
+            // clear of the caster's side — the harm it would do them left out; its healing and help on them kept.)
+            if (describeSpell(spell.plan, actions).area) entries = entries.filter((each) => each.target.side !== caster.side || !((each.damage ?? 0) > 0 || (each.worth ?? 0) > 0));
             const { share, alliesHit } = entriesShare(entries, { side: caster.side, foeHp, harm, allies: allies.length, again });
             if (!best || share > best.share) best = { share, actions: actions ?? describeSpell(spell.plan).actions ?? null, targets: set.targets.length, ...(alliesHit ? { alliesHit } : {}) };
         }
     }
     if (best && minion && lost) best.share -= summonShare(partyWithSpell(party), foes, minion)?.share ?? 0;
-    // (A harmful emanation about the caster that reaches no foe where they stand: as they come up to it.)
+    // (A harmful emanation or aura about the caster: cast with the foes in range — the user: "For auras assume the spell is cast when
+    // within range" — as they come up to it; the better of that and where they stand.)
     const about = describeSpell(spell.plan).area;
-    if (!close && !best?.share && about?.type === "emanation" && describeSpell(spell.plan).range === null && !describeSpell(spell.plan).helpful && !describeSpell(spell.plan).healing) return castPower(party, foes, entry, { minion, lost, choke, close: true });
+    if (!close && about?.type === "emanation" && describeSpell(spell.plan).range === null && !describeSpell(spell.plan).helpful && !describeSpell(spell.plan).healing) {
+        const inRange = castPower(party, foes, entry, { minion, lost, choke, close: true });
+        if (inRange && (!best?.share || inRange.share > best.share)) return inRange;
+    }
     // (Nothing at all: none. Worse than nothing — an area that catches allies standing near the caster, their Hit Points counted against
     // it as the foes' would be: below zero.)
     if (!best || !best.share || !(best.share > 0 || best.alliesHit)) return null;
@@ -374,8 +381,9 @@ export function formShare(party, foes, form) {
 // --- Walls (2026-10-21, the user: "walls and shield"): the simulator doesn't play them — a rule of thumb, over the wall's duration ------
 
 // Of the foes, the share a wall put between them and the party stands in the way of (a line 60 feet long, or a ring, cast where they'd
-// come).
-const WALL_PAST = 0.75;
+// come): all of them — put where it does most (the user: "Dont lower the ranking of spells based on how hard they are to use
+// practically").
+const WALL_PAST = 1;
 
 // A wall's kind, from its plan and text: "hinder" (creatures cross it slowly — damage each move into it, difficult terrain, water to Swim
 // through), "barrier" (it stops them until they go around or break through: it has Hardness or Hit Points), "damaging" (they cross it,
@@ -391,8 +399,8 @@ export function wallKind(plan, text = "") {
 }
 
 // What a wall (entry, of kind) is worth against foes, as a share of the fight. It's raised between the party and the foes as the fight
-// starts, in the way of most of them (WALL_PAST): a barrier costs each of those a round going around or through it (while it lasts, up to
-// one), a hindering wall an action crossing it and its damage each of the two moves through it, a damaging wall its damage as they cross
+// starts, in the way of all of them (WALL_PAST): a barrier costs each of those a round going around or through it (while it lasts, up to
+// one; an instantaneous wall stands for good), a hindering wall an action crossing it and its damage each of the two moves through it, a damaging wall its damage as they cross
 // it and a tenth of a round (it hides the party), a screen that tenth only. Its damage at its rank, by each foe's weaknesses and
 // resistances.
 export function wallShare(party, foes, entry, kind, { choke = false } = {}) {
@@ -407,7 +415,9 @@ export function wallShare(party, foes, entry, kind, { choke = false } = {}) {
     const context = spellContext(entry, { isSpell: true, area: true });
     // (In a choke point: across it, in the way of every foe — a barrier keeps them two rounds, breaking through.)
     const past = choke ? 1 : WALL_PAST;
-    const lasts = Math.min(choke ? 2 : 1, durationRounds(entry.plan));
+    // (An instantaneous wall — Wall of Stone's — stands for good: the whole fight.)
+    const standing = entry.plan?.lifecycle?.durationSpec?.mode === "instantaneous" ? POWER_ROUNDS : durationRounds(entry.plan);
+    const lasts = Math.min(choke ? 2 : 1, standing);
     let share = 0;
     for (const foe of enemies) {
         const part = foe.hp.max / foeHp;
