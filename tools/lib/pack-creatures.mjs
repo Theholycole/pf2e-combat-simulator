@@ -6,7 +6,7 @@ const { compileBasicActions, compileMonsterAbility } = await import(new URL("../
 const { initiativeSkills } = await import(new URL("../../../PF2e AUTOMATIC ABILITY RESOLUTION/src/compiler/initiative.js", import.meta.url).href);
 const { zoneSpell } = await import("../../src/engine/zones.js");
 const { parseReadableDamage, randomDamageRows } = await import("../../src/adapter/formula.js");
-const { addBuiltin, PLAYED_REQUIRES, predicateOptions } = await import("../../src/engine/abilities.js");
+const { addBuiltin, PLAYED_REQUIRES, predicateOptions, shareRecharges } = await import("../../src/engine/abilities.js");
 const { requirementPlayable } = await import("../../src/engine/needs.js");
 const { markParts, toggleWays } = await import("../../src/engine/toggles.js");
 const { effectModel, iwrException } = await import("../../src/engine/effects.js");
@@ -216,6 +216,8 @@ export function combatant(npc) {
             spells.push({ name: item.name, plan, castRank: 1, pool: limited ?? (plan.oncePerFight ? `once:${item.name}` : null), kind: "ability", rechargeGroup: plan.sharesRecharge ?? item.name, effects: effectModels(plan, system.details.level.value) });
         }
     }
+    // (B318: abilities that name each other's recharge, one recharge.)
+    shareRecharges(spells);
     // (B255: the table on its Strike — the damage a die picks, its splash as a bomb's.)
     for (const table of builtins.randomStrikeTables ?? []) {
         const item = bare.find((entry) => entry.name.toLowerCase() === String(table.strike).toLowerCase());

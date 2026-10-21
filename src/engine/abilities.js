@@ -529,6 +529,27 @@ export function addBuiltin(spec, plan, name) {
     }
 }
 
+// One recharge for abilities that share it (B318, 2026-10-21): each ability's rechargeGroup — its own name, or the name its plan shares
+// (sharesRecharge, B262) — followed to the end of the chain: "Test Roar" shares "Breath Weapon"'s, and Breath Weapon its own. Two that name
+// each other (a linnorm's Corrosive Breath and Double Breath, "can't use Corrosive Breath or Double Breath again") take the first of
+// their names alphabetically, so using either starts both. Changes the entries' rechargeGroup in place; returns them.
+export function shareRecharges(entries) {
+    const key = (name) => String(name ?? "").trim().toLowerCase();
+    const shares = new Map((entries ?? []).filter((entry) => typeof entry?.plan?.sharesRecharge === "string" && entry.rechargeGroup === entry.plan.sharesRecharge).map((entry) => [key(entry.name), entry.plan.sharesRecharge]));
+    if (!shares.size) return entries;
+    const end = (name) => {
+        const seen = [];
+        let at = name;
+        while (shares.has(key(at)) && !seen.some((entry) => key(entry) === key(at))) {
+            seen.push(at);
+            at = shares.get(key(at));
+        }
+        return shares.has(key(at)) ? [...seen].sort((a, b) => a.localeCompare(b))[0] : at;
+    };
+    for (const entry of entries) if (typeof entry?.rechargeGroup === "string") entry.rechargeGroup = end(entry.rechargeGroup);
+    return entries;
+}
+
 // Whether its last action was casting a spell (B147: Residual Force's "most recent action was to cast a spell", Primal Weapon's "a non-cantrip
 // spell").
 // The requirements of an ability's plan the planner plays (B262): straight after a spell (B259), while raging, while its breath recharges (B247).

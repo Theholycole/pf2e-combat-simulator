@@ -8,7 +8,7 @@ import { levelDC } from "../src/engine/checks.js";
 import { beltHeld, bombRider, drawActions, hasTrigger, isBelt, itemTriggered, isStaffItem, itemCasts, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { maneuverWays, withReading } from "../src/engine/readings.js";
 import { effectModel, iwrException } from "../src/engine/effects.js";
-import { addBuiltin, PLAYED_REQUIRES, predicateOptions } from "../src/engine/abilities.js";
+import { addBuiltin, PLAYED_REQUIRES, predicateOptions, shareRecharges } from "../src/engine/abilities.js";
 import { requirementPlayable } from "../src/engine/needs.js";
 import { markParts, toggleWays } from "../src/engine/toggles.js";
 import { zoneSpell } from "../src/engine/zones.js";
@@ -828,6 +828,8 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
         // (B262: its recharge by name, shared with another ability's when it says so — a reshaped Breath Weapon's.)
         result.abilities.push({ name: item.name, plan: leanPlan(plan), castRank: 1, dc: null, attack: null, pool, kind: "ability", sourceItem: item, actionType: item.system?.actionType?.value ?? null, rechargeGroup: plan.sharesRecharge ?? item.name, ...(effects ? { effects } : {}) });
     }
+    // (B318: abilities that name each other's recharge, one recharge.)
+    shareRecharges(result.abilities);
     // (B302: a PC's passives that PF2e's rules hold — Evasion, Juggernaut, Bravery, Deny Advantage, Surprise Attack — read as a monster's are,
     // by the ability module's own compiler: the core's registry hands it only a PC's check actions.)
     const compileAbility = abilityModule.api?.compileAbility;
