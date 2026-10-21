@@ -183,7 +183,14 @@ const READINGS = {
     "brand-mark": "the party's bonus to hit the foe it marks",
     "sacrifice-heal": "the damage it keeps off an ally, less the caster's sacrifice",
     "bloom-area": "its healing each turn for the allies in it, and its harm to undead foes there",
-    "self-pulse": "the foes' hits its concealment keeps off the caster"
+    "self-pulse": "the foes' hits its concealment keeps off the caster",
+    boast: "its Demoralize on the foes about the caster, their penalty and its bonus",
+    challenge: "the challenged foe's penalty against the caster's allies until it shakes it off",
+    "minion-horde": "its underlings' damage, or the Strikes the foes spend cutting them down — the foes' better answer",
+    "skill-demoralize": "its fire on a monk's unarmed Strikes",
+    "strike-ward": "its Strike, and its AC against that foe while the Strikes keep hitting",
+    "deferred-save": "the party's bonus against the foe, or the action it spends to be rid of it — its better answer",
+    "temp-hp": "its temporary Hit Points as a foe falls"
 };
 const ESTIMATE_MORE = { "battle form": "the caster in its best form, its Strikes in place of its spells, its temporary Hit Points and AC" };
 

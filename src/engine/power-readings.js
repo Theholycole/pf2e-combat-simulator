@@ -1366,6 +1366,148 @@ READERS["self-pulse"] = (ctx) => {
     return kept > 0 ? { entries: healEntries([ctx.caster], kept), targets: 1 } : null;
 };
 
+// A creature's hits a round on the party, made worse by `penalty` to hit and `less` damage a hit: what that keeps off them over `rounds`
+// rounds — the ally it's at, the party's mean AC.
+function penaltySaved(ctx, foe, penalty, less, rounds) {
+    const ac = ctx.allies.reduce((sum, ally) => sum + (Number(ally.ac) || 15), 0) / Math.max(1, ctx.allies.length);
+    const plain = hitsOn(foe, ac);
+    const worse = hitsOn(foe, ac + penalty);
+    return Math.max(0, plain.hits * plain.damage - worse.hits * Math.max(0, worse.damage - less)) * rounds;
+}
+
+READERS.boast = (ctx) => {
+    // (Belittling Boast: Demoralize every foe in its burst — the party's best Intimidation at its best — those frightened worse at melee
+    // attack rolls for its minute (the boast at its best), the caster better at its own while any are — the best Striker's.)
+    const boast = ctx.entry.plan.resolution.boast ?? {};
+    const amount = boast.step && ctx.rank >= Number(boast.step.rank) ? Number(boast.step.value) || 1 : Number(boast.penalty?.value) || 1;
+    const lasts = lastsRounds(boast.seconds, ctx.rounds);
+    const intimidation = Math.max(...ctx.allies.map((ally) => skillValue(ally, "intimidation")));
+    let none = 1;
+    const entries = caught(ctx.enemies, { type: "burst", value: Number(boast.radius) || 30 }, ctx.choke).map((foe) => {
+        const [, , success, critical] = degreeDistribution(intimidation, 10 + saveModifier(foe, "will"));
+        none *= 1 - (success + critical);
+        return { target: foe, damage: 0, worth: success * conditionWorth("frightened", 1, null) + critical * conditionWorth("frightened", 2, null), heal: 0, benefit: 0, kept: (success + critical) * penaltySaved(ctx, foe, amount, 0, lasts) / Math.max(1, ctx.allies.length) };
+    });
+    const best = bestStrike(ctx, "melee");
+    const foe = toughest(ctx.enemies);
+    const better = best && foe ? (1 - none) * [0, 1].reduce((sum, attacks) => sum + strikeOn(best.striker, best.strike, foe, { attacks, bonus: amount }) - strikeOn(best.striker, best.strike, foe, { attacks }), 0) * lasts : 0;
+    const kept = entries.reduce((sum, entry) => sum + entry.kept, 0);
+    const all = [...entries.map(({ kept: _, ...entry }) => entry), ...spreadDamage(ctx.enemies, better).map((entry) => ({ ...entry })), ...(kept > 0 ? healEntries(ctx.allies, kept) : [])];
+    const merged = mergeEntries([all]);
+    return merged.length ? { entries: merged, targets: merged.length } : null;
+};
+
+READERS.challenge = (ctx) => {
+    // (Dutiful Challenge: the toughest foe worse at hitting and hurting the caster's allies — at its best, the caster their wall — until it
+    // shakes it off: its Will save at each of their hostile actions against it, two a round each.)
+    const challenge = ctx.entry.plan.resolution.challenge ?? {};
+    const amount = (Number(challenge.value) || 1) + Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / (Number(challenge.step?.interval) || 3)) * (Number(challenge.step?.add) || 0);
+    const foe = toughest(ctx.enemies);
+    if (!foe) return null;
+    const [, , success, critical] = degreeDistribution(saveModifier(foe, challenge.statistic ?? "will"), Number(ctx.entry.dc) || 10);
+    const stays = (1 - (success + critical)) ** 2;
+    let rounds = 0;
+    for (let round = 0, held = 1; round < lastsRounds(challenge.seconds, ctx.rounds); round++, held *= stays) rounds += held;
+    const others = Math.max(0, ctx.allies.length - 1) / Math.max(1, ctx.allies.length);
+    const kept = penaltySaved(ctx, foe, amount, amount, rounds) * others;
+    return kept > 0 ? { entries: healEntries(ctx.allies.filter((ally) => ally !== ctx.caster), kept / Math.max(1, ctx.allies.length - 1)), targets: ctx.allies.length - 1 } : null;
+};
+
+READERS["minion-horde"] = (ctx) => {
+    // (Horde of Underlings: its underlings beside the foes at its best, each one's damage as it comes and each round it's Sustained — the
+    // foes' better answer counted: leave them be, or cut them down with their Strikes, two a round each from the second (every one a
+    // hit: AC 5, 1 Hit Point), Strikes kept off the party.)
+    const horde = ctx.entry.plan.resolution.minionHorde ?? {};
+    const count = (Number(horde.count) || 0) + Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / (Number(horde.step?.interval) || 1)) * (Number(horde.step?.count) || 0);
+    const foe = ctx.enemies[0];
+    if (!foe || !(count > 0)) return null;
+    const hit = Math.max(...(horde.types ?? ["bludgeoning"]).map((type) => averageOn(foe, `${horde.formula ?? "1d4"}[${type}]`, type)));
+    const lasts = lastsRounds(horde.seconds, ctx.rounds);
+    const meanAC = ctx.allies.reduce((sum, ally) => sum + (Number(ally.ac) || 15), 0) / Math.max(1, ctx.allies.length);
+    const rounds = ctx.enemies.map((enemy) => hitsOn(enemy, meanAC)).reduce((sum, { hits, damage }) => sum + hits * damage, 0);
+    const swing = rounds / Math.max(1, 2 * ctx.enemies.length);
+    const foeHp = ctx.enemies.reduce((sum, enemy) => sum + enemy.hp.max, 0);
+    const share = ({ dealt, kept }) => dealt / Math.max(1, foeHp) + kept / Math.max(1, rounds * 3);
+    const left = { dealt: count * hit * lasts, kept: 0 };
+    const cut = { dealt: 0, kept: 0 };
+    for (let round = 0, alive = count; round < lasts; round++) {
+        cut.dealt += alive * hit;
+        if (round === lasts - 1) break;
+        const down = Math.min(alive, 2 * ctx.enemies.length);
+        cut.kept += down * swing;
+        alive -= down;
+    }
+    const answer = share(left) <= share(cut) ? left : cut;
+    const entries = [...spreadDamage(ctx.enemies, answer.dealt), ...(answer.kept > 0 ? healEntries(ctx.allies, answer.kept / ctx.allies.length) : [])];
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
+READERS["skill-demoralize"] = (ctx) => {
+    // (Flame Dancer: its fire on a monk's unarmed Strikes at its best — the best Striker's fist — and its persistent fire on a critical hit,
+    // the fight long; Demoralize by Performance, not counted.)
+    const dancer = ctx.entry.plan.resolution.skillDemoralize ?? {};
+    const text = String(ctx.entry.doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/@Damage\[([^\]]*)\]/g, "$1").replace(/\s+/g, " ");
+    const base = /unarmed Strikes deal an additional (\d+)d(\d+) (\w+) damage/i.exec(text);
+    const burn = /Critical hits with these Strikes also deal (\d+)d(\d+) persistent/i.exec(text);
+    const higher = /Heightened \((\d+)(?:st|nd|rd|th)\) The \w+ damage increases to (\d+)d(\d+), and the persistent \w+ damage increases to (\d+)d(\d+)/i.exec(text);
+    const fist = bestStrike(ctx, "unarmed");
+    const foe = toughest(ctx.enemies);
+    if (!base || !fist || !foe) return null;
+    const up = higher && ctx.rank >= Number(higher[1]);
+    const type = base[3].toLowerCase();
+    const context = spellContext(ctx.entry, { isSpell: true, area: false });
+    const extra = averageOn(foe, `${up ? higher[2] : base[1]}d${up ? higher[3] : base[2]}[${type}]`, type, context);
+    const persistent = burn ? 2 * averageOn(foe, `${up ? higher[4] : burn[1]}d${up ? higher[5] : burn[2]}[${type}]`, type, context, true) : 0;
+    let gain = 0;
+    for (const attacks of [0, 1]) {
+        const odds = degreeDistribution((Number(fist.strike.bonus) || 0) - multipleAttackPenalty(fist.strike, attacks), armorClass(foe));
+        gain += strikeOn(fist.striker, fist.strike, foe, { attacks, extra }) - strikeOn(fist.striker, fist.strike, foe, { attacks }) + odds[3] * persistent;
+    }
+    const entries = spreadDamage(ctx.enemies, gain * lastsRounds(dancer.seconds, ctx.rounds));
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
+READERS["strike-ward"] = (ctx) => {
+    // (Warding Aggression: the caster's melee Strike — at its best the best Striker's — and its AC against that foe by the Strike's degree,
+    // kept each turn it hits it again (two Strikes a turn), while it lasts.)
+    const best = bestStrike(ctx, "melee");
+    const foe = toughest(ctx.enemies);
+    if (!best || !foe) return null;
+    const odds = degreeDistribution(Number(best.strike.bonus) || 0, armorClass(foe));
+    const bonus = odds[3] * 2 + odds[2] * 2 + odds[1] * 1;
+    const again = 1 - (1 - hitChance(best.strike, foe)) * (1 - hitChance(best.strike, foe, { attacks: 1 }));
+    let rounds = 0;
+    for (let round = 0, held = 1; round < ctx.rounds; round++, held *= again) rounds += held;
+    const ac = Number(best.striker.ac) || 15;
+    const kept = (strikeDamageOn(foe, ac) - strikeDamageOn(foe, ac + bonus)) * rounds / Math.max(1, ctx.allies.length);
+    return { entries: [{ target: foe, damage: strikeOn(best.striker, best.strike, foe), worth: 0, heal: 0, benefit: 0 }, ...(kept > 0 ? healEntries([best.striker], kept) : [])], targets: kept > 0 ? 2 : 1 };
+};
+
+READERS["deferred-save"] = (ctx) => {
+    // (Albatross Curse: the party's circumstance bonus to hit the toughest foe — or, its best answer, it spends an action killing the bird
+    // and saves, stupefied a round on a success: the worse for it of the two.)
+    const curse = ctx.entry.plan.resolution.deferredSave ?? {};
+    const foe = toughest(ctx.enemies);
+    if (!foe) return null;
+    const kept = partyStrikeGain(ctx, foe, { bonus: 1 }, ctx.rounds);
+    const [, , success] = degreeDistribution(saveModifier(foe, curse.statistic ?? "will"), Number(ctx.entry.dc) || 10);
+    const killed = { damage: partyStrikeGain(ctx, foe, { bonus: 1 }, 1) / 2, worth: 1 / 3 + success * conditionWorth(curse.rows?.success?.condition?.slug ?? "stupefied", Number(curse.rows?.success?.condition?.value) || 1, { mode: "fixed", value: 1, unit: "rounds" }) };
+    const share = (entry) => entry.damage / Math.max(1, foe.hp.max) + entry.worth / 3;
+    const answer = share({ damage: kept, worth: 0 }) <= share(killed) ? { damage: kept, worth: 0 } : killed;
+    return { entries: [{ target: foe, ...answer, heal: 0, benefit: 0 }], targets: 1 };
+};
+
+READERS["temp-hp"] = (ctx) => {
+    // (Death's Call: as one of a group of foes falls beside the caster, temporary Hit Points of its level and the caster's spellcasting
+    // modifier (4 at its best) — twice for an undead one.)
+    const call = ctx.entry.plan.resolution.tempHp ?? {};
+    // (Not with one foe alone: its fall ends the fight.)
+    const foe = ctx.enemies.length > 1 ? ctx.enemies[0] : null;
+    if (!foe) return null;
+    const undead = (foe.traits ?? []).includes("undead") && call.doubleIfUndead;
+    return { entries: healEntries([ctx.caster], ((Number(foe.level) || 0) + 4) * (undead ? 2 : 1)), targets: 1 };
+};
+
 READERS["stored-burst"] = (ctx) => {
     // (Reflective Scales: its resistance to the foes' hits on the caster — at its best, of the type they deal — over the fight, the damage
     // it prevents; then its burst about the caster (the foes in it, at its best), a die for each 10 prevented up to its most, a basic save.)

@@ -266,3 +266,25 @@ test("healing as it lasts and the party's Strikes made better: Garden of Healing
     const shepherd = plan("sacrifice-heal", { sacrificeHeal: { max: 15, multiplier: 2, step: { interval: 2, add: 5 } } }, null);
     assert.ok(readingPower(standardParty(9), powerFoes("boss", 9), entry(5, shepherd)).share > 0);
 });
+
+test("the foes' better answer: Horde of Underlings left be or cut down, Albatross Curse kept or killed; Death's Call only among a group", () => {
+    const horde = plan("minion-horde", { minionHorde: { count: 6, step: { interval: 1, count: 2 }, types: ["bludgeoning", "slashing"], formula: "1d4", seconds: 60 } }, null);
+    const boss = readingPower(standardParty(5), powerFoes("boss", 5), entry(3, horde));
+    const many = readingPower(standardParty(5), powerFoes("boss", 5), entry(5, horde));
+    assert.ok(boss && many && boss.share > 0 && many.share > boss.share && many.share < 1, `${boss?.share} ${many?.share}`);
+    const curse = plan("deferred-save", { deferredSave: { statistic: "will", rows: { success: { condition: { slug: "stupefied", value: 1 } } } } }, null);
+    assert.ok(readingPower(standardParty(3), powerFoes("boss", 3), entry(2, curse)).share > 0);
+    const call = plan("temp-hp", { tempHp: { doubleIfUndead: true } }, null);
+    assert.equal(readingPower(standardParty(1), powerFoes("boss", 1), entry(1, call)), null, "a boss's fall ends the fight");
+    assert.ok(readingPower(standardParty(1), powerFoes("group", 1), entry(1, call)).share > 0);
+});
+
+test("a boast, a challenge, a ward on a Strike: Demoralize and the penalty it brings, the challenged foe worse at others, AC by the Strike's degree", () => {
+    const boast = plan("boast", { boast: { radius: 30, seconds: 60, penalty: { value: 1 }, step: { rank: 8, value: 2 } } }, null);
+    assert.ok(readingPower(standardParty(9), powerFoes("group", 9), entry(5, boast)).share > 0);
+    const challenge = plan("challenge", { challenge: { value: 1, step: { interval: 3, add: 1 }, statistic: "will", seconds: 60 } }, null);
+    assert.ok(readingPower(standardParty(7), powerFoes("boss", 7), entry(4, challenge)).share > 0);
+    const ward = plan("strike-ward", { strikeWard: {} }, null);
+    const found = readingPower(standardParty(5), powerFoes("boss", 5), entry(3, ward));
+    assert.ok(found && found.targets === 2);
+});
