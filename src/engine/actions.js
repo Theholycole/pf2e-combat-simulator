@@ -220,8 +220,9 @@ function expectedExtras(attacker, strike, target, critical, offGuardChance, pack
 
 function baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance) {
     const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - bonus - effectBonus(attacker, "damage");
-    // (Runes or traits its effects add — Ghostly Weapon's ghost touch —: the damage worked out afresh, not the Strike's own.)
-    if ((attacker.effects ?? []).some((effect) => effect.model?.strikeAdds)) return computeHitDamage(attacker, strike, target, critical, penalty, offGuardChance);
+    // (Runes or traits its effects add — Ghostly Weapon's ghost touch —: the damage worked out afresh, not the Strike's own. So too a
+    // persistent part on a creature already taking persistent damage: worth what it adds to that.)
+    if ((attacker.effects ?? []).some((effect) => effect.model?.strikeAdds) || (target.persistent?.length && strike.damage?.some((part) => part.persistent))) return computeHitDamage(attacker, strike, target, critical, penalty, offGuardChance);
     let cache = hitDamageCache.get(strike);
     if (!cache) {
         cache = new Map();
@@ -236,6 +237,14 @@ function baseHitDamage(attacker, strike, target, critical, bonus, offGuardChance
     return total;
 }
 
+// The persistent damage of a type a creature already takes each round, as it would take it (0 without).
+export function burningNow(target, type) {
+    const entry = (target.persistent ?? []).find((each) => each.type === type);
+    if (!entry) return 0;
+    const each = Number.isFinite(entry.amount) ? entry.amount : ((entry.dice ?? 0) * ((entry.die ?? 0) + 1) / 2 + (entry.bonus ?? 0)) * (entry.multiplier ?? 1);
+    return adjustInstance(target, type, Math.max(0, each));
+}
+
 function computeHitDamage(attacker, strike, target, critical, penalty, offGuardChance) {
     const context = strikeContext(attacker, strike, critical);
     let total = 0;
@@ -244,8 +253,9 @@ function computeHitDamage(attacker, strike, target, critical, penalty, offGuardC
         // (T3: a type it can deal instead — versatile, Phantom Touch — the one this target minds most.)
         if (instance.weapon) type = bestStrikeType(attacker, strike, target, type, instance.amount, instance.precision);
         const amount = adjustPart(target, { ...instance, type }, context);
-        // Persistent damage is counted for about two rounds.
-        total += instance.persistent ? amount * 2 : amount;
+        // Persistent damage is counted for about two rounds — what it adds to persistent damage of its type the creature already takes
+        // (PF2e: the higher of the two applies; 2026-10-21, before, each Acid Flask's was counted in full, and a creature threw three in a row).
+        total += instance.persistent ? Math.max(0, amount - burningNow(target, type)) * 2 : amount;
     }
     if (strike.backstabber && offGuardChance > 0) total += offGuardChance * adjustInstance(target, strike.damage[0].type, critical ? 2 : 1, true);
     return total;

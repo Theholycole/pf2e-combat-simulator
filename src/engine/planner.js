@@ -16,7 +16,7 @@ import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hpFraction, isActi
 import { canStepOut, fliesNow, flankChance, isIncorporeal, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { gridFlanked, gridStrides, planStride, strideGoes } from "./grid-fight.js";
 import { distanceFeet, reaches as gridReaches, sightLine, squareOf } from "./grid.js";
-import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
+import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
 import { canReact, castJustNow, chargeOn, hasOwnEffect, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
@@ -527,9 +527,24 @@ class PlanContext {
         const damage = hitChance * hitDamage + critChance * (expectedHitDamage(c, strike, target, true, extras) + 2 * strategicDamage);
         // (A failure's chance and a hit's damage, for Focused Assault's failure, B74.)
         const failChance = you < 1 ? 0 : finds * ((1 - flank) * plain[FAILURE] + flank * flanked[FAILURE]);
-        const result = { damage, hitChance: hitChance + critChance, failChance, hitDamage };
+        const result = { damage, hitChance: hitChance + critChance, critChance, failChance, hitDamage };
         perTarget.set(key, result);
         return result;
+    }
+
+    // What a Strike's persistent damage counted for (about two rounds of what it adds to what the target already takes) that an earlier
+    // Strike in the plan has already put on the target — persistent damage of a type doesn't stack (2026-10-21: a creature threw three
+    // Acid Flasks in a row, each one's persistent acid counted). node.burning: "targetId:type" its Strikes have set.
+    repeatBurn(node, strike, target, expectation) {
+        if (!node.burning?.length) return 0;
+        let loss = 0;
+        for (const part of strike.damage ?? []) {
+            if (!part.persistent || !node.burning.includes(`${target.id}:${part.type}`)) continue;
+            const each = ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1);
+            const amount = Math.max(0, adjustInstance(target, part.type, each) - burningNow(target, part.type));
+            loss += 2 * amount * ((expectation.hitChance - expectation.critChance) + 2 * expectation.critChance);
+        }
+        return Math.min(loss, expectation.damage);
     }
 
     // What the free riders a Strike lists (a venom, Improved Grab) add to a hit, times the chance to hit.
@@ -882,6 +897,7 @@ function child(node, action, cost, value, changes = {}) {
         alarmRaised: changes.alarmRaised ?? node.alarmRaised,
         left: changes.left ?? node.left,
         sunk: changes.sunk ?? node.sunk,
+        burning: changes.burning ?? node.burning,
         atItem: changes.atItem ?? (changes.pos && changes.pos !== node.pos && changes.pos.melee !== null ? false : node.atItem),
         first: node.first ?? action
     };
@@ -1033,10 +1049,14 @@ function expandStrikes(env) {
             if (expectation && expectation.damage > 0) options.push({ index, strike, expectation });
         }
         options.sort((a, b) => b.expectation.damage - a.expectation.damage);
-        for (const { index, strike, expectation } of options.slice(0, 2)) {
+        for (const { index, strike, expectation: rolled } of options.slice(0, 2)) {
             // A crossbow or firearm fired already (before this turn, or earlier in this plan): reload first (C14).
             const reload = strike.reload && emptyNow(c, node, index, strike) ? strike.reload : 0;
             if (1 + reload > remaining) continue;
+            // (Its persistent damage counted once a target a plan — repeatBurn.)
+            const repeat = ctx.repeatBurn(node, strike, target, rolled);
+            const expectation = repeat > 0 ? { ...rolled, damage: rolled.damage - repeat } : rolled;
+            const burns = (strike.damage ?? []).filter((part) => part.persistent).map((part) => `${target.id}:${part.type}`);
             const before = node.damage[target.id] ?? 0;
             const hp = remainingHp(target);
             // A venom or Improved Grab the hit delivers for free.
@@ -1047,7 +1067,8 @@ function expandStrikes(env) {
             const next = child(node, { type: "strike", targetId: target.id, strikeIndex: index, ...(reload ? { reload } : {}) }, 1 + reload, ctx.profile.aggression * gain, {
                 attack: true,
                 damage: { ...node.damage, [target.id]: before + expectation.damage },
-                ...(marks.length ? { cast: marks } : {})
+                ...(marks.length ? { cast: marks } : {}),
+                ...(burns.length ? { burning: [...(node.burning ?? []), ...burns] } : {})
             });
             if (!strike.melee && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
             children.push(next);

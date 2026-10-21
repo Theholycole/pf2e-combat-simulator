@@ -263,3 +263,17 @@ test("sinking weighs the reactions it sets off: Reactive Strike, and more for on
     assert.ok(none > reactive, `${none} > ${reactive}`);
     assert.ok(reactive > standStill, `${reactive} > ${standStill}`);
 });
+
+test("persistent damage counted for what it adds: a target already burning with acid makes an Acid Flask's persistent acid worth less", async () => {
+    const { expectedHitDamage } = await import("../src/engine/actions.js");
+    const flask = { name: "Acid Flask", melee: false, increment: 30, bonus: 12, damage: [{ dice: 0, die: 0, bonus: 1, multiplier: 1, type: "acid", persistent: false, precision: false }, { dice: 3, die: 6, bonus: 0, multiplier: 1, type: "acid", persistent: true, precision: false }] };
+    const state = createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1);
+    const thrower = state.byId.get("monster");
+    const wizard = state.byId.get("wizard");
+    const fresh = expectedHitDamage(thrower, flask, wizard, false);
+    wizard.persistent = [{ type: "acid", dice: 3, die: 6, bonus: 0, multiplier: 1 }];
+    const burning = expectedHitDamage(thrower, flask, wizard, false);
+    // (1 acid, and two rounds of 3d6 persistent: 1 + 21 fresh; only the 1 once it already burns with as much.)
+    assert.ok(Math.abs(fresh - 22) < 0.01, `fresh ${fresh}`);
+    assert.ok(Math.abs(burning - 1) < 0.01, `burning ${burning}`);
+});
