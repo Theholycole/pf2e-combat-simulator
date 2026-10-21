@@ -3267,8 +3267,10 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     }
     if (!info.area) {
         const sets = [];
-        // (A spell for a willing creature — Vapor Form — goes to no enemy.)
-        const willing = /\bwilling\b/i.test(String(spell.plan?.targeting?.target ?? ""));
+        // (A spell for a willing creature — Vapor Form — goes to no enemy. 2026-10-21, found rating spells: only when every choice is
+        // willing — Harm's "1 living creature or 1 willing undead creature" goes to a living foe, Heal's "… or 1 undead creature" to an
+        // undead one; before, neither was ever aimed at a foe.)
+        const willing = String(spell.plan?.targeting?.target ?? "").split(/\bor\b/i).every((choice) => /\bwilling\b/i.test(choice));
         const inRange = willing ? [] : enemies.filter((enemy) => enemy.status === "active" && reaches(enemy));
         if (inRange.length) {
             if (info.targets <= 1) sets.push(...inRange.map((enemy) => ({ targets: [enemy] })));
