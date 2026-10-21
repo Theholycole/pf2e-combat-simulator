@@ -17,6 +17,7 @@
 // }
 
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
+import { degreeDistribution } from "./checks.js";
 
 // PF2e selectors the engine reads, and what they modify.
 const SELECTORS = {
@@ -276,6 +277,14 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
             case "Weakness":
                 // (I2: one for each type a rule lists; a resistance doubled against what it names.)
                 // (A conditional one: its predicate joins its definition, tested against the damage's options.)
+                // (2026-10-21: a resistance of the type a ChoiceSet picks — Resist Energy's "Choose acid, cold, electricity, fire, or sonic" —:
+                // its choices, the type chosen as it's applied — the one the foes deal most, applyEffect.)
+                if (value !== null && rule.key === "Resistance" && /^\{item\|flags\.system\.rulesSelections\.(\w+)\}$/.test(String(rule.type ?? ""))) {
+                    const flag = /rulesSelections\.(\w+)/.exec(String(rule.type))[1];
+                    const choices = (item?.system?.rules ?? []).find((each) => each?.key === "ChoiceSet" && each.flag === flag)?.choices;
+                    if (Array.isArray(choices) && choices.length) model.resistances.push({ type: "choice", choices: choices.map((choice) => String(choice.value ?? choice)), value, exceptions: [] });
+                    continue;
+                }
                 if (value !== null && rule.type) for (const type of [].concat(rule.type)) (rule.key === "Resistance" ? model.resistances : model.weaknesses).push({ type, value, exceptions: [].concat(rule.exceptions ?? []).map(iwrException), ...(rule.definition || when ? { definition: [...[].concat(rule.definition ?? []), ...(when ?? [])] } : {}), ...(rule.key === "Resistance" && [].concat(rule.doubleVs ?? []).length ? { doubleVs: [].concat(rule.doubleVs) } : {}) });
                 break;
             case "Immunity":
@@ -446,6 +455,13 @@ export function takeAttackFortune(c) {
 // counter: { dc, rank, spell } — what a counteract (Dispel Magic) checks against (counteract.js).
 export function applyEffect(state, target, model, source, { applyCondition, key = model.name, counter = null } = {}) {
     for (const existing of (target.effects ?? []).filter((effect) => effect.key === key)) removeEffect(target, existing);
+    // (A resistance of a chosen type: the choice that keeps most off it from its foes now, else the first.)
+    const choice = (model.resistances ?? []).find((entry) => entry.type === "choice");
+    if (choice) {
+        const kept = (type) => resistanceKept(state ?? { list: [] }, { ...model, resistances: [{ ...choice, type }] }, target, 1);
+        const type = choice.choices.slice().sort((a, b) => kept(b) - kept(a))[0];
+        model = { ...model, resistances: model.resistances.map((entry) => (entry === choice ? { type, value: entry.value, exceptions: [] } : entry)) };
+    }
     const effect = { id: nextEffectId++, key, model, sourceId: source?.id ?? null, ...(counter ? { counter } : {}) };
     target.effects = [...(target.effects ?? []), effect];
     // (Light it sheds: the fight has a spell's light now — light.js.)
@@ -458,6 +474,38 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
     for (const condition of model.conditions) applyCondition?.(state, target, condition.slug, condition.value, duration, source);
     if (Number.isFinite(model.rounds)) (target.timers ??= []).push({ effect, round: state.round + model.rounds, turnOf: source?.id ?? target.id });
     return effect;
+}
+
+// The Hit Points an effect's resistances keep off a creature over rounds: each foe's best Strike twice a round (the second at its penalty)
+// against its AC, its share of the foes' attacks (one of its side), each hit's damage of a resisted type up to the resistance
+// ("all-damage" all of it; "physical" bludgeoning, piercing and slashing).
+const PHYSICAL = new Set(["bludgeoning", "piercing", "slashing"]);
+export function resistanceKept(state, model, target, rounds) {
+    if (!model.resistances?.length || !(target?.hp?.max > 0)) return 0;
+    const foes = (state.list ?? []).filter((other) => other.side !== target.side && other.status === "active");
+    const side = Math.max(1, (state.list ?? []).filter((other) => other.side === target.side && other.status === "active").length);
+    // (A chosen type — Resist Energy's —: the best of its choices here.)
+    const choice = model.resistances.find((entry) => entry.type === "choice");
+    if (choice) return Math.max(0, ...choice.choices.map((type) => resistanceKept(state, { ...model, resistances: [...model.resistances.filter((entry) => entry !== choice), { ...choice, type }] }, target, rounds)));
+    // (A custom one on physical damage — Shadow Form's, against non-magical — as physical: at its best, the foes' Strikes qualify.)
+    const physical = (entry) => entry.type === "physical" || (entry.type === "custom" && JSON.stringify(entry.definition ?? []).includes("damage:category:physical"));
+    const resisted = (type) => Math.max(0, ...model.resistances.filter((entry) => entry.type === type || entry.type === "all-damage" || (physical(entry) && PHYSICAL.has(type))).map((entry) => Number(entry.value) || 0));
+    let kept = 0;
+    for (const foe of foes) {
+        let best = 0;
+        for (const strike of foe.strikes ?? []) {
+            const byType = new Map();
+            for (const part of strike.damage ?? []) byType.set(part.type, (byType.get(part.type) ?? 0) + (Number(part.dice) || 0) * ((Number(part.die) || 0) + 1) / 2 + (Number(part.bonus) || 0));
+            const perHit = [...byType].reduce((sum, [type, amount]) => sum + Math.min(resisted(type), Math.max(0, amount)), 0);
+            const hits = [0, 1].reduce((sum, attack) => {
+                const odds = degreeDistribution((Number(strike.bonus) || 0) - (attack ? (strike.agile ? 4 : 5) : 0), Number(target.ac) || 15);
+                return sum + odds[2] + odds[3];
+            }, 0);
+            best = Math.max(best, hits * perHit);
+        }
+        kept += best / side;
+    }
+    return kept * rounds;
 }
 
 // How much an effect helps the creature it's on, in rounds of that creature's
@@ -479,7 +527,10 @@ export function effectBenefit(model, target, conditionHarm, strikeShare = 1, con
         benefit += model.tempHp / target.hp.max;
         benefit += (model.fastHealing * rounds) / target.hp.max;
     }
-    for (const entry of model.resistances) benefit += 0.02 * entry.value * rounds;
+    // (2026-10-21, energy damage tracked — the user: "I also want spells that need foe traits since i want those to be tracked too in the
+    // simulator": in a fight, a resistance counts as the Hit Points it keeps off — spellExpectation's, resistanceKept; elsewhere, a rule
+    // of thumb.)
+    if (!context?.state) for (const entry of model.resistances) benefit += 0.02 * entry.value * rounds;
     for (const entry of model.weaknesses) benefit -= 0.03 * entry.value * rounds;
     benefit += 0.1 * model.immunities.length;
     const duration = { mode: "fixed", value: rounds, unit: "rounds" };

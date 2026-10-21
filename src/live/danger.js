@@ -260,8 +260,17 @@ export function powerTooltip(value, data, bound = null, detail = null) {
     const higher = heightened.length ? (differ.length ? ` Heightened: ${differ.map(([at, power]) => `${ordinal(at)} ${dangerLabel(power)}${summoned(at)}`).join(", ")}.` : " Heightened: within half a level of this at every rank.") : "";
     const creature = detail?.creature ? ` Its best summon here: ${detail.creature}.` : "";
     const more = moreUsefulAgainst(value, detail);
-    const where = (trait) => (trait === "choke" ? "in a choke point (the foes coming down a corridor)" : trait === "dark" ? "in an unlit fight (the party's humans without darkvision)" : `against ${FOES[trait] ?? trait}`);
-    const useful = more.length ? ` * More useful ${more.map(([trait, power]) => `${where(trait)}: ${dangerLabel(power)}${detail?.creatures?.[trait] ? ` (summoning ${detail.creatures[trait]})` : ""}`).join("; ")}.` : "";
+    const where = (trait) => (trait === "choke" ? "in a choke point (the foes coming down a corridor)" : trait === "dark" ? "in an unlit fight (the party's humans without darkvision)" : /^deals:/.test(trait) ? `against foes whose Strikes deal ${trait.slice(6)} damage` : `against ${FOES[trait] ?? trait}`);
+    // (Damage types alike in what they do — Resist Energy's five —: one line, "acid, cold or fire damage".)
+    const merged = [];
+    for (const [trait, power] of more) {
+        const same = /^deals:/.test(trait) ? merged.find((entry) => /^deals:/.test(entry.trait) && dangerLabel(entry.power) === dangerLabel(power)) : null;
+        if (same) same.types.push(trait.slice(6));
+        else merged.push({ trait, power, types: /^deals:/.test(trait) ? [trait.slice(6)] : [] });
+    }
+    const words = (types) => (types.length > 1 ? `${types.slice(0, -1).join(", ")} or ${types.at(-1)}` : types[0]);
+    const placeOf = (entry) => (entry.types.length ? `against foes whose Strikes deal ${words(entry.types)} damage` : where(entry.trait));
+    const useful = merged.length ? ` * More useful ${merged.map((entry) => `${placeOf(entry)}: ${dangerLabel(entry.power)}${detail?.creatures?.[entry.trait] ? ` (summoning ${detail.creatures[entry.trait]})` : ""}`).join("; ")}.` : "";
     const less = Object.entries(detail?.vs ?? {}).filter(([trait, power]) => Number.isFinite(power) && !more.some(([other]) => other === trait)).map(([trait, power]) => ` ${where(trait).replace(/^./, (first) => first.toUpperCase())}: ${dangerLabel(power)}.`).join("");
     const minion = detail?.minion ? " Cast on a minion of the caster's already out." : "";
     const allies = detail?.alliesHit ? " Its area catches allies near the caster: their Hit Points count against it." : "";

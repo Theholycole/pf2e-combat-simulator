@@ -125,3 +125,24 @@ test("Faerie Fire rated: nothing on foes seen plainly; against invisible foes, t
     const found = castPower(standardParty(3), powerFoes("boss", 3, "invisible"), entry);
     assert.ok(found && found.share > 0.1, `${found?.share}`);
 });
+
+test("resistance counted as the Hit Points it keeps off the foes' Strikes of its type; a chosen type the best of its choices", async () => {
+    const { resistanceKept } = await import("../src/engine/effects.js");
+    const ally = { id: "ally", side: "party", status: "active", ac: 20, hp: { value: 30, max: 60 } };
+    const fiery = { id: "foe", side: "foes", status: "active", strikes: [{ bonus: 15, damage: [{ dice: 2, die: 6, bonus: 4, type: "fire" }] }] };
+    const state = { list: [ally, fiery] };
+    const fire = { resistances: [{ type: "fire", value: 5 }] };
+    assert.ok(resistanceKept(state, fire, ally, 3) > 0);
+    assert.equal(resistanceKept(state, { resistances: [{ type: "cold", value: 5 }] }, ally, 3), 0, "not the type it deals");
+    assert.equal(resistanceKept(state, { resistances: [{ type: "choice", choices: ["acid", "fire"], value: 5 }] }, ally, 3), resistanceKept(state, fire, ally, 3));
+    const chosen = effectModel({ name: "Resist", system: { duration: { unit: "minutes", value: 10 }, rules: [{ key: "ChoiceSet", flag: "kind", choices: [{ value: "acid" }, { value: "fire" }] }, { key: "Resistance", type: "{item|flags.system.rulesSelections.kind}", value: 5 }] } }, { rank: 2 });
+    assert.deepEqual(chosen.resistances, [{ type: "choice", choices: ["acid", "fire"], value: 5, exceptions: [] }]);
+    const applied = applyEffect(state, ally, { ...chosen, rounds: 10 }, ally, { applyCondition: () => true });
+    assert.equal(applied.model.resistances[0].type, "fire", "applied as the type its foes deal");
+});
+
+test("rated: resistance to a damage type more useful against foes whose Strikes deal it", () => {
+    assert.deepEqual(powerFoes("boss", 5, "deals:fire")[0].strikes.flatMap((strike) => strike.damage.map((part) => part.type)).filter((type) => type !== "fire"), []);
+    assert.deepEqual(powerConditions({ resolution: { kind: "effect" } }, { r: { resistances: [{ type: "choice", choices: ["acid", "fire"], value: 5 }] } }), ["deals:acid", "deals:fire"]);
+    assert.deepEqual(powerConditions({ resolution: { kind: "effect" } }, null, "Each affected creature gains resistance 5 to bludgeoning and piercing damage."), ["deals:bludgeoning", "deals:piercing"]);
+});

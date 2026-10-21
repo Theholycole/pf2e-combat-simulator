@@ -424,7 +424,7 @@ export function runPowerTask(task) {
     const healedBefore = rewritten?.preCast && plan.resolution?.kind === "healing" && /\bspends? (?:the full |an? |\d+ )?(?:hours?|minutes?)\b[^.]*\bregains?\b|\bregains?\b[^.]*\bafter \d+ (?:minutes|hours)\b/i.test(textOf(doc));
     if (rewritten && !healedBefore && canCast({ spellPools: { [RATED_POOL]: 1 } }, { ...entry, plan: rewritten })) {
         const read = { ...entry, plan: rewritten };
-        const traits = powerConditions(rewritten, entry.effects);
+        const traits = powerConditions(rewritten, entry.effects, textOf(doc));
         const gaps = spellGaps(read);
         const reads = casterSwaps(read);
         const results = resultsOf(traits, (foes) => bestCast(reads, (each) => castPower(party, foes, each, { minion })), level);
@@ -433,7 +433,7 @@ export function runPowerTask(task) {
     }
     // (One the engine can't cast in a fight, that the rating reads itself: power-readings.js.)
     if (!castable && powerReading(plan)) {
-        const traits = powerConditions(plan, entry.effects);
+        const traits = powerConditions(plan, entry.effects, textOf(doc));
         const read = { ...entry, doc };
         const row = { ...head, traits, results: resultsOf(traits, (foes) => readingPower(party, foes, read), level), estimate: preCastOf(doc) ? "pre-cast" : `reading (${plan.resolution.kind})` };
         // (Under the GM's other choices of a rule its reading depends on — Moment of Renewal's rest —: those results too.)
@@ -457,7 +457,7 @@ export function runPowerTask(task) {
     if (helped && (isUtility(plan) || !castable)) return helped;
     if (healedBefore) return { ...head, skipped: true, reason: "utility" };
     if (isUtility(plan) || !castable) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
-    const traits = powerConditions(plan, entry.effects);
+    const traits = powerConditions(plan, entry.effects, textOf(doc));
     const lost = Boolean(minion) && /\bminion\b[^.]*\bexplode/i.test(textOf(doc));
     const entries = casterSwaps(entry);
     const results = resultsOf(traits, (foes) => bestCast(entries, (each) => castPower(party, foes, each, { minion, lost })), level);

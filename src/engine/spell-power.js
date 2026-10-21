@@ -69,14 +69,21 @@ const FOE_SENSES = Object.freeze(["darkvision"]);
 // A weakness's usual value at a level (the Monster Core's fiends and celestials: 3 at 1st and 2nd, 5 to 8th, 10 to 14th, 15 to 20th).
 const typicalWeakness = (level) => (level <= 2 ? 3 : level <= 8 ? 5 : level <= 14 ? 10 : level <= 20 ? 15 : 20);
 
+// The damage a foe's Strikes can deal (2026-10-21, the user's foe traits: energy damage): "deals:<type>" — a resistance spell's types,
+// energy (fire, cold…) or physical (the rated foes' own is slashing).
+export const DAMAGE_TYPES = Object.freeze(["acid", "cold", "electricity", "fire", "sonic", "void", "vitality", "force", "mental", "poison", "bludgeoning", "piercing", "slashing"]);
+const packageOf = (trait) => TRAIT_PACKAGES[trait] ?? (/^deals:/.test(String(trait)) && DAMAGE_TYPES.includes(String(trait).slice(6)) ? { strikeType: String(trait).slice(6) } : null);
+
 // The foes of an encounter: kind "boss" (one, 2 levels up) or "group" (four, 2 levels down), of a trait — with darkvision. A trait for the
-// fight itself (dark): the list's environment, which the fights it's rated in take (fightSetup).
+// fight itself (dark): the list's environment, which the fights it's rated in take (fightSetup). "deals:<type>": their Strikes deal that
+// damage (an elemental's), at their best for a resistance against it.
 export function powerFoes(kind, level, trait = null) {
-    const pack = trait ? TRAIT_PACKAGES[trait] : null;
+    const pack = trait ? packageOf(trait) : null;
     const make = (lv, id) => {
         const foe = { ...moderateCreatureAt(Math.max(-1, Math.min(25, lv)), id), senses: [...(pack?.senses ?? FOE_SENSES)] };
         if (pack?.lightBlindness) foe.lightBlindness = { ...pack.lightBlindness };
         if (pack?.permanent) foe.permanent = [...(foe.permanent ?? []), ...pack.permanent.map((entry) => ({ ...entry }))];
+        if (pack?.strikeType) foe.strikes = (foe.strikes ?? []).map((strike) => ({ ...strike, damage: (strike.damage ?? []).map((part) => ({ ...part, type: pack.strikeType })) }));
         return pack?.traits ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities], weaknesses: (pack.weaknesses ?? []).map((type) => ({ type, value: typicalWeakness(foe.level) })) } : foe;
     };
     const foes = kind === "boss" ? [make(level + 2, "monster")] : [0, 1, 2, 3].map((index) => make(level - 2, index ? `monster-${index}` : "monster"));
@@ -131,8 +138,17 @@ export function powerRanks(doc) {
 
 // The traits a spell does more against (or works only against): its extra damage's, vitality damage's (undead), a holy spell's (fiends,
 // weak to it) and an unholy one's (celestials), and its targets'.
-export function powerConditions(plan, effects = null) {
+export function powerConditions(plan, effects = null, text = "") {
     const traits = new Set();
+    // (Resistance to a damage type — its effects', its rules', its text's —: against foes whose Strikes deal it; "physical", all three.)
+    const resisted = new Set([
+        ...Object.values(effects ?? {}).flatMap((model) => (model?.resistances ?? []).flatMap((entry) => (entry.type === "choice" ? entry.choices : [entry.type]))),
+        ...[...JSON.stringify(plan?.resolution ?? null).matchAll(/"key":"Resistance","type":"([a-z-]+)"/g)].map((match) => match[1]),
+        ...[...String(text).matchAll(/\bresistance \d+ to ([a-z ,]+?)(?:\.|;|$| damage| and \w+ saves)/gi)].flatMap((match) => match[1].split(/,|\band\b/).map((word) => word.trim().toLowerCase()))
+    ]);
+    for (const type of DAMAGE_TYPES) if (resisted.has(type) || (resisted.has("physical") && ["bludgeoning", "piercing", "slashing"].includes(type)) || (resisted.has("all-damage") && !["bludgeoning", "piercing", "slashing"].includes(type))) traits.add(`deals:${type}`);
+    // (The rated foes deal slashing already.)
+    traits.delete("deals:slashing");
     // (Sight and light — light.js, 2026-10-21: darkness against foes without darkvision; light in an unlit fight and on light-blind foes;
     // senses an effect gives, in an unlit fight.)
     const zone = lightZoneModel(plan);
@@ -161,7 +177,7 @@ export function powerConditions(plan, effects = null) {
     if (/"type":"vitality"|\[vitality\]/.test(json)) traits.add("undead");
     for (const match of JSON.stringify(plan?.targeting?.actorConstraints ?? {}).matchAll(/trait:([a-z-]+)/g)) traits.add(match[1]);
     for (const match of String(plan?.targeting?.target ?? "").matchAll(/\b(undead|fiends?|celestials?|constructs?|elementals?|unholy|holy)\b/gi)) traits.add(match[1].toLowerCase().replace(/s$/, ""));
-    return [...new Set([...traits].map((trait) => TRAIT_ALIASES[trait] ?? trait).filter((trait) => TRAIT_PACKAGES[trait]))].sort();
+    return [...new Set([...traits].map((trait) => TRAIT_ALIASES[trait] ?? trait).filter((trait) => packageOf(trait)))].sort();
 }
 
 // A share of a fight as levels: that much smaller is that many levels easier (0.7 a level); "atLeast" from MOST of it on.
