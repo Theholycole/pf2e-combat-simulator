@@ -689,6 +689,65 @@ READERS["illusory-creature"] = (ctx) => {
     return entries.length ? { entries: entries.slice(0, 1), targets: 1 } : null;
 };
 
+READERS["against-caster-area"] = (ctx) => {
+    // (Menacing Lament: the foes in range off-guard for its round.)
+    const lament = ctx.entry.plan.resolution.againstCaster ?? {};
+    const rounds = lament.duration?.unit === "rounds" ? Number(lament.duration.value) || 1 : 1;
+    const entries = caught(ctx.enemies, { type: "emanation", value: Number(lament.radius) || 30 }).map((foe) => ({ target: foe, damage: 0, worth: conditionWorth("off-guard", null, { mode: "fixed", value: rounds, unit: "rounds" }), heal: 0, benefit: 0 }));
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
+READERS["cover-square"] = (ctx) => {
+    // (Extradimensional Cover: its AC bonus — standard cover's — for the ally in it, while it lasts.)
+    const cover = ctx.entry.plan.resolution.coverSquare ?? {};
+    const bonus = Math.max(0, ...(cover.rules ?? []).filter((rule) => rule.key === "FlatModifier" && rule.selector === "ac" && !rule.predicate).map((rule) => Number(rule.value) || 0));
+    const ally = ctx.allies.slice().sort((a, b) => (a.ac ?? 0) - (b.ac ?? 0))[0];
+    return bonus > 0 && ally ? { entries: healEntries([ally], acSaved(ctx, ally, bonus, lastsRounds(cover.seconds, ctx.rounds))), targets: 1 } : null;
+};
+
+READERS["repulsion-aura"] = (ctx) => {
+    // (Magnetic Repulsion: its penalty on the foes' attacks at the caster — the plain one, more as it heightens — while it lasts; on metal
+    // and armour, more again, not counted.)
+    const aura = ctx.entry.plan.resolution.repulsionAura ?? {};
+    const steps = aura.penalty?.step?.interval ? Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / Number(aura.penalty.step.interval)) * (Number(aura.penalty.step.add) || 0) : 0;
+    const penalty = (Number(aura.penalty?.base) || 0) + steps;
+    if (!(penalty > 0)) return null;
+    const lasts = lastsRounds(aura.durationSeconds, ctx.rounds);
+    const ac = Number(ctx.caster.ac) || 15;
+    const saved = ctx.enemies.reduce((sum, foe) => sum + strikeDamageOn(foe, ac) - strikeDamageOn(foe, ac + penalty), 0) * lasts / Math.max(1, ctx.allies.length);
+    return { entries: healEntries([ctx.caster], saved), targets: 1 };
+};
+
+READERS["weapon-throw"] = (ctx) => {
+    // (Hand of the Apprentice: the caster's weapon flung with its spell attack — its best melee Strike's damage and its spellcasting
+    // modifier, +4 to 1st level, +5 from 10th, +6 from 17th.)
+    const weapon = (ctx.caster.strikes ?? []).filter((strike) => strike.melee).sort((a, b) => b.bonus - a.bonus)[0];
+    const dice = (weapon?.damage ?? []).reduce((sum, part) => sum + (Number(part.dice) || 0) * ((Number(part.die) || 0) + 1) / 2, 0) || 3.5;
+    const modifier = (ctx.caster.level ?? 1) >= 17 ? 6 : (ctx.caster.level ?? 1) >= 10 ? 5 : 4;
+    const entries = ctx.enemies.map((foe) => {
+        const odds = degreeDistribution(Number(ctx.entry.attack) || 0, Number(foe.ac) || 15);
+        return { target: foe, damage: (odds[2] + 2 * odds[3]) * (dice + modifier), worth: 0, heal: 0, benefit: 0 };
+    }).sort((a, b) => b.damage / b.target.hp.max - a.damage / a.target.hp.max);
+    return entries.length ? { entries: entries.slice(0, 1), targets: 1 } : null;
+};
+
+READERS["tree-pair"] = (ctx) => {
+    // (Tree of Life and Death: the death tree's void damage on the foes under its canopy — a die a rank, a basic save, each round — and the
+    // life tree's healing for the party under its own, a die a rank each round; at its best, each side under its tree.)
+    const trees = ctx.entry.plan.resolution.treePair ?? {};
+    const lasts = lastsRounds(trees.seconds, ctx.rounds);
+    const context = spellContext(ctx.entry, { isSpell: true, area: true });
+    const entries = [];
+    if (trees.harm) {
+        for (const foe of caught(ctx.enemies, { type: "burst", value: Number(trees.canopy) || 10 })) {
+            const [critFail, fail, success] = degreeDistribution(saveModifier(foe, trees.harm.statistic ?? "fortitude"), Number(ctx.entry.dc) || 10);
+            entries.push({ target: foe, damage: (2 * critFail + fail + 0.5 * success) * averageOn(foe, `${ctx.rank}d${Number(trees.harm.faces) || 4}[${trees.harm.type ?? "void"}]`, trees.harm.type, context) * lasts, worth: 0, heal: 0, benefit: 0 });
+        }
+    }
+    if (trees.heal) entries.push(...healEntries(caught(ctx.allies, { type: "burst", value: Number(trees.canopy) || 10 }), ctx.rank * ((Number(trees.heal.faces) || 4) + 1) / 2 * lasts));
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
 // The reading for a plan the engine can't cast, or null: its family's, or the plans its payload carries.
 export function powerReading(plan) {
     const own = READERS[plan?.resolution?.kind];

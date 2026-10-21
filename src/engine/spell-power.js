@@ -189,12 +189,14 @@ export function castRepeats(plan, rounds = POWER_ROUNDS, { choke = false } = {})
 
 // A cast's expectation ([{ target, damage, worth, heal, benefit }], spellExpectation's) as a share of the fight for side: damage over the
 // foes' Hit Points; conditions on a foe, and spell effects on an ally, in rounds of its threat over the fight's rounds, by its share of its
-// side (of allies: one of them); healing, and damage on its own side, over the foes' harm. Over its duration (again, castRepeats'): its
+// side (of allies: one of them); healing (up to the harm in all), and damage on its own side, over the foes' harm. Over its duration (again, castRepeats'): its
 // damage and healing each time it comes, up to what the creature has, or lacks; conditions and spell effects half as much again each time,
 // as some are on still. { share, alliesHit }.
 export function entriesShare(entries, { side, foeHp, harm, allies, again = 0 }) {
     let share = 0;
     let alliesHit = 0;
+    // (Healing on the party: up to the foes' harm in all — more than the fight takes off them is wasted.)
+    let healing = 0;
     for (const { target, damage = 0, worth = 0, heal = 0, benefit = 0 } of entries) {
         const foe = target.side !== side;
         if (!foe && damage > 0) alliesHit++;
@@ -206,8 +208,10 @@ export function entriesShare(entries, { side, foeHp, harm, allies, again = 0 }) 
         share += foe ? dealt / foeHp : -dealt / harm;
         share += sign * Math.min(POWER_ROUNDS, worth * lasting) * part / POWER_ROUNDS;
         share -= sign * benefit * lasting * part / POWER_ROUNDS;
-        share += foe ? -healed / foeHp : healed / harm;
+        if (foe) share -= healed / foeHp;
+        else healing += healed;
     }
+    share += harm > 0 ? Math.min(healing, harm) / harm : 0;
     return { share, alliesHit };
 }
 
