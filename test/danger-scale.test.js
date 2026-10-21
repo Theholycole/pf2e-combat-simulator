@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { canFight, dangerFights, dangerSummary, ladderCurves, mergeSummaries, rankRows, ratingsOf } from "../src/engine/danger-scale.js";
+import { canFight, dangerFights, dangerSummary, ladderCurves, mergeSummaries, rankRows, rateAlone, ratingsOf, scaleFromJSON, scaleOf, scaleToJSON } from "../src/engine/danger-scale.js";
 import { moderateCreatureAt } from "../src/engine/creature-tables.js";
 import { standardParty } from "../src/engine/party.js";
 
@@ -42,4 +42,14 @@ test("ranked by effective level over the typical creature's; a level with fewer 
     assert.equal(bounds.pack.f, "above", "past the curve's top: an estimate");
     assert.equal(bounds.pack?.a, undefined);
     assert.equal(ladderCurves(ladder).get(5).length, 7);
+    // One creature rated again alone, on the scale kept with the numbers (as JSON): the number the whole ranking gives it.
+    const kept = scaleFromJSON(JSON.parse(JSON.stringify(scaleToJSON(scaleOf({ screen, ladder })))));
+    for (const key of ["f", "c", "d", "lone"]) {
+        const alone = rateAlone(kept, screen.find((entry) => entry.key === key));
+        assert.equal(alone.value, ratings.pack[key], key);
+        assert.equal(alone.bound, bounds.pack?.[key] ?? null, key);
+    }
+    assert.equal(rateAlone(kept, screen.find((entry) => entry.key === "slip")), null, "a data slip: none");
+    assert.equal(rateAlone(kept, screen.find((entry) => entry.key === "broken")), null, "an error: none");
+    assert.equal(scaleFromJSON(null), null);
 });

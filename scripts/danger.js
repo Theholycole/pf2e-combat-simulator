@@ -5,8 +5,8 @@
 // (A world that ran the simulator again — scripts/danger-run.js — has its own numbers, used before the module's file.)
 
 import { MODULE_ID } from "./snapshot.js";
-import { worldRatings } from "./danger-run.js";
-import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, ratingOf, ratingOfUuid, sortByDanger } from "../src/live/danger.js";
+import { aloneRatings, worldRatings } from "./danger-run.js";
+import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, ratingOf, ratingOfUuid, sortByDanger, withAlone } from "../src/live/danger.js";
 
 const SETTING = "dangerRatings";
 // The numbers in use (the world's or the module's), and the module's own file once read.
@@ -22,9 +22,19 @@ export function shippedRatings() {
 }
 
 async function ratings() {
-    data = worldRatings() ?? (await shippedRatings());
+    data = withAlone(worldRatings() ?? (await shippedRatings()), aloneRatings());
     return data;
 }
+
+// The numbers shown now (the world's or the module's, with the creatures rated again on their own).
+export const dangerRatingsInUse = () => ratings();
+
+// When a creature was rated again on its own (a date, or null when the date's unknown), or undefined when it wasn't.
+const aloneOn = (known, collection, id) => known?.aloneOn?.[collection]?.[id];
+const aloneOnUuid = (known, uuid) => {
+    const match = /^Compendium\.(.+)\.Actor\.([^.]+)$/.exec(String(uuid ?? ""));
+    return match ? aloneOn(known, match[1], match[2]) : undefined;
+};
 
 const compendiumApps = () => [...(foundry.applications.instances?.values?.() ?? [])].filter((app) => app instanceof foundry.applications.sidebar.apps.Compendium);
 
@@ -64,11 +74,11 @@ export function setUpDanger() {
 }
 
 // A creature's badge: its number, coloured by band, its words when hovered.
-function badgeFor(value, bound, known) {
+function badgeFor(value, bound, known, alone = undefined) {
     const badge = document.createElement("span");
     badge.className = `pcs-danger pcs-danger-${dangerBand(value)}`;
     badge.textContent = dangerLabel(value, bound);
-    badge.dataset.tooltip = dangerTooltip(value, known, bound);
+    badge.dataset.tooltip = dangerTooltip(value, known, bound, { alone });
     badge.setAttribute("aria-label", badge.dataset.tooltip);
     return badge;
 }
@@ -88,7 +98,7 @@ async function mark(app, root) {
             return;
         }
         item.dataset.pcsDanger = String(value);
-        item.append(badgeFor(value, boundOf(known, pack.collection, item.dataset.entryId), known));
+        item.append(badgeFor(value, boundOf(known, pack.collection, item.dataset.entryId), known, aloneOn(known, pack.collection, item.dataset.entryId)));
     });
     const search = root.querySelector("search");
     let button = search?.querySelector(".pcs-danger-sort");
@@ -195,7 +205,7 @@ function markBrowser(app) {
             const entry = results[index];
             const name = item.querySelector(".result-link")?.textContent?.trim();
             const rating = entry && name === String(entry.name ?? "").trim() ? ratingOfUuid(data, entry.uuid) : null;
-            const key = rating ? `${entry.uuid}|${rating.value}|${rating.bound ?? ""}` : "";
+            const key = rating ? `${entry.uuid}|${rating.value}|${rating.bound ?? ""}|${aloneOnUuid(data, entry.uuid) ?? ""}` : "";
             if ((item.dataset.pcsBrowserDanger ?? "") === key) return;
             item.querySelector(":scope > .pcs-danger-cell")?.remove();
             if (!rating) {
@@ -205,7 +215,7 @@ function markBrowser(app) {
             item.dataset.pcsBrowserDanger = key;
             const cell = document.createElement("div");
             cell.className = "pcs-danger-cell";
-            cell.append(badgeFor(rating.value, rating.bound, data));
+            cell.append(badgeFor(rating.value, rating.bound, data, aloneOnUuid(data, entry.uuid)));
             const level = item.querySelector(":scope > .level");
             if (level) level.before(cell);
             else item.append(cell);

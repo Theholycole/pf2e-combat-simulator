@@ -6,6 +6,31 @@
 //   "above" | "below" } } } — above: deadlier than the ladder's deadliest yardstick (10 levels up), its number an estimate; below: weaker than its
 //   weakest (3 levels down), its number the most it could be.
 
+// A set of numbers' stamp: its run (a timestamp), or for older files its date.
+export const stampOf = (data) => data?.run ?? data?.generated ?? null;
+
+// The numbers with the creatures rated again on their own (scripts/danger-run.js) laid over them — only those rated on these same numbers
+// (alone { base: stamp, entries: { "<compendium id>": { "<actor id>": { value (null: none now), bound, generated, fights, name } } } }).
+// The result marks them: aloneOn { "<compendium id>": { "<actor id>": "<date>" } }.
+export function withAlone(data, alone) {
+    if (!data || !alone?.entries || alone.base !== stampOf(data)) return data;
+    const ratings = { ...(data.ratings ?? {}) };
+    const bounds = { ...(data.bounds ?? {}) };
+    const aloneOn = {};
+    for (const [collection, entries] of Object.entries(alone.entries)) {
+        ratings[collection] = { ...(ratings[collection] ?? {}) };
+        bounds[collection] = { ...(bounds[collection] ?? {}) };
+        for (const [id, entry] of Object.entries(entries ?? {})) {
+            if (Number.isFinite(entry?.value)) ratings[collection][id] = entry.value;
+            else delete ratings[collection][id];
+            if (entry?.bound === "above" || entry?.bound === "below") bounds[collection][id] = entry.bound;
+            else delete bounds[collection][id];
+            (aloneOn[collection] ??= {})[id] = entry?.generated ?? null;
+        }
+    }
+    return { ...data, ratings, bounds, aloneOn };
+}
+
 // A creature's rating, or null when it has none (a data slip, a joke creature, one the run didn't reach).
 export function ratingOf(data, collection, id) {
     const value = data?.ratings?.[collection]?.[id];
@@ -36,13 +61,14 @@ export function dangerLabel(value, bound = null) {
 }
 
 // Its words when hovered: "Fights like a creature 2.3 levels above a typical one of its level (Combat Simulator, 2026-10-20, 100 fights)."
-export function dangerTooltip(value, data, bound = null) {
+export function dangerTooltip(value, data, bound = null, { alone = undefined } = {}) {
     if (!Number.isFinite(value)) return "";
     const rounded = Math.round(value * 10) / 10;
     const how = rounded === 0 ? "like a typical creature of its level" : `like a creature ${Math.abs(rounded).toFixed(1)} level${Math.abs(rounded) === 1 ? "" : "s"} ${rounded > 0 ? "above" : "below"} a typical one of its level`;
     const run = [data?.source === "world" ? "this world's run" : null, data?.generated, Number(data?.fights) > 0 ? `${data.fights} fights` : null].filter(Boolean).join(", ");
     const note = bound === "above" ? " It's deadlier than any by-the-book creature the scale goes up to, so this is an estimate." : bound === "below" ? " It's weaker than the weakest creature on the scale, so it's at most this." : "";
-    return `Danger for its level: fights ${how}, against a party of four at its level (Combat Simulator${run ? `, ${run}` : ""}).${note}`;
+    const again = alone !== undefined ? ` Rated again on its own${alone ? ` on ${alone}` : ""}.` : "";
+    return `Danger for its level: fights ${how}, against a party of four at its level (Combat Simulator${run ? `, ${run}` : ""}).${note}${again}`;
 }
 
 // A band for its colour: "high" (+1.5 and up), "up" (+0.5), "even", "down" (−0.5), "low" (−1.5 and below).

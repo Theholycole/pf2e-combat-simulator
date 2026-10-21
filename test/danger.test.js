@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, ratingOf, ratingOfUuid, sortByDanger } from "../src/live/danger.js";
+import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, ratingOf, ratingOfUuid, sortByDanger, stampOf, withAlone } from "../src/live/danger.js";
 
 // Danger for its level in compendium windows (2026-10-20, src/live/danger.js; scripts/danger.js draws it).
 
@@ -43,5 +43,19 @@ test("PF2e's Compendium Browser: a rating by compendium uuid, and its sort by da
     assert.deepEqual(order(), ["Rat", "Bear", "Ogre", "Lich", "Ant", "Bat"]);
     assert.deepEqual(order({ descending: true }), ["Lich", "Bear", "Ogre", "Rat", "Ant", "Bat"]);
     assert.deepEqual(entries.map((entry) => entry.name), Object.keys(values), "the entries themselves left as they were");
+});
+
+test("creatures rated again on their own, laid over the numbers they were rated on — not over others", () => {
+    const data = { run: "2026-10-21T01:00:00.000Z", generated: "2026-10-21", fights: 100, ratings: { p: { a: 3.9, b: 1, c: -5 } }, bounds: { p: { c: "below" } } };
+    const alone = { base: "2026-10-21T01:00:00.000Z", entries: { p: { a: { value: 1.4, bound: null, generated: "2026-10-22" }, c: { value: null, generated: "2026-10-22" } }, q: { d: { value: 2, bound: "above", generated: "2026-10-22" } } } };
+    const merged = withAlone(data, alone);
+    assert.deepEqual(merged.ratings, { p: { a: 1.4, b: 1 }, q: { d: 2 } });
+    assert.deepEqual(merged.bounds, { p: {}, q: { d: "above" } });
+    assert.equal(merged.aloneOn.p.a, "2026-10-22");
+    assert.equal(data.ratings.p.a, 3.9, "the numbers themselves untouched");
+    const other = { ...data, run: "another run" };
+    assert.equal(withAlone(other, alone), other, "rated on other numbers: left out");
+    assert.equal(stampOf({ generated: "2026-10-20" }), "2026-10-20");
+    assert.match(dangerTooltip(1.4, data, null, { alone: "2026-10-22" }), /Rated again on its own on 2026-10-22\.$/);
 });
 

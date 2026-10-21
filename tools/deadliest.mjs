@@ -11,6 +11,8 @@
 //                                                   (--only=<file of refs>: just those creatures, into broad-only.jsonl)
 //   node tools/deadliest.mjs <out folder> ratings   every creature's danger for its level (levels above the typical creature of its level),
 //                                                   by compendium and id: the simulator's compendium numbers (--write=src/data/danger-ratings.json)
+//   node tools/deadliest.mjs <out folder> screen --only="Gibbering Mouther"   one creature (or several: more --only, or a file of them)
+//                                                   screened again into a finished run, the rest kept; then ratings
 //
 //   --workers N (default: the cores less two)
 import fs from "node:fs";
@@ -88,7 +90,7 @@ if (!isMainThread) {
     // The ranking (src/engine/danger-scale.js, shared with the in-Foundry run): each level's yardstick, the ladder's curves, a creature's
     // effective level and its excess over the typical creature of its level; data slips and April Fools creatures left out. Its rows: a
     // key, a group (the pack) and a name, from the ref.
-    const { rankRows, ratingsOf } = await import("../src/engine/danger-scale.js");
+    const { rankRows, ratingsOf, scaleOf, scaleToJSON } = await import("../src/engine/danger-scale.js");
     const asScale = (row) => ({ ...row, key: row.ref?.ref, group: row.ref?.pack, name: row.ref?.name });
     const ranked = (rows) => rankRows(rows.map(asScale), { screen: read("screen.jsonl").map(asScale), baseline: read("baseline.jsonl"), ladder: read("ladder.jsonl") });
     // One per creature: the same name, level and numbers in several packs counts once.
@@ -114,6 +116,33 @@ if (!isMainThread) {
         console.log(`${refs.length} creatures`);
         const levels = [...new Set(refs.map((ref) => Math.max(-1, Math.min(25, ref.level))))].sort((a, b) => a - b);
         // (--resume: the baseline as it is, and only the creatures the screen hasn't done, after those it has — a run stopped part way.)
+        // (--only=<a name, an actor id or a ref; or a file of them, one a line>, as many as wanted: just those creatures screened again, their
+        // rows in screen.jsonl replaced and the others kept, the baseline and ladder as they are — one creature updated, 2026-10-20, the user:
+        // "so in the future if we update 1 monster we can run them alone". Then `ratings` as ever.)
+        const only = process.argv.filter((arg) => arg.startsWith("--only=")).flatMap((arg) => {
+            const value = arg.slice("--only=".length);
+            return fs.existsSync(value) && fs.statSync(value).isFile() ? fs.readFileSync(value, "utf8").split("\n").map((line) => line.trim()).filter(Boolean) : [value];
+        });
+        if (only.length) {
+            const wanted = refs.filter((ref) => only.some((value) => value === ref.ref || value === ref.id || value.toLowerCase() === ref.name.toLowerCase()));
+            if (!wanted.length) {
+                console.error(`No creature is ${only.join(", ")}`);
+                process.exit(1);
+            }
+            const ratingOf = (rows) => (read("ladder.jsonl").length ? new Map(ranked(rows).map((row) => [row.ref.ref, row.excess])) : new Map());
+            const before = ratingOf(read("screen.jsonl"));
+            await run(wanted.map((ref) => ({ kind: "screen", ref, from: 1, to: 1 + FIGHTS })), "screen-only.jsonl");
+            const fresh = new Map(read("screen-only.jsonl").map((row) => [row.ref.ref, row]));
+            const rows = read("screen.jsonl");
+            const known = new Set(rows.map((row) => row.ref?.ref));
+            const next = [...rows.map((row) => fresh.get(row.ref?.ref) ?? row), ...[...fresh.values()].filter((row) => !known.has(row.ref.ref))];
+            fs.writeFileSync(`${out}/screen.jsonl`, `${next.map((row) => JSON.stringify(row)).join("\n")}\n`);
+            const after = ratingOf(next);
+            const shown = (value) => (Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${value.toFixed(1)}` : "none");
+            for (const row of fresh.values()) console.log(`${row.ref.name} (level ${row.level ?? "?"}, ${row.ref.pack}): ${row.error ?? (row.skipped ? row.reason ?? "skipped" : `${shown(before.get(row.ref.ref))} → ${shown(after.get(row.ref.ref))}`)}`);
+            console.log("Then: ratings --write=src/data/danger-ratings.json");
+            process.exit(0);
+        }
         const resume = process.argv.includes("--resume");
         const done = resume ? new Set(read("screen.jsonl").map((row) => row.ref?.ref)) : new Set();
         if (!resume || !read("baseline.jsonl").length) await run(levels.flatMap((level) => chunks({ kind: "baseline", level }, 1, 401)), "baseline.jsonl");
@@ -158,9 +187,12 @@ if (!isMainThread) {
         const rows = ranked(read("screen.jsonl")).map((row) => ({ ...row, collection: row.ref.source === "pf2e" ? `pf2e.${packNames.get(row.ref.pack) ?? row.ref.pack}` : row.ref.pack.replace("/", "."), id: row.ref.id }));
         // (Past the ladder's top, an estimate — "above"; at or under its foot, at most — "below": bounds.)
         const { ratings, bounds } = ratingsOf(rows, read("ladder.jsonl"));
+        // (Its scale kept with it: one creature rated again alone, in Foundry, lands on the same one. run: this run's stamp.)
+        const scale = scaleToJSON(scaleOf({ screen: read("screen.jsonl").map(asScale), ladder: read("ladder.jsonl") }));
         const target = process.argv.find((arg) => arg.startsWith("--write="))?.split("=")[1] ?? `${out}/ratings.json`;
         const fights = Math.max(0, ...rows.map((row) => row.n ?? 0));
-        fs.writeFileSync(target, `${JSON.stringify({ version: 1, generated: new Date().toISOString().slice(0, 10), fights, party: ["fighter", "rogue", "wizard", "cleric"], ratings, bounds })}\n`);
+        const now = new Date().toISOString();
+        fs.writeFileSync(target, `${JSON.stringify({ version: 1, run: now, generated: now.slice(0, 10), fights, party: ["fighter", "rogue", "wizard", "cleric"], ratings, bounds, scale })}\n`);
         console.log(`${Object.values(ratings).reduce((sum, pack) => sum + Object.keys(pack).length, 0)} creatures rated in ${Object.keys(ratings).length} compendiums → ${target}`);
     } else {
         console.error(`Unknown phase ${phase}`);

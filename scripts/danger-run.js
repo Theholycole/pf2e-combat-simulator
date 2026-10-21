@@ -10,12 +10,17 @@ import { ABILITY_MODULE_ID, CORE_ID, MODULE_ID, effectModels, leanPlan, readActo
 import { parallelFights, runDangerFights } from "./runner.js";
 import { SPELLBOOKS, standardParty } from "../src/engine/party.js";
 import { moderateCreatureAt } from "../src/engine/creature-tables.js";
-import { LADDER_FIGHTS_PER, LADDER_OFFSETS, LADDER_PARTIES, canFight, dangerProfile, partyLevelFor, rankRows, ratingsOf } from "../src/engine/danger-scale.js";
+import { LADDER_FIGHTS_PER, LADDER_OFFSETS, LADDER_PARTIES, canFight, dangerProfile, mergeSummaries, partyLevelFor, rankRows, rateAlone, ratingsOf, scaleFromJSON, scaleOf, scaleToJSON } from "../src/engine/danger-scale.js";
 import { canCast, isUtility } from "../src/engine/spells.js";
 import { withReading } from "../src/engine/readings.js";
-import { shippedRatings } from "./danger.js";
+import { dangerRatingsInUse, shippedRatings } from "./danger.js";
+import { dangerLabel, ratingOf, stampOf, withAlone } from "../src/live/danger.js";
 
 export const WORLD_RATINGS = "dangerRatingsWorld";
+// Creatures rated again on their own (the user, 2026-10-20: "add the option to simulate a single monster to update their danger rating"):
+// { base: the stamp of the numbers they were rated on, entries: { "<compendium id>": { "<actor id>": { value, bound, generated, fights,
+// name } } } }, laid over those numbers (src/live/danger.js withAlone).
+export const ALONE_RATINGS = "dangerRatingsAlone";
 const SPELL_MODULE_ID = "pf2e-automatic-resolution";
 const SPELL_PACK = "pf2e.spells-srd";
 const PARTY = ["fighter", "rogue", "wizard", "cleric"];
@@ -49,6 +54,26 @@ export function registerDangerRun() {
             for (const app of windows) app.render();
         }
     });
+    game.settings.register(MODULE_ID, ALONE_RATINGS, {
+        scope: "world",
+        config: false,
+        type: Object,
+        default: {},
+        onChange: () => {
+            Hooks.callAll(`${MODULE_ID}.dangerRatingsChanged`);
+            for (const app of windows) app.render();
+        }
+    });
+    // (A creature's own line in a compendium's right-click menu: rated again alone, on the numbers in use.)
+    Hooks.on("getActorContextOptions", (app, options) => {
+        if (!game.user.isGM || !(app instanceof foundry.applications.sidebar.apps.Compendium)) return;
+        options.push({
+            label: "Rate its danger again (Combat Simulator)",
+            icon: "fa-solid fa-skull",
+            visible: (li) => app.collection?.index?.get(li.dataset.entryId)?.type === "npc",
+            onClick: (event, li) => rateCreatureAlone(app.collection.collection, li.dataset.entryId)
+        });
+    });
     game.settings.registerMenu(MODULE_ID, "dangerRunMenu", {
         name: "Danger ratings: run them again",
         label: "Run the simulator",
@@ -57,6 +82,12 @@ export function registerDangerRun() {
         type: DangerRunApp,
         restricted: true
     });
+}
+
+// The creatures rated on their own (the setting's value), or null.
+export function aloneRatings() {
+    const value = game.settings.get(MODULE_ID, ALONE_RATINGS);
+    return value?.entries && Object.keys(value.entries).length ? value : null;
 }
 
 // This world's own numbers, or null (the module's are used).
@@ -89,6 +120,26 @@ async function partySpells() {
         const key = String(name).toLowerCase();
         const plan = plans.get(key);
         return plan ? { name, plan, effects: effects.get(`${key}|${castRank}`) ?? {} } : null;
+    };
+}
+
+// (Read once a session: the full run and the creatures rated alone share them.)
+let spellResolver = null;
+const partySpellsOnce = () => (spellResolver ??= partySpells().catch((error) => {
+    spellResolver = null;
+    throw error;
+}));
+
+// The standard party of a level, its basic actions from the ability module.
+async function partyBuilder() {
+    const spell = await partySpellsOnce();
+    const ability = game.modules.get(ABILITY_MODULE_ID);
+    const basics = Object.values((ability?.active ? ability.api?.basicActions : null) ?? {}).filter(Boolean);
+    const parties = new Map();
+    return (level) => {
+        const lv = partyLevelFor(level);
+        if (!parties.has(lv)) parties.set(lv, standardParty(lv, { spell, basics }));
+        return parties.get(lv);
     };
 }
 
@@ -152,15 +203,7 @@ async function startRun(collections, fights) {
         run.total = points.length * ladderFights + run.creatures * fights;
         run.phase = "Building the party";
         changed();
-        const spell = await partySpells();
-        const ability = game.modules.get(ABILITY_MODULE_ID);
-        const basics = Object.values((ability?.active ? ability.api?.basicActions : null) ?? {}).filter(Boolean);
-        const parties = new Map();
-        const partyFor = (level) => {
-            const lv = partyLevelFor(level);
-            if (!parties.has(lv)) parties.set(lv, standardParty(lv, { spell, basics }));
-            return parties.get(lv);
-        };
+        const partyFor = await partyBuilder();
         // (Fights go out while the next creature is read: as many waiting as the workers can take, and as many again.)
         const limit = parallelFights() * 2;
         const inFlight = new Set();
@@ -235,7 +278,11 @@ async function startRun(collections, fights) {
         const ranked = rankRows(screen, { screen, ladder });
         const { ratings, bounds } = ratingsOf(ranked, ladder);
         run.rated = Object.values(ratings).reduce((sum, pack) => sum + Object.keys(pack).length, 0);
-        await game.settings.set(MODULE_ID, WORLD_RATINGS, { version: 1, source: "world", generated: new Date().toISOString().slice(0, 10), fights, party: PARTY, compendiums: compendiums.length, creatures: run.rated, ratings, bounds });
+        // (Its scale kept with it, for a creature rated again alone; those rated alone before are part of this run now.)
+        const scale = scaleToJSON(scaleOf({ screen, ladder }));
+        const stamp = new Date().toISOString();
+        await game.settings.set(MODULE_ID, WORLD_RATINGS, { version: 1, source: "world", run: stamp, generated: stamp.slice(0, 10), fights, party: PARTY, compendiums: compendiums.length, creatures: run.rated, ratings, bounds, scale });
+        if (aloneRatings()) await game.settings.set(MODULE_ID, ALONE_RATINGS, {});
         run.state = "done";
         run.ended = Date.now();
         const packs = Object.keys(ratings).length;
@@ -248,6 +295,54 @@ async function startRun(collections, fights) {
         ui.notifications.error(`Danger ratings: the run stopped (${error.message}).`);
     }
     for (const app of windows) app.render();
+}
+
+// --- One creature alone --------------------------------------------------------------
+
+let ratingAlone = false;
+
+// One creature rated again on its own (its compendium id and actor id), on the numbers in use: as many fights as theirs (the same seeds a
+// full run gives it), across the workers, placed on the scale kept with them; kept in the world over them.
+export async function rateCreatureAlone(collection, id) {
+    if (current?.state === "running") return ui.notifications.warn("Danger ratings: a run is under way; rate it once that's done.");
+    if (ratingAlone) return ui.notifications.warn("Danger ratings: one creature is being rated already.");
+    const base = worldRatings() ?? (await shippedRatings());
+    const scale = scaleFromJSON(base?.scale);
+    if (!scale) return ui.notifications.warn("Danger ratings: the numbers in use have no scale kept with them. Run the simulator for every creature first (the settings' Danger ratings button).");
+    const actor = await game.packs.get(collection)?.getDocument(id);
+    if (!actor || actor.type !== "npc") return;
+    const fights = Number(base.fights) || 100;
+    ratingAlone = true;
+    ui.notifications.info(`Danger ratings: ${actor.name} fights the party ${fights} times…`);
+    try {
+        const partyFor = await partyBuilder();
+        const { monster, reserves } = await buildCreature(actor);
+        const row = { key: actor.uuid, group: collection, name: actor.name, level: monster.level, publication: actor.system?.details?.publication?.title ?? null };
+        let rated = null;
+        if (canFight(monster)) {
+            const party = partyFor(monster.level);
+            const foes = [monster, ...reserves];
+            const size = Math.ceil(fights / parallelFights());
+            const slices = [];
+            for (let from = 1; from < 1 + fights; from += size) slices.push([from, Math.min(1 + fights, from + size)]);
+            const summary = mergeSummaries(await Promise.all(slices.map(([from, to]) => runDangerFights(party, foes, from, to))));
+            rated = rateAlone(scale, { ...row, ...summary, profile: dangerProfile(monster) });
+        }
+        const shown = await dangerRatingsInUse();
+        const before = ratingOf(shown, collection, id);
+        const kept = aloneRatings();
+        const entries = kept?.base === stampOf(base) ? foundry.utils.deepClone(kept.entries) : {};
+        (entries[collection] ??= {})[id] = { value: rated?.value ?? null, bound: rated?.bound ?? null, generated: new Date().toISOString().slice(0, 10), fights, name: actor.name };
+        await game.settings.set(MODULE_ID, ALONE_RATINGS, { base: stampOf(base), entries });
+        const was = before === null ? "none" : dangerLabel(before);
+        if (rated) ui.notifications.info(`Danger ratings: ${actor.name} is ${dangerLabel(rated.value, rated.bound)} for its level (it was ${was}).`);
+        else ui.notifications.warn(`Danger ratings: ${actor.name} gets no number (${canFight(monster) ? "a data slip or a joke creature" : "nothing to fight with"}; it was ${was}).`);
+    } catch (error) {
+        console.error(`${MODULE_ID} | danger rating of ${actor.name}`, error);
+        ui.notifications.error(`Danger ratings: ${actor.name} couldn't be rated (${error.message}).`);
+    } finally {
+        ratingAlone = false;
+    }
 }
 
 // --- The window ---------------------------------------------------------------------
@@ -271,7 +366,8 @@ export class DangerRunApp extends ApplicationV2 {
             stop: DangerRunApp.#onStop,
             useModule: DangerRunApp.#onUseModule,
             tickAll: DangerRunApp.#onTick,
-            tickNone: DangerRunApp.#onTick
+            tickNone: DangerRunApp.#onTick,
+            clearAlone: DangerRunApp.#onClearAlone
         }
     };
 
@@ -312,8 +408,17 @@ export class DangerRunApp extends ApplicationV2 {
                 <p class="pcs-run-estimate">About ${minutes(estimateMinutes(creatures, this.fights) * 60000)} on this computer (${parallelFights()} at a time).</p>
                 <div class="sim-buttons"><button type="button" data-action="start"${creatures ? "" : " disabled"}><i class="fa-solid fa-play"></i> Run the simulator</button></div>`;
         }
+        const alone = aloneRatings();
+        const aloneEntries = alone?.base === stampOf(world ?? shipped) ? Object.values(alone.entries).flatMap((entries) => Object.values(entries)) : [];
+        const aloneLine = aloneEntries.length
+            ? `<p>Rated again on their own: ${aloneEntries.slice(0, 8).map((entry) => `${escapeHTML(entry.name)} ${Number.isFinite(entry.value) ? dangerLabel(entry.value, entry.bound) : "(none)"}`).join(", ")}${aloneEntries.length > 8 ? `, and ${aloneEntries.length - 8} more` : ""}.</p>
+               <div class="sim-buttons"><button type="button" data-action="clearAlone"${current?.state === "running" ? " disabled" : ""}><i class="fa-solid fa-eraser"></i> Back to their numbers from the run</button></div>`
+            : "";
+        const oneCreature = `<p class="pcs-run-note">One creature only (after a change to it, or to the simulator for it): right-click it in its compendium and choose <em>Rate its danger again</em>. It fights as many times as the numbers in use did and lands on their scale, in a few seconds.</p>`;
         return `<div class="pcs-danger-run-body">
             ${inUse}
+            ${aloneLine}
+            ${oneCreature}
             <p>A run rates each creature as the module's numbers were made: against a party of four at its level (fighter, rogue, wizard, cleric) to the end, then against moderate creatures of every level for the scale. It runs in this browser. Foundry stays usable, but slower, and the run stops if this tab closes or reloads. The result is kept in this world and replaces the module's numbers for everyone in it.</p>
             ${missing.map((line) => `<p class="pcs-run-warning"><i class="fa-solid fa-triangle-exclamation"></i> ${line}</p>`).join("")}
             ${body}
@@ -379,7 +484,13 @@ export class DangerRunApp extends ApplicationV2 {
             content: "<p>Use the module's own numbers again? This world's run is deleted.</p>",
             rejectClose: false
         });
-        if (confirmed) await game.settings.set(MODULE_ID, WORLD_RATINGS, {});
+        if (!confirmed) return;
+        await game.settings.set(MODULE_ID, WORLD_RATINGS, {});
+        if (aloneRatings()) await game.settings.set(MODULE_ID, ALONE_RATINGS, {});
+    }
+
+    static async #onClearAlone() {
+        await game.settings.set(MODULE_ID, ALONE_RATINGS, {});
     }
 
     static async #onTick(event, target) {

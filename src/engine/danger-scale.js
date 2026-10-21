@@ -181,21 +181,62 @@ export function boundOf(curves, row) {
     return curve && row.score > curve.at(-1)[1] ? "above" : curve && row.score <= curve[0][1] ? "below" : null;
 }
 
-// rows ranked by danger for their level, most dangerous first, each with its excess (levels above the typical creature of its level, or
-// before a ladder the score above the level's yardstick). The typical creature: the median of the screen's (the whole run's) creatures of
-// that level, or with fewer than five, a moderate creature (its own level). Slips and jokes left out.
-export function rankRows(rows, { screen, baseline = [], ladder = [] }) {
-    const slips = subtierSlips(screen);
-    const kept = rows.filter((row) => usable(row) && !suspect(row, slips) && !joke(row));
+// A run's scale: the ladder's curves, and each level's typical creature — the median effective level of the screen's (the whole run's)
+// creatures of that level, where it has five or more (else a moderate creature: its own level).
+export function scaleOf({ screen, ladder }) {
     const curves = ladderCurves(ladder);
-    if (!curves.size) {
-        const base = baselineScores(screen, baseline);
-        return kept.map((row) => ({ ...row, excess: row.score - (base.get(row.level) ?? 0) })).sort((a, b) => b.excess - a.excess);
-    }
     const byLevel = new Map();
     for (const row of screen.filter(usable)) byLevel.set(row.level, [...(byLevel.get(row.level) ?? []), effectiveLevel(curves, row)]);
     const typical = new Map([...byLevel].filter(([, values]) => values.length >= 5).map(([level, values]) => [level, median(values)]));
-    return kept.map((row) => ({ ...row, excess: effectiveLevel(curves, row) - (typical.get(row.level) ?? row.level) })).sort((a, b) => b.excess - a.excess);
+    return { curves, typical };
+}
+
+// A creature ({ level, score }) on a scale: { excess, bound }, or null where the scale has no curve for its party.
+export function rateOn(scale, row) {
+    const effective = effectiveLevel(scale.curves, row);
+    if (effective === null) return null;
+    return { excess: effective - (scale.typical.get(row.level) ?? row.level), bound: boundOf(scale.curves, row) };
+}
+
+// A scale kept with the numbers (src/data/danger-ratings.json's, a world's run): { curves: { "<party>": [[offset, score]] }, typical:
+// { "<level>": effective level } } — so one creature can be rated again on it, alone (2026-10-20, the user: "so in the future if we
+// update 1 monster we can run them alone and not have to simulate every monster in the game again").
+export function scaleToJSON(scale) {
+    // (To a billionth: a creature rated alone lands where the whole ranking put it, a number on the edge of a tenth too.)
+    const round = (value) => Math.round(value * 1e9) / 1e9;
+    return {
+        curves: Object.fromEntries([...scale.curves].sort((a, b) => a[0] - b[0]).map(([party, curve]) => [party, curve.map(([offset, score]) => [offset, round(score)])])),
+        typical: Object.fromEntries([...scale.typical].sort((a, b) => a[0] - b[0]).map(([level, value]) => [level, round(value)]))
+    };
+}
+
+export function scaleFromJSON(json) {
+    if (!json?.curves) return null;
+    return {
+        curves: new Map(Object.entries(json.curves).map(([party, curve]) => [Number(party), curve.map(([offset, score]) => [Number(offset), Number(score)])])),
+        typical: new Map(Object.entries(json.typical ?? {}).map(([level, value]) => [Number(level), Number(value)]))
+    };
+}
+
+// One creature rated alone, on a kept scale: { value (rounded to a tenth), bound } — or null when it gets none (a data slip, an April Fools
+// creature, a score the scale can't place).
+export function rateAlone(scale, row) {
+    if (!usable(row) || suspect(row) || joke(row)) return null;
+    const rated = rateOn(scale, row);
+    return rated && Number.isFinite(rated.excess) ? { value: Math.round(rated.excess * 10) / 10, bound: rated.bound } : null;
+}
+
+// rows ranked by danger for their level, most dangerous first, each with its excess (levels above the typical creature of its level, or
+// before a ladder the score above the level's yardstick) on the run's scale. Slips and jokes left out.
+export function rankRows(rows, { screen, baseline = [], ladder = [] }) {
+    const slips = subtierSlips(screen);
+    const kept = rows.filter((row) => usable(row) && !suspect(row, slips) && !joke(row));
+    const scale = scaleOf({ screen, ladder });
+    if (!scale.curves.size) {
+        const base = baselineScores(screen, baseline);
+        return kept.map((row) => ({ ...row, excess: row.score - (base.get(row.level) ?? 0) })).sort((a, b) => b.excess - a.excess);
+    }
+    return kept.map((row) => ({ ...row, excess: rateOn(scale, row).excess })).sort((a, b) => b.excess - a.excess);
 }
 
 // The compendium numbers (src/data/danger-ratings.json's ratings and bounds) from ranked rows, each with its collection and id.
