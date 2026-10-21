@@ -300,3 +300,16 @@ test("a mark's extra dice on the next hit, again each turn where it says; Raveni
     const storm = plan("stored-charge", { storedCharge: { type: "electricity", resistance: { base: 10, fixed: [{ rank: 7, value: 15 }] } } }, null);
     assert.equal(readingPower(standardParty(7), powerFoes("boss", 7), entry(4, storm)).targets, 2);
 });
+
+test("a mantle's options from its text, and the best pair of them for a battle caster", async () => {
+    const { mantleOptions } = await import("../src/engine/power-readings.js");
+    const text = "<p>Pick two.</p><p><strong>Big Form</strong> You're Clumsy 1. You gain a +2 status bonus to melee damage.</p><p><strong>Lava Hands</strong> You gain a lava fist unarmed attack in the brawling weapon group. Your lava fists deal 1d8 bludgeoning damage as their base damage, plus an additional 2d6 fire damage and 1d6 persistent fire damage.</p><p><strong>Green Life</strong> You gain fast healing 3.</p><p><strong>Calm</strong> Nothing in a fight.</p>";
+    const options = mantleOptions(text, ["Big Form", "Lava Hands", "Green Life", "Calm"]);
+    assert.deepEqual(options.map((option) => option.label), ["Big Form", "Lava Hands", "Green Life", "Calm"]);
+    assert.equal(options[0].meleeDamage, 2);
+    assert.deepEqual(options[1].strike.extra, ["2d6[fire]"]);
+    assert.equal(options[2].fastHealing, 3);
+    const mantle = { ...entry(5, plan("option-mantle", { optionMantle: { seconds: 60, options: options.map((option) => ({ label: option.label })) } }, null)), doc: { system: { description: { value: text } } } };
+    const found = readingPower(standardParty(9), powerFoes("boss", 9), mantle);
+    assert.ok(found && found.share > 0);
+});

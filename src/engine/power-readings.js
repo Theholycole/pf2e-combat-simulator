@@ -1570,6 +1570,117 @@ READERS["stored-charge"] = (ctx) => {
     return { entries: [...healEntries([ctx.caster], resistance), { target: foe, damage: back, worth: 0, heal: 0, benefit: 0 }], targets: 2 };
 };
 
+// --- Mantles (2026-10-21, batch 15): pick two of its options ------------------------------------------------------------------------------
+
+// A mantle's options from its text, each by its name (labels): [{ label, strike?: { dice, die, type, reach, extra: [formula…],
+// persistent? }, meleeDamage?, fastHealing?, cover?, resistance?: { value, types }, touched? (formula), aura?: { feet, slug, value },
+// clumsy? }].
+export function mantleOptions(text, labels) {
+    const plain = String(text).replace(/@Damage\[([^\]]*)\]/g, "$1").replace(/@Template\[[^\]]*distance:(\d+)[^\]]*\]/g, "$1-foot emanation").replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    const at = labels.map((label) => ({ label, index: plain.indexOf(`${label} `) })).filter((each) => each.index >= 0).sort((a, b) => a.index - b.index);
+    return at.map(({ label, index }, i) => {
+        const part = plain.slice(index + label.length, i + 1 < at.length ? at[i + 1].index : plain.length);
+        const option = { label };
+        const base = /\bunarmed attack\b[^.]*\.(?:[^.]*\.)?[^.]*?\bdeals? (\d+)d(\d+)(?:\[(\w+)\])?(?: (\w+))? damage/i.exec(part) ?? /\bunarmed attack\b[^.]*?\bdeals? (\d+)d(\d+)(?:\[(\w+)\])?(?: (\w+))? damage/i.exec(part);
+        if (base) {
+            const extra = [...part.matchAll(/additional (\d+)d(\d+) (\w+) damage/gi)].filter((match) => !/persistent/i.test(match[3])).map((match) => `${match[1]}d${match[2]}[${match[3].toLowerCase()}]`);
+            const persistent = /(\d+)d(\d+) persistent (\w+) damage/i.exec(part);
+            option.strike = { dice: Number(base[1]), die: Number(base[2]), type: (base[3] ?? base[4] ?? "bludgeoning").toLowerCase(), reach: /\breach\b/i.test(part), extra, ...(persistent ? { persistent: `${persistent[1]}d${persistent[2]}[${persistent[3].toLowerCase()}]` } : {}) };
+        }
+        const melee = /\+(\d+) status bonus to melee damage/i.exec(part);
+        if (melee) option.meleeDamage = Number(melee[1]);
+        const healing = /fast healing (\d+)/i.exec(part);
+        if (healing) option.fastHealing = Number(healing[1]);
+        if (/\bYou gain cover\b/i.test(part)) option.cover = 2;
+        const resistance = /resistance (\d+) to ([a-z, ]+?)(?:\.|$)/i.exec(part);
+        if (resistance) option.resistance = { value: Number(resistance[1]), types: resistance[2].split(/,|\band\b/).map((each) => each.trim().toLowerCase()).filter(Boolean) };
+        const touched = /hits you with a melee[^.]*?takes (\d+d\d+(?:\[\w+\])?) damage/i.exec(part);
+        if (touched) option.touched = touched[1];
+        const aura = /(\d+)-foot emanation[^.]*\.[^.]*?\b(Sickened|Frightened|Clumsy|Enfeebled|Stupefied) (\d+)/i.exec(part);
+        if (aura) option.aura = { feet: Number(aura[1]), slug: aura[2].toLowerCase(), value: Number(aura[3]) };
+        if (/\bYou're Clumsy 1\b/i.test(part)) option.clumsy = 1;
+        return option;
+    });
+}
+
+// What an option pair does for the caster at its best (the party's best Striker: a battle caster's mantle) while it lasts: its new
+// Strike in place of its own where better (the striking runes' dice, its other damage on a hit, its persistent damage a round on one), its
+// melee damage bonus, fast healing, cover, resistances against the foes' damage of their types, a melee hitter's burn, an aura's
+// condition on the foes in it — clumsy as its AC 1 lower.
+function mantleEntries(ctx, options, lasts) {
+    const best = bestStrike(ctx, "melee");
+    const foe = toughest(ctx.enemies);
+    if (!best || !foe) return [];
+    const wearer = best.striker;
+    const context = spellContext(ctx.entry, { isSpell: true, area: false });
+    const round = (strike, bonusDamage, extra) => [0, 1].reduce((sum, attacks) => sum + strikeOn(wearer, strike, foe, { attacks, extra: extra + bonusDamage }), 0);
+    const meleeDamage = options.reduce((sum, option) => sum + (option.meleeDamage ?? 0), 0);
+    const strikes = options.filter((option) => option.strike).map((option) => {
+        const [part] = best.strike.damage;
+        // (Its own dice, or the striking runes' where more — handwraps of the caster's level.)
+        const strike = { ...best.strike, name: option.label, agile: false, damage: [{ ...part, dice: Math.max(Number(part.dice) || 1, option.strike.dice || 1), die: option.strike.die, type: option.strike.type }] };
+        const extra = option.strike.extra.reduce((sum, formula) => sum + averageOn(foe, formula, "untyped", context), 0) + (option.strike.persistent ? 0.5 * averageOn(foe, option.strike.persistent, "fire", context, true) : 0);
+        return { strike, extra };
+    });
+    const own = round(best.strike, meleeDamage, 0);
+    const mantled = Math.max(own, ...strikes.map(({ strike, extra }) => round(strike, meleeDamage, extra)));
+    const plain = round(best.strike, 0, 0);
+    const dealt = Math.max(0, mantled - plain) * lasts;
+    const ac = Number(wearer.ac) || 15;
+    const side = Math.max(1, ctx.allies.length);
+    let kept = 0;
+    let burned = 0;
+    for (const option of options) {
+        if (option.fastHealing) kept += option.fastHealing * lasts;
+        if (option.cover) kept += ctx.enemies.reduce((sum, enemy) => sum + strikeDamageOn(enemy, ac) - strikeDamageOn(enemy, ac + option.cover), 0) * lasts / side;
+        if (option.clumsy) kept -= ctx.enemies.reduce((sum, enemy) => sum + strikeDamageOn(enemy, ac - option.clumsy) - strikeDamageOn(enemy, ac), 0) * lasts / side;
+        if (option.resistance) {
+            for (const enemy of ctx.enemies) {
+                const { hits, damage, types = [] } = hitsOn(enemy, ac);
+                if (types.some((type) => option.resistance.types.includes(type))) kept += hits * Math.min(option.resistance.value, damage) * lasts / side;
+            }
+        }
+        if (option.touched) {
+            for (const enemy of ctx.enemies) {
+                const strike = (enemy.strikes ?? []).filter((each) => each.melee).sort((a, b) => b.bonus - a.bonus)[0];
+                if (!strike) continue;
+                const hits = [0, 1].reduce((sum, attack) => {
+                    const odds = degreeDistribution(strike.bonus - attack * (strike.agile ? 4 : 5), ac);
+                    return sum + odds[2] + odds[3];
+                }, 0);
+                burned += hits / side * lasts * averageOn(enemy, option.touched, "fire", context);
+            }
+        }
+    }
+    const aura = options.find((option) => option.aura);
+    const sickened = aura ? caught(ctx.enemies, { type: "emanation", value: aura.aura.feet }, ctx.choke).map((enemy) => ({ target: enemy, damage: 0, worth: conditionWorth(aura.aura.slug, aura.aura.value, null), heal: 0, benefit: 0 })) : [];
+    return mergeEntries([spreadDamage(ctx.enemies, dealt + burned), sickened, kept > 0 ? healEntries([wearer], kept) : []]);
+}
+
+// A mantle's reading: each pair of its options (it takes two), the best of them.
+function mantleReading(ctx, labels, seconds) {
+    const options = mantleOptions(ctx.entry.doc?.system?.description?.value ?? "", labels);
+    if (options.length < 2) return null;
+    const lasts = lastsRounds(seconds, ctx.rounds);
+    const pairs = [];
+    for (let i = 0; i < options.length; i++) for (let j = i + 1; j < options.length; j++) pairs.push([options[i], options[j]]);
+    const found = pairs.map((pair) => mantleEntries(ctx, pair, lasts)).filter((entries) => entries.length).map((entries) => ({ entries, targets: entries.length }));
+    return found.length ? { options: found } : null;
+}
+
+READERS["option-mantle"] = (ctx) => {
+    // (Mantle of the Magma Heart, of the Unwavering Heart: two of its options, the best pair.)
+    const mantle = ctx.entry.plan.resolution.optionMantle ?? {};
+    return mantleReading(ctx, (mantle.options ?? []).map((option) => option.label), mantle.seconds);
+};
+
+READERS["generated-form"] = (ctx) => {
+    // (Mantle of Heaven's Slopes: a form whose rules let it pick two of the options its text names — read as a mantle.)
+    const form = ctx.entry.plan.resolution.generatedForm ?? {};
+    const labels = [...new Set((form.rules ?? []).flatMap((rule) => (rule.suboptions ?? []).map((option) => option.label)))];
+    return labels.length >= 2 ? mantleReading(ctx, labels, form.seconds) : null;
+};
+
 READERS["stored-burst"] = (ctx) => {
     // (Reflective Scales: its resistance to the foes' hits on the caster — at its best, of the type they deal — over the fight, the damage
     // it prevents; then its burst about the caster (the foes in it, at its best), a die for each 10 prevented up to its most, a basic save.)

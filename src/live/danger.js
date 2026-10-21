@@ -193,7 +193,9 @@ const READINGS = {
     "temp-hp": "its temporary Hit Points as a foe falls",
     "check-mark": "its check, then its extra dice on the next Strike that hits",
     "cannibal-hunger": "the hungering foe's better answer as others fall: eating, or its mental damage",
-    "stored-charge": "the damage its resistance keeps off, flung back with its spell attack"
+    "stored-charge": "the damage its resistance keeps off, flung back with its spell attack",
+    "option-mantle": "the best two of its options on a battle caster: its Strike, damage, healing, cover, resistances, aura",
+    "generated-form": "the best two of its options on a battle caster: its Strike, damage, healing, cover, resistances, aura"
 };
 const ESTIMATE_MORE = { "battle form": "the caster in its best form, its Strikes in place of its spells, its temporary Hit Points and AC" };
 
