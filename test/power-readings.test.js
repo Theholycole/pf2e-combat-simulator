@@ -239,3 +239,30 @@ test("castable as read: an action count's area sized from the text, and the coun
     assert.deepEqual(read.resolution.native.byActions[3].targeting.area, { areaType: "cone", type: "cone", value: 60 });
     assert.deepEqual(read.resolution.native.byActions[2].targeting.area, { type: "line", value: 60 });
 });
+
+test("Repulsion's save as the foes come: those that fail can't come closer, the rest through difficult terrain; Reaper's Lantern only on undead", () => {
+    const repulsion = plan("lantern-aura", { lanternAura: { radius: 40, durationSeconds: 60, statistic: "will", rows: { success: { conditions: [], notes: ["The creature treats each square in the area as difficult terrain when moving closer to you."] }, failure: { conditions: [], notes: ["The creature can't move closer to you within the area."] } } } }, null);
+    const found = readingPower(standardParty(11), powerFoes("group", 11), entry(6, repulsion));
+    assert.ok(found && found.targets === 4 && found.share > 0.2, `${found?.share}`);
+    const lantern = plan("lantern-aura", { lanternAura: { radius: 5, durationSeconds: 60, statistic: "fortitude", failed: { living: { halfHealing: true }, undead: { condition: "enfeebled", value: 1 } } } }, null);
+    assert.equal(readingPower(standardParty(3), powerFoes("group", 3), entry(2, lantern)), null, "living foes: healing halved, not counted");
+    assert.ok(readingPower(standardParty(3), powerFoes("group", 3, "undead"), entry(2, lantern)).share > 0);
+});
+
+test("retaliation: Echoing Weapon's damage for each of the best Striker's hits; Incendiary Aura's burning from the turn after it's cast", () => {
+    const echo = plan("retaliation", { retaliation: { durationSeconds: 60, triggers: [{ trigger: "The wielder's turn ends", damage: { byCount: ["(ceil(@item.rank/2))", "(ceil(@item.rank/2)*2)"], type: "sonic" } }] } }, null);
+    assert.ok(readingPower(standardParty(1), powerFoes("boss", 1), entry(1, echo)).share > 0);
+    const aura = plan("retaliation", { retaliation: { durationSeconds: 60, triggers: [{ trigger: "A creature within the emanation takes fire damage.", damage: { formula: "(ceil(@item.level/2)+1)d4", type: "fire", persistent: true } }] } }, null);
+    assert.ok(readingPower(standardParty(9), powerFoes("group", 9), entry(5, aura)).targets >= 2);
+});
+
+test("healing as it lasts and the party's Strikes made better: Garden of Healing's pulses, Rallying Banner's bonus, Shepherd of Souls' sacrifice", () => {
+    const garden = plan("healing-pulse", { healingPulse: { formula: "1d4", heightening: { interval: 1, dice: "1d4" }, area: { type: "emanation", value: 10 }, durationSeconds: 60 } }, null);
+    const low = readingPower(standardParty(5), powerFoes("boss", 5), entry(1, garden));
+    const high = readingPower(standardParty(5), powerFoes("boss", 5), entry(3, garden));
+    assert.ok(low && high && high.share > low.share, "a die more each rank");
+    const banner = plan("rally-banner", { rallyBanner: { durationSeconds: 60, member: { rules: [{ key: "FlatModifier", selector: "attack-roll", type: "status", value: 1 }] } } }, null);
+    assert.ok(readingPower(standardParty(9), powerFoes("boss", 9), entry(5, banner)).share > 0);
+    const shepherd = plan("sacrifice-heal", { sacrificeHeal: { max: 15, multiplier: 2, step: { interval: 2, add: 5 } } }, null);
+    assert.ok(readingPower(standardParty(9), powerFoes("boss", 9), entry(5, shepherd)).share > 0);
+});

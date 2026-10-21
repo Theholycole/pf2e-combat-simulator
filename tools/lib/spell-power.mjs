@@ -1,7 +1,8 @@
 // A spell's power for its rank, offline (src/engine/spell-power.js has the method): the spells of every installed compendium — PF2e's and
 // each module's Item compendiums, not Starfinder's; rituals left out — and one task for a worker (tools/spell-power.mjs).
 import fs from "node:fs";
-const { readDocuments, PACK_ROOT, combatant, creatureFrom, summonCandidates } = await import("./pack-creatures.mjs");
+const { readDocuments, PACK_ROOT, basicActions, combatant, creatureFrom, summonCandidates } = await import("./pack-creatures.mjs");
+const { maneuverWays } = await import("../../src/engine/readings.js");
 const { compileSpell, effectModels } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
 const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, formShare, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
@@ -381,6 +382,18 @@ export function runPowerTask(task) {
     const own = OWN_CREATURE.test(String(doc.system?.target?.value ?? ""));
     const minion = own ? minionFor(doc, rank, level) : null;
     if (own && !minion) return { ...head, skipped: true, reason: "a familiar's" };
+    // (Telekinetic Maneuver and kin: a way per basic action it names, with the spell attack — as fights cast it; a reaction's way as an
+    // action (castableReading) — the best of them.)
+    const ways = maneuverWays(plan, basicActions).map((way) => {
+        const read = { ...entry, plan: way.plan };
+        if (canCast({ spellPools: { [RATED_POOL]: 1 } }, read)) return read;
+        const rewritten = castableReading(way.plan, doc, rank);
+        return rewritten ? { ...entry, plan: rewritten } : null;
+    }).filter((read) => read && canCast({ spellPools: { [RATED_POOL]: 1 } }, read));
+    if (ways.length) {
+        const results = resultsOf([], (foes) => bestCast(ways, (each) => castPower(party, foes, each)), level);
+        if (Object.keys(results).length) return { ...head, traits: [], results, estimate: "reading (targets)" };
+    }
     // (A stated effect — its own PF2e rules, or a choice of them: an effect model of each, applied to its recipient as an effect's; the
     // best of its choices.)
     const stated = plan.resolution?.kind === "stated-effect" ? plan.resolution.statedEffect : null;

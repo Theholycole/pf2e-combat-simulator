@@ -117,6 +117,8 @@ export function powerConditions(plan) {
     if ((plan?.traits ?? []).includes("unholy")) traits.add("celestial");
     // (Circle of Protection: against unholy or holy foes.)
     if (plan?.resolution?.protectionCircle) for (const trait of ["fiend", "celestial"]) traits.add(trait);
+    // (Reaper's Lantern's failure on undead; Life's Fresh Bloom's harm to them.)
+    if (plan?.resolution?.lanternAura?.failed?.undead || (plan?.resolution?.bloom?.harmedTraits ?? []).includes("undead")) traits.add("undead");
     // (Strikes made holy or unholy — Spiritual Attunement's planes —: against the foes weak to that.)
     const traitRules = JSON.stringify(plan?.resolution?.ruleSet ?? null);
     if (/"key":"AdjustStrike"[^}]*"value":"holy"/.test(traitRules)) traits.add("fiend");
@@ -125,7 +127,7 @@ export function powerConditions(plan) {
     const json = JSON.stringify({ resolution: plan?.resolution ?? null, targeting: plan?.targeting ?? null });
     if (/"type":"vitality"|\[vitality\]/.test(json)) traits.add("undead");
     for (const match of JSON.stringify(plan?.targeting?.actorConstraints ?? {}).matchAll(/trait:([a-z-]+)/g)) traits.add(match[1]);
-    for (const match of String(plan?.targeting?.target ?? "").matchAll(/\b(undead|fiends?|celestials?|constructs?|elementals?)\b/gi)) traits.add(match[1].toLowerCase().replace(/s$/, ""));
+    for (const match of String(plan?.targeting?.target ?? "").matchAll(/\b(undead|fiends?|celestials?|constructs?|elementals?|unholy|holy)\b/gi)) traits.add(match[1].toLowerCase().replace(/s$/, ""));
     return [...new Set([...traits].map((trait) => TRAIT_ALIASES[trait] ?? trait).filter((trait) => TRAIT_PACKAGES[trait]))].sort();
 }
 

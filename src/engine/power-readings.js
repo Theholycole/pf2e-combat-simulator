@@ -131,6 +131,25 @@ const insideOf = (feet, ctx) => (ctx.choke ? 2 * feet : feet);
 // The better of a creature's statistics against a DC: [critical failure, failure, success, critical success].
 const bestOdds = (c, statistics, dc) => degreeDistribution(Math.max(...statistics.map((slug) => (["fortitude", "reflex", "will"].includes(slug) ? saveModifier(c, slug) : skillValue(c, slug)))), Number(dc) || 10);
 
+// A formula's rank terms worked out — "(ceil(@item.level/2)+1)d4" at rank 3: "3d4"; "(ceil(@item.rank/2))": "2" — or as it was where it
+// isn't plain arithmetic.
+function atRank(formula, rank) {
+    const math = (expression) => {
+        const plain = expression.replace(/@item\.(?:level|rank)/g, String(rank)).replace(/\bceil\b/g, "Math.ceil").replace(/\bfloor\b/g, "Math.floor");
+        if (/[^\d+\-*/(). ]/.test(plain.replace(/Math\.(?:ceil|floor)/g, ""))) return null;
+        try {
+            return Function(`return (${plain})`)();
+        } catch {
+            return null;
+        }
+    };
+    const group = /\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)/;
+    const text = String(formula);
+    const whole = new RegExp(`^${group.source}$`).exec(text);
+    if (whole) return String(math(whole[1]) ?? text);
+    return text.replace(new RegExp(`${group.source}(?=d\\d)`, "g"), (all, inner) => String(math(inner) ?? all));
+}
+
 // The rounds an area lasts in the fight (its seconds; none said: all of it).
 const lastsRounds = (seconds, rounds) => (Number(seconds) > 0 ? Math.max(1, Math.min(rounds, Math.floor(Number(seconds) / 6))) : rounds);
 
@@ -607,9 +626,31 @@ READERS.retaliation = (ctx) => {
     // with the spell's damage. Hits: the foes' Strikes at it a round (two each, from those with melee Strikes), its share of them (one of
     // its side's), over the fight while the spell lasts. Triggers other than a hit — fire damage taken in an aura — aren't counted.)
     const retaliation = ctx.entry.plan.resolution.retaliation ?? {};
+    const lasts = lastsRounds(retaliation.durationSeconds, ctx.rounds);
+    // (Echoing Weapon: on the wielder's weapon — at its best, the party's best Striker's — its damage for each hit a turn, on a foe beside
+    // it, each turn it lasts.)
+    const echo = (retaliation.triggers ?? []).find((each) => each.damage?.byCount?.length);
+    if (echo) {
+        const best = bestStrike(ctx, "melee");
+        const foe = best ? toughest(ctx.enemies) : null;
+        const each = Number(atRank(echo.damage.byCount[0], ctx.rank)) || 0;
+        if (!foe || !(each > 0)) return null;
+        const hits = hitChance(best.strike, foe) + hitChance(best.strike, foe, { attacks: 1 });
+        return { entries: [{ target: foe, damage: hits * averageOn(foe, `${each}[${echo.damage.type ?? "sonic"}]`, echo.damage.type, spellContext(ctx.entry, { isSpell: true, area: false })) * lasts, worth: 0, heal: 0, benefit: 0 }], targets: 1 };
+    }
+    // (Incendiary Aura: the foes in its emanation — at its best, as many as it holds — set burning by fire from the turn after it's cast
+    // (the caster's own, at its best an area's): its persistent damage, about three rounds of it (a DC 15 flat check ends it, 30% a round),
+    // while it lasts.)
+    const burning = (retaliation.triggers ?? []).find((each) => /\btakes \w+ damage\b/i.test(String(each.trigger ?? "")) && each.damage?.persistent && each.damage.formula);
+    if (burning) {
+        const radius = (Number(ctx.entry.doc?.system?.area?.value) || 10) + Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / 2) * 5;
+        const context = spellContext(ctx.entry, { isSpell: true, area: true });
+        const formula = atRank(burning.damage.formula, ctx.rank);
+        const entries = caught(ctx.enemies, { type: "emanation", value: radius }, ctx.choke).map((foe) => ({ target: foe, damage: averageOn(foe, `${formula}[${burning.damage.type ?? "fire"}]`, burning.damage.type, context, true) * Math.min(lasts - 1, 1 / 0.3), worth: 0, heal: 0, benefit: 0 })).filter((entry) => entry.damage > 0);
+        return entries.length ? { entries, targets: entries.length } : null;
+    }
     const trigger = (retaliation.triggers ?? []).find((each) => /\bhits?\b|\battacks?\b|\btouch/i.test(String(each.trigger ?? "")) && each.damage?.formula);
     if (!trigger) return null;
-    const lasts = lastsRounds(retaliation.durationSeconds, ctx.rounds);
     const steps = retaliation.heightening?.interval ? Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / Number(retaliation.heightening.interval)) : 0;
     const extra = steps && trigger.damage.componentId ? retaliation.heightening?.damage?.[trigger.damage.componentId] : null;
     const formula = String(trigger.damage.formula).replace(/@item\.level/g, String(ctx.rank)).replace(/\(?ceil\(([^)]*)\)\)?/g, (all, inner) => String(Math.ceil(Function(`return (${inner.replace(/[^\d+\-*/(). ]/g, "")})`)())));
@@ -662,19 +703,33 @@ READERS["sustained-save-damage"] = (ctx) => {
 
 READERS["lantern-aura"] = (ctx) => {
     // (Infinitesimal Collapse Field, Pied Piping: an aura about the caster — every foe in it at 30 feet or more, else those its size holds
-    // bunched — its save each round the fight lasts while it does, the conditions of each row at their engine worth for a round. A light
-    // that grows, healing halved: not counted.)
+    // bunched — its save each round the fight lasts while it does, the conditions of each row at their engine worth for a round. Reaper's
+    // Lantern: its failure's condition on undead, while they stay in it — living foes' healing halved, not counted. Repulsion: its save
+    // once as they come — on a failure they can't come closer to the caster through it, on a success its squares are difficult terrain
+    // on the way: the Strikes they lose on the way, at its best the party about the caster (a foe with a ranged Strike, a third: it
+    // shoots past it).)
     const aura = ctx.entry.plan.resolution.lanternAura ?? {};
     const rows = aura.rows ?? {};
-    if (!Object.keys(rows).length) return null;
     const lasts = lastsRounds(aura.durationSeconds, ctx.rounds);
     const round = { mode: "fixed", value: 1, unit: "rounds" };
     const rowWorth = (row) => (row?.conditions ?? []).reduce((sum, condition) => sum + conditionWorth(condition.slug, Number.isFinite(Number(condition.value)) && condition.value !== null ? Number(condition.value) : null, round), 0);
-    const foes = Number(aura.radius) >= 30 ? ctx.enemies : caught(ctx.enemies, { type: "emanation", value: Number(aura.radius) || 5 });
+    const radius = Number(aura.radius) || 5;
+    const foes = radius >= 30 ? ctx.enemies : caught(ctx.enemies, { type: "emanation", value: radius });
+    const undead = aura.failed?.undead?.condition ? aura.failed.undead : null;
+    const blocks = /can't move closer/i.test(JSON.stringify(rows.failure ?? {}));
+    const slows = /difficult terrain/i.test(JSON.stringify(rows.success ?? {}));
     const entries = foes.map((foe) => {
-        const [critFail, fail, success, critical] = degreeDistribution(saveModifier(foe, aura.statistic ?? "will"), Number(ctx.entry.dc) || 10);
-        const worth = critical * rowWorth(rows.criticalSuccess) + success * rowWorth(rows.success) + fail * rowWorth(rows.failure) + critFail * rowWorth(rows.criticalFailure ?? rows.failure);
-        return { target: foe, damage: 0, worth: worth * lasts, heal: 0, benefit: 0 };
+        const odds = degreeDistribution(saveModifier(foe, aura.statistic ?? "will"), Number(ctx.entry.dc) || 10);
+        const [critFail, fail, success, critical] = odds;
+        let worth = (critical * rowWorth(rows.criticalSuccess) + success * rowWorth(rows.success) + fail * rowWorth(rows.failure) + critFail * rowWorth(rows.criticalFailure ?? rows.failure)) * lasts;
+        if (undead && (foe.traits ?? []).includes("undead")) worth += (critFail + fail) * conditionWorth(undead.condition, Number(undead.value) || 1, null) * lasts;
+        if (blocks || slows) {
+            const ranged = (foe.strikes ?? []).some((strike) => !strike.melee) ? 1 / 3 : 1;
+            const held = blocks ? approachLoss(foe, { inside: radius, held: { start: 1, escape: [1, 0, 0, 0] } }, lasts).worth : 0;
+            const slowed = slows ? approachLoss(foe, { inside: radius, difficult: true }, lasts).worth : 0;
+            worth += ranged * ((critFail + fail) * held + success * slowed);
+        }
+        return { target: foe, damage: 0, worth, heal: 0, benefit: 0 };
     }).filter((entry) => entry.worth > 0);
     return entries.length ? { entries, targets: entries.length } : null;
 };
@@ -1229,6 +1284,88 @@ READERS["weapon-imbue"] = (ctx) => {
     return entries.length ? { entries: entries.slice(0, 1), targets: 1 } : null;
 };
 
+// The party's Strikes on a foe made better (a bonus to hit, extra damage on a hit) for `rounds` rounds: each one's best, two a round.
+function partyStrikeGain(ctx, foe, better, rounds) {
+    let gain = 0;
+    for (const ally of ctx.allies) {
+        const strike = (ally.strikes ?? []).filter((each) => each.damage?.length).sort((a, b) => strikeOn(ally, b, foe) - strikeOn(ally, a, foe))[0];
+        if (strike) for (const attacks of [0, 1]) gain += strikeOn(ally, strike, foe, { attacks, ...better }) - strikeOn(ally, strike, foe, { attacks });
+    }
+    return gain * rounds;
+}
+
+// What concealment on a creature keeps off it over `lasts` rounds: a fifth of the foes' hits (the DC 5 flat check), its share of them.
+const concealedSaved = (ctx, creature, lasts) => ctx.enemies.reduce((sum, foe) => sum + 0.2 * strikeDamageOn(foe, Number(creature.ac) || 15), 0) * lasts / Math.max(1, ctx.allies.length);
+
+READERS["healing-pulse"] = (ctx) => {
+    // (Garden of Healing: its pulse as cast and each round it's Sustained, on the allies in its emanation — at its best, as many as it
+    // holds — a die more each rank.)
+    const pulse = ctx.entry.plan.resolution.healingPulse ?? {};
+    const none = { immunities: [], resistances: [], weaknesses: [] };
+    const steps = pulse.heightening?.interval ? Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / Number(pulse.heightening.interval)) : 0;
+    const each = averageOn(none, String(pulse.formula ?? "1d4")) + steps * averageOn(none, String(pulse.heightening?.dice ?? "0"));
+    const allies = caught(ctx.allies, pulse.area ?? { type: "emanation", value: 10 });
+    return each > 0 ? { entries: healEntries(allies, each * lastsRounds(pulse.durationSeconds, ctx.rounds)), targets: allies.length } : null;
+};
+
+READERS["rally-banner"] = (ctx) => {
+    // (Rallying Banner: its status bonus to the party's attack rolls while it lasts — two Strikes a round each, spread over the foes; to
+    // saves against fear, not counted.)
+    const banner = ctx.entry.plan.resolution.rallyBanner ?? {};
+    const bonus = Math.max(0, ...(banner.member?.rules ?? []).filter((rule) => rule.key === "FlatModifier" && rule.selector === "attack-roll" && !rule.predicate).map((rule) => Number(rule.value) || 0));
+    const foe = ctx.enemies[0];
+    if (!(bonus > 0) || !foe) return null;
+    const entries = spreadDamage(ctx.enemies, partyStrikeGain(ctx, foe, { bonus }, lastsRounds(banner.durationSeconds, ctx.rounds)));
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
+READERS["brand-mark"] = (ctx) => {
+    // (Celestial Brand: on the toughest foe of the trait it names, the party's status bonus to hit it for the spell's round; a holy
+    // creature's spirit damage on it, not counted (the party has none).)
+    const brand = ctx.entry.plan.resolution.brandMark ?? {};
+    const foe = toughest(ctx.enemies.filter((enemy) => !brand.targetTrait || (enemy.traits ?? []).includes(brand.targetTrait)));
+    if (!foe) return null;
+    const damage = partyStrikeGain(ctx, foe, { bonus: 1 }, 1);
+    return damage > 0 ? { entries: [{ target: foe, damage, worth: 0, heal: 0, benefit: 0 }], targets: 1 } : null;
+};
+
+READERS["sacrifice-heal"] = (ctx) => {
+    // (Shepherd of Souls: the most it lets the caster give — more as it heightens — off a big hit on an ally, twice that, the caster's own
+    // Hit Points given taken off: at its best, the hit as big as that.)
+    const sacrifice = ctx.entry.plan.resolution.sacrificeHeal ?? {};
+    const most = (Number(sacrifice.max) || 0) + Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / (Number(sacrifice.step?.interval) || 2)) * (Number(sacrifice.step?.add) || 0);
+    const kept = ((Number(sacrifice.multiplier) || 2) - 1) * most;
+    const ally = ctx.allies.find((each) => each !== ctx.caster) ?? ctx.caster;
+    return kept > 0 ? { entries: healEntries([ally], kept), targets: 1 } : null;
+};
+
+READERS["bloom-area"] = (ctx) => {
+    // (Life's Fresh Bloom: its healing for the allies in it each turn they start there — at its best, all it holds — while it lasts; on the
+    // undead foes in it, its Fortitude save, sickened.)
+    const bloom = ctx.entry.plan.resolution.bloom ?? {};
+    const step = (bloom.byRank ?? []).filter((each) => ctx.rank >= Number(each.rank)).at(-1);
+    if (!step) return null;
+    const lasts = lastsRounds(bloom.seconds, ctx.rounds);
+    const area = { type: ctx.entry.doc?.system?.area?.type ?? "burst", value: Number(ctx.entry.doc?.system?.area?.value) || 20 };
+    const heal = averageOn({ immunities: [], resistances: [], weaknesses: [] }, String(step.heal ?? "1d6"));
+    const harmed = ctx.enemies.filter((foe) => (bloom.harmedTraits ?? []).some((trait) => (foe.traits ?? []).includes(trait)));
+    const hurt = caught(harmed, area, ctx.choke).map((foe) => {
+        const [critFail, fail] = degreeDistribution(saveModifier(foe, bloom.statistic ?? "fortitude"), Number(ctx.entry.dc) || 10);
+        return { target: foe, damage: 0, worth: (critFail + fail) * conditionWorth(bloom.condition?.slug ?? "sickened", Number(step.value) || 1, null), heal: 0, benefit: 0 };
+    });
+    const allies = caught(ctx.allies, area);
+    const entries = [...healEntries(allies, heal * lasts), ...hurt];
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
+READERS["self-pulse"] = (ctx) => {
+    // (Gloom Mantle: concealed as cast and each round it's Sustained — the foes' hits on the caster it keeps off, while it lasts.)
+    const pulse = ctx.entry.plan.resolution.selfPulse ?? {};
+    if (pulse.condition?.slug !== "concealed") return null;
+    const kept = concealedSaved(ctx, ctx.caster, lastsRounds(pulse.durationSeconds, ctx.rounds));
+    return kept > 0 ? { entries: healEntries([ctx.caster], kept), targets: 1 } : null;
+};
+
 READERS["stored-burst"] = (ctx) => {
     // (Reflective Scales: its resistance to the foes' hits on the caster — at its best, of the type they deal — over the fight, the damage
     // it prevents; then its burst about the caster (the foes in it, at its best), a die for each 10 prevented up to its most, a basic save.)
@@ -1280,7 +1417,7 @@ function ruleEntries(ctx, rules, lasts, scale) {
     let kept = 0;
     let dealt = 0;
     for (const rule of rules) {
-        if (rule.key === "GrantItem" && rule.uuid === CONCEALED) kept += ctx.enemies.reduce((sum, foe) => sum + 0.2 * strikeDamageOn(foe, ac), 0) * lasts / side;
+        if (rule.key === "GrantItem" && rule.uuid === CONCEALED) kept += concealedSaved(ctx, caster, lasts);
         if (rule.key === "Resistance" && value(rule) > 0) {
             for (const foe of ctx.enemies) {
                 const { hits, damage, types = [] } = hitsOn(foe, ac);
