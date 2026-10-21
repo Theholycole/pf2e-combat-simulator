@@ -14,7 +14,7 @@ import { markParts, toggleWays } from "../src/engine/toggles.js";
 import { zoneSpell } from "../src/engine/zones.js";
 import { strikeIwr, versatileTypes } from "../src/engine/damage.js";
 import { immunityExceptions } from "../src/engine/immunities.js";
-import { MAP_KINDS, readMapFeet, readRegionFeet, regionToRegions, roundsHeld } from "./map.js";
+import { MAP_KINDS, readMapFeet, readRegionFeet, readSceneGrid, regionToRegions, roundsHeld } from "./map.js";
 import { hazardSpec } from "./hazards.js";
 import { asReserve, bestOption, bestPick, reserveCount, spellSummonEntry, summonEntries as spellSummons } from "../src/engine/summons.js";
 import { HEX_FAMILIARS } from "../src/engine/familiars.js";
@@ -1898,6 +1898,14 @@ export async function buildSnapshot(entries, { setup = {}, overrides = {}, fresh
         snapshot.setup = { ...setup, objective };
     }
     if (setup.escalations?.rules?.length || combatants.some((c) => c.alarm)) readEscalations(snapshot, placed, combat);
+    // (2026-10-21: the square grid — a layout, or the scene's walls, Regions and token squares; a scene without a square grid stays on
+    // the range bands.)
+    if (setup.grid) {
+        const scene = combat?.scene ?? placed.find((entry) => entry.token?.parent)?.token.parent ?? canvas?.scene;
+        const grid = setup.grid === "scene" ? readSceneGrid(scene, placed) : { layout: setup.grid };
+        snapshot.setup = { ...snapshot.setup, grid };
+        if (!grid) ui?.notifications?.warn?.("Combat Simulator: this scene has no square grid — the fights run on the range bands.");
+    }
     const pcs = combatants.filter((c) => c.kind === "pc");
     if (pcs.length) snapshot.partyLevel = Math.round(pcs.reduce((sum, c) => sum + c.level, 0) / pcs.length);
     if (combat && combat.started && combat.round > 0) {

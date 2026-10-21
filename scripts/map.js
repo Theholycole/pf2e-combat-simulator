@@ -2,7 +2,7 @@
 // Regions; each creature's distance to them is measured from its token, and
 // in live play the active GM counts the rounds the party holds the area.
 
-import { edgeFeet, heldRounds, nearestFeet, recordRound, squareFeet } from "../src/adapter/map.js";
+import { edgeFeet, heldRounds, nearestFeet, recordRound, sceneGrid, squareFeet } from "../src/adapter/map.js";
 import { MODULE_ID, readFlag, savedSetup, sideOf } from "./snapshot.js";
 
 export const MAP_KINDS = new Set(["hold", "escort", "retrieve"]);
@@ -126,4 +126,35 @@ export function setUpMapTracking() {
     Hooks.on("updateCombat", (combat, changed) => {
         trackRound(combat, changed).catch((error) => console.error(`${MODULE_ID} | map objective tracking`, error));
     });
+}
+
+// The scene as a grid for a fight (2026-10-21): its square grid's squares within the scene, the walls that stop movement (a door only when
+// shut), its Regions' movement costs ("Modify Movement Cost": walking 2 is difficult terrain, 3 greater), and each placed creature's square
+// from its token. null without a square grid.
+export function readSceneGrid(scene, placed) {
+    const grid = scene?.grid;
+    const dimensions = scene?.dimensions;
+    if (!grid || grid.isGridless || !grid.isSquare || !dimensions) return null;
+    const size = dimensions.size ?? grid.size;
+    const origin = grid.getOffset({ x: dimensions.sceneX + 1, y: dimensions.sceneY + 1 });
+    const frame = { size, x: dimensions.sceneX, y: dimensions.sceneY, width: Math.ceil(dimensions.sceneWidth / size), height: Math.ceil(dimensions.sceneHeight / size) };
+    const squareOf = ({ i, j }) => [j - origin.j, i - origin.i];
+    const none = CONST.WALL_MOVEMENT_TYPES?.NONE ?? 0;
+    const open = CONST.WALL_DOOR_STATES?.OPEN ?? 1;
+    const segments = (scene.walls?.contents ?? []).filter((wall) => wall.move !== none && !(wall.door && wall.ds === open)).map((wall) => wall.c);
+    const difficult = [];
+    for (const region of scene.regions?.contents ?? []) {
+        for (const behavior of region.behaviors?.contents ?? []) {
+            if (behavior.type !== "modifyMovementCost" || behavior.disabled) continue;
+            const factor = Number(behavior.system?.difficulties?.walk ?? 1);
+            if (factor > 1) difficult.push({ squares: (regionSquares(scene, region.id) ?? []).map(squareOf), factor });
+        }
+    }
+    const tokens = {};
+    for (const { combatant, token } of placed) {
+        const document = token?.document ?? token;
+        if (!document || document.parent !== scene) continue;
+        tokens[combatant.id] = { square: squareOf(grid.getOffset({ x: document.x + 1, y: document.y + 1 })), side: combatant.side };
+    }
+    return sceneGrid({ frame, segments, difficult, tokens });
 }

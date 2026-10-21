@@ -73,3 +73,17 @@ test("a wall between: no line of effect for a ranged Strike's planning; whole fi
         assert.ok(result.outcome, layout);
     }
 });
+
+test("a scene as a grid: its walls between squares, a shut door's too; difficult regions; tokens' squares and spawns about them", async () => {
+    const { sceneGrid, wallEdges } = await import("../src/adapter/map.js");
+    const frame = { size: 100, x: 0, y: 0, width: 4, height: 3 };
+    // A wall along the line x = 200 (between columns 1 and 2), from y 0 to 200: rows 0 and 1.
+    assert.deepEqual(wallEdges([[200, 0, 200, 200]], frame).sort(), ["1,0|2,0", "1,1|2,1"]);
+    const grid = sceneGrid({ frame, segments: [[200, 0, 200, 200]], difficult: [{ squares: [[3, 2]], factor: 2 }], tokens: { p: { square: [0, 2], side: "party" }, x: { square: [3, 0], side: "foes" } } });
+    assert.deepEqual([grid.map.width, grid.map.height, grid.map.difficult], [4, 3, { "3,2": 2 }]);
+    assert.deepEqual(grid.squares, { p: [0, 2], x: [3, 0] });
+    assert.equal(grid.map.spawns.party[0], "0,2");
+    const state = fight([pc("p"), foe("x")], grid);
+    assert.equal(gridStrides(state, state.byId.get("x"), state.byId.get("p")) >= 1, true);
+    assert.deepEqual(state.byId.get("x").square, [3, 0]);
+});

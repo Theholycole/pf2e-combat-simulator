@@ -12,6 +12,7 @@ const ACTIVE_BANDS = new Set(["engaged", "near", "far"]);
 // A grid spec (a run's option): { layout: "open" | "corridor" | "doorway" | "bridge" } or { map: { width, height, blocked, walls,
 // difficult, spawns }, squares: { "<id>": [x, y] } } (a Foundry scene's). Sets and Maps from arrays where it came as JSON.
 export function gridMap(spec) {
+    if (typeof spec === "string") spec = spec === "scene" ? null : { layout: spec };
     if (!spec) return null;
     const base = spec.map ?? layout(spec.layout ?? "open");
     return {
@@ -33,6 +34,7 @@ const frontFirst = (list) => [...list].sort((a, b) => Number(Boolean(b.strikes?.
 export function setUpGrid(state, spec) {
     const map = gridMap(spec);
     if (!map) return;
+    if (typeof spec === "string") spec = { layout: spec };
     state.grid = map;
     state.gridVersion = 0;
     const given = spec.squares ?? {};
@@ -214,7 +216,8 @@ export function threatenedAlong(state, c, way) {
 
 // A Stride on the grid: { end, way } of the move, or null when it can't go. kind "engage"/"approach" (toward a creature until it
 // reaches it, as far as its Speed takes it — flanking it with an ally when that costs no more), "toNear" (out of every foe's reach, 15
-// to 30 feet from the nearest when it can, as little moving as will do), "toFar" (as far from the foes as it gets).
+// to 30 feet from the nearest — from further off, as close to 30 feet as it gets — as little moving as will do), "toFar" (as far from
+// the foes as it gets).
 export function planStride(state, c, move, feet = Math.max(5, c.speed ?? 25)) {
     if (!state.grid || !c.square) return null;
     const found = reachFrom(state, c);
@@ -235,7 +238,8 @@ export function planStride(state, c, move, feet = Math.max(5, c.speed ?? 25)) {
         const at = { ...c, square: squareOf(place) };
         if (foes.some((foe) => reaches(foe, at))) continue;
         const gap = nearest(at);
-        const score = move.kind === "toFar" ? gap * 10 - entry.cost : (Math.min(gap, 30) >= 15 ? 1000 : Math.min(gap, 30) * 10) - entry.cost;
+        // (Near: 15 to 30 feet from the nearest foe — from further off, as close to 30 as it gets; away: as far as it gets.)
+        const score = move.kind === "toFar" ? gap * 10 - entry.cost : gap > 30 ? 1000 - (gap - 30) * 10 - entry.cost : gap >= 15 ? 2000 - entry.cost : gap * 10 - entry.cost;
         if (!best || score > best.score) best = { place, score };
     }
     return best ? along(found, best.place, feet) : null;
@@ -397,4 +401,11 @@ export function forcedMove(state, c, source, way, feet) {
     c.square = at;
     regroup(state);
     return moved;
+}
+
+// Whether a Stride of that kind takes a creature anywhere on the grid (true off the grid: the bands' moves always do).
+export function strideGoes(state, c, move) {
+    if (!state.grid || !c.square) return true;
+    const plan = planStride(state, c, move);
+    return Boolean(plan?.end) && plan.end !== c.square.join(",");
 }

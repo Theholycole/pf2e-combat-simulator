@@ -14,7 +14,7 @@ import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from 
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, flankChance, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
-import { gridFlanked, gridStrides, planStride } from "./grid-fight.js";
+import { gridFlanked, gridStrides, planStride, strideGoes } from "./grid-fight.js";
 import { distanceFeet, reaches as gridReaches, sightLine, squareOf } from "./grid.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
@@ -335,6 +335,12 @@ class PlanContext {
         if (pos.at) return pos.at;
         const target = pos.melee === "new" ? this.state.byId.get(pos.newWith) : pos.melee !== null ? this.enemies.find((enemy) => enemy.meleeId === pos.melee) : null;
         return { square: target?.square ?? this.c.square, size: this.c.size, reach: this.c.reach };
+    }
+
+    // Whether a Stride of that kind goes anywhere from a position (on the grid: only where its square is known, and a way leads off it).
+    strideGoes(pos, kind) {
+        if (!this.state.grid || !this.c.square) return true;
+        return Boolean(pos.at) && strideGoes(this.state, { ...this.c, square: pos.at.square }, { kind });
     }
 
     // Strides from a position to reach a creature: the grid's paths there, else the bands' count.
@@ -819,12 +825,12 @@ function expand(ctx, node, actionsLeft) {
         if (stepOk) children.push(child(node, { type: "step" }, 1, 0, { pos: ctx.away(node, "near"), moved: true }));
         // Swift Leap, Jet (B70): away without provoking, where a Step can't go.
         else if (c.safeMove && c.safeMove.actions <= remaining && realMelee && !((c.safeMoveUntil ?? -Infinity) > (c.round ?? 0))) children.push(child(node, { type: "safeMove", actions: c.safeMove.actions }, c.safeMove.actions, 0, { pos: ctx.away(node, "near"), moved: true }));
-        else {
+        else if (ctx.strideGoes(node.pos, "toNear")) {
             const next = child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: ctx.away(node, "near"), moved: true });
             next.value -= ctx.moveLoss(node.pos, next, "toNear");
             children.push(next);
         }
-    } else if (node.pos.band === "near") {
+    } else if (node.pos.band === "near" && ctx.strideGoes(node.pos, "toFar")) {
         children.push(child(node, { type: "stride", move: { kind: "toFar" } }, 1, 0, { pos: ctx.away(node, "far"), moved: true }));
     }
     return children;
@@ -1656,7 +1662,7 @@ function expandTactics(env) {
             if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
             children.push(next);
         }
-        if (node.pos.band === "far") {
+        if (node.pos.band === "far" && ctx.strideGoes(node.pos, "toNear")) {
             children.push(child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: ctx.away(node, "near") }));
         }
     }
