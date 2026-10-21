@@ -141,8 +141,15 @@ const READINGS = {
     "concealing-area": "the party concealed as the foes come, or its damage on them",
     targets: "cast on the creatures its words name (a reaction's on its trigger, an ally's on an ally), as an action",
     "effect-note": "its PF2e spell effect on its target",
-    incarnate: "its phases (its arrival, what follows, its departure) at their best targets, the best of its options"
+    incarnate: "its phases (its arrival, what follows, its departure) at their best targets, the best of its options",
+    "level-tiers": "what it does by the target's level (death, damage, stunned or blinded for its rounds)",
+    "repeat-save": "its save as it is cast, then each Sustain against a new foe",
+    retaliation: "the damage it pays back for each melee hit the creature it protects takes",
+    "sustained-save-damage": "its save damage each round it's Sustained",
+    "lantern-aura": "its save on the foes in its aura each round, their conditions",
+    "stated-effect": "its own rules as an effect on its recipient"
 };
+const ESTIMATE_MORE = { "battle form": "the caster in its best form, its Strikes in place of its spells, its temporary Hit Points and AC" };
 
 const ordinal = (n) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
 const levels = (value) => `${Math.abs(Math.round(value * 10) / 10).toFixed(1)} level${Math.abs(Math.round(value * 10) / 10) === 1 ? "" : "s"}`;
@@ -173,7 +180,7 @@ export function powerTooltip(value, data, bound = null, detail = null) {
     const minion = detail?.minion ? " Cast on a minion of the caster's already out." : "";
     const allies = detail?.alliesHit ? " Its area catches allies near the caster: their Hit Points count against it." : "";
     const reading = /^reading \((.+)\)$/.exec(String(detail?.estimate ?? ""))?.[1];
-    const estimate = reading ? ` ~ Read for the rating, as fights don't cast it yet: ${READINGS[reading] ?? "its effect, as the simulator reads it"}.` : detail?.estimate ? ` ~ Estimated by a rule of thumb, as the simulator doesn't play it: ${ESTIMATES[detail.estimate] ?? detail.estimate}.` : "";
+    const estimate = reading ? ` ~ Read for the rating, as fights don't cast it yet: ${READINGS[reading] ?? "its effect, as the simulator reads it"}.` : detail?.estimate ? ` ~ Estimated by a rule of thumb, as the simulator doesn't play it: ${ESTIMATES[detail.estimate] ?? ESTIMATE_MORE[detail.estimate] ?? detail.estimate}.` : "";
     const partial = detail?.partial ? " Partly simulated: the simulator doesn't play all of it." : "";
     return `Power for its rank: ${how} (Combat Simulator${run ? `, ${run}` : ""}).${fights}${note}${creature}${higher}${useful}${less}${minion}${allies}${estimate}${partial}`;
 }

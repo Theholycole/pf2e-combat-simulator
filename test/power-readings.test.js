@@ -109,3 +109,25 @@ test("an incarnate spell: its phases added up, the best of its options; phases a
     const rolled = readingPower(party, powerFoes("group", 9), incarnate({ phases: [{ key: "roll", die: 2, table: { 1: "hot" } }, { key: "hot", hidden: true, plan: save("reflex", "6d6") }] }));
     assert.ok(Math.abs(rolled.share - one.share / 2) < 0.02, `a face in two: half (${rolled.share} vs ${one.share})`);
 });
+
+test("a battle form: its bracket for the rank over its overrides; the wizard in it worth its Strikes over its cantrips", async () => {
+    const { battleFormAt } = await import("../src/engine/effects.js");
+    const { formAC, formShare } = await import("../src/engine/spell-power.js");
+    const rule = { key: "BattleForm", overrides: { strikes: { jaws: { damage: { dice: 2, die: "d8", damageType: "piercing" }, traits: ["unarmed"] } }, speeds: { land: 30 } },
+        brackets: [{ start: 2, value: { armorClass: { modifier: "16 + @actor.level" }, strikes: { jaws: { damage: { modifier: 1 }, modifier: 9 } }, tempHP: 5 } }, { start: 3, value: { armorClass: { modifier: "17 + @actor.level" }, strikes: { jaws: { damage: { modifier: 5 }, modifier: 14 } }, tempHP: 10 } }] };
+    const at2 = battleFormAt(rule, 2);
+    assert.deepEqual([at2.strikes[0].bonus, at2.strikes[0].dice, at2.strikes[0].die, at2.strikes[0].damageBonus, at2.tempHp, at2.speed], [9, 2, 8, 1, 5, 30]);
+    assert.equal(battleFormAt(rule, 4).strikes[0].bonus, 14, "the highest bracket it reaches");
+    assert.equal(formAC(at2, 3), 19);
+    const form = formShare(standardParty(5), powerFoes("group", 5), battleFormAt(rule, 3));
+    assert.ok(form && form.share > 0);
+});
+
+test("Power Words by the target's level: death at the low tier (level 13 foes), 50 damage at the high (a level 17 boss)", () => {
+    const kill = plan("level-tiers", { levelTiers: { tiers: [{ min: null, max: 14, outcome: { kind: "death" } }, { min: 15, max: null, outcome: { kind: "damage-or-death", amount: 50 } }], baseRank: 9 } }, null);
+    kill.targeting = { target: "1 creature", range: "30 feet", area: null };
+    const low = readingPower(standardParty(15), powerFoes("group", 15), entry(9, kill));
+    const high = readingPower(standardParty(15), powerFoes("boss", 15), entry(9, kill));
+    assert.ok(Math.abs(low.share - 0.25) < 1e-9, "one of four foes gone");
+    assert.ok(high.share > 0 && high.share < 0.25, "50 of the boss's Hit Points");
+});

@@ -4,9 +4,10 @@ import fs from "node:fs";
 const { readDocuments, PACK_ROOT, combatant, summonCandidates } = await import("./pack-creatures.mjs");
 const { compileSpell, effectModels } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
-const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, readingPower, textDamageShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
+const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, formShare, readingPower, textDamageShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
 const { castableReading, powerReading } = await import("../../src/engine/power-readings.js");
+const { battleFormAt, effectModel } = await import("../../src/engine/effects.js");
 const { SUMMON_LEVELS, spellSummonEntry } = await import("../../src/engine/summons.js");
 const { canCast, describeSpell, isUtility, spellGaps } = await import("../../src/engine/spells.js");
 
@@ -274,6 +275,14 @@ export function runPowerTask(task) {
     // (A summon: its best creature's worth.)
     const summoned = summonResults(doc, plan, rank, party, level);
     if (summoned) return { ...head, ...summoned, summon: true };
+    // (A battle form: the wizard in the best form it offers.)
+    // (Its effects' BattleForm rules, or those a generated form carries itself — Avatar's.)
+    const generated = (plan.resolution?.generatedForm?.rules ?? []).filter((rule) => rule?.key === "BattleForm").map((rule) => battleFormAt(rule, rank));
+    const forms = [...Object.values(entry.effects ?? {}).flatMap((model) => model?.battleForms ?? []), ...generated].filter((form) => form?.strikes?.length);
+    if (forms.length) {
+        const best = (foes) => forms.map((form) => formShare(party, foes, form)).filter(Boolean).sort((a, b) => b.share - a.share)[0] ?? null;
+        return { ...head, traits: [], results: resultsOf([], best, level), estimate: "battle form" };
+    }
     // (A wall, a shield: estimated.)
     const estimated = estimateResults(plan, entry, doc, rank, party, level);
     if (estimated && Object.keys(estimated.results).length) return { ...head, ...estimated };
@@ -281,9 +290,26 @@ export function runPowerTask(task) {
     const own = OWN_CREATURE.test(String(doc.system?.target?.value ?? ""));
     const minion = own ? minionFor(doc, rank, level) : null;
     if (own && !minion) return { ...head, skipped: true, reason: "a familiar's" };
+    // (A stated effect — its own PF2e rules, or a choice of them: an effect model of each, applied to its recipient as an effect's; the
+    // best of its choices.)
+    const stated = plan.resolution?.kind === "stated-effect" ? plan.resolution.statedEffect : null;
+    if (stated) {
+        const ways = (stated.choice?.options?.length ? stated.choice.options.map((option) => [...(stated.rules ?? []), ...(option.rules ?? [])]) : [stated.rules ?? []]).filter((rules) => rules.length);
+        const uuid = `stated:${ref.ref}`;
+        const self = stated.recipient === "self";
+        const casts = ways.map((rules) => {
+            const model = effectModel({ name: doc.name, system: { rules: rules.map((rule) => ({ ...rule, predicate: (rule.predicate ?? []).filter((term) => !/^(chorus-form|plant|[a-z-]+-form)$/.test(term)) })), duration: { value: Math.max(1, Math.round((Number(stated.seconds) || 60) / 6)), unit: "rounds" } } }, { rank });
+            const read = { ...entry, effects: { ...entry.effects, [uuid]: model }, plan: { ...plan, targeting: { ...(plan.targeting ?? {}), target: self ? "self" : plan.targeting?.target || "1 willing creature" }, resolution: { kind: "effect", applications: [{ kind: "native-spell-effect", uuid, label: doc.name, recipients: self ? "self" : "target" }] } } };
+            return canCast({ spellPools: { [RATED_POOL]: 1 } }, read) ? read : null;
+        }).filter(Boolean);
+        if (casts.length) {
+            const best = (foes) => casts.map((read) => castPower(party, foes, read)).filter(Boolean).sort((a, b) => b.share - a.share)[0] ?? null;
+            return { ...head, traits: [], results: resultsOf([], best, level), estimate: "reading (stated-effect)" };
+        }
+    }
     // (One the engine can't cast in a fight only for how its time or targets are written: cast as the rating reads it.)
     const castable = canCast({ spellPools: { [RATED_POOL]: 1 } }, entry);
-    const rewritten = !castable && !isUtility(plan) ? castableReading(plan, doc) : null;
+    const rewritten = !castable && !isUtility(plan) ? castableReading(plan, doc, rank) : null;
     if (rewritten && canCast({ spellPools: { [RATED_POOL]: 1 } }, { ...entry, plan: rewritten })) {
         const read = { ...entry, plan: rewritten };
         const traits = powerConditions(rewritten);

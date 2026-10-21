@@ -189,6 +189,15 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
             else if (rule.value && typeof rule.value === "object") model.spellShield.ac = Number(rule.value.ac) || 1;
             continue;
         }
+        // (2026-10-21: a battle form, read for the spell ratings — the fight engine doesn't put creatures in battle forms yet. One per
+        // choice the spell gives — an element, a demon, a dinosaur —, each its own: battleForms; the first, battleForm.)
+        if (rule.key === "BattleForm") {
+            unsupported.add(rule.key);
+            const form = battleFormAt(rule, rank);
+            (model.battleForms ??= []).push(form);
+            model.battleForm ??= form;
+            continue;
+        }
         const holds = predicateHolds(rule.predicate, rank);
         if (holds === false) continue;
         // (2026-10-15: a predicate the roll can settle — kept with the rule; another, reported when the rule is about a fight.)
@@ -283,6 +292,31 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
     }
     model.unsupported = [...unsupported];
     return model;
+}
+
+// A BattleForm rule at a rank: its bracket for the rank (the highest it reaches) over its overrides — { ac (a number, or PF2e's formula
+// with @actor.level), strikes: [{ name, bonus, dice, die, damageBonus, type, melee, traits }], tempHp, size, speed }.
+export function battleFormAt(rule, rank = 1) {
+    const brackets = (rule?.brackets ?? []).filter((bracket) => (Number(bracket.start) || 0) <= rank).sort((a, b) => (Number(a.start) || 0) - (Number(b.start) || 0));
+    const value = brackets.length ? brackets.at(-1).value ?? {} : rule?.value && typeof rule.value === "object" ? rule.value : {};
+    const base = rule?.overrides ?? {};
+    const names = new Set([...Object.keys(base.strikes ?? {}), ...Object.keys(value.strikes ?? {})]);
+    const strikes = [];
+    for (const name of names) {
+        const merged = { ...(base.strikes?.[name] ?? {}), ...(value.strikes?.[name] ?? {}) };
+        const damage = { ...(base.strikes?.[name]?.damage ?? {}), ...(value.strikes?.[name]?.damage ?? {}) };
+        const bonus = Number(merged.modifier);
+        if (!Number.isFinite(bonus)) continue;
+        const traits = merged.traits ?? base.strikes?.[name]?.traits ?? [];
+        strikes.push({ name, bonus, dice: Number(damage.dice) || 1, die: Number(String(damage.die ?? "d6").replace(/^d/, "")) || 6, damageBonus: Number(damage.modifier) || 0, type: damage.damageType ?? "bludgeoning", melee: !traits.some((trait) => /^range|^thrown/.test(trait)), traits });
+    }
+    return {
+        ac: value.armorClass?.modifier ?? base.armorClass?.modifier ?? null,
+        strikes,
+        tempHp: Number(value.tempHP ?? base.tempHP) || 0,
+        size: value.size ?? base.size ?? null,
+        speed: Number(value.speeds?.land ?? base.speeds?.land) || null
+    };
 }
 
 // --- Applying models -----------------------------------------------------------

@@ -9,7 +9,7 @@ import { DISTANCE_FEET } from "./space.js";
 import { degreeDistribution } from "./checks.js";
 import { saveModifier } from "./combatant.js";
 import { adjustDamage, spellContext } from "./damage.js";
-import { areaCapacity, canCast, skillValue, spellExpectation, spellVariants, targetSets } from "./spells.js";
+import { areaCapacity, canCast, conditionWorth, skillValue, spellExpectation, spellVariants, targetSets } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 // A round's Strikes as the planner's threat weighs them: the third at half.
@@ -239,9 +239,10 @@ const READERS = {
 // "the triggering ally", "up to 6 allies") as willing creatures, an area its data or its text gives ("@Template[burst|distance:10]"), no
 // target at all as 1 creature for a save, else the caster; a weapon's ("one club or staff you're wielding") as its wielder's. An effect
 // note's PF2e effect (effect-note) applied as the effect family applies one. Left alone (null): a spell cast in minutes or longer, and
-// targets that aren't creatures (an object, a stone, a spell). doc: the spell's data ({ system: { time, area, description } }).
+// targets that aren't creatures (an object, a stone, a spell). An effect variant's effect for the rank cast at (rank). doc: the spell's
+// data ({ system: { time, area, description } }).
 const TEMPLATE = /@Template\[(?:type:)?(burst|cone|line|emanation|cylinder|square)\|distance:(\d+)/i;
-export function castableReading(plan, doc) {
+export function castableReading(plan, doc, rank = Number(plan?.rank) || 1) {
     if (!plan?.resolution) return null;
     const time = String(doc?.system?.time?.value ?? plan.activation?.time ?? "").trim().toLowerCase();
     if (/minute|hour|day/.test(time)) return null;
@@ -263,9 +264,13 @@ export function castableReading(plan, doc) {
         if (docArea) targeting.area = docArea;
         else targeting.target = plan.resolution.kind === "save" ? "1 creature" : "self";
     } else if (target && !/creature|enem|foe|target/.test(target)) return null;
+    // (An effect variant — Tailwind's, Iron Gut's: the PF2e effect for the cast rank, applied as an effect's.)
+    const branch = plan.resolution.kind === "effect-variant" ? (plan.resolution.selector?.branches ?? []).find((each) => (Number(each.minRank) || 0) <= rank && (each.maxRank === null || each.maxRank === undefined || rank <= Number(each.maxRank))) : null;
+    const toSelf = (plan.resolution.selector?.recipientBranches ?? []).some((each) => each.actor === "source");
     let resolution = plan.resolution.kind === "effect-note" && plan.resolution.effectNote?.effect?.uuid
         ? { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: plan.resolution.effectNote.effect.uuid, label: plan.resolution.effectNote.effect.label ?? null, recipients: plan.resolution.effectNote.recipient === "self" ? "self" : "target" }] }
-        : plan.resolution;
+        : branch?.effectUuid ? { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: branch.effectUuid, label: null, recipients: toSelf ? "self" : "target" }] }
+            : plan.resolution;
     // (Its action counts' areas without their shape — Disorienting Flash's "10 feet" for two actions —: the shape its data gives.)
     const byActions = resolution.native?.byActions;
     const shape = targeting.area?.type ?? docArea?.type;
@@ -350,6 +355,144 @@ READERS.incarnate = (ctx) => {
         return { entries, targets: entries.length };
     }).filter((option) => option.entries.length);
     return options.length ? { options } : null;
+};
+
+// --- Power Words, repeated saves, retaliation, a sustained save's damage ------------------------------------------------------------------
+
+// A plan's expectation on one creature, cast as the spell (its rank, DC and attack): its entry, or null.
+function singleEntry(ctx, plan, target) {
+    const spell = { name: `${ctx.entry.name} (part)`, plan, castRank: ctx.rank, dc: ctx.entry.dc, attack: ctx.entry.attack, pool: null, tradition: ctx.entry.tradition, effects: ctx.entry.effects ?? {} };
+    try {
+        return spellExpectation(ctx.state, ctx.caster, spell, [target], 0, undefined).find((entry) => entry.target === target) ?? null;
+    } catch {
+        return null;
+    }
+}
+
+// A duration ({ formula: "1d6" } rolled, { value, unit } fixed) in rounds, its average.
+function tierRounds(outcome) {
+    if (outcome.rolled?.formula) return averageOn({ immunities: [], resistances: [], weaknesses: [] }, outcome.rolled.formula) * (outcome.rolled.unit === "minutes" ? 10 : 1);
+    if (outcome.fixed) return (Number(outcome.fixed.value) || 1) * (outcome.fixed.unit === "minutes" ? 10 : 1);
+    return null;
+}
+
+READERS["level-tiers"] = (ctx) => {
+    // (Power Word Kill, Stun, Blind: what it does by the target's level — the tiers' levels raised as the spell heightens, by its step.
+    // Death or dropping to dying: the creature out of the fight, as its remaining Hit Points; 50 damage, or death at 0; stunned or
+    // blinded for its rolled or fixed rounds (stunned for rounds: those rounds lost; with a value: that many actions).)
+    const tiers = ctx.entry.plan.resolution.levelTiers ?? {};
+    const base = Number(tiers.baseRank) || ctx.rank;
+    const step = tiers.step ?? {};
+    const raise = step.atRank ? (ctx.rank >= Number(step.atRank) ? Number(step.levels) || 0 : 0) : step.interval ? Math.floor(Math.max(0, ctx.rank - base) / Number(step.interval)) * (Number(step.levels) || 0) : 0;
+    const tierFor = (level) => (tiers.tiers ?? []).find((tier) => (tier.min === null || tier.min === undefined || level >= Number(tier.min) + raise) && (tier.max === null || tier.max === undefined || level <= Number(tier.max) + raise));
+    const entries = ctx.enemies.map((foe) => {
+        const outcome = tierFor(Number(foe.level) || 0)?.outcome;
+        const left = Math.max(1, foe.hp.value + (foe.hp.temp ?? 0));
+        const entry = { target: foe, damage: 0, worth: 0, heal: 0, benefit: 0 };
+        if (!outcome) return entry;
+        if (outcome.kind === "death") entry.damage = left;
+        else if (outcome.kind === "death-or-dying") entry.damage = left;
+        else if (outcome.kind === "damage-or-death") entry.damage = Math.min(left, Number(outcome.amount) || 0);
+        else if (outcome.kind === "condition") {
+            const slug = String(outcome.name ?? "").toLowerCase();
+            const rounds = tierRounds(outcome);
+            if (slug === "stunned") entry.worth = rounds !== null ? Math.min(3, rounds) : Math.min(3, Number(outcome.value) || 1) / 3;
+            else if (slug === "blinded") entry.worth = 0.4 * Math.min(3, rounds ?? 1);
+        }
+        return entry;
+    }).filter((entry) => entry.damage > 0 || entry.worth > 0)
+        .sort((a, b) => b.damage / b.target.hp.max + b.worth / 3 - (a.damage / a.target.hp.max + a.worth / 3));
+    return entries.length ? { entries: entries.slice(0, 1), targets: 1 } : null;
+};
+
+READERS["repeat-save"] = (ctx) => {
+    // (Implosion: its save on the target as it's cast, and, Sustained, on a new creature each round of the fight — while there are foes
+    // it hasn't struck; Mask of Terror, For Love, For Lightning: the save once, on the foe it's worth most on.)
+    const repeat = ctx.entry.plan.resolution.repeatSave ?? {};
+    const plan = (ctx.entry.plan.resolution.grantedActions ?? []).find((action) => action?.plan?.resolution)?.plan;
+    if (!plan) return null;
+    const each = ctx.enemies.map((foe) => singleEntry(ctx, plan, foe)).filter((entry) => entry && (entry.damage > 0 || entry.worth > 0))
+        .sort((a, b) => b.damage / b.target.hp.max + b.worth / 3 - (a.damage / a.target.hp.max + a.worth / 3));
+    const casts = repeat.sustained ? Math.max(1, Math.min(ctx.rounds, Math.floor((Number(repeat.seconds) || 6) / 6))) : 1;
+    const entries = each.slice(0, casts);
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
+READERS.retaliation = (ctx) => {
+    // (Nettleskin and the like: the creature it protects — the caster, or the ally it's worth most on — pays back each melee hit it takes
+    // with the spell's damage. Hits: the foes' Strikes at it a round (two each, from those with melee Strikes), its share of them (one of
+    // its side's), over the fight while the spell lasts. Triggers other than a hit — fire damage taken in an aura — aren't counted.)
+    const retaliation = ctx.entry.plan.resolution.retaliation ?? {};
+    const trigger = (retaliation.triggers ?? []).find((each) => /\bhits?\b|\battacks?\b|\btouch/i.test(String(each.trigger ?? "")) && each.damage?.formula);
+    if (!trigger) return null;
+    const lasts = lastsRounds(retaliation.durationSeconds, ctx.rounds);
+    const steps = retaliation.heightening?.interval ? Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / Number(retaliation.heightening.interval)) : 0;
+    const extra = steps && trigger.damage.componentId ? retaliation.heightening?.damage?.[trigger.damage.componentId] : null;
+    const formula = String(trigger.damage.formula).replace(/@item\.level/g, String(ctx.rank)).replace(/\(?ceil\(([^)]*)\)\)?/g, (all, inner) => String(Math.ceil(Function(`return (${inner.replace(/[^\d+\-*/(). ]/g, "")})`)())));
+    const self = /\bself\b|^you$/i.test(String(ctx.entry.plan.targeting?.target ?? "")) || !ctx.entry.plan.targeting?.target;
+    const protectedOnes = self ? [ctx.caster] : ctx.allies;
+    const side = Math.max(1, ctx.allies.length);
+    const context = spellContext(ctx.entry, { isSpell: true, area: false });
+    let best = null;
+    for (const ward of protectedOnes) {
+        const hits = new Map();
+        for (const foe of ctx.enemies) {
+            const strike = (foe.strikes ?? []).filter((each) => each.melee).sort((a, b) => b.bonus - a.bonus)[0];
+            if (!strike) continue;
+            let count = 0;
+            for (let attack = 0; attack < 2; attack++) {
+                const odds = degreeDistribution(strike.bonus - attack * (strike.agile ? 4 : 5), ward.ac ?? 15);
+                count += odds[2] + odds[3];
+            }
+            hits.set(foe, count / side * lasts);
+        }
+        const entries = [...hits].map(([foe, count]) => ({ target: foe, damage: count * (averageOn(foe, `${formula}[${trigger.damage.type ?? "untyped"}]`, trigger.damage.type, context) + (extra ? steps * averageOn(foe, `${extra}[${trigger.damage.type ?? "untyped"}]`, trigger.damage.type, context) : 0)), worth: 0, heal: 0, benefit: 0 }));
+        const total = entries.reduce((sum, entry) => sum + entry.damage, 0);
+        if (!best || total > best.total) best = { total, entries };
+    }
+    return best?.total > 0 ? { entries: best.entries, targets: best.entries.length } : null;
+};
+
+READERS["sustained-save-damage"] = (ctx) => {
+    // (Personal Blizzard: its save each round it's Sustained, the damage at each degree — and the persistent damage, about two rounds of
+    // it — over the fight; its flat extra damage as it heightens.)
+    const blizzard = ctx.entry.plan.resolution.sustainedSaveDamage ?? {};
+    const lasts = lastsRounds(blizzard.durationSeconds, ctx.rounds);
+    const steps = blizzard.step?.interval ? Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / Number(blizzard.step.interval)) : 0;
+    const type = blizzard.type ?? "untyped";
+    const context = spellContext(ctx.entry, { isSpell: true, area: false });
+    const row = (foe, degree, flat) => {
+        const entry = blizzard[degree];
+        if (!entry) return 0;
+        const direct = entry.formula ? averageOn(foe, `${entry.formula}[${type}]`, type, context) + flat : 0;
+        const persistent = entry.persistent ? 2 * averageOn(foe, `${entry.persistent}[${type}]`, type, context) : 0;
+        return direct + persistent;
+    };
+    const entries = ctx.enemies.map((foe) => {
+        const [critFail, fail, success] = degreeDistribution(saveModifier(foe, blizzard.statistic ?? "fortitude"), Number(ctx.entry.dc) || 10);
+        const perRound = success * row(foe, "success", steps * (Number(blizzard.step?.flat) || 0)) + fail * row(foe, "failure", steps * (Number(blizzard.step?.flat) || 0)) + critFail * row(foe, "criticalFailure", steps * (Number(blizzard.step?.criticalFlat) || 0));
+        return { target: foe, damage: perRound * lasts, worth: 0, heal: 0, benefit: 0 };
+    }).sort((a, b) => b.damage / b.target.hp.max - a.damage / a.target.hp.max);
+    return entries.length && entries[0].damage > 0 ? { entries: entries.slice(0, 1), targets: 1 } : null;
+};
+
+READERS["lantern-aura"] = (ctx) => {
+    // (Infinitesimal Collapse Field, Pied Piping: an aura about the caster — every foe in it at 30 feet or more, else those its size holds
+    // bunched — its save each round the fight lasts while it does, the conditions of each row at their engine worth for a round. A light
+    // that grows, healing halved: not counted.)
+    const aura = ctx.entry.plan.resolution.lanternAura ?? {};
+    const rows = aura.rows ?? {};
+    if (!Object.keys(rows).length) return null;
+    const lasts = lastsRounds(aura.durationSeconds, ctx.rounds);
+    const round = { mode: "fixed", value: 1, unit: "rounds" };
+    const rowWorth = (row) => (row?.conditions ?? []).reduce((sum, condition) => sum + conditionWorth(condition.slug, Number.isFinite(Number(condition.value)) && condition.value !== null ? Number(condition.value) : null, round), 0);
+    const foes = Number(aura.radius) >= 30 ? ctx.enemies : caught(ctx.enemies, { type: "emanation", value: Number(aura.radius) || 5 });
+    const entries = foes.map((foe) => {
+        const [critFail, fail, success, critical] = degreeDistribution(saveModifier(foe, aura.statistic ?? "will"), Number(ctx.entry.dc) || 10);
+        const worth = critical * rowWorth(rows.criticalSuccess) + success * rowWorth(rows.success) + fail * rowWorth(rows.failure) + critFail * rowWorth(rows.criticalFailure ?? rows.failure);
+        return { target: foe, damage: 0, worth: worth * lasts, heal: 0, benefit: 0 };
+    }).filter((entry) => entry.worth > 0);
+    return entries.length ? { entries, targets: entries.length } : null;
 };
 
 // The reading for a plan the engine can't cast, or null.
