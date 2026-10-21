@@ -12,12 +12,17 @@ export const PACK_ROOT = `${process.env.HOME}/.local/share/FoundryVTT/Data/syste
 // As the spell module's official compile does: its native-effect catalog and
 // the spells others reference, so plans match live play.
 const effectItems = readDocuments(`${PACK_ROOT}/spell-effects`).filter((d) => d.collection === "items");
-const nativeEffectCatalog = new Map(effectItems.map((effect) => [effect.name, {
-  id: effect._id ?? null, name: effect.name, type: effect.type,
-  automation: { ruleKeys: [...new Set((effect.system?.rules ?? []).map((rule) => rule.key).filter(Boolean))], requiresConfiguration: (effect.system?.rules ?? []).some((rule) => rule.key === "ChoiceSet"), removesAfterRoll: (effect.system?.rules ?? []).some((rule) => rule.removeAfterRoll != null) },
-  mechanics: { rules: effect.system?.rules ?? [], duration: effect.system?.duration ?? null, start: effect.system?.start ?? null },
-  ...(effect.system?.badge ? { badge: effect.system.badge } : {})
-}]));
+// (2026-10-21: by name and by id, as the spell module's live catalog is — the installed packs link most effects by their id, Mirror
+// Image's among them; by name only, those plans compiled without their effect.)
+const nativeEffectCatalog = new Map(effectItems.flatMap((effect) => {
+  const profile = {
+    id: effect._id ?? null, name: effect.name, type: effect.type,
+    automation: { ruleKeys: [...new Set((effect.system?.rules ?? []).map((rule) => rule.key).filter(Boolean))], requiresConfiguration: (effect.system?.rules ?? []).some((rule) => rule.key === "ChoiceSet"), removesAfterRoll: (effect.system?.rules ?? []).some((rule) => rule.removeAfterRoll != null) },
+    mechanics: { rules: effect.system?.rules ?? [], duration: effect.system?.duration ?? null, start: effect.system?.start ?? null },
+    ...(effect.system?.badge ? { badge: effect.system.badge } : {})
+  };
+  return [[effect.name, profile], ...(effect._id ? [[effect._id, profile]] : [])];
+}));
 const spellDocs = readDocuments(`${PACK_ROOT}/spells`).filter((d) => d.collection === "items" && d._id);
 const referencedSpells = new Map(spellDocs.map((spell) => [`Compendium.pf2e.spells-srd.Item.${spell._id}`, spell]));
 const spellsByName = new Map(spellDocs.map((spell) => [spell.name.toLowerCase(), spell]));
