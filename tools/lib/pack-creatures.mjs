@@ -291,6 +291,13 @@ function summonDocument(from) {
     return null;
 }
 
+// A creature by its compendium link or name ({ uuid, name }; by name in the rulebook bestiaries), as the engine's combatant — a named summon
+// of the spell ratings (Gray Shadow's Greater Shadow) — or null.
+export function creatureFrom(from) {
+    const doc = summonDocument(from);
+    return doc ? { ...combatant(doc), name: doc.name } : null;
+}
+
 // The rulebook bestiaries' creatures a summon's pick allows ({ rank, any, all, maxLevel }), as docs — the spell ratings' choice of the best
 // of them (2026-10-21).
 export function summonCandidates(pick) {

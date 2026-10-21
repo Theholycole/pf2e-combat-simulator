@@ -5,13 +5,13 @@
 //   The way in: the rating's foes stand the near band's 30 feet from the party and come to it (approach) — an area that hinders their
 //   way costs them Strikes, as long as it keeps them from the party.
 
-import { DISTANCE_FEET } from "./space.js";
-import { degreeDistribution } from "./checks.js";
+import { DISTANCE_FEET, engage } from "./space.js";
+import { degreeDistribution, degreeOf } from "./checks.js";
 import { armorClass, multipleAttackPenalty, saveModifier } from "./combatant.js";
 import { expectedHitDamage } from "./actions.js";
 import { weaponRunesAt } from "./party.js";
 import { adjustDamage, spellContext } from "./damage.js";
-import { areaCapacity, canCast, conditionWorth, skillValue, spellExpectation, spellVariants, targetSets } from "./spells.js";
+import { areaCapacity, canCast, conditionWorth, describeSpell, skillValue, spellExpectation, spellVariants, targetSets } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 // A round's Strikes as the planner's threat weighs them: the third at half.
@@ -274,12 +274,24 @@ export function castableReading(plan, doc, rank = Number(plan?.rank) || 1) {
         ? { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: plan.resolution.effectNote.effect.uuid, label: plan.resolution.effectNote.effect.label ?? null, recipients: plan.resolution.effectNote.recipient === "self" ? "self" : "target" }] }
         : branch?.effectUuid ? { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: branch.effectUuid, label: null, recipients: toSelf ? "self" : "target" }] }
             : plan.resolution;
-    // (Its action counts' areas without their shape — Disorienting Flash's "10 feet" for two actions —: the shape its data gives.)
+    // (Its action counts' areas without their shape or size — Disorienting Flash's "10 feet" for two actions, Spiritual Torrent's cone for
+    // three —: the shape it names, else its data's; the size its text gives that shape, else its data's. And the action count its data
+    // casts it with, where the counts leave that one out — Spiritual Torrent's two-action line —: its own area.)
     const byActions = resolution.native?.byActions;
     const shape = targeting.area?.type ?? docArea?.type;
-    if (byActions && shape && Object.values(byActions).some((variant) => variant?.targeting?.area && !variant.targeting.area.type)) {
-        resolution = { ...resolution, native: { ...resolution.native, byActions: Object.fromEntries(Object.entries(byActions).map(([count, variant]) => [count, variant?.targeting?.area && !variant.targeting.area.type ? { ...variant, targeting: { ...variant.targeting, area: { type: shape, ...variant.targeting.area } } } : variant])) } };
+    const plain = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    const whole = (area) => Boolean(area?.type) && Number(area.value) > 0;
+    const fill = (area) => {
+        const type = area.type ?? area.areaType ?? shape;
+        const size = Number(area.value) || Number(new RegExp(`(\\d+)-foot ${type}`, "i").exec(plain)?.[1]) || (docArea?.type === type ? docArea.value : 0);
+        return { ...area, ...(type ? { type } : {}), ...(size ? { value: size } : {}) };
+    };
+    if (byActions && Object.values(byActions).some((variant) => variant?.targeting?.area && !whole(variant.targeting.area))) {
+        resolution = { ...resolution, native: { ...resolution.native, byActions: Object.fromEntries(Object.entries(byActions).map(([count, variant]) => [count, variant?.targeting?.area && !whole(variant.targeting.area) ? { ...variant, targeting: { ...variant.targeting, area: fill(variant.targeting.area) } } : variant])) } };
     }
+    const own = /^[123]$/.test(time) ? time : null;
+    const ownArea = whole(targeting.area) ? targeting.area : docArea;
+    if (byActions && own && !byActions[own] && whole(ownArea)) resolution = { ...resolution, native: { ...resolution.native, byActions: { ...resolution.native.byActions, [own]: { targeting: { area: ownArea } } } } };
     return { ...plan, simulatorReading: "rating", targeting, resolution, ...(actions ? { activation: { ...(plan.activation ?? {}), time: actions } } : {}) };
 }
 
@@ -298,13 +310,20 @@ function phaseEntries(ctx, phasePlan) {
         if (read) spell = make(read);
     }
     if (!canCast({}, spell)) return [];
+    // (A harmful emanation about the caster — Proximal Shift's debris where it lands —: cast with the foes in it, at its best (the user:
+    // "For auras assume the spell is cast when within range").)
+    const about = (actions) => {
+        const info = describeSpell(spell.plan, actions);
+        return info.area?.type === "emanation" && info.range === null && !info.healing && !info.helpful;
+    };
+    if (spellVariants(spell).some(about) && (ctx.caster.meleeId === null || ctx.caster.meleeId === undefined)) for (const foe of ctx.enemies) engage(ctx.state, foe, ctx.caster);
     const worth = (entries) => entries.reduce((sum, { target, damage = 0, worth = 0, heal = 0, benefit = 0 }) => sum + (target.side === ctx.caster.side ? -1 : 1) * (damage / Math.max(1, target.hp.max) + worth / 3 - heal / Math.max(1, target.hp.max) - benefit / 3), 0);
     let best = [];
     let bestWorth = 0;
     for (const actions of spellVariants(spell)) {
         let sets = [];
         try {
-            sets = targetSets(ctx.state, ctx.caster, spell, { enemies: ctx.enemies, allies: ctx.allies, inMelee: () => true, distance: () => 30, meleeId: null }, actions);
+            sets = targetSets(ctx.state, ctx.caster, spell, { enemies: ctx.enemies, allies: ctx.allies, inMelee: () => true, distance: () => 30, meleeId: ctx.caster.meleeId ?? null }, actions);
         } catch {
             sets = [];
         }
@@ -347,9 +366,18 @@ READERS.incarnate = (ctx) => {
     const choices = incarnate.options?.choices?.length ? incarnate.options.choices.map((choice) => choice.phases ?? []) : [incarnate.phases ?? []];
     const options = choices.map((phases) => {
         const lists = phases.filter((phase) => phase?.plan?.resolution && !phase.hidden).map((phase) => phaseEntries(ctx, phase.plan));
+        // (Phases with no plan, read by their kind — PHASE_READERS —; a conjured object's cover, and its cage.)
+        for (const phase of phases.filter((each) => !each?.plan?.resolution && !each?.hidden && PHASE_READERS[each?.kind])) lists.push(PHASE_READERS[phase.kind](ctx, phase, incarnate) ?? []);
+        if (incarnate.conjure?.coverAura) lists.push(coverEntries(ctx, incarnate));
+        if (incarnate.conjure?.object && phases.some((phase) => phase?.key === "trap")) lists.push(cageEntries(ctx, incarnate));
         for (const roll of phases.filter((phase) => Number(phase?.die) > 0 && phase.table)) {
             const die = Number(roll.die);
-            const byKey = new Map(phases.filter((phase) => phase?.hidden && phase.plan?.resolution).map((phase) => [phase.key, phaseEntries(ctx, phase.plan)]));
+            // (Each creature in the spell's area rolling its own — Prismatic Spray's cone, its beams each at "1 creature" —: every foe the
+            // area catches, each beam on it.)
+            const hidden = phases.filter((phase) => phase?.hidden && phase.plan?.resolution);
+            const area = ctx.entry.doc?.system?.area?.type ? { type: ctx.entry.doc.system.area.type, value: Number(ctx.entry.doc.system.area.value) || 5 } : null;
+            const each = area && hidden.every((phase) => /^1 creature\b/i.test(String(phase.plan.targeting?.target ?? "")));
+            const byKey = new Map(hidden.map((phase) => [phase.key, each ? caught(ctx.enemies, area, ctx.choke).map((foe) => singleEntry(ctx, phase.plan, foe)).filter(Boolean) : phaseEntries(ctx, phase.plan)]));
             const faces = Object.values(roll.table);
             for (const [key, entries] of byKey) lists.push(scaled(entries, faces.filter((face) => face === key).length / die));
             if (roll.twice && byKey.size) for (const entries of byKey.values()) lists.push(scaled(entries, 2 / byKey.size / die));
@@ -359,6 +387,159 @@ READERS.incarnate = (ctx) => {
     }).filter((option) => option.entries.length);
     return options.length ? { options } : null;
 };
+
+// --- Incarnate phases with no plan, by their kind (2026-10-21, batch 11) ---------------------------------------------------------------
+
+// The odds of each degree for a check rolled twice, the better kept (fortune): [critical failure, failure, success, critical success].
+function fortuneDistribution(modifier, dc) {
+    const odds = [0, 0, 0, 0];
+    for (let natural = 1; natural <= 20; natural++) odds[degreeOf(natural + modifier, dc, natural)] += (natural * natural - (natural - 1) * (natural - 1)) / 400;
+    return odds;
+}
+
+// The foe a single-target phase goes to at its best: the one with the most Hit Points.
+const toughest = (enemies) => enemies.slice().sort((a, b) => b.hp.max - a.hp.max)[0] ?? null;
+
+// A basic save's share of its damage: double on a critical failure, half on a success.
+const basicShare = ([critFail, fail, success]) => 2 * critFail + fail + 0.5 * success;
+
+// Thunderstrike's dice at a rank (PF2e's spell: 1d12 electricity and 1d4 sonic a rank, a basic Reflex save) — Shock to the System's
+// innate spell.
+const thunderstrike = (rank) => `${rank}d12[electricity],${rank}d4[sonic]`;
+
+const PHASE_READERS = {
+    // (Touch of Death: the caster's unarmed Strike, the touch — at its best a monk's —)
+    "death-mark": (ctx) => {
+        const fist = bestStrike(ctx, "unarmed");
+        const foe = toughest(ctx.enemies);
+        return fist && foe ? [{ target: foe, damage: strikeOn(fist.striker, fist.strike, foe), worth: 0, heal: 0, benefit: 0 }] : [];
+    },
+    // (and its word of death the same turn, on a hit: its Fortitude save — dead on a critical failure, stunned and its damage a rank on a
+    // failure or a success.)
+    word: (ctx, phase) => {
+        const fist = bestStrike(ctx, "unarmed");
+        const foe = toughest(ctx.enemies);
+        if (!fist || !foe) return [];
+        const hit = hitChance(fist.strike, foe);
+        const [critFail, fail, success] = degreeDistribution(saveModifier(foe, phase.statistic ?? "fortitude"), Number(ctx.entry.dc) || 10);
+        const row = (outcome) => ({ damage: (Number(outcome?.perRank) || 0) * ctx.rank, worth: outcome?.slug ? conditionWorth(outcome.slug, Number(outcome.value) || 1, null) : 0 });
+        const failed = row(phase.failure);
+        const made = row(phase.success);
+        return [{ target: foe, damage: hit * (critFail * Math.max(0, foe.hp.value) + fail * failed.damage + success * made.damage), worth: hit * (fail * failed.worth + success * made.worth), heal: 0, benefit: 0 }];
+    },
+    // (Shock to the System: its healing on the ally it does most for, and that ally supercharged the fight long — Quickened for a fourth
+    // Strike, or at will Thunderstrike (its rank, the caster's DC) and two Strikes, whichever does more each round than its third Strike.)
+    shock: (ctx, phase) => {
+        const steps = Math.max(0, ctx.rank - (Number(phase.innate?.baseRank) || ctx.rank));
+        const healDice = Math.max(1, 8 + 2 * steps);
+        const thunderRank = (Number(phase.innate?.rank) || 5) + steps * (Number(phase.innate?.step) || 1);
+        const lasts = lastsRounds(phase.seconds, ctx.rounds);
+        const foe = ctx.enemies[0];
+        if (!foe) return [];
+        const context = spellContext(ctx.entry, { isSpell: true, area: false });
+        const thunder = basicShare(degreeDistribution(saveModifier(foe, "reflex"), Number(ctx.entry.dc) || 10)) * averageOn(foe, thunderstrike(thunderRank), "electricity", context);
+        let best = null;
+        for (const ally of ctx.allies) {
+            const strike = (ally.strikes ?? []).filter((each) => each.damage?.length).sort((a, b) => strikeOn(ally, b, foe) - strikeOn(ally, a, foe))[0];
+            const third = strike ? strikeOn(ally, strike, foe, { attacks: 2 }) : 0;
+            const gain = Math.max(third, thunder - third) * lasts;
+            if (!best || gain > best.gain) best = { ally, gain };
+        }
+        const heal = healDice * 4.5;
+        return [...healEntries([best.ally], heal), ...spreadDamage(ctx.enemies, best.gain)];
+    },
+    // (Rainbow Fumarole: its color, a d8 — each as likely, the eighth the best of them for each foe — its damage with a basic Reflex save and
+    // its effect on a failure, on the foes it's cast on; again as they move through it or end a turn there, half of them each round it
+    // lasts (all in a choke point), its conditions counting half again each time.)
+    fumarole: (ctx, phase) => {
+        const colors = Object.entries(phase.colors ?? {}).map(([, color]) => color);
+        if (!colors.length) return [];
+        const die = Number(phase.die) || 8;
+        const context = spellContext(ctx.entry, { isSpell: true, area: true });
+        const lasts = lastsRounds(phase.seconds, ctx.rounds);
+        const again = (lasts - 1) * (ctx.choke ? 1 : 0.5);
+        return caught(ctx.enemies, { type: "burst", value: Number(phase.area?.value) || 20 }, ctx.choke).map((foe) => {
+            const odds = degreeDistribution(saveModifier(foe, phase.statistic ?? "reflex"), Number(ctx.entry.dc) || 10);
+            const each = colors.map((color) => {
+                // (Its persistent damage: two rounds of it.)
+                const now = averageOn(foe, color.formula, "fire", context);
+                const persistent = averageOn(foe, color.formula, "fire", context, true) - now;
+                const damage = basicShare(odds) * (now + 2 * persistent);
+                const rounds = Number(color.effect?.rounds) || null;
+                const worth = (odds[0] + odds[1]) * (color.effect?.conditions ?? []).reduce((sum, condition) => sum + conditionWorth(condition.slug, condition.value ?? null, rounds ? { mode: "fixed", value: rounds, unit: "rounds" } : null), 0);
+                return { damage, worth, value: damage / Math.max(1, foe.hp.max) + worth / 3 };
+            });
+            const chosen = each.slice().sort((a, b) => b.value - a.value)[0];
+            const average = (field) => (each.reduce((sum, color) => sum + color[field], 0) + (die - each.length) * chosen[field]) / die;
+            return { target: foe, damage: average("damage") * (1 + again), worth: average("worth") * (1 + again / 2), heal: 0, benefit: 0 };
+        });
+    },
+    // (Unblinking Flame Emblem: on the toughest foe, after the caster's Strike hits it — at its best, it does — the party's two Strikes a
+    // round on it for its rounds: a status bonus to hit, its fire die on a hit and its persistent die on a critical hit (two rounds of it).
+    // The caster off-guard to the others, not counted.)
+    emblem: (ctx, phase) => {
+        const foe = toughest(ctx.enemies);
+        if (!foe) return [];
+        const higher = phase.heightened && ctx.rank >= Number(phase.heightened.minRank) ? phase.heightened : phase;
+        const rounds = Math.min(ctx.rounds, Number(phase.rounds) || 3);
+        const context = spellContext(ctx.entry, { isSpell: true, area: false });
+        const extra = averageOn(foe, `1d${Number(higher.die) || 6}[${phase.type ?? "fire"}]`, phase.type ?? "fire", context);
+        const burning = 2 * averageOn(foe, `1d${Number(higher.critDie) || 10}[${phase.type ?? "fire"}]`, phase.type ?? "fire", context);
+        let gain = 0;
+        for (const ally of ctx.allies) {
+            const strike = (ally.strikes ?? []).filter((each) => each.damage?.length).sort((a, b) => strikeOn(ally, b, foe) - strikeOn(ally, a, foe))[0];
+            if (!strike) continue;
+            for (const attacks of [0, 1]) {
+                const odds = degreeDistribution((Number(strike.bonus) || 0) + (Number(phase.bonus) || 0) - multipleAttackPenalty(strike, attacks), armorClass(foe));
+                gain += strikeOn(ally, strike, foe, { attacks, bonus: Number(phase.bonus) || 0, extra }) - strikeOn(ally, strike, foe, { attacks }) + odds[3] * burning;
+            }
+        }
+        return [{ target: foe, damage: gain * rounds, worth: 0, heal: 0, benefit: 0 }];
+    },
+    // (True Target: its attackers' first attack roll on the toughest foe rolled twice, the better kept — the party's first Strikes.)
+    "true-target": (ctx, phase) => {
+        const foe = toughest(ctx.enemies);
+        if (!foe) return [];
+        let gain = 0;
+        for (const ally of ctx.allies.slice(0, Math.max(1, Number(phase.count) || 4))) {
+            const strike = (ally.strikes ?? []).filter((each) => each.damage?.length).sort((a, b) => strikeOn(ally, b, foe) - strikeOn(ally, a, foe))[0];
+            if (!strike) continue;
+            const twice = fortuneDistribution(Number(strike.bonus) || 0, armorClass(foe));
+            gain += twice[2] * expectedHitDamage(ally, strike, foe, false) + twice[3] * expectedHitDamage(ally, strike, foe, true) - strikeOn(ally, strike, foe);
+        }
+        return gain > 0 ? [{ target: foe, damage: gain, worth: 0, heal: 0, benefit: 0 }] : [];
+    },
+    // (Moment of Renewal: a day's rest for its targets — twice a night's Hit Points, its Constitution modifier a level, B482.)
+    renewal: (ctx, phase) => ctx.allies.slice(0, Math.max(1, Number(phase.count) || 6)).flatMap((ally) => healEntries([ally], 2 * Math.max(1, Number(ally.con) || 1) * (Number(ally.level) || 1)))
+};
+
+// A conjured object's cover for the allies beside it (Ice Guardian): at its best all of them, Sustained for its better cover, while it
+// lasts — its AC bonus as the Strikes it keeps off.
+function coverEntries(ctx, incarnate) {
+    const conjure = incarnate.conjure;
+    const ac = (rules) => Math.max(0, ...(rules ?? []).filter((rule) => rule.key === "FlatModifier" && rule.selector === "ac" && !rule.predicate).map((rule) => Number(rule.value) || 0));
+    const bonus = Math.max(ac(conjure.coverAura?.rules), ...(incarnate.phases ?? []).filter((phase) => phase.kind === "effect").map((phase) => ac(phase.rules)));
+    const lasts = lastsRounds(conjure.durationSeconds, ctx.rounds);
+    return bonus > 0 ? ctx.allies.flatMap((ally) => healEntries([ally], acSaved(ctx, ally, bonus, lasts))) : [];
+}
+
+// A conjured cage (Lifewood Cage): the foes in it that fail their Reflex save shut in, until they break out — their two hits a round on
+// it, less its resistance, against its Hit Points — or it ends; meanwhile their melee threat gone (those with a ranged Strike, a third of
+// it: through its bars, behind its cover).
+function cageEntries(ctx, incarnate) {
+    const cage = incarnate.conjure;
+    const lasts = lastsRounds(cage.durationSeconds, ctx.rounds);
+    const resisted = Math.max(Number(cage.hardness) || 0, ...(cage.resistances ?? []).filter((each) => each.type === "all-damage").map((each) => Number(each.value) || 0));
+    const statistic = "reflex";
+    return caught(ctx.enemies, { type: "burst", value: 10 }, ctx.choke).map((foe) => {
+        const [critFail, fail] = degreeDistribution(saveModifier(foe, statistic), Number(ctx.entry.dc) || 10);
+        const { hits, damage } = hitsOn(foe, Number(cage.ac) || 10);
+        const breaking = hits * Math.max(0, damage - resisted);
+        const held = breaking > 0 ? Math.min(lasts, Math.ceil((Number(cage.hp) || 1) / breaking)) : lasts;
+        const ranged = (foe.strikes ?? []).some((strike) => !strike.melee);
+        return { target: foe, damage: 0, worth: (critFail + fail) * held * (ranged ? 1 / 3 : 1), heal: 0, benefit: 0 };
+    });
+}
 
 // --- Power Words, repeated saves, retaliation, a sustained save's damage ------------------------------------------------------------------
 
@@ -1046,6 +1227,89 @@ READERS["weapon-imbue"] = (ctx) => {
         return { target: foe, damage: first * Math.max(bleeding, spurs), worth: 0, heal: 0, benefit: 0 };
     }));
     return entries.length ? { entries: entries.slice(0, 1), targets: 1 } : null;
+};
+
+READERS["stored-burst"] = (ctx) => {
+    // (Reflective Scales: its resistance to the foes' hits on the caster — at its best, of the type they deal — over the fight, the damage
+    // it prevents; then its burst about the caster (the foes in it, at its best), a die for each 10 prevented up to its most, a basic save.)
+    const burst = ctx.entry.plan.resolution.storedBurst ?? {};
+    const steps = (scale) => Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / (Number(scale?.interval) || 2)) * (Number(scale?.step) || 0);
+    const resistance = (Number(burst.resistance?.base) || 0) + steps(burst.resistance);
+    const most = (Number(burst.max?.base) || 0) + steps(burst.max);
+    const ac = Number(ctx.caster.ac) || 15;
+    const lasts = lastsRounds(burst.seconds, ctx.rounds);
+    const prevented = ctx.enemies.reduce((sum, foe) => {
+        const { hits, damage } = hitsOn(foe, ac);
+        return sum + hits * Math.min(resistance, damage);
+    }, 0) * lasts / Math.max(1, ctx.allies.length);
+    const dice = Math.min(most, Math.floor(prevented / (Number(burst.every) || 10)));
+    const type = (burst.types ?? ["fire"])[0];
+    const context = spellContext(ctx.entry, { isSpell: true, area: true });
+    const hurt = dice > 0 ? caught(ctx.enemies, { type: "emanation", value: Number(burst.radius) || 20 }, ctx.choke).map((foe) => ({ target: foe, damage: basicShare(degreeDistribution(saveModifier(foe, burst.statistic ?? "reflex"), Number(ctx.entry.dc) || 10)) * Math.max(...(burst.types ?? [type]).map((each) => averageOn(foe, `${dice}d${Number(burst.die) || 6}[${each}]`, each, context))), worth: 0, heal: 0, benefit: 0 })) : [];
+    const entries = [...hurt, ...(prevented > 0 ? healEntries([ctx.caster], prevented) : [])];
+    return entries.length ? { entries, targets: entries.length } : null;
+};
+
+// --- Rules on the caster (2026-10-21, batch 11) -----------------------------------------------------------------------------------------
+
+// A foe's expected hits a round on a creature of armour class `ac`: its best Strike's two (the second at its penalty). { hits, damage }:
+// the hits, and a hit's average damage.
+function hitsOn(foe, ac) {
+    let best = { hits: 0, damage: 0 };
+    for (const strike of foe.strikes ?? []) {
+        const damage = (strike.damage ?? []).reduce((sum, part) => sum + (Number(part.dice) || 0) * ((Number(part.die) || 0) + 1) / 2 + (Number(part.bonus) || 0), 0);
+        const hits = [0, 1].reduce((sum, attack) => {
+            const odds = degreeDistribution((Number(strike.bonus) || 0) - multipleAttackPenalty(strike, attack), ac);
+            return sum + odds[2] + odds[3];
+        }, 0);
+        if (hits * damage > best.hits * best.damage) best = { hits, damage, types: (strike.damage ?? []).map((part) => part.type) };
+    }
+    return best;
+}
+
+const CONCEALED = "Compendium.pf2e.conditionitems.Item.DmAIPqOBomZ7H95W";
+
+// What rules on the caster do over `lasts` rounds: concealment (a fifth of the foes' hits on it missed: the flat check), resistance to
+// the foes' damage of its type (holy or unholy: a foe with that trait's), its Strikes' new traits on foes weak to them (the party's best
+// Striker's, at its best). Entries, or null with none of these.
+function ruleEntries(ctx, rules, lasts, scale) {
+    const value = (rule) => (String(rule.value).includes("{") ? scale : Number(rule.value) || 0);
+    const caster = ctx.caster;
+    const ac = Number(caster.ac) || 15;
+    const side = Math.max(1, ctx.allies.length);
+    let kept = 0;
+    let dealt = 0;
+    for (const rule of rules) {
+        if (rule.key === "GrantItem" && rule.uuid === CONCEALED) kept += ctx.enemies.reduce((sum, foe) => sum + 0.2 * strikeDamageOn(foe, ac), 0) * lasts / side;
+        if (rule.key === "Resistance" && value(rule) > 0) {
+            for (const foe of ctx.enemies) {
+                const { hits, damage, types = [] } = hitsOn(foe, ac);
+                if (types.includes(rule.type) || (foe.traits ?? []).includes(rule.type)) kept += hits * Math.min(value(rule), damage) * lasts / side;
+            }
+        }
+        if (rule.key === "AdjustStrike" && rule.property === "traits" && ["holy", "unholy"].includes(rule.value)) {
+            const best = bestStrike(ctx, "melee");
+            for (const foe of best ? ctx.enemies : []) {
+                const weakness = Math.max(0, ...(foe.weaknesses ?? []).filter((each) => each.type === rule.value).map((each) => Number(each.value) || 0));
+                dealt += weakness * (hitChance(best.strike, foe) + hitChance(best.strike, foe, { attacks: 1 })) * lasts;
+            }
+        }
+    }
+    const entries = [...spreadDamage(ctx.enemies, dealt), ...(kept > 0 ? healEntries([caster], kept) : [])];
+    return entries.length ? { entries, targets: entries.length } : null;
+}
+
+READERS["rule-set"] = (ctx) => {
+    // (Whirling Scarves, Spiritual Attunement: their rules on the caster while they last (longer at higher ranks, where they say), the best
+    // of their choices; the rest — jumping, falls — not counted.)
+    const set = ctx.entry.plan.resolution.ruleSet ?? {};
+    if (set.recipient !== "self") return null;
+    const seconds = (set.secondsByRank ?? []).filter((step) => ctx.rank >= Number(step.rank)).at(-1)?.seconds ?? set.seconds;
+    const lasts = lastsRounds(seconds, ctx.rounds);
+    const scale = set.scale ? (Number(set.scale.value) || 0) + Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / (Number(set.scale.interval) || 1)) * (Number(set.scale.per) || 0) : 0;
+    const choices = set.choice?.options?.length ? set.choice.options.map((option) => [...(set.rules ?? []), ...(option.rules ?? [])]) : [set.rules ?? []];
+    const options = choices.map((rules) => ruleEntries(ctx, rules, lasts, scale)).filter(Boolean);
+    return options.length ? { options } : null;
 };
 
 // The reading for a plan the engine can't cast, or null: its family's, or the plans its payload carries.

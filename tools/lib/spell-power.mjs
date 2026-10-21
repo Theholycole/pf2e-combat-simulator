@@ -1,7 +1,7 @@
 // A spell's power for its rank, offline (src/engine/spell-power.js has the method): the spells of every installed compendium — PF2e's and
 // each module's Item compendiums, not Starfinder's; rituals left out — and one task for a worker (tools/spell-power.mjs).
 import fs from "node:fs";
-const { readDocuments, PACK_ROOT, combatant, summonCandidates } = await import("./pack-creatures.mjs");
+const { readDocuments, PACK_ROOT, combatant, creatureFrom, summonCandidates } = await import("./pack-creatures.mjs");
 const { compileSpell, effectModels } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
 const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, formShare, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
@@ -142,6 +142,33 @@ function summonResults(doc, plan, rank, party, level) {
         summonCache.set(key, found);
     }
     return summonCache.get(key);
+}
+
+// An incarnate spell's own summons (2026-10-21, batch 11), at its best: Gray Shadow's Greater Shadow (a dying creature there to cast it
+// on); Shambling Horror's skeleton or zombie, the one worth most of those a corpse of the level its target allows makes (such a corpse
+// there); Reanimate Foe's fallen foe back for the party with the Hit Points it says (one of a group's, against the rest; none against a
+// boss alone, whose fall ends the fight). { results, traits, creature? }, or null.
+function incarnateSummonResults(doc, plan, party, level) {
+    const phases = plan?.resolution?.incarnate?.phases ?? [];
+    const summon = phases.find((phase) => phase.kind === "summon");
+    if (summon) {
+        const cap = /level no greater than your level\s*[-–−]\s*(\d+)/i.exec(String(doc.system?.target?.value ?? ""));
+        const from = summon.actorUuid || summon.actorName
+            ? [{ uuid: summon.actorUuid, name: summon.actorName }]
+            : (summon.candidates ?? []).filter((each) => !cap || Number(each.level) <= level - Number(cap[1])).sort((a, b) => b.level - a.level).map((each) => ({ uuid: each.uuid, name: each.name }));
+        const built = from.map((each) => creatureFrom(each)).filter(Boolean).slice(0, SUMMON_TRIED);
+        const count = Math.max(1, Number(summon.count) || 1);
+        const worth = (creature) => POWER_KINDS.reduce((sum, encounter) => sum + (summonShare(partyWithSpell(party), powerFoes(encounter, level, null), creature, count)?.levels ?? 0), 0);
+        const best = built.map((creature) => ({ creature, value: worth(creature) })).filter((each) => each.value > 0).sort((a, b) => b.value - a.value)[0];
+        if (!best) return null;
+        const results = resultsOf([], (foes) => summonShare(partyWithSpell(party), foes, best.creature, count), level);
+        return Object.keys(results).length ? { results, traits: [], creature: best.creature.name } : null;
+    }
+    const copy = phases.find((phase) => phase.kind === "check-copy");
+    const hp = Number(copy?.results?.success?.hp) || 0;
+    if (!hp) return null;
+    const results = resultsOf([], (foes) => (foes.length > 1 ? summonShare(partyWithSpell(party), foes.slice(1), { ...foes[0], hp: { value: hp, max: hp } }, 1) : null), level);
+    return Object.keys(results).length ? { results, traits: [] } : null;
 }
 
 // Words of a fight effect in a utility spell's text (damage, conditions, bonuses and penalties, concealment, terrain): one cast in actions
@@ -293,6 +320,16 @@ function withChoke(row, rate, level) {
 }
 const hasArea = (plan, doc) => Boolean(describeSpell(plan).area || plan?.targeting?.area?.type || doc?.system?.area?.type);
 
+// A spell whose damage type is the caster's (Spiritual Torrent: vitality from a living caster, void from an undead one): cast as each,
+// the better kept — at its best (the user: "Dont lower the ranking of spells based on how hard they are to use practically").
+function casterSwaps(entry) {
+    const swap = entry.plan?.resolution?.damageSwap;
+    if (swap?.when !== "caster-undead" || !entry.plan.resolution.sharedDamage?.components?.length) return [entry];
+    const components = entry.plan.resolution.sharedDamage.components.map((component) => (component.type === swap.from ? { ...component, type: swap.to } : component));
+    return [entry, { ...entry, plan: { ...entry.plan, resolution: { ...entry.plan.resolution, sharedDamage: { ...entry.plan.resolution.sharedDamage, components } } } }];
+}
+const bestCast = (entries, cast) => entries.map(cast).filter(Boolean).sort((a, b) => b.share - a.share)[0] ?? null;
+
 // Both encounters' results, and those against each trait's foes: rate(foes) → { share, levels, bound, actions, targets, alliesHit } or null.
 function resultsOf(traits, rate, level) {
     const results = {};
@@ -327,7 +364,7 @@ export function runPowerTask(task) {
     const entry = { name: doc.name, plan, castRank: rank, dc: casting?.dc ?? 10 + level, attack: casting?.attack ?? level, pool: ref.cantrip ? null : RATED_POOL, tradition: "arcane", effects: effectModels(plan, rank) };
     const head = { kind: "screen", ref: { ref: ref.ref, collection: ref.collection, path: ref.path, id: ref.id, name: ref.name, cantrip: ref.cantrip, focus: ref.focus }, collection: ref.collection, id: ref.id, name: ref.name, rank, cantrip: ref.cantrip, level };
     // (A summon: its best creature's worth.)
-    const summoned = summonResults(doc, plan, rank, party, level);
+    const summoned = summonResults(doc, plan, rank, party, level) ?? incarnateSummonResults(doc, plan, party, level);
     if (summoned) return { ...head, ...summoned, summon: true };
     // (A battle form: the wizard in the best form it offers.)
     // (Its effects' BattleForm rules, or those a generated form carries itself — Avatar's.)
@@ -368,9 +405,10 @@ export function runPowerTask(task) {
         const read = { ...entry, plan: rewritten };
         const traits = powerConditions(rewritten);
         const gaps = spellGaps(read);
-        const results = resultsOf(traits, (foes) => castPower(party, foes, read, { minion }), level);
+        const reads = casterSwaps(read);
+        const results = resultsOf(traits, (foes) => bestCast(reads, (each) => castPower(party, foes, each, { minion })), level);
         const row = { ...head, traits, results, estimate: `reading (${plan.resolution.kind === "effect-note" ? "effect-note" : "targets"})`, ...(gaps.length ? { partial: gaps } : {}) };
-        return hasArea(rewritten, doc) ? withChoke(row, (foes, choke) => castPower(party, foes, read, { minion, choke }), level) : row;
+        return hasArea(rewritten, doc) ? withChoke(row, (foes, choke) => bestCast(reads, (each) => castPower(party, foes, each, { minion, choke })), level) : row;
     }
     // (One the engine can't cast in a fight, that the rating reads itself: power-readings.js.)
     if (!castable && powerReading(plan)) {
@@ -392,7 +430,8 @@ export function runPowerTask(task) {
     if (isUtility(plan) || !castable) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
     const traits = powerConditions(plan);
     const lost = Boolean(minion) && /\bminion\b[^.]*\bexplode/i.test(textOf(doc));
-    const results = resultsOf(traits, (foes) => castPower(party, foes, entry, { minion, lost }), level);
+    const entries = casterSwaps(entry);
+    const results = resultsOf(traits, (foes) => bestCast(entries, (each) => castPower(party, foes, each, { minion, lost })), level);
     // (Cast, but with no effect the engine counts: the healing, temporary Hit Points or AC its text gives, if it says.)
     if (!Object.keys(results).length) {
         const helped = textHelpRow(head, doc, rank, party, level);
@@ -400,5 +439,5 @@ export function runPowerTask(task) {
     }
     const gaps = spellGaps(entry);
     const row = { ...head, traits, results, ...(minion ? { minion: true } : {}), ...(gaps.length ? { partial: gaps } : {}) };
-    return hasArea(plan, doc) ? withChoke(row, (foes, choke) => castPower(party, foes, entry, { minion, lost, choke }), level) : row;
+    return hasArea(plan, doc) ? withChoke(row, (foes, choke) => bestCast(entries, (each) => castPower(party, foes, each, { minion, lost, choke })), level) : row;
 }

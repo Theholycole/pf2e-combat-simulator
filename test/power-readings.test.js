@@ -207,3 +207,35 @@ test("a conjured weapon: worth its runes over the party's own — a striking run
     const later = readingPower(standardParty(5), powerFoes("boss", 5), entry(2, armory));
     assert.ok(early && later && early.share > 3 * later.share, `${early?.share} ${later?.share}`);
 });
+
+test("rules on the caster: concealment keeps a fifth of the foes' hits off it; Strikes made holy hurt foes weak to holy, the best of its choices", () => {
+    const scarves = plan("rule-set", { ruleSet: { recipient: "self", seconds: 60, rules: [{ key: "GrantItem", uuid: "Compendium.pf2e.conditionitems.Item.DmAIPqOBomZ7H95W" }] } }, null);
+    assert.ok(readingPower(standardParty(5), powerFoes("boss", 5), entry(3, scarves)).share > 0);
+    const planes = plan("rule-set", { ruleSet: { recipient: "self", seconds: 60, rules: [], choice: { options: [{ key: "none", rules: [] }, { key: "heaven", rules: [{ key: "AdjustStrike", mode: "add", property: "traits", value: "holy" }] }] } } }, null);
+    assert.equal(readingPower(standardParty(7), powerFoes("group", 7), entry(4, planes)), null, "plain foes: no weakness");
+    assert.ok(readingPower(standardParty(7), powerFoes("group", 7, "fiend"), entry(4, planes)).share > 0, "fiends weak to holy");
+});
+
+test("an incarnate spell's phases with no plan, by their kind: the word of death after the touch, a fumarole's colors, a cage, a day's rest", () => {
+    const incarnate = (phases, extra = {}) => plan("incarnate", { incarnate: { phases, ...extra } }, null);
+    const touch = incarnate([{ key: "mark", kind: "death-mark" }, { key: "word", kind: "word", statistic: "fortitude", success: { slug: "stunned", value: 1, perRank: 5 }, failure: { slug: "stunned", value: 3, perRank: 10 } }]);
+    const strikeOnly = incarnate([{ key: "mark", kind: "death-mark" }]);
+    const word = readingPower(standardParty(15), powerFoes("boss", 15), entry(8, touch));
+    assert.ok(word && word.share > readingPower(standardParty(15), powerFoes("boss", 15), entry(8, strikeOnly)).share, "the word adds to the Strike");
+    const fumarole = incarnate([{ key: "fumarole", kind: "fumarole", die: 8, statistic: "reflex", area: { type: "cylinder", value: 20 }, seconds: 60, colors: { 1: { formula: "50[fire]" }, 2: { formula: "30[fire]", effect: { conditions: [{ slug: "slowed", value: 1 }], rounds: 10 } } } }]);
+    const open = readingPower(standardParty(15), powerFoes("group", 15), entry(8, fumarole));
+    const choke = readingPower(standardParty(15), powerFoes("group", 15), entry(8, fumarole), { choke: true });
+    assert.ok(open && choke && open.targets === 4 && choke.share > open.share);
+    const cage = incarnate([{ key: "trap", kind: "save" }], { conjure: { object: true, ac: 10, hp: 40, resistances: [{ type: "all-damage", value: 20 }], durationSeconds: 60 } });
+    assert.ok(readingPower(standardParty(13), powerFoes("group", 13), entry(7, cage)).share > 0, "foes shut in");
+    const rest = readingPower(standardParty(15), powerFoes("boss", 15), entry(8, incarnate([{ key: "renewal", kind: "renewal", count: 6 }])));
+    assert.ok(rest && rest.targets === 4 && rest.share > 0);
+});
+
+test("castable as read: an action count's area sized from the text, and the count its data casts it with (Spiritual Torrent)", () => {
+    const torrent = { ...plan("save", { check: { statistic: "fortitude", basic: true }, sharedDamage: { components: [{ id: "c0", formula: "10d6", type: "fire", kinds: ["damage"] }] }, native: { byActions: { 3: { targeting: { area: { areaType: "cone" } } } } } }, null), activation: { time: "2" } };
+    const doc = { system: { time: { value: "2" }, area: { type: "line", value: 60 }, description: { value: "<p><strong>2</strong> The spell targets all creatures in a 60-foot line.</p><p><strong>3</strong> The spell targets all creatures in a 60-foot cone.</p>" } } };
+    const read = castableReading(torrent, doc, 5);
+    assert.deepEqual(read.resolution.native.byActions[3].targeting.area, { areaType: "cone", type: "cone", value: 60 });
+    assert.deepEqual(read.resolution.native.byActions[2].targeting.area, { type: "line", value: 60 });
+});

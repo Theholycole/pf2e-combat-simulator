@@ -175,7 +175,9 @@ const READINGS = {
     "gore-field": "its bleed and drain on the foes in its field, a thrall already out",
     "conjured-weapons": "its weapons' runes over the party's own, on their Strikes",
     "conjured-item": "its weapon's runes over the party's own, in the best Striker's hands",
-    "weapon-imbue": "its bleed, or its Erupting Spurs, on the best Striker's hits"
+    "weapon-imbue": "its bleed, or its Erupting Spurs, on the best Striker's hits",
+    "rule-set": "its rules on the caster while they last (concealment, resistances, holy or unholy Strikes), the best of its choices",
+    "stored-burst": "the damage its resistance prevents, and its burst as big as that makes it"
 };
 const ESTIMATE_MORE = { "battle form": "the caster in its best form, its Strikes in place of its spells, its temporary Hit Points and AC" };
 

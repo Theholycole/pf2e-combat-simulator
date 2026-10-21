@@ -108,6 +108,8 @@ function pc({ id, name, level, hpPerLevel, con, ac, fort, ref, will, dex, wis, p
     return {
         id, name, side: "party", kind: "pc", level, traits: ["humanoid", "human"], senses: [],
         hp: { value: hp, max: hp },
+        // (Its Constitution modifier: the Hit Points a rest restores, B482 — the spell ratings' Moment of Renewal.)
+        con,
         ac,
         saves: { fortitude: level + fort + con + res, reflex: level + ref + dex + res, will: level + will + wis + res },
         perception: level + perception + wis,

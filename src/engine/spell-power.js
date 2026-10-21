@@ -117,6 +117,10 @@ export function powerConditions(plan) {
     if ((plan?.traits ?? []).includes("unholy")) traits.add("celestial");
     // (Circle of Protection: against unholy or holy foes.)
     if (plan?.resolution?.protectionCircle) for (const trait of ["fiend", "celestial"]) traits.add(trait);
+    // (Strikes made holy or unholy — Spiritual Attunement's planes —: against the foes weak to that.)
+    const traitRules = JSON.stringify(plan?.resolution?.ruleSet ?? null);
+    if (/"key":"AdjustStrike"[^}]*"value":"holy"/.test(traitRules)) traits.add("fiend");
+    if (/"key":"AdjustStrike"[^}]*"value":"unholy"/.test(traitRules)) traits.add("celestial");
     for (const entry of plan?.resolution?.conditionalDamage ?? []) if (entry?.trait) traits.add(entry.trait);
     const json = JSON.stringify({ resolution: plan?.resolution ?? null, targeting: plan?.targeting ?? null });
     if (/"type":"vitality"|\[vitality\]/.test(json)) traits.add("undead");
