@@ -82,3 +82,16 @@ test("castable as written another way: a reaction on its trigger as an action, a
     const note = castableReading(base("1 willing creature", "effect-note", { effectNote: { recipient: "target", effect: { uuid: "Compendium.pf2e.spell-effects.Item.x", label: "Spell Effect: X" } } }), doc("2"));
     assert.deepEqual(note.resolution, { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: "Compendium.pf2e.spell-effects.Item.x", label: "Spell Effect: X", recipients: "target" }] });
 });
+
+test("in a choke point (the foes coming down a corridor): every foe crosses Web end to end; a wall stops them all; a cloud stays in their way", async () => {
+    const { castRepeats, wallShare } = await import("../src/engine/spell-power.js");
+    const web = plan("web-area", { webArea: { area: [{ minRank: 2, feet: 10 }], durationSeconds: 60, skill: "athletics", statistic: "reflex" } });
+    const open = readingPower(standardParty(3), powerFoes("group", 3), entry(2, web));
+    const choke = readingPower(standardParty(3), powerFoes("group", 3), entry(2, web), { choke: true });
+    assert.ok(choke.share > open.share, `${choke.share} vs ${open.share}`);
+    const cloud = { resolution: { lingering: { events: ["turn-start"], durationSeconds: 60 } } };
+    assert.deepEqual([castRepeats(cloud), castRepeats(cloud, 3, { choke: true })], [1, 2]);
+    const stone = { name: "Test Wall", castRank: 5, dc: 27, attack: 19, pool: RATED_POOL, tradition: "arcane", effects: {}, plan: { resolution: { kind: "spell-note" }, lifecycle: { durationSpec: { mode: "instantaneous" } } } };
+    const party = standardParty(9);
+    assert.ok(wallShare(party, powerFoes("boss", 9), stone, "barrier", { choke: true }).share > wallShare(party, powerFoes("boss", 9), stone, "barrier").share);
+});

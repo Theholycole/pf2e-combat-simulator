@@ -116,10 +116,14 @@ function averageOn(target, formulas, type = "untyped", context = null) {
     return instances.length ? adjustDamage(target, instances).total : 0;
 }
 
-// The foes an area holds: as many as its size holds of them bunched (areaCapacity), the first of them.
-function caught(enemies, area) {
-    return enemies.slice(0, Math.max(1, areaCapacity({ type: area.type ?? "burst", value: Number(area.value) || 5 })));
+// The foes an area holds: as many as its size holds of them bunched (areaCapacity), the first of them; in a choke point, all of them (they
+// can't come but through it).
+function caught(enemies, area, choke = false) {
+    return choke ? enemies : enemies.slice(0, Math.max(1, areaCapacity({ type: area.type ?? "burst", value: Number(area.value) || 5 })));
 }
+
+// The feet of a foe's way inside an area: its radius; in a choke point, across it (they come through it end to end).
+const insideOf = (feet, ctx) => (ctx.choke ? 2 * feet : feet);
 
 // The better of a creature's statistics against a DC: [critical failure, failure, success, critical success].
 const bestOdds = (c, statistics, dc) => degreeDistribution(Math.max(...statistics.map((slug) => (["fortitude", "reflex", "will"].includes(slug) ? saveModifier(c, slug) : skillValue(c, slug)))), Number(dc) || 10);
@@ -128,7 +132,7 @@ const bestOdds = (c, statistics, dc) => degreeDistribution(Math.max(...statistic
 const lastsRounds = (seconds, rounds) => (Number(seconds) > 0 ? Math.max(1, Math.min(rounds, Math.floor(Number(seconds) / 6))) : rounds);
 
 // --- The families -----------------------------------------------------------------------------------------------------------------------
-// Each: (ctx: { state, caster, enemies, allies, entry, rank, rounds, actions }) → { entries: [{ target, damage, worth, heal, benefit }],
+// Each: (ctx: { state, caster, enemies, allies, entry, rank, rounds, actions, choke (true: the foes come through a choke point) }) → { entries: [{ target, damage, worth, heal, benefit }],
 // targets, actions }, or { options: [such] } where it can go more than one way (the rating takes the best), or null.
 
 const READERS = {
@@ -139,8 +143,8 @@ const READERS = {
         const web = ctx.entry.plan.resolution.webArea ?? {};
         const feet = Math.max(5, ...(web.area ?? []).filter((size) => (Number(size.minRank) || 0) <= ctx.rank).map((size) => Number(size.feet) || 0));
         const lasts = lastsRounds(web.durationSeconds, ctx.rounds);
-        const entries = caught(ctx.enemies, { type: "burst", value: feet }).map((foe) => {
-            const loss = approachLoss(foe, { inside: feet, difficult: true, check: bestOdds(foe, [web.statistic ?? "reflex", web.skill ?? "athletics"], ctx.entry.dc) }, lasts);
+        const entries = caught(ctx.enemies, { type: "burst", value: feet }, ctx.choke).map((foe) => {
+            const loss = approachLoss(foe, { inside: insideOf(feet, ctx), difficult: true, check: bestOdds(foe, [web.statistic ?? "reflex", web.skill ?? "athletics"], ctx.entry.dc) }, lasts);
             return { target: foe, damage: loss.damage, worth: loss.worth, heal: 0, benefit: 0 };
         });
         return { entries, targets: entries.length };
@@ -153,11 +157,11 @@ const READERS = {
         const area = ctx.entry.plan.targeting?.area ?? { type: "burst", value: 20 };
         const lasts = lastsRounds(tentacles.seconds, ctx.rounds);
         const context = spellContext(ctx.entry, { isSpell: true, area: true });
-        const entries = caught(ctx.enemies, area).map((foe) => {
+        const entries = caught(ctx.enemies, area, ctx.choke).map((foe) => {
             const [, , hit, critical] = degreeDistribution(Number(ctx.entry.attack) || 0, 10 + saveModifier(foe, tentacles.defense ?? "fortitude"));
             const capture = averageOn(foe, tentacles.capture ? `${tentacles.capture.formula}[${tentacles.capture.type}]` : "3d6[bludgeoning]", "bludgeoning", context);
             const held = averageOn(foe, tentacles.held ? `${tentacles.held.formula}[${tentacles.held.type}]` : "1d6[bludgeoning]", "bludgeoning", context);
-            const loss = approachLoss(foe, { inside: Number(area.value) || 20, held: { start: hit + critical, escape: bestOdds(foe, ["athletics", "acrobatics"], ctx.entry.dc) }, endTurn: { grab: hit + critical, damage: held } }, lasts);
+            const loss = approachLoss(foe, { inside: insideOf(Number(area.value) || 20, ctx), held: { start: hit + critical, escape: bestOdds(foe, ["athletics", "acrobatics"], ctx.entry.dc) }, endTurn: { grab: hit + critical, damage: held } }, lasts);
             return { target: foe, damage: (hit + 2 * critical) * capture + loss.damage, worth: loss.worth, heal: 0, benefit: 0 };
         });
         return { entries, targets: entries.length };
@@ -170,7 +174,7 @@ const READERS = {
         const feet = Number(terrain.radius) || size?.feet || Number(ctx.entry.plan.targeting?.area?.value) || 5;
         // (500 Toads: until the caster's next turn — the foes' one turn.)
         const lasts = terrain.endsAt === "caster-turn-start" ? 1 : lastsRounds(terrain.durationSeconds, ctx.rounds);
-        const entries = caught(ctx.enemies, { type: "burst", value: feet }).map((foe) => ({ target: foe, damage: 0, worth: approachLoss(foe, { inside: feet, difficult: true }, lasts).worth, heal: 0, benefit: 0 }));
+        const entries = caught(ctx.enemies, { type: "burst", value: feet }, ctx.choke).map((foe) => ({ target: foe, damage: 0, worth: approachLoss(foe, { inside: insideOf(feet, ctx), difficult: true }, lasts).worth, heal: 0, benefit: 0 }));
         return { entries, targets: entries.length, ...(size ? { actions: size.actions } : {}) };
     },
     // A hazard's area: difficult terrain (when it is) and damage for each square moved in it (Spike Stones), or at the end of the
@@ -192,11 +196,11 @@ const READERS = {
             const entries = caught(ctx.allies, area).map((ally) => ({ target: ally, damage: 0, worth: 0, heal: heal * lasts, benefit: 0 }));
             return { entries, targets: entries.length };
         }
-        const entries = caught(ctx.enemies, { type: "burst", value: feet }).map((foe) => {
+        const entries = caught(ctx.enemies, { type: "burst", value: feet }, ctx.choke).map((foe) => {
             const fits = !control.traits?.length || control.traits.some((trait) => (foe.traits ?? []).includes(trait));
-            if (control.kind === "caster-turn-end") return { target: foe, damage: fits && formula ? averageOn(foe, formula, control.type, context) * (1 + (lasts - 1) * 0.5) : 0, worth: 0, heal: 0, benefit: 0 };
+            if (control.kind === "caster-turn-end") return { target: foe, damage: fits && formula ? averageOn(foe, formula, control.type, context) * (1 + (lasts - 1) * (ctx.choke ? 1 : 0.5)) : 0, worth: 0, heal: 0, benefit: 0 };
             const hurt = control.kind === "per-square" && formula ? averageOn(foe, formula, control.type, context) : 0;
-            const loss = approachLoss(foe, { inside: feet, difficult: Boolean(hazard.terrain), hurt }, lasts);
+            const loss = approachLoss(foe, { inside: insideOf(feet, ctx), difficult: Boolean(hazard.terrain), hurt }, lasts);
             return { target: foe, damage: loss.damage, worth: loss.worth, heal: 0, benefit: 0 };
         }).filter((entry) => entry.damage > 0 || entry.worth > 0);
         return { entries, targets: entries.length };
@@ -216,11 +220,11 @@ const READERS = {
         const hazard = cloud.hazard;
         const steps = hazard ? Math.max(0, ctx.rank - (Number(hazard.baseRank) || ctx.rank)) : 0;
         const dice = hazard ? (Number(hazard.count) || 0) + Math.floor(steps / (Number(hazard.step?.interval) || 1)) * (Number(hazard.step?.dice) || 0) : 0;
-        const foes = caught(ctx.enemies, area);
+        const foes = caught(ctx.enemies, area, ctx.choke);
         const first = cloud.savePlan ? spellExpectation(ctx.state, ctx.caster, { name: ctx.entry.name, plan: cloud.savePlan, castRank: ctx.rank, dc: ctx.entry.dc, attack: ctx.entry.attack, pool: null, effects: ctx.entry.effects ?? {} }, foes, 0) : [];
         const onFoes = foes.map((foe) => {
             const save = first.find((entry) => entry.target === foe);
-            const turns = dice ? averageOn(foe, `${dice}d${Number(hazard.faces) || 6}[${hazard.type ?? "untyped"}]`, hazard.type, context) * (1 + (lasts - 1) * 0.5) : 0;
+            const turns = dice ? averageOn(foe, `${dice}d${Number(hazard.faces) || 6}[${hazard.type ?? "untyped"}]`, hazard.type, context) * (1 + (lasts - 1) * (ctx.choke ? 1 : 0.5)) : 0;
             return { target: foe, damage: (save?.damage ?? 0) + turns, worth: save?.worth ?? 0, heal: 0, benefit: 0 };
         }).filter((entry) => entry.damage > 0 || entry.worth > 0);
         return { options: [{ entries: party, targets: party.length }, ...(onFoes.length ? [{ entries: onFoes, targets: onFoes.length }] : [])] };

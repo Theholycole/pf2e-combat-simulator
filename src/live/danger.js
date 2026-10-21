@@ -166,7 +166,8 @@ export function powerTooltip(value, data, bound = null, detail = null) {
     const higher = heightened.length ? (differ.length ? ` Heightened: ${differ.map(([at, power]) => `${ordinal(at)} ${dangerLabel(power)}${summoned(at)}`).join(", ")}.` : " Heightened: within half a level of this at every rank.") : "";
     const creature = detail?.creature ? ` Its best summon here: ${detail.creature}.` : "";
     const more = moreUsefulAgainst(value, detail);
-    const useful = more.length ? ` * More useful against ${more.map(([trait, power]) => `${FOES[trait] ?? trait}: ${dangerLabel(power)}${detail?.creatures?.[trait] ? ` (summoning ${detail.creatures[trait]})` : ""}`).join("; ")}.` : "";
+    const where = (trait) => (trait === "choke" ? "in a choke point (the foes coming down a corridor)" : `against ${FOES[trait] ?? trait}`);
+    const useful = more.length ? ` * More useful ${more.map(([trait, power]) => `${where(trait)}: ${dangerLabel(power)}${detail?.creatures?.[trait] ? ` (summoning ${detail.creatures[trait]})` : ""}`).join("; ")}.` : "";
     const less = Object.entries(detail?.vs ?? {}).filter(([trait, power]) => Number.isFinite(power) && !more.some(([other]) => other === trait)).map(([trait, power]) => ` Against ${FOES[trait] ?? trait}: ${dangerLabel(power)}.`).join("");
     const minion = detail?.minion ? " Cast on a minion of the caster's already out." : "";
     const allies = detail?.alliesHit ? " Its area catches allies near the caster: their Hit Points count against it." : "";

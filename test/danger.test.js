@@ -88,5 +88,7 @@ test("a spell's label marks an estimate and a spell more useful against some foe
     assert.match(powerTooltip(-0.4, null, null, { rank: 4, boss: 0.3, group: 0.5, estimate: "wall (damaging)" }), /~ Estimated by a rule of thumb, as the simulator doesn't play it: a wall in the way of most foes, its damage as they cross it\./);
     assert.match(powerTooltip(0.2, null, null, { rank: 2, boss: 0.3, group: 0.5, minion: true }), /Cast on a minion of the caster's already out\./);
     assert.match(powerTooltip(0.4, null, null, { rank: 2, boss: 0.6, group: 0.9, estimate: "reading (web-area)" }), /~ Read for the rating, as fights don't cast it yet: foes held up on their way to the party \(its checks, its difficult terrain\)\./);
+    assert.match(powerTooltip(0.4, null, null, { rank: 2, boss: 0.6, group: 0.9, vs: { choke: 0.8 } }), /\* More useful in a choke point \(the foes coming down a corridor\): \+0\.8\./);
+    assert.equal(powerLabel(0.4, null, { vs: { choke: 0.8 } }), "+0.4*");
 });
 

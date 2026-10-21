@@ -8,7 +8,7 @@ const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, duration
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
 const { castableReading, powerReading } = await import("../../src/engine/power-readings.js");
 const { SUMMON_LEVELS, spellSummonEntry } = await import("../../src/engine/summons.js");
-const { canCast, isUtility, spellGaps } = await import("../../src/engine/spells.js");
+const { canCast, describeSpell, isUtility, spellGaps } = await import("../../src/engine/spells.js");
 
 const MODULES = `${process.env.HOME}/.local/share/FoundryVTT/Data/modules`;
 
@@ -226,14 +226,26 @@ function estimateResults(plan, entry, doc, rank, party, level) {
     const text = shield || wall || !isUtility(plan) ? null : textDamageOf(doc, rank);
     const terrain = shield || wall || text ? null : terrainOf(plan, doc);
     if (!shield && !wall && !text && !terrain) return null;
-    const results = {};
-    for (const encounter of POWER_KINDS) {
-        const foes = powerFoes(encounter, level);
-        const found = shield ? shieldShare(party, foes, shield.shield, shield.rounds) : wall || terrain ? wallShare(party, foes, entry, wall ?? terrain) : textDamageShare(party, foes, entry, text);
-        if (found) results[`${encounter}|`] = { share: Math.round(found.share * 1e4) / 1e4, levels: Math.round(found.levels * 1e4) / 1e4, ...(found.bound ? { bound: found.bound } : {}), actions: found.actions, targets: found.targets };
-    }
-    return { results, traits: [], estimate: shield ? "shield" : wall ? `wall (${wall})` : text ? "text damage" : "terrain" };
+    const rate = (foes, choke = false) => (shield ? shieldShare(party, foes, shield.shield, shield.rounds) : wall || terrain ? wallShare(party, foes, entry, wall ?? terrain, { choke }) : textDamageShare(party, foes, entry, text));
+    const row = { results: resultsOf([], (foes) => rate(foes), level), traits: [], estimate: shield ? "shield" : wall ? `wall (${wall})` : text ? "text damage" : "terrain" };
+    return wall || terrain ? withChoke(row, rate, level) : row;
 }
+
+// A choke point's results (2026-10-21, the user: "add choke points to simulate situations where area spells are forced to be interacted
+// with vs being able to stride around"): for a spell with an area, the same fights with the foes coming down a corridor (rate(foes,
+// true)); kept, as the condition "choke", where it does a tenth more than in the open, and a tenth of a level at least.
+const CHOKE_MORE = 0.1;
+function withChoke(row, rate, level) {
+    const mean = (results, key) => POWER_KINDS.reduce((sum, encounter) => sum + (results[`${encounter}|${key}`]?.levels ?? 0), 0) / POWER_KINDS.length;
+    const choke = resultsOf([], (foes) => rate(foes, true), level);
+    const open = mean(row.results ?? {}, "");
+    const there = mean(choke, "");
+    if (!(there >= open + CHOKE_MORE && there >= open * (1 + CHOKE_MORE))) return row;
+    const results = { ...row.results };
+    for (const encounter of POWER_KINDS) if (choke[`${encounter}|`]) results[`${encounter}|choke`] = choke[`${encounter}|`];
+    return { ...row, results, traits: [...(row.traits ?? []), "choke"] };
+}
+const hasArea = (plan, doc) => Boolean(describeSpell(plan).area || plan?.targeting?.area?.type || doc?.system?.area?.type);
 
 // Both encounters' results, and those against each trait's foes: rate(foes) → { share, levels, bound, actions, targets, alliesHit } or null.
 function resultsOf(traits, rate, level) {
@@ -277,17 +289,20 @@ export function runPowerTask(task) {
         const traits = powerConditions(rewritten);
         const gaps = spellGaps(read);
         const results = resultsOf(traits, (foes) => castPower(party, foes, read, { minion }), level);
-        return { ...head, traits, results, estimate: `reading (${plan.resolution.kind === "effect-note" ? "effect-note" : "targets"})`, ...(gaps.length ? { partial: gaps } : {}) };
+        const row = { ...head, traits, results, estimate: `reading (${plan.resolution.kind === "effect-note" ? "effect-note" : "targets"})`, ...(gaps.length ? { partial: gaps } : {}) };
+        return hasArea(rewritten, doc) ? withChoke(row, (foes, choke) => castPower(party, foes, read, { minion, choke }), level) : row;
     }
     // (One the engine can't cast in a fight, that the rating reads itself: power-readings.js.)
     if (!castable && powerReading(plan)) {
         const traits = powerConditions(plan);
-        return { ...head, traits, results: resultsOf(traits, (foes) => readingPower(party, foes, entry), level), estimate: `reading (${plan.resolution.kind})` };
+        const row = { ...head, traits, results: resultsOf(traits, (foes) => readingPower(party, foes, entry), level), estimate: `reading (${plan.resolution.kind})` };
+        return withChoke(row, (foes, choke) => readingPower(party, foes, entry, { choke }), level);
     }
     if (isUtility(plan) || !castable) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
     const traits = powerConditions(plan);
     const lost = Boolean(minion) && /\bminion\b[^.]*\bexplode/i.test(textOf(doc));
     const results = resultsOf(traits, (foes) => castPower(party, foes, entry, { minion, lost }), level);
     const gaps = spellGaps(entry);
-    return { ...head, traits, results, ...(minion ? { minion: true } : {}), ...(gaps.length ? { partial: gaps } : {}) };
+    const row = { ...head, traits, results, ...(minion ? { minion: true } : {}), ...(gaps.length ? { partial: gaps } : {}) };
+    return hasArea(plan, doc) ? withChoke(row, (foes, choke) => castPower(party, foes, entry, { minion, lost, choke }), level) : row;
 }

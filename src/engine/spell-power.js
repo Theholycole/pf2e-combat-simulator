@@ -27,6 +27,8 @@ import { describeSpell, spellExpectation, spellVariants, targetSets } from "./sp
 import { powerReading } from "./power-readings.js";
 
 export const POWER_KINDS = Object.freeze(["boss", "group"]);
+// The choke point the ratings try area spells in: the corridor layout.
+export const CHOKE = Object.freeze({ layout: "corridor" });
 // The wizard's slot for the rated spell.
 export const RATED_POOL = "wizard:rated";
 // The rounds a fight lasts, for what conditions and spell effects are worth; the share of a fight that's as good as all of it.
@@ -163,14 +165,15 @@ export function durationRounds(plan) {
 
 // How much more a cast does over its duration, in casts, in a fight of `rounds` rounds: a lingering area's effect again each round it
 // lasts, as often as foes stay in it (half the time; a quarter for one that acts only as they enter; three quarters for one the caster aims
-// each Sustain); a spell Sustained to strike again, or used again each turn, once more a round (once more in all, one that must recharge).
-export function castRepeats(plan, rounds = POWER_ROUNDS) {
+// each Sustain; in a choke point, every time — they can't go around it); a spell Sustained to strike again, or used again each turn, once more a round (once more in all, one that must recharge).
+export function castRepeats(plan, rounds = POWER_ROUNDS, { choke = false } = {}) {
     const fight = Math.max(1, Math.min(POWER_ROUNDS, rounds));
     let again = 0;
     const lingering = plan?.resolution?.lingering;
     if (lingering?.events?.length) {
         const lasts = Math.max(1, Math.min(fight, Math.floor((Number(lingering.durationSeconds) || 0) / 6)));
-        const stay = lingering.events.includes("sustain") ? 0.75 : lingering.events.every((event) => event === "enter") ? 0.25 : 0.5;
+        // (In a choke point the foes can't go around it: all of them, every time, as they come.)
+        const stay = choke ? 1 : lingering.events.includes("sustain") ? 0.75 : lingering.events.every((event) => event === "enter") ? 0.25 : 0.5;
         again = Math.max(again, (lasts - 1) * stay);
     }
     const repeatable = plan?.resolution?.repeatable;
@@ -207,13 +210,16 @@ export function entriesShare(entries, { side, foeHp, harm, allies, again = 0 }) 
 
 // One cast of entry (the rated spell) by the party's wizard into foes: { share, levels, bound, actions, targets, alliesHit? } at its best
 // (below zero when its area can't help catching allies, and hurts them more than the foes), or null when it can do nothing there. The party starts at half its Hit Points; everyone stands in the near band, a touch spell's target within reach.
+// choke (2026-10-21, the user: "add choke points to simulate situations where area spells are forced to be interacted with vs being able to
+// stride around"): the same fights in a 10-foot corridor on the grid (grid.js's), the foes coming down it — an area catches whoever its
+// template covers there, and a lingering one is crossed by every foe.
 // minion: a creature of the wizard's already out, as hurt as the party (a spell on one's minion, companion or eidolon — the user: "minion
 // spells assuming you already have a minion out"), the one ally the spell can go to; lost: the spell spends it (Final Sacrifice explodes
 // it), what it would have done the rest of the fight taken off (summonShare).
-export function castPower(party, foes, entry, { minion = null, lost = false } = {}) {
+export function castPower(party, foes, entry, { minion = null, lost = false, choke = false } = {}) {
     const helper = minion ? [{ ...minion, id: "minion", side: "party", kind: "npc", reserve: false, summons: undefined, minion: true, controlledBy: "wizard" }] : [];
     const combatants = [...[...partyWithSpell(party, entry), ...helper].map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
-    const state = createFightState({ combatants }, { morale: false, retreat: false }, 1);
+    const state = createFightState({ combatants }, { morale: false, retreat: false, ...(choke ? { grid: CHOKE } : {}) }, 1);
     const caster = state.byId.get("wizard");
     const spell = (caster?.spells ?? []).find((each) => each.name === entry.name && (each.pool ?? null) === (entry.pool ?? null));
     if (!spell) return null;
@@ -223,7 +229,7 @@ export function castPower(party, foes, entry, { minion = null, lost = false } = 
     const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
     if (!(foeHp > 0)) return null;
     const harm = foeHarm(state, caster.side);
-    const again = castRepeats(spell.plan, fightRounds(state, caster.side));
+    const again = castRepeats(spell.plan, fightRounds(state, caster.side), { choke });
     let best = null;
     for (const actions of spellVariants(spell)) {
         let sets = [];
@@ -253,7 +259,7 @@ export function castPower(party, foes, entry, { minion = null, lost = false } = 
 
 // One cast of a spell the engine can't cast in a fight, as its reading has it (power-readings.js, 2026-10-21): the same fights and the same
 // share as castPower's. { share, levels, bound, actions, targets }, or null when the reading finds nothing it does.
-export function readingPower(party, foes, entry) {
+export function readingPower(party, foes, entry, { choke = false } = {}) {
     const read = powerReading(entry.plan);
     if (!read) return null;
     const combatants = [...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
@@ -265,7 +271,7 @@ export function readingPower(party, foes, entry) {
     const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
     if (!(foeHp > 0)) return null;
     const actions = describeSpell(entry.plan).actions ?? null;
-    const found = read({ state, caster, enemies, allies, entry, rank: Number(entry.castRank) || 1, rounds: fightRounds(state, caster.side), actions });
+    const found = read({ state, caster, enemies, allies, entry, rank: Number(entry.castRank) || 1, rounds: fightRounds(state, caster.side), actions, choke });
     const harm = foeHarm(state, caster.side);
     let best = null;
     for (const option of found?.options ?? (found ? [found] : [])) {
@@ -350,7 +356,7 @@ export function wallKind(plan, text = "") {
 // one), a hindering wall an action crossing it and its damage each of the two moves through it, a damaging wall its damage as they cross
 // it and a tenth of a round (it hides the party), a screen that tenth only. Its damage at its rank, by each foe's weaknesses and
 // resistances.
-export function wallShare(party, foes, entry, kind) {
+export function wallShare(party, foes, entry, kind, { choke = false } = {}) {
     const state = createFightState({ combatants: [...partyWithSpell(party), ...foes] }, { morale: false, retreat: false }, 1);
     const enemies = state.list.filter((c) => c.side !== "party" && isActive(c));
     const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
@@ -360,21 +366,23 @@ export function wallShare(party, foes, entry, kind) {
     const base = Number(entry.plan?.resolution?.damagingWall?.baseRank) || rank;
     const dice = wall ? (Number(wall.count) || 0) + (wall.step ? Math.floor(Math.max(0, rank - base) / (Number(wall.step.interval) || 1)) * (Number(wall.step.dice) || 0) : 0) : 0;
     const context = spellContext(entry, { isSpell: true, area: true });
-    const lasts = Math.min(1, durationRounds(entry.plan));
+    // (In a choke point: across it, in the way of every foe — a barrier keeps them two rounds, breaking through.)
+    const past = choke ? 1 : WALL_PAST;
+    const lasts = Math.min(choke ? 2 : 1, durationRounds(entry.plan));
     let share = 0;
     for (const foe of enemies) {
         const part = foe.hp.max / foeHp;
         const hurt = wall && dice ? adjustDamage(foe, [{ type: wall.type, amount: dice * ((Number(wall.faces) || 0) + 1) / 2, persistent: false, context }]).total : 0;
         let worth = 0;
         let damage = 0;
-        if (kind === "barrier") worth = WALL_PAST * lasts;
+        if (kind === "barrier") worth = past * lasts;
         else if (kind === "hinder") {
-            worth = WALL_PAST / 3;
-            damage = WALL_PAST * hurt * (wall?.perAction ? 2 : 1);
+            worth = past / 3;
+            damage = past * hurt * (wall?.perAction ? 2 : 1);
         } else if (kind === "damaging") {
-            worth = WALL_PAST * 0.1;
-            damage = WALL_PAST * hurt;
-        } else worth = WALL_PAST * 0.1;
+            worth = past * 0.1;
+            damage = past * hurt;
+        } else worth = past * 0.1;
         share += Math.min(damage, Math.max(0, foe.hp.value)) / foeHp + worth * part / POWER_ROUNDS;
     }
     return share > 0 ? { share, ...shareToLevels(share), actions: describeSpell(entry.plan).actions ?? null, targets: enemies.length } : null;
