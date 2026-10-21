@@ -18,7 +18,7 @@ import { gridFlanked, gridStrides, planStride, strideGoes } from "./grid-fight.j
 import { distanceFeet, reaches as gridReaches, sightLine, squareOf } from "./grid.js";
 import { attackPenalty, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { canReact, castJustNow, chargeOn, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { canReact, castJustNow, chargeOn, hasOwnEffect, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
@@ -580,9 +580,83 @@ class PlanContext {
         return cached;
     }
 
-    // A Stride's: none for a short one with Mobility (B302).
+    // A move's: the damage of every reaction it sets off, as actions.js provoke has them (2026-10-21, the user: ghosts sinking into the
+    // floor "should still be worried about reactive strikes or any reaction ability that can damage them") — Reactive Strike; a reaction
+    // Strike on a move (Tail Swipe, Stand Still; Lurking Death from afar); a provoked ability (Tentacle Trip). Before, Reactive Strike
+    // alone. None for a short one with Mobility (B302). Sinking into the floor (incorporeal): also the chance one stops it — a hit that
+    // disrupts the move, a grab or a trip — so it stays where it was, open to the round it meant to miss.
     moveLoss(pos, node, kind) {
-        return mobileStride(this.c, { kind }) ? 0 : this.aooLoss(pos, node);
+        if (mobileStride(this.c, { kind })) return 0;
+        const { damage, stops } = this.moveReactions(pos, node);
+        const scale = this.profile.selfPreservation * this.ownValue;
+        let loss = scale * Math.min(1, damage / remainingHp(this.c));
+        if (kind === "sink" && stops > 0) loss += stops * scale * Math.min(1.5, this.exposure({ ...node, pos }) / remainingHp(this.c));
+        return loss;
+    }
+
+    // The reactions a move from pos sets off, one an enemy: { damage (expected), stops (the chance one of them stops the move) }. Marks
+    // node.provoked as aooLoss does.
+    moveReactions(pos, node) {
+        const { state, c } = this;
+        let damage = 0;
+        let kept = 1;
+        for (const [index, enemy] of this.enemies.entries()) {
+            if (!canAct(enemy) || enemy.cond.fleeing || !canReact(enemy, "*")) continue;
+            const bit = index < 30 ? 1 << index : 0;
+            if (bit && node.provoked & bit) continue;
+            const near = inMelee(pos, enemy);
+            let answer = null;
+            if (near && enemy.reactions?.aoo) {
+                if (canReact(enemy, "Reactive Strike")) answer = { damage: this.enemyStrikeDamage(enemy, node.shield, 0), stops: 0 };
+            } else {
+                const far = (entry) => entry.within > 10 && entry.teleport && (entry.within >= 60 || pos.band !== "far" || enemy.band === "far");
+                const reaction = (enemy.reactionStrikes ?? []).find((entry) => (entry.triggers.includes("move") || entry.triggers.includes("leave")) && (near ? !(entry.within > 10 && !entry.teleport) : far(entry)));
+                if (reaction) answer = this.reactionStrikeLoss(enemy, reaction, node.shield);
+                else answer = this.provokedLoss(enemy, pos);
+            }
+            if (!answer) continue;
+            if (bit) node.provoked |= bit;
+            damage += answer.damage;
+            kept *= 1 - answer.stops;
+        }
+        return { damage, stops: 1 - kept };
+    }
+
+    // A reaction Strike's expected damage on this creature and the chance it stops its move (one that disrupts on a hit or a critical hit;
+    // a grab or a trip in its place, about half the time).
+    reactionStrikeLoss(enemy, reaction, shieldRaised) {
+        if (reaction.requiresEffect && !hasOwnEffect(enemy, reaction.requiresEffect)) return null;
+        if (reaction.skill) return { damage: 0, stops: ["grapple", "trip"].includes(reaction.skill) ? 0.5 : 0 };
+        const { c } = this;
+        const usable = (enemy.strikes ?? []).filter((strike) => strikeUsable(enemy, strike) && (reaction.ranged ? !strike.melee : strike.melee));
+        const named = usable.filter((strike) => String(strike.name ?? "").toLowerCase().includes(String(reaction.strike ?? "").toLowerCase()));
+        const extra = /^(\d+)d(\d+)$/.exec(String(reaction.extraDamage ?? ""));
+        const ac = armorClass(c, { shieldRaised });
+        let best = null;
+        for (const strike of named.length && reaction.strike ? named : usable) {
+            const modifier = strike.bonus - (reaction.penalty ?? 0) - statusPenalty(enemy, strike.melee ? "melee" : "ranged") + effectBonus(enemy, "attack");
+            const dist = degreeDistribution(modifier, ac);
+            const added = extra ? Number(extra[1]) * (Number(extra[2]) + 1) / 2 : 0;
+            const hit = targetingChance(enemy) * (dist[SUCCESS] * (expectedHitDamage(enemy, strike, c, false) + added) + dist[CRITICAL_SUCCESS] * (expectedHitDamage(enemy, strike, c, true) + 2 * added));
+            const stops = !reaction.disrupts ? 0 : targetingChance(enemy) * (reaction.disrupts === "critical" ? dist[CRITICAL_SUCCESS] : dist[SUCCESS] + dist[CRITICAL_SUCCESS]);
+            if (!best || hit > best.damage) best = { damage: hit, stops };
+        }
+        return best;
+    }
+
+    // A provoked ability of the enemy's that answers a move from pos (actions.js provoke, spells.js provokedReaction: Tentacle Trip): its
+    // expected damage, and about half a chance of stopping the move when it trips, holds or stops the creature.
+    provokedLoss(enemy, pos) {
+        const { state, c } = this;
+        const near = (within) => (within === "reach" || Number(within) <= 10 ? inMelee(pos, enemy) : Number(within) >= 60 || pos.band !== "far" || enemy.band === "far");
+        for (const spell of enemy.spells ?? []) {
+            const trigger = spell.plan?.trigger;
+            if (trigger?.event !== "provoke" || !(trigger.triggers ?? []).some((each) => each === "move" || each === "leave") || !near(trigger.within) || !canReact(enemy, spell.name)) continue;
+            const [expected] = spellExpectation(state, enemy, spell, [c], 0);
+            const holds = /"(?:prone|grabbed|restrained|immobilized|paralyzed|stunned|petrified)"/.test(JSON.stringify(spell.plan.resolution ?? {}));
+            return { damage: expected?.damage ?? 0, stops: holds ? 0.5 : 0 };
+        }
+        return null;
     }
 
     // Expected damage this creature takes from one enemy's Attack of Opportunity.

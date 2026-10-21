@@ -240,3 +240,26 @@ test("incorporeal on the grid: through a blocked square, never ending in it", as
     assert.equal(ghostly.get("3,0")?.ends, true);
     assert.equal(ghostly.get("2,0")?.ends, false);
 });
+
+test("sinking weighs the reactions it sets off: Reactive Strike, and more for one that can stop the move (Stand Still)", async () => {
+    const { scoreOptions, computeThreats } = await import("../src/engine/planner.js");
+    const { engage } = await import("../src/engine/space.js");
+    const sinkValue = (setup) => {
+        const state = createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), id: "monster", name: "Test Ghost", traits: ["incorporeal", "undead"], flies: true }] }, { morale: false, retreat: false }, 1);
+        const ghost = state.byId.get("monster");
+        const fighter = state.byId.get("fighter");
+        engage(state, fighter, ghost);
+        setup(fighter);
+        computeThreats(state);
+        ghost.actionsLeft = 3;
+        return scoreOptions(state, ghost).options.find((option) => option.action?.type === "stride" && option.action.move?.kind === "sink")?.value;
+    };
+    const none = sinkValue((fighter) => (fighter.reactions = { ...(fighter.reactions ?? {}), aoo: false }));
+    const reactive = sinkValue((fighter) => (fighter.reactions = { ...(fighter.reactions ?? {}), aoo: true }));
+    const standStill = sinkValue((fighter) => {
+        fighter.reactions = { ...(fighter.reactions ?? {}), aoo: false };
+        fighter.reactionStrikes = [{ name: "Stand Still", triggers: ["move"], strike: null, penalty: 0, disrupts: true }];
+    });
+    assert.ok(none > reactive, `${none} > ${reactive}`);
+    assert.ok(reactive > standStill, `${reactive} > ${standStill}`);
+});
