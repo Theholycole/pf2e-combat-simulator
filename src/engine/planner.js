@@ -29,7 +29,7 @@ import { calmedUntilHostility, pacifiedAll, spares } from "./pacify.js";
 import { floorOf } from "./floors.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { wardChance } from "./wards.js";
-import { imageShare, imageShareWith } from "./images.js";
+import { fooledBy, imageShare, imageShareOverRound, imagesNow } from "./images.js";
 import { familiarFocusReady, familiarOf } from "./familiars.js";
 import { luminanceTarget } from "./luminance.js";
 import { hasConditional, strikeRollOptions } from "./effects.js";
@@ -373,16 +373,38 @@ class PlanContext {
         return (key * 1024 + map) * 32 * 512 + alarmKey;
     }
 
-    // roundDamage for an enemy against this creature, cached for the decision. images: Mirror Image's, cast this turn.
-    enemyRound(enemy, ac, attacks, mode, images = null) {
-        const key = ((((this.enemyIndex.get(enemy.id) ?? 0) * 256 + (ac + 64)) * 4 + attacks) * 2 + (mode === "ranged" ? 1 : 0)) * 2 + (images ? 1 : 0);
+    // roundDamage for an enemy against this creature, cached for the decision. you: the share of its hits that find this creature (Mirror
+    // Image's images take the rest).
+    enemyRound(enemy, ac, attacks, mode, you = 1) {
+        const key = ((((this.enemyIndex.get(enemy.id) ?? 0) * 256 + (ac + 64)) * 4 + attacks) * 2 + (mode === "ranged" ? 1 : 0)) * 1001 + Math.round(you * 1000);
         let value = this.roundCache.get(key);
         if (value === undefined) {
-            const you = images ? imageShareWith(this.state, enemy, this.c, images) : imageShare(this.state, enemy, this.c);
             value = roundDamage(enemy, this.c, ac, attacks, mode === "ranged" ? { rangedOnly: true, you } : { meleeOnly: true, you });
             this.roundCache.set(key, value);
         }
         return value;
+    }
+
+    // Mirror Image's images on this creature next round (those it has, or a full set cast this turn: node.images), spent down over the
+    // attacks the enemies they fool can be expected to make on it (their attention shared over its side): the share of their hits that find
+    // it, or 1 without images.
+    imageYou(node, ac, attacksOf) {
+        const decoys = node.images;
+        const now = decoys ? { count: Number(decoys.images) || 0, chances: decoys.chances ?? {} } : imagesNow(this.state, this.c);
+        if (!(now?.count > 0)) return 1;
+        const fooled = this.enemies.filter((enemy) => canAct(enemy) && !enemy.cond.fleeing && fooledBy(this.state, enemy, this.c));
+        if (!fooled.length) return 1;
+        const share = 1 / Math.max(1, this.defenders);
+        let attacks = 0;
+        const odds = [0, 0, 0, 0];
+        for (const enemy of fooled) {
+            attacks += share * attacksOf(enemy);
+            let best = null;
+            for (const strike of enemy.strikes ?? []) if (strikeUsable(enemy, strike) && (!best || strike.bonus > best.bonus)) best = strike;
+            const dist = degreeDistribution((best?.bonus ?? 0) - statusPenalty(enemy, best?.melee ? "melee" : "ranged") + effectBonus(enemy, "attack"), ac);
+            dist.forEach((value, index) => (odds[index] += value / fooled.length));
+        }
+        return imageShareOverRound(now.count, now.chances, odds, attacks);
     }
 
     // Expected damage of one Strike from a hypothetical position.
@@ -549,15 +571,19 @@ class PlanContext {
         const cover = coverFor(state, c);
         let total = 0;
         let biggestHit = 0;
+        const here = this.mover(pos);
+        // A melee enemy that must Stride first keeps its remaining Strikes, so
+        // stepping back only costs it its weakest attacks.
+        const stridesOf = (enemy) => (inMelee(pos, enemy) ? 0 : stridesToEngage({ band: enemy.band, meleeId: null, speed: enemy.speed, reach: enemy.reach, areaFeet: enemy.areaFeet, exitFeet: enemy.exitFeet }, { band: pos.band, meleeId: null, areaFeet: here.areaFeet, exitFeet: here.exitFeet }));
+        // (Mirror Image: the images' share over the round's attacks — two a round from each enemy that can reach it, as their Strikes go.)
+        const imagesYou = this.imageYou(node, ac, (enemy) => Math.min(2, Math.max(1, 3 - stridesOf(enemy))));
         for (const enemy of this.enemies) {
             if (!canAct(enemy) || enemy.cond.fleeing) continue;
             const engagedHere = inMelee(pos, enemy);
-            // A melee enemy that must Stride first keeps its remaining Strikes, so
-            // stepping back only costs it its weakest attacks.
-            const here = this.mover(pos);
-            const strides = engagedHere ? 0 : stridesToEngage({ band: enemy.band, meleeId: null, speed: enemy.speed, reach: enemy.reach, areaFeet: enemy.areaFeet, exitFeet: enemy.exitFeet }, { band: pos.band, meleeId: null, areaFeet: here.areaFeet, exitFeet: here.exitFeet });
-            const melee = this.enemyRound(enemy, ac, Math.max(0, 3 - strides), "melee", node.images);
-            const ranged = engagedHere ? 0 : this.enemyRound(enemy, ac + cover, 3, "ranged", node.images) * (pos.band === "far" ? 0.9 : 1);
+            const strides = stridesOf(enemy);
+            const you = imagesYou < 1 && fooledBy(state, enemy, c) ? imagesYou : 1;
+            const melee = this.enemyRound(enemy, ac, Math.max(0, 3 - strides), "melee", you);
+            const ranged = engagedHere ? 0 : this.enemyRound(enemy, ac + cover, 3, "ranged", you) * (pos.band === "far" ? 0.9 : 1);
             total += share * Math.max(melee, ranged);
             if (node.shield) biggestHit = Math.max(biggestHit, this.typicalHit(enemy));
         }

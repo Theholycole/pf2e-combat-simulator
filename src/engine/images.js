@@ -51,6 +51,43 @@ export function imageShareWith(state, attacker, target, decoys) {
     return chance?.die > 0 ? Math.min(1, chance.max / chance.die) : 1;
 }
 
+// The images a creature has now (count, chances by count), for the planner; null without any.
+export function imagesNow(state, c) {
+    const images = imagesOn(state, c);
+    return images ? { count: images.count, chances: images.chances } : null;
+}
+
+// Whether the images fool this attacker (it sees them): imageShare's test, for images now or about to be.
+export const fooledBy = (state, attacker, target) => attacker !== target && !attacker?.cond?.blinded && !(state && unseen(state, attacker, target));
+
+// The share of hits that find the creature, averaged over the next round's attacks on it (2026-10-21, the user: "fix it" — the planner
+// counted every attack of a round at the images' first odds, so a lone caster facing a party spent a turn on Mirror Image and died as
+// fast): each attack that isn't a critical failure spends an image — a failure, or a hit that finds one — so a party strips them within a
+// round. count: images to start with; chances: { <count>: { die, max } }; odds: a typical attack's degree odds against it; attacks: how
+// many it expects (a fraction counts for its part).
+export function imageShareOverRound(count, chances, odds, attacks) {
+    if (!(count > 0) || !(attacks > 0)) return 1;
+    const youOf = (n) => {
+        const chance = chances?.[n];
+        return n > 0 && chance?.die > 0 ? Math.min(1, chance.max / chance.die) : 1;
+    };
+    let left = Array.from({ length: count + 1 }, (_, n) => (n === count ? 1 : 0));
+    let total = 0;
+    for (let k = 0; k < Math.ceil(attacks); k++) {
+        const weight = Math.min(1, attacks - k);
+        total += weight * left.reduce((sum, chance, n) => sum + chance * youOf(n), 0);
+        const next = left.map(() => 0);
+        for (let n = 0; n <= count; n++) {
+            if (!left[n]) continue;
+            const spent = n > 0 ? odds[FAILURE] + (odds[SUCCESS] + odds[CRITICAL_SUCCESS]) * (1 - youOf(n)) : 0;
+            next[n] += left[n] * (1 - spent);
+            if (n > 0) next[n - 1] += left[n] * spent;
+        }
+        left = next;
+    }
+    return total / attacks;
+}
+
 // A degree distribution [critical failure, failure, success, critical success] against the creature with the images counted: a failure,
 // and a hit on an image, do nothing (with the critical failures); a critical hit on an image is a hit.
 export function imageOdds(odds, you) {

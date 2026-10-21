@@ -149,3 +149,17 @@ test("Mirror Image in whole fights: cast by a caster the foe attacks, and images
     for (let seed = 1; seed <= 6; seed++) others.push(...simulate(party, {}, seed, { log: true }).log);
     assert.ok(!others.some((line) => line.includes("casts Mirror Image")));
 });
+
+test("images spent over a round's attacks: one attack at the first odds, a party's round strips them (2026-10-21)", async () => {
+    const { imageShareOverRound } = await import("../src/engine/images.js");
+    const chances = { 3: { die: 4, max: 1 }, 2: { die: 6, max: 2 }, 1: { die: 6, max: 3 } };
+    const odds = [0.05, 0.35, 0.5, 0.1];
+    assert.equal(imageShareOverRound(3, chances, odds, 1), 0.25, "the first attack: 1 in 4");
+    const two = imageShareOverRound(3, chances, odds, 2);
+    const party = imageShareOverRound(3, chances, odds, 8);
+    assert.ok(two > 0.25 && party > two, `${two} then ${party}: each attack after the first finds fewer images`);
+    assert.ok(party > 0.6, `eight attacks: most find the caster (${party})`);
+    assert.equal(imageShareOverRound(0, chances, odds, 4), 1, "no images");
+    assert.equal(imageShareOverRound(3, chances, [1, 0, 0, 0], 6), 0.25, "critical failures spend none");
+});
+
