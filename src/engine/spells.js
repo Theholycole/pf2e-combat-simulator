@@ -3248,7 +3248,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
 // The sets of creatures a spell can be aimed at from a position, as
 // { targets: [creature…] }. inMelee(other) and distance(other) describe the
 // caster's (possibly hypothetical) position.
-export function targetSets(state, caster, spell, { enemies, allies = [], inMelee, distance, meleeId }, actions = undefined) {
+// newWith: in a plan, the creature it Strode into a Melee with this turn (meleeId: that one's Melee, if it's in one).
+export function targetSets(state, caster, spell, { enemies, allies = [], inMelee, distance, meleeId, newWith = null }, actions = undefined) {
     const info = describeSpell(spell.plan, actions);
     // Administer First Aid: each dying ally (a downed PC lies in the near band).
     if (info.dying) return allies.filter((ally) => ally.status === DOWN && ally.kind === "pc" && (ally.cond.dying ?? 0) > 0).map((ally) => ({ targets: [ally] }));
@@ -3350,6 +3351,9 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         // A buff from 10 feet (Bless) also reaches allies standing apart in the
         // caster's band: a support caster keeps close to its side.
         const around = meleeId !== null && meleeId !== undefined ? members(meleeId).filter((other) => other !== caster) : [];
+        // (2026-10-21: Strode up to a creature standing apart, in a plan — the two of them a Melee now. Before, an emanation about itself
+        // found no one after a Stride, so a troop or a creature with an aura-like blast never closed in and used it the same turn.)
+        if (!around.length && newWith && newWith.meleeId == null && isActive(newWith) && notImmune(newWith) && affected(newWith)) around.push(newWith);
         const band = caster.band === "engaged" ? "near" : caster.band;
         const apart = (other) => other !== caster && !around.includes(other) && other.meleeId === null;
         if (info.area.value >= 30) {

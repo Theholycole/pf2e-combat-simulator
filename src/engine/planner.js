@@ -85,6 +85,8 @@ export function computeThreats(state) {
     // M40: what it can still deal, for the morale gate's strength.
     state.potential = new Map();
     state.strikeShare = new Map();
+    // (Its spells' damage alone: what reaches a flier aloft, out of its Strikes' reach — exposure.)
+    state.spellThreat = new Map();
     for (const c of state.list) {
         if (!isActive(c)) {
             state.threat.set(c.id, 0);
@@ -102,6 +104,7 @@ export function computeThreats(state) {
         const castable = spellDamages(state, c, target);
         const spells = Math.max(0, ...castable.map((entry) => entry.damage));
         state.threat.set(c.id, Math.max(strikes, spells));
+        state.spellThreat.set(c.id, spells);
         state.potential.set(c.id, potentialDamage(c, castable, roundDamage(c, target, sample, 3, { grip: true })));
         // How much of its threat comes from Strikes: what an extra action or an attack bonus helps.
         state.strikeShare.set(c.id, strikes + spells > 0 ? strikes / Math.max(strikes, spells) : 1);
@@ -241,6 +244,14 @@ function remainingHp(target) {
 // creature took it; reaching, there, by the squares.)
 function rootPos(c) {
     return { band: c.band, melee: c.meleeId, newWith: null, ...(c.square ? { at: { square: c.square, size: c.size, reach: c.reach } } : {}) };
+}
+
+// A position's Melee for targetSets: its own, or — Strode into one this turn — the creature it closed on and that one's Melee.
+function meleeOfPos(state, pos) {
+    if (typeof pos.melee === "number") return { meleeId: pos.melee };
+    if (pos.melee !== "new") return { meleeId: null };
+    const newWith = state.byId.get(pos.newWith) ?? null;
+    return { meleeId: typeof newWith?.meleeId === "number" ? newWith.meleeId : null, newWith };
 }
 
 function inMelee(pos, other) {
@@ -620,13 +631,18 @@ class PlanContext {
         const stridesOf = (enemy) => (inMelee(pos, enemy) ? 0 : at && enemy.square ? Math.min(3, gridStrides(state, enemy, { ...c, square: at.square, meleeId: pos.band === "engaged" ? "here" : null })) : stridesToEngage({ band: enemy.band, meleeId: null, speed: enemy.speed, reach: enemy.reach, flies: fliesNow(enemy), areaFeet: enemy.areaFeet, exitFeet: enemy.exitFeet }, { band: pos.band, meleeId: pos.band === "engaged" ? "here" : null, flies: fliesNow(c), areaFeet: here.areaFeet, exitFeet: here.exitFeet }));
         // (Mirror Image: the images' share over the round's attacks — two a round from each enemy that can reach it, as their Strikes go.)
         const imagesYou = this.imageYou(node, ac, (enemy) => Math.min(2, Math.max(1, 3 - stridesOf(enemy))));
+        // (A flier, choosing between aloft and a Melee: an enemy that doesn't fly can't reach it aloft, but its spells reach it either way —
+        // counted at every position, its best of Strikes and spells, or hovering would look safe from casters whose Strikes can't reach.)
+        const flier = fliesNow(c);
         for (const enemy of this.enemies) {
             if (!canAct(enemy) || enemy.cond.fleeing) continue;
             const engagedHere = inMelee(pos, enemy);
             const strides = stridesOf(enemy);
             const you = imagesYou < 1 && fooledBy(state, enemy, c) ? imagesYou : 1;
             const melee = this.enemyRound(enemy, ac, Math.max(0, 3 - strides), "melee", you);
-            const ranged = engagedHere ? 0 : this.enemyRound(enemy, ac + cover, 3, "ranged", you) * (pos.band === "far" ? 0.9 : 1);
+            const shoot = engagedHere ? 0 : this.enemyRound(enemy, ac + cover, 3, "ranged", you) * (pos.band === "far" ? 0.9 : 1);
+            // (Its spells past Mirror Image's images: they fool Strikes only.)
+            const ranged = flier && !fliesNow(enemy) ? Math.max(shoot, state.spellThreat?.get(enemy.id) ?? 0) : shoot;
             total += share * Math.max(melee, ranged);
             if (node.shield) biggestHit = Math.max(biggestHit, this.typicalHit(enemy));
         }
@@ -672,7 +688,75 @@ class PlanContext {
                 if (value > best) best = value;
             }
         }
+        // (Its close spells and abilities, as a melee Strike: in a Melee with the foe, or Strides off with the actions to spare for it — and,
+        // with any, its others that reach from here, so only what the close one adds over them draws it in: Ignition's touch over its ray.)
+        const closeList = this.closeCasts();
+        if (closeList.length) {
+            for (const far of this.farList) {
+                for (const set of targetSets(this.state, c, far.spell, this.closeEnv(node.pos), far.actions)) {
+                    for (const target of set.targets) {
+                        if (target.side === c.side) continue;
+                        const value = targetValue(this.state, target, c) * Math.min(1, far.damage / remainingHp(target));
+                        if (value > best) best = value;
+                    }
+                }
+            }
+        }
+        for (const close of closeList) {
+            for (const target of this.enemies) {
+                let factor = 1;
+                if (!inMelee(node.pos, target)) {
+                    const strides = this.strides(node.pos, target);
+                    if (strides + close.cost > 3 || !this.closeReaches(close, target)) continue;
+                    factor = strides === 1 ? 0.6 : 0.25 / Math.max(1, strides - 1);
+                }
+                const value = targetValue(this.state, target, c) * Math.min(1, close.damage / remainingHp(target)) * factor;
+                if (value > best) best = value;
+            }
+        }
         return best;
+    }
+
+    // Its damaging spells and abilities that reach a foe only from a Melee with it — a troop's area about itself (Festival of Ruin), a
+    // touch — and what each deals one foe (2026-10-21: before, only Strikes drew a creature in, and a flier aloft over a party that
+    // can't come up to it, with no Strike of its own, hung back).
+    closeCasts() {
+        if (this.closeList) return this.closeList;
+        const { state, c } = this;
+        this.closeList = [];
+        this.farList = [];
+        this.closeReach = new Map();
+        const sample = this.enemies[0];
+        if (!sample) return this.closeList;
+        const away = { band: "near", melee: null, newWith: null };
+        for (const spell of c.spells ?? []) {
+            // (Not the basic actions: a Trip's fall on a critical success is no reason to close in.)
+            if (!canCast(c, spell) || spell.kind === "basic" || (spell.plan?.trigger && spell.plan.trigger.event !== "use") || spell.plan?.trigger?.followUp || spell.plan?.needs || spell.plan?.requires || spell.plan?.requiresFoe) continue;
+            for (const actions of spellVariants(spell)) {
+                const info = describeSpell(spell.plan, actions);
+                if (!info.actions || info.actions > 3 || info.helpful || info.healing || info.self) continue;
+                const far = targetSets(state, c, spell, this.closeEnv(away), actions).length > 0;
+                const [expected] = spellExpectation(state, c, spell, [sample], 0, actions);
+                if (expected?.damage > 0) (far ? this.farList : this.closeList).push({ spell, actions, cost: info.actions, damage: expected.damage });
+            }
+        }
+        return this.closeList;
+    }
+
+    closeEnv(pos) {
+        return { enemies: this.enemies, allies: [], inMelee: (other) => inMelee(pos, other), distance: (other) => distanceTo(pos, other), ...meleeOfPos(this.state, pos) };
+    }
+
+    // Whether a close cast reaches the foe from a Melee with it.
+    closeReaches(close, target) {
+        const key = `${close.spell.name}:${close.actions}:${target.id}`;
+        let reaches = this.closeReach.get(key);
+        if (reaches === undefined) {
+            const sets = targetSets(this.state, this.c, close.spell, this.closeEnv({ band: "engaged", melee: "new", newWith: target.id }), close.actions);
+            reaches = sets.some((set) => set.targets.includes(target));
+            this.closeReach.set(key, reaches);
+        }
+        return reaches;
     }
 
     terminal(node) {
@@ -985,7 +1069,7 @@ function expandSpells(env) {
                 allies: ctx.alliesAndDown,
                 inMelee: (other) => inMelee(node.pos, other),
                 distance: (other) => distanceTo(node.pos, other, ctx.placeOf(node.pos)),
-                meleeId: typeof node.pos.melee === "number" ? node.pos.melee : null
+                ...meleeOfPos(state, node.pos)
             }, actions);
             // (B304: a target need — Drag's Prone creature — only at those.)
             // (B313: Grapple, Reposition, Shove and Trip at a creature no more than one size larger.)

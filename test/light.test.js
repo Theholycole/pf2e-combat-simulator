@@ -176,3 +176,33 @@ test("incorporeal: ghost touch an effect adds gets past its resistance; rated ag
     const [flier] = powerFoes("boss", 5, "flying");
     assert.ok(flier.flies && flier.strikes.some((each) => !each.melee));
 });
+
+test("a flier with no Strike closes in for its area about itself and uses it the same turn; grounded casters' spells weighed against it", async () => {
+    const { simulate } = await import("../src/engine/fight.js");
+    const { computeThreats } = await import("../src/engine/planner.js");
+    const rows = { criticalSuccess: { damage: { mode: "shared", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] }, effects: [] } };
+    const plan = { modelVersion: 13, source: { name: "Test Riot" }, rank: 1, traits: [], activation: { time: "2", traits: [] }, targeting: { target: null, range: null, area: { type: "emanation", value: 10 } }, trigger: { event: "use" }, resolution: { kind: "save", check: { roll: "save", statistic: "reflex", basic: true, against: { dc: "fixed", value: 22 } }, sharedDamage: { rollOnce: true, components: [{ id: "0", formula: "6d6", type: "bludgeoning" }] }, outcomes: rows } };
+    const troop = () => ({ ...moderateCreatureAt(5, "monster"), id: "monster", name: "Test Riot Troop", strikes: [], flies: true, spells: [{ name: "Test Riot", plan, castRank: 1, pool: null, kind: "ability" }] });
+    let used = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+        const result = simulate({ combatants: [...standardParty(5), troop()] }, { morale: false, retreat: false }, seed, { log: true });
+        if ((result.log ?? []).some((line) => /casts Test Riot/.test(line))) used++;
+    }
+    // (Before: aloft over a party that couldn't reach it, it never came down — 0 of 8.)
+    assert.ok(used >= 3, `used its area in ${used} of 8 fights`);
+    const fireball = { modelVersion: 13, source: { name: "Test Fireball" }, rank: 3, traits: ["manipulate"], activation: { time: "2", traits: ["manipulate"] }, targeting: { range: "500 feet", area: { type: "burst", value: 20 } }, resolution: { kind: "save", check: { statistic: "reflex", basic: true }, sharedDamage: { components: [{ id: "0", formula: "6d6", type: "fire" }] }, outcomes: rows } };
+    const party = standardParty(5).map((pc) => (pc.id === "wizard" ? { ...pc, spells: [{ name: "Test Fireball", plan: fireball, castRank: 3, pool: null }] } : pc));
+    const state = createFightState({ combatants: [...party, troop()] }, { morale: false, retreat: false }, 1);
+    computeThreats(state);
+    assert.ok(state.spellThreat.get("wizard") > 0, "the wizard's spells reach a flier wherever it is");
+    assert.equal(state.spellThreat.get("fighter"), 0);
+});
+
+test("a Strike's range read from PF2e's data (system.range) when it has no range trait", async () => {
+    const { combatant } = await import("../tools/lib/pack-creatures.mjs");
+    const npc = { name: "Test Thrower", type: "npc", system: { details: { level: { value: 3 } }, traits: { value: [], size: { value: "med" } }, attributes: { hp: { max: 45, value: 45 }, ac: { value: 19 }, speed: { value: 25, otherSpeeds: [] } }, saves: { fortitude: { value: 9 }, reflex: { value: 9 }, will: { value: 7 } }, perception: { mod: 8 }, skills: {} },
+        items: [{ _id: "a", type: "melee", name: "Hurled Stone", system: { bonus: { value: 11 }, traits: { value: ["magical"] }, range: { increment: 60, max: null }, damageRolls: { x: { damage: "2d6+4", damageType: "bludgeoning" } }, attackEffects: { value: [] } } }] };
+    const [stone] = combatant(npc).strikes;
+    assert.equal(stone.melee, false);
+    assert.equal(stone.increment, 60);
+});

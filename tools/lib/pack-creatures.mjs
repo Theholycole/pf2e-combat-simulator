@@ -77,6 +77,14 @@ function defaultOptions(npc, predicates) {
 }
 
 // A raw NPC (pack data) as an engine combatant.
+// A Strike's range as PF2e's data now holds it (system.range: { increment, max }), for one with no range trait — 2026-10-21: 1759
+// Strikes on 1663 creatures (the Poltergeist's Telekinetic Object, a Pixie Guard's longbow) were read as melee before. The live
+// snapshot reads the same (scripts/snapshot.js: item.range.increment).
+function dataRange(item) {
+    const range = item.system?.range;
+    return Number(range?.increment) || Number(range?.max) || null;
+}
+
 export function combatant(npc) {
     const system = npc.system;
     const strikes = [];
@@ -88,7 +96,7 @@ export function combatant(npc) {
         const damage = Object.values(item.system.damageRolls ?? {}).flatMap((roll) => parseReadableDamage(`${roll.damage} ${roll.category === "persistent" ? "persistent " : roll.category === "splash" ? "splash " : ""}${roll.damageType ?? "untyped"}`));
         if (!damage.length) bare.push(item);
         if (!damage.length) continue;
-        const increment = Number(traits.find((trait) => /^range-increment-\d+$/.test(trait))?.split("-").pop()) || Number(traits.find((trait) => /^range-\d+$/.test(trait))?.split("-").pop()) || null;
+        const increment = Number(traits.find((trait) => /^range-increment-\d+$/.test(trait))?.split("-").pop()) || Number(traits.find((trait) => /^range-\d+$/.test(trait))?.split("-").pop()) || dataRange(item);
         // (U2: a bomb its Strike links to: as many as it carries, taken out before each throw unless held or with Quick Bomber.)
         const weapon = npc.items.find((entry) => entry.type === "weapon" && entry._id === item.flags?.pf2e?.linkedWeapon);
         const bomb = Boolean(weapon) && traits.includes("bomb") && (weapon.system?.traits?.value ?? []).includes("consumable");
@@ -215,7 +223,7 @@ export function combatant(npc) {
         const shown = rows.find((row) => row.damage.length);
         if (!item || !shown) continue;
         const traits = item.system.traits?.value ?? [];
-        const increment = Number(traits.find((trait) => /^range-increment-\d+$/.test(trait))?.split("-").pop()) || Number(traits.find((trait) => /^(?:range|thrown)-\d+$/.test(trait))?.split("-").pop()) || null;
+        const increment = Number(traits.find((trait) => /^range-increment-\d+$/.test(trait))?.split("-").pop()) || Number(traits.find((trait) => /^(?:range|thrown)-\d+$/.test(trait))?.split("-").pop()) || dataRange(item);
         strikes.push({ name: item.name, bonus: item.system.bonus?.value ?? 0, melee: !increment, increment, agile: traits.includes("agile"), reach: Number(traits.find((trait) => /^reach-\d+$/.test(trait))?.split("-")[1]) || 5, damage: shown.damage, attackEffects: [], held: !traits.includes("unarmed") && heldWeapon(npc, item), randomDamage: rows, randomDie: table.die, ...(rows.some((row) => row.damage.some((part) => part.splash)) ? { splashKind: "bomb" } : {}) });
     }
     delete builtins.randomStrikeTables;
