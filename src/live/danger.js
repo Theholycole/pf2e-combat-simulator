@@ -190,7 +190,10 @@ const READINGS = {
     "skill-demoralize": "its fire on a monk's unarmed Strikes",
     "strike-ward": "its Strike, and its AC against that foe while the Strikes keep hitting",
     "deferred-save": "the party's bonus against the foe, or the action it spends to be rid of it — its better answer",
-    "temp-hp": "its temporary Hit Points as a foe falls"
+    "temp-hp": "its temporary Hit Points as a foe falls",
+    "check-mark": "its check, then its extra dice on the next Strike that hits",
+    "cannibal-hunger": "the hungering foe's better answer as others fall: eating, or its mental damage",
+    "stored-charge": "the damage its resistance keeps off, flung back with its spell attack"
 };
 const ESTIMATE_MORE = { "battle form": "the caster in its best form, its Strikes in place of its spells, its temporary Hit Points and AC" };
 

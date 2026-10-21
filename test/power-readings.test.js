@@ -288,3 +288,15 @@ test("a boast, a challenge, a ward on a Strike: Demoralize and the penalty it br
     const found = readingPower(standardParty(5), powerFoes("boss", 5), entry(3, ward));
     assert.ok(found && found.targets === 2);
 });
+
+test("a mark's extra dice on the next hit, again each turn where it says; Ravening Maw only among a group; Bottle the Storm kept and flung back", () => {
+    const doc = { system: { description: { value: "<p>If you succeed, the next time you deal piercing or slashing damage to the target with a Strike or spell, you deal 4d6 additional precision damage.</p><p>Heightened (+1) The precision damage increases by 1d6.</p>" } } };
+    const mark = (repeat) => ({ ...entry(3, plan("check-mark", { checkMark: { statistic: "recall-knowledge", skill: "medicine", against: "level-dc", ...(repeat ? { repeat: "once-per-later-turn" } : {}) } }, null)), doc });
+    const once = readingPower(standardParty(5), powerFoes("boss", 5), mark(false));
+    const again = readingPower(standardParty(5), powerFoes("boss", 5), mark(true));
+    assert.ok(once && again && again.share > once.share);
+    const maw = plan("cannibal-hunger", { cannibalHunger: { statistic: "will", seconds: 18, baseRank: 5, ally: { dice: 5, die: 8, step: 1 }, starve: { dice: 5, die: 4, type: "mental", step: 1 } } }, null);
+    assert.equal(readingPower(standardParty(9), powerFoes("boss", 9), entry(5, maw)), null, "no other foe to fall");
+    const storm = plan("stored-charge", { storedCharge: { type: "electricity", resistance: { base: 10, fixed: [{ rank: 7, value: 15 }] } } }, null);
+    assert.equal(readingPower(standardParty(7), powerFoes("boss", 7), entry(4, storm)).targets, 2);
+});

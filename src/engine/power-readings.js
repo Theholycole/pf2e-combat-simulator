@@ -6,7 +6,7 @@
 //   way costs them Strikes, as long as it keeps them from the party.
 
 import { DISTANCE_FEET, engage } from "./space.js";
-import { degreeDistribution, degreeOf } from "./checks.js";
+import { degreeDistribution, degreeOf, levelDC } from "./checks.js";
 import { armorClass, multipleAttackPenalty, saveModifier } from "./combatant.js";
 import { expectedHitDamage } from "./actions.js";
 import { weaponRunesAt } from "./party.js";
@@ -289,6 +289,8 @@ export function castableReading(plan, doc, rank = Number(plan?.rank) || 1) {
     // (An effect variant — Tailwind's, Iron Gut's: the PF2e effect for the cast rank, applied as an effect's.)
     const branch = plan.resolution.kind === "effect-variant" ? (plan.resolution.selector?.branches ?? []).find((each) => (Number(each.minRank) || 0) <= rank && (each.maxRank === null || each.maxRank === undefined || rank <= Number(each.maxRank))) : null;
     const toSelf = (plan.resolution.selector?.recipientBranches ?? []).some((each) => each.actor === "source");
+    // (An effect sequence — Guidance's —: its first effect, the one it gives as cast.)
+    if (plan.resolution.kind === "effect-sequence" && plan.resolution.applications?.length) return castableReading({ ...plan, targeting, resolution: { kind: "effect", applications: [{ ...plan.resolution.applications[0], recipients: "target" }] } }, doc, rank);
     let resolution = plan.resolution.kind === "effect-note" && plan.resolution.effectNote?.effect?.uuid
         ? { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: plan.resolution.effectNote.effect.uuid, label: plan.resolution.effectNote.effect.label ?? null, recipients: plan.resolution.effectNote.recipient === "self" ? "self" : "target" }] }
         : branch?.effectUuid ? { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: branch.effectUuid, label: null, recipients: toSelf ? "self" : "target" }] }
@@ -1506,6 +1508,66 @@ READERS["temp-hp"] = (ctx) => {
     if (!foe) return null;
     const undead = (foe.traits ?? []).includes("undead") && call.doubleIfUndead;
     return { entries: healEntries([ctx.caster], ((Number(foe.level) || 0) + 4) * (undead ? 2 : 1)), targets: 1 };
+};
+
+READERS["check-mark"] = (ctx) => {
+    // (Organsight, Ki Cutting Sight: its check on the toughest foe — the party's best at it — then its extra dice on the next Strike that
+    // hits it, the best Striker's (at its best a magus's or a monk's); again each turn, an action, where it lets the check be tried again.)
+    const mark = ctx.entry.plan.resolution.checkMark ?? {};
+    const text = String(ctx.entry.doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    const dice = /deal (\d+)d(\d+) additional (\w+) damage/i.exec(text);
+    const step = /Heightened \(\+(\d+)\) The \w+ damage increases by (\d+)d\d+/i.exec(text);
+    const best = bestStrike(ctx, "melee");
+    const foe = toughest(ctx.enemies);
+    if (!dice || !best || !foe) return null;
+    const count = Number(dice[1]) + (step ? Math.floor(Math.max(0, ctx.rank - (Number(ctx.entry.plan.rank) || ctx.rank)) / Number(step[1])) * Number(step[2]) : 0);
+    const type = dice[3].toLowerCase();
+    const roll = mark.statistic === "perception" ? Math.max(...ctx.allies.map((ally) => Number(ally.perception) || 0)) : Math.max(...ctx.allies.map((ally) => skillValue(ally, mark.skill ?? "medicine")));
+    const dc = mark.against === "level-dc" ? levelDC(Number(foe.level) || 0) : 10 + saveModifier(foe, mark.against ?? "fortitude");
+    const [, , success, critical] = degreeDistribution(roll, dc);
+    const odds = degreeDistribution(Number(best.strike.bonus) || 0, armorClass(foe));
+    const extra = (odds[2] + 2 * odds[3]) * averageOn(foe, `${count}d${dice[2]}[${type === "precision" ? best.strike.damage[0]?.type ?? "slashing" : type}]`, type, spellContext(ctx.entry, { isSpell: true, area: false }));
+    const times = mark.repeat ? lastsRounds(60, ctx.rounds) : 1;
+    return { entries: [{ target: foe, damage: (success + critical) * extra * times, worth: 0, heal: 0, benefit: 0 }], targets: 1 };
+};
+
+READERS["cannibal-hunger"] = (ctx) => {
+    // (Ravening Maw: on a failed Will save, the toughest of a group of foes hungering for its turns as others fall about it — at its best,
+    // one a round from the second — its better answer each round: two actions eating a fallen ally (healing it), while there are any, or
+    // its mental damage.)
+    const maw = ctx.entry.plan.resolution.cannibalHunger ?? {};
+    if (ctx.enemies.length < 2) return null;
+    const foe = toughest(ctx.enemies);
+    const [critFail, fail] = degreeDistribution(saveModifier(foe, maw.statistic ?? "will"), Number(ctx.entry.dc) || 10);
+    const steps = Math.max(0, ctx.rank - (Number(maw.baseRank) || ctx.rank)) * (Number(maw.ally?.step) || 1);
+    const none = { immunities: [], resistances: [], weaknesses: [] };
+    const fed = averageOn(none, `${(Number(maw.ally?.dice) || 5) + steps}d${Number(maw.ally?.die) || 8}`);
+    const starve = averageOn(foe, `${(Number(maw.starve?.dice) || 5) + steps}d${Number(maw.starve?.die) || 4}[${maw.starve?.type ?? "mental"}]`, maw.starve?.type ?? "mental");
+    const share = (entry) => entry.damage / foe.hp.max + entry.worth / 3 - entry.heal / foe.hp.max;
+    const total = { damage: 0, worth: 0, heal: 0 };
+    let corpses = 0;
+    for (let round = 1; round < lastsRounds(maw.seconds, ctx.rounds); round++) {
+        corpses = Math.min(ctx.enemies.length - 1, corpses + 1);
+        const eat = { damage: 0, worth: 2 / 3, heal: fed };
+        const take = { damage: starve, worth: 0, heal: 0 };
+        const answer = corpses > 0 && share(eat) < share(take) ? eat : take;
+        if (answer === eat) corpses--;
+        for (const field of ["damage", "worth", "heal"]) total[field] += answer[field];
+    }
+    const affected = critFail + fail;
+    return total.damage + total.worth > 0 ? { entries: [{ target: foe, damage: affected * total.damage, worth: affected * total.worth, heal: affected * total.heal, benefit: 0 }], targets: 1 } : null;
+};
+
+READERS["stored-charge"] = (ctx) => {
+    // (Bottle the Storm: as a foe's hit of its type comes — at its best, one as big as its resistance — that much kept off the caster, then
+    // flung back with its spell attack.)
+    const charge = ctx.entry.plan.resolution.storedCharge ?? {};
+    const resistance = (charge.resistance?.fixed ?? []).filter((each) => ctx.rank >= Number(each.rank)).at(-1)?.value ?? Number(charge.resistance?.base) ?? 0;
+    const foe = toughest(ctx.enemies);
+    if (!foe || !(resistance > 0)) return null;
+    const odds = degreeDistribution(Number(ctx.entry.attack) || 0, armorClass(foe));
+    const back = (odds[2] + 2 * odds[3]) * averageOn(foe, `${resistance}[${charge.type ?? "electricity"}]`, charge.type, spellContext(ctx.entry, { isSpell: true, area: false }));
+    return { entries: [...healEntries([ctx.caster], resistance), { target: foe, damage: back, worth: 0, heal: 0, benefit: 0 }], targets: 2 };
 };
 
 READERS["stored-burst"] = (ctx) => {
