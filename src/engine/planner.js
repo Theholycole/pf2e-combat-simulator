@@ -63,7 +63,7 @@ export function guessRole(spec) {
     return ranged > melee ? "sniper" : "soldier";
 }
 
-function profileOf(c) {
+export function profileOf(c) {
     const base = ROLE_PROFILES[c.role] ?? ROLE_PROFILES.soldier;
     let { aggression, selfPreservation, objective } = base;
     if (c.dropAggression) {
@@ -71,6 +71,9 @@ function profileOf(c) {
         selfPreservation *= 2;
     }
     if (c.morale?.template === "cowardly") selfPreservation *= 1.5;
+    // (2026-10-21: controlled — Dominate's victim acts for its controller, who spends it as it likes: its own safety doesn't count. Before,
+    // a dominated wizard with Mirror Image to hand cast it on itself rather than blast the party, as its controller would order.)
+    if (c.controlledBy) selfPreservation = 0;
     return { aggression, selfPreservation, objective };
 }
 

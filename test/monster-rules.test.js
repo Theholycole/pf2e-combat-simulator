@@ -356,6 +356,14 @@ test("Dispelling a creature under control (2026-10-20): its controller doesn't f
     assert.equal(bestCounter(state, state.byId.get(wizard.id), pc, change)?.pick?.slug, "controlled");
 });
 
+test("A controlled creature plays for its controller: its own safety doesn't count (2026-10-21)", async () => {
+    const { profileOf } = await import("../src/engine/planner.js");
+    const [, wizard] = martialParty(10);
+    assert.ok(profileOf(wizard).selfPreservation > 0);
+    assert.equal(profileOf({ ...wizard, controlledBy: "rak" }).selfPreservation, 0);
+    assert.equal(profileOf({ ...wizard, controlledBy: "rak" }).aggression, profileOf(wizard).aggression);
+});
+
 test("An affliction's stage Effect (2026-10-20, Grit's \"Effect: Grit (Stage 1)\"): on the creature for that stage, gone with it", async () => {
     const { effectModel } = await import("../src/engine/effects.js");
     const [fighter] = martialParty(3);
