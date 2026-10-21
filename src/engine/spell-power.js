@@ -675,6 +675,8 @@ export function spellRatingsOf(ranked) {
             ...(own.estimate ? { estimate: own.estimate } : {}),
             ...(own.minion ? { minion: true } : {}),
             ...(POWER_KINDS.some((kind) => own.results?.[`${kind}|`]?.alliesHit) ? { alliesHit: true } : {}),
+            // (Healing over a long duration: more out of a fight than in it, not counted.)
+            ...(own.outOfCombat ? { outOfCombat: true } : {}),
             // (Under the GM's other choices of a rule the rules leave open: { "<rule>:<value>": { power, boss, group, ranks } }.)
             ...(own.alternatives ? { alternatives: Object.fromEntries(Object.entries(own.alternatives).map(([key, other]) => [key, { power: tenth(other.power), boss: tenth(other.boss), group: tenth(other.group), ...(other.bound ? { bound: other.bound } : {}), ranks: Object.fromEntries(higher.filter((row) => Number.isFinite(row.alternatives?.[key]?.power)).map((row) => [row.rank, tenth(row.alternatives[key].power)])) }])) } : {})
         };

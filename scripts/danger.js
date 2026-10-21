@@ -37,8 +37,8 @@ const KINDS = {
         badge: (value, bound, known, collection, id) => ({ className: "", label: dangerLabel(value, bound), tooltip: dangerTooltip(value, known, bound, { alone: known?.aloneOn?.[collection]?.[id] }) })
     },
     spells: {
-        documentName: "Item", type: "spell", setting: SPELL_SETTING, tab: "spell", order: "pcsPower", orderLabel: "Power for rank", ownOrder: "rank",
-        sortIcon: "fa-wand-sparkles", sortTip: "Sort by power for their rank (Combat Simulator)",
+        documentName: "Item", type: "spell", setting: SPELL_SETTING, tab: "spell", order: "pcsPower", orderLabel: "Combat power for rank", ownOrder: "rank",
+        sortIcon: "fa-wand-sparkles", sortTip: "Sort by combat power for their rank (Combat Simulator)",
         load: () => fetchJSON("spell-ratings.json").then((data) => withRuleChoices(data, ruleChoices())),
         badge: (value, bound, known, collection, id) => ({ className: "pcs-power", label: powerLabel(value, bound, powerDetailOf(known, collection, id)), tooltip: powerTooltip(value, known, bound, powerDetailOf(known, collection, id)) })
     }
@@ -86,8 +86,8 @@ export function registerDangerSetting() {
         onChange: () => load(KINDS.spells).then(refreshAll)
     });
     game.settings.register(MODULE_ID, SPELL_SETTING, {
-        name: "Spell power in compendiums",
-        hint: "Show each spell's power for its rank beside its name in compendium windows and PF2e's Compendium Browser, with a button to sort by it: levels above (+) or below (−) a typical spell of its rank, from the simulator's fights with one cast in a party's hands.",
+        name: "Spell power in compendiums (combat only)",
+        hint: "Show each spell's power for its rank in combat beside its name in compendium windows and PF2e's Compendium Browser, with a button to sort by it: levels above (+) or below (−) a typical spell of its rank, from the simulator's fights with one cast in a party's hands. Rated for combat only: what a spell does outside a fight (healing over hours, travel, information) isn't counted, and utility spells get no number.",
         scope: "client",
         config: true,
         type: Boolean,

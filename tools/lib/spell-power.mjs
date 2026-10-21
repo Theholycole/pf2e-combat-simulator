@@ -322,6 +322,13 @@ function withChoke(row, rate, level) {
     for (const encounter of POWER_KINDS) if (choke[`${encounter}|`]) results[`${encounter}|choke`] = choke[`${encounter}|`];
     return { ...row, results, traits: [...(row.traits ?? []), "choke"] };
 }
+// Healing over a long duration (ten minutes or more, until its daily preparations): a spell that heals far more out of a fight than its one
+// fight shows (the user, 2026-10-21: "some healing spells are very powerful out of combat since they heal over a long time") — its
+// rating's words say so.
+const LONG_DURATION = /\b(?:hours?|days?|daily preparations|unlimited|until (?:the next time|your next)|[1-9]\d+ minutes)\b/i;
+const HEALS = /\bregains?\b[^.]*\bHit Points\b|\brestores?\b[^.]*\bHit Points\b|\bfast healing\b|\bheals?\b/i;
+const healsOutOfCombat = (doc) => LONG_DURATION.test(String(doc?.system?.duration?.value ?? "")) && HEALS.test(textOf(doc));
+
 // Cast in minutes or longer: before the fight (the user, 2026-10-21: "count spells you can cast a minute or more before a fight").
 const preCastOf = (doc) => /minute|hour|day/i.test(String(doc?.system?.time?.value ?? ""));
 const hasArea = (plan, doc) => Boolean(describeSpell(plan).area || plan?.targeting?.area?.type || doc?.system?.area?.type);
@@ -368,7 +375,7 @@ export function runPowerTask(task) {
     const party = partyFor(level);
     const casting = wizardCasting(party);
     const entry = { name: doc.name, plan, castRank: rank, dc: casting?.dc ?? 10 + level, attack: casting?.attack ?? level, pool: ref.cantrip ? null : RATED_POOL, tradition: "arcane", effects: effectModels(plan, rank) };
-    const head = { kind: "screen", ref: { ref: ref.ref, collection: ref.collection, path: ref.path, id: ref.id, name: ref.name, cantrip: ref.cantrip, focus: ref.focus }, collection: ref.collection, id: ref.id, name: ref.name, rank, cantrip: ref.cantrip, level };
+    const head = { kind: "screen", ref: { ref: ref.ref, collection: ref.collection, path: ref.path, id: ref.id, name: ref.name, cantrip: ref.cantrip, focus: ref.focus }, collection: ref.collection, id: ref.id, name: ref.name, rank, cantrip: ref.cantrip, level, ...(healsOutOfCombat(doc) ? { outOfCombat: true } : {}) };
     // (A summon: its best creature's worth.)
     const summoned = summonResults(doc, plan, rank, party, level) ?? incarnateSummonResults(doc, plan, party, level);
     if (summoned) return { ...head, ...summoned, summon: true };
