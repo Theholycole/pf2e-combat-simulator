@@ -1205,7 +1205,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
         }
         log(state, `  ${target.name} Shield Blocks (${blocked} prevented${shield.spell ? `, ${shield.name} ends` : shield.broken ? ", shield broken" : ""})`);
     }
-    for (const instance of adjusted.persistent) addPersistent(target, instance);
+    for (const instance of adjusted.persistent) addPersistent(target, instance, source);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
     // Vengeful Rage (B65): damage that leaves it at that many Hit Points or fewer.
     // (B244, Enraged Growth: any damage it takes.)
@@ -1355,12 +1355,23 @@ function releaseAllSwallowed(state, swallower, how) {
     for (const other of state.list) if (other.swallowedBy === swallower.id) releaseSwallowed(state, other, how);
 }
 
-function addPersistent(target, instance) {
+// (2026-10-21: credit — whose damage its ticks are, for damageBy: the side that put it on, and whether the foes made the party do it. The
+// higher of a type applies, so a stronger one's source takes it over.)
+function addPersistent(target, instance, source = null) {
     if ((target.immunities ?? []).includes(instance.type)) return;
     const existing = target.persistent.find((entry) => entry.type === instance.type);
-    const candidate = { type: instance.type, dice: instance.dice, die: instance.die, bonus: instance.bonus ?? 0, multiplier: instance.multiplier ?? 1, amount: instance.amount, ...(instance.materials?.length ? { materials: instance.materials } : {}) };
+    const credit = source ? { side: source.side, induced: foesInduced(source, target) } : null;
+    const candidate = { type: instance.type, dice: instance.dice, die: instance.die, bonus: instance.bonus ?? 0, multiplier: instance.multiplier ?? 1, amount: instance.amount, ...(instance.materials?.length ? { materials: instance.materials } : {}), credit };
     if (!existing) target.persistent.push(candidate);
     else if ((candidate.amount ?? 0) > (existing.amount ?? 0)) Object.assign(existing, candidate);
+}
+
+// (2026-10-21: a persistent damage tick counts for whoever put it on — the danger score's damage share. The tick itself still has no source,
+// so what a source sets off — a confused creature's flat check, Vital Luminance, the damage-dealt report — is as before.)
+export function creditPersistent(state, entry, dealt) {
+    if (!state.damageBy || !entry.credit || dealt <= 0) return;
+    state.damageBy[entry.credit.side] += dealt;
+    if (entry.credit.induced) state.damageBy.foesInduced += dealt;
 }
 
 // (2026-10-21: damage the foes made the party deal itself — a confused member's on its own side, or the party's on a member the foes control

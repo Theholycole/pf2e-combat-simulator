@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { canFight, dangerFights, dangerSummary, ladderCurves, mergeSummaries, rankRows, rateAlone, ratingsOf, scaleFromJSON, scaleOf, scaleToJSON } from "../src/engine/danger-scale.js";
 import { moderateCreatureAt } from "../src/engine/creature-tables.js";
 import { standardParty } from "../src/engine/party.js";
-import { createFightState, simulate } from "../src/engine/fight.js";
-import { dealDamage } from "../src/engine/actions.js";
+import { createFightState, simulate, turnEnd } from "../src/engine/fight.js";
+import { applyDamage, dealDamage } from "../src/engine/actions.js";
 import { takeControl } from "../src/engine/control.js";
 
 // Danger for its level, the counting and the ranking both the offline tool and the in-Foundry run use (src/engine/danger-scale.js).
@@ -103,4 +103,34 @@ test("the danger score's damage share has the foes' damage and what they made th
     }
     assert.ok(induced > 0, "the confused party hit its own");
     assert.ok(Math.abs(summary.damage - share / 10) < 1e-9);
+});
+
+test("persistent damage counts for whoever put it on: the foes', the party's, a confused member's on its own side as the foes' doing (2026-10-21)", () => {
+    const state = createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), side: "foes" }] }, { morale: false }, 1);
+    const [fighter, rogue, wizard, cleric] = ["fighter", "rogue", "wizard", "cleric"].map((id) => state.byId.get(id));
+    const monster = state.byId.get("monster");
+    const persistent = (type, amount) => [{ type, persistent: true, dice: 0, die: 0, bonus: 0, multiplier: 1, amount }];
+    // Each tick: what it took off and what was counted.
+    const tick = (c) => {
+        const before = { ...state.damageBy };
+        const hp = c.hp.value;
+        turnEnd(state, c);
+        return { took: hp - c.hp.value, counted: Object.fromEntries(Object.keys(before).map((key) => [key, state.damageBy[key] - before[key]])) };
+    };
+    // The foe's bleed on the Rogue: the foes'.
+    applyDamage(state, rogue, persistent("bleed", 5), { source: monster });
+    assert.deepEqual(tick(rogue), { took: 5, counted: { party: 0, foes: 5, foesInduced: 0 } });
+    // A confused Fighter's fire on the Wizard: the party's, and the foes' doing.
+    fighter.cond.confused = true;
+    applyDamage(state, wizard, persistent("fire", 4), { source: fighter });
+    fighter.cond.confused = false;
+    assert.deepEqual(tick(wizard), { took: 4, counted: { party: 4, foes: 0, foesInduced: 4 } });
+    // The Wizard's own acid on the Cleric, then the foe's stronger acid: the higher applies, and it's the foe's; a weaker one after changes nothing.
+    applyDamage(state, cleric, persistent("acid", 2), { source: wizard });
+    applyDamage(state, cleric, persistent("acid", 6), { source: monster });
+    applyDamage(state, cleric, persistent("acid", 1), { source: wizard });
+    assert.deepEqual(tick(cleric), { took: 6, counted: { party: 0, foes: 6, foesInduced: 0 } });
+    // Persistent damage the fight began with (no one's): counted for no one.
+    fighter.persistent.push({ type: "cold", dice: 0, die: 0, bonus: 0, multiplier: 1, amount: 3 });
+    assert.deepEqual(tick(fighter), { took: 3, counted: { party: 0, foes: 0, foesInduced: 0 } });
 });

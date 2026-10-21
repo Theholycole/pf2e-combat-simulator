@@ -5,7 +5,7 @@ import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCC
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
-import { applyDamage, castAnswers, dealDamage, expectedHitDamage, interact, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
+import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, adjustPart, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
@@ -625,7 +625,7 @@ function endTurn(state, c) {
         // (2026-10-16: with its materials — persistent fire treated as silver.)
         const amount = entry.materials?.length ? adjustPart(c, { type: entry.type, amount: rollPersistent(state.rng, entry), materials: entry.materials }) : adjustInstance(c, entry.type, rollPersistent(state.rng, entry));
         state.log?.push(`  ${c.name} takes ${amount} persistent ${entry.type}`);
-        dealDamage(state, c, amount);
+        creditPersistent(state, entry, dealDamage(state, c, amount));
         if (flatCheck(state.rng, 15) >= SUCCESS) c.persistent.splice(c.persistent.indexOf(entry), 1);
     }
     // (Biting Snakes, B82: a Strike at it from a monster beside it.)
