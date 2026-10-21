@@ -77,7 +77,8 @@ test("castable as written another way: a reaction on its trigger as an action, a
     assert.deepEqual(castableReading(base("", "save"), doc("2", { area: { type: "cone", value: 15 } })).targeting.area, { type: "cone", value: 15 });
     assert.deepEqual(castableReading(base("", "save"), { system: { time: { value: "2" }, description: { value: "<p>@Template[burst|distance:10]</p>" } } }).targeting.area, { type: "burst", value: 10 });
     assert.equal(castableReading(base("", "save"), doc("1 or 2")).activation.time, "2");
-    assert.equal(castableReading(base("1 creature"), doc("10 minutes")), null, "cast in minutes: not in a fight");
+    const before = castableReading(base("1 creature"), doc("10 minutes"));
+    assert.deepEqual([before.preCast, before.activation.time], [true, "1"], "cast in minutes: before the fight (the user, 2026-10-21)");
     assert.equal(castableReading(base("1 magic item", "affliction-care"), doc("2")), null, "not a creature");
     const note = castableReading(base("1 willing creature", "effect-note", { effectNote: { recipient: "target", effect: { uuid: "Compendium.pf2e.spell-effects.Item.x", label: "Spell Effect: X" } } }), doc("2"));
     assert.deepEqual(note.resolution, { kind: "effect", applications: [{ kind: "native-spell-effect", uuid: "Compendium.pf2e.spell-effects.Item.x", label: "Spell Effect: X", recipients: "target" }] });
@@ -333,4 +334,11 @@ test("a Striker's healing on its hits, spirits that distract or block, Strikes t
     const hyphae = plan("hyphae", { hyphae: { durationSeconds: 60, strikes: { fromRank: 4, formula: "3d8", type: "bludgeoning" } } }, null);
     assert.equal(readingPower(standardParty(3), powerFoes("boss", 3), entry(2, hyphae)), null);
     assert.ok(readingPower(standardParty(7), powerFoes("boss", 7), entry(4, hyphae)).share > 0);
+});
+
+test("cast before the fight: a minute-cast effect rated from the first round; healing done before it, nothing; a helpful burst over the party", async () => {
+    const { castPower } = await import("../src/engine/spell-power.js");
+    const burst = { ...plan("effect", { applications: [{ kind: "native-spell-effect", uuid: "roots", recipients: "target" }] }, { type: "burst", value: 20 }), targeting: { target: "up to 5 willing creatures", range: null, area: { type: "burst", value: 20 } }, activation: { time: "1" } };
+    const found = castPower(standardParty(9), powerFoes("boss", 9), { ...entry(5, burst), effects: { roots: { name: "Roots", rounds: 100, modifiers: [{ on: "ac", type: "status", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } } });
+    assert.ok(found && found.targets === 4 && found.share > 0, "the party under it");
 });

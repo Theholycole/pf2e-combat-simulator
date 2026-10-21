@@ -92,3 +92,21 @@ test("a spell's label marks an estimate and a spell more useful against some foe
     assert.equal(powerLabel(0.4, null, { vs: { choke: 0.8 } }), "+0.4*");
 });
 
+
+test("a rule the rules leave open, the GM's choice: Moment of Renewal's numbers as a day's rest when chosen, the other way in its words", async () => {
+    const { withRuleChoices, powerTooltip } = await import("../src/live/danger.js");
+    const data = {
+        ratings: { "pf2e.spells-srd": { renewal: 4.2, other: 1 } },
+        bounds: {},
+        detail: { "pf2e.spells-srd": { renewal: { rank: 8, boss: 6.5, group: 2.4, typical: 0.3, ranks: { 9: 4 }, vs: {}, alternatives: { "renewalHealing:day": { power: 8.1, boss: 8.4, group: 8.4, bound: "atLeast", ranks: { 9: 8 } } } }, other: { rank: 1, boss: 1, group: 1, typical: 0, ranks: {}, vs: {} } } }
+    };
+    assert.equal(withRuleChoices(data, { renewalHealing: "rest" }).ratings["pf2e.spells-srd"].renewal, 4.2, "the default: as made");
+    const day = withRuleChoices(data, { renewalHealing: "day" });
+    assert.equal(day.ratings["pf2e.spells-srd"].renewal, 8.1);
+    assert.equal(day.bounds["pf2e.spells-srd"].renewal, "atLeast");
+    assert.equal(day.ratings["pf2e.spells-srd"].other, 1);
+    assert.equal(data.ratings["pf2e.spells-srd"].renewal, 4.2, "the data left as it was");
+    const detail = day.detail["pf2e.spells-srd"].renewal;
+    assert.match(powerTooltip(8.1, day, "atLeast", detail), /The GM's setting counts its healing as a day of long-term rest .*; as one rest .*: \+4\.2\./);
+    assert.match(powerTooltip(4.2, data, null, data.detail["pf2e.spells-srd"].renewal), /The GM's setting counts its healing as one rest .*; as a day of long-term rest .*: \+8\.1\./);
+});

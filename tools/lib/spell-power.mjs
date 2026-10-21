@@ -7,7 +7,7 @@ const { compileSpell, effectModels } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
 const { POWER_KINDS, POWER_ROUNDS, POWER_TRAITS, RATED_POOL, castPower, durationRounds, formShare, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
-const { castableReading, powerReading } = await import("../../src/engine/power-readings.js");
+const { RULE_CHOICES, castableReading, powerReading } = await import("../../src/engine/power-readings.js");
 const { battleFormAt, effectModel } = await import("../../src/engine/effects.js");
 const { SUMMON_LEVELS, spellSummonEntry } = await import("../../src/engine/summons.js");
 const { canCast, describeSpell, isUtility, spellGaps } = await import("../../src/engine/spells.js");
@@ -264,7 +264,8 @@ export function textHelpOf(doc, rank) {
     for (const sentence of sentences) {
         const healed = /\bregains? (\d+)d(\d+)(?:\s*\+\s*(\d+))?[^.]{0,20}Hit Points/i.exec(sentence) ?? /\bregains? (\d+)[^.\d]{0,20}Hit Points/i.exec(sentence);
         // (Not healing that waits on something — "if it remains … for the full duration" —; healing each turn, for each of the rounds.)
-        if (!heal && healed && !/\bif\b|full duration|after \d+ (?:minutes|hours)/i.test(sentence)) {
+        // (Nor healing that takes a while out of the fight — "spends the full hour soaking".)
+        if (!heal && healed && !/\bif\b|full duration|after \d+ (?:minutes|hours)|\bspends? (?:the full |an? |\d+ )?(?:hours?|minutes?)\b/i.test(sentence)) {
             const step = /Heightened \(\+(\d+)\)[^.]*?(\d+)d(\d+)/i.exec(heightened);
             const extra = healed[2] && step && Number(step[3]) === Number(healed[2]) ? Math.floor((rank - base) / Number(step[1])) * Number(step[2]) * (Number(step[3]) + 1) / 2 : 0;
             heal = (healed[2] ? average(healed[1], healed[2], healed[3]) : Number(healed[1])) + extra;
@@ -277,7 +278,9 @@ export function textHelpOf(doc, rank) {
     }
     if (!heal && !tempHp && !ac) return null;
     const area = Boolean(doc.system?.area?.type);
-    const named = /\bup to (\d+)|^(\d+) (?:creature|target|all(?:y|ies)|willing)/i.exec(String(doc.system?.target?.value ?? "").trim());
+    // (Its targets: as many as it names — or, a meal or a drink, those its text lets partake.)
+    const partake = /\bUp to (\d+) creatures can partake\b/i.exec(text);
+    const named = partake ? [null, partake[1]] : /\bup to (\d+)|^(\d+) (?:creature|target|all(?:y|ies)|willing)/i.exec(String(doc.system?.target?.value ?? "").trim());
     const duration = String(doc.system?.duration?.value ?? "");
     const rounds = /minute|hour|day|sustained/i.test(duration) ? POWER_ROUNDS : Number(/(\d+) rounds?/.exec(duration)?.[1]) || 1;
     // (A heal each turn: once for each round it lasts in the fight.)
@@ -319,6 +322,8 @@ function withChoke(row, rate, level) {
     for (const encounter of POWER_KINDS) if (choke[`${encounter}|`]) results[`${encounter}|choke`] = choke[`${encounter}|`];
     return { ...row, results, traits: [...(row.traits ?? []), "choke"] };
 }
+// Cast in minutes or longer: before the fight (the user, 2026-10-21: "count spells you can cast a minute or more before a fight").
+const preCastOf = (doc) => /minute|hour|day/i.test(String(doc?.system?.time?.value ?? ""));
 const hasArea = (plan, doc) => Boolean(describeSpell(plan).area || plan?.targeting?.area?.type || doc?.system?.area?.type);
 
 // A spell whose damage type is the caster's (Spiritual Torrent: vitality from a living caster, void from an undead one): cast as each,
@@ -343,13 +348,13 @@ function resultsOf(traits, rate, level) {
     return results;
 }
 
-// A row from the healing, temporary Hit Points or AC a spell's text gives (estimated), or null; not for a spell cast in minutes or longer.
+// A row from the healing, temporary Hit Points or AC a spell's text gives (estimated), or null; a spell cast in minutes or longer, cast before
+// the fight ("pre-cast").
 function textHelpRow(head, doc, rank, party, level) {
-    if (/minute|hour|day/i.test(String(doc.system?.time?.value ?? ""))) return null;
     const help = textHelpOf(doc, rank);
     if (!help) return null;
     const results = resultsOf([], (foes) => textHelpShare(party, foes, help), level);
-    return Object.keys(results).length ? { ...head, traits: [], results, estimate: "text help" } : null;
+    return Object.keys(results).length ? { ...head, traits: [], results, estimate: preCastOf(doc) ? "pre-cast" : "text help" } : null;
 }
 
 // One task: { ref, rank } — the spell at that rank, cast once into both encounters (and those of each trait it does more against).
@@ -414,20 +419,30 @@ export function runPowerTask(task) {
     // (One the engine can't cast in a fight only for how its time or targets are written: cast as the rating reads it.)
     const castable = canCast({ spellPools: { [RATED_POOL]: 1 } }, entry);
     const rewritten = !castable && !isUtility(plan) ? castableReading(plan, doc, rank) : null;
-    if (rewritten && canCast({ spellPools: { [RATED_POOL]: 1 } }, { ...entry, plan: rewritten })) {
+    // (Cast before the fight, healing done then — Soothing Spring's soak for an hour —: nothing in the fight; the party comes to it as hurt
+    // as ever. Its lasting effects and temporary Hit Points do count.)
+    const healedBefore = rewritten?.preCast && plan.resolution?.kind === "healing" && /\bspends? (?:the full |an? |\d+ )?(?:hours?|minutes?)\b[^.]*\bregains?\b|\bregains?\b[^.]*\bafter \d+ (?:minutes|hours)\b/i.test(textOf(doc));
+    if (rewritten && !healedBefore && canCast({ spellPools: { [RATED_POOL]: 1 } }, { ...entry, plan: rewritten })) {
         const read = { ...entry, plan: rewritten };
         const traits = powerConditions(rewritten);
         const gaps = spellGaps(read);
         const reads = casterSwaps(read);
         const results = resultsOf(traits, (foes) => bestCast(reads, (each) => castPower(party, foes, each, { minion })), level);
-        const row = { ...head, traits, results, estimate: `reading (${plan.resolution.kind === "effect-note" ? "effect-note" : "targets"})`, ...(gaps.length ? { partial: gaps } : {}) };
+        const row = { ...head, traits, results, estimate: rewritten.preCast ? "pre-cast" : `reading (${plan.resolution.kind === "effect-note" ? "effect-note" : "targets"})`, ...(gaps.length ? { partial: gaps } : {}) };
         return hasArea(rewritten, doc) ? withChoke(row, (foes, choke) => bestCast(reads, (each) => castPower(party, foes, each, { minion, choke })), level) : row;
     }
     // (One the engine can't cast in a fight, that the rating reads itself: power-readings.js.)
     if (!castable && powerReading(plan)) {
         const traits = powerConditions(plan);
         const read = { ...entry, doc };
-        const row = { ...head, traits, results: resultsOf(traits, (foes) => readingPower(party, foes, read), level), estimate: `reading (${plan.resolution.kind})` };
+        const row = { ...head, traits, results: resultsOf(traits, (foes) => readingPower(party, foes, read), level), estimate: preCastOf(doc) ? "pre-cast" : `reading (${plan.resolution.kind})` };
+        // (Under the GM's other choices of a rule its reading depends on — Moment of Renewal's rest —: those results too.)
+        const alternatives = {};
+        for (const [rule, choice] of Object.entries(RULE_CHOICES)) {
+            if (!choice.uses(plan)) continue;
+            for (const value of choice.values.slice(1)) alternatives[`${rule}:${value}`] = resultsOf([], (foes) => readingPower(party, foes, read, { rules: { [rule]: value } }), level);
+        }
+        if (Object.keys(alternatives).length) row.alternatives = alternatives;
         // (Nothing read: on to the text's estimates below.)
         if (Object.keys(row.results).length) return withChoke(row, (foes, choke) => readingPower(party, foes, read, { choke }), level);
     }
@@ -440,6 +455,7 @@ export function runPowerTask(task) {
     // (Or the healing, temporary Hit Points or AC its text gives.)
     const helped = textHelpRow(head, doc, rank, party, level);
     if (helped && (isUtility(plan) || !castable)) return helped;
+    if (healedBefore) return { ...head, skipped: true, reason: "utility" };
     if (isUtility(plan) || !castable) return { ...head, skipped: true, reason: isUtility(plan) ? (FIGHT_WORDS.test(textOf(doc)) && !/minute|hour|day/i.test(String(doc.system?.time?.value ?? "")) ? "utility, with fight effects the simulator doesn't play" : "utility") : own ? "needs a minion, companion or eidolon the simulator can't play it on" : "the simulator can't cast it" };
     const traits = powerConditions(plan);
     const lost = Boolean(minion) && /\bminion\b[^.]*\bexplode/i.test(textOf(doc));

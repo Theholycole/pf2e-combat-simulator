@@ -260,15 +260,16 @@ const READERS = {
 // targets — "the triggering creature" and the like ("the creature you hit", "your hunted prey") as 1 creature, an ally's words ("1 ally",
 // "the triggering ally", "up to 6 allies") as willing creatures, an area its data or its text gives ("@Template[burst|distance:10]"), no
 // target at all as 1 creature for a save, else the caster; a weapon's ("one club or staff you're wielding") as its wielder's. An effect
-// note's PF2e effect (effect-note) applied as the effect family applies one. Left alone (null): a spell cast in minutes or longer, and
+// note's PF2e effect (effect-note) applied as the effect family applies one. A spell cast in minutes or longer: cast before the fight (the
+// user, 2026-10-21: "count spells you can cast a minute or more before a fight") — as an action here, marked preCast. Left alone (null):
 // targets that aren't creatures (an object, a stone, a spell). An effect variant's effect for the rank cast at (rank). doc: the spell's
 // data ({ system: { time, area, description } }).
 const TEMPLATE = /@Template\[(?:type:)?(burst|cone|line|emanation|cylinder|square)\|distance:(\d+)/i;
 export function castableReading(plan, doc, rank = Number(plan?.rank) || 1) {
     if (!plan?.resolution) return null;
     const time = String(doc?.system?.time?.value ?? plan.activation?.time ?? "").trim().toLowerCase();
-    if (/minute|hour|day/.test(time)) return null;
-    const actions = /^(?:reaction|free)$/.test(time) ? "1" : /^([123]) or ([123])$/.exec(time)?.[2] ?? /^([123]) to \d+ rounds$/.exec(time)?.[1] ?? null;
+    const preCast = /minute|hour|day/.test(time);
+    const actions = preCast || /^(?:reaction|free)$/.test(time) ? "1" : /^([123]) or ([123])$/.exec(time)?.[2] ?? /^([123]) to \d+ rounds$/.exec(time)?.[1] ?? null;
     const targeting = { ...(plan.targeting ?? {}) };
     const target = String(targeting.target ?? "").trim().toLowerCase();
     const text = String(doc?.system?.description?.value ?? "");
@@ -313,7 +314,7 @@ export function castableReading(plan, doc, rank = Number(plan?.rank) || 1) {
     const own = /^[123]$/.test(time) ? time : null;
     const ownArea = whole(targeting.area) ? targeting.area : docArea;
     if (byActions && own && !byActions[own] && whole(ownArea)) resolution = { ...resolution, native: { ...resolution.native, byActions: { ...resolution.native.byActions, [own]: { targeting: { area: ownArea } } } } };
-    return { ...plan, simulatorReading: "rating", targeting, resolution, ...(actions ? { activation: { ...(plan.activation ?? {}), time: actions } } : {}) };
+    return { ...plan, simulatorReading: "rating", targeting, resolution, ...(actions ? { activation: { ...(plan.activation ?? {}), time: actions } } : {}), ...(preCast ? { preCast: true } : {}) };
 }
 
 // --- Incarnate spells: phases ------------------------------------------------------------------------------------------------------------
@@ -533,8 +534,12 @@ const PHASE_READERS = {
         return gain > 0 ? [{ target: foe, damage: gain, worth: 0, heal: 0, benefit: 0 }] : [];
     },
     // (Moment of Renewal: its targets' Hit Points as from a rest — the user (2026-10-21): "As per the resting rules: The character regains
-    // Hit Points equal to their Constitution modifier (minimum 1) multiplied by their level".)
-    renewal: (ctx, phase) => ctx.allies.slice(0, Math.max(1, Number(phase.count) || 6)).flatMap((ally) => healEntries([ally], Math.max(1, Number(ally.con) || 1) * (Number(ally.level) || 1)))
+    // Hit Points equal to their Constitution modifier (minimum 1) multiplied by their level" — or, the GM's choice (RULE_CHOICES
+    // renewalHealing "day"), a day of long-term rest: twice that.)
+    renewal: (ctx, phase) => {
+        const rests = ctx.rules?.renewalHealing === "day" ? 2 : 1;
+        return ctx.allies.slice(0, Math.max(1, Number(phase.count) || 6)).flatMap((ally) => healEntries([ally], rests * Math.max(1, Number(ally.con) || 1) * (Number(ally.level) || 1)));
+    }
 };
 
 // A conjured object's cover for the allies beside it (Ice Guardian): at its best all of them, Sustained for its better cover, while it
@@ -1889,6 +1894,15 @@ READERS["rule-set"] = (ctx) => {
     const options = choices.map((rules) => ruleEntries(ctx, rules, lasts, scale)).filter(Boolean);
     return options.length ? { options } : null;
 };
+
+// Rules the rules leave open, for the GM to choose (the user, 2026-10-21: "If it is noticeably stronger than other spell options put a toggle
+// in the settings for the gm to determine how it calculates healing done"): each one's values (the first the default) and the plans a
+// reading of which depends on it. The spell ratings carry each other value's numbers too.
+export const RULE_CHOICES = Object.freeze({
+    // (Moment of Renewal's "as if they had taken 24 hours of rest": one rest's Hit Points — the Constitution modifier times the level —
+    // or a day of long-term rest's, twice that.)
+    renewalHealing: { values: ["rest", "day"], uses: (plan) => (plan?.resolution?.incarnate?.phases ?? []).some((phase) => phase?.kind === "renewal") }
+});
 
 // The reading for a plan the engine can't cast, or null: its family's, or the plans its payload carries.
 export function powerReading(plan) {

@@ -9,10 +9,14 @@
 
 import { MODULE_ID } from "./snapshot.js";
 import { aloneRatings, worldRatings } from "./danger-run.js";
-import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, powerDetailOf, powerLabel, powerTooltip, ratingOf, ratingOfUuid, sortByDanger, withAlone } from "../src/live/danger.js";
+import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, powerDetailOf, powerLabel, powerTooltip, ratingOf, ratingOfUuid, sortByDanger, withAlone, withRuleChoices } from "../src/live/danger.js";
 
 const SETTING = "dangerRatings";
 const SPELL_SETTING = "spellPower";
+// The GM's choices of rules the rules leave open, for the spell numbers (power-readings.js RULE_CHOICES; the user, 2026-10-21: "put a
+// toggle in the settings for the gm to determine how it calculates healing done" — Moment of Renewal's).
+const RULE_SETTINGS = { renewalHealing: "renewalHealing" };
+const ruleChoices = () => Object.fromEntries(Object.entries(RULE_SETTINGS).map(([rule, setting]) => [rule, game.settings.get(MODULE_ID, setting)]));
 // The numbers in use for each kind (creatures: the world's or the module's; spells: the module's), and the module's files once read.
 const numbers = { creatures: null, spells: null };
 const files = {};
@@ -35,7 +39,7 @@ const KINDS = {
     spells: {
         documentName: "Item", type: "spell", setting: SPELL_SETTING, tab: "spell", order: "pcsPower", orderLabel: "Power for rank", ownOrder: "rank",
         sortIcon: "fa-wand-sparkles", sortTip: "Sort by power for their rank (Combat Simulator)",
-        load: () => fetchJSON("spell-ratings.json"),
+        load: () => fetchJSON("spell-ratings.json").then((data) => withRuleChoices(data, ruleChoices())),
         badge: (value, bound, known, collection, id) => ({ className: "pcs-power", label: powerLabel(value, bound, powerDetailOf(known, collection, id)), tooltip: powerTooltip(value, known, bound, powerDetailOf(known, collection, id)) })
     }
 };
@@ -70,6 +74,16 @@ export function registerDangerSetting() {
         type: Boolean,
         default: true,
         onChange: refreshAll
+    });
+    game.settings.register(MODULE_ID, RULE_SETTINGS.renewalHealing, {
+        name: "Moment of Renewal's healing",
+        hint: "How the spell power numbers count Moment of Renewal's \"as if they had taken 24 hours of rest\": one rest's Hit Points (Constitution modifier × level), or a day of long-term rest's (twice that).",
+        scope: "world",
+        config: true,
+        type: String,
+        choices: { rest: "One rest (Constitution modifier × level)", day: "A day of long-term rest (twice that)" },
+        default: "rest",
+        onChange: () => load(KINDS.spells).then(refreshAll)
     });
     game.settings.register(MODULE_ID, SPELL_SETTING, {
         name: "Spell power in compendiums",

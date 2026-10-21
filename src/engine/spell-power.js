@@ -24,7 +24,7 @@ import { degreeDistribution } from "./checks.js";
 import { expectedHitDamage } from "./actions.js";
 import { adjustDamage, spellContext } from "./damage.js";
 import { computeThreats, potentialDamage, spellDamages } from "./planner.js";
-import { describeSpell, spellExpectation, spellVariants, targetSets } from "./spells.js";
+import { areaCapacity, describeSpell, spellExpectation, spellVariants, targetSets } from "./spells.js";
 import { powerReading } from "./power-readings.js";
 
 export const POWER_KINDS = Object.freeze(["boss", "group"]);
@@ -254,6 +254,10 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
         } catch {
             sets = [];
         }
+        // (A helpful area on the party — Entwined Roots' burst —: the bands place one only where foes are; at its best, over the party,
+        // as many as it holds, too.)
+        const info = describeSpell(spell.plan, actions);
+        if (info.area && (info.helpful || info.healing)) sets = [...sets, { targets: [caster, ...aimed.filter((ally) => ally !== caster)].slice(0, Math.max(1, areaCapacity(info.area))) }];
         for (const set of sets) {
             let entries = [];
             try {
@@ -284,7 +288,8 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
 
 // One cast of a spell the engine can't cast in a fight, as its reading has it (power-readings.js, 2026-10-21): the same fights and the same
 // share as castPower's. { share, levels, bound, actions, targets }, or null when the reading finds nothing it does.
-export function readingPower(party, foes, entry, { choke = false } = {}) {
+// rules: the GM's choices for readings the rules leave open (RULE_CHOICES in power-readings.js): { <rule>: <value> }.
+export function readingPower(party, foes, entry, { choke = false, rules = {} } = {}) {
     const read = powerReading(entry.plan);
     if (!read) return null;
     const combatants = [...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
@@ -296,7 +301,7 @@ export function readingPower(party, foes, entry, { choke = false } = {}) {
     const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
     if (!(foeHp > 0)) return null;
     const actions = describeSpell(entry.plan).actions ?? null;
-    const found = read({ state, caster, enemies, allies, entry, rank: Number(entry.castRank) || 1, rounds: fightRounds(state, caster.side), actions, choke });
+    const found = read({ state, caster, enemies, allies, entry, rank: Number(entry.castRank) || 1, rounds: fightRounds(state, caster.side), actions, choke, rules });
     const harm = foeHarm(state, caster.side);
     let best = null;
     for (const option of found?.options ?? (found ? [found] : [])) {
@@ -559,7 +564,12 @@ export function rankSpells(rows) {
         }
         const boss = parts.boss ?? 0;
         const group = parts.group ?? 0;
-        rated.push({ ...row, boss, group, value: (boss + group) / 2, bound, vs });
+        // (Its results under the GM's other choices of a rule the rules leave open — Moment of Renewal's rest —: boss, group, value.)
+        const alternatives = Object.fromEntries(Object.entries(row.alternatives ?? {}).map(([key, results]) => {
+            const at = Object.fromEntries(POWER_KINDS.map((kind) => [kind, results?.[`${kind}|`]?.levels ?? 0]));
+            return [key, { boss: at.boss, group: at.group, value: (at.boss + at.group) / 2, bound: POWER_KINDS.some((kind) => results?.[`${kind}|`]?.bound === "atLeast") ? "atLeast" : null }];
+        }));
+        rated.push({ ...row, boss, group, value: (boss + group) / 2, bound, vs, ...(Object.keys(alternatives).length ? { alternatives } : {}) });
     }
     // The typical spell of each rank (and cantrip of each rank): the median value, where five or more were rated (else none: 0).
     const groupKey = (row) => `${row.cantrip ? "cantrip" : "spell"}|${row.rank}`;
@@ -568,7 +578,8 @@ export function rankSpells(rows) {
     const typical = new Map([...byGroup].filter(([, values]) => values.length >= 5).map(([key, values]) => [key, median(values)]));
     return rated.map((row) => {
         const base = typical.get(groupKey(row)) ?? 0;
-        return { ...row, typical: base, power: row.value - base, vs: Object.fromEntries(Object.entries(row.vs).map(([trait, value]) => [trait, value - base])) };
+        const alternatives = row.alternatives ? Object.fromEntries(Object.entries(row.alternatives).map(([key, other]) => [key, { ...other, power: other.value - base }])) : null;
+        return { ...row, typical: base, power: row.value - base, vs: Object.fromEntries(Object.entries(row.vs).map(([trait, value]) => [trait, value - base])), ...(alternatives ? { alternatives } : {}) };
     });
 }
 
@@ -578,7 +589,8 @@ const tenth = (value) => Math.round(value * 10) / 10;
 // ("atLeast"), and detail { "<compendium id>": { "<item id>": { rank, boss, group, typical, cantrip?, partial?, ranks: { "<rank>": power }
 // (heightened), vs: { "<trait>": power }, creature? (a summon's best), creatures? { "<trait>": its best against them }, summons? { "<rank>":
 // its best heightened }, estimate? (what the simulator doesn't play, rated by a rule of thumb: "shield", "wall (<kind>)", "text damage",
-// "terrain"), minion? (cast on a minion already out), alliesHit? (its area catches allies near the caster) } } }.
+// "terrain"; "pre-cast": cast before the fight), minion? (cast on a minion already out), alliesHit? (its area catches allies near the
+// caster), alternatives? { "<rule>:<value>": { power, boss, group, ranks } } (under the GM's other choice of a rule — RULE_CHOICES) } } }.
 export function spellRatingsOf(ranked) {
     const ratings = {};
     const bounds = {};
@@ -599,7 +611,9 @@ export function spellRatingsOf(ranked) {
             ...(higher.some((row) => row.creature) ? { summons: Object.fromEntries(higher.filter((row) => row.creature && Number.isFinite(row.power)).map((row) => [row.rank, row.creature])) } : {}),
             ...(own.estimate ? { estimate: own.estimate } : {}),
             ...(own.minion ? { minion: true } : {}),
-            ...(POWER_KINDS.some((kind) => own.results?.[`${kind}|`]?.alliesHit) ? { alliesHit: true } : {})
+            ...(POWER_KINDS.some((kind) => own.results?.[`${kind}|`]?.alliesHit) ? { alliesHit: true } : {}),
+            // (Under the GM's other choices of a rule the rules leave open: { "<rule>:<value>": { power, boss, group, ranks } }.)
+            ...(own.alternatives ? { alternatives: Object.fromEntries(Object.entries(own.alternatives).map(([key, other]) => [key, { power: tenth(other.power), boss: tenth(other.boss), group: tenth(other.group), ...(other.bound ? { bound: other.bound } : {}), ranks: Object.fromEntries(higher.filter((row) => Number.isFinite(row.alternatives?.[key]?.power)).map((row) => [row.rank, tenth(row.alternatives[key].power)])) }])) } : {})
         };
     }
     return { ratings, bounds, detail };

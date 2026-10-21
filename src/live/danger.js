@@ -109,6 +109,39 @@ export function sortByDanger(entries, valueOf, { descending = false, compare = (
 
 export const powerDetailOf = (data, collection, id) => data?.detail?.[collection]?.[id] ?? null;
 
+// The words for a rule the rules leave open, by its value (power-readings.js RULE_CHOICES; the GM's settings choose).
+export const RULE_WORDS = Object.freeze({
+    "renewalHealing:rest": "one rest (Constitution modifier × level)",
+    "renewalHealing:day": "a day of long-term rest (twice a rest's)"
+});
+// Each rule's default value (the one the numbers are made with), and what it counts.
+export const RULE_DEFAULTS = Object.freeze({ renewalHealing: "rest" });
+const RULE_SUBJECTS = Object.freeze({ renewalHealing: "its healing" });
+
+// The spell numbers under the GM's choices of rules the rules leave open (choices: { <rule>: <value> }; the first value of each, the
+// numbers' own, is the default): a spell with numbers for a chosen other value takes them — its power, bound, boss and group, heightened
+// ranks — and its detail says which (rule). The data itself is left as it is.
+export function withRuleChoices(data, choices = {}) {
+    const keys = Object.entries(choices ?? {}).filter(([, value]) => value !== null && value !== undefined).map(([rule, value]) => `${rule}:${value}`);
+    if (!data?.detail || !keys.length) return data;
+    const out = { ...data, ratings: { ...(data.ratings ?? {}) }, bounds: { ...(data.bounds ?? {}) }, detail: { ...data.detail } };
+    for (const [collection, spells] of Object.entries(data.detail)) {
+        for (const [id, detail] of Object.entries(spells ?? {})) {
+            const key = keys.find((each) => detail?.alternatives?.[each]);
+            if (!key) continue;
+            const other = detail.alternatives[key];
+            out.ratings[collection] = { ...(out.ratings[collection] ?? {}), [id]: other.power };
+            const bounds = { ...(out.bounds[collection] ?? {}) };
+            if (other.bound) bounds[id] = other.bound;
+            else delete bounds[id];
+            out.bounds[collection] = bounds;
+            const rule = key.replace(/:.*/, "");
+            out.detail[collection] = { ...out.detail[collection], [id]: { ...detail, boss: other.boss, group: other.group, ranks: other.ranks ?? detail.ranks, rule: key, ruleDefault: `${rule}:${RULE_DEFAULTS[rule] ?? ""}`, defaultPower: data.ratings?.[collection]?.[id] ?? null } };
+        }
+    }
+    return out;
+}
+
 // The traits' foes a spell is more useful against (its power there above its own): [[trait, power]], the most first.
 export function moreUsefulAgainst(value, detail) {
     return Object.entries(detail?.vs ?? {}).map(([trait, power]) => [trait, Number(power)]).filter(([, power]) => Number.isFinite(power) && power > value).sort((a, b) => b[1] - a[1]);
@@ -118,7 +151,7 @@ export function moreUsefulAgainst(value, detail) {
 // its detail: "~" before an estimate (a rule of thumb's: the simulator doesn't play it), "*" after a spell more useful against some foes.
 export function powerLabel(value, bound = null, detail = null) {
     if (!Number.isFinite(value)) return "";
-    return `${detail?.estimate ? "~" : ""}${bound === "atLeast" ? "≥" : bound === "atMost" ? "≤" : ""}${dangerLabel(value)}${moreUsefulAgainst(value, detail).length ? "*" : ""}`;
+    return `${detail?.estimate && detail.estimate !== "pre-cast" ? "~" : ""}${bound === "atLeast" ? "≥" : bound === "atMost" ? "≤" : ""}${dangerLabel(value)}${moreUsefulAgainst(value, detail).length ? "*" : ""}`;
 }
 
 // The words for a trait's foes, and for an estimate.
@@ -233,8 +266,13 @@ export function powerTooltip(value, data, bound = null, detail = null) {
     const minion = detail?.minion ? " Cast on a minion of the caster's already out." : "";
     const allies = detail?.alliesHit ? " Its area catches allies near the caster: their Hit Points count against it." : "";
     const reading = /^reading \((.+)\)$/.exec(String(detail?.estimate ?? ""))?.[1];
-    const estimate = reading ? ` ~ Read for the rating, as fights don't cast it yet: ${READINGS[reading] ?? "its effect, as the simulator reads it"}.` : detail?.estimate ? ` ~ Estimated by a rule of thumb, as the simulator doesn't play it: ${ESTIMATES[detail.estimate] ?? ESTIMATE_MORE[detail.estimate] ?? detail.estimate}.` : "";
+    // (Cast in a minute or more — 2026-10-21, the user: "count spells you can cast a minute or more before a fight" —: before the fight.)
+    const estimate = detail?.estimate === "pre-cast" ? " Cast before the fight (it takes a minute or more): rated at work from the fight's first round." : reading ? ` ~ Read for the rating, as fights don't cast it yet: ${READINGS[reading] ?? "its effect, as the simulator reads it"}.` : detail?.estimate ? ` ~ Estimated by a rule of thumb, as the simulator doesn't play it: ${ESTIMATES[detail.estimate] ?? ESTIMATE_MORE[detail.estimate] ?? detail.estimate}.` : "";
     const partial = detail?.partial ? " Partly simulated: the simulator doesn't play all of it." : "";
-    return `Power for its rank: ${how} (Combat Simulator${run ? `, ${run}` : ""}).${fights}${note}${creature}${higher}${useful}${less}${minion}${allies}${estimate}${partial}`;
+    // (A rule the rules leave open — the GM's setting —: which way it's counted, and the other way's number.)
+    const other = detail?.rule ? { key: detail.ruleDefault, power: detail.defaultPower } : Object.entries(detail?.alternatives ?? {}).map(([key, alternative]) => ({ key, power: alternative.power }))[0];
+    const inUse = detail?.rule ?? (other ? `${other.key.replace(/:.*/, "")}:${RULE_DEFAULTS[other.key.replace(/:.*/, "")]}` : null);
+    const rule = other && inUse ? ` The GM's setting counts ${RULE_SUBJECTS[inUse.replace(/:.*/, "")] ?? "it"} as ${RULE_WORDS[inUse] ?? inUse}; as ${RULE_WORDS[other.key] ?? other.key}: ${dangerLabel(other.power)}.` : "";
+    return `Power for its rank: ${how} (Combat Simulator${run ? `, ${run}` : ""}).${fights}${note}${creature}${higher}${useful}${less}${minion}${allies}${estimate}${partial}${rule}`;
 }
 
