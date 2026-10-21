@@ -197,7 +197,10 @@ const READINGS = {
     "option-mantle": "the best two of its options on a battle caster: its Strike, damage, healing, cover, resistances, aura",
     "generated-form": "the best two of its options on a battle caster: its Strike, damage, healing, cover, resistances, aura",
     "damage-share": "its healing as cast on the allies it links",
-    "winning-streak": "a Quickened Striker's extra Strike each round the party keeps critically hitting"
+    "winning-streak": "a Quickened Striker's extra Strike each round the party keeps critically hitting",
+    "strike-heal": "its healing on a battle caster's first hit each round",
+    "spirit-aid": "its spirits making the foes off-guard, or blocking their way",
+    hyphae: "its Strikes through plants each round"
 };
 const ESTIMATE_MORE = { "battle form": "the caster in its best form, its Strikes in place of its spells, its temporary Hit Points and AC" };
 

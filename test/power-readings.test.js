@@ -325,3 +325,12 @@ test("modes of two slots read from the text, the best pair; Life Link's healing 
     assert.equal(readingPower(standardParty(5), powerFoes("boss", 5), link(3)).targets, 2);
     assert.ok(readingPower(standardParty(7), powerFoes("boss", 7), entry(4, plan("winning-streak", { winningStreak: {} }, null))).share > 0);
 });
+
+test("a Striker's healing on its hits, spirits that distract or block, Strikes through plants only from the rank that allows them", () => {
+    assert.ok(readingPower(standardParty(9), powerFoes("boss", 9), entry(5, plan("strike-heal", { strikeHeal: { seconds: 60, multiple: 2 } }, null))).share > 0);
+    const spirits = plan("spirit-aid", { spiritAid: { area: { type: "burst", value: 5 }, durationSeconds: 60 } }, null);
+    assert.ok(readingPower(standardParty(3), powerFoes("group", 3), entry(2, spirits)).share > 0);
+    const hyphae = plan("hyphae", { hyphae: { durationSeconds: 60, strikes: { fromRank: 4, formula: "3d8", type: "bludgeoning" } } }, null);
+    assert.equal(readingPower(standardParty(3), powerFoes("boss", 3), entry(2, hyphae)), null);
+    assert.ok(readingPower(standardParty(7), powerFoes("boss", 7), entry(4, hyphae)).share > 0);
+});

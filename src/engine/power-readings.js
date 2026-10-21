@@ -1650,6 +1650,51 @@ READERS["winning-streak"] = (ctx) => {
     return { entries: [{ target: foe, damage: strikeOn(best.striker, best.strike, foe, { attacks: 2 }) * rounds, worth: 0, heal: 0, benefit: 0 }], targets: 1 };
 };
 
+READERS["strike-heal"] = (ctx) => {
+    // (Shall not Falter, Shall not Rout: on the caster at its best a battle caster, the best Striker — its healing on its first hit each
+    // round it lasts, below half its Hit Points as the fight goes at its best.)
+    const heal = ctx.entry.plan.resolution.strikeHeal ?? {};
+    const best = bestStrike(ctx, "melee");
+    const foe = toughest(ctx.enemies);
+    if (!best || !foe) return null;
+    const hit = 1 - (1 - hitChance(best.strike, foe)) * (1 - hitChance(best.strike, foe, { attacks: 1 }));
+    const healed = (Number(heal.multiple) || 2) * ctx.rank * hit * lastsRounds(heal.seconds, ctx.rounds);
+    return { entries: healEntries([best.striker], healed), targets: 1 };
+};
+
+READERS["spirit-aid"] = (ctx) => {
+    // (Helpful Wood Spirits: each round it's Sustained, the foes in its burst — as many as it holds, at its best — off-guard unless they make
+    // their Reflex save; or difficult terrain on their way: the better.)
+    const aid = ctx.entry.plan.resolution.spiritAid ?? {};
+    const lasts = lastsRounds(aid.durationSeconds, ctx.rounds);
+    const area = aid.area ?? { type: "burst", value: 5 };
+    const round = { mode: "fixed", value: 1, unit: "rounds" };
+    const distract = caught(ctx.enemies, area, ctx.choke).map((foe) => {
+        const [critFail, fail] = degreeDistribution(saveModifier(foe, "reflex"), Number(ctx.entry.dc) || 10);
+        return { target: foe, damage: 0, worth: (critFail + fail) * conditionWorth("off-guard", null, round) * lasts, heal: 0, benefit: 0 };
+    });
+    const obstacle = caught(ctx.enemies, area, ctx.choke).map((foe) => ({ target: foe, damage: 0, worth: approachLoss(foe, { inside: insideOf(Number(area.value) || 5, ctx), difficult: true }, ctx.rounds).worth, heal: 0, benefit: 0 })).filter((entry) => entry.worth > 0);
+    const options = [distract, obstacle].filter((entries) => entries.length).map((entries) => ({ entries, targets: entries.length }));
+    return options.length ? { options } : null;
+};
+
+READERS.hyphae = (ctx) => {
+    // (Fungal Hyphae from the rank it lets the caster Strike through plants: its spell attacks — one the round it's cast, two each round
+    // after (the second at its penalty) — on the toughest foe, while it lasts.)
+    const hyphae = ctx.entry.plan.resolution.hyphae ?? {};
+    const strikes = hyphae.strikes;
+    const foe = toughest(ctx.enemies);
+    if (!strikes || ctx.rank < Number(strikes.fromRank) || !foe) return null;
+    const context = spellContext(ctx.entry, { isSpell: true, area: false });
+    const hit = averageOn(foe, `${strikes.formula}[${strikes.type ?? "bludgeoning"}]`, strikes.type, context);
+    const one = (penalty) => {
+        const odds = degreeDistribution((Number(ctx.entry.attack) || 0) - penalty, armorClass(foe));
+        return odds[2] * hit + odds[3] * 2 * hit;
+    };
+    const lasts = lastsRounds(hyphae.durationSeconds, ctx.rounds);
+    return { entries: [{ target: foe, damage: one(0) + (lasts - 1) * (one(0) + one(5)), worth: 0, heal: 0, benefit: 0 }], targets: 1 };
+};
+
 // --- Mantles (2026-10-21, batch 15): pick two of its options ------------------------------------------------------------------------------
 
 // A mantle's options from its text, each by its name (labels): [{ label, strike?: { dice, die, type, reach, extra: [formula…],
