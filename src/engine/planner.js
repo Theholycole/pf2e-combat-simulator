@@ -29,6 +29,7 @@ import { calmedUntilHostility, pacifiedAll, spares } from "./pacify.js";
 import { floorOf } from "./floors.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { wardChance } from "./wards.js";
+import { imageShare, imageShareWith } from "./images.js";
 import { familiarFocusReady, familiarOf } from "./familiars.js";
 import { luminanceTarget } from "./luminance.js";
 import { hasConditional, strikeRollOptions } from "./effects.js";
@@ -168,7 +169,8 @@ export function potentialDamage(c, castable, strikes) {
 
 // Expected damage from a round of Strikes (the third at half weight).
 // attacks: how many Strikes the creature has left after moving. grip: a weakened grip's penalty (Disarm) counted.
-function roundDamage(c, target, ac, attacks = 3, { meleeOnly = false, rangedOnly = false, grip = false } = {}) {
+// you: the share of hits that find the target (Mirror Image's images take the rest; a critical hit on one is a hit).
+function roundDamage(c, target, ac, attacks = 3, { meleeOnly = false, rangedOnly = false, grip = false, you = 1 } = {}) {
     let best = 0;
     for (const strike of c.strikes ?? []) {
         if (!strikeUsable(c, strike)) continue;
@@ -180,7 +182,7 @@ function roundDamage(c, target, ac, attacks = 3, { meleeOnly = false, rangedOnly
         for (let attack = 0; attack < attacks; attack++) {
             const modifier = strike.bonus - multipleAttackPenalty(strike, attack) - statusPenalty(c, strike.melee ? "melee" : "ranged") + effectBonus(c, "attack") - (grip ? gripPenalty(c, strike) : 0);
             const dist = degreeDistribution(modifier, ac);
-            total += (dist[SUCCESS] * hit + dist[CRITICAL_SUCCESS] * crit) * (attack === 2 ? 0.5 : 1);
+            total += (dist[SUCCESS] * hit * you + dist[CRITICAL_SUCCESS] * (crit * you + hit * (1 - you))) * (attack === 2 ? 0.5 : 1);
         }
         best = Math.max(best, total * targetingChance(c));
     }
@@ -352,7 +354,7 @@ class PlanContext {
         let melee = 0;
         if (pos.melee === "new") melee = 1_000_000 + (this.enemyIndex.get(pos.newWith) ?? 0);
         else if (pos.melee !== null) melee = pos.melee + 1;
-        const key = ((melee * 4 + (BAND_CODES[pos.band] ?? 3)) * 2 + (node.shield ? 1 : 0)) * 2 + (node.prone ? 1 : 0);
+        const key = (((melee * 4 + (BAND_CODES[pos.band] ?? 3)) * 2 + (node.shield ? 1 : 0)) * 2 + (node.prone ? 1 : 0)) * 2 + (node.images ? 1 : 0);
         let alarmKey = this.alarm ? Math.min(15, stridesFor(this.c, node.gong ?? 0)) * 2 + (node.alarmRaised ? 1 : 0) : 0;
         // In or out of each danger Region, and how far from its edge.
         if (this.dangers.length) {
@@ -368,12 +370,13 @@ class PlanContext {
         return (key * 1024 + map) * 32 * 512 + alarmKey;
     }
 
-    // roundDamage for an enemy against this creature, cached for the decision.
-    enemyRound(enemy, ac, attacks, mode) {
-        const key = (((this.enemyIndex.get(enemy.id) ?? 0) * 256 + (ac + 64)) * 4 + attacks) * 2 + (mode === "ranged" ? 1 : 0);
+    // roundDamage for an enemy against this creature, cached for the decision. images: Mirror Image's, cast this turn.
+    enemyRound(enemy, ac, attacks, mode, images = null) {
+        const key = ((((this.enemyIndex.get(enemy.id) ?? 0) * 256 + (ac + 64)) * 4 + attacks) * 2 + (mode === "ranged" ? 1 : 0)) * 2 + (images ? 1 : 0);
         let value = this.roundCache.get(key);
         if (value === undefined) {
-            value = roundDamage(enemy, this.c, ac, attacks, mode === "ranged" ? { rangedOnly: true } : { meleeOnly: true });
+            const you = images ? imageShareWith(this.state, enemy, this.c, images) : imageShare(this.state, enemy, this.c);
+            value = roundDamage(enemy, this.c, ac, attacks, mode === "ranged" ? { rangedOnly: true, you } : { meleeOnly: true, you });
             this.roundCache.set(key, value);
         }
         return value;
@@ -430,8 +433,12 @@ class PlanContext {
         const flanked = flank > 0 ? odds(ac - (target.cond.offGuard || target.cond.prone ? 0 : 2)) : plain;
         // (Sanctuary on it: as likely to attack as its save to get through.)
         const finds = targetingChance(c) * wardChance(state, c, target);
-        const hitChance = finds * ((1 - flank) * plain[SUCCESS] + flank * flanked[SUCCESS]);
-        const critChance = finds * ((1 - flank) * plain[CRITICAL_SUCCESS] + flank * flanked[CRITICAL_SUCCESS]);
+        // (Mirror Image on it: a hit finds it at the images' odds, a critical hit on an image is a hit, and a failure does nothing.)
+        const you = imageShare(state, c, target);
+        const rolledHit = finds * ((1 - flank) * plain[SUCCESS] + flank * flanked[SUCCESS]);
+        const rolledCrit = finds * ((1 - flank) * plain[CRITICAL_SUCCESS] + flank * flanked[CRITICAL_SUCCESS]);
+        const hitChance = rolledHit * you + rolledCrit * (1 - you);
+        const critChance = rolledCrit * you;
         // Earlier attacks in the plan stand in for earlier attacks with this weapon.
         // Pack Attack: allies within reach of the target (those in its Melee).
         const packAllies = c.strikeExtras?.length && target.meleeId !== null ? this.allies.filter((ally) => ally.meleeId === target.meleeId).length : 0;
@@ -441,7 +448,7 @@ class PlanContext {
         const hitDamage = expectedHitDamage(c, strike, target, false, extras) + strategicDamage;
         const damage = hitChance * hitDamage + critChance * (expectedHitDamage(c, strike, target, true, extras) + 2 * strategicDamage);
         // (A failure's chance and a hit's damage, for Focused Assault's failure, B74.)
-        const failChance = finds * ((1 - flank) * plain[FAILURE] + flank * flanked[FAILURE]);
+        const failChance = you < 1 ? 0 : finds * ((1 - flank) * plain[FAILURE] + flank * flanked[FAILURE]);
         const result = { damage, hitChance: hitChance + critChance, failChance, hitDamage };
         perTarget.set(key, result);
         return result;
@@ -546,8 +553,8 @@ class PlanContext {
             // stepping back only costs it its weakest attacks.
             const here = this.mover(pos);
             const strides = engagedHere ? 0 : stridesToEngage({ band: enemy.band, meleeId: null, speed: enemy.speed, reach: enemy.reach, areaFeet: enemy.areaFeet, exitFeet: enemy.exitFeet }, { band: pos.band, meleeId: null, areaFeet: here.areaFeet, exitFeet: here.exitFeet });
-            const melee = this.enemyRound(enemy, ac, Math.max(0, 3 - strides), "melee");
-            const ranged = engagedHere ? 0 : this.enemyRound(enemy, ac + cover, 3, "ranged") * (pos.band === "far" ? 0.9 : 1);
+            const melee = this.enemyRound(enemy, ac, Math.max(0, 3 - strides), "melee", node.images);
+            const ranged = engagedHere ? 0 : this.enemyRound(enemy, ac + cover, 3, "ranged", node.images) * (pos.band === "far" ? 0.9 : 1);
             total += share * Math.max(melee, ranged);
             if (node.shield) biggestHit = Math.max(biggestHit, this.typicalHit(enemy));
         }
@@ -628,6 +635,8 @@ function child(node, action, cost, value, changes = {}) {
         pos: changes.pos ?? node.pos,
         shield: changes.shield ?? node.shield,
         prone: changes.prone ?? node.prone,
+        // (Mirror Image cast this turn: its images, for the next round's danger.)
+        images: changes.images ?? node.images,
         attacks: node.attacks + (changes.attacks ?? (changes.attack ? 1 : 0)),
         used: node.used + cost,
         damage: changes.damage ?? node.damage,
@@ -967,14 +976,16 @@ function expandSpells(env) {
                     continue;
                 }
                 const tricks = { ...(trick ? { trick: true } : {}), ...(draw ? { draw: true } : {}) };
+                // (Mirror Image on itself: the images, for the next round's danger.)
+                const images = spell.plan?.resolution?.kind === "image-decoys" && set.targets.length === 1 && set.targets[0] === c ? spell.plan.resolution.imageDecoys : undefined;
                 if (info.actions + extra <= remaining) {
-                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + extra, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index });
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + extra, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index, images });
                     // Casting is a manipulate action: it provokes Attacks of Opportunity.
                     if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }
                 if (quickFits) {
-                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, quickened: true, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions - 1 + extra, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: [index, "quickened"] });
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, quickened: true, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions - 1 + extra, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: [index, "quickened"], images });
                     if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }

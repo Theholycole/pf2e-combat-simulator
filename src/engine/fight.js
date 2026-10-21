@@ -909,7 +909,7 @@ function act(state, c, action) {
             if (activity.finisher) {
                 c.panache = false;
                 c.noAttacksThisTurn = true;
-                if (activity.finisher === "confident" && result?.degree === 1 && isActive(target)) {
+                if (activity.finisher === "confident" && result?.degree === 1 && !result.image && isActive(target)) {
                     let amount = 0;
                     for (let die = 0; die < (c.panacheStyle?.finisherDice ?? 2); die++) amount += state.rng.die(6);
                     const dealt = applyDamage(state, target, [{ type: c.strikes[action.strikeIndex].damage[0].type, amount: Math.floor(amount / 2), persistent: false, precision: true, context: strikeContext(c, c.strikes[action.strikeIndex]) }], { source: c });
@@ -920,7 +920,8 @@ function act(state, c, action) {
             if (result && activity.countsAs > 1) c.attacksThisTurn += (c.hydra?.count === activity.countsAs ? Math.max(1, c.hydra.heads) : activity.countsAs) - 1;
             if (result && activity.exacting && result.degree === 1) c.attacksThisTurn = Math.max(0, c.attacksThisTurn - 1);
             // Focused Assault (B74): a failure (not a critical one) still deals the Strike's damage, as a hit's.
-            if (result && activity.failureDamage && result.degree === FAILURE && isActive(target)) {
+            // (Not one Mirror Image's image took: "no additional effect".)
+            if (result && activity.failureDamage && result.degree === FAILURE && !result.image && isActive(target)) {
                 const instances = rollStrikeDamage(state.rng, fired, { critical: false, penalty: fired.melee ? c.cond.enfeebled ?? 0 : 0 }).map((instance) => ({ ...instance, context: strikeContext(c, fired) }));
                 const dealt = applyDamage(state, target, instances, { source: c, physical: true });
                 state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
@@ -929,7 +930,7 @@ function act(state, c, action) {
             // (C30: Instrument of Zeal's critical hit with Blessed Counterstrike.)
             if (activity.zeal && result?.degree === CRITICAL_SUCCESS && isActive(target)) zealCritical(state, c, target, fired, { applyDamage, applyCondition });
             // (2026-10-16: Big Rock Bullet's failure — not a critical one — still deals its own damage.)
-            if (activity.instead?.failure && result?.degree === FAILURE && isActive(target)) {
+            if (activity.instead?.failure && result?.degree === FAILURE && !result.image && isActive(target)) {
                 const part = activity.instead.failure;
                 let amount = part.bonus ?? 0;
                 for (let die = 0; die < part.dice; die++) amount += state.rng.die(part.die);
@@ -937,7 +938,7 @@ function act(state, c, action) {
                 state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
             }
             // (C34, Brutal Finish: a failure still deals a die or two of the weapon's; then its turn ends.)
-            if (activity.failureDice && result?.degree === FAILURE && isActive(target) && fired?.damage?.[0]?.die) {
+            if (activity.failureDice && result?.degree === FAILURE && !result.image && isActive(target) && fired?.damage?.[0]?.die) {
                 let amount = 0;
                 for (let die = 0; die < activity.failureDice; die++) amount += state.rng.die(fired.damage[0].die);
                 const dealt = applyDamage(state, target, [{ type: fired.damage[0].type, amount, persistent: false, precision: false, context: strikeContext(c, fired) }], { source: c, physical: true });
@@ -1030,7 +1031,7 @@ function act(state, c, action) {
                     // (B152, Fan of Daggers: what each critical hit brings.)
                     if (ability.critical && result?.degree === CRITICAL_SUCCESS) bothHitRider(state, c, foe, ability.critical, { said: "Critical hit on" });
                     // (B213, Hundred-Handed Whirlwind: damage even on a failed attack, not a critical failure.)
-                    if (ability.missDamage?.length && result?.degree === FAILURE) bothHitRider(state, c, foe, { conditions: [], damage: ability.missDamage }, { said: "A failed attack still hurts" });
+                    if (ability.missDamage?.length && result?.degree === FAILURE && !result.image) bothHitRider(state, c, foe, { conditions: [], damage: ability.missDamage }, { said: "A failed attack still hurts" });
                     // (B220, Cleanse the Forest: the next only after a hit.)
                     if (ability.chain && (result?.degree ?? 0) < SUCCESS) break;
                 }

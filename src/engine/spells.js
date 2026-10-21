@@ -30,6 +30,7 @@ import { adjustDamage, adjustInstance, adjustPart, rollStrikeDamage, spellContex
 import { distanceBetween, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
 import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
 import { applyWard, wardBlocks, wardWorth } from "./wards.js";
+import { applyImages, imageOdds, imageShare, imageTakes, imagesWorth } from "./images.js";
 import { hiddenFrom } from "./sight.js";
 import { lastingRounds } from "./lasting.js";
 import { takeControl } from "./control.js";
@@ -194,9 +195,10 @@ function readSpell(base, actions) {
         // A PF2e spell effect on its targets: aimed at allies as readily as at foes.
         // (Dispel Magic, Clear Mind: an ally's hindrance as readily as a foe's help.)
         // (Sanctuary: a ward on an ally.)
-        helpful: kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care" || kind === "attack-ward",
+        // (Mirror Image: images on the caster.)
+        helpful: kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care" || kind === "attack-ward" || kind === "image-decoys",
         // No target, range or area: the caster itself (the battle forms).
-        self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self")) || conditionNote?.recipient === "source" || (kind === "affliction-care" && plan.resolution.recipient === "self")
+        self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self")) || conditionNote?.recipient === "source" || (kind === "affliction-care" && plan.resolution.recipient === "self") || kind === "image-decoys"
     };
 }
 
@@ -1765,6 +1767,11 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     if (isActive(target)) applyWard(state, target, caster, spell, change.effect.ward, effectDC(spell));
                     break;
                 }
+                // (Mirror Image: the images on the caster.)
+                if (change.effect?.kind === "image-decoys") {
+                    if (isActive(target)) applyImages(state, target, spell, change.effect.decoys);
+                    break;
+                }
                 // (A condition it can't reduce below a value while the spell or a state lasts.)
                 if (change.effect?.kind === "floor") {
                     if (isActive(target)) addFloor(state, target, caster, spell, change.effect.floor);
@@ -2059,11 +2066,20 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         }
         ownFortune = (statistic) => (statistic === "spell-attack" ? keep : null);
     }
+    // (Mirror Image: the targets whose images took the attack — no effect on them at all.)
+    const imaged = new Set();
     const roll = (statistic, given) => {
         const keep = ownFortune(statistic);
         const options = raised(statistic, keep ? { ...given, [keep === "higher" ? "fortune" : "misfortune"]: true } : given);
         const result = betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
-        return heroReroll(statistic, options, result) ?? result;
+        const final = heroReroll(statistic, options, result) ?? result;
+        // (Spellstrike's forced degree is its Strike's, which met the images already.)
+        if (info.check?.roll === "attack" && forcedDegree === null && options?.target?.id && final?.degree) {
+            const taken = imageTakes(state, caster, options.target, DEGREE_NAMES.indexOf(final.degree), { applyDamage, applyCondition });
+            if (taken?.image) imaged.add(options.target.id);
+            if (taken) return { ...final, degree: DEGREE_NAMES[taken.degree] };
+        }
+        return final;
     };
     // (2026-10-15, hero points "when it matters": a PC's critically failed save, or a failed one that would take it out; its missed spell
     // attack that would have dropped the target — rerolled, the new result kept.)
@@ -2106,6 +2122,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     };
     const io = { ...live, ...(siphon ? { damage: siphon.healSiphon.share ? shared : least } : {}), roll, choose: chooser(caster, targets) };
     const result = registry.resolveSync(spell.plan, context, io);
+    if (imaged.size) result.changes = result.changes.filter((change) => !imaged.has(change.target));
     // (B220, Parasitic Healing: the siphoner regains the full amount instead.)
     if (siphon?.healSiphon.selfHeal === "full" && whole > 0 && isActive(siphon)) {
         const before = siphon.hp.value;
@@ -2952,7 +2969,8 @@ function oddsFor(caster, spell, target, attacks, actions) {
     if (check.roll === "attack") {
         const map = attacks <= 0 ? 0 : attacks === 1 ? 5 : 10;
         const base = check.statistic === "strike" ? Math.max(0, ...(caster.strikes ?? []).map((strike) => strike.bonus)) : (spell.attack ?? 0) + effectBonus(caster, "spell");
-        return degreeDistribution(base + effectBonus(caster, "attack") - penalty - map, armorClass(target));
+        // (Mirror Image on it: a failure, or a hit on an image, does nothing; a critical hit on one, a hit.)
+        return imageOdds(degreeDistribution(base + effectBonus(caster, "attack") - penalty - map, armorClass(target)), imageShare(null, caster, target));
     }
     if (check.roll === "skill" || check.roll === "perception") {
         const map = describeSpell(spell.plan, actions).attack ? (attacks <= 0 ? 0 : attacks === 1 ? 5 : 10) : 0;
@@ -3156,6 +3174,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     if (hidden && !target.trueSight) entry.benefit += chance * 0.3 * 3 * hidden;
                 } else if (change.op === "effect" && change.effect?.kind === "attack-ward") {
                     if (target.side === caster.side) entry.benefit += chance * wardWorth(state, target, caster, change.effect.ward, effectDC(spell));
+                } else if (change.op === "effect" && change.effect?.kind === "image-decoys") {
+                    if (target.side === caster.side) entry.benefit += chance * imagesWorth(state, target, change.effect.decoys, { expectedHitDamage });
                 } else if (change.op === "effect" && change.effect?.kind === "counteract") {
                     const best = bestCounter(state, caster, target, change.effect);
                     if (best) {
@@ -3352,8 +3372,8 @@ export function spellGaps(spell) {
                 if (model.unsupported.length) missing.add(`${model.name.replace(/^Spell Effect: /, "")}: ${model.unsupported.join(", ")}`);
             } else if (change.op === "effect" && change.effect?.kind === "modifier") {
                 if (!modifierModel(spell.name, change.effect.modifier)) missing.add(`modifier to ${change.effect.modifier?.selector}`);
-            } else if (change.op === "effect" && ["floor", "counteract", "affliction-stage", "attack-ward", "true-sight"].includes(change.effect?.kind)) {
-                // (Played: floors.js, counteract.js, afflictions.)
+            } else if (change.op === "effect" && ["floor", "counteract", "affliction-stage", "attack-ward", "true-sight", "image-decoys"].includes(change.effect?.kind)) {
+                // (Played: floors.js, counteract.js, afflictions, images.js.)
             } else if (change.op === "effect" && change.effect?.kind === "note" && (pacifyOf(change.effect.note) || noteState(change.effect.note) || noteModel(spell, change.effect.note))) {
                 const model = pacifyOf(change.effect.note) || noteState(change.effect.note) ? null : noteModel(spell, change.effect.note);
                 if (model?.unsupported.length) missing.add(`${change.effect.note.label}: ${model.unsupported.join(", ")}`);

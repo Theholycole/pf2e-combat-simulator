@@ -21,6 +21,7 @@ import { log } from "./log.js";
 import { afterAttackFortune, attackFortune } from "./fortune-items.js";
 import { hostility, ownHostility } from "./pacify.js";
 import { wardBlocks } from "./wards.js";
+import { imageTakes } from "./images.js";
 import { hiddenFrom } from "./sight.js";
 import { lifelinkMaster } from "./familiars.js";
 import { keenCritical, runeCritEffects } from "./runes.js";
@@ -474,6 +475,22 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         attacker.critUpgradesUsed = (attacker.critUpgradesUsed ?? 0) + 1;
         log(state, `  ${attacker.name} uses ${attacker.critUpgrade.name}: the hit becomes a critical hit`);
     }
+    // (Mirror Image on it: a hit may find an image instead — destroyed, and the attack does nothing; a critical hit on one is a hit on it;
+    // a failure destroys one, with no effect, "even if the attack would normally have an effect on a failure".)
+    const taken = imageTakes(state, attacker, target, degree, { applyDamage, applyCondition });
+    const imageMiss = Boolean(taken?.image) && degree === FAILURE;
+    if (taken?.image && degree >= SUCCESS) {
+        log(state, `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, an image takes it`);
+        if (!reaction) {
+            attacker.turnAttacks ??= [];
+            attacker.turnAttacks.push({ strike: strike.name, targetId: target.id, hit: false });
+            attacker.lastStrike = { strike: strike.name, melee: !!strike.melee, targetId: target.id, degree: FAILURE, action: attacker.actionCount ?? 0, round: state.round };
+        }
+        for (const effect of (attacker.effects ?? []).filter((effect) => effect.model?.nextStrike && effect.model.strikeDeltas?.[strike.name])) removeEffect(attacker, effect);
+        if (strike.firearm && attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;
+        return { degree: FAILURE, damage: 0, trigger, image: true };
+    }
+    if (taken) degree = taken.degree;
     if (!reaction) {
         attacker.turnAttacks ??= [];
         attacker.turnAttacks.push({ strike: strike.name, targetId: target.id, hit: degree >= SUCCESS });
@@ -489,7 +506,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         // Energy Shot counts its first three Strikes, hit or miss.
         if (strike.firearm && attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;
         // A bomb that misses (not critically) still splashes the target and those around it.
-        if (degree === FAILURE && strike.splashKind === "bomb") splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false }), strikeContext(attacker, strike)), { includeTarget: true });
+        if (degree === FAILURE && strike.splashKind === "bomb" && !imageMiss) splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false }), strikeContext(attacker, strike)), { includeTarget: true });
         // (B171, Sidestep, Glide Aside: the attack sent at another of the attacker's side beside it, the attacker rerolling against that one at
         // the same multiple attack penalty.)
         // (B286, Bouncy: when "critical", only a critically failed Strike.)
@@ -525,7 +542,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         if (degree === CRITICAL_FAILURE && !reaction && attacker.weaponPoisoned && strike.held) attacker.weaponPoisoned = false;
         // Jeer at Failure (B85): a critically failed Strike near a monster with it.
         if (degree === CRITICAL_FAILURE && !reaction) mishapAnswers(state, attacker, target);
-        return { degree, damage: 0, trigger };
+        return { degree, damage: 0, trigger, ...(imageMiss ? { image: true } : {}) };
     }
     // (Poison Weapon, B72: the poison goes with this hit, below; a critical miss wastes it.)
     // A hazard's or an object's immunity to critical hits: a hit's damage.
