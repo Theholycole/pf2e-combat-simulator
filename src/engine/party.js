@@ -140,10 +140,10 @@ export function standardParty(level, { spell = () => null, basics = [] } = {}) {
         fort: rank(lv, [[1, E], [9, M]]), ref: rank(lv, [[1, E], [15, M]]), will: rank(lv, [[1, T], [3, E]]),
         perception: rank(lv, [[1, E], [7, M]]),
         skills: { athletics: lv + primarySkill(lv) + k, intimidation: lv + secondarySkill(lv), acrobatics: lv + secondarySkill(lv) },
-        strike: { name: "Greatsword", bonus: lv + fWeapon + k + potency(lv), melee: true, agile: false, versatile: ["piercing"], iwr: { group: "sword" }, hands: 2, damage: [{ dice, die: 12, bonus: k + specialization(lv, fWeapon), type: "slashing" }] },
+        strike: { name: "Greatsword", bonus: lv + fWeapon + k + potency(lv), potency: potency(lv), melee: true, agile: false, versatile: ["piercing"], iwr: { group: "sword" }, hands: 2, damage: [{ dice, die: 12, bonus: k + specialization(lv, fWeapon), type: "slashing" }] },
         backups: [
-            { name: "Warhammer", bonus: lv + fWeapon + k + potency(lv), melee: true, agile: false, iwr: { group: "hammer" }, damage: [{ dice, die: 8, bonus: k + specialization(lv, fWeapon), type: "bludgeoning" }] },
-            { name: "Longbow", bonus: lv + fWeapon + 1 + potency(lv), melee: false, increment: 100, iwr: { group: "bow" }, hands: 2, deadly: { dice: lv >= 19 ? 3 : lv >= 12 ? 2 : 1, die: 10 }, damage: [{ dice, die: 8, bonus: specialization(lv, fWeapon), type: "piercing" }] }
+            { name: "Warhammer", bonus: lv + fWeapon + k + potency(lv), potency: potency(lv), melee: true, agile: false, iwr: { group: "hammer" }, damage: [{ dice, die: 8, bonus: k + specialization(lv, fWeapon), type: "bludgeoning" }] },
+            { name: "Longbow", bonus: lv + fWeapon + 1 + potency(lv), potency: potency(lv), melee: false, increment: 100, iwr: { group: "bow" }, hands: 2, deadly: { dice: lv >= 19 ? 3 : lv >= 12 ? 2 : 1, die: 10 }, damage: [{ dice, die: 8, bonus: specialization(lv, fWeapon), type: "piercing" }] }
         ],
         classDC: 10 + lv + rank(lv, [[1, T], [11, E]]) + k,
         extra: {
@@ -163,10 +163,10 @@ export function standardParty(level, { spell = () => null, basics = [] } = {}) {
         fort: rank(lv, [[1, T], [9, E]]), ref: rank(lv, [[1, E], [7, M], [13, L]]), will: rank(lv, [[1, E], [17, M]]),
         perception: rank(lv, [[1, E], [7, M], [13, L]]),
         skills: { deception: lv + primarySkill(lv) + cha, stealth: lv + primarySkill(lv) + k, acrobatics: lv + primarySkill(lv) + k, thievery: lv + primarySkill(lv) + k, intimidation: lv + secondarySkill(lv) + cha, athletics: lv + T },
-        strike: { name: "Rapier", bonus: lv + rWeapon + k + potency(lv), melee: true, agile: false, finesse: true, deadly: { dice: lv >= 19 ? 3 : lv >= 12 ? 2 : 1, die: 8 }, iwr: { group: "sword" }, damage: [{ dice, die: 6, bonus: k + specialization(lv, rWeapon), type: "piercing" }] },
+        strike: { name: "Rapier", bonus: lv + rWeapon + k + potency(lv), potency: potency(lv), melee: true, agile: false, finesse: true, deadly: { dice: lv >= 19 ? 3 : lv >= 12 ? 2 : 1, die: 8 }, iwr: { group: "sword" }, damage: [{ dice, die: 6, bonus: k + specialization(lv, rWeapon), type: "piercing" }] },
         backups: [
-            { name: "Light Mace", bonus: lv + rWeapon + k + potency(lv), melee: true, agile: true, finesse: true, iwr: { group: "club" }, damage: [{ dice, die: 4, bonus: k + specialization(lv, rWeapon), type: "bludgeoning" }] },
-            { name: "Shortbow", bonus: lv + rWeapon + k + potency(lv), melee: false, increment: 60, iwr: { group: "bow" }, hands: 2, deadly: { dice: lv >= 19 ? 3 : lv >= 12 ? 2 : 1, die: 10 }, damage: [{ dice, die: 6, bonus: specialization(lv, rWeapon), type: "piercing" }] }
+            { name: "Light Mace", bonus: lv + rWeapon + k + potency(lv), potency: potency(lv), melee: true, agile: true, finesse: true, iwr: { group: "club" }, damage: [{ dice, die: 4, bonus: k + specialization(lv, rWeapon), type: "bludgeoning" }] },
+            { name: "Shortbow", bonus: lv + rWeapon + k + potency(lv), potency: potency(lv), melee: false, increment: 60, iwr: { group: "bow" }, hands: 2, deadly: { dice: lv >= 19 ? 3 : lv >= 12 ? 2 : 1, die: 10 }, damage: [{ dice, die: 6, bonus: specialization(lv, rWeapon), type: "piercing" }] }
         ],
         classDC: 10 + lv + rank(lv, [[1, T], [11, E]]) + k,
         extra: {

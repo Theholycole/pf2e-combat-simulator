@@ -28,7 +28,7 @@ import { effectImmunity, immuneToCondition } from "./immunities.js";
 import { elementalAnswers, hydraScaled, troopIgnores, troopSegmentLost } from "./creature-rules.js";
 import { sightDC } from "./environment.js";
 import { adjustDamage, adjustInstance, adjustPart, rollStrikeDamage, spellContext, strikeContext } from "./damage.js";
-import { distanceBetween, engagedEnemies, leaveMelee, sameMelee } from "./space.js";
+import { distanceBetween, engagedEnemies, fliesNow, leaveMelee, sameMelee } from "./space.js";
 import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
 import { applyWard, wardBlocks, wardWorth } from "./wards.js";
 import { applyImages, imageOdds, imageShare, imageTakes, imagesWorth } from "./images.js";
@@ -1577,16 +1577,60 @@ function forActions(model, actions) {
 
 function applyNativeEffect(state, caster, spell, target, change, actions = undefined) {
     const { model: offered, key } = outcomeEffect(spell, change);
-    const model = pickChoice(state, forActions(offered, actions), target, change.effect?.degree);
+    let model = pickChoice(state, forActions(offered, actions), target, change.effect?.degree);
+    // (Magic Stone: disrupting's damage on its stones against undead — runes.js, as a lent rune's.)
+    if (model?.stones?.runes?.length) model = { ...model, strikeDeltas: { ...(model.strikeDeltas ?? {}), [STONE_NAME]: model.stones.runes.flatMap((rune) => RUNE_LOANS[rune === "vitalizing" ? "disrupting" : rune]?.parts ?? []) } };
     if (model && isActive(target) && polymorphReplaces(state, caster, spell, target)) {
         const isSpell = isSpellCast(spell);
         const effect = applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell, traits: spell.plan?.traits ?? [] } });
+        // (Magic Stone: its stones, a ranged Strike of the holder's while the effect lasts, one each action it was cast with.)
+        if (model.stones) {
+            const count = Math.max(1, Math.min(3, Number(actions) || 2));
+            const strike = stoneStrike(target, model.stones, count, effect.id);
+            target.strikes = [...(target.strikes ?? []).filter((each) => each.fromEffect !== effect.key), { ...strike, fromEffect: effect.key }];
+            (target.spellPools ??= {})[strike.ammo.pool] = count;
+        }
         // (2026-10-15, Death Ward: the conditions its text suppresses while it lasts — Doomed.)
         if (spell.plan?.suppresses?.length) effect.suppress = [...spell.plan.suppresses];
         // (Levitate: floated up out of any Melee it was in — space.js levitating.)
         if (model.levitates && target.meleeId !== null && target.meleeId !== undefined) leaveMelee(state, target, target.band === "far" ? "far" : "near");
         log(state, `  ${target.name} gains ${model.name.replace(/^Spell Effect: /, "")}${change.effect?.kind === "modifier" ? ` (${change.effect.modifier.value} ${change.effect.modifier.type ?? change.effect.modifier.modifierType ?? "untyped"} to ${change.effect.modifier.selector})` : ""}`);
     }
+}
+
+// (2026-10-22, Magic Stone — the user: "it can be used on any small rock which can be assumed to be available at all times".) Its stones as a
+// Strike of the creature holding them, thrown (no sling taken): the holder's best Strike's bonus — a ranged one's if it has one — without its
+// own potency rune, plus the stones'; 2d6 bludgeoning for striking; a sling bullet's group and runes (disrupting, effects.js strikeAdds
+// and its damage on undead, applyNativeEffect); one use a stone (strike.ammo).
+const STONE_NAME = "Magic Stone";
+function stoneStrike(holder, stones, count, id) {
+    const own = (holder.strikes ?? []).filter((strike) => !strike.fromEffect);
+    const ranged = own.filter((strike) => !strike.melee);
+    const from = ranged.length ? ranged : own;
+    const base = from.length ? Math.max(...from.map((strike) => (Number(strike.bonus) || 0) - (Number(strike.potency) || 0))) : Number(holder.level) || 0;
+    return { name: STONE_NAME, bonus: base + (Number(stones.potency) || 0), melee: false, agile: false, increment: 20, hands: 1, iwr: { group: "sling", runes: [...(stones.runes ?? [])], traits: ["magical"] }, damage: [{ dice: 1 + (Number(stones.striking) || 0), die: stones.die ?? 6, bonus: 0, type: stones.type ?? "bludgeoning" }], ammo: { pool: `stones:${id}` } };
+}
+
+// What Magic Stone's stones add to the holder's Strikes on its best foe for them: each stone — a round's first Strike, up to three — the
+// stone's hit over the best Strike it has that reaches that foe (a melee one doesn't reach one aloft), disrupting's die more on undead. An
+// entry on that foe, as damage; null for none.
+function stoneGain(state, holder, stones, count) {
+    const stone = stoneStrike(holder, stones, count, "rated");
+    const struck = (strike, foe) => {
+        const odds = degreeDistribution(strike.bonus, armorClass(foe));
+        return odds[2] * expectedHitDamage(holder, strike, foe, false) + odds[3] * expectedHitDamage(holder, strike, foe, true);
+    };
+    let best = null;
+    for (const foe of state.list) {
+        if (foe.side === holder.side || !isActive(foe)) continue;
+        const aloft = fliesNow(foe) && !fliesNow(holder);
+        const current = Math.max(0, ...(holder.strikes ?? []).filter((strike) => strikeUsable(holder, strike) && !(aloft && strike.melee)).map((strike) => struck(strike, foe)));
+        const odds = degreeDistribution(stone.bonus, armorClass(foe));
+        const undead = isUndead(foe) && (stones.runes ?? []).length ? (odds[2] + odds[3]) * 3.5 : 0;
+        const gain = Math.max(0, struck(stone, foe) + undead - current) * Math.min(3, count);
+        if (gain > 0 && (!best || gain > best.damage)) best = { target: foe, damage: gain, worth: 0, heal: 0, benefit: 0 };
+    }
+    return best;
 }
 
 // The target's best held weapon: it falls (until picked up), or its grip weakens (-2 until it regrips).
@@ -3602,6 +3646,11 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                             benefit: effectBenefit(held, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit, ownSide }),
                             heal: (held.resistances?.length || held.immunities?.length ? resistanceKept(state, held, target, Math.min(3, held.rounds)) : 0) - (ownSide && held.weaknesses?.length ? weaknessCost(state, held, target, Math.min(3, held.rounds)) : 0),
                         });
+                        // (Magic Stone: its stones' damage over the holder's own Strikes, on the foe they're best against — stoneGain.)
+                        if (model.stones) {
+                            const stones = stoneGain(state, target, model.stones, Math.max(1, Math.min(3, Number(actions) || 2)));
+                            if (stones) retaliationExtra.push({ ...stones, damage: chance * stones.damage });
+                        }
                         // (A polymorph over another: only if it counteracts that one, which it then ends — polymorphOdds.)
                         const swap = polymorphOdds(state, caster, spell, target, key, worth);
                         const share = chance * recastShare(state, target, model, key) * swap.chance;

@@ -150,6 +150,8 @@ export function strikeContext(attacker, strike, critical = false) {
     if (!adds.length) return base;
     const options = new Set(base);
     for (const add of adds) {
+        // (Magic Stone's: a sling's alone.)
+        if (add.groups?.length && !add.groups.includes(strike.iwr?.group)) continue;
         for (const rune of add.runes ?? []) options.add(`item:rune:property:${rune}`);
         for (const trait of add.traits ?? []) {
             options.add(`item:trait:${trait}`);

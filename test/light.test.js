@@ -865,3 +865,39 @@ test("marks against the caster alone: Brand the Impenitent's -1 AC and sight thr
     performStrike(state, fighter, brute, strike);
     assert.ok(brute.marks.some((entry) => entry.spell === "Vindicator's Judgment"), "a failure's lasts beyond one Strike");
 });
+
+test("Magic Stone: a stone a action, held by the caster or an ally — a thrown +1 striking disrupting Strike, used up a stone at a time", async () => {
+    const { castSpell, describeSpell } = await import("../src/engine/spells.js");
+    const { performStrike } = await import("../src/engine/actions.js");
+    const { compileSpell, effectModels, spellNamed, withTextConditions } = await import("../tools/lib/pack-spells.mjs");
+    const doc = spellNamed("Magic Stone");
+    const plan = compileSpell(doc);
+    assert.equal(describeSpell(plan, 3).targets, 1);
+    const effects = withTextConditions(effectModels(plan, 1), doc, 1);
+    const model = Object.values(effects)[0];
+    assert.deepEqual(model.stones, { potency: 1, striking: 1, runes: ["disrupting"], die: 6, type: "bludgeoning" });
+    assert.deepEqual(model.strikeAdds.groups, ["sling"], "disrupting on slings only");
+    const state = createFightState({ combatants: [...standardParty(3), { ...moderateCreatureAt(3, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const cleric = state.byId.get("cleric");
+    const rogue = state.byId.get("rogue");
+    cleric.spells = [{ name: "Magic Stone", castRank: 1, pool: null, dc: 18, attack: 8, effects, plan }];
+    castSpell(state, cleric, 0, [rogue.id], 2);
+    const stone = rogue.strikes.find((strike) => strike.name === "Magic Stone");
+    const bow = rogue.strikes.find((strike) => strike.name === "Shortbow");
+    assert.equal(stone.bonus, bow.bonus - bow.potency + 1, "the rogue's ranged bonus without its bow's rune, +1");
+    assert.deepEqual(stone.damage, [{ dice: 2, die: 6, bonus: 0, type: "bludgeoning" }]);
+    assert.equal(rogue.spellPools[stone.ammo.pool], 2, "two actions: two stones");
+    performStrike(state, rogue, state.byId.get("monster"), stone);
+    performStrike(state, rogue, state.byId.get("monster"), stone);
+    assert.equal(rogue.spellPools[stone.ammo.pool], 0);
+});
+
+test("a spell built on its caster's own Strikes rated with the fighter casting too (the user: 'Give those spells a martial caster to rate then')", async () => {
+    const { partyWithSpell } = await import("../src/engine/spell-power.js");
+    const party = standardParty(5);
+    const entry = { name: "Test Judgment", plan: { rank: 1 }, castRank: 1, pool: "rated", dc: 20, attack: 10, castBy: "fighter" };
+    const withIt = partyWithSpell(party, entry);
+    assert.ok(withIt.find((c) => c.id === "fighter").spells.includes(entry));
+    assert.equal(withIt.find((c) => c.id === "fighter").spellPools.rated, 1);
+    assert.ok(!withIt.find((c) => c.id === "wizard").spells.includes(entry));
+});

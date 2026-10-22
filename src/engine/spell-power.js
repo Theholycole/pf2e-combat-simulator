@@ -107,13 +107,16 @@ const fightSetup = (combatants, foes) => ({ combatants, ...(foes?.environment ? 
 
 // The party with the wizard's slot spells taken away — its cantrips and basic actions kept, as a caster always has them. With entry: that
 // spell as one cast more; a cantrip in place of the wizard's own.
+// (2026-10-22: entry.castBy — another of the party casting it, the fighter for a spell built on its own Strikes; tools/lib/spell-power.mjs.)
 export function partyWithSpell(party, entry = null) {
+    const by = entry?.castBy ?? "wizard";
     return party.map((c) => {
+        if (entry && by !== "wizard" && c.id === by) return { ...c, spells: [...(c.spells ?? []), entry], spellPools: entry.pool ? { ...(c.spellPools ?? {}), [entry.pool]: 1 } : c.spellPools };
         if (c.id !== "wizard") return c;
         const pools = Object.fromEntries(Object.entries(c.spellPools ?? {}).filter(([pool]) => !pool.startsWith("wizard:")));
         const basics = (c.spells ?? []).filter((spell) => spell.kind);
         const cantrips = (c.spells ?? []).filter((spell) => !spell.kind && !spell.pool);
-        if (!entry) return { ...c, spells: [...basics, ...cantrips], spellPools: pools };
+        if (!entry || by !== "wizard") return { ...c, spells: [...basics, ...cantrips], spellPools: pools };
         if (!entry.pool) return { ...c, spells: [...basics, entry], spellPools: pools };
         return { ...c, spells: [...basics, ...cantrips, entry], spellPools: { ...pools, [entry.pool]: 1 } };
     });
@@ -312,7 +315,7 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
     const helper = minion ? [{ ...minion, id: "minion", side: "party", kind: "npc", reserve: false, summons: undefined, minion: true, controlledBy: "wizard" }] : [];
     const combatants = [...[...partyWithSpell(party, entry), ...helper].map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
     const state = createFightState(fightSetup(combatants, foes), { morale: false, retreat: false, ...(choke ? { grid: CHOKE } : {}) }, 1);
-    const caster = state.byId.get("wizard");
+    const caster = state.byId.get(entry.castBy ?? "wizard");
     const spell = (caster?.spells ?? []).find((each) => each.name === entry.name && (each.pool ?? null) === (entry.pool ?? null));
     if (!spell) return null;
     const enemies = state.list.filter((c) => c.side !== caster.side && isActive(c));

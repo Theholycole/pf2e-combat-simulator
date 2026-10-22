@@ -337,6 +337,9 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen
         if (rule?.key === "AdjustStrike" && rule.mode === "add" && ["property-runes", "traits"].includes(rule.property) && typeof rule.value === "string" && !rule.value.includes("{")) {
             model.strikeAdds ??= { runes: [], traits: [] };
             model.strikeAdds[rule.property === "traits" ? "traits" : "runes"].push(rule.value);
+            // (2026-10-22, Magic Stone's disrupting "item:group:sling": on Strikes of that group only — damage.js strikeContext.)
+            const groups = [].concat(rule.definition ?? []).map((term) => /^item:group:([\w-]+)$/.exec(String(term))?.[1]).filter(Boolean);
+            if (groups.length) model.strikeAdds.groups = [...new Set([...(model.strikeAdds.groups ?? []), ...groups])];
             continue;
         }
         if (!rule?.key || IGNORED.has(rule.key)) continue;
@@ -649,7 +652,8 @@ export function withSpellText(models, doc, rank = 1) {
     const retaliation = textRetaliation(doc, rank);
     const floor = AURA_FLOOR.exec(text.replace(/<[^>]+>/g, " "));
     const nextStrike = NEXT_STRIKE.test(text);
-    if (!invisible && !retaliation && !floor && !nextStrike) return models;
+    const stones = STONES.exec(text.replace(/<[^>]+>/g, " ").replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, "$1"));
+    if (!invisible && !retaliation && !floor && !nextStrike && !stones) return models;
     return Object.fromEntries(Object.entries(models).map(([uuid, model]) => {
         if (!model) return [uuid, model];
         const out = { ...model };
@@ -657,12 +661,17 @@ export function withSpellText(models, doc, rank = 1) {
         if (retaliation && !model.retaliation) out.retaliation = retaliation;
         if (floor && (model.auraGrants?.length || model.aura?.length)) out.auraFloor = { slug: floor[1].toLowerCase(), value: Number(floor[2]) };
         if (nextStrike && (model.modifiers ?? []).some((modifier) => ["attack", "damage"].includes(modifier.on))) out.nextStrike = true;
+        if (stones) out.stones = { potency: Number(stones[1]), striking: stones[2] ? 1 : 0, runes: stones[3] ? [stones[3].toLowerCase()] : [], die: 6, type: "bludgeoning" };
         return [uuid, out];
     }));
 }
 
 // (2026-10-22, Weapon Surge: "On your next Strike with that weapon before the start of your next turn …" — model.nextStrike: used up by
 // that Strike, spendNextStrike.)
+// (2026-10-22, Magic Stone — the user: "it can be used on any small rock which can be assumed to be available at all times" —: "The stones become
+// +1 striking disrupting Sling Bullets", model.stones { potency, striking, runes, die, type }: a ranged Strike for the creature holding them,
+// one stone an action it's cast with — spells.js stoneStrike.)
+const STONES = /\bThe stones become\s+\+(\d)\s+(striking\s+)?(?:(disrupting|vitalizing)\s+)?sling bullets\b/i;
 // (Precious Gleam's "On the next successful attack with that weapon" too.)
 const NEXT_STRIKE = /\bon (?:your|the) next (?:successful )?(?:Strike|attack)\b/i;
 export function spendNextStrike(c) {

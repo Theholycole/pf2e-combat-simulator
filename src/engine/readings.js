@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withAllyVariants(withArea(resolved))))))))))))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withStones(withAllyVariants(withArea(resolved)))))))))))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -322,6 +322,17 @@ function withMarks(plan) {
     if (!Object.keys(marks).length) return plan;
     const targeting = /^your hunted prey$/i.test(String(plan.targeting?.target ?? "").trim()) ? { ...plan.targeting, target: "1 creature" } : plan.targeting;
     return { ...plan, simulatorReading: true, targeting, marks, resolution: { ...resolution, outcomes } };
+}
+
+// (2026-10-22, Magic Stone — the user: "it can be used on any small rock which can be assumed to be available at all times": "1 to 3 non-magical
+// stones or sling bullets", one an action, carried by the caster or a willing ally — as one willing creature, the holder; its action counts
+// as variants, the stones as many — spells.js stoneStrike.)
+const STONE_TARGET = /^(\d) to (\d) non-magical stones\b/i;
+function withStones(plan) {
+    const read = STONE_TARGET.exec(String(plan?.targeting?.target ?? ""));
+    if (!read || plan.resolution?.kind !== "effect" || plan.resolution.native?.byActions) return plan;
+    const counts = Object.fromEntries(Array.from({ length: Number(read[2]) - Number(read[1]) + 1 }, (_, index) => [Number(read[1]) + index, {}]));
+    return { ...plan, simulatorReading: true, targeting: { ...plan.targeting, target: "1 willing creature" }, resolution: { ...plan.resolution, native: { ...(plan.resolution.native ?? {}), byActions: counts } } };
 }
 
 // Agitate (2026-10-22, flying and the like): "the target must Stride, Fly, or Swim at least once each turn or take 2d8 mental damage at the

@@ -352,11 +352,24 @@ const hasArea = (plan, doc) => Boolean(describeSpell(plan).area || plan?.targeti
 
 // A spell whose damage type is the caster's (Spiritual Torrent: vitality from a living caster, void from an undead one): cast as each,
 // the better kept — at its best (the user: "Dont lower the ranking of spells based on how hard they are to use practically").
+// (2026-10-22, the user: "Give those spells a martial caster to rate then".) A spell built on its caster's own Strikes — a mark against it
+// alone (Brand the Impenitent, Vindicator's Judgment), a buff on itself or its own weapon for its Strikes' attack or damage — rated cast by
+// the party's fighter too (castBy, with the spell's DC and attack), the better kept; the wizard's Strikes are a staff's.
+function ownStrikes(entry) {
+    const plan = entry.plan ?? {};
+    if (plan.marks && Object.keys(plan.marks).length) return true;
+    const target = String(plan.targeting?.target ?? "").trim().toLowerCase();
+    const forStrikes = Object.values(entry.effects ?? {}).some((model) => model && ((model.modifiers ?? []).some((modifier) => ["attack", "damage"].includes(modifier.on)) || (model.conditional ?? []).some((modifier) => ["attack", "damage"].includes(modifier.on)) || model.strikeAdds || model.nextStrike));
+    if (!forStrikes || plan.targeting?.area?.type) return false;
+    return /^(?:self|you|yourself)?$/.test(target) || /\byou(?:'re| are) wielding\b|\byour (?:weapon|unarmed)\b/.test(target);
+}
+
 function casterSwaps(entry) {
     const swap = entry.plan?.resolution?.damageSwap;
-    if (swap?.when !== "caster-undead" || !entry.plan.resolution.sharedDamage?.components?.length) return [entry];
+    const martial = ownStrikes(entry) ? [{ ...entry, castBy: "fighter" }] : [];
+    if (swap?.when !== "caster-undead" || !entry.plan.resolution.sharedDamage?.components?.length) return [entry, ...martial];
     const components = entry.plan.resolution.sharedDamage.components.map((component) => (component.type === swap.from ? { ...component, type: swap.to } : component));
-    return [entry, { ...entry, plan: { ...entry.plan, resolution: { ...entry.plan.resolution, sharedDamage: { ...entry.plan.resolution.sharedDamage, components } } } }];
+    return [entry, { ...entry, plan: { ...entry.plan, resolution: { ...entry.plan.resolution, sharedDamage: { ...entry.plan.resolution.sharedDamage, components } } } }, ...martial];
 }
 const bestCast = (entries, cast) => entries.map(cast).filter(Boolean).sort((a, b) => b.share - a.share)[0] ?? null;
 
