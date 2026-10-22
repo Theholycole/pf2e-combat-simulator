@@ -447,3 +447,12 @@ test("Embrace Nothingness: 'when it is not your turn … you are Invisible' in i
     assert.deepEqual(models.a.conditions, [{ slug: "invisible", value: null }]);
     assert.deepEqual(withTextConditions({ a: { conditions: [] } }, { system: { description: { value: "You are Invisible." } } }).a.conditions, []);
 });
+
+test("a buff's weaknesses cost what the foes' Strikes add: none for weakness to area damage, some for a weakness to their own type", async () => {
+    const { weaknessCost } = await import("../src/engine/effects.js");
+    const state = createFightState({ combatants: [...standardParty(7), { ...moderateCreatureAt(7, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1);
+    const wizard = state.byId.get("wizard");
+    const type = state.byId.get("monster").strikes[0].damage[0].type;
+    assert.equal(weaknessCost(state, { weaknesses: [{ type: "area-damage", value: 8 }, { type: "splash-damage", value: 8 }] }, wizard, 3), 0);
+    assert.ok(weaknessCost(state, { weaknesses: [{ type, value: 5 }] }, wizard, 3) > 0);
+});

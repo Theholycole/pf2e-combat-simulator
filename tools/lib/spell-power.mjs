@@ -448,7 +448,10 @@ export function runPowerTask(task) {
         }).filter(Boolean);
         if (casts.length) {
             const best = (foes) => casts.map((read) => castPower(party, foes, read)).filter(Boolean).sort((a, b) => b.share - a.share)[0] ?? null;
-            return { ...head, traits: [], results: resultsOf([], best, level), estimate: "reading (stated-effect)" };
+            // (The foe traits its choices' effects play against — Elemental Sense's see invisibility, Chorus Made Manifest's fly Speed;
+            // 2026-10-22, before none.)
+            const traits = [...new Set(casts.flatMap((read) => powerConditions(read.plan, read.effects, textOf(doc))))];
+            return { ...head, traits, results: resultsOf(traits, best, level), estimate: "reading (stated-effect)" };
         }
     }
     // (One the engine can't cast in a fight only for how its time or targets are written: cast as the rating reads it.)

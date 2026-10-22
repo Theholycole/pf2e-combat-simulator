@@ -591,6 +591,31 @@ export function resistanceKept(state, model, target, rounds) {
     return kept * rounds;
 }
 
+// The Hit Points a buff's weaknesses cost the creature it's on over rounds (2026-10-22, Chorus Made Manifest's weakness to area and splash
+// damage): each foe's best Strike twice a round at its AC, its share of the foes' attacks, a hit's damage of a weak type adding the weakness
+// once — area, splash and the like not from a Strike. resistanceKept's reverse.
+export function weaknessCost(state, model, target, rounds) {
+    if (!model.weaknesses?.length || !(target?.hp?.max > 0)) return 0;
+    const foes = (state.list ?? []).filter((other) => other.side !== target.side && other.status === "active");
+    const side = Math.max(1, (state.list ?? []).filter((other) => other.side === target.side && other.status === "active").length);
+    const weak = (type) => Math.max(0, ...model.weaknesses.filter((entry) => entry.type === type || entry.type === "all-damage" || (entry.type === "physical" && PHYSICAL.has(type))).map((entry) => Number(entry.value) || 0));
+    let cost = 0;
+    for (const foe of foes) {
+        let best = 0;
+        for (const strike of foe.strikes ?? []) {
+            const types = [...new Set((strike.damage ?? []).map((part) => part.type))];
+            const perHit = Math.max(0, ...types.map(weak));
+            const hits = [0, 1].reduce((sum, attack) => {
+                const odds = degreeDistribution((Number(strike.bonus) || 0) - (attack ? (strike.agile ? 4 : 5) : 0), Number(target.ac) || 15);
+                return sum + odds[2] + odds[3];
+            }, 0);
+            best = Math.max(best, hits * perHit);
+        }
+        cost += best / side;
+    }
+    return cost * rounds;
+}
+
 // How much an effect helps the creature it's on, in rounds of that creature's
 // threat (negative for a hindrance). conditionHarm(slug, value, rounds) is the
 // spells layer's condition weighting. strikeShare: the part of the creature's
@@ -617,7 +642,9 @@ export function effectBenefit(model, target, conditionHarm, strikeShare = 1, con
     // simulator": in a fight, a resistance counts as the Hit Points it keeps off — spellExpectation's, resistanceKept; elsewhere, a rule
     // of thumb.)
     if (!context?.state) for (const entry of model.resistances) benefit += 0.02 * entry.value * rounds;
-    for (const entry of model.weaknesses) benefit -= 0.03 * entry.value * rounds;
+    // (A buff on its own side with weaknesses, in a fight: weaknessCost, as healing lost — spellExpectation's. Otherwise, and on a foe: a rule
+    // of thumb.)
+    if (!context?.ownSide) for (const entry of model.weaknesses) benefit -= 0.03 * entry.value * rounds;
     benefit += 0.1 * model.immunities.length;
     const duration = { mode: "fixed", value: rounds, unit: "rounds" };
     for (const condition of model.conditions) {

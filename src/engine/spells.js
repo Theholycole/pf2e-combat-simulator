@@ -13,7 +13,7 @@
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
-import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune } from "./effects.js";
+import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune, weaknessCost } from "./effects.js";
 import { applyDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { dimWorth, lightAuraModel, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
@@ -3290,7 +3290,10 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     const unused = model?.fortune && target === caster && (caster.actionsLeft ?? 3) - (describeSpell(spell.plan, actions).actions ?? 1) < 1;
                     if (model && !unused) {
                         const share = chance * recastShare(state, target, model, key);
-                        entry.benefit += share * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit });
+                        // (On the caster's own side, its weaknesses as the Hit Points the foes' Strikes add — weaknessCost.)
+                        const ownSide = target.side === caster.side;
+                        entry.benefit += share * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit, ownSide });
+                        if (ownSide && model.weaknesses?.length) entry.heal -= share * weaknessCost(state, model, target, Math.min(3, model.rounds));
                         // (Its resistances: the Hit Points they keep off it from the foes' Strikes, as healing — 2026-10-21.)
                         if (model.resistances?.length || model.immunities?.length) entry.heal += share * resistanceKept(state, model, target, Math.min(3, model.rounds));
                         // (Levitate: the Hit Points out of the grounded foes' reach keeps off it — actions.js liftKept.)
