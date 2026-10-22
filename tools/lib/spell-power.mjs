@@ -3,7 +3,7 @@
 import fs from "node:fs";
 const { readDocuments, PACK_ROOT, basicActions, combatant, creatureFrom, summonCandidates } = await import("./pack-creatures.mjs");
 const { maneuverWays } = await import("../../src/engine/readings.js");
-const { compileSpell, effectModels } = await import("./pack-spells.mjs");
+const { compileSpell, effectItemById, effectModels } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
 const { POWER_KINDS, POWER_ROUNDS, RATED_POOL, SUMMON_FOE_TRAITS, castPower, durationRounds, formShare, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
@@ -381,11 +381,23 @@ function textHelpRow(head, doc, rank, party, level) {
 }
 
 // One task: { ref, rank } — the spell at that rank, cast once into both encounters (and those of each trait it does more against).
+// A mantle that compiles as its effect — Mantle of the Frozen Heart, of the Melting Heart: "pick two of the options", its effect's choices —
+// as the mantle reader's option-mantle, its options by the effect's labels ("…Label.ChillingIce": Chilling Ice). 2026-10-22; before, it was
+// cast as its effect, whose rules all wait on the choices: nothing.
+function mantleOfEffect(plan, doc) {
+    if (plan?.resolution?.kind !== "effect" || !/\bpick two of the options\b/i.test(textOf(doc))) return plan;
+    const item = effectItemById(plan.resolution.applications?.[0]?.uuid);
+    const labels = [...new Set((item?.system?.rules ?? []).flatMap((rule) => (rule.suboptions ?? []).map((option) => String(option.label ?? "").split(".").pop().replace(/([a-z])([A-Z])/g, "$1 $2"))))].filter(Boolean);
+    if (labels.length < 2) return plan;
+    const minutes = /(\d+) minutes?/i.exec(String(doc.system?.duration?.value ?? ""));
+    return { ...plan, resolution: { kind: "option-mantle", optionMantle: { options: labels.map((label) => ({ label })), seconds: minutes ? Number(minutes[1]) * 60 : 60 } } };
+}
+
 export function runPowerTask(task) {
     const { ref, rank } = task;
     const doc = spellOf(ref);
     if (!doc) return { ...task, error: "not found" };
-    const plan = planOf(ref, doc);
+    const plan = mantleOfEffect(planOf(ref, doc), doc);
     if (!plan) return { ...task, error: "doesn't compile" };
     const level = partyLevelForRank(rank);
     const party = partyFor(level);

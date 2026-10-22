@@ -153,6 +153,8 @@ export function powerConditions(plan, effects = null, text = "") {
     // all-damage: as good against any type — 2026-10-22, Protector's Sphere rated the same against each.)
     const resisted = new Set([
         ...Object.values(effects ?? {}).flatMap((model) => (model?.resistances ?? []).flatMap((entry) => (entry.type === "choice" ? entry.choices : [entry.type]))),
+        // (An immunity to a damage type — Fiery Body's fire —, 2026-10-22.)
+        ...Object.values(effects ?? {}).flatMap((model) => (model?.immunities ?? []).map((entry) => (typeof entry === "string" ? entry : entry?.type))),
         ...[...JSON.stringify(plan?.resolution ?? null).matchAll(/"key":"Resistance","type":"([a-z-]+)"/g)].map((match) => match[1]),
         ...[...String(text).matchAll(/\bresistance \d+ to ([a-z ,]+?)(?:\.|;|$| damage| and \w+ saves)/gi)].flatMap((match) => match[1].split(/,|\band\b/).map((word) => word.trim().toLowerCase()))
     ]);
@@ -195,6 +197,8 @@ export function powerConditions(plan, effects = null, text = "") {
     const json = JSON.stringify({ resolution: plan?.resolution ?? null, targeting: plan?.targeting ?? null });
     if (/"type":"vitality"|\[vitality\]/.test(json)) traits.add("undead");
     for (const match of JSON.stringify(plan?.targeting?.actorConstraints ?? {}).matchAll(/trait:([a-z-]+)/g)) traits.add(match[1]);
+    // (A trait its targets must have, as the compiler writes it — Dirge of Remembrance's "each incorporeal creature", 2026-10-22.)
+    for (const match of JSON.stringify(plan?.targeting?.actorConstraints ?? {}).matchAll(/"kind":"trait","slug":"([a-z-]+)","present":true/g)) traits.add(match[1]);
     for (const match of String(plan?.targeting?.target ?? "").matchAll(/\b(undead|fiends?|celestials?|constructs?|elementals?|unholy|holy)\b/gi)) traits.add(match[1].toLowerCase().replace(/s$/, ""));
     return [...new Set([...traits].map((trait) => TRAIT_ALIASES[trait] ?? trait).filter((trait) => packageOf(trait)))].sort();
 }

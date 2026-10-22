@@ -74,10 +74,12 @@ function describe(type, kind) {
 
 // One damage instance's roll options over its source's: its type, category and components; a material only on a weapon's own damage, or
 // one the instance carries itself (2026-10-16: the core's instance.materials — a spellgun's "3d8[fire,silver]").
-function optionsOf(instance, context) {
+function optionsOf(instance, context, defender = null) {
     return {
         has(option) {
             if (option === "damage") return true;
+            // (Semi-corporeal — Dirge of Remembrance —: every weapon's attack on it has a ghost touch rune's benefit.)
+            if (option === "item:rune:property:ghost-touch" && defender?.cond?.semicorporeal && instance.weapon) return true;
             if (!option.startsWith("damage:")) return !!context?.has(option);
             if (option === `damage:type:${instance.type}`) return true;
             if (option.startsWith("damage:category:")) return option === `damage:category:${CATEGORY[instance.type]}` || (option === "damage:category:persistent" && !!instance.persistent);
@@ -163,6 +165,9 @@ export function spellContext(spell, { isSpell = true, area = false } = {}) {
     const options = sourceOptions(spell);
     if (isSpell) options.add("item:type:spell");
     if (area) options.add("area-damage");
+    // (2026-10-22, Dirge of Remembrance's "this damage bypasses its resistances": the plan's resistanceBypass, as a greater rune's ignored type.)
+    const bypass = spell?.plan?.resolution?.resistanceBypass?.ignore;
+    if (bypass) options.ignored = new Set([].concat(bypass));
     return options;
 }
 
@@ -311,7 +316,7 @@ export function adjustPart(defender, instance, context = null) {
     const immunities = defender.immunities ?? [];
     if (immunities.includes(type) || (precision && immunities.includes("precision"))) return 0;
     if (PHYSICAL.has(type) && immunities.includes("physical")) return 0;
-    const options = optionsOf(instance, context);
+    const options = optionsOf(instance, context, defender);
     let result = amount;
     let weakness = 0;
     for (const entry of defender.weaknesses ?? []) {

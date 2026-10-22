@@ -34,6 +34,9 @@ const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".")
 export const effectModels = (plan, castRank) => Object.fromEntries([...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}/g) ?? [])]
   .map((uuid) => [uuid, effectsById.get(uuid.split(".").pop())]).filter(([, item]) => item).map(([uuid, item]) => [uuid, resolveAuraGrants(effectModel(item, { rank: castRank, conditionSlug }), (granted) => effectsById.get(String(granted).split(".").pop()) ?? null, { rank: castRank, conditionSlug })]));
 
+// A PF2e spell effect item by its uuid (or id), or null.
+export const effectItemById = (uuid) => effectsById.get(String(uuid ?? "").split(".").pop()) ?? null;
+
 // (2026-10-14: with the simulator's own reading of a spell the compiler leaves without a plan — Evil Eye.)
 export function compileSpell(spell) {
   return withReading(compileAbility(spell, { nativeEffectCatalog, referencedSpells }));

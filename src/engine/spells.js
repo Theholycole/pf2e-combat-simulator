@@ -14,7 +14,7 @@ import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf,
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune } from "./effects.js";
-import { applyDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
+import { applyDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, semicorporealDamage, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { dimWorth, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
@@ -69,7 +69,9 @@ const FLAGS = {
     landed: "landed",
     grounded: "grounded",
     // (2026-10-22, Penumbral Shroud: it perceives light a step lower — light.js sightDCIn.)
-    dimmed: "dimmed"
+    dimmed: "dimmed",
+    // (2026-10-22, Dirge of Remembrance: weapons' attacks on it have ghost touch's benefit — damage.js optionsOf.)
+    semicorporeal: "semicorporeal"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -3185,6 +3187,11 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         entry.damage += chance * groundDamage(state, target, change.slug === "landed" ? 0.5 : Math.min(3, durationRounds(change.duration)));
                         continue;
                     }
+                    // (Semi-corporeal: what its foes' weapons add against it with ghost touch's benefit — actions.js semicorporealDamage.)
+                    if (change.slug === "semicorporeal" && !held) {
+                        entry.damage += chance * semicorporealDamage(state, target, Math.min(3, durationRounds(change.duration)));
+                        continue;
+                    }
                     const full = change.slug === "outlined" ? outlineWorth(state, target, Math.min(3, durationRounds(change.duration)), sightDC)
                         : change.slug === "dimmed" ? dimWorth(state, target, Math.min(3, durationRounds(change.duration)))
                             : conditionWorth(change.slug, brave ?? change.value, lasting);
@@ -3255,14 +3262,14 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         const share = chance * recastShare(state, target, model, key);
                         entry.benefit += share * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit });
                         // (Its resistances: the Hit Points they keep off it from the foes' Strikes, as healing — 2026-10-21.)
-                        if (model.resistances?.length) entry.heal += share * resistanceKept(state, model, target, Math.min(3, model.rounds));
+                        if (model.resistances?.length || model.immunities?.length) entry.heal += share * resistanceKept(state, model, target, Math.min(3, model.rounds));
                         // (An aura's granted effects on each creature it reaches — effects.js auraRecipients; 2026-10-22.)
                         for (const grant of model.aura ?? []) {
                             for (const other of auraRecipients(state, target, grant)) {
                                 const into = other === target ? entry : auraEntries.get(other) ?? auraEntries.set(other, { target: other, damage: 0, worth: 0, heal: 0, benefit: 0 }).get(other);
                                 const granted = { ...grant.model, rounds: model.rounds };
                                 into.benefit += share * effectBenefit(granted, other, conditionWorth, state.strikeShare?.get(other.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit });
-                                if (granted.resistances?.length) into.heal += share * resistanceKept(state, granted, other, Math.min(3, granted.rounds));
+                                if (granted.resistances?.length || granted.immunities?.length) into.heal += share * resistanceKept(state, granted, other, Math.min(3, granted.rounds));
                             }
                         }
                     }

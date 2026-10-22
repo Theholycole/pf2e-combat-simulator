@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withDimming(withGrounding(withOutline(withConcealedTo(withArea(resolved)))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withArea(resolved))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -113,6 +113,26 @@ function withGrounding(plan) {
         const grounded = CANT_FLY.exec(words);
         const value = grounded ? (/^\d+$/.test(grounded[1]) ? Number(grounded[1]) : 1) : null;
         return [degree, { ...row, effects: [grounded ? { kind: "condition", slug: "grounded", value: null, duration: { mode: "fixed", value, unit: `${grounded[2].toLowerCase()}s` } } : { kind: "condition", slug: "landed", value: null, duration: null }] }];
+    }));
+    return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
+}
+
+// Dirge of Remembrance (2026-10-22, incorporeal): a save's row that says the creature "becomes semi-corporeal", with nothing of its own —
+// semicorporeal (weapons' attacks on it have ghost touch's benefit) for the spell's time.
+const SEMICORPOREAL = /\bbecomes? semi-?corporeal\b/i;
+function withSemicorporeal(plan) {
+    const resolution = plan?.resolution;
+    if (resolution?.kind !== "save") return plan;
+    const spec = plan.lifecycle?.durationSpec;
+    const duration = spec?.mode === "fixed" && spec.unit ? { mode: "fixed", value: Number(spec.value) || 1, unit: spec.unit } : { mode: "fixed", value: 1, unit: "minutes" };
+    let changed = false;
+    const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
+        const words = rowWords(plan, degree, row);
+        // ("As failure, but double damage" — the failure row's condition too.)
+        const asFailure = /^as failure\b/i.test(String(row?.rawText ?? "").trim()) && SEMICORPOREAL.test(rowWords(plan, "failure", resolution.outcomes?.failure));
+        if ((row?.effects ?? []).length || !(SEMICORPOREAL.test(words) || asFailure)) return [degree, row];
+        changed = true;
+        return [degree, { ...row, effects: [{ kind: "condition", slug: "semicorporeal", value: null, duration }] }];
     }));
     return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
 }

@@ -121,9 +121,10 @@ const defenceIds = new Map();
 // A small number per distinct set of resistances, weaknesses and immunities.
 function defenceId(target) {
     // (T3–T4: resistances that change with its Hit Points or the damage it took aren't kept.)
-    const changing = Boolean(target.hpRules?.length || target.protean);
+    // (Semi-corporeal — Dirge of Remembrance —: weapons' ghost touch on it while it lasts, so not kept either.)
+    const changing = Boolean(target.hpRules?.length || target.protean || target.cond?.semicorporeal);
     if (target.defenceId === undefined || changing) {
-        const text = JSON.stringify([resistancesOf(target), target.weaknesses ?? [], target.immunities ?? []]);
+        const text = JSON.stringify([resistancesOf(target), target.weaknesses ?? [], target.immunities ?? [], Boolean(target.cond?.semicorporeal)]);
         if (!defenceIds.has(text)) defenceIds.set(text, defenceIds.size);
         if (changing) return defenceIds.get(text);
         target.defenceId = defenceIds.get(text);
@@ -171,6 +172,29 @@ export function groundDamage(state, target, rounds) {
         total += Math.max(0, round(true) - round(false));
     }
     return 0.5 * total * rounds;
+}
+
+// What making an incorporeal creature semi-corporeal is worth (Dirge of Remembrance, 2026-10-22): over rounds, what its foes' weapons add
+// against it with a ghost touch rune's benefit — two Strikes a round each. 0 for one whose resistance doesn't spare ghost touch.
+export function semicorporealDamage(state, target, rounds) {
+    if (target.cond?.semicorporeal) return 0;
+    const touched = { ...target, cond: { ...target.cond, semicorporeal: true } };
+    const ac = armorClass(target);
+    let total = 0;
+    for (const watcher of state.list) {
+        if (watcher.side === target.side || !isActive(watcher)) continue;
+        let best = 0;
+        for (const strike of watcher.strikes ?? []) {
+            if (!strikeUsable(watcher, strike)) continue;
+            const gain = [0, 1].reduce((sum, attack) => {
+                const dist = degreeDistribution(strike.bonus - multipleAttackPenalty(strike, attack), ac);
+                return sum + dist[SUCCESS] * (expectedHitDamage(watcher, strike, touched, false) - expectedHitDamage(watcher, strike, target, false)) + dist[CRITICAL_SUCCESS] * (expectedHitDamage(watcher, strike, touched, true) - expectedHitDamage(watcher, strike, target, true));
+            }, 0);
+            best = Math.max(best, gain);
+        }
+        total += best;
+    }
+    return total * rounds;
 }
 
 export function expectedHitDamage(attacker, strike, target, critical, { bonus = 0, offGuardChance = 0, packAllies = 0 } = {}) {

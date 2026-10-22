@@ -530,7 +530,11 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
 // against its AC, its share of the foes' attacks (one of its side), each hit's damage of a resisted type up to the resistance
 // ("all-damage" all of it; "physical" bludgeoning, piercing and slashing).
 const PHYSICAL = new Set(["bludgeoning", "piercing", "slashing"]);
+// (2026-10-22: an immunity to a damage type — Fiery Body's fire — as a resistance to all of it.)
+const DAMAGE_IMMUNITY = new Set(["acid", "bludgeoning", "cold", "electricity", "fire", "force", "mental", "piercing", "poison", "slashing", "sonic", "spirit", "vitality", "void", "bleed"]);
 export function resistanceKept(state, model, target, rounds) {
+    const immune = (model.immunities ?? []).map((entry) => (typeof entry === "string" ? entry : entry?.type)).filter((type) => DAMAGE_IMMUNITY.has(type));
+    if (immune.length) model = { ...model, resistances: [...(model.resistances ?? []), ...immune.map((type) => ({ type, value: Infinity, exceptions: [] }))] };
     if (!model.resistances?.length || !(target?.hp?.max > 0)) return 0;
     const foes = (state.list ?? []).filter((other) => other.side !== target.side && other.status === "active");
     const side = Math.max(1, (state.list ?? []).filter((other) => other.side === target.side && other.status === "active").length);

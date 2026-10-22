@@ -1708,7 +1708,9 @@ READERS.hyphae = (ctx) => {
 // clumsy? }].
 export function mantleOptions(text, labels) {
     const plain = String(text).replace(/@Damage\[([^\]]*)\]/g, "$1").replace(/@Template\[[^\]]*distance:(\d+)[^\]]*\]/g, "$1-foot emanation").replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-    const at = labels.map((label) => ({ label, index: plain.indexOf(`${label} `) })).filter((each) => each.index >= 0).sort((a, b) => a.index - b.index);
+    // (Case aside — an effect's label "Heart Of Ice" for the text's "Heart of Ice".)
+    const lower = plain.toLowerCase();
+    const at = labels.map((label) => ({ label, index: lower.indexOf(`${label.toLowerCase()} `) })).filter((each) => each.index >= 0).sort((a, b) => a.index - b.index);
     return at.map(({ label, index }, i) => {
         const part = plain.slice(index + label.length, i + 1 < at.length ? at[i + 1].index : plain.length);
         const option = { label };
