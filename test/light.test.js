@@ -1361,3 +1361,25 @@ test("family 8: Maze of Locked Doors holds a foe out of the fight till it's thro
     castSpell(state, wizard, 2, ["c"]);
     assert.ok(!sameMelee(c, state.byId.get("fighter")), "teleported away from the fighter");
 });
+
+test("power check fixes: Let Not the Fallen Rest heals only the dying; Lightning Storm's bolt one creature; a spell attack with no target aimed at a creature", async () => {
+    const { castSpell, describeSpell } = await import("../src/engine/spells.js");
+    const { castableReading } = await import("../src/engine/power-readings.js");
+    const { compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const state = createFightState({ combatants: [...standardParty(9), { ...moderateCreatureAt(9, "brute"), id: "brute", name: "Brute" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const cleric = state.byId.get("cleric");
+    const fighter = state.byId.get("fighter");
+    const rogue = state.byId.get("rogue");
+    cleric.spells = [{ name: "Let Not the Fallen Rest", castRank: 5, pool: null, dc: 28, attack: 18, effects: {}, plan: compileSpell(spellNamed("Let Not the Fallen Rest")) }];
+    Object.assign(fighter, { status: "down", hp: { ...fighter.hp, value: 0 }, cond: { ...fighter.cond, dying: 1, prone: true, unconscious: true } });
+    rogue.hp.value = 10;
+    castSpell(state, cleric, 0, [fighter.id, rogue.id]);
+    assert.equal(fighter.status, "active", "the dying fighter up");
+    assert.equal(fighter.cond.prone, false, "and Standing");
+    assert.equal(rogue.hp.value, 10, "the rogue isn't dying: nothing");
+    assert.equal(describeSpell(compileSpell(spellNamed("Lightning Storm"))).targets, 1);
+    assert.equal(describeSpell(compileSpell(spellNamed("Lightning Storm"))).area, null);
+    const doc = { _id: "testGustStrike0001", name: "Test Gust Strike", type: "spell", system: { level: { value: 1 }, traits: { value: ["attack", "cantrip", "concentrate"] }, time: { value: "2" }, range: { value: "touch" }, target: { value: "" }, area: null, defense: null, duration: { value: "" }, damage: { a: { formula: "2d4", kinds: ["damage"], type: "slashing" } }, description: { value: "<p>A blade of wind lashes out: make a melee spell attack roll against one creature's AC, and on a hit it takes 2d4 slashing damage.</p>" } } };
+    const read = castableReading(compileSpell(doc), doc, 1);
+    assert.equal(read?.targeting?.target, "1 creature", "a melee spell attack at a creature, not the caster");
+});

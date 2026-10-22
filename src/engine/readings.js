@@ -98,7 +98,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading(plan) } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withTransposition(withDuplicate(withBinding(withDefences(withHinders(withControls(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved))))))))))))))))))))))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withRevive(withTransposition(withDuplicate(withBinding(withDefences(withHinders(withControls(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved)))))))))))))))))))))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -476,6 +476,19 @@ function withDuplicate(plan) {
     const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => [degree, degree === "criticalSuccess" ? row : { ...row, effects: [...(row?.effects ?? []), { kind: "condition", slug: `duplicate:${degree}`, value: null, duration: null }] }]));
     return { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } };
 }
+// (2026-10-22, the power check: Let Not the Fallen Rest heals only "each allied creature … whose dying value is 2 or less" — the compiler's
+// plan heals everyone in its emanation: plan.reviveOnly, spells.js; they Stand for free.)
+function withRevive(plan) {
+    if (plan?.source?.slug === "lightning-storm") return withBolt(plan);
+    return plan?.source?.slug === "let-not-the-fallen-rest" ? { ...plan, simulatorReading: true, reviveOnly: { maxDying: 2 } } : plan;
+}
+
+// (The power check, Lightning Storm: its 20-foot burst is the storm cloud; each bolt "a vertical line from the top of the storm cloud to the
+// ground below" — one square, one creature —, not the burst.)
+function withBolt(plan) {
+    return { ...plan, simulatorReading: true, targeting: { ...plan.targeting, area: null, target: "1 creature", range: plan.targeting?.range ?? "120 feet" } };
+}
+
 // (2026-10-22, family 8: Collective Transposition — a foe that fails teleported where the caster chooses: away from the party, as a 30-foot
 // push; no critical failure row, the failure's.)
 function withTransposition(plan) {

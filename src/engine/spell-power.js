@@ -18,7 +18,7 @@
 
 import { moderateCreatureAt } from "./creature-tables.js";
 import { createFightState } from "./fight.js";
-import { armorClass, isActive, multipleAttackPenalty, saveModifier, strikeUsable } from "./combatant.js";
+import { DOWN, armorClass, isActive, multipleAttackPenalty, saveModifier, strikeUsable } from "./combatant.js";
 import { engage } from "./space.js";
 import { degreeDistribution } from "./checks.js";
 import { expectedHitDamage } from "./actions.js";
@@ -75,7 +75,9 @@ const TRAIT_PACKAGES = {
     // (Steal Voice's: foes whose spells are half of what they do — the rest their Strikes.)
     spellcaster: { spellShare: 0.5 },
     // (Binding Muzzle's: foes that bite — their Strike their jaws, beside an agile claw a die size smaller.)
-    biter: { biter: true }
+    biter: { biter: true },
+    // (2026-10-22, Let Not the Fallen Rest's: the party's fighter down, dying 1.)
+    "downed-ally": { downedAlly: true }
 };
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
 export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
@@ -115,6 +117,7 @@ export function powerFoes(kind, level, trait = null) {
     if (pack?.allyAffliction) Object.assign(foes, { allyAffliction: true });
     if (pack?.buff) Object.assign(foes, { spellBuffed: true });
     if (pack?.spellShare) Object.assign(foes, { spellShare: pack.spellShare });
+    if (pack?.downedAlly) Object.assign(foes, { downedAlly: true });
     return pack?.environment ? Object.assign(foes, { environment: { ...pack.environment } }) : foes;
 }
 
@@ -239,6 +242,7 @@ export function powerConditions(plan, effects = null, text = "") {
     // poisoned ally.)
     // (2026-10-22, family 5: a spell ward, Prismatic Shield — against foes that cast.)
     if (["turning", "immunity", "globe", "prismatic"].includes(plan?.defence?.kind)) traits.add("spellcaster");
+    if (plan?.reviveOnly) traits.add("downed-ally");
     if (plan?.resolution?.kind === "affliction-care" && !plan?.defence) traits.add(/\bspell effect\b/i.test(String(plan.targeting?.target ?? "")) ? "spell-buffed" : "afflicted-ally");
     if ((plan?.traits ?? []).includes("holy")) traits.add("fiend");
     if ((plan?.traits ?? []).includes("unholy")) traits.add("celestial");
@@ -370,13 +374,15 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
     // attack.)
     caster.actionsLeft = 3;
     if (foes?.allyAffliction && state.byId.get("fighter")) poisonAlly(state.byId.get("fighter"));
+    if (foes?.downedAlly && state.byId.get("fighter")) Object.assign(state.byId.get("fighter"), { status: DOWN, hp: { ...state.byId.get("fighter").hp, value: 0 }, cond: { ...state.byId.get("fighter").cond, dying: 1, unconscious: true, prone: true } });
     if (foes?.spellBuffed) for (const [index, foe] of state.list.filter((c) => c.side !== caster.side).entries()) hasteFoe(foe, 900000 + index);
     if (foes?.spellShare) {
         state.strikeShare ??= new Map();
         for (const foe of state.list.filter((c) => c.side !== caster.side)) state.strikeShare.set(foe.id, 1 - foes.spellShare);
     }
     const enemies = state.list.filter((c) => c.side !== caster.side && isActive(c));
-    const allies = state.list.filter((c) => c.side === caster.side && isActive(c));
+    // (A downed ally — Let Not the Fallen Rest's — among those it can reach.)
+    const allies = state.list.filter((c) => c.side === caster.side && (isActive(c) || (foes?.downedAlly && c.status === DOWN)));
     const aimed = minion ? allies.filter((c) => c.id === "minion") : allies;
     const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
     if (!(foeHp > 0)) return null;

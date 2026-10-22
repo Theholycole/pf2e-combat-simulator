@@ -968,6 +968,11 @@ function golemValue(golem, answer) {
     return { damage: 0, worth: 0 };
 }
 
+// (Let Not the Fallen Rest's: down, dying no more than it says.)
+function revivable(spell, target) {
+    return target?.status === DOWN && (target.cond?.dying ?? 0) <= (Number(spell.plan?.reviveOnly?.maxDying) || 2);
+}
+
 export function applyHeal(state, target, amount) {
     if (amount <= 0 || target.status === "dead" || target.status === "fled" || target.status === "surrendered") return 0;
     if (target.status === DOWN) {
@@ -2905,9 +2910,15 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 applyMove(state, target, change, caster);
                 break;
             case "heal": {
+                // (2026-10-22, Let Not the Fallen Rest: only an ally that's dying 2 or less — up, and Standing for free.)
+                if (spell.plan?.reviveOnly && !revivable(spell, target)) break;
                 // (Any excess as temporary Hit Points, B63: Drink Blood's.)
                 const room = Math.max(0, target.hp.max - Math.max(0, target.hp.value));
                 applyHeal(state, target, change.amount);
+                if (spell.plan?.reviveOnly && isActive(target) && target.cond.prone) {
+                    target.cond.prone = false;
+                    log(state, `  ${target.name} Stands`);
+                }
                 if (change.excessAsTemp && change.amount > room && change.amount - room > (target.hp.temp ?? 0)) target.hp.temp = change.amount - room;
                 break;
             }
@@ -4564,6 +4575,11 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 } else if (change.op === "death" && change.ifReducedTo === undefined) {
                     entry.damage += chance * Math.max(1, target.hp.value + target.hp.temp);
                 } else if (change.op === "heal") {
+                    // (Let Not the Fallen Rest: a dying ally back up — its Hit Points, and two of the fight's three rounds of it back.)
+                    if (spell.plan?.reviveOnly) {
+                        if (!revivable(spell, target)) continue;
+                        entry.benefit += chance * 2;
+                    }
                     entry.heal += chance * Math.min(change.amount, Math.max(0, target.hp.max - Math.max(0, target.hp.value)));
                 } else if (change.op === "tempHp") {
                     // Temporary Hit Points (B61): what they add over its current ones, as healing that may go unused.

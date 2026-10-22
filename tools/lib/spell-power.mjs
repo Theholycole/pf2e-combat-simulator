@@ -263,6 +263,9 @@ export function textHelpOf(doc, rank) {
     let tempHp = 0;
     let ac = 0;
     for (const sentence of sentences) {
+        // (2026-10-22, the power check: not healing only the dying get — Let Not the Fallen Rest's "whose dying value is 2 or less regains
+        // 4d10 Hit Points" — the rated party, at half its Hit Points, isn't dying.)
+        if (/\bdying\b/i.test(sentence)) continue;
         const healed = /\bregains? (\d+)d(\d+)(?:\s*\+\s*(\d+))?[^.]{0,20}Hit Points/i.exec(sentence) ?? /\bregains? (\d+)[^.\d]{0,20}Hit Points/i.exec(sentence);
         // (Not healing that waits on something — "if it remains … for the full duration" —; healing each turn, for each of the rounds.)
         // (Nor healing that takes a while out of the fight — "spends the full hour soaking".)

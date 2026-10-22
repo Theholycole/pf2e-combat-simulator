@@ -287,7 +287,9 @@ export function castableReading(plan, doc, rank = Number(plan?.rank) || 1) {
     } else if (/\b(?:weapon|club|staff)s?\b/.test(target) && plan.resolution.kind !== "save") targeting.target = "1 willing creature";
     else if (!target && !targeting.area?.type) {
         if (docArea) targeting.area = docArea;
-        else targeting.target = plan.resolution.kind === "save" ? "1 creature" : "self";
+        // (2026-10-22, the power check: or a spell attack — a melee spell attack after a Stride, a cantrip with no target in its data — at
+        // a creature, not the caster; before, "self", and it was rated as the caster hitting itself.)
+        else targeting.target = plan.resolution.kind === "save" || (doc?.system?.traits?.value ?? []).includes("attack") || /\bspell attack roll\b/i.test(String(doc?.system?.description?.value ?? "")) ? "1 creature" : "self";
     } else if (target && !/creature|enem|foe|target/.test(target)) return null;
     // (An effect variant — Tailwind's, Iron Gut's: the PF2e effect for the cast rank, applied as an effect's.)
     const branch = plan.resolution.kind === "effect-variant" ? (plan.resolution.selector?.branches ?? []).find((each) => (Number(each.minRank) || 0) <= rank && (each.maxRank === null || each.maxRank === undefined || rank <= Number(each.maxRank))) : null;
