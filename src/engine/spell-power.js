@@ -168,7 +168,8 @@ export function powerConditions(plan, effects = null, text = "") {
     if (plan?.resolution?.kind === "light-aura") for (const trait of ["dark", "light-blind"]) traits.add(trait);
     if (zone?.light?.level === "dark") traits.add("no-darkvision");
     if (zone?.light?.level === "bright") for (const trait of ["dark", "light-blind"]) traits.add(trait);
-    for (const model of Object.values(effects ?? {})) {
+    // (A ChoiceSet effect's choices too — Animal Feature's wings, owl eyes —, 2026-10-22.)
+    for (const model of Object.values(effects ?? {}).flatMap((each) => [each, ...(each?.choices ?? []).map((choice) => choice.model)])) {
         if (model?.light) for (const trait of ["dark", "light-blind"]) traits.add(trait);
         if ((model?.senses ?? []).some((sense) => /darkvision|low-light/.test(sense))) traits.add("dark");
         // (See invisibility: against invisible foes.)

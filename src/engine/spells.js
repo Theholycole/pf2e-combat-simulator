@@ -1373,8 +1373,24 @@ function applyAfflictionStage(state, target, change) {
     log(state, `  ${target.name}'s ${entry.name} eases to stage ${entry.stage}`);
 }
 
+// A ChoiceSet effect's best choice for the creature it goes on — its benefit, and its resistances' Hit Points kept as a share of the
+// creature's (effects.js effectModel's model.choices; 2026-10-22, Elemental Gift, Animal Feature). Others as they are.
+// degree: the outcome that applied it (the core's native change carries it) — for choices that are degrees of success, that one.
+function pickChoice(state, model, target, degree = null) {
+    if (!model?.choices?.length) return model;
+    if (model.choiceByDegree) {
+        const slug = String(degree ?? "").replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+        const match = model.choices.find((choice) => choice.value === slug);
+        return match ? { ...match.model, name: model.name, rounds: model.rounds } : model;
+    }
+    const context = { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit };
+    const worth = (choice) => effectBenefit(choice, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, context) + 3 * resistanceKept(state, choice, target, Math.min(3, choice.rounds)) / Math.max(1, target.hp?.max ?? 1);
+    return model.choices.map((choice) => ({ ...choice.model, name: model.name, rounds: model.rounds })).reduce((best, choice) => (worth(choice) > worth(best) ? choice : best));
+}
+
 function applyNativeEffect(state, caster, spell, target, change) {
-    const { model, key } = outcomeEffect(spell, change);
+    const { model: offered, key } = outcomeEffect(spell, change);
+    const model = pickChoice(state, offered, target, change.effect?.degree);
     if (model && isActive(target)) {
         const isSpell = isSpellCast(spell);
         const effect = applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell, traits: spell.plan?.traits ?? [] } });
@@ -3266,7 +3282,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     const held = pacifyOf(change.effect.note, { ...(spell.plan?.resolution?.outcomes?.[change.effect.degree] ?? {}), ...(spell.plan?.rowFlags?.[change.effect.degree] ?? {}) });
                     entry.worth += chance * pacifyWorth(state, target, caster, held, change.effect.note.duration);
                 } else if (change.op === "effect" && ["native", "modifier", "note"].includes(change.effect?.kind)) {
-                    const { model, key } = outcomeEffect(spell, change);
+                    const { model: offered, key } = outcomeEffect(spell, change);
+                    const model = pickChoice(state, offered, target, change.effect?.degree);
                     // (S54, Sure Strike on itself: worth it only with an action left for the attack — it ends with the turn.)
                     const unused = model?.fortune && target === caster && (caster.actionsLeft ?? 3) - (describeSpell(spell.plan, actions).actions ?? 1) < 1;
                     if (model && !unused) {

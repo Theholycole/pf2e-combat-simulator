@@ -190,22 +190,49 @@ export function iwrException(exception) {
     return String(exception?.type ?? exception);
 }
 
-export function effectModel(item, { rank = 1, conditionSlug = () => null } = {}) {
+// chosen: { rollOption: value } — the caster's pick of a ChoiceSet whose rules wait on it (2026-10-22: model.choices, a model each).
+const DEGREE_CHOICES = new Set(["critical-success", "success", "failure", "critical-failure"]);
+
+// The ChoiceSets an effect's rules wait on: [{ option, values }] — choices its rank allows (others' predicates, a feat's, at best: allowed),
+// only where some rule names "option:value".
+function choiceSets(item, rank) {
+    const rules = item?.system?.rules ?? [];
+    const named = JSON.stringify(rules.filter((rule) => rule?.key !== "ChoiceSet").map((rule) => rule?.predicate ?? null));
+    return rules.filter((rule) => rule?.key === "ChoiceSet" && typeof rule.rollOption === "string" && Array.isArray(rule.choices)).map((rule) => ({
+        option: rule.rollOption,
+        values: rule.choices.filter((choice) => typeof choice?.value === "string" && predicateHolds(choice.predicate, rank) !== false).map((choice) => choice.value).filter((value) => named.includes(`"${rule.rollOption}:${value}"`))
+    })).filter((set) => set.values.length > 1);
+}
+
+export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen = null } = {}) {
     const model = { name: item?.name ?? "Effect", rounds: roundsOf(item?.system?.duration), modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
     const unsupported = new Set();
     const toggles = new Map((item?.system?.rules ?? []).filter((rule) => rule?.key === "RollOption" && rule.toggleable && typeof rule.option === "string" && !rule.option.includes("{")).map((rule) => [rule.option, rule.value === true]));
+    // (A ChoiceSet the caster picks — Elemental Gift's element, Animal Feature's feature —, its rules on "option:value": each of its choices
+    // as a toggle, the one picked on.)
+    const picks = choiceSets(item, rank);
+    for (const set of picks) for (const value of set.values) toggles.set(`${set.option}:${value}`, chosen?.[set.option] === value);
+    if (!chosen && picks.length) {
+        const [set] = picks;
+        model.choices = set.values.map((value) => ({ value, model: effectModel(item, { rank, conditionSlug, chosen: { [set.option]: value } }) }));
+        // (Choices that are degrees of success — Ill Omen's "failure", "critical-failure" —: the outcome's, not the best.)
+        if (set.values.every((value) => DEGREE_CHOICES.has(value))) model.choiceByDegree = true;
+    }
     for (const rule of item?.system?.rules ?? []) {
         // (Sight and light, 2026-10-21 — the user: "I also want spells that need foe traits since i want those to be tracked too in the
         // simulator": the senses an effect gives — Darkvision's —, model.senses; the light it sheds — the Light cantrip's, a lantern's light
         // aura — model.light { bright, dim } in feet, at its rank.)
-        if (rule?.key === "Sense" && rule.selector && !rule.predicate?.length) (model.senses ??= []).push(String(rule.selector));
+        // (Senses and a fly Speed on a toggle or a choice — Animal Feature's owl eyes, wings — as it's set: predicateHolds.)
+        if (rule?.key === "Sense" && rule.selector && predicateHolds(rule.predicate, rank, toggles) === true) (model.senses ??= []).push(String(rule.selector));
         if (rule?.key === "TokenLight") {
             const bright = numericValue(rule.value?.bright, rank);
             if (bright > 0) model.light = { bright, dim: Math.max(0, numericValue(rule.value?.dim, rank) ?? 0), rank };
         }
+        // (A light aura: bright light for its radius, and dim light as far again beyond, as PF2e's light sources shed it — Turnip Lantern's
+        // "bright light for 20 feet and dim light for 20 feet beyond that"; 2026-10-22, before none, so its light never reached the near band.)
         if (rule?.key === "Aura" && [].concat(rule.traits ?? []).includes("light")) {
             const radius = numericValue(rule.radius, rank);
-            if (radius > 0) model.light = { bright: radius, dim: 0, rank };
+            if (radius > 0) model.light = { bright: radius, dim: radius, rank };
         }
         // (2026-10-22, Protector's Sphere: an aura that grants an effect to those in it — model.auraGrants { radius, affects, includesSelf,
         // uuid }; the builders put the granted effect's own model on each, model.aura — resolveAuraGrants.)
@@ -216,7 +243,7 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
         }
         // (Flying and incorporeal, 2026-10-21: a fly Speed it gives — Fly's —, model.flies; runes and traits it adds to Strikes — Ghostly
         // Weapon's ghost touch, a plane's holy —, model.strikeAdds, on the creature's Strikes at its best.)
-        if (rule?.key === "BaseSpeed" && rule.selector === "fly" && !rule.predicate?.length) model.flies = true;
+        if (rule?.key === "BaseSpeed" && ["fly", "fly-speed"].includes(rule.selector) && predicateHolds(rule.predicate, rank, toggles) === true) model.flies = true;
         if (rule?.key === "AdjustStrike" && rule.mode === "add" && ["property-runes", "traits"].includes(rule.property) && typeof rule.value === "string" && !rule.value.includes("{")) {
             model.strikeAdds ??= { runes: [], traits: [] };
             model.strikeAdds[rule.property === "traits" ? "traits" : "runes"].push(rule.value);

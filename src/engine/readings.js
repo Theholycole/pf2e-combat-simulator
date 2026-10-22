@@ -105,6 +105,12 @@ const CANT_FLY = /\bcan(?:'|’|no)t (?:Fly|fly)\b[^.]*?\bfor (\d+|one|a) (round
 function withGrounding(plan) {
     const resolution = plan?.resolution;
     if (resolution?.kind !== "save") return plan;
+    // (Deluge: "All flying creatures in the area descend" — the compiler's descend control —: landed, whatever the save; its rows' own after.)
+    if ((resolution.controls?.parts ?? []).some((part) => part?.kind === "descend")) {
+        const landed = { kind: "condition", slug: "landed", value: null, duration: null };
+        const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => [degree, { ...row, effects: [landed, ...(row?.effects ?? [])] }]));
+        return { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } };
+    }
     let changed = false;
     const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
         const words = rowWords(plan, degree, row);

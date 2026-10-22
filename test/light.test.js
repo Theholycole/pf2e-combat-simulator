@@ -393,3 +393,27 @@ test("Light of Revelation: a light aura cast on the caster sheds bright light fo
     castSpell(state, cleric, 0, [cleric.id]);
     assert.equal(lightAt(state, cleric).level, "bright");
 });
+
+test("an effect's ChoiceSet: a model each choice (Animal Feature's wings fly, owl eyes see in the dark); degree choices follow the outcome (Ill Omen)", async () => {
+    const feature = effectModel({ name: "Animal Feature", system: { duration: { unit: "minutes", value: 1 }, rules: [
+        { key: "ChoiceSet", rollOption: "animal-feature", choices: [{ value: "cat-eyes" }, { value: "owl-eyes", predicate: [{ gte: ["{item|level}", 4] }] }, { value: "wings", predicate: [{ gte: ["{item|level}", 4] }] }] },
+        { key: "Sense", selector: "low-light-vision", predicate: ["animal-feature:cat-eyes"] },
+        { key: "Sense", selector: "darkvision", predicate: ["animal-feature:owl-eyes"] },
+        { key: "BaseSpeed", selector: "fly", value: 25, predicate: ["animal-feature:wings"] }] } }, { rank: 4 });
+    const byValue = Object.fromEntries(feature.choices.map((choice) => [choice.value, choice.model]));
+    assert.deepEqual(byValue["owl-eyes"].senses, ["darkvision"]);
+    assert.equal(byValue.wings.flies, true);
+    assert.ok(!feature.flies && !feature.senses, "the effect itself, before a choice: neither");
+    const low = effectModel({ name: "Animal Feature", system: { rules: [{ key: "ChoiceSet", rollOption: "animal-feature", choices: [{ value: "cat-eyes" }, { value: "wings", predicate: [{ gte: ["{item|level}", 4] }] }] }, { key: "BaseSpeed", selector: "fly", value: 25, predicate: ["animal-feature:wings"] }, { key: "Sense", selector: "low-light-vision", predicate: ["animal-feature:cat-eyes"] }] } }, { rank: 2 });
+    assert.equal(low.choices, undefined, "wings not yet at rank 2: one choice, nothing to pick");
+    const omen = effectModel({ name: "Ill Omen", system: { rules: [{ key: "ChoiceSet", rollOption: "ill-omen", choices: [{ value: "failure" }, { value: "critical-failure" }] }, { key: "RollTwice", keep: "lower", selector: ["attack-roll"], predicate: ["ill-omen:failure"] }, { key: "RollTwice", keep: "lower", selector: ["attack-roll"], predicate: ["ill-omen:critical-failure"] }] } }, { rank: 1 });
+    assert.equal(omen.choiceByDegree, true);
+});
+
+test("a light aura sheds dim light as far again (Turnip Lantern); Deluge's descent brings fliers down whatever the save", async () => {
+    const lantern = effectModel({ name: "Aura: Turnip Lantern", system: { rules: [{ key: "Aura", radius: 20, traits: ["light"], effects: [] }] } }, { rank: 1 });
+    assert.deepEqual(lantern.light, { bright: 20, dim: 20, rank: 1 });
+    const row = (rawText) => ({ damage: { mode: "none" }, effects: [], rawText });
+    const deluge = withReading({ resolution: { kind: "save", check: { statistic: "reflex" }, controls: { parts: [{ kind: "descend", feet: 50 }] }, outcomes: { criticalSuccess: row("The creature is unaffected."), success: row("The creature is unaffected."), failure: row("The creature is pushed 50 feet."), criticalFailure: row("The creature is pushed 50 feet.") } } });
+    for (const degree of ["criticalSuccess", "success", "failure", "criticalFailure"]) assert.equal(deluge.resolution.outcomes[degree].effects[0].slug, "landed");
+});
