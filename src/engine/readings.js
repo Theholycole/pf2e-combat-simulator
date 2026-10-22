@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withGrounding(withOutline(withConcealedTo(withArea(resolved))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withDimming(withGrounding(withOutline(withConcealedTo(withArea(resolved)))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -113,6 +113,30 @@ function withGrounding(plan) {
         const grounded = CANT_FLY.exec(words);
         const value = grounded ? (/^\d+$/.test(grounded[1]) ? Number(grounded[1]) : 1) : null;
         return [degree, { ...row, effects: [grounded ? { kind: "condition", slug: "grounded", value: null, duration: { mode: "fixed", value, unit: `${grounded[2].toLowerCase()}s` } } : { kind: "condition", slug: "landed", value: null, duration: null }] }];
+    }));
+    return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
+}
+
+// Penumbral Shroud (2026-10-22, sight and light): a save whose text says the target "perceives light as one step lower", its rows only saying
+// how long the effect lasts ("for 1 round", "its normal duration") — dimmed (light.js sightDCIn) that long.
+const STEP_LOWER = /\bperceives? light as one step lower\b/i;
+const LASTS_FOR = /\b(?:effect|spell) lasts for (\d+) (round|minute)s?\b/i;
+const LASTS_NORMAL = /\blasts (?:its|the spell's) normal duration\b/i;
+function withDimming(plan) {
+    const resolution = plan?.resolution;
+    // (The spell's own sentence rides on its rows' notes — noteEffects.)
+    if (resolution?.kind !== "save" || !STEP_LOWER.test(JSON.stringify(resolution.outcomes ?? {}))) return plan;
+    const spec = plan.lifecycle?.durationSpec;
+    const whole = spec?.mode === "fixed" && spec.unit ? { mode: "fixed", value: Number(spec.value) || 1, unit: spec.unit } : { mode: "fixed", value: 1, unit: "minutes" };
+    let changed = false;
+    const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
+        const words = rowWords(plan, degree, row);
+        if ((row?.effects ?? []).length) return [degree, row];
+        const lasts = LASTS_FOR.exec(words);
+        const duration = lasts ? { mode: "fixed", value: Number(lasts[1]), unit: `${lasts[2].toLowerCase()}s` } : LASTS_NORMAL.test(words) ? whole : null;
+        if (!duration) return [degree, row];
+        changed = true;
+        return [degree, { ...row, effects: [{ kind: "condition", slug: "dimmed", value: null, duration }] }];
     }));
     return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
 }

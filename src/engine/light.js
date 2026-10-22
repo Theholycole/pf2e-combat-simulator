@@ -56,6 +56,8 @@ export function lightAt(state, c, extra = []) {
 
 // The flat check a viewer needs to see a target standing in a light (0 for none). extraSenses: senses to count as well.
 export function sightDCIn(viewer, light, extraSenses = []) {
+    // (Penumbral Shroud, 2026-10-22: dimmed — it perceives light a step lower than it is, bright as dim, dim as dark.)
+    if (viewer?.cond?.dimmed && light.level !== "dark") light = { ...light, level: light.level === "bright" ? "dim" : "dark" };
     const has = (...types) => hasSense(viewer, ...types) || types.some((type) => extraSenses.includes(type));
     const dark = has("darkvision", "greater-darkvision");
     if (light.level === "dark") {
@@ -92,6 +94,15 @@ export function lightZoneModel(plan, rank = 1) {
 // The zone a spell makes of its light, or null.
 export function lightZoneOf(spell) {
     return lightZoneModel(spell?.plan, Number(spell?.castRank) || 1);
+}
+
+// What dimming a creature's sight is worth against it (Penumbral Shroud) over rounds, in rounds of its threat: how much harder it finds its
+// foes, as the light they stand in looks to it a step lower — nothing to one with darkvision in bright light.
+export function dimWorth(state, target, rounds) {
+    const foes = (state?.list ?? []).filter((other) => other.side !== target.side && isActive(other));
+    if (!foes.length || target.cond?.dimmed) return 0;
+    const dimmed = { ...target, cond: { ...target.cond, dimmed: true } };
+    return foes.reduce((sum, foe) => sum + unseenCost(sightDCIn(dimmed, lightAt(state, foe))) - unseenCost(sightDCIn(target, lightAt(state, foe))), 0) / foes.length * rounds;
 }
 
 // What light on creatures does to how well each side sees the other: for each creature, the change in how hard its foes find it (their

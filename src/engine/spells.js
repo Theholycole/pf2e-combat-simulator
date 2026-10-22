@@ -16,7 +16,7 @@ import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isA
 import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune } from "./effects.js";
 import { applyDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
-import { lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
+import { dimWorth, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
 import { addFloor, floorOf } from "./floors.js";
 import { counterables, counterChance, counterRank, counterReaches, counterRoll } from "./counteract.js";
@@ -67,7 +67,9 @@ const FLAGS = {
     outlined: "outlined",
     // (2026-10-22, Earthbind: a flier brought down — landed until its next turn, grounded unable to fly for a time — space.js fliesNow.)
     landed: "landed",
-    grounded: "grounded"
+    grounded: "grounded",
+    // (2026-10-22, Penumbral Shroud: it perceives light a step lower — light.js sightDCIn.)
+    dimmed: "dimmed"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -3183,7 +3185,9 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         entry.damage += chance * groundDamage(state, target, change.slug === "landed" ? 0.5 : Math.min(3, durationRounds(change.duration)));
                         continue;
                     }
-                    const full = change.slug === "outlined" ? outlineWorth(state, target, Math.min(3, durationRounds(change.duration)), sightDC) : conditionWorth(change.slug, brave ?? change.value, lasting);
+                    const full = change.slug === "outlined" ? outlineWorth(state, target, Math.min(3, durationRounds(change.duration)), sightDC)
+                        : change.slug === "dimmed" ? dimWorth(state, target, Math.min(3, durationRounds(change.duration)))
+                            : conditionWorth(change.slug, brave ?? change.value, lasting);
                     entry.worth += chance * (flag ? (held ? 0 : full) : Math.max(0, full - (held ? conditionWorth(change.slug, held, change.duration) : 0)));
                     // The party plays for morale (M23): fear may break the foe, which takes it out of the fight.
                     if (change.slug === "frightened" && caster.side === "party" && target.side !== caster.side && state.setup.situational?.playsForMorale) {

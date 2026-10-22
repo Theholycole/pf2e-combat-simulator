@@ -179,6 +179,8 @@ export function powerConditions(plan, effects = null, text = "") {
     if (/"slug":"outlined"/.test(JSON.stringify(plan?.resolution ?? null))) traits.add("invisible");
     // (Bringing a flier down — Earthbind —: against flying foes.)
     if (/"slug":"(?:landed|grounded)"/.test(JSON.stringify(plan?.resolution ?? null))) traits.add("flying");
+    // (Dimming its sight — Penumbral Shroud —: against foes without darkvision.)
+    if (/"slug":"dimmed"/.test(JSON.stringify(plan?.resolution ?? null))) traits.add("no-darkvision");
     if ((plan?.traits ?? []).includes("holy")) traits.add("fiend");
     if ((plan?.traits ?? []).includes("unholy")) traits.add("celestial");
     // (Circle of Protection: against unholy or holy foes.)

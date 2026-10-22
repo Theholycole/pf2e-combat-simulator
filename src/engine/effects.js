@@ -45,9 +45,12 @@ const IGNORED = new Set(["Note", "RollOption", "Sense", "BaseSpeed", "TokenLight
 
 // A rule's value at the effect's rank: a number, or a formula like
 // "ternary(gte(@item.level,10),3,1)" or "10 + (@item.level - 2) * 3". null when it has dice or can't be read.
+// (2026-10-22: "@actor.level" — the bearer's level, as the caster of that rank's: 2 × rank − 1. Embrace Nothingness's physical resistance,
+// 67 spell effects in all; before, none of them read.)
 export function numericValue(value, rank) {
     if (typeof value === "number") return value;
     if (typeof value !== "string") return null;
+    if (value.includes("@actor.level")) value = value.replace(/@actor\.level/g, String(Math.max(1, 2 * (Number(rank) || 1) - 1)));
     try {
         const instances = parseDamage(value, { rank });
         if (instances.some((instance) => instance.dice.length)) return null;

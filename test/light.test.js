@@ -335,3 +335,18 @@ test("a spell for an object or a willing creature goes to no foe (Levitate)", as
     assert.equal(reachesFoe("1 unattended object or willing creature"), false);
     assert.equal(reachesFoe("1 creature or object"), true);
 });
+
+test("Penumbral Shroud: dimmed — light a step lower to it, read from its rows; @actor.level as the caster's level", async () => {
+    const { numericValue } = await import("../src/engine/effects.js");
+    const unaided = { senses: [], cond: {} };
+    assert.equal(sightDCIn(unaided, { level: "bright" }), 0);
+    assert.equal(sightDCIn({ ...unaided, cond: { dimmed: true } }, { level: "bright" }), 5, "bright as dim: concealed to it");
+    assert.equal(sightDCIn({ senses: ["darkvision"], cond: { dimmed: true } }, { level: "dim" }), 0, "darkvision sees in the dark it perceives");
+    const note = { label: "Spell's effect", text: "The target perceives light as one step lower than it actually is." };
+    const row = (rawText) => ({ damage: { mode: "none" }, effects: [], rawText, noteEffects: [note] });
+    const plan = withReading({ lifecycle: { durationSpec: { mode: "fixed", value: 10, unit: "minutes" } }, resolution: { kind: "save", check: { statistic: "reflex" }, outcomes: { criticalSuccess: row("The target is unaffected."), success: row("The effect lasts for 1 round."), failure: row("The effect lasts its normal duration."), criticalFailure: row("The effect lasts its normal duration.") } } });
+    assert.deepEqual(plan.resolution.outcomes.success.effects[0], { kind: "condition", slug: "dimmed", value: null, duration: { mode: "fixed", value: 1, unit: "rounds" } });
+    assert.equal(plan.resolution.outcomes.failure.effects[0].duration.value, 10);
+    assert.equal(plan.resolution.outcomes.criticalSuccess.effects.length, 0);
+    assert.equal(numericValue("@actor.level", 9), 17);
+});
