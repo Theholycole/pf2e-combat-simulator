@@ -866,7 +866,7 @@ test("marks against the caster alone: Brand the Impenitent's -1 AC and sight thr
     assert.ok(brute.marks.some((entry) => entry.spell === "Vindicator's Judgment"), "a failure's lasts beyond one Strike");
 });
 
-test("Magic Stone: a stone a action, held by the caster or an ally — a thrown +1 striking disrupting Strike, used up a stone at a time", async () => {
+test("Magic Stone: a stone a action, held by the caster or an ally — a +1 striking disrupting sling Strike, loaded and used up a stone at a time", async () => {
     const { castSpell, describeSpell } = await import("../src/engine/spells.js");
     const { performStrike } = await import("../src/engine/actions.js");
     const { compileSpell, effectModels, spellNamed, withTextConditions } = await import("../tools/lib/pack-spells.mjs");
@@ -885,8 +885,14 @@ test("Magic Stone: a stone a action, held by the caster or an ally — a thrown 
     const stone = rogue.strikes.find((strike) => strike.name === "Magic Stone");
     const bow = rogue.strikes.find((strike) => strike.name === "Shortbow");
     assert.equal(stone.bonus, bow.bonus - bow.potency + 1, "the rogue's ranged bonus without its bow's rune, +1");
-    assert.deepEqual(stone.damage, [{ dice: 2, die: 6, bonus: 0, type: "bludgeoning" }]);
+    assert.deepEqual(stone.damage, [{ dice: 2, die: 6, bonus: 0, type: "bludgeoning" }], "propulsive: half the rogue's Strength +1, rounded down");
+    assert.equal(stone.increment, 50);
+    assert.equal(stone.reload, 1, "a sling's: loaded a stone at a time");
+    assert.ok(rogue.unloaded.has("Magic Stone"), "the first not loaded yet");
     assert.equal(rogue.spellPools[stone.ammo.pool], 2, "two actions: two stones");
+    const fighter = state.byId.get("fighter");
+    castSpell(state, cleric, 0, [fighter.id], 1);
+    assert.equal(fighter.strikes.find((strike) => strike.name === "Magic Stone").damage[0].bonus, 2, "the fighter's Strength +4: +2");
     performStrike(state, rogue, state.byId.get("monster"), stone);
     performStrike(state, rogue, state.byId.get("monster"), stone);
     assert.equal(rogue.spellPools[stone.ammo.pool], 0);

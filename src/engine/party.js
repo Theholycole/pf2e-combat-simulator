@@ -102,7 +102,7 @@ function preparedSpells(c, book, level, attribute, spell) {
 // A PC's frame: Hit Points, saves, Perception, skills, AC, its Strike.
 // (Backups, 2026-10-13, found in the deadliest-creatures study: a weapon of another damage type and a bow, as a party ready for most
 // situations carries — oozes immune to slashing and piercing, creatures in the air. Same runes as the main weapon; drawing it is free here.)
-function pc({ id, name, level, hpPerLevel, con, ac, fort, ref, will, dex, wis, perception, skills, strike, backups = [], classDC, extra = {} }) {
+function pc({ id, name, level, hpPerLevel, con, str = 0, ac, fort, ref, will, dex, wis, perception, skills, strike, backups = [], classDC, extra = {} }) {
     const hp = 8 + (hpPerLevel + con) * level;
     const res = resilient(level);
     return {
@@ -110,6 +110,8 @@ function pc({ id, name, level, hpPerLevel, con, ac, fort, ref, will, dex, wis, p
         hp: { value: hp, max: hp },
         // (Its Constitution modifier: the Hit Points a rest restores, B482 — the spell ratings' Moment of Renewal.)
         con,
+        // (2026-10-22: its Strength modifier — a sling's propulsive damage, Magic Stone's stones; spells.js stoneStrike.)
+        str,
         ac,
         saves: { fortitude: level + fort + con + res, reflex: level + ref + dex + res, will: level + will + wis + res },
         perception: level + perception + wis,
@@ -135,7 +137,7 @@ export function standardParty(level, { spell = () => null, basics = [] } = {}) {
     // Fighter.
     const fWeapon = rank(lv, [[1, E], [5, M], [13, L]]);
     const fighter = pc({
-        id: "fighter", name: "Fighter", level: lv, hpPerLevel: 10, con: martialCon, dex: 0, wis: minor,
+        id: "fighter", name: "Fighter", level: lv, hpPerLevel: 10, con: martialCon, str: k, dex: 0, wis: minor,
         ac: 10 + lv + rank(lv, [[1, T], [11, E], [17, M]]) + 6 + armorPotency(lv),
         fort: rank(lv, [[1, E], [9, M]]), ref: rank(lv, [[1, E], [15, M]]), will: rank(lv, [[1, T], [3, E]]),
         perception: rank(lv, [[1, E], [7, M]]),
@@ -158,7 +160,7 @@ export function standardParty(level, { spell = () => null, basics = [] } = {}) {
     const rWeapon = rank(lv, [[1, T], [5, E], [13, M]]);
     const cha = lv >= 20 ? 4 : lv >= 10 ? 3 : 2;
     const rogue = pc({
-        id: "rogue", name: "Rogue", level: lv, hpPerLevel: 8, con: martialCon - 1, dex: k, wis: minor,
+        id: "rogue", name: "Rogue", level: lv, hpPerLevel: 8, con: martialCon - 1, str: 1, dex: k, wis: minor,
         ac: 10 + lv + rank(lv, [[1, T], [13, E], [19, M]]) + 1 + Math.min(k, 4) + armorPotency(lv),
         fort: rank(lv, [[1, T], [9, E]]), ref: rank(lv, [[1, E], [7, M], [13, L]]), will: rank(lv, [[1, E], [17, M]]),
         perception: rank(lv, [[1, E], [7, M], [13, L]]),
@@ -193,7 +195,7 @@ export function standardParty(level, { spell = () => null, basics = [] } = {}) {
     // Cleric (cloistered).
     const medicine = lv + primarySkill(lv) + k;
     const cleric = pc({
-        id: "cleric", name: "Cleric", level: lv, hpPerLevel: 8, con: casterCon, dex: casterDex, wis: k,
+        id: "cleric", name: "Cleric", level: lv, hpPerLevel: 8, con: casterCon, str: 1, dex: casterDex, wis: k,
         ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + 1 + casterDex + armorPotency(lv),
         fort: rank(lv, [[1, T], [9, E]]), ref: rank(lv, [[1, T], [11, E]]), will: rank(lv, [[1, E], [9, M], [17, L]]),
         perception: rank(lv, [[1, T], [11, E]]),

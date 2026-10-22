@@ -679,6 +679,8 @@ function endTurn(state, c) {
 // (U2: a bomb taken out, or made with Quick Alchemy once the stack is gone.)
 function reloadWords(c, strike) {
     if (!strike?.ammo) return `reloads ${strike?.name}`;
+    // (Magic Stone's: a stone into the holder's sling.)
+    if (strike.iwr?.group === "sling") return `loads a ${strike.name} into its sling`;
     return (c.spellPools?.[strike.ammo.pool] ?? 0) > 0 ? `takes out ${strike.name}` : `makes ${strike.name} with Quick Alchemy`;
 }
 
