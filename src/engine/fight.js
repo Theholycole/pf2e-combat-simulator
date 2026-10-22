@@ -309,7 +309,7 @@ function checkEnd(state) {
     }
     // (2026-10-13: a PC swallowed or engulfed is still in the fight — it can cut itself free or Escape; the party is beaten only when none is
     // up, inside a creature or out. 2026-10-22: or in a Containment field.)
-    if (!pcs(state).some((c) => isActive(c) || (c.status === ACTIVE && (c.swallowedBy || c.insideObject || c.contained)))) {
+    if (!pcs(state).some((c) => isActive(c) || (c.status === ACTIVE && (c.swallowedBy || c.insideObject || c.contained || (c.hindrances ?? []).some((entry) => entry.kind === "mazed"))))) {
         finish(state, "defeat");
         return true;
     }

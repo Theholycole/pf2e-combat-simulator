@@ -291,9 +291,11 @@ export function textHelpOf(doc, rank) {
 
 // A utility spell's terrain: an area its text makes difficult terrain (hindering foes as a wall that slows them does) — not one that takes
 // difficult terrain away, or lets creatures ignore it.
+// (2026-10-22, family 8: or a save whose rows do nothing the fights play — Strange Geometry's cubes of difficult terrain for those who fail.)
+const rowsDoNothing = (plan) => plan?.resolution?.kind === "save" && Object.values(plan.resolution.outcomes ?? {}).every((row) => !(row?.effects ?? []).length && (row?.damage?.mode ?? "none") === "none" && !row?.forcedMovement) && !(plan.resolution.sharedDamage?.components ?? []).length;
 const terrainOf = (plan, doc) => {
     const text = textOf(doc);
-    return isUtility(plan) && doc.system?.area?.type && /\b(?:is|are|becomes?|counts? as|turns? into|into) (?:greater )?difficult terrain\b/i.test(text) && !/\bno longer (?:greater )?difficult terrain|\bignore\w* (?:greater )?difficult terrain|\bisn't difficult terrain|\bremov\w*[^.]*difficult terrain/i.test(text) ? "hinder" : null;
+    return (isUtility(plan) || rowsDoNothing(plan)) && doc.system?.area?.type && /\b(?:is|are|becomes?|counts? as|turns? into|into) (?:greater )?difficult terrain\b/i.test(text) && !/\bno longer (?:greater )?difficult terrain|\bignore\w* (?:greater )?difficult terrain|\bisn't difficult terrain|\bremov\w*[^.]*difficult terrain/i.test(text) ? "hinder" : null;
 };
 
 // The estimates for what the simulator doesn't play — a wall's, a shield's, a utility spell's damage or terrain — against both encounters,

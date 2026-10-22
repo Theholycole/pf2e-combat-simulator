@@ -98,7 +98,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading(plan) } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withDuplicate(withBinding(withDefences(withHinders(withControls(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved)))))))))))))))))))))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withTransposition(withDuplicate(withBinding(withDefences(withHinders(withControls(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved))))))))))))))))))))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -421,13 +421,17 @@ const CONTROLS = {
 // Paranoia — no one its ally (allyless: nothing that helps another), Vicious Jealousy's critical failure its first action spent waving off
 // an ally in reach (jealous); Bewilder — a flat check before each hostile action (DC 6, DC 11 on a critical failure), the failure's with a
 // Will save at each turn's end; Sensory Deprivation — eyes, hands or mouth (deprived: one of them, two on a critical failure). Rows as
-// "hinder:<kind>[:<flat DC or senses>[:will]]" conditions (the core passes a condition's slug, value and time only; spells.js applyHinder).
+// "hinder:<kind>[:<flat DC, senses, doors or once>[:will]]" conditions (the core passes a condition's slug, value and time only; spells.js applyHinder).
 const HINDERS = {
     "binding-muzzle": { success: [["muzzled", 1]], failure: [["muzzled", 10], ["muzzle-tight", 10]], criticalFailure: [["muzzled", 10], ["voiceless", 10]] },
     "vicious-jealousy": { success: [["allyless", 1]], failure: [["allyless", 10]], criticalFailure: [["allyless", 10], ["jealous", 10]] },
     paranoia: { success: [["allyless", 1]], failure: [["allyless", 10]], criticalFailure: [["allyless", 10]] },
     bewilder: { success: [["bewildered", 1, { flat: 6, turnEnd: true }]], failure: [["bewildered", 10, { flat: 6, saveEnds: "will" }]], criticalFailure: [["bewildered", 10, { flat: 11 }]] },
-    "sensory-deprivation": { success: [["deprived", 1, { senses: 1 }]], failure: [["deprived", 10, { senses: 1 }]], criticalFailure: [["deprived", 10, { senses: 2 }]] }
+    "sensory-deprivation": { success: [["deprived", 1, { senses: 1 }]], failure: [["deprived", 10, { senses: 1 }]], criticalFailure: [["deprived", 10, { senses: 2 }]] },
+    // (Family 8: Maze of Locked Doors — out of the fight till its time's up or it's through its doors (1, 2, 3: the number in the slug);
+    // Orb of Twisting Fate — its first action each turn lost, once on a success ("1"), a Will save each turn's end on a failure.)
+    "maze-of-locked-doors": { success: [["mazed", 1, { senses: 1 }]], failure: [["mazed", 10, { senses: 2 }]], criticalFailure: [["mazed", 100, { senses: 3 }]] },
+    "orb-of-twisting-fate": { success: [["twisted", 1, { senses: 1 }]], failure: [["twisted", 10, { saveEnds: "will" }]], criticalFailure: [["twisted", 10]] }
 };
 function withHinders(plan) {
     const hinder = HINDERS[plan?.source?.slug];
@@ -435,7 +439,7 @@ function withHinders(plan) {
     const outcomes = Object.fromEntries(Object.entries(plan.resolution.outcomes ?? {}).map(([degree, entry]) => {
         const reads = hinder[degree];
         if (!reads) return [degree, { ...entry, noteEffects: [] }];
-        const slug = (kind, extra) => (kind === "voiceless" ? kind : [`hinder:${kind}`, ...(extra?.flat ?? extra?.senses ? [extra.flat ?? extra.senses] : []), ...(extra?.saveEnds ? [extra.saveEnds] : [])].join(":"));
+        const slug = (kind, extra) => (kind === "voiceless" ? kind : [`hinder:${kind}`, ...(extra?.flat ?? extra?.senses ? [extra.flat ?? extra.senses] : extra?.saveEnds ? [0] : []), ...(extra?.saveEnds ? [extra.saveEnds] : [])].join(":"));
         const effects = reads.map(([kind, rounds, extra]) => ({ kind: "condition", slug: slug(kind, extra), value: null, duration: { mode: "fixed", value: rounds, unit: "rounds", ...(extra?.turnEnd ? { expiry: "turn-end" } : {}) } }));
         return [degree, { ...entry, noteEffects: [], rowNotes: [], effects: [...(entry?.effects ?? []).filter((effect) => effect?.kind !== "note"), ...effects] }];
     }));
@@ -471,6 +475,17 @@ function withDuplicate(plan) {
     if (!resolution?.duplicate || resolution.kind !== "save") return plan;
     const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => [degree, degree === "criticalSuccess" ? row : { ...row, effects: [...(row?.effects ?? []), { kind: "condition", slug: `duplicate:${degree}`, value: null, duration: null }] }]));
     return { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } };
+}
+// (2026-10-22, family 8: Collective Transposition — a foe that fails teleported where the caster chooses: away from the party, as a 30-foot
+// push; no critical failure row, the failure's.)
+function withTransposition(plan) {
+    if (plan?.source?.slug !== "collective-transposition" || plan.resolution?.kind !== "save") return plan;
+    const moved = (row) => ({ ...row, forcedMovement: { kind: "push", distance: 30 } });
+    const outcomes = { ...plan.resolution.outcomes, failure: moved(plan.resolution.outcomes?.failure ?? {}), criticalFailure: moved(plan.resolution.outcomes?.criticalFailure ?? plan.resolution.outcomes?.failure ?? {}) };
+    // (Its 30-foot emanation is where they can go: its targets, up to 2 creatures in it.)
+    // (The caster's choice of where — the core's "controls" — played as that push.)
+    const { controls, ...resolution } = plan.resolution;
+    return { ...plan, simulatorReading: true, targeting: { ...plan.targeting, area: null, range: "30 feet" }, resolution: { ...resolution, outcomes } };
 }
 const SUBJUGATE = { failure: 10, criticalFailure: 100 };
 function withBinding(plan) {

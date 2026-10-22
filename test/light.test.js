@@ -1328,3 +1328,36 @@ test("family 7 minions: Duplicate Foe's copy fights for the caster and decays; S
     castSpell(state, wizard, 2, ["ghoul"]);
     assert.equal(state.byId.get("ghoul").side, "party", "subjugated");
 });
+
+test("family 8: Maze of Locked Doors holds a foe out of the fight till it's through its doors; Orb of Twisting Fate takes its first action; Collective Transposition sends it away", async () => {
+    const { castSpell, heldTurnStart } = await import("../src/engine/spells.js");
+    const { isActive } = await import("../src/engine/combatant.js");
+    const { compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const entry = (name, castRank) => ({ name, castRank, pool: null, dc: 45, attack: 35, effects: {}, plan: compileSpell(spellNamed(name)) });
+    const state = createFightState({ combatants: [...standardParty(15), { ...moderateCreatureAt(12, "a"), id: "a", name: "A" }, { ...moderateCreatureAt(12, "b"), id: "b", name: "B" }, { ...moderateCreatureAt(12, "c"), id: "c", name: "C" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wizard = state.byId.get("wizard");
+    wizard.spells = [entry("Maze of Locked Doors", 7), entry("Orb of Twisting Fate", 7), entry("Collective Transposition", 6)];
+    state.rng.d20 = () => 2;
+    castSpell(state, wizard, 0, ["a"]);
+    const a = state.byId.get("a");
+    assert.equal(a.hindrances.find((held) => held.kind === "mazed")?.doors, 3, "a critical failure: 3 doors");
+    assert.ok(!isActive(a), "out of the fight");
+    a.actionsLeft = 3;
+    assert.equal(heldTurnStart(state, a), true, "its turn at the doors");
+    state.rng.d20 = () => 20;
+    a.actionsLeft = 3;
+    heldTurnStart(state, a);
+    assert.ok(isActive(a), "through its doors");
+    state.rng.d20 = () => 2;
+    castSpell(state, wizard, 1, ["b"]);
+    const b = state.byId.get("b");
+    b.actionsLeft = 3;
+    heldTurnStart(state, b);
+    assert.equal(b.actionsLeft, 2, "its first action lost");
+    const c = state.byId.get("c");
+    const { engage, sameMelee } = await import("../src/engine/space.js");
+    engage(state, c, state.byId.get("fighter"));
+    assert.ok(sameMelee(c, state.byId.get("fighter")));
+    castSpell(state, wizard, 2, ["c"]);
+    assert.ok(!sameMelee(c, state.byId.get("fighter")), "teleported away from the fighter");
+});

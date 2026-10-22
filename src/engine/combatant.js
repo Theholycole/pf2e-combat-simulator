@@ -114,7 +114,8 @@ export function createCombatant(spec) {
 // wall (space.js isIncorporeal).
 export function isActive(c) {
     // (2026-10-22, Containment: in its field, out of reach — spells.js heldTurnStart.)
-    return c.status === ACTIVE && !c.swallowedBy && !c.insideObject && !c.contained;
+    // (2026-10-22, Maze of Locked Doors: in its maze, out of the fight.)
+    return c.status === ACTIVE && !c.swallowedBy && !c.insideObject && !c.contained && !(c.hindrances?.length && hinderedBy(c, "mazed"));
 }
 
 // asleep: a spell's unconsciousness (Sleep), which damage ends; the creature stays in the fight.

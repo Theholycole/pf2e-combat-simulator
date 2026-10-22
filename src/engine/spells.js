@@ -1569,6 +1569,27 @@ export function heldTurnStart(state, c) {
         } else log(state, `  ${c.name} batters ${c.contained.spell} (${c.contained.hp} HP left)`);
         return true;
     }
+    // (Maze of Locked Doors: its turn at the doors — Force Open, Athletics against DC 30, each of its actions; out when it's through them.)
+    const maze = hinderedBy(c, "mazed");
+    if (maze) {
+        const athletics = Number.isFinite(c.athletics) ? c.athletics : Math.max(0, ...(c.strikes ?? []).map((strike) => Number(strike.bonus) || 0)) - 2;
+        for (let action = 0; action < Math.max(0, c.actionsLeft ?? 3) && maze.doors > 0; action++) {
+            const natural = state.rng.d20();
+            if (degreeOf(natural + athletics - (action ? 5 * Math.min(2, action) : 0), 30, natural) >= SUCCESS) maze.doors--;
+        }
+        if (maze.doors <= 0) {
+            c.hindrances = c.hindrances.filter((held) => held !== maze);
+            log(state, `  ${c.name} breaks out of ${maze.spell}`);
+        } else log(state, `  ${c.name} is lost in ${maze.spell} (${maze.doors} door${maze.doors === 1 ? "" : "s"} to go)`);
+        return true;
+    }
+    // (Orb of Twisting Fate: its first action spent Striding at random or doing nothing.)
+    const twisted = hinderedBy(c, "twisted");
+    if (twisted && (c.actionsLeft ?? 0) > 0) {
+        c.actionsLeft -= 1;
+        log(state, `  ${c.name} loses its first action to ${twisted.spell}`);
+        if (twisted.once) c.hindrances = c.hindrances.filter((held) => held !== twisted);
+    }
     // (Sensory Deprivation: an action to Seek, disbelieving it — Perception against the spell's DC —, when its hands keep it from its
     // spells, or its eyes are dazzled for a while yet.)
     for (const entry of (c.hindrances ?? []).filter((held) => held.kind === "deprived" && held.disbelieveDC)) {
@@ -1913,6 +1934,12 @@ function applyHinder(state, caster, spell, target, change) {
     const { sustained } = lastingRounds(spell.plan?.lifecycle?.durationSpec ?? null);
     const entry = { by: caster.id, spell: spell.name, kind, untilRound: Number.isFinite(rounds) ? state.round + rounds : Infinity, sustained: sustained && rounds > 1 };
     if (kind === "bewildered") entry.flat = Number(extra) || 6;
+    // (Maze of Locked Doors: its doors to get through, out of the fight meanwhile; Orb of Twisting Fate's success: once.)
+    if (kind === "mazed") {
+        entry.doors = Number(extra) || 1;
+        if (target.meleeId !== null && target.meleeId !== undefined) leaveMelee(state, target, "near");
+    }
+    if (kind === "twisted" && extra === "1") entry.once = true;
     if (save) entry.saveEnds = { save, dc: effectDC(spell) };
     if (kind === "deprived") {
         entry.disbelieveDC = effectDC(spell);
@@ -1963,6 +1990,17 @@ function hinderWorth(state, spell, target, change) {
             return ((Number(extra) || 6) - 1) / 20 * rounds * (save ? 0.6 : 1);
         case "jealous":
             return state.list.some((other) => other !== target && other.side === target.side && isActive(other) && sameMelee(other, target)) ? rounds / 3 : 0;
+        // (Maze of Locked Doors: the rounds its doors hold it — three Force Opens a round at DC 30 —, as Containment's: about a round of its
+        // threat each while its side fights on, a fifth when it's all there is.)
+        case "mazed": {
+            const athletics = Number.isFinite(target.athletics) ? target.athletics : Math.max(0, ...(target.strikes ?? []).map((strike) => Number(strike.bonus) || 0)) - 2;
+            const passes = [0, 5, 10].reduce((sum, penalty) => sum + Math.min(0.95, Math.max(0.05, (21 + athletics - penalty - 30) / 20)), 0);
+            const held = Math.min(rounds, Math.max(1, Math.ceil((Number(extra) || 1) / Math.max(0.05, passes))));
+            const alone = !state.list.some((other) => other !== target && other.side === target.side && isActive(other) && other.kind !== "object");
+            return (alone ? 0.2 : 0.9) * held;
+        }
+        case "twisted":
+            return extra === "1" ? 1 / 3 : (rounds / 3) * (save ? 0.6 : 1);
         // (Sensory Deprivation: each of its turns while it lasts, an action to Seek and, still fooled, the sense lost that turn.)
         case "deprived": {
             const senses = depriveSenses(state, target, Number(extra) || 1);
