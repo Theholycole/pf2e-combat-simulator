@@ -13,7 +13,7 @@ import { effectBenefit } from "./effects.js";
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
-import { canStepOut, fliesNow, flankChance, isIncorporeal, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
+import { canStepOut, fliesNow, flankChance, isIncorporeal, levitating, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { gridFlanked, gridStrides, planStride, strideGoes } from "./grid-fight.js";
 import { distanceFeet, reaches as gridReaches, sightLine, squareOf } from "./grid.js";
 import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
@@ -983,7 +983,8 @@ function expandAll(ctx, node, actionsLeft) {
     if (remaining <= 0 || node.left || node.sunk) return children;
     const mustWithdraw = c.mustWithdraw && !node.moved && !c.withdrewThisTurn && canMove(c);
     const inAnyMelee = node.pos.melee !== null;
-    const mobile = canMove(c);
+    // (Levitating: up and down only — no Strides across the ground.)
+    const mobile = canMove(c) && !levitating(c);
     // Restrained: no actions with the attack or manipulate traits. After a finisher: no attacks this turn.
     const restrained = !!c.cond.restrained;
     // A form that forbids attacks and spells (Vapor Form: "can't cast spells … or use actions that have the attack … trait").

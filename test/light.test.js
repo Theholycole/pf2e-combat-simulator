@@ -417,3 +417,33 @@ test("a light aura sheds dim light as far again (Turnip Lantern); Deluge's desce
     const deluge = withReading({ resolution: { kind: "save", check: { statistic: "reflex" }, controls: { parts: [{ kind: "descend", feet: 50 }] }, outcomes: { criticalSuccess: row("The creature is unaffected."), success: row("The creature is unaffected."), failure: row("The creature is pushed 50 feet."), criticalFailure: row("The creature is pushed 50 feet.") } } });
     for (const degree of ["criticalSuccess", "success", "failure", "criticalFailure"]) assert.equal(deluge.resolution.outcomes[degree].effects[0].slug, "landed");
 });
+
+test("Levitate: floated out of grounded reach, no Strides across the ground; worth the hits kept off, less melee it can't make", async () => {
+    const { liftKept, liftOffenseLost } = await import("../src/engine/actions.js");
+    const { aloft, stridesToEngage, levitating } = await import("../src/engine/space.js");
+    const { scoreOptions, computeThreats } = await import("../src/engine/planner.js");
+    const lift = effectModel({ name: "Spell Effect: Levitate", system: { duration: { unit: "minutes", value: 5 }, rules: [{ key: "RollOption", option: "stabilized", toggleable: true }, { key: "FlatModifier", predicate: [{ not: "stabilized" }], selector: "attack", type: "circumstance", value: -2 }] } }, { rank: 3 });
+    assert.equal(lift.levitates, true);
+    const rows = { criticalSuccess: { damage: { mode: "shared", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "shared", multiplier: 0.5, sourceComponentIds: ["0"] }, effects: [] }, failure: { damage: { mode: "shared", multiplier: 1, sourceComponentIds: ["0"] }, effects: [] }, criticalFailure: { damage: { mode: "shared", multiplier: 2, sourceComponentIds: ["0"] }, effects: [] } };
+    const bolt = { name: "Test Bolt", castRank: 3, pool: null, plan: { modelVersion: 13, source: { name: "Test Bolt" }, rank: 3, traits: [], activation: { time: "2", traits: [] }, targeting: { target: "1 creature", range: "120 feet" }, resolution: { kind: "save", check: { statistic: "reflex", basic: true }, sharedDamage: { components: [{ id: "0", formula: "5d6", type: "fire" }] }, outcomes: rows } } };
+    const party = standardParty(5).map((pc) => (pc.id === "wizard" ? { ...pc, spells: [bolt] } : pc));
+    const state = createFightState({ combatants: [...party, { ...moderateCreatureAt(5, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1);
+    computeThreats(state);
+    const wizard = state.byId.get("wizard");
+    const fighter = state.byId.get("fighter");
+    const brute = state.byId.get("monster");
+    assert.ok(liftKept(state, wizard, 1) > 0, "the brute's claws kept off the wizard");
+    assert.ok(liftOffenseLost(state, fighter, 1) > liftOffenseLost(state, wizard, 1), "the fighter loses its sword; the wizard little");
+    applyEffect(state, wizard, lift, wizard, {});
+    assert.ok(levitating(wizard) && aloft(wizard) && stridesToEngage(brute, wizard) === Infinity);
+    wizard.actionsLeft = 3;
+    assert.ok(!scoreOptions(state, wizard).options.some((option) => option.action?.type === "stride"), "no Strides while levitating");
+});
+
+test("Embrace Nothingness: 'when it is not your turn … you are Invisible' in its text — invisible on its effect", async () => {
+    const { withTextConditions } = await import("../tools/lib/pack-spells.mjs");
+    const doc = { system: { description: { value: "When it is not your turn and during your turn until you take an action with the move trait, you are @UUID[Compendium.pf2e.conditionitems.Item.x]{Invisible}." } } };
+    const models = withTextConditions({ a: { name: "Embrace Nothingness", conditions: [], resistances: [] } }, doc);
+    assert.deepEqual(models.a.conditions, [{ slug: "invisible", value: null }]);
+    assert.deepEqual(withTextConditions({ a: { conditions: [] } }, { system: { description: { value: "You are Invisible." } } }).a.conditions, []);
+});

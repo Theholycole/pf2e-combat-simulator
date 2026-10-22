@@ -174,6 +174,39 @@ export function groundDamage(state, target, rounds) {
     return 0.5 * total * rounds;
 }
 
+// What floating a creature up out of reach is worth (Levitate, 2026-10-22): over rounds, the Hit Points kept off it by the foes that don't
+// fly — their melee rounds on it over their ranged ones, spread over its side, half of it (they turn on its allies instead).
+export function liftKept(state, target, rounds) {
+    if (fliesNow(target)) return 0;
+    const ac = armorClass(target);
+    const side = Math.max(1, state.list.filter((other) => other.side === target.side && isActive(other)).length);
+    let total = 0;
+    for (const foe of state.list) {
+        if (foe.side === target.side || !isActive(foe) || fliesNow(foe)) continue;
+        const round = (melee) => Math.max(0, ...(foe.strikes ?? []).filter((strike) => strikeUsable(foe, strike) && Boolean(strike.melee) === melee).map((strike) => [0, 1].reduce((sum, attack) => {
+            const dist = degreeDistribution(strike.bonus - multipleAttackPenalty(strike, attack), ac);
+            return sum + dist[SUCCESS] * expectedHitDamage(foe, strike, target, false) + dist[CRITICAL_SUCCESS] * expectedHitDamage(foe, strike, target, true);
+        }, 0)));
+        total += Math.max(0, round(true) - round(false));
+    }
+    return 0.5 * total / side * rounds;
+}
+
+// What floating up costs a creature's own offense, in rounds of its threat (Levitate): its melee Strikes no longer reach a foe on the
+// ground — what they do over its best ranged Strike or spell, as a share of its threat.
+export function liftOffenseLost(state, target, rounds) {
+    const foe = state.list.find((other) => other.side !== target.side && isActive(other) && !fliesNow(other));
+    if (!foe) return 0;
+    const ac = armorClass(foe);
+    const round = (melee) => Math.max(0, ...(target.strikes ?? []).filter((strike) => strikeUsable(target, strike) && Boolean(strike.melee) === melee).map((strike) => [0, 1].reduce((sum, attack) => {
+        const dist = degreeDistribution(strike.bonus - multipleAttackPenalty(strike, attack), ac);
+        return sum + dist[SUCCESS] * expectedHitDamage(target, strike, foe, false) + dist[CRITICAL_SUCCESS] * expectedHitDamage(target, strike, foe, true);
+    }, 0)));
+    const threat = Math.max(1, state.threat?.get(target.id) ?? round(true));
+    const other = Math.max(round(false), state.spellThreat?.get(target.id) ?? 0);
+    return Math.min(1, Math.max(0, round(true) - other) / threat) * rounds;
+}
+
 // What making an incorporeal creature semi-corporeal is worth (Dirge of Remembrance, 2026-10-22): over rounds, what its foes' weapons add
 // against it with a ghost touch rune's benefit — two Strikes a round each. 0 for one whose resistance doesn't spare ghost touch.
 export function semicorporealDamage(state, target, rounds) {

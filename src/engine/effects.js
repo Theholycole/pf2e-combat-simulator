@@ -207,6 +207,8 @@ function choiceSets(item, rank) {
 export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen = null } = {}) {
     const model = { name: item?.name ?? "Effect", rounds: roundsOf(item?.system?.duration), modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
     const unsupported = new Set();
+    // (2026-10-22, Levitate: its effect has only the −2 to attacks; the spell floats the creature up out of reach — model.levitates, space.js.)
+    if (/^(?:spell )?effect: levitate$/i.test(String(item?.name ?? "").trim())) model.levitates = true;
     const toggles = new Map((item?.system?.rules ?? []).filter((rule) => rule?.key === "RollOption" && rule.toggleable && typeof rule.option === "string" && !rule.option.includes("{")).map((rule) => [rule.option, rule.value === true]));
     // (A ChoiceSet the caster picks — Elemental Gift's element, Animal Feature's feature —, its rules on "option:value": each of its choices
     // as a toggle, the one picked on.)

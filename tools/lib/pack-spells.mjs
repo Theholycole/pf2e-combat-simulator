@@ -34,6 +34,14 @@ const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".")
 export const effectModels = (plan, castRank) => Object.fromEntries([...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}/g) ?? [])]
   .map((uuid) => [uuid, effectsById.get(uuid.split(".").pop())]).filter(([, item]) => item).map(([uuid, item]) => [uuid, resolveAuraGrants(effectModel(item, { rank: castRank, conditionSlug }), (granted) => effectsById.get(String(granted).split(".").pop()) ?? null, { rank: castRank, conditionSlug })]));
 
+// (2026-10-22, Embrace Nothingness: "When it is not your turn … you are Invisible" — in its text, not its effect's rules: the effect's
+// models gain the condition — out of the foes' sight whenever they act, at its best.)
+const STILL_INVISIBLE = /\bwhen it is not your turn\b[^.]*\byou are (?:@UUID\[[^\]]*\]\{)?Invisible\b/i;
+export function withTextConditions(models, doc) {
+  if (!STILL_INVISIBLE.test(String(doc?.system?.description?.value ?? ""))) return models;
+  return Object.fromEntries(Object.entries(models).map(([uuid, model]) => [uuid, model && !(model.conditions ?? []).some((condition) => condition.slug === "invisible") ? { ...model, conditions: [...(model.conditions ?? []), { slug: "invisible", value: null }] } : model]));
+}
+
 // A PF2e spell effect item by its uuid (or id), or null.
 export const effectItemById = (uuid) => effectsById.get(String(uuid ?? "").split(".").pop()) ?? null;
 
@@ -77,7 +85,7 @@ export function npcSpells(npc, { onError = () => {}, basics = null } = {}) {
         summoned.push(spellSummonEntry({ name: spell.name, plan, castRank }, pool ? spellPools[pool] : 2));
         return;
       }
-      const effects = effectModels(plan, castRank);
+      const effects = withTextConditions(effectModels(plan, castRank), spell);
       // (Shield, the spell: the magic shield the creature raises by casting it.)
       const shield = Object.values(effects).find((model) => model?.spellShield)?.spellShield;
       spells.push({ name: spell.name, plan, castRank, dc, attack, pool, ...(/\bcoven\b/i.test(entry.name ?? "") ? { coven: true } : {}), effects, ...(shield ? { spellShield: shield } : {}) });

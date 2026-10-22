@@ -3,7 +3,7 @@
 import fs from "node:fs";
 const { readDocuments, PACK_ROOT, basicActions, combatant, creatureFrom, summonCandidates } = await import("./pack-creatures.mjs");
 const { maneuverWays } = await import("../../src/engine/readings.js");
-const { compileSpell, effectItemById, effectModels } = await import("./pack-spells.mjs");
+const { compileSpell, effectItemById, effectModels, withTextConditions } = await import("./pack-spells.mjs");
 const { partyFor } = await import("./deadliness.mjs");
 const { POWER_KINDS, POWER_ROUNDS, RATED_POOL, SUMMON_FOE_TRAITS, castPower, durationRounds, formShare, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
@@ -402,7 +402,7 @@ export function runPowerTask(task) {
     const level = partyLevelForRank(rank);
     const party = partyFor(level);
     const casting = wizardCasting(party);
-    const entry = { name: doc.name, plan, castRank: rank, dc: casting?.dc ?? 10 + level, attack: casting?.attack ?? level, pool: ref.cantrip ? null : RATED_POOL, tradition: "arcane", effects: effectModels(plan, rank) };
+    const entry = { name: doc.name, plan, castRank: rank, dc: casting?.dc ?? 10 + level, attack: casting?.attack ?? level, pool: ref.cantrip ? null : RATED_POOL, tradition: "arcane", effects: withTextConditions(effectModels(plan, rank), doc) };
     const head = { kind: "screen", ref: { ref: ref.ref, collection: ref.collection, path: ref.path, id: ref.id, name: ref.name, cantrip: ref.cantrip, focus: ref.focus }, collection: ref.collection, id: ref.id, name: ref.name, rank, cantrip: ref.cantrip, level, ...(healsOutOfCombat(doc) ? { outOfCombat: true } : {}) };
     // (A summon: its best creature's worth.)
     const summoned = summonResults(doc, plan, rank, party, level) ?? incarnateSummonResults(doc, plan, party, level);

@@ -14,7 +14,7 @@ import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf,
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune } from "./effects.js";
-import { applyDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, semicorporealDamage, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
+import { applyDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { dimWorth, lightAuraModel, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
@@ -1396,6 +1396,8 @@ function applyNativeEffect(state, caster, spell, target, change) {
         const effect = applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell, traits: spell.plan?.traits ?? [] } });
         // (2026-10-15, Death Ward: the conditions its text suppresses while it lasts — Doomed.)
         if (spell.plan?.suppresses?.length) effect.suppress = [...spell.plan.suppresses];
+        // (Levitate: floated up out of any Melee it was in — space.js levitating.)
+        if (model.levitates && target.meleeId !== null && target.meleeId !== undefined) leaveMelee(state, target, target.band === "far" ? "far" : "near");
         log(state, `  ${target.name} gains ${model.name.replace(/^Spell Effect: /, "")}${change.effect?.kind === "modifier" ? ` (${change.effect.modifier.value} ${change.effect.modifier.type ?? change.effect.modifier.modifierType ?? "untyped"} to ${change.effect.modifier.selector})` : ""}`);
     }
 }
@@ -3291,6 +3293,12 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         entry.benefit += share * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit });
                         // (Its resistances: the Hit Points they keep off it from the foes' Strikes, as healing — 2026-10-21.)
                         if (model.resistances?.length || model.immunities?.length) entry.heal += share * resistanceKept(state, model, target, Math.min(3, model.rounds));
+                        // (Levitate: the Hit Points out of the grounded foes' reach keeps off it — actions.js liftKept.)
+                        if (model.levitates) {
+                            entry.heal += share * liftKept(state, target, Math.min(3, model.rounds));
+                            // (…less its own melee Strikes that no longer reach a foe on the ground.)
+                            entry.benefit -= share * liftOffenseLost(state, target, Math.min(3, model.rounds));
+                        }
                         // (An aura's granted effects on each creature it reaches — effects.js auraRecipients; 2026-10-22.)
                         for (const grant of model.aura ?? []) {
                             for (const other of auraRecipients(state, target, grant)) {
