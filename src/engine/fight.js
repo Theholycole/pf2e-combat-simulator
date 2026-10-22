@@ -12,7 +12,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { agitationTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { agitationTurnEnd, atCastRank, heldTurnStart, hinderTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -74,6 +74,8 @@ export function prepareSnapshot(snapshot) {
         if (c.spells?.some((spell) => spell.ownAttack)) c.spells = ownAttacks(c);
         // (U19: a save against its owner's own DC.)
         if (c.spells?.some((spell) => spell.ownerDC)) c.spells = ownerDCs(c);
+        // (2026-10-22: a heightened entry's targets at the spell's rank — Fear's 5 creatures at 3rd.)
+        if (c.spells?.some((spell) => spell.plan?.heightenedTargets)) c.spells = c.spells.map(atCastRank);
         // A self-effect's extra damage, on the Strikes it names (B69).
         if (c.selfEffects?.some((entry) => entry.model?.strikeParts)) c.selfEffects = c.selfEffects.map((entry) => (entry.model?.strikeParts ? { ...entry, model: { ...entry.model, strikeDeltas: deltasFor(c.strikes ?? [], entry.model.strikeParts) } } : entry));
     }
@@ -305,8 +307,8 @@ function checkEnd(state) {
         return true;
     }
     // (2026-10-13: a PC swallowed or engulfed is still in the fight — it can cut itself free or Escape; the party is beaten only when none is
-    // up, inside a creature or out.)
-    if (!pcs(state).some((c) => isActive(c) || (c.status === ACTIVE && (c.swallowedBy || c.insideObject)))) {
+    // up, inside a creature or out. 2026-10-22: or in a Containment field.)
+    if (!pcs(state).some((c) => isActive(c) || (c.status === ACTIVE && (c.swallowedBy || c.insideObject || c.contained)))) {
         finish(state, "defeat");
         return true;
     }
@@ -317,7 +319,7 @@ function checkEnd(state) {
     const coming = (c) => c.status === PENDING && c.arrivesRound != null;
     const remaining = foes.filter((c) => c.status === ACTIVE || coming(c));
     if (!remaining.length) {
-        finish(state, foes.some((c) => c.status === FLED) ? "rout" : "decisive");
+        finish(state, foes.some((c) => c.status === FLED && !c.banished) ? "rout" : "decisive");
         return true;
     }
     if (state.options.morale) {
@@ -642,6 +644,7 @@ function endTurn(state, c) {
     agitationTurnEnd(state, c);
     // (Warrior's Regret: its damage for those it hurt this turn.)
     regretTurnEnd(state, c);
+    hinderTurnEnd(state, c);
     // Swallow Whole's damage at the end of each of the swallowed creature's turns.
     if (c.swallowedBy && c.swallow?.damage?.length) {
         state.log?.push(`  ${c.name} is crushed inside ${state.byId.get(c.swallowedBy)?.name}`);
@@ -1371,6 +1374,11 @@ export function takeTurn(state, c) {
     }
     // (A body that burns at a touch — Fiery Body —: a creature in a grapple with it, held by it or holding it, once as its turn starts.)
     contactRetaliation(state, c);
+    // (2026-10-22, family 4: in Containment's field — its turn at the field —; Overwhelming Presence's tribute.)
+    if (heldTurnStart(state, c)) {
+        if (!checkEnd(state)) endTurn(state, c);
+        return;
+    }
     if (!canAct(c) || c.status !== ACTIVE) {
         if (!checkEnd(state)) endTurn(state, c);
         return;

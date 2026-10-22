@@ -12,9 +12,9 @@
 
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
-import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
+import { ACTIVE, DOWN, MOUTH, armorClass, canAct, canMove, effectBonus, hinderedBy, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune, weaknessCost } from "./effects.js";
-import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, bewilderFails, leaveField, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { dimWorth, lightAuraModel, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
@@ -27,7 +27,7 @@ import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } f
 import { effectImmunity, immuneToCondition } from "./immunities.js";
 import { elementalAnswers, hydraScaled, troopIgnores, troopSegmentLost } from "./creature-rules.js";
 import { sightDC } from "./environment.js";
-import { adjustDamage, adjustInstance, adjustPart, rollStrikeDamage, spellContext, strikeContext } from "./damage.js";
+import { adjustDamage, adjustInstance, adjustPart, expectedStrikeDamage, rollStrikeDamage, spellContext, strikeContext } from "./damage.js";
 import { distanceBetween, engagedEnemies, fliesNow, leaveMelee, sameMelee } from "./space.js";
 import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
 import { applyWard, wardBlocks, wardWorth } from "./wards.js";
@@ -75,7 +75,9 @@ const FLAGS = {
     // (2026-10-22, Agitate: it must Stride, Fly or Swim each turn or take the spell's damage as the turn ends — agitationTurnEnd.)
     agitated: "agitated",
     // (2026-10-22, Undermine Reality: its Strikes deal half damage — actions.js —, saves against its spells and abilities a degree better.)
-    "quasi-real": "quasiReal"
+    "quasi-real": "quasiReal",
+    // (2026-10-22, Steal Voice: no spells but subtle ones, nothing auditory — canCast.)
+    voiceless: "voiceless"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -100,6 +102,19 @@ function rangeFeet(range) {
     if (miles) return Infinity;
     if (/planetary|unlimited|sight/.test(text)) return Infinity;
     return null;
+}
+
+// (2026-10-22: a spell's targets at its cast rank — a heightened entry's, the plan's heightenedTargets (pack-spells.mjs compileSpell); one
+// plan copy for each, kept, so a batch's fights share it.)
+const RANKED_PLANS = new WeakMap();
+export function atCastRank(spell) {
+    const plan = spell?.plan;
+    const step = (plan?.heightenedTargets ?? []).filter((entry) => entry.minRank <= (Number(spell.castRank) || 0)).at(-1);
+    if (!step || plan.targeting?.target === step.target) return spell;
+    let copies = RANKED_PLANS.get(plan);
+    if (!copies) RANKED_PLANS.set(plan, (copies = new Map()));
+    if (!copies.has(step.target)) copies.set(step.target, { ...plan, targeting: { ...(plan.targeting ?? {}), target: step.target } });
+    return { ...spell, plan: copies.get(step.target) };
 }
 
 function targetCount(target) {
@@ -1502,6 +1517,185 @@ function curseDamage(state, caster, spell, target, mode, rounds) {
     return 0;
 }
 
+// --- Control (2026-10-22, family 4; readings.js withControls; turns: heldTurnStart) ------------------------------------------------------------------------------
+
+const CONTROL_STATES = new Set(["banished", "contained", "tribute", "tribute-all"]);
+const EXTRAPLANAR = new Set(["fiend", "celestial", "monitor", "elemental", "aeon", "protean", "psychopomp", "demon", "devil", "daemon", "angel", "archon", "azata", "qlippoth", "velstrac"]);
+export const isExtraplanar = (c) => Boolean(c?.summoned || c?.summonedBy || (c?.traits ?? []).some((trait) => EXTRAPLANAR.has(trait)));
+
+// Banished: gone from the fight. Contained: in a force field (Hardness 10) till it breaks out or the minute's up — out of reach, out of its
+// Melee, and doing nothing outside; its field's Hit Points 15 (5 on a success) more a rank past 4th. Tribute: an action each of its turns
+// (all of them on a critical failure) till it's paid them, fascinated meanwhile.
+function applyControl(state, caster, spell, target, change) {
+    if (!isActive(target)) return;
+    const rank = Number(spell.castRank) || 1;
+    if (change.slug === "banished") {
+        leaveField(state, target, { banished: true });
+        return;
+    }
+    if (change.slug === "contained") {
+        const base = Number(change.value) || 40;
+        target.contained = { hp: base + Math.max(0, rank - 4) * (base >= 40 ? 15 : 5), hardness: 10, untilRound: state.round + 10, by: caster.id, spell: spell.name };
+        if (target.meleeId !== null && target.meleeId !== undefined) leaveMelee(state, target, target.band === "far" ? "far" : "near");
+        log(state, `  ${target.name} is contained (${target.contained.hp} HP field)`);
+        return;
+    }
+    target.tribute = { left: Number(change.value) || 2, all: change.slug === "tribute-all", by: caster.id, spell: spell.name };
+    // (No source: the same spell fascinating the next foe isn't a hostile act that ends this one's fascination.)
+    applyCondition(state, target, "fascinated", null, null, null);
+    log(state, `  ${target.name} must pay tribute ${target.tribute.left} times`);
+}
+
+// Its turn's start: in a field, its Strikes at the field (its best, twice) — out when it breaks, its turn spent either way (true); paying
+// tribute, its actions for it.
+export function heldTurnStart(state, c) {
+    if (c.contained) {
+        if (state.round >= c.contained.untilRound) {
+            log(state, `  ${c.name}'s ${c.contained.spell} fades`);
+            c.contained = null;
+            return false;
+        }
+        const strike = (c.strikes ?? []).filter((each) => strikeUsable(c, each)).sort((a, b) => b.bonus - a.bonus)[0];
+        let dealt = 0;
+        for (let attack = 0; attack < 2 && strike; attack++) dealt += Math.max(0, rollStrikeDamage(state.rng, strike).filter((instance) => !instance.persistent).reduce((sum, instance) => sum + instance.amount, 0) - c.contained.hardness);
+        c.contained.hp -= dealt;
+        if (c.contained.hp <= 0) {
+            log(state, `  ${c.name} breaks out of ${c.contained.spell}`);
+            c.contained = null;
+        } else log(state, `  ${c.name} batters ${c.contained.spell} (${c.contained.hp} HP left)`);
+        return true;
+    }
+    // (Sensory Deprivation: an action to Seek, disbelieving it — Perception against the spell's DC —, when its hands keep it from its
+    // spells, or its eyes are dazzled for a while yet.)
+    for (const entry of (c.hindrances ?? []).filter((held) => held.kind === "deprived" && held.disbelieveDC)) {
+        if ((c.actionsLeft ?? 0) <= 0) break;
+        const spellsLost = (entry.senses ?? []).includes("hands") && (c.spells ?? []).some((each) => isSpellCast(each) && (each.plan?.traits ?? []).includes("manipulate"));
+        if (!spellsLost && !((entry.senses ?? []).includes("eyes") && entry.untilRound - state.round >= 2)) continue;
+        c.actionsLeft -= 1;
+        const natural = state.rng.d20();
+        const seen = degreeOf(natural + (c.perception ?? 0) - statusPenalty(c, "perception"), entry.disbelieveDC, natural) >= SUCCESS;
+        log(state, `  ${c.name} Seeks: ${seen ? "it disbelieves" : "still fooled by"} ${entry.spell}`);
+        if (!seen) continue;
+        c.hindrances = c.hindrances.filter((held) => held !== entry);
+        if ((entry.senses ?? []).includes("eyes")) c.cond.dazzled = false;
+    }
+    // (Vicious Jealousy's critical failure: its first action waving off an ally in its reach.)
+    if (hinderedBy(c, "jealous") && (c.actionsLeft ?? 0) > 0 && state.list.some((other) => other !== c && other.side === c.side && isActive(other) && sameMelee(other, c))) {
+        c.actionsLeft -= 1;
+        log(state, `  ${c.name} berates an ally (${hinderedBy(c, "jealous").spell})`);
+    }
+    if (c.tribute?.left > 0) {
+        const paid = Math.min(c.tribute.left, c.tribute.all ? Math.max(0, c.actionsLeft ?? 0) : 1);
+        c.actionsLeft = Math.max(0, (c.actionsLeft ?? 0) - paid);
+        c.tribute.left -= paid;
+        log(state, `  ${c.name} pays tribute (${paid})`);
+        if (c.tribute.left <= 0) {
+            c.tribute = null;
+            c.cond.fascinated = false;
+        }
+    }
+    return false;
+}
+
+// What the control is worth on a creature: banished — as if it fell (its Hit Points, as damage); contained — the rounds its field holds it
+// (its best Strike twice a round against the field's Hardness), up to three, each about a round of its threat while its side fights on
+// without it (a fifth of one when it's all there is: the fight waits on it, the party only gets its breath); tribute — its actions lost
+// over three rounds, a third of a round each.
+function controlWorth(state, spell, target, change) {
+    const rank = Number(spell.castRank) || 1;
+    if (change.slug === "banished") return { damage: Math.max(1, target.hp.value + (target.hp.temp ?? 0)), worth: 0 };
+    if (change.slug === "contained") {
+        const base = Number(change.value) || 40;
+        const hp = base + Math.max(0, rank - 4) * (base >= 40 ? 15 : 5);
+        const strike = (target.strikes ?? []).filter((each) => strikeUsable(target, each)).sort((a, b) => b.bonus - a.bonus)[0];
+        const each = strike ? expectedStrikeDamage(strike).filter((instance) => !instance.persistent).reduce((sum, instance) => sum + instance.amount, 0) : 0;
+        const perRound = 2 * Math.max(0, each - 10);
+        const alone = !state.list.some((other) => other !== target && other.side === target.side && isActive(other) && other.kind !== "object");
+        return { damage: 0, worth: (alone ? 0.2 : 0.9) * Math.min(3, perRound > 0 ? Math.ceil(hp / perRound) : 3) };
+    }
+    // (Already paying a tribute as big: nothing more.)
+    if ((target.tribute?.left ?? 0) >= (Number(change.value) || 2) && (target.tribute.all || change.slug !== "tribute-all")) return { damage: 0, worth: 0 };
+    const actions = Math.min(Number(change.value) || 2, change.slug === "tribute-all" ? 9 : 3);
+    return { damage: 0, worth: actions / 3 + 0.1 };
+}
+
+// --- Hindrances (2026-10-22, family 4; readings.js withHinders) --------------------------------------------------------------------------
+
+// Its entry in the creature's hindrances (lasting.js: ended at the caster's turn start when its time's up, Sustained if the spell is):
+// "hinder:<kind>[:<flat DC or senses>[:<save>]]". Sensory Deprivation's senses: a creature whose spells are a good part of its threat
+// loses its hands (no manipulate action — most spells), the rest their eyes (dazzled); both on a critical failure. It can Seek to
+// disbelieve it (heldTurnStart).
+function applyHinder(state, caster, spell, target, change) {
+    if (!isActive(target)) return;
+    const [, kind, extra, save] = String(change.slug).split(":");
+    const rounds = durationRounds(change.duration);
+    const { sustained } = lastingRounds(spell.plan?.lifecycle?.durationSpec ?? null);
+    const entry = { by: caster.id, spell: spell.name, kind, untilRound: Number.isFinite(rounds) ? state.round + rounds : Infinity, sustained: sustained && rounds > 1 };
+    if (kind === "bewildered") entry.flat = Number(extra) || 6;
+    if (save) entry.saveEnds = { save, dc: effectDC(spell) };
+    if (kind === "deprived") {
+        entry.disbelieveDC = effectDC(spell);
+        entry.senses = depriveSenses(state, target, Number(extra) || 1);
+        if (entry.senses.includes("eyes")) applyCondition(state, target, "dazzled", null, change.duration, caster);
+    }
+    target.hindrances = [...(target.hindrances ?? []).filter((held) => !(held.spell === spell.name && held.kind === kind)), entry];
+    log(state, `  ${target.name} is ${kind}${entry.senses ? ` (${entry.senses.join(", ")})` : ""} by ${spell.name}`);
+}
+
+function depriveSenses(state, target, count) {
+    const casts = 1 - (state.strikeShare?.get(target.id) ?? 1) >= 0.25;
+    return (casts ? ["hands", "eyes"] : ["eyes", "hands"]).slice(0, count);
+}
+
+// Bewilder's Will save at the end of each of its turns, a success ending it.
+export function hinderTurnEnd(state, c) {
+    for (const entry of [...(c?.hindrances ?? [])]) {
+        if (!entry.saveEnds || !isActive(c)) continue;
+        const natural = state.rng.d20();
+        if (degreeOf(natural + saveModifier(c, entry.saveEnds.save), entry.saveEnds.dc, natural) < SUCCESS) continue;
+        c.hindrances = c.hindrances.filter((held) => held !== entry);
+        log(state, `  ${c.name} shakes off ${entry.spell}`);
+    }
+}
+
+// What the hindrance is worth on the creature, in rounds of its threat over up to three: muzzled — the share of its Strikes' damage its
+// mouth's Strikes are over the rest (a breath weapon a third of a round more); muzzle-tight — half its spells; bewildered — the flat check's
+// failures (DC 6: a quarter; a Will save each turn: 0.6 of the time); jealous — its first action, an ally in its Melee; deprived — its
+// spells (hands), dazzled (eyes); allyless — nothing (rated foes help no one).
+function hinderWorth(state, spell, target, change) {
+    const [, kind, extra, save] = String(change.slug).split(":");
+    const rounds = Math.min(3, durationRounds(change.duration));
+    const strikes = state.strikeShare?.get(target.id) ?? 1;
+    if (kind !== "deprived" && hinderedBy(target, kind)) return 0;
+    const damage = (strike) => expectedStrikeDamage(strike).filter((instance) => !instance.persistent).reduce((sum, instance) => sum + instance.amount, 0);
+    switch (kind) {
+        case "muzzled": {
+            const usable = (target.strikes ?? []).filter((strike) => strikeUsable(target, strike));
+            const best = Math.max(0, ...usable.map(damage));
+            const left = Math.max(0, ...usable.filter((strike) => !MOUTH.test(String(strike.name ?? ""))).map(damage));
+            const breath = (target.spells ?? []).some((each) => /\bbreath\b/i.test(String(each.name ?? ""))) ? 1 / 3 : 0;
+            return best > 0 ? strikes * (1 - left / best) * rounds + breath : breath;
+        }
+        case "muzzle-tight":
+            return (1 - strikes) * 0.5 * rounds;
+        case "bewildered":
+            return ((Number(extra) || 6) - 1) / 20 * rounds * (save ? 0.6 : 1);
+        case "jealous":
+            return state.list.some((other) => other !== target && other.side === target.side && isActive(other) && sameMelee(other, target)) ? rounds / 3 : 0;
+        // (Sensory Deprivation: each of its turns while it lasts, an action to Seek and, still fooled, the sense lost that turn.)
+        case "deprived": {
+            const senses = depriveSenses(state, target, Number(extra) || 1);
+            const held = (senses.includes("hands") ? (1 - strikes) : 0) + (senses.includes("eyes") && !target.cond?.dazzled ? conditionWorth("dazzled", null, { mode: "fixed", value: 1, unit: "rounds" }) : 0);
+            const fooled = Math.min(0.95, Math.max(0.05, (effectDC(spell) - (target.perception ?? 0) - 1) / 20));
+            let worth = 0;
+            for (let turn = 0; turn < rounds; turn++) worth += fooled ** turn * (1 / 3 + fooled * held);
+            return worth;
+        }
+        default:
+            return 0;
+    }
+}
+
 function applySelfRetaliation(state, caster, name, retaliation) {
     caster.retaliations = [...retaliationsOn(state, caster).filter((entry) => entry.name !== name), { name, label: name, ...retaliation, until: (state.round ?? 0) + (retaliation.rounds ?? 10) }];
     log(state, `  ${caster.name}'s ${name} harms whoever touches it`);
@@ -2334,6 +2528,15 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 break;
             }
             case "condition":
+                // (Family 4's control — Banishment, Containment, Overwhelming Presence —; its hindrances — Binding Muzzle, Bewilder …)
+                if (CONTROL_STATES.has(change.slug) && (spell.plan?.control ?? []).includes(change.slug)) {
+                    applyControl(state, caster, spell, target, change);
+                    break;
+                }
+                if (spell.plan?.hinder && /^hinder:/.test(String(change.slug))) {
+                    applyHinder(state, caster, spell, target, change);
+                    break;
+                }
                 // (Family 3's curses — Cycle of Retribution, Warrior's Regret, Bloodspray Curse, Implement of Destruction.)
                 if (spell.plan?.curse && /^curse:/.test(String(change.slug))) {
                     applyCurse(state, caster, spell, target, change.slug.slice("curse:".length), change.duration);
@@ -2639,6 +2842,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     for (const target of targets) if (target.elemental && target !== caster) elementalAnswers(state, target, "targeted", { spell, applyCondition });
     // (Sanctuary: an attack spell at a warded creature, a save first; stopped, not at it.)
     if (info.attack) for (const target of [...targets]) if (wardBlocks(state, caster, target)) targets.splice(targets.indexOf(target), 1);
+    // (2026-10-22, Bewilder: a hostile action, its flat check first.)
+    if (!info.helpful && !info.healing && targets.some((target) => target.side !== caster.side) && bewilderFails(state, caster)) return;
     // (A harmful spell at a foe is hostility: it ends Calm, and a charm the caster put on it.)
     if (!info.helpful && !info.healing) for (const target of targets) if (target !== caster && target.side !== caster.side) hostility(state, target, caster);
     // A magus's conflux spell recharges Spellstrike.
@@ -2656,6 +2861,11 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     const stupefied = isSpellCast(spell) ? (caster.cond.stupefied ?? 0) : 0;
     if (stupefied && flatCheck(state.rng, 5 + stupefied) < SUCCESS) {
         log(state, `  ${caster.name} loses the spell (stupefied ${stupefied})`);
+        return;
+    }
+    // (2026-10-22, Binding Muzzle's failure: a DC 11 flat check to Cast a Spell with its words — all but a subtle one.)
+    if (isSpellCast(spell) && !(spell.plan?.traits ?? []).includes("subtle") && hinderedBy(caster, "muzzle-tight") && flatCheck(state.rng, 11) < SUCCESS) {
+        log(state, `  ${caster.name} loses the spell (muzzled)`);
         return;
     }
     // (S59: a spell its caster can't cast again for minutes, once a fight; Sure Strike's attack also finds a concealed or hidden target
@@ -2775,6 +2985,16 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
             const taken = imageTakes(state, caster, options.target, DEGREE_NAMES.indexOf(final.degree), { applyDamage, applyCondition });
             if (taken?.image) imaged.add(options.target.id);
             if (taken) return { ...final, degree: DEGREE_NAMES[taken.degree] };
+        }
+        // (2026-10-22, a row's condition on the caster — Banishment's and Mind Games' stunned 1 on a critical success, Planar Court's doomed 1,
+        // Shared Nightmare's confusion for a round, The End is Nigh's frightened 1.)
+        if (SAVE_SLUGS.has(statistic) && options?.actor?.id && final?.degree && forcedDegree === null) {
+            for (const entry of [].concat(spell.plan?.resolution?.outcomes?.[final.degree]?.casterConditions ?? [])) {
+                if (!entry?.slug || !isActive(caster)) continue;
+                const rounds = entry.duration?.unit === "rounds" ? Number(entry.duration.value) || 1 : null;
+                log(state, `  ${caster.name} is ${entry.slug}${entry.value ? ` ${entry.value}` : ""} (${spell.name})`);
+                applyCondition(state, caster, entry.slug, entry.value ?? null, rounds ? { mode: "fixed", value: rounds, unit: "rounds" } : null, null);
+            }
         }
         return final;
     };
@@ -3448,6 +3668,10 @@ export function outsideTargets(caster, target, spell) {
             case "trait":
                 if (traits.includes(predicate.slug) !== (predicate.present !== false)) return predicate.present === false ? `${predicate.slug}` : `not ${predicate.slug}`;
                 break;
+            // (2026-10-22, Banishment: "a creature that isn't on its home plane".)
+            case "extraplanar":
+                if (!isExtraplanar(target)) return "on its home plane";
+                break;
             case "size-at-most":
                 if (sizeRank(target.size) > sizeRank(predicate.size)) return "too big";
                 break;
@@ -3516,6 +3740,15 @@ export function traitsAllowed(c, traits, { raging = false } = {}) {
 
 export function canCast(c, spell) {
     if (!castableAtAll(spell)) return false;
+    // (2026-10-22, Steal Voice: voiceless — no spell but a subtle one, no auditory action.)
+    if (c.cond?.voiceless && ((isSpellCast(spell) && !(spell.plan?.traits ?? []).includes("subtle")) || (spell.plan?.traits ?? []).includes("auditory"))) return false;
+    // (Binding Muzzle: no breath; Sensory Deprivation's hands — no manipulate action — and mouth — no auditory one.)
+    if (c.hindrances?.length) {
+        const traits = spell.plan?.traits ?? [];
+        if (hinderedBy(c, "muzzled") && /\bbreath\b/i.test(String(spell.name ?? ""))) return false;
+        const senses = c.hindrances.filter((entry) => entry.kind === "deprived").flatMap((entry) => entry.senses ?? []);
+        if ((senses.includes("hands") && traits.includes("manipulate")) || (senses.includes("mouth") && traits.includes("auditory"))) return false;
+    }
     // (L5: a coven spell, only with its coven beside it.)
     if (spell.coven && !c.covenReady) return false;
     // Recharging (a breath weapon used a round ago).
@@ -3894,6 +4127,21 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         entry.damage += chance * groundDamage(state, target, change.slug === "landed" ? 0.5 : Math.min(3, durationRounds(change.duration)));
                         continue;
                     }
+                    // (Control — banished, contained, tribute: controlWorth. Voiceless: its spellcasting's share of its threat, each round.)
+                    if (CONTROL_STATES.has(change.slug) && (spell.plan?.control ?? []).includes(change.slug)) {
+                        const held = controlWorth(state, spell, target, change);
+                        entry.damage += chance * held.damage;
+                        entry.worth += chance * held.worth;
+                        continue;
+                    }
+                    if (spell.plan?.hinder && /^hinder:/.test(String(change.slug))) {
+                        entry.worth += chance * hinderWorth(state, spell, target, change);
+                        continue;
+                    }
+                    if (change.slug === "voiceless" && !target.cond?.voiceless) {
+                        entry.worth += chance * (1 - (state.strikeShare?.get(target.id) ?? 1)) * Math.min(3, durationRounds(change.duration));
+                        continue;
+                    }
                     // (A curse that hurts as it acts or is hit — curseDamage.)
                     if (spell.plan?.curse && /^curse:/.test(String(change.slug))) {
                         if (!(target.curses ?? []).some((held) => held.spell === spell.name)) entry.damage += chance * curseDamage(state, caster, spell, target, change.slug.slice("curse:".length), Math.min(3, durationRounds(change.duration)));
@@ -4238,7 +4486,7 @@ export function spellGaps(spell) {
             break;
         }
         for (const change of result.changes) {
-            if (change.op === "condition" && !MODELLED_CONDITIONS.has(change.slug) && !plan.marks?.[change.slug] && !(plan.curse && /^curse:/.test(String(change.slug)))) missing.add(`condition: ${change.slug}`);
+            if (change.op === "condition" && !MODELLED_CONDITIONS.has(change.slug) && !plan.marks?.[change.slug] && !(plan.curse && /^curse:/.test(String(change.slug))) && !(plan.control ?? []).includes(change.slug) && !(plan.hinder && /^hinder:/.test(String(change.slug)))) missing.add(`condition: ${change.slug}`);
             else if (change.op === "effect" && change.effect?.kind === "native" && spell.effects?.[change.effect.uuid]) {
                 const model = spell.effects[change.effect.uuid];
                 if (model.unsupported.length) missing.add(`${model.name.replace(/^Spell Effect: /, "")}: ${model.unsupported.join(", ")}`);
@@ -4301,7 +4549,7 @@ function chainFrom(first, foes, feet) {
 // in a fight; a spell effect it counteracts, counteract.js).
 function playedGap(spell, what) {
     const resolution = spell.plan?.resolution ?? {};
-    if (what === "chain" || what === "splash" || what === "magicItem" || what === "artifactFails") return true;
+    if (what === "chain" || what === "splash" || what === "magicItem" || what === "artifactFails" || what === "casterConditions") return true;
     // (S59, Sure Strike: used up by the next attack roll, once a fight, and its note on concealed and hidden targets.)
     if (what === "consumeOn") return resolution.consumeOn?.on === "attack-roll";
     if (what === "temporaryImmunity") return Boolean(castImmunityKey(spell));

@@ -12,7 +12,7 @@ import { adjustInstance, strikeContext } from "./damage.js";
 import { effectBenefit } from "./effects.js";
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
-import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
+import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hinderedBy, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, fliesNow, flankChance, isIncorporeal, levitating, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { gridFlanked, gridStrides, planStride, strideGoes } from "./grid-fight.js";
 import { distanceFeet, reaches as gridReaches, sightLine, squareOf } from "./grid.js";
@@ -278,9 +278,11 @@ class PlanContext {
         // (A charm: not the creature that charmed it.)
         this.enemies = state.list.filter((other) => other.side !== c.side && isActive(other) && !(c.side === "party" && other.moraleState?.leaving) && !spares(c, other));
         this.enemyIndex = new Map(this.enemies.map((enemy, index) => [enemy.id, index]));
-        this.allies = state.list.filter((other) => other.side === c.side && isActive(other) && other !== c);
+        // (2026-10-22, Vicious Jealousy, Paranoia: no one its ally — nothing it does helps another.)
+        const allyless = Boolean(hinderedBy(c, "allyless"));
+        this.allies = allyless ? [] : state.list.filter((other) => other.side === c.side && isActive(other) && other !== c);
         // Healing reaches downed PCs too.
-        this.alliesAndDown = state.list.filter((other) => other.side === c.side && other !== c && (isActive(other) || (other.status === "down" && other.kind === "pc")));
+        this.alliesAndDown = allyless ? [] : state.list.filter((other) => other.side === c.side && other !== c && (isActive(other) || (other.status === "down" && other.kind === "pc")));
         this.defenders = this.allies.length + 1;
         this.strikeCache = new Map();
         this.terminalCache = new Map();

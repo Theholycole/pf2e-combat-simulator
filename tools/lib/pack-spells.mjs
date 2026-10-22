@@ -58,8 +58,17 @@ export const withTextConditions = (models, doc, rank = 1) => withSpellText(model
 export const effectItemById = (uuid) => effectsById.get(String(uuid ?? "").split(".").pop()) ?? null;
 
 // (2026-10-14: with the simulator's own reading of a spell the compiler leaves without a plan — Evil Eye.)
+// (2026-10-22: and its heightened entries' targets — Fear's 5 creatures at 3rd, Slow's 10 at 6th —, which the compiler leaves out: the
+// plan's heightenedTargets, each fight's entries taking theirs at their rank, spells.js atCastRank. From the text where the data has none:
+// "Heightened (8th) You can target up to 10 creatures".)
+const HEIGHTENED_TARGETS = /Heightened \((\d+)(?:st|nd|rd|th)\)\s*(?:<\/strong>)?\s*(?:<\/p>)?\s*(?:<p>)?\s*You can target (up to (?:\d+|one|two|three|four|five|six|ten) creatures|\d+ creatures)/gi;
 export function compileSpell(spell) {
-  return withReading(compileAbility(spell, { nativeEffectCatalog, referencedSpells }));
+  const plan = withReading(compileAbility(spell, { nativeEffectCatalog, referencedSpells }));
+  const heightening = spell?.system?.heightening;
+  let steps = heightening?.type === "fixed" ? Object.entries(heightening.levels ?? {}).filter(([, entry]) => entry?.target?.value).map(([rank, entry]) => ({ minRank: Number(rank), target: String(entry.target.value) })) : [];
+  if (!steps.length) steps = [...String(spell?.system?.description?.value ?? "").matchAll(HEIGHTENED_TARGETS)].map((hit) => ({ minRank: Number(hit[1]), target: hit[2] }));
+  steps.sort((a, b) => a.minRank - b.minRank);
+  return steps.length && plan ? { ...plan, heightenedTargets: steps } : plan;
 }
 
 // A PF2e spell by its name (remaster names), or null.

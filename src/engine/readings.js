@@ -98,7 +98,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading(plan) } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved))))))))))))))))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withHinders(withControls(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved))))))))))))))))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -403,6 +403,57 @@ function withCurses(plan) {
         return [degree, { ...entry, noteEffects: [], effects: [...(entry?.effects ?? []), { kind: "condition", slug: `curse:${mode[0]}`, value: null, duration: mode[1] ? { mode: "fixed", value: mode[1], unit: "rounds" } : null }] }];
     }));
     return { ...plan, simulatorReading: true, curse: { kind: curse.kind }, resolution: { ...plan.resolution, outcomes } };
+}
+
+// (2026-10-22, family 4 — control.) Banishment: a creature not on its home plane (an "extraplanar" target: fiends, celestials, elementals,
+// monitors, the summoned) banished on a failure; Containment: a force field about it — 40 Hit Points, 10 on a success, 15 / 5 more a rank
+// past 4th (no critical failure row: the failure's); Steal Voice: voiceless — no spells but subtle ones, nothing auditory — till its next
+// turn's end, a minute, or for good; Overwhelming Presence: its tribute, an action each turn, 2 or 6 of them (all its actions on a
+// critical failure), fascinated while it pays. Their rows as the simulator's conditions (spells.js applyControl).
+const CONTROLS = {
+    banishment: { failure: ["banished", null, null], criticalFailure: ["banished", null, null] },
+    containment: { success: ["contained", 10, 10], failure: ["contained", 40, 10], criticalFailure: ["contained", 40, 10] },
+    "steal-voice": { success: ["voiceless", null, 1], failure: ["voiceless", null, 10], criticalFailure: ["voiceless", null, 0] },
+    "overwhelming-presence": { success: ["tribute", 2, 10], failure: ["tribute", 6, 10], criticalFailure: ["tribute-all", 6, 10] }
+};
+// (2026-10-22, family 4 — hindrances.) What each row keeps the creature from, for its rounds: Binding Muzzle — its mouth's attacks and
+// breath (muzzled), on a failure a DC 11 flat check to cast (muzzle-tight), on a critical failure no speech (voiceless); Vicious Jealousy,
+// Paranoia — no one its ally (allyless: nothing that helps another), Vicious Jealousy's critical failure its first action spent waving off
+// an ally in reach (jealous); Bewilder — a flat check before each hostile action (DC 6, DC 11 on a critical failure), the failure's with a
+// Will save at each turn's end; Sensory Deprivation — eyes, hands or mouth (deprived: one of them, two on a critical failure). Rows as
+// "hinder:<kind>[:<flat DC or senses>[:will]]" conditions (the core passes a condition's slug, value and time only; spells.js applyHinder).
+const HINDERS = {
+    "binding-muzzle": { success: [["muzzled", 1]], failure: [["muzzled", 10], ["muzzle-tight", 10]], criticalFailure: [["muzzled", 10], ["voiceless", 10]] },
+    "vicious-jealousy": { success: [["allyless", 1]], failure: [["allyless", 10]], criticalFailure: [["allyless", 10], ["jealous", 10]] },
+    paranoia: { success: [["allyless", 1]], failure: [["allyless", 10]], criticalFailure: [["allyless", 10]] },
+    bewilder: { success: [["bewildered", 1, { flat: 6, turnEnd: true }]], failure: [["bewildered", 10, { flat: 6, saveEnds: "will" }]], criticalFailure: [["bewildered", 10, { flat: 11 }]] },
+    "sensory-deprivation": { success: [["deprived", 1, { senses: 1 }]], failure: [["deprived", 10, { senses: 1 }]], criticalFailure: [["deprived", 10, { senses: 2 }]] }
+};
+function withHinders(plan) {
+    const hinder = HINDERS[plan?.source?.slug];
+    if (!hinder || plan.resolution?.kind !== "save") return plan;
+    const outcomes = Object.fromEntries(Object.entries(plan.resolution.outcomes ?? {}).map(([degree, entry]) => {
+        const reads = hinder[degree];
+        if (!reads) return [degree, { ...entry, noteEffects: [] }];
+        const slug = (kind, extra) => (kind === "voiceless" ? kind : [`hinder:${kind}`, ...(extra?.flat ?? extra?.senses ? [extra.flat ?? extra.senses] : []), ...(extra?.saveEnds ? [extra.saveEnds] : [])].join(":"));
+        const effects = reads.map(([kind, rounds, extra]) => ({ kind: "condition", slug: slug(kind, extra), value: null, duration: { mode: "fixed", value: rounds, unit: "rounds", ...(extra?.turnEnd ? { expiry: "turn-end" } : {}) } }));
+        return [degree, { ...entry, noteEffects: [], rowNotes: [], effects: [...(entry?.effects ?? []).filter((effect) => effect?.kind !== "note"), ...effects] }];
+    }));
+    return { ...plan, simulatorReading: true, hinder: true, resolution: { ...plan.resolution, outcomes } };
+}
+
+function withControls(plan) {
+    const control = CONTROLS[plan?.source?.slug];
+    if (!control || plan.resolution?.kind !== "save") return plan;
+    const outcomes = Object.fromEntries(Object.entries(plan.resolution.outcomes ?? {}).map(([degree, entry]) => {
+        const read = control[degree];
+        if (!read) return [degree, { ...entry, noteEffects: [] }];
+        const [slug, value, rounds] = read;
+        const duration = rounds === null ? null : rounds === 0 ? null : { mode: "fixed", value: rounds, unit: "rounds" };
+        return [degree, { ...entry, noteEffects: [], effects: [...(entry?.effects ?? []), { kind: "condition", slug, value, duration }] }];
+    }));
+    const extraplanar = plan.source.slug === "banishment" ? { targeting: { ...plan.targeting, actorConstraints: { ...(plan.targeting?.actorConstraints ?? {}), predicates: [...(plan.targeting?.actorConstraints?.predicates ?? []), { kind: "extraplanar" }] } } } : {};
+    return { ...plan, simulatorReading: true, ...extraplanar, control: [...new Set(Object.values(control).map((read) => read[0]))], resolution: { ...plan.resolution, outcomes } };
 }
 
 // Agitate (2026-10-22, flying and the like): "the target must Stride, Fly, or Swim at least once each turn or take 2d8 mental damage at the

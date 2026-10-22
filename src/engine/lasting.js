@@ -2,12 +2,12 @@
 // (floors.js) — each an entry { by, spell, untilRound, sustained } in the creature's list. At the caster's turn start those that ran
 // out end, and a sustained spell costs it an action (PF2e's Sustain), or ends when it can't act or is gone.
 
-const LISTS = { pacified: "under", condFloors: "floor of", reactionLocks: "reactions locked by", dancing: "dancing to", spellLocks: "kept from casting by", marks: "marked by", curses: "cursed by" };
+const LISTS = { pacified: "under", condFloors: "floor of", reactionLocks: "reactions locked by", dancing: "dancing to", spellLocks: "kept from casting by", marks: "marked by", curses: "cursed by", hindrances: "hindered by" };
 
 export function endEntries(state, c, list, entries, why) {
     if (!entries.length) return;
     c[list] = (c[list] ?? []).filter((entry) => !entries.includes(entry));
-    const what = { pacified: (entry) => `under ${entry.spell}`, condFloors: (entry) => `held by ${entry.spell}`, reactionLocks: (entry) => `kept from reacting by ${entry.spell}`, dancing: (entry) => `dancing to ${entry.spell}`, spellLocks: (entry) => `kept from casting by ${entry.spell}`, marks: (entry) => `marked by ${entry.spell}`, curses: (entry) => `cursed by ${entry.spell}` }[list];
+    const what = { pacified: (entry) => `under ${entry.spell}`, condFloors: (entry) => `held by ${entry.spell}`, reactionLocks: (entry) => `kept from reacting by ${entry.spell}`, dancing: (entry) => `dancing to ${entry.spell}`, spellLocks: (entry) => `kept from casting by ${entry.spell}`, marks: (entry) => `marked by ${entry.spell}`, curses: (entry) => `cursed by ${entry.spell}`, hindrances: (entry) => `${entry.kind} (${entry.spell})` }[list];
     for (const entry of entries) state.log?.push(`  ${c.name} is no longer ${what(entry)}${why ? ` (${why})` : ""}`);
 }
 

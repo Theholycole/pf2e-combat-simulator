@@ -113,7 +113,8 @@ export function createCombatant(spec) {
 // Swallowed creatures (Swallow Whole) are still fighting, but out of everyone else's reach; so is an incorporeal one inside the floor or a
 // wall (space.js isIncorporeal).
 export function isActive(c) {
-    return c.status === ACTIVE && !c.swallowedBy && !c.insideObject;
+    // (2026-10-22, Containment: in its field, out of reach — spells.js heldTurnStart.)
+    return c.status === ACTIVE && !c.swallowedBy && !c.insideObject && !c.contained;
 }
 
 // asleep: a spell's unconsciousness (Sleep), which damage ends; the creature stays in the fight.
@@ -165,8 +166,13 @@ export function isOffGuard(c) {
 // A Strike a disarmed creature can't make until it picks its weapon up (Disarm),
 // or a two-handed one while a hand carries an objective's item.
 export function strikeUsable(c, strike) {
-    return !c.dropped?.has(strike.name) && !(c.carrying && strike.hands === 2) && (!strike.ammo || ammoLeft(c, strike) > 0);
+    return !c.dropped?.has(strike.name) && !(c.carrying && strike.hands === 2) && (!strike.ammo || ammoLeft(c, strike) > 0) && !(c.hindrances?.length && hinderedBy(c, "muzzled") && MOUTH.test(String(strike.name ?? "")));
 }
+
+// (2026-10-22, family 4: what a spell keeps the creature from — spells.js applyHinder, lasting.js "hindrances". Binding Muzzle: an attack
+// from the mouth.)
+export const hinderedBy = (c, kind) => (c?.hindrances ?? []).find((entry) => entry.kind === kind) ?? null;
+export const MOUTH = /\b(?:jaws?|bite|beak|fangs?|mandibles?|tongue|maw|proboscis|mouth)\b/i;
 
 // U2 (2026-10-15), bombs: a Strike with a thrown consumable (strike.ammo: { pool, reagents, startsEmpty }) — its stack, and for an alchemist
 // with Quick Alchemy the infused reagents that make more.

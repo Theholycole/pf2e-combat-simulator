@@ -376,6 +376,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (!strikeUsable(attacker, strike)) return null;
     // (Sanctuary: a save first; stopped, the action is wasted.)
     if (wardBlocks(state, attacker, target)) return null;
+    if (bewilderFails(state, attacker)) return null;
     // (U2: a bomb is used up as it's thrown, hit or miss.)
     spendAmmo(attacker, strike);
     // (An attack, hit or miss, is hostility: it ends Calm, and a charm the attacker put on the target.)
@@ -2035,14 +2036,26 @@ export function emerge(state, c) {
     if (state.grid && c.square) regroup(state);
 }
 
-export function leaveField(state, c) {
+// (2026-10-22, Bewilder: a flat check before each hostile action — DC 6, 11 on a critical failure —; failed, the action's lost.)
+export function bewilderFails(state, c) {
+    const held = (c?.hindrances ?? []).filter((entry) => entry.kind === "bewildered");
+    if (!held.length) return false;
+    const dc = Math.max(...held.map((entry) => entry.flat ?? 6));
+    if (flatCheck(state.rng, dc) >= SUCCESS) return false;
+    log(state, `  ${c.name} is bewildered and holds back (DC ${dc} flat check)`);
+    return true;
+}
+
+export function leaveField(state, c, { banished = false } = {}) {
     releaseGrabs(state, c);
     releaseAllSwallowed(state, c, "is freed");
     leaveMelee(state, c, "gone");
     c.status = FLED;
-    log(state, `  ${c.name} leaves the battlefield`);
+    // (2026-10-22, Banishment: sent to its home plane — gone, not run off: no help fetched, no rout.)
+    if (banished) c.banished = true;
+    log(state, `  ${c.name} ${banished ? "is banished" : "leaves the battlefield"}`);
     // A runner (E1): gone to fetch help.
-    if (c.alarm === "runner" && state.escalation && !state.escalation.alarm.raised) {
+    if (!banished && c.alarm === "runner" && state.escalation && !state.escalation.alarm.raised) {
         c.ranForHelp = true;
         raiseAlarm(state, c);
     }

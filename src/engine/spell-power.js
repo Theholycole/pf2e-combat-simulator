@@ -67,7 +67,11 @@ const TRAIT_PACKAGES = {
     // (2026-10-22, the unsimulated families — Dispel Magic's counteract: foes under a spell of their own rank, Haste's quickening — the spell a
     // caster most wants gone; Cleanse Affliction's: the party's fighter poisoned, at stage 2.)
     "spell-buffed": { buff: true },
-    "afflicted-ally": { allyAffliction: true }
+    "afflicted-ally": { allyAffliction: true },
+    // (Steal Voice's: foes whose spells are half of what they do — the rest their Strikes.)
+    spellcaster: { spellShare: 0.5 },
+    // (Binding Muzzle's: foes that bite — their Strike their jaws, beside an agile claw a die size smaller.)
+    biter: { biter: true }
 };
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
 export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
@@ -98,6 +102,7 @@ export function powerFoes(kind, level, trait = null) {
         if (pack?.permanent) foe.permanent = [...(foe.permanent ?? []), ...pack.permanent.map((entry) => ({ ...entry }))];
         if (pack?.strikeType) foe.strikes = (foe.strikes ?? []).map((strike) => ({ ...strike, damage: (strike.damage ?? []).map((part) => ({ ...part, type: pack.strikeType })) }));
         if (pack?.flies) foe.flies = true;
+        if (pack?.biter && (foe.strikes ?? []).length) foe.strikes = [{ ...foe.strikes[0], name: "Jaws" }, { ...foe.strikes[0], name: "Claw", agile: true, damage: foe.strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: Math.max(4, part.die - 2), type: "slashing" } : part)) }];
         if (pack?.rangedStrike && (foe.strikes ?? []).length) foe.strikes = [...foe.strikes, { ...foe.strikes[0], name: `${foe.strikes[0].name ?? "Strike"} (ranged)`, melee: false, increment: 60, reach: undefined }];
         if (pack?.resistances) foe.resistances = [...(foe.resistances ?? []), ...pack.resistances.map((entry) => ({ ...entry, value: typicalWeakness(foe.level) }))];
         return pack?.traits ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities], weaknesses: (pack.weaknesses ?? []).map((type) => ({ type, value: typicalWeakness(foe.level) })) } : foe;
@@ -105,6 +110,7 @@ export function powerFoes(kind, level, trait = null) {
     const foes = kind === "boss" ? [make(level + 2, "monster")] : [0, 1, 2, 3].map((index) => make(level - 2, index ? `monster-${index}` : "monster"));
     if (pack?.allyAffliction) Object.assign(foes, { allyAffliction: true });
     if (pack?.buff) Object.assign(foes, { spellBuffed: true });
+    if (pack?.spellShare) Object.assign(foes, { spellShare: pack.spellShare });
     return pack?.environment ? Object.assign(foes, { environment: { ...pack.environment } }) : foes;
 }
 
@@ -217,6 +223,14 @@ export function powerConditions(plan, effects = null, text = "") {
     if (/"slug":"(?:landed|grounded)"/.test(JSON.stringify(plan?.resolution ?? null))) traits.add("flying");
     // (Dimming its sight — Penumbral Shroud —: against foes without darkvision.)
     if (/"slug":"dimmed"/.test(JSON.stringify(plan?.resolution ?? null))) traits.add("no-darkvision");
+    // (Banishment's extraplanar target: against fiends, celestials, elementals.)
+    if ((plan?.targeting?.actorConstraints?.predicates ?? []).some((predicate) => predicate?.kind === "extraplanar")) for (const trait of ["fiend", "celestial", "elemental"]) traits.add(trait);
+    // (Taking a foe's voice — Steal Voice —: against foes whose spells are half their threat; its spells or its mouth — Binding Muzzle, Sensory
+    // Deprivation —: against those, and biters.)
+    if ((plan?.control ?? []).includes("voiceless")) traits.add("spellcaster");
+    const hinders = plan?.hinder ? JSON.stringify(plan.resolution?.outcomes ?? null) : "";
+    if (/"hinder:(?:muzzle-tight|deprived)/.test(hinders) || /"slug":"voiceless"/.test(hinders)) traits.add("spellcaster");
+    if (/"hinder:muzzled"/.test(hinders)) traits.add("biter");
     // (A counteract or an affliction's care — 2026-10-22: Dispel Magic against foes under a spell; Cleanse Affliction, Purging Toxins on a
     // poisoned ally.)
     if (plan?.resolution?.kind === "affliction-care") traits.add(/\bspell effect\b/i.test(String(plan.targeting?.target ?? "")) ? "spell-buffed" : "afflicted-ally");
@@ -351,6 +365,10 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
     caster.actionsLeft = 3;
     if (foes?.allyAffliction && state.byId.get("fighter")) poisonAlly(state.byId.get("fighter"));
     if (foes?.spellBuffed) for (const [index, foe] of state.list.filter((c) => c.side !== caster.side).entries()) hasteFoe(foe, 900000 + index);
+    if (foes?.spellShare) {
+        state.strikeShare ??= new Map();
+        for (const foe of state.list.filter((c) => c.side !== caster.side)) state.strikeShare.set(foe.id, 1 - foes.spellShare);
+    }
     const enemies = state.list.filter((c) => c.side !== caster.side && isActive(c));
     const allies = state.list.filter((c) => c.side === caster.side && isActive(c));
     const aimed = minion ? allies.filter((c) => c.id === "minion") : allies;
