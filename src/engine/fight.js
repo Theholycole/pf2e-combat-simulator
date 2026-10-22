@@ -2,7 +2,7 @@
 
 import { createRng } from "./rng.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCCESS } from "./checks.js";
-import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
+import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
 import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
@@ -230,7 +230,8 @@ function rollInitiative(state, snapshot) {
         if (roll.stat === "stealth") state.stealthInitiative.add(c.id);
         if (roll.stat !== "perception" && !usesStealth(c)) state.log?.push(`  ${c.name} rolls ${roll.stat.replace(/-/g, " ")} for initiative`);
         // Ten Paces: +2 circumstance to the initiative roll (C18); not with another circumstance bonus.
-        const modifier = roll.value + Math.max(c.initiativeBonus ?? 0, warned.get(c.id) ?? 0);
+        // (2026-10-22: an effect's initiative bonus — Anticipate Peril's.)
+        const modifier = roll.value + Math.max(c.initiativeBonus ?? 0, warned.get(c.id) ?? 0) + effectBonus(c, "initiative");
         // (U11, Eye of Apprehension: Perception for initiative rolled twice, the higher kept.)
         const twice = roll.stat === "perception" && c.fortuneItems?.length && initiativeFortune(state, c);
         return { c, total: (twice ? Math.max(state.rng.d20(), state.rng.d20()) : state.rng.d20()) + modifier, modifier };

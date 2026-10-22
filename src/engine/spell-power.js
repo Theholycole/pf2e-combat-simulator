@@ -233,7 +233,9 @@ export function powerConditions(plan, effects = null, text = "") {
     if (/"hinder:muzzled"/.test(hinders)) traits.add("biter");
     // (A counteract or an affliction's care — 2026-10-22: Dispel Magic against foes under a spell; Cleanse Affliction, Purging Toxins on a
     // poisoned ally.)
-    if (plan?.resolution?.kind === "affliction-care") traits.add(/\bspell effect\b/i.test(String(plan.targeting?.target ?? "")) ? "spell-buffed" : "afflicted-ally");
+    // (2026-10-22, family 5: a spell ward, Prismatic Shield — against foes that cast.)
+    if (["turning", "immunity", "globe", "prismatic"].includes(plan?.defence?.kind)) traits.add("spellcaster");
+    if (plan?.resolution?.kind === "affliction-care" && !plan?.defence) traits.add(/\bspell effect\b/i.test(String(plan.targeting?.target ?? "")) ? "spell-buffed" : "afflicted-ally");
     if ((plan?.traits ?? []).includes("holy")) traits.add("fiend");
     if ((plan?.traits ?? []).includes("unholy")) traits.add("celestial");
     // (Circle of Protection: against unholy or holy foes.)

@@ -12,9 +12,9 @@
 
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
-import { ACTIVE, DOWN, MOUTH, armorClass, canAct, canMove, effectBonus, hinderedBy, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
+import { ACTIVE, DOWN, MOUTH, armorClass, canAct, canMove, defenceOf, effectBonus, hinderedBy, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune, weaknessCost } from "./effects.js";
-import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, bewilderFails, leaveField, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, bewilderFails, foresightReact, leaveField, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { dimWorth, lightAuraModel, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
@@ -227,9 +227,10 @@ function readSpell(base, actions) {
         // (Dispel Magic, Clear Mind: an ally's hindrance as readily as a foe's help.)
         // (Sanctuary: a ward on an ally.)
         // (Mirror Image: images on the caster.)
-        helpful: kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care" || kind === "attack-ward" || kind === "image-decoys",
+        // (2026-10-22, family 5: a defence the simulator keeps itself — readings.js withDefences.)
+        helpful: kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care" || kind === "attack-ward" || kind === "image-decoys" || Boolean(plan?.defence),
         // No target, range or area: the caster itself (the battle forms).
-        self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self")) || conditionNote?.recipient === "source" || (kind === "affliction-care" && plan.resolution.recipient === "self") || kind === "image-decoys"
+        self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self")) || conditionNote?.recipient === "source" || (kind === "affliction-care" && plan.resolution.recipient === "self") || kind === "image-decoys" || ["prismatic", "indestructible", "turning", "globe"].includes(plan?.defence?.kind)
     };
 }
 
@@ -299,7 +300,7 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
         statistic: (c, slug) => {
             // (B302: off-guard to the caster by its own passive — Surprise Attack's spell attacks.)
             // (Arcane Countermeasure: +2 to its targets against the spell — spell.countered.)
-            if (slug === "ac") return { dc: armorClass(c, { flanked: c !== caster && offGuardFrom(state, caster, c, { spell: true }) }) + (c !== caster ? Number(spell.countered) || 0 : 0) };
+            if (slug === "ac") return { dc: armorClass(c, { flanked: c !== caster && offGuardFrom(state, caster, c, { spell: true }) }) + (c !== caster ? (Number(spell.countered) || 0) + forbiddingBonus(c, caster) : 0) };
             // Spell attacks have the attack trait, so the multiple attack penalty applies.
             if (slug === "spell") return { modifier: (spell.attack ?? 0) - checkPenalty - mapPenalty() + effectBonus(c, "spell") + effectBonus(c, "attack"), dc: (spell.dc ?? 10) - checkPenalty + effectBonus(c, "spell") };
             if (slug === "strike") return { modifier: Math.max(0, ...(c.strikes ?? []).map((strike) => strike.bonus)) - checkPenalty - mapPenalty() + effectBonus(c, "attack") };
@@ -307,7 +308,8 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
             if (slug === "attack" && spell.ownAttack && c === caster) return { modifier: ownAttackModifier(spell, c) - mapPenalty() + effectBonus(c, "attack") };
             if (slug === "fortitude" || slug === "reflex" || slug === "will") {
                 // +1 status to all saves vs. magic and the like, against this spell or ability.
-                const modifier = saveModifier(c, slug) + (c !== caster ? saveBonusAgainst(c, slug, spell) + (Number(spell.countered) || 0) : 0);
+                // (2026-10-22, Forbidding Ward: its bonus against the foe it names.)
+                const modifier = saveModifier(c, slug) + (c !== caster ? saveBonusAgainst(c, slug, spell) + (Number(spell.countered) || 0) + forbiddingBonus(c, caster) : 0);
                 if (slug === "reflex" && c !== caster && disarmBonus(spell, c)) return { modifier, dc: 10 + saveModifier(c, slug) - disarmBonus(spell, c) };
                 return { modifier };
             }
@@ -576,6 +578,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
         harmedAfterGivingUp(state, target, source);
         hostility(state, target, source);
     }
+    // (2026-10-22, Indestructibility: harmed by nothing till its next turn.)
+    if (source !== target && !NOT_HARMFUL.has(slug) && defenceOf(target, "indestructible")) return false;
     // Off-guard to one creature's attacks only (Feint, Create a Diversion).
     if (slug === "off-guard" && scope?.attacker) {
         const entry = { attacker: scope.attacker, attacks: scope.attacks ?? "any", uses: scope.uses ?? null };
@@ -1617,6 +1621,225 @@ function controlWorth(state, spell, target, change) {
     if ((target.tribute?.left ?? 0) >= (Number(change.value) || 2) && (target.tribute.all || change.slug !== "tribute-all")) return { damage: 0, worth: 0 };
     const actions = Math.min(Number(change.value) || 2, change.slug === "tribute-all" ? 9 : 3);
     return { damage: 0, worth: actions / 3 + 0.1 };
+}
+
+// --- Defences (2026-10-22, family 5; readings.js withDefences) ----------------------------------------------------------------------------
+
+// Its entry in the creature's defences (lasting.js: ended at the caster's turn start when its time's up, at its own turn's start for one
+// that lasts till then, Sustained if the spell is): its counteract rank and modifier (the caster's spell attack), the spell's DC.
+const SELF_DEFENCES = new Set(["turning", "globe", "prismatic", "indestructible"]);
+function applyDefence(state, caster, spell, target) {
+    const defence = spell.plan.defence;
+    // (Its caster's own, or an ally's — never a foe caught in Dispelling Globe's burst; Forbidding Ward's an ally other than the caster.)
+    if (!isActive(target) || target.side !== caster.side || (SELF_DEFENCES.has(defence.kind) && target !== caster) || (defence.kind === "forbidding" && target === caster)) return;
+    const entry = { by: caster.id, spell: spell.name, kind: defence.kind, untilRound: Number.isFinite(defence.rounds) ? state.round + defence.rounds : Infinity, sustained: Boolean(defence.sustained), ownTurn: Boolean(defence.ownTurn), rank: Math.max(1, (Number(spell.castRank) || 1) + (defence.rankOffset ?? 0)), modifier: Number(spell.attack) || 0, dc: effectDC(spell) };
+    if (defence.kind === "immunity") entry.named = immunityPick(state, target);
+    if (defence.kind === "forbidding") {
+        entry.enemy = forbiddingPick(state, target)?.id ?? null;
+        entry.bonus = (Number(spell.castRank) || 1) >= 6 ? 2 : 1;
+    }
+    if ((defence.kind === "immunity" && !entry.named) || (defence.kind === "forbidding" && !entry.enemy)) return;
+    // (Foresight: one at a time — casting it again ends the last.)
+    if (defence.kind === "foresight") for (const other of state.list) if (other.defences?.length) other.defences = other.defences.filter((held) => !(held.kind === "foresight" && held.by === caster.id));
+    target.defences = [...(target.defences ?? []).filter((held) => held.kind !== defence.kind || held.by !== caster.id), entry];
+    const against = entry.named ?? (entry.enemy ? state.byId.get(entry.enemy)?.name : null);
+    log(state, `  ${target.name} is under ${spell.name}${against ? ` (against ${against})` : ""}`);
+}
+
+// Spell Immunity's spell: the most damaging its foes can cast at it — the highest-ranked harmful spell among them.
+function immunityPick(state, target) {
+    const spells = state.list.filter((other) => other.side !== target.side && isActive(other)).flatMap((other) => (other.spells ?? []).filter((each) => isSpellCast(each) && poolReady(other, each) && !describeSpell(each.plan).helpful && !describeSpell(each.plan).healing));
+    return spells.sort((a, b) => (Number(b.castRank) || 0) - (Number(a.castRank) || 0))[0]?.name ?? null;
+}
+
+// Forbidding Ward's foe: the one in the ally's Melee, else anywhere, that threatens it most.
+function forbiddingPick(state, target) {
+    const foes = state.list.filter((other) => other.side !== target.side && isActive(other) && other.kind !== "object");
+    const threat = (foe) => (state.threat?.get(foe.id) ?? 0) + (sameMelee(foe, target) ? 1000 : 0);
+    return foes.sort((a, b) => threat(b) - threat(a))[0] ?? null;
+}
+
+// Forbidding Ward's bonus against that foe, to AC and saves.
+export function forbiddingBonus(target, foe) {
+    const ward = defenceOf(target, "forbidding");
+    return ward && foe && ward.enemy === foe.id ? ward.bonus : 0;
+}
+
+// The wards over a target as a foe's spell comes: its own (Spell Turning a targeted spell, with its reaction; Spell Immunity the spell named;
+// Prismatic Shield a targeted spell) and the globes it's inside (a Dispelling Globe's owner, or one in its Melee while the owner hasn't
+// left the spot, the spell's caster outside).
+function wardsOver(state, caster, target, info) {
+    const own = (target.defences ?? []).filter((entry) => (entry.kind === "turning" && !info.area && canReact(target, entry.spell)) || (entry.kind === "immunity") || (entry.kind === "prismatic" && !info.area));
+    const globes = state.list.filter((owner) => owner.side === target.side && isActive(owner) && (owner === target || sameMelee(owner, target)) && !(caster === owner || sameMelee(caster, owner))).map((owner) => defenceOf(owner, "globe")).filter((entry) => entry && !entry.left);
+    return [...own, ...globes];
+}
+
+// A foe's harmful spell meeting the wards over its targets: each target a ward counteracts is left out of it; one Spell Turning turns
+// back adds the caster to them. Returns the targets, or null when no ward was met.
+function spellWardAnswer(state, caster, spell, targets) {
+    const info = describeSpell(spell.plan);
+    if (info.helpful || info.healing || !isSpellCast(spell)) return null;
+    const rank = Number(spell.castRank) || Number(spell.plan?.rank) || 1;
+    let out = targets;
+    let turned = false;
+    let met = false;
+    for (const target of targets) {
+        if (target.side === caster.side) continue;
+        for (const ward of wardsOver(state, caster, target, info)) {
+            if (ward.kind === "immunity" && ward.named !== spell.name) continue;
+            met = true;
+            // (Prismatic Shield: the spell's caster counteracts the shield, or the spell fails on it.)
+            if (ward.kind === "prismatic") {
+                const through = counterRoll(state, Number(spell.attack) || 0, rank, { dc: ward.dc, rank: ward.rank });
+                log(state, `  ${spell.name} meets ${target.name}'s ${ward.spell}: ${through.total} vs ${ward.dc} → ${through.success ? "through" : "fails on it"}`);
+                if (through.success) continue;
+                out = out.filter((other) => other !== target);
+                break;
+            }
+            if (ward.kind === "turning") {
+                spendReaction(target, ward.spell);
+                target.defences = target.defences.filter((held) => held !== ward);
+            }
+            const roll = counterRoll(state, ward.modifier, ward.rank, { dc: effectDC(spell), rank });
+            log(state, `  ${ward.spell} against ${spell.name} on ${target.name}: ${roll.total} vs ${effectDC(spell)} → ${roll.success ? (ward.kind === "turning" ? `turned back on ${caster.name}` : "counteracted") : "not counteracted"}`);
+            if (!roll.success) continue;
+            out = out.filter((other) => other !== target);
+            if (ward.kind === "turning") turned = true;
+            break;
+        }
+    }
+    if (!met) return null;
+    return turned && !out.includes(caster) ? [...out, caster] : out;
+}
+
+// Prismatic Shield: a melee attacker meets a shard — a beam of Prismatic Spray (1d8; an 8 two beams), its save against the shield's DC,
+// one d20 for all; a success negates it.
+const SPRAY = [
+    { name: "red", save: "reflex", damage: [50, "fire"] },
+    { name: "orange", save: "reflex", damage: [60, "acid"] },
+    { name: "yellow", save: "reflex", damage: [70, "electricity"] },
+    { name: "green", save: "fortitude", damage: [30, "poison"], conditions: [["enfeebled", 1, 10]] },
+    // (Blue: as Petrify — slowed 1, petrified for good on a critical failure.)
+    { name: "blue", save: "fortitude", conditions: [["slowed", 1, 10]], worse: "petrified" },
+    // (Indigo: confused, as Warp Mind.)
+    { name: "indigo", save: "will", conditions: [["confused", null, 10]] },
+    // (Violet: slowed 1 for a minute; sent to another plane on a critical failure.)
+    { name: "violet", save: "will", conditions: [["slowed", 1, 10]], worse: "away" }
+];
+export function prismaticSpray(state, attacker, entry) {
+    let faces = [state.rng.die(8)];
+    if (faces[0] === 8) {
+        faces = [];
+        for (let tries = 0; tries < 40 && faces.length < 2; tries++) {
+            const face = state.rng.die(8);
+            if (face !== 8 && !faces.includes(face)) faces.push(face);
+        }
+    }
+    const natural = state.rng.d20();
+    const source = state.byId.get(entry.by) ?? null;
+    for (const face of faces) {
+        const beam = SPRAY[face - 1];
+        if (!beam || !isActive(attacker)) continue;
+        const degree = degreeOf(natural + saveModifier(attacker, beam.save), entry.dc, natural);
+        log(state, `  ${attacker.name} meets a ${beam.name} shard of ${entry.spell}: ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}`);
+        if (degree >= SUCCESS) continue;
+        if (beam.damage) applyDamage(state, attacker, [{ type: beam.damage[1], amount: beam.damage[0], persistent: false, precision: false }], { source });
+        if (degree === CRITICAL_FAILURE && beam.worse === "away") {
+            leaveField(state, attacker, { banished: true });
+            continue;
+        }
+        if (degree === CRITICAL_FAILURE && beam.worse === "petrified") {
+            applyCondition(state, attacker, "petrified", null, null, source);
+            continue;
+        }
+        for (const [slug, value, rounds] of beam.conditions ?? []) if (isActive(attacker)) applyCondition(state, attacker, slug, value, { mode: "fixed", value: rounds, unit: "rounds" }, source);
+    }
+}
+
+// What a shard is worth on a melee attacker: each beam's damage and conditions at the odds of its save failing (an 8's two beams spread
+// over the seven).
+function sprayValue(foe, dc) {
+    const per = 1 / 8 + (1 / 8) * (2 / 7);
+    let damage = 0;
+    let worth = 0;
+    for (const beam of SPRAY) {
+        const odds = degreeDistribution(saveModifier(foe, beam.save), dc);
+        const fail = odds[0] + odds[1];
+        if (beam.damage) damage += per * fail * beam.damage[0];
+        for (const [slug, value, rounds] of beam.conditions ?? []) worth += per * (beam.worse ? odds[1] : fail) * conditionWorth(slug, value, { mode: "fixed", value: rounds, unit: "rounds" });
+        if (beam.worse) damage += per * odds[0] * Math.max(0, foe.hp?.value ?? 0);
+    }
+    return { damage, worth };
+}
+
+// What the defence is worth: on the creature it guards, the Hit Points it keeps off over up to three rounds — benefit 3 × kept / its Hit
+// Points, as a resistance's (resistanceKept) —, its foes' threat (a round's expected damage, state.threat) split over its side; a spell's
+// share of a foe's threat its spells (1 − its strikeShare). Prismatic Shield: the shards' beams, on the foes that would strike it in melee.
+function defenceEntries(state, caster, spell, targets) {
+    const defence = spell.plan.defence;
+    const out = [];
+    const rank = Math.max(1, (Number(spell.castRank) || 1) + (defence.rankOffset ?? 0));
+    const modifier = Number(spell.attack) || 0;
+    for (const target of targets) {
+        if (target.side !== caster.side || (SELF_DEFENCES.has(defence.kind) && target !== caster) || (defence.kind === "forbidding" && target === caster)) continue;
+        // (Under it already, from this caster: nothing more.)
+        if ((target.defences ?? []).some((held) => held.kind === defence.kind && held.by === caster.id)) {
+            out.push({ target, damage: 0, worth: 0, heal: 0, benefit: 0 });
+            continue;
+        }
+        const foes = state.list.filter((other) => other.side !== target.side && isActive(other) && other.kind !== "object");
+        const side = Math.max(1, state.list.filter((other) => other.side === target.side && isActive(other) && other.kind !== "object").length);
+        const threat = (foe) => state.threat?.get(foe.id) ?? 0;
+        const strikes = (foe) => state.strikeShare?.get(foe.id) ?? 1;
+        const spellHarm = (foe) => threat(foe) * (1 - strikes(foe));
+        const countered = (foe) => counterChance(modifier, rank, { dc: levelDC(foe.level ?? 1), rank: Math.max(1, Math.ceil((foe.level ?? 1) / 2)) });
+        const hp = Math.max(1, target.hp?.max ?? 1);
+        let kept = 0;
+        switch (defence.kind) {
+            case "turning":
+                kept = Math.max(0, ...foes.map((foe) => countered(foe) * spellHarm(foe))) * Math.min(1, 3 / side);
+                break;
+            case "immunity": {
+                const named = foes.sort((a, b) => spellHarm(b) - spellHarm(a))[0];
+                kept = named ? countered(named) * spellHarm(named) * 3 / side : 0;
+                break;
+            }
+            case "globe":
+                kept = foes.filter((foe) => !sameMelee(foe, target)).reduce((sum, foe) => sum + countered(foe) * spellHarm(foe), 0) * 3 / side;
+                break;
+            case "prismatic": {
+                const dc = effectDC(spell);
+                const physical = (strike) => ["bludgeoning", "piercing", "slashing"].includes(strike.damage?.[0]?.type);
+                for (const foe of foes) {
+                    const ranged = (foe.strikes ?? []).some((strike) => !strike.melee && physical(strike)) && !sameMelee(foe, target);
+                    const through = counterChance(levelDC(foe.level ?? 1) - 10, Math.max(1, Math.ceil((foe.level ?? 1) / 2)), { dc, rank: Number(spell.castRank) || 1 });
+                    kept += (ranged ? threat(foe) * strikes(foe) : 0) / side + spellHarm(foe) * (1 - through) / side;
+                    if ((foe.strikes ?? []).some((strike) => strike.melee)) {
+                        const shards = sprayValue(foe, dc);
+                        out.push({ target: foe, damage: (2 / side) * shards.damage, worth: (2 / side) * shards.worth, heal: 0, benefit: 0, whole: true });
+                    }
+                }
+                break;
+            }
+            case "indestructible":
+                kept = foes.reduce((sum, foe) => sum + threat(foe), 0) / side;
+                break;
+            // (A hostile roll each round made twice, the worse kept: about a third off one attack's damage.)
+            case "foresight":
+                kept = 3 * 0.35 * foes.reduce((sum, foe) => sum + threat(foe) / 2, 0) / side;
+                break;
+            // (+1 or +2 to AC and saves — effectBenefit's 0.08 and 0.01 each a point a round — against the foe, as much as it's the one
+            // attacking the ally: all of it in the ally's Melee, else its share of the side.)
+            case "forbidding": {
+                const enemy = forbiddingPick(state, target);
+                const aimed = enemy ? (sameMelee(enemy, target) ? 1 : 1 / side) : 0;
+                out.push({ target, damage: 0, worth: 0, heal: 0, benefit: 0.11 * ((Number(spell.castRank) || 1) >= 6 ? 2 : 1) * 3 * aimed });
+                continue;
+            }
+        }
+        out.push({ target, damage: 0, worth: 0, heal: 0, benefit: 3 * kept / hp });
+    }
+    return out;
 }
 
 // --- Hindrances (2026-10-22, family 4; readings.js withHinders) --------------------------------------------------------------------------
@@ -2821,6 +3044,9 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         if (answer?.stopped) return;
         if (answer?.spell) spell = answer.spell;
         if (answer?.targets) targets = answer.targets.filter((target) => target && reachable(target));
+        // (2026-10-22, family 5: the spell wards over its targets — Spell Turning, Spell Immunity, Dispelling Globe, Prismatic Shield.)
+        const warded = spellWardAnswer(state, caster, spell, targets);
+        if (warded) targets = warded;
     }
     // (I1: a creature immune to the effect's trait — a mindless one to a mental effect, a construct to a death effect — is unaffected.)
     for (const target of [...targets]) {
@@ -2866,6 +3092,11 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // (2026-10-22, Binding Muzzle's failure: a DC 11 flat check to Cast a Spell with its words — all but a subtle one.)
     if (isSpellCast(spell) && !(spell.plan?.traits ?? []).includes("subtle") && hinderedBy(caster, "muzzle-tight") && flatCheck(state.rng, 11) < SUCCESS) {
         log(state, `  ${caster.name} loses the spell (muzzled)`);
+        return;
+    }
+    // (2026-10-22, family 5: a defence the simulator keeps itself.)
+    if (spell.plan?.defence) {
+        for (const target of targets) applyDefence(state, caster, spell, target);
         return;
     }
     // (S59: a spell its caster can't cast again for minutes, once a fight; Sure Strike's attack also finds a concealed or hidden target
@@ -2976,6 +3207,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // (Mirror Image: the targets whose images took the attack — no effect on them at all.)
     const imaged = new Set();
     const roll = (statistic, given) => {
+        // (2026-10-22, Foresight: its creature's save twice, the better kept — its caster's reaction.)
+        if (SAVE_SLUGS.has(statistic) && given?.actor?.id && forcedDegree === null && foresightReact(state, given.actor, caster)) given = { ...given, fortune: true };
         const keep = ownFortune(statistic);
         const options = raised(statistic, keep ? { ...given, [keep === "higher" ? "fortune" : "misfortune"]: true } : given);
         const result = betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
@@ -3629,6 +3862,8 @@ export function castsNothing(plan) {
 // a real gap rather than utility.
 export function isUtility(plan) {
     const kind = plan?.resolution?.kind;
+    // (2026-10-22, family 5: a defence the simulator keeps itself — Indestructibility's.)
+    if (plan?.defence) return false;
     if (kind === "spell-note" || kind === "message") return true;
     // (Light or darkness a zone holds — light.js, 2026-10-21: the fight's sight.)
     if (lightZoneModel(plan)) return false;
@@ -3795,8 +4030,9 @@ const CASTABLE = new WeakMap();
 function castableAtAll(spell) {
     let castable = CASTABLE.get(spell);
     if (castable === undefined) {
-        // (Light or darkness a zone holds — light.js —: cast as its zone, its family the engine's own.)
-        const light = Boolean(lightZoneOf(spell) || lightAuraModel(spell) || planRetaliation(spell));
+        // (Light or darkness a zone holds — light.js —: cast as its zone, its family the engine's own. 2026-10-22: a defence the simulator
+        // keeps itself — Indestructibility's, a spell note to the core.)
+        const light = Boolean(lightZoneOf(spell) || lightAuraModel(spell) || planRetaliation(spell) || spell.plan?.defence);
         castable = !isConstant(spell) && (light || (Boolean(registry.familyFor(spell.plan?.resolution?.kind)) && !castsNothing(spell.plan))) && spellVariants(spell).some((actions) => {
             const info = describeSpell(spell.plan, actions);
             return Boolean(info.area || info.targets || info.self);
@@ -3997,6 +4233,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     // (2026-10-22, family 2: a reaction spell that guards an ally or pays a hit back — guardEntries.)
     const guard = spell.plan?.activation?.time === "reaction" ? reactionGuardOf(spell, caster) : null;
     if (guard) return guardEntries(state, caster, guard);
+    // (2026-10-22, family 5: a defence — defenceEntries.)
+    if (spell.plan?.defence) return defenceEntries(state, caster, spell, targets);
     // (Its caster's touch made harmful: the damage its foes' touching hits can expect — as a retaliation potion's.)
     // (Vibrant Thorns: with a spell of the trait that feeds it — vitality — at hand, half its hits at the higher damage.)
     let ownRetaliation = planRetaliation(spell);
@@ -4462,8 +4700,8 @@ export function spellGaps(spell) {
     const kind = plan?.resolution?.kind;
     const family = kind ? registry.familyFor(kind) : null;
     if (!plan) return ["no plan"];
-    // (Light or darkness a zone holds — light.js: the engine's own.)
-    if (lightZoneOf(spell) || lightAuraModel(spell) || planRetaliation(spell)) return [];
+    // (Light or darkness a zone holds — light.js: the engine's own. 2026-10-22: a defence — family 5.)
+    if (lightZoneOf(spell) || lightAuraModel(spell) || planRetaliation(spell) || plan.defence) return [];
     if (!family) return [`resolution kind "${kind}" isn't resolved yet`];
     const info = describeSpell(plan);
     const missing = new Set();

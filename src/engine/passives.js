@@ -55,6 +55,8 @@ function denyLevel(c) {
 // Whether the attacker's flanking makes the target off-guard: not All-Around Vision; not Deny Advantage against a creature of its level or lower.
 export function flankableBy(target, attacker) {
     if (target.flanking?.flankable === false) return false;
+    // (2026-10-22, Foresight: not off-guard when flanked.)
+    if ((target.defences ?? []).some((entry) => entry.kind === "foresight")) return false;
     const level = denyLevel(target);
     return level === null || (attacker?.level ?? 0) > level;
 }

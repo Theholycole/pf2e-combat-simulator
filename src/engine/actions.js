@@ -5,7 +5,7 @@
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistribution, degreeOf, flatCheck, rollCheck } from "./checks.js";
 import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
 import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
-import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, spendAmmo, statusPenalty, strikeUsable } from "./combatant.js";
+import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, defenceOf, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, spendAmmo, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, resistancesOf, rollStrikeDamage, strikeContext } from "./damage.js";
 import { aloft, canStepOut, distanceBetween, engage, engagedEnemies, fliesNow, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
 import { gridFlanked, moveTo as moveOnGrid, planStep, planStride, regroup } from "./grid-fight.js";
@@ -14,7 +14,7 @@ import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNextStrike, takeAttackFortune } from "./effects.js";
-import { actionTraits, applyCondition, applyMove, castPlan, castSpell, curseOnHit, deathThroes, guardSpells, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { actionTraits, applyCondition, applyMove, castPlan, castSpell, curseOnHit, deathThroes, forbiddingBonus, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
@@ -113,7 +113,8 @@ export function targetAC(state, attacker, target, strike, flanked) {
     // (Brand the Impenitent: a status penalty to AC against its caster — over the status penalty it has already.)
     const mark = markOn(target, attacker);
     const branded = mark?.ac ? Math.max(0, mark.ac - statusPenalty(target, "ac")) : 0;
-    return armorClass(target, { ranged: !strike.melee, coverBonus: strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded;
+    // (2026-10-22, Forbidding Ward: its status bonus against the foe it names.)
+    return armorClass(target, { ranged: !strike.melee, coverBonus: strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded + forbiddingBonus(target, attacker);
 }
 
 // Cache of expected hit damage per Strike object (shared by every run of a
@@ -377,6 +378,17 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (Sanctuary: a save first; stopped, the action is wasted.)
     if (wardBlocks(state, attacker, target)) return null;
     if (bewilderFails(state, attacker)) return null;
+    // (2026-10-22, Prismatic Shield: a ranged physical Strike stopped by its shards — not a thrown rock or a siege weapon's —; a melee one
+    // meets a shard first.)
+    const prism = attacker.side !== target.side ? defenceOf(target, "prismatic") : null;
+    if (prism && !strike.melee && ["bludgeoning", "piercing", "slashing"].includes(strike.damage?.[0]?.type) && !/\b(?:rock|boulder|ballista|catapult|cannon)\b/i.test(String(strike.name ?? ""))) {
+        log(state, `  ${target.name}'s ${prism.spell} stops ${attacker.name}'s ${strike.name}`);
+        return null;
+    }
+    if (prism && strike.melee) {
+        prismaticSpray(state, attacker, prism);
+        if (!isActive(attacker) || !canAct(attacker)) return null;
+    }
     // (U2: a bomb is used up as it's thrown, hit or miss.)
     spendAmmo(attacker, strike);
     // (An attack, hit or miss, is hostility: it ends Calm, and a charm the attacker put on the target.)
@@ -491,7 +503,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         misfortune = true;
         spendReaction(target, target.misfortuneReaction.name);
         log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
-    } else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && !target.reactions?.aoo && dodges(target.acReaction, strike, state, target)) {
+    } else if (foresightReact(state, target, attacker)) misfortune = true;
+    else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && !target.reactions?.aoo && dodges(target.acReaction, strike, state, target)) {
         defence = target.acReaction.value;
         spendReaction(target, target.acReaction.name);
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
@@ -1205,6 +1218,12 @@ function guards(state, c, target, { physical = false, critical = false } = {}) {
 
 // (B193: spell { rank, targeted } — the damage of a spell aimed at it, for Divert Essence.)
 export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null } = {}) {
+    // (2026-10-22, Indestructibility: harmed by nothing till its next turn.)
+    const untouched = defenceOf(target, "indestructible");
+    if (untouched && instances.some((instance) => instance.amount > 0)) {
+        log(state, `  ${target.name} is untouched (${untouched.spell})`);
+        return 0;
+    }
     // (Undermine Reality: a quasi-real creature's Strikes deal half damage.)
     if (physical && !intercepted && source?.cond?.quasiReal) instances = instances.map((instance) => ({ ...instance, amount: Math.floor(instance.amount / 2) }));
     // (Vindicator's Judgment: its weakness to its caster's Strikes, once a hit.)
@@ -1864,6 +1883,8 @@ export function stride(state, c, move) {
     if (!canMove(c)) return;
     // (A Stride, Fly or Swim this turn — Agitate's.)
     c.movedThisTurn = true;
+    // (Dispelling Globe: immobile — left behind.)
+    for (const entry of c.defences ?? []) if (entry.kind === "globe") entry.left = true;
     // (Incorporeal, space.js: out of the floor with its first move — rising where it is, or on to where it goes.)
     if (c.insideObject) emerge(state, c);
     if (move.kind === "rise") return;
@@ -2034,6 +2055,17 @@ export function emerge(state, c) {
     c.emerging = false;
     log(state, `  ${c.name} rises out of the floor`);
     if (state.grid && c.square) regroup(state);
+}
+
+// (2026-10-22, Foresight: the caster's reaction as a foe's hostile roll comes at its creature — made twice, the worse kept for an attack,
+// the better for the creature's save.)
+export function foresightReact(state, target, hostile) {
+    const entry = defenceOf(target, "foresight");
+    const warder = entry ? state.byId.get(entry.by) : null;
+    if (!entry || !hostile || hostile.side === target.side || !warder || !isActive(warder) || !canAct(warder) || !canReact(warder, entry.spell)) return false;
+    spendReaction(warder, entry.spell);
+    log(state, `  ${warder.name} reacts with ${entry.spell} for ${target.name}`);
+    return true;
 }
 
 // (2026-10-22, Bewilder: a flat check before each hostile action — DC 6, 11 on a critical failure —; failed, the action's lost.)

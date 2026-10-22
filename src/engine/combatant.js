@@ -172,6 +172,8 @@ export function strikeUsable(c, strike) {
 // (2026-10-22, family 4: what a spell keeps the creature from — spells.js applyHinder, lasting.js "hindrances". Binding Muzzle: an attack
 // from the mouth.)
 export const hinderedBy = (c, kind) => (c?.hindrances ?? []).find((entry) => entry.kind === kind) ?? null;
+// (2026-10-22, family 5: a defence a spell gives it — spells.js applyDefence, lasting.js "defences".)
+export const defenceOf = (c, kind) => (c?.defences ?? []).find((entry) => entry.kind === kind) ?? null;
 export const MOUTH = /\b(?:jaws?|bite|beak|fangs?|mandibles?|tongue|maw|proboscis|mouth)\b/i;
 
 // U2 (2026-10-15), bombs: a Strike with a thrown consumable (strike.ammo: { pool, reagents, startsEmpty }) — its stack, and for an alchemist

@@ -512,7 +512,10 @@ class PlanContext {
         const plain = odds(ac);
         const flanked = flank > 0 ? odds(ac - (target.cond.offGuard || target.cond.prone ? 0 : 2)) : plain;
         // (Sanctuary on it: as likely to attack as its save to get through.)
-        const finds = targetingChance(c) * wardChance(state, c, target);
+        // (2026-10-22, Prismatic Shield on it: a ranged physical Strike stopped; a melee one meets a shard — it would rather strike another.)
+        const prism = target.side !== c.side && (target.defences ?? []).some((entry) => entry.kind === "prismatic");
+        const shard = !prism ? 1 : strike.melee ? 0.4 : ["bludgeoning", "piercing", "slashing"].includes(strike.damage?.[0]?.type) && !/\b(?:rock|boulder|ballista|catapult|cannon)\b/i.test(String(strike.name ?? "")) ? 0 : 1;
+        const finds = targetingChance(c) * wardChance(state, c, target) * shard;
         // (Mirror Image on it: a hit finds it at the images' odds, a critical hit on an image is a hit, and a failure does nothing.)
         const you = imageShare(state, c, target);
         const rolledHit = finds * ((1 - flank) * plain[SUCCESS] + flank * flanked[SUCCESS]);

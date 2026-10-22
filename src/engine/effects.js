@@ -43,7 +43,9 @@ const SELECTORS = {
     "land-speed": ["speed"],
     speed: ["speed"],
     // (Sleep's success: -1 status to Perception for a round — a morale check's and Read the fight's Perception, statusPenalty.)
-    perception: ["perception"]
+    perception: ["perception"],
+    // (2026-10-22, Anticipate Peril, Foresight: the next initiative roll — fight.js rollInitiative.)
+    initiative: ["initiative"]
 };
 // Rule keys with no effect on a fight as the engine plays it.
 const IGNORED = new Set(["Note", "RollOption", "Sense", "BaseSpeed", "TokenLight", "TokenImage", "TokenEffectIcon", "DexterityModifierCap", "ChoiceSet", "ItemAlteration", "SubstituteRoll", "MartialProficiency", "CriticalSpecialization", "Aura"]);
@@ -56,6 +58,12 @@ export function numericValue(value, rank) {
     if (typeof value === "number") return value;
     if (typeof value !== "string") return null;
     if (value.includes("@actor.level")) value = value.replace(/@actor\.level/g, String(Math.max(1, 2 * (Number(rank) || 1) - 1)));
+    // (2026-10-22, Anticipate Peril's "clamp(ceil(@item.level / 2), 1, 4)": the clamp read here, the rest the core's.)
+    const clamp = /^\s*clamp\((.*),\s*(-?\d+)\s*,\s*(-?\d+)\s*\)\s*$/.exec(value);
+    if (clamp) {
+        const inner = numericValue(clamp[1], rank);
+        return inner === null ? null : Math.min(Number(clamp[3]), Math.max(Number(clamp[2]), inner));
+    }
     try {
         const instances = parseDamage(value, { rank });
         if (instances.some((instance) => instance.dice.length)) return null;
@@ -953,6 +961,8 @@ export function effectBenefit(model, target, conditionHarm, strikeShare = 1, con
     for (const modifier of [...model.modifiers, ...byKind]) {
         const per = { ac: 0.08, fortitude: 0.01, reflex: 0.01, will: 0.01, attack: 0.1 * strikes, damage: 0.04 * strikes, spell: 0.05 * (1 - strikes), speed: 0.003 }[modifier.on] ?? 0;
         benefit += per * modifier.value * (["attack", "damage"].includes(modifier.on) ? strikeRounds : rounds);
+        // (2026-10-22, Anticipate Peril: the next initiative roll — once, before the fight; nothing once it's rolled.)
+        if (modifier.on === "initiative" && !context?.state?.order) benefit += 0.03 * modifier.value;
     }
     if (target.hp?.max > 0) {
         benefit += model.tempHp / target.hp.max;

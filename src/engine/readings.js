@@ -98,7 +98,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading(plan) } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withHinders(withControls(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved))))))))))))))))))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withDefences(withHinders(withControls(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved)))))))))))))))))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -440,6 +440,27 @@ function withHinders(plan) {
         return [degree, { ...entry, noteEffects: [], rowNotes: [], effects: [...(entry?.effects ?? []).filter((effect) => effect?.kind !== "note"), ...effects] }];
     }));
     return { ...plan, simulatorReading: true, hinder: true, resolution: { ...plan.resolution, outcomes } };
+}
+
+// (2026-10-22, family 5 — big defences.) Spells whose state the simulator keeps itself (spells.js applyDefence; lasting.js "defences"):
+// the spell wards answered as a foe's spell comes (spells.js spellWardAnswer) — Spell Turning (a targeted spell, its reaction, once),
+// Spell Immunity (the spell named: the foes' most damaging), Dispelling Globe (a spell from outside its 10 feet, as a Dispel Magic a rank
+// lower) —; Prismatic Shield (till the caster's next turn: ranged physical Strikes stopped, a targeted spell counteracted, a melee
+// attacker's shard of Prismatic Spray); Indestructibility (till its next turn, harmed by nothing); Foresight (not flanked; the caster's
+// reaction, a hostile roll at the creature twice — its save the better, an attack the worse); Forbidding Ward (+1 status, +2 from 6th, to
+// AC and saves against one foe, Sustained). plan.defence { kind, rounds, ownTurn, sustained, rankOffset }.
+const DEFENCES = {
+    "spell-turning": { kind: "turning", rounds: 600 },
+    "spell-immunity": { kind: "immunity", rounds: Infinity },
+    "dispelling-globe": { kind: "globe", rounds: 100, rankOffset: -1 },
+    "prismatic-shield": { kind: "prismatic", rounds: 1, ownTurn: true },
+    indestructibility: { kind: "indestructible", rounds: 1, ownTurn: true },
+    foresight: { kind: "foresight", rounds: 600 },
+    "forbidding-ward": { kind: "forbidding", rounds: 10, sustained: true }
+};
+function withDefences(plan) {
+    const defence = DEFENCES[plan?.source?.slug];
+    return defence ? { ...plan, simulatorReading: true, defence: { ...defence } } : plan;
 }
 
 function withControls(plan) {
