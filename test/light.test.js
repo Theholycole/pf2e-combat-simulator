@@ -762,3 +762,51 @@ test("reaction spells as the damage comes: Eat Fire's fire resistance against it
     castSpell(state, mage, 0, state.list.filter((c) => c.side === "party").map((c) => c.id));
     assert.ok(state.log.some((line) => /Wizard reacts with Shadow Siphon against Fireball: .* → half the damage/.test(line)), state.log.join("\n"));
 });
+
+test("Undermine Reality: quasi-real for its row's time — its Strikes deal half damage, saves against its spells a degree better", async () => {
+    const { castSpell } = await import("../src/engine/spells.js");
+    const { applyDamage, expectedHitDamage } = await import("../src/engine/actions.js");
+    const { compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const plan = compileSpell(spellNamed("Undermine Reality"));
+    const effect = (degree) => plan.resolution.outcomes[degree].effects.find((each) => each.slug === "quasi-real");
+    assert.equal(effect("criticalSuccess"), undefined);
+    assert.deepEqual(effect("success").duration, { mode: "fixed", value: 1, unit: "rounds" });
+    assert.deepEqual(effect("failure").duration, { mode: "fixed", value: 10, unit: "rounds", saveEnds: { save: "will", dc: "spell" } });
+    assert.equal(effect("criticalFailure").duration, null, "for good");
+    const state = createFightState({ combatants: [...standardParty(15), { ...moderateCreatureAt(14, "monster"), id: "monster", name: "Brute" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wizard = state.byId.get("wizard");
+    const brute = state.byId.get("monster");
+    const fighter = state.byId.get("fighter");
+    const before = expectedHitDamage(brute, brute.strikes[0], fighter, false);
+    wizard.spells = [{ name: "Undermine Reality", castRank: 8, pool: null, dc: 45, attack: 35, effects: {}, plan }];
+    state.rng.d20 = () => 2;
+    castSpell(state, wizard, 0, [brute.id]);
+    assert.equal(brute.cond.quasiReal, true);
+    assert.ok(expectedHitDamage(brute, brute.strikes[0], fighter, false) <= before / 2 + 0.5, "its Strikes' damage halved, as the planner sees it");
+    const hp = fighter.hp.value;
+    applyDamage(state, fighter, [{ type: "slashing", amount: 20, persistent: false, precision: false }], { source: brute, physical: true });
+    assert.equal(hp - fighter.hp.value, 10, "half of 20");
+});
+
+test("a spell's affliction: its stages' text read into numbers (damage, conditions, time) and played with the spell's DC and rank", async () => {
+    const { castSpell } = await import("../src/engine/spells.js");
+    const { compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const sting = compileSpell(spellNamed("Spider Sting"));
+    assert.deepEqual(sting.resolution.afflictionHandoff.stages.map(({ text, ...stage }) => stage), [
+        { stage: 1, damage: ["(1d4)[poison]"], conditions: [{ slug: "enfeebled", value: 1 }], duration: { value: 1, unit: "rounds" } },
+        { stage: 2, damage: ["(1d4)[poison]"], conditions: [{ slug: "enfeebled", value: 2 }], duration: { value: 1, unit: "rounds" } }]);
+    assert.deepEqual(sting.resolution.afflictionHandoff.maximumDuration, { value: 4, unit: "rounds" });
+    const storm = compileSpell(spellNamed("Dread Mosquito Storm"));
+    assert.deepEqual(["success", "failure", "criticalFailure"].map((degree) => storm.resolution.outcomes[degree].affliction?.stage), [1, 1, 2], "its rows' 'afflicted … at stage N'");
+    const state = createFightState({ combatants: [...standardParty(3), { ...moderateCreatureAt(3, "monster"), id: "monster", name: "Brute" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wizard = state.byId.get("wizard");
+    const brute = state.byId.get("monster");
+    wizard.spells = [{ name: "Spider Sting", castRank: 1, pool: null, dc: 20, attack: 10, effects: {}, plan: sting }];
+    // (A failure, not a critical one: stage 1.)
+    const { saveModifier } = await import("../src/engine/combatant.js");
+    state.rng.d20 = () => 20 - saveModifier(brute, "fortitude") - 3;
+    castSpell(state, wizard, 0, [brute.id]);
+    assert.equal(brute.afflictions?.[0]?.data.dc, 20, "the spell's DC");
+    assert.equal(brute.cond.enfeebled, 1, state.log.join("\n"));
+    assert.ok(state.log.some((line) => /takes \d+ poison \(Spider Venom\)/.test(line)));
+});

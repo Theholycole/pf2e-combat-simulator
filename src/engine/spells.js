@@ -73,7 +73,9 @@ const FLAGS = {
     // (2026-10-22, Dirge of Remembrance: weapons' attacks on it have ghost touch's benefit — damage.js optionsOf.)
     semicorporeal: "semicorporeal",
     // (2026-10-22, Agitate: it must Stride, Fly or Swim each turn or take the spell's damage as the turn ends — agitationTurnEnd.)
-    agitated: "agitated"
+    agitated: "agitated",
+    // (2026-10-22, Undermine Reality: its Strikes deal half damage — actions.js —, saves against its spells and abilities a degree better.)
+    "quasi-real": "quasiReal"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -818,7 +820,7 @@ function setAfflictionStage(state, target, entry, stage) {
     }
     const source = state.byId.get(entry.source) ?? null;
     for (const formula of current.damage ?? []) {
-        const instances = rollInstances(state, parseDamage(formula));
+        const instances = rollInstances(state, stageDamage(formula, entry.data.rank));
         const dealt = applyDamage(state, target, instances, { source });
         log(state, `  ${target.name} takes ${dealt} ${instances.map((instance) => instance.type).join("/")} (${entry.name})`);
     }
@@ -864,6 +866,15 @@ function afflictionSave(state, target, entry) {
 
 // About what an affliction does to a creature in a fight: its first stage's
 // damage and conditions, about twice when its stages last rounds.
+// A stage's damage formula at the affliction's rank; nothing for one that can't be read (a spell's stage text — readings.js).
+function stageDamage(formula, rank) {
+    try {
+        return parseDamage(formula, { rank: Number(rank) || 1 });
+    } catch {
+        return [];
+    }
+}
+
 function afflictionValue(target, data) {
     if ((data.traits ?? []).some((trait) => (target.immunities ?? []).includes(trait))) return { damage: 0, worth: 0 };
     if (data.onset && spanRounds(data.onset) >= 3) return { damage: 0, worth: 0 };
@@ -871,7 +882,7 @@ function afflictionValue(target, data) {
     if (!stage) return { damage: 0, worth: 0 };
     if (stage.death) return { damage: Math.max(1, target.hp.value), worth: 0 };
     const repeats = Number.isFinite(spanRounds(stage.duration)) ? 2 : 1;
-    const damage = (stage.damage ?? []).flatMap((formula) => parseDamage(formula)).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
+    const damage = (stage.damage ?? []).flatMap((formula) => stageDamage(formula, data.rank)).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance)), 0);
     const worth = (stage.conditions ?? []).reduce((sum, { slug, value }) => sum + conditionWorth(slug, value, { mode: "fixed", value: repeats, unit: "rounds" }), 0);
     return { damage: damage * repeats, worth };
 }
@@ -2006,7 +2017,9 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 if (target.status !== "dead" && (change.ifReducedTo === undefined || target.hp.value <= change.ifReducedTo)) killCreature(state, target);
                 break;
             case "affliction":
-                if (Array.isArray(change.data?.stages)) applyAffliction(state, caster, target, change.data, spell.effects ?? {});
+                // (A spell's: its DC the spell's — readings.js withAfflictionStages.)
+                // (And its rank, for a stage's "@item.rank" — Curse of Death's dice.)
+                if (Array.isArray(change.data?.stages)) applyAffliction(state, caster, target, { ...change.data, dc: change.data.dc ?? effectDC(spell), rank: change.data.rank ?? spell.castRank }, spell.effects ?? {});
                 break;
             case "followUp":
                 if (isActive(target) && change.plan?.resolution?.kind && registry.familyFor(change.plan.resolution.kind)) {
@@ -2267,6 +2280,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     const adjusted = (statistic, options, result) => {
         let next = SAVE_SLUGS.has(statistic) && options?.actor?.saveDegrees && result?.degree ? { ...result, degree: DEGREE_NAMES[adjustedSaveDegree(options.actor, statistic, DEGREE_NAMES.indexOf(result.degree), spell)] } : result;
         if (SAVE_SLUGS.has(statistic) && next?.degree && incapacitated(spell, caster, options?.actor)) next = { ...next, degree: DEGREE_NAMES[Math.min(3, DEGREE_NAMES.indexOf(next.degree) + 1)] };
+        // (Undermine Reality: against a quasi-real creature's spells and abilities, a degree better.)
+        if (SAVE_SLUGS.has(statistic) && next?.degree && caster.cond?.quasiReal) next = { ...next, degree: DEGREE_NAMES[Math.min(3, DEGREE_NAMES.indexOf(next.degree) + 1)] };
         return next;
     };
     // (A failed save a reaction makes better, B80.)
@@ -3216,7 +3231,9 @@ function oddsFor(caster, spell, target, attacks, actions) {
     const dc = check.against?.dc === "fixed" ? check.against.value : (spell.dc ?? 10) - penalty + effectBonus(caster, "spell");
     // (B302: its Evasion and the like; 2026-10-20, incapacitation's degree better.)
     const odds = adjustedSaveOdds(target, slug, degreeDistribution(save, dc), spell);
-    return incapacitated(spell, caster, target) ? [0, odds[0], odds[1], odds[2] + odds[3]] : odds;
+    const better = (each) => [0, each[0], each[1], each[2] + each[3]];
+    const once = incapacitated(spell, caster, target) ? better(odds) : odds;
+    return caster.cond?.quasiReal ? better(once) : once;
 }
 
 // The changes a spell has on one target at each degree, with average damage.
@@ -3416,6 +3433,12 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         entry.damage += chance * groundDamage(state, target, change.slug === "landed" ? 0.5 : Math.min(3, durationRounds(change.duration)));
                         continue;
                     }
+                    // (Quasi-real: half its Strikes' damage, and the saves against its spells a degree better — about half its threat a round.)
+                    if (change.slug === "quasi-real" && !held) {
+                        const strikes = state.strikeShare?.get(target.id) ?? 1;
+                        entry.worth += chance * Math.min(3, durationRounds(change.duration)) * (0.5 * strikes + 0.4 * (1 - strikes));
+                        continue;
+                    }
                     // (Agitated: its damage a round it lasts, about half of them — the other half it Strides, an action it would rather spend.)
                     if (change.slug === "agitated" && !held) {
                         const parts = agitationParts(spell);
@@ -3439,7 +3462,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         entry.breaks = (entry.breaks ?? 0) + chance * (odds.breaks + 0.3 * odds.wavers);
                     }
                 } else if (change.op === "affliction" && Array.isArray(change.data?.stages)) {
-                    const value = afflictionValue(target, change.data);
+                    const value = afflictionValue(target, { ...change.data, rank: change.data.rank ?? spell.castRank });
                     entry.damage += chance * value.damage;
                     entry.worth += chance * value.worth;
                 } else if (change.op === "effect" && change.effect?.kind === "swallow") {

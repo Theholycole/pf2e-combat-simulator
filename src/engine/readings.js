@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withArea(resolved)))))))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withArea(resolved))))))))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -178,6 +178,96 @@ function withCloudEffect(plan) {
     const uuid = resolution?.kind === "cloud-action" ? resolution.cloudAction?.effect?.uuid : null;
     if (!uuid) return plan;
     return { ...plan, simulatorReading: true, targeting: { ...(plan.targeting ?? {}), target: "self" }, resolution: { kind: "effect", check: null, sharedDamage: null, outcomes: resolution.outcomes, cloudAction: resolution.cloudAction, applications: [{ kind: "native-spell-effect", uuid, label: resolution.cloudAction.effect.label ?? null, recipients: "self" }] } };
+}
+
+// (2026-10-22, Undermine Reality: the spell module's "Quasi-real" note — halfStrikes, sourceSavesBetter, its row's duration and new save —
+// as the quasi-real condition (spells.js FLAGS): its Strikes deal half damage (actions.js applyDamage, expectedHitDamage), and saves
+// against its spells and abilities are a degree better.)
+function withQuasiReal(plan) {
+    const resolution = plan?.resolution;
+    if (resolution?.kind !== "save") return plan;
+    let changed = false;
+    const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
+        const note = (row?.noteEffects ?? []).find((each) => each?.halfStrikes && each?.sourceSavesBetter);
+        if (!note) return [degree, row];
+        changed = true;
+        const lasts = note.duration?.mode === "fixed" && Number(note.duration.value) > 0 ? { mode: "fixed", value: Number(note.duration.value), unit: note.duration.unit ?? "rounds" } : null;
+        const saveEnds = note.recurringSave?.statistic ? { save: note.recurringSave.statistic, dc: "spell" } : null;
+        return [degree, { ...row, noteEffects: (row.noteEffects ?? []).filter((each) => each !== note), effects: [...(row.effects ?? []), { kind: "condition", slug: "quasi-real", value: null, duration: lasts ? { ...lasts, ...(saveEnds ? { saveEnds } : {}) } : saveEnds ? { mode: "unlimited", saveEnds } : null }] }];
+    }));
+    return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
+}
+
+// (2026-10-22, Dread Mosquito Storm: rows that say "The target is afflicted with necrotic blood at stage 1" without the compiler's
+// affliction on them, with the plan's affliction hand-off — as Spider Sting's rows carry it.)
+const AFFLICTED_AT = /\bafflicted with (.+?) at stage (\d+)\b/i;
+function withAfflictionRows(plan) {
+    const resolution = plan?.resolution;
+    const handoff = resolution?.kind === "save" ? resolution.afflictionHandoff : null;
+    if (!handoff?.stages?.length) return plan;
+    let changed = false;
+    const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
+        const read = row && !row.affliction ? AFFLICTED_AT.exec(String(row.rawText ?? "")) : null;
+        if (!read || read[1].toLowerCase() !== String(handoff.name ?? "").toLowerCase()) return [degree, row];
+        changed = true;
+        return [degree, { ...row, affliction: { name: handoff.name, stage: Number(read[2]), sourceText: row.rawText } }];
+    }));
+    return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
+}
+
+// (2026-10-22, found building Dread Mosquito Storm: a spell's affliction hand-off has its stages as text — Spider Sting's "1d4 poison damage
+// and Enfeebled 1 (1 round)" — and the engine plays stages read into numbers, as the ability module reads a creature's (damage, conditions,
+// duration; spells.js setAfflictionStage). Before, a spell's affliction did nothing in a fight.) Each stage's text read: its @Damage tags
+// (or "2d10 poison damage"), its conditions (a linked condition's name and value, or a plain one), its time (the last parenthesis), death;
+// the hand-off's maximum duration and onset as spans, its save the spell's.
+const SPANS = { round: "rounds", minute: "minutes", hour: "hours", day: "days", week: "weeks" };
+const STAGE_CONDITIONS = ["blinded", "clumsy", "confused", "dazzled", "deafened", "doomed", "drained", "enfeebled", "fascinated", "fatigued", "fleeing", "frightened", "immobilized", "off-guard", "paralyzed", "petrified", "prone", "restrained", "sickened", "slowed", "stunned", "stupefied", "unconscious", "wounded"];
+function readSpanText(text) {
+    const read = /^(?:(\d+)|(\d+)d(\d+))\s+(round|minute|hour|day|week)s?\b/i.exec(String(text ?? "").trim());
+    return read ? { value: read[1] ? Number(read[1]) : Math.floor(Number(read[2]) * (Number(read[3]) + 1) / 2), unit: SPANS[read[4].toLowerCase()] } : null;
+}
+function stageOf(stage) {
+    const html = String(stage?.text ?? "");
+    const plain = html.replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/@Damage\[((?:[^[\]]|\[[^\]]*\])*)\]/g, "$1").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (/^(?:dead\b|(?:the (?:creature|victim|target) )?dies\b)/i.test(plain)) return { ...stage, damage: [], conditions: [], duration: null, death: true };
+    const damage = [];
+    for (const tag of html.matchAll(/@Damage\[((?:[^[\]]|\[[^\]]*\])*)\]/g)) {
+        // ("(1+@item.level)[fire],(1+@item.level)[spirit]": each part.)
+        let depth = 0;
+        let part = "";
+        // (Blinding Bottle's "3d6[poison]|traits:incapacitation,poison": the formula before its options.)
+        for (const ch of tag[1].replace(/\|[^\]]*$/, "")) {
+            if (ch === "," && depth === 0) {
+                damage.push(part.trim());
+                part = "";
+                continue;
+            }
+            if (ch === "[" || ch === "(") depth++;
+            if (ch === "]" || ch === ")") depth--;
+            part += ch;
+        }
+        if (part.trim()) damage.push(part.trim());
+    }
+    if (!damage.length) for (const read of plain.matchAll(/\b(\d+d\d+(?:\s*[+-]\s*\d+)?)\s+([a-z]+)\s+damage\b/gi)) damage.push(`(${read[1].replace(/\s+/g, "")})[${read[2].toLowerCase()}]`);
+    const conditions = [];
+    const words = plain.replace(/\([^()]*\)\s*$/, "");
+    for (const read of words.matchAll(new RegExp(`\\b(${STAGE_CONDITIONS.join("|")})(?:\\s+(\\d+))?\\b`, "gi"))) {
+        const slug = read[1].toLowerCase();
+        if (!conditions.some((condition) => condition.slug === slug)) conditions.push({ slug, value: read[2] ? Number(read[2]) : null });
+    }
+    const spans = [...plain.matchAll(/\(([^()]*)\)/g)].map((read) => readSpanText(read[1])).filter(Boolean);
+    return { ...stage, damage, conditions, duration: spans.at(-1) ?? null };
+}
+function withAfflictionStages(plan) {
+    const resolution = plan?.resolution;
+    const handoff = resolution?.afflictionHandoff;
+    if (!handoff?.stages?.length || handoff.stages.every((stage) => Array.isArray(stage?.damage))) return plan;
+    const stages = handoff.stages.map((stage) => (Array.isArray(stage?.damage) ? stage : stageOf(stage)));
+    // (A stage with no time of its own: the one before's.)
+    for (const [index, stage] of stages.entries()) if (!stage.duration && !stage.death && index > 0) stages[index] = { ...stage, duration: stages[index - 1].duration };
+    const span = (value) => (value && typeof value === "object" ? value : readSpanText(value));
+    const read = { ...handoff, stages, maximumDuration: span(handoff.maximumDuration), onset: span(handoff.onset), statistic: handoff.statistic ?? resolution.check?.statistic ?? "fortitude" };
+    return { ...plan, simulatorReading: true, resolution: { ...resolution, afflictionHandoff: read } };
 }
 
 // Agitate (2026-10-22, flying and the like): "the target must Stride, Fly, or Swim at least once each turn or take 2d8 mental damage at the

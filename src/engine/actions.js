@@ -243,6 +243,8 @@ export function expectedHitDamage(attacker, strike, target, critical, { bonus = 
     }
     // (B309, I2: a weakness once a hit — a holy or unholy Strike's on a creature weak to it, an axe's, a tradition's.)
     total += onceWeakness(target, context);
+    // (Undermine Reality: a quasi-real creature's Strikes deal half damage.)
+    if (attacker.cond?.quasiReal) total = Math.floor(total / 2);
     return target.hardness ? Math.max(0, total - target.hardness) : total;
 }
 
@@ -1176,6 +1178,8 @@ function guards(state, c, target, { physical = false, critical = false } = {}) {
 
 // (B193: spell { rank, targeted } — the damage of a spell aimed at it, for Divert Essence.)
 export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null } = {}) {
+    // (Undermine Reality: a quasi-real creature's Strikes deal half damage.)
+    if (physical && !intercepted && source?.cond?.quasiReal) instances = instances.map((instance) => ({ ...instance, amount: Math.floor(instance.amount / 2) }));
     // M38: the party harming a foe that gave up and is leaving refuses its surrender.
     if (!intercepted) {
         harmedAfterGivingUp(state, target, source);
