@@ -214,7 +214,8 @@ export function summonTurnStart(state, maker) {
             dismiss(state, c);
             continue;
         }
-        if ((maker.summons ?? []).find((entry) => entry.name === c.summonName)?.sustained) sustaining = true;
+        // (2026-10-22: Duplicate Foe's copy, Sustained.)
+        if (c.summonSustained || (maker.summons ?? []).find((entry) => entry.name === c.summonName)?.sustained) sustaining = true;
     }
     if (sustaining && maker.actionsLeft > 0) {
         maker.actionsLeft -= 1;

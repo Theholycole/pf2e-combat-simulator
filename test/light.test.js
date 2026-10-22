@@ -1301,3 +1301,30 @@ test("family 6 battle forms in fights: Animal Form's Strikes and AC, no spells, 
     assert.equal(formAC(shift.battleForms[0], 7, 25), 25, "AC: the caster's DC");
     assert.equal(formStrikes(shift.battleForms[0], wizard, 25)[0].bonus, 15, "attack: DC − 10");
 });
+
+test("family 7 minions: Duplicate Foe's copy fights for the caster and decays; Subjugate and Bind Undead take control", async () => {
+    const { castSpell, duplicateTurnEnd } = await import("../src/engine/spells.js");
+    const { isActive } = await import("../src/engine/combatant.js");
+    const { compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const entry = (name, castRank) => ({ name, castRank, pool: null, dc: 45, attack: 35, effects: {}, plan: compileSpell(spellNamed(name)) });
+    const state = createFightState({ combatants: [...standardParty(15), { ...moderateCreatureAt(15, "giant"), id: "giant", name: "Giant" }, { ...moderateCreatureAt(5, "zombie"), id: "zombie", name: "Zombie", traits: ["undead", "mindless"] }, { ...moderateCreatureAt(5, "ghoul"), id: "ghoul", name: "Ghoul", traits: ["undead"] }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wizard = state.byId.get("wizard");
+    wizard.spells = [entry("Duplicate Foe", 7), entry("Bind Undead", 6), entry("Subjugate Undead", 3)];
+    state.rng.d20 = () => 5;
+    castSpell(state, wizard, 0, ["giant"]);
+    const copy = state.list.find((c) => c.duplicateBy === wizard.id);
+    assert.ok(copy && isActive(copy), "a duplicate");
+    assert.equal(copy.side, "party");
+    assert.equal(copy.hp.max, 70);
+    assert.equal(copy.ac, state.byId.get("giant").ac);
+    assert.ok(!copy.halfStrikes, "a failure: full damage");
+    state.rng.die = () => 6;
+    duplicateTurnEnd(state, copy);
+    assert.equal(copy.hp.value, 46, "4d6 lost after its turn");
+    castSpell(state, wizard, 1, ["zombie"]);
+    assert.equal(state.byId.get("zombie").side, "party", "a mindless undead bound");
+    castSpell(state, wizard, 1, ["ghoul"]);
+    assert.equal(state.byId.get("ghoul").side, "foes", "not mindless: unaffected");
+    castSpell(state, wizard, 2, ["ghoul"]);
+    assert.equal(state.byId.get("ghoul").side, "party", "subjugated");
+});

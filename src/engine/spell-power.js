@@ -50,6 +50,8 @@ export const partyLevelForRank = (rank) => Math.max(1, Math.min(20, 2 * (Number(
 // light-blind foes (a drow's Light Blindness), and a fight in darkness (the party's humans without darkvision: environment).
 const TRAIT_PACKAGES = {
     undead: { traits: ["undead", "unholy"], immunities: ["death-effects", "disease", "paralyzed", "poison", "unconscious", "bleed"] },
+    // (2026-10-22, Bind Undead's: mindless undead — immune to mental effects too.)
+    mindless: { traits: ["undead", "unholy", "mindless"], immunities: ["death-effects", "disease", "paralyzed", "poison", "unconscious", "bleed", "mental"] },
     fiend: { traits: ["fiend", "unholy"], immunities: [], weaknesses: ["holy"] },
     celestial: { traits: ["celestial", "holy"], immunities: [], weaknesses: ["unholy"] },
     construct: { traits: ["construct"], immunities: ["bleed", "death-effects", "disease", "doomed", "drained", "fatigued", "healing", "nonlethal", "paralyzed", "poison", "sickened", "spirit", "unconscious", "vitality", "void"] },

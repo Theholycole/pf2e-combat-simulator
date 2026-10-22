@@ -98,7 +98,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading(plan) } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withDefences(withHinders(withControls(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved)))))))))))))))))))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withDuplicate(withBinding(withDefences(withHinders(withControls(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved)))))))))))))))))))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -461,6 +461,28 @@ const DEFENCES = {
 function withDefences(plan) {
     const defence = DEFENCES[plan?.source?.slug];
     return defence ? { ...plan, simulatorReading: true, defence: { ...defence } } : plan;
+}
+
+// (2026-10-22, family 7 — minions.) Duplicate Foe: its rows as "duplicate:<degree>" conditions (the core leaves its duplicate to the GM),
+// spells.js makeDuplicate. Subjugate Undead: controlled for a minute on a failure, ten on a critical failure (Claim Undead's). Bind Undead:
+// no save — a mindless undead of a level up to its rank, controlled for the fight (plan.binding; spells.js castPlan).
+function withDuplicate(plan) {
+    const resolution = plan?.resolution;
+    if (!resolution?.duplicate || resolution.kind !== "save") return plan;
+    const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => [degree, degree === "criticalSuccess" ? row : { ...row, effects: [...(row?.effects ?? []), { kind: "condition", slug: `duplicate:${degree}`, value: null, duration: null }] }]));
+    return { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } };
+}
+const SUBJUGATE = { failure: 10, criticalFailure: 100 };
+function withBinding(plan) {
+    const slug = plan?.source?.slug;
+    if (slug === "subjugate-undead" && plan.resolution?.kind === "save") {
+        const outcomes = Object.fromEntries(Object.entries(plan.resolution.outcomes ?? {}).map(([degree, row]) => [degree, SUBJUGATE[degree] ? { ...row, noteEffects: [], effects: [...(row?.effects ?? []), { kind: "condition", slug: "controlled", value: null, duration: { mode: "fixed", value: SUBJUGATE[degree], unit: "rounds" } }] } : row]));
+        return { ...plan, simulatorReading: true, resolution: { ...plan.resolution, outcomes } };
+    }
+    if (slug !== "bind-undead") return plan;
+    const ranks = Object.fromEntries(Array.from({ length: 10 }, (_, index) => [String(index + 1), index + 1]));
+    const predicates = [...(plan.targeting?.actorConstraints?.predicates ?? []), { kind: "trait", slug: "undead", present: true }, { kind: "trait", slug: "mindless", present: true }, { kind: "level-at-most", level: Number(plan.rank) || 3, byRank: ranks }, { kind: "enemy-of-caster" }];
+    return { ...plan, simulatorReading: true, binding: { slug: "controlled" }, targeting: { ...plan.targeting, actorConstraints: { ...(plan.targeting?.actorConstraints ?? {}), predicates } } };
 }
 
 function withControls(plan) {

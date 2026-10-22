@@ -1225,7 +1225,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
         return 0;
     }
     // (Undermine Reality: a quasi-real creature's Strikes deal half damage.)
-    if (physical && !intercepted && source?.cond?.quasiReal) instances = instances.map((instance) => ({ ...instance, amount: Math.floor(instance.amount / 2) }));
+    // (2026-10-22: and Duplicate Foe's copy, on a success.)
+    if (physical && !intercepted && (source?.cond?.quasiReal || source?.halfStrikes)) instances = instances.map((instance) => ({ ...instance, amount: Math.floor(instance.amount / 2) }));
     // (Vindicator's Judgment: its weakness to its caster's Strikes, once a hit.)
     const judged = physical && !intercepted ? markOn(target, source)?.weakness : 0;
     if (judged > 0) instances = [...instances, { type: "untyped", amount: judged, persistent: false, precision: false }];

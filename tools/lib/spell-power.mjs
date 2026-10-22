@@ -9,7 +9,7 @@ const { partyFor } = await import("./deadliness.mjs");
 const { POWER_KINDS, POWER_ROUNDS, RATED_POOL, SUMMON_FOE_TRAITS, castPower, durationRounds, formShare, guardPower, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
 const { RULE_CHOICES, castableReading, powerReading } = await import("../../src/engine/power-readings.js");
-const { battleFormAt, effectModel } = await import("../../src/engine/effects.js");
+const { battleFormAt, effectModel, formAC, formStrikes } = await import("../../src/engine/effects.js");
 const { SUMMON_LEVELS, spellSummonEntry } = await import("../../src/engine/summons.js");
 const { canCast, describeSpell, isUtility, reactionGuardOf, spellGaps } = await import("../../src/engine/spells.js");
 
@@ -430,6 +430,15 @@ export function runPowerTask(task) {
     const generated = (plan.resolution?.generatedForm?.rules ?? []).filter((rule) => rule?.key === "BattleForm").map((rule) => battleFormAt(rule, rank));
     const forms = [...Object.values(entry.effects ?? {}).flatMap((model) => model?.battleForms ?? []), ...generated].filter((form) => form?.strikes?.length);
     if (forms.length) {
+        // (2026-10-22: a summoned aspect — the third-party Summon Aspects —: a minion of the rank's summon level in the best of the forms, at
+        // the caster's DC — not the caster in it.)
+        if ((plan.traits ?? []).includes("summon")) {
+            const level0 = SUMMON_LEVELS[Math.min(10, rank)] ?? -1;
+            const minionIn = (form) => ({ ...moderateCreatureAt(level0, "minion", `${doc.name} (aspect)`), ac: formAC(form, level0, entry.dc) ?? moderateCreatureAt(level0, "minion").ac, strikes: formStrikes(form, moderateCreatureAt(level0, "minion"), entry.dc), traits: ["minion"] });
+            const best = (foes) => forms.map((form) => summonShare(partyWithSpell(party), foes, minionIn(form), 1)).filter(Boolean).sort((a, b) => b.share - a.share)[0] ?? null;
+            const results = resultsOf([], best, level);
+            return Object.keys(results).length ? { ...head, traits: [], results, estimate: "summoned aspect", summon: true } : { ...head, skipped: true, reason: "no effect counted" };
+        }
         // (2026-10-22: on the whole party when it takes more than the caster — Primal Herd —; an aspect form at the caster's DC.)
         const all = describeSpell(plan).targets > 1;
         const best = (foes) => forms.map((form) => formShare(party, foes, form, { dc: entry.dc, all })).filter(Boolean).sort((a, b) => b.share - a.share)[0] ?? null;

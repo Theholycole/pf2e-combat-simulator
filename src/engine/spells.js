@@ -12,7 +12,7 @@
 
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
-import { ACTIVE, DOWN, MOUTH, armorClass, canAct, canMove, defenceOf, effectBonus, hinderedBy, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
+import { ACTIVE, DEAD, DOWN, MOUTH, armorClass, canAct, canMove, createCombatant, defenceOf, effectBonus, hinderedBy, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune, weaknessCost } from "./effects.js";
 import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, bewilderFails, foresightReact, leaveField, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
@@ -28,7 +28,7 @@ import { effectImmunity, immuneToCondition } from "./immunities.js";
 import { elementalAnswers, hydraScaled, troopIgnores, troopSegmentLost } from "./creature-rules.js";
 import { sightDC } from "./environment.js";
 import { adjustDamage, adjustInstance, adjustPart, expectedStrikeDamage, rollStrikeDamage, spellContext, strikeContext } from "./damage.js";
-import { distanceBetween, engagedEnemies, fliesNow, leaveMelee, sameMelee } from "./space.js";
+import { distanceBetween, engage, engagedEnemies, fliesNow, leaveMelee, sameMelee } from "./space.js";
 import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
 import { applyWard, wardBlocks, wardWorth } from "./wards.js";
 import { applyImages, imageOdds, imageShare, imageTakes, imagesWorth } from "./images.js";
@@ -228,7 +228,7 @@ function readSpell(base, actions) {
         // (Sanctuary: a ward on an ally.)
         // (Mirror Image: images on the caster.)
         // (2026-10-22, family 5: a defence the simulator keeps itself — readings.js withDefences.)
-        helpful: kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care" || kind === "attack-ward" || kind === "image-decoys" || Boolean(plan?.defence),
+        helpful: !plan?.binding && (kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care" || kind === "attack-ward" || kind === "image-decoys" || Boolean(plan?.defence)),
         // No target, range or area: the caster itself (the battle forms).
         self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self")) || conditionNote?.recipient === "source" || (kind === "affliction-care" && plan.resolution.recipient === "self") || kind === "image-decoys" || ["prismatic", "indestructible", "turning", "globe"].includes(plan?.defence?.kind)
     };
@@ -1623,6 +1623,64 @@ function controlWorth(state, spell, target, change) {
     return { damage: 0, worth: actions / 3 + 0.1 };
 }
 
+// --- Duplicate Foe (2026-10-22, family 7; readings.js withDuplicate) -----------------------------------------------------------------------
+
+// A copy of the foe on the caster's side, beside it: the foe's attack, AC, saves, Perception, Speed and Strikes (their damage, no riders: no
+// special abilities), its Hit Points the spell's (70, 10 more a rank past 7th), a minion acting after the caster. It loses 4d6 Hit Points
+// after each of its turns (duplicateTurnEnd), deals half damage on a success, which lasts 2 rounds at most; Sustained (summons.js). A
+// second casting ends the first.
+let duplicateCount = 0;
+function makeDuplicate(state, caster, spell, target, degree) {
+    const spec = spell.plan.resolution.duplicate;
+    if (!isActive(target) || !isActive(caster)) return;
+    const row = spec.byDegree?.[degree] ?? {};
+    const rank = Number(spell.castRank) || Number(spec.hp?.baseRank) || 7;
+    const hp = (Number(spec.hp?.base) || 70) + Math.max(0, rank - (Number(spec.hp?.baseRank) || 7)) * (Number(spec.hp?.step) || 10);
+    const rounds = Math.min(Number(row.maxRounds) || Infinity, Math.max(1, Math.round((Number(spec.seconds) || 60) / 6)));
+    for (const old of state.list.filter((other) => other.duplicateBy === caster.id && other.status === ACTIVE)) dismissDuplicate(state, old);
+    const id = `${caster.id}~duplicate${++duplicateCount}`;
+    const strikes = (target.strikes ?? []).filter((strike) => strikeUsable(target, strike)).map((strike) => ({ name: strike.name, bonus: strike.bonus, melee: strike.melee, agile: strike.agile, ...(strike.reach ? { reach: strike.reach } : {}), ...(strike.increment ? { increment: strike.increment } : {}), ...(strike.potency ? { potency: strike.potency } : {}), damage: (strike.damage ?? []).map((part) => ({ ...part })) }));
+    const twin = createCombatant({ id, name: `${target.name} (duplicate)`, side: caster.side, kind: "npc", level: target.level, traits: ["minion"], hp: { value: hp, max: hp, temp: 0 }, ac: target.ac, saves: { ...(target.saves ?? {}) }, perception: target.perception, speed: target.speed, reach: target.reach, strikes, reactions: { aoo: false, shieldBlock: false } });
+    Object.assign(twin, { minionOf: caster.id, summonedBy: caster.id, duplicateBy: caster.id, summonEndsRound: state.round + rounds, summonSustained: Boolean(spec.sustained), decay: String(spec.hpLoss ?? "4d6"), halfStrikes: Boolean(row.halfDamage), round: caster.round });
+    state.list.push(twin);
+    state.byId.set(id, twin);
+    state.initiative?.set(id, state.initiative.get(caster.id) ?? 0);
+    if (state.order) {
+        const at = state.order.indexOf(caster.id);
+        state.order.splice(at < 0 ? state.order.length : at + 1, 0, id);
+    }
+    engage(state, twin, target);
+    log(state, `  ${twin.name} appears beside ${target.name} (${hp} HP${row.halfDamage ? ", half damage" : ""}, ${rounds} rounds)`);
+}
+
+function dismissDuplicate(state, c) {
+    c.status = DEAD;
+    c.vanished = true;
+    leaveMelee(state, c, "gone");
+    state.order = (state.order ?? []).filter((id) => id !== c.id);
+    log(state, `  ${c.name} vanishes`);
+}
+
+// After each of its turns: its 4d6 Hit Points lost; at 0, gone.
+export function duplicateTurnEnd(state, c) {
+    if (!c?.decay || c.status !== ACTIVE) return;
+    const lost = rollInstances(state, parseDamage(c.decay)).reduce((sum, instance) => sum + instance.amount, 0);
+    c.hp.value = Math.max(0, c.hp.value - lost);
+    log(state, `  ${c.name} loses ${lost} HP (${c.hp.value}/${c.hp.max})`);
+    if (c.hp.value <= 0) dismissDuplicate(state, c);
+}
+
+// What the duplicate is worth: its Strikes a round on the foe's side — the foe's own (its threat, the part from its Strikes; half on a
+// success) — for as long as it lasts (its Hit Points over the 14 it loses a round, the 2 rounds of a success; up to three).
+function duplicateWorth(state, spell, target, degree) {
+    const spec = spell.plan.resolution.duplicate;
+    const row = spec.byDegree?.[degree] ?? {};
+    const rank = Number(spell.castRank) || 7;
+    const hp = (Number(spec.hp?.base) || 70) + Math.max(0, rank - (Number(spec.hp?.baseRank) || 7)) * (Number(spec.hp?.step) || 10);
+    const rounds = Math.min(3, Number(row.maxRounds) || Infinity, Math.ceil(hp / 14));
+    return (state.threat?.get(target.id) ?? 0) * (state.strikeShare?.get(target.id) ?? 1) * (row.halfDamage ? 0.5 : 1) * rounds;
+}
+
 // --- Defences (2026-10-22, family 5; readings.js withDefences) ----------------------------------------------------------------------------
 
 // Its entry in the creature's defences (lasting.js: ended at the caster's turn start when its time's up, at its own turn's start for one
@@ -2760,6 +2818,11 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     applyHinder(state, caster, spell, target, change);
                     break;
                 }
+                // (Family 7: Duplicate Foe's copy.)
+                if (spell.plan?.resolution?.duplicate && /^duplicate:/.test(String(change.slug))) {
+                    makeDuplicate(state, caster, spell, target, String(change.slug).slice(10));
+                    break;
+                }
                 // (Family 3's curses — Cycle of Retribution, Warrior's Regret, Bloodspray Curse, Implement of Destruction.)
                 if (spell.plan?.curse && /^curse:/.test(String(change.slug))) {
                     applyCurse(state, caster, spell, target, change.slug.slice("curse:".length), change.duration);
@@ -3097,6 +3160,11 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // (2026-10-22, family 5: a defence the simulator keeps itself.)
     if (spell.plan?.defence) {
         for (const target of targets) applyDefence(state, caster, spell, target);
+        return;
+    }
+    // (2026-10-22, family 7: Bind Undead — no save, its undead controlled for the fight.)
+    if (spell.plan?.binding) {
+        for (const target of targets) if (target.side !== caster.side && isActive(target)) applyCondition(state, target, spell.plan.binding.slug, null, null, caster);
         return;
     }
     // (S59: a spell its caster can't cast again for minutes, once a fight; Sure Strike's attack also finds a concealed or hidden target
@@ -4237,6 +4305,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     if (guard) return guardEntries(state, caster, guard);
     // (2026-10-22, family 5: a defence — defenceEntries.)
     if (spell.plan?.defence) return defenceEntries(state, caster, spell, targets);
+    // (Family 7, Bind Undead: Dominate's worth, on a foe not controlled yet.)
+    if (spell.plan?.binding) return targets.map((target) => ({ target, damage: 0, heal: 0, benefit: 0, worth: target.side !== caster.side && !target.cond?.controlled && !outsideTargets(caster, target, spell) ? conditionWorth(spell.plan.binding.slug, null, null) : 0 }));
     // (Its caster's touch made harmful: the damage its foes' touching hits can expect — as a retaliation potion's.)
     // (Vibrant Thorns: with a spell of the trait that feeds it — vitality — at hand, half its hits at the higher damage.)
     let ownRetaliation = planRetaliation(spell);
@@ -4376,6 +4446,10 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     }
                     if (spell.plan?.hinder && /^hinder:/.test(String(change.slug))) {
                         entry.worth += chance * hinderWorth(state, spell, target, change);
+                        continue;
+                    }
+                    if (spell.plan?.resolution?.duplicate && /^duplicate:/.test(String(change.slug))) {
+                        entry.damage += chance * duplicateWorth(state, spell, target, String(change.slug).slice(10));
                         continue;
                     }
                     if (change.slug === "voiceless" && !target.cond?.voiceless) {
@@ -4726,7 +4800,7 @@ export function spellGaps(spell) {
             break;
         }
         for (const change of result.changes) {
-            if (change.op === "condition" && !MODELLED_CONDITIONS.has(change.slug) && !plan.marks?.[change.slug] && !(plan.curse && /^curse:/.test(String(change.slug))) && !(plan.control ?? []).includes(change.slug) && !(plan.hinder && /^hinder:/.test(String(change.slug)))) missing.add(`condition: ${change.slug}`);
+            if (change.op === "condition" && !MODELLED_CONDITIONS.has(change.slug) && !plan.marks?.[change.slug] && !(plan.curse && /^curse:/.test(String(change.slug))) && !(plan.control ?? []).includes(change.slug) && !(plan.hinder && /^hinder:/.test(String(change.slug))) && !(plan.resolution?.duplicate && /^duplicate:/.test(String(change.slug)))) missing.add(`condition: ${change.slug}`);
             else if (change.op === "effect" && change.effect?.kind === "native" && spell.effects?.[change.effect.uuid]) {
                 const model = spell.effects[change.effect.uuid];
                 if (model.unsupported.length) missing.add(`${model.name.replace(/^Spell Effect: /, "")}: ${model.unsupported.join(", ")}`);
@@ -4790,6 +4864,8 @@ function chainFrom(first, foes, feet) {
 function playedGap(spell, what) {
     const resolution = spell.plan?.resolution ?? {};
     if (what === "chain" || what === "splash" || what === "magicItem" || what === "artifactFails" || what === "casterConditions") return true;
+    // (2026-10-22, family 7: Duplicate Foe's copy — makeDuplicate.)
+    if (what === "duplicate") return Boolean(resolution.duplicate);
     // (S59, Sure Strike: used up by the next attack roll, once a fight, and its note on concealed and hidden targets.)
     if (what === "consumeOn") return resolution.consumeOn?.on === "attack-roll";
     if (what === "temporaryImmunity") return Boolean(castImmunityKey(spell));

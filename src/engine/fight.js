@@ -12,7 +12,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { agitationTurnEnd, atCastRank, heldTurnStart, hinderTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { agitationTurnEnd, atCastRank, duplicateTurnEnd, heldTurnStart, hinderTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -646,6 +646,7 @@ function endTurn(state, c) {
     // (Warrior's Regret: its damage for those it hurt this turn.)
     regretTurnEnd(state, c);
     hinderTurnEnd(state, c);
+    duplicateTurnEnd(state, c);
     // Swallow Whole's damage at the end of each of the swallowed creature's turns.
     if (c.swallowedBy && c.swallow?.damage?.length) {
         state.log?.push(`  ${c.name} is crushed inside ${state.byId.get(c.swallowedBy)?.name}`);
