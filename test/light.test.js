@@ -377,3 +377,19 @@ test("Dirge of Remembrance: damage past resistance, semi-corporeal ghosts take w
     const fiery = createFightState({ combatants: [...standardParty(7), hound] }, { morale: false, retreat: false }, 1);
     assert.ok(resistanceKept(fiery, { immunities: ["fire"], resistances: [] }, fiery.byId.get("wizard"), 1) > 0, "fire immunity against a fire Strike");
 });
+
+test("Light of Revelation: a light aura cast on the caster sheds bright light for its radius", async () => {
+    const { lightAuraModel } = await import("../src/engine/light.js");
+    const { castSpell, canCast } = await import("../src/engine/spells.js");
+    const plan = withReading({ activation: { time: "2", traits: [] }, targeting: { target: null, range: null, area: null }, resolution: { kind: "light-aura", lightAura: { radius: 30, durationSeconds: 300 } } });
+    assert.equal(plan.targeting.target, "self");
+    const spell = { name: "Light of Revelation", plan, castRank: 2, pool: null };
+    assert.deepEqual(lightAuraModel(spell).light, { bright: 30, dim: 0, rank: 2 });
+    const state = createFightState({ combatants: [...standardParty(3), { ...moderateCreatureAt(3, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1, { log: true });
+    state.environment = { ...(state.environment ?? {}), light: "dark" };
+    const cleric = state.byId.get("cleric");
+    cleric.spells = [spell];
+    assert.ok(canCast(cleric, spell));
+    castSpell(state, cleric, 0, [cleric.id]);
+    assert.equal(lightAt(state, cleric).level, "bright");
+});

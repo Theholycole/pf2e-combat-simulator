@@ -91,6 +91,16 @@ export function lightZoneModel(plan, rank = 1) {
     return null;
 }
 
+// A light aura about the caster (Light of Revelation's "light-aura", 2026-10-22: the spell module plays it live; here, the engine's own):
+// an effect on the caster that sheds bright light for its radius, for its time — or null.
+export function lightAuraModel(spell) {
+    const aura = spell?.plan?.resolution?.kind === "light-aura" ? spell.plan.resolution.lightAura : null;
+    const radius = Number(aura?.radius) || 0;
+    if (!(radius > 0)) return null;
+    const rounds = Math.max(1, Math.round((Number(aura.durationSeconds) || 60) / 6));
+    return { name: spell.name, rounds, light: { bright: radius, dim: 0, rank: Number(spell.castRank) || 1 }, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
+}
+
 // The zone a spell makes of its light, or null.
 export function lightZoneOf(spell) {
     return lightZoneModel(spell?.plan, Number(spell?.castRank) || 1);

@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withArea(resolved))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withArea(resolved)))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -115,6 +115,13 @@ function withGrounding(plan) {
         return [degree, { ...row, effects: [grounded ? { kind: "condition", slug: "grounded", value: null, duration: { mode: "fixed", value, unit: `${grounded[2].toLowerCase()}s` } } : { kind: "condition", slug: "landed", value: null, duration: null }] }];
     }));
     return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
+}
+
+// Light of Revelation (2026-10-22, sight and light): a light aura about the caster, aimed at itself (its data's "30-foot emanation" range
+// otherwise leaves it nothing to aim at) — light.js lightAuraModel plays it.
+function withLightAura(plan) {
+    if (plan?.resolution?.kind !== "light-aura" || plan.targeting?.target === "self") return plan;
+    return { ...plan, simulatorReading: true, targeting: { ...(plan.targeting ?? {}), target: "self", range: null, area: null } };
 }
 
 // Dirge of Remembrance (2026-10-22, incorporeal): a save's row that says the creature "becomes semi-corporeal", with nothing of its own —

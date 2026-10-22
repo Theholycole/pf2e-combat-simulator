@@ -164,6 +164,8 @@ export function powerConditions(plan, effects = null, text = "") {
     // (Sight and light — light.js, 2026-10-21: darkness against foes without darkvision; light in an unlit fight and on light-blind foes;
     // senses an effect gives, in an unlit fight.)
     const zone = lightZoneModel(plan);
+    // (A light aura about the caster — Light of Revelation —: as bright light.)
+    if (plan?.resolution?.kind === "light-aura") for (const trait of ["dark", "light-blind"]) traits.add(trait);
     if (zone?.light?.level === "dark") traits.add("no-darkvision");
     if (zone?.light?.level === "bright") for (const trait of ["dark", "light-blind"]) traits.add(trait);
     for (const model of Object.values(effects ?? {})) {

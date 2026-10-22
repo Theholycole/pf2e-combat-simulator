@@ -16,7 +16,7 @@ import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isA
 import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune } from "./effects.js";
 import { applyDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, semicorporealDamage, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
-import { dimWorth, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
+import { dimWorth, lightAuraModel, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
 import { addFloor, floorOf } from "./floors.js";
 import { counterables, counterChance, counterRank, counterReaches, counterRoll } from "./counteract.js";
@@ -1930,6 +1930,14 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         }
         return;
     }
+    // (A light aura about the caster — Light of Revelation's —: its light on it, light.js.)
+    const lightAura = lightAuraModel(spell);
+    if (lightAura) {
+        spendPool(caster, spell);
+        log(state, `  ${caster.name} casts ${spell.name}`);
+        applyEffect(state, caster, lightAura, caster, { applyCondition, key: spell.name });
+        return;
+    }
     // A zone (B256): its area made; what it does then and over the turns is zones.js's. (Light or darkness — light.js —: its zone.)
     const lightZone = spell.zone ? null : lightZoneOf(spell);
     if (lightZone) spell = { ...spell, zone: lightZone };
@@ -2893,7 +2901,7 @@ function castableAtAll(spell) {
     let castable = CASTABLE.get(spell);
     if (castable === undefined) {
         // (Light or darkness a zone holds — light.js —: cast as its zone, its family the engine's own.)
-        const light = Boolean(lightZoneOf(spell));
+        const light = Boolean(lightZoneOf(spell) || lightAuraModel(spell));
         castable = !isConstant(spell) && (light || (Boolean(registry.familyFor(spell.plan?.resolution?.kind)) && !castsNothing(spell.plan))) && spellVariants(spell).some((actions) => {
             const info = describeSpell(spell.plan, actions);
             return Boolean(info.area || info.targets || info.self);
@@ -3068,6 +3076,9 @@ function faceShare(faces, die, dice = 1) {
 export function spellExpectation(state, caster, spell, targets, attacks = caster.attacksThisTurn ?? 0, actions = undefined) {
     // (Light or darkness — light.js —: how much harder or easier it makes each side to see.)
     if (!spell.zone && lightZoneOf(spell)) return lightZoneEntries(state, caster, spell, targets, conditionWorth);
+    // (A light aura on the caster: what its light does for each side's sight — light.js senseLightBenefit.)
+    const lightAura = lightAuraModel(spell);
+    if (lightAura) return [{ target: caster, damage: 0, worth: 0, heal: 0, benefit: senseLightBenefit(state, lightAura, caster, Math.min(3, lightAura.rounds)) }];
     // A random effect table (B255): each way's expectation, weighted by its share of the die's faces (a way on itself, on itself).
     if (spell.randomWays?.length) {
         const merged = new Map();
@@ -3447,7 +3458,7 @@ export function spellGaps(spell) {
     const family = kind ? registry.familyFor(kind) : null;
     if (!plan) return ["no plan"];
     // (Light or darkness a zone holds — light.js: the engine's own.)
-    if (lightZoneOf(spell)) return [];
+    if (lightZoneOf(spell) || lightAuraModel(spell)) return [];
     if (!family) return [`resolution kind "${kind}" isn't resolved yet`];
     const info = describeSpell(plan);
     const missing = new Set();
