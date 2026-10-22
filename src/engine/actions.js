@@ -1813,6 +1813,8 @@ function endMoveEffects(state, c) {
 
 export function stride(state, c, move) {
     if (!canMove(c)) return;
+    // (A Stride, Fly or Swim this turn — Agitate's.)
+    c.movedThisTurn = true;
     // (Incorporeal, space.js: out of the floor with its first move — rising where it is, or on to where it goes.)
     if (c.insideObject) emerge(state, c);
     if (move.kind === "rise") return;
@@ -1820,6 +1822,13 @@ export function stride(state, c, move) {
     endMoveEffects(state, c);
     // Grapple: "unless you move".
     releaseGrabs(state, c);
+    // (Agitate, 2026-10-22: a Stride to another space beside the same foes — it stays in its Melee; the reactions to a move from beside them,
+    // as any Stride's.)
+    if (move.kind === "around") {
+        if (!(move.safe || mobileStride(c, move)) && c.meleeId !== null && c.meleeId !== undefined) provoke(state, c, "move");
+        if (canAct(c)) log(state, `  ${c.name} Strides around its foes`);
+        return;
+    }
     const leavingMelee = c.meleeId !== null && !(move.kind === "engage" && state.byId.get(move.targetId)?.meleeId === c.meleeId);
     // (B117: those it moves away from, for No Escape.)
     // (B302, Mobility: a short Stride triggers no reactions.)

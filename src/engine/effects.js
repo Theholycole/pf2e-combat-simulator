@@ -206,8 +206,9 @@ function choiceSets(item, rank) {
     const allowed = (rule) => rule.choices.filter((choice) => typeof choice?.value === "string" && predicateHolds(choice.predicate, rank) !== false).map((choice) => choice.value);
     // (2026-10-22, Enlarge: a choice whose value is an object — { damage, reach, size } — the rules read a field of, "…rulesSelections.enlarge.damage";
     // keyed by its label's last word, "ActorSizeHuge".)
-    const keyOf = (choice, index) => (typeof choice?.value === "string" ? choice.value : String(choice?.label ?? index).split(".").pop());
-    const fields = (rule) => rule.choices.map((choice, index) => [keyOf(choice, index), choice]).filter(([, choice]) => (typeof choice?.value === "string" || (choice?.value && typeof choice.value === "object" && !Array.isArray(choice.value))) && predicateHolds(choice.predicate, rank) !== false);
+    // (Dancing Shield's +1, +2 or +3 — numbers —: keyed by the number.)
+    const keyOf = (choice, index) => (typeof choice?.value === "string" ? choice.value : typeof choice?.value === "number" ? String(choice.value) : String(choice?.label ?? index).split(".").pop());
+    const fields = (rule) => rule.choices.map((choice, index) => [keyOf(choice, index), choice]).filter(([, choice]) => (typeof choice?.value === "string" || Number.isFinite(choice?.value) || (choice?.value && typeof choice.value === "object" && !Array.isArray(choice.value))) && predicateHolds(choice.predicate, rank) !== false);
     const byOption = rules.filter((rule) => rule?.key === "ChoiceSet" && typeof rule.rollOption === "string" && Array.isArray(rule.choices)).map((rule) => ({
         option: rule.rollOption,
         values: allowed(rule).filter((value) => named.includes(`"${rule.rollOption}:${value}"`))
@@ -215,9 +216,9 @@ function choiceSets(item, rank) {
     // (2026-10-22, Traveler's Transit: a choice put into a rule's selector — "{item|flags.system.rulesSelections.traveler}" — not a roll option.
     // Not into a resistance's or weakness's type: those are the "choice" resistances, read on their own.)
     // (One its rank allows alone — Enlarge's Huge at rank 4 —: put in as it is, values.length 1.)
+    // (Its token written either way: "{item|flags.system.rulesSelections.x}", or "@item.flags.system.rulesSelections.x" — Dancing Shield's.)
     const bySelection = rules.filter((rule) => rule?.key === "ChoiceSet" && !rule.rollOption && typeof rule.flag === "string" && Array.isArray(rule.choices)).filter((rule) => {
-        const token = `{item|flags.system.rulesSelections.${rule.flag}`;
-        return rules.some((other) => other !== rule && !["Resistance", "Weakness"].includes(other?.key) && new RegExp(`${token.replace(/[|{}.]/g, "\\$&")}[.}]`).test(JSON.stringify(other)));
+        return rules.some((other) => other !== rule && !["Resistance", "Weakness"].includes(other?.key) && selectionPattern(rule.flag).test(JSON.stringify(other)));
     }).map((rule) => {
         const allowedFields = fields(rule);
         return { option: `selection:${rule.flag}`, flag: rule.flag, values: allowedFields.map(([key]) => key), selected: Object.fromEntries(allowedFields.map(([key, choice]) => [key, choice.value])) };
@@ -227,21 +228,36 @@ function choiceSets(item, rank) {
 
 // A rule with a chosen selection put in for its token (a ChoiceSet's by flag): the whole value, or a field of an object value
 // ("{item|flags.system.rulesSelections.enlarge.damage}" → 4, a number where the token was the whole string).
+// A selection's token, either way it's written: [quote before, the field's path, quote after].
+function selectionPattern(flag, global = false) {
+    return new RegExp(`(")?(?:\\{item\\|flags\\.system\\.rulesSelections\\.${flag}((?:\\.\\w+)*)\\}|@item\\.flags\\.system\\.rulesSelections\\.${flag}((?:\\.\\w+)*)(?![\\w.]))(")?`, global ? "g" : "");
+}
+
 function withSelection(rule, flag, value) {
     const text = JSON.stringify(rule);
-    const prefix = `{item|flags.system.rulesSelections.${flag}`;
-    if (!text.includes(prefix)) return rule;
+    if (!selectionPattern(flag).test(text)) return rule;
     const field = (path) => (path ? path.split(".").reduce((held, key) => held?.[key], value) : value);
-    const pattern = new RegExp(`(")?${prefix.replace(/[|{}.]/g, "\\$&")}((?:\\.\\w+)*)\\}(")?`, "g");
-    return JSON.parse(text.replace(pattern, (all, open, path, close) => {
-        const held = field(path.slice(1));
+    return JSON.parse(text.replace(selectionPattern(flag, true), (all, open, braced, bare, close) => {
+        const held = field((braced ?? bare ?? "").slice(1));
         if (held === undefined || held === null) return all;
         if (open && close) return JSON.stringify(held);
         return `${open ?? ""}${String(held)}${close ?? ""}`;
     }));
 }
 
+// (2026-10-22, Fire Shield: a flag an ActiveEffectLike sets on the creature — "flags.system.fireShield.resistance" to "cold" — put in where
+// another rule reads it, "{actor|flags.system.fireShield.resistance}"; before, its resistance had no type.)
+function withActorFlags(item) {
+    const rules = item?.system?.rules ?? [];
+    const set = rules.filter((rule) => rule?.key === "ActiveEffectLike" && rule.mode === "override" && !rule.predicate && typeof rule.path === "string" && rule.path.startsWith("flags.") && /^[\w.-]+$/.test(String(rule.value ?? "")));
+    if (!set.length) return item;
+    let text = JSON.stringify(rules);
+    for (const rule of set) text = text.split(`{actor|${rule.path}}`).join(String(rule.value));
+    return { ...item, system: { ...item.system, rules: JSON.parse(text) } };
+}
+
 export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen = null } = {}) {
+    item = withActorFlags(item);
     const model = { name: item?.name ?? "Effect", rounds: roundsOf(item?.system?.duration), modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
     const unsupported = new Set();
     // (2026-10-22, Levitate: its effect has only the −2 to attacks; the spell floats the creature up out of reach — model.levitates, space.js.)

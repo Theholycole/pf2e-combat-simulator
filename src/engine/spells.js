@@ -71,7 +71,9 @@ const FLAGS = {
     // (2026-10-22, Penumbral Shroud: it perceives light a step lower — light.js sightDCIn.)
     dimmed: "dimmed",
     // (2026-10-22, Dirge of Remembrance: weapons' attacks on it have ghost touch's benefit — damage.js optionsOf.)
-    semicorporeal: "semicorporeal"
+    semicorporeal: "semicorporeal",
+    // (2026-10-22, Agitate: it must Stride, Fly or Swim each turn or take the spell's damage as the turn ends — agitationTurnEnd.)
+    agitated: "agitated"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -1261,19 +1263,47 @@ export function planRetaliation(spell) {
     const target = String(spell.plan.targeting?.target ?? "self").toLowerCase();
     if (!["self", "you", ""].includes(target)) return null;
     const trigger = (resolution.retaliation?.triggers ?? []).find((entry) => entry?.damage?.formula && !entry.damage.persistent && /\b(?:touches|hits?|damages)\s+(?:the bearer|you|it)\b/i.test(String(entry.trigger ?? "")));
-    const read = /^(\d+)d(\d+)(?:\s*\+\s*(\d+))?$|^(\d+)$/.exec(String(trigger?.damage?.formula ?? "").trim());
+    // (2026-10-22, Vibrant Thorns' "(@item.rank)" and "(@item.rank)d6": the rank it's cast at put in.)
+    const atCast = (formula) => String(formula ?? "").replace(/@item\.(?:rank|level)/g, String(Number(spell.castRank) || 1)).replace(/\((\d+)\)/g, "$1").trim();
+    const read = /^(\d+)d(\d+)(?:\s*\+\s*(\d+))?$|^(\d+)$/.exec(atCast(trigger?.damage?.formula));
     if (!read) return null;
     let dice = Number(read[1]) || 0;
     const die = Number(read[2]) || 0;
     let bonus = Number(read[3] ?? read[4]) || 0;
     const heightening = resolution.retaliation.heightening;
-    const step = heightening?.type === "interval" ? String(heightening.damage?.[trigger.damage.componentId] ?? "") : "";
+    const step = heightening?.type === "interval" && !/@item\./.test(String(trigger.damage.formula)) ? String(heightening.damage?.[trigger.damage.componentId] ?? "") : "";
     const steps = step ? Math.max(0, Math.floor(((Number(spell.castRank) || 1) - (Number(spell.plan.rank) || 1)) / (Number(heightening.interval) || 1))) : 0;
     const more = /^(\d+)d(\d+)$|^(\d+)$/.exec(step);
     if (steps && more?.[2] && Number(more[2]) === die) dice += steps * Number(more[1]);
     else if (steps && more?.[3]) bonus += steps * Number(more[3]);
     const words = String(trigger.trigger ?? "") + " " + String(trigger.sourceText ?? "");
-    return { parts: [{ dice, die, bonus, type: String(trigger.damage.type ?? "untyped").toLowerCase() }], adjacentMelee: /non-reach melee weapon|\bmelee (?:or unarmed )?attack/i.test(words), touch: /\btouch/i.test(words), rounds: Math.max(1, Math.round((Number(resolution.retaliation.durationSeconds) || 60) / 6)) };
+    const type = String(trigger.damage.type ?? "untyped").toLowerCase();
+    // (Vibrant Thorns: "Anytime you cast a vitality spell, the thorns' damage increases to (@item.rank)d6 until the start of your next turn" —
+    // boost { trait, parts }, set off as the bearer casts one: castSpell, cleared as its turn starts, fight.js startTurn.)
+    const fed = (resolution.retaliation.triggers ?? []).find((entry) => entry !== trigger && entry?.damage?.formula && /\bafter you cast an? (\w+) spell\b/i.test(String(entry.trigger ?? "")));
+    const boosted = fed ? /^(\d+)d(\d+)(?:\s*\+\s*(\d+))?$|^(\d+)$/.exec(atCast(fed.damage.formula)) : null;
+    const boost = boosted ? { trait: /\bafter you cast an? (\w+) spell\b/i.exec(fed.trigger)[1].toLowerCase(), parts: [{ dice: Number(boosted[1]) || 0, die: Number(boosted[2]) || 0, bonus: Number(boosted[3] ?? boosted[4]) || 0, type: String(fed.damage.type ?? type).toLowerCase() }] } : null;
+    return { parts: [{ dice, die, bonus, type }], adjacentMelee: /non-reach melee weapon|\bmelee (?:or unarmed )?attack/i.test(words), touch: /\btouch/i.test(words), rounds: Math.max(1, Math.round((Number(resolution.retaliation.durationSeconds) || 60) / 6)), ...(boost ? { boost } : {}) };
+}
+
+// Agitate's damage at the spell's cast rank (readings.js withAgitation): its dice, more each step it's heightened.
+function agitationParts(spell) {
+    const agitation = spell?.plan?.agitation;
+    if (!agitation) return [];
+    const steps = agitation.step ? Math.max(0, Math.floor(((Number(spell.castRank) || 1) - (Number(spell.plan.rank) || 1)) / agitation.step.interval)) : 0;
+    return [{ dice: agitation.dice + steps * (agitation.step?.dice ?? 0), die: agitation.die, type: agitation.type }];
+}
+
+// An agitated creature that didn't Stride, Fly or Swim this turn: the spell's damage as its turn ends (fight.js endTurn).
+export function agitationTurnEnd(state, c) {
+    if (!c.cond?.agitated || c.movedThisTurn || !c.agitation?.parts?.length || !isActive(c)) return;
+    const instances = c.agitation.parts.map((part) => {
+        let amount = 0;
+        for (let die = 0; die < part.dice; die++) amount += state.rng.die(part.die);
+        return { type: part.type, amount, persistent: false, precision: false };
+    });
+    const dealt = applyDamage(state, c, instances);
+    log(state, `  ${c.name} didn't move, restless from ${c.agitation.name}: ${dealt} ${c.agitation.parts.map((part) => part.type).join(" and ")}`);
 }
 
 function applySelfRetaliation(state, caster, name, retaliation) {
@@ -1295,13 +1325,14 @@ export function touchRetaliation(state, defender, attacker, how) {
     for (const entry of retaliationsOn(state, defender)) {
         if (how === "weapon" && !entry.adjacentMelee) continue;
         if ((how === "maneuver" || how === "contact") && !entry.touch) continue;
-        const instances = entry.parts.map((part) => {
+        const parts = entry.boosted && entry.boost ? entry.boost.parts : entry.parts;
+        const instances = parts.map((part) => {
             let amount = part.bonus;
             for (let die = 0; die < part.dice; die++) amount += state.rng.die(part.die);
             return { type: part.type, amount, persistent: false, precision: false };
         });
         const dealt = applyDamage(state, attacker, instances, { source: defender });
-        log(state, `  ${attacker.name} touches ${defender.name}'s ${entry.label ?? entry.name}: ${dealt} ${entry.parts.map((part) => part.type).join(" and ")}`);
+        log(state, `  ${attacker.name} touches ${defender.name}'s ${entry.label ?? entry.name}: ${dealt} ${parts.map((part) => part.type).join(" and ")}`);
         if (!isActive(attacker)) return;
     }
 }
@@ -1830,6 +1861,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     if (change.endsOnHostile) (target.endsOnHostile ??= new Set()).add(FLAGS[change.slug] ?? change.slug);
                     // (What a counteract checks against: the spell's or ability's DC and rank.)
                     (target.condSources ??= {})[change.slug] = { dc: effectDC(spell), rank: counterRank(caster, spell, isSpellCast(spell)), spell: isSpellCast(spell), name: spell.name, traits: spell.plan?.traits ?? [] };
+                    if (change.slug === "agitated") target.agitation = { name: spell.name, parts: agitationParts(spell) };
                     log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${stackedValue(target, change, true)}` : ""}`);
                     // Retching: a Fortitude save against the DC of what made it sickened.
                     if (change.slug === "sickened") target.sickenedDC = Math.max(target.sickenedDC ?? 0, effectDC(spell) ?? 0) || null;
@@ -1949,6 +1981,8 @@ function applyChanges(state, caster, spell, changes, context, io) {
 // Casts spell spellIndex at the targets (ids). Spends its pool.
 export function castSpell(state, caster, spellIndex, targetIds, actions, options = {}) {
     const spell = caster.spells[spellIndex];
+    // (Vibrant Thorns: a spell of the trait its thorns feed on — vitality — ups their damage until the caster's next turn starts.)
+    if (spell && isSpellCast(spell)) for (const entry of caster.retaliations ?? []) if (entry.boost && (spell.plan?.traits ?? []).includes(entry.boost.trait)) entry.boosted = true;
     // (B304, Consume Flesh: "from any given corpse only once" — each use takes one of the fight's corpses.)
     if ((spell?.plan?.needs ?? []).some((need) => need.corpse || need.any?.some((each) => each.corpse))) caster.corpsesUsed = (caster.corpsesUsed ?? 0) + 1;
     castPlan(state, caster, spell, targetIds, actions, options);
@@ -3185,7 +3219,10 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     // (Light or darkness — light.js —: how much harder or easier it makes each side to see.)
     if (!spell.zone && lightZoneOf(spell)) return lightZoneEntries(state, caster, spell, targets, conditionWorth);
     // (Its caster's touch made harmful: the damage its foes' touching hits can expect — as a retaliation potion's.)
-    const ownRetaliation = planRetaliation(spell);
+    // (Vibrant Thorns: with a spell of the trait that feeds it — vitality — at hand, half its hits at the higher damage.)
+    let ownRetaliation = planRetaliation(spell);
+    const feeds = ownRetaliation?.boost && (caster.spells ?? []).some((other) => other !== spell && (other.plan?.traits ?? []).includes(ownRetaliation.boost.trait));
+    if (feeds) ownRetaliation = { ...ownRetaliation, parts: [...ownRetaliation.parts, ...ownRetaliation.boost.parts].map((part) => ({ ...part, dice: part.dice / 2, bonus: part.bonus / 2 })) };
     if (ownRetaliation) return [{ target: caster, damage: 0, worth: 0, heal: 0, benefit: 0 }, ...itemRetaliationEntries(state, { name: spell.name, retaliation: ownRetaliation }, caster, { maxShare: 0.5 })];
     // (A light aura on the caster: what its light does for each side's sight — light.js senseLightBenefit.)
     const lightAura = lightAuraModel(spell);
@@ -3309,6 +3346,12 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     // actions.js groundDamage; landed, about half a round, until it takes off again.)
                     if ((change.slug === "landed" || change.slug === "grounded") && !held) {
                         entry.damage += chance * groundDamage(state, target, change.slug === "landed" ? 0.5 : Math.min(3, durationRounds(change.duration)));
+                        continue;
+                    }
+                    // (Agitated: its damage a round it lasts, about half of them — the other half it Strides, an action it would rather spend.)
+                    if (change.slug === "agitated" && !held) {
+                        const parts = agitationParts(spell);
+                        entry.damage += chance * 0.5 * Math.min(3, durationRounds(change.duration)) * parts.reduce((sum, part) => sum + adjustInstance(target, part.type, part.dice * (part.die + 1) / 2), 0);
                         continue;
                     }
                     // (Semi-corporeal: what its foes' weapons add against it with ghost touch's benefit — actions.js semicorporealDamage.)

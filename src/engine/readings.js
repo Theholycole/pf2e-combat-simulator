@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withArea(resolved)))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withEffectNote(withArea(resolved)))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -121,6 +121,54 @@ function withGrounding(plan) {
         return [degree, { ...row, effects: [grounded ? { kind: "condition", slug: "grounded", value: null, duration: { mode: "fixed", value, unit: `${grounded[2].toLowerCase()}s` } } : { kind: "condition", slug: "landed", value: null, duration: null }] }];
     }));
     return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
+}
+
+// (2026-10-22, found building Dancing Shield: a spell whose PF2e effect the compiler leaves as a note on its recipient — "effect-note":
+// Levitate, Dancing Shield, Fire Shield, Tempest Cloak, See the Unseen … — was never cast in fights; the ratings read it as an effect
+// (power-readings.js castableReading).) As an effect's on that recipient: the caster's own (recipient "source" or "self-or-companion", with
+// no other target), or the target's — a willing creature's where the target is an item it holds (Dancing Shield's "1 touched shield … and 1
+// willing creature", Ghostly Weapon's "1 weapon … wielded by you or a willing ally"). Not one on an area, on an object alone, on the caster
+// for a creature it targets (Vision of Weakness), or one the caster is asked about.
+const NOTE_SELF = /^(?:|you|yourself|yourself or your animal companion)$/i;
+function withEffectNote(plan) {
+    const resolution = plan?.resolution;
+    const note = resolution?.kind === "effect-note" ? resolution.effectNote : null;
+    // (Not a reaction — Rapid Retreat, Battlefield Persistence —: fights don't cast those; the ratings read them as they were.)
+    if (!note?.effect?.uuid || plan.activation?.time === "reaction") return plan;
+    const target = String(plan.targeting?.target ?? "").trim();
+    let targeting = plan.targeting;
+    let recipients;
+    if (note.recipient === "source" || note.recipient === "self-or-companion") {
+        if (!NOTE_SELF.test(target)) return plan;
+        recipients = "self";
+        targeting = { ...(targeting ?? {}), target: "self" };
+    } else if (note.recipient === "target") {
+        if (target && !/\bcreatures?\b|\ball(?:y|ies)\b/i.test(target)) return plan;
+        recipients = "target";
+        if (/\b(?:weapon|shield|armor)s?\b/i.test(target) && /\bwilling\b|\ball(?:y|ies)\b/i.test(target)) targeting = { ...targeting, target: "1 willing creature" };
+    } else return plan;
+    return { ...plan, simulatorReading: true, targeting, resolution: { kind: "effect", check: null, sharedDamage: null, outcomes: resolution.outcomes, applications: [{ kind: "native-spell-effect", uuid: note.effect.uuid, label: note.effect.label ?? null, recipients }] } };
+}
+
+// Agitate (2026-10-22, flying and the like): "the target must Stride, Fly, or Swim at least once each turn or take 2d8 mental damage at the
+// end of its turn", for the rounds its save's row gives ("The duration is 2 rounds") — agitated (a condition, spells.js FLAGS) for those
+// rounds; plan.agitation its damage { dice, die, type, step } — spells.js agitationParts at the cast rank, agitationTurnEnd.
+const AGITATED = /\bmust (?:Stride|Fly|Swim)(?:,? (?:or )?(?:Stride|Fly|Swim))* at least once each turn or take (\d+)d(\d+) (\w+) damage at the end of its turn\b/i;
+const AGITATED_ROUNDS = /\bduration is (\d+) rounds?\b/i;
+function withAgitation(plan) {
+    const resolution = plan?.resolution;
+    if (resolution?.kind !== "save") return plan;
+    const read = AGITATED.exec(Object.values(resolution.outcomes ?? {}).flatMap((row) => (row?.noteEffects ?? []).map((note) => String(note?.text ?? ""))).join(" "));
+    if (!read) return plan;
+    const component = resolution.sharedDamage?.components?.[0];
+    const heightening = resolution.sharedDamage?.heightening;
+    const more = heightening?.type === "interval" ? /^(\d+)d\d+$/.exec(String(heightening.damage?.[component?.id] ?? "")) : null;
+    const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
+        const lasts = AGITATED_ROUNDS.exec(rowWords(plan, degree, row));
+        return [degree, lasts ? { ...row, noteEffects: [], effects: [...(row?.effects ?? []), { kind: "condition", slug: "agitated", value: null, duration: { mode: "fixed", value: Number(lasts[1]), unit: "rounds" } }] } : { ...row, noteEffects: [] }];
+    }));
+    const agitation = { dice: Number(read[1]), die: Number(read[2]), type: read[3].toLowerCase(), ...(more ? { step: { dice: Number(more[1]), interval: Number(heightening.interval) || 1 } } : {}) };
+    return { ...plan, simulatorReading: true, agitation, resolution: { ...resolution, sharedDamage: null, outcomes } };
 }
 
 // Blanket of Stars (2026-10-22, sight and light): a generated form whose fight effect is an aura's save on the creatures that end their turn

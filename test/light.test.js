@@ -568,3 +568,90 @@ test("ChoiceSet values that are objects: a field put in for its token, the only 
     const six = effectModel(enlarge, { rank: 6 });
     assert.deepEqual(six.choices.map((choice) => [choice.value, choice.model.conditional[0].value]), [["ActorSizeHuge", 4], ["ActorSizeLarge", 2]]);
 });
+
+test("Vibrant Thorns: its rank's damage on a touching hit, its rank in d6 after its caster casts a vitality spell until its next turn", async () => {
+    const { castSpell, planRetaliation, touchRetaliation } = await import("../src/engine/spells.js");
+    const { takeTurn } = await import("../src/engine/fight.js");
+    const { compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const thorns = { name: "Vibrant Thorns", castRank: 3, pool: null, plan: compileSpell(spellNamed("Vibrant Thorns")) };
+    assert.deepEqual(planRetaliation(thorns).parts, [{ dice: 0, die: 0, bonus: 3, type: "piercing" }]);
+    assert.deepEqual(planRetaliation(thorns).boost, { trait: "vitality", parts: [{ dice: 3, die: 6, bonus: 0, type: "piercing" }] });
+    const state = createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const cleric = state.byId.get("cleric");
+    const monster = state.byId.get("monster");
+    const heal = { name: "Heal", castRank: 3, pool: null, dc: 20, attack: 10, effects: {}, plan: compileSpell(spellNamed("Heal")) };
+    cleric.spells = [thorns, heal];
+    castSpell(state, cleric, 0, [cleric.id]);
+    const entry = cleric.retaliations.find((each) => each.name === "Vibrant Thorns");
+    assert.ok(entry && !entry.boosted);
+    castSpell(state, cleric, 1, [cleric.id]);
+    assert.equal(entry.boosted, true, "a vitality spell feeds the thorns");
+    state.rng.die = (sides) => sides;
+    state.log = [];
+    touchRetaliation(state, cleric, monster, "weapon");
+    assert.ok(state.log.some((line) => /touches Cleric's Vibrant Thorns: 18 piercing/.test(line)), state.log.join("\n"));
+    cleric.spells = [];
+    cleric.actionsLeft = 0;
+    takeTurn(state, cleric);
+    assert.equal(entry.boosted, false, "until the start of its next turn");
+});
+
+test("Agitate: agitated for its save's rounds; no Stride, Fly or Swim in a turn — its damage as the turn ends; a Stride around its foes keeps it in", async () => {
+    const { applyCondition, castSpell } = await import("../src/engine/spells.js");
+    const { takeTurn } = await import("../src/engine/fight.js");
+    const { engage } = await import("../src/engine/space.js");
+    const { compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const plan = compileSpell(spellNamed("Agitate"));
+    assert.deepEqual(plan.agitation, { dice: 2, die: 8, type: "mental", step: { dice: 2, interval: 1 } });
+    assert.deepEqual(["criticalSuccess", "success", "failure", "criticalFailure"].map((degree) => plan.resolution.outcomes[degree].effects.map((effect) => `${effect.slug} ${effect.duration.value}`).join()), ["", "agitated 1", "agitated 2", "agitated 4"]);
+    const state = createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), id: "monster", name: "Brute" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wizard = state.byId.get("wizard");
+    const brute = state.byId.get("monster");
+    wizard.spells = [{ name: "Agitate", castRank: 3, pool: null, dc: 40, attack: 30, effects: {}, plan }];
+    state.rng.d20 = () => 1;
+    castSpell(state, wizard, 0, [brute.id]);
+    assert.equal(brute.cond.agitated, true);
+    assert.deepEqual(brute.agitation.parts, [{ dice: 6, die: 8, type: "mental" }], "heightened twice: 2d8 more each");
+    // (Unable to move: its damage as its turn ends.)
+    state.rng.d20 = () => 10;
+    engage(state, brute, state.byId.get("fighter"));
+    applyCondition(state, brute, "immobilized", null, null, wizard);
+    state.log = [];
+    takeTurn(state, brute);
+    assert.ok(state.log.some((line) => /Brute didn't move, restless from Agitate: \d+ mental/.test(line)), state.log.join("\n"));
+    // (Free to move: a Stride — around its foes, staying in its Melee —, no damage.)
+    brute.cond.immobilized = false;
+    state.log = [];
+    takeTurn(state, brute);
+    assert.ok(state.log.some((line) => /Brute Strides/.test(line)), state.log.join("\n"));
+    assert.ok(!state.log.some((line) => /restless from Agitate/.test(line)));
+});
+
+test("Dancing Shield: its ChoiceSet's numbers through the '@item.flags…' token — the shield's circumstance bonus to AC on the willing creature", async () => {
+    const { castSpell } = await import("../src/engine/spells.js");
+    const { compileSpell, effectModels, spellNamed, withTextConditions } = await import("../tools/lib/pack-spells.mjs");
+    const doc = spellNamed("Dancing Shield");
+    const plan = compileSpell(doc);
+    const effects = withTextConditions(effectModels(plan, 2), doc, 2);
+    assert.deepEqual(Object.values(effects)[0].choices.map((choice) => choice.model.modifiers[0].value), [1, 2, 3]);
+    const state = createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wizard = state.byId.get("wizard");
+    const fighter = state.byId.get("fighter");
+    wizard.spells = [{ name: "Dancing Shield", castRank: 2, pool: null, dc: 20, attack: 10, effects, plan }];
+    castSpell(state, wizard, 0, [fighter.id]);
+    assert.ok((fighter.effects ?? []).some((effect) => effect.model.modifiers?.some((modifier) => modifier.on === "ac" && modifier.value === 3)), state.log.join("\n"));
+});
+
+test("effect-note spells cast in fights as effects: the caster's own, a willing creature's for an item it holds; not one tied to a creature it targets", async () => {
+    const { compileSpell, effectModels, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const read = (name) => compileSpell(spellNamed(name));
+    const fire = read("Fire Shield");
+    assert.equal(fire.resolution.kind, "effect");
+    assert.equal(fire.resolution.applications[0].recipients, "self");
+    assert.equal(fire.targeting.target, "self");
+    assert.equal(read("Ghostly Weapon").targeting.target, "1 willing creature", "a weapon wielded by a willing ally: that ally");
+    assert.equal(read("Vision of Weakness").resolution.kind, "effect-note", "the caster's effect against a creature it targets: left as it was");
+    assert.equal(read("Knock").resolution.kind, "effect-note", "an object's");
+    // (Fire Shield's resistance: its type from the flag its ActiveEffectLike sets.)
+    assert.deepEqual(Object.values(effectModels(fire, 6))[0].resistances, [{ type: "cold", value: 10, exceptions: [] }]);
+});

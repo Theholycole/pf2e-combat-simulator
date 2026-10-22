@@ -12,7 +12,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { agitationTurnEnd, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -397,6 +397,10 @@ function startTurn(state, c) {
     if (c.saveEnds?.some((entry) => entry.timing === "start") && c.status === ACTIVE) saveEndsAtTurnEnd(state, c, "start");
     c.reactionUsed = false;
     c.spareUsed = null;
+    // (Whether it Strides, Flies or Swims this turn — Agitate's.)
+    c.movedThisTurn = false;
+    // (Vibrant Thorns' damage after a vitality spell: until the start of its next turn — spells.js planRetaliation's boost.)
+    for (const entry of c.retaliations ?? []) if (entry.boosted) entry.boosted = false;
     // (C30: Divine Fervor's extra reaction is gone as its turn starts; C33: temporary HP that last to its next turn — Immortal Bastion's.)
     if (c.spareReactions?.some((entry) => entry.untilTurn)) c.spareReactions = c.spareReactions.filter((entry) => !entry.untilTurn);
     if (c.tempHpUntilTurn) {
@@ -630,6 +634,8 @@ function endTurn(state, c) {
     grabTurnAnswers(state, c, "end");
     // (B256: the zones it ends its turn in.)
     if (isActive(c)) zoneTurn(state, c, "end");
+    // (Agitate: no Stride, Fly or Swim this turn — its damage.)
+    agitationTurnEnd(state, c);
     // Swallow Whole's damage at the end of each of the swallowed creature's turns.
     if (c.swallowedBy && c.swallow?.damage?.length) {
         state.log?.push(`  ${c.name} is crushed inside ${state.byId.get(c.swallowedBy)?.name}`);

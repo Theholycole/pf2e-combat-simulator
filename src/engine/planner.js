@@ -874,7 +874,15 @@ class PlanContext {
             cached = NEXT_TURN_WEIGHT * this.profile.aggression * this.offenseNext(node) - this.profile.selfPreservation * exposureValue + this.mapValue(node) + this.alarmValue(node) + this.dangerValue(node);
             this.terminalCache.set(key, cached);
         }
-        return cached;
+        return cached - this.restless(node);
+    }
+
+    // Agitated with no Stride in the plan: the spell's damage as the turn ends, as exposure.
+    restless(node) {
+        const c = this.c;
+        if (!c.cond?.agitated || node.strode || c.movedThisTurn || !c.agitation?.parts?.length) return 0;
+        const amount = c.agitation.parts.reduce((sum, part) => sum + adjustInstance(c, part.type, part.dice * (part.die + 1) / 2), 0);
+        return this.profile.selfPreservation * this.ownValue * Math.min(1.5, amount / remainingHp(c));
     }
 
     // Raising the alarm (E1), as a potential like a map objective's: a gong's
@@ -903,6 +911,8 @@ function child(node, action, cost, value, changes = {}) {
         damage: changes.damage ?? node.damage,
         provoked: node.provoked,
         moved: node.moved || !!changes.moved,
+        // (A Stride on the way — Agitate's agitated creature: none, its damage as the turn ends.)
+        strode: node.strode || action?.type === "stride",
         casts: changes.cast !== undefined ? [...node.casts, ...[].concat(changes.cast)] : node.casts,
         // Map objectives (the place is on pos: see placeOf).
         carrying: changes.carrying ?? node.carrying,
@@ -1035,6 +1045,12 @@ function expandAll(ctx, node, actionsLeft) {
         }
     } else if (node.pos.band === "near" && ctx.strideGoes(node.pos, "toFar")) {
         children.push(child(node, { type: "stride", move: { kind: "toFar" } }, 1, 0, { pos: ctx.away(node, "far"), moved: true }));
+    }
+    // (Agitate: a Stride that keeps it beside its foes — around them —, the reactions to it as a move's; only while it has yet to Stride.)
+    if (mobile && c.cond?.agitated && !node.strode && !c.movedThisTurn && node.pos.melee !== null && node.pos.melee === c.meleeId) {
+        const next = child(node, { type: "stride", move: { kind: "around" } }, 1, 0, {});
+        next.value -= ctx.moveLoss(node.pos, next, "around");
+        children.push(next);
     }
     // Incorporeal (space.js): into the floor, out of everyone's reach until its next turn — not on a turn it started inside (ending that
     // one inside again is leaving the fight).
