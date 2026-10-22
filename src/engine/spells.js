@@ -1209,6 +1209,38 @@ function applyItemRecovery(state, spell, target) {
 // takes fire damage", and from the moderate grade one that "is adjacent to you and hits you with a melee weapon strike". On the drinker for
 // its minute (a second of the same potion starts it again); each touch, its damage on the creature.
 const retaliationsOn = (state, c) => (c.retaliations ?? []).filter((entry) => (state.round ?? 0) < entry.until);
+// A spell that makes its caster's touch harmful (2026-10-22): the compiler's "retaliation" kind — Warning Stripes' "Any creature that touches
+// you or hits you with an unarmed melee attack takes 2d8 poison damage", its interval heightening — as the engine's own, or the builders'
+// reading of one with no effect to carry it (entry.selfRetaliation: Shroud of Flame's, beside its fire's save). { parts, adjacentMelee,
+// touch, rounds } or null.
+export function planRetaliation(spell) {
+    const resolution = spell?.plan?.resolution;
+    if (resolution?.kind !== "retaliation") return null;
+    // (Only its caster's own touch or hit paying back — Warning Stripes, Nettleskin, Armor of Thorn and Claw, Unusual Anatomy —: not a ward on
+    // an ally (Defended by Spirits, Shields of the Spirit), an aura's burning (Incendiary Aura), a weapon's echo (Echoing Weapon).)
+    const target = String(spell.plan.targeting?.target ?? "self").toLowerCase();
+    if (!["self", "you", ""].includes(target)) return null;
+    const trigger = (resolution.retaliation?.triggers ?? []).find((entry) => entry?.damage?.formula && !entry.damage.persistent && /\b(?:touches|hits?|damages)\s+(?:the bearer|you|it)\b/i.test(String(entry.trigger ?? "")));
+    const read = /^(\d+)d(\d+)(?:\s*\+\s*(\d+))?$|^(\d+)$/.exec(String(trigger?.damage?.formula ?? "").trim());
+    if (!read) return null;
+    let dice = Number(read[1]) || 0;
+    const die = Number(read[2]) || 0;
+    let bonus = Number(read[3] ?? read[4]) || 0;
+    const heightening = resolution.retaliation.heightening;
+    const step = heightening?.type === "interval" ? String(heightening.damage?.[trigger.damage.componentId] ?? "") : "";
+    const steps = step ? Math.max(0, Math.floor(((Number(spell.castRank) || 1) - (Number(spell.plan.rank) || 1)) / (Number(heightening.interval) || 1))) : 0;
+    const more = /^(\d+)d(\d+)$|^(\d+)$/.exec(step);
+    if (steps && more?.[2] && Number(more[2]) === die) dice += steps * Number(more[1]);
+    else if (steps && more?.[3]) bonus += steps * Number(more[3]);
+    const words = String(trigger.trigger ?? "") + " " + String(trigger.sourceText ?? "");
+    return { parts: [{ dice, die, bonus, type: String(trigger.damage.type ?? "untyped").toLowerCase() }], adjacentMelee: /non-reach melee weapon|\bmelee (?:or unarmed )?attack/i.test(words), touch: /\btouch/i.test(words), rounds: Math.max(1, Math.round((Number(resolution.retaliation.durationSeconds) || 60) / 6)) };
+}
+
+function applySelfRetaliation(state, caster, name, retaliation) {
+    caster.retaliations = [...retaliationsOn(state, caster).filter((entry) => entry.name !== name), { name, label: name, ...retaliation, until: (state.round ?? 0) + (retaliation.rounds ?? 10) }];
+    log(state, `  ${caster.name}'s ${name} harms whoever touches it`);
+}
+
 function applyItemRetaliation(state, spell, target) {
     target.retaliations = [...retaliationsOn(state, target).filter((entry) => entry.name !== spell.name), { name: spell.name, ...spell.retaliation, until: (state.round ?? 0) + spell.retaliation.rounds }];
     log(state, `  ${target.name} glows with ${spell.name}`);
@@ -1238,7 +1270,9 @@ export function touchRetaliation(state, defender, attacker, how) {
 // effects.js) — each foe whose best touching Strike (unarmed; a melee one without reach for the moderate grade) is likely to hit the
 // drinker, a round's Strikes on it about two, shared with the drinker's side in that foe's Melee. Entries on those foes, as damage.
 const RETALIATION_ROUNDS = 3;
-function itemRetaliationEntries(state, spell, target) {
+// maxShare: the most of a foe's attacks it's taken to spend on the creature (a spell's burn: half — foes spread their attacks, and weigh the
+// burn, planner.js retaliationLoss; the ratings' foes all come up to the caster).
+function itemRetaliationEntries(state, spell, target, { maxShare = 1 } = {}) {
     if (retaliationsOn(state, target).some((entry) => entry.name === spell.name && entry.until - (state.round ?? 0) > RETALIATION_ROUNDS)) return [];
     const side = state.list.filter((other) => other.side === target.side && isActive(other) && other.kind !== "object");
     const entries = [];
@@ -1248,12 +1282,13 @@ function itemRetaliationEntries(state, spell, target) {
         if (!touching.length) continue;
         const bonus = Math.max(...touching.map((strike) => strike.bonus ?? 0));
         const hits = Math.min(0.95, Math.max(0.05, (21 + bonus - armorClass(target)) / 20));
-        const share = foe.meleeId !== null && foe.meleeId !== undefined
+        const share = Math.min(maxShare, foe.meleeId !== null && foe.meleeId !== undefined
             ? (foe.meleeId === target.meleeId ? 1 / Math.max(1, side.filter((other) => other.meleeId === foe.meleeId).length) : 0)
-            : 1 / Math.max(1, side.length);
+            : 1 / Math.max(1, side.length));
         const each = spell.retaliation.parts.reduce((sum, part) => sum + adjustInstance(foe, part.type, part.dice * (part.die + 1) / 2 + part.bonus), 0);
         const damage = RETALIATION_ROUNDS * 2 * hits * share * each;
-        if (damage > 0) entries.push({ target: foe, damage, worth: 0, heal: 0, benefit: 0 });
+        // (whole: its rounds counted already — not again for a spell Sustained or recast, spell-power.js entriesShare.)
+        if (damage > 0) entries.push({ target: foe, damage, worth: 0, heal: 0, benefit: 0, whole: true });
     }
     return entries;
 }
@@ -1910,6 +1945,8 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
         const target = state.byId.get(id);
         if (target && isActive(target)) applyItemStrikeDamage(state, spell, target);
     }
+    // (A touch burn the spell's text gives its caster, no effect carrying it — Shroud of Flame's.)
+    if (spell?.selfRetaliation && !spell.fromZone && isActive(caster)) applySelfRetaliation(state, caster, spell.name, spell.selfRetaliation);
     // (U15: a retaliation potion on the drinker; a touch spell at a creature with one, its damage on the caster.)
     if (spell?.retaliation) for (const id of targetIds ?? []) {
         const target = state.byId.get(id);
@@ -1951,6 +1988,14 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
             const at = way.plan.targeting?.target === "self" ? [caster.id] : targetIds;
             castPlan(state, caster, { ...spell, randomWays: null, pool: null, plan: { ...way.plan, trigger: { ...(way.plan.trigger ?? {}), recharge: null } }, name: `${spell.name} (${way.name})` }, at, actions, { forcedDegree, disrupted });
         }
+        return;
+    }
+    // (Its caster's touch made harmful — Warning Stripes —: the engine's own.)
+    const ownRetaliation = planRetaliation(spell);
+    if (ownRetaliation) {
+        spendPool(caster, spell);
+        log(state, `  ${caster.name} casts ${spell.name}`);
+        applySelfRetaliation(state, caster, spell.name, ownRetaliation);
         return;
     }
     // (A light aura about the caster — Light of Revelation's —: its light on it, light.js.)
@@ -2924,7 +2969,7 @@ function castableAtAll(spell) {
     let castable = CASTABLE.get(spell);
     if (castable === undefined) {
         // (Light or darkness a zone holds — light.js —: cast as its zone, its family the engine's own.)
-        const light = Boolean(lightZoneOf(spell) || lightAuraModel(spell));
+        const light = Boolean(lightZoneOf(spell) || lightAuraModel(spell) || planRetaliation(spell));
         castable = !isConstant(spell) && (light || (Boolean(registry.familyFor(spell.plan?.resolution?.kind)) && !castsNothing(spell.plan))) && spellVariants(spell).some((actions) => {
             const info = describeSpell(spell.plan, actions);
             return Boolean(info.area || info.targets || info.self);
@@ -3099,6 +3144,9 @@ function faceShare(faces, die, dice = 1) {
 export function spellExpectation(state, caster, spell, targets, attacks = caster.attacksThisTurn ?? 0, actions = undefined) {
     // (Light or darkness — light.js —: how much harder or easier it makes each side to see.)
     if (!spell.zone && lightZoneOf(spell)) return lightZoneEntries(state, caster, spell, targets, conditionWorth);
+    // (Its caster's touch made harmful: the damage its foes' touching hits can expect — as a retaliation potion's.)
+    const ownRetaliation = planRetaliation(spell);
+    if (ownRetaliation) return [{ target: caster, damage: 0, worth: 0, heal: 0, benefit: 0 }, ...itemRetaliationEntries(state, { name: spell.name, retaliation: ownRetaliation }, caster, { maxShare: 0.5 })];
     // (A light aura on the caster: what its light does for each side's sight — light.js senseLightBenefit.)
     const lightAura = lightAuraModel(spell);
     if (lightAura) return [{ target: caster, damage: 0, worth: 0, heal: 0, benefit: senseLightBenefit(state, lightAura, caster, Math.min(3, lightAura.rounds)) }];
@@ -3305,7 +3353,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         if (model.resistances?.length || model.immunities?.length) entry.heal += share * resistanceKept(state, model, target, Math.min(3, model.rounds));
                         // (Levitate: the Hit Points out of the grounded foes' reach keeps off it — actions.js liftKept.)
                         // (A body that burns at a touch: the damage the foes that touch it can expect — as a retaliation potion's.)
-                        if (model.retaliation && target.side === caster.side) retaliationExtra.push(...itemRetaliationEntries(state, { name: model.name, retaliation: model.retaliation }, target).map((each) => ({ ...each, damage: share * each.damage })));
+                        if (model.retaliation && target.side === caster.side) retaliationExtra.push(...itemRetaliationEntries(state, { name: model.name, retaliation: model.retaliation }, target, { maxShare: 0.5 }).map((each) => ({ ...each, damage: share * each.damage })));
                         if (model.levitates) {
                             entry.heal += share * liftKept(state, target, Math.min(3, model.rounds));
                             // (…less its own melee Strikes that no longer reach a foe on the ground.)
@@ -3327,6 +3375,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     }
     if (self) result.push(self);
     result.push(...auraEntries.values(), ...retaliationExtra);
+    // (A touch burn the spell gives its caster beside its own effect — Shroud of Flame —, on its foes.)
+    if (spell.selfRetaliation && !spell.fromZone) result.push(...itemRetaliationEntries(state, { name: spell.name, retaliation: spell.selfRetaliation }, caster, { maxShare: 0.5 }));
     // (U15: a retaliation potion — the damage its drinker's foes can expect from it.)
     if (spell.retaliation) for (const target of targets) result.push(...itemRetaliationEntries(state, spell, target));
     return result;
@@ -3495,7 +3545,7 @@ export function spellGaps(spell) {
     const family = kind ? registry.familyFor(kind) : null;
     if (!plan) return ["no plan"];
     // (Light or darkness a zone holds — light.js: the engine's own.)
-    if (lightZoneOf(spell) || lightAuraModel(spell)) return [];
+    if (lightZoneOf(spell) || lightAuraModel(spell) || planRetaliation(spell)) return [];
     if (!family) return [`resolution kind "${kind}" isn't resolved yet`];
     const info = describeSpell(plan);
     const missing = new Set();

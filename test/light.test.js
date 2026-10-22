@@ -501,3 +501,20 @@ test("Blanket of Stars: a generated form's aura save read as an emanation's save
     assert.deepEqual(plan.resolution.outcomes.criticalFailure.effects.map((effect) => effect.slug), ["confused", "dazzled"]);
     assert.equal(plan.resolution.outcomes.success.effects.length, 0);
 });
+
+test("a caster's touch made harmful: Warning Stripes' retaliation kind cast on itself; Shroud of Flame's touch read from its text", async () => {
+    const { planRetaliation, castSpell } = await import("../src/engine/spells.js");
+    const { textRetaliation } = await import("../src/engine/effects.js");
+    const stripes = (castRank) => ({ name: "Warning Stripes", castRank, pool: null, plan: withReading({ rank: 3, activation: { time: "2", traits: [] }, targeting: { target: null }, resolution: { kind: "retaliation", retaliation: { durationSeconds: 60, triggers: [{ trigger: "A creature touches the bearer, or strikes it bare-handed.", damage: { componentId: "a", formula: "2d8", type: "poison" } }], heightening: { type: "interval", interval: 2, damage: { a: "1d8" } } } } }) });
+    assert.deepEqual(planRetaliation(stripes(3)).parts, [{ dice: 2, die: 8, bonus: 0, type: "poison" }]);
+    assert.equal(planRetaliation(stripes(5)).parts[0].dice, 3);
+    assert.equal(planRetaliation({ ...stripes(3), plan: { ...stripes(3).plan, targeting: { target: "1 ally and 1 enemy" } } }), null, "a ward on an ally: not the caster's touch");
+    const state = createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wizard = state.byId.get("wizard");
+    wizard.spells = [stripes(3)];
+    castSpell(state, wizard, 0, [wizard.id]);
+    assert.equal(wizard.retaliations?.[0]?.touch, true);
+    const shroud = { system: { level: { value: 3 }, description: { value: "Each creature that hits you with an unarmed attack, Grapples you, or otherwise touches you takes @Damage[3[fire]] damage. <strong>Heightened (+1)</strong> The damage caused by touching you increases by 1, and the fire damage when you Cast the Spell or sustain it increases by 1d6." } } };
+    assert.deepEqual(textRetaliation(shroud, 3).parts, [{ dice: 0, die: 0, bonus: 3, type: "fire" }]);
+    assert.equal(textRetaliation(shroud, 6).parts[0].bonus, 6);
+});

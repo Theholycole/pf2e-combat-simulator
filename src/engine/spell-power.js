@@ -87,6 +87,9 @@ export function powerFoes(kind, level, trait = null) {
     const pack = trait ? packageOf(trait) : null;
     const make = (lv, id) => {
         const foe = { ...moderateCreatureAt(Math.max(-1, Math.min(25, lv)), id), senses: [...(pack?.senses ?? FOE_SENSES)] };
+        // (Its Strike a natural attack, as most monsters' are — jaws, claws: unarmed. 2026-10-22, Warning Stripes' sting on "an unarmed melee
+        // attack" — before, the rated foes' Strike was neither, and nothing that answers an unarmed hit was ever set off.)
+        foe.strikes = (foe.strikes ?? []).map((strike) => (strike.melee !== false ? { ...strike, unarmed: true } : strike));
         if (pack?.lightBlindness) foe.lightBlindness = { ...pack.lightBlindness };
         if (pack?.permanent) foe.permanent = [...(foe.permanent ?? []), ...pack.permanent.map((entry) => ({ ...entry }))];
         if (pack?.strikeType) foe.strikes = (foe.strikes ?? []).map((strike) => ({ ...strike, damage: (strike.damage ?? []).map((part) => ({ ...part, type: pack.strikeType })) }));
@@ -278,13 +281,14 @@ export function entriesShare(entries, { side, foeHp, harm, allies, again = 0 }) 
     let alliesHit = 0;
     // (Healing on the party: up to the foes' harm in all — more than the fight takes off them is wasted.)
     let healing = 0;
-    for (const { target, damage = 0, worth = 0, heal = 0, benefit = 0 } of entries) {
+    for (const { target, damage = 0, worth = 0, heal = 0, benefit = 0, whole = false } of entries) {
         const foe = target.side !== side;
         if (!foe && damage > 0) alliesHit++;
         const part = foe ? target.hp.max / foeHp : 1 / Math.max(1, allies);
         const sign = foe ? 1 : -1;
         const lasting = 1 + again / 2;
-        const dealt = Math.min(Math.max(0, damage) * (1 + again), Math.max(0, target.hp.value));
+        // (whole: damage over its own rounds already — a touch burn's — not repeated.)
+        const dealt = Math.min(Math.max(0, damage) * (whole ? 1 : 1 + again), Math.max(0, target.hp.value));
         const healed = Math.min(Math.max(0, heal) * (1 + again), Math.max(0, target.hp.max - Math.max(0, target.hp.value)));
         share += foe ? dealt / foeHp : -dealt / harm;
         share += sign * Math.min(POWER_ROUNDS, worth * lasting) * part / POWER_ROUNDS;

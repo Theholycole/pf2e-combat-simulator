@@ -7,7 +7,7 @@ import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js
 import { levelDC } from "../src/engine/checks.js";
 import { beltHeld, bombRider, drawActions, hasTrigger, isBelt, itemTriggered, isStaffItem, itemCasts, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { maneuverWays, withReading } from "../src/engine/readings.js";
-import { effectModel, iwrException, resolveAuraGrants, withSpellText } from "../src/engine/effects.js";
+import { effectModel, iwrException, looseRetaliation, resolveAuraGrants, withSpellText } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions, shareRecharges } from "../src/engine/abilities.js";
 import { requirementPlayable } from "../src/engine/needs.js";
 import { markParts, toggleWays } from "../src/engine/toggles.js";
@@ -1058,6 +1058,9 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
         // (Read before it's slimmed: the readings use the rows' own words.)
         const plan = result?.plan ? leanPlan(withReading(result.plan)) : null;
         const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, ...(entry.coven ? { coven: true } : {}), ...entry.extra, effects: plan ? formLimits(entry.spell, withSpellText(await effectModels(plan, entry.castRank), entry.spell, entry.castRank)) : {} };
+        // (A touch burn its text gives the caster with no effect to carry it — Shroud of Flame's, 2026-10-22.)
+        const loose = plan && plan.resolution?.kind !== "retaliation" ? looseRetaliation(spec.effects, entry.spell, entry.castRank) : null;
+        if (loose) spec.selfRetaliation = loose;
         // (Shield, the spell: the magic shield the creature raises by casting it — the engine's Raise a Shield and Shield Block.)
         const shield = Object.values(spec.effects ?? {}).find((model) => model?.spellShield)?.spellShield;
         if (shield) {

@@ -539,24 +539,40 @@ export function takeAttackFortune(c) {
 //     — a creature in a grapple with it once each of its turns (fight.js contactRetaliation), again each touch (a maneuver, Escape, a touch
 //     spell). Its dice at a fixed heightened rank ("Heightened (9th) Creatures touching you take 4d6").
 const STILL_INVISIBLE = /\bwhen it is not your turn\b[^.]*\byou are (?:@UUID\[[^\]]*\]\{)?Invisible\b/i;
-const TOUCH_TAKES = /\bthat touches you\b([^.]*?)\btakes? (?:@Damage\[(\d+)(?:d(\d+))?\[(\w+)\]\]|(\d+)(?:d(\d+))? (\w+)) damage/i;
+const TOUCH_TAKES = /\b(?:that|otherwise) touches you\b([^.]*?)\btakes? (?:@Damage\[(\d+)(?:d(\d+))?\[(\w+)\]\]|(\d+)(?:d(\d+))? (\w+)) damage/i;
+// The burn a spell's text puts on its caster's touch, at a rank, or null: its dice, a fixed heightened rank's ("Heightened (9th) Creatures
+// touching you take 4d6"), and a stepped one's ("Heightened (+1) The damage caused by touching you increases by 1" — Shroud of Flame).
+export function textRetaliation(doc, rank = 1) {
+    const plain = String(doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    const touch = TOUCH_TAKES.exec(plain);
+    if (!touch) return null;
+    let dice = Number(touch[3] ? touch[2] : touch[6] ? touch[5] : 0) || 0;
+    let die = Number(touch[3] ?? touch[6]) || 0;
+    let bonus = dice ? 0 : Number(touch[2] ?? touch[5]) || 0;
+    const type = String(touch[4] ?? touch[7] ?? "untyped").toLowerCase();
+    const sentence = plain.slice(plain.lastIndexOf(".", touch.index) + 1, touch.index + touch[0].length);
+    const base = Number(doc?.system?.level?.value) || 1;
+    for (const section of plain.matchAll(/Heightened \((\+?)(\d+)(?:st|nd|rd|th)?\)(.*?)(?=Heightened \(|$)/g)) {
+        if (section[1] !== "+") {
+            const more = Number(section[2]) <= rank ? /touching you take (?:@Damage\[)?(\d+)d(\d+)/i.exec(section[3]) : null;
+            if (more) [dice, die] = [Number(more[1]), Number(more[2])];
+            continue;
+        }
+        const step = /touching you increases by (\d+)(?:d(\d+))?/i.exec(section[3]);
+        const steps = step ? Math.max(0, Math.floor((rank - base) / (Number(section[2]) || 1))) : 0;
+        if (!steps) continue;
+        if (step[2] && (!die || Number(step[2]) === die)) {
+            dice += steps * Number(step[1]);
+            die = Number(step[2]);
+        } else if (!step[2]) bonus += steps * Number(step[1]);
+    }
+    return { parts: [{ dice, die, bonus, type }], adjacentMelee: /non-reach melee weapon/i.test(sentence), touch: true };
+}
+
 export function withSpellText(models, doc, rank = 1) {
     const text = String(doc?.system?.description?.value ?? "");
     const invisible = STILL_INVISIBLE.test(text);
-    const plain = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-    const touch = TOUCH_TAKES.exec(plain);
-    let retaliation = null;
-    if (touch) {
-        let dice = Number(touch[3] ? touch[2] : touch[6] ? touch[5] : 0) || 0;
-        let die = Number(touch[3] ?? touch[6]) || 0;
-        const bonus = dice ? 0 : Number(touch[2] ?? touch[5]) || 0;
-        const type = String(touch[4] ?? touch[7] ?? "untyped").toLowerCase();
-        for (const section of plain.matchAll(/Heightened \((\d+)(?:st|nd|rd|th)\)(.*?)(?=Heightened \(|$)/g)) {
-            const more = Number(section[1]) <= rank ? /touching you take (?:@Damage\[)?(\d+)d(\d+)/i.exec(section[2]) : null;
-            if (more) [dice, die] = [Number(more[1]), Number(more[2])];
-        }
-        retaliation = { parts: [{ dice, die, bonus, type }], adjacentMelee: /non-reach melee weapon/i.test(touch[1]), touch: true };
-    }
+    const retaliation = textRetaliation(doc, rank);
     if (!invisible && !retaliation) return models;
     return Object.fromEntries(Object.entries(models).map(([uuid, model]) => {
         if (!model) return [uuid, model];
@@ -565,6 +581,16 @@ export function withSpellText(models, doc, rank = 1) {
         if (retaliation && !model.retaliation) out.retaliation = retaliation;
         return [uuid, out];
     }));
+}
+
+// A spell's touch burn with no effect of its own to carry it (Shroud of Flame's, beside its fire's save): the caster's, as the spell is cast
+// — the builders' entry.selfRetaliation (spells.js). null when an effect model carries it.
+export function looseRetaliation(models, doc, rank = 1) {
+    if (Object.values(models ?? {}).some((model) => model?.retaliation)) return null;
+    const retaliation = textRetaliation(doc, rank);
+    if (!retaliation) return null;
+    const minutes = /(\d+) minutes?/i.exec(String(doc?.system?.duration?.value ?? ""));
+    return { ...retaliation, rounds: minutes ? Number(minutes[1]) * 10 : 10 };
 }
 
 // An aura's granted effects, each with its model (model.aura): itemOf(uuid) → the PF2e effect item, or null.

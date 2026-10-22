@@ -4,7 +4,7 @@ const fs = await import("node:fs");
 const W = decodeURIComponent(new URL("../../../PF2e AUTOMATIC SPELL RESOLUTION", import.meta.url).pathname);
 const { compileAbility } = await import(`${W}/src/compiler/index.js`);
 const { readDocuments } = await import(new URL("../../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs", import.meta.url).href);
-const { effectModel, resolveAuraGrants, withSpellText } = await import("../../src/engine/effects.js");
+const { effectModel, looseRetaliation, resolveAuraGrants, withSpellText } = await import("../../src/engine/effects.js");
 const { isStaffItem, itemCasts, SPELL_ITEMS, staffCharges, staffSpellList } = await import("../../src/adapter/items.js");
 const { maneuverWays, withReading } = await import("../../src/engine/readings.js");
 const { spellSummonEntry, summonEntries } = await import("../../src/engine/summons.js");
@@ -100,7 +100,9 @@ export function npcSpells(npc, { onError = () => {}, basics = null } = {}) {
       const effects = withTextConditions(effectModels(plan, castRank), spell, castRank);
       // (Shield, the spell: the magic shield the creature raises by casting it.)
       const shield = Object.values(effects).find((model) => model?.spellShield)?.spellShield;
-      spells.push({ name: spell.name, plan, castRank, dc, attack, pool, ...(/\bcoven\b/i.test(entry.name ?? "") ? { coven: true } : {}), effects, ...(shield ? { spellShield: shield } : {}) });
+      // (A touch burn its text gives the caster with no effect to carry it — Shroud of Flame's.)
+      const selfRetaliation = plan?.resolution?.kind === "retaliation" ? null : looseRetaliation(effects, spell, castRank);
+      spells.push({ name: spell.name, plan, castRank, dc, attack, pool, ...(/\bcoven\b/i.test(entry.name ?? "") ? { coven: true } : {}), effects, ...(shield ? { spellShield: shield } : {}), ...(selfRetaliation ? { selfRetaliation } : {}) });
     };
     for (const spell of own) {
       const traits = spell.system?.traits?.value ?? [];

@@ -4,6 +4,7 @@ import fs from "node:fs";
 const { readDocuments, PACK_ROOT, basicActions, combatant, creatureFrom, summonCandidates } = await import("./pack-creatures.mjs");
 const { maneuverWays } = await import("../../src/engine/readings.js");
 const { compileSpell, effectItemById, effectModels, withTextConditions } = await import("./pack-spells.mjs");
+const { looseRetaliation } = await import("../../src/engine/effects.js");
 const { partyFor } = await import("./deadliness.mjs");
 const { POWER_KINDS, POWER_ROUNDS, RATED_POOL, SUMMON_FOE_TRAITS, castPower, durationRounds, formShare, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
@@ -403,6 +404,9 @@ export function runPowerTask(task) {
     const party = partyFor(level);
     const casting = wizardCasting(party);
     const entry = { name: doc.name, plan, castRank: rank, dc: casting?.dc ?? 10 + level, attack: casting?.attack ?? level, pool: ref.cantrip ? null : RATED_POOL, tradition: "arcane", effects: withTextConditions(effectModels(plan, rank), doc, rank) };
+    // (A touch burn its text gives the caster with no effect to carry it — Shroud of Flame's.)
+    const selfRetaliation = plan.resolution?.kind === "retaliation" ? null : looseRetaliation(entry.effects, doc, rank);
+    if (selfRetaliation) entry.selfRetaliation = selfRetaliation;
     const head = { kind: "screen", ref: { ref: ref.ref, collection: ref.collection, path: ref.path, id: ref.id, name: ref.name, cantrip: ref.cantrip, focus: ref.focus }, collection: ref.collection, id: ref.id, name: ref.name, rank, cantrip: ref.cantrip, level, ...(healsOutOfCombat(doc) ? { outOfCombat: true } : {}) };
     // (A summon: its best creature's worth.)
     const summoned = summonResults(doc, plan, rank, party, level) ?? incarnateSummonResults(doc, plan, party, level);
@@ -455,7 +459,8 @@ export function runPowerTask(task) {
         }
     }
     // (One the engine can't cast in a fight only for how its time or targets are written: cast as the rating reads it.)
-    const castable = canCast({ spellPools: { [RATED_POOL]: 1 } }, entry);
+    // (A retaliation — the compiler's kind —: its rating reader's, power-readings.js, though fights cast the caster's own, 2026-10-22.)
+    const castable = canCast({ spellPools: { [RATED_POOL]: 1 } }, entry) && plan.resolution?.kind !== "retaliation";
     const rewritten = !castable && !isUtility(plan) ? castableReading(plan, doc, rank) : null;
     // (Cast before the fight, healing done then — Soothing Spring's soak for an hour —: nothing in the fight; the party comes to it as hurt
     // as ever. Its lasting effects and temporary Hit Points do count.)

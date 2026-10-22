@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withFormAura(withArea(resolved))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withArea(resolved)))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -147,6 +147,12 @@ function withFormAura(plan) {
 
 // Light of Revelation (2026-10-22, sight and light): a light aura about the caster, aimed at itself (its data's "30-foot emanation" range
 // otherwise leaves it nothing to aim at) — light.js lightAuraModel plays it.
+// (Warning Stripes, 2026-10-22: the compiler's "retaliation" kind, on its caster — spells.js planRetaliation.)
+function withRetaliationSelf(plan) {
+    if (plan?.resolution?.kind !== "retaliation" || plan.targeting?.target) return plan;
+    return { ...plan, simulatorReading: true, targeting: { ...(plan.targeting ?? {}), target: "self", range: null, area: null } };
+}
+
 function withLightAura(plan) {
     if (plan?.resolution?.kind !== "light-aura" || plan.targeting?.target === "self") return plan;
     return { ...plan, simulatorReading: true, targeting: { ...(plan.targeting ?? {}), target: "self", range: null, area: null } };
