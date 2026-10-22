@@ -49,7 +49,9 @@ test("models: modifiers by selector and rank, level predicates, granted conditio
     assert.deepEqual(anthem.saveBonuses, [{ saves: ["fortitude", "reflex", "will"], type: "status", value: 1, predicate: ["item:trait:fear"] }]);
     assert.equal(anthem.situational, 1, "Discordant Voice's dice");
     assert.deepEqual(anthem.unsupported, ["DamageDice (conditional)"]);
-    assert.deepEqual(effectModel(FORM).unsupported, ["BattleForm"]);
+    // (2026-10-22, family 6: a battle form is played — applyEffect's enterForm.)
+    assert.deepEqual(effectModel(FORM).unsupported, []);
+    assert.ok(effectModel(FORM).battleForm);
 });
 
 test("stacking: the best bonus of a type, untyped ones add, status penalties join the conditions'", () => {

@@ -27,6 +27,8 @@ import { computeThreats, potentialDamage, spellDamages } from "./planner.js";
 import { areaCapacity, describeSpell, spellExpectation, spellVariants, targetSets } from "./spells.js";
 import { powerReading } from "./power-readings.js";
 import { lightZoneModel } from "./light.js";
+import { formAC, formStrikes } from "./effects.js";
+export { formAC };
 
 export const POWER_KINDS = Object.freeze(["boss", "group"]);
 // The choke point the ratings try area spells in: the corridor layout.
@@ -523,18 +525,15 @@ export function summonShare(party, foes, creature, count = 1) {
 // --- Battle forms (2026-10-21, can't-cast spells): the wizard in the form, valued as a summon that takes its place -----------------
 
 // A battle form's AC for a creature of a level (PF2e's formula "16 + @actor.level", or a number).
-export function formAC(form, level) {
-    const text = String(form?.ac ?? "").replace(/@actor\.level/g, String(Number(level) || 0));
-    if (!/^[\d\s+\-*()]+$/.test(text)) return null;
-    const parts = text.match(/[+-]?\s*\d+/g) ?? [];
-    return parts.reduce((sum, part) => sum + Number(part.replace(/\s+/g, "")), 0) || null;
-}
 
 // What casting a battle form (form: battleFormAt's) is worth to the party against foes, as a share of the fight: the wizard's Strikes in
 // it a round (its best two — Striding in, the first round partly spent) in place of its own damage a round (its cantrips, given up), as a
 // share of the party's; its temporary Hit Points, and the foes' hits a better AC keeps off it (its share of their attacks, one of its
 // side's), against the foes' harm. { share, levels, bound, targets }, or null when it does nothing more.
-export function formShare(party, foes, form) {
+// (2026-10-22, family 6: its Strikes as fights take them — effects.js formStrikes, the creature's own attack modifier where the form has none
+// or its own is higher; dc: the caster's, an aspect form's AC and attack. all: a form on the whole party — Primal Herd's "you and up to 5
+// willing targets" —, each member's Strikes in it over its own.)
+export function formShare(party, foes, form, { dc = null, all = false } = {}) {
     if (!form?.strikes?.length) return null;
     const state = createFightState(fightSetup([...partyWithSpell(party).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes], foes), { morale: false, retreat: false }, 1);
     const wizard = state.byId.get("wizard");
@@ -542,15 +541,22 @@ export function formShare(party, foes, form) {
     if (!wizard || !enemies.length) return null;
     const harm = foeHarm(state, "party");
     const side = state.list.filter((c) => c.side === "party" && isActive(c)).length;
-    const own = damageRate(state, (c) => c.side === "party" && c.id !== "wizard");
-    const before = state.potential?.get("wizard") ?? 0;
-    const ac = Math.max(armorClass(wizard), formAC(form, wizard.level) ?? 0);
-    const shaped = { ...wizard, ac, strikes: form.strikes.map((strike) => ({ name: strike.name, bonus: Math.max(strike.bonus, 0), melee: strike.melee, agile: strike.traits.includes("agile"), traits: strike.traits, damage: [{ dice: strike.dice, die: strike.die, bonus: strike.damageBonus, type: strike.type }] })) };
-    const rate = enemies.reduce((best, enemy) => Math.max(best, strikeRound(shaped, enemy, 2)), 0) * SUMMON_ROUNDS / POWER_ROUNDS;
-    const gain = rate - before;
-    const kept = ac > armorClass(wizard) ? enemies.reduce((sum, enemy) => sum + strikeRound(enemy, wizard, 2) - strikeRound(enemy, { ...wizard, ac }, 2), 0) * SUMMON_ROUNDS / Math.max(1, side) : 0;
-    const share = gain / Math.max(1e-9, own + Math.max(rate, before)) + (harm > 0 ? (Math.min(form.tempHp, wizard.hp.max) + kept) / harm : 0);
-    return share > 0 ? { share, ...shareToLevels(share), actions: null, targets: 1 } : null;
+    const members = all ? state.list.filter((c) => c.side === "party" && isActive(c) && c.kind !== "object") : [wizard];
+    const rateOf = (c) => enemies.reduce((best, enemy) => Math.max(best, strikeRound(c, enemy, 2)), 0) * SUMMON_ROUNDS / POWER_ROUNDS;
+    let total = damageRate(state, (c) => c.side === "party" && !members.includes(c));
+    let gain = 0;
+    let held = 0;
+    for (const c of members) {
+        const before = c === wizard ? state.potential?.get("wizard") ?? 0 : rateOf(c);
+        const ac = Math.max(armorClass(c), formAC(form, c.level, dc) ?? 0);
+        const rate = rateOf({ ...c, ac, strikes: formStrikes(form, c, dc) });
+        gain += rate - before;
+        total += Math.max(rate, before);
+        const kept = ac > armorClass(c) ? enemies.reduce((sum, enemy) => sum + strikeRound(enemy, c, 2) - strikeRound(enemy, { ...c, ac }, 2), 0) * SUMMON_ROUNDS / Math.max(1, side) : 0;
+        held += Math.min(form.tempHp, c.hp.max) + kept;
+    }
+    const share = gain / Math.max(1e-9, total) + (harm > 0 ? held / harm : 0);
+    return share > 0 ? { share, ...shareToLevels(share), actions: null, targets: members.length } : null;
 }
 
 // --- Walls (2026-10-21, the user: "walls and shield"): the simulator doesn't play them — a rule of thumb, over the wall's duration ------

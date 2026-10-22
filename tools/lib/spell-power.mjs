@@ -430,7 +430,9 @@ export function runPowerTask(task) {
     const generated = (plan.resolution?.generatedForm?.rules ?? []).filter((rule) => rule?.key === "BattleForm").map((rule) => battleFormAt(rule, rank));
     const forms = [...Object.values(entry.effects ?? {}).flatMap((model) => model?.battleForms ?? []), ...generated].filter((form) => form?.strikes?.length);
     if (forms.length) {
-        const best = (foes) => forms.map((form) => formShare(party, foes, form)).filter(Boolean).sort((a, b) => b.share - a.share)[0] ?? null;
+        // (2026-10-22: on the whole party when it takes more than the caster — Primal Herd —; an aspect form at the caster's DC.)
+        const all = describeSpell(plan).targets > 1;
+        const best = (foes) => forms.map((form) => formShare(party, foes, form, { dc: entry.dc, all })).filter(Boolean).sort((a, b) => b.share - a.share)[0] ?? null;
         return { ...head, traits: [], results: resultsOf([], best, level), estimate: "battle form" };
     }
     // (A wall, a shield: estimated.)

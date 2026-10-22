@@ -411,13 +411,13 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen
             else if (rule.value && typeof rule.value === "object") model.spellShield.ac = Number(rule.value.ac) || 1;
             continue;
         }
-        // (2026-10-21: a battle form, read for the spell ratings — the fight engine doesn't put creatures in battle forms yet. One per
-        // choice the spell gives — an element, a demon, a dinosaur —, each its own: battleForms; the first, battleForm.)
-        if (rule.key === "BattleForm") {
-            unsupported.add(rule.key);
-            const form = battleFormAt(rule, rank);
-            (model.battleForms ??= []).push(form);
-            model.battleForm ??= form;
+        // (2026-10-21: a battle form, read for the spell ratings; 2026-10-22, family 6: played in fights too — applyEffect's enterForm. One
+        // per choice the spell gives — an element, a demon, a dinosaur —, each its own: battleForms; the first, battleForm. A third-party
+        // aspect form — the module's "AspectForm" rule —: aspectFormsAt.)
+        if (rule.key === "BattleForm" || rule.key === "AspectForm") {
+            const forms = rule.key === "BattleForm" ? [battleFormAt(rule, rank)] : aspectFormsAt(rule, rank, item?.system?.rules ?? []);
+            for (const form of forms) (model.battleForms ??= []).push(form);
+            model.battleForm ??= forms[0] ?? null;
             continue;
         }
         const holds = predicateHolds(rule.predicate, rank, toggles);
@@ -543,8 +543,10 @@ export function battleFormAt(rule, rank = 1) {
     for (const name of names) {
         const merged = { ...(base.strikes?.[name] ?? {}), ...(value.strikes?.[name] ?? {}) };
         const damage = { ...(base.strikes?.[name]?.damage ?? {}), ...(value.strikes?.[name]?.damage ?? {}) };
-        const bonus = Number(merged.modifier);
-        if (!Number.isFinite(bonus)) continue;
+        // (2026-10-22, Primal Herd's: no modifier of its own — "the target uses their attack modifier with the proficiency and item bonuses of
+        // their most favorable weapon or unarmed Strike": null, the creature's own best — resolveForm.)
+        const bonus = merged.modifier === undefined || merged.modifier === null ? null : Number(merged.modifier);
+        if (bonus !== null && !Number.isFinite(bonus)) continue;
         const traits = merged.traits ?? base.strikes?.[name]?.traits ?? [];
         strikes.push({ name, bonus, dice: Number(damage.dice) || 1, die: Number(String(damage.die ?? "d6").replace(/^d/, "")) || 6, damageBonus: Number(damage.modifier) || 0, type: damage.damageType ?? "bludgeoning", melee: !traits.some((trait) => /^range|^thrown/.test(trait)), traits });
     }
@@ -555,6 +557,127 @@ export function battleFormAt(rule, rank = 1) {
         size: value.size ?? base.size ?? null,
         speed: Number(value.speeds?.land ?? base.speeds?.land) || null
     };
+}
+
+// (2026-10-22, family 6: the third-party aspect battle forms — a module's "AspectForm" rule.) Its AC the caster's aspect DC (taken as its
+// spell DC: { fromDC: 0 }), its Strikes at that DC − 10 ({ fromDC: −10 }), their dice and damage by rank (the rule's formulas), their
+// damage type the first its choice offers; a FlatModifier to the form's damage from 3rd rank (a character's) on top. One form per set of
+// Strikes the aspect's choices give — "aspect-form:demon", "corpse:d8" … —, each with the Strikes every choice has; resolveForm settles
+// the DC.
+const CHOICE_TOKEN = (term) => typeof term === "string" && !/^self:|^battle-form|^parent:/.test(term);
+export function aspectFormsAt(rule, rank, rules = []) {
+    const value = rule?.overrides ?? {};
+    const choices = new Map(rules.filter((each) => each?.key === "ChoiceSet" && Array.isArray(each.choices) && each.flag).map((each) => [each.flag, each.choices.map((choice) => choice?.value).filter((choice) => typeof choice === "string")]));
+    const typeOf = (text) => {
+        const named = /rulesSelections\.(\w+)/.exec(String(text ?? ""))?.[1];
+        return /^\{/.test(String(text ?? "")) ? (choices.get(named)?.[0] ?? "bludgeoning") : String(text ?? "bludgeoning");
+    };
+    const heightened = rules.filter((each) => each?.key === "FlatModifier" && [].concat(each.selector ?? []).includes("attack-damage") && JSON.stringify(each.predicate ?? []).includes("battle-form"));
+    const extra = rank >= 3 ? heightened.reduce((sum, each) => sum + (numericValue(each.value, rank) ?? 0), 0) : 0;
+    const strikes = Object.entries(value.strikes ?? {}).map(([name, spec]) => {
+        const terms = [].concat(spec?.predicate ?? []);
+        if (terms.some((term) => !CHOICE_TOKEN(term) && typeof term === "object" && predicateHolds([term], rank) === false)) return null;
+        const traits = [].concat(spec?.traits ?? []).filter((trait) => !String(trait).includes("{"));
+        return {
+            name: spec?.label ?? name,
+            bonus: { fromDC: -10 },
+            dice: numericValue(spec?.damage?.dice, rank) ?? 1,
+            die: Number(String(spec?.damage?.die ?? "d6").replace(/^d/, "")) || 6,
+            damageBonus: (numericValue(spec?.damage?.modifier, rank) ?? 0) + extra,
+            type: typeOf(spec?.damage?.damageType),
+            melee: !traits.some((trait) => /^range|^thrown/.test(trait)),
+            traits,
+            when: terms.filter(CHOICE_TOKEN).map(String)
+        };
+    }).filter(Boolean);
+    const shared = strikes.filter((strike) => !strike.when.length);
+    const sets = [...new Set(strikes.filter((strike) => strike.when.length).map((strike) => strike.when.join("|")))];
+    const temp = rules.find((each) => each?.key === "TempHP");
+    const base = { ac: { fromDC: 0 }, tempHp: numericValue(temp?.value, rank) ?? 0, size: null, speed: numericValue(value.speeds?.land, rank) };
+    const forms = sets.length ? sets.map((set) => ({ ...base, strikes: [...shared, ...strikes.filter((strike) => strike.when.join("|") === set)].map(({ when, ...strike }) => strike) })) : [{ ...base, strikes: shared.map(({ when, ...strike }) => strike) }];
+    return forms.filter((form) => form.strikes.length);
+}
+
+// A battle form's AC: a number, PF2e's formula with @actor.level ("15 + @actor.level"), or { fromDC } on the caster's spell DC.
+export function formAC(form, level, dc = null) {
+    if (form?.ac && typeof form.ac === "object") return Number.isFinite(dc) ? dc + (Number(form.ac.fromDC) || 0) : null;
+    const text = String(form?.ac ?? "").replace(/@actor\.level/g, String(Number(level) || 0));
+    if (!/^[\d\s+\-*()]+$/.test(text)) return null;
+    const parts = text.match(/[+-]?\s*\d+/g) ?? [];
+    return parts.reduce((sum, part) => sum + Number(part.replace(/\s+/g, "")), 0) || null;
+}
+
+// A form's Strikes for a creature, as the engine's: each at the form's attack modifier — or the creature's own best, if higher (PF2e's
+// "unless your own unarmed attack modifier is higher", its weapon's potency left out); its own best where the form has none (Primal Herd);
+// the caster's spell DC − 10 for an aspect form —, its dice, damage, type, agile, reach.
+export function formStrikes(form, c, dc = null) {
+    const own = (c?.strikes ?? []).filter((strike) => !strike.fromEffect && !strike.fromForm);
+    const best = Math.max(0, ...own.map((strike) => Number(strike.bonus) || 0));
+    const unarmed = Math.max(0, ...own.map((strike) => (Number(strike.bonus) || 0) - (Number(strike.potency) || 0)));
+    return (form?.strikes ?? []).map((spec) => {
+        const set = spec.bonus === null ? best : typeof spec.bonus === "object" ? (Number.isFinite(dc) ? dc + (Number(spec.bonus.fromDC) || 0) : unarmed) : Math.max(Number(spec.bonus) || 0, unarmed);
+        const reach = Number(/^reach-(\d+)$/.exec((spec.traits ?? []).find((trait) => /^reach-\d+$/.test(trait)) ?? "")?.[1]) || null;
+        return { name: spec.name, bonus: set, melee: spec.melee, agile: (spec.traits ?? []).includes("agile"), unarmed: true, traits: spec.traits ?? [], ...(reach ? { reach } : {}), damage: [{ dice: spec.dice, die: spec.die, bonus: spec.damageBonus, type: spec.type }], fromForm: true };
+    });
+}
+
+// The form a creature takes of those an effect offers: the one whose two best Strikes do most against its foes' mean AC.
+function formRound(strikes, ac) {
+    const hits = strikes.map((strike) => {
+        const odds = degreeDistribution(strike.bonus, ac);
+        const each = (strike.damage ?? []).reduce((sum, part) => sum + (Number(part.dice) || 0) * ((Number(part.die) || 0) + 1) / 2 + (Number(part.bonus) || 0), 0);
+        const second = degreeDistribution(strike.bonus - (strike.agile ? 4 : 5), ac);
+        return { first: odds[2] * each + odds[3] * 2 * each, second: second[2] * each + second[3] * 2 * each };
+    }).sort((a, b) => b.first - a.first);
+    if (!hits.length) return 0;
+    return hits[0].first + Math.max(0, ...hits.map((hit) => hit.second));
+}
+export function bestForm(state, c, model, dc = null) {
+    const foes = (state?.list ?? []).filter((other) => other.side !== c.side && other.status === "active" && other.kind !== "object");
+    const ac = foes.length ? foes.reduce((sum, foe) => sum + (Number(foe.ac) || 10 + (Number(foe.level) || 0) * 1.5), 0) / foes.length : 10 + (Number(c.level) || 1) * 1.5 + 4;
+    const forms = (model?.battleForms ?? (model?.battleForm ? [model.battleForm] : [])).filter((form) => form?.strikes?.length);
+    let best = null;
+    for (const form of forms) {
+        const strikes = formStrikes(form, c, dc);
+        const round = formRound(strikes, ac);
+        if (!best || round > best.round) best = { form, strikes, round, ac: formAC(form, c.level, dc) };
+    }
+    return best;
+}
+
+// Into the form (applyEffect): its Strikes in place of the creature's — the only ones it can use —, its AC (the form's, or the creature's own
+// if higher), its temporary Hit Points, its Speed; no spells while it lasts (spells.js canCast). effect.form keeps what it was, for
+// leaveForm (removeEffect).
+function enterForm(state, c, effect) {
+    const taken = bestForm(state, c, effect.model, effect.formDC ?? null);
+    if (!taken) return;
+    for (const other of (c.effects ?? []).filter((each) => each !== effect && each.form)) leaveForm(c, other);
+    effect.form = { strikes: c.strikes, ac: c.ac, speed: c.speed };
+    c.strikes = taken.strikes;
+    if (Number.isFinite(taken.ac) && taken.ac > (Number(c.ac) || 0)) c.ac = taken.ac;
+    if (taken.form.tempHp > 0) c.hp.temp = Math.max(c.hp.temp ?? 0, taken.form.tempHp);
+    if (taken.form.speed) c.speed = taken.form.speed;
+    c.inForm = effect.key;
+    state?.log?.push(`  ${c.name} takes a battle form (${taken.strikes.map((strike) => strike.name).join(", ")}; AC ${c.ac})`);
+}
+
+function leaveForm(c, effect) {
+    if (!effect.form) return;
+    c.strikes = effect.form.strikes;
+    c.ac = effect.form.ac;
+    c.speed = effect.form.speed;
+    effect.form = null;
+    if (c.inForm === effect.key) c.inForm = null;
+}
+
+// What taking the form is worth, in rounds of the creature's threat (effectBenefit's): its two best form Strikes a round over what it does
+// now (its threat — spells too, given up), its temporary Hit Points and the AC it gains.
+export function formBenefit(state, c, model, rounds) {
+    const taken = bestForm(state, c, model, null);
+    if (!taken) return 0;
+    const now = Math.max(1, state?.threat?.get(c.id) ?? formRound(c.strikes ?? [], taken.ac ?? 20));
+    const ac = Number.isFinite(taken.ac) ? Math.max(0, taken.ac - (Number(c.ac) || 0)) : 0;
+    return (taken.round - now) / now * rounds + (taken.form.tempHp ?? 0) / Math.max(1, c.hp?.max ?? 1) + 0.08 * ac * rounds;
 }
 
 // --- Applying models -----------------------------------------------------------
@@ -656,6 +779,8 @@ export function removeEffect(target, effect) {
     // (Its save bonuses against what it names, gone with it.)
     if (effect.model?.saveBonuses?.length) target.saveBonuses = (target.saveBonuses ?? []).filter((bonus) => bonus.effectId !== effect.id);
     withDefences(target, effect, false);
+    // (2026-10-22: out of its battle form.)
+    if (effect.form) leaveForm(target, effect);
     // (A rune upgrade's Strikes as they were; a Reactive Strike it gave, gone.)
     if (effect.replaced?.length) target.strikes = (target.strikes ?? []).map((strike) => effect.replaced.find((entry) => entry.upgraded === strike)?.original ?? strike);
     if (effect.grantedAoo) target.reactions = { ...(target.reactions ?? {}), aoo: false };
@@ -835,7 +960,7 @@ export function auraRecipients(state, bearer, grant) {
     return (state?.list ?? []).filter((other) => inside(other) && (other === bearer ? grant.includesSelf && grant.affects !== "enemies" : side(other) && reaches(other)));
 }
 
-export function applyEffect(state, target, model, source, { applyCondition, key = model.name, counter = null } = {}) {
+export function applyEffect(state, target, model, source, { applyCondition, key = model.name, counter = null, formDC = null } = {}) {
     for (const existing of (target.effects ?? []).filter((effect) => effect.key === key)) removeEffect(target, existing);
     // (A resistance of a chosen type: the choice that keeps most off it from its foes now, else the first.)
     const choice = (model.resistances ?? []).find((entry) => entry.type === "choice");
@@ -844,7 +969,8 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
         const type = choice.choices.slice().sort((a, b) => kept(b) - kept(a))[0];
         model = { ...model, resistances: model.resistances.map((entry) => (entry === choice ? { type, value: entry.value, exceptions: [] } : entry)) };
     }
-    const effect = { id: nextEffectId++, key, model, sourceId: source?.id ?? null, ...(counter ? { counter } : {}) };
+    // (formDC: the casting's spell DC, an aspect battle form's AC and attack — enterForm.)
+    const effect = { id: nextEffectId++, key, model, sourceId: source?.id ?? null, ...(counter ? { counter } : {}), ...(Number.isFinite(formDC) ? { formDC } : {}) };
     target.effects = [...(target.effects ?? []), effect];
     // (Light it sheds: the fight has a spell's light now — light.js.)
     if (model.light && state) state.lit = true;
@@ -861,6 +987,8 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
         target.reactions = { ...(target.reactions ?? {}), aoo: true };
         effect.grantedAoo = true;
     }
+    // (2026-10-22, family 6: a battle form — enterForm.)
+    if (model.battleForm || model.battleForms?.length) enterForm(state, target, effect);
     // (A body that burns at a touch — Fiery Body —: its retaliation on the creature while the effect lasts, spells.js touchRetaliation.)
     if (model.retaliation) target.retaliations = [...(target.retaliations ?? []).filter((entry) => entry.name !== model.name), { name: model.name, label: String(model.name).replace(/^(?:Spell )?Effect: /, ""), ...model.retaliation, until: Number.isFinite(model.rounds) ? (state?.round ?? 0) + model.rounds : Infinity }];
     // (An aura's granted effects — Protector's Sphere's resistance —: on those it reaches as it's raised, for its time.)
@@ -949,6 +1077,8 @@ export function effectBenefit(model, target, conditionHarm, strikeShare = 1, con
     // (Flying and incorporeal: a fly Speed it gives against foes aloft; runes and traits it adds to Strikes — actions.js.)
     if (context?.state && context.flight && model.flies) benefit += context.flight(context.state, target, rounds);
     if (context?.state && context.strikeAdd && model.strikeAdds) benefit += context.strikeAdd(context.state, model, target, rounds);
+    // (2026-10-22, family 6: a battle form — formBenefit.)
+    if (context?.state && (model.battleForm || model.battleForms?.length)) benefit += formBenefit(context.state, target, model, rounds);
     const strikes = (target.strikes ?? []).length > 0 ? strikeShare : 0;
     // (2026-10-22, Enlarge's +4 status damage to melee Strikes: a conditional modifier on the kind of Strike alone, counted when the creature
     // has a Strike of that kind — before, none was, and Enlarge was worth its clumsy 1 alone.)

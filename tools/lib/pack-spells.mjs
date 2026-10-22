@@ -48,8 +48,35 @@ const conditionNames = new Map(readDocuments(`${PACK_ROOT}/conditions`).filter((
 const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".").pop()) ?? null;
 
 // The effect models a plan's PF2e spell effects make, at the cast rank.
-export const effectModels = (plan, castRank) => Object.fromEntries([...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}/g) ?? [])]
-  .map((uuid) => [uuid, effectsById.get(uuid.split(".").pop())]).filter(([, item]) => item).map(([uuid, item]) => [uuid, resolveAuraGrants(effectModel(item, { rank: castRank, conditionSlug }), (granted) => effectsById.get(String(granted).split(".").pop()) ?? null, { rank: castRank, conditionSlug })]));
+// (2026-10-22: a module's own effect link too — "Compendium.pf2e-team-plus-magic.misc.<id>", the aspect Shifts' —, when it's an effect item.
+// And the shapes of the spells it lets the creature take — Untamed Form's: plan.formsFrom, withFormsFrom.)
+export const effectModels = (plan, castRank) => withFormsFrom(plan, castRank, Object.fromEntries([...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}|Compendium\.[\w-]+\.[\w-]+\.(?:Item\.)?[A-Za-z0-9]{16}(?=["\]}\s])/g) ?? [])]
+  .map((uuid) => [uuid, effectsById.get(uuid.split(".").pop())]).filter(([, item]) => item).map(([uuid, item]) => [uuid, resolveAuraGrants(effectModel(item, { rank: castRank, conditionSlug }), (granted) => effectsById.get(String(granted).split(".").pop()) ?? null, { rank: castRank, conditionSlug })])));
+
+// (2026-10-22, family 6: Untamed Form — "You can transform into shapes listed in Animal Form" from 2nd rank —: the battle forms of the spells
+// its text names, at its rank, on its own effect, which the creature takes the best of.)
+function withFormsFrom(plan, rank, models) {
+  // (A choice of battle forms read as one effect — withChoiceForms —: every choice's forms on the first's, the others' left out, so the cast
+  // applies the one.)
+  if (plan?.choiceForms?.length && models[plan.choiceForms[0]]) {
+    const forms = plan.choiceForms.flatMap((uuid) => models[uuid]?.battleForms ?? []);
+    models[plan.choiceForms[0]] = { ...models[plan.choiceForms[0]], name: plan.source?.name ?? models[plan.choiceForms[0]].name, battleForms: forms, battleForm: forms[0] ?? null };
+    for (const uuid of plan.choiceForms.slice(1)) delete models[uuid];
+  }
+  const from = (plan?.formsFrom ?? []).filter((entry) => entry.minRank <= rank);
+  if (!from.length) return models;
+  const forms = from.flatMap((entry) => {
+    const doc = spellNamed(entry.spell);
+    return doc ? Object.values(effectModels(compileSpell(doc), rank)).flatMap((model) => model?.battleForms ?? []) : [];
+  });
+  if (!forms.length) return models;
+  for (const model of Object.values(models)) {
+    if (!model) continue;
+    model.battleForms = [...(model.battleForms ?? []), ...forms];
+    model.battleForm ??= forms[0];
+  }
+  return models;
+}
 
 // (2026-10-22: what a spell's text says of its effect that its rules don't — effects.js withSpellText; withTextConditions, as it was named.)
 export const withTextConditions = (models, doc, rank = 1) => withSpellText(models, doc, rank);
@@ -63,13 +90,31 @@ export const effectItemById = (uuid) => effectsById.get(String(uuid ?? "").split
 // "Heightened (8th) You can target up to 10 creatures".)
 const HEIGHTENED_TARGETS = /Heightened \((\d+)(?:st|nd|rd|th)\)\s*(?:<\/strong>)?\s*(?:<\/p>)?\s*(?:<p>)?\s*You can target (up to (?:\d+|one|two|three|four|five|six|ten) creatures|\d+ creatures)/gi;
 export function compileSpell(spell) {
-  const plan = withReading(compileAbility(spell, { nativeEffectCatalog, referencedSpells }));
+  const plan = withChoiceForms(withReading(compileAbility(spell, { nativeEffectCatalog, referencedSpells })));
   const heightening = spell?.system?.heightening;
   let steps = heightening?.type === "fixed" ? Object.entries(heightening.levels ?? {}).filter(([, entry]) => entry?.target?.value).map(([rank, entry]) => ({ minRank: Number(rank), target: String(entry.target.value) })) : [];
   if (!steps.length) steps = [...String(spell?.system?.description?.value ?? "").matchAll(HEIGHTENED_TARGETS)].map((hit) => ({ minRank: Number(hit[1]), target: hit[2] }));
   steps.sort((a, b) => a.minRank - b.minRank);
-  return steps.length && plan ? { ...plan, heightenedTargets: steps } : plan;
+  const text = String(spell?.system?.description?.value ?? "");
+  const formsFrom = [...text.matchAll(FORMS_FROM)].map((hit) => ({ minRank: Number(hit[1]), spell: hit[2] }));
+  return !plan ? plan : { ...plan, ...(steps.length ? { heightenedTargets: steps } : {}), ...(formsFrom.length ? { formsFrom } : {}) };
 }
+// (2026-10-22, family 6: a choice of battle forms — Animal Form's animals, Dinosaur Form's dinosaurs, each its own effect —, which no core
+// family resolves: as one effect on use, Elemental Form's shape — its first choice's, carrying every choice's forms (withFormsFrom) —, the
+// creature taking the best.)
+// (A creature's own copy of such a spell, compiled "unsupported" with the forms unscoped — a Grippli Greenspeaker's Animal Form —: the same.)
+function withChoiceForms(plan) {
+  const kind = plan?.resolution?.kind;
+  if (kind !== "effect-choice" && kind !== "unsupported") return plan;
+  const variants = kind === "effect-choice" ? plan.nativeEffects?.choiceVariants ?? [] : plan.nativeEffects?.unscoped ?? [];
+  const isForm = (variant) => (effectsById.get(String(variant?.uuid ?? "").split(".").pop())?.system?.rules ?? []).some((rule) => rule?.key === "BattleForm");
+  if (variants.length < (kind === "effect-choice" ? 1 : 2) || !variants.every(isForm) || (kind === "unsupported" && plan.resolution.check)) return plan;
+  const { choiceId, ...application } = { ...(plan.resolution.applications?.[0] ?? { kind: "native-spell-effect", uuid: variants[0].uuid }), source: "nativeEffects.onUse" };
+  const { selector, native, ...resolution } = plan.resolution;
+  return { ...plan, choiceForms: variants.map((variant) => variant.uuid), nativeEffects: { ...plan.nativeEffects, onUse: [{ ...variants[0], scope: "on-use" }], choiceVariants: [], unscoped: [] }, resolution: { ...resolution, kind: "effect", applications: [application] } };
+}
+// (Untamed Form's heightened entries: "Heightened (2nd) You can transform into shapes listed in @UUID[…]{Animal Form}".)
+const FORMS_FROM = /Heightened \((\d+)(?:st|nd|rd|th)\)\s*(?:<\/strong>)?\s*You can transform into (?:the )?shapes listed in @UUID\[[^\]]+\]\{([^}]+)\}/gi;
 
 // A PF2e spell by its name (remaster names), or null.
 export function spellNamed(name) {

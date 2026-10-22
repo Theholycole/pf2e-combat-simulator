@@ -2124,7 +2124,7 @@ function applyNativeEffect(state, caster, spell, target, change, actions = undef
     if (model?.stones?.runes?.length) model = { ...model, strikeDeltas: { ...(model.strikeDeltas ?? {}), [STONE_NAME]: model.stones.runes.flatMap((rune) => RUNE_LOANS[rune === "vitalizing" ? "disrupting" : rune]?.parts ?? []) } };
     if (model && isActive(target) && polymorphReplaces(state, caster, spell, target)) {
         const isSpell = isSpellCast(spell);
-        const effect = applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell, traits: spell.plan?.traits ?? [] } });
+        const effect = applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell, traits: spell.plan?.traits ?? [] }, formDC: effectDC(spell) });
         // (Magic Stone: its stones, a ranged Strike of the holder's while the effect lasts, one each action it was cast with.)
         if (model.stones) {
             const count = Math.max(1, Math.min(3, Number(actions) || 2));
@@ -3977,6 +3977,8 @@ export function canCast(c, spell) {
     if (!castableAtAll(spell)) return false;
     // (2026-10-22, Steal Voice: voiceless — no spell but a subtle one, no auditory action.)
     if (c.cond?.voiceless && ((isSpellCast(spell) && !(spell.plan?.traits ?? []).includes("subtle")) || (spell.plan?.traits ?? []).includes("auditory"))) return false;
+    // (2026-10-22, family 6: in a battle form, no spells.)
+    if (c.inForm && isSpellCast(spell)) return false;
     // (Binding Muzzle: no breath; Sensory Deprivation's hands — no manipulate action — and mouth — no auditory one.)
     if (c.hindrances?.length) {
         const traits = spell.plan?.traits ?? [];

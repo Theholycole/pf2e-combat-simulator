@@ -1258,3 +1258,46 @@ test("family 5 defences: Spell Turning, Spell Immunity, Dispelling Globe, Prisma
     assert.ok(fighter.defences.find((held) => held.kind === "forbidding")?.bonus === 2, "+2 from 6th");
     assert.ok(isActive(brute));
 });
+
+test("family 6 battle forms in fights: Animal Form's Strikes and AC, no spells, back at its end; Primal Herd at the creature's own attack; an aspect Shift at the caster's DC", async () => {
+    const { castSpell, canCast, spellExpectation } = await import("../src/engine/spells.js");
+    const { removeEffect, formStrikes, formAC } = await import("../src/engine/effects.js");
+    const { compileSpell, spellNamed, effectModels } = await import("../tools/lib/pack-spells.mjs");
+    const { spellRefs, spellOf } = await import("../tools/lib/spell-power.mjs");
+    const entry = (doc, castRank) => {
+        const plan = compileSpell(doc);
+        return { name: doc.name, castRank, pool: null, dc: 30, attack: 20, plan, effects: effectModels(plan, castRank) };
+    };
+    const state = createFightState({ combatants: [...standardParty(9), { ...moderateCreatureAt(9, "brute"), id: "brute", name: "Brute" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wizard = state.byId.get("wizard");
+    const own = wizard.strikes;
+    const ac = wizard.ac;
+    wizard.spells = [entry(spellNamed("Animal Form"), 5), entry(spellNamed("Fireball"), 3)];
+    const worth = () => spellExpectation(state, wizard, wizard.spells[0], [wizard], 0, 2).reduce((sum, each) => sum + (each.benefit ?? 0), 0);
+    const threat = state.threat.get(wizard.id);
+    state.threat.set(wizard.id, 60);
+    assert.ok(worth() <= 0, "its spells do more: not worth it");
+    state.threat.set(wizard.id, 5);
+    assert.ok(worth() > 0, "a caster doing little: worth it");
+    state.threat.set(wizard.id, threat);
+    castSpell(state, wizard, 0, [wizard.id]);
+    assert.ok(wizard.inForm, "in its form");
+    assert.notEqual(wizard.strikes, own);
+    assert.ok(wizard.strikes.every((strike) => strike.fromForm && strike.unarmed));
+    assert.ok(wizard.ac > ac, "the form's AC");
+    assert.equal(canCast(wizard, wizard.spells[1]), false, "no spells");
+    removeEffect(wizard, wizard.effects.find((effect) => effect.form));
+    assert.equal(wizard.strikes, own, "its own Strikes back");
+    assert.equal(wizard.ac, ac);
+    assert.ok(!wizard.inForm);
+    const herd = effectModels(compileSpell(spellNamed("Primal Herd")), 10);
+    const form = Object.values(herd).find((model) => model?.battleForm)?.battleForm;
+    const fighter = state.byId.get("fighter");
+    const tusk = formStrikes(form, fighter).find((strike) => /tusk/i.test(strike.name));
+    assert.equal(tusk.bonus, Math.max(...fighter.strikes.map((strike) => strike.bonus)), "the fighter's own best attack");
+    const fiend = spellOf(spellRefs().find((ref) => ref.name === "Fiend Shift"));
+    const shift = Object.values(effectModels(compileSpell(fiend), 4)).find((model) => model?.battleForms?.length);
+    assert.ok(shift.battleForms.length >= 3, "a form per fiend aspect");
+    assert.equal(formAC(shift.battleForms[0], 7, 25), 25, "AC: the caster's DC");
+    assert.equal(formStrikes(shift.battleForms[0], wizard, 25)[0].bonus, 15, "attack: DC − 10");
+});
