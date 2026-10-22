@@ -509,6 +509,8 @@ function withDefences(target, effect, add) {
 
 export function removeEffect(target, effect) {
     target.effects = (target.effects ?? []).filter((other) => other !== effect);
+    // (Its touch's burn — Fiery Body's —, gone with it.)
+    if (effect.model?.retaliation) target.retaliations = (target.retaliations ?? []).filter((entry) => entry.name !== effect.model.name);
     // (Its save bonuses against what it names, gone with it.)
     if (effect.model?.saveBonuses?.length) target.saveBonuses = (target.saveBonuses ?? []).filter((bonus) => bonus.effectId !== effect.id);
     withDefences(target, effect, false);
@@ -528,6 +530,43 @@ export function takeAttackFortune(c) {
 // duration ends it at the start of the source's turn that many rounds later.
 // applyCondition: the spells layer's, for the conditions the effect grants.
 // counter: { dc, rank, spell } — what a counteract (Dispel Magic) checks against (counteract.js).
+// What a spell's text says of its effect that the effect's rules don't (2026-10-22), on each of its models:
+//   - "When it is not your turn … you are Invisible" (Embrace Nothingness): invisible;
+//   - "Any creature that touches you or damages you with an unarmed attack or non-reach melee weapon takes 3d6 fire damage" (Fiery Body,
+//     Corrosive Body, Warning Stripes, Shroud of Flame): model.retaliation { parts, adjacentMelee (a non-reach melee weapon's hit too),
+//     touch } — spells.js touchRetaliation: a hit of that kind on it; the user: "It should trigger if the wizard is grappling a creature. It
+//     probably should only trigger once from being grappled on their turn and additional times from interacting with the fiery body wizard"
+//     — a creature in a grapple with it once each of its turns (fight.js contactRetaliation), again each touch (a maneuver, Escape, a touch
+//     spell). Its dice at a fixed heightened rank ("Heightened (9th) Creatures touching you take 4d6").
+const STILL_INVISIBLE = /\bwhen it is not your turn\b[^.]*\byou are (?:@UUID\[[^\]]*\]\{)?Invisible\b/i;
+const TOUCH_TAKES = /\bthat touches you\b([^.]*?)\btakes? (?:@Damage\[(\d+)(?:d(\d+))?\[(\w+)\]\]|(\d+)(?:d(\d+))? (\w+)) damage/i;
+export function withSpellText(models, doc, rank = 1) {
+    const text = String(doc?.system?.description?.value ?? "");
+    const invisible = STILL_INVISIBLE.test(text);
+    const plain = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    const touch = TOUCH_TAKES.exec(plain);
+    let retaliation = null;
+    if (touch) {
+        let dice = Number(touch[3] ? touch[2] : touch[6] ? touch[5] : 0) || 0;
+        let die = Number(touch[3] ?? touch[6]) || 0;
+        const bonus = dice ? 0 : Number(touch[2] ?? touch[5]) || 0;
+        const type = String(touch[4] ?? touch[7] ?? "untyped").toLowerCase();
+        for (const section of plain.matchAll(/Heightened \((\d+)(?:st|nd|rd|th)\)(.*?)(?=Heightened \(|$)/g)) {
+            const more = Number(section[1]) <= rank ? /touching you take (?:@Damage\[)?(\d+)d(\d+)/i.exec(section[2]) : null;
+            if (more) [dice, die] = [Number(more[1]), Number(more[2])];
+        }
+        retaliation = { parts: [{ dice, die, bonus, type }], adjacentMelee: /non-reach melee weapon/i.test(touch[1]), touch: true };
+    }
+    if (!invisible && !retaliation) return models;
+    return Object.fromEntries(Object.entries(models).map(([uuid, model]) => {
+        if (!model) return [uuid, model];
+        const out = { ...model };
+        if (invisible && !(model.conditions ?? []).some((condition) => condition.slug === "invisible")) out.conditions = [...(model.conditions ?? []), { slug: "invisible", value: null }];
+        if (retaliation && !model.retaliation) out.retaliation = retaliation;
+        return [uuid, out];
+    }));
+}
+
 // An aura's granted effects, each with its model (model.aura): itemOf(uuid) → the PF2e effect item, or null.
 export function resolveAuraGrants(model, itemOf, options) {
     if (!model?.auraGrants?.length) return model;
@@ -567,6 +606,8 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
     const duration = Number.isFinite(model.rounds) ? { mode: "fixed", value: model.rounds, unit: "rounds" } : null;
     for (const condition of model.conditions) applyCondition?.(state, target, condition.slug, condition.value, duration, source);
     if (Number.isFinite(model.rounds)) (target.timers ??= []).push({ effect, round: state.round + model.rounds, turnOf: source?.id ?? target.id });
+    // (A body that burns at a touch — Fiery Body —: its retaliation on the creature while the effect lasts, spells.js touchRetaliation.)
+    if (model.retaliation) target.retaliations = [...(target.retaliations ?? []).filter((entry) => entry.name !== model.name), { name: model.name, label: String(model.name).replace(/^(?:Spell )?Effect: /, ""), ...model.retaliation, until: Number.isFinite(model.rounds) ? (state?.round ?? 0) + model.rounds : Infinity }];
     // (An aura's granted effects — Protector's Sphere's resistance —: on those it reaches as it's raised, for its time.)
     for (const grant of model.aura ?? []) for (const other of auraRecipients(state, target, grant)) applyEffect(state, other, { ...grant.model, rounds: model.rounds }, source, { applyCondition, key: `${key}:aura` });
     return effect;

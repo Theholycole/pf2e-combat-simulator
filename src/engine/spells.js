@@ -1216,17 +1216,20 @@ function applyItemRetaliation(state, spell, target) {
 
 // A touch on a creature with a retaliation: an unarmed Strike's hit or a touch spell at it (how "unarmed" / "spell"), or a melee weapon
 // Strike's hit from beside it (how "weapon": one without reach, as "adjacent" — only from the moderate grade).
+// how: "unarmed", "weapon" (a melee weapon from beside it), "spell" (a touch spell), and for a body that burns at a touch only (entry.touch:
+// Fiery Body's), "maneuver" (a Grapple, Shove, Trip, Escape … on it) and "contact" (in a grapple with it, once each of the creature's turns).
 export function touchRetaliation(state, defender, attacker, how) {
     if (!how || !defender || !attacker || attacker === defender || !isActive(attacker)) return;
     for (const entry of retaliationsOn(state, defender)) {
         if (how === "weapon" && !entry.adjacentMelee) continue;
+        if ((how === "maneuver" || how === "contact") && !entry.touch) continue;
         const instances = entry.parts.map((part) => {
             let amount = part.bonus;
             for (let die = 0; die < part.dice; die++) amount += state.rng.die(part.die);
             return { type: part.type, amount, persistent: false, precision: false };
         });
         const dealt = applyDamage(state, attacker, instances, { source: defender });
-        log(state, `  ${attacker.name} touches ${defender.name}'s ${entry.name}: ${dealt} ${entry.parts.map((part) => part.type).join(" and ")}`);
+        log(state, `  ${attacker.name} touches ${defender.name}'s ${entry.label ?? entry.name}: ${dealt} ${entry.parts.map((part) => part.type).join(" and ")}`);
         if (!isActive(attacker)) return;
     }
 }
@@ -1912,7 +1915,9 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
         const target = state.byId.get(id);
         if (target && isActive(target)) applyItemRetaliation(state, spell, target);
     }
-    if (spell?.plan && isSpellCast(spell) && describeSpell(spell.plan, actions).touch) for (const id of targetIds ?? []) touchRetaliation(state, state.byId.get(id), caster, "spell");
+    // (2026-10-22: and a touching basic action — Grapple, Shove, Trip, Escape — on a body that burns at a touch, Fiery Body's.)
+    const touching = spell?.plan && describeSpell(spell.plan, actions).touch ? (isSpellCast(spell) ? "spell" : spell.kind === "basic" ? "maneuver" : null) : null;
+    if (touching) for (const id of targetIds ?? []) touchRetaliation(state, state.byId.get(id), caster, touching);
     // (Invisibility: it ends once a harmful spell is cast.)
     const info = spell?.plan ? describeSpell(spell.plan, actions) : null;
     if (info && !info.helpful && !info.healing && !info.self && !spell.drinker) ownHostility(state, caster);
@@ -3118,8 +3123,10 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     const result = [];
     // What happens to the caster itself (Trip's critical failure, Escape's success).
     let self = null;
-    // (An aura's granted effects on those it reaches besides the target — Protector's Sphere's allies —, one entry each.)
+    // (An aura's granted effects on those it reaches besides the target — Protector's Sphere's allies —, one entry each; a burning body's
+    // foes' damage.)
     const auraEntries = new Map();
+    const retaliationExtra = [];
     // (Its parts so far, by change: each counted once — the most likely.)
     let selfParts = null;
     let damageContext = null;
@@ -3297,6 +3304,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         // (Its resistances: the Hit Points they keep off it from the foes' Strikes, as healing — 2026-10-21.)
                         if (model.resistances?.length || model.immunities?.length) entry.heal += share * resistanceKept(state, model, target, Math.min(3, model.rounds));
                         // (Levitate: the Hit Points out of the grounded foes' reach keeps off it — actions.js liftKept.)
+                        // (A body that burns at a touch: the damage the foes that touch it can expect — as a retaliation potion's.)
+                        if (model.retaliation && target.side === caster.side) retaliationExtra.push(...itemRetaliationEntries(state, { name: model.name, retaliation: model.retaliation }, target).map((each) => ({ ...each, damage: share * each.damage })));
                         if (model.levitates) {
                             entry.heal += share * liftKept(state, target, Math.min(3, model.rounds));
                             // (…less its own melee Strikes that no longer reach a foe on the ground.)
@@ -3317,7 +3326,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         }
     }
     if (self) result.push(self);
-    result.push(...auraEntries.values());
+    result.push(...auraEntries.values(), ...retaliationExtra);
     // (U15: a retaliation potion — the damage its drinker's foes can expect from it.)
     if (spell.retaliation) for (const target of targets) result.push(...itemRetaliationEntries(state, spell, target));
     return result;

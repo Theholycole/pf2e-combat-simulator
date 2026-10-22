@@ -12,7 +12,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { spendPool, applyAuras, provokedReaction, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -561,6 +561,19 @@ function swallowedTurn(state, c) {
         } else break;
         processMorale(state);
         if (checkEnd(state)) return;
+    }
+}
+
+// The user (2026-10-22): Fiery Body's touch "should trigger if the wizard is grappling a creature. It probably should only trigger once from
+// being grappled on their turn and additional times from interacting with the fiery body wizard" — once as each of its turns starts, a
+// creature held by a body that burns at a touch, or holding one, takes its damage (spells.js touchRetaliation, "contact").
+function contactRetaliation(state, c) {
+    const held = (other, by) => other.grabbedBy === by.id && Boolean(other.cond.grabbed || other.cond.restrained) && !other.swallowedBy;
+    const holder = c.grabbedBy ? state.byId.get(c.grabbedBy) : null;
+    if (holder && held(c, holder) && holder.retaliations?.length) touchRetaliation(state, holder, c, "contact");
+    for (const other of state.list) {
+        if (!isActive(c)) return;
+        if (other !== c && other.retaliations?.length && held(other, c)) touchRetaliation(state, other, c, "contact");
     }
 }
 
@@ -1339,6 +1352,12 @@ export function takeTurn(state, c) {
     startTurn(state, c);
     state.log?.push(`${c.name} (${c.hp.value}/${c.hp.max} HP, ${c.insideObject ? "inside the floor" : c.band})`);
     if (insideTurnStart(state, c)) {
+        if (!checkEnd(state)) endTurn(state, c);
+        return;
+    }
+    // (A body that burns at a touch — Fiery Body —: a creature in a grapple with it, held by it or holding it, once as its turn starts.)
+    contactRetaliation(state, c);
+    if (!canAct(c) || c.status !== ACTIVE) {
         if (!checkEnd(state)) endTurn(state, c);
         return;
     }

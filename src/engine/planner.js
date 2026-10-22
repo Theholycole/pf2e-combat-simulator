@@ -609,6 +609,19 @@ class PlanContext {
         return loss;
     }
 
+    // What hitting a creature whose touch burns (Fiery Body; a retaliation potion) costs this one, a hit's chance of it: its retaliations
+    // that answer the Strike (unarmed; a melee weapon without reach where it says so), their damage on this creature (2026-10-22).
+    retaliationLoss(strike, target, hitChance) {
+        const { state, c } = this;
+        let damage = 0;
+        for (const entry of target.retaliations ?? []) {
+            if ((state.round ?? 0) >= entry.until) continue;
+            if (!strike.unarmed && !(entry.adjacentMelee && !((strike.reach ?? 5) > 5))) continue;
+            damage += (entry.parts ?? []).reduce((sum, part) => sum + adjustInstance(c, part.type, (Number(part.dice) || 0) * ((Number(part.die) || 0) + 1) / 2 + (Number(part.bonus) || 0)), 0);
+        }
+        return damage > 0 ? this.profile.selfPreservation * this.ownValue * Math.min(1, hitChance * damage / remainingHp(c)) : 0;
+    }
+
     // The reactions a move from pos sets off, one an enemy: { damage (expected), stops (the chance one of them stops the move) }. Marks
     // node.provoked as aooLoss does.
     moveReactions(pos, node) {
@@ -1072,6 +1085,8 @@ function expandStrikes(env) {
                 ...(burns.length ? { burning: [...(node.burning ?? []), ...burns] } : {})
             });
             if (!strike.melee && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+            // (A body that burns at a touch — Fiery Body —: what an unarmed or close melee hit on it costs the attacker.)
+            if (strike.melee && target.retaliations?.length) next.value -= ctx.retaliationLoss(strike, target, expectation.hitChance);
             children.push(next);
         }
     }

@@ -402,7 +402,7 @@ export function runPowerTask(task) {
     const level = partyLevelForRank(rank);
     const party = partyFor(level);
     const casting = wizardCasting(party);
-    const entry = { name: doc.name, plan, castRank: rank, dc: casting?.dc ?? 10 + level, attack: casting?.attack ?? level, pool: ref.cantrip ? null : RATED_POOL, tradition: "arcane", effects: withTextConditions(effectModels(plan, rank), doc) };
+    const entry = { name: doc.name, plan, castRank: rank, dc: casting?.dc ?? 10 + level, attack: casting?.attack ?? level, pool: ref.cantrip ? null : RATED_POOL, tradition: "arcane", effects: withTextConditions(effectModels(plan, rank), doc, rank) };
     const head = { kind: "screen", ref: { ref: ref.ref, collection: ref.collection, path: ref.path, id: ref.id, name: ref.name, cantrip: ref.cantrip, focus: ref.focus }, collection: ref.collection, id: ref.id, name: ref.name, rank, cantrip: ref.cantrip, level, ...(healsOutOfCombat(doc) ? { outOfCombat: true } : {}) };
     // (A summon: its best creature's worth.)
     const summoned = summonResults(doc, plan, rank, party, level) ?? incarnateSummonResults(doc, plan, party, level);

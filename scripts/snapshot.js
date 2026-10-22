@@ -7,7 +7,7 @@ import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js
 import { levelDC } from "../src/engine/checks.js";
 import { beltHeld, bombRider, drawActions, hasTrigger, isBelt, itemTriggered, isStaffItem, itemCasts, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { maneuverWays, withReading } from "../src/engine/readings.js";
-import { effectModel, iwrException, resolveAuraGrants } from "../src/engine/effects.js";
+import { effectModel, iwrException, resolveAuraGrants, withSpellText } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions, shareRecharges } from "../src/engine/abilities.js";
 import { requirementPlayable } from "../src/engine/needs.js";
 import { markParts, toggleWays } from "../src/engine/toggles.js";
@@ -884,7 +884,7 @@ async function castAbility(actor, item, plan, core, gaps) {
     if (plan.self) spec.plan.targeting = { ...(spec.plan.targeting ?? {}), area: null, range: null, target: null };
     if (!canCast({ spellPools: {} }, spec)) return null;
     spec.castsSpell = true;
-    spec.effects = formLimits(spell, await effectModels(spellPlan, castRank));
+    spec.effects = formLimits(spell, withSpellText(await effectModels(spellPlan, castRank), spell, castRank));
     const missing = spellGaps(spec);
     if (missing.length) gaps.push({ kind: "ability, partly simulated", name: `${item.name}: ${missing.join(", ")}` });
     return spec;
@@ -1057,7 +1057,7 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
         // (2026-10-14: the simulator's own reading of a spell the compiler leaves without a plan — Evil Eye.)
         // (Read before it's slimmed: the readings use the rows' own words.)
         const plan = result?.plan ? leanPlan(withReading(result.plan)) : null;
-        const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, ...(entry.coven ? { coven: true } : {}), ...entry.extra, effects: plan ? formLimits(entry.spell, await effectModels(plan, entry.castRank)) : {} };
+        const spec = { name: entry.name, plan, castRank: entry.castRank, dc: entry.dc, attack: entry.attack, pool: entry.pool, tradition: entry.tradition, ...(entry.coven ? { coven: true } : {}), ...entry.extra, effects: plan ? formLimits(entry.spell, withSpellText(await effectModels(plan, entry.castRank), entry.spell, entry.castRank)) : {} };
         // (Shield, the spell: the magic shield the creature raises by casting it — the engine's Raise a Shield and Shield Block.)
         const shield = Object.values(spec.effects ?? {}).find((model) => model?.spellShield)?.spellShield;
         if (shield) {

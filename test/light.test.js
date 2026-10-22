@@ -466,3 +466,38 @@ test("a ChoiceSet by selection: the choice put into a rule's selector (Traveler'
     const resist = effectModel({ name: "Resist Energy", system: { rules: [{ key: "ChoiceSet", flag: "resistEnergy", choices: [{ value: "fire" }, { value: "cold" }] }, { key: "Resistance", type: "{item|flags.system.rulesSelections.resistEnergy}", value: 5 }] } }, { rank: 2 });
     assert.equal(resist.choices, undefined, "a resistance's type stays the 'choice' resistance");
 });
+
+test("Fiery Body: its touch's burn read from its text; a creature in a grapple with it burns once each turn, again for each touch", async () => {
+    const { withSpellText } = await import("../src/engine/effects.js");
+    const { takeTurn } = await import("../src/engine/fight.js");
+    const { applyCondition, castSpell } = await import("../src/engine/spells.js");
+    const { engage } = await import("../src/engine/space.js");
+    const { basicActions } = await import("../tools/lib/pack-creatures.mjs");
+    const doc = { system: { description: { value: "<p>Any creature that touches you or damages you with an unarmed attack or non-reach melee weapon takes @Damage[3d6[fire]] damage.</p><p><strong>Heightened (9th)</strong> Creatures touching you take @Damage[4d6[fire]] damage instead of 3d6.</p>" } } };
+    const read = (rank) => withSpellText({ x: { name: "Spell Effect: Fiery Body", rounds: 10, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: ["fire"], conditions: [], unsupported: [], situational: 0 } }, doc, rank).x;
+    assert.deepEqual(read(7).retaliation, { parts: [{ dice: 3, die: 6, bonus: 0, type: "fire" }], adjacentMelee: true, touch: true });
+    assert.equal(read(9).retaliation.parts[0].dice, 4);
+    const state = createFightState({ combatants: [...standardParty(7), { ...moderateCreatureAt(7, "monster"), id: "monster", name: "Test Brute" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wizard = state.byId.get("wizard");
+    const brute = state.byId.get("monster");
+    applyEffect(state, wizard, read(7), wizard, { applyCondition });
+    engage(state, brute, wizard);
+    applyCondition(state, wizard, "grabbed", null, null, brute);
+    state.log = [];
+    brute.actionsLeft = 0;
+    takeTurn(state, brute);
+    assert.equal(state.log.filter((line) => /touches Wizard's Fiery Body/.test(line)).length, 1, "holding it: once as its turn starts");
+    state.log = [];
+    brute.spells = [{ name: "Grapple", plan: basicActions.grapple, castRank: 1, pool: null, kind: "basic" }];
+    castSpell(state, brute, 0, [wizard.id]);
+    assert.ok(state.log.some((line) => /touches Wizard's Fiery Body/.test(line)), "a Grapple at it: a touch");
+});
+
+test("Blanket of Stars: a generated form's aura save read as an emanation's save that lingers at turn ends", () => {
+    const plan = withReading({ targeting: { target: null }, resolution: { kind: "generated-form", generatedForm: { seconds: 600, rules: [] }, formRiders: { auras: [{ radius: 5, events: ["turn-end"], save: { statistic: "will", rows: { failure: { conditions: [{ slug: "dazzled" }], rounds: 1, expiry: "turn-end" }, criticalFailure: { conditions: [{ slug: "confused" }, { slug: "dazzled" }], rounds: 1, expiry: "turn-end" } } } }] } } });
+    assert.equal(plan.resolution.kind, "save");
+    assert.deepEqual(plan.targeting.area, { type: "emanation", value: 5 });
+    assert.deepEqual(plan.resolution.lingering.events, ["turn-end"]);
+    assert.deepEqual(plan.resolution.outcomes.criticalFailure.effects.map((effect) => effect.slug), ["confused", "dazzled"]);
+    assert.equal(plan.resolution.outcomes.success.effects.length, 0);
+});

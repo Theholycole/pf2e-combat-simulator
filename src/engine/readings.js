@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withArea(resolved)))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withFormAura(withArea(resolved))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -121,6 +121,28 @@ function withGrounding(plan) {
         return [degree, { ...row, effects: [grounded ? { kind: "condition", slug: "grounded", value: null, duration: { mode: "fixed", value, unit: `${grounded[2].toLowerCase()}s` } } : { kind: "condition", slug: "landed", value: null, duration: null }] }];
     }));
     return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
+}
+
+// Blanket of Stars (2026-10-22, sight and light): a generated form whose fight effect is an aura's save on the creatures that end their turn
+// in it ("Any creature that ends its turn adjacent to you must attempt a Will save") — the compiler's formRiders.auras — as an emanation's
+// save about the caster that lingers, at those turns' ends, for the spell's time (zones.js startLingering). The form's own rules (a status
+// bonus to Stealth, invisible under a starry sky) aren't played.
+const AURA_EVENTS = new Set(["turn-start", "turn-end", "enter"]);
+function withFormAura(plan) {
+    const resolution = plan?.resolution;
+    const aura = resolution?.kind === "generated-form" ? (resolution.formRiders?.auras ?? []).find((each) => Number(each?.radius) > 0 && each.save?.statistic && Object.keys(each.save.rows ?? {}).length) : null;
+    if (!aura) return plan;
+    const lasts = (row) => (Number(row?.rounds) > 0 ? { mode: "fixed", value: Number(row.rounds), unit: "rounds", ...(row.expiry ? { expiry: row.expiry } : {}) } : null);
+    const row = (degree) => {
+        const read = aura.save.rows[degree];
+        return { ...NONE_ROW, effects: (read?.conditions ?? []).map((condition) => ({ kind: "condition", slug: condition.slug, value: condition.value ?? null, duration: lasts(read) })) };
+    };
+    const area = { type: "emanation", value: Number(aura.radius) };
+    const events = (aura.events ?? []).filter((event) => AURA_EVENTS.has(event));
+    return { ...plan, simulatorReading: true, targeting: { ...(plan.targeting ?? {}), target: null, range: null, area },
+        resolution: { kind: "save", check: { statistic: aura.save.statistic, basic: false, dcSource: "source-actor" }, sharedDamage: null,
+            outcomes: { criticalSuccess: row("criticalSuccess"), success: row("success"), failure: row("failure"), criticalFailure: row("criticalFailure") },
+            lingering: { area, centre: "caster", durationSeconds: Number(resolution.generatedForm?.seconds) || 60, events: events.length ? events : ["turn-end"] } } };
 }
 
 // Light of Revelation (2026-10-22, sight and light): a light aura about the caster, aimed at itself (its data's "30-foot emanation" range
