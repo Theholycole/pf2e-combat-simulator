@@ -461,7 +461,8 @@ export function runPowerTask(task) {
     // (One the engine can't cast in a fight only for how its time or targets are written: cast as the rating reads it.)
     // (A retaliation — the compiler's kind —: its rating reader's, power-readings.js, though fights cast the caster's own, 2026-10-22.)
     const castable = canCast({ spellPools: { [RATED_POOL]: 1 } }, entry) && plan.resolution?.kind !== "retaliation";
-    const rewritten = !castable && !isUtility(plan) ? castableReading(plan, doc, rank) : null;
+    // (Not the "retaliation" kind: its reader rates it — power-readings.js READERS.retaliation.)
+    const rewritten = !castable && !isUtility(plan) && plan.resolution?.kind !== "retaliation" ? castableReading(plan, doc, rank) : null;
     // (Cast before the fight, healing done then — Soothing Spring's soak for an hour —: nothing in the fight; the party comes to it as hurt
     // as ever. Its lasting effects and temporary Hit Points do count.)
     const healedBefore = rewritten?.preCast && plan.resolution?.kind === "healing" && /\bspends? (?:the full |an? |\d+ )?(?:hours?|minutes?)\b[^.]*\bregains?\b|\bregains?\b[^.]*\bafter \d+ (?:minutes|hours)\b/i.test(textOf(doc));

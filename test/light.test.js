@@ -655,3 +655,110 @@ test("effect-note spells cast in fights as effects: the caster's own, a willing 
     // (Fire Shield's resistance: its type from the flag its ActiveEffectLike sets.)
     assert.deepEqual(Object.values(effectModels(fire, 6))[0].resistances, [{ type: "cold", value: 10, exceptions: [] }]);
 });
+
+test("Spiral of Horrors: its aura's frightened held at 1 on the foes it reaches while it lasts — a floor; worth each round it holds", async () => {
+    const { castSpell, spellExpectation } = await import("../src/engine/spells.js");
+    const { takeTurn } = await import("../src/engine/fight.js");
+    const { compileSpell, effectModels, spellNamed, withTextConditions } = await import("../tools/lib/pack-spells.mjs");
+    const doc = spellNamed("Spiral of Horrors");
+    const plan = compileSpell(doc);
+    const effects = withTextConditions(effectModels(plan, 4), doc, 4);
+    assert.deepEqual(Object.values(effects)[0].auraFloor, { slug: "frightened", value: 1 });
+    const state = createFightState({ combatants: [...standardParty(7), { ...moderateCreatureAt(7, "monster"), id: "monster", name: "Brute" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wizard = state.byId.get("wizard");
+    const brute = state.byId.get("monster");
+    wizard.spells = [{ name: "Spiral of Horrors", castRank: 4, pool: null, dc: 25, attack: 15, effects, plan }];
+    const held = spellExpectation(state, wizard, wizard.spells[0], [wizard]).find((entry) => entry.target === brute);
+    castSpell(state, wizard, 0, [wizard.id]);
+    assert.equal(brute.cond.frightened, 1);
+    brute.actionsLeft = 0;
+    takeTurn(state, brute);
+    assert.equal(brute.cond.frightened, 1, "not below 1 at its turn's end");
+    const plain = { ...effects[Object.keys(effects)[0]], auraFloor: undefined };
+    const without = spellExpectation(createFightState({ combatants: [...standardParty(7), { ...moderateCreatureAt(7, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1), wizard, { ...wizard.spells[0], effects: { [Object.keys(effects)[0]]: plain } }, [wizard]).find((entry) => entry.target.id === "monster");
+    assert.ok(held.benefit < without.benefit, "the floor makes it worse for the foe");
+});
+
+test("Weapon Surge: its pick of the caster's weapon read as its Strikes'; +1 and the spirit dice on its next Strike, then gone", async () => {
+    const { castSpell } = await import("../src/engine/spells.js");
+    const { performStrike } = await import("../src/engine/actions.js");
+    const { compileSpell, effectModels, spellNamed, withTextConditions } = await import("../tools/lib/pack-spells.mjs");
+    const doc = spellNamed("Weapon Surge");
+    const plan = compileSpell(doc);
+    const effects = withTextConditions(effectModels(plan, 5), doc, 5);
+    const model = Object.values(effects)[0];
+    assert.deepEqual(model.modifiers, [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "dice", value: 7 }], "2d6 from rank 5");
+    assert.equal(model.nextStrike, true);
+    const state = createFightState({ combatants: [...standardParty(9), { ...moderateCreatureAt(9, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const fighter = state.byId.get("fighter");
+    fighter.spells = [{ name: "Weapon Surge", castRank: 5, pool: null, dc: 25, attack: 15, effects, plan }];
+    castSpell(state, fighter, 0, [fighter.id]);
+    assert.ok(fighter.effects.some((effect) => effect.model.nextStrike));
+    performStrike(state, fighter, state.byId.get("monster"), fighter.strikes[0]);
+    assert.ok(!fighter.effects.some((effect) => effect.model.nextStrike), "used up by the Strike");
+});
+
+test("Aura of Violent Light: an emanation about the ally it's cast on, its basic save on the foes that end their turn in it; the cast saves no one", async () => {
+    const { castSpell, targetSets } = await import("../src/engine/spells.js");
+    const { takeTurn } = await import("../src/engine/fight.js");
+    const { engage } = await import("../src/engine/space.js");
+    // (A witch's hex, read from the compiler's plan as the spell's text gives it.)
+    const plan = withReading({ rank: 1, traits: ["aura", "cantrip", "hex", "manipulate", "witch"], activation: { time: "1" }, targeting: { target: "1 willing ally", range: "30 feet", area: null },
+        lifecycle: { sustained: true, durationSpec: { mode: "sustained", maximum: { mode: "fixed", value: 1, unit: "minutes" } } },
+        compilerEvidence: { simpleBasicSaveGate: { evidence: { baseText: "A 5-foot emanation of light. Each Sustain, increase the emanation by 5 feet up to a maximum of 15 feet.", saveSentence: "The ally radiates heat: @Damage[(1+@item.level)[fire],(1+@item.level)[spirit]] damage to all enemies that end their turn within it (basic Fortitude save)." } } },
+        resolution: { kind: "save", check: { statistic: "fortitude", basic: true, dcSource: "source-actor" }, sharedDamage: { mode: "pf2e-item-damage", rollOnce: true, components: [{ id: "a", formula: "2", type: "fire", kinds: ["damage"] }, { id: "b", formula: "2", type: "spirit", kinds: ["damage"] }] },
+            outcomes: Object.fromEntries(["criticalSuccess", "success", "failure", "criticalFailure"].map((degree, index) => [degree, { damage: { mode: index ? "shared" : "none", multiplier: [0, 0.5, 1, 2][index], sourceComponentIds: index ? ["a", "b"] : [] }, effects: [], nativeEffects: [], modifiers: [], followUps: [], decisions: [], manualInstructions: [], terminal: null, rawText: "" }])) } });
+    assert.deepEqual(plan.resolution.lingering, { area: { type: "emanation", value: 5 }, centre: "target", noInitial: true, durationSeconds: 60, events: ["turn-end"], sustained: true, grows: { by: 5, max: 15 } });
+    const state = createFightState({ combatants: [...standardParty(3), { ...moderateCreatureAt(3, "monster"), id: "monster", name: "Brute" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const witch = state.byId.get("wizard");
+    const fighter = state.byId.get("fighter");
+    const brute = state.byId.get("monster");
+    engage(state, brute, fighter);
+    witch.spells = [{ name: "Aura of Violent Light", castRank: 1, pool: null, dc: 30, attack: 20, effects: {}, plan }];
+    const sets = targetSets(state, witch, witch.spells[0], { enemies: [brute], allies: state.list.filter((c) => c.side === "party"), inMelee: () => false, distance: () => 30, meleeId: null });
+    assert.ok(sets.every((set) => set.targets[0].side === "party" && set.targets[0] !== witch), "an ally, not the caster or a foe");
+    state.log = [];
+    castSpell(state, witch, 0, [fighter.id]);
+    assert.ok(!state.log.some((line) => /Fighter takes/.test(line)), "the ally isn't hurt");
+    assert.ok(state.zones.some((zone) => zone.name === "Aura of Violent Light" && zone.anchorId === fighter.id), "about the fighter");
+    const { applyCondition } = await import("../src/engine/spells.js");
+    applyCondition(state, brute, "immobilized", null, null, witch);
+    const hp = brute.hp.value;
+    state.rng.d20 = () => 1;
+    takeTurn(state, brute);
+    assert.ok(brute.hp.value < hp, state.log.join("\n"));
+});
+
+test("reaction spells as the damage comes: Eat Fire's fire resistance against it; Shadow Siphon's counteract halving a spell's damage for all", async () => {
+    const { castSpell, spellReactions } = await import("../src/engine/spells.js");
+    const { applyDamage } = await import("../src/engine/actions.js");
+    const { compileSpell, effectModels, spellNamed, withTextConditions } = await import("../tools/lib/pack-spells.mjs");
+    const entry = (name, castRank) => {
+        const doc = spellNamed(name);
+        const plan = compileSpell(doc);
+        return { name, plan, castRank, dc: 28, attack: 18, pool: null, effects: withTextConditions(effectModels(plan, castRank), doc, castRank) };
+    };
+    const fresh = () => createFightState({ combatants: [...standardParty(9), { ...moderateCreatureAt(9, "monster"), id: "monster", name: "Mage" }] }, { morale: false, retreat: false }, 1, { log: true });
+    // (Eat Fire: resistance 10 at rank 5 — 5 more every 3 ranks — against the fire, its reaction spent.)
+    let state = fresh();
+    let wizard = state.byId.get("wizard");
+    wizard.spells = [entry("Eat Fire", 5)];
+    spellReactions(wizard);
+    assert.deepEqual(wizard.resistReaction, { name: "Eat Fire", value: 10, on: ["fire"], types: ["fire"], fromSpell: 0 });
+    const hp = wizard.hp.value;
+    applyDamage(state, wizard, [{ type: "fire", amount: 25, persistent: false, precision: false }], { source: state.byId.get("monster") });
+    assert.equal(hp - wizard.hp.value, 15);
+    assert.ok(state.log.some((line) => /Wizard uses Eat Fire: resistance 10 to fire/.test(line)), state.log.join("\n"));
+    assert.equal(compileSpell(spellNamed("Eat Fire")).resolution.kind, "effect", "rated as its effect on the caster");
+    // (Shadow Siphon: a Fireball at the party, halved for every creature it hits.)
+    state = fresh();
+    wizard = state.byId.get("wizard");
+    const mage = state.byId.get("monster");
+    wizard.spells = [entry("Shadow Siphon", 5)];
+    spellReactions(wizard);
+    assert.deepEqual(wizard.siphon, { index: 0, rankBonus: 2 });
+    mage.spells = [entry("Fireball", 5)];
+    state.rng.d20 = () => 15;
+    castSpell(state, mage, 0, state.list.filter((c) => c.side === "party").map((c) => c.id));
+    assert.ok(state.log.some((line) => /Wizard reacts with Shadow Siphon against Fireball: .* → half the damage/.test(line)), state.log.join("\n"));
+});

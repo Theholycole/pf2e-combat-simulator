@@ -68,7 +68,7 @@ export function startZone(state, owner, spell, targetIds) {
         model,
         // (B262: a square, "a 15-foot by 15-foot area", as the creatures within half of it from its middle square.)
         radius: area.type === "square" ? squareRadius(area.value) : Number(area.value) || 5,
-        anchorId: area.type === "emanation" || (area.type === "burst" && model.centre !== "placed") ? owner.id : (first?.id ?? owner.id),
+        anchorId: model.centre === "target" ? (first?.id ?? owner.id) : area.type === "emanation" || (area.type === "burst" && model.centre !== "placed") ? owner.id : (first?.id ?? owner.id),
         fixed: area.type === "cone" || area.type === "line" ? new Set(targetIds) : null,
         until: Number.isFinite(rounds) ? state.round + rounds : Infinity,
         // (I2: area damage, with its source's traits.)
@@ -107,7 +107,9 @@ export function startLingering(state, caster, spell, targetIds) {
     const when = [...new Set((lingering.events ?? []).map((event) => LINGER_WHEN[event]).filter(Boolean))];
     const model = {
         area: lingering.area,
-        centre: lingering.centre === "caster" ? "caster" : "placed",
+        // (Aura of Violent Light's: about the creature it's cast on — "target" — as it moves; growing each Sustain.)
+        centre: lingering.centre === "caster" ? "caster" : lingering.centre === "target" ? "target" : "placed",
+        ...(lingering.grows ? { grows: lingering.grows } : {}),
         lasts: rounds ? { value: rounds, unit: "rounds" } : null,
         concealed: Boolean(lingering.concealment),
         terrain: lingering.terrain ? [lingering.terrain] : [],
@@ -120,7 +122,7 @@ export function startLingering(state, caster, spell, targetIds) {
 }
 
 function placeOnGrid(state, zone, owner, area, targetIds) {
-    if (zone.anchorId === owner.id && area.type !== "cone" && area.type !== "line") {
+    if ((zone.anchorId === owner.id || zone.model.centre === "target") && area.type !== "cone" && area.type !== "line") {
         zone.around = true;
         return;
     }
@@ -192,6 +194,7 @@ export function zoneTurn(state, c, phase) {
                 c.actionsLeft -= 1;
                 log(state, `  ${c.name} Sustains ${zone.name}`);
                 (c.sustainedNow ??= []).push(zone.name);
+                if (zone.model.grows && zone.radius < zone.model.grows.max) zone.radius = Math.min(zone.model.grows.max, zone.radius + zone.model.grows.by);
                 for (const save of zone.model.saves ?? []) {
                     if (!save.when.includes("sustain")) continue;
                     for (const member of zoneMembers(state, zone)) if (member.side !== zone.side && isActive(member) && onlyFits(save, member)) castPlan(state, c, saveSpell(zone, save), [member.id]);

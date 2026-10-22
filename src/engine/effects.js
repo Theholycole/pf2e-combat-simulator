@@ -256,8 +256,25 @@ function withActorFlags(item) {
     return { ...item, system: { ...item.system, rules: JSON.parse(text) } };
 }
 
+// (2026-10-22, Weapon Surge: a ChoiceSet of one of the creature's own weapons — "choices: { ownedItems, types: [weapon] }" — whose pick names
+// the selectors, "{item|flags.system.rulesSelections.x}-attack" and "-damage": as the creature's Strikes', "strike-attack-roll" and
+// "strike-damage"; the pick and a rule only for that weapon's id go.)
+function withWeaponPick(item) {
+    const rules = item?.system?.rules ?? [];
+    const picks = rules.filter((rule) => rule?.key === "ChoiceSet" && typeof rule.flag === "string" && rule.choices && !Array.isArray(rule.choices) && rule.choices.ownedItems && [].concat(rule.choices.types ?? []).includes("weapon"));
+    if (!picks.length) return item;
+    let text = JSON.stringify(rules.filter((rule) => !picks.includes(rule)));
+    for (const pick of picks) {
+        const token = `{item|flags.system.rulesSelections.${pick.flag}}`;
+        // (Ghostly Weapon's AdjustStrike "item:id:{…}": on that weapon — the engine's Strikes'.)
+        text = text.split(`${token}-attack`).join("strike-attack-roll").split(`${token}-damage`).join("strike-damage").split(`item:id:${token}`).join("item:picked");
+    }
+    const left = JSON.parse(text).filter((rule) => !JSON.stringify(rule).includes("{item|flags.system.rulesSelections."));
+    return { ...item, system: { ...item.system, rules: left } };
+}
+
 export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen = null } = {}) {
-    item = withActorFlags(item);
+    item = withWeaponPick(withActorFlags(item));
     const model = { name: item?.name ?? "Effect", rounds: roundsOf(item?.system?.duration), modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
     const unsupported = new Set();
     // (2026-10-22, Levitate: its effect has only the −2 to attacks; the spell floats the creature up out of reach — model.levitates, space.js.)
@@ -348,6 +365,8 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen
                     model.situational++;
                     break;
                 }
+                // (Helpful Reload's "+1 status bonus to their next Strike": a bonus gone after its roll — on the next Strike alone.)
+                if (rule.removeAfterRoll && selectors.some((selector) => /attack|damage/.test(String(selector)))) model.nextStrike = true;
                 for (const selector of selectors) {
                     // (A save bonus against what its predicate names: Death Ward's +4 against death and void effects.)
                     if (when && SAVE_SELECTORS[selector]) {
@@ -374,7 +393,8 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen
                 const selectors = [].concat(rule.selector ?? []);
                 const strikeSelector = selectors.find((selector) => ["strike-damage", "damage", "melee-strike-damage", "ranged-strike-damage"].includes(selector));
                 if (!strikeSelector) break;
-                const dice = Number(rule.diceNumber) || 1;
+                // (Weapon Surge's "ternary(gte(@item.level,9),3,…)": at its rank.)
+                const dice = Number(rule.diceNumber) || numericValue(rule.diceNumber, rank) || 1;
                 const die = Number(String(rule.dieSize ?? "d6").replace("d", "")) || 6;
                 const kind = CONDITIONAL_SELECTORS[strikeSelector].kind;
                 // (Only on some attacks — unarmed Strikes, against a trait, melee ones: when its predicate holds.)
@@ -614,15 +634,35 @@ export function withSpellText(models, doc, rank = 1) {
     const text = String(doc?.system?.description?.value ?? "");
     const invisible = STILL_INVISIBLE.test(text);
     const retaliation = textRetaliation(doc, rank);
-    if (!invisible && !retaliation) return models;
+    const floor = AURA_FLOOR.exec(text.replace(/<[^>]+>/g, " "));
+    const nextStrike = NEXT_STRIKE.test(text);
+    if (!invisible && !retaliation && !floor && !nextStrike) return models;
     return Object.fromEntries(Object.entries(models).map(([uuid, model]) => {
         if (!model) return [uuid, model];
         const out = { ...model };
         if (invisible && !(model.conditions ?? []).some((condition) => condition.slug === "invisible")) out.conditions = [...(model.conditions ?? []), { slug: "invisible", value: null }];
         if (retaliation && !model.retaliation) out.retaliation = retaliation;
+        if (floor && (model.auraGrants?.length || model.aura?.length)) out.auraFloor = { slug: floor[1].toLowerCase(), value: Number(floor[2]) };
+        if (nextStrike && (model.modifiers ?? []).some((modifier) => ["attack", "damage"].includes(modifier.on))) out.nextStrike = true;
         return [uuid, out];
     }));
 }
+
+// (2026-10-22, Weapon Surge: "On your next Strike with that weapon before the start of your next turn …" — model.nextStrike: used up by
+// that Strike, spendNextStrike.)
+// (Precious Gleam's "On the next successful attack with that weapon" too.)
+const NEXT_STRIKE = /\bon (?:your|the) next (?:successful )?(?:Strike|attack)\b/i;
+export function spendNextStrike(c) {
+    for (const effect of (c.effects ?? []).filter((entry) => entry.model?.nextStrike)) {
+        removeEffect(c, effect);
+        c.timers = (c.timers ?? []).filter((timer) => timer.effect !== effect);
+    }
+}
+
+// (2026-10-22, Spiral of Horrors: "Enemies in the area are Frightened 1 and can't reduce their frightened value below 1 for the spell's
+// duration" — on an aura's effect, model.auraFloor { slug, value }: those it reaches as it's raised hold the condition at that while it
+// lasts, c.condFloors — applyEffect.)
+const AURA_FLOOR = /\bcan't reduce (?:their|its) (frightened|sickened|clumsy|enfeebled|stupefied) (?:condition |value )*below (\d+)\b/i;
 
 // A spell's touch burn with no effect of its own to carry it (Shroud of Flame's, beside its fire's save): the caster's, as the spell is cast
 // — the builders' entry.selfRetaliation (spells.js). null when an effect model carries it.
@@ -676,7 +716,14 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
     // (A body that burns at a touch — Fiery Body —: its retaliation on the creature while the effect lasts, spells.js touchRetaliation.)
     if (model.retaliation) target.retaliations = [...(target.retaliations ?? []).filter((entry) => entry.name !== model.name), { name: model.name, label: String(model.name).replace(/^(?:Spell )?Effect: /, ""), ...model.retaliation, until: Number.isFinite(model.rounds) ? (state?.round ?? 0) + model.rounds : Infinity }];
     // (An aura's granted effects — Protector's Sphere's resistance —: on those it reaches as it's raised, for its time.)
-    for (const grant of model.aura ?? []) for (const other of auraRecipients(state, target, grant)) applyEffect(state, other, { ...grant.model, rounds: model.rounds }, source, { applyCondition, key: `${key}:aura` });
+    for (const grant of model.aura ?? []) for (const other of auraRecipients(state, target, grant)) {
+        applyEffect(state, other, { ...grant.model, rounds: model.rounds }, source, { applyCondition, key: `${key}:aura` });
+        // (Spiral of Horrors: the condition it gives held there while the aura lasts — floors.js, ended by lasting.js at its turn's start.)
+        if (model.auraFloor && (grant.model?.conditions ?? []).some((condition) => condition.slug === model.auraFloor.slug)) {
+            const by = source?.id ?? target.id;
+            other.condFloors = [...(other.condFloors ?? []).filter((held) => !(held.by === by && held.spell === model.name)), { slug: model.auraFloor.slug, value: model.auraFloor.value, by, spell: model.name, lifetime: null, untilRound: (state?.round ?? 0) + (Number.isFinite(model.rounds) ? model.rounds : 10), sustained: false }];
+        }
+    }
     return effect;
 }
 
@@ -759,9 +806,11 @@ export function effectBenefit(model, target, conditionHarm, strikeShare = 1, con
     // has a Strike of that kind — before, none was, and Enlarge was worth its clumsy 1 alone.)
     const kinds = new Set((target.strikes ?? []).map((strike) => (strike.melee ? "item:melee" : "item:ranged")));
     const byKind = (model.conditional ?? []).filter((modifier) => modifier.predicate?.length && modifier.predicate.every((term) => term === "item:melee" || term === "item:ranged") && modifier.predicate.every((term) => kinds.has(term)));
+    // (Weapon Surge's, on its next Strike alone: about half a round's Strikes.)
+    const strikeRounds = model.nextStrike ? 0.5 : rounds;
     for (const modifier of [...model.modifiers, ...byKind]) {
         const per = { ac: 0.08, fortitude: 0.01, reflex: 0.01, will: 0.01, attack: 0.1 * strikes, damage: 0.04 * strikes, spell: 0.05 * (1 - strikes), speed: 0.003 }[modifier.on] ?? 0;
-        benefit += per * modifier.value * rounds;
+        benefit += per * modifier.value * (["attack", "damage"].includes(modifier.on) ? strikeRounds : rounds);
     }
     if (target.hp?.max > 0) {
         benefit += model.tempHp / target.hp.max;

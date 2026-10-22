@@ -279,6 +279,8 @@ export function castableReading(plan, doc, rank = Number(plan?.rank) || 1) {
     if (/\btrigger/.test(target)) targeting.target = /\ball(?:y|ies)\b/.test(target) ? "1 willing creature" : "1 creature";
     else if (/\ball(?:y|ies)\b/.test(target)) targeting.target = /up to (\d+)/.test(target) ? `up to ${/up to (\d+)/.exec(target)[1]} willing creatures` : "1 willing creature";
     else if (/^(?:the creature|your hunted prey|one creature|a creature)\b/.test(target)) targeting.target = "1 creature";
+    // (The caster's own, as the simulator's readings write it — Eat Fire's, 2026-10-22.)
+    else if (/^(?:self|you|yourself)$/.test(target)) targeting.target = "self";
     else if (written) {
         targeting.target = null;
         targeting.area = { type: written[2], value: Number(written[1]) };

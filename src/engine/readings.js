@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withEffectNote(withArea(resolved)))))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withArea(resolved)))))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -148,6 +148,36 @@ function withEffectNote(plan) {
         if (/\b(?:weapon|shield|armor)s?\b/i.test(target) && /\bwilling\b|\ball(?:y|ies)\b/i.test(target)) targeting = { ...targeting, target: "1 willing creature" };
     } else return plan;
     return { ...plan, simulatorReading: true, targeting, resolution: { kind: "effect", check: null, sharedDamage: null, outcomes: resolution.outcomes, applications: [{ kind: "native-spell-effect", uuid: note.effect.uuid, label: note.effect.label ?? null, recipients }] } };
+}
+
+// (2026-10-22, Aura of Violent Light: an emanation of light about the ally, 5 feet more each Sustain up to a cap, its damage on the enemies
+// ending their turns in it, a basic save — the compiler's basic save on the ally itself.) As a lingering emanation about the ally (zones.js
+// centre "target"), its save on the caster's foes that end their turn in it, Sustained, growing as its text says; the cast itself saves no
+// one (noInitial).
+const ALLY_AURA = /\b(?:ally|creature|target) radiates\b.{0,200}?\bdamage to all enemies that end their turns? within\b/i;
+function withAllyAura(plan) {
+    const resolution = plan?.resolution;
+    if (resolution?.kind !== "save" || resolution.lingering || plan.targeting?.area?.type) return plan;
+    if (!/\bwilling ally\b|\b1 ally\b/i.test(String(plan.targeting?.target ?? ""))) return plan;
+    const evidence = plan.compilerEvidence?.simpleBasicSaveGate?.evidence ?? {};
+    if (!ALLY_AURA.test(String(evidence.saveSentence ?? ""))) return plan;
+    const base = String(evidence.baseText ?? "");
+    const size = /\b(\d+)-foot emanation\b/i.exec(base);
+    const grows = /\bincrease the emanation by (\d+) feet up to a maximum of (\d+) feet\b/i.exec(base);
+    const most = plan.lifecycle?.durationSpec?.maximum;
+    const seconds = most?.unit === "minutes" ? Number(most.value) * 60 : most?.unit === "rounds" ? Number(most.value) * 6 : 60;
+    const lingering = { area: { type: "emanation", value: size ? Number(size[1]) : 5 }, centre: "target", noInitial: true, durationSeconds: seconds || 60, events: ["turn-end"], sustained: Boolean(plan.lifecycle?.sustained), ...(grows ? { grows: { by: Number(grows[1]), max: Number(grows[2]) } } : {}) };
+    return { ...plan, simulatorReading: true, resolution: { ...resolution, lingering } };
+}
+
+// (2026-10-22, Eat Fire: the compiler's "cloud-action" — "You gain resistance 5 to fire damage until the end of the current turn. … you can use
+// the Belch Smoke action" — its PF2e effect on the caster, as an effect's: the ratings rate that; fights play its reaction as the damage
+// comes, spells.js spellReactions. Belch Smoke's cloud isn't played.)
+function withCloudEffect(plan) {
+    const resolution = plan?.resolution;
+    const uuid = resolution?.kind === "cloud-action" ? resolution.cloudAction?.effect?.uuid : null;
+    if (!uuid) return plan;
+    return { ...plan, simulatorReading: true, targeting: { ...(plan.targeting ?? {}), target: "self" }, resolution: { kind: "effect", check: null, sharedDamage: null, outcomes: resolution.outcomes, cloudAction: resolution.cloudAction, applications: [{ kind: "native-spell-effect", uuid, label: resolution.cloudAction.effect.label ?? null, recipients: "self" }] } };
 }
 
 // Agitate (2026-10-22, flying and the like): "the target must Stride, Fly, or Swim at least once each turn or take 2d8 mental damage at the

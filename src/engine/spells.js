@@ -1803,6 +1803,47 @@ export function incapacitated(spell, caster, target) {
     return (Number(target.level) || 0) > 2 * rank;
 }
 
+// (2026-10-22, reaction spells the engine plays as the damage comes.) Eat Fire — "Trigger You would take fire damage … You gain resistance 5
+// to fire damage until the end of the current turn" (the compiler's cloudAction.resistance) — as a reaction's resistance against it
+// (actions.js resistReaction; fromSpell: its slot, if it takes one). Shadow Siphon — "Trigger A spell or magical effect deals damage …
+// Attempt to counteract the target spell. If the attempt is successful, any creatures that would be damaged by the spell instead take only
+// half as much damage" — c.siphon, siphonAnswer.
+export function spellReactions(c) {
+    for (const [index, spell] of (c.spells ?? []).entries()) {
+        const plan = spell.plan;
+        if (plan?.activation?.time !== "reaction") continue;
+        const resistance = plan.resolution?.cloudAction?.resistance;
+        const trigger = /\bwould take (\w+) damage\b/i.exec(String(plan.compilerEvidence?.cloudAction?.[0] ?? "").replace(/<[^>]+>/g, " "));
+        if (resistance?.type && trigger && !c.resistReaction) {
+            const steps = resistance.step ? Math.floor(((Number(spell.castRank) || 1) - 1) / Number(resistance.step)) : 0;
+            c.resistReaction = { name: spell.name, value: (Number(resistance.value) || 0) + steps * (Number(resistance.perStep) || 0), on: [trigger[1].toLowerCase()], types: [String(resistance.type)], fromSpell: index };
+            c.resistUses = Infinity;
+        }
+        if (plan.resolution?.recipient === "triggering-spell" && /\bhalf as much damage\b/i.test(String(plan.resolution.counteractOutcome?.success ?? "")) && !c.siphon) c.siphon = { index, rankBonus: Number(plan.resolution.counteractRankBonus) || 0 };
+    }
+}
+
+// Shadow Siphon at a spell about to damage the reactor's side: worth its slot when it would take a quarter of the reactor's Hit Points from
+// them; its counteract check (its rank the more), and on a success half the damage for every creature the spell damages. True then.
+function siphonAnswer(state, caster, spell, changes) {
+    const damaged = changes.filter((change) => change.op === "damage").map((change) => ({ target: state.byId.get(change.target), amount: (change.instances ?? []).reduce((sum, instance) => sum + (Number(instance.amount) || 0), 0) })).filter((each) => each.target);
+    if (!damaged.length) return false;
+    for (const c of state.list) {
+        if (!c.siphon || c.side === caster.side || !isActive(c) || !canAct(c)) continue;
+        const own = c.spells?.[c.siphon.index];
+        if (!own || !canReact(c, own.name) || !poolReady(c, own)) continue;
+        const harm = damaged.filter((each) => each.target.side === c.side).reduce((sum, each) => sum + each.amount, 0);
+        if (harm < 0.25 * (c.hp?.max ?? 1)) continue;
+        spendReaction(c, own.name);
+        spendPool(c, own);
+        state.stats.reactions++;
+        const roll = counterRoll(state, Number(own.attack) || 0, counterRank(c, own, true) + c.siphon.rankBonus, { dc: effectDC(spell), rank: counterRank(caster, spell, isSpellCast(spell)) });
+        log(state, `  ${c.name} reacts with ${own.name} against ${spell.name}: ${roll.total} vs ${effectDC(spell)} → ${roll.success ? "half the damage" : "not counteracted"}`);
+        return roll.success;
+    }
+    return false;
+}
+
 function applyChanges(state, caster, spell, changes, context, io) {
     // (I2: with its actions — Heal's three-action area.)
     const described = describeSpell(spell.plan, context?.actions);
@@ -1817,6 +1858,8 @@ function applyChanges(state, caster, spell, changes, context, io) {
         for (const id of overflow) log(state, `  ${state.byId.get(id)?.name} doesn't fit inside ${caster.name}`);
         changes = changes.filter((change) => !(overflow.has(change.target) && (change.op === "damage" || (change.op === "effect" && change.effect?.kind === "swallow"))));
     }
+    // (Shadow Siphon: a foe's reaction halving a spell's damage.)
+    const siphoned = isSpell && siphonAnswer(state, caster, spell, changes);
     for (let change of changes) {
         // (A value the text rolls — Wails of the Damned's "Drained 1d4" — rolled now.)
         if (change.op === "condition" && change.valueRoll && !Number.isFinite(change.value)) change = { ...change, value: rollCount(state, change.valueRoll) };
@@ -1824,7 +1867,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
         if (change.target !== undefined && !target) continue;
         switch (change.op) {
             case "damage": {
-                const instances = change.instances.map((instance) => ({ type: instance.type, amount: instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext, ...(instance.materials?.length ? { materials: instance.materials } : {}) }));
+                const instances = change.instances.map((instance) => ({ type: instance.type, amount: siphoned ? Math.floor(instance.amount / 2) : instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext, ...(instance.materials?.length ? { materials: instance.materials } : {}) }));
                 const dealt = applyDamage(state, target, instances, { source: caster, nonlethal, spell: aimed });
                 log(state, `  ${target.name} takes ${dealt} ${change.instances.map((instance) => instance.type).join("/")}`);
                 // (2026-10-14, the vampiric spells: temporary Hit Points for the caster, a share of the damage dealt.)
@@ -2154,7 +2197,11 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         hexFamiliar(state, caster, spell.name, { applyCondition });
     }
     // (A lingering spell: its area stays, its later saves as a zone's — zones.js.)
-    if (spell.plan?.resolution?.lingering && !spell.fromZone) startLingering(state, caster, spell, targetIds);
+    if (spell.plan?.resolution?.lingering && !spell.fromZone) {
+        startLingering(state, caster, spell, targetIds);
+        // (Aura of Violent Light: only its area's later saves — the cast saves no one.)
+        if (spell.plan.resolution.lingering.noInitial) return;
+    }
     // Blinded or dazzled: each target of a targeted spell needs a flat check.
     // (L1: and each one the light or the weather hides from it.)
     // (2026-10-14: a hidden or concealed target too — Invisibility, Blur — as a Strike's; Truesight sees through Invisibility.)
@@ -3218,6 +3265,27 @@ function faceShare(faces, die, dice = 1) {
 export function spellExpectation(state, caster, spell, targets, attacks = caster.attacksThisTurn ?? 0, actions = undefined) {
     // (Light or darkness — light.js —: how much harder or easier it makes each side to see.)
     if (!spell.zone && lightZoneOf(spell)) return lightZoneEntries(state, caster, spell, targets, conditionWorth);
+    // (Aura of Violent Light: an emanation about the ally, its save on the foes beside it as their turns end — a round of it here; its later
+    // rounds, the planner's and the ratings' for a lingering area.)
+    const lingering = spell.plan?.resolution?.lingering;
+    if (lingering?.noInitial && !spell.fromZone) {
+        const around = { ...spell, plan: { ...spell.plan, targeting: { ...spell.plan.targeting, target: null, area: lingering.area }, resolution: { ...spell.plan.resolution, lingering: null } } };
+        // (Who it reaches: the foes in the ally's Melee; with the ally in none, a foe in none about as often as it comes to that ally — one of
+        // its side.)
+        const side = Math.max(1, state.list.filter((other) => other.side === caster.side && isActive(other)).length);
+        const engaged = (c) => c.meleeId !== null && c.meleeId !== undefined;
+        const result = [];
+        for (const ally of targets) {
+            result.push({ target: ally, damage: 0, worth: 0, heal: 0, benefit: 0 });
+            const weights = new Map(state.list.filter((other) => other.side !== caster.side && isActive(other)).map((foe) => [foe, engaged(ally) ? (foe.meleeId === ally.meleeId ? 1 : 0) : engaged(foe) ? 0 : 1 / side]).filter(([, weight]) => weight > 0));
+            if (!weights.size) continue;
+            for (const entry of spellExpectation(state, caster, around, [...weights.keys()], attacks, actions)) {
+                const weight = weights.get(entry.target) ?? 1;
+                result.push({ ...entry, damage: entry.damage * weight, worth: entry.worth * weight, heal: entry.heal * weight, benefit: entry.benefit * weight });
+            }
+        }
+        return result;
+    }
     // (Its caster's touch made harmful: the damage its foes' touching hits can expect — as a retaliation potion's.)
     // (Vibrant Thorns: with a spell of the trait that feeds it — vitality — at hand, half its hits at the higher damage.)
     let ownRetaliation = planRetaliation(spell);
@@ -3455,6 +3523,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                                 const granted = { ...grant.model, rounds: model.rounds };
                                 into.benefit += share * effectBenefit(granted, other, conditionWorth, state.strikeShare?.get(other.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit });
                                 if (granted.resistances?.length || granted.immunities?.length) into.heal += share * resistanceKept(state, granted, other, Math.min(3, granted.rounds));
+                                // (Spiral of Horrors' floor: its condition held each round it lasts past the first, not worn off.)
+                                if (model.auraFloor && (granted.conditions ?? []).some((condition) => condition.slug === model.auraFloor.slug)) into.benefit -= share * conditionWorth(model.auraFloor.slug, model.auraFloor.value, null) * Math.max(0, Math.min(3, model.rounds) - 1);
                             }
                         }
                     }
@@ -3540,6 +3610,8 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         const friends = [caster, ...allies].filter((ally) => ally === caster || (ally.status === ACTIVE && inMelee(ally)) || (info.healing && ally.status === DOWN && ally.kind === "pc"));
         return (info.healing ? friends.filter((ally) => ally.hp.value < ally.hp.max) : friends).map((ally) => ({ targets: [ally] }));
     }
+    // (Aura of Violent Light: an aura on an ally — each ally in reach, not the caster.)
+    if (spell.plan?.resolution?.lingering?.centre === "target") return allies.filter((ally) => ally !== caster && ally.status === ACTIVE && reaches(ally)).map((ally) => ({ targets: [ally] }));
     if (!info.area) {
         const sets = [];
         // (A spell for a willing creature — Vapor Form — goes to no enemy. 2026-10-21, found rating spells: only when every choice is

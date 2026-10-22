@@ -13,8 +13,8 @@ import { reaches as gridReaches, sightLine, squareOf } from "./grid.js";
 import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
-import { applyEffect, hasConditional, strikeRollOptions, removeEffect, takeAttackFortune } from "./effects.js";
-import { actionTraits, applyCondition, applyMove, castPlan, castSpell, deathThroes, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNextStrike, takeAttackFortune } from "./effects.js";
+import { actionTraits, applyCondition, applyMove, castPlan, castSpell, deathThroes, poolReady, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
@@ -345,8 +345,9 @@ const dodges = (reaction, strike, state = null, c = null) => (!reaction.against 
 export function performStrike(state, attacker, target, strike, options = {}) {
     if (!options.reaction) {
         const result = strikeOnce(state, attacker, target, strike, options);
-        // (Invisibility: it ends once the attack is done.)
+        // (Invisibility: it ends once the attack is done. Weapon Surge: used up by the Strike.)
         ownHostility(state, attacker);
+        spendNextStrike(attacker);
         return result;
     }
     const before = state.inReaction;
@@ -356,6 +357,7 @@ export function performStrike(state, attacker, target, strike, options = {}) {
     } finally {
         state.inReaction = before;
         ownHostility(state, attacker);
+        spendNextStrike(attacker);
     }
 }
 
@@ -1337,10 +1339,14 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     if (resist.spell && !(spell?.targeted && spell.rank > 0 && source && source.side !== target.side)) return null;
     // (B213, Shadow Siphon: "a spell or magical effect" — a spell's damage.)
     if (resist.magical && !spell) return null;
+    // (Eat Fire, a reaction spell: its slot, if it takes one — spells.js spellReactions.)
+    const fromSpell = Number.isInteger(resist.fromSpell) ? target.spells?.[resist.fromSpell] : null;
+    if (fromSpell && !poolReady(target, fromSpell)) return null;
     const value = resist.value === "rank" ? spell.rank : resist.value;
     const sets = (instance) => !instance.persistent && instance.amount > 0 && (!resist.on || resist.on.includes(instance.type) || (resist.on.includes("physical") && PHYSICAL_TYPES.has(instance.type)));
     if (adjustDamage(target, instances.filter(sets)).total <= 0) return null;
     spendReaction(target, resist.name);
+    if (fromSpell) spendPool(target, fromSpell);
     state.stats.reactions++;
     if (Number.isFinite(target.resistUses)) target.resistUses--;
     const before = target.resistances;

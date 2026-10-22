@@ -320,8 +320,10 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
     const aimed = minion ? allies.filter((c) => c.id === "minion") : allies;
     const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
     if (!(foeHp > 0)) return null;
-    // (close: the foes come up to the caster, in its Melee — a harmful emanation about it, Bane's, reaching them as the fight goes on.)
-    if (close) for (const foe of enemies) engage(state, foe, caster);
+    // (close: the foes come up to the caster, in its Melee — a harmful emanation about it, Bane's, reaching them as the fight goes on; for an
+    // aura on an ally — Aura of Violent Light —, to that ally, the party's first other.)
+    const allyAura = spell.plan?.resolution?.lingering?.centre === "target";
+    if (close) for (const foe of enemies) engage(state, foe, allyAura ? (aimed.find((ally) => ally !== caster) ?? caster) : caster);
     const harm = foeHarm(state, caster.side);
     const again = castRepeats(spell.plan, fightRounds(state, caster.side), { choke });
     let best = null;
@@ -355,7 +357,7 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
     // (A harmful emanation or aura about the caster: cast with the foes in range — the user: "For auras assume the spell is cast when
     // within range" — as they come up to it; the better of that and where they stand.)
     const about = describeSpell(spell.plan).area;
-    if (!close && about?.type === "emanation" && describeSpell(spell.plan).range === null && !describeSpell(spell.plan).helpful && !describeSpell(spell.plan).healing) {
+    if (!close && (allyAura || (about?.type === "emanation" && describeSpell(spell.plan).range === null && !describeSpell(spell.plan).helpful && !describeSpell(spell.plan).healing))) {
         const inRange = castPower(party, foes, entry, { minion, lost, choke, close: true });
         if (inRange && (!best?.share || inRange.share > best.share)) return inRange;
     }
