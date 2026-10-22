@@ -1730,10 +1730,12 @@ function applyDefence(state, caster, spell, target) {
     log(state, `  ${target.name} is under ${spell.name}${against ? ` (against ${against})` : ""}`);
 }
 
-// Spell Immunity's spell: the most damaging its foes can cast at it — the highest-ranked harmful spell among them.
+// Spell Immunity's spell: the most damaging its foes can cast at it — the highest-ranked harmful spell among them, a cantrip only when they
+// have nothing else (2026-10-22, the danger re-run: a heightened cantrip outranked their slot spells, Electric Arc named over Lightning Bolt).
 function immunityPick(state, target) {
     const spells = state.list.filter((other) => other.side !== target.side && isActive(other)).flatMap((other) => (other.spells ?? []).filter((each) => isSpellCast(each) && poolReady(other, each) && !describeSpell(each.plan).helpful && !describeSpell(each.plan).healing));
-    return spells.sort((a, b) => (Number(b.castRank) || 0) - (Number(a.castRank) || 0))[0]?.name ?? null;
+    const cantrip = (spell) => (spell.plan?.traits ?? []).includes("cantrip");
+    return spells.sort((a, b) => Number(cantrip(a)) - Number(cantrip(b)) || (Number(b.castRank) || 0) - (Number(a.castRank) || 0))[0]?.name ?? null;
 }
 
 // Forbidding Ward's foe: the one in the ally's Melee, else anywhere, that threatens it most.
@@ -1883,9 +1885,14 @@ function defenceEntries(state, caster, spell, targets) {
             case "turning":
                 kept = Math.max(0, ...foes.map((foe) => countered(foe) * spellHarm(foe))) * Math.min(1, 3 / side);
                 break;
+            // (One spell named: its casts — a slot's once, a cantrip's about half the rounds — at the creature, as often as it's the one aimed
+            // at; before, the caster's whole spell threat for three rounds, and a lone creature spent its turn on it.)
             case "immunity": {
-                const named = foes.sort((a, b) => spellHarm(b) - spellHarm(a))[0];
-                kept = named ? countered(named) * spellHarm(named) * 3 / side : 0;
+                const name = immunityPick(state, target);
+                const caster = name ? foes.find((foe) => (foe.spells ?? []).some((each) => each.name === name)) : null;
+                const spell = caster?.spells.find((each) => each.name === name);
+                const casts = !spell ? 0 : (spell.plan?.traits ?? []).includes("cantrip") ? 1.5 : Math.min(3, Number(caster.spellPools?.[spell.pool]) || 1);
+                kept = caster ? countered(caster) * spellHarm(caster) * casts / side : 0;
                 break;
             }
             case "globe":
