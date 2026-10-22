@@ -14,7 +14,7 @@ import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNextStrike, takeAttackFortune } from "./effects.js";
-import { actionTraits, applyCondition, applyMove, castPlan, castSpell, deathThroes, poolReady, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { actionTraits, applyCondition, applyMove, castPlan, castSpell, deathThroes, markOn, poolReady, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
@@ -110,7 +110,10 @@ export function targetAC(state, attacker, target, strike, flanked) {
     const borne = !isOffGuard(target) && state.list.some((other) => other.attachedTo === target.id && other.attach?.both && isActive(other));
     // (2026-10-15: an effect's conditional AC — against ranged attacks, auditory ones, an unholy creature's.)
     const options = hasConditional(target) ? strikeRollOptions(attacker, strike, target, strikeContext(attacker, strike)) : null;
-    return armorClass(target, { ranged: !strike.melee, coverBonus: strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached;
+    // (Brand the Impenitent: a status penalty to AC against its caster — over the status penalty it has already.)
+    const mark = markOn(target, attacker);
+    const branded = mark?.ac ? Math.max(0, mark.ac - statusPenalty(target, "ac")) : 0;
+    return armorClass(target, { ranged: !strike.melee, coverBonus: strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded;
 }
 
 // Cache of expected hit damage per Strike object (shared by every run of a
@@ -245,6 +248,8 @@ export function expectedHitDamage(attacker, strike, target, critical, { bonus = 
     total += onceWeakness(target, context);
     // (Undermine Reality: a quasi-real creature's Strikes deal half damage.)
     if (attacker.cond?.quasiReal) total = Math.floor(total / 2);
+    // (Vindicator's Judgment: the weakness to its caster's Strikes.)
+    total += markOn(target, attacker)?.weakness ?? 0;
     return target.hardness ? Math.max(0, total - target.hardness) : total;
 }
 
@@ -347,9 +352,10 @@ const dodges = (reaction, strike, state = null, c = null) => (!reaction.against 
 export function performStrike(state, attacker, target, strike, options = {}) {
     if (!options.reaction) {
         const result = strikeOnce(state, attacker, target, strike, options);
-        // (Invisibility: it ends once the attack is done. Weapon Surge: used up by the Strike.)
+        // (Invisibility: it ends once the attack is done. Weapon Surge, Judgment's success: used up by the Strike.)
         ownHostility(state, attacker);
         spendNextStrike(attacker);
+        spendMark(target, attacker);
         return result;
     }
     const before = state.inReaction;
@@ -360,6 +366,7 @@ export function performStrike(state, attacker, target, strike, options = {}) {
         state.inReaction = before;
         ownHostility(state, attacker);
         spendNextStrike(attacker);
+        spendMark(target, attacker);
     }
 }
 
@@ -432,7 +439,10 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const finds = !reaction && attacker.fortuneFinds && (attacker.effects ?? []).some((effect) => effect.model?.fortune?.on === "attack");
     // (Outlined — Faerie Fire —: not concealed by the light either, short of its darkness.)
     const lightDC = sightDC(state, attacker, target);
-    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : hiddenDC(state, attacker, target), target.cond?.outlined && lightDC < 11 ? 0 : lightDC);
+    // (Brand the Impenitent: its caster ignores the creature's concealment.)
+    const brandSees = Boolean(markOn(target, attacker)?.seesConcealed);
+    const seen = (dc) => (brandSees && dc <= 5 ? 0 : dc);
+    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : seen(hiddenDC(state, attacker, target)), target.cond?.outlined && lightDC < 11 ? 0 : seen(lightDC));
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
         // Counterattack (B94): a miss from beside it because it's concealed, a Strike back.
@@ -1180,6 +1190,9 @@ function guards(state, c, target, { physical = false, critical = false } = {}) {
 export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null } = {}) {
     // (Undermine Reality: a quasi-real creature's Strikes deal half damage.)
     if (physical && !intercepted && source?.cond?.quasiReal) instances = instances.map((instance) => ({ ...instance, amount: Math.floor(instance.amount / 2) }));
+    // (Vindicator's Judgment: its weakness to its caster's Strikes, once a hit.)
+    const judged = physical && !intercepted ? markOn(target, source)?.weakness : 0;
+    if (judged > 0) instances = [...instances, { type: "untyped", amount: judged, persistent: false, precision: false }];
     // M38: the party harming a foe that gave up and is leaving refuses its surrender.
     if (!intercepted) {
         harmedAfterGivingUp(state, target, source);

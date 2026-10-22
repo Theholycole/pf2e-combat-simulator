@@ -810,3 +810,58 @@ test("a spell's affliction: its stages' text read into numbers (damage, conditio
     assert.equal(brute.cond.enfeebled, 1, state.log.join("\n"));
     assert.ok(state.log.some((line) => /takes \d+ poison \(Spider Venom\)/.test(line)));
 });
+
+test("Blessing of Defiance: its action counts — one willing creature, or every ally about the caster at 3 —, its effect for the count cast with", async () => {
+    const { castSpell, describeSpell, targetSets } = await import("../src/engine/spells.js");
+    const { compileSpell, effectModels, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const plan = compileSpell(spellNamed("Blessing of Defiance"));
+    assert.equal(describeSpell(plan, 1).targets, 1);
+    assert.deepEqual(describeSpell(plan, 3).area, { type: "emanation", value: 30 });
+    const effects = effectModels(plan, 5);
+    const model = Object.values(effects)[0];
+    assert.deepEqual(Object.keys(model.byActions), ["1", "2", "3"]);
+    assert.equal(model.byActions[1].choices.find((choice) => choice.value === "will").model.resistances.length, 0);
+    assert.deepEqual(model.byActions[2].choices.find((choice) => choice.value === "will").model.resistances, [{ type: "mental", value: 15, exceptions: [] }], "two actions: resistance 15 with Will");
+    const state = createFightState({ combatants: [...standardParty(9), { ...moderateCreatureAt(9, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const cleric = state.byId.get("cleric");
+    const fighter = state.byId.get("fighter");
+    cleric.spells = [{ name: "Blessing of Defiance", castRank: 5, pool: null, dc: 28, attack: 18, effects, plan }];
+    const sets = targetSets(state, cleric, cleric.spells[0], { enemies: [state.byId.get("monster")], allies: state.list.filter((c) => c.side === "party"), inMelee: () => false, distance: () => 30, meleeId: null }, 1);
+    assert.ok(sets.every((set) => set.targets.every((target) => target.side === "party")), "a willing creature: not the foe");
+    castSpell(state, cleric, 0, [fighter.id], 2);
+    const held = fighter.effects.find((effect) => /Blessing of Defiance/.test(effect.model.name));
+    assert.ok(held?.model.modifiers.some((modifier) => ["fortitude", "reflex", "will"].includes(modifier.on) && modifier.value === 4), state.log.join("\n"));
+});
+
+test("marks against the caster alone: Brand the Impenitent's -1 AC and sight through concealment, Vindicator's Judgment's weakness to its Strikes", async () => {
+    const { castSpell } = await import("../src/engine/spells.js");
+    const { targetAC, applyDamage, performStrike } = await import("../src/engine/actions.js");
+    const { compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const brand = compileSpell(spellNamed("Brand the Impenitent"));
+    const judgment = compileSpell(spellNamed("Vindicator's Judgment"));
+    assert.deepEqual(brand.marks, { branded: { ac: 1, seesConcealed: true } });
+    assert.deepEqual(Object.keys(judgment.marks).sort(), ["judged", "judged-hard", "judged-once"]);
+    assert.equal(judgment.targeting.target, "1 creature", "its hunted prey: any creature");
+    const state = createFightState({ combatants: [...standardParty(9), { ...moderateCreatureAt(9, "monster"), id: "monster", name: "Brute" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const fighter = state.byId.get("fighter");
+    const rogue = state.byId.get("rogue");
+    const brute = state.byId.get("monster");
+    const strike = fighter.strikes[0];
+    const before = targetAC(state, fighter, brute, strike, false);
+    fighter.spells = [{ name: "Brand the Impenitent", castRank: 2, pool: null, dc: 40, attack: 30, effects: {}, plan: brand }, { name: "Vindicator's Judgment", castRank: 7, pool: null, dc: 40, attack: 30, effects: {}, plan: judgment }];
+    state.rng.d20 = () => 8;
+    castSpell(state, fighter, 0, [brute.id]);
+    assert.equal(targetAC(state, fighter, brute, strike, false), before - 1, "-1 AC to the brander");
+    assert.equal(targetAC(state, rogue, brute, rogue.strikes[0], false), targetAC(state, rogue, brute, rogue.strikes[0], false), "not to another");
+    castSpell(state, fighter, 1, [brute.id]);
+    const mark = brute.marks.find((entry) => entry.spell === "Vindicator's Judgment");
+    assert.equal(mark.weakness, 10, "10 at rank 7");
+    const hp = brute.hp.value;
+    applyDamage(state, brute, [{ type: "slashing", amount: 5, persistent: false, precision: false }], { source: fighter, physical: true });
+    assert.equal(hp - brute.hp.value, 15, "the weakness on a hit");
+    const hpRogue = brute.hp.value;
+    applyDamage(state, brute, [{ type: "slashing", amount: 5, persistent: false, precision: false }], { source: rogue, physical: true });
+    assert.equal(hpRogue - brute.hp.value, 5, "not on another's");
+    performStrike(state, fighter, brute, strike);
+    assert.ok(brute.marks.some((entry) => entry.spell === "Vindicator's Judgment"), "a failure's lasts beyond one Strike");
+});

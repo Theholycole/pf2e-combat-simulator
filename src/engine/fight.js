@@ -12,7 +12,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { agitationTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { agitationTurnEnd, markTurnStart, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -399,6 +399,8 @@ function startTurn(state, c) {
     c.spareUsed = null;
     // (Whether it Strides, Flies or Swims this turn — Agitate's.)
     c.movedThisTurn = false;
+    // (Vindicator's Judgment's critical failure: its first Strike this round at the creature off-guard.)
+    markTurnStart(state, c);
     // (Vibrant Thorns' damage after a vitality spell: until the start of its next turn — spells.js planRetaliation's boost.)
     for (const entry of c.retaliations ?? []) if (entry.boosted) entry.boosted = false;
     // (C30: Divine Fervor's extra reaction is gone as its turn starts; C33: temporary HP that last to its next turn — Immortal Bastion's.)

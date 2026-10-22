@@ -196,6 +196,7 @@ export function iwrException(exception) {
 }
 
 // chosen: { rollOption: value } — the caster's pick of a ChoiceSet whose rules wait on it (2026-10-22: model.choices, a model each).
+const ACTION_WORDS = { one: 1, two: 2, three: 3 };
 const DEGREE_CHOICES = new Set(["critical-success", "success", "failure", "critical-failure"]);
 
 // The ChoiceSets an effect's rules wait on: [{ option, values }] — choices its rank allows (others' predicates, a feat's, at best: allowed),
@@ -209,9 +210,15 @@ function choiceSets(item, rank) {
     // (Dancing Shield's +1, +2 or +3 — numbers —: keyed by the number.)
     const keyOf = (choice, index) => (typeof choice?.value === "string" ? choice.value : typeof choice?.value === "number" ? String(choice.value) : String(choice?.label ?? index).split(".").pop());
     const fields = (rule) => rule.choices.map((choice, index) => [keyOf(choice, index), choice]).filter(([, choice]) => (typeof choice?.value === "string" || Number.isFinite(choice?.value) || (choice?.value && typeof choice.value === "object" && !Array.isArray(choice.value))) && predicateHolds(choice.predicate, rank) !== false);
+    // (A flag beside its roll option — Blessing of Defiance's save, "{item|flags.system.rulesSelections.blessingOfDefianceSave}" in a selector —:
+    // put in as well, withSelection.)
+    // (The action count it's cast with — Blessing of Defiance's "one", "two", "three" —: all of them, whichever its rules name; actions.)
+    const counts = (rule) => allowed(rule).length > 1 && allowed(rule).every((value) => ACTION_WORDS[value]) && /actions?$/.test(rule.rollOption);
     const byOption = rules.filter((rule) => rule?.key === "ChoiceSet" && typeof rule.rollOption === "string" && Array.isArray(rule.choices)).map((rule) => ({
         option: rule.rollOption,
-        values: allowed(rule).filter((value) => named.includes(`"${rule.rollOption}:${value}"`))
+        values: counts(rule) ? allowed(rule) : allowed(rule).filter((value) => named.includes(`"${rule.rollOption}:${value}"`)),
+        ...(counts(rule) ? { actions: true } : {}),
+        ...(typeof rule.flag === "string" && JSON.stringify(rules).includes(`{item|flags.system.rulesSelections.${rule.flag}}`) ? { flag: rule.flag } : {})
     }));
     // (2026-10-22, Traveler's Transit: a choice put into a rule's selector — "{item|flags.system.rulesSelections.traveler}" — not a roll option.
     // Not into a resistance's or weakness's type: those are the "choice" resistances, read on their own.)
@@ -283,15 +290,21 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen
     // (A ChoiceSet the caster picks — Elemental Gift's element, Animal Feature's feature —, its rules on "option:value": each of its choices
     // as a toggle, the one picked on.)
     const sets = choiceSets(item, rank);
+    // (2026-10-22, Blessing of Defiance: a ChoiceSet of the action count it's cast with — "one", "two", "three" —: a model for each count,
+    // model.byActions; the cast's count picks it — spells.js applyNativeEffect.)
+    const actionSet = sets.find((set) => set.actions);
+    if (actionSet && !chosen?.[actionSet.option]) model.byActions = Object.fromEntries(actionSet.values.map((value) => [ACTION_WORDS[value], effectModel(item, { rank, conditionSlug, chosen: { ...(chosen ?? {}), [actionSet.option]: value } })]));
     const picks = sets.filter((set) => set.values.length > 1);
     for (const set of picks) for (const value of set.values) toggles.set(`${set.option}:${value}`, chosen?.[set.option] === value);
     // (A choice by selection, once chosen — or the only one its rank allows —: its rules with the choice put in.)
     const selected = (set) => (set.values.length === 1 ? set.values[0] : chosen?.[set.option]);
     const selections = sets.filter((set) => set.flag && selected(set));
     if (selections.length) item = { ...item, system: { ...item.system, rules: (item.system.rules ?? []).map((rule) => selections.reduce((each, set) => withSelection(each, set.flag, set.selected?.[selected(set)] ?? selected(set)), rule)) } };
-    if (!chosen && picks.length) {
-        const [set] = picks;
-        model.choices = set.values.map((value) => ({ value, model: effectModel(item, { rank, conditionSlug, chosen: { [set.option]: value } }) }));
+    // (The first ChoiceSet not yet picked: a model each choice; one with another to pick has its own choices — pickChoice goes on down.)
+    const open = picks.filter((set) => set !== actionSet && !chosen?.[set.option]);
+    if (open.length) {
+        const [set] = open;
+        model.choices = set.values.map((value) => ({ value, model: effectModel(item, { rank, conditionSlug, chosen: { ...(chosen ?? {}), [set.option]: value } }) }));
         // (Choices that are degrees of success — Ill Omen's "failure", "critical-failure" —: the outcome's, not the best.)
         if (set.values.every((value) => DEGREE_CHOICES.has(value))) model.choiceByDegree = true;
     }

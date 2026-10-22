@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withArea(resolved))))))))))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withAllyVariants(withArea(resolved))))))))))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -268,6 +268,60 @@ function withAfflictionStages(plan) {
     const span = (value) => (value && typeof value === "object" ? value : readSpanText(value));
     const read = { ...handoff, stages, maximumDuration: span(handoff.maximumDuration), onset: span(handoff.onset), statistic: handoff.statistic ?? resolution.check?.statistic ?? "fortitude" };
     return { ...plan, simulatorReading: true, resolution: { ...resolution, afflictionHandoff: read } };
+}
+
+// (2026-10-22, Blessing of Defiance: its action counts' targets — "you or one willing ally within range", "you and all willing allies within
+// range" — as one willing creature, and an emanation of the spell's range over its allies (its effect on its allies there only).)
+const ONE_ALLY = /^you or (?:one|1) willing ally\b/i;
+const ALL_ALLIES = /^you and all willing allies within (?:range|(\d+) feet)\b/i;
+function withAllyVariants(plan) {
+    const byActions = plan?.resolution?.native?.byActions;
+    if (!byActions || !Object.values(byActions).some((overlay) => ONE_ALLY.test(String(overlay?.targeting?.target ?? "")) || ALL_ALLIES.test(String(overlay?.targeting?.target ?? "")))) return plan;
+    const range = Number(/(\d+)\s*feet/i.exec(String(plan.targeting?.range ?? ""))?.[1]) || 30;
+    const read = (targeting) => {
+        const target = String(targeting?.target ?? "");
+        const all = ALL_ALLIES.exec(target);
+        if (all) return { ...targeting, target: null, range: null, area: { type: "emanation", value: Number(all[1]) || range } };
+        return ONE_ALLY.test(target) ? { ...targeting, target: "1 willing creature" } : targeting;
+    };
+    const overlays = Object.fromEntries(Object.entries(byActions).map(([count, overlay]) => [count, overlay?.targeting ? { ...overlay, targeting: read(overlay.targeting) } : overlay]));
+    const applications = (plan.resolution.applications ?? []).map((application) => (application?.kind === "native-spell-effect" ? { ...application, recipients: "allies-in-area" } : application));
+    return { ...plan, simulatorReading: true, resolution: { ...plan.resolution, applications, native: { ...plan.resolution.native, byActions: overlays } } };
+}
+
+// (2026-10-22, Brand the Impenitent, Vindicator's Judgment: a mark on the target against its caster alone — the spell module's notes: Brand's
+// "-1 status penalty to AC against attacks by followers of your faith" (its toggle, attacker-follows-caster-faith) and "ignore the target's
+// Concealed condition"; Judgment's weakness to the caster's Strikes (rankAmount) — its next one only on a success —, off-guard to its first
+// Strike each round on a critical failure.) As a condition of its own its row gives — branded, judged, judged-once, judged-hard —, the
+// details in plan.marks (spells.js applyMark). Taken as the caster alone following its faith; Judgment's weakness to damaging divine spells
+// isn't played, and its "your hunted prey" is any creature.
+function withMarks(plan) {
+    const resolution = plan?.resolution;
+    if (resolution?.kind !== "save") return plan;
+    const marks = {};
+    const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
+        const notes = row?.noteEffects ?? [];
+        const penalty = (note) => (note.rules ?? []).find((rule) => rule?.key === "FlatModifier" && rule.selector === "ac" && [].concat(rule.predicate ?? []).includes("attacker-follows-caster-faith"));
+        const brand = notes.find(penalty);
+        const judgment = notes.find((note) => note?.rankAmount && /\bWeakness \{amount\} to (?:the caster's next Strike|every Strike the caster makes)\b/i.test(String(note.text ?? "")));
+        const note = brand ?? judgment;
+        if (!note) return [degree, row];
+        let slug;
+        if (brand) {
+            slug = "branded";
+            marks.branded = { ac: Math.abs(Number(penalty(brand).value)) || 1, seesConcealed: /\bignore the target's Concealed\b/i.test(String(brand.text ?? "")) };
+        } else {
+            const once = /\bnext Strike\b/i.test(String(judgment.text));
+            const hard = /\bOff-Guard against the caster's first Strike\b/i.test(String(judgment.text));
+            slug = once ? "judged-once" : hard ? "judged-hard" : "judged";
+            marks[slug] = { weakness: judgment.rankAmount, uses: once ? 1 : null, offGuardFirst: hard };
+        }
+        const lasts = note.duration?.mode === "fixed" && Number(note.duration.value) > 0 ? { mode: "fixed", value: Number(note.duration.value), unit: note.duration.unit ?? "rounds" } : null;
+        return [degree, { ...row, noteEffects: notes.filter((each) => each !== note), effects: [...(row.effects ?? []), { kind: "condition", slug, value: null, duration: lasts }] }];
+    }));
+    if (!Object.keys(marks).length) return plan;
+    const targeting = /^your hunted prey$/i.test(String(plan.targeting?.target ?? "").trim()) ? { ...plan.targeting, target: "1 creature" } : plan.targeting;
+    return { ...plan, simulatorReading: true, targeting, marks, resolution: { ...resolution, outcomes } };
 }
 
 // Agitate (2026-10-22, flying and the like): "the target must Stride, Fly, or Swim at least once each turn or take 2d8 mental damage at the

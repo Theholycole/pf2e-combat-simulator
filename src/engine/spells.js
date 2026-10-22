@@ -1317,6 +1317,66 @@ export function agitationTurnEnd(state, c) {
     log(state, `  ${c.name} didn't move, restless from ${c.agitation.name}: ${dealt} ${c.agitation.parts.map((part) => part.type).join(" and ")}`);
 }
 
+// --- Marks: a spell's hold on a creature against its caster alone (readings.js withMarks: Brand the Impenitent, Vindicator's Judgment) ----
+
+// A rank amount (the spell module's rankAmount: { base, step, interval, baseRank }) at a rank.
+function markAmount(amount, rank) {
+    if (!amount) return 0;
+    const steps = Number(amount.interval) ? Math.max(0, Math.floor((rank - (Number(amount.baseRank) || rank)) / Number(amount.interval))) : 0;
+    return ((Number(amount.base) || 0) + steps * (Number(amount.step) || 0)) * (Number(amount.multiplier) || 1);
+}
+
+// target.marks: [{ by, spell, slug, ac, weakness, uses, seesConcealed, offGuardFirst, untilRound, sustained }] — ended by lasting.js at the
+// caster's turn start once its time is up.
+function applyMark(state, caster, spell, target, slug, mark, duration) {
+    if (!isActive(target)) return;
+    const rounds = durationRounds(duration);
+    const entry = { by: caster.id, spell: spell.name, slug, ac: Number(mark.ac) || 0, weakness: markAmount(mark.weakness, Number(spell.castRank) || 1), uses: mark.uses ?? Infinity, seesConcealed: Boolean(mark.seesConcealed), offGuardFirst: Boolean(mark.offGuardFirst), untilRound: Number.isFinite(rounds) ? state.round + rounds : Infinity, sustained: false };
+    target.marks = [...(target.marks ?? []).filter((held) => !(held.by === caster.id && held.spell === spell.name)), entry];
+    if (entry.offGuardFirst) markOffGuard(target, entry);
+    log(state, `  ${target.name} is marked by ${caster.name}'s ${spell.name}`);
+}
+
+// Off-guard to the marking creature's first Strike this round (Judgment's critical failure).
+function markOffGuard(target, entry) {
+    target.offGuardTo = [...(target.offGuardTo ?? []).filter((held) => held.mark !== entry), { attacker: entry.by, attacks: "any", uses: 1, mark: entry }];
+}
+
+// The marking creature's turn starts: its first Strike again off-guard where it says so.
+export function markTurnStart(state, c) {
+    for (const other of state.list) for (const entry of other.marks ?? []) if (entry.by === c.id && entry.offGuardFirst && isActive(other)) markOffGuard(other, entry);
+}
+
+// The marks on target against attacker, together — { ac, weakness, seesConcealed } (the most of each) —, or null.
+export function markOn(target, attacker) {
+    const held = (target?.marks ?? []).filter((entry) => entry.by === attacker?.id && entry.uses > 0);
+    if (!held.length) return null;
+    return { ac: Math.max(...held.map((entry) => entry.ac)), weakness: Math.max(...held.map((entry) => entry.weakness)), seesConcealed: held.some((entry) => entry.seesConcealed) };
+}
+
+// A Strike at it made: a mark for one Strike only is used up (Judgment's success).
+export function spendMark(target, attacker) {
+    for (const entry of (target?.marks ?? []).filter((held) => held.by === attacker?.id && Number.isFinite(held.uses))) if (--entry.uses <= 0) target.marks = target.marks.filter((held) => held !== entry);
+}
+
+// What a mark is worth to its caster, in Hit Points off the creature: its Strikes on it over rounds (two a round, the second at its penalty;
+// for one Strike only, the first) — the weakness each hit (twice on a critical), a point of AC lower as 5% more of its hits, and its first
+// Strike each round off-guard.
+function markDamage(state, caster, target, mark, rounds, castRank) {
+    const strike = (caster.strikes ?? []).filter((each) => strikeUsable(caster, each)).sort((a, b) => b.bonus - a.bonus)[0];
+    if (!strike) return 0;
+    const ac = armorClass(target);
+    const attacks = mark.uses === 1 ? [0] : [0, 1];
+    const hit = (attack, lower = 0) => {
+        const odds = degreeDistribution(strike.bonus - (attack ? (strike.agile ? 4 : 5) : 0), ac - lower);
+        return odds[2] + 2 * odds[3];
+    };
+    const each = expectedHitDamage(caster, strike, target, false);
+    const weakness = markAmount(mark.weakness, castRank);
+    const perRound = attacks.reduce((sum, attack) => sum + hit(attack) * weakness + (Number(mark.ac) || 0) * 0.05 * each, 0) + (mark.offGuardFirst ? (hit(0, 2) - hit(0)) * (each + weakness) : 0);
+    return perRound * (mark.uses === 1 ? 1 : rounds);
+}
+
 function applySelfRetaliation(state, caster, name, retaliation) {
     caster.retaliations = [...retaliationsOn(state, caster).filter((entry) => entry.name !== name), { name, label: name, ...retaliation, until: (state.round ?? 0) + (retaliation.rounds ?? 10) }];
     log(state, `  ${caster.name}'s ${name} harms whoever touches it`);
@@ -1505,12 +1565,19 @@ function pickChoice(state, model, target, degree = null) {
     }
     const context = { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit };
     const worth = (choice) => effectBenefit(choice, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, context) + 3 * resistanceKept(state, choice, target, Math.min(3, choice.rounds)) / Math.max(1, target.hp?.max ?? 1);
-    return model.choices.map((choice) => ({ ...choice.model, name: model.name, rounds: model.rounds })).reduce((best, choice) => (worth(choice) > worth(best) ? choice : best));
+    // (A choice with another to pick under it: its best, as it'll be.)
+    const settled = (choice) => pickChoice(state, { ...choice.model, name: model.name, rounds: model.rounds }, target, degree);
+    return model.choices.map(settled).reduce((best, choice) => (worth(choice) > worth(best) ? choice : best));
 }
 
-function applyNativeEffect(state, caster, spell, target, change) {
+// (Blessing of Defiance: the effect for the action count it's cast with — effects.js model.byActions.)
+function forActions(model, actions) {
+    return model?.byActions ? model.byActions[actions] ?? model : model;
+}
+
+function applyNativeEffect(state, caster, spell, target, change, actions = undefined) {
     const { model: offered, key } = outcomeEffect(spell, change);
-    const model = pickChoice(state, offered, target, change.effect?.degree);
+    const model = pickChoice(state, forActions(offered, actions), target, change.effect?.degree);
     if (model && isActive(target) && polymorphReplaces(state, caster, spell, target)) {
         const isSpell = isSpellCast(spell);
         const effect = applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell, traits: spell.plan?.traits ?? [] } });
@@ -1893,6 +1960,11 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 break;
             }
             case "condition":
+                // (Brand the Impenitent, Vindicator's Judgment: a mark against the caster alone.)
+                if (spell.plan?.marks?.[change.slug]) {
+                    applyMark(state, caster, spell, target, change.slug, spell.plan.marks[change.slug], change.duration);
+                    break;
+                }
                 // (A plan that also links PF2e's Persistent Damage condition, its damage in its own formula — Spellwrack: nothing more here.)
                 if (change.slug === "persistent-damage") {
                     if (change.damage) applyDamage(state, target, [persistentInstance(change.damage)], { source: caster });
@@ -1995,7 +2067,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
                         break;
                     }
                 }
-                applyNativeEffect(state, caster, spell, target, change);
+                applyNativeEffect(state, caster, spell, target, change, context?.actions);
                 break;
 
             case "end": {
@@ -3433,6 +3505,11 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         entry.damage += chance * groundDamage(state, target, change.slug === "landed" ? 0.5 : Math.min(3, durationRounds(change.duration)));
                         continue;
                     }
+                    // (A mark against the caster alone: what its Strikes gain on the creature — markDamage.)
+                    if (spell.plan?.marks?.[change.slug]) {
+                        if (!(target.marks ?? []).some((held) => held.by === caster.id && held.spell === spell.name)) entry.damage += chance * markDamage(state, caster, target, spell.plan.marks[change.slug], Math.min(3, durationRounds(change.duration)), Number(spell.castRank) || 1);
+                        continue;
+                    }
                     // (Quasi-real: half its Strikes' damage, and the saves against its spells a degree better — about half its threat a round.)
                     if (change.slug === "quasi-real" && !held) {
                         const strikes = state.strikeShare?.get(target.id) ?? 1;
@@ -3514,7 +3591,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     entry.worth += chance * pacifyWorth(state, target, caster, held, change.effect.note.duration);
                 } else if (change.op === "effect" && ["native", "modifier", "note"].includes(change.effect?.kind)) {
                     const { model: offered, key } = outcomeEffect(spell, change);
-                    const model = pickChoice(state, offered, target, change.effect?.degree);
+                    const model = pickChoice(state, forActions(offered, actions), target, change.effect?.degree);
                     // (S54, Sure Strike on itself: worth it only with an action left for the attack — it ends with the turn.)
                     const unused = model?.fortune && target === caster && (caster.actionsLeft ?? 3) - (describeSpell(spell.plan, actions).actions ?? 1) < 1;
                     if (model && !unused) {
@@ -3570,8 +3647,10 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
 // newWith: in a plan, the creature it Strode into a Melee with this turn (meleeId: that one's Melee, if it's in one).
 // Whether every creature a spell can target is a willing one (Vapor Form's): its choices other than objects (2026-10-22, Levitate's "1
 // unattended object or willing creature" — before, the object choice let it go to a foe).
-function willingOnly(spell) {
-    const choices = String(spell.plan?.targeting?.target ?? "").split(/\bor\b/i).filter((choice) => !/\bobjects?\b/i.test(choice) || /\bcreatures?\b/i.test(choice.replace(/\bobjects?\b[^,]*/i, "")));
+// (Its targets as the action count it's cast with has them — Blessing of Defiance's.)
+function willingOnly(spell, actions = undefined) {
+    const plan = nativeOf(spell.plan).byActions ? planWithActions(spell.plan, actions) : spell.plan;
+    const choices = String(plan?.targeting?.target ?? "").split(/\bor\b/i).filter((choice) => !/\bobjects?\b/i.test(choice) || /\bcreatures?\b/i.test(choice.replace(/\bobjects?\b[^,]*/i, "")));
     return choices.length > 0 && choices.every((choice) => /\bwilling\b/i.test(choice));
 }
 
@@ -3640,7 +3719,7 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         // (A spell for a willing creature — Vapor Form — goes to no enemy. 2026-10-21, found rating spells: only when every choice is
         // willing — Harm's "1 living creature or 1 willing undead creature" goes to a living foe, Heal's "… or 1 undead creature" to an
         // undead one; before, neither was ever aimed at a foe.)
-        const willing = willingOnly(spell);
+        const willing = willingOnly(spell, actions);
         const inRange = willing ? [] : enemies.filter((enemy) => enemy.status === "active" && reaches(enemy));
         if (inRange.length) {
             if (info.targets <= 1) sets.push(...inRange.map((enemy) => ({ targets: [enemy] })));
@@ -3694,7 +3773,7 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         // (B229: foes only.)
         if (info.area.foes) around.splice(0, around.length, ...around.filter((other) => other.side !== caster.side));
         // (2026-10-21: "you and up to 5 willing creatures" — Shared Invisibility's —: its own side only.)
-        if (willingOnly(spell)) around.splice(0, around.length, ...around.filter((other) => other.side === caster.side));
+        if (willingOnly(spell, actions)) around.splice(0, around.length, ...around.filter((other) => other.side === caster.side));
         around.splice(0, around.length, ...around.filter(affected));
         const helps = (info.healing && around.some((other) => other.side === caster.side && other.hp.value < other.hp.max)) || (info.helpful && around.some((other) => other.side === caster.side));
         if (helps || around.some((other) => other.side !== caster.side)) sets.push({ targets: around.slice(0, capacity) });
@@ -3752,7 +3831,7 @@ export function spellGaps(spell) {
             break;
         }
         for (const change of result.changes) {
-            if (change.op === "condition" && !MODELLED_CONDITIONS.has(change.slug)) missing.add(`condition: ${change.slug}`);
+            if (change.op === "condition" && !MODELLED_CONDITIONS.has(change.slug) && !plan.marks?.[change.slug]) missing.add(`condition: ${change.slug}`);
             else if (change.op === "effect" && change.effect?.kind === "native" && spell.effects?.[change.effect.uuid]) {
                 const model = spell.effects[change.effect.uuid];
                 if (model.unsupported.length) missing.add(`${model.name.replace(/^Spell Effect: /, "")}: ${model.unsupported.join(", ")}`);
