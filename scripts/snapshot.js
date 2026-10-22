@@ -922,7 +922,20 @@ export function leanPlan(plan) {
 const effectItems = new Map();
 
 async function effectItem(uuid) {
-    if (!effectItems.has(uuid)) effectItems.set(uuid, await fromUuid(uuid).catch(() => null));
+    if (!effectItems.has(uuid)) {
+        let item = await fromUuid(uuid).catch(() => null);
+        // (2026-10-22: a module's spell linking its own effect as PF2e's — "Compendium.pf2e.spell-effects.Item.…" with the id of one in the
+        // module's pack, Dynamic Fly's —: that id in an installed module's Item pack.)
+        const id = String(uuid ?? "").split(".").pop();
+        if (!item && /^[A-Za-z0-9]{16}$/.test(id)) {
+            for (const pack of game.packs.filter((each) => each.documentName === "Item" && each.metadata?.packageType === "module")) {
+                if (!pack.index?.get?.(id)) continue;
+                item = await pack.getDocument(id).catch(() => null);
+                if (item) break;
+            }
+        }
+        effectItems.set(uuid, item);
+    }
     return effectItems.get(uuid);
 }
 

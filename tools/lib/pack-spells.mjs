@@ -1,5 +1,6 @@
 // Spells for the bestiary tools: a creature's own spellcasting compiled by the spell module (read only) into the simulator's spell
 // entries, and PF2e's spells by name for the benchmark party's spellbooks. Shared by bestiary-casters.mjs and deadliest.mjs.
+const fs = await import("node:fs");
 const W = decodeURIComponent(new URL("../../../PF2e AUTOMATIC SPELL RESOLUTION", import.meta.url).pathname);
 const { compileAbility } = await import(`${W}/src/compiler/index.js`);
 const { readDocuments } = await import(new URL("../../../PF2e AUTOMATIC ABILITY RESOLUTION/tools/leveldb.mjs", import.meta.url).href);
@@ -26,7 +27,23 @@ const nativeEffectCatalog = new Map(effectItems.flatMap((effect) => {
 const spellDocs = readDocuments(`${PACK_ROOT}/spells`).filter((d) => d.collection === "items" && d._id);
 const referencedSpells = new Map(spellDocs.map((spell) => [`Compendium.pf2e.spells-srd.Item.${spell._id}`, spell]));
 const spellsByName = new Map(spellDocs.map((spell) => [spell.name.toLowerCase(), spell]));
-const effectsById = new Map(effectItems.map((effect) => [effect._id, effect]));
+// (2026-10-22: and the installed modules' effect items — a module's spell links its own effect as PF2e's, "Compendium.pf2e.spell-effects.
+// Item.…" with the id of one in the module's pack: Dynamic Fly's, Melt in Sunlight's, Aura of Violent Light's. PF2e's own first.)
+const moduleEffects = (() => {
+  const root = `${process.env.HOME}/.local/share/FoundryVTT/Data/modules`;
+  const out = [];
+  let mods = [];
+  try { mods = fs.readdirSync(root); } catch { return out; }
+  for (const mod of mods) {
+    let manifest;
+    try { manifest = JSON.parse(fs.readFileSync(`${root}/${mod}/module.json`, "utf8")); } catch { continue; }
+    for (const pack of (manifest.packs ?? []).filter((each) => each.type === "Item")) {
+      try { out.push(...readDocuments(`${root}/${mod}/${pack.path}`).filter((doc) => doc.type === "effect" && doc._id)); } catch { /* unreadable */ }
+    }
+  }
+  return out;
+})();
+const effectsById = new Map([...moduleEffects, ...effectItems].map((effect) => [effect._id, effect]));
 const conditionNames = new Map(readDocuments(`${PACK_ROOT}/conditions`).filter((d) => d.collection === "items").map((condition) => [condition._id, condition.system?.slug ?? condition.name.toLowerCase().replace(/\s+/g, "-")]));
 const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".").pop()) ?? null;
 
