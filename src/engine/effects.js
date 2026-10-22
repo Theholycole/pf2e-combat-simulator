@@ -90,6 +90,11 @@ const RANK_ARG = /^(?:(?:parent|item|parent:origin:item):(?:level|rank)|\{item\|
 function rankTerm(term, rank) {
     if (!term || typeof term !== "object") return null;
     if (Array.isArray(term.or) && term.or.length && term.or.every((each) => /^self:type:(?:character|npc)$/.test(String(each)))) return true;
+    // (2026-10-22, Enlarge's Large size "at rank 3 or less, or 6 or more": either of its terms on the rank.)
+    if (Array.isArray(term.or) && term.or.length) {
+        const held = term.or.map((each) => rankTerm(each, rank));
+        return held.some((each) => each === true) ? true : held.every((each) => each === false) ? false : null;
+    }
     const [operator, args] = Object.entries(term)[0] ?? [];
     if (!COMPARE[operator] || !Array.isArray(args) || !RANK_ARG.test(String(args[0]))) return null;
     return COMPARE[operator](rank, Number(args[1]));
@@ -199,23 +204,41 @@ function choiceSets(item, rank) {
     const rules = item?.system?.rules ?? [];
     const named = JSON.stringify(rules.filter((rule) => rule?.key !== "ChoiceSet").map((rule) => rule?.predicate ?? null));
     const allowed = (rule) => rule.choices.filter((choice) => typeof choice?.value === "string" && predicateHolds(choice.predicate, rank) !== false).map((choice) => choice.value);
+    // (2026-10-22, Enlarge: a choice whose value is an object — { damage, reach, size } — the rules read a field of, "…rulesSelections.enlarge.damage";
+    // keyed by its label's last word, "ActorSizeHuge".)
+    const keyOf = (choice, index) => (typeof choice?.value === "string" ? choice.value : String(choice?.label ?? index).split(".").pop());
+    const fields = (rule) => rule.choices.map((choice, index) => [keyOf(choice, index), choice]).filter(([, choice]) => (typeof choice?.value === "string" || (choice?.value && typeof choice.value === "object" && !Array.isArray(choice.value))) && predicateHolds(choice.predicate, rank) !== false);
     const byOption = rules.filter((rule) => rule?.key === "ChoiceSet" && typeof rule.rollOption === "string" && Array.isArray(rule.choices)).map((rule) => ({
         option: rule.rollOption,
         values: allowed(rule).filter((value) => named.includes(`"${rule.rollOption}:${value}"`))
     }));
     // (2026-10-22, Traveler's Transit: a choice put into a rule's selector — "{item|flags.system.rulesSelections.traveler}" — not a roll option.
     // Not into a resistance's or weakness's type: those are the "choice" resistances, read on their own.)
+    // (One its rank allows alone — Enlarge's Huge at rank 4 —: put in as it is, values.length 1.)
     const bySelection = rules.filter((rule) => rule?.key === "ChoiceSet" && !rule.rollOption && typeof rule.flag === "string" && Array.isArray(rule.choices)).filter((rule) => {
-        const token = `{item|flags.system.rulesSelections.${rule.flag}}`;
-        return rules.some((other) => other !== rule && !["Resistance", "Weakness"].includes(other?.key) && JSON.stringify(other).includes(token));
-    }).map((rule) => ({ option: `selection:${rule.flag}`, flag: rule.flag, values: allowed(rule) }));
-    return [...byOption, ...bySelection].filter((set) => set.values.length > 1);
+        const token = `{item|flags.system.rulesSelections.${rule.flag}`;
+        return rules.some((other) => other !== rule && !["Resistance", "Weakness"].includes(other?.key) && new RegExp(`${token.replace(/[|{}.]/g, "\\$&")}[.}]`).test(JSON.stringify(other)));
+    }).map((rule) => {
+        const allowedFields = fields(rule);
+        return { option: `selection:${rule.flag}`, flag: rule.flag, values: allowedFields.map(([key]) => key), selected: Object.fromEntries(allowedFields.map(([key, choice]) => [key, choice.value])) };
+    });
+    return [...byOption.filter((set) => set.values.length > 1), ...bySelection.filter((set) => set.values.length >= 1)];
 }
 
-// A rule with a chosen selection put in for its token (a ChoiceSet's by flag).
+// A rule with a chosen selection put in for its token (a ChoiceSet's by flag): the whole value, or a field of an object value
+// ("{item|flags.system.rulesSelections.enlarge.damage}" → 4, a number where the token was the whole string).
 function withSelection(rule, flag, value) {
-    const token = `{item|flags.system.rulesSelections.${flag}}`;
-    return JSON.stringify(rule).includes(token) ? JSON.parse(JSON.stringify(rule).split(token).join(value)) : rule;
+    const text = JSON.stringify(rule);
+    const prefix = `{item|flags.system.rulesSelections.${flag}`;
+    if (!text.includes(prefix)) return rule;
+    const field = (path) => (path ? path.split(".").reduce((held, key) => held?.[key], value) : value);
+    const pattern = new RegExp(`(")?${prefix.replace(/[|{}.]/g, "\\$&")}((?:\\.\\w+)*)\\}(")?`, "g");
+    return JSON.parse(text.replace(pattern, (all, open, path, close) => {
+        const held = field(path.slice(1));
+        if (held === undefined || held === null) return all;
+        if (open && close) return JSON.stringify(held);
+        return `${open ?? ""}${String(held)}${close ?? ""}`;
+    }));
 }
 
 export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen = null } = {}) {
@@ -226,11 +249,13 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen
     const toggles = new Map((item?.system?.rules ?? []).filter((rule) => rule?.key === "RollOption" && rule.toggleable && typeof rule.option === "string" && !rule.option.includes("{")).map((rule) => [rule.option, rule.value === true]));
     // (A ChoiceSet the caster picks — Elemental Gift's element, Animal Feature's feature —, its rules on "option:value": each of its choices
     // as a toggle, the one picked on.)
-    const picks = choiceSets(item, rank);
+    const sets = choiceSets(item, rank);
+    const picks = sets.filter((set) => set.values.length > 1);
     for (const set of picks) for (const value of set.values) toggles.set(`${set.option}:${value}`, chosen?.[set.option] === value);
-    // (A choice by selection, once chosen: its rules with the choice put in.)
-    const selections = picks.filter((set) => set.flag && chosen?.[set.option]);
-    if (selections.length) item = { ...item, system: { ...item.system, rules: (item.system.rules ?? []).map((rule) => selections.reduce((each, set) => withSelection(each, set.flag, chosen[set.option]), rule)) } };
+    // (A choice by selection, once chosen — or the only one its rank allows —: its rules with the choice put in.)
+    const selected = (set) => (set.values.length === 1 ? set.values[0] : chosen?.[set.option]);
+    const selections = sets.filter((set) => set.flag && selected(set));
+    if (selections.length) item = { ...item, system: { ...item.system, rules: (item.system.rules ?? []).map((rule) => selections.reduce((each, set) => withSelection(each, set.flag, set.selected?.[selected(set)] ?? selected(set)), rule)) } };
     if (!chosen && picks.length) {
         const [set] = picks;
         model.choices = set.values.map((value) => ({ value, model: effectModel(item, { rank, conditionSlug, chosen: { [set.option]: value } }) }));
@@ -714,7 +739,11 @@ export function effectBenefit(model, target, conditionHarm, strikeShare = 1, con
     if (context?.state && context.flight && model.flies) benefit += context.flight(context.state, target, rounds);
     if (context?.state && context.strikeAdd && model.strikeAdds) benefit += context.strikeAdd(context.state, model, target, rounds);
     const strikes = (target.strikes ?? []).length > 0 ? strikeShare : 0;
-    for (const modifier of model.modifiers) {
+    // (2026-10-22, Enlarge's +4 status damage to melee Strikes: a conditional modifier on the kind of Strike alone, counted when the creature
+    // has a Strike of that kind — before, none was, and Enlarge was worth its clumsy 1 alone.)
+    const kinds = new Set((target.strikes ?? []).map((strike) => (strike.melee ? "item:melee" : "item:ranged")));
+    const byKind = (model.conditional ?? []).filter((modifier) => modifier.predicate?.length && modifier.predicate.every((term) => term === "item:melee" || term === "item:ranged") && modifier.predicate.every((term) => kinds.has(term)));
+    for (const modifier of [...model.modifiers, ...byKind]) {
         const per = { ac: 0.08, fortitude: 0.01, reflex: 0.01, will: 0.01, attack: 0.1 * strikes, damage: 0.04 * strikes, spell: 0.05 * (1 - strikes), speed: 0.003 }[modifier.on] ?? 0;
         benefit += per * modifier.value * rounds;
     }

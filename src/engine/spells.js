@@ -1026,14 +1026,54 @@ function applyCounteract(state, caster, spell, target, change) {
         return;
     }
     if (!roll.success) return;
-    if (best.pick.kind === "effect") {
-        const effect = best.pick.entry;
-        removeEffect(target, effect);
-        target.timers = (target.timers ?? []).filter((timer) => timer.effect !== effect);
-        for (const condition of effect.model?.conditions ?? []) clearCondition(target, condition.slug);
-    } else {
-        clearCondition(target, best.pick.slug);
+    if (best.pick.kind === "effect") endEffect(target, best.pick.entry);
+    else clearCondition(target, best.pick.slug);
+}
+
+// An effect counteracted: gone, with its timer and the conditions it gave.
+function endEffect(target, effect) {
+    removeEffect(target, effect);
+    target.timers = (target.timers ?? []).filter((timer) => timer.effect !== effect);
+    for (const condition of effect.model?.conditions ?? []) clearCondition(target, condition.slug);
+}
+
+// (2026-10-22, the user: "Make polymorph effects attempt to counteract each other when cast on the same target" — PF2e's polymorph trait:
+// a creature is under one polymorph effect at a time; a second attempts to counteract the first, and takes effect only if it succeeds,
+// else it has no effect on that creature. The polymorph effects the creature holds that a polymorph spell would have to counteract.)
+function heldPolymorphs(spell, target) {
+    if (!(spell.plan?.traits ?? []).includes("polymorph")) return [];
+    return (target.effects ?? []).filter((effect) => effect.counter?.traits?.includes("polymorph"));
+}
+
+// Rolls the counteract against each one: true when the new effect may take hold (each one it beat ended), false when it has no effect.
+function polymorphReplaces(state, caster, spell, target) {
+    const rank = counterRank(caster, spell, isSpellCast(spell));
+    for (const effect of heldPolymorphs(spell, target)) {
+        const roll = counterRoll(state, Number(spell.attack) || 0, rank, effect.counter);
+        const name = String(effect.model?.name ?? effect.key).replace(/^Spell Effect: /, "");
+        log(state, `  ${spell.name} against ${name} on ${target.name} (polymorph): ${roll.total} vs ${effect.counter.dc} → ${roll.success ? "counteracted" : `not counteracted — no effect on ${target.name}`}`);
+        if (!roll.success) return false;
+        endEffect(target, effect);
     }
+    return true;
+}
+
+// The chance a polymorph spell takes hold on the creature past the ones it holds, and what those are worth to it now (their rounds left,
+// up to three) — so a weaker form isn't cast over a stronger one. Its own key's (a recast) is recastShare's.
+function polymorphOdds(state, caster, spell, target, key, worth) {
+    const held = heldPolymorphs(spell, target);
+    if (!held.length) return { chance: 1, lost: { benefit: 0, heal: 0 } };
+    const rank = counterRank(caster, spell, isSpellCast(spell));
+    const chance = held.reduce((odds, effect) => odds * counterChance(Number(spell.attack) || 0, rank, effect.counter), 1);
+    const lost = { benefit: 0, heal: 0 };
+    for (const effect of held.filter((entry) => entry.key !== key)) {
+        const timer = (target.timers ?? []).find((entry) => entry.effect === effect);
+        const rounds = Math.min(3, timer ? Math.max(0, timer.round - (state.round ?? 0)) : effect.model?.rounds ?? 3);
+        const each = worth({ ...effect.model, rounds });
+        lost.benefit += each.benefit;
+        lost.heal += each.heal;
+    }
+    return { chance, lost };
 }
 
 function clearCondition(target, slug, { keepSource = false } = {}) {
@@ -1429,7 +1469,7 @@ function pickChoice(state, model, target, degree = null) {
 function applyNativeEffect(state, caster, spell, target, change) {
     const { model: offered, key } = outcomeEffect(spell, change);
     const model = pickChoice(state, offered, target, change.effect?.degree);
-    if (model && isActive(target)) {
+    if (model && isActive(target) && polymorphReplaces(state, caster, spell, target)) {
         const isSpell = isSpellCast(spell);
         const effect = applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell, traits: spell.plan?.traits ?? [] } });
         // (2026-10-15, Death Ward: the conditions its text suppresses while it lasts — Doomed.)
@@ -3344,13 +3384,19 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     // (S54, Sure Strike on itself: worth it only with an action left for the attack — it ends with the turn.)
                     const unused = model?.fortune && target === caster && (caster.actionsLeft ?? 3) - (describeSpell(spell.plan, actions).actions ?? 1) < 1;
                     if (model && !unused) {
-                        const share = chance * recastShare(state, target, model, key);
                         // (On the caster's own side, its weaknesses as the Hit Points the foes' Strikes add — weaknessCost.)
                         const ownSide = target.side === caster.side;
-                        entry.benefit += share * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit, ownSide });
-                        if (ownSide && model.weaknesses?.length) entry.heal -= share * weaknessCost(state, model, target, Math.min(3, model.rounds));
                         // (Its resistances: the Hit Points they keep off it from the foes' Strikes, as healing — 2026-10-21.)
-                        if (model.resistances?.length || model.immunities?.length) entry.heal += share * resistanceKept(state, model, target, Math.min(3, model.rounds));
+                        const worth = (held) => ({
+                            benefit: effectBenefit(held, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit, ownSide }),
+                            heal: (held.resistances?.length || held.immunities?.length ? resistanceKept(state, held, target, Math.min(3, held.rounds)) : 0) - (ownSide && held.weaknesses?.length ? weaknessCost(state, held, target, Math.min(3, held.rounds)) : 0),
+                        });
+                        // (A polymorph over another: only if it counteracts that one, which it then ends — polymorphOdds.)
+                        const swap = polymorphOdds(state, caster, spell, target, key, worth);
+                        const share = chance * recastShare(state, target, model, key) * swap.chance;
+                        const gained = worth(model);
+                        entry.benefit += share * gained.benefit - chance * swap.chance * swap.lost.benefit;
+                        entry.heal += share * gained.heal - chance * swap.chance * swap.lost.heal;
                         // (Levitate: the Hit Points out of the grounded foes' reach keeps off it — actions.js liftKept.)
                         // (A body that burns at a touch: the damage the foes that touch it can expect — as a retaliation potion's.)
                         if (model.retaliation && target.side === caster.side) retaliationExtra.push(...itemRetaliationEntries(state, { name: model.name, retaliation: model.retaliation }, target, { maxShare: 0.5 }).map((each) => ({ ...each, damage: share * each.damage })));

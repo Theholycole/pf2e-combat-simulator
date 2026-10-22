@@ -518,3 +518,53 @@ test("a caster's touch made harmful: Warning Stripes' retaliation kind cast on i
     assert.deepEqual(textRetaliation(shroud, 3).parts, [{ dice: 0, die: 0, bonus: 3, type: "fire" }]);
     assert.equal(textRetaliation(shroud, 6).parts[0].bonus, 6);
 });
+
+test("polymorph over polymorph: the new one counteracts the old to take hold, else no effect; its worth counts the chance and the old one's loss", async () => {
+    const { castSpell, spellExpectation } = await import("../src/engine/spells.js");
+    const { compileSpell, effectModels, spellNamed, withTextConditions } = await import("../tools/lib/pack-spells.mjs");
+    const entry = (name, castRank) => {
+        const doc = spellNamed(name);
+        const plan = compileSpell(doc);
+        return { name, plan, castRank, dc: 25, attack: 15, pool: null, effects: withTextConditions(effectModels(plan, castRank), doc, castRank) };
+    };
+    const setup = () => {
+        const state = createFightState({ combatants: [...standardParty(9), { ...moderateCreatureAt(9, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1, { log: true });
+        const wizard = state.byId.get("wizard");
+        wizard.spells = [entry("Enlarge", 4), entry("Fiery Body", 7)];
+        castSpell(state, wizard, 0, [wizard.id]);
+        assert.ok(wizard.effects.some((effect) => /Enlarge/.test(effect.model.name)), "Enlarge on it");
+        return { state, wizard };
+    };
+    const forms = (wizard) => wizard.effects.filter((effect) => effect.counter?.traits?.includes("polymorph")).map((effect) => effect.model.name.replace(/^Spell Effect: /, ""));
+    const failed = setup();
+    failed.state.rng.d20 = () => 1;
+    castSpell(failed.state, failed.wizard, 1, [failed.wizard.id]);
+    assert.deepEqual(forms(failed.wizard), ["Enlarge"], "not counteracted: Fiery Body has no effect");
+    assert.ok(failed.state.log.some((line) => /Fiery Body against Enlarge on Wizard \(polymorph\).*no effect on Wizard/.test(line)));
+    const won = setup();
+    won.state.rng.d20 = () => 20;
+    castSpell(won.state, won.wizard, 1, [won.wizard.id]);
+    assert.deepEqual(forms(won.wizard), ["Fiery Body"], "counteracted: Enlarge ends, Fiery Body takes hold");
+    // (Shrink on a fighter: nothing to it alone; over its Enlarge, the chance of losing that.)
+    const state = createFightState({ combatants: [...standardParty(9), { ...moderateCreatureAt(9, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1);
+    const wizard = state.byId.get("wizard");
+    const fighter = state.byId.get("fighter");
+    wizard.spells = [entry("Enlarge", 4), entry("Shrink", 4)];
+    const value = (spell) => spellExpectation(state, wizard, spell, [fighter]).filter((each) => each.target === fighter).reduce((sum, each) => sum + each.benefit + each.heal, 0);
+    assert.ok(value(wizard.spells[0]) > 0.2, "Enlarge's +4 status damage to melee Strikes counts on a fighter");
+    assert.equal(value(wizard.spells[1]), 0);
+    castSpell(state, wizard, 0, [fighter.id]);
+    assert.ok(value(wizard.spells[1]) < -0.1, "Shrink over Enlarge: worse than nothing");
+});
+
+test("ChoiceSet values that are objects: a field put in for its token, the only choice a rank allows put in as it is (Enlarge)", () => {
+    const enlarge = { name: "Spell Effect: Enlarge", system: { duration: { value: 5, unit: "minutes" }, rules: [
+        { key: "ChoiceSet", flag: "enlarge", choices: [
+            { label: "PF2E.ActorSizeHuge", predicate: [{ gte: ["parent:level", 4] }], value: { damage: 4, reach: 15, size: "huge" } },
+            { label: "PF2E.ActorSizeLarge", predicate: [{ or: [{ lte: ["parent:level", 3] }, { gte: ["parent:level", 6] }] }], value: { damage: 2, reach: 10, size: "large" } }] },
+        { key: "FlatModifier", selector: ["melee-strike-damage"], type: "status", value: "{item|flags.system.rulesSelections.enlarge.damage}" }] } };
+    assert.deepEqual(effectModel(enlarge, { rank: 2 }).conditional, [{ on: "damage", type: "status", value: 2, predicate: ["item:melee"] }]);
+    assert.equal(effectModel(enlarge, { rank: 4 }).conditional[0].value, 4);
+    const six = effectModel(enlarge, { rank: 6 });
+    assert.deepEqual(six.choices.map((choice) => [choice.value, choice.model.conditional[0].value]), [["ActorSizeHuge", 4], ["ActorSizeLarge", 2]]);
+});
