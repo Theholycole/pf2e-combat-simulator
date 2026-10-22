@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withStones(withAllyVariants(withArea(resolved)))))))))))))))))))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved))))))))))))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -333,6 +333,16 @@ function withStones(plan) {
     if (!read || plan.resolution?.kind !== "effect" || plan.resolution.native?.byActions) return plan;
     const counts = Object.fromEntries(Array.from({ length: Number(read[2]) - Number(read[1]) + 1 }, (_, index) => [Number(read[1]) + index, {}]));
     return { ...plan, simulatorReading: true, targeting: { ...plan.targeting, target: "1 willing creature" }, resolution: { ...plan.resolution, native: { ...(plan.resolution.native ?? {}), byActions: counts } } };
+}
+
+// (2026-10-22, Purging Toxins, Delay Affliction: a counteract on an affliction — the compiler's source "affliction", which the core's family
+// leaves as a gap — as one on an effect the core passes on, marked by an "affliction" trait beside the kinds it ends (none: any) — spells.js
+// bestCounter's afflictions.)
+function withAfflictionCounteract(plan) {
+    const resolution = plan?.resolution;
+    if (resolution?.kind !== "affliction-care" || !(resolution.operations ?? []).some((operation) => operation?.op === "counteract" && operation.source === "affliction")) return plan;
+    const operations = resolution.operations.map((operation) => (operation?.op === "counteract" && operation.source === "affliction" ? { ...operation, source: "effect", grantsConditions: [], traits: ["affliction", ...(operation.anyAffliction ? [] : operation.traits ?? [])] } : operation));
+    return { ...plan, simulatorReading: true, resolution: { ...resolution, operations } };
 }
 
 // Agitate (2026-10-22, flying and the like): "the target must Stride, Fly, or Swim at least once each turn or take 2d8 mental damage at the

@@ -63,7 +63,11 @@ const TRAIT_PACKAGES = {
     flying: { flies: true, rangedStrike: true },
     // (Incorporeal foes, as the Monster Core's ghosts: resistance to all damage but force, ghost touch, spirit and vitality, doubled against
     // non-magical, at about their level; their immunities.)
-    incorporeal: { traits: ["incorporeal", "undead", "unholy"], immunities: ["death-effects", "disease", "paralyzed", "poison", "precision", "unconscious", "bleed"], resistances: [{ type: "all-damage", exceptions: ["force", "ghost-touch", "spirit", "vitality"], doubleVs: ["non-magical"] }] }
+    incorporeal: { traits: ["incorporeal", "undead", "unholy"], immunities: ["death-effects", "disease", "paralyzed", "poison", "precision", "unconscious", "bleed"], resistances: [{ type: "all-damage", exceptions: ["force", "ghost-touch", "spirit", "vitality"], doubleVs: ["non-magical"] }] },
+    // (2026-10-22, the unsimulated families — Dispel Magic's counteract: foes under a spell of their own rank, Haste's quickening — the spell a
+    // caster most wants gone; Cleanse Affliction's: the party's fighter poisoned, at stage 2.)
+    "spell-buffed": { buff: true },
+    "afflicted-ally": { allyAffliction: true }
 };
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
 export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
@@ -99,7 +103,28 @@ export function powerFoes(kind, level, trait = null) {
         return pack?.traits ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities], weaknesses: (pack.weaknesses ?? []).map((type) => ({ type, value: typicalWeakness(foe.level) })) } : foe;
     };
     const foes = kind === "boss" ? [make(level + 2, "monster")] : [0, 1, 2, 3].map((index) => make(level - 2, index ? `monster-${index}` : "monster"));
+    if (pack?.allyAffliction) Object.assign(foes, { allyAffliction: true });
+    if (pack?.buff) Object.assign(foes, { spellBuffed: true });
     return pack?.environment ? Object.assign(foes, { environment: { ...pack.environment } }) : foes;
+}
+
+// ("spell-buffed": a foe under Haste cast at its own rank — quickened, the effect a counteract can end.)
+function hasteFoe(c, id) {
+    const level = Math.max(1, Number(c?.level) || 1);
+    c.effects = [...(c.effects ?? []), { id, key: "Compendium.pf2e.spell-effects.Item.haste", model: { name: "Spell Effect: Haste", rounds: Infinity, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [{ slug: "quickened", value: null }], unsupported: [], situational: 0 }, sourceId: null, counter: { dc: 14 + level, rank: Math.ceil(level / 2), spell: true, traits: ["concentrate", "manipulate"] } }];
+    c.cond.quickened = true;
+}
+
+// ("afflicted-ally": the party's fighter poisoned at stage 2 — a poison of its level, its dice and its enfeebled growing by the stage; its
+// conditions' source the poison, for a counteract.)
+function poisonAlly(c) {
+    const level = Math.max(1, Number(c?.level) || 1);
+    const dice = Math.max(1, Math.round(level / 3));
+    const stages = [1, 2, 3].map((stage) => ({ stage, damage: [`${dice + stage - 1}d6[poison]`], conditions: [{ slug: "enfeebled", value: Math.min(2, stage) }], duration: { value: 1, unit: "rounds" } }));
+    const data = { name: "Poison", traits: ["poison"], dc: 14 + level, statistic: "fortitude", maximumDuration: { value: 6, unit: "rounds" }, stages };
+    c.afflictions = [...(c.afflictions ?? []), { name: data.name, source: "monster", data, stages, stage: 2, endRound: Infinity, conditions: [{ slug: "enfeebled", value: 2 }], models: {}, stageEffects: [] }];
+    c.cond.enfeebled = Math.max(c.cond.enfeebled ?? 0, 2);
+    c.condSources = { ...(c.condSources ?? {}), enfeebled: { dc: data.dc, rank: Math.ceil(level / 2), spell: false, name: data.name, traits: data.traits } };
 }
 
 // The snapshot of a rating's fight: its combatants, and the foes' environment where it has one (a fight in darkness).
@@ -192,6 +217,9 @@ export function powerConditions(plan, effects = null, text = "") {
     if (/"slug":"(?:landed|grounded)"/.test(JSON.stringify(plan?.resolution ?? null))) traits.add("flying");
     // (Dimming its sight — Penumbral Shroud —: against foes without darkvision.)
     if (/"slug":"dimmed"/.test(JSON.stringify(plan?.resolution ?? null))) traits.add("no-darkvision");
+    // (A counteract or an affliction's care — 2026-10-22: Dispel Magic against foes under a spell; Cleanse Affliction, Purging Toxins on a
+    // poisoned ally.)
+    if (plan?.resolution?.kind === "affliction-care") traits.add(/\bspell effect\b/i.test(String(plan.targeting?.target ?? "")) ? "spell-buffed" : "afflicted-ally");
     if ((plan?.traits ?? []).includes("holy")) traits.add("fiend");
     if ((plan?.traits ?? []).includes("unholy")) traits.add("celestial");
     // (Circle of Protection: against unholy or holy foes.)
@@ -318,6 +346,11 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
     const caster = state.byId.get(entry.castBy ?? "wizard");
     const spell = (caster?.spells ?? []).find((each) => each.name === entry.name && (each.pool ?? null) === (entry.pool ?? null));
     if (!spell) return null;
+    // (Cast on its turn, its three actions — 2026-10-22: before, none, so Sure Strike's roll twice counted as unused, no action left for the
+    // attack.)
+    caster.actionsLeft = 3;
+    if (foes?.allyAffliction && state.byId.get("fighter")) poisonAlly(state.byId.get("fighter"));
+    if (foes?.spellBuffed) for (const [index, foe] of state.list.filter((c) => c.side !== caster.side).entries()) hasteFoe(foe, 900000 + index);
     const enemies = state.list.filter((c) => c.side !== caster.side && isActive(c));
     const allies = state.list.filter((c) => c.side === caster.side && isActive(c));
     const aimed = minion ? allies.filter((c) => c.id === "minion") : allies;

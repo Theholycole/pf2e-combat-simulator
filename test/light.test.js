@@ -907,3 +907,65 @@ test("a spell built on its caster's own Strikes rated with the fighter casting t
     assert.equal(withIt.find((c) => c.id === "fighter").spellPools.rated, 1);
     assert.ok(!withIt.find((c) => c.id === "wizard").spells.includes(entry));
 });
+
+test("weapon buffs: rune upgrades on the weapon picked, unarmed or a club or staff; Strikes an effect gives; Gravity Weapon's dice; a Reactive Strike", async () => {
+    const { effectModel, applyEffect, removeEffect } = await import("../src/engine/effects.js");
+    const { featureParts } = await import("../src/engine/actions.js");
+    const { effectItemById } = await import("../tools/lib/pack-spells.mjs");
+    const model = (id, rank = 1) => effectModel(effectItemById(id), { rank });
+    const state = createFightState({ combatants: [...standardParty(1), { ...moderateCreatureAt(1, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1);
+    const fighter = state.byId.get("fighter");
+    const wizard = state.byId.get("wizard");
+    // (Runic Weapon: +1 striking on the fighter's greatsword at 1st level — no runes of its own yet.)
+    const greatsword = fighter.strikes.find((strike) => strike.name === "Greatsword");
+    const runic = applyEffect(state, fighter, model("GnWkI3T3LYRlm3X8"), fighter);
+    const upgraded = fighter.strikes.find((strike) => strike.name === "Greatsword");
+    assert.equal(upgraded.bonus, greatsword.bonus + 1);
+    assert.equal(upgraded.damage[0].dice, 2);
+    assert.ok(fighter.strikes.filter((strike) => strike.name !== "Greatsword").every((strike) => fighter.strikes.includes(strike)), "the weapon picked alone");
+    removeEffect(fighter, runic);
+    assert.equal(fighter.strikes.find((strike) => strike.name === "Greatsword"), greatsword, "as it was");
+    // (Shillelagh: the wizard's staff, a club's group.)
+    const shillelagh = model("deG1dtfuQph03Kkg");
+    assert.deepEqual(shillelagh.runeUpgrade, { potency: 1, striking: 1, scope: "picked", groups: ["club", "staff"] });
+    applyEffect(state, wizard, shillelagh, wizard);
+    assert.equal(wizard.strikes.find((strike) => strike.name === "Staff").damage[0].dice, 2);
+    // (Claws of the Otter: a claw with its cold die, the wizard's while it lasts.)
+    const claws = applyEffect(state, wizard, model("UPisuG2cfjMIJOPa", 2), wizard);
+    assert.deepEqual(wizard.strikes.find((strike) => strike.name === "Claw")?.damage.map((part) => part.type), ["slashing", "cold"]);
+    removeEffect(wizard, claws);
+    assert.ok(!wizard.strikes.some((strike) => strike.name === "Claw"));
+    // (Gravity Weapon: its first weapon Strike a round, twice the weapon's dice.)
+    applyEffect(state, fighter, model("tNjimcyUwn8afeH6"), fighter);
+    assert.equal(featureParts(fighter, greatsword, state.byId.get("monster")).find((part) => part.bonus === 2)?.bonus, 2);
+    assert.ok(!featureParts(fighter, greatsword, state.byId.get("monster"), { firstWeaponStrike: false }).some((part) => part.bonus === 2));
+    // (Embodiment of Battle: +1 to weapon attacks and damage, a Reactive Strike while it lasts.)
+    const embodiment = model("uiXWJVwWuMS3KvkV");
+    assert.ok(embodiment.modifiers.some((modifier) => modifier.on === "attack" && modifier.value === 1));
+    const rogue = state.byId.get("rogue");
+    const held = applyEffect(state, rogue, embodiment, rogue);
+    assert.equal(rogue.reactions.aoo, true);
+    removeEffect(rogue, held);
+    assert.equal(rogue.reactions.aoo, false);
+});
+
+test("rating fixes: Guidance's bonus on its own name; Dispel Magic against foes under Haste; an ally's poison counteracted (Purging Toxins)", async () => {
+    const { effectModel } = await import("../src/engine/effects.js");
+    const { castSpell } = await import("../src/engine/spells.js");
+    const { effectItemById, compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const guidance = effectModel(effectItemById("3qHKBDF7lrHw8jFK"), { rank: 1 });
+    assert.ok(guidance.modifiers.some((modifier) => modifier.on === "attack" && modifier.value === 1));
+    const foes = powerFoes("boss", 5, "spell-buffed");
+    assert.equal(foes.spellBuffed, true);
+    // (A poisoned fighter, its poison counteracted.)
+    const state = createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const fighter = state.byId.get("fighter");
+    const stages = [1, 2].map((stage) => ({ stage, damage: ["1d6[poison]"], conditions: [{ slug: "enfeebled", value: stage }], duration: { value: 1, unit: "rounds" } }));
+    fighter.afflictions = [{ name: "Poison", source: "monster", data: { name: "Poison", traits: ["poison"], dc: 15, statistic: "fortitude", stages }, stages, stage: 2, endRound: Infinity, conditions: [{ slug: "enfeebled", value: 2 }], models: {}, stageEffects: [] }];
+    fighter.cond.enfeebled = 2;
+    const cleric = state.byId.get("cleric");
+    cleric.spells = [{ name: "Purging Toxins", castRank: 3, pool: null, dc: 30, attack: 30, effects: {}, plan: compileSpell(spellNamed("Purging Toxins")) }];
+    state.rng.d20 = () => 15;
+    castSpell(state, cleric, 0, [fighter.id]);
+    assert.equal(fighter.afflictions.length, 0, state.log.join("\n"));
+});

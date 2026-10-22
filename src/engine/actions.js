@@ -256,8 +256,10 @@ export function expectedHitDamage(attacker, strike, target, critical, { bonus = 
 // Extra damage parts a PC's class features add to a Strike, each with the
 // chance it applies: the off-guard dice PF2e gives the Strike (Sneak Attack),
 // an active buff's (Rage), and the Precision hunter's edge on the first hit on the prey.
-export function featureParts(attacker, strike, target, { offGuard = 0, firstPreyHit = true } = {}) {
+export function featureParts(attacker, strike, target, { offGuard = 0, firstPreyHit = true, firstWeaponStrike = true } = {}) {
     const parts = [];
+    // (2026-10-22, Gravity Weapon: on its first weapon Strike each round, twice the weapon's damage dice — effects.js model.diceDamage.)
+    if (firstWeaponStrike && !strike.unarmed) for (const effect of attacker.effects ?? []) if (effect.model?.diceDamage) parts.push({ dice: 0, die: 0, bonus: effect.model.diceDamage.perDie * (Number(strike.damage?.[0]?.dice) || 1), multiplier: 1, type: strike.damage?.[0]?.type, precision: false, persistent: false, chance: 1 });
     if (offGuard && strike.offGuardExtra?.length) for (const part of strike.offGuardExtra) parts.push({ ...part, chance: offGuard });
     for (const buff of attacker.activeBuffs ?? []) for (const part of buff.strikeDeltas?.[strike.name] ?? []) parts.push({ ...part, chance: 1 });
     // (B241: a part only against creatures with a trait, Imbue Righteousness's.)
@@ -400,6 +402,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     }
     const attacksMade = reaction ? 0 : attacker.attacksThisTurn;
     if (!reaction) attacker.attacksThisTurn++;
+    // (Gravity Weapon: its first weapon Strike this round — hit or miss.)
+    attacker.firstWeaponStrike = !strike.unarmed && attacker.weaponStrikeRound !== state.round;
+    if (!strike.unarmed) attacker.weaponStrikeRound = state.round;
     if (!reaction && !strike.melee && attacker.meleeId !== null) {
         provoke(state, attacker, "ranged");
         if (!canAct(attacker)) return null;
@@ -694,7 +699,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     }
     // Class features: Sneak Attack's off-guard dice, Rage, the Precision edge.
     const firstPreyHit = attacker.preyHitRound !== state.round;
-    const parts = featureParts(attacker, strike, target, { offGuard: offGuard ? 1 : 0, firstPreyHit });
+    const parts = featureParts(attacker, strike, target, { offGuard: offGuard ? 1 : 0, firstPreyHit, firstWeaponStrike: attacker.firstWeaponStrike !== false });
     for (const effect of spent) removeEffect(attacker, effect);
     if (strike.firearm) {
         attacker.firstShotReady = 0;

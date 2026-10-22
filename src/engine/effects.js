@@ -34,6 +34,11 @@ const SELECTORS = {
     damage: ["damage"],
     "strike-damage": ["damage"],
     // (2026-10-14: Speed — Grasping Grave's -10 feet: the creature's Speed while it lasts.)
+    // (2026-10-22, Embodiment of Battle's: a weapon's or an unarmed attack's roll and damage.)
+    "weapon-attack-roll": ["attack"],
+    "unarmed-attack-roll": ["attack"],
+    "weapon-damage": ["damage"],
+    "unarmed-damage": ["damage"],
     "all-speeds": ["speed"],
     "land-speed": ["speed"],
     speed: ["speed"],
@@ -275,9 +280,13 @@ function withWeaponPick(item) {
         const token = `{item|flags.system.rulesSelections.${pick.flag}}`;
         // (Ghostly Weapon's AdjustStrike "item:id:{…}": on that weapon — the engine's Strikes'.)
         text = text.split(`${token}-attack`).join("strike-attack-roll").split(`${token}-damage`).join("strike-damage").split(`item:id:${token}`).join("item:picked");
+        // (2026-10-22, Runic Weapon's rune upgrade on "itemId": that weapon — "picked", applyEffect's.)
+        text = text.split(`"itemId":"${token}"`).join(`"itemId":"picked"`);
     }
+    // (Shillelagh's "a club or staff": the groups the pick allows, pickGroups.)
+    const groups = picks.flatMap((pick) => JSON.stringify(pick.choices.predicate ?? []).match(/item:group:[\w-]+/g) ?? []).map((term) => term.slice("item:group:".length));
     const left = JSON.parse(text).filter((rule) => !JSON.stringify(rule).includes("{item|flags.system.rulesSelections."));
-    return { ...item, system: { ...item.system, rules: left } };
+    return { ...item, ...(groups.length ? { pickGroups: [...new Set(groups)] } : {}), system: { ...item.system, rules: left } };
 }
 
 export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen = null } = {}) {
@@ -287,6 +296,9 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen
     // (2026-10-22, Levitate: its effect has only the −2 to attacks; the spell floats the creature up out of reach — model.levitates, space.js.)
     if (/^(?:spell )?effect: levitate$/i.test(String(item?.name ?? "").trim())) model.levitates = true;
     const toggles = new Map((item?.system?.rules ?? []).filter((rule) => rule?.key === "RollOption" && rule.toggleable && typeof rule.option === "string" && !rule.option.includes("{")).map((rule) => [rule.option, rule.value === true]));
+    // (2026-10-22, Guidance's "+1 status bonus" on its own name, "guidance" — the roll it's used for: on.)
+    const ownSlug = String(item?.name ?? "").replace(/^(?:Spell )?Effect:\s*/i, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    if (ownSlug && !toggles.has(ownSlug)) toggles.set(ownSlug, true);
     // (A ChoiceSet the caster picks — Elemental Gift's element, Animal Feature's feature —, its rules on "option:value": each of its choices
     // as a toggle, the one picked on.)
     const sets = choiceSets(item, rank);
@@ -340,6 +352,46 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen
             // (2026-10-22, Magic Stone's disrupting "item:group:sling": on Strikes of that group only — damage.js strikeContext.)
             const groups = [].concat(rule.definition ?? []).map((term) => /^item:group:([\w-]+)$/.exec(String(term))?.[1]).filter(Boolean);
             if (groups.length) model.strikeAdds.groups = [...new Set([...(model.strikeAdds.groups ?? []), ...groups])];
+            continue;
+        }
+        // (2026-10-22, weapon buffs — the user: "Work on all 8 families in order of biggest value".) A rune upgrade on the creature's weapon —
+        // Runic Weapon's +1 striking on the weapon picked, Runic Body's on its unarmed attacks, Shillelagh's on a club or staff, Wooden Fists'
+        // striking on its fists —: model.runeUpgrade { potency, striking, scope: "picked" | "unarmed" | "granted" | "weapons", groups }.
+        if (rule?.key === "ItemAlteration" && rule.mode === "upgrade" && ["runes-potency", "runes-striking"].includes(rule.property)) {
+            const value = numericValue(rule.value, rank);
+            const terms = [].concat(rule.predicate ?? []);
+            if (value > 0 && predicateHolds(terms.filter((term) => !/^item:(?:category|slug):/.test(String(term))), rank, toggles) !== false) {
+                const scope = rule.itemId === "picked" ? "picked" : terms.includes("item:category:unarmed") ? "unarmed" : /FIST/.test(`${rule.itemId ?? ""}${JSON.stringify(terms)}`) ? "granted" : "weapons";
+                model.runeUpgrade ??= { potency: 0, striking: 0, scope, groups: item?.pickGroups ?? null };
+                const field = rule.property === "runes-potency" ? "potency" : "striking";
+                model.runeUpgrade[field] = Math.max(model.runeUpgrade[field], value);
+            }
+            continue;
+        }
+        // (A Strike it gives — Claws of the Otter's claws, Snake Fangs' fangs, Wooden Fists' fists —: model.grantedStrikes, the creature's
+        // while it lasts; a die more on its fists, reach, no longer nonlethal — Wooden Fists' alterations on "xxxxxxFISTxxxxxx".)
+        if (rule?.key === "Strike" && (rule.fist || rule.damage?.base)) {
+            const base = rule.fist ? { damageType: "bludgeoning", dice: 1, die: "d4" } : rule.damage.base;
+            (model.grantedStrikes ??= []).push({ slug: rule.fist ? "fist" : String(rule.slug ?? ""), name: rule.fist ? "Fist" : String(rule.label ?? rule.slug ?? "Strike").split(".").pop(), dice: Number(base.dice) || 1, die: Number(String(base.die ?? "d4").replace("d", "")) || 4, type: String(base.damageType ?? "bludgeoning"), traits: rule.fist ? ["agile", "finesse", "nonlethal", "unarmed"] : [...(rule.traits ?? [])], unarmed: Boolean(rule.fist || rule.category === "unarmed"), extra: [] });
+            continue;
+        }
+        if (rule?.key === "ItemAlteration" && /FIST/.test(String(rule.itemId ?? ""))) {
+            const fist = (model.grantedStrikes ?? []).find((strike) => strike.slug === "fist");
+            if (fist && rule.property === "damage-dice-faces" && rule.mode === "upgrade") fist.die = Math.min(12, fist.die + 2);
+            if (fist && rule.property === "traits" && rule.mode === "add" && rule.value === "reach") fist.reach = 10;
+            if (fist && rule.property === "traits" && rule.mode === "remove") fist.traits = fist.traits.filter((trait) => trait !== rule.value);
+            continue;
+        }
+        if (rule?.key === "DamageDice" && typeof rule.selector === "string" && (model.grantedStrikes ?? []).some((strike) => `${strike.slug}-damage` === rule.selector)) {
+            const strike = model.grantedStrikes.find((each) => `${each.slug}-damage` === rule.selector);
+            const dice = Number(rule.diceNumber) || numericValue(rule.diceNumber, rank) || 1;
+            strike.extra.push({ dice, die: Number(String(rule.dieSize ?? "d6").replace("d", "")) || 6, type: String(rule.damageType ?? strike.type) });
+            continue;
+        }
+        // (Gravity Weapon: "a status bonus to damage equal to twice the number of weapon damage dice" — model.diceDamage { perDie }, on the first
+        // weapon Strike each round, actions.js featureParts; its toggle, using it, taken as on.)
+        if (rule?.key === "FlatModifier" && /^@weapon\.system\.damage\.dice\s*\*\s*\d+$/.test(String(rule.value ?? "").trim())) {
+            model.diceDamage = { perDie: Number(/\d+$/.exec(String(rule.value).trim())[0]), weaponOnly: JSON.stringify(rule.predicate ?? []).includes("item:category:unarmed") };
             continue;
         }
         if (!rule?.key || IGNORED.has(rule.key)) continue;
@@ -450,6 +502,11 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen
                 break;
             }
             case "GrantItem": {
+                // (Embodiment of Battle: the Reactive Strike reaction while it lasts — model.grantsReactiveStrike.)
+                if (/actionspf2e\.Item\.KAVf7AmRnbCAHrkT$/.test(String(rule.uuid ?? ""))) {
+                    model.grantsReactiveStrike = true;
+                    break;
+                }
                 const slug = conditionSlug(rule.uuid);
                 if (!slug) {
                     unsupported.add("GrantItem");
@@ -591,6 +648,9 @@ export function removeEffect(target, effect) {
     // (Its save bonuses against what it names, gone with it.)
     if (effect.model?.saveBonuses?.length) target.saveBonuses = (target.saveBonuses ?? []).filter((bonus) => bonus.effectId !== effect.id);
     withDefences(target, effect, false);
+    // (A rune upgrade's Strikes as they were; a Reactive Strike it gave, gone.)
+    if (effect.replaced?.length) target.strikes = (target.strikes ?? []).map((strike) => effect.replaced.find((entry) => entry.upgraded === strike)?.original ?? strike);
+    if (effect.grantedAoo) target.reactions = { ...(target.reactions ?? {}), aoo: false };
     // A Strike the effect gave (Tiger Stance's tiger claw) goes with it.
     if ((target.strikes ?? []).some((strike) => strike.fromEffect === effect.key)) target.strikes = target.strikes.filter((strike) => strike.fromEffect !== effect.key);
 }
@@ -601,6 +661,58 @@ export function takeAttackFortune(c) {
     if (!effect) return null;
     removeEffect(c, effect);
     return effect.model.fortune.keep;
+}
+
+// (2026-10-22, weapon buffs.) The Strikes an effect gives the creature — its own best melee Strike's bonus without that weapon's potency rune
+// (its level with none), its Strength modifier to damage (an NPC's: its best melee Strike's damage bonus), the effect's extra dice —, and its
+// rune upgrade on the Strikes it's for: the weapon picked (the best the pick's groups allow), its unarmed attacks, the Strikes it gave, or
+// every weapon — the upgrade's potency over the Strike's own (its attack), its striking's dice over the Strike's (effect.replaced, undone
+// by removeEffect).
+const average = (strike) => (strike?.damage ?? []).reduce((sum, part) => sum + (Number(part.dice) || 0) * ((Number(part.die) || 0) + 1) / 2 + (Number(part.bonus) || 0), 0);
+export function upgradeStrike(strike, upgrade) {
+    const potency = Number(strike.potency) || 0;
+    const [first, ...rest] = strike.damage ?? [];
+    return { ...strike, bonus: (Number(strike.bonus) || 0) + Math.max(0, (upgrade.potency ?? 0) - potency), potency: Math.max(potency, upgrade.potency ?? 0), damage: first ? [{ ...first, dice: Math.max(Number(first.dice) || 1, 1 + (upgrade.striking ?? 0)) }, ...rest] : strike.damage };
+}
+function armStrikes(target, effect) {
+    const model = effect.model;
+    const own = (target.strikes ?? []).filter((strike) => !strike.fromEffect);
+    const melee = own.filter((strike) => strike.melee);
+    const from = melee.length ? melee : own;
+    const bonus = from.length ? Math.max(...from.map((strike) => (Number(strike.bonus) || 0) - (Number(strike.potency) || 0))) : Number(target.level) || 0;
+    const str = Number.isFinite(target.str) ? target.str : Math.max(0, ...melee.map((strike) => Number(strike.damage?.[0]?.bonus) || 0));
+    const granted = (model.grantedStrikes ?? []).map((spec) => ({ name: spec.name, bonus, melee: true, agile: spec.traits.includes("agile"), finesse: spec.traits.includes("finesse"), unarmed: spec.unarmed, ...(spec.reach ? { reach: spec.reach } : {}), iwr: { traits: spec.traits.filter((trait) => trait === "magical") }, damage: [{ dice: spec.dice, die: spec.die, bonus: str, type: spec.type }, ...spec.extra.map((part) => ({ dice: part.dice, die: part.die, bonus: 0, type: part.type }))], fromEffect: effect.key }));
+    target.strikes = [...(target.strikes ?? []).filter((strike) => strike.fromEffect !== effect.key), ...granted];
+    const upgrade = model.runeUpgrade;
+    if (!upgrade) return;
+    const weapons = (target.strikes ?? []).filter((strike) => !strike.fromEffect && !strike.unarmed);
+    const fits = (strike) => !upgrade.groups?.length || upgrade.groups.includes(strike.iwr?.group);
+    const best = weapons.filter(fits).sort((a, b) => (Number(b.bonus) || 0) * 0.1 + average(b) * 0.04 - ((Number(a.bonus) || 0) * 0.1 + average(a) * 0.04))[0];
+    const chosen = upgrade.scope === "granted" ? target.strikes.filter((strike) => strike.fromEffect === effect.key)
+        : upgrade.scope === "unarmed" ? target.strikes.filter((strike) => strike.unarmed)
+            : upgrade.scope === "picked" ? (best ? [best] : [])
+                : weapons;
+    effect.replaced = [];
+    target.strikes = target.strikes.map((strike) => {
+        if (!chosen.includes(strike)) return strike;
+        const upgraded = upgradeStrike(strike, upgrade);
+        effect.replaced.push({ original: strike, upgraded });
+        return upgraded;
+    });
+}
+
+// What a weapon buff adds to the creature's best Strike (a point of attack 0.1, of damage 0.04 — effectBenefit's), at its best.
+function strikeGain(model, target) {
+    const score = (strike) => (Number(strike.bonus) || 0) * 0.1 + average(strike) * 0.04;
+    const before = Math.max(0, ...(target.strikes ?? []).map(score));
+    const armed = { ...target, strikes: [...(target.strikes ?? [])] };
+    armStrikes(armed, { model, key: "rated" });
+    let gain = Math.max(0, Math.max(0, ...armed.strikes.map(score)) - before);
+    // (Gravity Weapon: twice its best weapon's dice, on about half its Strikes — the first each round.)
+    if (model.diceDamage) gain += 0.5 * 0.04 * model.diceDamage.perDie * Math.max(0, ...(target.strikes ?? []).filter((strike) => !strike.unarmed).map((strike) => Number(strike.damage?.[0]?.dice) || 0));
+    // (A Reactive Strike it hasn't: about a tenth of a round's Strikes.)
+    if (model.grantsReactiveStrike && !target.reactions?.aoo) gain += 0.1 * Math.max(0, ...(target.strikes ?? []).filter((strike) => strike.melee).map(score));
+    return gain;
 }
 
 // Puts an effect on a creature; the same effect again replaces it. A finite
@@ -735,6 +847,12 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
     const duration = Number.isFinite(model.rounds) ? { mode: "fixed", value: model.rounds, unit: "rounds" } : null;
     for (const condition of model.conditions) applyCondition?.(state, target, condition.slug, condition.value, duration, source);
     if (Number.isFinite(model.rounds)) (target.timers ??= []).push({ effect, round: state.round + model.rounds, turnOf: source?.id ?? target.id });
+    // (Weapon buffs: the Strikes it gives and its rune upgrade, on the creature's Strikes while it lasts — armStrikes; its Reactive Strike.)
+    if (model.runeUpgrade || model.grantedStrikes?.length) armStrikes(target, effect);
+    if (model.grantsReactiveStrike && !target.reactions?.aoo) {
+        target.reactions = { ...(target.reactions ?? {}), aoo: true };
+        effect.grantedAoo = true;
+    }
     // (A body that burns at a touch — Fiery Body —: its retaliation on the creature while the effect lasts, spells.js touchRetaliation.)
     if (model.retaliation) target.retaliations = [...(target.retaliations ?? []).filter((entry) => entry.name !== model.name), { name: model.name, label: String(model.name).replace(/^(?:Spell )?Effect: /, ""), ...model.retaliation, until: Number.isFinite(model.rounds) ? (state?.round ?? 0) + model.rounds : Infinity }];
     // (An aura's granted effects — Protector's Sphere's resistance —: on those it reaches as it's raised, for its time.)
@@ -828,6 +946,8 @@ export function effectBenefit(model, target, conditionHarm, strikeShare = 1, con
     // has a Strike of that kind — before, none was, and Enlarge was worth its clumsy 1 alone.)
     const kinds = new Set((target.strikes ?? []).map((strike) => (strike.melee ? "item:melee" : "item:ranged")));
     const byKind = (model.conditional ?? []).filter((modifier) => modifier.predicate?.length && modifier.predicate.every((term) => term === "item:melee" || term === "item:ranged") && modifier.predicate.every((term) => kinds.has(term)));
+    // (Weapon buffs — a rune upgrade, Strikes it gives, Gravity Weapon's dice, a Reactive Strike —: what they add to its best Strike, a round.)
+    if (model.runeUpgrade || model.grantedStrikes?.length || model.diceDamage || model.grantsReactiveStrike) benefit += strikeGain(model, target) * rounds * (strikes > 0 ? strikes : 1);
     // (Weapon Surge's, on its next Strike alone: about half a round's Strikes.)
     const strikeRounds = model.nextStrike ? 0.5 : rounds;
     for (const modifier of [...model.modifiers, ...byKind]) {

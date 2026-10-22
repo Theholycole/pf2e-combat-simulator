@@ -359,7 +359,8 @@ function ownStrikes(entry) {
     const plan = entry.plan ?? {};
     if (plan.marks && Object.keys(plan.marks).length) return true;
     const target = String(plan.targeting?.target ?? "").trim().toLowerCase();
-    const forStrikes = Object.values(entry.effects ?? {}).some((model) => model && ((model.modifiers ?? []).some((modifier) => ["attack", "damage"].includes(modifier.on)) || (model.conditional ?? []).some((modifier) => ["attack", "damage"].includes(modifier.on)) || model.strikeAdds || model.nextStrike));
+    // (And a rune upgrade, Strikes it gives, Gravity Weapon's dice, a Reactive Strike, Sure Strike's roll twice — 2026-10-22, weapon buffs.)
+    const forStrikes = Object.values(entry.effects ?? {}).some((model) => model && ((model.modifiers ?? []).some((modifier) => ["attack", "damage"].includes(modifier.on)) || (model.conditional ?? []).some((modifier) => ["attack", "damage"].includes(modifier.on)) || model.strikeAdds || model.nextStrike || model.runeUpgrade || model.grantedStrikes?.length || model.diceDamage || model.grantsReactiveStrike || model.fortune?.on === "attack"));
     if (!forStrikes || plan.targeting?.area?.type) return false;
     return /^(?:self|you|yourself)?$/.test(target) || /\byou(?:'re| are) wielding\b|\byour (?:weapon|unarmed)\b/.test(target);
 }
@@ -518,10 +519,11 @@ export function runPowerTask(task) {
     const lost = Boolean(minion) && /\bminion\b[^.]*\bexplode/i.test(textOf(doc));
     const entries = casterSwaps(entry);
     const results = resultsOf(traits, (foes) => bestCast(entries, (each) => castPower(party, foes, each, { minion, lost })), level);
-    // (Cast, but with no effect the engine counts: the healing, temporary Hit Points or AC its text gives, if it says.)
-    if (!Object.keys(results).length) {
+    // (Cast, but with no effect the engine counts: the healing, temporary Hit Points or AC its text gives, if it says — with what it does
+    // against a foe trait, where it has that alone: Luminous Stardust Healing's affliction care beside its healing, 2026-10-22.)
+    if (!POWER_KINDS.some((kind) => results[`${kind}|`])) {
         const helped = textHelpRow(head, doc, rank, party, level);
-        if (helped) return helped;
+        if (helped) return Object.keys(results).length ? { ...helped, traits: [...new Set([...(helped.traits ?? []), ...traits])], results: { ...helped.results, ...results } } : helped;
     }
     const gaps = spellGaps(entry);
     const row = { ...head, traits, results, ...(minion ? { minion: true } : {}), ...(gaps.length ? { partial: gaps } : {}) };

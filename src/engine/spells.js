@@ -1005,7 +1005,9 @@ export function bestCounter(state, caster, target, change) {
     // controller, freed by its friends.)
     const ally = (target.originalSide ?? target.side) === caster.side;
     let best = null;
-    for (const entry of counterables(target, change, FLAGS)) {
+    // (An affliction's counteract — readings.js withAfflictionCounteract's "affliction" trait —: afflictions alone, below.)
+    const afflictionCare = (change.traits ?? []).includes("affliction");
+    for (const entry of afflictionCare ? [] : counterables(target, change, FLAGS)) {
         let value;
         if (entry.kind === "effect") {
             const benefit = effectBenefit(entry.entry.model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1);
@@ -1015,6 +1017,19 @@ export function bestCounter(state, caster, target, change) {
             value = ally ? harm : -harm;
         }
         if (value > 0 && (!best || value > best.value)) best = { pick: entry, value };
+    }
+    // (2026-10-22: an affliction — Purging Toxins' poison or disease, Delay Affliction's any —, worth its stage and the conditions it gives, as
+    // an item's counteract weighs it; its rank its source's level's.)
+    if (afflictionCare) {
+        const kinds = change.traits.filter((trait) => trait !== "affliction");
+        for (const entry of target.afflictions ?? []) {
+            if (kinds.length && !(entry.data?.traits ?? []).some((trait) => kinds.includes(trait))) continue;
+            const source = state.byId.get(entry.source);
+            const worth = 0.3 * Math.max(1, entry.stage) + (entry.conditions ?? []).reduce((sum, held) => sum + Math.max(0, conditionWorth(held.slug, held.value ?? null, null)), 0);
+            const value = ally ? worth : -worth;
+            const pick = { kind: "affliction", entry, dc: entry.data?.dc, rank: Math.max(1, Math.ceil((Number(source?.level) || 1) / 2)), name: entry.name };
+            if (value > 0 && Number.isFinite(pick.dc) && (!best || value > best.value)) best = { pick, value };
+        }
     }
     return best;
 }
@@ -1040,6 +1055,7 @@ function applyCounteract(state, caster, spell, target, change) {
     }
     if (!roll.success) return;
     if (best.pick.kind === "effect") endEffect(target, best.pick.entry);
+    else if (best.pick.kind === "affliction") setAfflictionStage(state, target, best.pick.entry, 0);
     else clearCondition(target, best.pick.slug);
 }
 
