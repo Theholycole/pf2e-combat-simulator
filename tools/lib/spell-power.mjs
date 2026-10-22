@@ -6,12 +6,12 @@ const { maneuverWays } = await import("../../src/engine/readings.js");
 const { compileSpell, effectItemById, effectModels, withTextConditions } = await import("./pack-spells.mjs");
 const { looseRetaliation } = await import("../../src/engine/effects.js");
 const { partyFor } = await import("./deadliness.mjs");
-const { POWER_KINDS, POWER_ROUNDS, RATED_POOL, SUMMON_FOE_TRAITS, castPower, durationRounds, formShare, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
+const { POWER_KINDS, POWER_ROUNDS, RATED_POOL, SUMMON_FOE_TRAITS, castPower, durationRounds, formShare, guardPower, readingPower, textDamageShare, textHelpShare, partyLevelForRank, partyWithSpell, powerConditions, powerFoes, powerRanks, shieldShare, summonShare, wallKind, wallShare, wizardCasting } = await import("../../src/engine/spell-power.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
 const { RULE_CHOICES, castableReading, powerReading } = await import("../../src/engine/power-readings.js");
 const { battleFormAt, effectModel } = await import("../../src/engine/effects.js");
 const { SUMMON_LEVELS, spellSummonEntry } = await import("../../src/engine/summons.js");
-const { canCast, describeSpell, isUtility, spellGaps } = await import("../../src/engine/spells.js");
+const { canCast, describeSpell, isUtility, reactionGuardOf, spellGaps } = await import("../../src/engine/spells.js");
 
 const MODULES = `${process.env.HOME}/.local/share/FoundryVTT/Data/modules`;
 
@@ -471,6 +471,11 @@ export function runPowerTask(task) {
             const traits = [...new Set(casts.flatMap((read) => powerConditions(read.plan, read.effects, textOf(doc))))];
             return { ...head, traits, results: resultsOf(traits, best, level), estimate: "reading (stated-effect)" };
         }
+    }
+    // (2026-10-22, family 2: a reaction spell that guards an ally or pays a hit back — rated as its use, guardPower.)
+    if (plan.activation?.time === "reaction" && reactionGuardOf({ ...entry, plan })) {
+        const results = resultsOf([], (foes) => guardPower(party, foes, entry), level);
+        if (Object.keys(results).length) return { ...head, traits: [], results, estimate: "reaction" };
     }
     // (One the engine can't cast in a fight only for how its time or targets are written: cast as the rating reads it.)
     // (A retaliation — the compiler's kind —: its rating reader's, power-readings.js, though fights cast the caster's own, 2026-10-22.)

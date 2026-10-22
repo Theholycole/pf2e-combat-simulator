@@ -403,6 +403,24 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
     return { ...best, ...shareToLevels(best.share) };
 }
 
+// (2026-10-22, family 2.) A reaction spell that guards an ally or pays a hit back — spells.js reactionGuardOf —, rated as its use: the same
+// fights as castPower's (the party at half its Hit Points), its worth as spellExpectation gives it (guardEntries). { share, levels, bound,
+// actions, targets } or null.
+export function guardPower(party, foes, entry) {
+    const combatants = [...partyWithSpell(party, entry).map((c) => ({ ...c, hp: { ...c.hp, value: Math.ceil(c.hp.max / 2) } })), ...foes];
+    const state = createFightState(fightSetup(combatants, foes), { morale: false, retreat: false }, 1);
+    const caster = state.byId.get(entry.castBy ?? "wizard");
+    const spell = (caster?.spells ?? []).find((each) => each.name === entry.name && (each.pool ?? null) === (entry.pool ?? null));
+    if (!spell) return null;
+    const enemies = state.list.filter((c) => c.side !== caster.side && isActive(c));
+    const allies = state.list.filter((c) => c.side === caster.side && isActive(c));
+    const foeHp = enemies.reduce((sum, c) => sum + c.hp.max, 0);
+    if (!(foeHp > 0)) return null;
+    const entries = spellExpectation(state, caster, spell, []);
+    const { share } = entriesShare(entries, { side: caster.side, foeHp, harm: foeHarm(state, caster.side), allies: allies.length, again: 0 });
+    return share > 0 ? { share, actions: 1, targets: 1, ...shareToLevels(share) } : null;
+}
+
 // One cast of a spell the engine can't cast in a fight, as its reading has it (power-readings.js, 2026-10-21): the same fights and the same
 // share as castPower's. { share, levels, bound, actions, targets }, or null when the reading finds nothing it does.
 // rules: the GM's choices for readings the rules leave open (RULE_CHOICES in power-readings.js): { <rule>: <value> }.

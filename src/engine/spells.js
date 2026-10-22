@@ -14,7 +14,7 @@ import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf,
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune, weaknessCost } from "./effects.js";
-import { applyDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { dimWorth, lightAuraModel, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
@@ -283,7 +283,8 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
         id: (c) => c.id,
         statistic: (c, slug) => {
             // (B302: off-guard to the caster by its own passive — Surprise Attack's spell attacks.)
-            if (slug === "ac") return { dc: armorClass(c, { flanked: c !== caster && offGuardFrom(state, caster, c, { spell: true }) }) };
+            // (Arcane Countermeasure: +2 to its targets against the spell — spell.countered.)
+            if (slug === "ac") return { dc: armorClass(c, { flanked: c !== caster && offGuardFrom(state, caster, c, { spell: true }) }) + (c !== caster ? Number(spell.countered) || 0 : 0) };
             // Spell attacks have the attack trait, so the multiple attack penalty applies.
             if (slug === "spell") return { modifier: (spell.attack ?? 0) - checkPenalty - mapPenalty() + effectBonus(c, "spell") + effectBonus(c, "attack"), dc: (spell.dc ?? 10) - checkPenalty + effectBonus(c, "spell") };
             if (slug === "strike") return { modifier: Math.max(0, ...(c.strikes ?? []).map((strike) => strike.bonus)) - checkPenalty - mapPenalty() + effectBonus(c, "attack") };
@@ -291,7 +292,7 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
             if (slug === "attack" && spell.ownAttack && c === caster) return { modifier: ownAttackModifier(spell, c) - mapPenalty() + effectBonus(c, "attack") };
             if (slug === "fortitude" || slug === "reflex" || slug === "will") {
                 // +1 status to all saves vs. magic and the like, against this spell or ability.
-                const modifier = saveModifier(c, slug) + (c !== caster ? saveBonusAgainst(c, slug, spell) : 0);
+                const modifier = saveModifier(c, slug) + (c !== caster ? saveBonusAgainst(c, slug, spell) + (Number(spell.countered) || 0) : 0);
                 if (slug === "reflex" && c !== caster && disarmBonus(spell, c)) return { modifier, dc: 10 + saveModifier(c, slug) - disarmBonus(spell, c) };
                 return { modifier };
             }
@@ -445,8 +446,12 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
         return result;
     }
     const reroll = saver.saveReroll;
-    if (reroll && (!reroll.save || reroll.save === statistic) && (reroll.against !== "spell" || (spell && (!spell.kind || spell.kind === "spell"))) && (!reroll.againstTrait || traits.includes(reroll.againstTrait)) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
+    // (Lucky Break: a failure only, not a critical one; its focus spent.)
+    const fromSpell = Number.isInteger(reroll?.fromSpell) ? saver.spells?.[reroll.fromSpell] : null;
+    const spellReady = !Number.isInteger(reroll?.fromSpell) || Boolean(fromSpell && poolReady(saver, fromSpell));
+    if (reroll && spellReady && (!reroll.failureOnly || result?.degree === "failure") && (!reroll.save || reroll.save === statistic) && (reroll.against !== "spell" || (spell && (!spell.kind || spell.kind === "spell"))) && (!reroll.againstTrait || traits.includes(reroll.againstTrait)) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
         saver.saveRerollUses--;
+        if (fromSpell) spendPool(saver, fromSpell);
         if (reroll.mythic) saver.mythicPoints--;
         if (!reroll.free) saver.reactionUsed = true;
         state.stats.reactions++;
@@ -1956,6 +1961,24 @@ export function spellReactions(c) {
     for (const [index, spell] of (c.spells ?? []).entries()) {
         const plan = spell.plan;
         if (plan?.activation?.time !== "reaction") continue;
+        // (2026-10-22, family 2 — reaction spells: guards of an ally's Hit Points, a pain paid back, a resistance — reactionGuardOf.)
+        const guard = reactionGuardOf(spell, c);
+        if (guard?.kind === "love") c.loveSacrifice = { index };
+        else if (guard?.kind === "retribution") c.retribution = { index, fraction: guard.fraction, type: guard.type };
+        else if (guard?.kind === "resist" && !c.resistReaction) {
+            c.resistReaction = { name: spell.name, value: guard.amount, on: null, types: ["all-damage"], fromSpell: index };
+            c.resistUses = Infinity;
+        } else if (guard) c.guardSpells = [...(c.guardSpells ?? []).filter((entry) => entry.index !== index), { ...guard, index }];
+        // (Counterspells — Nullify, Arcane Countermeasure, Spell Riposte, Mimic Spell —: counterspellAnswer; Lucky Break's failed save and
+        // Perfect Strike's missed unarmed Strike rerolled — betterSave, actions.js strikeOnce.)
+        const counter = counterspellOf(plan);
+        if (counter) c.counterspells = [...(c.counterspells ?? []).filter((entry) => entry.index !== index), { ...counter, index }];
+        const note = String(plan.resolution?.note?.text ?? "");
+        if (/^Trigger You fail, but don't critically fail, a saving throw\.\s*Reroll the saving throw and use the better result/i.test(note) && !c.saveReroll) {
+            c.saveReroll = { name: spell.name, failureOnly: true, fromSpell: index };
+            c.saveRerollUses = 1;
+        }
+        if (/^Trigger You miss a Strike with an unarmed attack\.[\s\S]*\bReroll the missed attack roll and keep the new result/i.test(note)) c.attackReroll = { name: spell.name, unarmed: true, fromSpell: index };
         const resistance = plan.resolution?.cloudAction?.resistance;
         const trigger = /\bwould take (\w+) damage\b/i.exec(String(plan.compilerEvidence?.cloudAction?.[0] ?? "").replace(/<[^>]+>/g, " "));
         if (resistance?.type && trigger && !c.resistReaction) {
@@ -1965,6 +1988,187 @@ export function spellReactions(c) {
         }
         if (plan.resolution?.recipient === "triggering-spell" && /\bhalf as much damage\b/i.test(String(plan.resolution.counteractOutcome?.success ?? "")) && !c.siphon) c.siphon = { index, rankBonus: Number(plan.resolution.counteractRankBonus) || 0 };
     }
+}
+
+// (2026-10-22, family 2.) What a reaction spell guards, from its plan: Protector's Sacrifice — the compiler's redirect-damage, a share of an
+// ally's damage on the caster (its amount, more each rank) —; Martyr's Intervention — martyr-redirect: an ally about to drop kept at 1 Hit
+// Point, the rest on the caster, both wounded —; Champion's Sacrifice — all of a hit on an ally, or a failed save's damage, on the caster
+// —; Love's Sacrifice — incarnate's sacrifice: the caster's lethal damage on an ally beside it (one that loves it fails its save: all of
+// it) —; Retributive Pain — half the damage it took, mental, back at its source (basic Fortitude) —; Enduring Might — resistance 2 a rank
+// plus its Strength against what it's about to take. { kind, amount?, within, fraction?, type?, wounded?, requiresUnwounded? } or null.
+export function reactionGuardOf(spell, c = null) {
+    const plan = spell?.plan;
+    const resolution = plan?.resolution;
+    const rank = Number(spell?.castRank) || Number(plan?.rank) || 1;
+    const within = Number(/(\d+)\s*feet/i.exec(String(plan?.targeting?.range ?? ""))?.[1]) || 30;
+    if (resolution?.kind === "redirect-damage" && resolution.redirectDamage) {
+        const redirect = resolution.redirectDamage;
+        const steps = redirect.step?.interval ? Math.floor(Math.max(0, rank - (Number(plan.rank) || rank)) / redirect.step.interval) : 0;
+        return { kind: "share", amount: (Number(redirect.amount) || 0) + steps * (Number(redirect.step?.amount) || 0), within: Number(redirect.rangeFeet) || within };
+    }
+    if (resolution?.kind === "martyr-redirect") return { kind: "martyr", within, wounded: Number(resolution.martyrRedirect?.wounded) || 1, requiresUnwounded: Boolean(resolution.martyrRedirect?.requiresUnwounded) };
+    if (/\bAn ally is hit by a Strike, or an ally fails a saving throw\b/i.test(String(resolution?.note?.text ?? ""))) return { kind: "champion", within };
+    if (resolution?.kind === "incarnate" && (resolution.incarnate?.phases ?? []).some((phase) => phase?.kind === "sacrifice")) return { kind: "love", within };
+    const triggered = resolution?.sharedDamage?.triggeredDamage;
+    if (resolution?.kind === "save" && triggered?.source === "caster-last-damage") return { kind: "retribution", within, fraction: Number(triggered.fraction) || 0.5, type: String(triggered.type ?? "mental") };
+    if (resolution?.kind === "effect" && /\bresistance equal to \d+ plus your Strength modifier\b/i.test(JSON.stringify(plan.nativeEffects ?? {}))) return { kind: "resist", amount: 2 * rank + (Number(c?.str) || 0), within };
+    return null;
+}
+
+// (2026-10-22, family 2.) A counterspell, from its plan: Nullify — the compiler's automatic counteract on the triggering spell, its caster
+// losing 1d8 Hit Points a rank of it —; Arcane Countermeasure — countermeasure: the spell a rank lower (not below its own), its targets +2
+// against it —; Spell Riposte — a counteract that turns a spell aimed at it back on its caster —; Mimic Spell — incarnate's mimic: a
+// counteract that gives it the spell to cast. { kind, ranks? } or null.
+function counterspellOf(plan) {
+    const resolution = plan?.resolution;
+    const operations = resolution?.operations ?? [];
+    if (resolution?.kind === "affliction-care" && operations.some((operation) => operation?.op === "counteract" && operation.source === "triggering-spell")) {
+        if (operations.some((operation) => operation?.automatic)) return { kind: "nullify", ranks: Number(/(\d+)(?:st|nd|rd|th)-rank or lower/i.exec(String(resolution.castingCondition?.[0] ?? ""))?.[1]) || 9 };
+        if (/\bcaster as the target\b/i.test(String(resolution.counteractOutcome?.success ?? ""))) return { kind: "riposte" };
+    }
+    if (resolution?.kind === "countermeasure") return { kind: "countermeasure", reduce: Number(resolution.countermeasure?.reduce) || 1, bonus: 2 };
+    if (resolution?.kind === "incarnate" && (resolution.incarnate?.phases ?? []).some((phase) => phase?.kind === "mimic")) return { kind: "mimic" };
+    return null;
+}
+
+// A foe's counterspell as a spell is cast (castPlan): the first of the caster's foes ready with one that's worth it — a harmful spell
+// at its side (one it's aimed at, for Spell Riposte), Nullify only on one of 4th rank or more —, its reaction and slot spent. { stopped }
+// (countered), { spell } (weakened), { targets } (turned back), or null.
+function counterspellAnswer(state, caster, spell, targets) {
+    const info = describeSpell(spell.plan);
+    if (info.helpful || info.healing || !isSpellCast(spell)) return null;
+    const rank = Number(spell.castRank) || Number(spell.plan?.rank) || 1;
+    for (const c of state.list) {
+        if (c.side === caster.side || !c.counterspells?.length || !isActive(c) || !canAct(c) || c.cond.fleeing) continue;
+        if (!targets.some((target) => target.side === c.side)) continue;
+        for (const entry of c.counterspells) {
+            const own = c.spells?.[entry.index];
+            if (!own || !canReact(c, own.name) || !poolReady(c, own)) continue;
+            if (entry.kind === "nullify" && (rank > entry.ranks || rank < 4)) continue;
+            if (entry.kind === "riposte" && (info.area || !targets.includes(c) || targets.length > 1)) continue;
+            spendReaction(c, own.name);
+            spendPool(c, own);
+            state.stats.reactions++;
+            const check = () => counterRoll(state, Number(own.attack) || 0, counterRank(c, own, true), { dc: effectDC(spell), rank });
+            if (entry.kind === "nullify") {
+                const lost = Array.from({ length: rank }, () => state.rng.die(8)).reduce((sum, value) => sum + value, 0);
+                log(state, `  ${c.name} reacts with ${own.name}: ${spell.name} is undone, and ${c.name} loses ${lost} HP`);
+                dealDamage(state, c, lost, {});
+                return { stopped: true };
+            }
+            if (entry.kind === "countermeasure") {
+                log(state, `  ${c.name} reacts with ${own.name}: ${spell.name} a rank lower, its targets +${entry.bonus} against it`);
+                return { spell: { ...spell, castRank: Math.max(Number(spell.plan?.rank) || 1, rank - entry.reduce), countered: entry.bonus } };
+            }
+            const roll = check();
+            log(state, `  ${c.name} reacts with ${own.name} against ${spell.name}: ${roll.total} vs ${effectDC(spell)} → ${roll.success ? (entry.kind === "riposte" ? `turned back on ${caster.name}` : "learned") : "not counteracted"}`);
+            if (!roll.success) return null;
+            if (entry.kind === "riposte") return { targets: [caster] };
+            // (Mimic Spell: the spell its own to cast once, at the mimic's rank and its numbers — the triggering one goes on.)
+            const pool = `mimic:${c.id}:${spell.name}`;
+            c.spells = [...c.spells, { ...spell, name: `${spell.name} (mimicked)`, castRank: Number(own.castRank) || rank, dc: own.dc, attack: own.attack, pool, kind: undefined }];
+            (c.spellPools ??= {})[pool] = 1;
+            return null;
+        }
+    }
+    return null;
+}
+
+// An ally's damage met by a reaction spell that takes it on (fight.js-free: actions.js applyDamage calls it, with the damage after the
+// ally's own resistances): the total the ally still takes. A guard uses one when the damage would drop the ally — or, for a share, when
+// it's a quarter of the ally's Hit Points —, it's in range, and it lives through what it takes on; what it takes ignores its own
+// resistances (dealDamage).
+export function guardSpells(state, target, total, { source = null, critical = false, nonlethal = false, physical = false } = {}) {
+    if (!(total > 0)) return total;
+    const lethal = total >= Math.max(0, target.hp.value) + (target.hp.temp ?? 0);
+    const close = (guard, within) => sameMelee(guard, target) || (within >= 15 && guard.band !== "far" && target.band !== "far" && guard.band !== "gone");
+    const own = (guard, index) => guard.spells?.[index];
+    const ready = (guard, index) => isActive(guard) && canAct(guard) && !guard.cond.fleeing && own(guard, index) && canReact(guard, own(guard, index).name) && poolReady(guard, own(guard, index));
+    const use = (guard, index, words) => {
+        const spell = own(guard, index);
+        spendReaction(guard, spell.name);
+        spendPool(guard, spell);
+        state.stats.reactions++;
+        log(state, `  ${guard.name} reacts with ${spell.name}${words}`);
+    };
+    const lives = (guard, taken) => Math.max(0, guard.hp.value) + (guard.hp.temp ?? 0) > taken;
+    // (Love's Sacrifice: the caster's own lethal damage on the ally beside it with the most Hit Points.)
+    if (lethal && target.loveSacrifice && ready(target, target.loveSacrifice.index)) {
+        const ally = state.list.filter((other) => other !== target && other.side === target.side && isActive(other) && other.kind !== "object" && close(other, 30) && lives(other, total)).sort((a, b) => b.hp.value - a.hp.value)[0];
+        if (ally) {
+            use(target, target.loveSacrifice.index, `: ${ally.name} takes the blow`);
+            dealDamage(state, ally, total, { source, critical, nonlethal });
+            return 0;
+        }
+    }
+    for (const guard of state.list) {
+        if (guard === target || guard.side !== target.side || !guard.guardSpells?.length) continue;
+        for (const entry of guard.guardSpells) {
+            if (!ready(guard, entry.index) || !close(guard, entry.within)) continue;
+            if (entry.kind === "martyr") {
+                if (!lethal || (entry.requiresUnwounded && (guard.cond.wounded ?? 0) > 0)) continue;
+                const keep = Math.max(0, Math.max(0, target.hp.value) + (target.hp.temp ?? 0) - 1);
+                if (!lives(guard, total - keep)) continue;
+                use(guard, entry.index, ` for ${target.name}`);
+                dealDamage(state, guard, total - keep, { source, critical, nonlethal });
+                for (const c of [guard, target]) c.cond.wounded = (c.cond.wounded ?? 0) + entry.wounded;
+                return keep;
+            }
+            if (entry.kind === "champion") {
+                if (!lethal || !lives(guard, total)) continue;
+                use(guard, entry.index, ` for ${target.name}`);
+                dealDamage(state, guard, total, { source, critical, nonlethal });
+                return 0;
+            }
+            if (entry.kind === "share") {
+                if (!lethal && total < 0.25 * (target.hp.max ?? 0)) continue;
+                const moved = Math.min(entry.amount, total);
+                if (!(moved > 0) || !lives(guard, moved)) continue;
+                use(guard, entry.index, ` for ${target.name}: ${moved} on itself`);
+                dealDamage(state, guard, moved, { source, critical, nonlethal });
+                return total - moved;
+            }
+        }
+    }
+    return total;
+}
+
+// Retributive Pain: a creature in range that damaged it — half of it, mental, back (a basic Fortitude save), when it took a sixth of its
+// Hit Points or more.
+export function retributionAnswer(state, target, source, dealt) {
+    const entry = target.retribution;
+    const spell = target.spells?.[entry?.index];
+    if (!spell || !source || source === target || source.side === target.side || !isActive(source) || !isActive(target) || !canAct(target) || !canReact(target, spell.name) || !poolReady(target, spell)) return;
+    if (!(sameMelee(source, target) || (source.band !== "far" && target.band !== "far"))) return;
+    if (dealt < (target.hp.max ?? 0) / 6) return;
+    spendReaction(target, spell.name);
+    spendPool(target, spell);
+    state.stats.reactions++;
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + saveModifier(source, "fortitude") + saveBonusAgainst(source, "fortitude", spell), effectDC(spell), natural);
+    const amount = Math.floor(Math.floor(dealt * entry.fraction) * [2, 1, 0.5, 0][degree]);
+    log(state, `  ${target.name} reacts with ${spell.name}: ${source.name} ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}`);
+    if (amount > 0) applyDamage(state, source, [{ type: entry.type, amount, persistent: false, precision: false }], { source: target, nonlethal: true });
+}
+
+// What a reaction spell that guards is worth as a cast (the ratings cast a reaction as an action): about half a big hit kept off the
+// ally it's for — the party's front, the ally foes' best Strikes hit hardest — (the guard takes it on, or the hit no longer drops it), a
+// resistance's share of that hit, or half a hit on the caster paid back at a foe at about half its save.
+function guardEntries(state, caster, guard) {
+    const foes = state.list.filter((other) => other.side !== caster.side && isActive(other));
+    const hit = (target) => Math.max(0, ...foes.flatMap((foe) => (foe.strikes ?? []).filter((strike) => strikeUsable(foe, strike)).map((strike) => expectedHitDamage(foe, strike, target, false))));
+    const allies = state.list.filter((other) => other.side === caster.side && isActive(other) && other !== caster && other.kind !== "object");
+    const ward = allies.sort((a, b) => hit(b) / Math.max(1, b.hp.max) - hit(a) / Math.max(1, a.hp.max))[0] ?? caster;
+    const none = { damage: 0, worth: 0, heal: 0, benefit: 0 };
+    if (guard.kind === "share") return [{ target: ward, ...none, heal: 0.5 * Math.min(guard.amount, hit(ward)) }];
+    if (guard.kind === "martyr" || guard.kind === "champion") return [{ target: ward, ...none, heal: 0.5 * hit(ward) }];
+    if (guard.kind === "love") return [{ target: caster, ...none, heal: 0.5 * hit(caster) }];
+    if (guard.kind === "resist") return [{ target: caster, ...none, heal: Math.min(guard.amount, hit(caster)) }];
+    if (guard.kind === "retribution") {
+        const foe = foes[0];
+        return foe ? [{ target: foe, ...none, damage: 0.5 * guard.fraction * hit(caster) }] : [];
+    }
+    return [];
 }
 
 // Shadow Siphon at a spell about to damage the reactor's side: worth its slot when it would take a quarter of the reactor's Hit Points from
@@ -2289,7 +2493,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     const info = describeSpell(spell.plan, actions);
     // (B316: evenDown — Death Strike at a creature the spell just dropped.)
     const reachable = (target) => isActive(target) || target === caster || ((info.healing || info.dying || evenDown) && target.status === DOWN);
-    const targets = targetIds.map((id) => state.byId.get(id)).filter((target) => target && reachable(target));
+    let targets = targetIds.map((id) => state.byId.get(id)).filter((target) => target && reachable(target));
     spendPool(caster, spell);
     // (A lingering area's later save: its own line, not a new cast.)
     if (spell.fromZone) log(state, `  ${spell.name} on ${targets.map((target) => target.name).join(", ")}`);
@@ -2299,6 +2503,13 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // one; "uses" for a basic action — Grapple, Demoralize — or a creature's ability.)
     else log(state, `  ${caster.name} ${!spell.kind || spell.castsSpell ? "casts" : "uses"} ${spell.name}${spell.from ? ` from ${spell.from}` : ""}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
     if (spell.kind === "item" && state.stats) state.stats[caster.side === "party" ? "partyItemsUsed" : "foeItemsUsed"]++;
+    // (2026-10-22, family 2: a foe's counterspell as it's cast — Nullify, Arcane Countermeasure, Spell Riposte, Mimic Spell.)
+    if (!spell.fromZone && !disrupted) {
+        const answer = counterspellAnswer(state, caster, spell, targets);
+        if (answer?.stopped) return;
+        if (answer?.spell) spell = answer.spell;
+        if (answer?.targets) targets = answer.targets.filter((target) => target && reachable(target));
+    }
     // (I1: a creature immune to the effect's trait — a mindless one to a mental effect, a construct to a death effect — is unaffected.)
     for (const target of [...targets]) {
         const immunity = effectImmunity(target, spell);
@@ -3441,6 +3652,9 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         }
         return result;
     }
+    // (2026-10-22, family 2: a reaction spell that guards an ally or pays a hit back — guardEntries.)
+    const guard = spell.plan?.activation?.time === "reaction" ? reactionGuardOf(spell, caster) : null;
+    if (guard) return guardEntries(state, caster, guard);
     // (Its caster's touch made harmful: the damage its foes' touching hits can expect — as a retaliation potion's.)
     // (Vibrant Thorns: with a spell of the trait that feeds it — vitality — at hand, half its hits at the higher damage.)
     let ownRetaliation = planRetaliation(spell);

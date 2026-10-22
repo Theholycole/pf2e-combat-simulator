@@ -14,7 +14,7 @@ import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNextStrike, takeAttackFortune } from "./effects.js";
-import { actionTraits, applyCondition, applyMove, castPlan, castSpell, deathThroes, markOn, poolReady, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { actionTraits, applyCondition, applyMove, castPlan, castSpell, deathThroes, guardSpells, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
@@ -608,6 +608,17 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             natural = roll();
             degree = degreeOf(natural + modifier + bonus, ac + defence, natural);
         }
+    }
+    // (2026-10-22, Perfect Strike: a missed unarmed Strike rerolled, the new result kept — its reaction and focus.)
+    const perfect = attacker.attackReroll;
+    const perfectSpell = perfect ? attacker.spells?.[perfect.fromSpell] : null;
+    if (degree <= FAILURE && perfect && (!perfect.unarmed || strike.unarmed) && perfectSpell && canReact(attacker, perfect.name) && poolReady(attacker, perfectSpell)) {
+        spendReaction(attacker, perfect.name);
+        spendPool(attacker, perfectSpell);
+        state.stats.reactions++;
+        natural = roll();
+        degree = degreeOf(natural + modifier + bonus, ac + defence, natural);
+        log(state, `  ${attacker.name} reacts with ${perfect.name}: ${natural + modifier + bonus} on the reroll`);
     }
     // Flash of Brutality (B118): once a day (again after its Ferocity, where it says so), its first hit a critical one.
     if (degree === SUCCESS && !reaction && attacker.critUpgrade && (attacker.critUpgradesUsed ?? 0) < attacker.critUpgrade.uses) {
@@ -1279,6 +1290,9 @@ export function applyDamage(state, target, instances, { source = null, critical 
         if (reaction.slug === "destructive-vengeance") retribution = { vengeance: champion };
         if (reaction.slug === "iron-command") retribution = { ironCommand: champion };
     }
+    // (2026-10-22, family 2: a reaction spell that takes on an ally's harm — Protector's Sacrifice, Martyr's Intervention, Champion's
+    // Sacrifice, Love's Sacrifice: spells.js guardSpells.)
+    if (!intercepted && source && source.side !== target.side && adjusted.total > 0) adjusted.total = guardSpells(state, target, adjusted.total, { source, critical, nonlethal, physical });
     // Swallow Whole: piercing or slashing damage of at least the Rupture value from one attack frees who's inside.
     if (state.list.some((other) => other.swallowedBy === target.id)) {
         const cutting = instances.filter((instance) => instance.type === "piercing" || instance.type === "slashing").reduce((sum, instance) => sum + adjustInstance(target, instance.type, instance.amount, instance.precision), 0);
@@ -1310,6 +1324,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
     if (dealt > 0 && isActive(target)) triggeredSelfEffect(state, target, (trigger) => (trigger.kind === "hp-at-most" && target.hp.value <= trigger.value) || trigger.kind === "damaged");
     // Solar Flare, Caustic Blood: the monster's reaction to damage on it (B44).
     if (dealt > 0) reactToDamage(state, target, source, instances.filter((instance) => instance.amount > 0).map((instance) => instance.type));
+    // (Retributive Pain: half of it back at its source.)
+    if (dealt > 0 && target.retribution) retributionAnswer(state, target, source, dealt);
     // (T4–T7: what the damage sets off on it — Protean Anatomy, a troop's thresholds, Split ("would deal": its types, immune or not), an
     // elemental dragon's Countered by and Fed by.)
     const types = instances.filter((instance) => instance.amount > 0 && !instance.persistent).map((instance) => instance.type);

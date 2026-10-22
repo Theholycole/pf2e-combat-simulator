@@ -969,3 +969,81 @@ test("rating fixes: Guidance's bonus on its own name; Dispel Magic against foes 
     castSpell(state, cleric, 0, [fighter.id]);
     assert.equal(fighter.afflictions.length, 0, state.log.join("\n"));
 });
+
+test("reaction spells that guard (family 2): Protector's Sacrifice's share, Martyr's Intervention at 1 HP, Retributive Pain, Enduring Might", async () => {
+    const { spellReactions, reactionGuardOf } = await import("../src/engine/spells.js");
+    const { applyDamage } = await import("../src/engine/actions.js");
+    const { compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const entry = (name, castRank) => ({ name, castRank, pool: null, dc: 25, attack: 15, effects: {}, plan: compileSpell(spellNamed(name)) });
+    assert.deepEqual(reactionGuardOf(entry("Protector's Sacrifice", 3)), { kind: "share", amount: 9, within: 30 }, "3 a rank");
+    const fresh = () => createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), id: "monster", name: "Brute" }] }, { morale: false, retreat: false }, 1, { log: true });
+    // (Protector's Sacrifice: 3 of a big hit on the fighter, on the cleric.)
+    let state = fresh();
+    let cleric = state.byId.get("cleric");
+    const fighter = state.byId.get("fighter");
+    const brute = state.byId.get("monster");
+    cleric.spells = [entry("Protector's Sacrifice", 1)];
+    spellReactions(cleric);
+    let hp = { fighter: fighter.hp.value, cleric: cleric.hp.value };
+    applyDamage(state, fighter, [{ type: "slashing", amount: Math.ceil(fighter.hp.max / 2), persistent: false, precision: false }], { source: brute, physical: true });
+    assert.equal(hp.cleric - cleric.hp.value, 3);
+    assert.equal(hp.fighter - fighter.hp.value, Math.ceil(fighter.hp.max / 2) - 3);
+    // (Martyr's Intervention: the rogue kept at 1, the rest on the cleric, both wounded.)
+    state = fresh();
+    cleric = state.byId.get("cleric");
+    const rogue = state.byId.get("rogue");
+    cleric.spells = [entry("Martyr's Intervention", 3)];
+    spellReactions(cleric);
+    rogue.hp.value = 10;
+    hp = cleric.hp.value;
+    applyDamage(state, rogue, [{ type: "slashing", amount: 14, persistent: false, precision: false }], { source: state.byId.get("monster"), physical: true });
+    assert.equal(rogue.hp.value, 1);
+    assert.equal(hp - cleric.hp.value, 5);
+    assert.equal(rogue.cond.wounded, 1);
+    // (Retributive Pain: half back as mental.)
+    state = fresh();
+    cleric = state.byId.get("cleric");
+    cleric.spells = [entry("Retributive Pain", 4)];
+    spellReactions(cleric);
+    state.rng.d20 = () => 5;
+    applyDamage(state, cleric, [{ type: "slashing", amount: 20, persistent: false, precision: false }], { source: state.byId.get("monster"), physical: true });
+    assert.ok(state.log.some((line) => /reacts with Retributive Pain/.test(line)), state.log.join("\n"));
+    // (Enduring Might: resistance 2 a rank plus its Strength.)
+    state = fresh();
+    cleric = state.byId.get("cleric");
+    cleric.spells = [entry("Enduring Might", 4)];
+    spellReactions(cleric);
+    assert.equal(cleric.resistReaction?.value, 9, "8 + the cleric's Strength +1");
+});
+
+test("counterspells and rerolls (family 2): Nullify undoes a foe's spell; Spell Riposte turns it back; Lucky Break rerolls a failed save", async () => {
+    const { castSpell, spellReactions } = await import("../src/engine/spells.js");
+    const { compileSpell, effectModels, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const entry = (name, castRank) => { const plan = compileSpell(spellNamed(name)); return { name, castRank, pool: null, dc: 40, attack: 30, effects: effectModels(plan, castRank), plan }; };
+    const fresh = () => createFightState({ combatants: [...standardParty(19), { ...moderateCreatureAt(19, "monster"), id: "monster", name: "Mage" }] }, { morale: false, retreat: false }, 1, { log: true });
+    let state = fresh();
+    let wizard = state.byId.get("wizard");
+    let mage = state.byId.get("monster");
+    wizard.spells = [entry("Nullify", 10)];
+    spellReactions(wizard);
+    mage.spells = [{ ...entry("Fireball", 9), dc: 38, attack: 28 }];
+    const hp = state.list.filter((c) => c.side === "party").map((c) => c.hp.value);
+    castSpell(state, mage, 0, state.list.filter((c) => c.side === "party").map((c) => c.id));
+    assert.ok(state.log.some((line) => /reacts with Nullify: Fireball is undone/.test(line)), state.log.join("\n"));
+    assert.ok(state.list.filter((c) => c.side === "party" && c.id !== "wizard").every((c, index) => c.hp.value === hp[state.list.filter((o) => o.side === "party").indexOf(c)]), "no one burned");
+    state = fresh();
+    wizard = state.byId.get("wizard");
+    mage = state.byId.get("monster");
+    wizard.spells = [entry("Spell Riposte", 7)];
+    spellReactions(wizard);
+    mage.spells = [{ ...entry("Disintegrate", 6), dc: 30, attack: 20 }];
+    state.rng.d20 = () => 15;
+    castSpell(state, mage, 0, [wizard.id]);
+    assert.ok(state.log.some((line) => /Spell Riposte against Disintegrate: .* turned back on Mage/.test(line)), state.log.join("\n"));
+    // (Lucky Break: a failed save rerolled.)
+    state = fresh();
+    const cleric = state.byId.get("cleric");
+    cleric.spells = [entry("Lucky Break", 4)];
+    spellReactions(cleric);
+    assert.deepEqual(cleric.saveReroll, { name: "Lucky Break", failureOnly: true, fromSpell: 0 });
+});
