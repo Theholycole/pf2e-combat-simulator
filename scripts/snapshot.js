@@ -7,7 +7,7 @@ import { canCast, isUtility, poolCost, spellGaps } from "../src/engine/spells.js
 import { levelDC } from "../src/engine/checks.js";
 import { beltHeld, bombRider, drawActions, hasTrigger, isBelt, itemTriggered, isStaffItem, itemCasts, itemEntry, itemFortune, itemReduceTrigger, itemStrikeActivity, verifiedPlan, SPELL_ITEMS, staffCharges, staffSpellList, trickSkills } from "../src/adapter/items.js";
 import { maneuverWays, withReading } from "../src/engine/readings.js";
-import { effectModel, iwrException } from "../src/engine/effects.js";
+import { effectModel, iwrException, resolveAuraGrants } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions, shareRecharges } from "../src/engine/abilities.js";
 import { requirementPlayable } from "../src/engine/needs.js";
 import { markParts, toggleWays } from "../src/engine/toggles.js";
@@ -947,7 +947,12 @@ export async function effectModels(plan, castRank) {
     const models = {};
     for (const uuid of uuids) {
         const item = await effectItem(uuid);
-        if (item) models[uuid] = effectModel(item, { rank: castRank, conditionSlug });
+        if (!item) continue;
+        const model = effectModel(item, { rank: castRank, conditionSlug });
+        // (An aura's granted effects — Protector's Sphere's —, fetched first: resolveAuraGrants reads them as they come.)
+        const granted = new Map();
+        for (const grant of model.auraGrants ?? []) granted.set(grant.uuid, await effectItem(grant.uuid));
+        models[uuid] = resolveAuraGrants(model, (id) => granted.get(id) ?? null, { rank: castRank, conditionSlug });
     }
     return models;
 }

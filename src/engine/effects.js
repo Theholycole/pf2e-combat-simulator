@@ -59,15 +59,25 @@ export function numericValue(value, rank) {
 
 // true or false for predicates on the effect's level; null for anything else
 // (roll options, traits, choices: situations the engine doesn't track).
-function predicateHolds(predicate, rank) {
+// toggles: the effect's own toggleable roll options, on or off as it starts (2026-10-22: Shielding Formation's +1 AC while its resistance
+// isn't chosen, Levitate's −2 to attacks until the creature steadies itself — before, any predicate left the rule out).
+function predicateHolds(predicate, rank, toggles = null) {
     if (!predicate || (Array.isArray(predicate) && !predicate.length)) return true;
     const terms = Array.isArray(predicate) ? predicate : [predicate];
     for (const term of terms) {
-        const held = rankTerm(term, rank);
+        const held = toggleTerm(term, toggles) ?? rankTerm(term, rank);
         if (held === null) return null;
         if (!held) return false;
     }
     return true;
+}
+
+// A term one of the effect's own toggles settles: the option on ("x"), or off ({ not: "x" }); null for another.
+function toggleTerm(term, toggles) {
+    if (!toggles?.size) return null;
+    if (typeof term === "string" && toggles.has(term)) return toggles.get(term);
+    if (typeof term?.not === "string" && toggles.has(term.not)) return !toggles.get(term.not);
+    return null;
 }
 
 // A term the effect's rank settles — its level as PF2e writes it ("parent:origin:item:level", "{item|level}" too), or "a character or an
@@ -180,6 +190,7 @@ export function iwrException(exception) {
 export function effectModel(item, { rank = 1, conditionSlug = () => null } = {}) {
     const model = { name: item?.name ?? "Effect", rounds: roundsOf(item?.system?.duration), modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
     const unsupported = new Set();
+    const toggles = new Map((item?.system?.rules ?? []).filter((rule) => rule?.key === "RollOption" && rule.toggleable && typeof rule.option === "string" && !rule.option.includes("{")).map((rule) => [rule.option, rule.value === true]));
     for (const rule of item?.system?.rules ?? []) {
         // (Sight and light, 2026-10-21 — the user: "I also want spells that need foe traits since i want those to be tracked too in the
         // simulator": the senses an effect gives — Darkvision's —, model.senses; the light it sheds — the Light cantrip's, a lantern's light
@@ -192,6 +203,13 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
         if (rule?.key === "Aura" && [].concat(rule.traits ?? []).includes("light")) {
             const radius = numericValue(rule.radius, rank);
             if (radius > 0) model.light = { bright: radius, dim: 0, rank };
+        }
+        // (2026-10-22, Protector's Sphere: an aura that grants an effect to those in it — model.auraGrants { radius, affects, includesSelf,
+        // uuid }; the builders put the granted effect's own model on each, model.aura — resolveAuraGrants.)
+        if (rule?.key === "Aura" && Array.isArray(rule.effects) && rule.effects.length) {
+            const radius = numericValue(rule.radius, rank);
+            for (const entry of rule.effects) if (radius > 0 && typeof entry?.uuid === "string") (model.auraGrants ??= []).push({ radius, affects: entry.affects ?? "all", includesSelf: entry.includesSelf !== false, uuid: entry.uuid });
+            continue;
         }
         // (Flying and incorporeal, 2026-10-21: a fly Speed it gives — Fly's —, model.flies; runes and traits it adds to Strikes — Ghostly
         // Weapon's ghost touch, a plane's holy —, model.strikeAdds, on the creature's Strikes at its best.)
@@ -219,7 +237,7 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null } = {})
             model.battleForm ??= form;
             continue;
         }
-        const holds = predicateHolds(rule.predicate, rank);
+        const holds = predicateHolds(rule.predicate, rank, toggles);
         if (holds === false) continue;
         // (2026-10-15: a predicate the roll can settle — kept with the rule; another, reported when the rule is about a fight.)
         let when = null;
@@ -461,6 +479,25 @@ export function takeAttackFortune(c) {
 // duration ends it at the start of the source's turn that many rounds later.
 // applyCondition: the spells layer's, for the conditions the effect grants.
 // counter: { dc, rank, spell } — what a counteract (Dispel Magic) checks against (counteract.js).
+// An aura's granted effects, each with its model (model.aura): itemOf(uuid) → the PF2e effect item, or null.
+export function resolveAuraGrants(model, itemOf, options) {
+    if (!model?.auraGrants?.length) return model;
+    const aura = model.auraGrants.map((grant) => {
+        const item = itemOf(grant.uuid);
+        return item ? { ...grant, model: effectModel(item, options) } : null;
+    }).filter(Boolean);
+    return aura.length ? { ...model, aura } : model;
+}
+
+// Who an aura about its bearer reaches now, in the bands (as an emanation about a caster: its Melee, and from 30 feet the creatures standing
+// apart in the near band): its allies, its enemies or all, the bearer itself as the grant says.
+export function auraRecipients(state, bearer, grant) {
+    const inside = (other) => other.status === "active" && !other.swallowedBy && !other.insideObject;
+    const reaches = (other) => (bearer.meleeId !== null && bearer.meleeId !== undefined && other.meleeId === bearer.meleeId) || (grant.radius >= 30 && other.band !== "far" && bearer.band !== "far" && other.band !== "gone");
+    const side = (other) => (grant.affects === "allies" ? other.side === bearer.side : grant.affects === "enemies" ? other.side !== bearer.side : true);
+    return (state?.list ?? []).filter((other) => inside(other) && (other === bearer ? grant.includesSelf && grant.affects !== "enemies" : side(other) && reaches(other)));
+}
+
 export function applyEffect(state, target, model, source, { applyCondition, key = model.name, counter = null } = {}) {
     for (const existing of (target.effects ?? []).filter((effect) => effect.key === key)) removeEffect(target, existing);
     // (A resistance of a chosen type: the choice that keeps most off it from its foes now, else the first.)
@@ -481,6 +518,8 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
     const duration = Number.isFinite(model.rounds) ? { mode: "fixed", value: model.rounds, unit: "rounds" } : null;
     for (const condition of model.conditions) applyCondition?.(state, target, condition.slug, condition.value, duration, source);
     if (Number.isFinite(model.rounds)) (target.timers ??= []).push({ effect, round: state.round + model.rounds, turnOf: source?.id ?? target.id });
+    // (An aura's granted effects — Protector's Sphere's resistance —: on those it reaches as it's raised, for its time.)
+    for (const grant of model.aura ?? []) for (const other of auraRecipients(state, target, grant)) applyEffect(state, other, { ...grant.model, rounds: model.rounds }, source, { applyCondition, key: `${key}:aura` });
     return effect;
 }
 

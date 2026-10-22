@@ -277,3 +277,61 @@ test("persistent damage counted for what it adds: a target already burning with 
     assert.ok(Math.abs(fresh - 22) < 0.01, `fresh ${fresh}`);
     assert.ok(Math.abs(burning - 1) < 0.01, `burning ${burning}`);
 });
+
+test("Earthbind: a save's 'falls' rows bring a flier down — landed until its turn, grounded for a round or a minute — and its foes reach it", async () => {
+    const { applyCondition, expireTimers } = await import("../src/engine/spells.js");
+    const { aloft, stridesToEngage } = await import("../src/engine/space.js");
+    const { groundDamage } = await import("../src/engine/actions.js");
+    const { takeTurn } = await import("../src/engine/fight.js");
+    const row = (rawText) => ({ damage: { mode: "none" }, effects: [], rawText });
+    const plan = withReading({ resolution: { kind: "save", check: { statistic: "fortitude" }, outcomes: { criticalSuccess: row("The target is unaffected."), success: row("The target falls safely up to 120 feet."), failure: row("The target falls safely up to 120 feet. If it hits the ground, it can't Fly, levitate, or otherwise leave the ground for 1 round."), criticalFailure: row("The target falls safely up to 120 feet. If it hits the ground, it can't Fly, levitate, or otherwise leave the ground for 1 minute.") } } });
+    const slugOf = (degree) => plan.resolution.outcomes[degree].effects.map((effect) => `${effect.slug}${effect.duration ? ` ${effect.duration.value} ${effect.duration.unit}` : ""}`);
+    assert.deepEqual(slugOf("success"), ["landed"]);
+    assert.deepEqual(slugOf("failure"), ["grounded 1 rounds"]);
+    assert.deepEqual(slugOf("criticalFailure"), ["grounded 1 minutes"]);
+    assert.deepEqual(slugOf("criticalSuccess"), []);
+    const state = createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), id: "monster", name: "Test Wyvern", flies: true }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wyvern = state.byId.get("monster");
+    const fighter = state.byId.get("fighter");
+    assert.ok(aloft(wyvern) && stridesToEngage(fighter, wyvern) === Infinity);
+    assert.ok(groundDamage(state, wyvern, 1) > 0, "the fighter's sword over its bow");
+    applyCondition(state, wyvern, "grounded", null, { mode: "fixed", value: 1, unit: "rounds" }, state.byId.get("wizard"));
+    assert.ok(!aloft(wyvern) && stridesToEngage(fighter, wyvern) === 1);
+    wyvern.actionsLeft = 3;
+    takeTurn(state, wyvern);
+    assert.ok(wyvern.cond.grounded && wyvern.cond.landed, "still down through its own turn");
+    state.round += 1;
+    expireTimers(state, state.byId.get("wizard"), "start");
+    assert.ok(!wyvern.cond.grounded && wyvern.cond.landed, "ungrounded, but on the ground until its next turn");
+});
+
+test("an aura's granted effect on the creatures it reaches (Protector's Sphere); an effect's own toggles as they start (Shielding Formation)", async () => {
+    const { resolveAuraGrants, auraRecipients } = await import("../src/engine/effects.js");
+    const granted = { name: "Effect: Protector's Sphere", system: { duration: { unit: "minutes", value: 1 }, rules: [{ key: "Resistance", type: "all-damage", value: 3 }] } };
+    const aura = resolveAuraGrants(effectModel({ name: "Aura: Protector's Sphere", system: { duration: { unit: "minutes", value: 1 }, rules: [{ key: "Aura", radius: 15, effects: [{ affects: "allies", uuid: "x" }] }] } }, { rank: 4 }), (uuid) => (uuid === "x" ? granted : null), { rank: 4 });
+    assert.equal(aura.aura?.[0]?.model.resistances[0].value, 3);
+    const state = createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1);
+    const cleric = state.byId.get("cleric");
+    const fighter = state.byId.get("fighter");
+    const { engage } = await import("../src/engine/space.js");
+    engage(state, cleric, state.byId.get("monster"));
+    engage(state, fighter, state.byId.get("monster"));
+    assert.deepEqual(auraRecipients(state, cleric, aura.aura[0]).map((c) => c.id).sort(), ["cleric", "fighter"], "itself and the ally in its Melee — not the foe");
+    applyEffect(state, cleric, aura, cleric, {});
+    assert.ok(fighter.effects.some((effect) => effect.model.resistances?.[0]?.type === "all-damage"));
+    const shielding = effectModel({ name: "Shielding Formation", system: { rules: [{ key: "RollOption", option: "shielding-formation-resistance", toggleable: true }, { key: "FlatModifier", predicate: [{ not: "shielding-formation-resistance" }], selector: "ac", type: "circumstance", value: 1 }, { key: "Resistance", predicate: ["shielding-formation-resistance"], type: "all-damage", value: 10 }] } }, { rank: 4 });
+    assert.deepEqual(shielding.modifiers.map((m) => [m.on, m.value]), [["ac", 1]]);
+    assert.equal(shielding.resistances.length, 0);
+});
+
+test("a spell for an object or a willing creature goes to no foe (Levitate)", async () => {
+    const { targetSets } = await import("../src/engine/spells.js");
+    const state = createFightState({ combatants: [...standardParty(5), { ...moderateCreatureAt(5, "monster"), id: "monster" }] }, { morale: false, retreat: false }, 1);
+    const wizard = state.byId.get("wizard");
+    const foe = state.byId.get("monster");
+    const spell = (target) => ({ name: "Test", plan: { targeting: { target, range: "touch" }, resolution: { kind: "effect", applications: [] } } });
+    const env = { enemies: [foe], allies: [], inMelee: () => true, distance: () => 5, meleeId: null };
+    const reachesFoe = (target) => targetSets(state, wizard, spell(target), env).some((set) => set.targets.includes(foe));
+    assert.equal(reachesFoe("1 unattended object or willing creature"), false);
+    assert.equal(reachesFoe("1 creature or object"), true);
+});

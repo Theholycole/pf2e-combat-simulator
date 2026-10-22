@@ -70,7 +70,7 @@ function withRecurringSaves(plan) {
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
     const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withOutline(withConcealedTo(withArea(resolved)))))));
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withGrounding(withOutline(withConcealedTo(withArea(resolved))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -93,6 +93,26 @@ function withOutline(plan) {
         changed = true;
         const duration = { mode: "fixed", value: Number(lasts[1]), unit: `${lasts[2].toLowerCase()}s` };
         return [degree, { ...row, effects: [{ kind: "condition", slug: "dazzled", value: null, duration }, { kind: "condition", slug: "outlined", value: null, duration }] }];
+    }));
+    return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
+}
+
+// Earthbind (2026-10-22, flying tracked — the user: "Keep working on the foe trait work"): a save's row that says the target falls ("falls
+// safely up to 120 feet"), with nothing of its own — landed, down until its next turn; one that also says it "can't Fly … for 1 round" (or
+// a minute) — grounded for that time (space.js fliesNow: no longer aloft, so foes that don't fly reach it).
+const FALLS = /\bfalls?\b(?:\s+\w+){0,3}\s+(?:up to \d+ feet|to the ground)|\bfalls safely\b/i;
+const CANT_FLY = /\bcan(?:'|’|no)t (?:Fly|fly)\b[^.]*?\bfor (\d+|one|a) (round|minute)s?\b/i;
+function withGrounding(plan) {
+    const resolution = plan?.resolution;
+    if (resolution?.kind !== "save") return plan;
+    let changed = false;
+    const outcomes = Object.fromEntries(Object.entries(resolution.outcomes ?? {}).map(([degree, row]) => {
+        const words = rowWords(plan, degree, row);
+        if ((row?.effects ?? []).length || !FALLS.test(words)) return [degree, row];
+        changed = true;
+        const grounded = CANT_FLY.exec(words);
+        const value = grounded ? (/^\d+$/.test(grounded[1]) ? Number(grounded[1]) : 1) : null;
+        return [degree, { ...row, effects: [grounded ? { kind: "condition", slug: "grounded", value: null, duration: { mode: "fixed", value, unit: `${grounded[2].toLowerCase()}s` } } : { kind: "condition", slug: "landed", value: null, duration: null }] }];
     }));
     return changed ? { ...plan, simulatorReading: true, resolution: { ...resolution, outcomes } } : plan;
 }

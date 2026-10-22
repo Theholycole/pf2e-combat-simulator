@@ -149,13 +149,14 @@ export function powerRanks(doc) {
 // weak to it) and an unholy one's (celestials), and its targets'.
 export function powerConditions(plan, effects = null, text = "") {
     const traits = new Set();
-    // (Resistance to a damage type — its effects', its rules', its text's —: against foes whose Strikes deal it; "physical", all three.)
+    // (Resistance to a damage type — its effects', its rules', its text's —: against foes whose Strikes deal it; "physical", all three. Not
+    // all-damage: as good against any type — 2026-10-22, Protector's Sphere rated the same against each.)
     const resisted = new Set([
         ...Object.values(effects ?? {}).flatMap((model) => (model?.resistances ?? []).flatMap((entry) => (entry.type === "choice" ? entry.choices : [entry.type]))),
         ...[...JSON.stringify(plan?.resolution ?? null).matchAll(/"key":"Resistance","type":"([a-z-]+)"/g)].map((match) => match[1]),
         ...[...String(text).matchAll(/\bresistance \d+ to ([a-z ,]+?)(?:\.|;|$| damage| and \w+ saves)/gi)].flatMap((match) => match[1].split(/,|\band\b/).map((word) => word.trim().toLowerCase()))
     ]);
-    for (const type of DAMAGE_TYPES) if (resisted.has(type) || (resisted.has("physical") && ["bludgeoning", "piercing", "slashing"].includes(type)) || (resisted.has("all-damage") && !["bludgeoning", "piercing", "slashing"].includes(type))) traits.add(`deals:${type}`);
+    for (const type of DAMAGE_TYPES) if (resisted.has(type) || (resisted.has("physical") && ["bludgeoning", "piercing", "slashing"].includes(type))) traits.add(`deals:${type}`);
     // (The rated foes deal slashing already.)
     traits.delete("deals:slashing");
     // (Sight and light — light.js, 2026-10-21: darkness against foes without darkvision; light in an unlit fight and on light-blind foes;
@@ -176,6 +177,8 @@ export function powerConditions(plan, effects = null, text = "") {
     }
     // (An outline — Faerie Fire, Revealing Light —: against invisible foes.)
     if (/"slug":"outlined"/.test(JSON.stringify(plan?.resolution ?? null))) traits.add("invisible");
+    // (Bringing a flier down — Earthbind —: against flying foes.)
+    if (/"slug":"(?:landed|grounded)"/.test(JSON.stringify(plan?.resolution ?? null))) traits.add("flying");
     if ((plan?.traits ?? []).includes("holy")) traits.add("fiend");
     if ((plan?.traits ?? []).includes("unholy")) traits.add("celestial");
     // (Circle of Protection: against unholy or holy foes.)

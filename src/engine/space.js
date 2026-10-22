@@ -134,7 +134,9 @@ export function rangePenalty(strike, distance) {
 // Strides needed to engage the target from the attacker's current band; with
 // a map objective, at least those its distance on the map takes.
 // Flying (2026-10-21, the user's foe traits: flying and incorporeal). A creature flies by its own fly Speed or an effect's (Fly's).
-export const fliesNow = (c) => Boolean(c?.flies) || (c?.effects ?? []).some((effect) => effect.model?.flies);
+// (Earthbind, 2026-10-22: brought down — landed until its own next turn, when it can take off again; grounded, it can't fly at all while
+// that lasts.)
+export const fliesNow = (c) => (Boolean(c?.flies) || (c?.effects ?? []).some((effect) => effect.model?.flies)) && !c?.cond?.grounded && !c?.cond?.landed;
 
 // Incorporeal (2026-10-21, the user: "They should always have the option to fly into the floor for safety but gain slowed 1 if they end in
 // the floor/wall"; PF2e's trait): it passes through solid things — on the grid, walls, blocked squares and others' spaces, ending in none

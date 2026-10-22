@@ -2,7 +2,7 @@
 // reactions Attack of Opportunity and Shield Block. Also damage, dying and
 // hero points.
 
-import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeOf, flatCheck, rollCheck } from "./checks.js";
+import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistribution, degreeOf, flatCheck, rollCheck } from "./checks.js";
 import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
 import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
 import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, spendAmmo, statusPenalty, strikeUsable } from "./combatant.js";
@@ -154,6 +154,23 @@ export function flightBenefit(state, c, rounds) {
     const foes = (state.list ?? []).filter((other) => other.side !== c.side && isActive(other));
     if (!foes.length || !(c.strikes ?? []).some((strike) => strike.melee)) return 0;
     return foes.filter((foe) => aloft(foe)).length / foes.length * 0.5 * (state.strikeShare?.get(c.id) ?? 1) * rounds;
+}
+
+// What bringing a flier down is worth (Earthbind, 2026-10-22): over rounds, the damage its foes that don't fly can do it in melee now, over
+// what their ranged Strikes did while it was aloft — two Strikes a round each, half of it for the moving in first. 0 for one not aloft.
+export function groundDamage(state, target, rounds) {
+    if (!aloft(target)) return 0;
+    const ac = armorClass(target);
+    let total = 0;
+    for (const watcher of state.list) {
+        if (watcher.side === target.side || !isActive(watcher) || fliesNow(watcher)) continue;
+        const round = (melee) => Math.max(0, ...(watcher.strikes ?? []).filter((strike) => strikeUsable(watcher, strike) && Boolean(strike.melee) === melee).map((strike) => [0, 1].reduce((sum, attack) => {
+            const dist = degreeDistribution(strike.bonus - multipleAttackPenalty(strike, attack), ac);
+            return sum + dist[SUCCESS] * expectedHitDamage(watcher, strike, target, false) + dist[CRITICAL_SUCCESS] * expectedHitDamage(watcher, strike, target, true);
+        }, 0)));
+        total += Math.max(0, round(true) - round(false));
+    }
+    return 0.5 * total * rounds;
 }
 
 export function expectedHitDamage(attacker, strike, target, critical, { bonus = 0, offGuardChance = 0, packAllies = 0 } = {}) {

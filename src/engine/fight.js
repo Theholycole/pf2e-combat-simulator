@@ -405,6 +405,8 @@ function startTurn(state, c) {
     }
     c.attacksThisTurn = 0;
     c.round = state.round;
+    // (Earthbind: brought down, it can take off again on its turn — unless grounded.)
+    if (c.cond.landed && !c.cond.grounded) c.cond.landed = false;
     c.riderReady = null;
     c.rendUsed = false;
     c.withdrewThisTurn = false;

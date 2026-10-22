@@ -13,8 +13,8 @@
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DOWN, armorClass, canAct, canMove, effectBonus, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
-import { applyEffect, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune } from "./effects.js";
-import { applyDamage, expectedHitDamage, flightBenefit, followUpStrike, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
+import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune } from "./effects.js";
+import { applyDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, increaseDying, killCreature, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
@@ -64,7 +64,10 @@ const FLAGS = {
     // (Dominate: it fights for its controller — control.js.)
     controlled: "controlled",
     // (2026-10-21, Faerie Fire, Revealing Light: not concealed, an invisible one concealed instead — sight.js.)
-    outlined: "outlined"
+    outlined: "outlined",
+    // (2026-10-22, Earthbind: a flier brought down — landed until its next turn, grounded unable to fly for a time — space.js fliesNow.)
+    landed: "landed",
+    grounded: "grounded"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -597,6 +600,11 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if (slug === "controlled" && !before) takeControl(state, target, source);
     // Quickened on its own turn (Shrieking Frenzy, Alchemical Amplification): the extra action now (B53).
     if (slug === "quickened" && !before && state.acting === target.id && Number.isFinite(target.actionsLeft)) target.actionsLeft += 1;
+    // (Earthbind: grounded, it's down on the ground too — landed until its next turn once the grounding ends.)
+    if (slug === "grounded" && !before) {
+        target.cond.landed = true;
+        log(state, `  ${target.name} is brought down to the ground`);
+    } else if (slug === "landed" && !before) log(state, `  ${target.name} falls to the ground`);
     // Fleeing for any reason is a morale trigger (M32).
     if (slug === "fleeing" && !before) state.pendingEvents?.push({ type: "fleeing", victim: target });
     // Frightened by an enemy's effect (Demoralize, fear) is a morale trigger.
@@ -3077,6 +3085,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
     const result = [];
     // What happens to the caster itself (Trip's critical failure, Escape's success).
     let self = null;
+    // (An aura's granted effects on those it reaches besides the target — Protector's Sphere's allies —, one entry each.)
+    const auraEntries = new Map();
     // (Its parts so far, by change: each counted once — the most likely.)
     let selfParts = null;
     let damageContext = null;
@@ -3167,6 +3177,12 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     // (Invisibility that ends with the creature's hostile action: about a round of it in a fight. Outlined: what it changes in how
                     // the other side finds the creature — sight.js.)
                     const lasting = change.endsOnHostile ? { mode: "fixed", value: 1, unit: "rounds" } : change.duration;
+                    // (Earthbind's landed and grounded: the damage the other side's melee can now do it, over what their ranged Strikes did —
+                    // actions.js groundDamage; landed, about half a round, until it takes off again.)
+                    if ((change.slug === "landed" || change.slug === "grounded") && !held) {
+                        entry.damage += chance * groundDamage(state, target, change.slug === "landed" ? 0.5 : Math.min(3, durationRounds(change.duration)));
+                        continue;
+                    }
                     const full = change.slug === "outlined" ? outlineWorth(state, target, Math.min(3, durationRounds(change.duration)), sightDC) : conditionWorth(change.slug, brave ?? change.value, lasting);
                     entry.worth += chance * (flag ? (held ? 0 : full) : Math.max(0, full - (held ? conditionWorth(change.slug, held, change.duration) : 0)));
                     // The party plays for morale (M23): fear may break the foe, which takes it out of the fight.
@@ -3236,12 +3252,22 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         entry.benefit += share * effectBenefit(model, target, conditionWorth, state.strikeShare?.get(target.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit });
                         // (Its resistances: the Hit Points they keep off it from the foes' Strikes, as healing — 2026-10-21.)
                         if (model.resistances?.length) entry.heal += share * resistanceKept(state, model, target, Math.min(3, model.rounds));
+                        // (An aura's granted effects on each creature it reaches — effects.js auraRecipients; 2026-10-22.)
+                        for (const grant of model.aura ?? []) {
+                            for (const other of auraRecipients(state, target, grant)) {
+                                const into = other === target ? entry : auraEntries.get(other) ?? auraEntries.set(other, { target: other, damage: 0, worth: 0, heal: 0, benefit: 0 }).get(other);
+                                const granted = { ...grant.model, rounds: model.rounds };
+                                into.benefit += share * effectBenefit(granted, other, conditionWorth, state.strikeShare?.get(other.id) ?? 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit });
+                                if (granted.resistances?.length) into.heal += share * resistanceKept(state, granted, other, Math.min(3, granted.rounds));
+                            }
+                        }
                     }
                 }
             }
         }
     }
     if (self) result.push(self);
+    result.push(...auraEntries.values());
     // (U15: a retaliation potion — the damage its drinker's foes can expect from it.)
     if (spell.retaliation) for (const target of targets) result.push(...itemRetaliationEntries(state, spell, target));
     return result;
@@ -3251,6 +3277,13 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
 // { targets: [creature…] }. inMelee(other) and distance(other) describe the
 // caster's (possibly hypothetical) position.
 // newWith: in a plan, the creature it Strode into a Melee with this turn (meleeId: that one's Melee, if it's in one).
+// Whether every creature a spell can target is a willing one (Vapor Form's): its choices other than objects (2026-10-22, Levitate's "1
+// unattended object or willing creature" — before, the object choice let it go to a foe).
+function willingOnly(spell) {
+    const choices = String(spell.plan?.targeting?.target ?? "").split(/\bor\b/i).filter((choice) => !/\bobjects?\b/i.test(choice) || /\bcreatures?\b/i.test(choice.replace(/\bobjects?\b[^,]*/i, "")));
+    return choices.length > 0 && choices.every((choice) => /\bwilling\b/i.test(choice));
+}
+
 export function targetSets(state, caster, spell, { enemies, allies = [], inMelee, distance, meleeId, newWith = null }, actions = undefined) {
     const info = describeSpell(spell.plan, actions);
     // Administer First Aid: each dying ally (a downed PC lies in the near band).
@@ -3314,7 +3347,7 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         // (A spell for a willing creature — Vapor Form — goes to no enemy. 2026-10-21, found rating spells: only when every choice is
         // willing — Harm's "1 living creature or 1 willing undead creature" goes to a living foe, Heal's "… or 1 undead creature" to an
         // undead one; before, neither was ever aimed at a foe.)
-        const willing = String(spell.plan?.targeting?.target ?? "").split(/\bor\b/i).every((choice) => /\bwilling\b/i.test(choice));
+        const willing = willingOnly(spell);
         const inRange = willing ? [] : enemies.filter((enemy) => enemy.status === "active" && reaches(enemy));
         if (inRange.length) {
             if (info.targets <= 1) sets.push(...inRange.map((enemy) => ({ targets: [enemy] })));
@@ -3368,7 +3401,7 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         // (B229: foes only.)
         if (info.area.foes) around.splice(0, around.length, ...around.filter((other) => other.side !== caster.side));
         // (2026-10-21: "you and up to 5 willing creatures" — Shared Invisibility's —: its own side only.)
-        if (String(spell.plan?.targeting?.target ?? "").split(/\bor\b/i).every((choice) => /\bwilling\b/i.test(choice))) around.splice(0, around.length, ...around.filter((other) => other.side === caster.side));
+        if (willingOnly(spell)) around.splice(0, around.length, ...around.filter((other) => other.side === caster.side));
         around.splice(0, around.length, ...around.filter(affected));
         const helps = (info.healing && around.some((other) => other.side === caster.side && other.hp.value < other.hp.max)) || (info.helpful && around.some((other) => other.side === caster.side));
         if (helps || around.some((other) => other.side !== caster.side)) sets.push({ targets: around.slice(0, capacity) });
