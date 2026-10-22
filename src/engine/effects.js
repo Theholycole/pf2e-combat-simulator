@@ -198,10 +198,24 @@ const DEGREE_CHOICES = new Set(["critical-success", "success", "failure", "criti
 function choiceSets(item, rank) {
     const rules = item?.system?.rules ?? [];
     const named = JSON.stringify(rules.filter((rule) => rule?.key !== "ChoiceSet").map((rule) => rule?.predicate ?? null));
-    return rules.filter((rule) => rule?.key === "ChoiceSet" && typeof rule.rollOption === "string" && Array.isArray(rule.choices)).map((rule) => ({
+    const allowed = (rule) => rule.choices.filter((choice) => typeof choice?.value === "string" && predicateHolds(choice.predicate, rank) !== false).map((choice) => choice.value);
+    const byOption = rules.filter((rule) => rule?.key === "ChoiceSet" && typeof rule.rollOption === "string" && Array.isArray(rule.choices)).map((rule) => ({
         option: rule.rollOption,
-        values: rule.choices.filter((choice) => typeof choice?.value === "string" && predicateHolds(choice.predicate, rank) !== false).map((choice) => choice.value).filter((value) => named.includes(`"${rule.rollOption}:${value}"`))
-    })).filter((set) => set.values.length > 1);
+        values: allowed(rule).filter((value) => named.includes(`"${rule.rollOption}:${value}"`))
+    }));
+    // (2026-10-22, Traveler's Transit: a choice put into a rule's selector — "{item|flags.system.rulesSelections.traveler}" — not a roll option.
+    // Not into a resistance's or weakness's type: those are the "choice" resistances, read on their own.)
+    const bySelection = rules.filter((rule) => rule?.key === "ChoiceSet" && !rule.rollOption && typeof rule.flag === "string" && Array.isArray(rule.choices)).filter((rule) => {
+        const token = `{item|flags.system.rulesSelections.${rule.flag}}`;
+        return rules.some((other) => other !== rule && !["Resistance", "Weakness"].includes(other?.key) && JSON.stringify(other).includes(token));
+    }).map((rule) => ({ option: `selection:${rule.flag}`, flag: rule.flag, values: allowed(rule) }));
+    return [...byOption, ...bySelection].filter((set) => set.values.length > 1);
+}
+
+// A rule with a chosen selection put in for its token (a ChoiceSet's by flag).
+function withSelection(rule, flag, value) {
+    const token = `{item|flags.system.rulesSelections.${flag}}`;
+    return JSON.stringify(rule).includes(token) ? JSON.parse(JSON.stringify(rule).split(token).join(value)) : rule;
 }
 
 export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen = null } = {}) {
@@ -214,6 +228,9 @@ export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen
     // as a toggle, the one picked on.)
     const picks = choiceSets(item, rank);
     for (const set of picks) for (const value of set.values) toggles.set(`${set.option}:${value}`, chosen?.[set.option] === value);
+    // (A choice by selection, once chosen: its rules with the choice put in.)
+    const selections = picks.filter((set) => set.flag && chosen?.[set.option]);
+    if (selections.length) item = { ...item, system: { ...item.system, rules: (item.system.rules ?? []).map((rule) => selections.reduce((each, set) => withSelection(each, set.flag, chosen[set.option]), rule)) } };
     if (!chosen && picks.length) {
         const [set] = picks;
         model.choices = set.values.map((value) => ({ value, model: effectModel(item, { rank, conditionSlug, chosen: { [set.option]: value } }) }));

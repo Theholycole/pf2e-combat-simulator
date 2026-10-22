@@ -456,3 +456,13 @@ test("a buff's weaknesses cost what the foes' Strikes add: none for weakness to 
     assert.equal(weaknessCost(state, { weaknesses: [{ type: "area-damage", value: 8 }, { type: "splash-damage", value: 8 }] }, wizard, 3), 0);
     assert.ok(weaknessCost(state, { weaknesses: [{ type, value: 5 }] }, wizard, 3) > 0);
 });
+
+test("a ChoiceSet by selection: the choice put into a rule's selector (Traveler's Transit's fly Speed from rank 5)", () => {
+    const item = (rank) => effectModel({ name: "Traveler's Transit", system: { rules: [
+        { key: "ChoiceSet", flag: "traveler", choices: [{ value: "climb" }, { value: "swim" }, { value: "fly", predicate: [{ gte: ["{item|level}", 5] }] }] },
+        { key: "BaseSpeed", selector: "{item|flags.system.rulesSelections.traveler}", value: 25 }] } }, { rank });
+    assert.deepEqual(item(5).choices.map((choice) => [choice.value, Boolean(choice.model.flies)]), [["climb", false], ["swim", false], ["fly", true]]);
+    assert.ok(!item(4).choices.some((choice) => choice.model.flies));
+    const resist = effectModel({ name: "Resist Energy", system: { rules: [{ key: "ChoiceSet", flag: "resistEnergy", choices: [{ value: "fire" }, { value: "cold" }] }, { key: "Resistance", type: "{item|flags.system.rulesSelections.resistEnergy}", value: 5 }] } }, { rank: 2 });
+    assert.equal(resist.choices, undefined, "a resistance's type stays the 'choice' resistance");
+});
