@@ -1383,3 +1383,20 @@ test("power check fixes: Let Not the Fallen Rest heals only the dying; Lightning
     const read = castableReading(compileSpell(doc), doc, 1);
     assert.equal(read?.targeting?.target, "1 creature", "a melee spell attack at a creature, not the caster");
 });
+
+test("innate spells: once a day when their data gives no uses (PF2e's own reading), unlimited only when named at will or constant", async () => {
+    const { npcSpells, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const fear = spellNamed("Fear");
+    const at = (id, name, uses) => ({ ...fear, _id: id, name, system: { ...fear.system, location: { value: "innate1", heightenedLevel: 1, ...(uses ? { uses } : {}) } } });
+    const npc = { name: "Test Fey", system: { details: { level: { value: 5 } }, resources: {} }, items: [
+        { _id: "innate1", name: "Occult Innate Spells", type: "spellcastingEntry", system: { prepared: { value: "innate" }, tradition: { value: "occult" }, spelldc: { dc: 22, value: 12 } } },
+        at("fearOnce0000001", "Fear"),
+        at("fearTwice000001", "Fear", { value: 2, max: 2 }),
+        at("fearAtWill00001", "Fear (At Will)")
+    ] };
+    const { spells, spellPools } = npcSpells(npc);
+    const pool = (name, index = 0) => spells.filter((spell) => spell.name === name)[index]?.pool ?? null;
+    assert.equal(spellPools[pool("Fear", 0)], 1, "no uses: once");
+    assert.equal(spellPools[pool("Fear", 1)], 2, "its uses");
+    assert.equal(pool("Fear (At Will)"), null, "at will");
+});

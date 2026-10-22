@@ -163,7 +163,10 @@ export function npcSpells(npc, { onError = () => {}, basics = null } = {}) {
       const rank = spell.system?.location?.heightenedLevel ?? spell.system?.level?.value ?? 1;
       if (traits.includes("cantrip")) add(spell, cantripRank, null);
       else if (kind === "focus" || traits.includes("focus")) { spellPools.focus = npc.system?.resources?.focus?.max ?? 1; add(spell, cantripRank, "focus"); }
-      else if (kind === "innate") { const max = spell.system?.location?.uses?.max; const pool = max ? `${entry._id}:${spell._id}` : null; if (pool) spellPools[pool] = max; add(spell, rank, pool); }
+      // (2026-10-22: an innate spell with no uses in its data is once a day — PF2e's own reading, its rest giving it `uses.max ?? 1` —; at
+      // will only when it says so, "(At Will)", or constant. Before, every one was at will: 6,268 innate spells in the bestiaries — Dominate,
+      // Paralyze, Indestructibility — cast every round.)
+      else if (kind === "innate") { const unlimited = /\((?:At Will|Constant)\)/i.test(spell.name ?? ""); const max = Number(spell.system?.location?.uses?.max) || (unlimited ? 0 : 1); const pool = max ? `${entry._id}:${spell._id}` : null; if (pool) spellPools[pool] = max; add(spell, rank, pool); }
       else if (kind === "spontaneous") { const slot = entry.system?.slots?.[`slot${rank}`]; const pool = `${entry._id}:${rank}`; spellPools[pool] = slot?.max ?? 1; add(spell, rank, pool); }
     }
     if (kind === "prepared") {

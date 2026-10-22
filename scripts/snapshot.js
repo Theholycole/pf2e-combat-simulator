@@ -1030,8 +1030,13 @@ async function readSpells(actor, gaps, { fresh = false, castSpells = new Set() }
                 else if (entry.isPrepared) {
                     pool = `${entry.id}:${group.id}:${index}`;
                     spellPools[pool] = !fresh && active.expended ? 0 : 1;
+                } else if (entry.isInnate && !/\((?:At Will|Constant)\)/i.test(spell.name ?? "")) {
+                    // Innate spells with a number of uses a day; with none in the data, once (2026-10-22: PF2e's own reading — its rest
+                    // gives them uses.max ?? 1); at will only when it says so.
+                    pool = `${entry.id}:${spell.id}`;
+                    const max = Number(active.uses?.max ?? spell.system?.location?.uses?.max) || 1;
+                    spellPools[pool] = fresh ? max : Number(active.uses?.value ?? spell.system?.location?.uses?.value ?? max) || 0;
                 } else if (active.uses?.max) {
-                    // Innate spells with a number of uses a day; without one, at will.
                     pool = `${entry.id}:${spell.id}`;
                     spellPools[pool] = fresh ? active.uses.max : active.uses.value ?? 0;
                 }
