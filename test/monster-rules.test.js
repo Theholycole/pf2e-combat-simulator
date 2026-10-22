@@ -844,7 +844,7 @@ test("death throes: a monster's ability that acts as it dies, on the creatures a
     const [hpF, hpC] = [f.hp.value, c.hp.value];
     applyDamage(state, s, [{ type: "untyped", amount: 999, persistent: false }], { source: f });
     assert.equal(s.status, "dead");
-    assert.ok(state.log.some((line) => /Skeleton casts Explosive Death at Fighter/.test(line)), state.log.join("\n"));
+    assert.ok(state.log.some((line) => /Skeleton uses Explosive Death at Fighter/.test(line)), state.log.join("\n"));
     assert.ok(f.hp.value < hpF, "the fighter beside it takes the burst");
     assert.equal(c.hp.value, hpC, "not the champion far off");
 });
@@ -1132,7 +1132,7 @@ test("a monster healing itself (2026-10-10, B52)", () => {
     assert.ok(q.hp.value > before, state.log.join("\n"));
     // The planner reaches for it when hurt.
     const result = simulate({ combatants: [{ ...fighter, engagement: 1 }, { ...quasit, hp: { value: 5, max: quasit.hp.max } }] }, { maxRounds: 2 }, 2, { log: true });
-    assert.match(result.log.join("\n"), /Quasit casts Abyssal Healing/);
+    assert.match(result.log.join("\n"), /Quasit uses Abyssal Healing/);
 });
 
 test("a condition the monster gives itself: Invisible, Concealed, Quickened (2026-10-10, B53)", () => {
@@ -1148,7 +1148,7 @@ test("a condition the monster gives itself: Invisible, Concealed, Quickened (202
     castSpell(state, state.byId.get("wisp"), 0, ["wisp"]);
     assert.equal(state.byId.get("wisp").cond.hidden, true);
     const played = simulate({ combatants: [{ ...fighter, engagement: 1 }, wisp] }, { maxRounds: 1 }, 2, { log: true });
-    assert.match(played.log.join("\n"), /Wisp casts Go Dark/);
+    assert.match(played.log.join("\n"), /Wisp uses Go Dark/);
     // Shrieking Frenzy: as its turn begins, quickened for this turn: four actions.
     const frenzy = selfCondition("Shrieking Frenzy", "quickened", { mode: "fixed", value: 0, unit: "rounds", expiry: "turn-end", anchor: "source-turn" }, { event: "own-turn-start", reaction: true, free: true }, "free");
     const result = simulate({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(3, "cha", "Charau-ka"), engagement: 1, spells: [entry("Shrieking Frenzy", frenzy)] }] }, { maxRounds: 1 }, 2, { log: true });
@@ -1742,7 +1742,7 @@ test("Knocking Sweep: a Trip at each enemy in its reach, at the penalty it start
     const sweep = scoreOptions(state, a).options.find((option) => option.action.type === "skillSweep");
     assert.ok(sweep, "on offer with three foes in reach");
     performAction(state, a, sweep.action);
-    const tripped = state.log.map((line) => /^ {2}Adept casts Trip at (.+)$/.exec(line)?.[1]).filter(Boolean);
+    const tripped = state.log.map((line) => /^ {2}Adept uses Trip at (.+)$/.exec(line)?.[1]).filter(Boolean);
     assert.deepEqual(new Set(tripped).size, 3, state.log.join("\n"));
     assert.equal(a.attacksThisTurn, 3, "three attempts counted after all of them");
     assert.ok(a.usedThisTurn.has("Knocking Sweep"), "once a round");
@@ -1821,7 +1821,7 @@ test("You're Next: Demoralize another foe as it downs one; Stoke the Flames: foe
     const [first, second] = party.slice(0, 2).map((pc) => state.byId.get(pc.id));
     dealDamage(state, first, first.hp.value + first.hp.temp + 1, { source: p });
     assert.ok(state.log.some((line) => /Prisoner reacts with You're Next/.test(line)), state.log.join("\n"));
-    assert.ok(state.log.includes(`  Prisoner casts You're Next at ${second.name}`), state.log.join("\n"));
+    assert.ok(state.log.includes(`  Prisoner uses You're Next at ${second.name}`), state.log.join("\n"));
     assert.equal(p.reactionUsed, true);
     // Stoke the Flames: only the foes taking persistent fire damage.
     const stoke = { modelVersion: 13, source: { name: "Stoke the Flames" }, rank: 1, traits: ["fire"], activation: { time: "1", traits: [] }, targeting: { target: null, range: null, area: { type: "emanation", value: 60 }, foes: true, taking: "fire" }, trigger: { event: "use" }, resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, success: { damage: { mode: "formulas", formulas: [{ formula: "4d6[fire]" }], rollScope: "outcome" }, effects: [] }, failure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] }, criticalFailure: { damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] } } } };
@@ -1998,13 +1998,13 @@ test("Jeer at Failure: Demoralize a foe that falls prone or critically fails a S
     performStrike(state, f, state.byId.get("dragon"), f.strikes[0]);
     state.rng.d20 = () => 10;
     assert.ok(state.log.some((line) => /Dragon reacts with Jeer at Failure/.test(line)), state.log.join("\n"));
-    assert.ok(state.log.includes(`  Dragon casts Jeer at Failure at ${f.name}`), state.log.join("\n"));
+    assert.ok(state.log.includes(`  Dragon uses Jeer at Failure at ${f.name}`), state.log.join("\n"));
     assert.equal(state.byId.get("dragon").reactionUsed, true);
     // Falling prone (a Trip), and only once a round: its reaction is spent.
     state = fight();
     const s = state.byId.get(second.id);
     applyCondition(state, s, "prone", null, null, state.byId.get(fighter.id));
-    assert.ok(state.log.includes(`  Dragon casts Jeer at Failure at ${s.name}`), state.log.join("\n"));
+    assert.ok(state.log.includes(`  Dragon uses Jeer at Failure at ${s.name}`), state.log.join("\n"));
     state.log = [];
     applyCondition(state, state.byId.get(fighter.id), "prone", null, null, s);
     assert.equal(state.log.some((line) => /Jeer at Failure/.test(line)), false, state.log.join("\n"));
@@ -2416,13 +2416,13 @@ test("Demoralize as the fight starts or its turn begins, at its nearest foe (202
     const dragon = { ...moderateCreature(5, "dragon", "Dragon"), engagement: 1, spells: [entry("Battle Cry", { ...cry, trigger: { event: "initiative", reaction: true, free: true } })] };
     const started = simulate({ combatants: [{ ...party[0], engagement: 1 }, dragon] }, { maxRounds: 1 }, 2, { log: true });
     assert.match(started.log.join("\n"), /Dragon uses Battle Cry/);
-    assert.match(started.log.join("\n"), new RegExp(`Dragon casts Battle Cry at ${party[0].name}`));
+    assert.match(started.log.join("\n"), new RegExp(`Dragon uses Battle Cry at ${party[0].name}`));
     // Stern Glare: as its turn begins; no foe near enough, not used.
     const glare = { ...moderateCreature(5, "glare", "Director"), engagement: 1, spells: [entry("Stern Glare", { ...cry, trigger: { event: "own-turn-start", reaction: true, free: true } })] };
     const state = createFightState({ combatants: [{ ...party[0], engagement: 1 }, glare] }, {}, 2);
     state.log = [];
     ownTurnStart(state, state.byId.get("glare"));
-    assert.ok(state.log.includes(`  Director casts Stern Glare at ${party[0].name}`), state.log.join("\n"));
+    assert.ok(state.log.includes(`  Director uses Stern Glare at ${party[0].name}`), state.log.join("\n"));
     const alone = createFightState({ combatants: [{ ...party[0], engagement: 0 }, { ...glare, engagement: 0 }] }, {}, 2);
     alone.log = [];
     for (const c of alone.list) Object.assign(c, { band: "far", meleeId: null });
@@ -3276,7 +3276,7 @@ test("A Grapple as a reaction to electricity damage, at a creature beside it (20
     assert.ok(!state.log.some((line) => /Test Reflexes/.test(line)), "not fire damage");
     applyDamage(state, g, [{ type: "electricity", amount: 5, persistent: false, precision: false }], { source: state.byId.get("far") });
     assert.ok(state.log.some((line) => /reacts with Test Reflexes/.test(line)), state.log.join("\n"));
-    assert.ok(state.log.some((line) => /Golem casts Test Reflexes at Fighter|Fighter:/.test(line)), "at the fighter beside it, not the far caster");
+    assert.ok(state.log.some((line) => /Golem uses Test Reflexes at Fighter|Fighter:/.test(line)), "at the fighter beside it, not the far caster");
 });
 
 test("Its failed Will save against a mental effect made a success, at the cost of damage (2026-10-12, B132)", () => {
@@ -3409,7 +3409,7 @@ test("A reaction to rolling initiative with a skill it names: played as if it di
     const cry = { ...structuredClone(basic.demoralize), targeting: { target: "1 creature", range: "30 feet", area: null } };
     const dazzler = { ...moderateCreature(5, "dazz", "Dazzler"), engagement: 1, spells: [entry("Test Charisma", { ...cry, trigger: { event: "initiative", reaction: true, free: true, skills: ["deception", "performance"] } })] };
     const started = simulate({ combatants: [{ ...party[0], engagement: 1 }, dazzler] }, { maxRounds: 1 }, 2, { log: true });
-    assert.match(started.log.join("\n"), new RegExp(`Dazzler casts Test Charisma at ${party[0].name}`));
+    assert.match(started.log.join("\n"), new RegExp(`Dazzler uses Test Charisma at ${party[0].name}`));
 });
 
 test("A Strike activity that leaves it Off-Guard or guarded until its next turn (2026-10-12, B139)", () => {
@@ -4048,9 +4048,9 @@ test("A free follow-up to a Strike that hit, used at once: a Dirty Trick after a
     state.rng.d20 = () => 19;
     const d = state.byId.get("drake");
     triggerRiders(state, d, state.byId.get("fighter"), d.strikes[0], 2);
-    assert.ok(!state.log.some((line) => /casts Test Vex/.test(line)), "not after a jaws hit");
+    assert.ok(!state.log.some((line) => /uses Test Vex/.test(line)), "not after a jaws hit");
     triggerRiders(state, d, state.byId.get("fighter"), d.strikes[1], 2);
-    assert.ok(state.log.some((line) => /Drake casts Test Vex at Fighter/.test(line)), state.log.join("\n"));
+    assert.ok(state.log.some((line) => /Drake uses Test Vex at Fighter/.test(line)), state.log.join("\n"));
     assert.equal(d.riderReady?.index, undefined, "not left as its next action");
     assert.equal(state.byId.get("fighter").cond.clumsy, 1);
 });
@@ -4133,7 +4133,7 @@ test("Both hits expose the creature to the monster's affliction (Gory Rend, 2026
     state.rng.d20 = () => 2;
     const f = state.byId.get(fighter.id);
     bothHitRider(state, state.byId.get("fnd"), f, { conditions: [], damage: [], affliction: "test-venom" });
-    assert.ok(state.log.some((line) => /Fiend casts Test Venom at Fighter/.test(line)) && f.cond.sickened >= 1, state.log.join("\n"));
+    assert.ok(state.log.some((line) => /Fiend uses Test Venom at Fighter/.test(line)) && f.cond.sickened >= 1, state.log.join("\n"));
 });
 
 test("A Stride and a Strike as it rolls initiative, never planned after (Uncanny Pounce, 2026-10-12, B199)", () => {

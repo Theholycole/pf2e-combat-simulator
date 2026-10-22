@@ -186,7 +186,7 @@ test("a flier with no Strike closes in for its area about itself and uses it the
     let used = 0;
     for (let seed = 1; seed <= 8; seed++) {
         const result = simulate({ combatants: [...standardParty(5), troop()] }, { morale: false, retreat: false }, seed, { log: true });
-        if ((result.log ?? []).some((line) => /casts Test Riot/.test(line))) used++;
+        if ((result.log ?? []).some((line) => /uses Test Riot/.test(line))) used++;
     }
     // (Before: aloft over a party that couldn't reach it, it never came down — 0 of 8.)
     assert.ok(used >= 3, `used its area in ${used} of 8 fights`);

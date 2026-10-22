@@ -1939,7 +1939,9 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     if (spell.fromZone) log(state, `  ${spell.name} on ${targets.map((target) => target.name).join(", ")}`);
     // (U1: an item drunk, fed to an ally, or used.)
     else if (spell.kind === "item") log(state, `  ${caster.name} ${itemWords(spell, caster, targets)}`);
-    else log(state, `  ${caster.name} casts ${spell.name}${spell.from ? ` from ${spell.from}` : ""}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
+    // (2026-10-22, the user: "Change the text to Uses for checks and non spell abilities" — "casts" for a spell, or an ability that casts
+    // one; "uses" for a basic action — Grapple, Demoralize — or a creature's ability.)
+    else log(state, `  ${caster.name} ${!spell.kind || spell.castsSpell ? "casts" : "uses"} ${spell.name}${spell.from ? ` from ${spell.from}` : ""}${actions && spellVariants(spell).length > 1 ? ` (${actions} actions)` : ""}${targets.length ? ` at ${targets.map((target) => target.name).join(", ")}` : ""}`);
     if (spell.kind === "item" && state.stats) state.stats[caster.side === "party" ? "partyItemsUsed" : "foeItemsUsed"]++;
     // (I1: a creature immune to the effect's trait — a mindless one to a mental effect, a construct to a death effect — is unaffected.)
     for (const target of [...targets]) {

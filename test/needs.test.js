@@ -137,7 +137,7 @@ test("B316 an ability on a critical failure against the creature's spells: Death
     state.rng.d20 = () => 1;
     castSpell(state, state.byId.get("reaper"), 0, ["fighter"]);
     assert.equal(state.byId.get("fighter").status, "dead", state.log.join("\n"));
-    assert.ok(state.log.some((line) => / Reaper casts Death Strike at Fighter$/.test(line)));
+    assert.ok(state.log.some((line) => / Reaper uses Death Strike at Fighter$/.test(line)));
 });
 
 // B317 (2026-10-14; found checking the Grim Reaper's death effects): who a spell can affect — the spell module's

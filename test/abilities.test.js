@@ -183,7 +183,7 @@ test("Ferocity keeps a monster up once; whole fights with monster abilities run"
     for (let seed = 1; seed <= 30; seed++) {
         const result = simulate(snapshot, {}, seed, { log: true });
         assert.ok(result.outcome);
-        grabs += result.log.filter((line) => /casts Grab/.test(line)).length;
+        grabs += result.log.filter((line) => /uses Grab/.test(line)).length;
     }
     assert.ok(grabs > 0, "the snake grabs");
 });

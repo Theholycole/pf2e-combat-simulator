@@ -521,7 +521,7 @@ How it plays:
   - each foe's damage dealt and PCs downed (the most dangerous foe)
   - morale checks and how often fights ended in a rout
   - hero points spent
-  - a sample fight log
+  - a sample fight log (2026-10-22, the user: "Change the text to Uses for checks and non spell abilities": a spell, or an ability that casts one, "casts"; a basic action — Grapple, Demoralize, Trip — or a creature's ability "uses" — spells.js castPlan's line)
   - gaps
 - **Compare:** variants run on the same seeds. Presets:
   - morale on/off, plus the per-rule impact ranking

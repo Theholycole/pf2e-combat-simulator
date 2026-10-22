@@ -64,7 +64,7 @@ test("C17 Clear a Path: with the scattergun empty and a foe in reach, reload and
     state.log = [];
     performAction(state, c, option.action);
     assert.ok(!c.unloaded.has("Dwarven Scattergun"), "reloaded");
-    assert.ok(state.log.some((line) => /uses Clear a Path/.test(line)) && state.log.some((line) => /casts Shove/.test(line)));
+    assert.ok(state.log.some((line) => /uses Clear a Path/.test(line)) && state.log.some((line) => /uses Shove/.test(line)));
 });
 
 test("C18 deeds when initiative is rolled: Living Fortification's AC for the first turn; One Shot, One Kill after a Stealth initiative; Energy Shot's three Strikes", () => {
