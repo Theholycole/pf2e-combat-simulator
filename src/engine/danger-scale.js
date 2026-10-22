@@ -16,6 +16,10 @@ import { simulate } from "./fight.js";
 import { moderate, steps, tier } from "./creature-tables.js";
 
 export const DANGER_OPTIONS = Object.freeze({ morale: false, retreat: false });
+// (2026-10-22, the user: danger rates the creature's own threat wherever it's met — the party doesn't prepare Banishment: in its home plane a
+// fiend can't be banished, and a party won't always have it. The standard party's other spells stay; Banishment plays in other fights.)
+export const DANGER_PARTY_LEAVES_OUT = Object.freeze(["Banishment"]);
+export const dangerPartySpell = (spell) => (name, rank) => (DANGER_PARTY_LEAVES_OUT.includes(name) ? null : spell(name, rank));
 export const DEATH_WEIGHT = 1;
 // The ladder's party levels and its offsets from them; its yardstick creatures (and each level's baseline) fight LADDER_FIGHTS_PER times a
 // creature's fights (400 against 100).

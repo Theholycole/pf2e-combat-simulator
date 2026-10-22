@@ -10,7 +10,7 @@ import { ABILITY_MODULE_ID, CORE_ID, MODULE_ID, effectModels, leanPlan, readActo
 import { parallelFights, runDangerFights } from "./runner.js";
 import { SPELLBOOKS, standardParty } from "../src/engine/party.js";
 import { moderateCreatureAt } from "../src/engine/creature-tables.js";
-import { LADDER_FIGHTS_PER, LADDER_OFFSETS, LADDER_PARTIES, canFight, dangerProfile, mergeSummaries, partyLevelFor, rankRows, rateAlone, ratingsOf, scaleFromJSON, scaleOf, scaleToJSON } from "../src/engine/danger-scale.js";
+import { LADDER_FIGHTS_PER, LADDER_OFFSETS, LADDER_PARTIES, canFight, dangerPartySpell, dangerProfile, mergeSummaries, partyLevelFor, rankRows, rateAlone, ratingsOf, scaleFromJSON, scaleOf, scaleToJSON } from "../src/engine/danger-scale.js";
 import { canCast, isUtility } from "../src/engine/spells.js";
 import { withReading } from "../src/engine/readings.js";
 import { dangerRatingsInUse, shippedRatings } from "./danger.js";
@@ -138,7 +138,8 @@ async function partyBuilder() {
     const parties = new Map();
     return (level) => {
         const lv = partyLevelFor(level);
-        if (!parties.has(lv)) parties.set(lv, standardParty(lv, { spell, basics }));
+        // (Without Banishment — danger-scale.js DANGER_PARTY_LEAVES_OUT.)
+        if (!parties.has(lv)) parties.set(lv, standardParty(lv, { spell: dangerPartySpell(spell), basics }));
         return parties.get(lv);
     };
 }

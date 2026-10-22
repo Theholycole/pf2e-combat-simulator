@@ -15,7 +15,7 @@ const { standardParty } = await import("../../src/engine/party.js");
 const { canCast, isUtility } = await import("../../src/engine/spells.js");
 const { moderate, moderateCreatureAt } = await import("./creature-tables.mjs");
 // (The counting, the profile and the ranking: src/engine/danger-scale.js, shared with the in-Foundry run.)
-const { DANGER_OPTIONS, DEATH_WEIGHT: SHARED_DEATH_WEIGHT, canFight, dangerFights, dangerProfile, dangerSummary, realSpells, strikeAverage } = await import("../../src/engine/danger-scale.js");
+const { DANGER_OPTIONS, DEATH_WEIGHT: SHARED_DEATH_WEIGHT, canFight, dangerFights, dangerPartySpell, dangerProfile, dangerSummary, realSpells, strikeAverage } = await import("../../src/engine/danger-scale.js");
 
 const MODULES = `${process.env.HOME}/.local/share/FoundryVTT/Data/modules`;
 export const OPTIONS = DANGER_OPTIONS;
@@ -68,7 +68,8 @@ function spell(name, castRank) {
 const parties = new Map();
 export function partyFor(level) {
     const lv = Math.max(1, Math.min(20, level));
-    if (!parties.has(lv)) parties.set(lv, standardParty(lv, { spell, basics: Object.values(basicActions) }));
+    // (Without Banishment — danger-scale.js DANGER_PARTY_LEAVES_OUT.)
+    if (!parties.has(lv)) parties.set(lv, standardParty(lv, { spell: dangerPartySpell(spell), basics: Object.values(basicActions) }));
     return parties.get(lv);
 }
 

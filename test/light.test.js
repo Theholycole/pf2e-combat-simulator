@@ -1400,3 +1400,15 @@ test("innate spells: once a day when their data gives no uses (PF2e's own readin
     assert.equal(spellPools[pool("Fear", 1)], 2, "its uses");
     assert.equal(pool("Fear (At Will)"), null, "at will");
 });
+
+test("the danger party prepares no Banishment (the user, 2026-10-22: danger rates the creature's own threat wherever it's met)", async () => {
+    const { dangerPartySpell, DANGER_PARTY_LEAVES_OUT } = await import("../src/engine/danger-scale.js");
+    const { partyFor } = await import("../tools/lib/deadliness.mjs");
+    assert.deepEqual([...DANGER_PARTY_LEAVES_OUT], ["Banishment"]);
+    const spell = (name) => ({ name, plan: {} });
+    assert.equal(dangerPartySpell(spell)("Banishment", 5), null);
+    assert.equal(dangerPartySpell(spell)("Cone of Cold", 5).name, "Cone of Cold");
+    const party = partyFor(12);
+    assert.ok(!party.some((c) => (c.spells ?? []).some((each) => each.name === "Banishment")), "none in the party");
+    assert.ok(party.find((c) => c.id === "wizard").spells.some((each) => each.name === "Cone of Cold"), "the rest of its 5th rank");
+});
