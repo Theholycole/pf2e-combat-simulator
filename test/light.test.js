@@ -1047,3 +1047,46 @@ test("counterspells and rerolls (family 2): Nullify undoes a foe's spell; Spell 
     spellReactions(cleric);
     assert.deepEqual(cleric.saveReroll, { name: "Lucky Break", failureOnly: true, fromSpell: 0 });
 });
+
+test("family 3, damage with unread mechanics: Psychic Outburst's action counts; Kinetic Ram's push; the rated caster within a short range", async () => {
+    const { compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const { describeSpell } = await import("../src/engine/spells.js");
+    const outburst = compileSpell(spellNamed("Psychic Outburst"));
+    assert.equal(outburst.resolution.native.variants, undefined, "its 2-round casting's variant left out");
+    const ram = compileSpell(spellNamed("Kinetic Ram"));
+    assert.deepEqual(ram.resolution.outcomes.criticalFailure.forcedMovement, { kind: "push", distance: 20 });
+    assert.deepEqual(describeSpell(ram, 3).area, { type: "emanation", value: 5 });
+    const { partyFor } = await import("../tools/lib/deadliness.mjs");
+    const { partyLevelForRank, wizardCasting } = await import("../src/engine/spell-power.js");
+    const party = partyFor(partyLevelForRank(1));
+    const casting = wizardCasting(party);
+    const puff = { name: "Puff of Poison", plan: compileSpell(spellNamed("Puff of Poison")), castRank: 1, dc: casting.dc, attack: casting.attack, pool: RATED_POOL, effects: {} };
+    assert.ok(castPower(party, powerFoes("boss", partyLevelForRank(1)), puff)?.share > 0, "its 10 feet: the caster steps within them");
+});
+
+test("family 3 curses: Cycle of Retribution's hostile action, Warrior's Regret's turn end, Bloodspray Curse's big hit, Implement of Destruction's weapon", async () => {
+    const { castSpell, curseOnHostile, regretTurnEnd } = await import("../src/engine/spells.js");
+    const { applyDamage } = await import("../src/engine/actions.js");
+    const { compileSpell, spellNamed } = await import("../tools/lib/pack-spells.mjs");
+    const entry = (name, castRank) => ({ name, castRank, pool: null, dc: 40, attack: 30, effects: {}, plan: compileSpell(spellNamed(name)) });
+    const state = createFightState({ combatants: [...standardParty(7), { ...moderateCreatureAt(7, "monster"), id: "monster", name: "Brute" }] }, { morale: false, retreat: false }, 1, { log: true });
+    const wizard = state.byId.get("wizard");
+    const fighter = state.byId.get("fighter");
+    const brute = state.byId.get("monster");
+    wizard.spells = [entry("Cycle of Retribution", 4), entry("Warrior's Regret", 4), entry("Bloodspray Curse", 4), entry("Implement of Destruction", 4)];
+    state.rng.d20 = () => 2;
+    for (const index of [0, 1, 2, 3]) castSpell(state, wizard, index, [brute.id]);
+    assert.deepEqual(brute.curses.map((held) => `${held.kind}:${held.mode}`).sort(), ["bloodspray:bleed", "cycle:each", "destruction:persistent-double", "regret:fight"]);
+    assert.equal(brute.curses.find((held) => held.kind === "destruction").by, "fighter", "the fighter's weapon");
+    let hp = brute.hp.value;
+    curseOnHostile(state, brute);
+    assert.ok(brute.hp.value < hp, "its hostility hurts it");
+    brute.damagedThisTurn = new Set(["fighter", "rogue"]);
+    hp = brute.hp.value;
+    regretTurnEnd(state, brute);
+    assert.ok(brute.hp.value < hp, "two it hurt");
+    hp = brute.hp.value;
+    applyDamage(state, brute, [{ type: "slashing", amount: 12, persistent: false, precision: false }], { source: fighter, physical: true });
+    assert.ok(hp - brute.hp.value > 12, "Bloodspray's and Implement's dice on the fighter's big hit");
+    assert.ok((brute.persistent ?? []).some((held) => held.type === "mental"), "Implement's persistent mental");
+});

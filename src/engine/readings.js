@@ -15,8 +15,36 @@ const READINGS = {
             check: { statistic: "will", basic: false, dcSource: "source-actor" },
             outcomes: { criticalSuccess: row(), success: row(), failure: row({ effects: [condition("sickened", 1)], conditionFloor: floor }), criticalFailure: row({ effects: [condition("sickened", 2)], conditionFloor: floor }) }
         };
-    }
+    },
+    // (2026-10-22, family 3 — the compiler's action counts' targets alone, no rows.) Kinetic Ram: a Fortitude save or pushed 10 feet away
+    // (20 on a critical failure); Gravitational Pull: or pulled 10 feet closer (prone too on a critical failure). Their action counts'
+    // targets kept — an area's "areaType" read as its type.
+    "kinetic-ram": (plan) => ({
+        kind: "save",
+        check: { statistic: "fortitude", basic: false, dcSource: "source-actor" },
+        outcomes: { criticalSuccess: row(), success: row(), failure: row({ forcedMovement: { kind: "push", distance: 10 } }), criticalFailure: row({ forcedMovement: { kind: "push", distance: 20 } }) },
+        ...nativeTargets(plan)
+    }),
+    "gravitational-pull": (plan) => ({
+        kind: "save",
+        check: { statistic: "fortitude", basic: false, dcSource: "source-actor" },
+        outcomes: { criticalSuccess: row(), success: row(), failure: row({ forcedMovement: { kind: "pull", distance: 10 } }), criticalFailure: row({ effects: [condition("prone", null)], forcedMovement: { kind: "pull", distance: 10 } }) },
+        ...nativeTargets(plan)
+    })
 };
+
+// A plan's action counts' targeting overlays, kept for a reading that replaces its resolution: { native: { byActions } }, or nothing.
+function nativeTargets(plan) {
+    const byActions = plan?.resolution?.native?.byActions;
+    if (!byActions) return {};
+    const read = (targeting) => {
+        if (!targeting) return targeting;
+        const area = targeting.area ? { type: targeting.area.type ?? targeting.area.areaType, value: Number(targeting.area.value) || 5 } : targeting.area;
+        const range = /^\d+$/.test(String(targeting.range ?? "")) ? `${targeting.range} feet` : targeting.range;
+        return { ...targeting, ...(targeting.area ? { area } : {}), ...(targeting.range !== undefined ? { range } : {}) };
+    };
+    return { native: { byActions: Object.fromEntries(Object.entries(byActions).map(([count, overlay]) => [count, overlay?.targeting ? { ...overlay, targeting: read(overlay.targeting) } : overlay])) } };
+}
 
 // The core's "nothing native": no rows to roll, no missiles, no healing, no PF2e effects to apply.
 function resolvesNothing(plan) {
@@ -69,8 +97,8 @@ function withRecurringSaves(plan) {
 // saves its rows' words give; the plan unchanged otherwise.
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
-    const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading() } : plan;
-    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved))))))))))))))))))))))));
+    const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading(plan) } : plan;
+    return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved))))))))))))))))))))))))));
 }
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
@@ -343,6 +371,38 @@ function withAfflictionCounteract(plan) {
     if (resolution?.kind !== "affliction-care" || !(resolution.operations ?? []).some((operation) => operation?.op === "counteract" && operation.source === "affliction")) return plan;
     const operations = resolution.operations.map((operation) => (operation?.op === "counteract" && operation.source === "affliction" ? { ...operation, source: "effect", grantsConditions: [], traits: ["affliction", ...(operation.anyAffliction ? [] : operation.traits ?? [])] } : operation));
     return { ...plan, simulatorReading: true, resolution: { ...resolution, operations } };
+}
+
+// (2026-10-22, family 3 — Psychic Outburst: its action counts' rows beside a variant for its casting over 2 rounds, "(Two-Round)", which the
+// core resolves instead and finds nothing in: fights cast it with actions, the variants for rounds left out.)
+function withoutRoundVariants(plan) {
+    const native = plan?.resolution?.native;
+    if (plan?.resolution?.kind !== "unsupported" || !native?.byActions || !native.variants?.length || !native.variants.every((variant) => /\bround\b/i.test(String(variant?.name ?? "")))) return plan;
+    const { variants, ...rest } = native;
+    return { ...plan, simulatorReading: true, resolution: { ...plan.resolution, native: rest } };
+}
+
+// (2026-10-22, family 3 — curses that hurt as the creature acts, or as it's hit.) Cycle of Retribution — mental damage as it takes a hostile
+// action: the next one, the first each round, or each, by its save —; Warrior's Regret — at its turns' end, damage for each creature it
+// damaged that turn: its next turn, till a round of peace, or for good —; Bloodspray Curse — the first big piercing or slashing hit each
+// round deals more, bleed too on a failure —; Implement of Destruction — an ally's weapon deals it more mental damage: its first hit, or
+// persistent with each, doomed on a critical. Their rows' notes as conditions "curse:<mode>" for those rows' times; plan.curse { kind } —
+// spells.js applyCurse.
+const CURSES = {
+    "cycle-of-retribution": { kind: "cycle", rows: { success: ["once", 10], failure: ["round", 10], criticalFailure: ["each", 10] } },
+    "warriors-regret": { kind: "regret", rows: { success: ["once", 1], failure: ["until-peace", 10], criticalFailure: ["fight", null] } },
+    "bloodspray-curse": { kind: "bloodspray", rows: { success: ["extra", 10], failure: ["bleed", 10], criticalFailure: ["bleed", 10] } },
+    "implement-of-destruction": { kind: "destruction", rows: { success: ["once", 10], failure: ["persistent", 10], criticalFailure: ["persistent-double", 10] } }
+};
+function withCurses(plan) {
+    const curse = CURSES[plan?.source?.slug];
+    if (!curse || plan.resolution?.kind !== "save") return plan;
+    const outcomes = Object.fromEntries(Object.entries(plan.resolution.outcomes ?? {}).map(([degree, entry]) => {
+        const mode = curse.rows[degree];
+        if (!mode) return [degree, entry];
+        return [degree, { ...entry, noteEffects: [], effects: [...(entry?.effects ?? []), { kind: "condition", slug: `curse:${mode[0]}`, value: null, duration: mode[1] ? { mode: "fixed", value: mode[1], unit: "rounds" } : null }] }];
+    }));
+    return { ...plan, simulatorReading: true, curse: { kind: curse.kind }, resolution: { ...plan.resolution, outcomes } };
 }
 
 // Agitate (2026-10-22, flying and the like): "the target must Stride, Fly, or Swim at least once each turn or take 2d8 mental damage at the

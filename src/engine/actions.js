@@ -14,7 +14,7 @@ import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNextStrike, takeAttackFortune } from "./effects.js";
-import { actionTraits, applyCondition, applyMove, castPlan, castSpell, deathThroes, guardSpells, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { actionTraits, applyCondition, applyMove, castPlan, castSpell, curseOnHit, deathThroes, guardSpells, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
@@ -1254,6 +1254,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     // Regeneration turns off before damage of a listed type is dealt.
     if (target.regeneration && instances.some((instance) => instance.amount > 0 && target.regeneration.deactivatedBy.includes(instance.type))) turnOffRegeneration(state, target);
+    // (2026-10-22, family 3: a curse's damage on a hit — Bloodspray Curse, Implement of Destruction.)
+    if (target.curses?.length) instances = curseOnHit(state, target, source, instances, { physical, critical });
     // Liquefy, Chipping Scales (B99): its reaction's resistance against this damage, and what it leaves.
     const resisting = resistReaction(state, target, instances, { source, physical, spell });
     const adjusted = adjustDamage(target, instances);
@@ -1319,6 +1321,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance, source);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
+    // (Warrior's Regret: the creatures it damaged this turn.)
+    if (dealt > 0 && source && source !== target) (source.damagedThisTurn ??= new Set()).add(target.id);
     // Vengeful Rage (B65): damage that leaves it at that many Hit Points or fewer.
     // (B244, Enraged Growth: any damage it takes.)
     if (dealt > 0 && isActive(target)) triggeredSelfEffect(state, target, (trigger) => (trigger.kind === "hp-at-most" && target.hp.value <= trigger.value) || trigger.kind === "damaged");

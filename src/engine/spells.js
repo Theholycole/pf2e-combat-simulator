@@ -1398,6 +1398,110 @@ function markDamage(state, caster, target, mark, rounds, castRank) {
     return perRound * (mark.uses === 1 ? 1 : rounds);
 }
 
+// --- Curses that hurt as the creature acts or is hit (2026-10-22, family 3; readings.js withCurses) ------------------------------------------
+
+const rollParts = (state, parts, extra = {}) => parts.map((part) => {
+    let amount = 0;
+    for (let die = 0; die < part.dice; die++) amount += state.rng.die(part.die);
+    return { type: part.type, amount, persistent: Boolean(part.persistent), precision: false, ...extra };
+});
+const averageParts = (target, parts) => parts.reduce((sum, part) => sum + adjustInstance(target, part.type, part.dice * (part.die + 1) / 2), 0);
+
+// A curse's dice at the cast rank, by its kind and the mode its row gave.
+function curseParts(kind, mode, rank) {
+    if (kind === "cycle") return [{ dice: Math.max(1, rank), die: 4, type: "mental" }];
+    if (kind === "regret") return [{ dice: 1 + Math.max(0, Math.floor((rank - 2) / 2)), die: 8, type: "mental" }];
+    if (kind === "bloodspray") return [{ dice: Math.max(1, Math.floor(rank / 2)), die: 6, type: "same" }, ...(mode === "bleed" ? [{ dice: Math.max(1, Math.floor(rank / 2)), die: 6, type: "bleed", persistent: true }] : [])];
+    if (kind === "destruction") {
+        const steps = Math.max(0, Math.floor((rank - 4) / 2));
+        return mode === "persistent-double" ? [{ dice: 4 + 2 * steps, die: 6, type: "mental", persistent: true }] : [{ dice: 2 + steps, die: 6, type: "mental", persistent: mode !== "once" }];
+    }
+    return [];
+}
+
+// The weapon Implement of Destruction names: the caster's side's best melee Strike's wielder.
+function bestStriker(state, caster) {
+    const score = (c) => Math.max(0, ...(c.strikes ?? []).filter((strike) => strike.melee && strikeUsable(c, strike)).map((strike) => strike.bonus * 2 + expectedHitDamage(c, strike, c, false)));
+    return state.list.filter((c) => c.side === caster.side && isActive(c) && c.kind !== "object").sort((a, b) => score(b) - score(a))[0] ?? caster;
+}
+
+// target.curses: [{ by, spell, kind, mode, parts, untilRound, sustained, usedRound }] — ended by lasting.js at its by's turn start.
+function applyCurse(state, caster, spell, target, mode, duration) {
+    if (!isActive(target)) return;
+    const kind = spell.plan.curse.kind;
+    const rounds = durationRounds(duration);
+    const by = kind === "destruction" ? bestStriker(state, caster) : caster;
+    const entry = { by: by.id, spell: spell.name, kind, mode, parts: curseParts(kind, mode, Number(spell.castRank) || 1), untilRound: Number.isFinite(rounds) ? state.round + rounds : Infinity, sustained: false, usedRound: null };
+    target.curses = [...(target.curses ?? []).filter((held) => held.spell !== spell.name), entry];
+    log(state, `  ${target.name} is cursed by ${spell.name}${kind === "destruction" ? ` (${by.name}'s weapon)` : ""}`);
+}
+
+// Cycle of Retribution: a hostile action of the creature's (pacify.js ownHostility).
+export function curseOnHostile(state, c) {
+    for (const entry of [...(c?.curses ?? [])]) {
+        if (entry.kind !== "cycle" || !isActive(c) || (entry.mode === "round" && entry.usedRound === state.round)) continue;
+        entry.usedRound = state.round;
+        if (entry.mode === "once") c.curses = c.curses.filter((held) => held !== entry);
+        const instances = rollParts(state, entry.parts);
+        log(state, `  ${c.name}'s ${entry.spell} punishes its hostility`);
+        applyDamage(state, c, instances, { source: state.byId.get(entry.by) ?? null });
+    }
+}
+
+// Warrior's Regret: its turn's end, for each creature it damaged this turn (at most 4).
+export function regretTurnEnd(state, c) {
+    for (const entry of [...(c?.curses ?? [])]) {
+        if (entry.kind !== "regret" || !isActive(c)) continue;
+        const count = Math.min(4, c.damagedThisTurn?.size ?? 0);
+        if (count > 0) {
+            log(state, `  ${c.name}'s ${entry.spell}: ${count} it hurt`);
+            applyDamage(state, c, rollParts(state, entry.parts.map((part) => ({ ...part, dice: part.dice * count }))), { source: state.byId.get(entry.by) ?? null });
+        }
+        if (entry.mode === "once" || (entry.mode === "until-peace" && count === 0)) c.curses = (c.curses ?? []).filter((held) => held !== entry);
+    }
+}
+
+// Bloodspray Curse and Implement of Destruction on a hit (actions.js applyDamage, before its resistances): the damage with theirs.
+export function curseOnHit(state, target, source, instances, { physical = false, critical = false } = {}) {
+    if (!physical) return instances;
+    let out = instances;
+    for (const entry of [...(target.curses ?? [])]) {
+        if (entry.kind === "bloodspray" && entry.usedRound !== state.round) {
+            const cutting = instances.filter((instance) => !instance.persistent && ["piercing", "slashing"].includes(instance.type));
+            if (cutting.reduce((sum, instance) => sum + instance.amount, 0) < 10) continue;
+            entry.usedRound = state.round;
+            const type = cutting.sort((a, b) => b.amount - a.amount)[0].type;
+            out = [...out, ...rollParts(state, entry.parts.map((part) => ({ ...part, type: part.type === "same" ? type : part.type })))];
+        }
+        if (entry.kind === "destruction" && source?.id === entry.by) {
+            out = [...out, ...rollParts(state, entry.parts)];
+            if (critical && entry.mode !== "once") target.cond.doomed = Math.max(target.cond.doomed ?? 0, 1);
+            if (entry.mode === "once") target.curses = target.curses.filter((held) => held !== entry);
+        }
+    }
+    return out;
+}
+
+// What a curse is worth, in Hit Points off the creature, over rounds: Cycle's damage as it acts with hostility (once, a round, about one and
+// a half a round), Regret's for about one creature it hurts a turn, Bloodspray's on about one big hit a round, Implement's on the weapon's
+// hits (its first, or each — persistent, about twice).
+function curseDamage(state, caster, spell, target, mode, rounds) {
+    const kind = spell.plan.curse.kind;
+    const parts = curseParts(kind, mode, Number(spell.castRank) || 1).map((part) => ({ ...part, type: part.type === "same" ? "slashing" : part.type }));
+    const each = averageParts(target, parts);
+    if (kind === "cycle") return each * (mode === "once" ? 1 : mode === "round" ? rounds : 1.5 * rounds);
+    if (kind === "regret") return each * (mode === "once" ? 1 : mode === "until-peace" ? 2 : rounds);
+    if (kind === "bloodspray") return each * rounds;
+    if (kind === "destruction") {
+        const holder = bestStriker(state, caster);
+        const strike = (holder.strikes ?? []).filter((each) => each.melee && strikeUsable(holder, each)).sort((a, b) => b.bonus - a.bonus)[0];
+        const odds = strike ? degreeDistribution(strike.bonus, armorClass(target)) : [1, 0, 0, 0];
+        const hits = (odds[2] + odds[3]) * (mode === "once" ? 1 : 2);
+        return each * hits * (mode === "once" ? 1 : Math.min(2, rounds));
+    }
+    return 0;
+}
+
 function applySelfRetaliation(state, caster, name, retaliation) {
     caster.retaliations = [...retaliationsOn(state, caster).filter((entry) => entry.name !== name), { name, label: name, ...retaliation, until: (state.round ?? 0) + (retaliation.rounds ?? 10) }];
     log(state, `  ${caster.name}'s ${name} harms whoever touches it`);
@@ -2230,6 +2334,11 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 break;
             }
             case "condition":
+                // (Family 3's curses — Cycle of Retribution, Warrior's Regret, Bloodspray Curse, Implement of Destruction.)
+                if (spell.plan?.curse && /^curse:/.test(String(change.slug))) {
+                    applyCurse(state, caster, spell, target, change.slug.slice("curse:".length), change.duration);
+                    break;
+                }
                 // (Brand the Impenitent, Vindicator's Judgment: a mark against the caster alone.)
                 if (spell.plan?.marks?.[change.slug]) {
                     applyMark(state, caster, spell, target, change.slug, spell.plan.marks[change.slug], change.duration);
@@ -3785,6 +3894,11 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                         entry.damage += chance * groundDamage(state, target, change.slug === "landed" ? 0.5 : Math.min(3, durationRounds(change.duration)));
                         continue;
                     }
+                    // (A curse that hurts as it acts or is hit — curseDamage.)
+                    if (spell.plan?.curse && /^curse:/.test(String(change.slug))) {
+                        if (!(target.curses ?? []).some((held) => held.spell === spell.name)) entry.damage += chance * curseDamage(state, caster, spell, target, change.slug.slice("curse:".length), Math.min(3, durationRounds(change.duration)));
+                        continue;
+                    }
                     // (A mark against the caster alone: what its Strikes gain on the creature — markDamage.)
                     if (spell.plan?.marks?.[change.slug]) {
                         if (!(target.marks ?? []).some((held) => held.by === caster.id && held.spell === spell.name)) entry.damage += chance * markDamage(state, caster, target, spell.plan.marks[change.slug], Math.min(3, durationRounds(change.duration)), Number(spell.castRank) || 1);
@@ -3836,6 +3950,14 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     const held = (target.strikes ?? []).filter((strike) => strike.held && strikeUsable(target, strike));
                     const weapon = held.length ? held.reduce((best, strike) => (strike.bonus > best.bonus ? strike : best)) : null;
                     if (weapon && (change.effect.what === "drop" || !target.weakGrip?.has(weapon.name))) entry.worth += chance * (change.effect.what === "drop" ? 0.3 : 0.03);
+                } else if (change.op === "move" && ["push", "pull"].includes(change.kind) && target.side !== caster.side) {
+                    // (2026-10-22, family 3 — Kinetic Ram, Gravitational Pull, Acid Grip's push: a foe pushed off one of the caster's side that
+                    // fights little with Strikes — a caster — spends an action coming back: a tenth of a round of its threat, half that for one
+                    // with a ranged Strike; off its fighters, or otherwise, a little — they lose it as much as it loses them.)
+                    const engaged = target.meleeId !== null && target.meleeId !== undefined;
+                    const shielded = engaged && state.list.some((other) => other.side === caster.side && isActive(other) && other.meleeId === target.meleeId && (state.strikeShare?.get(other.id) ?? 1) < 0.5);
+                    const ranged = (target.strikes ?? []).some((strike) => !strike.melee && strikeUsable(target, strike));
+                    entry.worth += chance * (change.kind === "push" && shielded ? (ranged ? 0.05 : 0.1) : 0.02);
                 } else if (change.op === "end" && change.what?.stabilize && target.status === DOWN) {
                     // First Aid: the chance it would otherwise die.
                     entry.benefit += chance * 3 * Math.min(1, ((target.cond.dying ?? 0) + 1) / (4 - (target.cond.doomed ?? 0)));
@@ -4116,7 +4238,7 @@ export function spellGaps(spell) {
             break;
         }
         for (const change of result.changes) {
-            if (change.op === "condition" && !MODELLED_CONDITIONS.has(change.slug) && !plan.marks?.[change.slug]) missing.add(`condition: ${change.slug}`);
+            if (change.op === "condition" && !MODELLED_CONDITIONS.has(change.slug) && !plan.marks?.[change.slug] && !(plan.curse && /^curse:/.test(String(change.slug)))) missing.add(`condition: ${change.slug}`);
             else if (change.op === "effect" && change.effect?.kind === "native" && spell.effects?.[change.effect.uuid]) {
                 const model = spell.effects[change.effect.uuid];
                 if (model.unsupported.length) missing.add(`${model.name.replace(/^Spell Effect: /, "")}: ${model.unsupported.join(", ")}`);

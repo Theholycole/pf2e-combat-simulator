@@ -367,7 +367,10 @@ export function castPower(party, foes, entry, { minion = null, lost = false, cho
         let sets = [];
         try {
             // (A touch spell reaches its target: the wizard steps up to cast it.)
-            sets = targetSets(state, caster, spell, { enemies, allies: aimed, inMelee: () => true, distance: () => 30, meleeId: caster.meleeId ?? null }, actions);
+            // (2026-10-22: within its range of them — Puff of Poison's 10 feet —, at its best; before, 30 feet always, and a spell of
+            // shorter range found no one.)
+            const reach = describeSpell(spell.plan, actions).range;
+            sets = targetSets(state, caster, spell, { enemies, allies: aimed, inMelee: () => true, distance: () => Math.min(30, Number.isFinite(reach) && reach > 0 ? reach : 30), meleeId: caster.meleeId ?? null }, actions);
         } catch {
             sets = [];
         }

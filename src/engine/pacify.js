@@ -5,6 +5,7 @@
 // allies. The entries are c.pacified: [{ by, spell, all, endsOn, allies, untilRound, sustained }].
 
 import { endEntries, lastingRounds } from "./lasting.js";
+import { curseOnHostile } from "./spells.js";
 
 const HOSTILE_NOTE = /\bno hostile actions\b/i;
 // (S49: an attitude note that says so itself — Charm's and Glimmer of Charm's critical failures — in a sentence that isn't a condition:
@@ -90,6 +91,8 @@ export function pacifyWorth(state, target, caster, entry, duration) {
 // Its own hostile action, done (2026-10-14; Invisibility: "If the target uses a hostile action, the spell ends after that hostile action is
 // completed"): the conditions that end with it (c.endsOnHostile, engine flags) go.
 export function ownHostility(state, c) {
+    // (2026-10-22, Cycle of Retribution: its curse's damage as it acts with hostility — spells.js curseOnHostile.)
+    if (c?.curses?.length) curseOnHostile(state, c);
     // (Sanctuary on it ends too.)
     if (c?.ward?.endsOnHostile) {
         state.log?.push(`  ${c.ward.spell} on ${c.name} ends`);

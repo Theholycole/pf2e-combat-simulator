@@ -12,7 +12,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { agitationTurnEnd, markTurnStart, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { agitationTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -399,6 +399,8 @@ function startTurn(state, c) {
     c.spareUsed = null;
     // (Whether it Strides, Flies or Swims this turn — Agitate's.)
     c.movedThisTurn = false;
+    // (Warrior's Regret: the creatures it damages this turn.)
+    c.damagedThisTurn = new Set();
     // (Vindicator's Judgment's critical failure: its first Strike this round at the creature off-guard.)
     markTurnStart(state, c);
     // (Vibrant Thorns' damage after a vitality spell: until the start of its next turn — spells.js planRetaliation's boost.)
@@ -638,6 +640,8 @@ function endTurn(state, c) {
     if (isActive(c)) zoneTurn(state, c, "end");
     // (Agitate: no Stride, Fly or Swim this turn — its damage.)
     agitationTurnEnd(state, c);
+    // (Warrior's Regret: its damage for those it hurt this turn.)
+    regretTurnEnd(state, c);
     // Swallow Whole's damage at the end of each of the swallowed creature's turns.
     if (c.swallowedBy && c.swallow?.damage?.length) {
         state.log?.push(`  ${c.name} is crushed inside ${state.byId.get(c.swallowedBy)?.name}`);
