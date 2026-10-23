@@ -110,8 +110,8 @@ export class SimulatorApp extends ApplicationV2 {
 
     _replaceHTML(result, content) {
         content.innerHTML = result;
-        // Choices that change which fields show.
-        for (const name of ["objectiveKind", "areaRegion", "exitRegion"]) {
+        // Choices that change which fields show (2026-10-22: Movement — a gate's or a rampart's side).
+        for (const name of ["objectiveKind", "areaRegion", "exitRegion", "grid"]) {
             content.querySelector(`[name=${name}]`)?.addEventListener("change", () => {
                 this.#readForm();
                 this.render();
