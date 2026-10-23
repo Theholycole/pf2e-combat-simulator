@@ -17,7 +17,7 @@ import { canStepOut, fliesNow, flankChance, isIncorporeal, levitating, mapGap, r
 import { bandAt, canTakeCover, gridFlanked, gridStrides, obstacleNext, pillarLine, pillarsInReach, planStride, shoots, standZ, strideGoes } from "./grid-fight.js";
 import { distanceFeet, footingAt, occupiedBy, reaches as gridReaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
 import { moderate } from "./creature-tables.js";
-import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
+import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst, strikeStops } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
 import { canReact, castJustNow, chargeOn, hasOwnEffect, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
@@ -1832,6 +1832,22 @@ function stratagemGain(ctx, node, target) {
 // Exploit Vulnerability, Devise a Stratagem, Taunt, Overdrive, Hunt Prey, engaging a target and picking up a dropped weapon. (Part of expand, split up so the optimizer takes it.)
 function expandTactics(env) {
     const { state, c, ctx, node, remaining, inAnyMelee, mobile, noAttacks, raging, threatOf, children } = env;
+    // (2026-10-23: a downed foe whose regeneration one of its Strikes turns off — its damage type, the weapon's material or trait —
+    // finished, before it gets back up at its turn: what it's worth, at the chance to hit it, down and off-guard.)
+    if (!noAttacks && remaining >= 1) {
+        for (const foe of state.list) {
+            if (foe.side === c.side || foe.status !== "down" || foe.kind === "pc" || !foe.regeneration || foe.regeneration.hydra) continue;
+            const stops = foe.regeneration.deactivatedBy ?? [];
+            let best = null;
+            for (const [index, strike] of (c.strikes ?? []).entries()) {
+                if (!strikeUsable(c, strike) || !strikeStops(strike, stops)) continue;
+                const odds = degreeDistribution(strike.bonus - multipleAttackPenalty(strike, node.attacks) - statusPenalty(c, strike.melee ? "melee" : "ranged"), armorClass(foe) - 2);
+                const hit = odds[SUCCESS] + odds[CRITICAL_SUCCESS];
+                if (!best || hit > best.hit) best = { index, hit };
+            }
+            if (best) children.push(child(node, { type: "finish", targetId: foe.id, strikeIndex: best.index }, 1, ctx.profile.aggression * best.hit * Math.max(1, targetValue(state, foe, c)), { attack: true }));
+        }
+    }
     // (2026-10-22, Pillars: one knocked over onto foes — Athletics at its DC, the attack trait —, falling away from it in a line: each
     // creature there a basic Reflex save at the battlefield's level DC for twice a moderate Strike's damage of that level.)
     if (state.grid?.objects?.length && !noAttacks && remaining >= 1 && node.pos.at) {

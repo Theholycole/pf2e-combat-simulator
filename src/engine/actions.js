@@ -387,7 +387,9 @@ export function performStrike(state, attacker, target, strike, options = {}) {
     }
 }
 
-function strikeOnce(state, attacker, target, strike, { reaction = false, trigger = null, fortune = false } = {}) {
+function strikeOnce(state, attacker, target, strike, { reaction = false, trigger = null, fortune = false, finishing = false } = {}) {
+    // (2026-10-23, finishing: at a downed creature, on purpose — finishRegenerating.)
+    const there = () => isActive(target) || (finishing && target.status === DOWN);
     if (!strikeUsable(attacker, strike)) return null;
     // (Sanctuary: a save first; stopped, the action is wasted.)
     if (wardBlocks(state, attacker, target)) return null;
@@ -435,7 +437,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (!reaction && !strike.melee && attacker.meleeId !== null) {
         provoke(state, attacker, "ranged");
         if (!canAct(attacker)) return null;
-        if (!isActive(target)) return null;
+        if (!there()) return null;
     }
     // Superconductor (B84): a creature targeted by an attack Strikes back at the attacker, at any range, before the attack.
     if (!reaction && target.side !== attacker.side && isActive(target)) {
@@ -502,7 +504,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         if (!isActive(attacker) || !canAct(attacker)) return null;
         // Tail Lash, Avenging Bite (B70): a Strike back at a creature that Strikes in its reach, or that attacks its ally.
         const stopped = strikeProvokes(state, attacker, target, strike);
-        if (stopped || !isActive(attacker) || !canAct(attacker) || !isActive(target)) return null;
+        if (stopped || !isActive(attacker) || !canAct(attacker) || !there()) return null;
     }
     // Defensive reactions as the attack comes: the attacker rolls twice (Challenge
     // Fate), or +AC (Nimble Dodge); kept for Attacks of Opportunity when it has them.
@@ -1291,8 +1293,9 @@ export function applyDamage(state, target, instances, { source = null, critical 
             return applyDamage(state, target, instances.map((instance, index) => ({ ...instance, amount: instance.amount - half[index].amount })), { source, critical, nonlethal, physical, intercepted: true });
         }
     }
-    // Regeneration turns off before damage of a listed type is dealt.
-    if (target.regeneration && instances.some((instance) => instance.amount > 0 && target.regeneration.deactivatedBy.includes(instance.type))) turnOffRegeneration(state, target);
+    // Regeneration turns off before damage of a listed type is dealt (2026-10-23: or from a weapon of a listed material or trait — silver,
+    // cold iron, holy —, which before never turned it off).
+    if (target.regeneration && instances.some((instance) => deactivates(instance, target.regeneration.deactivatedBy ?? []))) turnOffRegeneration(state, target);
     // (2026-10-22, family 3: a curse's damage on a hit — Bloodspray Curse, Implement of Destruction.)
     if (target.curses?.length) instances = curseOnHit(state, target, source, instances, { physical, critical });
     // Liquefy, Chipping Scales (B99): its reaction's resistance against this damage, and what it leaves.
@@ -1489,6 +1492,32 @@ function championFor(state, target, source) {
 }
 
 // "Deactivates until the end of its next turn": this turn's end if it hasn't acted this round.
+// Whether damage turns a creature's regeneration off: of one of its types, or from a weapon (or spell) of one of its materials or traits
+// (the instance's own, or its context's roll options).
+function deactivates(instance, types) {
+    if (!(instance.amount > 0) || !types.length) return false;
+    if (types.includes(instance.type) || (instance.materials ?? []).some((material) => types.includes(material))) return true;
+    for (const option of instance.context ?? []) {
+        const named = /^(?:damage:material|item:trait):(.+)$/.exec(option);
+        if (named && types.includes(named[1])) return true;
+    }
+    return false;
+}
+
+// Whether a Strike's damage would turn regeneration of these types off: its damage's types, or its weapon's material or trait.
+export function strikeStops(strike, types) {
+    if (!types?.length) return false;
+    const traits = [...(strike.iwr?.traits ?? []), ...(strike.traits ?? []), ...(strike.holy || strike.good ? ["holy"] : []), ...(strike.unholy || strike.evil ? ["unholy"] : [])];
+    return (strike.damage ?? []).some((part) => types.includes(part.type)) || (strike.iwr?.materials ?? []).some((material) => types.includes(material)) || traits.some((trait) => types.includes(trait));
+}
+
+// (2026-10-23) Finishing a downed creature whose regeneration this Strike turns off: the hit turns it off, and the creature, down, dies.
+export function finishRegenerating(state, c, target, strike) {
+    if (!target || target.status !== DOWN || !strike) return null;
+    log(state, `  ${c.name} goes to finish ${target.name}`);
+    return performStrike(state, c, target, strike, { finishing: true });
+}
+
 function turnOffRegeneration(state, c) {
     c.regenerationOff = true;
     const round = c.round === state.round ? state.round + 1 : state.round;

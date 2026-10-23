@@ -10,7 +10,7 @@ import { standardParty } from "../src/engine/party.js";
 
 const troll = () => ({ ...moderateCreatureAt(5, "monster", "Troll"), side: "foes", traits: ["giant", "troll"], regeneration: { value: 20, deactivatedBy: ["acid", "fire"] }, weaknesses: [{ type: "fire", value: 10, exceptions: [] }] });
 
-test("regeneration: a downed creature whose regeneration its foes can stop holds the fight open; one they can't stop, they leave down; fire puts it down for good", () => {
+test("regeneration: a downed creature whose regeneration its foes' Strikes can stop holds the fight open and is finished; one they can't stop, they leave down; fire puts it down for good", () => {
     const party = standardParty(5);
     const fiery = party.map((c, index) => (index === 0 ? { ...c, strikes: [...c.strikes, { name: "Torch", bonus: 0, melee: true, damage: [{ dice: 1, die: 4, bonus: 0, type: "fire" }] }] } : c));
     const downed = (members) => {
@@ -25,7 +25,13 @@ test("regeneration: a downed creature whose regeneration its foes can stop holds
     assert.equal(fightOver(downed(fiery)), false, "it'll get back up: the fight goes on");
     const spell = { name: "Fire Ray", plan: { traits: ["fire"], resolution: { outcomes: { failure: { damage: { mode: "full", formula: "2d6[fire]" } } } } }, castRank: 1, pool: null };
     const casters = party.map((c) => (c.id === "wizard" ? { ...c, spells: [...(c.spells ?? []), spell] } : c));
-    assert.equal(canStopRegeneration(downed(casters), downed(casters).byId.get("monster")), true, "a fire spell");
+    assert.equal(canStopRegeneration(downed(casters), downed(casters).byId.get("monster")), false, "a fire spell turns it off as the fight goes, but isn't aimed at one down");
+    // (A Strike of a material that stops it: the downed creature finished.)
+    const silvered = { ...troll(), regeneration: { value: 20, deactivatedBy: ["silver"] } };
+    const daggers = party.map((c) => (c.id === "rogue" ? { ...c, strikes: [...c.strikes, { name: "Silver Dagger", bonus: c.strikes[0].bonus - 1, melee: true, agile: true, damage: [{ dice: 1, die: 4, bonus: 2, type: "piercing" }], iwr: { materials: ["silver"] } }] } : c));
+    const finished = simulate({ combatants: [...daggers, silvered] }, { morale: false, retreat: false }, 1, { log: true });
+    assert.equal(finished.foes[0].status, "dead");
+    assert.match(finished.log.join("\\n"), /Rogue goes to finish Troll/);
     const burning = simulate({ combatants: [...party.map((c) => ({ ...c, strikes: c.strikes.map((s) => ({ ...s, damage: [...s.damage, { dice: 1, die: 6, bonus: 0, type: "fire" }] })) })), troll()] }, { morale: false, retreat: false, maxRounds: 12 }, 4);
     assert.equal(burning.foes[0].status, "dead");
 });

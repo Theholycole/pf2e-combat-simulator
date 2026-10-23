@@ -5,7 +5,7 @@ import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCC
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
-import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
+import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, finishRegenerating, strikeStops, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, adjustPart, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
@@ -301,26 +301,13 @@ function pcs(state) {
     return state.list.filter((c) => c.side === "party" && c.kind === "pc");
 }
 
-// Whether a creature's active foes can turn its regeneration off: a Strike of one of its types (its damage, or the weapon's material or
-// trait — silver, cold iron, holy), or a damaging spell or ability of one. (A hydra's, by its stumps: always.)
+// Whether a creature's active foes can turn its regeneration off and finish it, down: a Strike of one of its types (its damage, or the
+// weapon's material or trait — silver, cold iron, holy; actions.js strikeStops) — what they finish a downed one with (planner.js). A
+// spell of one turns it off as the fight goes, but isn't aimed at one down. (A hydra's, by its stumps: always.)
 export function canStopRegeneration(state, c) {
     if (c.regeneration?.hydra) return true;
     const stops = c.regeneration?.deactivatedBy ?? [];
-    if (!stops.length) return false;
-    const listed = (list) => (list ?? []).some((entry) => stops.includes(entry));
-    const named = (text) => stops.some((type) => new RegExp(`[\\["',]${type}[\\]"',]`).test(text));
-    return state.list.some((foe) => {
-        if (foe.side === c.side || foe.status !== ACTIVE) return false;
-        for (const strike of foe.strikes ?? []) {
-            if ((strike.damage ?? []).some((part) => stops.includes(part.type)) || listed(strike.iwr?.materials) || listed(strike.iwr?.traits) || listed(strike.traits)) return true;
-        }
-        return (foe.spells ?? []).some((spell) => {
-            const resolution = spell.plan?.resolution;
-            if (!resolution) return false;
-            const damage = JSON.stringify([resolution.sharedDamage ?? null, ...Object.values(resolution.outcomes ?? {}).map((row) => row?.damage ?? null)]);
-            return damage !== "[null]" && (named(damage) || (/"mode"/.test(damage) && listed(spell.plan?.traits)));
-        });
-    });
+    return stops.length > 0 && state.list.some((foe) => foe.side !== c.side && foe.status === ACTIVE && (foe.strikes ?? []).some((strike) => strikeUsable(foe, strike) && strikeStops(strike, stops)));
 }
 
 function checkEnd(state) {
@@ -966,6 +953,10 @@ function act(state, c, action) {
         }
         case "interact":
             interact(state, c, action.what, action.strikeName);
+            break;
+        // (2026-10-23: finishing a downed creature whose regeneration its Strike turns off.)
+        case "finish":
+            finishRegenerating(state, c, state.byId.get(action.targetId), c.strikes?.[action.strikeIndex]);
             break;
         // (2026-10-22, the battlefields: Take Cover.)
         case "takeCover":
