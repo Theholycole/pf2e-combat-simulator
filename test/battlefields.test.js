@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createFightState, simulate } from "../src/engine/fight.js";
-import { breachGate, fall, footingShaken, stride, toppleObject } from "../src/engine/actions.js";
+import { breachGate, fall, footingShaken, leaveField, stride, toppleObject } from "../src/engine/actions.js";
+import { breathTurnEnd, hoverTurnStart } from "../src/engine/void.js";
+import { canCast } from "../src/engine/spells.js";
 import { sightDC } from "../src/engine/environment.js";
 import { scoreOptions } from "../src/engine/planner.js";
 import { isOffGuard } from "../src/engine/combatant.js";
@@ -123,7 +125,7 @@ test("footing: off-guard on uneven ground; a failed Reflex there prone, off a na
 });
 
 test("whole fights run on every battlefield, at its levels and outside them", () => {
-    for (const { name } of BATTLEFIELDS.filter((entry) => entry.name !== "sky" && entry.name !== "underwater")) {
+    for (const { name } of BATTLEFIELDS) {
         for (const [level, foeLevel] of [[2, 1], [9, 8]]) {
             const result = simulate({ combatants: [...standardParty(level), foe("a", foeLevel), foe("b", foeLevel), foe("c", foeLevel), foe("d", foeLevel)] }, { maxRounds: 8, grid: { layout: name } }, 3);
             assert.ok(result.outcome, `${name} ${level}`);
@@ -187,4 +189,40 @@ test("Obscura's fog conceals beyond 5 feet; heavy undergrowth gives cover", () =
     assert.equal(sightDC(state, p, y), 5, "further: concealed");
     const brush = fight([pc("p"), foe("x")], field({ cover: ["10,5"], difficult: { "10,5": 3 }, battlefield: "broken", level: 3 }, { p: [5, 5], x: [10, 5] }));
     assert.equal(sightLine(brush.grid, brush.byId.get("p"), brush.byId.get("x")).cover, 2);
+});
+
+test("Sky: no fly Speed, out of the fight; a flier's turn spends an action to Fly unless it Strides", () => {
+    const flier = (c) => ({ ...c, flies: true, flySpeed: 40 });
+    const state = createFightState({ combatants: [flier(pc("p")), pc("q"), flier(foe("x"))] }, { morale: false, grid: { layout: "sky" } }, 1);
+    const [p, q, x] = ["p", "q", "x"].map((id) => state.byId.get(id));
+    assert.notEqual(q.status, "active", "fell");
+    assert.equal(p.speed, 40, "its fly Speed");
+    p.actionsLeft = 3;
+    hoverTurnStart(state, p);
+    assert.equal(p.actionsLeft, 2);
+    stride(state, p, { kind: "engage", targetId: "x" });
+    assert.equal(p.actionsLeft, 3, "its Stride its Fly: the action back");
+    assert.ok(x);
+});
+
+test("Underwater: Swim without a swim Speed, off-guard, resistance 5 to acid and fire, the Strikes' rules, no fire; breath runs out", () => {
+    const fish = { ...foe("x"), swimSpeed: 30, traits: ["aquatic"] };
+    const archer = { ...pc("p"), strikes: [{ name: "Sling", bonus: 10, melee: false, increment: 50, damage: [{ dice: 1, die: 6, type: "bludgeoning" }] }, { name: "Bow", bonus: 10, melee: false, increment: 60, damage: [{ dice: 1, die: 8, type: "piercing" }] }, { name: "Club", bonus: 10, melee: true, damage: [{ dice: 1, die: 6, type: "bludgeoning" }] }], con: 1 };
+    const state = createFightState({ combatants: [archer, fish] }, { morale: false, grid: { layout: "underwater" } }, 1);
+    const [p, x] = ["p", "x"].map((id) => state.byId.get(id));
+    assert.deepEqual([p.speed, p.swimCheck, x.speed, x.swimCheck ?? false], [10, true, 30, false]);
+    assert.equal(isOffGuard(p), true);
+    assert.equal(isOffGuard(x), false);
+    assert.ok(["acid", "fire"].every((type) => p.resistances.some((entry) => entry.type === type && entry.value === 5)));
+    const [sling, bow, club] = p.strikes;
+    assert.equal(sling.underwaterBlocked, true, "a bludgeoning ranged Strike misses");
+    assert.equal(bow.increment, 30, "piercing: range increments halved");
+    assert.equal(club.bonus, 8, "melee bludgeoning: −2 without a swim Speed");
+    assert.equal(x.air, undefined, "an aquatic creature breathes");
+    assert.equal(p.air, 6, "5 + Constitution");
+    assert.equal(canCast(p, { name: "Fire Ray", plan: { traits: ["fire", "attack"], targeting: { kind: "creature" } } }), false);
+    p.air = 2;
+    p.attacksThisTurn = 1;
+    breathTurnEnd(state, p, { leaveField });
+    assert.notEqual(p.status, "active", "out of air: drowning");
 });

@@ -4108,6 +4108,8 @@ export function canCast(c, spell) {
     if (c.cond?.voiceless && ((isSpellCast(spell) && !(spell.plan?.traits ?? []).includes("subtle")) || (spell.plan?.traits ?? []).includes("auditory"))) return false;
     // (2026-10-22, family 6: in a battle form, no spells.)
     if (c.inForm && isSpellCast(spell)) return false;
+    // (2026-10-22, under water: nothing with the fire trait — void.js.)
+    if (c.inWater && (spell.plan?.traits ?? []).includes("fire")) return false;
     // (Binding Muzzle: no breath; Sensory Deprivation's hands — no manipulate action — and mouth — no auditory one.)
     if (c.hindrances?.length) {
         const traits = spell.plan?.traits ?? [];

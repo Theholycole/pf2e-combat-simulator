@@ -26,6 +26,7 @@ import { hostility, ownHostility } from "./pacify.js";
 import { wardBlocks } from "./wards.js";
 import { imageTakes } from "./images.js";
 import { hiddenDC, hiddenFrom } from "./sight.js";
+import { airLost, flewThisTurn, swimCheck } from "./void.js";
 import { lifelinkMaster } from "./familiars.js";
 import { keenCritical, runeCritEffects } from "./runes.js";
 import { afterStrikeItems } from "./triggered-items.js";
@@ -1221,6 +1222,8 @@ function guards(state, c, target, { physical = false, critical = false } = {}) {
 
 // (B193: spell { rank, targeted } — the damage of a spell aimed at it, for Divert Essence.)
 export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null } = {}) {
+    // (2026-10-22, under water: a critical hit costs a round of air.)
+    if (critical && target.air !== undefined) airLost(state, target);
     // (2026-10-22, Indestructibility: harmed by nothing till its next turn.)
     const untouched = defenceOf(target, "indestructible");
     if (untouched && instances.some((instance) => instance.amount > 0)) {
@@ -1933,7 +1936,10 @@ export function stride(state, c, move) {
 // gets its reactions as it leaves that square, once; a hit that disrupts the move, or one that drops it, stops it there.
 const GRID_MOVES = new Set(["engage", "approach", "toNear", "toFar"]);
 function gridStride(state, c, move) {
-    let plan = planStride(state, c, move);
+    // (2026-10-22, under water without a swim Speed: Swim — Athletics, how far on a success; void.js.)
+    const swum = swimCheck(state, c);
+    if (swum === null) return;
+    let plan = planStride(state, c, move, swum);
     const start = c.square.join(",");
     // (2026-10-22, the battlefields: the next step a closed gate — forced or broken —, or a climb — up or down a ledge, onto an incline —:
     // that, not a Stride.)
@@ -1975,6 +1981,8 @@ function gridStride(state, c, move) {
     }
     const target = move.targetId ? state.byId.get(move.targetId) : null;
     moveOnGrid(state, c, plan.end, plan.z);
+    // (The sky: this Stride its Fly — the hover's action back.)
+    flewThisTurn(c);
     const feet = (plan.way.length - 1) * 5;
     log(state, `  ${c.name} Strides${target ? ` toward ${target.name}` : move.kind === "toFar" ? " away" : " off"} (${plan.end}${target && sameMelee(c, target) ? ", in reach" : ""}, about ${feet} feet)`);
     if (target && sameMelee(c, target)) {
@@ -2333,7 +2341,7 @@ export function bewilderFails(state, c) {
     return true;
 }
 
-export function leaveField(state, c, { banished = false, fell = false } = {}) {
+export function leaveField(state, c, { banished = false, fell = false, drowned = false } = {}) {
     releaseGrabs(state, c);
     releaseAllSwallowed(state, c, "is freed");
     leaveMelee(state, c, "gone");
@@ -2341,7 +2349,7 @@ export function leaveField(state, c, { banished = false, fell = false } = {}) {
     // (2026-10-22, Banishment: sent to its home plane — gone, not run off: no help fetched, no rout. A fall it won't climb back from this
     // fight — a battlefield's chasm — the same.)
     if (banished || fell) c.banished = true;
-    log(state, `  ${c.name} ${banished ? "is banished" : fell ? "falls out of the fight" : "leaves the battlefield"}`);
+    log(state, `  ${c.name} ${banished ? "is banished" : drowned ? "sinks, unconscious, out of the fight" : fell ? "falls out of the fight" : "leaves the battlefield"}`);
     // A runner (E1): gone to fetch help.
     if (!banished && !fell && c.alarm === "runner" && state.escalation && !state.escalation.alarm.raised) {
         c.ranForHelp = true;

@@ -259,10 +259,25 @@ export function readSenses(actor) {
 }
 
 function readFlies(actor) {
-    // (PF2e 8.6: system.movement.speeds — Eternal Wings' fly Speed; the older attributes.speed.otherSpeeds before it.)
-    if ((Number(actor?.system?.movement?.speeds?.fly?.value) || 0) > 0) return true;
+    return readSpeed(actor, "fly") > 0;
+}
+
+// A movement type's Speed (fly, swim), or 0 without one. (PF2e 8.6: system.movement.speeds — Eternal Wings' fly Speed; the older
+// attributes.speed.otherSpeeds before it.)
+function readSpeed(actor, type) {
+    const moved = Number(actor?.system?.movement?.speeds?.[type]?.value) || 0;
+    if (moved > 0) return moved;
     const speeds = actor?.attributes?.speed?.otherSpeeds ?? actor?.system?.attributes?.speed?.otherSpeeds ?? [];
-    return speeds.some((speed) => speed?.type === "fly" && (Number(speed.total ?? speed.value) || 0) > 0);
+    const found = speeds.find((speed) => speed?.type === type && (Number(speed.total ?? speed.value) || 0) > 0);
+    return found ? Number(found.total ?? found.value) : 0;
+}
+
+// (2026-10-22, the battlefields: its fly and swim Speeds, and its Constitution for holding its breath under water.)
+function movementFields(actor) {
+    const fly = readSpeed(actor, "fly");
+    const swim = readSpeed(actor, "swim");
+    const con = Number(actor?.system?.abilities?.con?.mod);
+    return { ...(fly > 0 ? { flySpeed: fly } : {}), ...(swim > 0 ? { swimSpeed: swim } : {}), ...(Number.isFinite(con) ? { con } : {}) };
 }
 
 // Its land Speed with everything PF2e counts (2026-10-15: PF2e 8.6 moved it to system.movement.speeds.land; before, attributes.speed).
@@ -1677,6 +1692,7 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         // (L1, L3: its senses — darkvision, low-light vision — and whether it flies, over the ground's difficult terrain.)
         senses: readSenses(actor),
         ...(readFlies(actor) ? { flies: true } : {}),
+        ...movementFields(actor),
         // (T6: its class DC, for a critical specialization's save.)
         ...(Number.isFinite(actor.classDC?.dc?.value) ? { classDC: actor.classDC.dc.value } : {}),
         traits,
@@ -2068,6 +2084,7 @@ export function readFamiliar(actor, master, { fresh = false } = {}) {
         level: actor.level ?? master.level ?? 0,
         senses: readSenses(actor),
         ...(readFlies(actor) ? { flies: true } : {}),
+        ...movementFields(actor),
         traits: [...(actor.traits ?? actor.system?.traits?.value ?? []), "minion"],
         hp: fresh ? { value: hp.max ?? 0, max: hp.max ?? 0, temp: 0 } : { value: hp.value ?? 0, max: hp.max ?? 0, temp: hp.temp ?? 0 },
         ac: stripConditions(actor.armorClass?.value ?? actor.system?.attributes?.ac?.value ?? master.ac ?? 10, actor.armorClass?.modifiers ?? []),

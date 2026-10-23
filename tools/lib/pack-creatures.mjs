@@ -85,6 +85,13 @@ function dataRange(item) {
     return Number(range?.increment) || Number(range?.max) || null;
 }
 
+// Its fly and swim Speeds (when it has them) and its Constitution modifier.
+function otherSpeeds(system) {
+    const speed = (type) => Number((system.attributes.speed?.otherSpeeds ?? []).find((entry) => entry?.type === type)?.value) || 0;
+    const con = Number(system.abilities?.con?.mod);
+    return { ...(speed("fly") > 0 ? { flySpeed: speed("fly") } : {}), ...(speed("swim") > 0 ? { swimSpeed: speed("swim") } : {}), ...(Number.isFinite(con) ? { con } : {}) };
+}
+
 export function combatant(npc) {
     const system = npc.system;
     const strikes = [];
@@ -254,6 +261,8 @@ export function combatant(npc) {
         // (L1, L3: its senses and whether it flies.)
         senses: [...new Set((system.perception?.senses ?? []).map((sense) => (typeof sense === "string" ? sense : sense?.type)).filter(Boolean))],
         ...((system.attributes.speed?.otherSpeeds ?? []).some((speed) => speed?.type === "fly" && Number(speed.value) > 0) ? { flies: true } : {}),
+        // (2026-10-22, the battlefields: its fly and swim Speeds, its Constitution for holding its breath.)
+        ...otherSpeeds(system),
         skills,
         // (B303: the skills its abilities name for its own initiative.)
         initiativeSkills: [...new Set(npc.items.filter((entry) => ["action", "feat"].includes(entry.type)).flatMap((entry) => initiativeSkills(entry)))],

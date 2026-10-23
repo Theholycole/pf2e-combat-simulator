@@ -10,6 +10,7 @@ import { aloft, fliesNow } from "./space.js";
 import { battlefieldMap, isBattlefield } from "./battlefields.js";
 import { expectedStrikeDamage } from "./damage.js";
 import { skillValue } from "./spells.js";
+import { voidJoin } from "./void.js";
 
 const ACTIVE_BANDS = new Set(["engaged", "near", "far"]);
 
@@ -91,6 +92,7 @@ export function setUpGrid(state, spec) {
 // A creature coming into the fight: its side's first free spawn.
 export function placeArrival(state, c) {
     if (!state.grid || c.square) return;
+    voidJoin(state, c);
     const taken = new Set(state.list.filter((other) => other !== c && other.square && isActive(other)).flatMap(occupiedBy));
     const placed = placeSide(state.grid, [c], state.grid.spawns[c.side] ?? [], taken);
     if (placed[c.id]) c.square = placed[c.id];

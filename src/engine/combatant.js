@@ -160,6 +160,8 @@ export function statusPenalty(c, kind) {
 export function isOffGuard(c) {
     // (T4: attached to a creature, as most Attach say.)
     if (c?.attachedTo && c.attach?.offGuard) return true;
+    // (2026-10-22, under water without a swim Speed — void.js.)
+    if (c?.inWater && !(c.swimSpeed > 0)) return true;
     const k = c.cond;
     // (2026-10-22, the battlefields: on uneven ground or a narrow surface, or climbing — grid-fight.js regroup, actions.js climb.)
     if (c.footing || c.climbing) return true;
@@ -169,7 +171,7 @@ export function isOffGuard(c) {
 // A Strike a disarmed creature can't make until it picks its weapon up (Disarm),
 // or a two-handed one while a hand carries an objective's item.
 export function strikeUsable(c, strike) {
-    return !c.dropped?.has(strike.name) && !(c.carrying && strike.hands === 2) && (!strike.ammo || ammoLeft(c, strike) > 0) && !(c.hindrances?.length && hinderedBy(c, "muzzled") && MOUTH.test(String(strike.name ?? "")));
+    return !strike.underwaterBlocked && !c.dropped?.has(strike.name) && !(c.carrying && strike.hands === 2) && (!strike.ammo || ammoLeft(c, strike) > 0) && !(c.hindrances?.length && hinderedBy(c, "muzzled") && MOUTH.test(String(strike.name ?? "")));
 }
 
 // (2026-10-22, family 4: what a spell keeps the creature from — spells.js applyHinder, lasting.js "hindrances". Binding Muzzle: an attack

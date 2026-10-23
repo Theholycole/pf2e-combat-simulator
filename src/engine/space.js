@@ -136,7 +136,7 @@ export function rangePenalty(strike, distance) {
 // Flying (2026-10-21, the user's foe traits: flying and incorporeal). A creature flies by its own fly Speed or an effect's (Fly's).
 // (Earthbind, 2026-10-22: brought down — landed until its own next turn, when it can take off again; grounded, it can't fly at all while
 // that lasts.)
-export const fliesNow = (c) => (Boolean(c?.flies) || (c?.effects ?? []).some((effect) => effect.model?.flies) || levitating(c)) && !c?.cond?.grounded && !c?.cond?.landed;
+export const fliesNow = (c) => (Boolean(c?.flies) || (c?.effects ?? []).some((effect) => effect.model?.flies) || levitating(c)) && !c?.cond?.grounded && !c?.cond?.landed && !c?.inWater;
 
 // Levitate (2026-10-22): floated up out of a grounded creature's reach (cast and Sustained once — 15 feet up), as a flier aloft, but no way
 // across the ground but up and down: no Strides (planner.js mobile).

@@ -34,6 +34,7 @@ import { championOpening, marchOfLaw, shatterDefenses, zealCritical } from "./ch
 import { castLuminance, dismissLuminance, luminanceTurnStart } from "./luminance.js";
 import { initiativeFortune } from "./fortune-items.js";
 import { ownAttacks, ownerDCs } from "./consumables.js";
+import { airLost, breathTurnEnd, hoverTurnStart, skyFalls, voidStart } from "./void.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -149,6 +150,8 @@ function createState(snapshot, options, seed, withLog) {
     // distances, which have their own.)
     const grid = options.grid ?? snapshot.setup?.grid ?? null;
     if (grid && !isMapObjective(state.objective)) setUpGrid(state, grid);
+    // (2026-10-22, Sky and Underwater: void.js.)
+    voidStart(state, { leaveField });
     initMorale(state);
     // (L1–L5: the fight's light, weather and ground; light blindness and sunlight as it starts.)
     state.environment = buildEnvironment(snapshot.setup?.environment);
@@ -450,6 +453,8 @@ function startTurn(state, c) {
     }
     actions -= Math.min(actions, c.cond.slowed);
     c.actionsLeft = Math.min(actions, isHazard(c) ? 9 : MAX_ACTIONS_PER_TURN);
+    // (2026-10-22, the sky: an action to Fly — void.js.)
+    hoverTurnStart(state, c);
     // (B298: a minion's two actions; its summons' time, and a sustained one's action.)
     summonTurnStart(state, c);
     // (Calm, the charm spells, a condition floor: those that ran out end; a sustained one, an action.)
@@ -619,6 +624,11 @@ function staysInside(state, c) {
 }
 
 function endTurn(state, c) {
+    // (2026-10-22, Sky and Underwater: its breath; in the sky, whoever can't fly falls — void.js.)
+    if (state.grid?.void) {
+        breathTurnEnd(state, c, { leaveField });
+        skyFalls(state, { leaveField });
+    }
     // (Incorporeal: a turn it started inside the floor and ends there — up and back down again or never up — gone from the fight.)
     if (c.insideObject && c.startedInside && c.status === ACTIVE) staysInside(state, c);
     c.emerging = false;
@@ -870,6 +880,8 @@ function act(state, c, action) {
             // Casting with the manipulate trait provokes (S12; Reactive Strike's critical hit disrupts it), and with the
             // concentrate trait, the reactions that say so (B51).
             const spell = c.spells[action.spellIndex];
+            // (2026-10-22, under water: speaking — a linguistic action — loses all its air.)
+            if (c.air !== undefined && (spell?.plan?.traits ?? []).includes("linguistic")) airLost(state, c, { all: true });
             // (S22: Trick Magic Item first. A failure costs its own action, not the cast's, and the item can't be tried again this turn;
             // a critical failure, not again this fight.)
             // (S22: a stowed item taken out first; it's at hand after, until a scroll is used up.)
