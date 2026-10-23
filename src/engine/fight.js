@@ -303,9 +303,10 @@ function pcs(state) {
 
 // Whether a creature's active foes can turn its regeneration off and finish it, down: a Strike of one of its types (its damage, or the
 // weapon's material or trait — silver, cold iron, holy; actions.js strikeStops) — what they finish a downed one with (planner.js). A
-// spell of one turns it off as the fight goes, but isn't aimed at one down. (A hydra's, by its stumps: always.)
+// spell of one turns it off as the fight goes, but isn't aimed at one down. (A hydra's goes on while it has a head or an uncauterized stump,
+// whatever turns it off: one down isn't finished that way — never.)
 export function canStopRegeneration(state, c) {
-    if (c.regeneration?.hydra) return true;
+    if (c.regeneration?.hydra) return false;
     const stops = c.regeneration?.deactivatedBy ?? [];
     return stops.length > 0 && state.list.some((foe) => foe.side !== c.side && foe.status === ACTIVE && (foe.strikes ?? []).some((strike) => strikeUsable(foe, strike) && strikeStops(strike, stops)));
 }
