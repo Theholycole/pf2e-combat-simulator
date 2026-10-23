@@ -301,6 +301,28 @@ function pcs(state) {
     return state.list.filter((c) => c.side === "party" && c.kind === "pc");
 }
 
+// Whether a creature's active foes can turn its regeneration off: a Strike of one of its types (its damage, or the weapon's material or
+// trait — silver, cold iron, holy), or a damaging spell or ability of one. (A hydra's, by its stumps: always.)
+export function canStopRegeneration(state, c) {
+    if (c.regeneration?.hydra) return true;
+    const stops = c.regeneration?.deactivatedBy ?? [];
+    if (!stops.length) return false;
+    const listed = (list) => (list ?? []).some((entry) => stops.includes(entry));
+    const named = (text) => stops.some((type) => new RegExp(`[\\["',]${type}[\\]"',]`).test(text));
+    return state.list.some((foe) => {
+        if (foe.side === c.side || foe.status !== ACTIVE) return false;
+        for (const strike of foe.strikes ?? []) {
+            if ((strike.damage ?? []).some((part) => stops.includes(part.type)) || listed(strike.iwr?.materials) || listed(strike.iwr?.traits) || listed(strike.traits)) return true;
+        }
+        return (foe.spells ?? []).some((spell) => {
+            const resolution = spell.plan?.resolution;
+            if (!resolution) return false;
+            const damage = JSON.stringify([resolution.sharedDamage ?? null, ...Object.values(resolution.outcomes ?? {}).map((row) => row?.damage ?? null)]);
+            return damage !== "[null]" && (named(damage) || (/"mode"/.test(damage) && listed(spell.plan?.traits)));
+        });
+    });
+}
+
 function checkEnd(state) {
     if (state.outcome) return true;
     updateObjective(state);
@@ -322,8 +344,8 @@ function checkEnd(state) {
     // Creatures waiting on an escalation rule that hasn't fired may never come: they don't hold a fight open.
     const coming = (c) => c.status === PENDING && c.arrivesRound != null;
     // (2026-10-23, the user: a downed creature whose regeneration is on — or only turned off till its next turn's end — gets back up at its
-    // turn, as PF2e has it: it holds the fight open.)
-    const regrowing = (c) => c.status === DOWN && c.kind !== "pc" && Boolean(c.regeneration) && (c.regenerationOff || regenerating(c, state));
+    // turn, as PF2e has it: it holds the fight open, while its foes can turn its regeneration off; one they can't stop, they leave down.)
+    const regrowing = (c) => c.status === DOWN && c.kind !== "pc" && Boolean(c.regeneration) && (c.regenerationOff || regenerating(c, state)) && canStopRegeneration(state, c);
     const remaining = foes.filter((c) => c.status === ACTIVE || coming(c) || regrowing(c));
     if (!remaining.length) {
         finish(state, foes.some((c) => c.status === FLED && !c.banished) ? "rout" : "decisive");

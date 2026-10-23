@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { simulate } from "../src/engine/fight.js";
+import { canStopRegeneration, createFightState, fightOver, simulate } from "../src/engine/fight.js";
 import { factorFight, factorLabels, factorsFor, namedTypes, picksOf } from "../src/engine/preferences.js";
 import { moderateCreatureAt } from "../src/engine/creature-tables.js";
 import { standardParty } from "../src/engine/party.js";
@@ -10,12 +10,23 @@ import { standardParty } from "../src/engine/party.js";
 
 const troll = () => ({ ...moderateCreatureAt(5, "monster", "Troll"), side: "foes", traits: ["giant", "troll"], regeneration: { value: 20, deactivatedBy: ["acid", "fire"] }, weaknesses: [{ type: "fire", value: 10, exceptions: [] }] });
 
-test("regeneration: a downed creature whose regeneration is on gets back up and keeps the fight going; fire puts it down for good", () => {
+test("regeneration: a downed creature whose regeneration its foes can stop holds the fight open; one they can't stop, they leave down; fire puts it down for good", () => {
     const party = standardParty(5);
-    const plain = simulate({ combatants: [...party, troll()] }, { morale: false, retreat: false, maxRounds: 12 }, 4, { log: true });
-    assert.match(plain.log.join("\n"), /regenerates and wakes/);
-    const burning = simulate({ combatants: [...party.map((c) => ({ ...c, strikes: c.strikes.map((s) => ({ ...s, damage: [...s.damage, { dice: 1, die: 6, bonus: 0, type: "fire" }] })) })), troll()] }, { morale: false, retreat: false, maxRounds: 12 }, 4, { log: true });
-    assert.ok(burning.rounds < plain.rounds, `fire ends it sooner (${burning.rounds} vs ${plain.rounds})`);
+    const fiery = party.map((c, index) => (index === 0 ? { ...c, strikes: [...c.strikes, { name: "Torch", bonus: 0, melee: true, damage: [{ dice: 1, die: 4, bonus: 0, type: "fire" }] }] } : c));
+    const downed = (members) => {
+        const state = createFightState({ combatants: [...members, troll()] }, { morale: false, retreat: false }, 1);
+        const t = state.byId.get("monster");
+        Object.assign(t, { status: "down", hp: { ...t.hp, value: 0 }, cond: { ...t.cond, dying: 1, unconscious: true } });
+        return state;
+    };
+    assert.equal(canStopRegeneration(downed(party), downed(party).byId.get("monster")), false, "no fire or acid among them");
+    assert.equal(fightOver(downed(party)), true, "left down");
+    assert.equal(canStopRegeneration(downed(fiery), downed(fiery).byId.get("monster")), true);
+    assert.equal(fightOver(downed(fiery)), false, "it'll get back up: the fight goes on");
+    const spell = { name: "Fire Ray", plan: { traits: ["fire"], resolution: { outcomes: { failure: { damage: { mode: "full", formula: "2d6[fire]" } } } } }, castRank: 1, pool: null };
+    const casters = party.map((c) => (c.id === "wizard" ? { ...c, spells: [...(c.spells ?? []), spell] } : c));
+    assert.equal(canStopRegeneration(downed(casters), downed(casters).byId.get("monster")), true, "a fire spell");
+    const burning = simulate({ combatants: [...party.map((c) => ({ ...c, strikes: c.strikes.map((s) => ({ ...s, damage: [...s.damage, { dice: 1, die: 6, bonus: 0, type: "fire" }] })) })), troll()] }, { morale: false, retreat: false, maxRounds: 12 }, 4);
     assert.equal(burning.foes[0].status, "dead");
 });
 
