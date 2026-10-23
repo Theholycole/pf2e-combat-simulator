@@ -1295,7 +1295,9 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     // Regeneration turns off before damage of a listed type is dealt (2026-10-23: or from a weapon of a listed material or trait — silver,
     // cold iron, holy —, which before never turned it off).
-    if (target.regeneration && instances.some((instance) => deactivates(instance, target.regeneration.deactivatedBy ?? []))) turnOffRegeneration(state, target);
+    // (Damage it takes: none of it turns it off when its resistances or immunities leave nothing — a Daze into mental resistance.)
+    const turningOff = target.regeneration ? instances.filter((instance) => deactivates(instance, target.regeneration.deactivatedBy ?? [])) : [];
+    if (turningOff.length && adjustDamage(target, turningOff).total > 0) turnOffRegeneration(state, target);
     // (2026-10-22, family 3: a curse's damage on a hit — Bloodspray Curse, Implement of Destruction.)
     if (target.curses?.length) instances = curseOnHit(state, target, source, instances, { physical, critical });
     // Liquefy, Chipping Scales (B99): its reaction's resistance against this damage, and what it leaves.
@@ -1506,16 +1508,18 @@ function deactivates(instance, types) {
 
 // Whether a Strike's damage would turn regeneration of these types off: its damage's types, or its weapon's material or trait.
 export function strikeStops(strike, types) {
-    if (!types?.length) return false;
+    // (A nonlethal one can't kill it down.)
+    if (!types?.length || strike.nonlethal || (strike.traits ?? []).includes("nonlethal")) return false;
     const traits = [...(strike.iwr?.traits ?? []), ...(strike.traits ?? []), ...(strike.holy || strike.good ? ["holy"] : []), ...(strike.unholy || strike.evil ? ["unholy"] : [])];
     return (strike.damage ?? []).some((part) => types.includes(part.type)) || (strike.iwr?.materials ?? []).some((material) => types.includes(material)) || traits.some((trait) => types.includes(trait));
 }
 
-// Whether a spell's damage would turn regeneration of these types off: a damage of one of them (its formulas' and parts' types), or a
-// damaging spell of one of its traits (holy).
+// Whether a spell's damage would turn regeneration of these types off and kill it down: a damage of one of them (its formulas' and
+// parts' types), or a damaging spell of one of its traits (holy); not a nonlethal one.
 export function spellStops(spell, types) {
     const resolution = spell?.plan?.resolution;
-    if (!types?.length || !resolution) return false;
+    // (A nonlethal one — Daze — can't kill it down.)
+    if (!types?.length || !resolution || (spell.plan.traits ?? []).includes("nonlethal")) return false;
     const damage = JSON.stringify([resolution.sharedDamage ?? null, ...Object.values(resolution.outcomes ?? {}).map((row) => row?.damage ?? null)]);
     if (!/"(?:mode|formula|components)"/.test(damage) || /"mode":"none"/.test(damage) && !/"formula"/.test(damage)) return false;
     return types.some((type) => new RegExp(`[\\[",]${type}[\\]",]`).test(damage)) || (spell.plan.traits ?? []).some((trait) => types.includes(trait));

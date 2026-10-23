@@ -24,7 +24,7 @@ import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
-import { actionTraits, isHex, battleMedicineOdds, skillValue, canCast, conditionWorth, describeSpell, exploitValue, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition, traitsAllowed } from "./spells.js";
+import { actionTraits, isHex, battleMedicineOdds, outsideTargets, skillValue, canCast, conditionWorth, describeSpell, exploitValue, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition, traitsAllowed } from "./spells.js";
 import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";
@@ -1849,7 +1849,7 @@ function expandTactics(env) {
             // (Or a damaging spell of one of its types at it — a basic save's half still turns the regeneration off.)
             if (env.noSpells) continue;
             for (const [index, spell] of (c.spells ?? []).entries()) {
-                if (!canCast(c, spell) || !poolReady(c, spell) || !spellStops(spell, stops) || node.casts.includes(`finish${index}`)) continue;
+                if (!canCast(c, spell) || !poolReady(c, spell) || !spellStops(spell, stops) || outsideTargets(c, foe, spell) || node.casts.includes(`finish${index}`)) continue;
                 const actions = Math.max(1, Number(describeSpell(spell.plan).actions) || 2);
                 if (actions > remaining) continue;
                 children.push(child(node, { type: "cast", spellIndex: index, targetIds: [foe.id], actions, finishing: true }, actions, ctx.profile.aggression * 0.8 * Math.max(1, targetValue(state, foe, c)), { cast: `finish${index}` }));

@@ -29,6 +29,11 @@ test("regeneration: a downed creature whose regeneration its foes' Strikes can s
     assert.equal(spellStops(spell, ["fire"]), true, "a damaging spell of its type finishes it too (one its caster can cast)");
     assert.equal(spellStops({ plan: { traits: ["holy"], resolution: { outcomes: { failure: { damage: { mode: "full", formula: "2d6[spirit]" } } } } } }, ["holy"]), true, "a holy damaging spell");
     assert.equal(spellStops({ plan: { traits: [], resolution: { outcomes: { failure: { conditions: [] } } } } }, ["fire"]), false, "no damage");
+    assert.equal(spellStops({ plan: { traits: ["nonlethal", "mental"], resolution: { outcomes: { failure: { damage: { mode: "full", formula: "1d6[mental]" } } } } } }, ["mental"]), false, "a nonlethal spell can't kill it down (Daze)");
+    // (Up three times already: its foes are taken not to manage it, and leave it down.)
+    const tired = downed(fiery);
+    tired.byId.get("monster").regrewCount = 3;
+    assert.equal(canStopRegeneration(tired, tired.byId.get("monster")), false);
     assert.ok(casters);
     // (A Strike of a material that stops it: the downed creature finished.)
     const silvered = { ...troll(), regeneration: { value: 20, deactivatedBy: ["silver"] } };

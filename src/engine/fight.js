@@ -12,7 +12,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { canCast, poolReady, agitationTurnEnd, atCastRank, duplicateTurnEnd, heldTurnStart, hinderTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { canCast, outsideTargets, poolReady, agitationTurnEnd, atCastRank, duplicateTurnEnd, heldTurnStart, hinderTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -308,7 +308,9 @@ function pcs(state) {
 export function canStopRegeneration(state, c) {
     if (c.regeneration?.hydra) return false;
     const stops = c.regeneration?.deactivatedBy ?? [];
-    return stops.length > 0 && state.list.some((foe) => foe.side !== c.side && foe.status === ACTIVE && ((foe.strikes ?? []).some((strike) => strikeUsable(foe, strike) && strikeStops(strike, stops)) || (foe.spells ?? []).some((spell) => canCast(foe, spell) && poolReady(foe, spell) && spellStops(spell, stops))));
+    // (Up three times already, its foes haven't managed it: they leave it down.)
+    if ((c.regrewCount ?? 0) >= 3) return false;
+    return stops.length > 0 && state.list.some((foe) => foe.side !== c.side && foe.status === ACTIVE && ((foe.strikes ?? []).some((strike) => strikeUsable(foe, strike) && strikeStops(strike, stops)) || (foe.spells ?? []).some((spell) => canCast(foe, spell) && poolReady(foe, spell) && spellStops(spell, stops) && !outsideTargets(foe, c, spell))));
 }
 
 function checkEnd(state) {
@@ -508,6 +510,7 @@ function regenerateUp(state, c) {
     c.cond.prone = true;
     c.band = "near";
     c.regeneratedRound = state.round;
+    c.regrewCount = (c.regrewCount ?? 0) + 1;
     state.log?.push(`${c.name} regenerates and wakes (${c.hp.value}/${c.hp.max})`);
 }
 
