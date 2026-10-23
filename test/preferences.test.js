@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { canStopRegeneration, createFightState, fightOver, simulate } from "../src/engine/fight.js";
 import { factorFight, factorLabels, factorsFor, namedTypes, picksOf } from "../src/engine/preferences.js";
+import { spellStops } from "../src/engine/actions.js";
 import { moderateCreatureAt } from "../src/engine/creature-tables.js";
 import { standardParty } from "../src/engine/party.js";
 
@@ -25,7 +26,10 @@ test("regeneration: a downed creature whose regeneration its foes' Strikes can s
     assert.equal(fightOver(downed(fiery)), false, "it'll get back up: the fight goes on");
     const spell = { name: "Fire Ray", plan: { traits: ["fire"], resolution: { outcomes: { failure: { damage: { mode: "full", formula: "2d6[fire]" } } } } }, castRank: 1, pool: null };
     const casters = party.map((c) => (c.id === "wizard" ? { ...c, spells: [...(c.spells ?? []), spell] } : c));
-    assert.equal(canStopRegeneration(downed(casters), downed(casters).byId.get("monster")), false, "a fire spell turns it off as the fight goes, but isn't aimed at one down");
+    assert.equal(spellStops(spell, ["fire"]), true, "a damaging spell of its type finishes it too (one its caster can cast)");
+    assert.equal(spellStops({ plan: { traits: ["holy"], resolution: { outcomes: { failure: { damage: { mode: "full", formula: "2d6[spirit]" } } } } } }, ["holy"]), true, "a holy damaging spell");
+    assert.equal(spellStops({ plan: { traits: [], resolution: { outcomes: { failure: { conditions: [] } } } } }, ["fire"]), false, "no damage");
+    assert.ok(casters);
     // (A Strike of a material that stops it: the downed creature finished.)
     const silvered = { ...troll(), regeneration: { value: 20, deactivatedBy: ["silver"] } };
     const daggers = party.map((c) => (c.id === "rogue" ? { ...c, strikes: [...c.strikes, { name: "Silver Dagger", bonus: c.strikes[0].bonus - 1, melee: true, agile: true, damage: [{ dice: 1, die: 4, bonus: 2, type: "piercing" }], iwr: { materials: ["silver"] } }] } : c));

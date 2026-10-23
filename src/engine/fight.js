@@ -5,14 +5,14 @@ import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCC
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
-import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, finishRegenerating, strikeStops, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
+import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, finishRegenerating, spellStops, strikeStops, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, adjustPart, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { agitationTurnEnd, atCastRank, duplicateTurnEnd, heldTurnStart, hinderTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { canCast, poolReady, agitationTurnEnd, atCastRank, duplicateTurnEnd, heldTurnStart, hinderTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -302,13 +302,13 @@ function pcs(state) {
 }
 
 // Whether a creature's active foes can turn its regeneration off and finish it, down: a Strike of one of its types (its damage, or the
-// weapon's material or trait — silver, cold iron, holy; actions.js strikeStops) — what they finish a downed one with (planner.js). A
-// spell of one turns it off as the fight goes, but isn't aimed at one down. (A hydra's goes on while it has a head or an uncauterized stump,
-// whatever turns it off: one down isn't finished that way — never.)
+// weapon's material or trait — silver, cold iron, holy; actions.js strikeStops), or a damaging spell of one they can cast now (spellStops) —
+// what they finish a downed one with (planner.js). (A hydra's goes on while it has a head or an uncauterized stump, whatever turns it off:
+// one down isn't finished that way — never.)
 export function canStopRegeneration(state, c) {
     if (c.regeneration?.hydra) return false;
     const stops = c.regeneration?.deactivatedBy ?? [];
-    return stops.length > 0 && state.list.some((foe) => foe.side !== c.side && foe.status === ACTIVE && (foe.strikes ?? []).some((strike) => strikeUsable(foe, strike) && strikeStops(strike, stops)));
+    return stops.length > 0 && state.list.some((foe) => foe.side !== c.side && foe.status === ACTIVE && ((foe.strikes ?? []).some((strike) => strikeUsable(foe, strike) && strikeStops(strike, stops)) || (foe.spells ?? []).some((spell) => canCast(foe, spell) && poolReady(foe, spell) && spellStops(spell, stops))));
 }
 
 function checkEnd(state) {
@@ -941,7 +941,7 @@ function act(state, c, action) {
             }
             // (A follow-up by the Strike's degree, "Enfeebled 2 (or Enfeebled 3 on a critical hit)": that Strike's degree, B68.)
             const byStrike = action.rider && spell?.plan?.resolution?.check?.statistic === "strike" && Number.isFinite(rider?.degree);
-            castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}) });
+            castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
             if (spell?.draw?.each) c.itemsAtHand?.delete(spell.item);
             // (L5: a coven spell — the coven's one this round, and its helpers' actions.)
             if (spell?.coven) {

@@ -1511,6 +1511,16 @@ export function strikeStops(strike, types) {
     return (strike.damage ?? []).some((part) => types.includes(part.type)) || (strike.iwr?.materials ?? []).some((material) => types.includes(material)) || traits.some((trait) => types.includes(trait));
 }
 
+// Whether a spell's damage would turn regeneration of these types off: a damage of one of them (its formulas' and parts' types), or a
+// damaging spell of one of its traits (holy).
+export function spellStops(spell, types) {
+    const resolution = spell?.plan?.resolution;
+    if (!types?.length || !resolution) return false;
+    const damage = JSON.stringify([resolution.sharedDamage ?? null, ...Object.values(resolution.outcomes ?? {}).map((row) => row?.damage ?? null)]);
+    if (!/"(?:mode|formula|components)"/.test(damage) || /"mode":"none"/.test(damage) && !/"formula"/.test(damage)) return false;
+    return types.some((type) => new RegExp(`[\\[",]${type}[\\]",]`).test(damage)) || (spell.plan.traits ?? []).some((trait) => types.includes(trait));
+}
+
 // (2026-10-23) Finishing a downed creature whose regeneration this Strike turns off: the hit turns it off, and the creature, down, dies.
 export function finishRegenerating(state, c, target, strike) {
     if (!target || target.status !== DOWN || !strike) return null;

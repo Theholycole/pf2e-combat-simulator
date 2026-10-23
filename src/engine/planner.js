@@ -17,7 +17,7 @@ import { canStepOut, fliesNow, flankChance, isIncorporeal, levitating, mapGap, r
 import { bandAt, canTakeCover, gridFlanked, gridStrides, obstacleNext, pillarLine, pillarsInReach, planStride, shoots, standZ, strideGoes } from "./grid-fight.js";
 import { distanceFeet, footingAt, occupiedBy, reaches as gridReaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
 import { moderate } from "./creature-tables.js";
-import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst, strikeStops } from "./actions.js";
+import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst, spellStops, strikeStops } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
 import { canReact, castJustNow, chargeOn, hasOwnEffect, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
@@ -1846,6 +1846,14 @@ function expandTactics(env) {
                 if (!best || hit > best.hit) best = { index, hit };
             }
             if (best) children.push(child(node, { type: "finish", targetId: foe.id, strikeIndex: best.index }, 1, ctx.profile.aggression * best.hit * Math.max(1, targetValue(state, foe, c)), { attack: true }));
+            // (Or a damaging spell of one of its types at it — a basic save's half still turns the regeneration off.)
+            if (env.noSpells) continue;
+            for (const [index, spell] of (c.spells ?? []).entries()) {
+                if (!canCast(c, spell) || !poolReady(c, spell) || !spellStops(spell, stops) || node.casts.includes(`finish${index}`)) continue;
+                const actions = Math.max(1, Number(describeSpell(spell.plan).actions) || 2);
+                if (actions > remaining) continue;
+                children.push(child(node, { type: "cast", spellIndex: index, targetIds: [foe.id], actions, finishing: true }, actions, ctx.profile.aggression * 0.8 * Math.max(1, targetValue(state, foe, c)), { cast: `finish${index}` }));
+            }
         }
     }
     // (2026-10-22, Pillars: one knocked over onto foes — Athletics at its DC, the attack trait —, falling away from it in a line: each
