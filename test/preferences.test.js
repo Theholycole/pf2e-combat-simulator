@@ -1,0 +1,61 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { simulate } from "../src/engine/fight.js";
+import { factorFight, factorLabels, factorsFor, namedTypes, picksOf } from "../src/engine/preferences.js";
+import { moderateCreatureAt } from "../src/engine/creature-tables.js";
+import { standardParty } from "../src/engine/party.js";
+
+// A creature's preferences (2026-10-23, preferences.js), and regeneration holding a fight open (fight.js checkEnd).
+
+const troll = () => ({ ...moderateCreatureAt(5, "monster", "Troll"), side: "foes", traits: ["giant", "troll"], regeneration: { value: 20, deactivatedBy: ["acid", "fire"] }, weaknesses: [{ type: "fire", value: 10, exceptions: [] }] });
+
+test("regeneration: a downed creature whose regeneration is on gets back up and keeps the fight going; fire puts it down for good", () => {
+    const party = standardParty(5);
+    const plain = simulate({ combatants: [...party, troll()] }, { morale: false, retreat: false, maxRounds: 12 }, 4, { log: true });
+    assert.match(plain.log.join("\n"), /regenerates and wakes/);
+    const burning = simulate({ combatants: [...party.map((c) => ({ ...c, strikes: c.strikes.map((s) => ({ ...s, damage: [...s.damage, { dice: 1, die: 6, bonus: 0, type: "fire" }] })) })), troll()] }, { morale: false, retreat: false, maxRounds: 12 }, 4, { log: true });
+    assert.ok(burning.rounds < plain.rounds, `fire ends it sooner (${burning.rounds} vs ${plain.rounds})`);
+    assert.equal(burning.foes[0].status, "dead");
+});
+
+test("the factors a creature gets: only the damage it names (against untyped), Sky only for a flier, Resist Energy for its weakness, nothing it has", () => {
+    const keys = (monster) => factorsFor(monster).map((factor) => factor.key);
+    const plain = keys({ traits: [] });
+    assert.ok(!plain.some((key) => key.startsWith("deals:")), "no damage a plain creature names");
+    assert.ok(!plain.includes("battlefield:sky"));
+    const t = keys(troll());
+    assert.ok(["deals:untyped", "deals:fire", "deals:acid", "ally:resist-fire"].every((key) => t.includes(key)));
+    assert.equal(factorsFor(troll()).find((factor) => factor.key === "deals:fire").base, "deals:untyped");
+    assert.ok(keys({ flies: true }).includes("battlefield:sky") && !keys({ flies: true }).includes("ally:fly"));
+    assert.ok(!keys({ spells: [{ name: "Haste (Constant)" }] }).includes("ally:haste"));
+    assert.ok(namedTypes({ traits: ["undead"] }).has("vitality"));
+    assert.equal(factorLabels()["ally:fly"], "an ally's Fly");
+});
+
+test("a factor's fight: the party's changes, an ally's spell as a constant one, the setup", () => {
+    const party = standardParty(3);
+    const [fire] = factorsFor(troll()).filter((factor) => factor.key === "deals:fire");
+    const fight = factorFight(fire, party, [troll()]);
+    assert.ok(fight.combatants[0].strikes[0].damage.some((part) => part.type === "fire"));
+    const dark = factorFight(factorsFor({}).find((factor) => factor.key === "light:dark"), party, [troll()]);
+    assert.equal(dark.setup.environment.light, "dark");
+    const haste = factorFight(factorsFor({}).find((factor) => factor.key === "ally:haste"), party, [troll()], { spell: { name: "Haste", plan: {}, castRank: 3 } });
+    assert.ok(haste.combatants.at(-1).spells.some((spell) => spell.name === "Haste (Constant)"));
+});
+
+test("picks: the best battlefield; the three most wanted and most hated past a tenth and a half; an ally's help never hated", () => {
+    const picks = picksOf({ "battlefield:pillars": 0.3, "battlefield:dropoff": 0.9, "light:dark": 1.2, "deals:fire": -1.5, "deals:acid": -0.8, "weather:fog": -0.1, "ally:haste": 0.7, "ally:mirror-image": -1.9, "cover:foes": 0.2, "terrain:ice": 0.16, "deals:untyped": -3 });
+    assert.deepEqual(picks.battlefield, ["battlefield:dropoff", 0.9]);
+    assert.deepEqual(picks.wants.map(([key]) => key), ["light:dark", "ally:haste", "cover:foes"]);
+    assert.deepEqual(picks.hates.map(([key]) => key), ["deals:fire", "deals:acid"]);
+});
+
+test("the icon's words: best battlefield, wants and hates with their levels, how they were found", async () => {
+    const { preferencesOf, preferencesTooltip } = await import("../src/live/danger.js");
+    const data = { fights: 40, labels: { "battlefield:dropoff": "Dropoff", "light:dark": "darkness", "deals:fire": "fire damage" }, creatures: { "pf2e.bestiary": { abc: { battlefield: ["battlefield:dropoff", 0.9], wants: [["light:dark", 1.2]], hates: [["deals:fire", -1.5]] }, none: { battlefield: null, wants: [], hates: [] } } } };
+    assert.equal(preferencesOf(data, "pf2e.bestiary", "none"), null);
+    const words = preferencesTooltip(preferencesOf(data, "pf2e.bestiary", "abc"), data);
+    assert.match(words.text, /^Best battlefield: Dropoff \(\+0\.9\)\. Wants: darkness \(\+1\.2\)\. Hates: fire damage \(−1\.5\)\. Levels of danger/);
+    assert.match(words.html, /<p><strong>Hates:<\/strong> fire damage \(−1\.5\)<\/p>/);
+});

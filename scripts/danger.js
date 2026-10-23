@@ -9,7 +9,7 @@
 
 import { MODULE_ID } from "./snapshot.js";
 import { aloneRatings, worldRatings } from "./danger-run.js";
-import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, powerDetailOf, powerLabel, powerTooltip, ratingOf, ratingOfUuid, sortByDanger, withAlone, withRuleChoices } from "../src/live/danger.js";
+import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, powerDetailOf, powerLabel, powerTooltip, preferencesOf, preferencesTooltip, ratingOf, ratingOfUuid, sortByDanger, withAlone, withRuleChoices } from "../src/live/danger.js";
 
 const SETTING = "dangerRatings";
 const SPELL_SETTING = "spellPower";
@@ -27,6 +27,23 @@ const fetchJSON = (name) => (files[name] ??= fetch(`modules/${MODULE_ID}/src/dat
 
 // The module's own creature numbers (src/data/danger-ratings.json), or null.
 export const shippedRatings = () => fetchJSON("danger-ratings.json");
+// (2026-10-23: each creature's preferences — src/data/danger-preferences.json —, once read.)
+let preferences = null;
+const loadPreferences = async () => (preferences ??= (await fetchJSON("danger-preferences.json")) ?? { creatures: {} });
+
+// The info icon beside a creature's number: its preferred battlefield and what it wants and hates, when hovered; null without any.
+function preferencesIcon(collection, id) {
+    const picks = preferencesOf(preferences, collection, id);
+    if (!picks) return null;
+    const words = preferencesTooltip(picks, preferences);
+    const icon = document.createElement("i");
+    icon.className = "fa-solid fa-circle-info pcs-prefs";
+    icon.dataset.tooltipHtml = words.html;
+    icon.dataset.tooltip = words.text;
+    icon.dataset.tooltipClass = "pcs-prefs-tooltip";
+    icon.setAttribute("aria-label", words.text);
+    return icon;
+}
 
 // What each kind is: its documents, its setting, its numbers, its badge and its place in PF2e's Compendium Browser.
 const KINDS = {
@@ -124,10 +141,12 @@ async function mark(app, root, kind) {
     if (!root || !pack) return;
     const known = await load(kind);
     if (!known?.ratings?.[pack.collection]) return;
+    if (kind === KINDS.creatures) await loadPreferences();
     const entries = [...root.querySelectorAll("li.directory-item.entry[data-entry-id]")];
     entries.forEach((item, index) => {
         if (item.dataset.pcsOrder === undefined) item.dataset.pcsOrder = String(index);
         item.querySelector(".pcs-danger")?.remove();
+        item.querySelector(".pcs-prefs")?.remove();
         const id = item.dataset.entryId;
         // (A compendium of items of every kind: its spells only.)
         const value = pack.index?.get?.(id)?.type && pack.index.get(id).type !== kind.type ? null : ratingOf(known, pack.collection, id);
@@ -137,6 +156,8 @@ async function mark(app, root, kind) {
         }
         item.dataset.pcsDanger = String(value);
         item.append(badgeFor(kind, value, boundOf(known, pack.collection, id), known, pack.collection, id));
+        const icon = kind === KINDS.creatures ? preferencesIcon(pack.collection, id) : null;
+        if (icon) item.append(icon);
     });
     const search = root.querySelector("search");
     let button = search?.querySelector(".pcs-danger-sort");
@@ -185,6 +206,7 @@ async function setUpBrowser() {
         const tab = browser.tabs[kind.tab];
         if (!tab || typeof tab.sortResult !== "function" || tab[kind.order]) continue;
         await load(kind);
+        if (kind === KINDS.creatures) await loadPreferences();
         tab[kind.order] = true;
         const ownSort = tab.sortResult.bind(tab);
         tab.sortResult = function (result) {
@@ -263,6 +285,8 @@ function markBrowser(app) {
             const cell = document.createElement("div");
             cell.className = "pcs-danger-cell";
             cell.append(badgeFor(kind, rating.value, rating.bound, known, collection, id));
+            const icon = kind === KINDS.creatures ? preferencesIcon(collection, id) : null;
+            if (icon) cell.append(icon);
             const level = item.querySelector(":scope > .level");
             if (level) level.before(cell);
             else item.append(cell);

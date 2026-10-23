@@ -288,3 +288,35 @@ export function powerTooltip(value, data, bound = null, detail = null) {
     return `Power for its rank in combat: ${how} (Combat Simulator${run ? `, ${run}` : ""}).${fights}${note}${creature}${higher}${useful}${less}${minion}${allies}${estimate}${partial}${rule} Rated for combat only: what it does outside a fight isn't counted.${longHealing}`;
 }
 
+
+// A creature's preferences (2026-10-23, the user: "an extra info icon next to monster names … show a Monsters preferred battlefield type
+// as well as 3 beneficial things they want the most they dont already have and 3 detrimental things they hate the most"; the numbers in
+// src/data/danger-preferences.json, from `node tools/preferences.mjs <run> ratings`): its picks by compendium and id, or null.
+export function preferencesOf(data, collection, id) {
+    const picks = data?.creatures?.[collection]?.[id];
+    return picks && (picks.battlefield || picks.wants?.length || picks.hates?.length) ? picks : null;
+}
+
+// Its lines: the best battlefield, what it wants, what it hates — each with the levels of danger for its level it gains or loses.
+export function preferencesLines(picks, data) {
+    const label = (key) => data?.labels?.[key] ?? key;
+    const signed = (value) => `${value > 0 ? "+" : value < 0 ? "−" : "±"}${Math.abs(value).toFixed(1)}`;
+    const list = (items) => items.map(([key, value]) => `${label(key)} (${signed(value)})`).join(", ");
+    return [
+        picks.battlefield ? ["Best battlefield", `${label(picks.battlefield[0])} (${signed(picks.battlefield[1])})`] : null,
+        picks.wants?.length ? ["Wants", list(picks.wants)] : null,
+        picks.hates?.length ? ["Hates", list(picks.hates)] : null
+    ].filter(Boolean);
+}
+
+const escapeHTML = (text) => String(text).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+
+// The icon's words: { text (one line), html (a line each) }, with how they were found.
+export function preferencesTooltip(picks, data) {
+    const lines = preferencesLines(picks, data);
+    const note = `Levels of danger for its level, gained or lost (Combat Simulator, ${Number(data?.fights) || 40} fights each against a party of four at its level).`;
+    return {
+        text: `${lines.map(([head, body]) => `${head}: ${body}`).join(". ")}. ${note}`,
+        html: `${lines.map(([head, body]) => `<p><strong>${escapeHTML(head)}:</strong> ${escapeHTML(body)}</p>`).join("")}<p class="pcs-prefs-note">${escapeHTML(note)}</p>`
+    };
+}

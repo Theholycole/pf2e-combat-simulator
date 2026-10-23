@@ -321,7 +321,10 @@ function checkEnd(state) {
     const foes = creatures.length ? creatures : state.list.filter((c) => c.side === "foes" && isHazard(c));
     // Creatures waiting on an escalation rule that hasn't fired may never come: they don't hold a fight open.
     const coming = (c) => c.status === PENDING && c.arrivesRound != null;
-    const remaining = foes.filter((c) => c.status === ACTIVE || coming(c));
+    // (2026-10-23, the user: a downed creature whose regeneration is on — or only turned off till its next turn's end — gets back up at its
+    // turn, as PF2e has it: it holds the fight open.)
+    const regrowing = (c) => c.status === DOWN && c.kind !== "pc" && Boolean(c.regeneration) && (c.regenerationOff || regenerating(c, state));
+    const remaining = foes.filter((c) => c.status === ACTIVE || coming(c) || regrowing(c));
     if (!remaining.length) {
         finish(state, foes.some((c) => c.status === FLED && !c.banished) ? "rout" : "decisive");
         return true;

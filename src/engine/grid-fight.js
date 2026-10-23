@@ -469,13 +469,40 @@ export function vantageScore(state, c, square) {
 }
 
 // A Stride toward the best place to shoot from within two Strides, out of its foes' reach: a plan (goal: the place), or null when none
-// beats where it is.
+// beats where it is. Only places that could be better than the open ground: higher than where it stands, a parapet's, undergrowth's or
+// rubble's square, or beside a wall or a ledge; on a map that has any. Cached by the grid's version.
 function vantageStride(state, c, found, feet) {
+    const map = state.grid;
+    if (!map.heights?.size && !map.parapets?.size && !map.cover?.size && !map.blocked?.size) return null;
+    const cacheKey = `vantage|${c.id}|${c.square.join(",")}|${feet}`;
+    reachFrom(state, c);
+    if (state.gridPaths.has(cacheKey)) return state.gridPaths.get(cacheKey);
+    const plan = vantageSearch(state, c, found, feet);
+    state.gridPaths.set(cacheKey, plan);
+    return plan;
+}
+
+// Whether a square could be a better place to shoot from than open ground at `ground`: higher, a parapet's, undergrowth's or rubble's, or
+// beside a wall or a ledge (up or down: an edge to see over).
+function featured(map, x, y, ground) {
+    const square = squareKey(x, y);
+    if ((map.heights?.get(square) ?? 0) > ground || map.parapets?.has(square) || map.cover?.has(square) || (map.difficult?.get(square) ?? 1) >= 2) return true;
+    const here = map.heights?.get(square) ?? 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const next = squareKey(x + dx, y + dy);
+        if (map.blocked.has(next) || Math.abs((map.heights?.get(next) ?? 0) - here) > 5) return true;
+    }
+    return false;
+}
+
+function vantageSearch(state, c, found, feet) {
     const foes = state.list.filter((other) => other.side !== c.side && isActive(other) && other.square);
+    const ground = groundZ(state.grid, c.square[0], c.square[1], spaceOf(c));
     let best = { place: squareKey(...c.square), score: vantageScore(state, c, c.square) + 1 };
     for (const [place, entry] of found) {
         if (!entry.ends || entry.cost > 2 * feet || place === best.place) continue;
         const square = squareOf(place);
+        if (!featured(state.grid, square[0], square[1], ground)) continue;
         const at = { ...c, square, ...(state.grid.heights?.size ? { z: standZ(state.grid, c, square) } : {}) };
         if (foes.some((foe) => reaches(foe, at))) continue;
         const score = vantageScore(state, c, square) - entry.cost / 25;
