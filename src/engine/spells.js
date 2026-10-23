@@ -37,7 +37,7 @@ import { lastingRounds } from "./lasting.js";
 import { takeControl } from "./control.js";
 import { noteKnown } from "./readings.js";
 import { hexFamiliar } from "./familiars.js";
-import { forcedMove, gridAreaSets } from "./grid-fight.js";
+import { forcedMove, forcedPath, gridAreaSets } from "./grid-fight.js";
 import { sightLine } from "./grid.js";
 import { canSpendHero, saveWorthReroll, spendHeroPoint, takesOut } from "./heroes.js";
 import { RUNE_LOANS } from "./runes.js";
@@ -4583,6 +4583,16 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     const shielded = engaged && state.list.some((other) => other.side === caster.side && isActive(other) && other.meleeId === target.meleeId && (state.strikeShare?.get(other.id) ?? 1) < 0.5);
                     const ranged = (target.strikes ?? []).some((strike) => !strike.melee && strikeUsable(target, strike));
                     entry.worth += chance * (change.kind === "push" && shielded ? (ranged ? 0.05 : 0.1) : 0.02);
+                    // (2026-10-22, a battlefield: off an edge — the fall's damage, short of its Grab an Edge; into a chasm it won't come back
+                    // from in this fight, all of it.)
+                    if (state.grid?.heights?.size && target.square && caster.square && target !== caster && !fliesNow(target)) {
+                        const { drop } = forcedPath(state, target, caster, change.kind === "push" ? 1 : -1, Number(change.distance) || 5);
+                        if (drop > 5) {
+                            const grab = canReact(target, "Grab an Edge") ? Math.min(0.95, Math.max(0.05, (21 - ((Number(state.grid.climbDC) || 15) - Math.max(skillValue(target, "acrobatics"), saveModifier(target, "reflex")))) / 20)) : 0;
+                            const out = drop > (Number(state.grid.fallOut) || Infinity);
+                            entry.damage += chance * (1 - grab) * (out ? Math.max(1, target.hp.value + (target.hp.temp ?? 0)) : adjustInstance(target, "bludgeoning", Math.floor(drop / 2)));
+                        }
+                    }
                 } else if (change.op === "end" && change.what?.stabilize && target.status === DOWN) {
                     // First Aid: the chance it would otherwise die.
                     entry.benefit += chance * 3 * Math.min(1, ((target.cond.dying ?? 0) + 1) / (4 - (target.cond.doomed ?? 0)));

@@ -114,17 +114,17 @@ function blob(rng, x, y, size, inside) {
 }
 const randomIn = (rng, lo, hi) => lo + Math.floor(rng.next() * (hi - lo + 1));
 
-// Balconies: overlooks ideal for ranged attackers — two 15-foot balconies along the long sides of an arena, a parapet on their inner edge
-// (standard cover against those below), stairs at either end (5 feet a square), their faces climbed at the level's DC.
+// Balconies: small overlooks, ideal for ranged attackers — four 15-foot ones, two by each side's start (above and below it), a parapet on
+// the edge toward the field (standard cover against those below), two steps of stairs up toward the middle (5 feet each); their faces
+// climbed at the level's DC.
 function balconies(level) {
     const map = blank("balconies", level);
-    for (const [y0, y1, edge] of [[0, 2, 2], [17, 19, 17]]) {
-        area(6, y0, 23, y1, (x, y) => map.heights.set(key(x, y), 15));
-        area(6, edge, 23, edge, (x, y) => map.parapets.add(key(x, y)));
-        area(5, y0, 5, y1, (x, y) => map.heights.set(key(x, y), 10));
-        area(4, y0, 4, y1, (x, y) => map.heights.set(key(x, y), 5));
-        area(24, y0, 24, y1, (x, y) => map.heights.set(key(x, y), 10));
-        area(25, y0, 25, y1, (x, y) => map.heights.set(key(x, y), 5));
+    for (const [x0, x1, steps] of [[5, 7, [[8, 10], [9, 5]]], [22, 24, [[21, 10], [20, 5]]]]) {
+        for (const [y0, y1, edge] of [[1, 2, 2], [17, 18, 17]]) {
+            area(x0, y0, x1, y1, (x, y) => map.heights.set(key(x, y), 15));
+            area(x0, edge, x1, edge, (x, y) => map.parapets.add(key(x, y)));
+            for (const [x, feet] of steps) area(x, y0, x, y1, (sx, sy) => map.heights.set(key(sx, sy), feet));
+        }
     }
     leftRight(map, middleOut(5, 14));
     return map;

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createFightState, simulate } from "../src/engine/fight.js";
-import { breachGate, fall, footingShaken, leaveField, stride, toppleObject } from "../src/engine/actions.js";
+import { breachGate, coverFor, fall, footingShaken, leaveField, stride, takeCover, toppleObject } from "../src/engine/actions.js";
 import { breathTurnEnd, hoverTurnStart } from "../src/engine/void.js";
 import { canCast } from "../src/engine/spells.js";
 import { sightDC } from "../src/engine/environment.js";
@@ -10,7 +10,7 @@ import { scoreOptions } from "../src/engine/planner.js";
 import { isOffGuard } from "../src/engine/combatant.js";
 import { BATTLEFIELDS, DROPS, battlefieldMap, inLevels, isBattlefield, tierOf, TIER_DC } from "../src/engine/battlefields.js";
 import { coveredSquares, distanceFeet, feetBetween, reachable, sightLine, squareOf } from "../src/engine/grid.js";
-import { gridMap } from "../src/engine/grid-fight.js";
+import { canTakeCover, forcedPath, gridMap, planStride } from "../src/engine/grid-fight.js";
 import { moderateCreatureAt } from "../src/engine/creature-tables.js";
 import { createRng } from "../src/engine/rng.js";
 import { standardParty } from "../src/engine/party.js";
@@ -225,4 +225,35 @@ test("Underwater: Swim without a swim Speed, off-guard, resistance 5 to acid and
     p.attacksThisTurn = 1;
     breathTurnEnd(state, p, { leaveField });
     assert.notEqual(p.status, "active", "out of air: drowning");
+});
+
+test("Take Cover: greater behind standard cover; standard only toward the wall it ducks behind; gone when it moves or attacks", () => {
+    const wall = {};
+    for (let y = 0; y < 10; y++) wall[`7,${y}`] = 20;
+    const state = fight([pc("p"), foe("x"), foe("y")], field({ heights: wall, battlefield: "high-low", level: 3 }, { p: [6, 5], x: [12, 5], y: [2, 5] }));
+    const [p, x, y] = ["p", "x", "y"].map((id) => state.byId.get(id));
+    assert.equal(canTakeCover(state, p), true, "beside the wall");
+    takeCover(state, p);
+    assert.equal(coverFor(state, p, x), 2, "the wall between: toward the foe beyond it");
+    assert.equal(coverFor(state, p, y), 0, "not toward the one on its own side");
+    stride(state, p, { kind: "engage", targetId: "y" });
+    assert.equal(p.tookCover, false);
+});
+
+test("tactics: a shooter takes the high ground and doesn't climb down; a Shove off an edge is worth the fall", () => {
+    const cliff = {};
+    for (let x = 10; x < 20; x++) for (let y = 0; y < 10; y++) cliff[`${x},${y}`] = 30;
+    const archer = { ...foe("x"), strikes: [{ name: "Longbow", bonus: 12, melee: false, increment: 100, damage: [{ dice: 1, die: 8, type: "piercing" }] }] };
+    const state = fight([pc("p"), archer], field({ heights: cliff, battlefield: "high-low", level: 3 }, { p: [3, 5], x: [16, 5] }));
+    const x = state.byId.get("x");
+    const plan = planStride(state, x, { kind: "toNear" });
+    assert.ok(!plan || squareOf(plan.end)[0] >= 10, "to the edge, not down the cliff");
+    const vantage = planStride(state, x, { kind: "vantage" });
+    assert.ok(vantage && squareOf(vantage.goal)[0] >= 10 && squareOf(vantage.goal)[0] <= 12, "the cliff's edge, where it sees its foe");
+    // (A push off a 30-foot ledge: the fall in the Shove's worth.)
+    const ledge = fight([pc("p"), foe("x")], field({ heights: cliff, battlefield: "high-low", level: 3 }, { p: [11, 5], x: [10, 5] }));
+    const shove = { name: "Shove", kind: "basic", castRank: 1, plan: { traits: ["attack"], targeting: { kind: "creature" }, resolution: { kind: "check", rows: { success: [{ op: "move", kind: "push", distance: 5 }] } } } };
+    const { pathAt } = { pathAt: forcedPath(ledge, ledge.byId.get("x"), ledge.byId.get("p"), 1, 5) };
+    assert.equal(pathAt.drop, 30, "off the edge");
+    assert.ok(shove);
 });

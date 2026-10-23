@@ -429,15 +429,19 @@ export function sightLine(map, from, to, others = []) {
     }
     // (2026-10-22, heights: ground higher than the line between their middles — a wall, a cliff — blocks it; within 5 feet under it, a
     // ledge's lip, standard cover. A parapet: standard cover for one behind it against those below.)
+    // (Points along the line, four a square — a square it only touches at a corner, between two creatures diagonally beside a wall, isn't
+    // in its way.)
     if (map.heights?.size) {
         const za = (Number(from.z) || 0) + (spaceOf(from) * SQUARE_FEET) / 2;
         const zb = (Number(to.z) || 0) + (spaceOf(to) * SQUARE_FEET) / 2;
-        const length = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-        for (const square of squares) {
+        const steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * 4));
+        for (let k = 0; k < steps; k++) {
+            const along = (k + 0.5) / steps;
+            const square = key(Math.floor(a[0] + (b[0] - a[0]) * along), Math.floor(a[1] + (b[1] - a[1]) * along));
+            if (own.has(square)) continue;
             const ground = map.heights.get(square) ?? 0;
-            if (ground <= Math.min(za, zb) - SQUARE_FEET) continue;
-            const [x, y] = unkey(square);
-            const along = Math.min(1, Math.max(0, Math.hypot(x + 0.5 - a[0], y + 0.5 - a[1]) / length));
+            // (Ground no higher than the lower one's feet: nothing in the way.)
+            if (ground <= Math.min(Number(from.z) || 0, Number(to.z) || 0)) continue;
             const line = za + (zb - za) * along;
             if (ground >= line) return { effect: false, cover: 0 };
             if (ground > line - SQUARE_FEET) cover = 2;

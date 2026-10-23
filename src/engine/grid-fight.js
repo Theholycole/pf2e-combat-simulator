@@ -305,7 +305,9 @@ function bestReachPlace(state, c, target, square = c.square, prefer = null) {
                 probe.z = flying ? Math.max(ground, Number(target.z) || 0) : ground;
             }
             if (!reaches(probe, target)) continue;
-            const bonus = prefer ? prefer({ ...c, square: [x, y], ...(heights ? { z: probe.z } : {}) }) : 0;
+            // (2026-10-22, a battlefield: firm ground over uneven ground or a narrow surface — off-guard there — by 10 feet's worth.)
+            const unsure = !flying && state.grid.footing?.size && footingAt(state.grid, x, y, n)?.kind && footingAt(state.grid, x, y, n).kind !== "incline" ? 10 : 0;
+            const bonus = (prefer ? prefer({ ...c, square: [x, y], ...(heights ? { z: probe.z } : {}) }) : 0) - unsure;
             if (!best || entry.cost - bonus < best.cost - best.bonus) best = { place, cost: entry.cost, bonus, ...(heights ? { z: probe.z } : {}) };
         }
     }
@@ -357,6 +359,7 @@ export function threatenedAlong(state, c, way) {
 export function planStride(state, c, move, feet = Math.max(5, c.speed ?? 25)) {
     if (!state.grid || !c.square) return null;
     const found = reachFrom(state, c);
+    if (move.kind === "vantage") return vantageStride(state, c, found, feet);
     if (move.kind === "engage" || move.kind === "approach") {
         const target = state.byId.get(move.targetId);
         if (!target?.square) return null;
@@ -385,10 +388,100 @@ export function planStride(state, c, move, feet = Math.max(5, c.speed ?? 25)) {
         const ways = foes.map((foe) => bestReachPlace(state, c, foe)).filter(Boolean).sort((p, q) => p.cost - q.cost);
         if (ways.length) {
             const plan = along(found, ways[0].place, feet);
+            // (Holding the high ground: one that shoots doesn't climb down to its foes — it comes to the edge.)
+            if (obstacleNext(state, c, plan) === "climb" && shoots(c) && climbsDown(state, c, plan)) return plan.end && plan.end !== squareKey(...c.square) ? { end: plan.end, way: plan.way } : null;
             if ((plan.end && plan.end !== squareKey(...c.square)) || obstacleNext(state, c, plan)) return plan;
         }
     }
     return best ? along(found, best.place, feet) : null;
+}
+
+// (2026-10-22, Take Cover.) Whether a creature at a square has something to take cover behind on a battlefield — prone; in a parapet's,
+// undergrowth's or rubble's square; beside a wall, a pillar or a ledge above it; or with a foe's line to it already giving cover.
+export function canTakeCover(state, c, square = c.square, z = undefined) {
+    const map = state.grid;
+    if (!map?.battlefield || !square || map.void) return false;
+    if (c.cond?.prone) return true;
+    const n = spaceOf(c);
+    const ground = groundZ(map, square[0], square[1], n);
+    for (let i = -1; i <= n; i++) for (let j = -1; j <= n; j++) {
+        const key = squareKey(square[0] + i, square[1] + j);
+        const inside = i >= 0 && j >= 0 && i < n && j < n;
+        if (inside && (map.parapets?.has(key) || map.cover?.has(key) || (map.difficult?.get(key) ?? 1) >= 2)) return true;
+        if (!inside && (map.blocked.has(key) || (map.heights?.get(key) ?? 0) > ground + 5)) return true;
+    }
+    const at = { ...c, square, ...(z !== undefined ? { z } : {}) };
+    return state.list.some((foe) => foe.side !== c.side && isActive(foe) && foe.square && sightLine(map, foe, at).cover >= 2);
+}
+
+// Whether a creature that Took Cover has it against an attacker: in undergrowth or rubble, or beside a wall, a pillar or a ledge above it
+// on the attacker's side.
+export function coverToward(state, c, from) {
+    const map = state.grid;
+    const n = spaceOf(c);
+    const ground = groundZ(map, c.square[0], c.square[1], n);
+    const cx = c.square[0] + n / 2;
+    const cy = c.square[1] + n / 2;
+    const fx = from.square[0] + spaceOf(from) / 2 - cx;
+    const fy = from.square[1] + spaceOf(from) / 2 - cy;
+    for (let i = -1; i <= n; i++) for (let j = -1; j <= n; j++) {
+        const x = c.square[0] + i;
+        const y = c.square[1] + j;
+        const key = squareKey(x, y);
+        if (i >= 0 && j >= 0 && i < n && j < n) {
+            if (map.cover?.has(key) || (map.difficult?.get(key) ?? 1) >= 2) return true;
+            continue;
+        }
+        if ((map.blocked.has(key) || (map.heights?.get(key) ?? 0) > ground + 5) && (x + 0.5 - cx) * fx + (y + 0.5 - cy) * fy > 0) return true;
+    }
+    return false;
+}
+
+// (2026-10-22, the battlefields' tactics.) Whether a creature fights from afar: a ranged Strike it can use.
+export const shoots = (c) => (c.strikes ?? []).some((strike) => !strike.melee && !strike.underwaterBlocked);
+
+// Whether a plan's next step is down a ledge.
+function climbsDown(state, c, plan) {
+    const from = squareOf(plan.end ?? squareKey(...c.square));
+    const to = squareOf(plan.next);
+    const n = spaceOf(c);
+    return groundZ(state.grid, to[0], to[1], n) < groundZ(state.grid, from[0], from[1], n) - 5;
+}
+
+// How good a place is to shoot from, for a creature (a battlefield's balconies, a cliff's edge, a parapet, undergrowth): the foes it has
+// a line to within two of its range increments, its cover from them, those that would have to climb to it, less uneven footing.
+export function vantageScore(state, c, square) {
+    const at = { ...c, square, ...(state.grid.heights?.size ? { z: standZ(state.grid, c, square) } : {}) };
+    const increment = Math.max(0, ...(c.strikes ?? []).filter((strike) => !strike.melee && !strike.underwaterBlocked).map((strike) => Number(strike.increment) || 0)) || 30;
+    let score = 0;
+    let seen = 0;
+    for (const foe of state.list) {
+        if (foe.side === c.side || !isActive(foe) || !foe.square) continue;
+        const line = sightLine(state.grid, at, foe);
+        if (!line.effect || distanceFeet(at, foe) > 2 * increment) continue;
+        seen++;
+        score += 3 + sightLine(state.grid, foe, at).cover;
+        if (!fliesNow(foe) && (Number(at.z) || 0) > (Number(foe.z) || 0) + 5) score += 2;
+    }
+    if (!seen) return -Infinity;
+    const footing = fliesNow(c) ? null : footingAt(state.grid, square[0], square[1], spaceOf(c));
+    return score + 10 - (footing && footing.kind !== "incline" ? 6 : 0);
+}
+
+// A Stride toward the best place to shoot from within two Strides, out of its foes' reach: a plan (goal: the place), or null when none
+// beats where it is.
+function vantageStride(state, c, found, feet) {
+    const foes = state.list.filter((other) => other.side !== c.side && isActive(other) && other.square);
+    let best = { place: squareKey(...c.square), score: vantageScore(state, c, c.square) + 1 };
+    for (const [place, entry] of found) {
+        if (!entry.ends || entry.cost > 2 * feet || place === best.place) continue;
+        const square = squareOf(place);
+        const at = { ...c, square, ...(state.grid.heights?.size ? { z: standZ(state.grid, c, square) } : {}) };
+        if (foes.some((foe) => reaches(foe, at))) continue;
+        const score = vantageScore(state, c, square) - entry.cost / 25;
+        if (score > best.score) best = { place, score };
+    }
+    return best.place === squareKey(...c.square) ? null : { ...along(found, best.place, feet), goal: best.place };
 }
 
 // What a Stride's plan goes on with past where it ends: "breach" (a closed gate: forced or broken — actions.js breachGate), "climb" (up or
@@ -432,6 +525,8 @@ export function planStep(state, c) {
 // Moves a creature to a square, and the Melees after it. (z: a flier's height there, as it flew up or down to it.)
 export function moveTo(state, c, place, z = undefined) {
     if (!place) return;
+    // (Moving ends Take Cover.)
+    c.tookCover = false;
     // (A flier keeps its height over a drop, unless it's going to one: z.)
     const height = z ?? (fliesNow(c) && state.grid.heights?.size ? standZ(state.grid, c) : undefined);
     c.square = squareOf(place);
@@ -546,6 +641,18 @@ export function gridAreaSets(state, caster, area, range, { affected = () => true
 // moved (0: none). (2026-10-22, heights: one that doesn't fly is stopped by ground more than 5 feet higher, and goes over an edge more
 // than 5 feet down — onFall(c, feet) for the drop — and stops there.)
 export function forcedMove(state, c, source, way, feet, { onFall = null } = {}) {
+    const { at, drop, edge } = forcedPath(state, c, source, way, feet);
+    if (at[0] === c.square[0] && at[1] === c.square[1]) return 0;
+    const moved = distanceFeet({ ...c, square: at }, { ...c, square: c.square });
+    c.square = at;
+    regroup(state);
+    if (drop && onFall) onFall(c, drop, edge);
+    return moved;
+}
+
+// Where a push (way 1) or pull (−1) of `feet` would take a creature, without moving it: { at, drop, edge } — drop, the feet it would fall
+// off an edge on the way (from `edge`), 0 without one.
+export function forcedPath(state, c, source, way, feet) {
     const n = spaceOf(c);
     const m = spaceOf(source);
     const dx = (c.square[0] + n / 2) - (source.square[0] + m / 2);
@@ -584,12 +691,7 @@ export function forcedMove(state, c, source, way, feet, { onFall = null } = {}) 
         }
         at = next;
     }
-    if (at[0] === start[0] && at[1] === start[1]) return 0;
-    const moved = distanceFeet({ ...c, square: at }, { ...c, square: start });
-    c.square = at;
-    regroup(state);
-    if (drop && onFall) onFall(c, drop, edge);
-    return moved;
+    return { at, drop, edge };
 }
 
 // (2026-10-22, the battlefields.) Off the edge it stands at — a narrow surface it lost its footing on, a ledge it was knocked from: into

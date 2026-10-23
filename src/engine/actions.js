@@ -9,7 +9,7 @@ import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
 import { ACTIVE, DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, defenceOf, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, spendAmmo, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, resistancesOf, rollStrikeDamage, strikeContext } from "./damage.js";
 import { aloft, canStepOut, distanceBetween, engage, engagedEnemies, fliesNow, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
-import { breachOdds, dropOffEdge, gateOnStep, gridFlanked, moveTo as moveOnGrid, obstacleNext, pillarLine, planStep, planStride, regroup } from "./grid-fight.js";
+import { breachOdds, coverToward, dropOffEdge, gateOnStep, gridFlanked, moveTo as moveOnGrid, obstacleNext, pillarLine, planStep, planStride, regroup } from "./grid-fight.js";
 import { footingAt, groundZ, isClimb, occupiedBy as squaresOf, reaches as gridReaches, sightLine, spaceOf as spaceOfGrid, squareOf } from "./grid.js";
 import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
@@ -38,8 +38,18 @@ import { canSpendHero, spendHeroPoint } from "./heroes.js";
 // for the side, the more.)
 export function coverFor(state, defender, attacker = null) {
     const set = state.setup.cover?.[defender.side] ?? 0;
-    if (!state.grid || !attacker?.square || !defender.square) return set;
-    return Math.max(set, sightLine(state.grid, attacker, defender, state.list.filter((other) => isActive(other) && other.square)).cover);
+    const base = !state.grid || !attacker?.square || !defender.square ? set : Math.max(set, sightLine(state.grid, attacker, defender, state.list.filter((other) => isActive(other) && other.square)).cover);
+    // (2026-10-22, Take Cover: standard cover greater; none, standard against an attacker it took cover from — something between, or
+    // the undergrowth or rubble it's in: grid-fight.js coverToward.)
+    if (!defender.tookCover) return base;
+    if (base >= 2) return 4;
+    return state.grid && attacker?.square && defender.square && coverToward(state, defender, attacker) ? 2 : base;
+}
+
+// Take Cover (2026-10-22, the battlefields): till it moves or attacks (grid-fight.js moveTo, performStrike).
+export function takeCover(state, c) {
+    c.tookCover = true;
+    log(state, `  ${c.name} Takes Cover`);
 }
 
 export function nonlethalAgainst(state, attacker, target) {
@@ -355,6 +365,8 @@ const dodges = (reaction, strike, state = null, c = null) => (!reaction.against 
 
 // (M38: harm in a reaction — a Reactive Strike at a creature leaving — doesn't count as refusing its surrender.)
 export function performStrike(state, attacker, target, strike, options = {}) {
+    // (An attack ends Take Cover.)
+    attacker.tookCover = false;
     if (!options.reaction) {
         const result = strikeOnce(state, attacker, target, strike, options);
         // (Invisibility: it ends once the attack is done. Weapon Surge, Judgment's success: used up by the Strike.)
@@ -1934,7 +1946,7 @@ export function stride(state, c, move) {
 // A Stride on the square grid (2026-10-21, grid-fight.js): its way, as far as its Speed takes it — toward a creature until it reaches it,
 // out of the foes' reach, or as far off as it gets. Each foe whose reach it leaves on the way (where it stands, and each square it passes)
 // gets its reactions as it leaves that square, once; a hit that disrupts the move, or one that drops it, stops it there.
-const GRID_MOVES = new Set(["engage", "approach", "toNear", "toFar"]);
+const GRID_MOVES = new Set(["engage", "approach", "toNear", "toFar", "vantage"]);
 function gridStride(state, c, move) {
     // (2026-10-22, under water without a swim Speed: Swim — Athletics, how far on a success; void.js.)
     const swum = swimCheck(state, c);
@@ -2116,6 +2128,7 @@ export function breachGate(state, c, gate) {
     }
     const penalty = multipleAttackPenalty({}, c.attacksThisTurn ?? 0);
     c.attacksThisTurn = (c.attacksThisTurn ?? 0) + 1;
+    c.tookCover = false;
     const natural = state.rng.d20();
     const degree = degreeOf(natural + skillValue(c, "athletics") - penalty - statusPenalty(c, "skill") - (gate.jammed ? 2 : 0), gate.forceDC, natural);
     if (degree >= SUCCESS) {
@@ -2131,6 +2144,7 @@ export function breachGate(state, c, gate) {
 export function strikeObject(state, c, object, strike) {
     const attacks = c.attacksThisTurn ?? 0;
     c.attacksThisTurn = attacks + 1;
+    c.tookCover = false;
     const natural = state.rng.d20();
     const degree = degreeOf(natural + strike.bonus - multipleAttackPenalty(strike, attacks) - statusPenalty(c, "melee"), object.ac ?? 0, natural);
     if (degree < SUCCESS) {
@@ -2162,6 +2176,7 @@ export function toppleObject(state, c, pillar) {
     if (!pillar || pillar.fallen || !canAct(c)) return;
     const penalty = multipleAttackPenalty({}, c.attacksThisTurn ?? 0);
     c.attacksThisTurn = (c.attacksThisTurn ?? 0) + 1;
+    c.tookCover = false;
     const natural = state.rng.d20();
     const degree = degreeOf(natural + skillValue(c, "athletics") - penalty - statusPenalty(c, "skill"), pillar.dc, natural);
     if (degree < SUCCESS) {

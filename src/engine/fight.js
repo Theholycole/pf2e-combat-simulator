@@ -5,7 +5,7 @@ import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCC
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
-import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
+import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, adjustPart, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
@@ -941,6 +941,10 @@ function act(state, c, action) {
         }
         case "interact":
             interact(state, c, action.what, action.strikeName);
+            break;
+        // (2026-10-22, the battlefields: Take Cover.)
+        case "takeCover":
+            takeCover(state, c);
             break;
         // (2026-10-22, Pillars: knocking one over.)
         case "topple":

@@ -14,8 +14,8 @@ import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from 
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hinderedBy, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, fliesNow, flankChance, isIncorporeal, levitating, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
-import { bandAt, gridFlanked, gridStrides, obstacleNext, pillarLine, pillarsInReach, planStride, standZ, strideGoes } from "./grid-fight.js";
-import { distanceFeet, occupiedBy, reaches as gridReaches, sightLine, squareKey, squareOf } from "./grid.js";
+import { bandAt, canTakeCover, gridFlanked, gridStrides, obstacleNext, pillarLine, pillarsInReach, planStride, shoots, standZ, strideGoes } from "./grid-fight.js";
+import { distanceFeet, footingAt, occupiedBy, reaches as gridReaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
 import { moderate } from "./creature-tables.js";
 import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
@@ -365,7 +365,8 @@ class PlanContext {
         if (!plan?.end) return null;
         // (A Climb up or down a ledge, or a gate to force: judged from where it heads for — the actions it takes there, a turn's worth of
         // them, as one.)
-        const square = squareOf(plan.end === squareKey(...pos.at.square) && obstacleNext(this.state, mover, plan) ? plan.next : plan.end);
+        // (A vantage point two Strides off: judged from there too.)
+        const square = squareOf(plan.goal ?? (plan.end === squareKey(...pos.at.square) && obstacleNext(this.state, mover, plan) ? plan.next : plan.end));
         return { square, size: this.c.size, reach: this.c.reach, ...(this.state.grid.heights?.size ? { z: standZ(this.state.grid, this.c, square) } : {}) };
     }
 
@@ -522,7 +523,7 @@ class PlanContext {
         }
         // (B302: off-guard to it by its own passive — Surprise Attack's first round, Dread Striker.)
         const feinted = !isOffGuard(target) && (offGuardTo(target, c, strike.melee) || offGuardFrom(state, c, target, { melee: strike.melee }));
-        const ac = armorClass(target, { ranged: !strike.melee, coverBonus: Math.max(coverFor(state, target), sight && !strike.melee ? sight.cover : 0), flanked: feinted });
+        const ac = armorClass(target, { ranged: !strike.melee, coverBonus: Math.max(coverFor(state, target, at && !strike.melee ? { ...c, square: at.square, ...(at.z !== undefined ? { z: at.z } : {}) } : null), sight && !strike.melee ? sight.cover : 0), flanked: feinted });
         // (A stratagem's roll: the one degree it gives, with Intelligence.)
         const odds = strategic === null ? (dc) => degreeDistribution(modifier, dc) : (dc) => {
             const total = strategic + modifier + c.stratagemFeature.strikeBonus[strike.name];
@@ -747,13 +748,21 @@ class PlanContext {
         // Enemies spread their attention over everyone they can reach: stepping
         // back doesn't make an enemy forget you, it just costs it attacks.
         const share = 1 / Math.max(1, this.defenders);
-        const cover = coverFor(state, c);
+        // (Take Cover is the node's: below.)
+        const cover = coverFor(state, { ...c, tookCover: false });
         let total = 0;
         let biggestHit = 0;
         const here = this.mover(pos);
         // A melee enemy that must Stride first keeps its remaining Strikes, so
         // stepping back only costs it its weakest attacks.
         const at = this.gridAt(pos);
+        // (2026-10-22, a battlefield: each enemy's line to where it stands — none, no shooting it; cover from walls, ledges, parapets,
+        // undergrowth —, Take Cover's, and off-guard on uneven ground or a narrow surface.)
+        const field = Boolean(state.grid?.battlefield && at);
+        const me = field ? { ...c, square: at.square, ...(at.z !== undefined ? { z: at.z } : {}) } : null;
+        const unsure = field && !fliesNow(c) && !isOffGuard(c) && ["uneven", "narrow"].includes(footingAt(state.grid, at.square[0], at.square[1], spaceOf(c))?.kind) ? 2 : 0;
+        // (Take Cover against a shooter: coverFor's, from where it stands.)
+        const coverFrom = (enemy, line) => (field && enemy.square ? coverFor(state, { ...me, tookCover: node.tookCover }, enemy) : Math.max(cover, line?.cover ?? 0));
         const stridesOf = (enemy) => (inMelee(pos, enemy) ? 0 : at && enemy.square ? Math.min(3, gridStrides(state, enemy, { ...c, square: at.square, meleeId: pos.band === "engaged" ? "here" : null })) : stridesToEngage({ band: enemy.band, meleeId: null, speed: enemy.speed, reach: enemy.reach, flies: fliesNow(enemy), areaFeet: enemy.areaFeet, exitFeet: enemy.exitFeet }, { band: pos.band, meleeId: pos.band === "engaged" ? "here" : null, flies: fliesNow(c), areaFeet: here.areaFeet, exitFeet: here.exitFeet }));
         // (Mirror Image: the images' share over the round's attacks — two a round from each enemy that can reach it, as their Strikes go.)
         const imagesYou = this.imageYou(node, ac, (enemy) => Math.min(2, Math.max(1, 3 - stridesOf(enemy))));
@@ -765,8 +774,9 @@ class PlanContext {
             const engagedHere = inMelee(pos, enemy);
             const strides = stridesOf(enemy);
             const you = imagesYou < 1 && fooledBy(state, enemy, c) ? imagesYou : 1;
-            const melee = this.enemyRound(enemy, ac, Math.max(0, 3 - strides), "melee", you);
-            const shoot = engagedHere ? 0 : this.enemyRound(enemy, ac + cover, 3, "ranged", you) * (pos.band === "far" ? 0.9 : 1);
+            const line = field && enemy.square ? sightLine(state.grid, enemy, me) : null;
+            const melee = this.enemyRound(enemy, ac - unsure, Math.max(0, 3 - strides), "melee", you);
+            const shoot = engagedHere || (line && !line.effect) ? 0 : this.enemyRound(enemy, ac - unsure + coverFrom(enemy, line), 3, "ranged", you) * (pos.band === "far" ? 0.9 : 1);
             // (Its spells past Mirror Image's images: they fool Strikes only.)
             const ranged = flier && !fliesNow(enemy) ? Math.max(shoot, state.spellThreat?.get(enemy.id) ?? 0) : shoot;
             total += share * Math.max(melee, ranged);
@@ -892,7 +902,7 @@ class PlanContext {
         // Strike — as one from a Stride off, a little less for the action the slowing takes.)
         if (node.sunk) return NEXT_TURN_WEIGHT * this.profile.aggression * 0.8 * this.offenseNext({ ...node, pos: { band: "near", melee: null, newWith: null } });
         // (On the grid: where it stands too.)
-        const key = node.pos.at ? `${this.positionKey(node)}|${node.pos.at.square[0]},${node.pos.at.square[1]}` : this.positionKey(node);
+        const key = node.pos.at ? `${this.positionKey(node)}|${node.pos.at.square[0]},${node.pos.at.square[1]}|${node.tookCover ? 1 : 0}` : this.positionKey(node);
         let cached = this.terminalCache.get(key);
         if (cached === undefined) {
             const exposureValue = this.ownValue * Math.min(1.5, this.exposure(node) / remainingHp(this.c));
@@ -932,6 +942,8 @@ function child(node, action, cost, value, changes = {}) {
         // (Mirror Image cast this turn: its images, for the next round's danger.)
         images: changes.images ?? node.images,
         attacks: node.attacks + (changes.attacks ?? (changes.attack ? 1 : 0)),
+        // (2026-10-22, Take Cover: till it moves or attacks.)
+        tookCover: changes.tookCover ?? (node.tookCover && !(changes.pos && changes.pos !== node.pos) && !changes.attack && !changes.attacks),
         used: node.used + cost,
         damage: changes.damage ?? node.damage,
         provoked: node.provoked,
@@ -1939,6 +1951,15 @@ function expandTactics(env) {
             if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
             children.push(next);
         }
+        // (2026-10-22, a battlefield: one that shoots, a Stride to a better place to shoot from — a balcony, a cliff's edge, a parapet.)
+        if (state.grid?.battlefield && shoots(c) && !inAnyMelee && node.pos.at) {
+            const at = ctx.strideAt(node.pos, "vantage");
+            if (at) children.push(child(node, { type: "stride", move: { kind: "vantage" } }, 1, 0, { pos: withAt(ctx.away(node, "near"), at, state, c), moved: true }));
+        }
+        // (Take Cover: by something to hide behind, or prone — standard cover greater, none standard, till it moves or attacks.)
+        if (state.grid?.battlefield && !node.tookCover && node.pos.at && canTakeCover(state, { ...c, cond: { ...c.cond, prone: node.prone } }, node.pos.at.square, node.pos.at.z)) {
+            children.push(child(node, { type: "takeCover" }, 1, 0, { tookCover: true }));
+        }
         if (node.pos.band === "far" && ctx.strideGoes(node.pos, "toNear")) {
             children.push(child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: withAt(ctx.away(node, "near"), ctx.strideAt(node.pos, "toNear"), state, c) }));
         }
@@ -2170,7 +2191,7 @@ function expandOtherActions(env) {
 // The scored one-step options for the creature right now (for tests and tuning).
 export function scoreOptions(state, c) {
     const ctx = new PlanContext(state, c);
-    const root = { value: 0, pos: rootPos(c), shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, gong: c.gongFeet ?? 0, alarmRaised: false, left: false, atItem: ctx.map?.kind === "retrieve" && !!state.objective.item.dropped && atItem(state, c), first: null };
+    const root = { value: 0, pos: rootPos(c), shield: !!c.shield?.raised, prone: !!c.cond.prone, tookCover: !!c.tookCover, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, gong: c.gongFeet ?? 0, alarmRaised: false, left: false, atItem: ctx.map?.kind === "retrieve" && !!state.objective.item.dropped && atItem(state, c), first: null };
     const rootTerminal = ctx.terminal(root);
     return {
         stay: rootTerminal,
@@ -2186,7 +2207,7 @@ export function bestCastNow(state, c, spellIndices) {
     c.actionsLeft = 3;
     try {
         const ctx = new PlanContext(state, c);
-        const root = { value: 0, pos: rootPos(c), shield: !!c.shield?.raised, prone: !!c.cond.prone, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, gong: c.gongFeet ?? 0, alarmRaised: false, left: false, atItem: false, first: null };
+        const root = { value: 0, pos: rootPos(c), shield: !!c.shield?.raised, prone: !!c.cond.prone, tookCover: !!c.tookCover, attacks: c.attacksThisTurn, used: 0, damage: {}, provoked: 0, moved: false, casts: [], carrying: !!c.carrying, gong: c.gongFeet ?? 0, alarmRaised: false, left: false, atItem: false, first: null };
         const best = expand(ctx, root, 3).filter((node) => node.first?.type === "cast" && wanted.has(node.first.spellIndex) && !node.first.quickened && node.value > 0).sort((a, b) => b.value - a.value)[0];
         return best ? { spellIndex: best.first.spellIndex, targetIds: best.first.targetIds, actions: best.first.actions } : null;
     } finally {
@@ -2202,6 +2223,7 @@ export function chooseAction(state, c) {
         pos: rootPos(c),
         shield: !!c.shield?.raised,
         prone: !!c.cond.prone,
+        tookCover: !!c.tookCover,
         attacks: c.attacksThisTurn,
         used: 0,
         damage: {},
