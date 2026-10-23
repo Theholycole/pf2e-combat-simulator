@@ -1889,9 +1889,11 @@ function defenceEntries(state, caster, spell, targets) {
             // at; before, the caster's whole spell threat for three rounds, and a lone creature spent its turn on it.)
             case "immunity": {
                 const name = immunityPick(state, target);
-                const caster = name ? foes.find((foe) => (foe.spells ?? []).some((each) => each.name === name)) : null;
-                const spell = caster?.spells.find((each) => each.name === name);
-                const casts = !spell ? 0 : (spell.plan?.traits ?? []).includes("cantrip") ? 1.5 : Math.min(3, Number(caster.spellPools?.[spell.pool]) || 1);
+                // (No spell to name — the ratings' spellcasting foes, whose spells are only a share of their threat —: one cast of the
+                // most dangerous caster's.)
+                const caster = name ? foes.find((foe) => (foe.spells ?? []).some((each) => each.name === name)) : foes.filter((foe) => spellHarm(foe) > 0).sort((a, b) => spellHarm(b) - spellHarm(a))[0] ?? null;
+                const spell = name ? caster?.spells.find((each) => each.name === name) : null;
+                const casts = !caster ? 0 : !spell ? 1 : (spell.plan?.traits ?? []).includes("cantrip") ? 1.5 : Math.min(3, Number(caster.spellPools?.[spell.pool]) || 1);
                 kept = caster ? countered(caster) * spellHarm(caster) * casts / side : 0;
                 break;
             }
