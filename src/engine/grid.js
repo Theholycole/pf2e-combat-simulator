@@ -84,6 +84,13 @@ export function groundZ(map, x, y, n = 1) {
     return top === -Infinity ? 0 : top;
 }
 
+// The ground under a space that takes a gate's squares: the highest of its others' (0 with none).
+function groundUnder(map, x, y, n, breach) {
+    let top = 0;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (!breach.has(key(x + i, y + j))) top = Math.max(top, map.heights.get(key(x + i, y + j)) ?? 0);
+    return top;
+}
+
 // The footing under a space: the hardest of its squares' ({ kind, dc }), or null on firm ground.
 export function footingAt(map, x, y, n = 1) {
     if (!map?.footing?.size) return null;
@@ -192,8 +199,9 @@ function heap() {
 // Its wayTo(place): [{ square, cost } …] from the start along the cheapest way there.
 // (2026-10-22, heights: a step more than 5 feet up or down is a climb for one that doesn't fly — each 5 feet of it a Climb action, its whole
 // Speed's worth of feet here; an incline's square the same, a Climb to enter; uneven ground or a narrow surface difficult terrain — the
-// Balance it takes. flying: over all of it, heights and footing as nothing.)
-export function reachable(map, mover, { blockedBy = new Set(), occupied = new Set(), maxCost = Infinity, flying = false } = {}) {
+// Balance it takes. flying: over all of it, heights and footing as nothing. breach: Map of "x,y" → feet — a closed gate's square, entered
+// at that cost on its ground (the actions it takes to force or break it, grid-fight.js breachFeet), not climbed over.)
+export function reachable(map, mover, { blockedBy = new Set(), occupied = new Set(), maxCost = Infinity, flying = false, breach = null } = {}) {
     const n = spaceOf(mover);
     const width = map.width;
     const height = map.height;
@@ -211,8 +219,10 @@ export function reachable(map, mover, { blockedBy = new Set(), occupied = new Se
             let ok = 1;
             let factor = 1;
             let clear = 1;
+            let breaking = 0;
             for (let i = 0; i < n && ok; i++) for (let j = 0; j < n; j++) {
                 const square = key(x + i, y + j);
+                if (breach?.has(square)) breaking = Math.max(breaking, breach.get(square));
                 if (map.blocked?.has(square) || blockedBy.has(square)) {
                     if (through) {
                         clear = 0;
@@ -229,9 +239,9 @@ export function reachable(map, mover, { blockedBy = new Set(), occupied = new Se
             }
             const at = y * width + x;
             fits[at] = ok;
-            enter[at] = Math.min(255, SQUARE_FEET * factor);
+            enter[at] = Math.min(255, SQUARE_FEET * factor + breaking);
             free[at] = clear;
-            if (heights) heights[at] = groundZ(map, x, y, n);
+            if (heights) heights[at] = breaking ? groundUnder(map, x, y, n, breach) : groundZ(map, x, y, n);
             // (Down a drop no one comes back from in this fight — Dropoff's chasm —: only a fall.)
             if (heights && map.fallOut && heights[at] < -map.fallOut) fits[at] = 0;
         }
@@ -434,6 +444,8 @@ export function sightLine(map, from, to, others = []) {
         }
     }
     if (map.parapets?.size && (Number(from.z) || 0) < (Number(to.z) || 0) && occupiedBy(to).some((square) => map.parapets.has(square))) cover = 2;
+    // (Heavy undergrowth: standard cover in it or through it.)
+    if (map.cover?.size && (squares.some((square) => map.cover.has(square)) || occupiedBy(to).some((square) => map.cover.has(square)))) cover = 2;
     if (!cover) {
         const between = new Set(others.filter((other) => other !== from && other !== to && other.square).flatMap(occupiedBy));
         if (squares.some((square) => between.has(square))) cover = 1;

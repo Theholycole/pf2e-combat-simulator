@@ -16,6 +16,7 @@
 import { isActive } from "./combatant.js";
 import { log } from "./log.js";
 import { lightAt, sightDCIn } from "./light.js";
+import { distanceFeet, occupiedBy } from "./grid.js";
 
 const LIGHT_OPTIONS = { bright: "lighting:bright-light", dim: "lighting:dim-light", dark: "lighting:darkness" };
 
@@ -31,12 +32,15 @@ export function buildEnvironment(setup = {}) {
 // light.js, 2026-10-21) and the weather (0 for none). Senses: the viewer's own and its effects'.
 export function sightDC(state, viewer, target) {
     const env = state?.environment;
-    if (!env || !viewer || !target) return 0;
+    if (!viewer || !target) return 0;
+    // (2026-10-22, Obscura: in its fog, concealed from more than 5 feet off.)
+    const fogged = Boolean(state?.grid?.mist?.size && viewer.square && target.square && occupiedBy(target).some((square) => state.grid.mist.has(square)) && distanceFeet(viewer, target) > 5);
+    if (!env) return fogged ? 5 : 0;
     const light = lightAt(state, target);
     let dc = sightDCIn(viewer, light);
     // (Shadow Blending's dim light: DC 7.)
     if (dc === 5 && light.level === "dim" && target.dimConcealDC) dc = target.dimConcealDC;
-    if (env.weather === "fog" || env.weather === "rain" || (env.weather === "snow" && !viewer.snowVision)) dc = Math.max(dc, 5);
+    if (env.weather === "fog" || env.weather === "rain" || (env.weather === "snow" && !viewer.snowVision) || fogged) dc = Math.max(dc, 5);
     return dc;
 }
 

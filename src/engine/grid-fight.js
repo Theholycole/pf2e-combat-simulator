@@ -8,6 +8,8 @@ import { isActive } from "./combatant.js";
 import { burstSquares, coneSquares, distanceFeet, emanationSquares, flanks, footingAt, groundZ, layout, lineSquares, occupiedBy, placeSide, reachable, reaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
 import { aloft, fliesNow } from "./space.js";
 import { battlefieldMap, isBattlefield } from "./battlefields.js";
+import { expectedStrikeDamage } from "./damage.js";
+import { skillValue } from "./spells.js";
 
 const ACTIVE_BANDS = new Set(["engaged", "near", "far"]);
 
@@ -204,8 +206,72 @@ function reachFrom(state, c, square = c.square) {
         state.gridPaths.version = state.gridVersion;
     }
     const cacheKey = `${c.id}|${square.join(",")}`;
-    if (!state.gridPaths.has(cacheKey)) state.gridPaths.set(cacheKey, reachable(liveMap(state), { ...c, square }, { ...obstacles(state, c), flying: fliesNow(c) }));
+    if (!state.gridPaths.has(cacheKey)) {
+        const flying = fliesNow(c);
+        state.gridPaths.set(cacheKey, reachable(liveMap(state), { ...c, square }, { ...obstacles(state, c), flying, breach: flying ? null : breachesFor(state, c) }));
+    }
     return state.gridPaths.get(cacheKey);
+}
+
+// --- Battlefield objects (2026-10-22, battlefields.js: a gate, pillars, the central mass) ------------------------------------------------
+
+// The closed gate a square is part of, or null.
+export function gateAt(map, square) {
+    return map?.objects?.find((object) => object.kind === "gate" && object.closed && object.squares.includes(square)) ?? null;
+}
+
+// The chance a creature's Force Open gets a gate open (Athletics against its DC, 2 harder once jammed), and how much of its Hit Points
+// left its best melee Strike takes a Strike (against AC 0, a critical hit but on a 1; less the Hardness).
+export function breachOdds(c, gate) {
+    const need = gate.forceDC + (gate.jammed ? 2 : 0) - skillValue(c, "athletics");
+    const force = Math.min(0.95, Math.max(0.05, (21 - need) / 20));
+    let strike = 0;
+    for (const option of c.strikes ?? []) {
+        if (!option.melee) continue;
+        const damage = expectedStrikeDamage(option, { critical: true }).reduce((sum, part) => sum + (part.persistent ? 0 : part.amount), 0);
+        strike = Math.max(strike, Math.min(1, (0.95 * Math.max(0, damage - gate.hardness)) / Math.max(1, gate.hp)));
+    }
+    return { force, strike };
+}
+
+// Getting through a closed gate, in feet of a creature's movement: the actions it expects to take there (Force Open, or Strikes) at its
+// Speed's worth each, and the step; or what climbing over it costs, when that's less (no entry: it climbs).
+function breachesFor(state, c) {
+    const gates = (state.grid.objects ?? []).filter((object) => object.kind === "gate" && object.closed);
+    if (!gates.length) return null;
+    const speed = Math.max(5, c.speed ?? 25);
+    const out = new Map();
+    for (const gate of gates) {
+        const { force, strike } = breachOdds(c, gate);
+        const actions = Math.min(1 / force, strike > 0 ? Math.ceil(1 / strike) : Infinity);
+        const feet = Math.ceil(actions) * speed;
+        if (feet >= 2 * Math.ceil((gate.height ?? 15) / 5) * speed) continue;
+        for (const square of gate.squares) out.set(square, Math.min(250, feet));
+    }
+    return out.size ? out : null;
+}
+
+// The line a pillar falls in, pushed from a square: as many squares as it's tall in 5-foot squares, away from the square (its nearest
+// way: along a row, a column or a diagonal), stopping at the map's edge or a wall.
+export function pillarLine(map, from, pillar) {
+    const [px, py] = squareOf(pillar.squares[0]);
+    const dx = Math.sign(px - from[0]);
+    const dy = Math.sign(py - from[1]);
+    if (!dx && !dy) return [];
+    const out = [];
+    for (let i = 1; i <= Math.max(1, Math.round((pillar.height ?? 20) / 5)); i++) {
+        const x = px + dx * i;
+        const y = py + dy * i;
+        if (x < 0 || y < 0 || x >= map.width || y >= map.height || map.blocked.has(squareKey(x, y))) break;
+        out.push(squareKey(x, y));
+    }
+    return out;
+}
+
+// The pillars (standing) a creature at a square reaches.
+export function pillarsInReach(state, c, square = c.square, z = c.z) {
+    const at = { ...c, square, ...(z !== undefined ? { z } : {}) };
+    return (state.grid?.objects ?? []).filter((object) => object.kind === "pillar" && !object.fallen && reaches(at, { square: squareOf(object.squares[0]), size: "med", z: groundZ(state.grid, ...squareOf(object.squares[0])) }));
 }
 
 // The cheapest place from which a creature (at `square`) reaches a target: { place, cost } or null — of the places about the target
@@ -317,19 +383,34 @@ export function planStride(state, c, move, feet = Math.max(5, c.speed ?? 25)) {
         const ways = foes.map((foe) => bestReachPlace(state, c, foe)).filter(Boolean).sort((p, q) => p.cost - q.cost);
         if (ways.length) {
             const plan = along(found, ways[0].place, feet);
-            if ((plan.end && plan.end !== squareKey(...c.square)) || climbsNext(state, c, plan)) return plan;
+            if ((plan.end && plan.end !== squareKey(...c.square)) || obstacleNext(state, c, plan)) return plan;
         }
     }
     return best ? along(found, best.place, feet) : null;
 }
 
-// Whether a Stride's plan goes on with a Climb (its next step up or down a ledge, or onto an incline) — actions.js gridStride.
-export function climbsNext(state, c, plan) {
-    if (!plan?.next || fliesNow(c) || !state.grid?.heights?.size) return false;
+// What a Stride's plan goes on with past where it ends: "breach" (a closed gate: forced or broken — actions.js breachGate), "climb" (up or
+// down a ledge, or onto an incline — actions.js climb), or null.
+export function obstacleNext(state, c, plan) {
+    if (!plan?.next || fliesNow(c) || !state.grid?.heights?.size) return null;
     const from = squareOf(plan.end ?? squareKey(...c.square));
     const to = squareOf(plan.next);
     const n = spaceOf(c);
-    return Math.abs(groundZ(state.grid, to[0], to[1], n) - groundZ(state.grid, from[0], from[1], n)) > 5 || footingAt(state.grid, to[0], to[1], n)?.kind === "incline";
+    const covered = [];
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) covered.push(squareKey(to[0] + i, to[1] + j));
+    if (covered.some((square) => gateAt(state.grid, square))) return "breach";
+    return Math.abs(groundZ(state.grid, to[0], to[1], n) - groundZ(state.grid, from[0], from[1], n)) > 5 || footingAt(state.grid, to[0], to[1], n)?.kind === "incline" ? "climb" : null;
+}
+
+// The closed gate a Stride's next step goes into, or null.
+export function gateOnStep(state, c, next) {
+    const [x, y] = squareOf(next);
+    const n = spaceOf(c);
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+        const gate = gateAt(state.grid, squareKey(x + i, y + j));
+        if (gate) return gate;
+    }
+    return null;
 }
 
 // A Step on the grid: 5 feet to a square out of every foe's reach (no difficult terrain), or null.
@@ -537,5 +618,5 @@ export function dropOffEdge(state, c) {
 export function strideGoes(state, c, move) {
     if (!state.grid || !c.square) return true;
     const plan = planStride(state, c, move);
-    return (Boolean(plan?.end) && plan.end !== c.square.join(",")) || climbsNext(state, c, plan);
+    return (Boolean(plan?.end) && plan.end !== c.square.join(",")) || Boolean(obstacleNext(state, c, plan));
 }

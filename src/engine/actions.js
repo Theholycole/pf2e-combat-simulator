@@ -2,14 +2,15 @@
 // reactions Attack of Opportunity and Shield Block. Also damage, dying and
 // hero points.
 
-import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistribution, degreeOf, flatCheck, rollCheck } from "./checks.js";
+import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistribution, degreeOf, flatCheck, levelDC, rollCheck } from "./checks.js";
+import { moderate } from "./creature-tables.js";
 import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
 import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
 import { ACTIVE, DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, defenceOf, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, spendAmmo, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, resistancesOf, rollStrikeDamage, strikeContext } from "./damage.js";
 import { aloft, canStepOut, distanceBetween, engage, engagedEnemies, fliesNow, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
-import { dropOffEdge, gridFlanked, moveTo as moveOnGrid, planStep, planStride, regroup } from "./grid-fight.js";
-import { footingAt, groundZ, isClimb, reaches as gridReaches, sightLine, spaceOf as spaceOfGrid, squareOf } from "./grid.js";
+import { breachOdds, dropOffEdge, gateOnStep, gridFlanked, moveTo as moveOnGrid, obstacleNext, pillarLine, planStep, planStride, regroup } from "./grid-fight.js";
+import { footingAt, groundZ, isClimb, occupiedBy as squaresOf, reaches as gridReaches, sightLine, spaceOf as spaceOfGrid, squareOf } from "./grid.js";
 import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
@@ -1934,7 +1935,12 @@ const GRID_MOVES = new Set(["engage", "approach", "toNear", "toFar"]);
 function gridStride(state, c, move) {
     let plan = planStride(state, c, move);
     const start = c.square.join(",");
-    // (2026-10-22, the battlefields: the next step a climb — up or down a ledge, onto an incline —: a Climb, not a Stride.)
+    // (2026-10-22, the battlefields: the next step a closed gate — forced or broken —, or a climb — up or down a ledge, onto an incline —:
+    // that, not a Stride.)
+    if (plan?.next && !fliesNow(c) && (!plan.end || plan.end === start) && obstacleNext(state, c, plan) === "breach") {
+        breachGate(state, c, gateOnStep(state, c, plan.next));
+        return;
+    }
     if (plan?.next && !fliesNow(c) && (!plan.end || plan.end === start) && climbStep(state, c, start, plan.next)) {
         climb(state, c, start, plan.next);
         return;
@@ -2087,6 +2093,98 @@ function climb(state, c, from, to) {
     c.elevation = progress;
     moveOnGrid(state, c, bottom);
     log(state, `  ${c.name} Climbs (${progress} of ${rise} feet)`);
+}
+
+// A closed gate in a creature's way: Force Open (Athletics against its DC — 2 harder once jammed —, the attack trait: success, open;
+// critical failure, jammed) or a Strike at it (its best melee Strike, against AC 0; past its Hardness, off its Hit Points: at 0, broken),
+// whichever does more toward getting through.
+export function breachGate(state, c, gate) {
+    if (!gate?.closed || !canAct(c)) return;
+    const { force, strike } = breachOdds(c, gate);
+    const weapon = (c.strikes ?? []).filter((option) => option.melee && strikeUsable(c, option)).sort((a, b) => expectedStrikeDamage(b, { critical: true }).reduce((sum, part) => sum + part.amount, 0) - expectedStrikeDamage(a, { critical: true }).reduce((sum, part) => sum + part.amount, 0))[0];
+    if (weapon && strike > force) {
+        strikeObject(state, c, gate, weapon);
+        return;
+    }
+    const penalty = multipleAttackPenalty({}, c.attacksThisTurn ?? 0);
+    c.attacksThisTurn = (c.attacksThisTurn ?? 0) + 1;
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + skillValue(c, "athletics") - penalty - statusPenalty(c, "skill") - (gate.jammed ? 2 : 0), gate.forceDC, natural);
+    if (degree >= SUCCESS) {
+        openGate(state, gate, `  ${c.name} Forces Open the ${gate.name}`);
+        return;
+    }
+    if (degree === CRITICAL_FAILURE) gate.jammed = true;
+    log(state, `  ${c.name} tries to Force Open the ${gate.name}: ${degree === CRITICAL_FAILURE ? "critical failure, it jams" : "failure"}`);
+}
+
+// A Strike at a battlefield's object (a gate, a pillar): against its AC, past its Hardness, off its Hit Points — at 0, a gate breaks
+// open, a pillar falls (away from the striker).
+export function strikeObject(state, c, object, strike) {
+    const attacks = c.attacksThisTurn ?? 0;
+    c.attacksThisTurn = attacks + 1;
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + strike.bonus - multipleAttackPenalty(strike, attacks) - statusPenalty(c, "melee"), object.ac ?? 0, natural);
+    if (degree < SUCCESS) {
+        log(state, `  ${c.name} ${strike.name} → the ${object.name}: misses`);
+        return;
+    }
+    const damage = rollStrikeDamage(state.rng, strike, { critical: degree === CRITICAL_SUCCESS }).reduce((sum, part) => sum + (part.persistent ? 0 : part.amount), 0);
+    const taken = Math.max(0, damage - (object.hardness ?? 0));
+    object.hp = Math.max(0, object.hp - taken);
+    log(state, `  ${c.name} ${strike.name} → the ${object.name}: ${degree === CRITICAL_SUCCESS ? "critically hits" : "hits"} for ${taken} (${object.hp}/${object.maxHp})`);
+    if (object.hp > 0) return;
+    if (object.kind === "gate") openGate(state, object, `  The ${object.name} breaks`);
+    else if (object.kind === "pillar") pillarFalls(state, object, pillarLine(state.grid, c.square, object), c);
+}
+
+// A gate open (forced or broken): its squares passage, on the ground.
+function openGate(state, gate, line) {
+    gate.closed = false;
+    for (const square of gate.squares) {
+        state.grid.heights?.delete(square);
+        state.grid.climbDCs?.delete(square);
+    }
+    log(state, line);
+    regroup(state);
+}
+
+// Knocking over a pillar (Pillars): Athletics against its DC, the attack trait; on a success it falls away from the creature.
+export function toppleObject(state, c, pillar) {
+    if (!pillar || pillar.fallen || !canAct(c)) return;
+    const penalty = multipleAttackPenalty({}, c.attacksThisTurn ?? 0);
+    c.attacksThisTurn = (c.attacksThisTurn ?? 0) + 1;
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + skillValue(c, "athletics") - penalty - statusPenalty(c, "skill"), pillar.dc, natural);
+    if (degree < SUCCESS) {
+        log(state, `  ${c.name} tries to knock over the ${pillar.name}: ${degree === CRITICAL_FAILURE ? "critical failure" : "failure"}`);
+        return;
+    }
+    log(state, `  ${c.name} knocks over the ${pillar.name}`);
+    pillarFalls(state, pillar, pillarLine(state.grid, c.square, pillar), c);
+}
+
+// A pillar falling (the user: "fall in a line as long as they're tall"): everyone in the line, a basic Reflex save at the level's
+// DC for twice a moderate Strike's damage of its level, bludgeoning; the pillar and the line rubble (difficult terrain).
+export function pillarFalls(state, pillar, line, by = null) {
+    pillar.fallen = true;
+    pillar.hp = 0;
+    const [square] = pillar.squares;
+    state.grid.blocked.delete(square);
+    for (const rubble of [square, ...line]) state.grid.difficult.set(rubble, Math.max(state.grid.difficult.get(rubble) ?? 1, 2));
+    const level = Number(state.grid.level) || 1;
+    const dc = levelDC(level);
+    const damage = 2 * moderate("damage", level);
+    const struck = new Set(line);
+    for (const target of state.list) {
+        if (!isActive(target) || !target.square || !squaresOf(target).some((square) => struck.has(square)) || fliesNow(target)) continue;
+        const natural = state.rng.d20();
+        const degree = adjustedSaveDegree(target, "reflex", degreeOf(natural + saveModifier(target, "reflex"), dc, natural));
+        const amount = Math.floor(damage * [2, 1, 0.5, 0][degree]);
+        log(state, `  The ${pillar.name} falls on ${target.name}: ${["critical failure", "failure", "success", "critical success"][degree]}`);
+        if (amount > 0) applyDamage(state, target, [{ type: "bludgeoning", amount, persistent: false, precision: false }], { source: by });
+    }
+    regroup(state);
 }
 
 // Uneven ground or a narrow surface on a Stride's way (or under it): a Balance — Acrobatics against the hardest's DC. Success: on its way

@@ -12,10 +12,11 @@ import { adjustInstance, strikeContext } from "./damage.js";
 import { effectBenefit } from "./effects.js";
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
-import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hinderedBy, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
+import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hinderedBy, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, fliesNow, flankChance, isIncorporeal, levitating, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
-import { bandAt, climbsNext, gridFlanked, gridStrides, planStride, standZ, strideGoes } from "./grid-fight.js";
-import { distanceFeet, reaches as gridReaches, sightLine, squareKey, squareOf } from "./grid.js";
+import { bandAt, gridFlanked, gridStrides, obstacleNext, pillarLine, pillarsInReach, planStride, standZ, strideGoes } from "./grid-fight.js";
+import { distanceFeet, occupiedBy, reaches as gridReaches, sightLine, squareKey, squareOf } from "./grid.js";
+import { moderate } from "./creature-tables.js";
 import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
 import { canReact, castJustNow, chargeOn, hasOwnEffect, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
@@ -23,7 +24,7 @@ import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
-import { actionTraits, isHex, battleMedicineOdds, canCast, conditionWorth, describeSpell, exploitValue, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition, traitsAllowed } from "./spells.js";
+import { actionTraits, isHex, battleMedicineOdds, skillValue, canCast, conditionWorth, describeSpell, exploitValue, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition, traitsAllowed } from "./spells.js";
 import { canSummon, summonPool } from "./summons.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";
@@ -362,8 +363,9 @@ class PlanContext {
         const mover = { ...this.c, square: pos.at.square };
         const plan = planStride(this.state, mover, typeof move === "string" ? { kind: move } : move);
         if (!plan?.end) return null;
-        // (A Climb up or down a ledge: judged from the ledge it heads for — the Climbs it takes there, a turn's worth of them, as one.)
-        const square = squareOf(plan.end === squareKey(...pos.at.square) && climbsNext(this.state, mover, plan) ? plan.next : plan.end);
+        // (A Climb up or down a ledge, or a gate to force: judged from where it heads for — the actions it takes there, a turn's worth of
+        // them, as one.)
+        const square = squareOf(plan.end === squareKey(...pos.at.square) && obstacleNext(this.state, mover, plan) ? plan.next : plan.end);
         return { square, size: this.c.size, reach: this.c.reach, ...(this.state.grid.heights?.size ? { z: standZ(this.state.grid, this.c, square) } : {}) };
     }
 
@@ -1818,6 +1820,25 @@ function stratagemGain(ctx, node, target) {
 // Exploit Vulnerability, Devise a Stratagem, Taunt, Overdrive, Hunt Prey, engaging a target and picking up a dropped weapon. (Part of expand, split up so the optimizer takes it.)
 function expandTactics(env) {
     const { state, c, ctx, node, remaining, inAnyMelee, mobile, noAttacks, raging, threatOf, children } = env;
+    // (2026-10-22, Pillars: one knocked over onto foes — Athletics at its DC, the attack trait —, falling away from it in a line: each
+    // creature there a basic Reflex save at the battlefield's level DC for twice a moderate Strike's damage of that level.)
+    if (state.grid?.objects?.length && !noAttacks && remaining >= 1 && node.pos.at) {
+        const level = Number(state.grid.level) || 1;
+        const damage = 2 * moderate("damage", level);
+        for (const pillar of pillarsInReach(state, c, node.pos.at.square, node.pos.at.z)) {
+            const line = new Set(pillarLine(state.grid, node.pos.at.square, pillar));
+            if (!line.size) continue;
+            const odds = degreeDistribution(skillValue(c, "athletics") - multipleAttackPenalty({}, node.attacks) - statusPenalty(c, "skill"), pillar.dc);
+            let gain = 0;
+            for (const other of state.list) {
+                if (!isActive(other) || !other.square || fliesNow(other) || !occupiedBy(other).some((square) => line.has(square))) continue;
+                const save = degreeDistribution(saveModifier(other, "reflex"), levelDC(level));
+                const worth = targetValue(state, other, c) * Math.min(1, (damage * (2 * save[CRITICAL_FAILURE] + save[FAILURE] + 0.5 * save[SUCCESS])) / remainingHp(other));
+                gain += other.side === c.side ? -worth : worth;
+            }
+            if (gain > 0) children.push(child(node, { type: "topple", objectId: pillar.id }, 1, ctx.profile.aggression * (odds[SUCCESS] + odds[CRITICAL_SUCCESS]) * gain, { attack: true }));
+        }
+    }
     // Exploit Vulnerability (once a round): the weakness it'd bring on about three rounds of hits.
     if (c.exploit && node.used === 0 && !c.usedThisTurn?.has("exploit")) {
         for (const target of ctx.enemies) {

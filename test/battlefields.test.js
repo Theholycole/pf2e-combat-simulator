@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createFightState, simulate } from "../src/engine/fight.js";
-import { fall, footingShaken, stride } from "../src/engine/actions.js";
+import { breachGate, fall, footingShaken, stride, toppleObject } from "../src/engine/actions.js";
+import { sightDC } from "../src/engine/environment.js";
+import { scoreOptions } from "../src/engine/planner.js";
 import { isOffGuard } from "../src/engine/combatant.js";
 import { BATTLEFIELDS, DROPS, battlefieldMap, inLevels, isBattlefield, tierOf, TIER_DC } from "../src/engine/battlefields.js";
-import { coveredSquares, distanceFeet, feetBetween, reachable, squareOf } from "../src/engine/grid.js";
+import { coveredSquares, distanceFeet, feetBetween, reachable, sightLine, squareOf } from "../src/engine/grid.js";
 import { gridMap } from "../src/engine/grid-fight.js";
 import { moderateCreatureAt } from "../src/engine/creature-tables.js";
 import { createRng } from "../src/engine/rng.js";
@@ -127,4 +129,62 @@ test("whole fights run on every battlefield, at its levels and outside them", ()
             assert.ok(result.outcome, `${name} ${level}`);
         }
     }
+});
+
+test("a closed gate: paths go through it at the cost of forcing it; Force Open (or Strikes) opens it, a critical failure jams it", () => {
+    const gate = { id: "gate", kind: "gate", name: "wood door", squares: ["10,5"], hp: 40, maxHp: 40, hardness: 10, ac: 0, forceDC: 5, climbDC: 20, height: 15, closed: true };
+    const wall = {};
+    for (let y = 0; y < 10; y++) wall[`10,${y}`] = y === 5 ? 15 : 20;
+    const state = fight([pc("p"), foe("x")], field({ heights: wall, climbDCs: { "10,5": 20 }, objects: [gate], battlefield: "gates", level: 3 }, { p: [9, 5], x: [15, 5] }), 3);
+    const p = state.byId.get("p");
+    p.skills = { ...(p.skills ?? {}), athletics: 20 };
+    const g = state.grid.objects[0];
+    stride(state, p, { kind: "engage", targetId: "x" });
+    assert.equal(g.closed, false, "forced open");
+    assert.equal(state.grid.heights.has("10,5"), false, "its square passage");
+    stride(state, p, { kind: "engage", targetId: "x" });
+    assert.ok(p.square[0] > 10, "through it");
+    const jam = fight([pc("p"), foe("x")], field({ heights: wall, objects: [{ ...gate, forceDC: 60 }], battlefield: "gates", level: 3 }, { p: [9, 5], x: [15, 5] }), 3);
+    const q = jam.byId.get("p");
+    q.strikes = [];
+    for (let i = 0; i < 20 && !jam.grid.objects[0].jammed; i++) {
+        q.attacksThisTurn = 0;
+        breachGate(jam, q, jam.grid.objects[0]);
+    }
+    assert.equal(jam.grid.objects[0].jammed, true);
+    assert.equal(jam.grid.objects[0].closed, true);
+});
+
+test("a pillar knocked over falls in a line away from the creature: a basic Reflex save there, rubble after", () => {
+    const pillar = { id: "pillar1", kind: "pillar", name: "stone pillar", squares: ["6,5"], hp: 28, maxHp: 28, hardness: 7, ac: 0, dc: 5, height: 20 };
+    const state = fight([pc("p"), foe("x"), foe("y")], field({ blocked: ["6,5"], objects: [pillar], battlefield: "pillars", level: 5 }, { p: [5, 5], x: [8, 5], y: [8, 8] }), 2);
+    const [p, x, y] = ["p", "x", "y"].map((id) => state.byId.get(id));
+    p.skills = { ...(p.skills ?? {}), athletics: 20 };
+    const before = [x.hp.value, y.hp.value];
+    state.log = [];
+    toppleObject(state, p, state.grid.objects[0]);
+    assert.equal(state.grid.objects[0].fallen, true);
+    assert.equal(state.grid.blocked.has("6,5"), false);
+    assert.deepEqual(["6,5", "7,5", "10,5"].map((square) => state.grid.difficult.get(square)), [2, 2, 2], "its square and four beyond: rubble");
+    assert.match(state.log.join("\n"), /falls on Foe x/);
+    assert.ok(x.hp.value < before[0] || /Foe x: critical success/.test(state.log.join("\n")), "the one in the line");
+    assert.equal(y.hp.value, before[1], "not the one beside it");
+    // (The planner: worth knocking over onto foes, from beside it.)
+    const plan = fight([pc("p"), foe("x"), foe("y")], field({ blocked: ["6,5"], objects: [{ ...pillar }], battlefield: "pillars", level: 5 }, { p: [5, 5], x: [8, 5], y: [9, 5] }), 2);
+    plan.byId.get("p").skills = { athletics: 20 };
+    const pp = plan.byId.get("p");
+    pp.actionsLeft = 3;
+    const { options } = scoreOptions(plan, pp);
+    assert.ok(options.some((option) => option.action?.type === "topple"), "offered");
+});
+
+test("Obscura's fog conceals beyond 5 feet; heavy undergrowth gives cover", () => {
+    const mist = {};
+    for (let x = 0; x < 20; x++) for (let y = 0; y < 10; y++) mist[`${x},${y}`] = "fog";
+    const state = fight([pc("p"), foe("x"), foe("y")], field({ mist, battlefield: "obscura", level: 3 }, { p: [5, 5], x: [6, 5], y: [12, 5] }));
+    const [p, x, y] = ["p", "x", "y"].map((id) => state.byId.get(id));
+    assert.equal(sightDC(state, p, x), 0, "beside it: seen");
+    assert.equal(sightDC(state, p, y), 5, "further: concealed");
+    const brush = fight([pc("p"), foe("x")], field({ cover: ["10,5"], difficult: { "10,5": 3 }, battlefield: "broken", level: 3 }, { p: [5, 5], x: [10, 5] }));
+    assert.equal(sightLine(brush.grid, brush.byId.get("p"), brush.byId.get("x")).cover, 2);
 });
