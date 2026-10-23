@@ -200,6 +200,28 @@ function liveMap(state) {
     return { ...state.grid, difficult };
 }
 
+// The grid's cache for this version of it (paths, plans, an area's placements): emptied when anyone moves (regroup bumps the version).
+function gridCache(state) {
+    state.gridPaths ??= new Map();
+    if (state.gridPaths.version !== state.gridVersion) {
+        state.gridPaths = new Map();
+        state.gridPaths.version = state.gridVersion;
+    }
+    return state.gridPaths;
+}
+
+// (2026-10-23, speed.) Each place an area of a caster's could go and whom it catches there (before the spell's own filters): cached by the
+// grid's version — the planner asks for the same area many times a decision.
+function areaCatches(state, caster, area, range, { healing = false, helpful = false } = {}) {
+    const cache = gridCache(state);
+    const key = `areas|${caster.id}|${caster.square.join(",")}|${JSON.stringify(area)}|${range}|${healing ? 1 : 0}|${helpful ? 1 : 0}`;
+    if (cache.has(key)) return cache.get(key);
+    const around = state.list.filter((other) => other.square && (isActive(other) || (healing && other.status === "down")) && (helpful || healing || other.side !== caster.side));
+    const out = areaPlacements(state, caster, area, range, around).map((placement) => ({ origin: placement.origin, caught: inSquares(state, placement.squares, { downed: healing }) }));
+    cache.set(key, out);
+    return out;
+}
+
 // Where a creature can get to from a square (cached by the grid's version): reachable()'s map.
 function reachFrom(state, c, square = c.square) {
     state.gridPaths ??= new Map();
@@ -358,6 +380,16 @@ export function threatenedAlong(state, c, way) {
 // the foes as it gets).
 export function planStride(state, c, move, feet = Math.max(5, c.speed ?? 25)) {
     if (!state.grid || !c.square) return null;
+    // (2026-10-23, speed: cached by the grid's version — the planner asks again and again in a decision.)
+    const cache = gridCache(state);
+    const key = `stride|${c.id}|${c.square.join(",")}|${move.kind}|${move.targetId ?? ""}|${feet}|${fliesNow(c) ? 1 : 0}`;
+    if (cache.has(key)) return cache.get(key);
+    const plan = planStrideNow(state, c, move, feet);
+    cache.set(key, plan);
+    return plan;
+}
+
+function planStrideNow(state, c, move, feet) {
     const found = reachFrom(state, c);
     if (move.kind === "vantage") return vantageStride(state, c, found, feet);
     if (move.kind === "engage" || move.kind === "approach") {
@@ -645,11 +677,10 @@ export function areaPlacements(state, caster, area, range, around) {
 // The target sets an area spell can have on the grid, the best few: who each placement catches (`affected`: those the spell can affect;
 // downed allies too for healing), most foes first and fewest of the caster's side, without repeats.
 export function gridAreaSets(state, caster, area, range, { affected = () => true, healing = false, helpful = false, foesOnly = false } = {}) {
-    const around = state.list.filter((other) => other.square && (isActive(other) || (healing && other.status === "down")) && (helpful || healing || other.side !== caster.side));
     const seen = new Set();
     const sets = [];
-    for (const placement of areaPlacements(state, caster, area, range, around)) {
-        const caught = inSquares(state, placement.squares, { downed: healing }).filter((other) => affected(other) && (!foesOnly || other.side !== caster.side));
+    for (const placement of areaCatches(state, caster, area, range, { healing, helpful })) {
+        const caught = placement.caught.filter((other) => affected(other) && (!foesOnly || other.side !== caster.side));
         // (A cone or a line from the caster isn't in it; a burst on it, or an emanation, is.)
         const targets = placement.origin === "self" ? [...new Set([...caught, ...(helpful || healing ? [caster] : [])])] : caught;
         if (!targets.length) continue;
