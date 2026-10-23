@@ -5,17 +5,22 @@
 // and foes; reactions from the foes whose reach it leaves on the way.
 
 import { isActive } from "./combatant.js";
-import { burstSquares, coneSquares, distanceFeet, emanationSquares, flanks, layout, lineSquares, occupiedBy, placeSide, reachable, reaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
+import { burstSquares, coneSquares, distanceFeet, emanationSquares, flanks, footingAt, groundZ, layout, lineSquares, occupiedBy, placeSide, reachable, reaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
 import { aloft, fliesNow } from "./space.js";
+import { battlefieldMap, isBattlefield } from "./battlefields.js";
 
 const ACTIVE_BANDS = new Set(["engaged", "near", "far"]);
 
 // A grid spec (a run's option): { layout: "open" | "corridor" | "doorway" | "bridge" } or { map: { width, height, blocked, walls,
-// difficult, spawns }, squares: { "<id>": [x, y] } } (a Foundry scene's). Sets and Maps from arrays where it came as JSON.
+// difficult, spawns }, squares: { "<id>": [x, y] } } (a Foundry scene's), or a battlefield's ({ layout: "pillars", side? }: setUpGrid makes
+// its map for the fight). Sets and Maps from arrays where it came as JSON.
 export function gridMap(spec) {
     if (typeof spec === "string") spec = spec === "scene" ? null : { layout: spec };
     if (!spec) return null;
     const base = spec.map ?? layout(spec.layout ?? "open");
+    // (2026-10-22, the battlefields — battlefields.js: heights, footing, ledges, objects, mist, holes, the void; Maps and Sets from JSON's
+    // entries and arrays.)
+    const asMap = (value, read = (entry) => entry) => new Map((value instanceof Map ? [...value] : Object.entries(value ?? {})).map(([square, entry]) => [square, read(entry)]));
     return {
         name: base.name ?? spec.layout ?? "scene",
         width: Number(base.width) || 30,
@@ -23,8 +28,28 @@ export function gridMap(spec) {
         blocked: base.blocked instanceof Set ? new Set(base.blocked) : new Set(base.blocked ?? []),
         walls: base.walls instanceof Set ? new Set(base.walls) : new Set(base.walls ?? []),
         difficult: base.difficult instanceof Map ? new Map(base.difficult) : new Map(Object.entries(base.difficult ?? {}).map(([square, factor]) => [square, Number(factor) || 2])),
-        spawns: { party: [...(base.spawns?.party ?? [])], foes: [...(base.spawns?.foes ?? [])] }
+        spawns: { party: [...(base.spawns?.party ?? [])], foes: [...(base.spawns?.foes ?? [])] },
+        ...(base.battlefield ? { battlefield: base.battlefield, level: Number(base.level) || 1 } : {}),
+        ...(base.heights ? { heights: asMap(base.heights, Number) } : {}),
+        ...(base.footing ? { footing: asMap(base.footing, (entry) => ({ ...entry })) } : {}),
+        ...(base.climbDC ? { climbDC: Number(base.climbDC) } : {}),
+        ...(base.parapets ? { parapets: new Set(base.parapets) } : {}),
+        ...(base.mist ? { mist: asMap(base.mist) } : {}),
+        ...(base.objects ? { objects: base.objects.map((object) => ({ ...object, squares: [...object.squares] })) } : {}),
+        ...(base.holes ? { holes: [...base.holes] } : {}),
+        ...(base.void ? { void: base.void } : {}),
+        ...(base.climbDCs ? { climbDCs: asMap(base.climbDCs, Number) } : {}),
+        ...(base.cover ? { cover: new Set(base.cover) } : {}),
+        ...(base.side ? { side: base.side } : {}),
+        ...(base.drop ? { drop: Number(base.drop) } : {}),
+        ...(base.rise ? { rise: Number(base.rise) } : {}),
+        ...(base.fallOut ? { fallOut: Number(base.fallOut) } : {})
     };
+}
+
+// (2026-10-22, heights.) Where a creature's space's bottom is: its ground's height, and what it's flown or climbed above it.
+export function standZ(map, c, square = c.square) {
+    return groundZ(map, square[0], square[1], spaceOf(c)) + (Number(c.elevation) || 0);
 }
 
 // Those who fight up close first: a creature whose best Strike is a melee one, the toughest first.
@@ -33,9 +58,11 @@ const frontFirst = (list) => [...list].sort((a, b) => Number(Boolean(b.strikes?.
 // Puts a fight on the grid: its map, and each creature's square (the spec's, else its side's spawns, the front first). Creatures yet to
 // arrive get theirs as they come (placeArrival).
 export function setUpGrid(state, spec) {
+    if (typeof spec === "string" && spec !== "scene") spec = { layout: spec };
+    // (2026-10-22, a battlefield: made for this fight — at the party's level, with its dice.)
+    if (spec && !spec.map && isBattlefield(spec.layout)) spec = { ...spec, map: battlefieldMap(spec.layout, { level: spec.level ?? state.partyLevel, side: spec.side, rng: state.rng }) };
     const map = gridMap(spec);
     if (!map) return;
-    if (typeof spec === "string") spec = { layout: spec };
     state.grid = map;
     state.gridVersion = 0;
     const given = spec.squares ?? {};
@@ -72,6 +99,21 @@ export function placeArrival(state, c) {
 export function regroup(state) {
     if (!state.grid) return;
     state.gridVersion = (state.gridVersion ?? 0) + 1;
+    // (2026-10-22, the battlefields: each creature's height, and the footing it stands on — uneven ground or a narrow surface, off-guard
+    // on it; climbing, off-guard too — combatant.js isOffGuard.)
+    if (state.grid.heights?.size || state.grid.footing?.size) {
+        for (const c of state.list) {
+            if (!c.square) continue;
+            // (Moved off the foot of a ledge it was climbing — a Stride, a shove —: no longer on it.)
+            if (c.climbing && c.square.join(",") !== c.climbing.bottom) {
+                c.climbing = null;
+                c.elevation = 0;
+            }
+            c.z = standZ(state.grid, c);
+            const footing = fliesNow(c) ? null : footingAt(state.grid, c.square[0], c.square[1], spaceOf(c));
+            c.footing = footing && footing.kind !== "incline" ? footing : null;
+        }
+    }
     const standing = state.list.filter((c) => isActive(c) && c.square && ACTIVE_BANDS.has(c.band ?? "near"));
     const parent = new Map(standing.map((c) => [c.id, c.id]));
     const find = (id) => {
@@ -106,8 +148,7 @@ export function regroup(state) {
         const inMelee = engaged.has(c.id) || [...parent.keys()].some((id) => id !== c.id && find(id) === root && engaged.has(id));
         if (!inMelee) {
             c.meleeId = null;
-            const nearest = Math.min(Infinity, ...standing.filter((other) => other.side !== c.side).map((other) => distanceFeet(c, other)));
-            c.band = nearest <= 30 ? "near" : "far";
+            c.band = bandFrom(state, c, standing);
             continue;
         }
         if (!ids.has(root)) ids.set(root, state.nextMeleeId++);
@@ -117,6 +158,20 @@ export function regroup(state) {
         c.meleeId = meleeId;
         c.band = "engaged";
     }
+}
+
+// Out of a Melee: near within 30 feet of a foe, else far. (2026-10-22, a battlefield: a foe behind a wall or over a cliff's lip — no line
+// between — isn't near.) `at`: the creature where it stands, or where it would.
+function bandFrom(state, at, standing) {
+    const seen = (other) => !state.grid.battlefield || sightLine(state.grid, at, other).effect;
+    const nearest = Math.min(Infinity, ...standing.filter((other) => other.side !== at.side && seen(other)).map((other) => distanceFeet(at, other)));
+    return nearest <= 30 ? "near" : "far";
+}
+
+// The band a creature would be in at a square (out of any Melee), for the planner.
+export function bandAt(state, c, square, z = undefined) {
+    const standing = state.list.filter((other) => other !== c && isActive(other) && other.square && ACTIVE_BANDS.has(other.band ?? "near"));
+    return bandFrom(state, { ...c, square, ...(z !== undefined ? { z } : {}) }, standing);
 }
 
 // The squares foes of a creature take (it can't go through them) and everyone else's (it can't stop in them).
@@ -149,7 +204,7 @@ function reachFrom(state, c, square = c.square) {
         state.gridPaths.version = state.gridVersion;
     }
     const cacheKey = `${c.id}|${square.join(",")}`;
-    if (!state.gridPaths.has(cacheKey)) state.gridPaths.set(cacheKey, reachable(liveMap(state), { ...c, square }, obstacles(state, c)));
+    if (!state.gridPaths.has(cacheKey)) state.gridPaths.set(cacheKey, reachable(liveMap(state), { ...c, square }, { ...obstacles(state, c), flying: fliesNow(c) }));
     return state.gridPaths.get(cacheKey);
 }
 
@@ -167,6 +222,9 @@ function bestReachPlace(state, c, target, square = c.square, prefer = null) {
     const tn = spaceOf(target);
     const span = Math.ceil(Math.max(5, c.reach ?? 5) / 5) + 1;
     const probe = { square: [0, 0], size: c.size, reach: c.reach };
+    // (2026-10-22, heights: a place's own height — a flier's as high as the target's, flying up to it.)
+    const flying = fliesNow(c);
+    const heights = Boolean(state.grid.heights?.size || target.z);
     let best = null;
     for (let x = target.square[0] - n - span; x <= target.square[0] + tn + span; x++) {
         for (let y = target.square[1] - n - span; y <= target.square[1] + tn + span; y++) {
@@ -174,9 +232,13 @@ function bestReachPlace(state, c, target, square = c.square, prefer = null) {
             const entry = found.get(place);
             if (!entry?.ends) continue;
             probe.square = [x, y];
+            if (heights) {
+                const ground = groundZ(state.grid, x, y, n);
+                probe.z = flying ? Math.max(ground, Number(target.z) || 0) : ground;
+            }
             if (!reaches(probe, target)) continue;
-            const bonus = prefer ? prefer({ ...c, square: [x, y] }) : 0;
-            if (!best || entry.cost - bonus < best.cost - best.bonus) best = { place, cost: entry.cost, bonus };
+            const bonus = prefer ? prefer({ ...c, square: [x, y], ...(heights ? { z: probe.z } : {}) }) : 0;
+            if (!best || entry.cost - bonus < best.cost - best.bonus) best = { place, cost: entry.cost, bonus, ...(heights ? { z: probe.z } : {}) };
         }
     }
     if (cacheKey) state.gridPaths.set(cacheKey, best);
@@ -195,6 +257,7 @@ export function gridStrides(state, c, target, square = c.square) {
 }
 
 // Where a creature ends a Stride toward a place: the furthest point of the way it pays for with `feet` (its Speed).
+// (2026-10-22: next — the first step past what it pays for, a climb it takes a Climb for: actions.js gridStride.)
 function along(found, place, feet) {
     const way = found.wayTo(place);
     let end = way[0]?.square ?? null;
@@ -202,7 +265,9 @@ function along(found, place, feet) {
         if (step.cost > feet) break;
         if (found.get(step.square)?.ends !== false) end = step.square;
     }
-    return { end, way: way.filter((step) => step.cost <= feet).map((step) => step.square) };
+    const paid = way.filter((step) => step.cost <= feet).map((step) => step.square);
+    const next = way[paid.length]?.square ?? null;
+    return { end, way: paid, ...(next ? { next } : {}) };
 }
 
 // The foes whose reach a creature leaves on its way (its first square on: those who reach it there or anywhere it passes before its
@@ -231,7 +296,7 @@ export function planStride(state, c, move, feet = Math.max(5, c.speed ?? 25)) {
         const flankBonus = (at) => (allies.some((ally) => flankPair(at, ally, target)) ? 2.5 : 0);
         const best = bestReachPlace(state, c, target, c.square, flankBonus);
         if (!best) return null;
-        return along(found, best.place, feet);
+        return { ...along(found, best.place, feet), ...(best.z !== undefined && fliesNow(c) ? { z: best.z } : {}) };
     }
     const foes = state.list.filter((other) => other.side !== c.side && isActive(other) && other.square);
     const nearest = (at) => Math.min(Infinity, ...foes.map((foe) => distanceFeet(at, foe)));
@@ -239,13 +304,32 @@ export function planStride(state, c, move, feet = Math.max(5, c.speed ?? 25)) {
     for (const [place, entry] of found) {
         if (!entry.ends || entry.cost > feet) continue;
         const at = { ...c, square: squareOf(place) };
+        if (state.grid.heights?.size) at.z = standZ(state.grid, c, at.square);
         if (foes.some((foe) => reaches(foe, at))) continue;
         const gap = nearest(at);
         // (Near: 15 to 30 feet from the nearest foe — from further off, as close to 30 as it gets; away: as far as it gets.)
         const score = move.kind === "toFar" ? gap * 10 - entry.cost : gap > 30 ? 1000 - (gap - 30) * 10 - entry.cost : gap >= 15 ? 2000 - entry.cost : gap * 10 - entry.cost;
-        if (!best || score > best.score) best = { place, score };
+        if (!best || score > best.score) best = { place, score, gap };
+    }
+    // (2026-10-22, heights: no nearer within a Stride, or nowhere to go — a cliff, a wall between —: on along the way to the foe it gets
+    // to soonest, up or down a ledge by Climbs.)
+    if (move.kind === "toNear" && state.grid.heights?.size && !fliesNow(c) && (!best || best.gap > 30 || best.place === squareKey(...c.square))) {
+        const ways = foes.map((foe) => bestReachPlace(state, c, foe)).filter(Boolean).sort((p, q) => p.cost - q.cost);
+        if (ways.length) {
+            const plan = along(found, ways[0].place, feet);
+            if ((plan.end && plan.end !== squareKey(...c.square)) || climbsNext(state, c, plan)) return plan;
+        }
     }
     return best ? along(found, best.place, feet) : null;
+}
+
+// Whether a Stride's plan goes on with a Climb (its next step up or down a ledge, or onto an incline) — actions.js gridStride.
+export function climbsNext(state, c, plan) {
+    if (!plan?.next || fliesNow(c) || !state.grid?.heights?.size) return false;
+    const from = squareOf(plan.end ?? squareKey(...c.square));
+    const to = squareOf(plan.next);
+    const n = spaceOf(c);
+    return Math.abs(groundZ(state.grid, to[0], to[1], n) - groundZ(state.grid, from[0], from[1], n)) > 5 || footingAt(state.grid, to[0], to[1], n)?.kind === "incline";
 }
 
 // A Step on the grid: 5 feet to a square out of every foe's reach (no difficult terrain), or null.
@@ -256,15 +340,19 @@ export function planStep(state, c) {
     for (const [place, entry] of found) {
         if (!entry.ends || entry.cost !== 5) continue;
         const at = { ...c, square: squareOf(place) };
+        if (state.grid.heights?.size) at.z = standZ(state.grid, c, at.square);
         if (!foes.some((foe) => reaches(foe, at))) return { end: place, way: [squareKey(...c.square), place] };
     }
     return null;
 }
 
-// Moves a creature to a square, and the Melees after it.
-export function moveTo(state, c, place) {
+// Moves a creature to a square, and the Melees after it. (z: a flier's height there, as it flew up or down to it.)
+export function moveTo(state, c, place, z = undefined) {
     if (!place) return;
+    // (A flier keeps its height over a drop, unless it's going to one: z.)
+    const height = z ?? (fliesNow(c) && state.grid.heights?.size ? standZ(state.grid, c) : undefined);
     c.square = squareOf(place);
+    if (height !== undefined && fliesNow(c)) c.elevation = Math.max(0, height - groundZ(state.grid, c.square[0], c.square[1], spaceOf(c)));
     regroup(state);
 }
 
@@ -372,8 +460,9 @@ export function gridAreaSets(state, caster, area, range, { affected = () => true
 
 // A forced move on the grid (a push: way 1, away from the source; a pull: −1, toward it): square by square along the line between their
 // centres, as far as feet allows, stopping at what blocks it (a wall, a blocked square, another creature, the map's edge). The feet it
-// moved (0: none).
-export function forcedMove(state, c, source, way, feet) {
+// moved (0: none). (2026-10-22, heights: one that doesn't fly is stopped by ground more than 5 feet higher, and goes over an edge more
+// than 5 feet down — onFall(c, feet) for the drop — and stops there.)
+export function forcedMove(state, c, source, way, feet, { onFall = null } = {}) {
     const n = spaceOf(c);
     const m = spaceOf(source);
     const dx = (c.square[0] + n / 2) - (source.square[0] + m / 2);
@@ -384,6 +473,8 @@ export function forcedMove(state, c, source, way, feet) {
     const { occupied } = obstacles(state, c);
     const start = [...c.square];
     let at = [...c.square];
+    let drop = 0;
+    let edge = null;
     for (let step = 1; step <= Math.floor(feet / 5); step++) {
         const next = [Math.round(start[0] + ux * step), Math.round(start[1] + uy * step)];
         if (next[0] === at[0] && next[1] === at[1]) continue;
@@ -397,18 +488,54 @@ export function forcedMove(state, c, source, way, feet) {
         if (!clear) break;
         // (Pulled into its source's own space: stop beside it.)
         if (way < 0 && reaches({ ...c, square: at }, source, 5) && !reaches({ ...c, square: next }, source, 5)) break;
+        if (state.grid.heights?.size && !fliesNow(c)) {
+            const here = groundZ(state.grid, at[0], at[1], n);
+            const there = groundZ(state.grid, next[0], next[1], n);
+            if (there > here + 5) break;
+            if (there < here - 5) {
+                edge = [...at];
+                at = next;
+                drop = here - there;
+                break;
+            }
+        }
         at = next;
     }
     if (at[0] === start[0] && at[1] === start[1]) return 0;
     const moved = distanceFeet({ ...c, square: at }, { ...c, square: start });
     c.square = at;
     regroup(state);
+    if (drop && onFall) onFall(c, drop, edge);
     return moved;
+}
+
+// (2026-10-22, the battlefields.) Off the edge it stands at — a narrow surface it lost its footing on, a ledge it was knocked from: into
+// the free square beside it with the lowest ground more than 5 feet down. The feet it drops (0: no such square — it falls where it stands).
+export function dropOffEdge(state, c) {
+    if (!state.grid?.heights?.size || !c.square) return 0;
+    const n = spaceOf(c);
+    const here = groundZ(state.grid, c.square[0], c.square[1], n);
+    const { occupied } = obstacles(state, c);
+    let best = null;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const [x, y] = [c.square[0] + dx, c.square[1] + dy];
+        if (x < 0 || y < 0 || x + n > state.grid.width || y + n > state.grid.height) continue;
+        const squares = [];
+        for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) squares.push(squareKey(x + i, y + j));
+        if (squares.some((square) => state.grid.blocked.has(square) || occupied.has(square))) continue;
+        const ground = groundZ(state.grid, x, y, n);
+        if (ground < here - 5 && (!best || ground < best.ground)) best = { square: [x, y], ground };
+    }
+    if (!best) return 0;
+    c.square = best.square;
+    c.elevation = 0;
+    regroup(state);
+    return here - best.ground;
 }
 
 // Whether a Stride of that kind takes a creature anywhere on the grid (true off the grid: the bands' moves always do).
 export function strideGoes(state, c, move) {
     if (!state.grid || !c.square) return true;
     const plan = planStride(state, c, move);
-    return Boolean(plan?.end) && plan.end !== c.square.join(",");
+    return (Boolean(plan?.end) && plan.end !== c.square.join(",")) || climbsNext(state, c, plan);
 }

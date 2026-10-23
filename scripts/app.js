@@ -8,12 +8,15 @@ import { ROLE_PROFILES } from "../src/engine/planner.js";
 import { renderAdjustments, renderReport, renderCompare, renderMoraleImpact } from "./render.js";
 import { escape } from "../src/html.js";
 import { MAP_KINDS, regionChoices, roundsHeld } from "./map.js";
+import { BATTLEFIELDS, battlefieldOf, inLevels } from "../src/engine/battlefields.js";
 
 const { ApplicationV2 } = foundry.applications.api;
 
 const OBJECTIVE_KINDS = [["", "None"], ["protect", "Protect a creature or object"], ["target", "Kill or capture a target"], ["survive", "Survive N rounds"], ["task", "Do a task"], ["hold", "Hold an area"], ["escort", "Escort a creature to the exit"], ["retrieve", "Retrieve an item and escape"]];
 // (2026-10-21, the user: "an option for grid based movement … choke points".)
 const GRID_CHOICES = [["", "Range bands"], ["scene", "Grid: this scene"], ["open", "Grid: open field"], ["corridor", "Grid: corridor (choke point)"], ["doorway", "Grid: doorway (choke point)"], ["bridge", "Grid: bridge (choke point)"]];
+// (2026-10-22, the user's battlefields: each at any level — its DCs, materials and drops the party's —, marked outside the levels it suits.)
+const battlefieldChoices = (level) => BATTLEFIELDS.map(({ name, label, levels }) => [name, `Battlefield: ${label}${levels ? ` (levels ${levels[0]}–${levels[1]})` : ""}${level && !inLevels(name, level) ? " — outside its levels" : ""}`]);
 const COMPARE_CHOICES = [["adjust", "What would change the odds (Weak, Elite, remove)"], ["morale", "Morale on / off"], ["heroPoints", "Hero points on / off"], ["objective", "Objective on / off"], ["retreat", "Party retreat on / off"]];
 // Escalation rules (E1–E4): "when → then".
 const WHEN_KINDS = [["round", "Round"], ["alarm", "The alarm is raised"], ["falls", "A creature falls"], ["foesHalf", "The foes are at half their HP"], ["firstFlee", "A foe flees"], ["enters", "A party creature enters a Region"]];
@@ -167,6 +170,8 @@ export class SimulatorApp extends ApplicationV2 {
         if (MAP_KINDS.has(objective.kind)) objectiveFields = this.#mapFields(objective);
         // (L1–L3: the fight's light, weather and ground.)
         const env = setup.environment ?? {};
+        const pcs = this.rows.filter((row) => row.include && row.side === "party" && row.kind === "pc");
+        const partyLevel = pcs.length ? Math.round(pcs.reduce((sum, row) => sum + Number(row.level || 0), 0) / pcs.length) : null;
         const situational = SITUATIONAL.map(([key, label]) => `<label class="check"><input type="checkbox" name="situational.${key}" ${setup.situational?.[key] ? "checked" : ""}> ${escape(label)}</label>`).join("");
         return `
         <form class="sim-setup" autocomplete="off">
@@ -179,7 +184,8 @@ export class SimulatorApp extends ApplicationV2 {
                 <label>Ambush <select name="ambush">${option("", "None", setup.ambush ?? "")}${option("party", "Party ambushes", setup.ambush)}${option("foes", "Foes ambush", setup.ambush)}</select></label>
                 <label>Party cover <select name="cover.party">${option(0, "None", setup.cover?.party ?? 0)}${option(2, "Standard", setup.cover?.party)}${option(4, "Greater", setup.cover?.party)}</select></label>
                 <label>Foe cover <select name="cover.foes">${option(0, "None", setup.cover?.foes ?? 0)}${option(2, "Standard", setup.cover?.foes)}${option(4, "Greater", setup.cover?.foes)}</select></label>
-                <label title="Range bands: fast, positions as near and far. The grid: squares, paths, area templates, flanking and walls — the scene's own walls, doors and difficult-terrain Regions, or a layout with a choke point">Movement <select name="grid">${GRID_CHOICES.map(([value, label]) => option(value, label, setup.grid ?? "")).join("")}</select></label>
+                <label title="Range bands: fast, positions as near and far. The grid: squares, paths, area templates, flanking and walls — the scene's own walls, doors and difficult-terrain Regions, a layout with a choke point, or a battlefield (heights, climbs, falls, footing, made for each fight at the party's level)">Movement <select name="grid">${[...GRID_CHOICES, ...battlefieldChoices(partyLevel)].map(([value, label]) => option(value, label, setup.grid ?? "")).join("")}</select></label>
+                ${battlefieldOf(setup.grid)?.sides ? `<label title="Who holds the wall: the foes (the party attacks) or the party">Party <select name="gridSide">${option("attack", "Attacks", setup.gridSide ?? "attack")}${option("defend", "Defends", setup.gridSide)}</select></label>` : ""}
                 <label class="check"><input type="checkbox" name="fresh" ${this.fresh ? "checked" : ""}> Start fresh (full HP, no conditions)</label>
                 <label>Runs <input type="number" name="runs" min="20" max="5000" value="${escape(this.runs)}"></label>
             </fieldset>
@@ -415,6 +421,8 @@ export class SimulatorApp extends ApplicationV2 {
             objectivePriority: Number(value("objectivePriority") || this.setup.objectivePriority || 1),
             // (2026-10-21: the square grid — a layout, or this scene's; none: the range bands.)
             grid: value("grid") || null,
+            // (2026-10-22: at a gate or a rampart, the party's side.)
+            gridSide: value("gridSide") || this.setup.gridSide || "attack",
             escalations: this.#readEscalations(form, value),
             environment: {
                 light: value("env.light") || "auto",

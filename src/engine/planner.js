@@ -14,8 +14,8 @@ import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from 
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hinderedBy, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, fliesNow, flankChance, isIncorporeal, levitating, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
-import { gridFlanked, gridStrides, planStride, strideGoes } from "./grid-fight.js";
-import { distanceFeet, reaches as gridReaches, sightLine, squareOf } from "./grid.js";
+import { bandAt, climbsNext, gridFlanked, gridStrides, planStride, standZ, strideGoes } from "./grid-fight.js";
+import { distanceFeet, reaches as gridReaches, sightLine, squareKey, squareOf } from "./grid.js";
 import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
 import { canReact, castJustNow, chargeOn, hasOwnEffect, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
@@ -243,8 +243,13 @@ function remainingHp(target) {
 // (On the grid, 2026-10-21: at, where it stands — { square, size, reach } — when that's known: where it began, where a Stride toward a
 // creature took it; reaching, there, by the squares.)
 function rootPos(c) {
-    return { band: c.band, melee: c.meleeId, newWith: null, ...(c.square ? { at: { square: c.square, size: c.size, reach: c.reach } } : {}) };
+    return { band: c.band, melee: c.meleeId, newWith: null, ...(c.square ? { at: { square: c.square, size: c.size, reach: c.reach, ...(c.z !== undefined ? { z: c.z } : {}) } } : {}) };
 }
+
+// A position with where it stands on the grid, when that's known.
+// (2026-10-22: on a battlefield, its band there too — near only with a foe it has a line to — so a Stride up onto a gate isn't planned
+// as staying far.)
+const withAt = (pos, at, state = null, c = null) => (at ? { ...pos, at, ...(state?.grid?.battlefield && pos.melee === null ? { band: bandAt(state, c, at.square, at.z) } : {}) } : pos);
 
 // A position's Melee for targetSets: its own, or — Strode into one this turn — the creature it closed on and that one's Melee.
 function meleeOfPos(state, pos) {
@@ -348,6 +353,18 @@ class PlanContext {
         if (pos.at) return pos.at;
         const target = pos.melee === "new" ? this.state.byId.get(pos.newWith) : pos.melee !== null ? this.enemies.find((enemy) => enemy.meleeId === pos.melee) : null;
         return { square: target?.square ?? this.c.square, size: this.c.size, reach: this.c.reach };
+    }
+
+    // (2026-10-22) Where a Stride of that kind from a position ends on the grid ({ square, size, reach, z? }), or null — so what it does
+    // after is judged from there (its line to a target: a Stride off doesn't see over a wall).
+    strideAt(pos, move) {
+        if (!this.state.grid || !pos.at) return null;
+        const mover = { ...this.c, square: pos.at.square };
+        const plan = planStride(this.state, mover, typeof move === "string" ? { kind: move } : move);
+        if (!plan?.end) return null;
+        // (A Climb up or down a ledge: judged from the ledge it heads for — the Climbs it takes there, a turn's worth of them, as one.)
+        const square = squareOf(plan.end === squareKey(...pos.at.square) && climbsNext(this.state, mover, plan) ? plan.next : plan.end);
+        return { square, size: this.c.size, reach: this.c.reach, ...(this.state.grid.heights?.size ? { z: standZ(this.state.grid, this.c, square) } : {}) };
     }
 
     // Whether a Stride of that kind goes anywhere from a position (on the grid: only where its square is known, and a way leads off it).
@@ -478,7 +495,7 @@ class PlanContext {
         if (isShaken(c)) circumstance = Math.max(circumstance, state.moraleRules.group.shakenAttackPenalty);
         if (nonlethalAgainst(state, c, target) && !strike.nonlethal) circumstance = Math.max(circumstance, 2);
         modifier -= circumstance;
-        const sight = at && state.grid ? sightLine(state.grid, { ...c, square: at.square }, target, state.list.filter((other) => isActive(other) && other.square && other !== c)) : null;
+        const sight = at && state.grid ? sightLine(state.grid, { ...c, square: at.square, ...(at.z !== undefined ? { z: at.z } : {}) }, target, state.list.filter((other) => isActive(other) && other.square && other !== c)) : null;
         if (sight && !sight.effect) {
             perTarget.set(key, null);
             return null;
@@ -872,7 +889,8 @@ class PlanContext {
         // (Inside the floor — incorporeal: no one reaches it next round; next turn, slowed 1, it rises beside a foe of its choosing for a
         // Strike — as one from a Stride off, a little less for the action the slowing takes.)
         if (node.sunk) return NEXT_TURN_WEIGHT * this.profile.aggression * 0.8 * this.offenseNext({ ...node, pos: { band: "near", melee: null, newWith: null } });
-        const key = this.positionKey(node);
+        // (On the grid: where it stands too.)
+        const key = node.pos.at ? `${this.positionKey(node)}|${node.pos.at.square[0]},${node.pos.at.square[1]}` : this.positionKey(node);
         let cached = this.terminalCache.get(key);
         if (cached === undefined) {
             const exposureValue = this.ownValue * Math.min(1.5, this.exposure(node) / remainingHp(this.c));
@@ -1044,12 +1062,12 @@ function expandAll(ctx, node, actionsLeft) {
         // Swift Leap, Jet (B70): away without provoking, where a Step can't go.
         else if (c.safeMove && c.safeMove.actions <= remaining && realMelee && !((c.safeMoveUntil ?? -Infinity) > (c.round ?? 0))) children.push(child(node, { type: "safeMove", actions: c.safeMove.actions }, c.safeMove.actions, 0, { pos: ctx.away(node, "near"), moved: true }));
         else if (ctx.strideGoes(node.pos, "toNear")) {
-            const next = child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: ctx.away(node, "near"), moved: true });
+            const next = child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: withAt(ctx.away(node, "near"), ctx.strideAt(node.pos, "toNear"), state, c), moved: true });
             next.value -= ctx.moveLoss(node.pos, next, "toNear");
             children.push(next);
         }
     } else if (node.pos.band === "near" && ctx.strideGoes(node.pos, "toFar")) {
-        children.push(child(node, { type: "stride", move: { kind: "toFar" } }, 1, 0, { pos: ctx.away(node, "far"), moved: true }));
+        children.push(child(node, { type: "stride", move: { kind: "toFar" } }, 1, 0, { pos: withAt(ctx.away(node, "far"), ctx.strideAt(node.pos, "toFar"), state, c), moved: true }));
     }
     // (Agitate: a Stride that keeps it beside its foes — around them —, the reactions to it as a move's; only while it has yet to Stride.)
     if (mobile && c.cond?.agitated && !node.strode && !c.movedThisTurn && node.pos.melee !== null && node.pos.melee === c.meleeId) {
@@ -1878,9 +1896,9 @@ function expandTactics(env) {
             // (On the grid, too far for one Stride: a Stride toward it, to where its way takes it.)
             const from = strides > 1 && Number.isFinite(strides) ? ctx.gridAt(node.pos) : null;
             if (from) {
-                const moved = planStride(state, { ...c, square: from.square }, { kind: "approach", targetId: target.id });
-                if (moved?.end && moved.end !== from.square.join(",")) {
-                    const next = child(node, { type: "stride", move: { kind: "approach", targetId: target.id } }, 1, 0, { pos: { ...ctx.away(node, node.pos.band === "engaged" ? "near" : node.pos.band), at: { square: squareOf(moved.end), size: c.size, reach: c.reach } }, atItem: false });
+                const at = ctx.strideAt(node.pos, { kind: "approach", targetId: target.id });
+                if (at && at.square.join(",") !== from.square.join(",")) {
+                    const next = child(node, { type: "stride", move: { kind: "approach", targetId: target.id } }, 1, 0, { pos: withAt(ctx.away(node, node.pos.band === "engaged" ? "near" : node.pos.band), at, state, c), atItem: false });
                     if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "approach");
                     children.push(next);
                 }
@@ -1901,7 +1919,7 @@ function expandTactics(env) {
             children.push(next);
         }
         if (node.pos.band === "far" && ctx.strideGoes(node.pos, "toNear")) {
-            children.push(child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: ctx.away(node, "near") }));
+            children.push(child(node, { type: "stride", move: { kind: "toNear" } }, 1, 0, { pos: withAt(ctx.away(node, "near"), ctx.strideAt(node.pos, "toNear"), state, c) }));
         }
     }
     // A dropped weapon (Disarm): picking it up gives back its Strikes; a weakened grip, its -2.

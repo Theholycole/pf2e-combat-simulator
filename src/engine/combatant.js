@@ -161,6 +161,8 @@ export function isOffGuard(c) {
     // (T4: attached to a creature, as most Attach say.)
     if (c?.attachedTo && c.attach?.offGuard) return true;
     const k = c.cond;
+    // (2026-10-22, the battlefields: on uneven ground or a narrow surface, or climbing — grid-fight.js regroup, actions.js climb.)
+    if (c.footing || c.climbing) return true;
     return k.offGuard || k.prone || k.unconscious || k.paralyzed || k.asleep || k.blinded || k.restrained || k.grabbed || k.confused || c.status === DOWN;
 }
 

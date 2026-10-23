@@ -1930,7 +1930,7 @@ export async function buildSnapshot(entries, { setup = {}, overrides = {}, fresh
     // the range bands.)
     if (setup.grid) {
         const scene = combat?.scene ?? placed.find((entry) => entry.token?.parent)?.token.parent ?? canvas?.scene;
-        const grid = setup.grid === "scene" ? readSceneGrid(scene, placed) : { layout: setup.grid };
+        const grid = setup.grid === "scene" ? readSceneGrid(scene, placed) : { layout: setup.grid, ...(setup.gridSide === "defend" ? { side: "defend" } : {}) };
         snapshot.setup = { ...snapshot.setup, grid };
         if (!grid) ui?.notifications?.warn?.("Combat Simulator: this scene has no square grid — the fights run on the range bands.");
     }

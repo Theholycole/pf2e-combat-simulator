@@ -14,7 +14,7 @@ import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf,
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, MOUTH, armorClass, canAct, canMove, createCombatant, defenceOf, effectBonus, hinderedBy, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune, weaknessCost } from "./effects.js";
-import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, bewilderFails, foresightReact, leaveField, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, bewilderFails, fall, footingShaken, foresightReact, leaveField, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { dimWorth, lightAuraModel, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
@@ -2542,7 +2542,8 @@ export function applyMove(state, target, change, source = null) {
     if (!isActive(target)) return;
     // (On the grid: pushed straight away from its source, or pulled toward it, as far as the squares let it go.)
     if (state.grid && target.square && source?.square && source !== target && (change.kind === "push" || change.kind === "pull")) {
-        const moved = forcedMove(state, target, source, change.kind === "push" ? 1 : -1, Number(change.distance) || 5);
+        // (2026-10-22, the battlefields: over an edge, it falls — actions.js fall, Grab an Edge first.)
+        const moved = forcedMove(state, target, source, change.kind === "push" ? 1 : -1, Number(change.distance) || 5, { onFall: (who, feet, edge) => fall(state, who, feet, { edge }) });
         if (moved) log(state, `  ${target.name} is ${change.kind === "push" ? "pushed" : "pulled"} ${moved} feet`);
         return;
     }
@@ -3345,6 +3346,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
             if (taken?.image) imaged.add(options.target.id);
             if (taken) return { ...final, degree: DEGREE_NAMES[taken.degree] };
         }
+        // (2026-10-22, the battlefields: a failed save on uneven ground or a narrow surface — a Reflex save at its Balance DC, or it falls.)
+        if (SAVE_SLUGS.has(statistic) && options?.actor?.footing && final?.degree && DEGREE_NAMES.indexOf(final.degree) <= 1) footingShaken(state, options.actor);
         // (2026-10-22, a row's condition on the caster — Banishment's and Mind Games' stunned 1 on a critical success, Planar Court's doomed 1,
         // Shared Nightmare's confusion for a round, The End is Nigh's frightened 1.)
         if (SAVE_SLUGS.has(statistic) && options?.actor?.id && final?.degree && forcedDegree === null) {

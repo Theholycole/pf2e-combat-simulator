@@ -8,6 +8,10 @@
 //   A map: { width, height, blocked: Set of "x,y" (walls, pillars, chasms: no one stands or moves there), walls: Set of "x,y|x,y"
 //   (a wall between two orthogonal neighbours), difficult: Map of "x,y" → 2 (difficult) or 3 (greater difficult), spawns: { party,
 //   foes: ["x,y" …] in order of who stands at the front }, name }.
+//   (2026-10-22, the user's battlefields — battlefields.js:) heights: Map of "x,y" → the ground's height in feet (0 without one); footing:
+//   Map of "x,y" → { kind: "uneven" | "narrow" | "incline", dc } (Balance, or Climb for an incline); climbDC: the DC to Climb between
+//   heights; and more the fight reads (battlefields.js). A creature's z: the height in feet its space's bottom is at (its ground's, or
+//   higher flying or climbing); creatures without one stand at 0.
 
 import { sizeRank } from "./abilities.js";
 
@@ -22,12 +26,28 @@ export function spaceOf(c) {
     return rank <= 2 ? 1 : rank - 1;
 }
 
-// PF2e's count for dx squares across and dy down: every second diagonal 10 feet.
-export function feetBetween(dx, dy) {
+// PF2e's count for dx squares across and dy down: every second diagonal 10 feet. (2026-10-22: and dz up — the same count again between
+// the flat distance and the height.)
+export function feetBetween(dx, dy, dz = 0) {
     const across = Math.abs(dx);
     const down = Math.abs(dy);
     const diagonal = Math.min(across, down);
-    return SQUARE_FEET * (Math.max(across, down) + Math.floor(diagonal / 2));
+    const flat = Math.max(across, down) + Math.floor(diagonal / 2);
+    const up = Math.abs(dz);
+    return SQUARE_FEET * (Math.max(flat, up) + Math.floor(Math.min(flat, up) / 2));
+}
+
+// (2026-10-22, heights.) The squares between two creatures' spaces upward: 0 when they overlap in height (on the same ground), else 1
+// when one's bottom is at the other's top, and a square more each 5 feet between — a creature's space as tall as it's wide.
+function zGap(a, b) {
+    const za = Number(a?.z) || 0;
+    const zb = Number(b?.z) || 0;
+    if (za === zb) return 0;
+    const ha = spaceOf(a) * SQUARE_FEET;
+    const hb = spaceOf(b) * SQUARE_FEET;
+    if (zb >= za + ha) return (zb - (za + ha)) / SQUARE_FEET + 1;
+    if (za >= zb + hb) return (za - (zb + hb)) / SQUARE_FEET + 1;
+    return 0;
 }
 
 // The squares between two spaces at their nearest ([dx, dy]: 1 when they touch).
@@ -41,19 +61,42 @@ function gap(a, b) {
     return [dx, dy];
 }
 
-// Feet between two creatures' spaces (5 when they're side by side).
+// Feet between two creatures' spaces (5 when they're side by side), their heights counted.
 export function distanceFeet(a, b) {
     const [dx, dy] = gap(a, b);
-    return feetBetween(dx, dy);
+    return feetBetween(dx, dy, zGap(a, b));
 }
 
 // Whether `who` reaches `other` with `reach` feet (its own, by default): PF2e's 10-foot reach reaches two squares on the diagonal too.
 export function reaches(who, other, reach = who?.reach ?? 5) {
     const [dx, dy] = gap(who, other);
-    if (Math.max(dx, dy) === 0) return true;
-    if (reach >= 10 && reach < 15 && dx <= 2 && dy <= 2) return true;
-    return feetBetween(dx, dy) <= Math.max(5, reach);
+    const dz = zGap(who, other);
+    if (Math.max(dx, dy, dz) === 0) return true;
+    if (reach >= 10 && reach < 15 && dx <= 2 && dy <= 2 && dz <= 2) return true;
+    return feetBetween(dx, dy, dz) <= Math.max(5, reach);
 }
+
+// (2026-10-22, heights.) The ground's height under a space at [x, y] of n squares: the highest of its squares'.
+export function groundZ(map, x, y, n = 1) {
+    if (!map?.heights?.size) return 0;
+    let top = -Infinity;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) top = Math.max(top, map.heights.get(key(x + i, y + j)) ?? 0);
+    return top === -Infinity ? 0 : top;
+}
+
+// The footing under a space: the hardest of its squares' ({ kind, dc }), or null on firm ground.
+export function footingAt(map, x, y, n = 1) {
+    if (!map?.footing?.size) return null;
+    let worst = null;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+        const here = map.footing.get(key(x + i, y + j));
+        if (here && (!worst || (Number(here.dc) || 0) > (Number(worst.dc) || 0))) worst = here;
+    }
+    return worst;
+}
+
+// Whether a step between two heights is a climb (more than 5 feet up or down) for one that doesn't fly.
+export const isClimb = (from, to) => Math.abs((Number(to) || 0) - (Number(from) || 0)) > SQUARE_FEET;
 
 // The squares a space covers at [x, y], or null when one is off the map or blocked.
 export function coveredSquares(map, x, y, n) {
@@ -147,11 +190,16 @@ function heap() {
 // greater triple, every second diagonal 10), through its allies' spaces but not its foes' (blockedBy: a Set of the squares it can't
 // enter), ending only where no one else stands (ends false where its space would take one of `occupied`'s squares); none past maxCost.
 // Its wayTo(place): [{ square, cost } …] from the start along the cheapest way there.
-export function reachable(map, mover, { blockedBy = new Set(), occupied = new Set(), maxCost = Infinity } = {}) {
+// (2026-10-22, heights: a step more than 5 feet up or down is a climb for one that doesn't fly — each 5 feet of it a Climb action, its whole
+// Speed's worth of feet here; an incline's square the same, a Climb to enter; uneven ground or a narrow surface difficult terrain — the
+// Balance it takes. flying: over all of it, heights and footing as nothing.)
+export function reachable(map, mover, { blockedBy = new Set(), occupied = new Set(), maxCost = Infinity, flying = false } = {}) {
     const n = spaceOf(mover);
     const width = map.width;
     const height = map.height;
     const cells = width * height;
+    const climbFeet = Math.max(SQUARE_FEET, Number(mover.speed) || 25);
+    const heights = !flying && map.heights?.size ? new Float64Array(cells) : null;
     // (Incorporeal, 2026-10-21: through walls, blocked squares and others' spaces — ending in none of them.)
     const through = (mover.traits ?? []).includes("incorporeal");
     // (Each top-left square: whether the space fits there, what entering it costs, whether it may end there.)
@@ -174,12 +222,18 @@ export function reachable(map, mover, { blockedBy = new Set(), occupied = new Se
                     break;
                 }
                 factor = Math.max(factor, map.difficult?.get(square) ?? 1);
+                const footing = flying ? null : map.footing?.get(square);
+                if (footing?.kind === "incline") factor = Math.max(factor, climbFeet / SQUARE_FEET);
+                else if (footing) factor = Math.max(factor, 2);
                 if (occupied.has(square)) clear = 0;
             }
             const at = y * width + x;
             fits[at] = ok;
-            enter[at] = SQUARE_FEET * factor;
+            enter[at] = Math.min(255, SQUARE_FEET * factor);
             free[at] = clear;
+            if (heights) heights[at] = groundZ(map, x, y, n);
+            // (Down a drop no one comes back from in this fight — Dropoff's chasm —: only a fall.)
+            if (heights && map.fallOut && heights[at] < -map.fallOut) fits[at] = 0;
         }
     }
     // (States: the square and the parity of diagonals taken — the next diagonal's cost depends on it.)
@@ -205,7 +259,9 @@ export function reachable(map, mover, { blockedBy = new Set(), occupied = new Se
             const next = ny * width + nx;
             if (!fits[next] || (walls && !through && crossesWall(map, x, y, dx, dy, n))) continue;
             const diagonal = dx !== 0 && dy !== 0;
-            const total = here + enter[next] + (diagonal && parity === 1 ? SQUARE_FEET : 0);
+            const rise = heights ? Math.abs(heights[next] - heights[cell]) : 0;
+            const climb = rise > SQUARE_FEET ? Math.ceil(rise / SQUARE_FEET) * climbFeet : 0;
+            const total = here + enter[next] + (diagonal && parity === 1 ? SQUARE_FEET : 0) + climb;
             if (total > maxCost) continue;
             const nextState = next * 2 + (diagonal ? 1 - parity : parity);
             if (cost[nextState] <= total) continue;
@@ -361,6 +417,23 @@ export function sightLine(map, from, to, others = []) {
         if (Math.abs(x1 - x2) + Math.abs(y1 - y2) === 1 && map.walls?.has(edge(all[i - 1], all[i]))) return { effect: false, cover: 0 };
         if (Math.abs(x1 - x2) + Math.abs(y1 - y2) === 2 && (map.blocked?.has(key(x1, y2)) || map.blocked?.has(key(x2, y1)) || map.walls?.has(edge(all[i - 1], key(x1, y2))) || map.walls?.has(edge(all[i - 1], key(x2, y1))))) cover = 2;
     }
+    // (2026-10-22, heights: ground higher than the line between their middles — a wall, a cliff — blocks it; within 5 feet under it, a
+    // ledge's lip, standard cover. A parapet: standard cover for one behind it against those below.)
+    if (map.heights?.size) {
+        const za = (Number(from.z) || 0) + (spaceOf(from) * SQUARE_FEET) / 2;
+        const zb = (Number(to.z) || 0) + (spaceOf(to) * SQUARE_FEET) / 2;
+        const length = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        for (const square of squares) {
+            const ground = map.heights.get(square) ?? 0;
+            if (ground <= Math.min(za, zb) - SQUARE_FEET) continue;
+            const [x, y] = unkey(square);
+            const along = Math.min(1, Math.max(0, Math.hypot(x + 0.5 - a[0], y + 0.5 - a[1]) / length));
+            const line = za + (zb - za) * along;
+            if (ground >= line) return { effect: false, cover: 0 };
+            if (ground > line - SQUARE_FEET) cover = 2;
+        }
+    }
+    if (map.parapets?.size && (Number(from.z) || 0) < (Number(to.z) || 0) && occupiedBy(to).some((square) => map.parapets.has(square))) cover = 2;
     if (!cover) {
         const between = new Set(others.filter((other) => other !== from && other !== to && other.square).flatMap(occupiedBy));
         if (squares.some((square) => between.has(square))) cover = 1;

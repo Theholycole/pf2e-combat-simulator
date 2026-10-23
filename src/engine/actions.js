@@ -5,16 +5,16 @@
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistribution, degreeOf, flatCheck, rollCheck } from "./checks.js";
 import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
 import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
-import { DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, defenceOf, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, spendAmmo, statusPenalty, strikeUsable } from "./combatant.js";
+import { ACTIVE, DEAD, DOWN, FLED, armorClass, canAct, canMove, deathThreshold, defenceOf, effectBonus, gripPenalty, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, spendAmmo, statusPenalty, strikeUsable } from "./combatant.js";
 import { adjustDamage, adjustPart, concussiveType, expectedStrikeDamage, adjustInstance, onceWeakness, resistancesOf, rollStrikeDamage, strikeContext } from "./damage.js";
 import { aloft, canStepOut, distanceBetween, engage, engagedEnemies, fliesNow, flankChance, leaveMelee, rangePenalty, removeFromSpace, sameMelee } from "./space.js";
-import { gridFlanked, moveTo as moveOnGrid, planStep, planStride, regroup } from "./grid-fight.js";
-import { reaches as gridReaches, sightLine, squareOf } from "./grid.js";
+import { dropOffEdge, gridFlanked, moveTo as moveOnGrid, planStep, planStride, regroup } from "./grid-fight.js";
+import { footingAt, groundZ, isClimb, reaches as gridReaches, sightLine, spaceOf as spaceOfGrid, squareOf } from "./grid.js";
 import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNextStrike, takeAttackFortune } from "./effects.js";
-import { actionTraits, applyCondition, applyMove, castPlan, castSpell, curseOnHit, deathThroes, forbiddingBonus, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { actionTraits, applyCondition, applyMove, castPlan, castSpell, curseOnHit, deathThroes, forbiddingBonus, skillValue, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
@@ -782,6 +782,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     });
     target.resistances = before;
     if (line >= 0) state.log[line] = `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label} for ${dealt} (${target.name} ${Math.max(0, target.hp.value)}/${target.hp.max})`;
+    // (2026-10-22, the battlefields: hit on uneven ground or a narrow surface, a Reflex save at its Balance DC or fall.)
+    if (target.footing && isActive(target)) footingShaken(state, target);
     // (T1, T6: a critical hit's rider — Brutal Beating's — and its weapon group's critical specialization.)
     if (critical && attacker.critRider) critRiderAnswer(state, attacker, target, { applyCondition, applyMove });
     if (critical) critSpecEffect(state, attacker, target, strike, natural + modifier + bonus, { applyCondition, applyMove, applyDamage, rollDie: (size) => state.rng.die(size) });
@@ -1930,11 +1932,21 @@ export function stride(state, c, move) {
 // gets its reactions as it leaves that square, once; a hit that disrupts the move, or one that drops it, stops it there.
 const GRID_MOVES = new Set(["engage", "approach", "toNear", "toFar"]);
 function gridStride(state, c, move) {
-    const plan = planStride(state, c, move);
+    let plan = planStride(state, c, move);
     const start = c.square.join(",");
+    // (2026-10-22, the battlefields: the next step a climb — up or down a ledge, onto an incline —: a Climb, not a Stride.)
+    if (plan?.next && !fliesNow(c) && (!plan.end || plan.end === start) && climbStep(state, c, start, plan.next)) {
+        climb(state, c, start, plan.next);
+        return;
+    }
     if (!plan?.end || plan.end === start) {
         log(state, `  ${c.name} finds no way to move`);
         return;
+    }
+    // (Uneven ground or a narrow surface on its way, or under it: a Balance first.)
+    if (state.grid.footing?.size && !fliesNow(c)) {
+        plan = balanceAlong(state, c, plan);
+        if (!plan) return;
     }
     endMoveEffects(state, c);
     releaseGrabs(state, c);
@@ -1956,7 +1968,7 @@ function gridStride(state, c, move) {
         }
     }
     const target = move.targetId ? state.byId.get(move.targetId) : null;
-    moveOnGrid(state, c, plan.end);
+    moveOnGrid(state, c, plan.end, plan.z);
     const feet = (plan.way.length - 1) * 5;
     log(state, `  ${c.name} Strides${target ? ` toward ${target.name}` : move.kind === "toFar" ? " away" : " off"} (${plan.end}${target && sameMelee(c, target) ? ", in reach" : ""}, about ${feet} feet)`);
     if (target && sameMelee(c, target)) {
@@ -1965,6 +1977,150 @@ function gridStride(state, c, move) {
     }
     const behind = left.filter((enemy) => !sameMelee(enemy, c));
     if (behind.length && !safe) followAnswers(state, c, behind);
+}
+
+// --- Battlefields (2026-10-22, the user's battlefields: battlefields.js makes them, grid.js and grid-fight.js the geometry) -----------------
+
+// A fall of `feet` (PF2e: half the distance in bludgeoning damage, prone when it takes any). A flier doesn't fall (it flies). Off an edge
+// (edge: the square it fell from), Grab an Edge first — its reaction, the better of Acrobatics and Reflex against the Climb DC: caught, back
+// on the edge, prone. Further than the battlefield lets it come back from this fight (map.fallOut — Dropoff's chasm): out of the fight.
+export function fall(state, c, feet, { edge = null } = {}) {
+    if (!isActive(c) || !(feet > 5) || fliesNow(c)) return;
+    const dc = Number(state.grid?.climbDC) || 15;
+    if (edge && canReact(c, "Grab an Edge") && !c.cond.grabbed && !c.cond.restrained) {
+        spendReaction(c, "Grab an Edge");
+        const natural = state.rng.d20();
+        const caught = degreeOf(natural + Math.max(skillValue(c, "acrobatics"), saveModifier(c, "reflex")), dc, natural) >= SUCCESS;
+        log(state, `  ${c.name} tries to Grab an Edge: ${caught ? "caught" : "misses"}`);
+        if (caught) {
+            moveOnGrid(state, c, edge.join(","));
+            applyCondition(state, c, "prone", null, null, null);
+            return;
+        }
+    }
+    const damage = Math.floor(feet / 2);
+    log(state, `  ${c.name} falls ${feet} feet`);
+    applyDamage(state, c, [{ type: "bludgeoning", amount: damage, persistent: false, precision: false }], {});
+    if (isActive(c)) applyCondition(state, c, "prone", null, null, null);
+    if (feet > (Number(state.grid?.fallOut) || Infinity) && c.status === ACTIVE) leaveField(state, c, { fell: true });
+}
+
+// Hit, or a failed save, on uneven ground or a narrow surface: a Reflex save at its Balance DC, or it falls — prone on uneven ground, off a
+// narrow surface (dropOffEdge: down beside it).
+export function footingShaken(state, c) {
+    const footing = c.footing;
+    if (!footing || !isActive(c) || fliesNow(c)) return;
+    const natural = state.rng.d20();
+    if (degreeOf(natural + saveModifier(c, "reflex"), Number(footing.dc) || 15, natural) >= SUCCESS) return;
+    if (footing.kind === "narrow") {
+        const from = [...c.square];
+        const drop = dropOffEdge(state, c);
+        log(state, `  ${c.name} loses its footing`);
+        if (drop) fall(state, c, drop, { edge: from });
+        else applyCondition(state, c, "prone", null, null, null);
+        return;
+    }
+    log(state, `  ${c.name} loses its footing`);
+    applyCondition(state, c, "prone", null, null, null);
+}
+
+// A step that takes a Climb: more than 5 feet up or down, or onto an incline.
+function climbStep(state, c, from, to) {
+    const [fx, fy] = squareOf(from);
+    const [tx, ty] = squareOf(to);
+    const n = spaceOfGrid(c);
+    return isClimb(groundZ(state.grid, fx, fy, n), groundZ(state.grid, tx, ty, n)) || footingAt(state.grid, tx, ty, n)?.kind === "incline";
+}
+
+// A Climb (PF2e): Athletics against the Climb DC (an incline's own), 5 feet up or down — 10 on a critical success, and 5 more for each 20
+// feet of Speed past 20 —; a critical failure a fall (prone, from as high as it got). Halfway up a ledge it hangs in the square below it,
+// that high (c.elevation, off-guard: combatant.js); at the top, on it.
+function climb(state, c, from, to) {
+    c.movedThisTurn = true;
+    const [fx, fy] = squareOf(from);
+    const [tx, ty] = squareOf(to);
+    const n = spaceOfGrid(c);
+    const low = groundZ(state.grid, fx, fy, n);
+    const high = groundZ(state.grid, tx, ty, n);
+    const incline = footingAt(state.grid, tx, ty, n)?.kind === "incline" ? footingAt(state.grid, tx, ty, n) : null;
+    // (A square's own Climb DC — a gate's — else the battlefield's.)
+    const own = Math.max(Number(state.grid.climbDCs?.get(from)) || 0, Number(state.grid.climbDCs?.get(to)) || 0);
+    const dc = Number(incline?.dc ?? (own || state.grid.climbDC)) || 15;
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + skillValue(c, "athletics") - statusPenalty(c, "skill"), dc, natural);
+    const reach = 5 + Math.max(0, Math.floor(((Number(c.speed) || 25) - 20) / 20)) * 5 + (degree === CRITICAL_SUCCESS ? 5 : 0);
+    if (degree === CRITICAL_FAILURE) {
+        const height = Number(c.elevation) || 0;
+        c.elevation = 0;
+        c.climbing = null;
+        log(state, `  ${c.name} Climbs: critical failure, it falls`);
+        regroup(state);
+        if (height > 5) fall(state, c, height);
+        else applyCondition(state, c, "prone", null, null, null);
+        return;
+    }
+    if (degree === FAILURE) {
+        log(state, `  ${c.name} Climbs: no headway`);
+        return;
+    }
+    // (An incline: one Climb onto it.)
+    if (incline || Math.abs(high - low) <= 5) {
+        c.climbing = null;
+        moveOnGrid(state, c, to);
+        log(state, `  ${c.name} Climbs onto ${to}`);
+        return;
+    }
+    // (A ledge: up from the bottom square, or down from the top — hanging in the lower of the two squares meanwhile.)
+    const up = high > low;
+    const bottom = up ? from : to;
+    const top = up ? to : from;
+    const rise = Math.abs(high - low);
+    const progress = (c.climbing?.top === top ? c.climbing.progress : up ? 0 : rise) + (up ? reach : -reach);
+    if (up ? progress >= rise : progress <= 0) {
+        c.climbing = null;
+        c.elevation = 0;
+        moveOnGrid(state, c, up ? top : bottom);
+        log(state, `  ${c.name} Climbs ${up ? "up onto" : "down to"} ${up ? top : bottom}`);
+        return;
+    }
+    c.climbing = { top, bottom, progress };
+    c.elevation = progress;
+    moveOnGrid(state, c, bottom);
+    log(state, `  ${c.name} Climbs (${progress} of ${rise} feet)`);
+}
+
+// Uneven ground or a narrow surface on a Stride's way (or under it): a Balance — Acrobatics against the hardest's DC. Success: on its way
+// (paths count such ground as difficult terrain already); failure: it stops short of it (or stays put, on it); critical failure: it falls
+// at the first such square — prone on uneven ground, off a narrow surface —, and its turn ends. The plan to carry on, or null.
+function balanceAlong(state, c, plan) {
+    const footing = (square) => {
+        const here = state.grid.footing.get(square);
+        return here && here.kind !== "incline" ? here : null;
+    };
+    const ahead = plan.way.slice(1);
+    const first = ahead.findIndex((square) => footing(square));
+    if (first < 0 && !c.footing) return plan;
+    const dc = Math.max(Number(c.footing?.dc) || 0, ...ahead.map((square) => Number(footing(square)?.dc) || 0));
+    const natural = state.rng.d20();
+    const degree = degreeOf(natural + skillValue(c, "acrobatics") - statusPenalty(c, "skill"), dc, natural);
+    if (degree >= SUCCESS) return plan;
+    if (degree === FAILURE) {
+        log(state, `  ${c.name} Balances: failure, it keeps still`);
+        if (c.footing || first <= 0) return null;
+        const way = plan.way.slice(0, first + 1);
+        return { ...plan, way, end: way[way.length - 1] };
+    }
+    const at = first >= 0 ? ahead[first] : c.square.join(",");
+    const from = [...c.square];
+    moveOnGrid(state, c, at);
+    log(state, `  ${c.name} Balances: critical failure, it falls`);
+    c.actionsLeft = 0;
+    if (footing(at)?.kind === "narrow" || c.footing?.kind === "narrow") {
+        const drop = dropOffEdge(state, c);
+        if (drop) fall(state, c, drop, { edge: from });
+        else applyCondition(state, c, "prone", null, null, null);
+    } else applyCondition(state, c, "prone", null, null, null);
+    return null;
 }
 
 // No Escape, Reactive Pursuit (B117): a creature that moved away from monsters with one, followed — each Strides after it and stays in its
@@ -2079,16 +2235,17 @@ export function bewilderFails(state, c) {
     return true;
 }
 
-export function leaveField(state, c, { banished = false } = {}) {
+export function leaveField(state, c, { banished = false, fell = false } = {}) {
     releaseGrabs(state, c);
     releaseAllSwallowed(state, c, "is freed");
     leaveMelee(state, c, "gone");
     c.status = FLED;
-    // (2026-10-22, Banishment: sent to its home plane — gone, not run off: no help fetched, no rout.)
-    if (banished) c.banished = true;
-    log(state, `  ${c.name} ${banished ? "is banished" : "leaves the battlefield"}`);
+    // (2026-10-22, Banishment: sent to its home plane — gone, not run off: no help fetched, no rout. A fall it won't climb back from this
+    // fight — a battlefield's chasm — the same.)
+    if (banished || fell) c.banished = true;
+    log(state, `  ${c.name} ${banished ? "is banished" : fell ? "falls out of the fight" : "leaves the battlefield"}`);
     // A runner (E1): gone to fetch help.
-    if (!banished && c.alarm === "runner" && state.escalation && !state.escalation.alarm.raised) {
+    if (!banished && !fell && c.alarm === "runner" && state.escalation && !state.escalation.alarm.raised) {
         c.ranForHelp = true;
         raiseAlarm(state, c);
     }
