@@ -257,3 +257,16 @@ test("tactics: a shooter takes the high ground and doesn't climb down; a Shove o
     assert.equal(pathAt.drop, 30, "off the edge");
     assert.ok(shove);
 });
+
+test("a flier moves at its fly Speed on the grid; reach needs line of effect", async () => {
+    const { strideSpeed } = await import("../src/engine/grid-fight.js");
+    assert.equal(strideSpeed({ speed: 0, flies: true, flySpeed: 40, cond: {} }), 40, "a specter: no land Speed, fly 40");
+    assert.equal(strideSpeed({ speed: 25, cond: {} }), 25);
+    assert.equal(strideSpeed({ speed: 0, flies: true, flySpeed: 40, cond: { landed: true } }), 5, "brought down: its land Speed");
+    // (A pole-armed creature across a wall square: in reach by the squares, but no line — no Melee.)
+    const reachy = (c) => ({ ...c, reach: 10, strikes: c.strikes.map((s) => ({ ...s, reach: 10 })) });
+    const walled = fight([reachy(pc("p")), foe("x")], field({ blocked: ["6,5"] }, { p: [5, 5], x: [7, 5] }));
+    assert.notEqual(walled.byId.get("p").band, "engaged");
+    const open = fight([reachy(pc("p")), foe("x")], field({}, { p: [5, 5], x: [7, 5] }));
+    assert.equal(open.byId.get("p").band, "engaged");
+});

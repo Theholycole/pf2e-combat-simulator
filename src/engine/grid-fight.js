@@ -129,7 +129,7 @@ export function regroup(state) {
         for (let j = i + 1; j < standing.length; j++) {
             const a = standing[i];
             const b = standing[j];
-            if (a.side === b.side || !(reaches(a, b) || reaches(b, a))) continue;
+            if (a.side === b.side || !(reaches(a, b) || reaches(b, a)) || !lineBetween(state.grid, a, b)) continue;
             parent.set(find(a.id), find(b.id));
             engaged.add(a.id);
             engaged.add(b.id);
@@ -176,6 +176,13 @@ function bandFrom(state, at, standing) {
 export function bandAt(state, c, square, z = undefined) {
     const standing = state.list.filter((other) => other !== c && isActive(other) && other.square && ACTIVE_BANDS.has(other.band ?? "near"));
     return bandFrom(state, { ...c, square, ...(z !== undefined ? { z } : {}) }, standing);
+}
+
+// (2026-10-24) Whether there's line of effect between two creatures on the grid — needed to reach as much as to shoot: a titan with 50-foot
+// reach was "in" a Melee across One Mass's object it couldn't Strike through, and never moved. Open maps skip the check.
+function lineBetween(map, a, b) {
+    if (!map.blocked?.size && !map.walls?.size && !map.heights?.size) return true;
+    return sightLine(map, a, b).effect;
 }
 
 // The squares foes of a creature take (it can't go through them) and everyone else's (it can't stop in them).
@@ -263,7 +270,7 @@ export function breachOdds(c, gate) {
 function breachesFor(state, c) {
     const gates = (state.grid.objects ?? []).filter((object) => object.kind === "gate" && object.closed);
     if (!gates.length) return null;
-    const speed = Math.max(5, c.speed ?? 25);
+    const speed = strideSpeed(c);
     const out = new Map();
     for (const gate of gates) {
         const { force, strike } = breachOdds(c, gate);
@@ -326,7 +333,7 @@ function bestReachPlace(state, c, target, square = c.square, prefer = null) {
                 const ground = groundZ(state.grid, x, y, n);
                 probe.z = flying ? Math.max(ground, Number(target.z) || 0) : ground;
             }
-            if (!reaches(probe, target)) continue;
+            if (!reaches(probe, target) || !lineBetween(state.grid, probe, target)) continue;
             // (2026-10-22, a battlefield: firm ground over uneven ground or a narrow surface — off-guard there — by 10 feet's worth.)
             const unsure = !flying && state.grid.footing?.size && footingAt(state.grid, x, y, n)?.kind && footingAt(state.grid, x, y, n).kind !== "incline" ? 10 : 0;
             const bonus = (prefer ? prefer({ ...c, square: [x, y], ...(heights ? { z: probe.z } : {}) }) : 0) - unsure;
@@ -337,6 +344,14 @@ function bestReachPlace(state, c, target, square = c.square, prefer = null) {
     return best;
 }
 
+// (2026-10-24) How far a creature moves on the grid in an action: its Speed, or flying, its fly Speed when that's more — a specter (fly 40,
+// no land Speed) went 5 feet a Stride, so it sank and waited on every battlefield (found checking the creature preferences' outliers).
+export function strideSpeed(c) {
+    const land = Number(c?.speed ?? 25);
+    const fly = fliesNow(c) ? Number(c?.flySpeed) || 0 : 0;
+    return Math.max(5, Number.isFinite(land) ? land : 25, fly);
+}
+
 // Strides a creature (from `square`, its own by default) needs to reach a target: its cheapest way's feet over its Speed (1 at least,
 // 0 when it reaches already); Infinity with no way.
 export function gridStrides(state, c, target, square = c.square) {
@@ -345,7 +360,7 @@ export function gridStrides(state, c, target, square = c.square) {
     // (A flier aloft, out of reach of one that doesn't fly — space.js.)
     if (!fliesNow(c) && aloft(target)) return Infinity;
     const best = bestReachPlace(state, c, target, square);
-    return best ? Math.max(1, Math.ceil(best.cost / Math.max(5, c.speed ?? 25))) : Infinity;
+    return best ? Math.max(1, Math.ceil(best.cost / strideSpeed(c))) : Infinity;
 }
 
 // Where a creature ends a Stride toward a place: the furthest point of the way it pays for with `feet` (its Speed).
@@ -378,7 +393,7 @@ export function threatenedAlong(state, c, way) {
 // reaches it, as far as its Speed takes it — flanking it with an ally when that costs no more), "toNear" (out of every foe's reach, 15
 // to 30 feet from the nearest — from further off, as close to 30 feet as it gets — as little moving as will do), "toFar" (as far from
 // the foes as it gets).
-export function planStride(state, c, move, feet = Math.max(5, c.speed ?? 25)) {
+export function planStride(state, c, move, feet = strideSpeed(c)) {
     if (!state.grid || !c.square) return null;
     // (2026-10-23, speed: cached by the grid's version — the planner asks again and again in a decision.)
     const cache = gridCache(state);

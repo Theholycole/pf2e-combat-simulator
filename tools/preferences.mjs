@@ -70,7 +70,8 @@ if (!isMainThread) {
             }
         };
         // (Top-ups — preferences-<prefixes>.jsonl — merged in: their factors' numbers replace the main run's of those prefixes.)
-        const topUps = fs.readdirSync(out).filter((name) => /^preferences-.+\.jsonl$/.test(name)).flatMap((name) => read(name));
+        // (Oldest first: a later top-up's numbers win.)
+        const topUps = fs.readdirSync(out).filter((name) => /^preferences-.+\.jsonl$/.test(name)).sort((a, b) => fs.statSync(`${out}/${a}`).mtimeMs - fs.statSync(`${out}/${b}`).mtimeMs).flatMap((name) => read(name));
         const byRef = new Map();
         for (const row of topUps) if (!row.error && !row.skipped && row.scores) byRef.set(row.ref.ref, [...(byRef.get(row.ref.ref) ?? []), row]);
         const merged = (row) => {
