@@ -3,7 +3,8 @@
 //
 //   node tools/preferences.mjs <out folder> run       every rated creature (src/data/danger-ratings.json's), into preferences.jsonl
 //                                                      (--resume: only those not done yet; --only=<name or file of names>: just those;
-//                                                      --fights=N, 40 by default)
+//                                                      --fights=N, 40 by default; --factors=<key prefix,…>: only those factors —
+//                                                      terrain: — into preferences-<the prefixes>.jsonl, a top-up the ratings merge in)
 //   node tools/preferences.mjs <out folder> ratings   each creature's picks, on the danger ratings' scale, by compendium and id
 //                                                      (--write=src/data/danger-preferences.json; else preferences.json in the folder)
 //
@@ -42,10 +43,13 @@ if (!isMainThread) {
         });
         if (only.length) refs = refs.filter((ref) => only.some((value) => value === ref.ref || value === ref.id || value.toLowerCase() === ref.name.toLowerCase()));
         const resume = process.argv.includes("--resume");
-        const done = resume ? new Set(read("preferences.jsonl").map((row) => row.ref?.ref)) : new Set();
-        const tasks = refs.filter((ref) => !done.has(ref.ref)).map((ref) => ({ kind: "preferences", ref, from: 1, to: 1 + FIGHTS }));
-        console.log(`${tasks.length} creatures (${refs.length} rated)`);
-        await runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/preferences.jsonl`, append: resume });
+        const factorsArg = process.argv.find((arg) => arg.startsWith("--factors="))?.split("=")[1];
+        const prefixes = factorsArg ? factorsArg.split(",").filter(Boolean) : null;
+        const file = prefixes ? `preferences-${prefixes.map((prefix) => prefix.replace(/[^a-z0-9]+/gi, "")).join("-")}.jsonl` : "preferences.jsonl";
+        const done = resume ? new Set(read(file).map((row) => row.ref?.ref)) : new Set();
+        const tasks = refs.filter((ref) => !done.has(ref.ref)).map((ref) => ({ kind: "preferences", ref, from: 1, to: 1 + FIGHTS, ...(prefixes ? { only: prefixes } : {}) }));
+        console.log(`${tasks.length} creatures (${refs.length} rated)${prefixes ? `, factors ${prefixes.join(", ")}` : ""}`);
+        await runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/${file}`, append: resume });
     } else if (phase === "ratings") {
         // (Effective levels on the danger ratings' own scale: a factor's worth, its fights' less its base's.)
         const { effectiveLevel, scaleFromJSON } = await import("../src/engine/danger-scale.js");
@@ -53,12 +57,42 @@ if (!isMainThread) {
         const levelOf = (level, score) => effectiveLevel(scale.curves, { level, score });
         const creatures = {};
         let count = 0;
-        for (const row of read("preferences.jsonl")) {
-            if (row.error || row.skipped || !row.scores) continue;
+        // (A damage type against the untyped die can only help a creature immune to it or resisting it, and only hurt one weak to it: a
+        // "hate" of the first or a "want" of the second is noise — dropped, by its immunities, resistances and weaknesses.)
+        const lib = await import("./lib/deadliness.mjs");
+        const iwrOf = (ref) => {
+            try {
+                const { monster } = lib.buildMonster(lib.npcOf(ref));
+                const types = (list) => new Set((list ?? []).map((entry) => (typeof entry === "string" ? entry : entry?.type)).filter(Boolean));
+                return { helps: new Set([...types(monster.immunities), ...types(monster.resistances)]), hurts: types(monster.weaknesses) };
+            } catch {
+                return null;
+            }
+        };
+        // (Top-ups — preferences-<prefixes>.jsonl — merged in: their factors' numbers replace the main run's of those prefixes.)
+        const topUps = fs.readdirSync(out).filter((name) => /^preferences-.+\.jsonl$/.test(name)).flatMap((name) => read(name));
+        const byRef = new Map();
+        for (const row of topUps) if (!row.error && !row.skipped && row.scores) byRef.set(row.ref.ref, [...(byRef.get(row.ref.ref) ?? []), row]);
+        const merged = (row) => {
+            let next = row;
+            for (const extra of byRef.get(row.ref.ref) ?? []) {
+                const drop = (key) => (extra.only ?? []).some((prefix) => key.startsWith(prefix));
+                next = { ...next, scores: { ...Object.fromEntries(Object.entries(next.scores).filter(([key]) => !drop(key))), ...extra.scores }, bases: { ...Object.fromEntries(Object.entries(next.bases ?? {}).filter(([key]) => !drop(key))), ...extra.bases } };
+            }
+            return next;
+        };
+        for (const base of read("preferences.jsonl")) {
+            if (base.error || base.skipped || !base.scores) continue;
+            const row = merged(base);
             const worth = {};
             for (const [key, base] of Object.entries(row.bases ?? {})) {
                 const [with_, without] = [levelOf(row.level, row.scores[key]), levelOf(row.level, row.scores[base])];
                 if (Number.isFinite(with_) && Number.isFinite(without)) worth[key] = with_ - without;
+            }
+            const iwr = Object.keys(worth).some((key) => key.startsWith("deals:")) ? iwrOf(row.ref) : null;
+            if (iwr) for (const key of Object.keys(worth).filter((entry) => entry.startsWith("deals:"))) {
+                const type = key.slice("deals:".length);
+                if ((iwr.helps.has(type) && worth[key] < 0) || (iwr.hurts.has(type) && worth[key] > 0)) delete worth[key];
             }
             const picks = picksOf(worth);
             if (!picks.battlefield && !picks.wants.length && !picks.hates.length) continue;

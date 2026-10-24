@@ -46,8 +46,11 @@ export function runPreferences(task) {
     };
     const scores = {};
     const errors = {};
-    const factors = factorsFor(monster);
-    for (const [key, factor] of [["none", null], ["grid:open", { grid: { layout: "open" } }], ...factors.map((entry) => [entry.key, entry])]) {
+    // (task.only: just the factors whose keys start so — a top-up run — and the bases they need.)
+    const factors = factorsFor(monster).filter((factor) => !task.only || task.only.some((prefix) => factor.key.startsWith(prefix)));
+    const bases = task.only ? [...new Set(factors.map((factor) => factor.base ?? "none"))].filter((key) => !factors.some((factor) => factor.key === key)) : ["none", "grid:open"];
+    const baseFactors = { none: null, "grid:open": { grid: { layout: "open" } } };
+    for (const [key, factor] of [...bases.map((key) => [key, baseFactors[key]]), ...factors.map((entry) => [entry.key, entry])]) {
         try {
             const result = fights(factor);
             if (result) scores[key] = Math.round(result.score * 10000) / 10000;
@@ -55,5 +58,5 @@ export function runPreferences(task) {
             errors[key] = `${error.message} ${String(error.stack ?? "").split("\n")[1] ?? ""}`.trim();
         }
     }
-    return { ...task, level: monster.level, scores, bases: Object.fromEntries(factors.map((factor) => [factor.key, factor.base ?? "none"])), ...(Object.keys(errors).length ? { errors } : {}) };
+    return { ...task, level: monster.level, scores, bases: Object.fromEntries(factors.map((factor) => [factor.key, factor.base ?? "none"])), ...(task.only ? { only: task.only } : {}), ...(Object.keys(errors).length ? { errors } : {}) };
 }

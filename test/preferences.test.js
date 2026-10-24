@@ -70,8 +70,8 @@ test("a factor's fight: the party's changes, an ally's spell as a constant one, 
     assert.ok(haste.combatants.at(-1).spells.some((spell) => spell.name === "Haste (Constant)"));
 });
 
-test("picks: the best battlefield; the three most wanted and most hated past a tenth and a half; an ally's help never hated", () => {
-    const picks = picksOf({ "battlefield:pillars": 0.3, "battlefield:dropoff": 0.9, "light:dark": 1.2, "deals:fire": -1.5, "deals:acid": -0.8, "weather:fog": -0.1, "ally:haste": 0.7, "ally:mirror-image": -1.9, "cover:foes": 0.2, "terrain:ice": 0.16, "deals:untyped": -3 });
+test("picks: the best battlefield; the three most wanted and most hated past 0.3 of a level; an ally's help never hated", () => {
+    const picks = picksOf({ "battlefield:pillars": 0.3, "battlefield:dropoff": 0.9, "light:dark": 1.2, "deals:fire": -1.5, "deals:acid": -0.8, "ally:haste": 0.7, "ally:mirror-image": -1.9, "cover:foes": 0.35, "terrain:ice": 0.25, "weather:fog": -0.2, "deals:untyped": -3 });
     assert.deepEqual(picks.battlefield, ["battlefield:dropoff", 0.9]);
     assert.deepEqual(picks.wants.map(([key]) => key), ["light:dark", "ally:haste", "cover:foes"]);
     assert.deepEqual(picks.hates.map(([key]) => key), ["deals:fire", "deals:acid"]);

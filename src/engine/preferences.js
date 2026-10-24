@@ -16,7 +16,9 @@ const BATTLEFIELD_LABELS = { balconies: "Balconies", broken: "Broken Ground", bu
 const ENERGY = ["fire", "cold", "electricity", "acid", "sonic", "vitality", "void", "force", "spirit", "mental", "poison"];
 const TERRAIN = { plants: "undergrowth", swamp: "swamp", snow: "snow", ice: "ice", water: "shallow water", rubble: "rubble", sand: "sand" };
 
-const weakTo = (monster) => [...new Set((monster.weaknesses ?? []).map((entry) => entry.type).filter((type) => ENERGY.includes(type)))];
+// (Resist Energy's choices: acid, cold, electricity, fire, sonic.)
+const RESISTIBLE = ["acid", "cold", "electricity", "fire", "sonic"];
+const weakTo = (monster) => [...new Set((monster.weaknesses ?? []).map((entry) => entry.type).filter((type) => RESISTIBLE.includes(type)))];
 // The damage types, materials and traits a creature's immunities, resistances, weaknesses (and their exceptions) and regeneration name —
 // those whose damage does something different to it (vitality to the undead too); any other does what any damage would.
 export function namedTypes(monster) {
@@ -63,7 +65,11 @@ export function factorsFor(monster) {
         { key: "deals:cold-iron", label: "cold iron weapons", group: "damage", party: addIwr("materials", "cold-iron"), applies: named.has("cold-iron") },
         { key: "deals:holy", label: "holy weapons", group: "damage", party: addIwr("traits", "holy"), applies: named.has("holy") },
         { key: "deals:unholy", label: "unholy weapons", group: "damage", party: addIwr("traits", "unholy"), applies: named.has("unholy") },
-        ...Object.entries(TERRAIN).map(([kind, label]) => ({ key: `terrain:${kind}`, label, group: "terrain", environment: { difficult: kind } })),
+        // (Difficult ground halves the Speed of all but a flier and one with the stride for it: on the open field on the grid — in the
+        // bands' fights, begun near, it hardly mattered. Without a stride every kind plays the same: one factor, and one more for each kind
+        // it has a stride for.)
+        { key: "terrain:difficult", label: "difficult ground", group: "terrain", grid: { layout: "open" }, environment: { difficult: "rubble" }, base: "grid:open" },
+        ...(monster?.terrainStride ?? []).filter((kind) => TERRAIN[kind]).map((kind) => ({ key: `terrain:${kind}`, label: TERRAIN[kind], group: "terrain", grid: { layout: "open" }, environment: { difficult: kind }, base: "grid:open" })),
         { key: "cover:foes", label: "cover", group: "terrain", cover: { foes: 2 } },
         { key: "cover:foes-greater", label: "greater cover", group: "terrain", cover: { foes: 4 } },
         { key: "cover:party", label: "the party in cover", group: "terrain", cover: { party: 2 } },
@@ -101,8 +107,9 @@ export function factorFight(factor, party, foes, { spell = null } = {}) {
 }
 
 // What a creature's numbers say ({ key: worth in levels }): its battlefield (the best, any worth), and the three it gains most from and the
-// three it loses most to, past noise (minimum, in levels), battlefields and bases aside (by their keys).
-export function picksOf(worth, { minimum = 0.15 } = {}) {
+// three it loses most to, past noise (minimum, in levels: 0.3 — with 40 fights, a factor that does nothing comes out within about a fifth
+// of a level either way), battlefields and bases aside (by their keys).
+export function picksOf(worth, { minimum = 0.3 } = {}) {
     const entries = Object.entries(worth).filter(([, value]) => Number.isFinite(value));
     const battlefields = entries.filter(([key]) => key.startsWith("battlefield:")).sort((a, b) => b[1] - a[1]);
     const others = entries.filter(([key]) => !key.startsWith("battlefield:") && key !== "deals:untyped");
@@ -118,7 +125,7 @@ export function picksOf(worth, { minimum = 0.15 } = {}) {
 
 // The labels, for the data file and the tooltip.
 export function factorLabels() {
-    const everything = { weaknesses: ENERGY.map((type) => ({ type })), immunities: ["silver", "cold-iron", "holy", "unholy"], snowVision: true };
+    const everything = { weaknesses: ENERGY.map((type) => ({ type })), immunities: ["silver", "cold-iron", "holy", "unholy"], snowVision: true, terrainStride: Object.keys(TERRAIN) };
     const all = [...factorsFor({ ...everything, flies: true }), ...factorsFor(everything)];
     return Object.fromEntries(all.filter((factor) => factor.group !== "base").map((factor) => [factor.key, factor.label]));
 }
