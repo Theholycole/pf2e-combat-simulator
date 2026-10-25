@@ -116,9 +116,12 @@ const randomIn = (rng, lo, hi) => lo + Math.floor(rng.next() * (hi - lo + 1));
 
 // Balconies: small overlooks, ideal for ranged attackers — four 15-foot ones, two by each side's start (above and below it), a parapet on
 // the edge toward the field (standard cover against those below), two steps of stairs up toward the middle (5 feet each); their faces
-// climbed at the level's DC.
+// climbed at the level's DC. (2026-10-24, the user: each side's ranged attackers start on its overlooks — spawns.overlook; grid-fight.js
+// fightsFromAfar. Before, a ranged monster had to walk 35 feet and up to one, and in a two-round fight never did.)
 function balconies(level) {
     const map = blank("balconies", level);
+    const deck = (x0, x1) => [1, 2, 17, 18].flatMap((y) => [x0, x0 + 1, x0 + 2].map((x) => key(x, y))).sort((a, b) => Math.abs(Number(a.split(",")[1]) - 9.5) - Math.abs(Number(b.split(",")[1]) - 9.5));
+    map.spawns.overlook = { party: deck(5, 7), foes: deck(22, 24) };
     for (const [x0, x1, steps] of [[5, 7, [[8, 10], [9, 5]]], [22, 24, [[21, 10], [20, 5]]]]) {
         for (const [y0, y1, edge] of [[1, 2, 2], [17, 18, 17]]) {
             area(x0, y0, x1, y1, (x, y) => map.heights.set(key(x, y), 15));

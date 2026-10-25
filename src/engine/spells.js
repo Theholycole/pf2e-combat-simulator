@@ -2557,7 +2557,7 @@ export function applyMove(state, target, change, source = null) {
 }
 
 // Whether a plan deals damage (T7: a troop's non-damaging effects).
-function planDamages(plan) {
+export function planDamages(plan) {
     const resolution = plan?.resolution ?? {};
     return Boolean(resolution.sharedDamage?.components?.length) || Object.values(resolution.outcomes ?? {}).some((row) => row?.damage && row.damage.mode && row.damage.mode !== "none");
 }

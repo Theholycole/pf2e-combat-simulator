@@ -270,3 +270,14 @@ test("a flier moves at its fly Speed on the grid; reach needs line of effect", a
     const open = fight([reachy(pc("p")), foe("x")], field({}, { p: [5, 5], x: [7, 5] }));
     assert.equal(open.byId.get("p").band, "engaged");
 });
+
+test("Balconies: those that fight from afar start on their side's overlooks; a thrown melee weapon doesn't make an archer", async () => {
+    const { fightsFromAfar } = await import("../src/engine/grid-fight.js");
+    const archer = { ...foe("x"), strikes: [{ name: "Longbow", bonus: 12, melee: false, increment: 100, damage: [{ dice: 1, die: 8, bonus: 3, type: "piercing" }] }, { name: "Dagger", bonus: 10, melee: true, damage: [{ dice: 1, die: 4, bonus: 3, type: "piercing" }] }] };
+    const thrower = { ...foe("y"), strikes: [{ name: "Javelin", bonus: 12, melee: true, damage: [{ dice: 1, die: 6, bonus: 4, type: "piercing" }] }, { name: "Javelin", bonus: 12, melee: false, increment: 30, damage: [{ dice: 1, die: 6, bonus: 4, type: "piercing" }] }] };
+    assert.equal(fightsFromAfar(archer), true);
+    assert.equal(fightsFromAfar(thrower), false);
+    const state = createFightState({ combatants: [pc("p"), archer, thrower] }, { morale: false, grid: { layout: "balconies" } }, 1);
+    assert.equal(state.byId.get("x").z, 15, "the archer up on an overlook");
+    assert.equal(state.byId.get("y").z, 0, "the thrower on the ground");
+});

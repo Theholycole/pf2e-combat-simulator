@@ -9,7 +9,8 @@ import { burstSquares, coneSquares, distanceFeet, emanationSquares, flanks, foot
 import { aloft, fliesNow } from "./space.js";
 import { battlefieldMap, isBattlefield } from "./battlefields.js";
 import { expectedStrikeDamage } from "./damage.js";
-import { skillValue } from "./spells.js";
+import { describeSpell, planDamages, skillValue } from "./spells.js";
+import { moderate } from "./creature-tables.js";
 import { voidJoin } from "./void.js";
 
 const ACTIVE_BANDS = new Set(["engaged", "near", "far"]);
@@ -31,7 +32,7 @@ export function gridMap(spec) {
         blocked: base.blocked instanceof Set ? new Set(base.blocked) : new Set(base.blocked ?? []),
         walls: base.walls instanceof Set ? new Set(base.walls) : new Set(base.walls ?? []),
         difficult: base.difficult instanceof Map ? new Map(base.difficult) : new Map(Object.entries(base.difficult ?? {}).map(([square, factor]) => [square, Number(factor) || 2])),
-        spawns: { party: [...(base.spawns?.party ?? [])], foes: [...(base.spawns?.foes ?? [])] },
+        spawns: { party: [...(base.spawns?.party ?? [])], foes: [...(base.spawns?.foes ?? [])], ...(base.spawns?.overlook ? { overlook: { party: [...(base.spawns.overlook.party ?? [])], foes: [...(base.spawns.overlook.foes ?? [])] } } : {}) },
         ...(base.battlefield ? { battlefield: base.battlefield, level: Number(base.level) || 1 } : {}),
         ...(base.heights ? { heights: asMap(base.heights, Number) } : {}),
         ...(base.footing ? { footing: asMap(base.footing, (entry) => ({ ...entry })) } : {}),
@@ -77,6 +78,10 @@ export function setUpGrid(state, spec) {
         }
     }
     for (const side of ["party", "foes"]) {
+        // (Balconies: those that fight from afar on their side's overlooks first, as space allows.)
+        const lofty = map.spawns.overlook?.[side]?.length ? state.list.filter((c) => c.side === side && !c.square && c.status !== "pending" && c.kind !== "object" && fightsFromAfar(c)) : [];
+        const up = placeSide(map, lofty, map.spawns.overlook?.[side] ?? [], taken);
+        for (const c of lofty) if (up[c.id]) c.square = up[c.id];
         const waiting = frontFirst(state.list.filter((c) => c.side === side && !c.square && c.status !== "pending" && c.kind !== "object"));
         const placed = placeSide(map, waiting, map.spawns[side] ?? [], taken);
         for (const c of waiting) if (placed[c.id]) c.square = placed[c.id];
@@ -485,7 +490,33 @@ export function coverToward(state, c, from) {
 }
 
 // (2026-10-22, the battlefields' tactics.) Whether a creature fights from afar: a ranged Strike it can use.
-export const shoots = (c) => (c.strikes ?? []).some((strike) => !strike.melee && !strike.underwaterBlocked);
+// (2026-10-24: or a damaging spell reaching 30 feet or more — a caster, the user: "ranged spellcasters count as shooters".)
+export const shoots = (c) => (c.strikes ?? []).some((strike) => !strike.melee && !strike.underwaterBlocked) || rangedSpells(c).length > 0;
+
+// Its damaging spells (not its abilities or basic actions) that reach 30 feet or more.
+function rangedSpells(c) {
+    return (c.spells ?? []).filter((spell) => !spell.kind && spell.plan && planDamages(spell.plan) && (Number(describeSpell(spell.plan).range) || 0) >= 30);
+}
+
+const strikeValue = (strike) => (strike.damage ?? []).reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0);
+
+// (2026-10-24, Balconies: who starts on an overlook.) Whether a creature fights from afar: its best ranged Strike better than its best melee
+// one (damage and bonus, as the planner's sniper role), or a caster — two damaging spells reaching 30 feet or more, and no melee Strike up
+// to a moderate one of its level (a dragon fights up close).
+export function fightsFromAfar(c) {
+    let melee = 0;
+    let ranged = 0;
+    // (A tie counts — a bow as good as its hatchet —, but not a melee weapon thrown: the same name.)
+    const meleeNames = new Set((c.strikes ?? []).filter((strike) => strike.melee).map((strike) => strike.name));
+    for (const strike of c.strikes ?? []) {
+        const value = strikeValue(strike) + (strike.bonus ?? 0);
+        if (strike.melee) melee = Math.max(melee, value);
+        else if (!meleeNames.has(strike.name)) ranged = Math.max(ranged, value);
+    }
+    if ((ranged > 0 && ranged >= melee) || c.role === "sniper") return true;
+    if (rangedSpells(c).length < 2) return false;
+    return Math.max(0, ...(c.strikes ?? []).filter((strike) => strike.melee).map(strikeValue)) < moderate("damage", Math.max(-1, Math.min(24, Number(c.level) || 0)));
+}
 
 // Whether a plan's next step is down a ledge.
 function climbsDown(state, c, plan) {
