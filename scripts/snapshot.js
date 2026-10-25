@@ -300,6 +300,15 @@ function initiativeOver(actor, perception) {
     return Number.isFinite(total) && Number.isFinite(perception) ? Math.max(0, total - perception) : 0;
 }
 
+// (2026-10-25) The scene's GM Core environment as the Environment module (pf2e-automatic-environment-resolution) set it: its weather
+// toggles (levels) and the whole scene's ground ({ key, dc }), read from its flags (null without them; the module needn't be active).
+const ENVIRONMENT_ID = "pf2e-automatic-environment-resolution";
+export function sceneEnvironment(scene) {
+    const state = scene?.flags?.[ENVIRONMENT_ID]?.environment?.state ?? null;
+    const ground = [...(scene?.regions ?? [])].find((region) => region.flags?.[ENVIRONMENT_ID]?.groundRegion)?.flags?.[ENVIRONMENT_ID]?.terrain ?? null;
+    return { levels: state, ground: ground?.key ? { key: ground.key, dc: ground.dc ?? null } : null };
+}
+
 // (L1: the scene's light, for an environment set to "auto": its darkness level.)
 export function sceneLight(scene) {
     const level = Number(scene?.environment?.darknessLevel ?? scene?.darkness ?? 0);
@@ -1928,6 +1937,12 @@ export async function buildSnapshot(entries, { setup = {}, overrides = {}, fresh
     if (!setup.environment?.light || setup.environment.light === "auto") {
         const scene = combat?.scene ?? placed.find((entry) => entry.token?.parent)?.token.parent ?? canvas?.scene;
         setup = { ...setup, environment: { ...(setup.environment ?? {}), light: sceneLight(scene) } };
+    }
+    // (2026-10-25: GM Core's weather and ground the setup leaves to the scene — the Environment module's.)
+    if (setup.environment?.levels === undefined || setup.environment?.ground === undefined) {
+        const scene = combat?.scene ?? placed.find((entry) => entry.token?.parent)?.token.parent ?? canvas?.scene;
+        const own = sceneEnvironment(scene);
+        setup = { ...setup, environment: { ...(setup.environment ?? {}), ...(setup.environment?.levels === undefined ? { levels: own.levels } : {}), ...(setup.environment?.ground === undefined ? { ground: own.ground } : {}) } };
     }
     const snapshot = { combatants, setup, moraleRules };
     // Map objectives (O1–O3): each creature's distance to the area and the exit, from the

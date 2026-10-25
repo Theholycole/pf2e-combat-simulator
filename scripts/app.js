@@ -9,6 +9,9 @@ import { renderAdjustments, renderReport, renderCompare, renderMoraleImpact } fr
 import { escape } from "../src/html.js";
 import { MAP_KINDS, regionChoices, roundsHeld } from "./map.js";
 import { BATTLEFIELDS, battlefieldOf, inLevels } from "../src/engine/battlefields.js";
+import { DAMAGE_CATEGORIES, DISASTERS, FEATURES, TEMPERATURES, WEATHER } from "../../pf2e-resolution-core/src/environment/catalog.js";
+import { FEATURE_GROUPS } from "../../pf2e-resolution-core/src/environment/terrain.js";
+import { sceneEnvironment } from "./snapshot.js";
 
 const { ApplicationV2 } = foundry.applications.api;
 
@@ -20,7 +23,7 @@ const battlefieldChoices = (level) => BATTLEFIELDS.map(({ name, label, levels })
 const COMPARE_CHOICES = [["adjust", "What would change the odds (Weak, Elite, remove)"], ["morale", "Morale on / off"], ["heroPoints", "Hero points on / off"], ["objective", "Objective on / off"], ["retreat", "Party retreat on / off"]];
 // Escalation rules (E1–E4): "when → then".
 const WHEN_KINDS = [["round", "Round"], ["alarm", "The alarm is raised"], ["falls", "A creature falls"], ["foesHalf", "The foes are at half their HP"], ["firstFlee", "A foe flees"], ["enters", "A party creature enters a Region"]];
-const THEN_KINDS = [["arrive", "Creatures arrive"], ["hazard", "A hazard starts"], ["danger", "Danger starts"]];
+const THEN_KINDS = [["arrive", "Creatures arrive"], ["hazard", "A hazard starts"], ["danger", "Danger starts"], ["disaster", "A natural disaster (GM Core)"]];
 const DAMAGE_TYPES = ["fire", "cold", "acid", "electricity", "sonic", "force", "poison", "piercing", "slashing", "bludgeoning", "mental", "spirit", "vitality", "void", "bleed", "untyped"];
 const SITUATIONAL = [["defendingHome", "Foes defend their home (+1)"], ["noRetreat", "Foes have no retreat, surrender means death (+2)"], ["defendingLair", "Bestial foes defend young or lair (+2)"], ["unpaid", "Mercenaries unpaid or betrayed (−2)"], ["hatedEnemy", "Foes fight a hated enemy (+4, if enabled)"], ["playsForMorale", "Simulated PCs play for morale (fear first, the leader first)"], ["noQuarter", "The party gives no quarter (refuses every surrender)"]];
 
@@ -197,6 +200,7 @@ export class SimulatorApp extends ApplicationV2 {
                 <label title="PF2e's terrain roll options its creatures' rules test, comma-separated">Terrain <input type="text" name="env.terrain" value="${escape((env.terrain ?? []).join(", "))}" placeholder="underwater, underground…" size="14"></label>
                 <label>Climate <select name="env.climate">${option("", "Mild", env.climate ?? "")}${option("severe-cold", "Severe cold", env.climate)}${option("extreme-cold", "Extreme cold", env.climate)}${option("severe-heat", "Severe heat", env.climate)}${option("extreme-heat", "Extreme heat", env.climate)}</select></label>
             </fieldset>
+            ${this.#gmCoreFields(env)}
             <fieldset><legend>Morale situation</legend>${situational}</fieldset>
             ${this.#escalationFields()}
             <fieldset><legend>Secondary objective</legend>
@@ -248,6 +252,14 @@ export class SimulatorApp extends ApplicationV2 {
                 const hazards = rows((row) => row.kind === "hazard", then.hazardId);
                 thenFields = hazards ? `<select name="${name("then.hazardId")}">${hazards}</select>` : `<span class="muted">No hazard in the encounter.</span>`;
             }
+            // (2026-10-25: GM Core's natural disasters — the core's environment rules, weather.js.)
+            if (then.kind === "disaster") {
+                const key = DISASTERS[then.key] ? then.key : "avalanche";
+                thenFields = `<select name="${name("then.key")}">${Object.entries(DISASTERS).map(([value, entry]) => option(value, entry.label, key)).join("")}</select>
+                    <label>damage <select name="${name("then.category")}">${(DISASTERS[key].categories ?? []).map((category) => option(category, DAMAGE_CATEGORIES[category].label, then.options?.category ?? DISASTERS[key].category)).join("")}</select></label>
+                    <label>DC <input type="number" name="${name("then.dc")}" value="${escape(then.options?.dc ?? "")}" placeholder="band's"></label>
+                    <label>hits <select name="${name("then.targets")}">${option("all", "everyone", then.targets ?? "all")}${option("party", "the party", then.targets)}${option("foes", "the foes", then.targets)}</select></label>`;
+            }
             if (then.kind === "danger") {
                 thenFields = `<label>damage <input type="text" name="${name("then.damage")}" value="${escape(then.damage ?? "2d6")}" size="6"></label>
                     <select name="${name("then.type")}">${DAMAGE_TYPES.map((type) => option(type, type, then.type ?? "fire")).join("")}</select>
@@ -280,6 +292,39 @@ export class SimulatorApp extends ApplicationV2 {
         </fieldset>`;
     }
 
+    // (2026-10-25) GM Core's environment — the Environment module's toggles, each at its level, the temperature and the whole field's
+    // ground; as the scene has them (that module's) until the setup sets its own.
+    #gmCoreFields(env) {
+        const own = sceneEnvironment(this.#scene);
+        const levels = env.levels !== undefined ? env.levels ?? {} : own.levels ?? {};
+        const ground = env.ground !== undefined ? env.ground : own.ground;
+        const toggles = Object.entries(WEATHER).map(([key, entry]) => `<label>${escape(entry.label)} <select name="envl.${key}">${option("", "—", levels[key]?.level ?? "")}${entry.levels.map((level) => option(level.key, level.label, levels[key]?.level)).join("")}</select></label>`).join("");
+        const kinds = `<label>falling as <select name="envl.kind">${Object.entries(WEATHER.precipitation.kinds).map(([key, kind]) => option(key, kind.label, levels.precipitation?.kind ?? "rain")).join("")}</select></label>`;
+        const temperature = `<label>Temperature <select name="envl.temperature">${TEMPERATURES.map((entry) => option(entry.key, entry.label, levels.temperature ?? "normal")).join("")}</select></label>`;
+        const groundSelect = `<label title="The whole field's ground: its difficult terrain, footing, cover and hazards">Ground <select name="envg.key">${option("", "—", ground?.key ?? "")}${FEATURE_GROUPS.map(([group, keys]) => `<optgroup label="${escape(group)}">${keys.map((key) => option(key, FEATURES[key].label, ground?.key)).join("")}</optgroup>`).join("")}</select></label>`;
+        return `<fieldset class="sim-gmcore"><legend>GM Core environment${own.levels || own.ground ? " (from the scene's Environment settings)" : ""}</legend>${toggles} ${kinds} ${temperature} ${groundSelect}</fieldset>`;
+    }
+
+    #readGmCore(value) {
+        const own = sceneEnvironment(this.#scene);
+        const before = this.setup.environment?.levels !== undefined ? this.setup.environment.levels ?? {} : own.levels ?? {};
+        const levels = { temperature: value("envl.temperature") || "normal" };
+        for (const key of Object.keys(WEATHER)) {
+            const level = value(`envl.${key}`);
+            // (Off: null, not left out — the setup is saved in the combat's flags, and Foundry merges them.)
+            if (!level) {
+                levels[key] = null;
+                continue;
+            }
+            // (The scene's own numbers for it — distances, DCs — while its level stays the same.)
+            levels[key] = before[key]?.level === level ? { ...before[key] } : { level };
+            if (key === "precipitation") levels[key].kind = value("envl.kind") || "rain";
+        }
+        const groundKey = value("envg.key");
+        const groundBefore = this.setup.environment?.ground !== undefined ? this.setup.environment.ground : own.ground;
+        return { levels, ground: groundKey ? { key: groundKey, dc: groundBefore?.key === groundKey ? groundBefore.dc ?? null : null } : null };
+    }
+
     // The rules as the form shows them; ids stay, so live play's record of what fired still matches.
     #readEscalations(form, value) {
         const previous = this.setup.escalations ?? {};
@@ -304,6 +349,7 @@ export class SimulatorApp extends ApplicationV2 {
                 const saveType = field("then.saveType");
                 then = { kind, damage: field("then.damage") || "2d6", type: field("then.type") || "fire", save: saveType ? { type: saveType, dc: Number(field("then.saveDc") || 0) || null } : null, targets: field("then.targets") || "all", region: field("then.region") || null, grow: field("then.grow") || null };
             }
+            if (kind === "disaster") then = { kind, key: field("then.key") || "avalanche", options: { category: field("then.category") || null, dc: Number(field("then.dc")) || null }, targets: field("then.targets") || "all" };
             rules.push({ id: before.id ?? foundry.utils.randomID(), when, then });
         }
         const raisedRound = value("alarm.raisedRound");
@@ -425,6 +471,7 @@ export class SimulatorApp extends ApplicationV2 {
             gridSide: value("gridSide") || this.setup.gridSide || "attack",
             escalations: this.#readEscalations(form, value),
             environment: {
+                ...this.#readGmCore(value),
                 light: value("env.light") || "auto",
                 sunlight: checked("env.sunlight"),
                 weather: value("env.weather") || null,

@@ -142,6 +142,7 @@ function describeThen(state, then) {
     if (then.kind === "arrive") return `${(then.creatureIds ?? []).map((id) => nameOf(state, id)).join(", ")} ${then.delay ? `arrive ${then.delay} round${then.delay > 1 ? "s" : ""} later` : "arrive"}`;
     if (then.kind === "hazard") return `${nameOf(state, then.hazardId)} starts`;
     if (then.kind === "danger") return `danger starts (${then.damage} ${then.type ?? ""})`.replace(" )", ")");
+    if (then.kind === "disaster") return `a natural disaster: ${then.key}`;
     return then.kind;
 }
 

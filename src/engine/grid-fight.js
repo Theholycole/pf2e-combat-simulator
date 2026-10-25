@@ -491,7 +491,7 @@ export function coverToward(state, c, from) {
 
 // (2026-10-22, the battlefields' tactics.) Whether a creature fights from afar: a ranged Strike it can use.
 // (2026-10-24: or a damaging spell reaching 30 feet or more — a caster, the user: "ranged spellcasters count as shooters".)
-export const shoots = (c) => (c.strikes ?? []).some((strike) => !strike.melee && !strike.underwaterBlocked) || rangedSpells(c).length > 0;
+export const shoots = (c) => (c.strikes ?? []).some((strike) => !strike.melee && !strike.underwaterBlocked && !strike.weatherBlocked) || rangedSpells(c).length > 0;
 
 // Its damaging spells (not its abilities or basic actions) that reach 30 feet or more.
 function rangedSpells(c) {
@@ -530,7 +530,7 @@ function climbsDown(state, c, plan) {
 // a line to within two of its range increments, its cover from them, those that would have to climb to it, less uneven footing.
 export function vantageScore(state, c, square) {
     const at = { ...c, square, ...(state.grid.heights?.size ? { z: standZ(state.grid, c, square) } : {}) };
-    const increment = Math.max(0, ...(c.strikes ?? []).filter((strike) => !strike.melee && !strike.underwaterBlocked).map((strike) => Number(strike.increment) || 0)) || 30;
+    const increment = Math.max(0, ...(c.strikes ?? []).filter((strike) => !strike.melee && !strike.underwaterBlocked && !strike.weatherBlocked).map((strike) => Number(strike.increment) || 0)) || 30;
     let score = 0;
     let seen = 0;
     for (const foe of state.list) {

@@ -36,7 +36,7 @@
         "reason": "Spells and abilities are resolved by the core's families; the simulator's engine imports the core's pure code.",
         "manifest": "https://github.com/Theholycole/PF2e-Automation-Core/releases/latest/download/module.json",
         "compatibility": {
-          "minimum": "0.7.3"
+          "minimum": "0.7.4"
         }
       }
     ],

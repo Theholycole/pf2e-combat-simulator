@@ -164,14 +164,15 @@ export function isOffGuard(c) {
     if (c?.inWater && !(c.swimSpeed > 0)) return true;
     const k = c.cond;
     // (2026-10-22, the battlefields: on uneven ground or a narrow surface, or climbing — grid-fight.js regroup, actions.js climb.)
-    if (c.footing || c.climbing) return true;
+    // (2026-10-25: the whole field's uneven ground or narrow surface — weather.js.)
+    if (c.footing || c.climbing || c.groundFooting) return true;
     return k.offGuard || k.prone || k.unconscious || k.paralyzed || k.asleep || k.blinded || k.restrained || k.grabbed || k.confused || c.status === DOWN;
 }
 
 // A Strike a disarmed creature can't make until it picks its weapon up (Disarm),
 // or a two-handed one while a hand carries an objective's item.
 export function strikeUsable(c, strike) {
-    return !strike.underwaterBlocked && !c.dropped?.has(strike.name) && !(c.carrying && strike.hands === 2) && (!strike.ammo || ammoLeft(c, strike) > 0) && !(c.hindrances?.length && hinderedBy(c, "muzzled") && MOUTH.test(String(strike.name ?? "")));
+    return !strike.underwaterBlocked && !strike.weatherBlocked && !c.dropped?.has(strike.name) && !(c.carrying && strike.hands === 2) && (!strike.ammo || ammoLeft(c, strike) > 0) && !(c.hindrances?.length && hinderedBy(c, "muzzled") && MOUTH.test(String(strike.name ?? "")));
 }
 
 // (2026-10-22, family 4: what a spell keeps the creature from — spells.js applyHinder, lasting.js "hindrances". Binding Muzzle: an attack
@@ -225,7 +226,8 @@ export function armorClass(defender, { ranged = false, coverBonus = 0, flanked =
     let ac = defender.ac - statusPenalty(defender, "ac") + effectBonus(defender, "ac", options);
     const raised = shieldRaised ?? defender.shield?.raised;
     const shieldBonus = raised && defender.shield && !defender.shield.broken ? defender.shield.ac : 0;
-    const cover = ranged && defender.band !== "engaged" ? coverBonus : 0;
+    // (2026-10-25: the whole field's cover — heavy undergrowth — against ranged attacks; weather.js.)
+    const cover = ranged && defender.band !== "engaged" ? Math.max(coverBonus, defender.groundCover ?? 0) : 0;
     ac += Math.max(shieldBonus, cover);
     if (flanked || isOffGuard(defender)) ac -= 2;
     return ac;

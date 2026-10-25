@@ -17,6 +17,7 @@ import { isActive } from "./combatant.js";
 import { log } from "./log.js";
 import { lightAt, sightDCIn } from "./light.js";
 import { distanceFeet, occupiedBy } from "./grid.js";
+import { groundOf, weatherOf, weatherSightDC } from "./weather.js";
 
 const LIGHT_OPTIONS = { bright: "lighting:bright-light", dim: "lighting:dim-light", dark: "lighting:darkness" };
 
@@ -25,7 +26,8 @@ export function buildEnvironment(setup = {}) {
     const sunlight = Boolean(setup.sunlight) && light === "bright";
     const terrain = [...new Set((setup.terrain ?? []).map((entry) => String(entry).trim().toLowerCase()).filter(Boolean))];
     const options = new Set([LIGHT_OPTIONS[light], ...(sunlight ? ["lighting:sunlight"] : []), ...terrain.map((entry) => `terrain:${entry}`), ...(setup.climate ? [`environment:${setup.climate}`] : [])]);
-    return { light, sunlight, terrain, difficult: setup.difficult || null, weather: setup.weather || null, climate: setup.climate || null, options };
+    // (2026-10-25, GM Core's environment: levels, the live module's weather toggles; ground, the whole field's feature — weather.js.)
+    return { light, sunlight, terrain, difficult: setup.difficult || null, weather: setup.weather || null, climate: setup.climate || null, options, levels: weatherOf(setup), ground: groundOf(setup) };
 }
 
 // L1: the flat check the viewer needs to find the target, by the light where the target stands (the fight's, or a spell's over it —
@@ -41,6 +43,7 @@ export function sightDC(state, viewer, target) {
     // (Shadow Blending's dim light: DC 7.)
     if (dc === 5 && light.level === "dim" && target.dimConcealDC) dc = target.dimConcealDC;
     if (env.weather === "fog" || env.weather === "rain" || (env.weather === "snow" && !viewer.snowVision) || fogged) dc = Math.max(dc, 5);
+    if (env.levels) dc = Math.max(dc, weatherSightDC(state, viewer, target));
     return dc;
 }
 

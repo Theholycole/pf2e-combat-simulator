@@ -782,3 +782,39 @@ The user: "I also want spells that need foe traits since i want those to be trac
   - *On the grid* (grid.js `reachable`): through walls, blocked squares and others' spaces, ending in none of them.
   - *The risk of sinking* (2026-10-21, the user: "they should still be worried about reactive strikes or any reaction ability that can damage them. That should make sinking even riskier on top of gaining slowed"; planner.js `moveLoss`, `moveReactions`, `reactionStrikeLoss`, `provokedLoss`): a move is priced by every reaction it sets off as actions.js `provoke` plays them — Reactive Strike; a reaction Strike on a move or leaving (Tail Swipe, Twisting Tail, Stand Still, Gripping Tentacle; Lurking Death's teleport from afar), with its penalty and extra dice; a provoked ability (Tentacle Trip, Reactive Sweep: its expected damage) — one a foe, as their reactions go. Before, Reactive Strike alone (858 creatures have it; about 120 more answer a move some other way). A sink also weighs the chance one of them stops it — a hit that disrupts the move (25 creatures), a grab or trip (about half) — leaving it where it was, open to the round it meant to miss: that chance times its exposure there. Every other move (a Stride away, to a foe) gets the reactions' damage too. A ghost beside a fighter: sinking worth 0 with no reaction, −3.0 against Reactive Strike, −10.3 against a Stand Still that disrupts (test/light.test.js). Fingerprint 7602c498e46a286c (1 case: a wizard no longer backs away from a young Horned Dragon's Twisting Tail, which downed it).
   - Fingerprint 84588098626c0eaa (6 cases, all incorporeal creatures). Spell ratings: Divinity Leech r9 −0.2 → −0.3, nothing else. Melee ghosts deal less (12 screen fights: Wraith 0.121 → 0.046, Shadow 0.098 → 0.058, Ghost Commoner 0.067 → 0.040; Poltergeist, ranged, 0.630 → 0.713): the planner dives to skip a round of the party's attacks when it's outgunned, at the cost of the actions it gives up.
+
+## GM Core environment (2026-10-25)
+
+The user asked for "weather effect toggles for a combat automatically", covering everything in GM Core's Environment section, in both live play and the simulator. Live play is a new module, PF2e Automatic Environment Resolution, and its rulings are in that module's docs/design.md. The rules themselves live in the resolution core's `src/environment/` (catalog, weather, ticks, disasters, terrain), so both sides use one copy. The simulator plays them in `src/engine/weather.js`.
+
+- **Setup:**
+  - `environment.levels` is the live module's scene state: fog, precipitation, wind, thunderstorm, smoke, ash, sandstorm, underwater and current, each at its level, plus the temperature.
+  - `environment.ground` is `{ key, dc }`, the whole field's feature.
+  - Both default to the scene's own settings (the Environment module's flags; `snapshot.js sceneEnvironment`) until the setup sets its own. The setup window has a "GM Core environment" fieldset for them.
+- **Sight:** past the weather's distance a target is concealed (DC 5). Past murky water's visibility it is hidden (DC 11). This goes through `environment.js sightDC`, with the distance from `space.js distanceBetween`: 5 feet in a Melee, 30 near, 60 far, or measured on the grid.
+- **Wind:**
+  - Physical ranged Strikes take the wind's penalty. A windstorm makes them unusable (`weatherBlocked`).
+  - Flying in strong wind or worse costs half the fly Speed, or a third.
+  - From a gale on, a flier rolls Maneuver in Flight (Acrobatics) as its turn starts. On a failure it is blown away at the turn's end, at once on a critical failure: its feet downwind on the grid, or to far in the bands.
+  - On the ground, a creature the wind troubles rolls Athletics. On a failure it can't Stride that turn. On a critical failure it is knocked back 10 feet and falls prone.
+- **Time:**
+  - As each turn starts: a heavy sandstorm's slashing damage, and a wildfire's heat (smoke's heat option).
+  - As every 10th round ends (a minute): incredible cold or heat, hot ash, and lightning's chance (one in N for each creature; a basic Reflex save only with a DC).
+  - Hourly and 10-minute damage, and travel fatigue, are longer than a fight and stay the live module's.
+- **Breath and water:**
+  - Ash or smoke marked unbreathable, or a heavy sandstorm that forces breath-holding, gives the creature void.js's air. It runs out as its turns end, and a creature out of air leaves the fight.
+  - Underwater by the weather uses void.js's water rules on any field, bands too (`voidOf`).
+  - A current pushes each creature downstream as its turn ends (on the grid).
+- **Ground (`featureRules`):**
+  - Difficult terrain halves a walker's Speed for the turn, greater difficult terrain cuts it to a third. Creatures with a terrain stride are exempt.
+  - On uneven ground or a narrow surface, walkers are off-guard (`groundFooting`). They roll Balance as each turn starts: on a failure they can't Stride, and on a critical failure they fall prone.
+  - Heavy undergrowth and the like give standard cover against ranged attacks (`groundCover`).
+  - A hazard deals its damage as each turn starts.
+- **Disasters:** an escalation's "then" can be "a natural disaster", with its kind, damage category, DC and who it hits (`strikeDisaster`). Each creature it covers rolls its save, and its degree applies the core's card:
+  - damage
+  - prone, immobilized or restrained
+  - buried: restrained for the rest of the fight
+  - carried off or picked up by a tornado: out of the fight
+  - falling into a fissure
+  - persistent fire
+- **Unchanged without it:** the fight fingerprint (120 fights, bands and open grid, levels 1–12) is the same before and after: 65e0f460b6b755b6.

@@ -34,7 +34,8 @@ import { championOpening, marchOfLaw, shatterDefenses, zealCritical } from "./ch
 import { castLuminance, dismissLuminance, luminanceTurnStart } from "./luminance.js";
 import { initiativeFortune } from "./fortune-items.js";
 import { ownAttacks, ownerDCs } from "./consumables.js";
-import { airLost, breathTurnEnd, hoverTurnStart, skyFalls, voidStart } from "./void.js";
+import { airLost, breathTurnEnd, hoverTurnStart, skyFalls, voidJoin, voidStart } from "./void.js";
+import { strikeDisaster, weatherJoin, weatherRoundEnd, weatherTurnEnd, weatherTurnStart } from "./weather.js";
 
 export const DEFAULT_OPTIONS = Object.freeze({
     morale: true,
@@ -150,11 +151,14 @@ function createState(snapshot, options, seed, withLog) {
     // distances, which have their own.)
     const grid = options.grid ?? snapshot.setup?.grid ?? null;
     if (grid && !isMapObjective(state.objective)) setUpGrid(state, grid);
+    // (L1–L5: the fight's light, weather and ground — before the void: under water by the weather, void.js.)
+    state.environment = buildEnvironment(snapshot.setup?.environment);
     // (2026-10-22, Sky and Underwater: void.js.)
     voidStart(state, { leaveField });
+    // (2026-10-25, GM Core's environment: its wind, breath and ground on each creature — weather.js.)
+    for (const c of state.list) if (c.status !== PENDING) weatherJoin(state, c);
     initMorale(state);
-    // (L1–L5: the fight's light, weather and ground; light blindness and sunlight as it starts.)
-    state.environment = buildEnvironment(snapshot.setup?.environment);
+    // (Light blindness and sunlight as it starts.)
     lightAtStart(state, { applyCondition });
     const strongest = list.filter((c) => c.side === "foes" && c.kind !== "object").sort((a, b) => b.level - a.level || b.hp.max - a.hp.max)[0];
     state.strongestFoeId = strongest?.id ?? null;
@@ -283,6 +287,9 @@ function arrivals(state) {
             }
             insertArrival(state, c);
             placeArrival(state, c);
+            // (Under water by the weather, in the bands — the grid's arrivals join the water as they're placed; GM Core's environment.)
+            if (!c.square) voidJoin(state, c);
+            weatherJoin(state, c);
             state.log?.push(`  ${c.name} arrives (${c.band})`);
             if (c.side === "foes" && c.kind !== "object") foesArrived = true;
         }
@@ -294,6 +301,8 @@ function arrivals(state) {
 // What a rule does besides bringing creatures (danger, hazards: E3, E4).
 const ESCALATION_EFFECTS = {
     danger: startDanger,
+    // (2026-10-25: GM Core's natural disasters — weather.js.)
+    disaster: (state, rule) => strikeDisaster(state, rule, { applyDamage, applyCondition, leaveField }),
     hazard: (state, rule) => activateHazard(state, state.byId.get(rule.then.hazardId), triggererOf(state, rule), { castPlan, describeSpell, performStrike, joinInitiative: insertArrival })
 };
 
@@ -641,10 +650,9 @@ function staysInside(state, c) {
 
 function endTurn(state, c) {
     // (2026-10-22, Sky and Underwater: its breath; in the sky, whoever can't fly falls — void.js.)
-    if (state.grid?.void) {
-        breathTurnEnd(state, c, { leaveField });
-        skyFalls(state, { leaveField });
-    }
+    // (2026-10-25: or air the weather makes it hold — weather.js.)
+    if (state.grid?.void || c.air !== undefined) breathTurnEnd(state, c, { leaveField });
+    if (state.grid?.void) skyFalls(state, { leaveField });
     // (Incorporeal: a turn it started inside the floor and ends there — up and back down again or never up — gone from the fight.)
     if (c.insideObject && c.startedInside && c.status === ACTIVE) staysInside(state, c);
     c.emerging = false;
@@ -695,6 +703,8 @@ function endTurn(state, c) {
     headsMend(state);
     // (L2–L3: sunlight's slowing grows; the ground's Speed back.)
     if (c.sunlight) sunlightTurnEnd(state, c, { killCreature });
+    // (2026-10-25: its Speeds back from the wind and the ground; a current's push; blown away — weather.js.)
+    weatherTurnEnd(state, c);
     terrainTurn(state, c, "end");
     // (A floor — Lift Nature's Caul's frightened 1 while stupefied — holds it.)
     if (c.cond.frightened > floorOf(c, "frightened")) {
@@ -1441,6 +1451,8 @@ export function takeTurn(state, c) {
     berserkTurnStart(state, c);
     // (L3–L5: the ground's difficult terrain; Hidden Movement; a coven's readiness and the actions it lent.)
     terrainTurn(state, c, "start");
+    // (2026-10-25: GM Core's weather and ground as its turn starts — weather.js.)
+    weatherTurnStart(state, c, { applyDamage, applyCondition });
     // (A spell's bright light on a light-blind creature — light.js.)
     if (state.lit) lightTurnStart(state, c, { applyCondition });
     hiddenAtTurnStart(state, c);
@@ -1701,6 +1713,12 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
             // Danger hurts whoever it covers as the round ends (E3).
             if (state.dangers?.length) {
                 dangerAtRoundEnd(state);
+                processMorale(state);
+                if (checkEnd(state)) break;
+            }
+            // (2026-10-25: each minute, the weather's — weather.js.)
+            if (state.environment?.levels && state.round % 10 === 0) {
+                weatherRoundEnd(state, { applyDamage });
                 processMorale(state);
                 if (checkEnd(state)) break;
             }

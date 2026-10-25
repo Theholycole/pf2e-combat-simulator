@@ -21,7 +21,8 @@ const SWIM_DC = 10;
 const BREATHES_WATER = ["aquatic", "amphibious"];
 const BREATHLESS = ["undead", "construct"];
 
-const voidOf = (state) => state.grid?.void ?? null;
+// (2026-10-25: or under water by the fight's weather, on any field — weather.js.)
+const voidOf = (state) => state.grid?.void ?? (state.environment?.levels?.underwater ? "water" : null);
 const physical = (strike) => strike.damage?.[0]?.type ?? null;
 
 // A Strike under water: none with the fire trait; ranged, none dealing bludgeoning or slashing, a piercing one's range increments halved;
