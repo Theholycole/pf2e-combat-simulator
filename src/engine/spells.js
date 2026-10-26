@@ -2840,6 +2840,8 @@ function applyChanges(state, caster, spell, changes, context, io) {
     }
     // (Shadow Siphon: a foe's reaction halving a spell's damage.)
     const siphoned = isSpell && siphonAnswer(state, caster, spell, changes);
+    // (2026-10-26: what each target took, for a tempHp change's fromDamage — Exsanguinate's half of it, after resistances.)
+    const taken = new Map();
     for (let change of changes) {
         // (A value the text rolls — Wails of the Damned's "Drained 1d4" — rolled now.)
         if (change.op === "condition" && change.valueRoll && !Number.isFinite(change.value)) change = { ...change, value: rollCount(state, change.valueRoll) };
@@ -2849,6 +2851,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
             case "damage": {
                 const instances = change.instances.map((instance) => ({ type: instance.type, amount: siphoned ? Math.floor(instance.amount / 2) : instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext, ...(instance.materials?.length ? { materials: instance.materials } : {}) }));
                 const dealt = applyDamage(state, target, instances, { source: caster, nonlethal, spell: aimed });
+                taken.set(change.target, (taken.get(change.target) ?? 0) + dealt);
                 log(state, `  ${target.name} takes ${dealt} ${change.instances.map((instance) => instance.type).join("/")}`);
                 // (2026-10-14, the vampiric spells: temporary Hit Points for the caster, a share of the damage dealt.)
                 const benefit = spell.plan?.resolution?.casterBenefit;
@@ -2933,12 +2936,14 @@ function applyChanges(state, caster, spell, changes, context, io) {
                 break;
             }
             // Temporary Hit Points (B61): the higher of its current and these.
-            case "tempHp":
-                if (isActive(target) && change.amount > (target.hp.temp ?? 0)) {
-                    target.hp.temp = change.amount;
-                    log(state, `  ${target.name} gains ${change.amount} temporary HP`);
+            case "tempHp": {
+                const amount = change.fromDamage?.afterResistances && taken.has(change.fromDamage.of) ? Math.floor(taken.get(change.fromDamage.of) * (Number(change.fromDamage.fraction) || 1)) : change.amount;
+                if (isActive(target) && amount > (target.hp.temp ?? 0)) {
+                    target.hp.temp = amount;
+                    log(state, `  ${target.name} gains ${amount} temporary HP`);
                 }
                 break;
+            }
             case "effect":
                 if (change.effect?.kind === "disarm") {
                     applyDisarm(state, target, change.effect);
