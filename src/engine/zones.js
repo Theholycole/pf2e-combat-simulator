@@ -6,6 +6,7 @@
 // harmed by it, nor are its allies by its saves and damage.
 
 import { isActive } from "./combatant.js";
+import { sizeRank } from "./abilities.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { applyDamage, log } from "./actions.js";
 import { spellContext } from "./damage.js";
@@ -173,8 +174,9 @@ function refresh(state, zone, c) {
 
 // A creature's turn starting or ending: the zones' doings on it, and zones whose time is up.
 // (2026-10-18: a save or damage only for creatures with some traits — entry.only.traits, any of them: Sanctified Beans' fiends, fey,
-// ghosts, spirits and undead —, as live play's.)
-const onlyFits = (entry, c) => !entry?.only?.traits?.length || entry.only.traits.some((trait) => (c.traits ?? []).includes(trait));
+// ghosts, spirits and undead —, as live play's. 2026-10-26: or only for a size or larger — entry.only.minSize, the item module's "Small or
+// larger" snares.)
+const onlyFits = (entry, c) => (!entry?.only?.traits?.length || entry.only.traits.some((trait) => (c.traits ?? []).includes(trait))) && (!entry?.only?.minSize || sizeRank(c.size) >= sizeRank(entry.only.minSize));
 
 export function zoneTurn(state, c, phase) {
     if (!state.zones?.length) return;
@@ -227,7 +229,7 @@ export function zoneTurn(state, c, phase) {
             c.zoneSpeed = c.speed ?? 25;
             c.speed = Math.max(5, Math.floor((c.speed ?? 25) / 2 / 5) * 5);
         }
-        if (cameIn && zone.model.hazard?.formulas?.length) hurt(state, zone, owner, c, zone.model.hazard.formulas, "moves into");
+        if (cameIn && zone.model.hazard?.formulas?.length && onlyFits(zone.model.hazard, c)) hurt(state, zone, owner, c, zone.model.hazard.formulas, "moves into");
         for (const save of zone.model.saves ?? []) {
             if (!save.plan || !isActive(c) || !onlyFits(save, c)) continue;
             if ((phase === "start" && save.when.includes("start")) || (cameIn && save.when.includes("enter") && !save.when.includes("start")) || (phase === "end" && save.when.includes("end"))) castPlan(state, owner, saveSpell(zone, save), [c.id]);

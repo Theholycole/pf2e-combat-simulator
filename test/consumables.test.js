@@ -1103,6 +1103,22 @@ test("2026-10-18: a zone's save only for creatures with some traits (Sanctified 
     }
 });
 
+test("2026-10-26: a zone's save only for a size or larger (only.minSize, the item module's 'Large or larger' snares) passes a smaller creature by", async () => {
+    const { zoneSpell, zoneTurn } = await import("../src/engine/zones.js");
+    const savePlan = { ...PARALYZE_LIKE, resolution: { ...PARALYZE_LIKE.resolution, check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 40 } } } };
+    const plan = { builtin: "zone", trigger: { event: "use" }, actions: 1, zone: { area: { type: "emanation", value: 5 }, centre: "self", lasts: { mode: "fixed", value: 1, unit: "minutes" }, saves: [{ when: ["end"], plan: savePlan, only: { minSize: "lg" } }] } };
+    for (const [size, frightened] of [["med", false], ["lg", true], ["grg", true]]) {
+        const { state, pc, brute } = setUp({ potions: 0 });
+        brute.size = size;
+        pc.spells = [...pc.spells, { ...zoneSpell("Test Stakes", plan, {}), pool: null }];
+        state.rng.d20 = () => 2;
+        castSpell(state, pc, pc.spells.length - 1, [pc.id]);
+        zoneTurn(state, brute, "start");
+        zoneTurn(state, brute, "end");
+        assert.equal((brute.cond.frightened ?? 0) > 0, frightened, size);
+    }
+});
+
 test("2026-10-18: a thrown item (Sack of Rotten Fruit) — its user's thrown Strike's attack, then its save at the creature hit; no save on a miss", () => {
     const save = { ...PARALYZE_LIKE, resolution: { ...PARALYZE_LIKE.resolution, check: { roll: "save", statistic: "fortitude", basic: false, against: { dc: "fixed", value: 40 } } } };
     const sack = { ...SPELLGUN, source: { name: "Test Sack" }, ownCheck: { kind: "attack", modifier: null, choose: ["thrown"] }, thenSave: save };
