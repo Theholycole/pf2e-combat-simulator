@@ -329,11 +329,11 @@ test("Afflictions: a failed save afflicts at stage 1 (2 on a critical failure); 
 
 test("Incapacitation (2026-10-20): a save against it by a creature above twice its rank in level is a degree better; not at or below", () => {
     const none = { mode: "none", multiplier: 0, sourceComponentIds: [] };
-    const gaze = (traits) => ({ modelVersion: 13, source: { name: "Test Gaze" }, rank: 1, traits, activation: { time: "1", traits }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" },
+    const gaze = (traits, own = traits) => ({ modelVersion: 13, source: { name: "Test Gaze" }, rank: 1, traits: own, activation: { time: "1", traits }, targeting: { target: "1 creature", range: "30 feet", area: null }, trigger: { event: "use" },
         resolution: { kind: "save", check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 60 } }, sharedDamage: null, outcomes: { criticalSuccess: { damage: { ...none }, effects: [] }, success: { damage: { ...none }, effects: [] }, failure: { damage: { ...none }, effects: [{ kind: "condition", slug: "slowed", value: 1, duration: null }] }, criticalFailure: { damage: { ...none }, effects: [{ kind: "condition", slug: "paralyzed", value: null, duration: null }] } } } });
-    const played = (level, traits) => {
+    const played = (level, traits, own = traits) => {
         const [fighter] = martialParty(level);
-        const basilisk = { ...moderateCreature(4, "bas", "Basilisk"), engagement: 1, spells: [entry("Test Gaze", gaze(traits))] };
+        const basilisk = { ...moderateCreature(4, "bas", "Basilisk"), engagement: 1, spells: [entry("Test Gaze", gaze(traits, own))] };
         const state = createFightState({ combatants: [{ ...fighter, engagement: 1, saves: { fortitude: 5, reflex: 5, will: 5 } }, basilisk] });
         state.rng.d20 = () => 10;
         castSpell(state, state.byId.get("bas"), 0, [fighter.id]);
@@ -342,6 +342,8 @@ test("Incapacitation (2026-10-20): a save against it by a creature above twice i
     };
     // (A level-4 creature's ability is rank 2: a level-10 fighter is above 4.)
     assert.deepEqual([played(10, ["incapacitation"]), played(10, []), played(4, ["incapacitation"])], ["slowed", "paralyzed", "paralyzed"]);
+    // (2026-10-27: the trait on its activation only, an item's activation.)
+    assert.equal(played(10, ["incapacitation"], ["magical"]), "slowed");
 });
 
 test("Dispelling a creature under control (2026-10-20): its controller doesn't free it; its own side's casters do", async () => {

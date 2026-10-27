@@ -2580,7 +2580,8 @@ function isSpellCast(spell) {
 // against an effect with the trait, by a creature more than twice the effect's rank in level, is one degree better. Its rank: a spell's cast
 // rank; an item's, half its level rounded up (castRank holds the item's level); an ability's, half its user's level rounded up.
 export function incapacitated(spell, caster, target) {
-    if (!(spell?.plan?.traits ?? []).includes("incapacitation") || !target) return false;
+    // (2026-10-27: the trait on the plan or its activation's, an item's "(incapacitation, auditory)" — as the ability module's cards read it.)
+    if (![...(spell?.plan?.traits ?? []), ...(spell?.plan?.activation?.traits ?? [])].includes("incapacitation") || !target) return false;
     const rank = isSpellCast(spell) ? Number(spell.castRank) || 1 : Math.ceil((Number(spell.kind === "item" ? spell.castRank : caster?.level) || 1) / 2);
     return (Number(target.level) || 0) > 2 * rank;
 }
