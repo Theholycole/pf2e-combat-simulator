@@ -175,8 +175,8 @@ function refresh(state, zone, c) {
 // A creature's turn starting or ending: the zones' doings on it, and zones whose time is up.
 // (2026-10-18: a save or damage only for creatures with some traits — entry.only.traits, any of them: Sanctified Beans' fiends, fey,
 // ghosts, spirits and undead —, as live play's. 2026-10-26: or only for a size or larger — entry.only.minSize, the item module's "Small or
-// larger" snares.)
-const onlyFits = (entry, c) => (!entry?.only?.traits?.length || entry.only.traits.some((trait) => (c.traits ?? []).includes(trait))) && (!entry?.only?.minSize || sizeRank(c.size) >= sizeRank(entry.only.minSize));
+// larger" snares; 2026-10-27: or smaller — entry.only.maxSize, "A Medium or smaller creature".)
+const onlyFits = (entry, c) => (!entry?.only?.traits?.length || entry.only.traits.some((trait) => (c.traits ?? []).includes(trait))) && (!entry?.only?.minSize || sizeRank(c.size) >= sizeRank(entry.only.minSize)) && (!entry?.only?.maxSize || sizeRank(c.size) <= sizeRank(entry.only.maxSize));
 
 export function zoneTurn(state, c, phase) {
     if (!state.zones?.length) return;

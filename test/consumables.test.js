@@ -1107,15 +1107,16 @@ test("2026-10-26: a zone's save only for a size or larger (only.minSize, the ite
     const { zoneSpell, zoneTurn } = await import("../src/engine/zones.js");
     const savePlan = { ...PARALYZE_LIKE, resolution: { ...PARALYZE_LIKE.resolution, check: { roll: "save", statistic: "will", basic: false, against: { dc: "fixed", value: 40 } } } };
     const plan = { builtin: "zone", trigger: { event: "use" }, actions: 1, zone: { area: { type: "emanation", value: 5 }, centre: "self", lasts: { mode: "fixed", value: 1, unit: "minutes" }, saves: [{ when: ["end"], plan: savePlan, only: { minSize: "lg" } }] } };
-    for (const [size, frightened] of [["med", false], ["lg", true], ["grg", true]]) {
+    for (const [size, frightened, only] of [["med", false], ["lg", true], ["grg", true], ["lg", false, { maxSize: "med" }], ["sm", true, { maxSize: "med" }]]) {
         const { state, pc, brute } = setUp({ potions: 0 });
         brute.size = size;
-        pc.spells = [...pc.spells, { ...zoneSpell("Test Stakes", plan, {}), pool: null }];
+        const used = only ? { ...plan, zone: { ...plan.zone, saves: [{ ...plan.zone.saves[0], only }] } } : plan;
+        pc.spells = [...pc.spells, { ...zoneSpell("Test Stakes", used, {}), pool: null }];
         state.rng.d20 = () => 2;
         castSpell(state, pc, pc.spells.length - 1, [pc.id]);
         zoneTurn(state, brute, "start");
         zoneTurn(state, brute, "end");
-        assert.equal((brute.cond.frightened ?? 0) > 0, frightened, size);
+        assert.equal((brute.cond.frightened ?? 0) > 0, frightened, `${size} ${JSON.stringify(only ?? {})}`);
     }
 });
 
