@@ -42,6 +42,7 @@ import { sightLine } from "./grid.js";
 import { canSpendHero, saveWorthReroll, spendHeroPoint, takesOut } from "./heroes.js";
 import { RUNE_LOANS } from "./runes.js";
 import { ownAttackModifier } from "./consumables.js";
+import { partImmunityChanges } from "./part-immunity.js";
 
 const SAVE_SLUGS = new Set(["fortitude", "reflex", "will"]);
 const registry = createRegistry();
@@ -2824,6 +2825,13 @@ function siphonAnswer(state, caster, spell, changes) {
     return false;
 }
 
+// (2026-10-27) partImmunityChanges, said in the log.
+function partImmune(state, caster, plan, name, result) {
+    const out = partImmunityChanges(state, caster, plan, name, result.changes ?? [], result.degrees ?? {});
+    for (const { target, slug } of out.dropped) log(state, `  ${state.byId.get(target)?.name} is immune to being ${slug} by ${name}`);
+    return out;
+}
+
 function applyChanges(state, caster, spell, changes, context, io) {
     // (I2: with its actions — Heal's three-action area.)
     const described = describeSpell(spell.plan, context?.actions);
@@ -3028,7 +3036,9 @@ function applyChanges(state, caster, spell, changes, context, io) {
             case "followUp":
                 if (isActive(target) && change.plan?.resolution?.kind && registry.familyFor(change.plan.resolution.kind)) {
                     const result = registry.resolveSync(change.plan, { ...context, targets: [target] }, io);
-                    applyChanges(state, caster, spell, result.changes, context, io);
+                    // (2026-10-27: a part immunity, its own plan's or the ability's.)
+                    const { kept } = partImmune(state, caster, change.plan?.trigger?.partImmunity ? change.plan : spell.plan, spell.name, result);
+                    applyChanges(state, caster, spell, kept, context, io);
                 }
                 break;
             default:
@@ -3433,6 +3443,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         if (degree) log(state, `  ${target.name}: ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
     }
     if (info.immunity && info.immunityDegrees) markImmune(targets.filter((target) => !result.degrees[target.id] || info.immunityDegrees.includes(result.degrees[target.id])));
+    // (2026-10-27: an immunity to one part of it — trigger.partImmunity, part-immunity.js: that condition left out of an immune target's row.)
+    result.changes = partImmune(state, caster, spell.plan, spell.name, result).kept;
     applyChanges(state, caster, spell, result.changes, context, io);
     // (S56, Acid Splash: a hit's splash damage on the others within 5 feet of the target — its Melee — not doubled on a critical hit.)
     if (spell.plan?.resolution?.splash) splashAround(state, caster, spell, targets, result);
