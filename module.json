@@ -2,10 +2,10 @@
   "id": "pf2e-combat-simulator",
   "title": "PF2e Combat Simulator",
   "description": "Plays PF2e encounters in memory many times and reports the odds: win rate, objective success, PC danger and morale. A balance tester for GMs, with an in-play odds check.",
-  "version": "0.19.1",
+  "version": "0.19.2",
   "url": "https://github.com/Theholycole/pf2e-combat-simulator",
   "manifest": "https://github.com/Theholycole/pf2e-combat-simulator/releases/latest/download/module.json",
-  "download": "https://github.com/Theholycole/pf2e-combat-simulator/releases/download/v0.19.1/module.zip",
+  "download": "https://github.com/Theholycole/pf2e-combat-simulator/releases/download/v0.19.2/module.zip",
   "readme": "https://github.com/Theholycole/pf2e-combat-simulator#readme",
   "bugs": "https://github.com/Theholycole/pf2e-combat-simulator/issues",
   "license": "LICENSE",
@@ -36,7 +36,7 @@
         "reason": "Spells and abilities are resolved by the core's families; the simulator's engine imports the core's pure code.",
         "manifest": "https://github.com/Theholycole/PF2e-Automation-Core/releases/latest/download/module.json",
         "compatibility": {
-          "minimum": "0.7.4"
+          "minimum": "0.7.7"
         }
       }
     ],
@@ -47,7 +47,7 @@
         "manifest": "https://github.com/Theholycole/pf2e-automatic-ability-resolution/releases/latest/download/module.json",
         "reason": "Monster abilities, PC feat actions and basic actions in the simulated fights come from its compiler.",
         "compatibility": {
-          "minimum": "0.9.0"
+          "minimum": "0.9.4"
         }
       },
       {
