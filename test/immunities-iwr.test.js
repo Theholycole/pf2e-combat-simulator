@@ -214,3 +214,26 @@ test("I1–I2 custom exceptions: a vampire's resistance except magical silver; a
     assert.equal(effectImmunity(wisp, { ...blast(), name: "Test Missile" }), null);
     assert.equal(effectImmunity(wisp, { ...blast(), name: "Test Blast" }), "magic");
 });
+
+test("2026-10-27: a plan's ignoreResistance (up to an amount, types [\"*\"] every one) and ignoreImmunity, on its damage (Soulspark Candle)", () => {
+    const defender = { immunities: ["fire"], resistances: [{ type: "physical", value: 10 }, { type: "cold", value: 5 }], weaknesses: [], traits: [] };
+    const hit = (resolution, type) => adjustDamage(defender, [{ type, amount: 12, context: spellContext({ plan: { traits: [], resolution } }) }]).total;
+    assert.equal(hit({}, "fire"), 0);
+    assert.equal(hit({ ignoreImmunity: ["fire"] }, "fire"), 12);
+    assert.equal(hit({ ignoreImmunity: ["*"] }, "fire"), 0, "only named immunities");
+    assert.equal(hit({}, "slashing"), 2);
+    assert.equal(hit({ ignoreResistance: [{ value: 4, types: ["physical"] }] }, "slashing"), 6);
+    assert.equal(hit({ ignoreResistance: [{ value: 4, types: ["*"] }] }, "cold"), 11);
+    assert.equal(hit({ ignoreResistance: [{ value: null, types: ["cold"] }] }, "cold"), 12);
+});
+
+test("2026-10-27: a skill rolled as a save at a fixed DC is weighed by the target's skill, not a save", () => {
+    const athletic = (value) => ({ ...moderateCreature(5, "brute", "Brute"), saves: { fortitude: 0, reflex: 0, will: 0 }, skills: { athletics: value } });
+    const climb = blast();
+    climb.plan = { ...climb.plan, resolution: { ...climb.plan.resolution, check: { roll: "save", statistic: "athletics", basic: false, against: { dc: "fixed", value: 30 } } } };
+    const worth = (value) => {
+        const state = fight(athletic(value));
+        return spellExpectation(state, state.byId.get("fighter"), climb, [state.byId.get("brute")])[0].worth;
+    };
+    assert.ok(worth(0) > worth(25), `${worth(0)} vs ${worth(25)}`);
+});

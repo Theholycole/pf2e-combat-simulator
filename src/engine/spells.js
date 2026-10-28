@@ -4304,8 +4304,10 @@ function oddsFor(caster, spell, target, attacks, actions) {
         return degreeDistribution(roll, dc);
     }
     const slugs = check.saveChoice?.statistics?.length ? check.saveChoice.statistics : [check.statistic];
-    const slug = slugs.reduce((best, entry) => (saveModifier(target, entry) + saveBonusAgainst(target, entry, spell) > saveModifier(target, best) + saveBonusAgainst(target, best, spell) ? entry : best));
-    const save = saveModifier(target, slug) + saveBonusAgainst(target, slug, spell);
+    // (2026-10-27: a skill, a Lore or Perception rolled as a save at a fixed DC, Mountain to the Sky's Athletics — its modifier, as the roll has it.)
+    const saveOf = (entry) => (SAVES.has(entry) ? saveModifier(target, entry) + saveBonusAgainst(target, entry, spell) : skillValue(target, entry) - statusPenalty(target, "skill"));
+    const slug = slugs.reduce((best, entry) => (saveOf(entry) > saveOf(best) ? entry : best));
+    const save = saveOf(slug);
     const dc = check.against?.dc === "fixed" ? check.against.value : (spell.dc ?? 10) - penalty + effectBonus(caster, "spell");
     // (B302: its Evasion and the like; 2026-10-20, incapacitation's degree better.)
     const odds = adjustedSaveOdds(target, slug, degreeDistribution(save, dc), spell);

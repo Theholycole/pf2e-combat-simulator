@@ -8,6 +8,7 @@
 
 import { sourceOptions, testPredicate } from "./abilities.js";
 import { runeIgnores } from "./runes.js";
+import { ignoreEntries } from "../../../pf2e-resolution-core/src/patch-logic.js";
 
 const PHYSICAL = new Set(["bludgeoning", "piercing", "slashing"]);
 
@@ -170,6 +171,12 @@ export function spellContext(spell, { isSpell = true, area = false } = {}) {
     // (2026-10-22, Dirge of Remembrance's "this damage bypasses its resistances": the plan's resistanceBypass, as a greater rune's ignored type.)
     const bypass = spell?.plan?.resolution?.resistanceBypass?.ignore;
     if (bypass) options.ignored = new Set([].concat(bypass));
+    // (2026-10-27, the item module's Soulspark Candle and Penetrating Ammunition: resistance ignored up to an amount, types ["*"] every one, and
+    // immunities ignored — the core's ignoreResistance and ignoreImmunity.)
+    const lowered = ignoreEntries(spell?.plan?.resolution?.ignoreResistance);
+    if (lowered.length) options.lowered = lowered;
+    const unimmune = [spell?.plan?.resolution?.ignoreImmunity ?? []].flat().filter((type) => typeof type === "string" && type && type !== "*");
+    if (unimmune.length) options.unimmune = new Set(unimmune);
     return options;
 }
 
@@ -315,7 +322,7 @@ export function adjustPart(defender, instance, context = null) {
     const { type, amount, precision } = instance;
     if (type === "vitality" && !hasVoidHealing(defender)) return 0;
     if (type === "void" && hasVoidHealing(defender)) return 0;
-    const immunities = defender.immunities ?? [];
+    const immunities = (defender.immunities ?? []).filter((immunity) => !context?.unimmune?.has(immunity));
     if (immunities.includes(type) || (precision && immunities.includes("precision"))) return 0;
     if (PHYSICAL.has(type) && immunities.includes("physical")) return 0;
     const options = optionsOf(instance, context, defender);
@@ -329,7 +336,8 @@ export function adjustPart(defender, instance, context = null) {
     const ignored = context?.ignored;
     for (const entry of resistancesOf(defender)) {
         if (!applies(entry, "resistance", options) || ignored?.has(entry.type)) continue;
-        const value = resistanceValue(entry, options);
+        const by = Math.max(0, ...(context?.lowered ?? []).filter((lower) => lower.types.includes(entry.type) || lower.types.includes("*")).map((lower) => lower.value));
+        const value = Math.max(0, resistanceValue(entry, options) - by);
         resistance = Math.max(resistance, entry.type === "critical-hits" ? Math.min(value, Math.floor(amount / 2)) : value);
     }
     if (result > 0) result += weakness;
