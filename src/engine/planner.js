@@ -1798,7 +1798,9 @@ function expandClassActions(env) {
         // resistanceKept —, and a weakness's cost.)
         const keptRounds = Number.isFinite(entry.model.rounds) ? Math.max(0.5, Math.min(3, entry.model.rounds)) : 3;
         let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1, { state, ownSide: true })
-            + 3 * (resistanceKept(state, entry.model, c, keptRounds) - weaknessCost(state, entry.model, c, keptRounds)) / Math.max(1, c.hp?.max ?? 1);
+            // (Kept off what reaches it from where this plan has it: all of it beside a foe, less out of reach — Kinetic Dampening isn't a
+            // reason to step back.)
+            + 3 * ((node.pos.melee !== null ? 1 : node.pos.band === "far" ? 0.3 : 0.6) * resistanceKept(state, entry.model, c, keptRounds) - weaknessCost(state, entry.model, c, keptRounds)) / Math.max(1, c.hp?.max ?? 1);
         // Its measured change to the Strikes (Arcane Cascade's force damage): about three rounds of it.
         const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);
         let perRound = 0;

@@ -399,14 +399,15 @@ export function deviantList() {
     return out;
 }
 
-function deviantParty(task, awakenings, { noBacklash = false } = {}) {
+function deviantParty(task, awakenings, { noBacklash = false, hand = false } = {}) {
     const party = partyFor(task.level);
     const host = party.find((c) => c.id === "fighter");
     const dcs = dcsOf(host);
     const dc = Math.max(dcs.class ?? 0, dcs.spell ?? 0) || 10 + task.level + 4;
     const made = deviantFields(task.slug, task.level, dc, awakenings);
     if (made.gap) return { skipped: true, reason: made.gap };
-    const needsHand = (made.fields.spells ?? []).some((entry) => entry.deviantRequires === "free hand") && !WIELDS.fighter.freeHand;
+    // (Or the plain feat it's measured against needed one: the same loadout, so the weapons aren't what's measured.)
+    const needsHand = (hand || (made.fields.spells ?? []).some((entry) => entry.deviantRequires === "free hand")) && !WIELDS.fighter.freeHand;
     const base = needsHand ? clone(party) : party;
     if (needsHand) {
         const pc = base.find((c) => c.id === "fighter");
@@ -420,11 +421,12 @@ function deviantParty(task, awakenings, { noBacklash = false } = {}) {
 }
 
 export function deviantTask(task) {
-    const built = deviantParty(task, task.awakenings, { noBacklash: task.noBacklash });
     const head = { kind: "deviant", name: task.name, slug: task.slug, level: task.level, variant: task.variant, host: "fighter" };
+    // (An awakening: against the plain feat at that level, on the same loadout.)
+    let against = task.against ? deviantParty(task, []) : null;
+    const built = deviantParty(task, task.awakenings, { noBacklash: task.noBacklash, hand: !!against?.loadout });
     if (built.skipped) return { ...head, skipped: true, reason: built.reason };
-    // (An awakening: against the plain feat at that level.)
-    const against = task.against ? deviantParty(task, []) : null;
+    if (against && !against.skipped && built.loadout && !against.loadout) against = deviantParty(task, [], { hand: true });
     // (An awakening that changes nothing a fight plays — moving creatures about, senses, out-of-fight uses.)
     if (against && !against.skipped && JSON.stringify(against.party) === JSON.stringify(built.party)) return { ...head, skipped: true, reason: "the awakening only does what a fight here doesn't play" };
     const results = {};
