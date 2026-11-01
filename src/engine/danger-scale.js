@@ -38,12 +38,13 @@ export const partyLevelFor = (level) => Math.max(1, Math.min(20, Number(level) |
 export const canFight = (monster) => !!(monster?.strikes?.length || (monster?.spells ?? []).some((entry) => !entry.kind || entry.kind === "ability"));
 
 // The fights: seeds [from, to). Per fight: the party's damage share, PCs downed and killed, a wipe; rounds; the creature killed.
-export function dangerFights(party, foes, from, to, { setup = null } = {}) {
+// (grid: on the square grid — a layout's name, grid-fight.js —, 2026-11-01, the user: "it should not be abstract".)
+export function dangerFights(party, foes, from, to, { setup = null, grid = null } = {}) {
     const partyHp = party.reduce((sum, c) => sum + c.hp.max, 0);
     const sum = { n: 0, damage: 0, downs: 0, deaths: 0, wipes: 0, rounds: 0, killed: 0, timeouts: 0, score: 0, scores: [] };
     for (let seed = from; seed < to; seed++) {
         // (setup: a creature's preferences' fights — preferences.js: the light, the cover, a battlefield.)
-        const result = simulate({ combatants: [...party, ...foes], ...(setup ? { setup } : {}) }, DANGER_OPTIONS, seed);
+        const result = simulate({ combatants: [...party, ...foes], ...(setup ? { setup } : {}) }, grid ? { ...DANGER_OPTIONS, grid } : DANGER_OPTIONS, seed);
         const damage = ((result.damageBy?.foes ?? 0) + (result.damageBy?.foesInduced ?? 0)) / partyHp;
         const downs = result.party.filter((c) => c.down).length;
         const deaths = result.party.filter((c) => c.dead).length;

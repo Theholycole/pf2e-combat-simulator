@@ -43,6 +43,9 @@ const { DEVIANT, deviantFields } = await import("../../src/engine/deviant.js");
 const MODULES = `${process.env.HOME}/.local/share/FoundryVTT/Data/modules`;
 export const KINDS = Object.freeze(["boss", "group"]);
 export const FIGHTS = Number(process.env.FEAT_FIGHTS) || 200;
+// (2026-11-01, the user: "the combat simulator should be able to do grid based simulations, it should not be abstract": the fights on the
+// square grid, an open field — FEAT_GRID=corridor, doorway or bridge for another, FEAT_GRID=none for the range bands.)
+export const GRID = process.env.FEAT_GRID === "none" ? null : process.env.FEAT_GRID || "open";
 // (Fights logged to count how often the PC uses the feat.)
 const LOGGED = 12;
 
@@ -301,9 +304,9 @@ export const partyLevelOf = (level) => Math.max(1, Math.min(20, Number(level) ||
 // The scale at a level for an encounter: the plain party's scores on seeds [0, FIGHTS), and against foes a level up and a level down.
 export function scaleTask({ level, encounter: kind }) {
     const party = partyFor(level);
-    const base = dangerSummary(dangerFights(party, powerFoes(kind, level), 0, FIGHTS));
-    const up = dangerSummary(dangerFights(party, powerFoes(kind, level + 1), 0, FIGHTS));
-    const down = dangerSummary(dangerFights(party, powerFoes(kind, level - 1), 0, FIGHTS));
+    const base = dangerSummary(dangerFights(party, powerFoes(kind, level), 0, FIGHTS, { grid: GRID }));
+    const up = dangerSummary(dangerFights(party, powerFoes(kind, level + 1), 0, FIGHTS, { grid: GRID }));
+    const down = dangerSummary(dangerFights(party, powerFoes(kind, level - 1), 0, FIGHTS, { grid: GRID }));
     return { kind: "scale", level, encounter: kind, base: base.score, scores: base.scores, up: up.score, down: down.score, step: Math.max(0.02, (up.score - down.score) / 2), rounds: base.rounds };
 }
 
@@ -328,7 +331,7 @@ function usesPerFight(party, foes, name) {
     // (Not \b: a name that ends in "!" or "?" — Do You Know Who I Am?, To Me! — has no word boundary after it.)
     const pattern = new RegExp(`(?<![\\w'])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w'])`);
     for (let seed = 0; seed < LOGGED; seed++) {
-        const result = simulate({ combatants: [...party, ...foes] }, { morale: false, retreat: false }, seed, { log: true });
+        const result = simulate({ combatants: [...party, ...foes] }, { ...DANGER_OPTIONS, ...(GRID ? { grid: GRID } : {}) }, seed, { log: true });
         uses += (result.log ?? []).filter((line) => pattern.test(typeof line === "string" ? line : line?.text ?? "")).length;
     }
     return uses / LOGGED;
@@ -348,8 +351,8 @@ export function featTask(task) {
         if (!scaled) return { ...head, error: `no scale for level ${level} ${kind}: run the scale phase first` };
         const foes = powerFoes(kind, level);
         // (With a loadout of its own: the plain party with that loadout too, on the same seeds; the scale's step.)
-        const plain = built.plain ? { ...scaled, scores: dangerSummary(dangerFights(built.plain, foes, 0, FIGHTS)).scores } : scaled;
-        const fights = dangerSummary(dangerFights(built.party, foes, 0, FIGHTS));
+        const plain = built.plain ? { ...scaled, scores: dangerSummary(dangerFights(built.plain, foes, 0, FIGHTS, { grid: GRID })).scores } : scaled;
+        const fights = dangerSummary(dangerFights(built.party, foes, 0, FIGHTS, { grid: GRID }));
         const diffs = fights.scores.map((score, index) => score - plain.scores[index]);
         const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
         const sd = Math.sqrt(diffs.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
@@ -369,7 +372,7 @@ export function basicTask(task) {
         for (const kind of KINDS) {
             const plain = scale?.get(`${level}|${kind}`);
             if (!plain) return { ...task, error: `no scale for level ${level} ${kind}` };
-            const fights = dangerSummary(dangerFights(party, powerFoes(kind, level), 0, FIGHTS));
+            const fights = dangerSummary(dangerFights(party, powerFoes(kind, level), 0, FIGHTS, { grid: GRID }));
             const diffs = plain.scores.map((score, index) => score - fights.scores[index]);
             const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
             const sd = Math.sqrt(diffs.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
@@ -440,7 +443,7 @@ function dayFights(party, foes, count, { log = false } = {}) {
     for (let seed = 0; seed < count; seed++) {
         if (seed % DAY === 0) carried = null;
         const today = carried ? party.map((c) => (c.id === "fighter" ? { ...c, deviationCarried: carried } : c)) : party;
-        const result = simulate({ combatants: [...today, ...foes] }, DANGER_OPTIONS, seed, log ? { log: true } : undefined);
+        const result = simulate({ combatants: [...today, ...foes] }, { ...DANGER_OPTIONS, ...(GRID ? { grid: GRID } : {}) }, seed, log ? { log: true } : undefined);
         const damage = ((result.damageBy?.foes ?? 0) + (result.damageBy?.foesInduced ?? 0)) / partyHp;
         const score = damage + 0.25 * result.party.filter((c) => c.down).length + DEATH_WEIGHT * result.party.filter((c) => c.dead).length + (result.outcome === "defeat" ? 1 : 0);
         scores.push(Math.round(score * 1000) / 1000);
@@ -473,7 +476,7 @@ export function deviantTask(task) {
         if (!scaled) return { ...head, error: `no scale for level ${task.level} ${kind}` };
         const foes = powerFoes(kind, task.level);
         // (Days of fights, both sides: the plain feat's days when it's an awakening, the plain party's fights otherwise.)
-        const plainScores = against && !against.skipped ? dayFights(against.party, foes, FIGHTS).scores : built.plain ? dangerSummary(dangerFights(built.plain, foes, 0, FIGHTS)).scores : scaled.scores;
+        const plainScores = against && !against.skipped ? dayFights(against.party, foes, FIGHTS).scores : built.plain ? dangerSummary(dangerFights(built.plain, foes, 0, FIGHTS, { grid: GRID })).scores : scaled.scores;
         const pattern = new RegExp(`(?<![\\w'])${task.name.replace(/\s*\(Deviant\)/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
         // (Uses, backlashes and severe ones a fight, read from the logs of every fight.)
         const fights = dayFights(built.party, foes, FIGHTS, { log: pattern });
