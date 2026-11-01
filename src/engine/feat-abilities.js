@@ -153,7 +153,12 @@ export function featEntries(plan, info, builtins, helpers = {}) {
             if (!addBuiltin(builtins, multi, name)) return gap("Strikes the simulator doesn't play");
             return { ...result, played: `${plan.strikes.length} Strikes` };
         }
-        if (plan.plain && !plan.strides && !plan.attackBonus && !plan.damageBonus && !plan.offGuard && !(plan.onHit?.conditions?.length || plan.onHit?.damage?.length || plan.onHit?.save || plan.onHit?.push)) return gap("a Strike with nothing more the simulator reads");
+        // (A Strike and nothing the simulator reads on top — plain, or a rider the feat module didn't read: Overwhelming Blow, Grievous Blow —
+        // is a gap: played, it's a worse Strike for more actions and the AI rightly never takes it, which would rate the feat as useless.)
+        const onHit = plan.onHit ?? {};
+        const adds = plan.strides || plan.attackBonus || plan.damageBonus || plan.damage || plan.offGuard || plan.exacting || plan.extraWeaponDice || plan.riderSpell
+            || onHit.conditions?.length || onHit.damage?.length || onHit.save || onHit.push || onHit.size || onHit.critical;
+        if (!adds) return gap("a Strike with nothing more the simulator reads");
         if (!addBuiltin(builtins, { ...plan, traits }, name)) return gap("a Strike the simulator doesn't play");
         return { ...result, played: "Strike activity" };
     }
@@ -170,6 +175,19 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     if (!["check", "save", "effect", "healing", "damage"].includes(plan.resolution.kind)) return gap(`a ${plan.resolution.kind} the simulator doesn't play`);
     // (Damage still naming the character's data: not a number.)
     if (/"formula":"[^"]*@/.test(JSON.stringify(plan.resolution))) return gap("damage still naming the character's data");
+    // (A check or save whose degrees do nothing it reads — Stand Back, I'm A Doctor!'s and Muckraking's "shared" damage the feat module didn't
+    // find — is a gap too, for the same reason.)
+    if (["check", "save"].includes(plan.resolution.kind)) {
+        const outcomes = Object.values(plan.resolution.outcomes ?? {});
+        const does = (row) => row && ((row.damage?.mode === "formulas" && row.damage.formulas?.length) || row.effects?.length || row.nativeEffects?.length || row.healing);
+        if (!plan.resolution.sharedDamage && !outcomes.some(does)) return gap("a roll whose results the simulator doesn't read");
+    }
+    // (An Effect with nothing a fight counts — Disarming Stance's, Duelist's Challenge's, Shooting Stars Stance's: what they do is in rules the
+    // simulator doesn't read — is a gap: played, it's an action spent on nothing, the AI never takes it, and the feat would rate as useless.)
+    if (plan.resolution.kind === "effect" && helpers.effectModels) {
+        const models = Object.values(helpers.effectModels(plan) ?? {});
+        if (!models.some(worthSomething)) return gap("an Effect with nothing a fight counts");
+    }
     usePool();
     result.spells.push(abilityEntry(name, plan, { pool, actionType, helpers, rechargeGroup: plan.sharesRecharge ?? name }));
     return { ...result, played: plan.resolution.kind };

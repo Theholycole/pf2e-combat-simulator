@@ -29,7 +29,7 @@ test("a feat module Strike activity: an action's, its requirement checked; a pla
 });
 
 test("checks and saves used as actions are abilities; their pool by frequency; a passive's or a reaction's roll is a gap", () => {
-    const save = { resolution: { kind: "save", check: { statistic: "fortitude" }, outcomes: {} }, trigger: { event: "use" } };
+    const save = { resolution: { kind: "save", check: { statistic: "fortitude" }, outcomes: { failure: { effects: [{ kind: "condition", condition: "frightened", value: 1 }] } } }, trigger: { event: "use" } };
     const entries = featEntries(save, info("Dust Cloud", "action", 1, { frequency: { max: 1, per: "PT1M" } }), {});
     assert.equal(entries.spells.length, 1);
     assert.equal(entries.spells[0].kind, "ability");
@@ -103,4 +103,16 @@ test("a Strike feat's press trait: only after an attack this turn (Exacting Stri
     const builtins = {};
     featEntries({ builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, exacting: true, traits: ["fighter", "press"], onHit: { conditions: [], damage: [] } }, info("Exacting Strike"), builtins);
     assert.equal(builtins.strikeActivities[0].press, true);
+});
+
+test("what a fight would play as doing nothing is a gap, not a zero rating: a Strike with an unread rider, an empty Effect, a roll with unread results", () => {
+    const blow = { builtin: "strike-activity", actions: 3, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: null, offGuard: false, requires: null, onHit: { conditions: [], critical: null, damage: [] } };
+    assert.match(featEntries(blow, info("Overwhelming Blow", "action", 3), {}).gap.name, /nothing more/);
+    const stance = { resolution: { kind: "effect", applications: [{ uuid: "Compendium.pf2e.feat-effects.Item.x", recipients: "self" }] }, trigger: { event: "use" } };
+    const empty = { "Compendium.pf2e.feat-effects.Item.x": { name: "Stance: Disarming Stance", rounds: null, modifiers: [], unsupported: [], situational: 2 } };
+    assert.match(featEntries(stance, info("Disarming Stance"), {}, { effectModels: () => empty }).gap.name, /Effect with nothing/);
+    const parry = { "Compendium.pf2e.feat-effects.Item.x": { name: "Effect: Parry", rounds: 1, modifiers: [{ on: "ac", value: 1, type: "circumstance" }], unsupported: [] } };
+    assert.equal(featEntries(stance, info("Living Fortification"), {}, { effectModels: () => parry }).gap, null);
+    const shared = { resolution: { kind: "save", check: { statistic: "will" }, sharedDamage: null, outcomes: { success: { damage: { mode: "shared" }, effects: [] } } }, trigger: { event: "use" } };
+    assert.match(featEntries(shared, info("Muckraking", "action", 3), {}).gap.name, /results the simulator doesn't read/);
 });

@@ -69,7 +69,7 @@ export function featSources() {
 }
 
 const docsCache = new Map();
-function docsOf(path) {
+export function docsOf(path) {
     if (!docsCache.has(path)) {
         let docs = [];
         try {
@@ -318,7 +318,8 @@ export function loadScale(path) {
 // How often the PC uses it in a fight, from a few logged fights: the log lines that name it.
 function usesPerFight(party, foes, name) {
     let uses = 0;
-    const pattern = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+    // (Not \b: a name that ends in "!" or "?" — Do You Know Who I Am?, To Me! — has no word boundary after it.)
+    const pattern = new RegExp(`(?<![\\w'])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w'])`);
     for (let seed = 0; seed < LOGGED; seed++) {
         const result = simulate({ combatants: [...party, ...foes] }, { morale: false, retreat: false }, seed, { log: true });
         uses += (result.log ?? []).filter((line) => pattern.test(typeof line === "string" ? line : line?.text ?? "")).length;

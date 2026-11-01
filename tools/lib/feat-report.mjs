@@ -6,6 +6,9 @@ const escape = (text) => String(text ?? "").replace(/\|/g, "\\|");
 const CATEGORY_NAMES = { class: "Class", ancestry: "Ancestry", skill: "Skill", general: "General", archetype: "Archetype", bonus: "Bonus", classfeature: "Class feature", pfsboon: "PFS boon", calling: "Calling", deityboon: "Deity boon", curse: "Curse", "class-action": "Class action", "skill-action": "Skill action", "ancestry-action": "Ancestry action", offensive: "Action", defensive: "Action", interaction: "Action", action: "Action" };
 const CLASSES = ["alchemist", "animist", "barbarian", "bard", "champion", "cleric", "commander", "druid", "exemplar", "fighter", "guardian", "gunslinger", "inventor", "investigator", "kineticist", "magus", "monk", "oracle", "psychic", "ranger", "rogue", "sorcerer", "summoner", "swashbuckler", "thaumaturge", "witch", "wizard"];
 
+// Played as something always on, with no use of its own to log (a save bonus, a passive's rules, fast healing).
+const ALWAYS_ON = new Set(["save-bonus", "passive-rules", "fast-healing"]);
+
 // A rating's word: how much it moves a fight, in levels of the foes.
 export function verdict(row) {
     const { levels, se } = row;
@@ -28,7 +31,7 @@ export function featReport({ feats, basics, scale }) {
         name: row.name, ref: row.ref.ref, source: row.ref.source, level: row.ref.level, category: category(row), class: ofClass(row), host: row.host, played: row.played,
         levels: row.levels, se: row.se, boss: row.results.boss.levels, group: row.results.group.levels, uses: used(row), situational: !!row.situational, loadout: row.loadout ?? null, verdict: verdict(row)
     })).sort((a, b) => b.levels - a.levels);
-    const notes = (row) => [row.situational ? "always on (its moment isn't checked)" : null, row.loadout ? `with ${row.loadout}` : null, row.uses < 0.05 ? "the AI never used it" : null].filter(Boolean).join("; ");
+    const notes = (row) => [row.situational ? "always on (its moment isn't checked)" : null, row.loadout ? `with ${row.loadout}` : null, row.uses < 0.05 && !ALWAYS_ON.has(row.played) && !row.situational ? "the AI never used it" : null].filter(Boolean).join("; ");
     const table = (list) => [
         "| # | Feat or action | Lvl | Kind | Class | Played as | Rating (levels) | Boss | Group | Uses a fight | Verdict | Notes |",
         "|---:|---|---:|---|---|---|---:|---:|---:|---:|---|---|",
