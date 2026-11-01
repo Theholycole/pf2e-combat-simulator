@@ -523,6 +523,8 @@ export function addBuiltin(spec, plan, name) {
                 // (2026-11-01, the feat module's Strike feats: their press and flourish traits — Exacting Strike only after an attack this
                 // turn; found in the Foundry test, it opened turns.)
                 ...(plan.press || (plan.traits ?? []).includes("press") ? { press: true } : {}),
+                // (Exacting Strike's: a failure doesn't count toward the multiple attack penalty.)
+                ...(plan.exacting ? { exacting: true } : {}),
                 ...(plan.flourish || (plan.traits ?? []).includes("flourish") ? { flourish: true } : {}),
                 onHit: plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null

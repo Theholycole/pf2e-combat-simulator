@@ -145,6 +145,14 @@ export function featEntries(plan, info, builtins, helpers = {}) {
             requires = mapped;
         }
         plan = { ...plan, requires };
+        // (Two or three Strikes — Double Slice, Double Shot, Twin Takedown's — : the engine's multi-strike, at the best Strikes; "your multiple
+        // attack penalty doesn't increase until …" — the same penalty for each.)
+        if (Array.isArray(plan.strikes) && plan.strikes.length > 1) {
+            const sameMap = /\bpenalty (?:doesn't|does not) increase until\b|\bboth (?:attacks|Strikes) (?:count|use) (?:your )?(?:current )?multiple attack penalty\b/i.test(info?.text ?? "");
+            const multi = { builtin: "multi-strike", actions: actionCount(plan, info), strikes: plan.strikes.map((strike) => (strike === "ranged" ? "ranged" : null)), ...(sameMap ? { sameMap: true } : {}), ...(traits.includes("flourish") ? { flourish: true } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(requires ? { requires } : {}) };
+            if (!addBuiltin(builtins, multi, name)) return gap("Strikes the simulator doesn't play");
+            return { ...result, played: `${plan.strikes.length} Strikes` };
+        }
         if (plan.plain && !plan.strides && !plan.attackBonus && !plan.damageBonus && !plan.offGuard && !(plan.onHit?.conditions?.length || plan.onHit?.damage?.length || plan.onHit?.save || plan.onHit?.push)) return gap("a Strike with nothing more the simulator reads");
         if (!addBuiltin(builtins, { ...plan, traits }, name)) return gap("a Strike the simulator doesn't play");
         return { ...result, played: "Strike activity" };
@@ -182,7 +190,7 @@ export function worthSomething(model) {
 
 // Whether a feat's words have its user make a Strike: "Make a melee Strike", "Stride twice, then make a Strike", "Strike twice", "You Strike".
 const USER_STRIKE = /(?:^|[.:;,]\s+|\b(?:then|and|finally|or)\s+)(?:you\s+)?(?:can\s+|may\s+|then\s+)?(?:make|makes)\s+(?:a|an|one|two|three|another|a single|up to (?:two|three))\s+(?:[\w'-]+\s+){0,4}?Strikes?\b|(?:^|[.:;,]\s+|\b(?:then|and|finally)\s+)(?:you\s+)?(?:can\s+)?Strike(?!\s+a target other)(?:\s+(?:twice|three times|an?|the|one|each|it|that|your))?\b/i;
-const OTHERS_STRIKE = /\b(?:your|the|an?) (?:eidolon|companion|familiar|mount|ally|minion|follower|animal|summon|construct|underling)s?\b[^.]{0,40}\bStrikes?\b/i;
+const OTHERS_STRIKE = /\b(?:your|the|an?) (?:eidolon|companion|familiar|mount|ally|minion|follower|animal|summon|construct|underling)s?\b[^.]{0,120}\bStrikes?\b/i;
 export function userStrike(text) {
     const plain = String(text ?? "");
     if (!USER_STRIKE.test(plain)) return false;
