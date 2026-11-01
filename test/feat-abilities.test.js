@@ -98,3 +98,9 @@ test("a fight plays a feat's Strike activity and its self effect for a PC", () =
     }
     assert.ok(used > 0, "the fighter Sudden Charges in some fights");
 });
+
+test("a Strike feat's press trait: only after an attack this turn (Exacting Strike, found in the Foundry test opening turns)", () => {
+    const builtins = {};
+    featEntries({ builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, exacting: true, traits: ["fighter", "press"], onHit: { conditions: [], damage: [] } }, info("Exacting Strike"), builtins);
+    assert.equal(builtins.strikeActivities[0].press, true);
+});

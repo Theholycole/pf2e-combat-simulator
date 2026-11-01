@@ -133,6 +133,9 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     }
     if (plan.builtin === "strike-activity") {
         if (actionType !== "action") return gap(`a ${actionType}'s Strike`);
+        // (The feat module reads a Strike into any text that names one — Sneak's "If you attempt to Strike a creature", Command an Animal's list
+        // of actions, Only You and I's foe's Strikes: only an action whose text has its user make the Strike is played; a companion's isn't.)
+        if (info?.text && !userStrike(info.text)) return gap(info.companion ? "a companion's Strike" : "its text has no Strike of its user's");
         let requires = plan.requires ?? null;
         if (requires && !ACTIVITY_REQUIRES.has(requires)) {
             const text = String(requires).replace(/^Requirements?:?\s*/i, "");
@@ -177,6 +180,17 @@ export function worthSomething(model) {
     return Object.entries(model).some(([key, value]) => !idle.has(key) && (Array.isArray(value) ? value.length > 0 : value && typeof value === "object" ? Object.keys(value).length > 0 : Boolean(value)));
 }
 
+// Whether a feat's words have its user make a Strike: "Make a melee Strike", "Stride twice, then make a Strike", "Strike twice", "You Strike".
+const USER_STRIKE = /(?:^|[.:;,]\s+|\b(?:then|and|finally|or)\s+)(?:you\s+)?(?:can\s+|may\s+|then\s+)?(?:make|makes)\s+(?:a|an|one|two|three|another|a single|up to (?:two|three))\s+(?:[\w'-]+\s+){0,4}?Strikes?\b|(?:^|[.:;,]\s+|\b(?:then|and|finally)\s+)(?:you\s+)?(?:can\s+)?Strike(?!\s+a target other)(?:\s+(?:twice|three times|an?|the|one|each|it|that|your))?\b/i;
+const OTHERS_STRIKE = /\b(?:your|the|an?) (?:eidolon|companion|familiar|mount|ally|minion|follower|animal|summon|construct|underling)s?\b[^.]{0,40}\bStrikes?\b/i;
+export function userStrike(text) {
+    const plain = String(text ?? "");
+    if (!USER_STRIKE.test(plain)) return false;
+    // (The Strike sentence about another creature: "Your eidolon makes a melee Strike".)
+    const sentence = plain.split(/(?<=[.!?])\s+/).find((each) => USER_STRIKE.test(each)) ?? "";
+    return !OTHERS_STRIKE.test(sentence);
+}
+
 // The PF2e item fields featEntries reads (a pack's document or a live item).
 export function featInfo(item, level) {
     return {
@@ -186,6 +200,9 @@ export function featInfo(item, level) {
         actions: item.system?.actions?.value ?? null,
         frequency: item.system?.frequency ?? null,
         traits: [...(item.system?.traits?.value ?? [])],
-        level
+        level,
+        // (Its words, plain, without its heading blocks: for a Strike activity's check, userStrike.)
+        text: String(item.system?.description?.value ?? "").replace(/<p>\s*<strong>\s*(?:Requirements?|Frequency|Trigger|Cost|Access|Prerequisites?)\s*<\/strong>[\s\S]*?<\/p>/gi, " ").replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/@\w+\[[^\]]*\]/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
+        companion: /\beidolon\b|\bcompanion\b/i.test(String(item.system?.description?.value ?? "")) && (item.system?.traits?.value ?? []).some((trait) => ["eidolon", "summoner", "companion"].includes(trait))
     };
 }

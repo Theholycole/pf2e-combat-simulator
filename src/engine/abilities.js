@@ -520,6 +520,10 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.initiative ? { initiative: true } : {}),
                 // (2026-10-15: its traits — a concentrate one, Hunter's Aim, provokes what concentrate does.)
                 ...(plan.traits?.length ? { traits: [...plan.traits] } : {}),
+                // (2026-11-01, the feat module's Strike feats: their press and flourish traits — Exacting Strike only after an attack this
+                // turn; found in the Foundry test, it opened turns.)
+                ...(plan.press || (plan.traits ?? []).includes("press") ? { press: true } : {}),
+                ...(plan.flourish || (plan.traits ?? []).includes("flourish") ? { flourish: true } : {}),
                 onHit: plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];
