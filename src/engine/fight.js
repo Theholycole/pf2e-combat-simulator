@@ -214,6 +214,13 @@ function rollInitiative(state, snapshot) {
     // Roaring Initiative's Intimidation; B303) when it's better than its Perception; else Perception.
     const usesStealth = (c) => ambush && ambush === c.side && typeof c.stealth === "number";
     state.initiativeStat = new Map(state.list.map((c) => [c.id, usesStealth(c) ? { stat: "stealth", value: c.stealth } : initiativeSkill(c) ?? { stat: "perception", value: c.perception ?? 0 }]));
+    // (2026-11-01: a passive feat's initiative bonus — Incredible Initiative's —, its PF2e rules: the best of each type.)
+    for (const c of state.list) {
+        const best = {};
+        for (const modifier of (c.passiveEffects ?? []).flatMap((model) => model.modifiers ?? []).filter((each) => each.on === "initiative")) best[modifier.type] = Math.max(best[modifier.type] ?? 0, Number(modifier.value) || 0);
+        const bonus = Object.values(best).reduce((sum, value) => sum + value, 0);
+        if (bonus) state.initiativeStat.set(c.id, { ...state.initiativeStat.get(c.id), value: state.initiativeStat.get(c.id).value + bonus });
+    }
     // (B170, Guide's Warning: its allies' initiative rolls a circumstance bonus higher, when it rolls Perception (or a skill it names) — its
     // reaction, or a free action.)
     const warned = new Map();
@@ -254,6 +261,8 @@ function rollInitiative(state, snapshot) {
 function initiativeDeeds(state) {
     for (const c of state.list) {
         if (c.status !== ACTIVE) continue;
+        // (2026-11-01: a passive feat's own PF2e rules — tools/lib/feat-power.mjs passiveRulesEntry —, on it from the start, all fight.)
+        for (const model of c.passiveEffects ?? []) applyEffect(state, c, { ...model, rounds: Infinity }, c, { key: `passive:${model.name}` });
         if (c.livingFortification) {
             const effect = applyEffect(state, c, { name: "Living Fortification", rounds: Infinity, modifiers: [{ on: "ac", type: "circumstance", value: c.livingFortification }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { key: "living-fortification" });
             (c.timers ??= []).push({ effect, round: state.round, turnOf: c.id, at: "end" });

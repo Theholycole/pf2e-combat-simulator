@@ -32,7 +32,7 @@ const itemReaders = ITEM_ROOT ? await (async () => {
         return null;
     }
 })() : null;
-const { featEntries, featInfo, meetsWielding, withResolvedEffects } = await import("../../src/engine/feat-abilities.js");
+const { featEntries, featInfo, meetsWielding, withResolvedEffects, worthSomething } = await import("../../src/engine/feat-abilities.js");
 const { effectModel } = await import("../../src/engine/effects.js");
 const { addBuiltin } = await import("../../src/engine/abilities.js");
 const { dangerFights, dangerSummary, DANGER_OPTIONS, DEATH_WEIGHT } = await import("../../src/engine/danger-scale.js");
@@ -219,6 +219,53 @@ function selfEffectEntry(doc, level, builtins, wields) {
     return { spells: [], pools: {}, gap: null, played: stance ? "PF2e's stance Effect" : "PF2e's self Effect" };
 }
 
+// (2026-11-01, Cole: "do feats that effect other things passively work? for example Guardian class feat Shield Warfare increases shield bash
+// damage dice". A passive the feat module reads nothing for: its own PF2e rules, always on — the bonuses, resistances, Strikes and the like an
+// Effect's rules give (effects.js effectModel) —, and its weapons' damage die upgrades (ItemAlteration damage-dice-faces) on the Strikes its
+// predicate names.)
+const STRIKE_TRAITS = new Set(["agile", "finesse", "deadly", "versatile"]);
+// Whether a Strike meets an ItemAlteration's predicate on its weapon: true, false, or null (a term it can't tell).
+function strikeMeets(strike, predicate) {
+    for (const term of [].concat(predicate ?? [])) {
+        if (typeof term !== "string") return null;
+        if (term === "item:equipped" || term === "item:type:weapon") continue;
+        if (term === "item:melee") { if (!strike.melee) return false; continue; }
+        if (term === "item:ranged") { if (strike.melee) return false; continue; }
+        const group = /^item:group:([\w-]+)$/.exec(term)?.[1];
+        if (group) { if ((strike.iwr?.group ?? null) !== group) return false; continue; }
+        const trait = /^item:trait:([\w-]+)$/.exec(term)?.[1];
+        if (trait && STRIKE_TRAITS.has(trait)) { if (!strike[trait]) return false; continue; }
+        return null;
+    }
+    return true;
+}
+// A passive's damage die upgrades on its weapons: the predicates, one step each.
+const dieUpgrades = (doc) => (doc.system?.rules ?? []).filter((rule) => rule?.key === "ItemAlteration" && rule.itemType === "weapon" && rule.mode === "upgrade" && rule.property === "damage-dice-faces").map((rule) => rule.predicate ?? []);
+const DIE_STEPS = [4, 6, 8, 10, 12];
+const upgradeDie = (strike) => ({ ...strike, damage: strike.damage.map((part, index) => (index === 0 && DIE_STEPS.includes(part.die) ? { ...part, die: DIE_STEPS[Math.min(DIE_STEPS.length - 1, DIE_STEPS.indexOf(part.die) + 1)] } : part)) });
+export function upgradedStrikes(doc, strikes) {
+    const upgrades = dieUpgrades(doc);
+    if (!upgrades.length) return null;
+    let changed = false;
+    const out = strikes.map((strike) => {
+        let next = strike;
+        for (const predicate of upgrades) if (strikeMeets(strike, predicate) === true) next = upgradeDie(next);
+        if (next !== strike) changed = true;
+        return next;
+    });
+    return changed ? out : null;
+}
+// The passive's own rules as an always-on Effect, or null when they hold nothing a fight counts.
+function passiveRulesEntry(doc, level, builtins) {
+    if ((doc.system?.actionType?.value ?? "passive") !== "passive" || !(doc.system?.rules ?? []).length) return null;
+    const model = effectModel(doc, { rank: level, conditionSlug });
+    // (A choice still open — Champion Dedication's cause —: not a fight's to make.)
+    const { choices, choiceByDegree, ...rest } = model;
+    if (!worthSomething(rest)) return null;
+    builtins.passiveEffects = [...(builtins.passiveEffects ?? []), { ...rest, rounds: Infinity }];
+    return { spells: [], pools: {}, gap: null, played: "PF2e rules (always on)", situational: Boolean(rest.situational) };
+}
+
 // The party with the feat on its PC, or { skipped, reason }.
 export function partyWithFeat(doc, level) {
     const party = partyFor(level);
@@ -255,27 +302,35 @@ export function partyWithFeat(doc, level) {
             if (own?.unmet) entries = { ...entries, gap: { ...entries.gap, name: `${doc.name}: its requirement, which the PC doesn't meet (${own.unmet})` } };
             else if (own) entries = own;
         }
+        // (A passive the feat module reads nothing for: its die upgrades on the PC's Strikes, or a loadout with the weapon they name; its rules.)
+        let strikes = null;
+        if (entries.gap && dieUpgrades(doc).length) {
+            strikes = upgradedStrikes(doc, wields.strikes ?? []);
+            entries = strikes ? { spells: [], pools: {}, gap: null, played: "PF2e rules: a bigger damage die" } : { ...entries, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (the weapon its damage die upgrade names)` } };
+        }
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = passiveRulesEntry(doc, level, builtins) ?? entries;
         // (A requirement on what the PC wields the plan doesn't carry — Dueling Dance's "a single one-handed melee weapon and nothing else in
         // your hands", a stance's —: the feat's own text, so the PC that can't use it gets the loadout that can, both sides.)
         const required = requirementText(doc);
         if (!entries.gap && plan?.builtin !== "strike-activity" && required && meetsWielding(required, wields) === false) {
             entries = { ...entries, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (${required})` } };
         }
-        return { entries, builtins };
+        return { entries, builtins, strikes };
     };
-    let tried = attempt(WIELDS[host.id]);
+    let tried = attempt({ ...WIELDS[host.id], strikes: host.strikes });
     let base = party;
     let loadout = null;
     if (tried.entries.gap && /doesn't meet/.test(tried.entries.gap.name)) {
         for (const [name, way] of Object.entries(LOADOUTS)) {
             if (!way.hosts.includes(host.id)) continue;
-            const again = attempt({ ...WIELDS[host.id], ...way.wields });
+            const again = attempt({ ...WIELDS[host.id], ...way.wields, strikes: way.strikes(host.strikes) });
             if (again.entries.gap) continue;
             tried = again;
             loadout = name;
             base = clone(party);
             const pc = base.find((c) => c.id === host.id);
             pc.strikes = way.strikes(pc.strikes);
+            way.extra?.(pc);
             break;
         }
     }
@@ -286,6 +341,7 @@ export function partyWithFeat(doc, level) {
     pc.spells = [...(pc.spells ?? []), ...entries.spells];
     pc.spellPools = { ...(pc.spellPools ?? {}), ...entries.pools };
     joinBuiltins(pc, builtins);
+    if (tried.strikes) pc.strikes = tried.strikes;
     return { party: withFeat, ...(loadout ? { plain: base, loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan };
 }
 
@@ -294,6 +350,8 @@ const oneHanded = (strike, name, die, extra = {}) => ({ ...strike, name, hands: 
 const LOADOUTS = {
     "two weapons (longsword and shortsword)": { hosts: ["fighter", "rogue"], wields: { twoHanded: false, oneHanded: true, twoWeapons: true, freeHand: false, damage: ["slashing", "piercing"] }, strikes: (strikes) => [oneHanded(strikes[0], "Longsword", 8, { versatile: ["piercing"] }), oneHanded(strikes[0], "Shortsword", 6, { agile: true, finesse: true, damage: strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: 6, type: "piercing" } : part)) }), ...strikes.slice(1)] },
     "a one-handed weapon and a free hand": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: true, freeHand: true }, strikes: (strikes) => [oneHanded(strikes[0], "Longsword", 8, { versatile: ["piercing"] }), ...strikes.slice(1)] },
+    // (Shield Warfare's shield bash: a longsword and a steel shield, raised when the PC has an action to spare.)
+    "a weapon and a shield": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: true, freeHand: false, shield: true }, strikes: (strikes) => [oneHanded(strikes[0], "Longsword", 8, { versatile: ["piercing"] }), oneHanded(strikes[0], "Shield Bash", 4, { versatile: undefined, iwr: { group: "shield" }, damage: strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: 4, type: "bludgeoning" } : part)) }), ...strikes.slice(1)], extra: (pc) => { pc.shield = { ac: 2, hardness: 5 + Math.floor(pc.level / 2), hp: 20 + pc.level * 4, bt: 10 + pc.level * 2 }; } },
     "a bow in hand": { hosts: ["fighter", "rogue"], wields: { ranged: true, reload0: true, twoHanded: false, freeHand: false }, strikes: (strikes) => [...strikes.filter((strike) => !strike.melee), ...strikes.filter((strike) => strike.melee)] }
 };
 
