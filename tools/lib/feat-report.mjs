@@ -92,3 +92,47 @@ export function featReport({ feats, basics, scale }) {
         json: { version: 1, kind: "feats", method: "whole fights, with vs without", generated: new Date().toISOString(), fights, rated: rows, basics: basicRows.map((row) => ({ name: row.name, slug: row.slug, levels: row.levels, se: row.se })), skipped: skippedRows.length, notSimulated: skippedRows.map((row) => ({ name: row.name, ref: row.ref?.ref, reason: row.reason })), reasons }
     };
 }
+
+// The deviant abilities' report (tools/feat-power.mjs deviant-report): each feat plain, ranked, with what its backlash costs (its rating
+// without backlash less its rating), how often it's used and how often it backlashes a fight; each awakening's gain over the plain feat at
+// the level it comes; and what isn't played, and why.
+export function deviantReport(rows) {
+    const ok = rows.filter((row) => !row.skipped && !row.error && Number.isFinite(row.levels));
+    const uses = (row) => Math.max(row.results.boss.uses, row.results.group.uses);
+    const backlashes = (row) => (row.results.boss.backlashes + row.results.group.backlashes) / 2;
+    const plain = ok.filter((row) => row.variant === "plain").map((row) => {
+        const free = ok.find((other) => other.slug === row.slug && other.variant === "no backlash");
+        return { name: row.name, slug: row.slug, level: row.level, played: row.played, loadout: row.loadout ?? null, levels: row.levels, se: row.se, boss: row.results.boss.levels, group: row.results.group.levels, uses: uses(row), backlashes: backlashes(row), backlashCost: free ? free.levels - row.levels : null, verdict: verdict(row) };
+    }).sort((a, b) => b.levels - a.levels);
+    const awakenings = ok.filter((row) => row.variant.startsWith("awakening")).map((row) => ({ name: row.name, slug: row.slug, awakening: row.variant.slice("awakening: ".length), level: row.level, gain: row.levels, se: row.se, uses: uses(row), backlashes: backlashes(row), verdict: verdict(row) })).sort((a, b) => b.gain - a.gain);
+    const skipped = rows.filter((row) => row.skipped);
+    const lines = [
+        "# Deviant abilities in combat",
+        "",
+        `Made by \`node tools/feat-power.mjs <out> deviant\` on ${new Date().toISOString().slice(0, 10)}. Each deviant feat on the standard party's fighter (deviation DC: the higher of its class and spell DCs), at the feat's level, against a moderate boss and a moderate group, 200 fights each, with the feat and without it on the same dice. Every use rolls the flat check (DC 5, +5 per success to 20); a failure brings the classification's backlash, mild then moderate then severe, and after severe no more deviations that fight.`,
+        "",
+        "Ratings are in levels of the foes (+0.25: like fighting foes a quarter of a level lower). **Backlash cost** is the rating without backlash less the rating with it.",
+        "",
+        "## Ranked",
+        "",
+        "| # | Ability | Lvl | Played as | Rating | Boss | Group | Backlash cost | Uses a fight | Backlashes a fight | Verdict |",
+        "|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---|",
+        ...plain.map((row, index) => `| ${index + 1} | ${escape(row.name)}${row.loadout ? " (one-handed weapon, free hand)" : ""} | ${row.level} | ${row.played} | ${fmt(row.levels)} ± ${row.se.toFixed(2)} | ${fmt(row.boss)} | ${fmt(row.group)} | ${fmt(row.backlashCost)} | ${row.uses.toFixed(1)} | ${row.backlashes.toFixed(2)} | ${row.verdict} |`),
+        "",
+        "## Awakenings",
+        "",
+        "Each awakening alone, at the level Awakened Power (4th) or Greater Awakened Power (10th) gives it, against the plain feat at that level.",
+        "",
+        "| # | Ability | Awakening | Lvl | Gain over plain | Uses a fight | Backlashes a fight | Verdict |",
+        "|---:|---|---|---:|---:|---:|---:|---|",
+        ...awakenings.map((row, index) => `| ${index + 1} | ${escape(row.name)} | ${row.awakening} | ${row.level} | ${fmt(row.gain)} ± ${row.se.toFixed(2)} | ${row.uses.toFixed(1)} | ${row.backlashes.toFixed(2)} | ${row.verdict} |`),
+        "",
+        "## Not played",
+        "",
+        "| Ability | Variant | Why |",
+        "|---|---|---|",
+        ...skipped.filter((row) => row.variant !== "no backlash").map((row) => `| ${escape(row.name)} | ${row.variant} | ${escape(row.reason)} |`),
+        ""
+    ];
+    return { markdown: lines.join("\n"), json: { version: 1, kind: "deviant", generated: new Date().toISOString(), rated: plain, awakenings, skipped: skipped.map((row) => ({ name: row.name, variant: row.variant, reason: row.reason })) } };
+}

@@ -11,6 +11,7 @@ import { effectModel, iwrException, looseRetaliation, resolveAuraGrants, withSpe
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions, shareRecharges } from "../src/engine/abilities.js";
 import { requirementPlayable } from "../src/engine/needs.js";
 import { featEntries, featInfo, withResolvedEffects } from "../src/engine/feat-abilities.js";
+import { DEVIANT, deviantFields, deviantSlug } from "../src/engine/deviant.js";
 import { markParts, toggleWays } from "../src/engine/toggles.js";
 import { zoneSpell } from "../src/engine/zones.js";
 import { strikeIwr, versatileTypes } from "../src/engine/damage.js";
@@ -734,6 +735,35 @@ async function readFeatModule(actor, result, skip) {
         for (const entry of entries.spells) result.abilities.push({ ...entry, plan: leanPlan(entry.plan), sourceItem: item });
     }
 }
+// (2026-11-01) A PC's deviant feats (src/engine/deviant.js): each as a fight plays it, with the awakenings its Awakened Power feats chose
+// (PF2e's roll options awakening:<feat>:<awakening>) and its deviation DC (PF2e's deviant statistic, else the higher of its class and spell
+// DCs); each one played is handled, so the feat module doesn't read it again.
+function readDeviant(actor, result, skip) {
+    const feats = (actor.itemTypes?.feat ?? []).filter((item) => !skip?.has(item) && (item.system?.traits?.value ?? []).includes("deviant") && DEVIANT[deviantSlug(item.name)]);
+    if (!feats.length) return;
+    const options = (() => {
+        try {
+            return actor.getRollOptions?.() ?? [];
+        } catch {
+            return [];
+        }
+    })();
+    const spellDCs = (actor.spellcasting?.regular ?? actor.spellcasting?.contents ?? []).map((entry) => entry?.statistic?.dc?.value).filter(Number.isFinite);
+    const dc = actor.getStatistic?.("deviant")?.dc?.value ?? Math.max(actor.classDC?.dc?.value ?? actor.system?.attributes?.classDC?.value ?? 0, ...spellDCs, 10 + (actor.level ?? 1));
+    for (const item of feats) {
+        const slug = deviantSlug(item.name);
+        const awakenings = options.filter((option) => option.startsWith(`awakening:${slug}:`)).map((option) => option.split(":")[2]);
+        const made = deviantFields(slug, actor.level ?? 1, dc, awakenings);
+        if (made.gap) continue;
+        result.handled.add(item);
+        for (const [field, value] of Object.entries(made.fields)) {
+            if (field === "spells") for (const entry of value) result.abilities.push({ ...entry, sourceItem: item });
+            else if (Array.isArray(value)) result.builtins[field] = [...(result.builtins[field] ?? []), ...value];
+            else result.builtins[field] = value;
+        }
+    }
+}
+
 export const ABILITY_MODULE_ID = "pf2e-automatic-ability-resolution";
 const BASIC_ACTION_SKILLS = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics", disarm: "athletics", reposition: "athletics", feint: "deception", "create-a-diversion": "deception", "administer-first-aid": "medicine" };
 // A melee Strike that is a weapon in hand (B313): PF2e links it to a weapon item, the creature carries a weapon of its name, or its name is
@@ -760,6 +790,7 @@ async function readAbilities(actor, { fresh = false, gaps = [], skip = new Set()
     result.pools = {};
     // (2026-11-01: a PC's feats and actions as the feat module compiles them, with the character's own DCs — src/engine/feat-abilities.js.
     // What it plays is handled; the rest go on to the readings below.)
+    if (pc) readDeviant(actor, result, skip);
     if (pc) await readFeatModule(actor, result, skip);
     // A monster's abilities; a PC's feat actions that are a check or a save against a creature (Bon Mot, Dirty Trick; C15).
     const items = pc
