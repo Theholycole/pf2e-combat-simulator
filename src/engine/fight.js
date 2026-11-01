@@ -506,7 +506,7 @@ function startTurn(state, c) {
     if (fastHealing > 0) applyHeal(state, c, fastHealing);
     if (regenerating(c, state) && c.regeneratedRound !== state.round) applyHeal(state, c, c.regeneration.value);
     // (High-Speed Regeneration, a deviant ability: at the start of its turn — deviant.js.)
-    if (c.deviantRegeneration) deviantTurnStart(state, c);
+    if (c.deviantClassification) deviantTurnStart(state, c);
     // (H1: a hydra's stumps regrow heads after it regenerates.)
     if (c.hydra?.stumps && regenerating(c, state)) hydraRegrow(state, c);
 }
@@ -1769,7 +1769,9 @@ function summarize(state) {
             kind: c.kind,
             down: c.everDown,
             dead: c.status === DEAD,
-            hp: Math.max(0, c.hp.value)
+            hp: Math.max(0, c.hp.value),
+            // (A deviation as the fight left it, for the day's next fight — deviant.js.)
+            ...(c.deviation ? { deviation: { dc: c.deviation.dc, stage: c.deviation.stage, spent: c.deviation.spent, lasting: [...(c.deviation.lasting ?? [])] } } : {})
         })),
         foes: state.list.filter((c) => c.side === "foes").map((c) => ({
             id: c.id,

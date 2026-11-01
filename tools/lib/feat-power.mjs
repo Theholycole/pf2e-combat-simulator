@@ -35,7 +35,7 @@ const itemReaders = ITEM_ROOT ? await (async () => {
 const { featEntries, featInfo, meetsWielding, withResolvedEffects } = await import("../../src/engine/feat-abilities.js");
 const { effectModel } = await import("../../src/engine/effects.js");
 const { addBuiltin } = await import("../../src/engine/abilities.js");
-const { dangerFights, dangerSummary } = await import("../../src/engine/danger-scale.js");
+const { dangerFights, dangerSummary, DANGER_OPTIONS, DEATH_WEIGHT } = await import("../../src/engine/danger-scale.js");
 const { powerFoes } = await import("../../src/engine/spell-power.js");
 const { simulate } = await import("../../src/engine/fight.js");
 const { DEVIANT, deviantFields } = await import("../../src/engine/deviant.js");
@@ -399,7 +399,7 @@ export function deviantList() {
     return out;
 }
 
-function deviantParty(task, awakenings, { noBacklash = false, hand = false } = {}) {
+export function deviantParty(task, awakenings, { noBacklash = false, hand = false } = {}) {
     const party = partyFor(task.level);
     const host = party.find((c) => c.id === "fighter");
     const dcs = dcsOf(host);
@@ -420,6 +420,38 @@ function deviantParty(task, awakenings, { noBacklash = false, hand = false } = {
     return { party: withIt, plain: needsHand ? base : null, played: made.played, loadout: needsHand ? "a one-handed weapon and a free hand" : null };
 }
 
+// (2026-11-01, the user: "the backlashes can be devastating" — a day of fights: DAY fights in a row on seeds DAY·d … DAY·d + DAY − 1, the
+// fighter's deviation carried from one to the next (its flat-check DC, its backlash so far, spent or not, and what outlasts a fight —
+// deviant.js lastingBacklash); Hit Points fresh each fight, as after a rest. The scores, a fight each, as dangerFights'.)
+export const DAY = 4;
+function dayFights(party, foes, count, { log = false } = {}) {
+    const partyHp = party.reduce((sum, c) => sum + c.hp.max, 0);
+    const scores = [];
+    let uses = 0;
+    let backlashes = 0;
+    let severe = 0;
+    let carried = null;
+    for (let seed = 0; seed < count; seed++) {
+        if (seed % DAY === 0) carried = null;
+        const today = carried ? party.map((c) => (c.id === "fighter" ? { ...c, deviationCarried: carried } : c)) : party;
+        const result = simulate({ combatants: [...today, ...foes] }, DANGER_OPTIONS, seed, log ? { log: true } : undefined);
+        const damage = ((result.damageBy?.foes ?? 0) + (result.damageBy?.foesInduced ?? 0)) / partyHp;
+        const score = damage + 0.25 * result.party.filter((c) => c.down).length + DEATH_WEIGHT * result.party.filter((c) => c.dead).length + (result.outcome === "defeat" ? 1 : 0);
+        scores.push(Math.round(score * 1000) / 1000);
+        carried = result.party.find((c) => c.id === "fighter")?.deviation ?? carried;
+        if (log) for (const line of result.log ?? []) {
+            const text = typeof line === "string" ? line : line?.text ?? "";
+            if (/^\s+Fighter (?:uses|suffers) /.test(text)) {
+                if (/suffers \w+ backlash/.test(text)) {
+                    backlashes++;
+                    if (/suffers severe/.test(text)) severe++;
+                } else if (log.test(text)) uses++;
+            }
+        }
+    }
+    return { scores, uses: uses / count, backlashes: backlashes / count, severe: severe / count };
+}
+
 export function deviantTask(task) {
     const head = { kind: "deviant", name: task.name, slug: task.slug, level: task.level, variant: task.variant, host: "fighter" };
     // (An awakening: against the plain feat at that level, on the same loadout.)
@@ -434,24 +466,15 @@ export function deviantTask(task) {
         const scaled = scale?.get(`${task.level}|${kind}`);
         if (!scaled) return { ...head, error: `no scale for level ${task.level} ${kind}` };
         const foes = powerFoes(kind, task.level);
-        const plainScores = against && !against.skipped ? dangerSummary(dangerFights(against.party, foes, 0, FIGHTS)).scores : built.plain ? dangerSummary(dangerFights(built.plain, foes, 0, FIGHTS)).scores : scaled.scores;
-        const fights = dangerSummary(dangerFights(built.party, foes, 0, FIGHTS));
+        // (Days of fights, both sides: the plain feat's days when it's an awakening, the plain party's fights otherwise.)
+        const plainScores = against && !against.skipped ? dayFights(against.party, foes, FIGHTS).scores : built.plain ? dangerSummary(dangerFights(built.plain, foes, 0, FIGHTS)).scores : scaled.scores;
+        const pattern = new RegExp(`(?<![\\w'])${task.name.replace(/\s*\(Deviant\)/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+        // (Uses, backlashes and severe ones a fight, read from the logs of every fight.)
+        const fights = dayFights(built.party, foes, FIGHTS, { log: pattern });
         const diffs = fights.scores.map((score, index) => score - plainScores[index]);
         const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
         const sd = Math.sqrt(diffs.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
-        // (Uses and backlashes a fight, from a dozen logged fights.)
-        let uses = 0;
-        let backlashes = 0;
-        const pattern = new RegExp(`(?<![\\w'])${task.name.replace(/\s*\(Deviant\)/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
-        for (let seed = 0; seed < LOGGED; seed++) {
-            const log = simulate({ combatants: [...built.party, ...foes] }, { morale: false, retreat: false }, seed, { log: true }).log ?? [];
-            for (const line of log) {
-                const text = typeof line === "string" ? line : line?.text ?? "";
-                if (/^\s+Fighter uses /.test(text) && pattern.test(text)) uses++;
-                if (/^\s+Fighter suffers \w+ backlash/.test(text)) backlashes++;
-            }
-        }
-        results[kind] = { delta: mean, levels: -mean / scaled.step, levelsSe: sd / Math.sqrt(diffs.length) / scaled.step, uses: uses / LOGGED, backlashes: backlashes / LOGGED };
+        results[kind] = { delta: mean, levels: -mean / scaled.step, levelsSe: sd / Math.sqrt(diffs.length) / scaled.step, uses: fights.uses, backlashes: fights.backlashes, severe: fights.severe, score: fights.scores.reduce((sum, value) => sum + value, 0) / fights.scores.length, plainScore: plainScores.reduce((sum, value) => sum + value, 0) / plainScores.length };
     }
     const levels = KINDS.reduce((sum, kind) => sum + results[kind].levels, 0) / KINDS.length;
     const se = Math.sqrt(KINDS.reduce((sum, kind) => sum + results[kind].levelsSe ** 2, 0)) / KINDS.length;

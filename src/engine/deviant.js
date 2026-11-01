@@ -80,15 +80,42 @@ export function backlashOf(classification, stage, level) {
     }
 }
 
-const deviationOf = (c) => (c.deviation ??= { dc: 5, stage: 0, spent: false });
+const deviationOf = (c) => (c.deviation ??= { dc: 5, stage: 0, spent: false, lasting: [] });
+
+// What outlasts the fight, to the next one that day (a day of fights, tools/lib/feat-power.mjs): "until your next daily preparations",
+// "until you can get a full night's rest", "2 hours napping" — not what a meal or a short rest ends between fights.
+export function lastingBacklash(classification, stage, level) {
+    if (classification === "dragon" && stage >= 2) return [{ weakness: { type: DRAGON_ENERGY, value: Math.floor(level / 3) } }];
+    if (classification === "wraith" && stage === 3) return [{ condition: ["doomed", 1] }, { condition: ["drained", 2] }];
+    if (classification === "verdant" && stage === 3) return [{ condition: ["drained", 3] }, { condition: ["fatigued", null] }];
+    if (classification === "troll" && stage === 3) return [{ condition: ["fatigued", null] }];
+    if (classification === "flicker" && stage === 3) return [{ condition: ["stupefied", 1] }];
+    if (classification === "blight" && stage === 3) return [{ condition: ["sickened", 1] }];
+    return [];
+}
+
+// (A day's later fight: the deviation as the last one left it — its DC, its backlash so far, spent or not — and what outlasts a fight.)
+export function deviantFightStart(state, c) {
+    if (c.deviationStarted) return;
+    c.deviationStarted = true;
+    const carried = c.deviationCarried;
+    if (!carried) return;
+    c.deviation = { dc: carried.dc, stage: carried.stage, spent: carried.spent, lasting: [...(carried.lasting ?? [])] };
+    for (const entry of carried.lasting ?? []) {
+        if (entry.weakness) c.weaknesses = [...(c.weaknesses ?? []), { ...entry.weakness, exceptions: [] }];
+        if (entry.condition && applyCondition(state, c, entry.condition[0], entry.condition[1], null, c)) state.log?.push(`  ${c.name} is still ${entry.condition[0]}${Number.isFinite(entry.condition[1]) ? ` ${entry.condition[1]}` : ""} from its backlash`);
+    }
+    state.log?.push(`  ${c.name}'s deviation: flat DC ${c.deviation.dc}, ${c.deviation.stage ? `${STAGES[c.deviation.stage - 1]} backlash taken` : "no backlash yet"}${c.deviation.spent ? ", spent" : ""}`);
+}
 // Whether it can still use a deviation this fight.
-export const deviantUsable = (c) => !c.deviation?.spent;
+export const deviantUsable = (c) => !(c.deviation ?? c.deviationCarried)?.spent;
 
 // A deviation used: its flat check, and on a failure its backlash. ({ entry } has deviant: { classification }; affected: the creatures it
 // just affected, for a leech's fascination.)
 export function deviantUsed(state, c, entry, { affected = null } = {}) {
     const deviant = entry?.deviant;
     if (!deviant || !isActive(c)) return;
+    deviantFightStart(state, c);
     const deviation = deviationOf(c);
     if (deviation.spent) return;
     // (Lightspeed Assault: one check, "regardless of how many actions" — once a turn.)
@@ -109,6 +136,7 @@ export function deviantUsed(state, c, entry, { affected = null } = {}) {
     const backlash = c.noBacklash ? {} : backlashOf(deviant.classification, deviation.stage, c.level ?? 1);
     state.log?.push(`  ${c.name} suffers ${STAGES[deviation.stage - 1]} backlash (${BACKLASH_NAMES[deviant.classification] ?? deviant.classification}; flat DC ${dc} failed)${c.noBacklash ? " — not played" : ""}`);
     if (deviation.stage === 3) deviation.spent = true;
+    if (!c.noBacklash) deviation.lasting = [...(deviation.lasting ?? []), ...lastingBacklash(deviant.classification, deviation.stage, c.level ?? 1)];
     applyBacklash(state, c, backlash, { affected });
 }
 
@@ -159,7 +187,7 @@ function burstEntry(c, dice, die, type) {
 // fight counts too.
 export function deviantRisk(c, conditionHarm) {
     if (c.noBacklash) return 0;
-    const deviation = c.deviation ?? { dc: 5, stage: 0 };
+    const deviation = c.deviation ?? c.deviationCarried ?? { dc: 5, stage: 0 };
     if (deviation.spent) return Infinity;
     const stage = Math.min(3, deviation.stage + 1);
     const backlash = backlashOf(c.deviantClassification ?? "troll", stage, c.level ?? 1);
@@ -402,6 +430,7 @@ export function deviantFields(slug, level, dc, awakenings = []) {
 
 // (Its turn starting: High-Speed Regeneration, a free action, once it's lost at least that many Hit Points.)
 export function deviantTurnStart(state, c) {
+    deviantFightStart(state, c);
     const regeneration = c.deviantRegeneration;
     if (!regeneration || !isActive(c) || !deviantUsable(c)) return;
     if (c.hp.max - c.hp.value < regeneration.amount) return;

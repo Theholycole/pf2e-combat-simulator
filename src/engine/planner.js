@@ -48,6 +48,12 @@ export const ROLE_PROFILES = Object.freeze({
 
 const BEAM_WIDTH = 5;
 const NEXT_TURN_WEIGHT = 0.5;
+const GUARD = Number(process.env.SIM_GUARD ?? 0.05);
+// (A melee-built creature: its best melee Strike out-hits its best ranged one.)
+const meleeBuilt = (c) => {
+    const best = (melee) => Math.max(0, ...(c.strikes ?? []).filter((strike) => !!strike.melee === melee).map((strike) => strike.bonus + (strike.damage ?? []).reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0)));
+    return best(true) > best(false);
+};
 // Conditions and spell effects are weighed in rounds of a creature's threat;
 // damage as the share of its HP removed, where a kill (all of its threat for
 // the rest of the fight) counts once. A fight has about three rounds left, so
@@ -745,7 +751,8 @@ class PlanContext {
     exposure(node) {
         const { state, c } = this;
         const pos = node.pos;
-        const ac = armorClass(c, { shieldRaised: node.shield }) - (node.prone && !c.cond.prone ? 2 : 0) + (!node.prone && c.cond.prone ? 2 : 0);
+        // (node.acDelta: an AC bonus the plan would bring, for what it's worth — a self Effect's, expandClassActions.)
+        const ac = armorClass(c, { shieldRaised: node.shield }) - (node.prone && !c.cond.prone ? 2 : 0) + (!node.prone && c.cond.prone ? 2 : 0) + (node.acDelta ?? 0);
         // Enemies spread their attention over everyone they can reach: stepping
         // back doesn't make an enemy forget you, it just costs it attacks.
         const share = 1 / Math.max(1, this.defenders);
@@ -907,10 +914,19 @@ class PlanContext {
         let cached = this.terminalCache.get(key);
         if (cached === undefined) {
             const exposureValue = this.ownValue * Math.min(1.5, this.exposure(node) / remainingHp(this.c));
-            cached = NEXT_TURN_WEIGHT * this.profile.aggression * this.offenseNext(node) - this.profile.selfPreservation * exposureValue + this.mapValue(node) + this.alarmValue(node) + this.dangerValue(node);
+            cached = NEXT_TURN_WEIGHT * this.profile.aggression * this.offenseNext(node) - this.profile.selfPreservation * exposureValue + this.mapValue(node) + this.alarmValue(node) + this.dangerValue(node) + this.guardValue(node);
             this.terminalCache.set(key, cached);
         }
         return cached - this.restless(node);
+    }
+
+    // (2026-11-01, a PC built to fight in melee: standing in a foe's Melee holds the foe's attention off its allies — worth GUARD of its own
+    // value, which nothing counted before, so a fighter's plan of bow shots and a small buff at range tied with closing in and won.)
+    guardValue(node) {
+        const c = this.c;
+        if (c.side !== "party" || !GUARD || node.pos.melee === null) return 0;
+        if (!(this.meleeBuilt ??= meleeBuilt(c))) return 0;
+        return this.enemies.some((enemy) => isActive(enemy) && inMelee(node.pos, enemy)) ? GUARD * this.ownValue : 0;
     }
 
     // Agitated with no Stride in the plan: the spell's damage as the turn ends, as exposure.
@@ -1797,7 +1813,16 @@ function expandClassActions(env) {
         // boss hit the rogue. Now as a spell's on its target: the Hit Points it keeps off the foes' Strikes, its share of them —
         // resistanceKept —, and a weakness's cost.)
         const keptRounds = Number.isFinite(entry.model.rounds) ? Math.max(0.5, Math.min(3, entry.model.rounds)) : 3;
-        let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1, { state, ownSide: true })
+        // (2026-11-01: its AC bonus, as the Hit Points it keeps off what would hit it where this plan leaves it — exposure's, with the bonus
+        // and without — for its rounds. Before, 0.08 a point a round wherever it stood, so a fighter at range took a 1-round AC buff with
+        // its third action over closing in, and any such feat rated below nothing: a near tie in the plan, tipped by a defence where nothing
+        // reached it.)
+        const acBonus = entry.model.modifiers.filter((modifier) => modifier.on === "ac").reduce((sum, modifier) => sum + (Number(modifier.value) || 0), 0);
+        const acRounds = Number.isFinite(entry.model.rounds) ? Math.max(1, Math.min(3, entry.model.rounds)) : 3;
+        const acKept = acBonus ? Math.max(0, ctx.exposure(node) - ctx.exposure({ ...node, acDelta: acBonus })) * acRounds : 0;
+        const withoutAc = acBonus ? { ...entry.model, modifiers: entry.model.modifiers.filter((modifier) => modifier.on !== "ac") } : entry.model;
+        let benefit = effectBenefit(withoutAc, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1, { state, ownSide: true })
+            + 3 * ctx.profile.selfPreservation * acKept / remainingHp(c)
             // (Kept off what reaches it from where this plan has it: all of it beside a foe, less out of reach — Kinetic Dampening isn't a
             // reason to step back.)
             + 3 * ((node.pos.melee !== null ? 1 : node.pos.band === "far" ? 0.3 : 0.6) * resistanceKept(state, entry.model, c, keptRounds) - weaknessCost(state, entry.model, c, keptRounds)) / Math.max(1, c.hp?.max ?? 1);
@@ -1828,6 +1853,7 @@ function expandClassActions(env) {
             benefit += 3 * 2 * Math.max(0, best(entry.strikes) - best(c.strikes ?? [])) / Math.max(1, state.threat?.get(c.id) ?? 1);
         }
         const gain = ctx.ownValue * benefit * ROUND_TO_KILL;
+
         const cost = entry.shell ? remaining : entry.actions;
         if (gain > 0) children.push(child(node, { type: "selfEffect", index, actions: cost }, cost, gain, { cast: `self${index}` }));
     }
