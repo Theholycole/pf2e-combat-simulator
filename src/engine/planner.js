@@ -1109,6 +1109,15 @@ function expandAll(ctx, node, actionsLeft) {
                 }
             }
         }
+        // (2026-11-01, the user: "have the simulator use them as much as possible to determine how effective they are in combat" — c.forceUse:
+        // a deviant ability in every turn it can go, ahead of anything else, whatever its risk; its best use the beam's.)
+        if (c.forceUse && !node.casts.includes("forced")) {
+            for (const next of children) {
+                if (!deviantEntryOf(c, next.last)) continue;
+                next.value += 10 * ctx.ownValue;
+                next.casts = [...next.casts, "forced"];
+            }
+        }
     }
     // Moving away.
     if (!mobile) {

@@ -403,12 +403,16 @@ export function deviantList() {
         const awakenAt = Math.max(level, level <= 4 ? 4 : 10);
         out.push({ name: doc.name, slug, level, variant: "plain", awakenings: [] });
         out.push({ name: doc.name, slug, level, variant: "no backlash", awakenings: [], noBacklash: true });
-        for (const key of entry.awakenings) out.push({ name: doc.name, slug, level: awakenAt, variant: `awakening: ${key}`, awakenings: [key], against: true });
+        // (2026-11-01, the user: "have the simulator use them as much as possible": all out — in every turn it can, deviant.js's risk or not;
+        // its awakenings measured all out too, against the plain feat all out.)
+        out.push({ name: doc.name, slug, level, variant: "all out", awakenings: [], force: true });
+        out.push({ name: doc.name, slug, level, variant: "all out, no backlash", awakenings: [], noBacklash: true, force: true });
+        for (const key of entry.awakenings) out.push({ name: doc.name, slug, level: awakenAt, variant: `awakening: ${key}`, awakenings: [key], against: true, force: true });
     }
     return out;
 }
 
-export function deviantParty(task, awakenings, { noBacklash = false, hand = false } = {}) {
+export function deviantParty(task, awakenings, { noBacklash = false, hand = false, force = false } = {}) {
     const party = partyFor(task.level);
     const host = party.find((c) => c.id === "fighter");
     const dcs = dcsOf(host);
@@ -426,6 +430,7 @@ export function deviantParty(task, awakenings, { noBacklash = false, hand = fals
     const pc = withIt.find((c) => c.id === "fighter");
     joinBuiltins(pc, made.fields);
     if (noBacklash) pc.noBacklash = true;
+    if (force) pc.forceUse = true;
     return { party: withIt, plain: needsHand ? base : null, played: made.played, loadout: needsHand ? "a one-handed weapon and a free hand" : null };
 }
 
@@ -464,10 +469,11 @@ function dayFights(party, foes, count, { log = false } = {}) {
 export function deviantTask(task) {
     const head = { kind: "deviant", name: task.name, slug: task.slug, level: task.level, variant: task.variant, host: "fighter" };
     // (An awakening: against the plain feat at that level, on the same loadout.)
-    let against = task.against ? deviantParty(task, []) : null;
-    const built = deviantParty(task, task.awakenings, { noBacklash: task.noBacklash, hand: !!against?.loadout });
+    const force = !!task.force;
+    let against = task.against ? deviantParty(task, [], { force }) : null;
+    const built = deviantParty(task, task.awakenings, { noBacklash: task.noBacklash, hand: !!against?.loadout, force });
     if (built.skipped) return { ...head, skipped: true, reason: built.reason };
-    if (against && !against.skipped && built.loadout && !against.loadout) against = deviantParty(task, [], { hand: true });
+    if (against && !against.skipped && built.loadout && !against.loadout) against = deviantParty(task, [], { hand: true, force });
     // (An awakening that changes nothing a fight plays — moving creatures about, senses, out-of-fight uses.)
     if (against && !against.skipped && JSON.stringify(against.party) === JSON.stringify(built.party)) return { ...head, skipped: true, reason: "the awakening only does what a fight here doesn't play" };
     const results = {};

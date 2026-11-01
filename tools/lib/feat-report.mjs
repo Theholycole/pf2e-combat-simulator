@@ -101,10 +101,13 @@ export function deviantReport(rows) {
     const uses = (row) => Math.max(row.results.boss.uses, row.results.group.uses);
     const backlashes = (row) => (row.results.boss.backlashes + row.results.group.backlashes) / 2;
     const avgOf = (row, key) => (Number.isFinite(row.results.boss[key]) && Number.isFinite(row.results.group[key]) ? (row.results.boss[key] + row.results.group[key]) / 2 : NaN);
-    const plain = ok.filter((row) => row.variant === "plain").map((row) => {
-        const free = ok.find((other) => other.slug === row.slug && other.variant === "no backlash");
+    const ranked = (variant, freeVariant) => ok.filter((row) => row.variant === variant).map((row) => {
+        const free = ok.find((other) => other.slug === row.slug && other.variant === freeVariant);
         return { name: row.name, slug: row.slug, level: row.level, played: row.played, loadout: row.loadout ?? null, levels: row.levels, se: row.se, boss: row.results.boss.levels, group: row.results.group.levels, uses: uses(row), backlashes: backlashes(row), severe: avgOf(row, "severe"), danger: avgOf(row, "score"), plainDanger: avgOf(row, "plainScore"), backlashCost: free ? free.levels - row.levels : null, verdict: verdict(row) };
     }).sort((a, b) => b.levels - a.levels);
+    const plain = ranked("plain", "no backlash");
+    const allOut = ranked("all out", "all out, no backlash");
+    const chosen = new Map(plain.map((row) => [row.slug, row]));
     const awakenings = ok.filter((row) => row.variant.startsWith("awakening")).map((row) => ({ name: row.name, slug: row.slug, awakening: row.variant.slice("awakening: ".length), level: row.level, gain: row.levels, se: row.se, uses: uses(row), backlashes: backlashes(row), verdict: verdict(row) })).sort((a, b) => b.gain - a.gain);
     const skipped = rows.filter((row) => row.skipped);
     const danger = (value) => (Number.isFinite(value) ? value.toFixed(3) : "—");
@@ -117,7 +120,15 @@ export function deviantReport(rows) {
         "",
         "Ratings are in levels of the foes (+0.25: like fighting foes a quarter of a level lower). **Backlash cost** is the rating without backlash less the rating with it.",
         "",
-        "## Ranked",
+        "## All out",
+        "",
+        "Each ability used in every turn it can be (ahead of anything else, whatever the backlash risk), against the same party without it. **As the AI chooses** is the rating below, where the AI weighs the risk.",
+        "",
+        "| # | Ability | Lvl | Played as | Rating all out | Boss | Group | As the AI chooses | Danger with | Danger without | Backlash cost | Uses a fight | Backlashes a fight | Severe a fight | Verdict |",
+        "|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+        ...allOut.map((row, index) => `| ${index + 1} | ${escape(row.name)}${row.loadout ? " (one-handed weapon, free hand)" : ""} | ${row.level} | ${row.played} | ${fmt(row.levels)} ± ${row.se.toFixed(2)} | ${fmt(row.boss)} | ${fmt(row.group)} | ${chosen.has(row.slug) ? fmt(chosen.get(row.slug).levels) : "—"} | ${danger(row.danger)} | ${danger(row.plainDanger)} | ${fmt(row.backlashCost)} | ${row.uses.toFixed(1)} | ${row.backlashes.toFixed(2)} | ${Number.isFinite(row.severe) ? row.severe.toFixed(2) : "—"} | ${row.verdict} |`),
+        "",
+        "## As the AI chooses",
         "",
         "| # | Ability | Lvl | Played as | Rating | Boss | Group | Danger with | Danger without | Backlash cost | Uses a fight | Backlashes a fight | Severe a fight | Verdict |",
         "|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
@@ -125,7 +136,7 @@ export function deviantReport(rows) {
         "",
         "## Awakenings",
         "",
-        "Each awakening alone, at the level Awakened Power (4th) or Greater Awakened Power (10th) gives it, against the plain feat at that level.",
+        "Each awakening alone, at the level Awakened Power (4th) or Greater Awakened Power (10th) gives it, against the plain feat at that level, both used all out.",
         "",
         "| # | Ability | Awakening | Lvl | Gain over plain | Uses a fight | Backlashes a fight | Verdict |",
         "|---:|---|---|---:|---:|---:|---:|---|",
@@ -135,8 +146,8 @@ export function deviantReport(rows) {
         "",
         "| Ability | Variant | Why |",
         "|---|---|---|",
-        ...skipped.filter((row) => row.variant !== "no backlash").map((row) => `| ${escape(row.name)} | ${row.variant} | ${escape(row.reason)} |`),
+        ...skipped.filter((row) => !["no backlash", "all out", "all out, no backlash"].includes(row.variant)).map((row) => `| ${escape(row.name)} | ${row.variant} | ${escape(row.reason)} |`),
         ""
     ];
-    return { markdown: lines.join("\n"), json: { version: 1, kind: "deviant", generated: new Date().toISOString(), rated: plain, awakenings, skipped: skipped.map((row) => ({ name: row.name, variant: row.variant, reason: row.reason })) } };
+    return { markdown: lines.join("\n"), json: { version: 1, kind: "deviant", generated: new Date().toISOString(), rated: plain, allOut, awakenings, skipped: skipped.map((row) => ({ name: row.name, variant: row.variant, reason: row.reason })) } };
 }
