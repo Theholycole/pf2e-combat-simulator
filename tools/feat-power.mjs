@@ -72,6 +72,20 @@ if (!isMainThread) {
         fs.writeFileSync(`${out}/deviant-ratings.json`, `${JSON.stringify(json)}\n`);
         fs.writeFileSync(`${out}/deviant-power.md`, markdown);
         console.log(`${json.rated.length} rated → ${out}/deviant-power.md`);
+    } else if (phase === "compendium") {
+        // (2026-11-01, Cole: "put every feat's power next to it in the compendium browser": src/data/feat-ratings.json, which
+        // scripts/danger.js shows beside each feat and action in compendium windows and PF2e's Compendium Browser.)
+        const { featRefs, docsOf } = await import("./lib/feat-power.mjs");
+        const { featCompendiumData } = await import("./lib/feat-report.mjs");
+        const ratings = JSON.parse(fs.readFileSync(`${out}/ratings.json`, "utf8"));
+        const deviant = fs.existsSync(`${out}/deviant-ratings.json`) ? JSON.parse(fs.readFileSync(`${out}/deviant-ratings.json`, "utf8")) : null;
+        const refs = featRefs();
+        const slugOf = (ref) => docsOf(ref.path).get(ref.id)?.system?.slug ?? null;
+        const ancestry = fs.existsSync(`${out}/ancestry-ratings.json`) ? JSON.parse(fs.readFileSync(`${out}/ancestry-ratings.json`, "utf8")) : null;
+        const data = featCompendiumData({ rated: ratings.rated, deviant, ancestry, refs, slugOf });
+        const target = process.argv.find((arg) => arg.startsWith("--write="))?.split("=")[1] ?? "src/data/feat-ratings.json";
+        fs.writeFileSync(target, `${JSON.stringify(data)}\n`);
+        console.log(`${Object.values(data.ratings).reduce((sum, pack) => sum + Object.keys(pack).length, 0)} feats and actions → ${target}`);
     } else if (phase === "report") {
         const { featReport } = await import("./lib/feat-report.mjs");
         const target = process.argv.find((arg) => arg.startsWith("--write="))?.split("=")[1] ?? `${out}/ratings.json`;

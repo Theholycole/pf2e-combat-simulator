@@ -320,3 +320,55 @@ export function preferencesTooltip(picks, data) {
         html: `${lines.map(([head, body]) => `<p><strong>${escapeHTML(head)}:</strong> ${escapeHTML(body)}</p>`).join("")}<p class="pcs-prefs-note">${escapeHTML(note)}</p>`
     };
 }
+
+// --- Feats and actions (2026-11-01, Cole: "put every feat's power next to it in the compendium browser") -----------------------------
+// Their numbers (src/data/feat-ratings.json, from `node tools/feat-power.mjs <run> compendium`): levels of the foes' strength a feat is
+// worth, whole fights with it and without it on the same dice. Smaller than a creature's or a spell's, so to the hundredth.
+
+// "+0.68", "−0.05", "0.00".
+export function featLabel(value) {
+    if (!Number.isFinite(value)) return "";
+    const rounded = Math.round(value * 100) / 100;
+    return rounded === 0 ? "0.00" : `${rounded > 0 ? "+" : "−"}${Math.abs(rounded).toFixed(2)}`;
+}
+
+// Its colour: strong (+0.25 and up), good (+0.08), even, weak (−0.08), bad (−0.25 and down) — the creature bands' classes.
+export function featBand(value) {
+    if (!Number.isFinite(value)) return null;
+    return value >= 0.25 ? "high" : value >= 0.08 ? "up" : value > -0.08 ? "even" : value > -0.25 ? "down" : "low";
+}
+
+const featDetailOf = (data, collection, id) => data?.detail?.[collection]?.[id] ?? null;
+export { featDetailOf };
+const hundredths = (value) => `${Math.abs(Math.round(value * 100) / 100).toFixed(2)} level${Math.abs(Math.round(value * 100) / 100) === 1 ? "" : "s"}`;
+const ease = (value) => (Math.round(value * 100) === 0 ? "no easier or harder" : `${hundredths(value)} ${value > 0 ? "easier" : "harder"}`);
+
+// Its words when hovered: what it does to a fight, who in the party had it, and how it was played.
+export function featTooltip(value, data, detail = null) {
+    if (!Number.isFinite(value)) return "";
+    const rounded = Math.round(value * 100) / 100;
+    const head = rounded === 0 ? "No clear effect in combat." : `Makes a fight about as ${rounded > 0 ? "easy" : "hard"} as one against foes ${hundredths(rounded)} ${rounded > 0 ? "lower" : "higher"}.`;
+    const who = detail?.host ? `On the ${detail.host} of a party of four (fighter, rogue, wizard, cleric) at level ${detail.level}` : "In a party of four";
+    const fights = detail && Number.isFinite(detail.boss) && Number.isFinite(detail.group) ? ` ${who}: a fight with a boss ${ease(detail.boss)}, one with a group ${ease(detail.group)}${Number.isFinite(detail.uses) && detail.uses > 0 ? `, used ${detail.uses.toFixed(1)} times a fight` : ""}.` : "";
+    const played = detail?.played ? ` Played as: ${detail.played}${detail.loadout ? `, with ${detail.loadout}` : ""}.` : "";
+    const deviant = detail?.deviant ? ` Over a day of 4 fights with its backlash: ${detail.deviant.backlashes.toFixed(2)} backlashes a fight${Number.isFinite(detail.deviant.allOut) ? `; used at every chance, ${featLabel(detail.deviant.allOut)}` : ""}.` : "";
+    const situational = detail?.situational ? " Some of what it does depends on the situation; this counts it as always on." : "";
+    const margin = Number.isFinite(detail?.se) ? ` (± ${detail.se.toFixed(2)})` : "";
+    const run = data?.generated ? ` Combat Simulator, ${data.generated}; combat only.` : " Combat Simulator; combat only.";
+    return `${featLabel(value)}${margin} — ${head}${fights}${played}${deviant}${situational}${run}`;
+}
+
+// Ancestries, heritages and backgrounds (tools/ancestry-power.mjs; the same file): levels of the foes' strength, on one PC of the party at a
+// time, averaged over the PCs and levels.
+const PC_NAMES = { fighter: "fighter", rogue: "rogue", wizard: "wizard", cleric: "cleric" };
+export function characterTooltip(value, data, detail = null) {
+    if (!Number.isFinite(value)) return "";
+    const rounded = Math.round(value * 100) / 100;
+    const what = detail?.kind === "heritage" ? `this heritage (over ${detail.ancestry ?? "its ancestry"} alone)` : detail?.kind === "background" ? "this background" : "this ancestry (against a human)";
+    const head = rounded === 0 ? `No clear effect in combat from ${what}.` : `With ${what}, a fight is about as ${rounded > 0 ? "easy" : "hard"} as one against foes ${hundredths(rounded)} ${rounded > 0 ? "lower" : "higher"}.`;
+    const hosts = Object.entries(detail?.byHost ?? {}).map(([host, each]) => `${PC_NAMES[host] ?? host} ${featLabel(each)}`).join(", ");
+    const levels = Object.entries(detail?.byLevel ?? {}).map(([level, each]) => `level ${level} ${featLabel(each)}`).join(", ");
+    const adds = detail?.kind === "background" ? [...(detail.feats ?? []), ...(detail.skills ?? []).map((skill) => `trained ${skill}`)].join(", ") : "";
+    const margin = Number.isFinite(detail?.se) ? ` (± ${detail.se.toFixed(2)})` : "";
+    return `${featLabel(value)}${margin} — ${head}${hosts ? ` By PC: ${hosts}.` : ""}${levels ? ` By level: ${levels}.` : ""}${adds ? ` Counted: ${adds}${detail.host ? `, on the ${detail.host}` : ""}.` : ""} Ability boosts aren't counted; fights in bright light. Combat Simulator${data?.generated ? `, ${data.generated}` : ""}; combat only.`;
+}

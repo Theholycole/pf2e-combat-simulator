@@ -151,3 +151,46 @@ export function deviantReport(rows) {
     ];
     return { markdown: lines.join("\n"), json: { version: 1, kind: "deviant", generated: new Date().toISOString(), rated: plain, allOut, awakenings, skipped: skipped.map((row) => ({ name: row.name, variant: row.variant, reason: row.reason })) } };
 }
+
+// --- The compendium numbers ------------------------------------------------------
+// (2026-11-01, Cole: "put every feat's power next to it in the compendium browser".) The ratings by compendium and id, as
+// src/data/feat-ratings.json keeps them for scripts/danger.js: { version, kind: "feats", ratings: { collection: { id: levels } },
+// detail: { collection: { id: { level, host, played, boss, group, uses, se, verdict, loadout, situational, deviant } } } }.
+// The PF2e system's packs by their folder (static/system.json): feats → feats-srd, actions → actionspf2e; a module's by "<module>/<name>".
+const PF2E_PACKS = { feats: "feats-srd", actions: "actionspf2e" };
+const collectionOf = (ref) => (ref.source === "pf2e" ? `pf2e.${PF2E_PACKS[ref.pack] ?? ref.pack}` : ref.pack.replace("/", "."));
+const hundredth = (value) => Math.round(value * 100) / 100;
+export function featCompendiumData({ rated, deviant = null, ancestry = null, refs = [], slugOf = () => null, now = new Date().toISOString() }) {
+    const ratings = {};
+    const detail = {};
+    const put = (ref, value, info) => {
+        const collection = collectionOf(ref);
+        (ratings[collection] ??= {})[ref.id] = hundredth(value);
+        (detail[collection] ??= {})[ref.id] = info;
+    };
+    const byRef = new Map(refs.map((ref) => [ref.ref, ref]));
+    for (const row of rated ?? []) {
+        const ref = byRef.get(row.ref) ?? (() => {
+            const [source, pack, id] = String(row.ref).split(":");
+            return { source, pack, id };
+        })();
+        put(ref, row.levels, { level: row.level, host: row.host, played: row.played, boss: hundredth(row.boss), group: hundredth(row.group), uses: hundredth(row.uses ?? 0), se: hundredth(row.se), verdict: row.verdict, ...(row.loadout ? { loadout: row.loadout } : {}), ...(row.situational ? { situational: true } : {}) });
+    }
+    // (The deviant abilities: as the AI uses them over a day of four fights, and used all out.)
+    const allOut = new Map((deviant?.allOut ?? []).map((row) => [row.slug ?? row.name, row]));
+    const bySlug = new Map(refs.filter((ref) => ref.source === "pf2e" && ref.pack === "feats").map((ref) => [slugOf(ref), ref]));
+    for (const row of deviant?.rated ?? []) {
+        const ref = bySlug.get(row.slug) ?? refs.find((each) => each.source === "pf2e" && each.pack === "feats" && each.name === row.name);
+        if (!ref) continue;
+        const all = allOut.get(row.slug ?? row.name);
+        put(ref, row.levels, { level: row.level, host: "fighter", played: row.played, boss: hundredth(row.boss), group: hundredth(row.group), uses: hundredth(row.uses ?? 0), se: hundredth(row.se), verdict: row.verdict, ...(row.loadout ? { loadout: row.loadout } : {}), deviant: { backlashes: hundredth(row.backlashes ?? 0), severe: hundredth(row.severe ?? 0), ...(all ? { allOut: hundredth(all.levels) } : {}) } });
+    }
+    // (2026-11-01, Cole: "Next evaluate the power of each ancestry and background": tools/ancestry-power.mjs's, in the PF2e system's packs.)
+    for (const [kind, collection] of [["ancestries", "pf2e.ancestries"], ["heritages", "pf2e.heritages"], ["backgrounds", "pf2e.backgrounds"]]) {
+        for (const row of ancestry?.[kind]?.rated ?? []) {
+            (ratings[collection] ??= {})[row.id] = hundredth(row.levels);
+            (detail[collection] ??= {})[row.id] = { kind: kind.slice(0, -1).replace(/ie$/, "y"), se: hundredth(row.se), byHost: Object.fromEntries(Object.entries(row.byHost ?? {}).map(([host, value]) => [host, hundredth(value)])), byLevel: Object.fromEntries(Object.entries(row.byLevel ?? {}).map(([level, value]) => [level, hundredth(value)])), verdict: row.verdict, ...(row.ancestry ? { ancestry: row.ancestry } : {}), ...(row.feats?.length ? { feats: row.feats } : {}), ...(row.skills?.length ? { skills: row.skills } : {}), ...(row.host ? { host: row.host } : {}) };
+        }
+    }
+    return { version: 1, kind: "feats", method: "whole fights, with vs without", run: now, generated: now.slice(0, 10), party: ["fighter", "rogue", "wizard", "cleric"], ratings, detail };
+}

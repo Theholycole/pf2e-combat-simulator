@@ -382,6 +382,11 @@ export function smoothedScale(rows) {
 export function loadScale(path) {
     scale = smoothedScale(fs.readFileSync(path, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)));
 }
+export const loadScaleOnce = (path) => {
+    if (!scale) loadScale(path);
+};
+// The plain party's fights at a level against an encounter: { scores, step, … }, or null.
+export const scaleAt = (level, kind) => scale?.get(`${level}|${kind}`) ?? null;
 
 // How often the PC uses it in a fight, from a few logged fights: the log lines that name it.
 function usesPerFight(party, foes, name) {
