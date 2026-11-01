@@ -6,6 +6,7 @@
 //                                                    --resume goes on with a stopped run; --only=<a name, an id or a ref; or a file of them>
 //   node tools/feat-power.mjs <out folder> basics    the basic actions, each left out of every PC
 //   node tools/feat-power.mjs <out folder> report    docs/feat-power.md and <out>/ratings.json (--write=<path> for the json)
+//   node tools/feat-power.mjs <out folder> deviant   the deviant abilities: plain, without backlash, each awakening (deviant-report: the table)
 //
 //   --workers N (default: the cores less two); FEAT_FIGHTS=200 fights an encounter (the default)
 import fs from "node:fs";
@@ -59,6 +60,18 @@ if (!isMainThread) {
     } else if (phase === "basics") {
         const { basicActionList } = await import("./lib/feat-power.mjs");
         await run(basicActionList().map((entry) => ({ kind: "basic", ...entry, scalePath })), "basics.jsonl");
+    } else if (phase === "deviant") {
+        // (Deviant abilities: each plain, without its backlash, and with each awakening — tools/lib/feat-power.mjs deviantTask.)
+        const { deviantList } = await import("./lib/feat-power.mjs");
+        const tasks = deviantList().map((entry) => ({ kind: "deviant", ...entry, scalePath }));
+        console.log(`${tasks.length} deviant variants`);
+        await run(tasks, "deviant.jsonl");
+    } else if (phase === "deviant-report") {
+        const { deviantReport } = await import("./lib/feat-report.mjs");
+        const { markdown, json } = deviantReport(read("deviant.jsonl"));
+        fs.writeFileSync(`${out}/deviant-ratings.json`, `${JSON.stringify(json)}\n`);
+        fs.writeFileSync(`${out}/deviant-power.md`, markdown);
+        console.log(`${json.rated.length} rated → ${out}/deviant-power.md`);
     } else if (phase === "report") {
         const { featReport } = await import("./lib/feat-report.mjs");
         const target = process.argv.find((arg) => arg.startsWith("--write="))?.split("=")[1] ?? `${out}/ratings.json`;

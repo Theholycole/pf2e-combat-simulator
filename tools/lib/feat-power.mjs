@@ -38,6 +38,7 @@ const { addBuiltin } = await import("../../src/engine/abilities.js");
 const { dangerFights, dangerSummary } = await import("../../src/engine/danger-scale.js");
 const { powerFoes } = await import("../../src/engine/spell-power.js");
 const { simulate } = await import("../../src/engine/fight.js");
+const { DEVIANT, deviantFields } = await import("../../src/engine/deviant.js");
 
 const MODULES = `${process.env.HOME}/.local/share/FoundryVTT/Data/modules`;
 export const KINDS = Object.freeze(["boss", "group"]);
@@ -377,9 +378,88 @@ export function basicTask(task) {
 
 export const basicActionList = () => Object.entries(basicActions).filter(([, plan]) => plan).map(([slug, plan]) => ({ slug, name: plan.source?.name ?? slug }));
 
+// --- Deviant abilities (2026-11-01, the user: "make all deviant abilities and their backlashes work in the simulator and rank them") ---
+// Each deviant feat on the fighter (its deviation DC the higher of its class and spell DCs): plain at the feat's level, then without its
+// backlash (what the backlash costs), then each awakening alone at the level Awakened Power (4th) or Greater Awakened Power (10th) brings
+// it, against the plain feat there. A feat that needs a free hand: the fighter with a one-handed weapon and a free hand, both sides.
+export function deviantList() {
+    const out = [];
+    for (const ref of featRefs()) {
+        const doc = docsOf(ref.path).get(ref.id);
+        if (!(doc?.system?.traits?.value ?? []).includes("deviant") || ref.source !== "pf2e") continue;
+        const slug = (doc.name ?? "").toLowerCase().replace(/\(deviant\)/, "deviant").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        const entry = DEVIANT[slug];
+        if (!entry) continue;
+        const level = partyLevelOf(doc.system?.level?.value);
+        const awakenAt = Math.max(level, level <= 4 ? 4 : 10);
+        out.push({ name: doc.name, slug, level, variant: "plain", awakenings: [] });
+        out.push({ name: doc.name, slug, level, variant: "no backlash", awakenings: [], noBacklash: true });
+        for (const key of entry.awakenings) out.push({ name: doc.name, slug, level: awakenAt, variant: `awakening: ${key}`, awakenings: [key], against: true });
+    }
+    return out;
+}
+
+function deviantParty(task, awakenings, { noBacklash = false } = {}) {
+    const party = partyFor(task.level);
+    const host = party.find((c) => c.id === "fighter");
+    const dcs = dcsOf(host);
+    const dc = Math.max(dcs.class ?? 0, dcs.spell ?? 0) || 10 + task.level + 4;
+    const made = deviantFields(task.slug, task.level, dc, awakenings);
+    if (made.gap) return { skipped: true, reason: made.gap };
+    const needsHand = (made.fields.spells ?? []).some((entry) => entry.deviantRequires === "free hand") && !WIELDS.fighter.freeHand;
+    const base = needsHand ? clone(party) : party;
+    if (needsHand) {
+        const pc = base.find((c) => c.id === "fighter");
+        pc.strikes = LOADOUTS["a one-handed weapon and a free hand"].strikes(pc.strikes);
+    }
+    const withIt = clone(base);
+    const pc = withIt.find((c) => c.id === "fighter");
+    joinBuiltins(pc, made.fields);
+    if (noBacklash) pc.noBacklash = true;
+    return { party: withIt, plain: needsHand ? base : null, played: made.played, loadout: needsHand ? "a one-handed weapon and a free hand" : null };
+}
+
+export function deviantTask(task) {
+    const built = deviantParty(task, task.awakenings, { noBacklash: task.noBacklash });
+    const head = { kind: "deviant", name: task.name, slug: task.slug, level: task.level, variant: task.variant, host: "fighter" };
+    if (built.skipped) return { ...head, skipped: true, reason: built.reason };
+    // (An awakening: against the plain feat at that level.)
+    const against = task.against ? deviantParty(task, []) : null;
+    // (An awakening that changes nothing a fight plays — moving creatures about, senses, out-of-fight uses.)
+    if (against && !against.skipped && JSON.stringify(against.party) === JSON.stringify(built.party)) return { ...head, skipped: true, reason: "the awakening only does what a fight here doesn't play" };
+    const results = {};
+    for (const kind of KINDS) {
+        const scaled = scale?.get(`${task.level}|${kind}`);
+        if (!scaled) return { ...head, error: `no scale for level ${task.level} ${kind}` };
+        const foes = powerFoes(kind, task.level);
+        const plainScores = against && !against.skipped ? dangerSummary(dangerFights(against.party, foes, 0, FIGHTS)).scores : built.plain ? dangerSummary(dangerFights(built.plain, foes, 0, FIGHTS)).scores : scaled.scores;
+        const fights = dangerSummary(dangerFights(built.party, foes, 0, FIGHTS));
+        const diffs = fights.scores.map((score, index) => score - plainScores[index]);
+        const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
+        const sd = Math.sqrt(diffs.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
+        // (Uses and backlashes a fight, from a dozen logged fights.)
+        let uses = 0;
+        let backlashes = 0;
+        const pattern = new RegExp(`(?<![\\w'])${task.name.replace(/\s*\(Deviant\)/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+        for (let seed = 0; seed < LOGGED; seed++) {
+            const log = simulate({ combatants: [...built.party, ...foes] }, { morale: false, retreat: false }, seed, { log: true }).log ?? [];
+            for (const line of log) {
+                const text = typeof line === "string" ? line : line?.text ?? "";
+                if (/^\s+Fighter uses /.test(text) && pattern.test(text)) uses++;
+                if (/^\s+Fighter suffers \w+ backlash/.test(text)) backlashes++;
+            }
+        }
+        results[kind] = { delta: mean, levels: -mean / scaled.step, levelsSe: sd / Math.sqrt(diffs.length) / scaled.step, uses: uses / LOGGED, backlashes: backlashes / LOGGED };
+    }
+    const levels = KINDS.reduce((sum, kind) => sum + results[kind].levels, 0) / KINDS.length;
+    const se = Math.sqrt(KINDS.reduce((sum, kind) => sum + results[kind].levelsSe ** 2, 0)) / KINDS.length;
+    return { ...head, played: built.played, ...(built.loadout ? { loadout: built.loadout } : {}), results, levels, se };
+}
+
 export async function runFeatTask(task) {
     if (task.kind === "scale") return scaleTask(task);
     if (task.scalePath && !scale) loadScale(task.scalePath);
     if (task.kind === "basic") return basicTask(task);
+    if (task.kind === "deviant") return deviantTask(task);
     return featTask(task);
 }

@@ -9,7 +9,8 @@
 
 import { degreeDistribution, degreeOf, CRITICAL_SUCCESS, SUCCESS, FAILURE, CRITICAL_FAILURE } from "./checks.js";
 import { adjustInstance, strikeContext } from "./damage.js";
-import { effectBenefit } from "./effects.js";
+import { effectBenefit, resistanceKept, weaknessCost } from "./effects.js";
+import { deviantEntryOf, deviantRisk } from "./deviant.js";
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hinderedBy, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
@@ -959,7 +960,9 @@ function child(node, action, cost, value, changes = {}) {
         sunk: changes.sunk ?? node.sunk,
         burning: changes.burning ?? node.burning,
         atItem: changes.atItem ?? (changes.pos && changes.pos !== node.pos && changes.pos.melee !== null ? false : node.atItem),
-        first: node.first ?? action
+        first: node.first ?? action,
+        // (Its own action — a deviant ability's, for its risk: expandAll.)
+        last: action
     };
 }
 
@@ -1065,6 +1068,21 @@ function expandAll(ctx, node, actionsLeft) {
         expandClassActions(env);
         expandTactics(env);
         expandOtherActions(env);
+        // (2026-11-01, deviant abilities — deviant.js: none once its deviations are spent; otherwise each plan with one pays its backlash's
+        // risk, once a plan, so the AI weighs it as a player does.)
+        if (c.deviantClassification) {
+            const risk = deviantRisk(c, conditionWorth);
+            const planned = node.casts.includes("deviant");
+            for (let index = children.length - 1; index >= 0; index--) {
+                const next = children[index];
+                if (!deviantEntryOf(c, next.last)) continue;
+                if (!Number.isFinite(risk)) children.splice(index, 1);
+                else if (!planned) {
+                    next.value -= ctx.ownValue * risk * ROUND_TO_KILL;
+                    next.casts = [...next.casts, "deviant"];
+                }
+            }
+        }
     }
     // Moving away.
     if (!mobile) {
@@ -1514,6 +1532,8 @@ function expandStrikeActivities(env) {
     for (const [activityIndex, activity] of (c.strikeActivities ?? []).entries()) {
         if (restrained || noAttacks || activity.actions > remaining || (activity.oncePerFight && c.activitiesUsed?.has(activityIndex))) continue;
         if (activity.flourish && flourishUsed(c, node)) continue;
+        // (2026-11-01, Lightspeed Assault: another Stride and Strike only after its last Strike this turn hit; one at a time.)
+        if (activity.deviant?.oncePerTurn && (node.casts.includes(`sa${activityIndex}`) || (c.usedThisTurn?.has(`deviant:${activity.name}`) && !(node.used === 0 && c.lastStrike?.round === state.round && c.lastStrike.degree >= SUCCESS)))) continue;
         // (B199, Uncanny Pounce: only as it rolls initiative.)
         if (activity.initiative) continue;
         // "Frequency once per round" (Wriggling Beard).
@@ -1603,7 +1623,7 @@ function expandStrikeActivities(env) {
                 attacks: activity.noMap || activity.previousMap ? 0 : activity.countsAs ?? 1,
                 pos,
                 damage: { ...node.damage, [target.id]: before + expected },
-                ...(activity.finisher || activity.coverFire || activity.flourish || activity.oncePerTurn || activity.pool ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : []), ...(activity.oncePerTurn ? [`sa${activityIndex}`] : []), ...(activity.pool ? [`pool:${activity.pool}`] : [])] } : {})
+                ...(activity.finisher || activity.coverFire || activity.flourish || activity.oncePerTurn || activity.deviant?.oncePerTurn || activity.pool ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : []), ...(activity.oncePerTurn || activity.deviant?.oncePerTurn ? [`sa${activityIndex}`] : []), ...(activity.pool ? [`pool:${activity.pool}`] : [])] } : {})
             });
             if (activity.strides && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
             children.push(next);
@@ -1772,7 +1792,13 @@ function expandClassActions(env) {
         // (B155: only while its rage lasts; B158, Mountain Stronghold: only while its own stance is on it.)
         if (entry.whileRaging && !isRaging(c)) continue;
         if (entry.requiresEffect && !(c.effects ?? []).some((effect) => effect.key === `self:${entry.requiresEffect}`)) continue;
-        let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1);
+        // (2026-11-01, Starlight Armor's resistance 10 to each physical type: counted, out of a fight's context, as 0.02 a point a round for each
+        // type — three times over, and whether or not anything is hitting it —, so the fighter spent its first round on it at range while the
+        // boss hit the rogue. Now as a spell's on its target: the Hit Points it keeps off the foes' Strikes, its share of them —
+        // resistanceKept —, and a weakness's cost.)
+        const keptRounds = Number.isFinite(entry.model.rounds) ? Math.max(0.5, Math.min(3, entry.model.rounds)) : 3;
+        let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1, { state, ownSide: true })
+            + 3 * (resistanceKept(state, entry.model, c, keptRounds) - weaknessCost(state, entry.model, c, keptRounds)) / Math.max(1, c.hp?.max ?? 1);
         // Its measured change to the Strikes (Arcane Cascade's force damage): about three rounds of it.
         const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);
         let perRound = 0;

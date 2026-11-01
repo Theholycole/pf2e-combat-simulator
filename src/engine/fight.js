@@ -27,6 +27,7 @@ import { noteStatesTurnStart } from "./note-states.js";
 import { floorOf } from "./floors.js";
 import { buildEnvironment, covenCast, covenTurnStart, hiddenAtTurnStart, lightAtStart, sunlightTurnEnd, terrainTurn } from "./environment.js";
 import { lightTurnStart } from "./light.js";
+import { deviantEntryOf, deviantTurnStart, deviantUsed } from "./deviant.js";
 import { attachedTurnStart, berserkTurnStart, followAttached, headsMend, hydraRegrow, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
 import { controlTurnStart } from "./control.js";
 import { familiarFocus, familiarKeepsUp } from "./familiars.js";
@@ -504,6 +505,8 @@ function startTurn(state, c) {
     const fastHealing = fastHealingNow(state, c);
     if (fastHealing > 0) applyHeal(state, c, fastHealing);
     if (regenerating(c, state) && c.regeneratedRound !== state.round) applyHeal(state, c, c.regeneration.value);
+    // (High-Speed Regeneration, a deviant ability: at the start of its turn — deviant.js.)
+    if (c.deviantRegeneration) deviantTurnStart(state, c);
     // (H1: a hydra's stumps regrow heads after it regenerates.)
     if (c.hydra?.stumps && regenerating(c, state)) hydraRegrow(state, c);
 }
@@ -730,6 +733,13 @@ function reloadWords(c, strike) {
 }
 
 function act(state, c, action) {
+    // (2026-11-01: a deviant ability's flat check and backlash, after it's used — deviant.js.)
+    const deviant = deviantEntryOf(c, action);
+    actOn(state, c, action);
+    if (deviant) deviantUsed(state, c, deviant, { affected: [].concat(action.targetIds ?? action.targetId ?? []).map((id) => state.byId.get(id)).filter(Boolean) });
+}
+
+function actOn(state, c, action) {
     // A rider (Grab, Knockdown) must follow the Strike straight away.
     const rider = c.riderReady;
     c.riderReady = null;

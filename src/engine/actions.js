@@ -3,6 +3,7 @@
 // hero points.
 
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, SUCCESS, degreeDistribution, degreeOf, flatCheck, levelDC, rollCheck } from "./checks.js";
+import { deviantUsable, deviantUsed } from "./deviant.js";
 import { moderate } from "./creature-tables.js";
 import { approach, isMapObjective, leftItem, moveTo, moveToward, reachItem } from "./map-objectives.js";
 import { raiseAlarm, strideOutOf, strideToGong } from "./escalations.js";
@@ -520,10 +521,12 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         spendReaction(target, target.misfortuneReaction.name);
         log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
     } else if (foresightReact(state, target, attacker)) misfortune = true;
-    else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && !target.reactions?.aoo && dodges(target.acReaction, strike, state, target)) {
+    else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && (!target.reactions?.aoo || target.acReaction.deviant) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.deviant || deviantUsable(target))) {
         defence = target.acReaction.value;
         spendReaction(target, target.acReaction.name);
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
+        // (2026-11-01, Defensive Growth, a deviant ability: its flat check and backlash — deviant.js.)
+        if (target.acReaction.deviant) deviantUsed(state, target, target.acReaction, { affected: [attacker] });
     }
     // (S54, Sure Strike: its next attack roll twice, the better kept.)
     const own = reaction ? null : takeAttackFortune(attacker);
@@ -598,11 +601,18 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     }
     // Shadow Evade and the like: when the attack hits, its reaction makes the attacker roll a flat check; a failure misses.
     const conceal = target.concealReaction;
-    if (degree >= SUCCESS && conceal && (!conceal.ranged || !strike.melee) && canReact(target, conceal.name)) {
+    // (2026-11-01, Eerie Flicker, a deviant ability: not once its deviations are spent; its flat check and backlash after — deviant.js —,
+    // concealed for a round after, and its terrify awakening's frightened 1 on an attacker that fails.)
+    if (degree >= SUCCESS && conceal && (!conceal.ranged || !strike.melee) && canReact(target, conceal.name) && (!conceal.deviant || deviantUsable(target)) && !(conceal.concealAfter && target.cond.concealed)) {
         spendReaction(target, conceal.name);
         const flat = state.rng.d20();
         log(state, `  ${target.name} uses ${conceal.name} (${attacker.name}'s flat ${flat} vs DC ${conceal.dc})`);
-        if (flat < conceal.dc) degree = FAILURE;
+        if (flat < conceal.dc) {
+            degree = FAILURE;
+            if (conceal.terrify && isActive(attacker) && applyCondition(state, attacker, "frightened", 1, null, target)) log(state, `  ${attacker.name} is frightened 1`);
+        }
+        if (conceal.concealAfter && isActive(target) && applyCondition(state, target, "concealed", null, { mode: "fixed", value: conceal.concealAfter, unit: "rounds" }, target)) log(state, `  ${target.name} is concealed`);
+        if (conceal.deviant) deviantUsed(state, target, conceal, { affected: [attacker] });
     }
     // Resilient Form and the like: a critical hit on it becomes a normal hit on a flat check.
     const downgrade = target.critDowngrade;
@@ -1561,7 +1571,7 @@ function releaseAllSwallowed(state, swallower, how) {
 
 // (2026-10-21: credit — whose damage its ticks are, for damageBy: the side that put it on, and whether the foes made the party do it. The
 // higher of a type applies, so a stronger one's source takes it over.)
-function addPersistent(target, instance, source = null) {
+export function addPersistent(target, instance, source = null) {
     if ((target.immunities ?? []).includes(instance.type)) return;
     const existing = target.persistent.find((entry) => entry.type === instance.type);
     const credit = source ? { side: source.side, induced: foesInduced(source, target) } : null;
