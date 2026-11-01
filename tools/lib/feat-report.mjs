@@ -100,24 +100,28 @@ export function deviantReport(rows) {
     const ok = rows.filter((row) => !row.skipped && !row.error && Number.isFinite(row.levels));
     const uses = (row) => Math.max(row.results.boss.uses, row.results.group.uses);
     const backlashes = (row) => (row.results.boss.backlashes + row.results.group.backlashes) / 2;
+    const avgOf = (row, key) => (Number.isFinite(row.results.boss[key]) && Number.isFinite(row.results.group[key]) ? (row.results.boss[key] + row.results.group[key]) / 2 : NaN);
     const plain = ok.filter((row) => row.variant === "plain").map((row) => {
         const free = ok.find((other) => other.slug === row.slug && other.variant === "no backlash");
-        return { name: row.name, slug: row.slug, level: row.level, played: row.played, loadout: row.loadout ?? null, levels: row.levels, se: row.se, boss: row.results.boss.levels, group: row.results.group.levels, uses: uses(row), backlashes: backlashes(row), backlashCost: free ? free.levels - row.levels : null, verdict: verdict(row) };
+        return { name: row.name, slug: row.slug, level: row.level, played: row.played, loadout: row.loadout ?? null, levels: row.levels, se: row.se, boss: row.results.boss.levels, group: row.results.group.levels, uses: uses(row), backlashes: backlashes(row), severe: avgOf(row, "severe"), danger: avgOf(row, "score"), plainDanger: avgOf(row, "plainScore"), backlashCost: free ? free.levels - row.levels : null, verdict: verdict(row) };
     }).sort((a, b) => b.levels - a.levels);
     const awakenings = ok.filter((row) => row.variant.startsWith("awakening")).map((row) => ({ name: row.name, slug: row.slug, awakening: row.variant.slice("awakening: ".length), level: row.level, gain: row.levels, se: row.se, uses: uses(row), backlashes: backlashes(row), verdict: verdict(row) })).sort((a, b) => b.gain - a.gain);
     const skipped = rows.filter((row) => row.skipped);
+    const danger = (value) => (Number.isFinite(value) ? value.toFixed(3) : "—");
     const lines = [
         "# Deviant abilities in combat",
         "",
-        `Made by \`node tools/feat-power.mjs <out> deviant\` on ${new Date().toISOString().slice(0, 10)}. Each deviant feat on the standard party's fighter (deviation DC: the higher of its class and spell DCs), at the feat's level, against a moderate boss and a moderate group, 200 fights each, with the feat and without it on the same dice. Every use rolls the flat check (DC 5, +5 per success to 20); a failure brings the classification's backlash, mild then moderate then severe, and after severe no more deviations that fight.`,
+        `Made by \`node tools/feat-power.mjs <out> deviant\` on ${new Date().toISOString().slice(0, 10)}. Each deviant feat on the standard party's fighter (deviation DC: the higher of its class and spell DCs), at the feat's level, against a moderate boss and a moderate group, 200 fights each played as 50 adventuring days of 4 fights in a row, with the feat and without it on the same dice. Every use rolls the flat check (DC 5, +5 per success to 20); a failure brings the classification's backlash, mild then moderate then severe, and after severe no more deviations that day. The deviation carries from fight to fight within a day (its DC, its backlash stage, spent or not, and whatever backlash lasts beyond a fight); Hit Points are full at each fight's start, as after a rest, and frightened ticks down as usual.`,
+        "",
+        "**Danger score** of a fight: the share of the party's total Hit Points the foes took off, +0.25 for every PC knocked out, +1 for every PC killed, +1 more if the party is wiped out (0 is a flawless win; about 0.3 to 0.5 is a typical moderate fight). **Rating**: the average drop in danger score a fight that the feat brings, against the same party without it on the same dice, divided by how much the danger score rises when the foes are one level higher.",
         "",
         "Ratings are in levels of the foes (+0.25: like fighting foes a quarter of a level lower). **Backlash cost** is the rating without backlash less the rating with it.",
         "",
         "## Ranked",
         "",
-        "| # | Ability | Lvl | Played as | Rating | Boss | Group | Backlash cost | Uses a fight | Backlashes a fight | Verdict |",
-        "|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---|",
-        ...plain.map((row, index) => `| ${index + 1} | ${escape(row.name)}${row.loadout ? " (one-handed weapon, free hand)" : ""} | ${row.level} | ${row.played} | ${fmt(row.levels)} ± ${row.se.toFixed(2)} | ${fmt(row.boss)} | ${fmt(row.group)} | ${fmt(row.backlashCost)} | ${row.uses.toFixed(1)} | ${row.backlashes.toFixed(2)} | ${row.verdict} |`),
+        "| # | Ability | Lvl | Played as | Rating | Boss | Group | Danger with | Danger without | Backlash cost | Uses a fight | Backlashes a fight | Severe a fight | Verdict |",
+        "|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+        ...plain.map((row, index) => `| ${index + 1} | ${escape(row.name)}${row.loadout ? " (one-handed weapon, free hand)" : ""} | ${row.level} | ${row.played} | ${fmt(row.levels)} ± ${row.se.toFixed(2)} | ${fmt(row.boss)} | ${fmt(row.group)} | ${danger(row.danger)} | ${danger(row.plainDanger)} | ${fmt(row.backlashCost)} | ${row.uses.toFixed(1)} | ${row.backlashes.toFixed(2)} | ${Number.isFinite(row.severe) ? row.severe.toFixed(2) : "—"} | ${row.verdict} |`),
         "",
         "## Awakenings",
         "",
