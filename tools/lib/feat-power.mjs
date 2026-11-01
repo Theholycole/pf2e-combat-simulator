@@ -252,6 +252,12 @@ export function partyWithFeat(doc, level) {
             if (own?.unmet) entries = { ...entries, gap: { ...entries.gap, name: `${doc.name}: its requirement, which the PC doesn't meet (${own.unmet})` } };
             else if (own) entries = own;
         }
+        // (A requirement on what the PC wields the plan doesn't carry — Dueling Dance's "a single one-handed melee weapon and nothing else in
+        // your hands", a stance's —: the feat's own text, so the PC that can't use it gets the loadout that can, both sides.)
+        const required = requirementText(doc);
+        if (!entries.gap && plan?.builtin !== "strike-activity" && required && meetsWielding(required, wields) === false) {
+            entries = { ...entries, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (${required})` } };
+        }
         return { entries, builtins };
     };
     let tried = attempt(WIELDS[host.id]);

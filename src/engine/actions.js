@@ -1879,6 +1879,28 @@ function disruptedBy(state, reaction, result, mover) {
     return roll.degree < SUCCESS;
 }
 
+// (A melee-built creature: its best melee Strike out-hits its best ranged one.)
+export const meleeBuilt = (c) => {
+    const best = (melee) => Math.max(0, ...(c.strikes ?? []).filter((strike) => !!strike.melee === melee).map((strike) => strike.bonus + (strike.damage ?? []).reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0)));
+    return best(true) > best(false);
+};
+
+// The front line off the grid (2026-11-01, the user: "the fighter should have reactive strikes which would make getting to other PCs
+// riskier"): a Stride to engage a creature that isn't melee-built — a caster, an archer, at the back — goes past its side's melee-built
+// ones with a Reactive Strike that are free to stand in the way (in no Melee, or in the mover's own, as it Steps off and goes around):
+// the move leaves squares in their reach (B123). Not those already beside the target, nor a flier past those on the ground. On the grid,
+// the squares themselves say (grid-fight.js).
+// (At the back: one not melee-built, or a caster — two or more spells of its own, the wizard with a staff.)
+export const backRow = (c) => !meleeBuilt(c) || (c.spells ?? []).filter((entry) => !entry.kind || entry.kind === "spell").length >= 2;
+export function screenGuards(state, mover, target) {
+    if (state.grid || !target || !backRow(target)) return [];
+    const flier = fliesNow(mover);
+    return state.list.filter((guard) => guard.side === target.side && guard !== target && isActive(guard) && canAct(guard) && !guard.cond?.fleeing
+        && (guard.reactions?.aoo || (guard.reactionStrikes ?? []).length) && !backRow(guard) && !(flier && !fliesNow(guard))
+        && (guard.meleeId === null || guard.meleeId === undefined || guard.meleeId === mover.meleeId)
+        && !(target.meleeId !== null && target.meleeId !== undefined && guard.meleeId === target.meleeId));
+}
+
 export function provoke(state, mover, kind, among = null) {
     let disrupted = false;
     const own = OWN_KINDS.has(kind);
@@ -2321,6 +2343,16 @@ function strideTo(state, c, move) {
     if (move.kind === "engage") {
         const target = state.byId.get(move.targetId);
         if (!target || !isActive(target)) return;
+        // (The front line, screenGuards': a Stride past the guards to one behind them sets off their Reactive Strikes.)
+        const screen = screenGuards(state, c, target);
+        if (screen.length) {
+            const disrupted = provoke(state, c, "move", screen);
+            if (!isActive(c) || !canAct(c)) return;
+            if (disrupted) {
+                log(state, `  ${c.name}'s move is disrupted`);
+                return;
+            }
+        }
         engage(state, c, target);
         log(state, `  ${c.name} Strides to engage ${target.name}`);
         // (Telekinetic Defense, Wing Rebuff, B81: a reaction Strike as it comes into their reach.)

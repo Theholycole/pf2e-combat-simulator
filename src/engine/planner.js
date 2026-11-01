@@ -18,7 +18,7 @@ import { canStepOut, fliesNow, flankChance, isIncorporeal, levitating, mapGap, r
 import { bandAt, canTakeCover, gridFlanked, gridStrides, obstacleNext, pillarLine, pillarsInReach, planStride, shoots, standZ, strideGoes } from "./grid-fight.js";
 import { distanceFeet, footingAt, occupiedBy, reaches as gridReaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
 import { moderate } from "./creature-tables.js";
-import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst, spellStops, strikeStops } from "./actions.js";
+import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, meleeBuilt, nonlethalAgainst, screenGuards, spellStops, strikeStops } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
 import { canReact, castJustNow, chargeOn, hasOwnEffect, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
@@ -49,11 +49,6 @@ export const ROLE_PROFILES = Object.freeze({
 const BEAM_WIDTH = 5;
 const NEXT_TURN_WEIGHT = 0.5;
 const GUARD = Number(process.env.SIM_GUARD ?? 0.05);
-// (A melee-built creature: its best melee Strike out-hits its best ranged one.)
-const meleeBuilt = (c) => {
-    const best = (melee) => Math.max(0, ...(c.strikes ?? []).filter((strike) => !!strike.melee === melee).map((strike) => strike.bonus + (strike.damage ?? []).reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0)));
-    return best(true) > best(false);
-};
 // Conditions and spell effects are weighed in rounds of a creature's threat;
 // damage as the share of its HP removed, where a kill (all of its threat for
 // the rest of the fight) counts once. A fight has about three rounds left, so
@@ -720,6 +715,21 @@ class PlanContext {
     }
 
     // Expected damage this creature takes from one enemy's Attack of Opportunity.
+    // A Stride to engage target past the front line, actions.js screenGuards: their Reactive Strikes, those not spent in this plan.
+    screenLoss(node, target) {
+        const guards = screenGuards(this.state, this.c, target);
+        if (!guards.length) return 0;
+        let loss = 0;
+        for (const guard of guards) {
+            const index = this.enemies.indexOf(guard);
+            const bit = index >= 0 && index < 30 ? 1 << index : 0;
+            if ((bit && node.provoked & bit) || !canReact(guard, "Reactive Strike")) continue;
+            node.provoked |= bit;
+            loss += this.enemyStrikeDamage(guard, node.shield, 0);
+        }
+        return this.profile.selfPreservation * this.ownValue * Math.min(1, loss / remainingHp(this.c));
+    }
+
     aooLoss(pos, node) {
         let loss = 0;
         for (const [index, enemy] of this.enemies.entries()) {
@@ -2019,6 +2029,7 @@ function expandTactics(env) {
                 const surged = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
                 const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id }, surge: true }, 1, 0, { pos: surged, moved: false, cast: "surge" });
                 if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
+                next.value -= ctx.screenLoss(next, target);
                 children.push(next);
             }
             if (strides !== 1) continue;
@@ -2027,6 +2038,7 @@ function expandTactics(env) {
                 : { band: "engaged", melee: "new", newWith: target.id };
             const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id } }, 1, 0, { pos, moved: false });
             if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
+            next.value -= ctx.screenLoss(next, target);
             children.push(next);
         }
         // (2026-10-22, a battlefield: one that shoots, a Stride to a better place to shoot from — a balcony, a cliff's edge, a parapet.)
