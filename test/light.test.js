@@ -1412,3 +1412,13 @@ test("the danger party prepares no Banishment (the user, 2026-10-22: danger rate
     assert.ok(!party.some((c) => (c.spells ?? []).some((each) => each.name === "Banishment")), "none in the party");
     assert.ok(party.find((c) => c.id === "wizard").spells.some((each) => each.name === "Cone of Cold"), "the rest of its 5th rank");
 });
+
+test("a light's dim edge doesn't dim the fight's own bright light", async () => {
+    const { lightAt } = await import("../src/engine/light.js");
+    const bearer = { id: "a", band: "near", x: 0, y: 0, effects: [{ model: { light: { bright: 20, dim: 40, rank: 1 } } }] };
+    const far = { id: "b", band: "near", x: 6, y: 0, effects: [] };
+    const state = { lit: true, environment: { light: "bright" }, zones: [], list: [bearer, far] };
+    assert.equal(lightAt(state, far).level, "bright");
+    const darkState = { ...state, environment: { light: "dark" } };
+    assert.notEqual(lightAt(darkState, far).level, "dark");
+});
