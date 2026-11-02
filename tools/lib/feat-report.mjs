@@ -201,3 +201,28 @@ export function featCompendiumData({ rated, deviant = null, ancestry = null, ref
     }
     return { version: 1, kind: "feats", method: "whole fights, with vs without", run: now, generated: now.slice(0, 10), party: ["fighter", "rogue", "wizard", "cleric"], ratings, detail };
 }
+
+// Every class's PC in its seat of the standard party (tools/feat-power.mjs classes): { markdown, json }.
+export function classReport(rows) {
+    const bySlug = new Map();
+    for (const row of rows.filter((entry) => !entry.error)) (bySlug.get(row.slug) ?? bySlug.set(row.slug, []).get(row.slug)).push(row);
+    const LEVELS = [1, 3, 5, 7, 9, 11, 13, 15, 17, 20];
+    const rated = [...bySlug.entries()].map(([slug, list]) => {
+        const levels = list.reduce((sum, row) => sum + row.levels, 0) / list.length;
+        const se = Math.sqrt(list.reduce((sum, row) => sum + row.se ** 2, 0)) / list.length;
+        const byLevel = Object.fromEntries(list.map((row) => [row.level, row.levels]));
+        const sorted = [...list].sort((a, b) => b.levels - a.levels);
+        return { slug, seat: list[0].seat, levels, se, byLevel, best: sorted[0]?.level ?? null, worst: sorted.at(-1)?.level ?? null };
+    }).sort((a, b) => b.levels - a.levels);
+    const name = (slug) => slug[0].toUpperCase() + slug.slice(1);
+    const lines = [
+        "# Class power in combat",
+        "",
+        `Made by \`node tools/feat-power.mjs <out> classes\` and \`classes-report\` on ${new Date().toISOString().slice(0, 10)}. Each class's PC (src/engine/classes.js) takes the seat of the standard party's PC who fights most like it (the fighter, the rogue, the wizard or the cleric) at every level from 1 to 20, and fights the same encounters on the same dice as the standard party. The number is how much stronger the party is with that class in the seat, in levels of the foes (the feat ratings' scale); 0 is the seat's own class. Averages are over the 20 levels.`,
+        "",
+        `| # | Class | Seat | Average | ${LEVELS.map((level) => `Lvl ${level}`).join(" | ")} | Best level | Worst level |`,
+        `|---:|---|---|---:|${LEVELS.map(() => "---:").join("|")}|---:|---:|`,
+        ...rated.map((row, index) => `| ${index + 1} | ${name(row.slug)} | ${name(row.seat)} | ${fmt(row.levels)} ± ${row.se.toFixed(2)} | ${LEVELS.map((level) => fmt(row.byLevel[level])).join(" | ")} | ${row.best} | ${row.worst} |`)
+    ];
+    return { markdown: `${lines.join("\n")}\n`, json: { kind: "class-power", generated: new Date().toISOString(), rated } };
+}

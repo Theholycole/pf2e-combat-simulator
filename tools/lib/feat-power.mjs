@@ -22,7 +22,8 @@ if (!FEAT_ROOT) throw new Error("The feat module's repository wasn't found besid
 const ITEM_ROOT = SIBLING(["pf2e-automatic-item-resolution", "PF2e AUTOMATIC ITEM RESOLUTION"]);
 
 const { readDocuments, basicActions, PACK_ROOT } = await import("./pack-creatures.mjs");
-const { partyFor } = await import("./deadliness.mjs");
+const { partyFor, classPartyFor } = await import("./deadliness.mjs");
+const { CLASS_SLUGS, classArmor, seatOf } = await import("../../src/engine/classes.js");
 const { compileFeat } = await import(new URL("src/compiler/index.js", FEAT_ROOT).href);
 const itemReaders = ITEM_ROOT ? await (async () => {
     try {
@@ -160,6 +161,20 @@ const WIELDS = {
     wizard: { twoHanded: false, oneHanded: true, twoWeapons: false, freeHand: true, ranged: false, reload0: false, firearm: false, thrown: false, shield: false, armor: "unarmored", damage: ["bludgeoning"], groups: ["club"] },
     cleric: { twoHanded: false, oneHanded: true, twoWeapons: false, freeHand: true, ranged: false, reload0: false, firearm: false, thrown: false, shield: false, armor: "light", damage: ["bludgeoning"], groups: ["club"] }
 };
+// What a class's PC wields (src/engine/classes.js), read from its Strikes, shield and armor.
+function wieldsOf(c) {
+    if (WIELDS[c.id]) return WIELDS[c.id];
+    const strikes = c.strikes ?? [];
+    const main = strikes[0] ?? {};
+    const twoHanded = main.hands === 2 && main.melee;
+    const meleeHeld = strikes.filter((strike) => strike.melee && strike.held);
+    return {
+        twoHanded, oneHanded: !twoHanded && meleeHeld.length > 0, twoWeapons: false, freeHand: !twoHanded && !c.shield && meleeHeld.length <= 1 && !(main.hands === 2),
+        ranged: !main.melee, reload0: !main.melee && !main.reload, firearm: Boolean(main.firearm), thrown: Boolean(main.thrown), shield: Boolean(c.shield),
+        armor: classArmor(c.id) ?? "unarmored", damage: [...new Set(strikes.flatMap((strike) => [strike.damage?.[0]?.type, ...(strike.versatile ?? [])]).filter(Boolean))],
+        groups: [...new Set(strikes.map((strike) => strike.iwr?.group).filter(Boolean))]
+    };
+}
 export const requirementText = (doc) => /<strong>\s*Requirements?\s*<\/strong>\s*([^<]*)/i.exec(doc.system?.description?.value ?? "")?.[1]?.trim() ?? null;
 const key = (level) => (level >= 20 ? 7 : level >= 17 ? 6 : level >= 10 ? 5 : 4);
 
@@ -168,9 +183,11 @@ export function dcsOf(c) {
     const level = c.level;
     const spellDC = (c.spells ?? []).find((entry) => !entry.kind && Number.isFinite(entry.dc))?.dc ?? null;
     const tradition = (c.spells ?? []).find((entry) => !entry.kind && entry.tradition)?.tradition ?? null;
-    const abilities = ABILITIES[c.id]?.(key(level), level >= 10 ? 2 : 1) ?? {};
+    const abilities = c.abilities ?? ABILITIES[c.id]?.(key(level), level >= 10 ? 2 : 1) ?? {};
     const melee = (c.strikes ?? []).find((strike) => strike.melee);
-    const proficiency = melee ? melee.bonus - (c.id === "rogue" ? abilities.dex : abilities.str) - (melee.potency ?? 0) : level + 2;
+    // (A class PC's own attributes, src/engine/classes.js: its finesse weapon with the better of Strength and Dexterity.)
+    const toHit = c.id === "rogue" ? abilities.dex : c.abilities && melee?.finesse ? Math.max(abilities.str ?? 0, abilities.dex ?? 0) : abilities.str;
+    const proficiency = melee ? melee.bonus - (toHit ?? 0) - (melee.potency ?? 0) : level + 2;
     return {
         level,
         class: Number.isFinite(c.classDC) ? c.classDC : null,
@@ -241,7 +258,7 @@ function innateSpellEntry(doc, level, host) {
     const spells = innateSpells(doc, level);
     if (!spells.length) return null;
     const own = dcsOf(host);
-    const abilities = ABILITIES[host.id]?.(key(level), level >= 10 ? 2 : 1) ?? {};
+    const abilities = host.abilities ?? ABILITIES[host.id]?.(key(level), level >= 10 ? 2 : 1) ?? {};
     const dc = own.spell ?? 10 + level + 2 + (abilities.cha ?? 0);
     const entries = [];
     const pools = {};
@@ -402,8 +419,12 @@ function passiveRulesEntry(doc, level, builtins) {
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
 // (else the standard one: an ancestry's PC with its feats so far, tools/lib/ancestry-power.mjs).
 export function partyWithFeat(doc, level, { hostId = null, party: start = null } = {}) {
-    const party = start ?? partyFor(level);
-    const classTrait = (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait]);
+    const classTrait = (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait] || CLASS_SLUGS.includes(trait));
+    // (2026-11-02, the user: "Get the simulator working with all classes": a class's feat on its own class — classes.js — the standard party
+    // with that class's PC in its seat, rated against the same party without the feat.)
+    const classPC = !start && !hostId && classTrait && CLASS_SLUGS.includes(classTrait) && !["fighter", "rogue", "wizard", "cleric"].includes(classTrait) && process.env.FEAT_OWN_CLASS !== "0";
+    const party = start ?? (classPC ? classPartyFor(classTrait, level) : partyFor(level));
+    if (classPC) hostId = classTrait;
     const compileFor = (host) => {
         try {
             return { plan: compileFeat(doc, { dcs: dcsOf(host), basicActions, itemReaders }) };
@@ -453,13 +474,13 @@ export function partyWithFeat(doc, level, { hostId = null, party: start = null }
         }
         return { entries, builtins, strikes };
     };
-    let tried = attempt({ ...WIELDS[host.id], strikes: host.strikes });
+    let tried = attempt({ ...wieldsOf(host), strikes: host.strikes });
     let base = party;
     let loadout = null;
     if (tried.entries.gap && /doesn't meet/.test(tried.entries.gap.name)) {
         for (const [name, way] of Object.entries(LOADOUTS)) {
-            if (!way.hosts.includes(host.id)) continue;
-            const again = attempt({ ...WIELDS[host.id], ...way.wields, strikes: way.strikes(host.strikes) });
+            if (!way.hosts.includes(host.id) && !(classPC && way.hosts.includes(seatOf(host.id)) && host.strikes?.[0]?.melee && host.strikes[0].held)) continue;
+            const again = attempt({ ...wieldsOf(host), ...way.wields, strikes: way.strikes(host.strikes) });
             if (again.entries.gap) continue;
             tried = again;
             loadout = name;
@@ -478,7 +499,7 @@ export function partyWithFeat(doc, level, { hostId = null, party: start = null }
     pc.spellPools = { ...(pc.spellPools ?? {}), ...entries.pools };
     joinBuiltins(pc, builtins);
     if (tried.strikes) pc.strikes = tried.strikes;
-    return { party: withFeat, ...(loadout ? { plain: base, loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan };
+    return { party: withFeat, ...(loadout || classPC ? { plain: base } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan };
 }
 
 // Loadouts for a feat's requirement the party's own weapons don't meet: the PC's main weapon changed for others of the same runes.
@@ -536,6 +557,15 @@ function usesPerFight(party, foes, name) {
     return uses / LOGGED;
 }
 
+// A party's fight scores (a class's plain party's kept by its key: every feat of that class at that level fights it).
+const plainCache = new Map();
+function plainScores(party, foes, cacheKey) {
+    if (cacheKey && plainCache.has(cacheKey)) return plainCache.get(cacheKey);
+    const scores = dangerSummary(dangerFights(party, foes, 0, FIGHTS, { grid: GRID })).scores;
+    if (cacheKey) plainCache.set(cacheKey, scores);
+    return scores;
+}
+
 // One feat: its rows for the boss and the group, paired with the scale's plain fights.
 export function featTask(task) {
     const doc = docsOf(task.ref.path).get(task.ref.id);
@@ -550,7 +580,7 @@ export function featTask(task) {
         if (!scaled) return { ...head, error: `no scale for level ${level} ${kind}: run the scale phase first` };
         const foes = powerFoes(kind, level);
         // (With a loadout of its own: the plain party with that loadout too, on the same seeds; the scale's step.)
-        const plain = built.plain ? { ...scaled, scores: dangerSummary(dangerFights(built.plain, foes, 0, FIGHTS, { grid: GRID })).scores } : scaled;
+        const plain = built.plain ? { ...scaled, scores: plainScores(built.plain, foes, built.loadout ? null : `${built.host}|${level}|${kind}`) } : scaled;
         const fights = dangerSummary(dangerFights(built.party, foes, 0, FIGHTS, { grid: GRID }));
         const diffs = fights.scores.map((score, index) => score - plain.scores[index]);
         const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
@@ -716,10 +746,19 @@ export function deviantTask(task) {
     return { ...head, played: built.played, ...(built.loadout ? { loadout: built.loadout } : {}), results, levels, se };
 }
 
+// A class's PC in its seat of the standard party (src/engine/classes.js), against the standard party on the same seeds, in levels of the foes
+// (2026-11-02: "Get the simulator working with all classes").
+export function classTask({ slug, level }) {
+    const party = classPartyFor(slug, level);
+    const rating = partyRating(party, level);
+    return { kind: "class", slug, level, seat: seatOf(slug), levels: rating.levels, se: rating.se, boss: rating.boss, group: rating.group };
+}
+
 export async function runFeatTask(task) {
     if (task.kind === "scale") return scaleTask(task);
     if (task.scalePath && !scale) loadScale(task.scalePath);
     if (task.kind === "basic") return basicTask(task);
     if (task.kind === "deviant") return deviantTask(task);
+    if (task.kind === "class") return classTask(task);
     return featTask(task);
 }

@@ -8,20 +8,20 @@
 //   Cleric (cloistered): divine prepared spells, Divine Font's heals at its highest rank, Battle Medicine.
 // Skills for the combat actions the simulation plays: Athletics, Intimidation, Deception, Acrobatics, Medicine.
 
-const T = 2, E = 4, M = 6, L = 8;
-const rank = (level, steps) => steps.reduce((value, [from, prof]) => (level >= from ? prof : value), steps[0][1]);
-const key = (level) => (level >= 20 ? 7 : level >= 17 ? 6 : level >= 10 ? 5 : 4);
-const potency = (level) => (level >= 16 ? 3 : level >= 10 ? 2 : level >= 2 ? 1 : 0);
-const striking = (level) => (level >= 19 ? 4 : level >= 12 ? 3 : level >= 4 ? 2 : 1);
+export const T = 2, E = 4, M = 6, L = 8;
+export const rank = (level, steps) => steps.reduce((value, [from, prof]) => (level >= from ? prof : value), steps[0][1]);
+export const key = (level) => (level >= 20 ? 7 : level >= 17 ? 6 : level >= 10 ? 5 : 4);
+export const potency = (level) => (level >= 16 ? 3 : level >= 10 ? 2 : level >= 2 ? 1 : 0);
+export const striking = (level) => (level >= 19 ? 4 : level >= 12 ? 3 : level >= 4 ? 2 : 1);
 // A weapon's runes at a level, as the party has them (GM Core's treasure table): { potency, dice } (dice: the striking runes' damage dice).
 export const weaponRunesAt = (level) => ({ potency: potency(level), dice: striking(level) });
-const armorPotency = (level) => (level >= 18 ? 3 : level >= 11 ? 2 : level >= 5 ? 1 : 0);
-const resilient = (level) => (level >= 20 ? 3 : level >= 14 ? 2 : level >= 8 ? 1 : 0);
-const primarySkill = (level) => rank(level, [[1, T], [3, E], [7, M], [15, L]]);
-const secondarySkill = (level) => rank(level, [[1, T], [9, E]]);
-const spellProf = (level) => rank(level, [[1, T], [7, E], [15, M], [19, L]]);
+export const armorPotency = (level) => (level >= 18 ? 3 : level >= 11 ? 2 : level >= 5 ? 1 : 0);
+export const resilient = (level) => (level >= 20 ? 3 : level >= 14 ? 2 : level >= 8 ? 1 : 0);
+export const primarySkill = (level) => rank(level, [[1, T], [3, E], [7, M], [15, L]]);
+export const secondarySkill = (level) => rank(level, [[1, T], [9, E]]);
+export const spellProf = (level) => rank(level, [[1, T], [7, E], [15, M], [19, L]]);
 // Weapon specialization: +2, +3, +4 for expert, master, legendary from 7th level; doubled by greater specialization from 15th.
-const specialization = (level, prof, greater = true) => (level < 7 ? 0 : (prof === E ? 2 : prof === M ? 3 : prof === L ? 4 : 0) * (greater && level >= 15 ? 2 : 1));
+export const specialization = (level, prof, greater = true) => (level < 7 ? 0 : (prof === E ? 2 : prof === M ? 3 : prof === L ? 4 : 0) * (greater && level >= 15 ? 2 : 1));
 
 // The spells each caster prepares, best first for each rank; a rank's slots take them in turn. (The ones the simulation can't cast —
 // utilities, reactions, walls it doesn't place — are left out: the resolver gives nothing for them.)
@@ -65,8 +65,8 @@ export const SPELLBOOKS = Object.freeze({
 // A prepared caster's spells: cantrips at its cantrip rank, three slots a rank (two the level it gains one; a curriculum slot more for a
 // wizard), one 10th-rank slot from 19th level; a cleric's Divine Font heals at its highest rank. spell(name, castRank) → { name, plan,
 // effects } or null.
-function preparedSpells(c, book, level, attribute, spell) {
-    const prof = spellProf(level);
+export function preparedSpells(c, book, level, attribute, spell) {
+    const prof = (book.prof ?? spellProf)(level);
     const dc = 10 + level + prof + attribute;
     const attack = level + prof + attribute;
     const spells = [];
@@ -81,7 +81,10 @@ function preparedSpells(c, book, level, attribute, spell) {
     for (const name of book.cantrips) entry(name, cantripRank, null);
     const highest = Math.min(9, Math.ceil(level / 2));
     for (let r = 1; r <= highest; r++) {
-        const slots = (level === 2 * r - 1 ? 2 : 3) + (book.curriculum ? 1 : 0);
+        // (classes.js: a spontaneous caster's four a rank, a psychic's two; a magus's or summoner's two of each of its top two ranks.)
+        const perRank = book.slots ?? 3;
+        if (book.topTwo && r < highest - 1) continue;
+        const slots = book.topTwo ? book.topTwo : (level === 2 * r - 1 ? perRank - 1 : perRank) + (book.curriculum ? 1 : 0);
         const names = book.ranks[r].filter((name) => spell(name, r));
         for (let index = 0; index < slots && names.length; index++) {
             const pool = `${c.id}:${r}:${index}`;
@@ -102,7 +105,7 @@ function preparedSpells(c, book, level, attribute, spell) {
 // A PC's frame: Hit Points, saves, Perception, skills, AC, its Strike.
 // (Backups, 2026-10-13, found in the deadliest-creatures study: a weapon of another damage type and a bow, as a party ready for most
 // situations carries — oozes immune to slashing and piercing, creatures in the air. Same runes as the main weapon; drawing it is free here.)
-function pc({ id, name, level, hpPerLevel, con, str = 0, ac, fort, ref, will, dex, wis, perception, skills, strike, backups = [], classDC, extra = {} }) {
+export function pc({ id, name, level, hpPerLevel, con, str = 0, ac, fort, ref, will, dex, wis, perception, skills, strike, backups = [], classDC, extra = {} }) {
     const hp = 8 + (hpPerLevel + con) * level;
     const res = resilient(level);
     return {

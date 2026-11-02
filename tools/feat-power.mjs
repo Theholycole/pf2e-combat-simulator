@@ -6,6 +6,7 @@
 //                                                    --resume goes on with a stopped run; --only=<a name, an id or a ref; or a file of them>
 //   node tools/feat-power.mjs <out folder> basics    the basic actions, each left out of every PC
 //   node tools/feat-power.mjs <out folder> report    docs/feat-power.md and <out>/ratings.json (--write=<path> for the json)
+//   node tools/feat-power.mjs <out folder> classes   every class's PC in its seat of the standard party, levels 1–20 (classes-report: the table)
 //   node tools/feat-power.mjs <out folder> deviant   the deviant abilities: plain, without backlash, each awakening (deviant-report: the table)
 //
 //   --workers N (default: the cores less two); FEAT_FIGHTS=200 fights an encounter (the default)
@@ -72,6 +73,19 @@ if (!isMainThread) {
         fs.writeFileSync(`${out}/deviant-ratings.json`, `${JSON.stringify(json)}\n`);
         fs.writeFileSync(`${out}/deviant-power.md`, markdown);
         console.log(`${json.rated.length} rated → ${out}/deviant-power.md`);
+    } else if (phase === "classes") {
+        // (Every class's PC in its seat of the standard party, levels 1 to 20 — src/engine/classes.js.)
+        const { CLASS_SLUGS, seatOf } = await import("../src/engine/classes.js");
+        const tasks = CLASS_SLUGS.filter((slug) => seatOf(slug) !== slug).flatMap((slug) => Array.from({ length: 20 }, (_, index) => ({ kind: "class", slug, level: index + 1, scalePath })));
+        const done = process.argv.includes("--resume") ? new Set(read("classes.jsonl").map((row) => `${row.slug}|${row.level}`)) : new Set();
+        console.log(`${tasks.length} class and level pairs`);
+        await run(tasks.filter((task) => !done.has(`${task.slug}|${task.level}`)), "classes.jsonl", { append: process.argv.includes("--resume") });
+    } else if (phase === "classes-report") {
+        const { classReport } = await import("./lib/feat-report.mjs");
+        const { markdown, json } = classReport(read("classes.jsonl"));
+        fs.writeFileSync(`${out}/class-ratings.json`, `${JSON.stringify(json)}\n`);
+        fs.writeFileSync(`${out}/class-power.md`, markdown);
+        console.log(`${json.rated.length} classes → ${out}/class-power.md`);
     } else if (phase === "compendium") {
         // (2026-11-01, Cole: "put every feat's power next to it in the compendium browser": src/data/feat-ratings.json, which
         // scripts/danger.js shows beside each feat and action in compendium windows and PF2e's Compendium Browser.)
