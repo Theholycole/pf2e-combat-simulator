@@ -115,3 +115,14 @@ test("a necromancer's thralls: Create Thrall's command option for the first Stri
     thrallForSpell(state, c, { ...bomb, plan: { targeting: { thrall: { destroyed: false } } } });
     assert.equal(c.thralls, 1);
 });
+
+test("the runesmith: Runic Optimization in place of weapon specialization, a shield, Forged Endurance", () => {
+    const at = (lv) => classPC("runesmith", lv);
+    const str = (lv) => at(lv).abilities.str;
+    assert.equal(at(5).strikes[0].damage[0].bonus, str(5));
+    assert.equal(at(7).strikes[0].damage[0].bonus, str(7) + 2);
+    assert.equal(at(15).strikes[0].damage[0].bonus, str(15) + 6);
+    assert.equal(at(19).strikes[0].damage[0].bonus, str(19) + 8);
+    assert.ok(at(1).shield && at(1).reactions.shieldBlock);
+    assert.equal(at(11).saveDegrees[0].saves[0], "fortitude");
+});

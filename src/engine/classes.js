@@ -310,13 +310,23 @@ const CLASSES = {
         }
     },
     runesmith: {
+        // (2026-11-02, the user's Archives of Nethys page, Impossible Magic: expert Fortitude and Will, trained Reflex; Shield Block; Forged
+        // Endurance at 11th — master Fortitude, a success a critical success —; no weapon specialization, Runic Optimization at 7th in its
+        // place: 2/3/4 damage with a striking/greater/major striking weapon, 4/6/8 from 15th. Its runes (Trace Rune, Invoke Rune) wait on
+        // the rune list, which neither the page nor PF2e's data has.)
         seat: "fighter", hp: 8, attrs: (k, lv) => ({ str: second(lv), dex: 1, con: martialCon(lv), int: k, wis: minor(lv), cha: 0 }),
         armor: "medium", armorSteps: [[1, T], [13, E], [19, M]],
-        fort: [[1, E]], ref: [[1, T], [7, E]], will: [[1, E]], perception: [[1, T], [13, E]],
+        fort: [[1, E], [11, M]], ref: [[1, T], [7, E]], will: [[1, E]], perception: [[1, T], [13, E]],
         classDC: [[1, T], [7, E], [15, M], [19, L]],
         build(lv, a) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
-            return { strikes: [weaponStrike(lv, { name: "Warhammer", die: 8, type: "bludgeoning", toHit: a.str, damageAttr: a.str, prof, group: "hammer", extra: { held: true } })], fields: { reactions: { aoo: false, shieldBlock: true } } };
+            const steps = striking(lv) - 1;
+            const optimization = lv >= 15 ? 2 * steps + 2 : lv >= 7 && steps > 0 ? steps + 1 : 0;
+            const hammer = weaponStrike(lv, { name: "Warhammer", die: 8, type: "bludgeoning", toHit: a.str, damageAttr: a.str, prof, group: "hammer", extra: { held: true } });
+            hammer.damage[0].bonus = a.str + optimization;
+            const hardness = lv >= 13 ? 10 : lv >= 7 ? 8 : 5;
+            return { strikes: [hammer], fields: { shield: { ac: 2, hardness, hp: hardness * 4, bt: hardness * 2, broken: false, raised: false }, reactions: { aoo: false, shieldBlock: true },
+                ...(lv >= 11 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better" } }] } : {}) } };
         }
     },
     sorcerer: {
@@ -383,7 +393,7 @@ const CLASSES = {
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
-    animist: "apparitions", necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes", summoner: "evolution feats on the eidolon",
+    animist: "apparitions", necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes (Trace Rune, Invoke Rune: the rune list isn't in PF2e's data)", summoner: "evolution feats on the eidolon",
     bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "hexes and the familiar", oracle: "the curse", druid: "Untamed Form",
     barbarian: "Rage's -1 AC", alchemist: "vials as a daily limit (bombs aren't counted)", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });
