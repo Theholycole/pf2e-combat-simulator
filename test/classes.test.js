@@ -126,3 +126,12 @@ test("the runesmith: Runic Optimization in place of weapon specialization, a shi
     assert.ok(at(1).shield && at(1).reactions.shieldBlock);
     assert.equal(at(11).saveDegrees[0].saves[0], "fortitude");
 });
+
+test("the runesmith's runes: atryl and ranshu traced and invoked against its class DC, both at once; marssyl's splash on the warhammer", () => {
+    const runesmith = classPC("runesmith", 5);
+    const runes = runesmith.spells.filter((entry) => entry.runesmithRune);
+    assert.deepEqual(runes.map((entry) => Number(entry.plan.activation.time)), [2, 2, 3, 3]);
+    assert.ok(runes.every((entry) => entry.dc === 21 && entry.plan.resolution.check.statistic === "fortitude" && entry.plan.resolution.check.basic));
+    assert.deepEqual(runes[3].plan.resolution.sharedDamage.components.map((part) => part.formula), ["3d8[fire]", "3d8[electricity]"]);
+    assert.ok(runesmith.strikes[0].damage.some((part) => part.splash && part.bonus === 2));
+});

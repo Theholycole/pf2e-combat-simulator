@@ -8,6 +8,7 @@
 //   feats are rated on their own class.
 // What isn't played yet is listed in CLASS_GAPS (the animist's apparitions and the
 // runesmith's runes aren't played, only their spells and weapons; the necromancer's thralls are a count, by the spell module's thrall rules).
+import { savePlan } from "./deviant.js";
 import { E, L, M, T, armorPotency, key, pc, potency, preparedSpells, primarySkill, rank, SPELLBOOKS, specialization, spellProf, standardParty, striking } from "./party.js";
 
 // The two traditions the standard party doesn't cast (the wizard's arcane and the cleric's divine are party.js's), best first for each rank.
@@ -65,6 +66,33 @@ function weaponStrike(level, { name, die, type, toHit, damageAttr = 0, prof, ite
         name, bonus: level + prof + toHit + item, potency: item, melee: true, agile: false, iwr: { group }, ...extra,
         damage: [{ dice, die, bonus: damageAttr + specialization(level, prof, greater), type }]
     };
+}
+
+// A runesmith's traced and invoked runes (2026-11-02, the user's Archives of Nethys rune list, Impossible Magic): Trace Rune (1 action on
+// an adjacent creature, 2 within 30 feet) then Invoke Rune (1 action, up to two runes), each invocation a basic Fortitude save against its
+// class DC. Atryl, rune of fire (1d8 fire, a die more every 2 levels; dazzled 1 round on a critical failure) and ranshu, rune of thunder
+// (1d8 electricity, the same steps), as abilities: one rune traced and invoked (2 actions; 3 from 30 feet), or both traced and invoked
+// together (3 actions; one save stands in for the two). Their passive effects before the invocation are left out: they're invoked at once.
+function runesmithRunes(lv, dc) {
+    const dice = 1 + Math.floor((lv - 1) / 2);
+    const traits = ["magical", "concentrate", "manipulate"];
+    const rune = (name, actions, range, components, effects = {}) => {
+        const plan = savePlan(name, { actions, traits, range, target: "1 creature", save: "fortitude", dc, damage: components[0].formula, effects });
+        plan.traits = plan.activation.traits = [...traits, "runesmith", ...components.map((part) => part.type)];
+        plan.source.type = "action";
+        plan.resolution.sharedDamage.components = components.map((part, index) => ({ id: String(index), formula: part.formula, type: part.type, category: null }));
+        for (const outcome of Object.values(plan.resolution.outcomes)) if (outcome.damage.sourceComponentIds?.length) outcome.damage.sourceComponentIds = components.map((_, index) => String(index));
+        return { name, plan, castRank: Math.ceil(lv / 2), dc, attack: null, pool: null, kind: "ability", actionType: "action", rechargeGroup: name, runesmithRune: true };
+    };
+    const fire = { formula: `${dice}d8[fire]`, type: "fire" };
+    const thunder = { formula: `${dice}d8[electricity]`, type: "electricity" };
+    const dazzled = { criticalFailure: [["dazzled", null, { mode: "fixed", value: 1, unit: "rounds" }]] };
+    return [
+        rune("Atryl, Rune of Fire (Trace and Invoke)", 2, "touch", [fire], dazzled),
+        rune("Ranshu, Rune of Thunder (Trace and Invoke)", 2, "touch", [thunder]),
+        rune("Ranshu, Rune of Thunder (Trace from afar and Invoke)", 3, "30 feet", [thunder]),
+        rune("Atryl and Ranshu (Trace both, Invoke both)", 3, "touch", [fire, thunder], dazzled)
+    ];
 }
 
 // What each class is (Player Core 1 and 2, Guns & Gears, Dark Archive, Rage of Elements, War of Immortals, Battlecry!, Impossible Lands):
@@ -324,8 +352,11 @@ const CLASSES = {
             const optimization = lv >= 15 ? 2 * steps + 2 : lv >= 7 && steps > 0 ? steps + 1 : 0;
             const hammer = weaponStrike(lv, { name: "Warhammer", die: 8, type: "bludgeoning", toHit: a.str, damageAttr: a.str, prof, group: "hammer", extra: { held: true } });
             hammer.damage[0].bonus = a.str + optimization;
+            // (2026-11-02, the user's rune list.) Etched on the warhammer: marssyl, rune of impact — 1 bludgeoning splash damage per weapon
+            // damage die.
+            hammer.damage.push({ dice: 0, die: 0, bonus: striking(lv), type: "bludgeoning", splash: true });
             const hardness = lv >= 13 ? 10 : lv >= 7 ? 8 : 5;
-            return { strikes: [hammer], fields: { shield: { ac: 2, hardness, hp: hardness * 4, bt: hardness * 2, broken: false, raised: false }, reactions: { aoo: false, shieldBlock: true },
+            return { strikes: [hammer], spells: runesmithRunes(lv, 10 + lv + rank(lv, [[1, T], [7, E], [15, M], [19, L]]) + a.int), fields: { shield: { ac: 2, hardness, hp: hardness * 4, bt: hardness * 2, broken: false, raised: false }, reactions: { aoo: false, shieldBlock: true },
                 ...(lv >= 11 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better" } }] } : {}) } };
         }
     },
@@ -393,7 +424,7 @@ const CLASSES = {
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
-    animist: "apparitions", necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes (Trace Rune, Invoke Rune: the rune list isn't in PF2e's data)", summoner: "evolution feats on the eidolon",
+    animist: "apparitions", necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes other than atryl, ranshu and marssyl (diacritics, shield and support runes, higher-level runes)", summoner: "evolution feats on the eidolon",
     bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "hexes and the familiar", oracle: "the curse", druid: "Untamed Form",
     barbarian: "Rage's -1 AC", alchemist: "vials as a daily limit (bombs aren't counted)", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });
@@ -456,6 +487,8 @@ export function classPC(slug, level, { spell = () => null, basics = [] } = {}) {
     // as its rank on every spell, the fight's average.)
     if (def.potency) c.spellDamageBonus = { perRank: 1, slotsOnly: true };
     if (def.psyche) c.spellDamageBonus = { perRank: 1, slotsOnly: false };
+    // (A runesmith's runes: abilities of its own, runesmithRunes.)
+    if (built.spells?.length) c.spells = [...(c.spells ?? []), ...built.spells];
     c.spells = [...(c.spells ?? []), ...basics.map((plan) => ({ name: plan.source?.name ?? plan.name, plan, castRank: 1, pool: null, kind: "basic" }))];
     // (Creatures that come with it — the summoner's eidolon —, for classParty.)
     if (built.companions?.length) Object.defineProperty(c, "companions", { value: built.companions.map((make) => make(c)), enumerable: false });
