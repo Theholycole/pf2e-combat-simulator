@@ -27,6 +27,7 @@ import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
 import { actionTraits, isHex, battleMedicineOdds, outsideTargets, skillValue, canCast, conditionWorth, describeSpell, exploitValue, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition, traitsAllowed } from "./spells.js";
 import { canSummon, summonPool } from "./summons.js";
+import { needsThrall, thrallsOf } from "./thralls.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";
 import { calmedUntilHostility, pacifiedAll, spares } from "./pacify.js";
@@ -1183,7 +1184,7 @@ function expandStrikes(env) {
             // (U2: a PC's bomb weighed as a consumable.)
             const gain = (targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp)) + ctx.freeRiderGain(strike, target, expectation.hitChance) + ctx.splashGain(strike, target, expectation.hitChance)) * consumableWeight(state, c, strike, [target]);
             const usesStratagem = natural !== null && c.stratagemFeature.strikeBonus[strike.name] !== undefined;
-            const marks = [...(strike.reload || strike.ammo ? [`fired${index}`] : []), ...(usesStratagem ? ["stratagem"] : [])];
+            const marks = [...(strike.reload || strike.ammo ? [`fired${index}`] : []), ...(usesStratagem ? ["stratagem"] : []), ...(strike.thrall ? ["thrall"] : [])];
             const next = child(node, { type: "strike", targetId: target.id, strikeIndex: index, ...(reload ? { reload } : {}) }, 1 + reload, ctx.profile.aggression * gain, {
                 attack: true,
                 damage: { ...node.damage, [target.id]: before + expectation.damage },
@@ -1293,7 +1294,9 @@ function expandSpells(env) {
         // unless it tricked the item already this turn. A stowed one, taken out first: its retrieve actions.)
         const trick = spell.trick && !c.usedThisTurn?.has(`tricked:${spell.item}`) ? 1 : 0;
         const draw = spell.draw && !c.itemsAtHand?.has(spell.item) && !node.casts.includes(`drawn${index}`) ? spell.draw.actions : 0;
-        const extra = trick + draw;
+        // (A spell cast through a thrall, with none — none left, nor one a thrall Strike this turn made: Create Thrall first, an action more.)
+        const makeThrall = c.thrallMaker && needsThrall(spell) && !(thrallsOf(c) > 0) && !node.casts.includes("thrall") ? 1 : 0;
+        const extra = trick + draw + makeThrall;
         // (Taking it out alone, when the cast doesn't fit after it this turn — a 2-action spell from a backpack: worth part of the cast
         // it readies, as a reload is.)
         let readies = 0;
@@ -1370,7 +1373,7 @@ function expandSpells(env) {
                     readies = Math.max(readies, gain);
                     continue;
                 }
-                const tricks = { ...(trick ? { trick: true } : {}), ...(draw ? { draw: true } : {}) };
+                const tricks = { ...(trick ? { trick: true } : {}), ...(draw ? { draw: true } : {}), ...(makeThrall ? { makeThrall: true } : {}) };
                 // (Mirror Image on itself: the images, for the next round's danger.)
                 const images = spell.plan?.resolution?.kind === "image-decoys" && set.targets.length === 1 && set.targets[0] === c ? spell.plan.resolution.imageDecoys : undefined;
                 if (info.actions + extra <= remaining) {

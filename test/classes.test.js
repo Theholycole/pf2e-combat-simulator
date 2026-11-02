@@ -8,6 +8,7 @@ import { applyDamage } from "../src/engine/actions.js";
 import { armorClass } from "../src/engine/combatant.js";
 import { withCasterDamage } from "../src/engine/spells.js";
 import { moderateCreature } from "../src/engine/benchmarks.js";
+import { thrallForSpell, thrallStrikes } from "../src/engine/thralls.js";
 
 // Every class's PC (2026-11-02, the user: "Get the simulator working with all classes").
 const fake = (name) => ({ name, plan: { source: { name }, resolution: { kind: "save" } }, effects: {} });
@@ -90,4 +91,27 @@ test("Sorcerous Potency adds the rank to a slot spell's damage on each creature 
     const before = armorClass(barbarian);
     barbarian.activeBuffs = [barbarian.selfBuffs[0]];
     assert.equal(armorClass(barbarian), before - 1);
+});
+
+test("a necromancer's thralls: Create Thrall's command option for the first Strike, a thrall spent by Necrotic Bomb, Create Thrall first with none", () => {
+    const necromancer = classPC("necromancer", 9, { spell: fake });
+    const thrall = necromancer.strikes.find((strike) => strike.thrall);
+    assert.deepEqual([thrall.damage[0].dice, thrall.melee, necromancer.critSpec], [3, false, false]);
+    const party = classParty("necromancer", 5, { spell: () => null });
+    const state = createFightState({ combatants: [...party.map((c) => ({ ...c, engagement: 1 })), { ...moderateCreature(6, "foe", "Foe"), engagement: 1 }] }, {}, 1);
+    const c = state.byId.get("necromancer");
+    state.round = 1;
+    thrallStrikes(state, c);
+    assert.equal(c.thralls, 2);
+    thrallStrikes(state, c);
+    assert.equal(c.thralls, 2);
+    const bomb = { name: "Necrotic Bomb", plan: { targeting: { thrall: { origin: "emanation", radius: 10, destroyed: true } } } };
+    thrallForSpell(state, c, bomb);
+    assert.equal(c.thralls, 1);
+    c.thralls = 0;
+    thrallForSpell(state, c, bomb, { makeThrall: true });
+    assert.equal(c.thralls, 1);
+    state.round = 2;
+    thrallForSpell(state, c, { ...bomb, plan: { targeting: { thrall: { destroyed: false } } } });
+    assert.equal(c.thralls, 1);
 });

@@ -6,8 +6,8 @@
 //   classParty(slug, level): the standard party with that class's PC in the seat of the PC who fights most like it (a martial for the
 //   fighter, a skirmisher for the rogue, an arcane or occult caster for the wizard, a divine or primal one for the cleric), so a class's
 //   feats are rated on their own class.
-// What isn't played yet is listed in CLASS_GAPS (an eidolon is the summoner's Strikes on one body; the animist's apparitions, the
-// necromancer's thralls and the runesmith's runes aren't played, only their spells and weapons).
+// What isn't played yet is listed in CLASS_GAPS (the animist's apparitions and the
+// runesmith's runes aren't played, only their spells and weapons; the necromancer's thralls are a count, by the spell module's thrall rules).
 import { E, L, M, T, armorPotency, key, pc, potency, preparedSpells, primarySkill, rank, SPELLBOOKS, specialization, spellProf, standardParty, striking } from "./party.js";
 
 // The two traditions the standard party doesn't cast (the wizard's arcane and the cleric's divine are party.js's), best first for each rank.
@@ -270,7 +270,19 @@ const CLASSES = {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 0 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, E], [11, M]], ref: [[1, T], [5, E]], will: [[1, E]], perception: [[1, T], [7, E]],
-        caster: { tradition: "occult", attr: "int", slots: 3 }, focus: { names: ["Necrotic Bomb", "Bone Spear"], attr: "int", points: 2 }
+        caster: { tradition: "occult", attr: "int", slots: 3 }, focus: { names: ["Necrotic Bomb", "Bone Spear"], attr: "int", points: 2 },
+        build(lv, a) {
+            // (2026-11-02, the user: "the spell module handles Necromancer thralls". Its thrall rules, scripts/thrall-tokens.js: a thrall is a
+            // level -1 creature that acts only when commanded; its Strike uses the caster's spell attack modifier and deals 1d6 bludgeoning,
+            // piercing or slashing, a die more at 5th level and every 4 after.) A puppeteer of bone: each turn's first thrall Strike is Create
+            // Thrall's command option (1 action: a thrall that Strikes at once, and Thrall Proliferation's second one), later ones Command a
+            // Thrall; the thralls left over feed the grave spells that destroy one (Necrotic Bomb, Bone Spear: fight.js, planner.js). The
+            // Strike counts toward the necromancer's multiple attack penalty; thralls are a count, not bodies on the field.
+            const dice = 1 + Math.max(0, Math.floor((lv - 1) / 4));
+            const thrall = { name: "Thrall", bonus: lv + spellProf(lv) + a.int, melee: false, increment: 30, held: false, thrall: true, proxy: true, versatile: ["bludgeoning", "piercing"], iwr: { group: "brawling", traits: ["unarmed"] }, damage: [{ dice, die: 6, bonus: 0, type: "slashing" }] };
+            const staff = { name: "Staff", bonus: lv + T + a.str, melee: true, agile: false, iwr: { group: "club" }, damage: [{ dice: 1, die: 4, bonus: a.str, type: "bludgeoning" }] };
+            return { strikes: [thrall, staff], fields: { critSpec: false, thrallMaker: { proliferation: 1 } } };
+        }
     },
     oracle: {
         seat: "cleric", hp: 8, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: 0, wis: minor(lv), cha: k }),
@@ -371,7 +383,7 @@ const CLASSES = {
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
-    animist: "apparitions", necromancer: "thralls", runesmith: "runes", summoner: "evolution feats on the eidolon",
+    animist: "apparitions", necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes", summoner: "evolution feats on the eidolon",
     bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "hexes and the familiar", oracle: "the curse", druid: "Untamed Form",
     barbarian: "Rage's -1 AC", alchemist: "vials as a daily limit (bombs aren't counted)", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });

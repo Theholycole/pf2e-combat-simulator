@@ -22,6 +22,7 @@ import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startD
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
+import { thrallForSpell, thrallStrikes } from "./thralls.js";
 import { lastingTurnStart } from "./lasting.js";
 import { noteStatesTurnStart } from "./note-states.js";
 import { floorOf } from "./floors.js";
@@ -772,6 +773,8 @@ function actOn(state, c, action) {
                 state.log?.push(`  ${c.name} ${reloadWords(c, strike)}`);
                 c.unloaded?.delete(strike.name);
             }
+            // (A necromancer's thrall: Create Thrall's or Command a Thrall's — thralls.js.)
+            if (strike?.thrall) thrallStrikes(state, c);
             performStrike(state, c, target, strike);
             if (strike?.reload) (c.unloaded ??= new Set()).add(strike.name);
             break;
@@ -932,6 +935,8 @@ function actOn(state, c, action) {
             // Casting with the manipulate trait provokes (S12; Reactive Strike's critical hit disrupts it), and with the
             // concentrate trait, the reactions that say so (B51).
             const spell = c.spells[action.spellIndex];
+            // (A spell cast through one of its thralls: Create Thrall first when it has none; the thrall spent — thralls.js.)
+            thrallForSpell(state, c, spell, action);
             // (2026-10-22, under water: speaking — a linguistic action — loses all its air.)
             if (c.air !== undefined && (spell?.plan?.traits ?? []).includes("linguistic")) airLost(state, c, { all: true });
             // (S22: Trick Magic Item first. A failure costs its own action, not the cast's, and the item can't be tried again this turn;
@@ -1379,7 +1384,7 @@ function actionCost(c, action) {
     if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon" || action.type === "grantAoo" || action.type === "allyAdvance" || action.type === "summon") return action.actions ?? 1;
     // (Quickened Casting, B72: one action fewer.)
     // (S22: Trick Magic Item first, an action more; a stowed item taken out, its retrieve actions.)
-    if (action.type === "cast") return castActions(c, action) + (action.trick ? 1 : 0) + (action.draw ? c.spells[action.spellIndex].draw?.actions ?? 1 : 0);
+    if (action.type === "cast") return castActions(c, action) + (action.trick ? 1 : 0) + (action.makeThrall ? 1 : 0) + (action.draw ? c.spells[action.spellIndex].draw?.actions ?? 1 : 0);
     return action.type === "task" ? 2 : 1;
 }
 

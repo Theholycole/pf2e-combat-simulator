@@ -500,7 +500,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // Spent by this attack; Set-Up Strike's off-guard is shared by the allies and spent by the first (its group).
     if (scoped && --scoped.uses <= 0) target.offGuardTo = target.offGuardTo.filter((entry) => entry !== scoped && (!scoped.group || entry.group !== scoped.group));
     // Hypnotic Tattoos, Venom Spit: its reaction to the Strike, before the roll (B47); one that stops the attacker stops it.
-    if (!reaction) {
+    // (A necromancer's thrall Strikes, not the necromancer: no reaction to the necromancer's attack — thralls.js.)
+    if (!reaction && !strike.proxy) {
         reactToAttack(state, target, attacker, strike);
         if (!isActive(attacker) || !canAct(attacker)) return null;
         // Tail Lash, Avenging Bite (B70): a Strike back at a creature that Strikes in its reach, or that attacks its ally.
