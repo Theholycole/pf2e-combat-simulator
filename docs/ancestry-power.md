@@ -6,6 +6,64 @@ Made by `node tools/ancestry-power.mjs <out> run` and `report` on 2026-11-02, th
 - **Heritage**: on top of its ancestry (a versatile heritage on a human), at levels 1 and 11 on each PC, against the ancestry alone on the same dice: its PF2e rules, always on.
 - **Background**: the skill feat it grants (where the simulator plays it, on the PC the feat ratings put it on; Battle Medicine on the fighter), its own rules, and the combat skills it trains (Athletics, Intimidation, Deception, Acrobatics, Medicine) on a PC without them, against the party without them. Backgrounds that come to the same thing share one set of fights.
 
+## Ancestries with their ancestry feats
+
+Each ancestry on each PC and level again, now with the best of its ancestry feats in its slots (1st, 5th, 9th, 13th and 17th level): the feats with the best feat ratings (docs/feat-power.md) that the PC plays, a slot at a time, ranked by the feat ratings and left out where they'd need another weapon or rate at 0 or worse. Their prerequisites (a heritage, another feat) aren't checked. Where the PC plays none of its feats, the ancestry's own rating stands. Against the same human without feats as below.
+
+| # | Ancestry | With feats | Ancestry alone | Feats add | Fighter | Rogue | Wizard | Cleric | Lvl 1 | Lvl 5 | Lvl 11 | Lvl 17 | Feats it plays | Verdict |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| 1 | Orc | +0.04 ± 0.01 | +0.01 | +0.03 | +0.03 | +0.01 | +0.10 | +0.01 | +0.06 | +0.02 | +0.04 | +0.01 | Orc Ferocity, Iron Fists | minor |
+| 2 | Minotaur | +0.02 ± 0.01 | +0.02 | 0.00 | +0.07 | +0.04 | 0.00 | −0.01 | +0.10 | −0.01 | +0.01 | −0.01 | Goring Charge | no clear effect |
+| 3 | Jotunborn | +0.02 ± 0.01 | +0.02 | 0.00 | +0.06 | +0.05 | −0.03 | 0.00 | +0.10 | −0.01 | 0.00 | −0.01 | Jotun's Heart | no clear effect |
+| 4 | Automaton | +0.01 ± 0.01 | 0.00 | +0.01 | +0.01 | +0.02 | +0.03 | −0.01 | +0.01 | +0.01 | +0.05 | −0.02 | Automaton Armament, Hardened Chassis, Rain of Bolts, Enlarged Chassis | no clear effect |
+| 5 | Catfolk | +0.01 ± 0.00 | 0.00 | +0.01 | +0.02 | +0.01 | +0.01 | +0.02 | 0.00 | 0.00 | 0.00 | +0.05 | Caterwaul | no clear effect |
+| 6 | Hobgoblin | +0.01 ± 0.00 | 0.00 | +0.01 | +0.02 | +0.01 | 0.00 | +0.01 | 0.00 | 0.00 | 0.00 | +0.04 | Can't Fall Here | no clear effect |
+| 7 | Bugbear | +0.01 ± 0.01 | +0.01 | 0.00 | +0.02 | −0.01 | +0.01 | +0.01 | +0.04 | −0.01 | +0.01 | −0.01 | Icy Influence | no clear effect |
+| 8 | Dwarf | +0.01 ± 0.01 | 0.00 | +0.01 | −0.01 | +0.03 | +0.01 | 0.00 | +0.01 | −0.02 | +0.04 | +0.01 | Blast Resistance, Mountain's Stoutness | no clear effect |
+| 9 | Fleshwarp | +0.01 ± 0.00 | +0.01 | 0.00 | +0.01 | 0.00 | +0.01 | 0.00 | +0.03 | 0.00 | +0.01 | −0.01 | Living Weapon | no clear effect |
+| 10 | Tanuki | +0.01 ± 0.01 | +0.01 | 0.00 | 0.00 | +0.01 | +0.02 | 0.00 | +0.03 | 0.00 | +0.01 | 0.00 | Ponpoko-Pon! | no clear effect |
+| 11 | Athamaru | +0.01 ± 0.01 | −0.01 | +0.02 | −0.05 | +0.03 | +0.04 | 0.00 | +0.01 | −0.01 | +0.04 | −0.01 | Emit Defensive Odor | no clear effect |
+| 12 | Sarangay | +0.01 ± 0.01 | 0.00 | 0.00 | 0.00 | +0.01 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | +0.01 | Convocation of Earth and Moon | no clear effect |
+| 13 | Shisk | +0.01 ± 0.01 | 0.00 | +0.01 | 0.00 | +0.04 | +0.01 | −0.03 | 0.00 | 0.00 | +0.07 | −0.04 | Bristle, Quill Spray, Inured to the Heat | no clear effect |
+| 14 | Conrasu | 0.00 ± 0.01 | +0.01 | 0.00 | 0.00 | 0.00 | +0.04 | −0.02 | +0.04 | 0.00 | +0.02 | −0.04 | Ceremony of Protection, Ceremony of the Evened Hand | no clear effect |
+| 15 | Gnome | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | +0.01 | 0.00 | 0.00 | 0.00 | 0.00 | +0.01 | +0.01 | First World Adept | no clear effect |
+| 16 | Lizardfolk | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | +0.01 | Scion Transformation | no clear effect |
+| 17 | Nagaji | 0.00 ± 0.01 | +0.01 | 0.00 | 0.00 | 0.00 | +0.01 | −0.01 | +0.03 | 0.00 | +0.01 | −0.02 | Pit of Snakes, Breath of Calamity | no clear effect |
+| 18 | Anadi | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | none | no clear effect |
+| 19 | Kholo | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | none | no clear effect |
+| 20 | Vishkanya | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | Viper Strike | no clear effect |
+| 21 | Yaoguai | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | +0.01 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | Morphic Strike | no clear effect |
+| 22 | Android | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | none | no clear effect |
+| 23 | Fetchling | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | none | no clear effect |
+| 24 | Ghoran | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | none | no clear effect |
+| 25 | Human | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | Dragon Prince | no clear effect |
+| 26 | Kashrishi | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | none | no clear effect |
+| 27 | Leshy | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | none | no clear effect |
+| 28 | Samsaran | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | none | no clear effect |
+| 29 | Surki | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | none | no clear effect |
+| 30 | Wayang | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | none | no clear effect |
+| 31 | Yaksha | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | none | no clear effect |
+| 32 | Kitsune | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | −0.01 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | −0.01 | Retractable Claws, Fox Possession | no clear effect |
+| 33 | Tripkee | 0.00 ± 0.01 | 0.00 | 0.00 | −0.02 | 0.00 | 0.00 | 0.00 | 0.00 | −0.01 | 0.00 | 0.00 | Envenomed Edge | no clear effect |
+| 34 | Halfling | 0.00 ± 0.01 | 0.00 | 0.00 | −0.02 | 0.00 | 0.00 | 0.00 | 0.00 | −0.01 | 0.00 | −0.01 | none | no clear effect |
+| 35 | Poppet | 0.00 ± 0.01 | 0.00 | 0.00 | −0.02 | 0.00 | 0.00 | 0.00 | +0.01 | −0.01 | −0.01 | −0.01 | Made for Combat, Awaken the Obake | no clear effect |
+| 36 | Ratfolk | 0.00 ± 0.01 | 0.00 | 0.00 | −0.02 | 0.00 | 0.00 | 0.00 | 0.00 | −0.01 | 0.00 | −0.01 | none | no clear effect |
+| 37 | Shoony | 0.00 ± 0.01 | 0.00 | 0.00 | −0.02 | 0.00 | 0.00 | 0.00 | 0.00 | −0.01 | 0.00 | −0.01 | none | no clear effect |
+| 38 | Vanara | 0.00 ± 0.01 | 0.00 | 0.00 | −0.02 | 0.00 | 0.00 | 0.00 | 0.00 | −0.01 | 0.00 | −0.01 | none | no clear effect |
+| 39 | Kobold | −0.01 ± 0.01 | 0.00 | 0.00 | −0.01 | −0.01 | −0.01 | 0.00 | 0.00 | −0.02 | +0.01 | −0.02 | Benefactor's Strike, Fleeing Shriek, Elite Dracomancer | no clear effect |
+| 40 | Strix | −0.01 ± 0.01 | 0.00 | −0.01 | 0.00 | +0.01 | −0.02 | −0.02 | 0.00 | 0.00 | +0.03 | −0.06 | Fully Flighted | no clear effect |
+| 41 | Centaur | −0.01 ± 0.01 | −0.01 | 0.00 | +0.03 | +0.02 | −0.05 | −0.04 | +0.01 | −0.01 | +0.01 | −0.04 | none | no clear effect |
+| 42 | Goloma | −0.01 ± 0.00 | −0.01 | 0.00 | −0.01 | −0.01 | −0.01 | −0.02 | 0.00 | 0.00 | −0.02 | −0.03 | Constant Gaze | no clear effect |
+| 43 | Tengu | −0.01 ± 0.01 | 0.00 | −0.01 | −0.02 | +0.01 | −0.02 | −0.02 | +0.01 | −0.01 | +0.02 | −0.07 | Mariner's Fire, Soaring Form | no clear effect |
+| 44 | Azarketi | −0.01 ± 0.01 | −0.01 | 0.00 | −0.05 | 0.00 | +0.03 | −0.03 | −0.02 | −0.02 | +0.01 | −0.02 | Hydraulic Deflection, Underwater Volcano | no clear effect |
+| 45 | Goblin | −0.01 ± 0.01 | 0.00 | −0.01 | −0.03 | −0.02 | 0.00 | 0.00 | +0.02 | −0.01 | +0.01 | −0.08 | Burn It!, Dokkaebi Fire, Flames of Vision | no clear effect |
+| 46 | Elf | −0.01 ± 0.01 | −0.01 | 0.00 | −0.02 | −0.02 | −0.01 | −0.01 | 0.00 | −0.01 | −0.03 | −0.03 | Elemental Wrath, Demon Slayer | no clear effect |
+| 47 | Merfolk | −0.01 ± 0.01 | −0.02 | +0.01 | −0.11 | +0.01 | +0.05 | 0.00 | +0.02 | −0.04 | −0.01 | −0.04 | Pummeling Whirlpool, Kraken's Call | no clear effect |
+| 48 | Skeleton | −0.02 ± 0.01 | −0.03 | 0.00 | −0.04 | +0.01 | −0.04 | −0.01 | −0.02 | −0.02 | −0.02 | −0.04 | Necromantic Heir | no clear effect |
+| 49 | Dragonet | −0.03 ± 0.01 | −0.01 | −0.02 | −0.05 | 0.00 | −0.03 | −0.04 | −0.03 | −0.02 | +0.01 | −0.07 | My Claws are Daggers, Dragonet Breath, Into the Sky | no clear effect |
+| 50 | Awakened Animal | −0.03 ± 0.01 | −0.03 | 0.00 | −0.12 | −0.02 | +0.01 | 0.00 | 0.00 | −0.04 | −0.02 | −0.07 | none | slightly worse |
+| 51 | Sprite | −0.03 ± 0.01 | −0.02 | −0.01 | −0.06 | 0.00 | −0.04 | −0.03 | −0.04 | −0.02 | 0.00 | −0.06 | Hero's Wings, Fey Skin | slightly worse |
+
 ## Ancestries
 
 | # | Ancestry | Rating | Fighter | Rogue | Wizard | Cleric | Lvl 1 | Lvl 5 | Lvl 11 | Lvl 17 | Verdict |
@@ -179,7 +237,7 @@ Rated: 92; 448 give nothing a fight here plays (skills used outside combat, Lore
 
 | # | Background | What it adds | On | Rating | Lvl 1 | Lvl 5 | Lvl 11 | Lvl 17 | Verdict |
 |---:|---|---|---|---:|---:|---:|---:|---:|---|
-| 1 | Saved by Clockwork | its rules | fighter | +0.03 ± 0.01 | +0.01 | +0.04 | +0.03 | +0.04 | no clear effect |
+| 1 | Saved by Clockwork | its rules | fighter | +0.03 ± 0.02 | +0.01 | +0.04 | +0.03 | +0.04 | no clear effect |
 | 2 | Acrobat | trained acrobatics | wizard | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | no clear effect |
 | 3 | Aerialist | trained acrobatics | wizard | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | no clear effect |
 | 4 | Awful Scab | trained medicine | fighter | 0.00 ± 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | no clear effect |
