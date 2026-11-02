@@ -226,3 +226,30 @@ export function classReport(rows) {
     ];
     return { markdown: `${lines.join("\n")}\n`, json: { kind: "class-power", generated: new Date().toISOString(), rated } };
 }
+
+// Class pairs (2026-11-02, Cole: "Does it appear any combination of classes perform better than when alone? For example Cleric and Champion
+// is known to be pretty strong together"): each pair's synergy at a level is the pair's rating − each class's own (classes.jsonl, the same
+// seeds), averaged over the levels run. A class with a seat's own class (the cleric, say) has no row here: its rating is the class's own.
+export function pairReport(pairRows, classRows) {
+    const single = new Map(classRows.filter((row) => !row.error).map((row) => [`${row.slug}|${row.level}`, row]));
+    const byPair = new Map();
+    for (const row of pairRows.filter((entry) => !entry.error)) {
+        const [a, b] = row.slugs;
+        const sa = single.get(`${a}|${row.level}`), sb = single.get(`${b}|${row.level}`);
+        if (!sa || !sb) continue;
+        const key = row.slugs.join("+");
+        (byPair.get(key) ?? byPair.set(key, []).get(key)).push({ level: row.level, both: row.levels, synergy: row.levels - sa.levels - sb.levels, se: Math.sqrt(row.se ** 2 + sa.se ** 2 + sb.se ** 2) });
+    }
+    const pairs = [...byPair.entries()].map(([key, list]) => {
+        const synergy = list.reduce((sum, entry) => sum + entry.synergy, 0) / list.length;
+        const se = Math.sqrt(list.reduce((sum, entry) => sum + entry.se ** 2, 0)) / list.length;
+        return { pair: key.split("+"), synergy, se, both: list.reduce((sum, entry) => sum + entry.both, 0) / list.length, byLevel: Object.fromEntries(list.map((entry) => [entry.level, entry.synergy])) };
+    }).sort((x, y) => y.synergy - x.synergy);
+    const levels = [...new Set(pairRows.map((row) => row.level))].sort((x, y) => x - y);
+    const name = (slug) => slug[0].toUpperCase() + slug.slice(1);
+    const num = (value) => `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}`;
+    const table = (list) => [`| # | Pair | Synergy | ${levels.map((level) => `Lvl ${level}`).join(" | ")} | Both together |`, `|---:|---|---:|${levels.map(() => "---:").join("|")}|---:|`,
+        ...list.map((entry, index) => `| ${index + 1} | ${entry.pair.map(name).join(" + ")} | ${num(entry.synergy)} ± ${entry.se.toFixed(2)} | ${levels.map((level) => (entry.byLevel[level] === undefined ? "" : num(entry.byLevel[level]))).join(" | ")} | ${num(entry.both)} |`)].join("\n");
+    const markdown = `# Class pairs\n\nMade by \`node tools/feat-power.mjs <out> class-pairs\` and \`pairs-report\`. Two classes' PCs, each in its seat of the standard party (src/engine/classes.js), at levels ${levels.join(", ")}. Synergy is the pair's rating minus each class's own rating in its seat (both in levels of the foes, on the same seeds): above 0, the two do better together than their separate gains add up to. A pair with one of the four standard classes isn't here; its synergy is 0 by construction (the class's own row already fights beside it).\n\n## Best together\n\n${table(pairs.slice(0, 25))}\n\n## Worst together\n\n${table(pairs.slice(-15).reverse())}\n\n## Every pair\n\n${table(pairs)}\n`;
+    return { markdown, json: { levels, pairs } };
+}

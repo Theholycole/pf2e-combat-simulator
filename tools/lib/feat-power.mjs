@@ -22,7 +22,7 @@ if (!FEAT_ROOT) throw new Error("The feat module's repository wasn't found besid
 const ITEM_ROOT = SIBLING(["pf2e-automatic-item-resolution", "PF2e AUTOMATIC ITEM RESOLUTION"]);
 
 const { readDocuments, basicActions, PACK_ROOT } = await import("./pack-creatures.mjs");
-const { partyFor, classPartyFor } = await import("./deadliness.mjs");
+const { partyFor, classPartyFor, classesPartyFor } = await import("./deadliness.mjs");
 const { CLASS_SLUGS, classArmor, seatOf } = await import("../../src/engine/classes.js");
 const { compileFeat } = await import(new URL("src/compiler/index.js", FEAT_ROOT).href);
 const itemReaders = ITEM_ROOT ? await (async () => {
@@ -754,11 +754,19 @@ export function classTask({ slug, level }) {
     return { kind: "class", slug, level, seat: seatOf(slug), levels: rating.levels, se: rating.se, boss: rating.boss, group: rating.group };
 }
 
+// Two classes' PCs, each in its seat, against the standard party (2026-11-02, Cole: "Does it appear any combination of classes perform
+// better than when alone?"): with each one's own row (classes.jsonl, the same seeds) the pair's synergy is both − one − the other.
+export function classPairTask({ slugs, level }) {
+    const rating = partyRating(classesPartyFor(slugs, level), level);
+    return { kind: "pair", slugs, level, levels: rating.levels, se: rating.se, boss: rating.boss, group: rating.group };
+}
+
 export async function runFeatTask(task) {
     if (task.kind === "scale") return scaleTask(task);
     if (task.scalePath && !scale) loadScale(task.scalePath);
     if (task.kind === "basic") return basicTask(task);
     if (task.kind === "deviant") return deviantTask(task);
     if (task.kind === "class") return classTask(task);
+    if (task.kind === "pair") return classPairTask(task);
     return featTask(task);
 }

@@ -80,6 +80,22 @@ if (!isMainThread) {
         const done = process.argv.includes("--resume") ? new Set(read("classes.jsonl").map((row) => `${row.slug}|${row.level}`)) : new Set();
         console.log(`${tasks.length} class and level pairs`);
         await run(tasks.filter((task) => !done.has(`${task.slug}|${task.level}`)), "classes.jsonl", { append: process.argv.includes("--resume") });
+    } else if (phase === "class-pairs") {
+        // (Every two classes in different seats, neither the seat's own, at --levels (5, 11, 17).)
+        const { CLASS_SLUGS, seatOf } = await import("../src/engine/classes.js");
+        const levels = (process.argv.find((arg) => arg.startsWith("--levels="))?.split("=")[1] ?? "5,11,17").split(",").map(Number);
+        const own = CLASS_SLUGS.filter((slug) => seatOf(slug) !== slug);
+        const pairs = own.flatMap((a, index) => own.slice(index + 1).filter((b) => seatOf(a) !== seatOf(b)).map((b) => [a, b]));
+        const tasks = pairs.flatMap((slugs) => levels.map((level) => ({ kind: "pair", slugs, level, scalePath })));
+        const done = process.argv.includes("--resume") ? new Set(read("pairs.jsonl").map((row) => `${row.slugs.join("+")}|${row.level}`)) : new Set();
+        console.log(`${pairs.length} pairs, ${tasks.length} runs`);
+        await run(tasks.filter((task) => !done.has(`${task.slugs.join("+")}|${task.level}`)), "pairs.jsonl", { append: process.argv.includes("--resume") });
+    } else if (phase === "pairs-report") {
+        const { pairReport } = await import("./lib/feat-report.mjs");
+        const { markdown, json } = pairReport(read("pairs.jsonl"), read("classes.jsonl"));
+        fs.writeFileSync(`${out}/pair-ratings.json`, `${JSON.stringify(json)}\n`);
+        fs.writeFileSync(`${out}/class-pairs.md`, markdown);
+        console.log(`${json.pairs.length} pairs → ${out}/class-pairs.md`);
     } else if (phase === "classes-report") {
         const { classReport } = await import("./lib/feat-report.mjs");
         const { markdown, json } = classReport(read("classes.jsonl"));

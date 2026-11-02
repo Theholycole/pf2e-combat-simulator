@@ -496,6 +496,20 @@ export function classPC(slug, level, { spell = () => null, basics = [] } = {}) {
 }
 
 // The standard party with a class's PC in its seat (the PC whose id is its seat's), or the standard party for one of the four.
+// (2026-11-02, Cole: "Does it appear any combination of classes perform better than when alone?") The standard party with several classes'
+// PCs, each in its own seat (two in one seat: null).
+export function classesParty(slugs, level, options = {}) {
+    let party = standardParty(level, options);
+    const seats = slugs.map(seatOf);
+    if (seats.some((seat) => !seat) || new Set(seats).size !== seats.length) return null;
+    for (const slug of slugs) {
+        if (seatOf(slug) === slug) continue;
+        const pcOf = classPC(slug, level, options);
+        party = party.flatMap((c) => (c.id === seatOf(slug) ? [pcOf, ...(pcOf.companions ?? [])] : [c]));
+    }
+    return party;
+}
+
 export function classParty(slug, level, options = {}) {
     const party = standardParty(level, options);
     const seat = seatOf(slug);

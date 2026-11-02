@@ -12,7 +12,7 @@ const { basicActions, combatant, readDocuments, summonReserves, PACK_ROOT } = aw
 const { compileSpell, effectModels, npcSpells, spellNamed } = await import("./pack-spells.mjs");
 const { npcItems } = await import("./pack-items.mjs");
 const { standardParty } = await import("../../src/engine/party.js");
-const { classParty } = await import("../../src/engine/classes.js");
+const { classParty, classesParty } = await import("../../src/engine/classes.js");
 const { canCast, isUtility } = await import("../../src/engine/spells.js");
 const { moderate, moderateCreatureAt } = await import("./creature-tables.mjs");
 // (The counting, the profile and the ranking: src/engine/danger-scale.js, shared with the in-Foundry run.)
@@ -76,6 +76,11 @@ export function partyFor(level) {
 
 // The standard party with a class's PC in its seat (src/engine/classes.js), with the same spells and basic actions.
 const classParties = new Map();
+export function classesPartyFor(slugs, level) {
+    const lv = Math.max(1, Math.min(20, level));
+    return classesParty(slugs, lv, { spell: dangerPartySpell(spell), basics: Object.values(basicActions) });
+}
+
 export function classPartyFor(slug, level) {
     const lv = Math.max(1, Math.min(20, level));
     const id = `${slug}|${lv}`;
