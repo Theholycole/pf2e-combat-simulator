@@ -562,6 +562,27 @@ export function featTask(task) {
     return { ...head, played: built.played, situational: built.situational, results, levels, se };
 }
 
+// A party's rating against the plain party at a level, the feat ratings' way: { levels, se, boss, group, uses: { name: per fight } }
+// (tools/lib/combo-power.mjs, two feats together).
+export function partyRating(party, level, names = []) {
+    const results = {};
+    const uses = {};
+    for (const kind of KINDS) {
+        const scaled = scale?.get(`${level}|${kind}`);
+        if (!scaled) throw new Error(`no scale for level ${level} ${kind}`);
+        const foes = powerFoes(kind, level);
+        const fights = dangerSummary(dangerFights(party, foes, 0, FIGHTS, { grid: GRID }));
+        const diffs = fights.scores.map((score, index) => score - scaled.scores[index]);
+        const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
+        const sd = Math.sqrt(diffs.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
+        results[kind] = { levels: -mean / scaled.step, levelsSe: sd / Math.sqrt(diffs.length) / scaled.step };
+        for (const name of names) uses[name] = (uses[name] ?? 0) + usesPerFight(party, foes, name) / KINDS.length;
+    }
+    const levels = KINDS.reduce((sum, kind) => sum + results[kind].levels, 0) / KINDS.length;
+    const se = Math.sqrt(KINDS.reduce((sum, kind) => sum + results[kind].levelsSe ** 2, 0)) / KINDS.length;
+    return { levels, se, boss: results.boss.levels, group: results.group.levels, uses };
+}
+
 // A basic action: every PC without it, at the levels it's rated at (BASIC_LEVELS).
 export const BASIC_LEVELS = Object.freeze([1, 5, 10, 15, 20]);
 export function basicTask(task) {
