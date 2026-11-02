@@ -3050,6 +3050,22 @@ function applyChanges(state, caster, spell, changes, context, io) {
 }
 
 // Casts spell spellIndex at the targets (ids). Spends its pool.
+// (2026-11-02, classes.js: a sorcerer's Sorcerous Potency — its spell's rank more damage on each creature a slot spell damages — and the like:
+// caster.spellDamageBonus { perRank, slotsOnly }.)
+export function withCasterDamage(caster, spell, changes) {
+    const bonus = caster?.spellDamageBonus;
+    if (!bonus || spell.kind || !Array.isArray(changes)) return changes;
+    if (bonus.slotsOnly && (!spell.pool || (spell.plan?.traits ?? []).includes("cantrip") || /:focus$/.test(spell.pool))) return changes;
+    const extra = Math.max(0, Math.round((bonus.perRank ?? 1) * (Number(spell.castRank) || 1)));
+    if (!extra) return changes;
+    const seen = new Set();
+    return changes.map((change) => {
+        if (change.op !== "damage" || !change.instances?.length || seen.has(change.target)) return change;
+        seen.add(change.target);
+        return { ...change, instances: change.instances.map((instance, index) => (index === 0 ? { ...instance, amount: (Number(instance.amount) || 0) + extra } : instance)) };
+    });
+}
+
 export function castSpell(state, caster, spellIndex, targetIds, actions, options = {}) {
     const spell = caster.spells[spellIndex];
     // (Vibrant Thorns: a spell of the trait its thorns feed on — vitality — ups their damage until the caster's next turn starts.)
@@ -3445,7 +3461,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     if (info.immunity && info.immunityDegrees) markImmune(targets.filter((target) => !result.degrees[target.id] || info.immunityDegrees.includes(result.degrees[target.id])));
     // (2026-10-27: an immunity to one part of it — trigger.partImmunity, part-immunity.js: that condition left out of an immune target's row.)
-    result.changes = partImmune(state, caster, spell.plan, spell.name, result).kept;
+    result.changes = withCasterDamage(caster, spell, partImmune(state, caster, spell.plan, spell.name, result).kept);
     applyChanges(state, caster, spell, result.changes, context, io);
     // (S56, Acid Splash: a hit's splash damage on the others within 5 feet of the target — its Melee — not doubled on a critical hit.)
     if (spell.plan?.resolution?.splash) splashAround(state, caster, spell, targets, result);
@@ -4467,7 +4483,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         for (const [degreeIndex, changes] of outcomes.entries()) {
             const chance = finds * reached * odds[degreeIndex];
             if (!chance) continue;
-            for (let change of changes) {
+            for (let change of withCasterDamage(caster, spell, changes)) {
                 // (A value the text rolls, at its average.)
                 if (change.op === "condition" && change.valueRoll && !Number.isFinite(change.value)) change = { ...change, value: averageRoll(change.valueRoll) };
                 if (change.target === caster.id && target !== caster) {

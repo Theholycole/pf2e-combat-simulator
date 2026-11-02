@@ -94,7 +94,7 @@ const CLASSES = {
         seat: "cleric", hp: 8, attrs: (k, lv) => ({ str: 1, dex: 2, con: casterCon(lv), int: 0, wis: k, cha: 1 }),
         armor: "light", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [3, E]], ref: [[1, T], [11, E]], will: [[1, E], [13, M]], perception: [[1, T], [9, E]],
-        caster: { tradition: "divine", attr: "wis", slots: 3 }
+        caster: { tradition: "divine", attr: "wis", slots: 4 }
     },
     barbarian: {
         seat: "fighter", hp: 12, attrs: (k, lv) => ({ str: k, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: 0 }),
@@ -106,7 +106,7 @@ const CLASSES = {
             const axe = weaponStrike(lv, { name: "Greataxe", die: 12, type: "slashing", toHit: a.str, damageAttr: a.str, prof, group: "axe", extra: { hands: 2, sweep: true, held: true } });
             // Rage (fury): +2 damage, its specialization's +6 at 7th and +12 at 15th; temporary Hit Points of its level and Constitution.
             const bonus = lv >= 15 ? 12 : lv >= 7 ? 6 : 2;
-            const rage = { name: "Rage", actions: 1, tempHp: lv + a.con, noConcentrate: true, strikeDeltas: { [axe.name]: [{ dice: 0, die: 0, bonus, multiplier: 1, type: "slashing", precision: false, persistent: false }] } };
+            const rage = { name: "Rage", actions: 1, tempHp: lv + a.con, noConcentrate: true, acPenalty: 1, strikeDeltas: { [axe.name]: [{ dice: 0, die: 0, bonus, multiplier: 1, type: "slashing", precision: false, persistent: false }] } };
             return { strikes: [axe], fields: { selfBuffs: [rage], reactions: { aoo: false, shieldBlock: false } } };
         }
     },
@@ -121,6 +121,7 @@ const CLASSES = {
         armor: "heavy", armorSteps: [[1, T], [7, E], [13, M], [17, L]],
         fort: [[1, E], [9, M]], ref: [[1, T], [9, E]], will: [[1, E], [11, M]], perception: [[1, T], [11, E]],
         classDC: [[1, T], [9, E], [17, M]],
+        focus: { names: ["Lay on Hands"], attr: "cha", points: 1 },
         build(lv, a) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const sword = weaponStrike(lv, { name: "Longsword", die: 8, type: "slashing", toHit: a.str, damageAttr: a.str, prof, group: "sword", extra: { versatile: ["piercing"], held: true } });
@@ -145,7 +146,7 @@ const CLASSES = {
         seat: "cleric", hp: 8, attrs: (k, lv) => ({ str: 1, dex: 2, con: casterCon(lv), int: 0, wis: k, cha: 0 }),
         armor: "medium", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [3, E]], ref: [[1, T], [5, E]], will: [[1, E], [11, M]], perception: [[1, T], [3, E]],
-        caster: { tradition: "primal", attr: "wis", slots: 3 }
+        caster: { tradition: "primal", attr: "wis", slots: 3 }, focus: { names: ["Tempest Surge"], attr: "wis", points: 1 }
     },
     exemplar: {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: k, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: 0 }),
@@ -195,7 +196,7 @@ const CLASSES = {
         build(lv, a) {
             // Way of the Sniper: an arquebus (kickback's +1 damage), One Shot, One Kill's dice when it shoots first, Covered Reload.
             const prof = rank(lv, [[1, E], [5, M], [13, L]]);
-            const gun = { ...weaponStrike(lv, { name: "Arquebus", die: 8, type: "piercing", toHit: a.dex, damageAttr: 1, prof, group: "firearm", extra: { held: true, hands: 2 } }), melee: false, increment: 150, reload: 1, firearm: true, concussive: true };
+            const gun = { ...weaponStrike(lv, { name: "Arquebus", die: 8, type: "piercing", toHit: a.dex, damageAttr: 1, prof, group: "firearm", extra: { held: true, hands: 2 } }), melee: false, increment: 150, reload: 1, firearm: true, concussive: true, fatal: 12 };
             const dagger = weaponStrike(lv, { name: "Dagger", die: 4, type: "piercing", toHit: a.dex, damageAttr: a.str, prof: rank(lv, [[1, T], [5, E], [13, M]]), group: "knife", extra: { agile: true, finesse: true } });
             return { strikes: [gun, dagger], fields: { slingersReload: { name: "Covered Reload", then: null }, firstShot: { dice: lv >= 15 ? 3 : lv >= 9 ? 2 : 1 } } };
         }
@@ -245,9 +246,11 @@ const CLASSES = {
         armor: "medium", armorSteps: [[1, T], [11, E], [17, M]],
         fort: [[1, E], [9, M]], ref: [[1, T], [5, E]], will: [[1, E], [9, M]], perception: [[1, T], [9, E]],
         caster: { tradition: "arcane", attr: "int", topTwo: 2, prof: (lv) => rank(lv, [[1, T], [9, E], [17, M]]) },
+        // (Inexorable Iron: a two-handed weapon and its conflux spell, Thunderous Strike.)
+        focus: { names: ["Thunderous Strike"], attr: "int", points: 1 },
         build(lv, a) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
-            const sword = weaponStrike(lv, { name: "Longsword", die: 8, type: "slashing", toHit: a.str, damageAttr: a.str, prof, group: "sword", extra: { held: true } });
+            const sword = weaponStrike(lv, { name: "Greatsword", die: 12, type: "slashing", toHit: a.str, damageAttr: a.str, prof, group: "sword", extra: { held: true, hands: 2 } });
             return { strikes: [sword], fields: { spellstrike: { name: "Spellstrike" }, ...(lv >= 19 ? { doubleSpellstrike: true } : {}) } };
         }
     },
@@ -267,19 +270,19 @@ const CLASSES = {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 0 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, E], [11, M]], ref: [[1, T], [5, E]], will: [[1, E]], perception: [[1, T], [7, E]],
-        caster: { tradition: "occult", attr: "int", slots: 3 }
+        caster: { tradition: "occult", attr: "int", slots: 3 }, focus: { names: ["Necrotic Bomb", "Bone Spear"], attr: "int", points: 2 }
     },
     oracle: {
         seat: "cleric", hp: 8, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: 0, wis: minor(lv), cha: k }),
         armor: "light", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [9, E]], ref: [[1, T], [13, E]], will: [[1, E], [7, M], [17, L]], perception: [[1, T], [11, E]],
-        caster: { tradition: "divine", attr: "cha", slots: 4 }
+        caster: { tradition: "divine", attr: "cha", slots: 4 }, focus: { names: ["Tempest Touch"], attr: "cha", points: 1 }
     },
     psychic: {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 1 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [9, E]], ref: [[1, T], [5, E]], will: [[1, E], [11, M], [17, L]], perception: [[1, T], [11, E]],
-        caster: { tradition: "occult", attr: "int", slots: 2 }
+        caster: { tradition: "occult", attr: "int", slots: 2, extra: ["Imaginary Weapon"] }, psyche: true
     },
     ranger: {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: second(lv) - 1, dex: k, con: martialCon(lv), int: 0, wis: minor(lv), cha: 0 }),
@@ -308,21 +311,31 @@ const CLASSES = {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: 0, wis: minor(lv), cha: k }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [5, E]], ref: [[1, T], [9, E]], will: [[1, E], [17, M]], perception: [[1, T], [11, E]],
-        caster: { tradition: "arcane", attr: "cha", slots: 4 }
+        caster: { tradition: "arcane", attr: "cha", slots: 4 }, focus: { names: ["Elemental Toss"], attr: "cha", points: 1 }, potency: true
     },
     summoner: {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: 0, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: k }),
         armor: "unarmored", armorSteps: [[1, T], [11, E], [19, M]],
         fort: [[1, E], [15, M]], ref: [[1, T], [9, E]], will: [[1, E], [15, M]], perception: [[1, T], [3, E]],
         caster: { tradition: "arcane", attr: "cha", topTwo: 2, prof: (lv) => rank(lv, [[1, T], [9, E], [17, M]]) },
-        build(lv) {
-            // The eidolon's Strikes on the shared body (a beast eidolon: Strength 4 and up; its unarmed steps; its AC instead of the summoner's).
+        build(lv, a) {
+            // The eidolon (a beast eidolon: Strength 4 and up, its unarmed steps, its own AC) as its own body beside the summoner, sharing
+            // its Hit Points (fight.js), two actions each (three between them and Act Together's one more); Boost Eidolon among its cantrips.
             const str = key(lv);
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
-            const jaws = weaponStrike(lv, { name: "Eidolon Jaws", die: 8, type: "piercing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true } });
-            const claw = weaponStrike(lv, { name: "Eidolon Claw", die: 6, type: "slashing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true } });
+            const jaws = weaponStrike(lv, { name: "Jaws", die: 8, type: "piercing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true } });
+            const claw = weaponStrike(lv, { name: "Claw", die: 6, type: "slashing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true } });
             const eidolonAC = 10 + lv + rank(lv, [[1, T], [11, E], [19, M]]) + 2 + 3 + armorPotency(lv);
-            return { strikes: [jaws, claw], ac: eidolonAC };
+            // (Boost Eidolon, the summoner's one action each turn: +2 status damage a weapon die, to +8 — on the eidolon's Strikes; Act Together's
+            // fourth action: the eidolon's two, the summoner's one.)
+            const boost = Math.min(8, 2 * striking(lv));
+            for (const strike of [jaws, claw]) strike.damage = [...strike.damage, { dice: 0, die: 0, bonus: boost, type: strike.damage[0].type, source: "Boost Eidolon" }];
+            const eidolon = (summoner) => ({
+                ...structuredClone(summoner), id: "eidolon", name: "Eidolon", kind: "npc", traits: ["eidolon", "beast"], sharesHpWith: summoner.id, actionsPerTurn: 2,
+                ac: eidolonAC, strikes: [jaws, claw].map((strike) => ({ ...strike, ...(potency(lv) ? { iwr: { ...strike.iwr, traits: ["magical"] } } : {}) })), spells: (summoner.spells ?? []).filter((entry) => entry.kind === "basic"), spellPools: {},
+                skills: { athletics: lv + rank(lv, [[1, T], [5, E], [13, M]]) + str, intimidation: lv + T }, classDC: null, heroPoints: 0, reactions: { aoo: false, shieldBlock: false }, critSpec: lv >= 7
+            });
+            return { strikes: [], fields: { actionsPerTurn: 1 }, companions: [eidolon] };
         }
     },
     swashbuckler: {
@@ -352,13 +365,13 @@ const CLASSES = {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 0 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [5, E]], ref: [[1, T], [9, E]], will: [[1, E], [17, M]], perception: [[1, T], [11, E]],
-        caster: { tradition: "primal", attr: "int", slots: 3 }
+        caster: { tradition: "primal", attr: "int", slots: 3, extra: ["Evil Eye"] }
     }
 };
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
-    animist: "apparitions", necromancer: "thralls", runesmith: "runes", summoner: "the eidolon as its own body (its Strikes on the summoner's)",
+    animist: "apparitions", necromancer: "thralls", runesmith: "runes", summoner: "evolution feats on the eidolon",
     bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "hexes and the familiar", oracle: "the curse", druid: "Untamed Form",
     barbarian: "Rage's -1 AC", alchemist: "vials as a daily limit (bombs aren't counted)", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });
@@ -380,7 +393,7 @@ export function classPC(slug, level, { spell = () => null, basics = [] } = {}) {
     const ac = 10 + lv + rank(lv, def.armorSteps) + armor.item + Math.min(a.dex, armor.cap) + armorPotency(lv);
     const built = def.build?.(lv, a) ?? {};
     const casterStaff = { name: "Staff", bonus: lv + T + a.str, melee: true, agile: false, iwr: { group: "club" }, damage: [{ dice: 1, die: 4, bonus: a.str, type: "bludgeoning" }] };
-    const [strike, ...backups] = built.strikes ?? [casterStaff];
+    const [strike, ...backups] = built.strikes?.length ? built.strikes : [casterStaff];
     const spellAttr = def.caster ? a[def.caster.attr] : 0;
     const classDC = def.classDC ? 10 + lv + rank(lv, def.classDC) + k : 10 + lv + (def.caster?.prof ?? spellProf)(lv) + spellAttr;
     const c = pc({
@@ -403,7 +416,27 @@ export function classPC(slug, level, { spell = () => null, basics = [] } = {}) {
         const book = { ...base, slots: def.caster.slots, topTwo: def.caster.topTwo, prof: def.caster.prof, cantrips: [...(def.caster.extra ?? []), ...base.cantrips] };
         Object.assign(c, preparedSpells(c, book, lv, spellAttr, spell));
     }
+    // Focus spells (a champion's Lay on Hands, a druid's order spell, a bloodline's, a revelation, a conflux, grave spells): at half its level
+    // rounded up, from a pool of its Focus Points.
+    if (def.focus) {
+        const prof = def.caster ? (def.caster.prof ?? spellProf)(lv) : rank(lv, def.classDC ?? [[1, T]]);
+        const attr = a[def.focus.attr] ?? 0;
+        const castRank = Math.ceil(lv / 2);
+        const pool = `${slug}:focus`;
+        c.spells ??= [];
+        for (const name of def.focus.names) {
+            const found = spell(name, castRank);
+            if (found) c.spells.push({ ...found, name: found.name ?? name, castRank, dc: 10 + lv + prof + attr, attack: lv + prof + attr, pool, tradition: def.caster?.tradition ?? "divine" });
+        }
+        if (c.spells.some((entry) => entry.pool === pool)) c.spellPools = { ...(c.spellPools ?? {}), [pool]: def.focus.points };
+    }
+    // (Sorcerous Potency: a slot spell's rank more damage. A psychic's Unleash Psyche — twice the rank for its 2 rounds, then a round off —
+    // as its rank on every spell, the fight's average.)
+    if (def.potency) c.spellDamageBonus = { perRank: 1, slotsOnly: true };
+    if (def.psyche) c.spellDamageBonus = { perRank: 1, slotsOnly: false };
     c.spells = [...(c.spells ?? []), ...basics.map((plan) => ({ name: plan.source?.name ?? plan.name, plan, castRank: 1, pool: null, kind: "basic" }))];
+    // (Creatures that come with it — the summoner's eidolon —, for classParty.)
+    if (built.companions?.length) Object.defineProperty(c, "companions", { value: built.companions.map((make) => make(c)), enumerable: false });
     return c;
 }
 
@@ -413,5 +446,5 @@ export function classParty(slug, level, options = {}) {
     const seat = seatOf(slug);
     if (!seat || seat === slug) return party;
     const pcOf = classPC(slug, level, options);
-    return party.map((c) => (c.id === seat ? pcOf : c));
+    return party.flatMap((c) => (c.id === seat ? [pcOf, ...(pcOf.companions ?? [])] : [c]));
 }

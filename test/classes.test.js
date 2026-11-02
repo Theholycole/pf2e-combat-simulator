@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 
 import { CLASS_SLUGS, classPC, classParty, seatOf } from "../src/engine/classes.js";
 import { standardParty } from "../src/engine/party.js";
-import { simulate } from "../src/engine/fight.js";
+import { createFightState, simulate } from "../src/engine/fight.js";
+import { applyDamage } from "../src/engine/actions.js";
+import { armorClass } from "../src/engine/combatant.js";
+import { withCasterDamage } from "../src/engine/spells.js";
 import { moderateCreature } from "../src/engine/benchmarks.js";
 
 // Every class's PC (2026-11-02, the user: "Get the simulator working with all classes").
@@ -19,7 +22,7 @@ test("every class has a PC at every level, with its seat in the standard party",
             assert.ok(c.hp.max > 0 && c.ac > 10 + level && c.strikes.length > 0, `${slug} ${level}`);
         }
         const party = classParty(slug, 5, { spell: fake });
-        assert.equal(party.length, 4);
+        assert.equal(party.length, slug === "summoner" ? 5 : 4);
         assert.ok(party.some((c) => c.id === slug));
         assert.ok(["fighter", "rogue", "wizard", "cleric"].includes(seatOf(slug)));
     }
@@ -60,4 +63,31 @@ test("every class's party fights to an end", () => {
         const result = simulate({ combatants: [...party.map((c) => ({ ...c, engagement: 1 })), { ...moderateCreature(6, "foe", "Foe"), engagement: 1 }] }, { morale: false, roundCap: 8 }, 1);
         assert.ok(result.rounds >= 1, slug);
     }
+});
+
+test("the summoner's eidolon is its own body sharing the summoner's Hit Points; both drop together", () => {
+    const party = classParty("summoner", 5, { spell: () => null });
+    const eidolon = party.find((c) => c.id === "eidolon");
+    assert.equal(eidolon.sharesHpWith, "summoner");
+    assert.deepEqual([eidolon.actionsPerTurn, party.find((c) => c.id === "summoner").actionsPerTurn], [2, 1]);
+    const state = createFightState({ combatants: [...party.map((c) => ({ ...c, engagement: 1 })), { ...moderateCreature(5, "foe", "Foe"), engagement: 1 }] }, {}, 1);
+    const summoner = state.byId.get("summoner");
+    const body = state.byId.get("eidolon");
+    applyDamage(state, body, [{ type: "fire", amount: 10, persistent: false, precision: false }], { source: state.byId.get("foe") });
+    assert.equal(summoner.hp.value, summoner.hp.max - 10);
+    applyDamage(state, body, [{ type: "fire", amount: 500, persistent: false, precision: false }], { source: state.byId.get("foe") });
+    assert.ok(summoner.status !== "active" && body.status !== "active");
+});
+
+test("Sorcerous Potency adds the rank to a slot spell's damage on each creature once; Rage costs 1 AC", () => {
+    const sorcerer = classPC("sorcerer", 5, { spell: fake });
+    const changes = [{ op: "damage", target: "a", instances: [{ type: "fire", amount: 10 }, { type: "fire", amount: 3 }] }, { op: "damage", target: "a", instances: [{ type: "fire", amount: 4 }] }];
+    const boosted = withCasterDamage(sorcerer, { name: "Fireball", castRank: 3, pool: "sorcerer:3:0", plan: { traits: [] } }, changes);
+    assert.deepEqual(boosted.map((change) => change.instances[0].amount), [13, 4]);
+    assert.equal(withCasterDamage(sorcerer, { name: "Ignition", castRank: 3, pool: null, plan: { traits: ["cantrip"] } }, changes), changes);
+    const state = createFightState({ combatants: [{ ...classPC("barbarian", 3), engagement: 1 }, { ...moderateCreature(3, "foe", "Foe"), engagement: 1 }] }, {}, 1);
+    const barbarian = state.byId.get("barbarian");
+    const before = armorClass(barbarian);
+    barbarian.activeBuffs = [barbarian.selfBuffs[0]];
+    assert.equal(armorClass(barbarian), before - 1);
 });

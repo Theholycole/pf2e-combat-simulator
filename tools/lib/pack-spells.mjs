@@ -50,8 +50,11 @@ const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".")
 // The effect models a plan's PF2e spell effects make, at the cast rank.
 // (2026-10-22: a module's own effect link too — "Compendium.pf2e-team-plus-magic.misc.<id>", the aspect Shifts' —, when it's an effect item.
 // And the shapes of the spells it lets the creature take — Untamed Form's: plan.formsFrom, withFormsFrom.)
-export const effectModels = (plan, castRank) => withFormsFrom(plan, castRank, Object.fromEntries([...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}|Compendium\.[\w-]+\.[\w-]+\.(?:Item\.)?[A-Za-z0-9]{16}(?=["\]}\s])/g) ?? [])]
-  .map((uuid) => [uuid, effectsById.get(uuid.split(".").pop())]).filter(([, item]) => item).map(([uuid, item]) => [uuid, resolveAuraGrants(effectModel(item, { rank: castRank, conditionSlug }), (granted) => effectsById.get(String(granted).split(".").pop()) ?? null, { rank: castRank, conditionSlug })])));
+// (2026-11-02: a link by the effect's name — Courageous Anthem's "Compendium.pf2e.spell-effects.Item.Spell Effect: Courageous Anthem".)
+const effectsByName = new Map([...effectItems].map((effect) => [effect.name, effect]));
+const effectByUuid = (uuid) => effectsById.get(uuid.split(".").pop()) ?? effectsByName.get(uuid.replace(/^Compendium\.pf2e\.spell-effects\.Item\./, "")) ?? null;
+export const effectModels = (plan, castRank) => withFormsFrom(plan, castRank, Object.fromEntries([...new Set(JSON.stringify(plan).match(/Compendium\.pf2e\.spell-effects\.Item\.Spell Effect: [^\]"{}]+|Compendium\.pf2e\.spell-effects\.Item\.[A-Za-z0-9]{16}|Compendium\.[\w-]+\.[\w-]+\.(?:Item\.)?[A-Za-z0-9]{16}(?=["\]}\s])/g) ?? [])]
+  .map((uuid) => [uuid, effectByUuid(uuid)]).filter(([, item]) => item).map(([uuid, item]) => [uuid, resolveAuraGrants(effectModel(item, { rank: castRank, conditionSlug }), (granted) => effectsById.get(String(granted).split(".").pop()) ?? null, { rank: castRank, conditionSlug })])));
 
 // (2026-10-22, family 6: Untamed Form — "You can transform into shapes listed in Animal Form" from 2nd rank —: the battle forms of the spells
 // its text names, at its rank, on its own effect, which the creature takes the best of.)

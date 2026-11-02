@@ -1752,6 +1752,13 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     releaseGrabs(state, target);
     releaseAllSwallowed(state, target, "is freed");
     target.hp.value = 0;
+    // (A summoner and its eidolon share their Hit Points: both drop — the eidolon unmanifests, the summoner falls unconscious.)
+    const linked = state.list.find((other) => other !== target && isActive(other) && (other.sharesHpWith === target.id || target.sharesHpWith === other.id));
+    if (linked && !target.linkedFalling) {
+        linked.linkedFalling = true;
+        knockOut(state, linked, { source, critical: false, nonlethal, overwhelming: false, massive: false });
+        linked.linkedFalling = false;
+    }
     if (source && target.kind === "pc") source.downedCount++;
     // (You're Next, B79: the reaction of the creature that downed it.)
     if (source && source !== target && source.side !== target.side && isActive(source)) downsAnswers(state, source, target);

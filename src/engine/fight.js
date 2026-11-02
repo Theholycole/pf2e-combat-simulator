@@ -109,6 +109,11 @@ function outcomeCache(snapshot) {
 function createState(snapshot, options, seed, withLog) {
     const list = snapshot.combatants.map(createCombatant);
     for (const c of list) keepPermanent(c);
+    // (2026-11-02, classes.js: a summoner and its eidolon share one pool of Hit Points — the same object, so damage and healing to either is to both.)
+    for (const c of list) {
+        const partner = c.sharesHpWith ? list.find((other) => other.id === c.sharesHpWith) : null;
+        if (partner) c.hp = partner.hp;
+    }
     const state = {
         rng: createRng(seed),
         seed,
@@ -480,6 +485,8 @@ function startTurn(state, c) {
     if (c.shield) c.shield.raised = false;
     // A complex hazard: its routine's actions.
     let actions = isHazard(c) ? (c.hazard?.routineActions ?? 1) : 3 + (c.cond.quickened ? 1 : 0);
+    // (A summoner and its eidolon: three actions between them and Act Together's one more — two each, classes.js.)
+    if (c.actionsPerTurn) actions = Math.min(actions, c.actionsPerTurn + (c.cond.quickened ? 1 : 0));
     if (c.cond.stunned > 0) {
         const lost = Math.min(c.cond.stunned, actions);
         c.cond.stunned -= lost;
@@ -1776,6 +1783,7 @@ function summarize(state) {
             id: c.id,
             name: c.name,
             kind: c.kind,
+            ...(c.sharesHpWith ? { linked: true } : {}),
             down: c.everDown,
             dead: c.status === DEAD,
             hp: Math.max(0, c.hp.value),
