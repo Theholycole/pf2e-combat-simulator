@@ -48,7 +48,7 @@ export const ROLE_PROFILES = Object.freeze({
 
 const BEAM_WIDTH = 5;
 const NEXT_TURN_WEIGHT = 0.5;
-const GUARD = Number(process.env.SIM_GUARD ?? 0.05);
+const GUARD = Number(globalThis.process?.env?.SIM_GUARD ?? 0.05);
 // Conditions and spell effects are weighed in rounds of a creature's threat;
 // damage as the share of its HP removed, where a kill (all of its threat for
 // the rest of the fight) counts once. A fight has about three rounds left, so
