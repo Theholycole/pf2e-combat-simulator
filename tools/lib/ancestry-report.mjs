@@ -44,6 +44,26 @@ export function ancestryReport(rows) {
         return { rated, skipped };
     };
     const ancestries = group("ancestry");
+    // An ancestry with its feats: on each PC and level, its feats' row (or its own, where it plays no feat there).
+    const featRows = rows.filter((row) => row.kind === "ancestry-feats" && !row.error);
+    const withFeats = (() => {
+        if (!featRows.length) return null;
+        const rated = [];
+        for (const base of ancestries.rated) {
+            const own = rows.filter((row) => row.kind === "ancestry" && row.id === base.id && Number.isFinite(row.levels));
+            const merged = own.map((row) => {
+                const feats = featRows.find((each) => each.id === row.id && each.level === row.level && each.host === row.host);
+                return feats && !feats.noFeats && Number.isFinite(feats.levels) ? { ...feats } : { ...row, feats: [] };
+            });
+            const made = summary(merged);
+            if (!made) continue;
+            const top = merged.find((row) => row.level === LEVELS.at(-1) && row.host === "fighter")?.feats ?? [];
+            const all = [...new Set(merged.flatMap((row) => row.feats ?? []))];
+            rated.push({ id: base.id, name: base.name, levels: round(made.levels), se: round(made.se), own: base.levels, gain: round(made.levels - base.levels), byHost: roundAll(made.byHost), byLevel: roundAll(made.byLevel), feats: all, fighter17: top, verdict: made.verdict });
+        }
+        rated.sort((a, b) => b.levels - a.levels || a.name.localeCompare(b.name));
+        return rated;
+    })();
     const heritages = group("heritage");
     const backgrounds = group("background");
     const now = new Date().toISOString().slice(0, 10);
@@ -56,6 +76,18 @@ export function ancestryReport(rows) {
         `- **Heritage**: on top of its ancestry (a versatile heritage on a human), at levels ${HERITAGE_LEVELS.join(" and ")} on each PC, against the ancestry alone on the same dice: its PF2e rules, always on.`,
         "- **Background**: the skill feat it grants (where the simulator plays it, on the PC the feat ratings put it on; Battle Medicine on the fighter), its own rules, and the combat skills it trains (Athletics, Intimidation, Deception, Acrobatics, Medicine) on a PC without them, against the party without them. Backgrounds that come to the same thing share one set of fights.",
         "",
+        ...(withFeats
+            ? [
+                  "## Ancestries with their ancestry feats",
+                  "",
+                  `Each ancestry on each PC and level again, now with the best of its ancestry feats in its slots (1st, 5th, 9th, 13th and 17th level): the feats with the best feat ratings (docs/feat-power.md) that the PC plays, a slot at a time, ranked by the feat ratings and left out where they'd need another weapon or rate at 0 or worse. Their prerequisites (a heritage, another feat) aren't checked. Where the PC plays none of its feats, the ancestry's own rating stands. Against the same human without feats as below.`,
+                  "",
+                  "| # | Ancestry | With feats | Ancestry alone | Feats add | Fighter | Rogue | Wizard | Cleric | Lvl 1 | Lvl 5 | Lvl 11 | Lvl 17 | Feats it plays | Verdict |",
+                  "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|",
+                  ...withFeats.map((row, index) => `| ${index + 1} | ${row.name} | ${signed(row.levels)} ± ${row.se.toFixed(2)} | ${signed(row.own)} | ${signed(row.gain)} | ${HOSTS.map((host) => (Number.isFinite(row.byHost[host]) ? signed(row.byHost[host]) : "")).join(" | ")} | ${LEVELS.map((level) => (Number.isFinite(row.byLevel[level]) ? signed(row.byLevel[level]) : "")).join(" | ")} | ${row.feats.join(", ") || "none"} | ${row.verdict} |`),
+                  ""
+              ]
+            : []),
         "## Ancestries",
         "",
         "| # | Ancestry | Rating | Fighter | Rogue | Wizard | Cleric | Lvl 1 | Lvl 5 | Lvl 11 | Lvl 17 | Verdict |",
@@ -79,5 +111,5 @@ export function ancestryReport(rows) {
         ...backgrounds.rated.map((row, index) => `| ${index + 1} | ${row.name} | ${[...(row.feats ?? []), ...(row.skills ?? []).map((skill) => `trained ${skill}`)].join(", ") || "its rules"} | ${row.host ?? ""} | ${signed(row.levels)} ± ${row.se.toFixed(2)} | ${LEVELS.map((level) => (Number.isFinite(row.byLevel[level]) ? signed(row.byLevel[level]) : "")).join(" | ")} | ${row.verdict} |`),
         ""
     ];
-    return { markdown: lines.join("\n"), json: { version: 1, generated: now, levels: LEVELS, hosts: HOSTS, ancestries, heritages, backgrounds } };
+    return { markdown: lines.join("\n"), json: { version: 1, generated: now, levels: LEVELS, hosts: HOSTS, ancestries, ancestriesWithFeats: withFeats ? { rated: withFeats } : null, heritages, backgrounds } };
 }

@@ -189,6 +189,13 @@ export function featCompendiumData({ rated, deviant = null, ancestry = null, ref
     for (const [kind, collection] of [["ancestries", "pf2e.ancestries"], ["heritages", "pf2e.heritages"], ["backgrounds", "pf2e.backgrounds"]]) {
         for (const row of ancestry?.[kind]?.rated ?? []) {
             (ratings[collection] ??= {})[row.id] = hundredth(row.levels);
+            // (An ancestry with its best ancestry feats, 2026-11-02, Cole: "rank ancestry power by including their ancestry feats": the badge's.)
+            const feated = kind === "ancestries" ? ancestry?.ancestriesWithFeats?.rated?.find((each) => each.id === row.id) : null;
+            if (feated) {
+                ratings[collection][row.id] = hundredth(feated.levels);
+                (detail[collection] ??= {})[row.id] = { kind: "ancestry", withFeats: true, own: hundredth(row.levels), se: hundredth(feated.se), byHost: Object.fromEntries(Object.entries(feated.byHost ?? {}).map(([host, value]) => [host, hundredth(value)])), byLevel: Object.fromEntries(Object.entries(feated.byLevel ?? {}).map(([level, value]) => [level, hundredth(value)])), verdict: feated.verdict, ...(feated.feats?.length ? { feats: feated.feats } : {}) };
+                continue;
+            }
             (detail[collection] ??= {})[row.id] = { kind: kind.slice(0, -1).replace(/ie$/, "y"), se: hundredth(row.se), byHost: Object.fromEntries(Object.entries(row.byHost ?? {}).map(([host, value]) => [host, hundredth(value)])), byLevel: Object.fromEntries(Object.entries(row.byLevel ?? {}).map(([level, value]) => [level, hundredth(value)])), verdict: row.verdict, ...(row.ancestry ? { ancestry: row.ancestry } : {}), ...(row.feats?.length ? { feats: row.feats } : {}), ...(row.skills?.length ? { skills: row.skills } : {}), ...(row.host ? { host: row.host } : {}) };
         }
     }

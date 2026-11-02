@@ -8,6 +8,7 @@
 //   A heritage on top of its ancestry (a versatile heritage on a human), against the ancestry alone: its own PF2e rules, always on.
 //   A background: the skill feat it grants (on the PC the feat's ratings put it on), its own rules and the skills it trains, against the
 //   party without them.
+import fs from "node:fs";
 const lib = await import("./feat-power.mjs");
 const { PACK_ROOT } = await import("./pack-creatures.mjs");
 const { partyFor } = await import("./deadliness.mjs");
@@ -119,6 +120,54 @@ export function ancestryTask(task) {
     return { ...head, ancestry: ancestry.name, ...pairedResults(withIt, without, task.level) };
 }
 
+// --- An ancestry with its ancestry feats (2026-11-02, Cole: "rank ancestry power by including their ancestry feats") -------------
+
+// The ancestry feat slots a PC has by a level: 1st, 5th, 9th, 13th and 17th.
+export const ANCESTRY_FEAT_SLOTS = Object.freeze([1, 5, 9, 13, 17]);
+let featRatings = null;
+// The feat ratings' rated ancestry feats ({ name, level, levels }), best first: <out>/ratings.json, next to the scale.
+function ratedAncestryFeats(scalePath) {
+    if (!featRatings) {
+        const path = scalePath.replace(/scale\.jsonl$/, "ratings.json");
+        featRatings = JSON.parse(fs.readFileSync(path, "utf8")).rated.filter((row) => row.category === "Ancestry" && row.levels > 0).sort((a, b) => b.levels - a.levels);
+    }
+    return featRatings;
+}
+
+// The ancestry's PC with the best of its feats the ratings found (by their rating, a slot at a time from the 1st, each feat of the slot's
+// level or lower that this PC plays without a change of weapons; its prerequisites aside, a heritage's among them): { party, feats }.
+export function ancestryWithFeats(ancestry, level, hostId, scalePath) {
+    let party = structuredClone(partyFor(level));
+    applyAncestry(party.find((c) => c.id === hostId), ancestry, level);
+    const slug = ancestry.system?.slug ?? ancestry.name.toLowerCase();
+    const candidates = ratedAncestryFeats(scalePath)
+        .map((row) => ({ row, doc: packs().feats.get(row.name.toLowerCase()) }))
+        .filter(({ doc }) => doc && (doc.system?.traits?.value ?? []).includes(slug));
+    const used = new Set();
+    const feats = [];
+    for (const slot of ANCESTRY_FEAT_SLOTS.filter((each) => each <= level)) {
+        for (const { row, doc } of candidates) {
+            if (used.has(row.name) || row.level > slot) continue;
+            used.add(row.name);
+            const built = lib.partyWithFeat(doc, level, { hostId, party });
+            if (built.skipped || built.loadout) continue;
+            party = built.party;
+            feats.push(row.name);
+            break;
+        }
+    }
+    return { party, feats };
+}
+
+function ancestryFeatsTask(task) {
+    const ancestry = findDoc(packs().ancestries, task.id);
+    const head = { kind: task.kind, id: task.id, name: task.name, level: task.level, host: task.host };
+    const { party, feats } = ancestryWithFeats(ancestry, task.level, task.host, task.scalePath);
+    // (No feat it plays here: the ancestry's own rating stands, the report takes it.)
+    if (!feats.length) return { ...head, feats, noFeats: true };
+    return { ...head, feats, ...pairedResults(party, null, task.level) };
+}
+
 // --- Backgrounds --------------------------------------------------------------------
 
 // The skills a fight's basic actions use (Demoralize, Trip, Grapple, Shove, Feint, Tumble Through, Battle Medicine with its feat).
@@ -179,6 +228,7 @@ export function ancestryTasks(scalePath) {
     const { ancestries, heritages, backgrounds } = packs();
     const tasks = [];
     for (const doc of ancestries) for (const level of LEVELS) for (const host of HOSTS) tasks.push({ kind: "ancestry", id: doc._id, name: doc.name, level, host, scalePath });
+    for (const doc of ancestries) for (const level of LEVELS) for (const host of HOSTS) tasks.push({ kind: "ancestry-feats", id: doc._id, name: doc.name, level, host, scalePath });
     for (const doc of heritages) for (const level of HERITAGE_LEVELS) for (const host of HOSTS) tasks.push({ kind: "heritage", id: doc._id, name: doc.name, level, host, scalePath });
     // (Backgrounds that come to the same party — Field Medic's and another's Battle Medicine and Medicine — share their fights; one with
     // nothing a fight uses is a task of its own that ends at once, with why.)
@@ -199,5 +249,5 @@ export function ancestryTasks(scalePath) {
 
 export function runAncestryTask(task) {
     if (task.scalePath) lib.loadScaleOnce(task.scalePath);
-    return task.kind === "background" ? backgroundTask(task) : ancestryTask(task);
+    return task.kind === "background" ? backgroundTask(task) : task.kind === "ancestry-feats" ? ancestryFeatsTask(task) : ancestryTask(task);
 }

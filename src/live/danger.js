@@ -364,11 +364,11 @@ const PC_NAMES = { fighter: "fighter", rogue: "rogue", wizard: "wizard", cleric:
 export function characterTooltip(value, data, detail = null) {
     if (!Number.isFinite(value)) return "";
     const rounded = Math.round(value * 100) / 100;
-    const what = detail?.kind === "heritage" ? `this heritage (over ${detail.ancestry ?? "its ancestry"} alone)` : detail?.kind === "background" ? "this background" : "this ancestry (against a human)";
+    const what = detail?.kind === "heritage" ? `this heritage (over ${detail.ancestry ?? "its ancestry"} alone)` : detail?.kind === "background" ? "this background" : detail?.withFeats ? "this ancestry and its best ancestry feats (against a human without feats)" : "this ancestry (against a human)";
     const head = rounded === 0 ? `No clear effect in combat from ${what}.` : `With ${what}, a fight is about as ${rounded > 0 ? "easy" : "hard"} as one against foes ${hundredths(rounded)} ${rounded > 0 ? "lower" : "higher"}.`;
     const hosts = Object.entries(detail?.byHost ?? {}).map(([host, each]) => `${PC_NAMES[host] ?? host} ${featLabel(each)}`).join(", ");
     const levels = Object.entries(detail?.byLevel ?? {}).map(([level, each]) => `level ${level} ${featLabel(each)}`).join(", ");
-    const adds = detail?.kind === "background" ? [...(detail.feats ?? []), ...(detail.skills ?? []).map((skill) => `trained ${skill}`)].join(", ") : "";
+    const adds = detail?.kind === "background" ? [...(detail.feats ?? []), ...(detail.skills ?? []).map((skill) => `trained ${skill}`)].join(", ") : detail?.withFeats ? `${detail.feats?.length ? detail.feats.join(", ") : "no ancestry feat it plays"} (the ancestry alone ${featLabel(detail.own ?? 0)})` : "";
     const margin = Number.isFinite(detail?.se) ? ` (± ${detail.se.toFixed(2)})` : "";
     return `${featLabel(value)}${margin} — ${head}${hosts ? ` By PC: ${hosts}.` : ""}${levels ? ` By level: ${levels}.` : ""}${adds ? ` Counted: ${adds}${detail.host ? `, on the ${detail.host}` : ""}.` : ""} Ability boosts aren't counted; fights in bright light. Combat Simulator${data?.generated ? `, ${data.generated}` : ""}; combat only.`;
 }

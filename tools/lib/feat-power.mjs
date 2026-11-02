@@ -195,10 +195,102 @@ const clone = (value) => structuredClone(value);
 // Builtin fields joined onto a combatant: lists added to, objects merged, the rest set.
 function joinBuiltins(c, builtins) {
     for (const [field, value] of Object.entries(builtins)) {
+        if (field === "maxHpBonus") {
+            c.hp = { ...c.hp, value: c.hp.value + value, max: c.hp.max + value };
+            continue;
+        }
         if (Array.isArray(value)) c[field] = [...(c[field] ?? []), ...value];
         else if (value && typeof value === "object" && c[field] && typeof c[field] === "object" && !Array.isArray(c[field])) c[field] = { ...c[field], ...value };
         else c[field] = value;
     }
+}
+
+// (2026-11-02, Cole: "look at the ancestry feats the simulator doesnt play, do any of them look like they should effect combat?" — the
+// innate spells a feat gives, ~250 ancestry feats: Breath of Calamity's Chain Lightning, Killing Stone's Toxic Cloud.)
+let spellLib = null;
+const spellTools = async () => (spellLib ??= await import("./pack-spells.mjs"));
+const spellPack = await spellTools();
+const ORDINAL = "(\\d+)(?:st|nd|rd|th)";
+// The spells a feat's text has its user cast innately: [{ spell, castRank, pool uses (0: at will) }]. Its rank: the text's ("5th-rank",
+// "as a 7th-rank innate spell"), else heightened to half the PC's level rounded up where it says so or for a cantrip, else the spell's own.
+export function innateSpells(doc, level) {
+    const text = String(doc.system?.description?.value ?? "");
+    if (!/\binnate\b/i.test(text)) return [];
+    const half = Math.max(1, Math.ceil(level / 2));
+    const found = [];
+    for (const hit of text.matchAll(/@UUID\[Compendium\.pf2e\.spells-srd\.Item\.([^\]]+)\](?:\{([^}]*)\})?/g)) {
+        const spell = spellPack.spellNamed(hit[1]) ?? spellPack.spellNamed(hit[2] ?? "") ?? spellPack.spellById?.(hit[1]) ?? null;
+        if (!spell || found.some((each) => each.spell === spell)) continue;
+        // (The sentence it's in: its rank and how often.)
+        const start = Math.max(0, text.lastIndexOf(".", hit.index) + 1);
+        const end = text.indexOf(".", hit.index + hit[0].length);
+        const sentence = text.slice(Math.max(0, start - 40), end < 0 ? undefined : end + 1).replace(/<[^>]+>/g, " ");
+        const cantrip = (spell.system?.traits?.value ?? []).includes("cantrip");
+        const fixed = new RegExp(`${ORDINAL}[- ](?:rank|level)`, "i").exec(sentence)?.[1];
+        const heightened = /half your level|heightened to a spell rank equal to half/i.test(sentence) || cantrip;
+        const own = Number(spell.system?.level?.value) || 1;
+        const castRank = Number(fixed) || (heightened ? half : own);
+        if (castRank > half && !fixed) continue;
+        const uses = cantrip || /at will/i.test(sentence) ? 0 : /twice per day/i.test(sentence) ? 2 : 1;
+        found.push({ spell, castRank, uses });
+    }
+    return found;
+}
+// Those spells as the PC's entries (its spell DC where it has one — a wizard's, a cleric's —, else trained Charisma's), or null.
+function innateSpellEntry(doc, level, host) {
+    const spells = innateSpells(doc, level);
+    if (!spells.length) return null;
+    const own = dcsOf(host);
+    const abilities = ABILITIES[host.id]?.(key(level), level >= 10 ? 2 : 1) ?? {};
+    const dc = own.spell ?? 10 + level + 2 + (abilities.cha ?? 0);
+    const entries = [];
+    const pools = {};
+    for (const { spell, castRank, uses } of spells) {
+        let plan;
+        try {
+            plan = spellPack.compileSpell(spell);
+        } catch {
+            continue;
+        }
+        if (!plan?.resolution || ["unsupported", "no-effect"].includes(plan.resolution.kind)) continue;
+        const pool = uses ? `innate:${doc._id}:${spell._id}` : null;
+        if (pool) pools[pool] = uses;
+        entries.push({ name: `${spell.name} (${doc.name})`, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) });
+    }
+    if (!entries.length) return null;
+    return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
+}
+
+// (2026-11-02, the same ask: staying up at 0 Hit Points, which the engine plays for monsters — Ferocity's kin and an ally's rescue,
+// actions.js knockOut —, and the feats that raise maximum Hit Points by the PC's level.)
+const ZERO_HP = {
+    "orc-ferocity": { ferocity: { hp: 1, wounded: true, uses: 1 } },
+    // (Its Strike as it uses Orc Ferocity — which it needs, so with it.)
+    "rampaging-ferocity": { ferocity: { hp: 1, wounded: true, uses: 1, strike: true, free: true } },
+    "the-cycle-continues": { ferocity: { hp: (level) => `6d8+${Math.floor(level / 2)}`, wounded: false, uses: 1, free: true } },
+    "cant-fall-here": { rescue: { within: 5, hp: 1, uses: 1 } },
+    caterwaul: { rescue: { within: 30, hp: 1, uses: 1 } }
+};
+const slugOf = (doc) => doc.system?.slug ?? doc.name.toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+function zeroHpEntry(doc, level, host, builtins) {
+    const known = ZERO_HP[slugOf(doc)];
+    if (known?.ferocity) {
+        const { hp, strike, ...rest } = known.ferocity;
+        const melee = (host.strikes ?? []).find((each) => each.melee);
+        builtins.ferocityRule = { name: doc.name, pc: true, hp: typeof hp === "function" ? hp(level) : hp, ...rest, ...(strike && melee ? { strike: melee.name } : {}) };
+        builtins.reactions = { ...(builtins.reactions ?? {}), ferocity: true };
+        return { spells: [], pools: {}, gap: null, played: "staying up at 0 Hit Points" };
+    }
+    if (known?.rescue) {
+        builtins.rescue = { name: doc.name, ...known.rescue };
+        return { spells: [], pools: {}, gap: null, played: "keeping an ally up at 0 Hit Points" };
+    }
+    const text = String(doc.system?.description?.value ?? "");
+    if ((doc.system?.actionType?.value ?? "passive") === "passive" && /(?:Increase your maximum Hit Points by (?:an amount equal to )?your level|Your maximum Hit Points increase by your level)/i.test(text) && !/Enlarge/i.test(text)) {
+        builtins.maxHpBonus = (builtins.maxHpBonus ?? 0) + level;
+        return { spells: [], pools: {}, gap: null, played: "more maximum Hit Points" };
+    }
+    return null;
 }
 
 // An action's own PF2e Effect on its user (system.selfEffect), as the live snapshot reads it: a stance or a buff, or null.
@@ -267,8 +359,10 @@ function passiveRulesEntry(doc, level, builtins) {
 }
 
 // The party with the feat on its PC, or { skipped, reason }.
-export function partyWithFeat(doc, level) {
-    const party = partyFor(level);
+// options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
+// (else the standard one: an ancestry's PC with its feats so far, tools/lib/ancestry-power.mjs).
+export function partyWithFeat(doc, level, { hostId = null, party: start = null } = {}) {
+    const party = start ?? partyFor(level);
     const classTrait = (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait]);
     const compileFor = (host) => {
         try {
@@ -277,10 +371,10 @@ export function partyWithFeat(doc, level) {
             return { error: error.message };
         }
     };
-    let host = party.find((c) => c.id === (classTrait ? HOSTS[classTrait] : "fighter"));
+    let host = party.find((c) => c.id === (hostId ?? (classTrait ? HOSTS[classTrait] : "fighter")));
     let compiled = compileFor(host);
     // (A feat of no class: the PC best at the skill its check uses.)
-    if (!classTrait && planSkill(compiled.plan)) {
+    if (!hostId && !classTrait && planSkill(compiled.plan)) {
         const skill = planSkill(compiled.plan);
         const best = party.reduce((top, c) => ((c.skills?.[skill] ?? -99) > (top.skills?.[skill] ?? -99) ? c : top), host);
         if (best !== host) {
@@ -308,6 +402,8 @@ export function partyWithFeat(doc, level) {
             strikes = upgradedStrikes(doc, wields.strikes ?? []);
             entries = strikes ? { spells: [], pools: {}, gap: null, played: "PF2e rules: a bigger damage die" } : { ...entries, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (the weapon its damage die upgrade names)` } };
         }
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = zeroHpEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = passiveRulesEntry(doc, level, builtins) ?? entries;
         // (A requirement on what the PC wields the plan doesn't carry — Dueling Dance's "a single one-handed melee weapon and nothing else in
         // your hands", a stance's —: the feat's own text, so the PC that can't use it gets the loadout that can, both sides.)

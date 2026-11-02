@@ -1675,7 +1675,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     // Ferocity's kin (B95): Orc Ferocity once a day, Mythic Ferocity at half its Hit Points for a Mythic Point, Never Fall at 25 (and not
     // wounded), Indomitable Beast's Strike after.
     // (B286, Fractions of Life: only from 1 Hit Point — atOne — and once on each creature's turn — perTurn.)
-    const rule = target.kind !== "pc" ? target.ferocityRule : null;
+    // (2026-11-02: a PC's own — Orc Ferocity, The Cycle Continues, tools/lib/feat-power.mjs zeroHpEntry —, marked pc.)
+    const rule = target.kind !== "pc" || target.ferocityRule?.pc ? target.ferocityRule : null;
     const turnKey = `${state.round}:${state.acting ?? ""}`;
     // (B294, Bravo's Determination: never from 1 Hit Point — notAtOne.)
     const allowed = rule && (!rule.atOne || before === 1) && (!rule.notAtOne || before !== 1) && (!rule.perTurn || target.ferocityTurn !== turnKey);
