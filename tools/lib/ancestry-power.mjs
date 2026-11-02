@@ -43,7 +43,7 @@ const VISION = { darkvision: "darkvision", "low-light-vision": "low-light-vision
 // A document's own rules as an always-on Effect model, or null when they hold nothing a fight counts (an open choice isn't the fight's).
 function rulesModel(doc, level) {
     if (!(doc?.system?.rules ?? []).length) return null;
-    const { choices, choiceByDegree, ...model } = effectModel(doc, { rank: level });
+    const { choices, choiceByDegree, ...model } = effectModel(doc, { rank: level, actorLevel: level });
     return worthSomething(model) ? { ...model, rounds: Infinity } : null;
 }
 const withPassive = (c, model) => {

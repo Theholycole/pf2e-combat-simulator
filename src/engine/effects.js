@@ -54,10 +54,12 @@ const IGNORED = new Set(["Note", "RollOption", "Sense", "BaseSpeed", "TokenLight
 // "ternary(gte(@item.level,10),3,1)" or "10 + (@item.level - 2) * 3". null when it has dice or can't be read.
 // (2026-10-22: "@actor.level" — the bearer's level, as the caster of that rank's: 2 × rank − 1. Embrace Nothingness's physical resistance,
 // 67 spell effects in all; before, none of them read.)
+// (2026-11-02: a feat's or ancestry's effect, on a PC of a level — effectModel's actorLevel —: that level, not a caster's of the rank.)
+let actorLevelNow = null;
 export function numericValue(value, rank) {
     if (typeof value === "number") return value;
     if (typeof value !== "string") return null;
-    if (value.includes("@actor.level")) value = value.replace(/@actor\.level/g, String(Math.max(1, 2 * (Number(rank) || 1) - 1)));
+    if (value.includes("@actor.level")) value = value.replace(/@actor\.level/g, String(actorLevelNow ?? Math.max(1, 2 * (Number(rank) || 1) - 1)));
     // (2026-10-22, Anticipate Peril's "clamp(ceil(@item.level / 2), 1, 4)": the clamp read here, the rest the core's.)
     const clamp = /^\s*clamp\((.*),\s*(-?\d+)\s*,\s*(-?\d+)\s*\)\s*$/.exec(value);
     if (clamp) {
@@ -297,7 +299,17 @@ function withWeaponPick(item) {
     return { ...item, ...(groups.length ? { pickGroups: [...new Set(groups)] } : {}), system: { ...item.system, rules: left } };
 }
 
-export function effectModel(item, { rank = 1, conditionSlug = () => null, chosen = null } = {}) {
+export function effectModel(item, { actorLevel = null, ...options } = {}) {
+    if (!Number.isFinite(actorLevel)) return effectModelAt(item, options);
+    const before = actorLevelNow;
+    actorLevelNow = actorLevel;
+    try {
+        return effectModelAt(item, options);
+    } finally {
+        actorLevelNow = before;
+    }
+}
+function effectModelAt(item, { rank = 1, conditionSlug = () => null, chosen = null } = {}) {
     item = withWeaponPick(withActorFlags(item));
     const model = { name: item?.name ?? "Effect", rounds: roundsOf(item?.system?.duration), modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
     const unsupported = new Set();

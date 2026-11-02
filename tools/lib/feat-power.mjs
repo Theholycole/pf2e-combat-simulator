@@ -128,12 +128,12 @@ function helpersAt(level) {
     return {
         effectModels: (plan) => {
             const uuids = [...(plan?.resolution?.applications ?? []).map((application) => application?.uuid), ...Object.values(plan?.resolution?.outcomes ?? {}).flatMap((row) => (row?.nativeEffects ?? []).map((native) => native?.uuid))].filter(Boolean);
-            return Object.fromEntries(uuids.map((uuid) => [uuid, effectDoc(uuid)]).filter(([, doc]) => doc).map(([uuid, doc]) => [uuid, effectModel(doc, { rank: level, conditionSlug })]));
+            return Object.fromEntries(uuids.map((uuid) => [uuid, effectDoc(uuid)]).filter(([, doc]) => doc).map(([uuid, doc]) => [uuid, effectModel(doc, { rank: level, actorLevel: level, conditionSlug })]));
         },
-        rulesModel: (effect) => effectModel({ name: effect.name, type: "effect", system: { rules: effect.rules ?? [], duration: effect.duration ?? { value: -1, unit: "unlimited" } } }, { rank: level, conditionSlug }),
+        rulesModel: (effect) => effectModel({ name: effect.name, type: "effect", system: { rules: effect.rules ?? [], duration: effect.duration ?? { value: -1, unit: "unlimited" } } }, { rank: level, actorLevel: level, conditionSlug }),
         passiveModel: (uuid) => {
             const doc = effectDoc(uuid);
-            return doc ? effectModel(doc, { rank: level, conditionSlug }) : null;
+            return doc ? effectModel(doc, { rank: level, actorLevel: level, conditionSlug }) : null;
         }
     };
 }
@@ -304,7 +304,7 @@ function selfEffectEntry(doc, level, builtins, wields) {
     if (type === "free" && /<strong>\s*(?:Trigger|Requirements?)\s*<\/strong>/i.test(doc.system?.description?.value ?? "")) return null;
     const effect = effectDoc(uuid);
     if (!effect) return null;
-    const model = effectModel(effect, { rank: level, conditionSlug });
+    const model = effectModel(effect, { rank: level, actorLevel: level, conditionSlug });
     if (!(model.modifiers.length || model.tempHp || model.fastHealing || model.resistances.length || model.conditions.length || model.strikeParts)) return null;
     const stance = (doc.system?.traits?.value ?? []).includes("stance");
     addBuiltin(builtins, { builtin: "self-effect", actions: type === "free" ? 0 : Number(doc.system?.actions?.value) || 1, stance, model }, doc.name);
@@ -348,11 +348,51 @@ export function upgradedStrikes(doc, strikes) {
     return changed ? out : null;
 }
 // The passive's own rules as an always-on Effect, or null when they hold nothing a fight counts.
+// (2026-11-02, the same pick: a passive's resistance that waits on the PC's own choice or feature — Warding Jewel's "has-sarangay-head-gem",
+// Draconic Resistance's damage type —, which a PC with the feat has: on, its type a ChoiceSet's pick (the one the foes deal most, as
+// applied). One waiting on the moment — a target's, a damage's, a condition's — stays as it was.)
+const MOMENT = /^(?:target|origin|item|damage|attack|check|action|self:condition|self:effect|terrain|lighting|encounter|enemy|ally)\b/;
+const termsOf = (predicate) => JSON.stringify(predicate ?? []).match(/"[^"]*"/g)?.map((term) => term.slice(1, -1)) ?? [];
+function ownRulesDoc(doc) {
+    const rules = doc.system?.rules ?? [];
+    const picks = rules.filter((rule) => rule?.key === "ChoiceSet" && Array.isArray(rule.choices)).flatMap((rule) => rule.choices.map((choice) => choice?.value).filter((value) => typeof value === "string"));
+    let changed = false;
+    const fixed = rules.map((rule) => {
+        if (rule?.key !== "Resistance") return rule;
+        let next = rule;
+        // (Its predicate kept where it names a moment, or the feat's own pick — Magical Resistance's "feat:magical-resistance:cold", which
+        // effectModel's choices settle.)
+        if (next.predicate && !termsOf(next.predicate).some((term) => MOMENT.test(term) || picks.some((pick) => term.endsWith(`:${pick}`)))) {
+            const { predicate, ...rest } = next;
+            next = rest;
+        }
+        if (/^\{(?:actor|item)\|/.test(String(next.type ?? "")) && picks.length) next = { ...next, type: "{item|flags.system.rulesSelections.pick}" };
+        changed ||= next !== rule;
+        return next;
+    });
+    if (!changed) return doc;
+    const choiceRule = picks.length ? [{ key: "ChoiceSet", flag: "pick", choices: picks.map((value) => ({ value })) }] : [];
+    return { ...doc, system: { ...doc.system, rules: [...fixed.filter((rule) => !(rule?.key === "ChoiceSet" && rule.flag !== "pick" && fixed.some((each) => each?.key === "Resistance" && String(each.type).includes("rulesSelections.pick")))), ...choiceRule] } };
+}
+
 function passiveRulesEntry(doc, level, builtins) {
     if ((doc.system?.actionType?.value ?? "passive") !== "passive" || !(doc.system?.rules ?? []).length) return null;
-    const model = effectModel(doc, { rank: level, conditionSlug });
+    const model = effectModel(ownRulesDoc(doc), { rank: level, actorLevel: level, conditionSlug });
     // (A choice still open — Champion Dedication's cause —: not a fight's to make.)
-    const { choices, choiceByDegree, ...rest } = model;
+    let { choices, choiceByDegree, ...rest } = model;
+    // (2026-11-02, Cole's pick "Spells, 0 HP, dropped passives": a choice made when the feat is taken — Draconic Resistance's damage type,
+    // Magical Resistance's —, the PC's pick: the one a fight here gets most from, a resistance to what the foes deal (their Strikes'
+    // physical damage) first, else the first that holds something.)
+    if (!worthSomething(rest) && choices?.length) {
+        const PHYSICAL = new Set(["physical", "slashing", "piercing", "bludgeoning", "all-damage"]);
+        const score = ({ model: each }) => {
+            const { choices: inner, choiceByDegree: degree, ...flat } = each ?? {};
+            if (!worthSomething(flat)) return -1;
+            return (flat.resistances ?? []).some((entry) => PHYSICAL.has(entry.type) || entry.type === "choice") ? 2 : 1;
+        };
+        const best = choices.slice().sort((a, b) => score(b) - score(a))[0];
+        if (best && score(best) > 0) ({ choices, choiceByDegree, ...rest } = best.model);
+    }
     if (!worthSomething(rest)) return null;
     builtins.passiveEffects = [...(builtins.passiveEffects ?? []), { ...rest, rounds: Infinity }];
     return { spells: [], pools: {}, gap: null, played: "PF2e rules (always on)", situational: Boolean(rest.situational) };
