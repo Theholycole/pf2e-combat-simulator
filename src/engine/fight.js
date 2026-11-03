@@ -1118,6 +1118,13 @@ function actOn(state, c, action) {
             if (activity.endsTurn) c.actionsLeft = 0;
             // (B156, Battering Blow: "then Shoves the same creature" — hit or miss.)
             if (result && activity.afterStrike && isActive(target) && canAct(c)) bothHitRider(state, c, target, { follow: activity.afterStrike }, { said: null });
+            // (2026-11-03, Taunting Strike: "Regardless of whether the Strike hits, you Taunt the target" — as a guardian's Taunt.)
+            if (result && activity.taunt && isActive(target)) {
+                for (const other of state.list) if (other.tauntedBy === c.id) other.tauntedBy = null;
+                target.tauntedBy = c.id;
+                (target.timers ??= []).push({ taunt: c.id, round: state.round + 1, turnOf: c.id, at: "start" });
+                state.log?.push(`  ${c.name} taunts ${target.name}`);
+            }
             // Set-Up Strike: its hit leaves the target off-guard to an ally's next attack.
             if (activity.setUp && result && result.degree >= SUCCESS && isActive(target)) setUp(state, c, target);
             // (B139: Off-Guard or a guard on itself until its next turn starts.)

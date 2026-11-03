@@ -293,8 +293,8 @@ export function featEntries(plan, info, builtins, helpers = {}) {
         // (A target the simulator can't tell — Wrath Against the Divine's "a foe that can cast divine spells".)
         if (plan.targetUnread) return gap(`a target the simulator can't tell (${plan.targetUnread})`);
         const onHit = plan.onHit ?? {};
-        const adds = plan.strides || plan.attackBonus || plan.damageBonus || plan.damagePerWeaponDie || plan.failureDice || plan.fatal || plan.deadly || plan.damage || plan.offGuard || plan.exacting || plan.extraWeaponDice || plan.riderSpell || plan.failureFlat || plan.fortune || plan.hitCrits || plan.ignoreResistances || plan.setUp || plan.failureDamage || plan.selfAfter?.length
-            || onHit.conditions?.length || onHit.damage?.length || onHit.save || onHit.push || onHit.size || onHit.critical || onHit.follow || onHit.criticalDamage?.length || onHit.rulesDamage?.length;
+        const adds = plan.strides || plan.attackBonus || plan.damageBonus || plan.damagePerWeaponDie || plan.failureDice || plan.fatal || plan.deadly || plan.damage || plan.offGuard || plan.exacting || plan.extraWeaponDice || plan.riderSpell || plan.failureFlat || plan.fortune || plan.hitCrits || plan.ignoreResistances || plan.setUp || plan.taunt || plan.finisher || traits.includes("finisher") || plan.failureDamage || plan.selfAfter?.length
+            || onHit.conditions?.length || onHit.damage?.length || onHit.save || onHit.push || onHit.size || onHit.critical || onHit.follow || onHit.criticalDamage?.length || onHit.rulesDamage?.length || onHit.speedPenalty || onHit.selfTempHp;
         if (!adds) return gap("a Strike with nothing more the simulator reads");
         if (!addBuiltin(builtins, { ...plan, traits }, name)) return gap("a Strike the simulator doesn't play");
         return { ...result, played: "Strike activity" };

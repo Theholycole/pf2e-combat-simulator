@@ -2486,6 +2486,17 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
         applyEffect(state, target, { name: activity.name, rounds: 1, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [{ type: "physical", value: rider.weakness, exceptions: [] }], immunities: [], conditions: [], unsupported: [], situational: 0 }, attacker, { applyCondition, key: `weakness:${activity.name}` });
         log(state, `  ${target.name} is weak ${rider.weakness} to Strikes (${activity.name})`);
     }
+    // (2026-11-03, the Strike riders: Kneecap's, Harrying Strike's, Staggering Fire's penalty to its Speed for a round — a critical hit's
+    // bigger one —; Gods' Palm's temporary Hit Points on itself; Taunting Strike's Taunt.)
+    const slowed = critical && rider.speedPenalty?.critical ? rider.speedPenalty.critical : rider.speedPenalty?.value;
+    if (slowed > 0 && isActive(target)) {
+        applyEffect(state, target, { name: activity.name, rounds: rider.speedPenalty.rounds ?? 1, modifiers: [{ on: "speed", type: rider.speedPenalty.type ?? "status", value: -slowed }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, attacker, { applyCondition, key: `slow:${activity.name}` });
+        log(state, `  ${target.name} is slowed by ${slowed} feet (${activity.name})`);
+    }
+    if (rider.selfTempHp > 0 && isActive(attacker)) {
+        applyEffect(state, attacker, { name: activity.name, rounds: 1, modifiers: [], tempHp: rider.selfTempHp, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, attacker, { applyCondition, key: `temp:${activity.name}` });
+        log(state, `  ${attacker.name} gains ${rider.selfTempHp} temporary HP`);
+    }
     // (B153, Draining Touch: the Hit Points it regains on a hit.)
     // (B207, Devour Flesh: dice, "3d6", rolled.)
     const healed = typeof rider.selfHeal === "string" ? rollCount(state, rider.selfHeal) : rider.selfHeal;
