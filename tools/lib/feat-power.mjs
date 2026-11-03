@@ -25,7 +25,7 @@ const { readDocuments, basicActions, PACK_ROOT } = await import("./pack-creature
 const { partyFor, classPartyFor, classesPartyFor } = await import("./deadliness.mjs");
 const { CLASS_SLUGS, classArmor, seatOf } = await import("../../src/engine/classes.js");
 const { compileFeat } = await import(new URL("src/compiler/index.js", FEAT_ROOT).href);
-const itemReaders = ITEM_ROOT ? await (async () => {
+export const itemReaders = ITEM_ROOT ? await (async () => {
     try {
         const [move, rerolls, spend, fortune] = await Promise.all(["move", "rerolls", "spend", "fortune"].map((name) => import(new URL(`src/compiler/${name}.js`, ITEM_ROOT).href)));
         return { movePlan: move.movePlan, rerollPlan: rerolls.rerollPlan, withSpend: spend.withSpend, rollTwicePlan: fortune.rollTwicePlan };
@@ -33,7 +33,7 @@ const itemReaders = ITEM_ROOT ? await (async () => {
         return null;
     }
 })() : null;
-const { featEntries, featInfo, meetsWielding, withResolvedEffects, worthSomething } = await import("../../src/engine/feat-abilities.js");
+const { featEntries, featInfo, meetsWielding, requiredStances, withResolvedEffects, worthSomething } = await import("../../src/engine/feat-abilities.js");
 const { effectModel } = await import("../../src/engine/effects.js");
 const { addBuiltin } = await import("../../src/engine/abilities.js");
 const { dangerFights, dangerSummary, DANGER_OPTIONS, DEATH_WEIGHT } = await import("../../src/engine/danger-scale.js");
@@ -322,7 +322,7 @@ function selfEffectEntry(doc, level, builtins, wields) {
     const effect = effectDoc(uuid);
     if (!effect) return null;
     const model = effectModel(effect, { rank: level, actorLevel: level, conditionSlug });
-    if (!(model.modifiers.length || model.tempHp || model.fastHealing || model.resistances.length || model.conditions.length || model.strikeParts)) return null;
+    if (!(model.modifiers.length || model.tempHp || model.fastHealing || model.resistances.length || model.conditions.length || model.strikeParts || model.grantedStrikes?.length)) return null;
     const stance = (doc.system?.traits?.value ?? []).includes("stance");
     addBuiltin(builtins, { builtin: "self-effect", actions: type === "free" ? 0 : Number(doc.system?.actions?.value) || 1, stance, model }, doc.name);
     return { spells: [], pools: {}, gap: null, played: stance ? "PF2e's stance Effect" : "PF2e's self Effect" };
@@ -418,7 +418,25 @@ function passiveRulesEntry(doc, level, builtins) {
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
 // (else the standard one: an ancestry's PC with its feats so far, tools/lib/ancestry-power.mjs).
-export function partyWithFeat(doc, level, { hostId = null, party: start = null } = {}) {
+// (2026-11-03, Cole: "begin working on implementing them" — the class feats no fight played. A feat that needs a stance, Tiger Slash's "You
+// are in Tiger Stance": the stance is the PC's on both sides, the feat's party against the same party with the stance alone.)
+export function partyWithFeat(doc, level, options = {}) {
+    const stances = requiredStances(requirementText(doc) ?? "");
+    if (!stances || options.party) return partyWithFeatAlone(doc, level, options);
+    const stanceDoc = stances.map((name) => featByName(name)).find(Boolean);
+    if (!stanceDoc) return { skipped: true, reason: `its stance (${stances.join(" or ")}), not in the packs` };
+    const withStance = partyWithFeatAlone(stanceDoc, level, options);
+    if (withStance.skipped) return { ...withStance, reason: `its stance (${stanceDoc.name}): ${withStance.reason}` };
+    const result = partyWithFeatAlone(doc, level, { hostId: withStance.host, party: withStance.party });
+    return result.skipped ? result : { ...result, plain: result.plain ?? withStance.party, stance: stanceDoc.name, played: `${result.played} (in ${stanceDoc.name})` };
+}
+const featsByName = new Map();
+function featByName(name) {
+    if (!featsByName.size) for (const doc of docsOf(`${PACK_ROOT}/feats`).values()) featsByName.set(doc.name.toLowerCase(), doc);
+    return featsByName.get(String(name).toLowerCase()) ?? null;
+}
+
+function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } = {}) {
     const classTrait = (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait] || CLASS_SLUGS.includes(trait));
     // (2026-11-02, the user: "Get the simulator working with all classes": a class's feat on its own class — classes.js — the standard party
     // with that class's PC in its seat, rated against the same party without the feat.)
@@ -492,7 +510,7 @@ export function partyWithFeat(doc, level, { hostId = null, party: start = null }
         }
     }
     const { entries, builtins } = tried;
-    if (entries.gap) return { skipped: true, reason: entries.gap.name.slice(doc.name.length + 2), host: host.id };
+    if (entries.gap) return { skipped: true, reason: entries.gap.name.slice(doc.name.length + 2), host: host.id, plan };
     const withFeat = clone(base);
     const pc = withFeat.find((c) => c.id === host.id);
     pc.spells = [...(pc.spells ?? []), ...entries.spells];

@@ -271,6 +271,14 @@ function inMelee(pos, other) {
 }
 
 // place: where the position is on the map (map objectives), or null.
+// (2026-11-03, a class feat's "You are in Tiger Stance": met while that stance's Effect is on it; any other requirement, met here.)
+export function stanceHeld(c, requires) {
+    if (typeof requires !== "string" || !requires.startsWith("stance:")) return true;
+    const names = requires.slice(7).toLowerCase().split("|");
+    return (c.effects ?? []).some((effect) => names.includes(String(effect.key ?? "").replace(/^self:/, "").toLowerCase()));
+}
+const stanceRequirement = (requires) => typeof requires === "string" && requires.startsWith("stance:");
+
 function distanceTo(pos, other, place = null) {
     if (pos.at && other.square) return distanceFeet(pos.at, other);
     if (inMelee(pos, other)) return DISTANCE_FEET.engaged;
@@ -1277,6 +1285,7 @@ function expandSpells(env) {
         // 15 feet"): frightened, or down and dying.
         // (B133: a requirement it can't check, Bushwhack's unseen creature: not planned.)
         if (spell.plan?.requires === "requirement" && !spell.plan.needs) continue;
+        if (!stanceHeld(c, spell.plan?.requires)) continue;
         // (B304: its needs — a corpse, a creature it holds, its last action — as things stand.)
         if (spell.plan?.needs && !needsMet(state, c, spell.plan.needs, { fresh: node.used === 0 })) continue;
         // (B262, Rage-Charged Breath: only while raging.)
@@ -1424,7 +1433,7 @@ function expandMultiStrikes(env) {
         if (ability.each) {
             // (B120: Rampage's "is uncontrollable", Bladestorm's "holding six spirit blades": states the engine doesn't play.)
             // (B200, Power Through: not while Fatigued.)
-            if (ability.requires && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0) && !(ability.requires === "raging" && isRaging(c)) && !(ability.requires === "not-fatigued" && !c.cond.fatigued)) continue;
+            if (ability.requires && !(stanceRequirement(ability.requires) && stanceHeld(c, ability.requires)) && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0) && !(ability.requires === "raging" && isRaging(c)) && !(ability.requires === "not-fatigued" && !c.cond.fatigued)) continue;
             const ranged = !c.strikes[order[0]].melee;
             // Where it Strikes from: here, or (B109, Mauling Rush) the Melee of a creature one Stride away.
             const places = [{ pos: node.pos, first: null }];
@@ -1481,7 +1490,7 @@ function expandMultiStrikes(env) {
             if (ability.requires === "not-fatigued" && c.cond.fatigued) continue;
             // (B287, Radical Surgery: at a Prone or Immobilized creature.)
             if (ability.requires === "prone-or-immobilized" && !(target.cond.prone || target.cond.immobilized)) continue;
-            if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging", "helpless", "not-fatigued", "prone-or-immobilized"].includes(ability.requires)) continue;
+            if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging", "helpless", "not-fatigued", "prone-or-immobilized"].includes(ability.requires) && !(stanceRequirement(ability.requires) && stanceHeld(c, ability.requires))) continue;
             let expected = 0;
             // (B106: a second Strike only after a first that hits, worth that chance.)
             let firstHits = 1;
@@ -1584,6 +1593,7 @@ function expandStrikeActivities(env) {
         if (activity.requires === "berserk") continue;
         // (B126: a requirement the engine doesn't play — "The dragon is burrowed", "It's the first round of combat" — not planned.)
         if (activity.requires === "requirement") continue;
+        if (!stanceHeld(c, activity.requires)) continue;
         if (activity.requires === "first-round" && state.round !== 1) continue;
         // (B147: straight after a spell it cast.)
         if (activity.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, activity.nonCantrip))) continue;
@@ -1829,7 +1839,7 @@ function expandClassActions(env) {
         if (entry.afterCast && !(node.used === 0 && castJustNow(state, c, entry.afterCast === "non-cantrip"))) continue;
         // (B155: only while its rage lasts; B158, Mountain Stronghold: only while its own stance is on it.)
         if (entry.whileRaging && !isRaging(c)) continue;
-        if (entry.requiresEffect && !(c.effects ?? []).some((effect) => effect.key === `self:${entry.requiresEffect}`)) continue;
+        if (entry.requiresEffect && !stanceHeld(c, `stance:${entry.requiresEffect}`)) continue;
         // (2026-11-01, Starlight Armor's resistance 10 to each physical type: counted, out of a fight's context, as 0.02 a point a round for each
         // type — three times over, and whether or not anything is hitting it —, so the fighter spent its first round on it at range while the
         // boss hit the rogue. Now as a spell's on its target: the Hit Points it keeps off the foes' Strikes, its share of them —

@@ -15,8 +15,22 @@ import { addBuiltin } from "./abilities.js";
 
 // The requirements a Strike activity's planner checks (planner.js); a feat's own words ("Your nimbus is active") aren't one.
 export const ACTIVITY_REQUIRES = new Set(["berserk", "first-round", "after-cast", "grabbed", "prone", "off-guard", "frightened", "hit-earlier", "ally-adjacent", "free-hand", "champion-triggered", "raging", "first-attack", "not-fatigued", "helpless", "prone-or-immobilized"]);
+// The stance a requirement names, "You are in Tiger Stance", "You're in either claw stance or talon stance": the stances' names, or null when
+// it asks for more ("…and have Grabbed a creature").
+export function requiredStances(text) {
+    const said = /^(?:you are|you're) in (?:either )?(.+)$/i.exec(String(text ?? "").trim())?.[1];
+    if (!said) return null;
+    // (The feat module's requirement with a link runs on into the feat's text: the linked stance is the whole of it.)
+    const linked = /^@UUID\[[^\]]*?Item\.([^\]]+? Stance)\](?:\{[^}]*\})?(?:\s+(?:or|and)\s+@UUID\[[^\]]*?Item\.([^\]]+? Stance)\])?(?!\s+and\b)/i.exec(said);
+    if (linked) return [linked[1], linked[2]].filter(Boolean);
+    const plain = /^((?:[\w'-]+ ){1,4}?stance)(?:,? or ((?:[\w'-]+ ){1,4}?stance))?\.?$/i.exec(said.trim());
+    return plain ? [plain[1], plain[2]].filter(Boolean) : null;
+}
+
 // A requirement in the feat's words the planner checks under its own name, or null.
 export function mappedRequirement(text) {
+    const stances = requiredStances(text);
+    if (stances) return `stance:${stances.join("|")}`;
     const words = String(text ?? "").toLowerCase();
     if (/\b(?:a creature|an enemy|a foe) (?:grabbed|restrained)|creature grabbed or restrained|grabbed or restrained\b/.test(words) && /\byou have\b/.test(words)) return "grabbed";
     if (/aren't fatigued or raging|not fatigued/.test(words)) return "not-fatigued";
@@ -95,6 +109,9 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     const name = info?.name ?? plan?.source?.name ?? "Feat";
     const gap = (reason) => ({ ...result, gap: { kind: "feat, not simulated", name: `${name}: ${reason}` } });
     if (!plan) return gap("the feat module reads nothing for it");
+    // (A stance it needs: the planner's check, the stance among the PC's feats — tools/lib/feat-power.mjs partyWithFeat.)
+    const stanceNeeded = plan.requirementUnread ? requiredStances(plan.requirementUnread) : null;
+    if (stanceNeeded) plan = { ...plan, requirementUnread: undefined, requires: plan.requires && !/^You|^Requirements?/i.test(String(plan.requires)) ? plan.requires : `stance:${stanceNeeded.join("|")}` };
     if (plan.requirementUnread && helpers.meets?.(plan.requirementUnread) !== true) return gap(helpers.meets?.(plan.requirementUnread) === false ? `its requirement, which the PC doesn't meet (${plan.requirementUnread})` : `its requirement (${plan.requirementUnread})`);
     const actionType = info?.actionType ?? "passive";
     const frequency = info?.frequency;
@@ -112,7 +129,7 @@ export function featEntries(plan, info, builtins, helpers = {}) {
         const model = helpers.rulesModel?.(plan.effect) ?? null;
         if (!model || !worthSomething(model)) return gap("its Effect has nothing a fight counts");
         const stance = Boolean(plan.effect.stance) || traits.includes("stance");
-        addBuiltin(builtins, { builtin: "self-effect", actions: actionCount(null, info), stance, model }, name);
+        addBuiltin(builtins, { builtin: "self-effect", actions: actionCount(null, info), stance, model, ...(String(plan.requires ?? "").startsWith("stance:") ? { requiresEffect: plan.requires.slice(7).split("|")[0] } : {}) }, name);
         usePool();
         return { ...result, played: stance ? "stance" : "self effect" };
     }
