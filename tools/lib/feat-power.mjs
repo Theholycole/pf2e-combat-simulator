@@ -283,6 +283,23 @@ function innateSpellEntry(doc, level, host) {
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
+// (Reach Spell: each 1- or 2-action spell with a range — touch counted as none — 30 feet farther, an action more.)
+function reachEntry(doc, host) {
+    if (slugOf(doc) !== "reach-spell") return null;
+    const spells = [];
+    for (const spell of host.spells ?? []) {
+        const range = String(spell.plan?.targeting?.range ?? "");
+        const time = String(spell.plan?.activation?.time ?? "");
+        const feet = range === "touch" ? 0 : Number(/^(\d+) feet$/.exec(range)?.[1]);
+        if (!range || !Number.isFinite(feet) || !["1", "2"].includes(time) || spell.kind) continue;
+        const plan = { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(time) + 1) }, targeting: { ...spell.plan.targeting, range: `${feet + 30} feet` } };
+        const entry = { ...spell, name: `${spell.name} (reach)`, plan };
+        if (castable(entry)) spells.push(entry);
+    }
+    if (!spells.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no spell of the PC's it reaches` } };
+    return { spells, pools: {}, gap: null, played: `reach copies of ${spells.length} spell${spells.length > 1 ? "s" : ""}` };
+}
+
 // (2026-11-03, the class feats no fight played: Stunning Blows.) A Flurry of Blows that hits: a Fortitude save at the monk's class DC or
 // stunned 1 (3 on a critical failure) — the save as a spell compiled from that text, cast by the flurry's rider (spells.js bothHitRider's
 // affliction), not on its own.
@@ -800,6 +817,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineSaveEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = acReactionEntry(doc, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = widenEntry(doc, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
