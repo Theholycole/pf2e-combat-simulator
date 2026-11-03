@@ -67,6 +67,11 @@ export function pcNeeds(text) {
 // adjacent to that creature" (Cleave).
 export function pcReactionTriggers(text) {
     const said = String(text ?? "").replace(/@UUID\[[^\]]*?Item\.([^\]]+)\](?:\{([^}]*)\})?/g, (_all, name, label) => label ?? name).trim().replace(/\.$/, "");
+    // (2026-11-03, the reaction Strikes the class feats left: an attack on an ally in its reach — Protective Strike's designated ally, Crop
+    // Protection's crop: any ally here —, a held creature's Escape — Claw Snag, Cutthroat Grapple —, and Crane Flutter's Strike after a miss.)
+    if (/^A creature (?:moves adjacent to or )?attempts a melee Strike against your designated ally$/i.test(said) || /^An? (?:enemy|creature) within your (?:melee )?reach attacks a member of your crop$/i.test(said)) return ["ally-attacked"];
+    if (/^A creature attempts to Escape (?:while you have them Grabbed or Restrained|from your [\w' -]+)$/i.test(said)) return ["escape"];
+    if (/^You are targeted with an attack by an observed attacker$/i.test(said)) return ["missed"];
     if (/\b(?:ally|allies|companion|eidolon|spotter|crop|flank|Escape|frightened|turn ends|Propelled|saving throw|counteracts)\b/i.test(said) && !/^An? creature within your (?:melee )?reach is hit by a melee attack from one of your allies$/i.test(said)) return null;
     if (/^An? (?:creature|enemy|foe|opponent) within your (?:melee )?reach critically fails (?:a Strike against you|to Strike you)$/i.test(said)) return ["critical-miss"];
     if (/^An? (?:creature|enemy|foe|opponent) within your (?:melee )?reach (?:succeeds at an attack against you|hits you with a (?:melee )?(?:Strike|attack))$/i.test(said)) return ["hit"];
@@ -248,7 +253,8 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     }
     if (plan.builtin === "strike-activity") {
         // (A reaction's Strike on a trigger the engine plays: the reaction-strike builtin, as a monster's.)
-        const effectNeeded = actionType === "reaction" && plan.requires ? requiredEffectFeat(String(plan.requires).replace(/^Requirements?:?\s*/i, "")) : null;
+        // (Or its stance — Not So Fast!'s Hampering Stance, Crane Flutter's Crane Stance: partyWithFeat puts the stance on the PC first.)
+        const effectNeeded = actionType === "reaction" && plan.requires ? requiredEffectFeat(String(plan.requires).replace(/^Requirements?:?\s*/i, "")) ?? requiredStances(String(plan.requires).replace(/^Requirements?:?\s*/i, ""))?.[0] ?? null : null;
         // (2026-11-03: or a requirement the PC's loadout meets, or one a fight here always meets — Silence the Profane's deity's weapon.)
         const requirementSaid = String(plan.requires ?? "").replace(/^Requirements?:?\s*/i, "");
         const requirementMet = !plan.requires || Boolean(effectNeeded) || helpers.meets?.(requirementSaid) === true || pcNeeds(requirementSaid)?.length === 0;
