@@ -46,6 +46,12 @@ export function featReport({ feats, basics, scale }) {
     const byVerdict = {};
     for (const row of rows) byVerdict[row.verdict] = (byVerdict[row.verdict] ?? 0) + 1;
     const fights = scale[0]?.scores?.length ?? 0;
+    // (2026-11-03: a feat's fights stop once its answer is clear — tools/lib/feat-power.mjs stopReason —; how many each one got.)
+    const batched = rated.filter((row) => Number.isFinite(row.results?.boss?.fights));
+    const foughtOf = (row) => (row.results.boss.fights + row.results.group.fights) / 2;
+    const stops = {};
+    for (const row of batched) for (const kind of ["boss", "group"]) stops[row.results[kind].stop] = (stops[row.results[kind].stop] ?? 0) + 1;
+    const stopNote = batched.length ? ` (at most; a feat's fights stop once its answer is clear: on average ${(batched.reduce((sum, row) => sum + foughtOf(row), 0) / batched.length).toFixed(0)} an encounter here, ${Object.entries(stops).sort((a, b) => b[1] - a[1]).map(([name, count]) => `${name} ${count}`).join(", ")} encounters)` : "";
     const lines = [
         "# Feat and action power in combat",
         "",
@@ -54,10 +60,10 @@ export function featReport({ feats, basics, scale }) {
         "## How it's measured",
         "",
         "- The feat module compiles each feat with the numbers of the standard party's PC who'd take it (fighter, rogue, wizard or cleric; a class outside the party goes to the one who fights most like it), at the feat's level.",
-        `- The party fights a moderate boss (one creature 2 levels up) and a moderate group (four creatures 2 levels down), ${fights} fights each, with the feat and without it, on the same dice, on a 5-foot square grid (an open field, the sides 30 feet apart, each side's melee fighters in front and its casters two squares behind; moving out of a foe's reach provokes its Reactive Strike). Fights go to the end (no morale, no retreat).`,
+        `- The party fights a moderate boss (one creature 2 levels up) and a moderate group (four creatures 2 levels down), ${fights} fights each${stopNote}, with the feat and without it, on the same dice, on a 5-foot square grid (an open field, the sides 30 feet apart, each side's melee fighters in front and its casters two squares behind; moving out of a foe's reach provokes its Reactive Strike). Fights go to the end (no morale, no retreat).`,
         "- A fight's score is the danger scale's: the party's Hit Points lost as a share, +0.25 a PC down, +1 a PC killed, +1 a wipe.",
         "- **Rating** is the change in levels of the foes: the score the feat saves, divided by how much the score moves when the foes are a level stronger. +0.25 means having the feat is like fighting foes a quarter of a level lower. The ± is one standard error.",
-        "- **Uses a fight** is how often the PC used it in a dozen logged fights. A feat the AI never picks rates near zero even if it's good at the table.",
+        `- **Uses a fight** is how often the PC used it ${batched.length ? "in the fights that rated it" : "in a dozen logged fights"}. A feat the AI never picks rates near zero even if it's good at the table.`,
         "- Verdicts: very strong ≥ 0.5, strong ≥ 0.25, good ≥ 0.1, minor > 0; \"no clear effect\" when within two standard errors of zero.",
         "",
         "## Summary",
@@ -252,4 +258,56 @@ export function pairReport(pairRows, classRows) {
         ...list.map((entry, index) => `| ${index + 1} | ${entry.pair.map(name).join(" + ")} | ${num(entry.synergy)} ± ${entry.se.toFixed(2)} | ${levels.map((level) => (entry.byLevel[level] === undefined ? "" : num(entry.byLevel[level]))).join(" | ")} | ${num(entry.both)} |`)].join("\n");
     const markdown = `# Class pairs\n\nMade by \`node tools/feat-power.mjs <out> class-pairs\` and \`pairs-report\`. Two classes' PCs, each in its seat of the standard party (src/engine/classes.js), at levels ${levels.join(", ")}. Synergy is the pair's rating minus each class's own rating in its seat (both in levels of the foes, on the same seeds): above 0, the two do better together than their separate gains add up to. A pair with one of the four standard classes isn't here; its synergy is 0 by construction (the class's own row already fights beside it).\n\n## Best together\n\n${table(pairs.slice(0, 25))}\n\n## Worst together\n\n${table(pairs.slice(-15).reverse())}\n\n## Every pair\n\n${table(pairs)}\n`;
     return { markdown, json: { levels, pairs } };
+}
+
+// --- The canary (tools/feat-power.mjs canary; 2026-11-03) ------------------------
+
+// About 40 stored ratings that show what a change moved: the top and bottom ten, each host's biggest, and one of each kind that has gone
+// wrong before (a loadout, a stance, an always-on feat, a feat that grants spells, a class PC of its own).
+export function canarySample(rows, size = 40) {
+    const picked = new Map();
+    const add = (row) => {
+        if (row && picked.size < size && !picked.has(row.ref.ref)) picked.set(row.ref.ref, row);
+    };
+    const bySize = [...rows].sort((a, b) => b.levels - a.levels);
+    bySize.slice(0, 10).forEach(add);
+    bySize.slice(-10).forEach(add);
+    const biggest = (list) => [...list].sort((a, b) => Math.abs(b.levels) - Math.abs(a.levels))[0];
+    for (const host of [...new Set(rows.map((row) => row.host))].sort()) add(biggest(rows.filter((row) => row.host === host)));
+    add(biggest(rows.filter((row) => row.loadout)));
+    add(biggest(rows.filter((row) => /\(in [^)]+\)/.test(row.played ?? ""))));
+    add(biggest(rows.filter((row) => row.situational)));
+    add(biggest(rows.filter((row) => /spell/i.test(row.played ?? ""))));
+    // (The rest: spread over the table by rating, every n-th.)
+    const rest = bySize.filter((row) => !picked.has(row.ref.ref));
+    const step = Math.max(1, Math.floor(rest.length / Math.max(1, size - picked.size)));
+    for (let index = 0; index < rest.length && picked.size < size; index += step) add(rest[index]);
+    return [...picked.values()];
+}
+
+export function canaryReport(rows, seconds) {
+    const ok = rows.filter((row) => Number.isFinite(row.now));
+    const moved = ok.filter((row) => Math.abs(row.now - row.then) >= 0.05).sort((a, b) => Math.abs(b.now - b.then) - Math.abs(a.now - a.then));
+    const gone = rows.filter((row) => !Number.isFinite(row.now));
+    const line = (row) => `| ${escape(row.name)} | ${row.host} | ${row.level} | ${fmt(row.then)} | ${fmt(row.now)} | ${fmt(row.now - row.then)} |${row.sameSeeds ? "" : " stored mean (no seeds kept) |"}`;
+    const markdown = [
+        "# Canary check",
+        "",
+        `Made by \`node tools/feat-power.mjs <out> canary\` on ${new Date().toISOString().slice(0, 10)} in ${seconds} s: ${rows.length} stored ratings replayed with today's code on their first seeds (the same dice), then and now in levels. ${moved.length} moved by 0.05 levels or more${gone.length ? `, ${gone.length} not played now` : ""}.`,
+        "",
+        "## Moved",
+        "",
+        "| Feat | Host | Level | Then | Now | Change |",
+        "|---|---|---|---|---|---|",
+        ...(moved.length ? moved.map(line) : ["| (none) | | | | | |"]),
+        "",
+        ...(gone.length ? ["## Not played now", "", ...gone.map((row) => `- ${escape(row.name)}: ${escape(row.why)}`), ""] : []),
+        "## Every canary",
+        "",
+        "| Feat | Host | Level | Then | Now | Change |",
+        "|---|---|---|---|---|---|",
+        ...ok.map(line),
+        ""
+    ].join("\n");
+    return { markdown, moved: moved.length };
 }

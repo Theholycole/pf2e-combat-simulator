@@ -9,6 +9,7 @@
 //   means having the feat is like fighting foes half a level lower.
 //   A basic action (Demoralize, Trip …): the other way round, every PC without it.
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 
 const SIBLING = (names) => {
     for (const name of names) {
@@ -1638,51 +1639,194 @@ export const loadScaleOnce = (path) => {
 // The plain party's fights at a level against an encounter: { scores, step, … }, or null.
 export const scaleAt = (level, kind) => scale?.get(`${level}|${kind}`) ?? null;
 
-// How often the PC uses it in a fight, from a few logged fights: the log lines that name it.
-function usesPerFight(party, foes, name) {
-    let uses = 0;
-    // (Not \b: a name that ends in "!" or "?" — Do You Know Who I Am?, To Me! — has no word boundary after it.)
-    const pattern = new RegExp(`(?<![\\w'])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w'])`);
-    for (let seed = 0; seed < LOGGED; seed++) {
-        const result = simulate({ combatants: [...party, ...foes] }, { ...DANGER_OPTIONS, ...(GRID ? { grid: GRID } : {}) }, seed, { log: true });
-        uses += (result.log ?? []).filter((line) => pattern.test(typeof line === "string" ? line : line?.text ?? "")).length;
-    }
-    return uses / LOGGED;
+// --- Fewer fights (2026-11-03, Cole: "reduce the amount of simulator runs as much as possible"; his pick: all of it) -----------------
+// 1. A feat's fights run in batches of BATCH seeds an encounter (0, 1, 2 … as before, so every feat still meets the same dice) and stop
+//    once the answer is clear (stopReason). FEAT_EARLY=0: every feat gets all FIGHTS, as before.
+// 2. Its uses are counted in the fights that score it (a sink for the log lines that name it), not in a dozen more logged fights.
+// 3. A rated row keeps its fights' scores seed by seed and its party's fingerprint, so the probe phase can replay a few seeds after a code
+//    change and send only the feats whose fights changed to a rerun (probeTask); the canary phase replays a sample on more seeds and
+//    shows how far each moved (canaryTask).
+export const BATCH = Number(process.env.FEAT_BATCH) || 25;
+export const EARLY = process.env.FEAT_EARLY !== "0";
+// (Per encounter, in levels: the two encounters' average then has about 0.02, the median of the 200-fight ratings that weren't 0.)
+export const SE_TARGET = Number(process.env.FEAT_SE) || 0.03;
+// ("About zero": the report's own band, ±0.05 levels.)
+export const ZERO_BAND = 0.05;
+export const PROBE = Number(process.env.FEAT_PROBE) || 8;
+
+const meanSe = (values) => {
+    const mean = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+    const sd = Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, values.length - 1));
+    return { mean, se: sd / Math.sqrt(Math.max(1, values.length)) };
+};
+
+// Why an encounter's fights can stop now (null: not yet). No effect: not one fight changed and the PC never used it (after one batch), or
+// not one fight changed (after two). About zero: the rating's 95% range sits inside ±0.05 levels. Precise: its standard error is at the
+// target. A strong feat's fights vary too much for either, so the top of the table still gets every fight.
+export function stopReason(diffs, step, uses) {
+    const n = diffs.length;
+    if (n >= FIGHTS) return "all fights";
+    if (!EARLY || n < BATCH) return null;
+    const unchanged = diffs.every((value) => value === 0);
+    if (unchanged && uses === 0) return "no effect";
+    if (n < 2 * BATCH) return null;
+    if (unchanged) return "no effect";
+    const { mean, se } = meanSe(diffs);
+    const levels = -mean / step;
+    const levelsSe = se / step;
+    if (Math.abs(levels) + 2 * levelsSe < ZERO_BAND) return "about zero";
+    if (levelsSe <= SE_TARGET) return "precise";
+    return null;
 }
 
-// A party's fight scores (a class's plain party's kept by its key: every feat of that class at that level fights it).
-const plainCache = new Map();
-function plainScores(party, foes, cacheKey) {
-    if (cacheKey && plainCache.has(cacheKey)) return plainCache.get(cacheKey);
-    const scores = dangerSummary(dangerFights(party, foes, 0, FIGHTS, { grid: GRID })).scores;
-    if (cacheKey) plainCache.set(cacheKey, scores);
-    return scores;
+// A sink for a fight's log that counts the lines naming the feat. (Not \b: a name that ends in "!" or "?" — Do You Know Who I Am?,
+// To Me! — has no word boundary after it.)
+function useCounter(name) {
+    const pattern = new RegExp(`(?<![\\w'])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w'])`);
+    return { count: 0, push(line) { if (pattern.test(typeof line === "string" ? line : line?.text ?? "")) this.count++; } };
 }
+
+// How often the PC uses it in a fight, from a few logged fights (the basic actions' and the combos' way).
+function usesPerFight(party, foes, name) {
+    const sink = useCounter(name);
+    for (let seed = 0; seed < LOGGED; seed++) simulate({ combatants: [...party, ...foes] }, { ...DANGER_OPTIONS, ...(GRID ? { grid: GRID } : {}) }, seed, { log: sink });
+    return sink.count / LOGGED;
+}
+
+// A party's fight scores on seeds [0, count), grown as asked (a class's plain party's kept by its key: every feat of that class at that
+// level fights it).
+const plainCache = new Map();
+function plainScores(party, foes, cacheKey, count) {
+    const kept = (cacheKey && plainCache.get(cacheKey)) || [];
+    if (kept.length < count) kept.push(...dangerFights(party, foes, kept.length, count, { grid: GRID }).scores);
+    if (cacheKey) plainCache.set(cacheKey, kept);
+    return kept.slice(0, count);
+}
+
+// A party's fingerprint: its combatants as data (functions and cycles left out), hashed.
+export function partyHash(party) {
+    const seen = new WeakSet();
+    const text = JSON.stringify(party, (key, value) => {
+        if (typeof value === "function") return undefined;
+        if (value instanceof Map) return [...value.entries()];
+        if (value instanceof Set) return [...value];
+        if (value && typeof value === "object") {
+            if (seen.has(value)) return "[seen]";
+            seen.add(value);
+        }
+        return value;
+    });
+    return createHash("sha1").update(text ?? "").digest("hex").slice(0, 12);
+}
+
+// One encounter of a feat: its fights in batches until stopReason, against the plain party's on the same seeds.
+function rateEncounter(built, foes, plain, cacheKey, name, { maxFights = FIGHTS, early = true } = {}) {
+    const sink = useCounter(name);
+    const scores = [];
+    let plainList = [];
+    let stop = null;
+    while (!stop) {
+        const to = Math.min(maxFights, scores.length + BATCH);
+        scores.push(...dangerFights(built.party, foes, scores.length, to, { grid: GRID, log: sink }).scores);
+        plainList = built.plain ? plainScores(built.plain, foes, cacheKey, scores.length) : plain.scores.slice(0, scores.length);
+        const diffs = scores.map((score, index) => score - plainList[index]);
+        stop = scores.length >= maxFights ? "all fights" : early ? stopReason(diffs, plain.step, sink.count) : null;
+    }
+    const diffs = scores.map((score, index) => score - plainList[index]);
+    const { mean, se } = meanSe(diffs);
+    return {
+        score: scores.reduce((sum, value) => sum + value, 0) / scores.length,
+        delta: mean, se, levels: -mean / plain.step, levelsSe: se / plain.step, uses: sink.count / scores.length,
+        fights: scores.length, stop, scores, ...(built.plain ? { plainScores: plainList } : {})
+    };
+}
+
+const builtFor = (task) => {
+    const doc = docsOf(task.ref.path).get(task.ref.id);
+    if (!doc) return { doc: null };
+    const level = partyLevelOf(task.ref.level);
+    return { doc, level, built: partyWithFeat(doc, level) };
+};
+// (Kept by the plain party's own fingerprint: before 2026-11-03 it was the host's, so two stance feats of one host at one level shared the
+// first one's plain party, stance and all; a loadout's wasn't kept at all.)
+const plainKey = (built, level, kind) => (built.plain ? `${partyHash(built.plain)}|${level}|${kind}` : null);
 
 // One feat: its rows for the boss and the group, paired with the scale's plain fights.
 export function featTask(task) {
-    const doc = docsOf(task.ref.path).get(task.ref.id);
+    const { doc, level, built } = builtFor(task);
     if (!doc) return { ...task, skipped: true, reason: "not found" };
-    const level = partyLevelOf(task.ref.level);
-    const built = partyWithFeat(doc, level);
     const head = { kind: "feat", ref: task.ref, name: doc.name, level, host: built.host, ...(built.loadout ? { loadout: built.loadout } : {}) };
     if (built.skipped) return { ...head, skipped: true, reason: built.reason };
     const results = {};
     for (const kind of KINDS) {
         const scaled = scale?.get(`${level}|${kind}`);
         if (!scaled) return { ...head, error: `no scale for level ${level} ${kind}: run the scale phase first` };
-        const foes = powerFoes(kind, level);
-        // (With a loadout of its own: the plain party with that loadout too, on the same seeds; the scale's step.)
-        const plain = built.plain ? { ...scaled, scores: plainScores(built.plain, foes, built.loadout ? null : `${built.host}|${level}|${kind}`) } : scaled;
-        const fights = dangerSummary(dangerFights(built.party, foes, 0, FIGHTS, { grid: GRID }));
-        const diffs = fights.scores.map((score, index) => score - plain.scores[index]);
-        const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
-        const sd = Math.sqrt(diffs.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
-        results[kind] = { score: fights.score, delta: mean, se: sd / Math.sqrt(diffs.length), levels: -mean / plain.step, levelsSe: sd / Math.sqrt(diffs.length) / plain.step, uses: usesPerFight(built.party, foes, doc.name) };
+        results[kind] = rateEncounter(built, powerFoes(kind, level), scaled, plainKey(built, level, kind), doc.name);
     }
     const levels = KINDS.reduce((sum, kind) => sum + results[kind].levels, 0) / KINDS.length;
     const se = Math.sqrt(KINDS.reduce((sum, kind) => sum + results[kind].levelsSe ** 2, 0)) / KINDS.length;
-    return { ...head, played: built.played, situational: built.situational, results, levels, se };
+    return { ...head, played: built.played, situational: built.situational, results, levels, se, fingerprint: partyHash(built.party), ...(built.plain ? { plainFingerprint: partyHash(built.plain) } : {}) };
+}
+
+// The probe: a stored row's first seeds replayed with today's code. changed: its fights (or the plain party's, when it has its own) aren't
+// the same any more, it's skipped now or no longer, or its reason changed; party: its fingerprint changed (the fights may still be the same).
+export function probeTask({ row, seeds = PROBE }) {
+    const head = { ref: row.ref, name: row.name };
+    const { doc, level, built } = builtFor(row);
+    if (!doc) return { ...head, changed: true, why: "not found now" };
+    if (row.error) return { ...head, changed: true, why: "an error last time" };
+    if (row.skipped || built.skipped) {
+        if (row.skipped && built.skipped && row.reason === built.reason) return { ...head, changed: false };
+        return { ...head, changed: true, why: row.skipped ? (built.skipped ? `another reason: ${built.reason}` : "played now") : `not played now: ${built.reason}` };
+    }
+    const party = row.fingerprint ? partyHash(built.party) !== row.fingerprint : null;
+    for (const kind of KINDS) {
+        const stored = row.results?.[kind];
+        if (!stored?.scores) return { ...head, changed: true, why: "no fights kept (rated before the probe existed)" };
+        const n = Math.min(seeds, stored.scores.length);
+        const foes = powerFoes(kind, level);
+        const now = dangerFights(built.party, foes, 0, n, { grid: GRID }).scores;
+        if (now.some((value, index) => value !== stored.scores[index])) return { ...head, changed: true, party, why: `${kind} fights differ` };
+        if (Boolean(built.plain) !== Boolean(stored.plainScores)) return { ...head, changed: true, party, why: "its plain party changed" };
+        if (built.plain) {
+            const plainNow = plainScores(built.plain, foes, plainKey(built, level, kind), n);
+            if (plainNow.some((value, index) => value !== stored.plainScores[index])) return { ...head, changed: true, party, why: `${kind} plain fights differ` };
+        }
+    }
+    return { ...head, changed: false, party };
+}
+
+// The scale's probe: the plain party's first seeds at a level and encounter, against scale.jsonl's.
+export function scaleProbeTask({ level, encounter: kind, seeds = PROBE }) {
+    const stored = scale?.get(`${level}|${kind}`);
+    if (!stored) return { kind: "scale-probe", level, encounter: kind, changed: true };
+    const now = dangerFights(partyFor(level), powerFoes(kind, level), 0, Math.min(seeds, stored.scores.length), { grid: GRID }).scores;
+    return { kind: "scale-probe", level, encounter: kind, changed: now.some((value, index) => value !== stored.scores[index]) };
+}
+
+// The canary: a stored row replayed with today's code on its first seeds (up to CANARY fights an encounter, no early stop), its rating
+// then and now on those same seeds.
+export const CANARY = Number(process.env.FEAT_CANARY) || 50;
+export function canaryTask({ row }) {
+    const head = { ref: row.ref, name: row.name, host: row.host, level: row.level, stored: row.levels };
+    const { doc, level, built } = builtFor(row);
+    if (!doc) return { ...head, now: null, why: "not found now" };
+    if (built.skipped) return { ...head, now: null, why: `not played now: ${built.reason}` };
+    const was = [];
+    const now = [];
+    for (const kind of KINDS) {
+        const scaled = scale?.get(`${level}|${kind}`);
+        const stored = row.results?.[kind];
+        const n = Math.min(CANARY, stored?.scores?.length ?? CANARY);
+        const fresh = rateEncounter(built, powerFoes(kind, level), scaled, plainKey(built, level, kind), doc.name, { maxFights: n, early: false });
+        now.push(fresh.levels);
+        if (stored?.scores) {
+            const plain = stored.plainScores ?? scaled.scores;
+            was.push(-meanSe(stored.scores.slice(0, n).map((score, index) => score - plain[index])).mean / scaled.step);
+        }
+    }
+    const average = (list) => list.reduce((sum, value) => sum + value, 0) / list.length;
+    return { ...head, then: was.length === KINDS.length ? average(was) : row.levels, sameSeeds: was.length === KINDS.length, now: average(now) };
 }
 
 // A party's rating against the plain party at a level, the feat ratings' way: { levels, se, boss, group, uses: { name: per fight } }
@@ -1861,5 +2005,8 @@ export async function runFeatTask(task) {
     if (task.kind === "deviant") return deviantTask(task);
     if (task.kind === "class") return classTask(task);
     if (task.kind === "pair") return classPairTask(task);
+    if (task.kind === "probe") return probeTask(task);
+    if (task.kind === "scale-probe") return scaleProbeTask(task);
+    if (task.kind === "canary") return canaryTask(task);
     return featTask(task);
 }
