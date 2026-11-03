@@ -609,6 +609,12 @@ const HAND = {
     "deflect-projectile": () => ({ builtins: { acReaction: { value: 4, when: "targeted", name: "Deflect Projectile", against: "ranged" } }, played: "+4 AC against a ranged attack (reaction)" }),
     // (Its own half: frightened it gains 1 lower, as Bravery's — the end-of-turn help to allies in its aura isn't played.)
     "aura-of-courage": () => ({ builtins: { lessFrightened: 1 }, played: "frightened it gains 1 lower (always on)" }),
+    // (A critical hit on it a normal hit on a DC 15 flat check — the engine's crit-downgrade.)
+    "saving-slash": () => ({ builtins: {}, plans: [{ builtin: "crit-downgrade", dc: 15 }], played: "a critical hit on it a hit on a DC 15 flat check (reaction)" }),
+    // (The attacker's hit rerolled, the lower kept — the engine's attack-misfortune.)
+    "whispers-of-warning": () => ({ builtins: {}, plans: [{ builtin: "attack-misfortune" }], played: "an attack that hits it rolled twice, the lower kept (reaction)" }),
+    // (15 less of the damage it would take — the engine's resist-damage; the unstable 50 isn't played.)
+    "negate-damage": () => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 15 }], played: "15 less damage (reaction)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
@@ -644,6 +650,16 @@ const ZERO_HP = {
     // (Its Strike as it uses Orc Ferocity — which it needs, so with it.)
     "rampaging-ferocity": { ferocity: { hp: 1, wounded: true, uses: 1, strike: true, free: true } },
     "the-cycle-continues": { ferocity: { hp: (level) => `6d8+${Math.floor(level / 2)}`, wounded: false, uses: 1, free: true } },
+    // (2026-11-03, the class feats no fight played: the reactions that keep their PC up at 0 Hit Points, once a fight — Cheat Death's
+    // doomed, Ruby Resurrection's Fireball and Desperate Revival's drain aren't played.)
+    "ferocity-mimicry": { ferocity: { hp: 1, wounded: true, uses: 1 } },
+    unkillable: { ferocity: { hp: 1, wounded: false, uses: 1 } },
+    "cheat-death": { ferocity: { hp: 1, wounded: false, uses: 1 } },
+    "sanguine-evasion": { ferocity: { hp: 1, wounded: false, uses: 1 } },
+    "desperate-revival": { ferocity: { hp: 1, wounded: false, uses: 1 } },
+    "ruby-resurrection": { ferocity: { hp: 30, wounded: false, uses: 1 } },
+    // (10 + its level + its Constitution modifier.)
+    "its-not-over": { ferocity: { hp: (level) => 10 + level + 2 + (level >= 5) + (level >= 10) + (level >= 20), wounded: false, uses: 1 } },
     "cant-fall-here": { rescue: { within: 5, hp: 1, uses: 1 } },
     caterwaul: { rescue: { within: 30, hp: 1, uses: 1 } }
 };
