@@ -77,7 +77,8 @@ test("requirements in the feat's words: mapped to the planner's, or met by what 
     assert.equal(meetsWielding("You are wielding two melee weapons, each in a different hand.", fighter), false);
     assert.equal(meetsWielding("You are wearing medium or heavy armor.", fighter), true);
     assert.equal(meetsWielding("You have one hand free, and your target is within reach of that hand.", fighter), false);
-    assert.equal(meetsWielding("You have one hand free, and your target is within reach of that hand.", { ...fighter, freeHand: true }), null, "more than the hand");
+    assert.equal(meetsWielding("You have one hand free, and your target is within reach of that hand.", { ...fighter, freeHand: true }), true, "a melee Strike's target is within reach of the hand");
+    assert.equal(meetsWielding("You have one hand free, and your target is Off-Guard.", { ...fighter, freeHand: true }), null, "more than the hand");
     assert.equal(meetsWielding("Your nimbus is active.", fighter), null);
 });
 
