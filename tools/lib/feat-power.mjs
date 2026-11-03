@@ -283,6 +283,33 @@ function innateSpellEntry(doc, level, host) {
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
+// (2026-11-03, the class feats no fight played: a spellcasting dedication's cantrips — Cleric, Wizard, Bard, Sorcerer Dedication and their
+// kin, "two common cantrips from the divine spell list" —: one damage cantrip of its tradition, picked as a martial PC would — Electric
+// Arc (arcane, primal; a bloodline's or patron's list played as arcane), Divine Lance (divine), Void Warp (occult) —, at will, heightened to half its level, its DC trained with the PC's
+// Charisma, as an innate spell's.)
+const DEDICATION_CANTRIP = { arcane: "Electric Arc", primal: "Electric Arc", divine: "Divine Lance", occult: "Void Warp" };
+function dedicationCantripEntry(doc, level, host) {
+    if (!/Dedication$/.test(doc.name)) return null;
+    const text = String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, "$1");
+    const sentence = /[^.]*\b(?:one|two|four|a single|a)\s+(?:common\s+)?(?:[a-z]+\s+)?cantrips?\b[^.]*\./i.exec(text)?.[0];
+    if (!sentence || /\bof the following\b|\bpsi cantrip|\bHalcyon\b/i.test(sentence)) return null;
+    const tradition = /\b(arcane|divine|occult|primal)\b/i.exec(sentence)?.[1]?.toLowerCase() ?? (/\b(?:tradition|spell list) of your choice\b|\bbloodline\b|\bpatron\b/i.test(sentence) ? "arcane" : null);
+    const spell = tradition && spellPack.spellNamed(DEDICATION_CANTRIP[tradition]);
+    if (!spell) return null;
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    const abilities = host.abilities ?? ABILITIES[host.id]?.(key(level), level >= 10 ? 2 : 1) ?? {};
+    const dc = 10 + level + 2 + (abilities.cha ?? 0);
+    const castRank = Math.max(1, Math.ceil(level / 2));
+    const entry = { name: `${spell.name} (${doc.name})`, plan, castRank, dc, attack: dc - 10, pool: null, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+    if (!castable(entry)) return null;
+    return { spells: [entry], pools: {}, gap: null, played: `cantrip: ${spell.name} (rank ${castRank}, DC ${dc})` };
+}
+
 // (Reach Spell: each 1- or 2-action spell with a range — touch counted as none — 30 feet farther, an action more.)
 function reachEntry(doc, host) {
     if (slugOf(doc) !== "reach-spell") return null;
@@ -756,6 +783,9 @@ const HAND = {
         const dice = level >= 18 ? 3 : level >= 10 ? 2 : 1;
         return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, melee: true, nextStrike: true, damage: [`${dice}d6[spirit]`], model: { rounds: 1 } }], played: `+${dice}d6 spirit on its next melee Strike (1 action)` };
     },
+    // (Twice the target's frightened as damage on its Strikes at a frightened creature, three times from master in Intimidation — 15th
+    // here.)
+    "fearsome-brute": (level) => ({ builtins: { strikeExtras: [{ when: "frightened", dice: 0, die: 0, bonus: 0, perFrightened: level >= 15 ? 3 : 2, precision: false, type: null, source: "Fearsome Brute" }] }, played: "damage of twice a foe's frightened (always on)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
@@ -1155,6 +1185,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellshapeEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = demoralizeAllEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = quickenAllEntry(doc, level) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = dedicationCantripEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;

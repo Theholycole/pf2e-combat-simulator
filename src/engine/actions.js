@@ -312,7 +312,8 @@ function expectedExtras(attacker, strike, target, critical, offGuardChance, pack
         // own die, not doubled.)
         if (!chance || extra.condition || (extra.melee && !strike.melee)) continue;
         const die = extra.weaponDie ? Number(strike.damage?.[0]?.die) || 6 : extra.die;
-        const amount = (extra.dice * (die + 1) / 2 + (extra.bonus ?? 0)) * (critical && !extra.noDouble && !extra.persistent ? 2 : 1);
+        // (2026-11-03, Fearsome Brute: a bonus for each point of the target's frightened.)
+        const amount = (extra.dice * (die + 1) / 2 + (extra.bonus ?? 0) + (extra.perFrightened ?? 0) * (target.cond?.frightened ?? 0)) * (critical && !extra.noDouble && !extra.persistent ? 2 : 1);
         total += chance * adjustInstance(target, extra.type ?? strike.damage[0]?.type ?? "untyped", amount, extra.precision, strikeContext(attacker, strike, critical));
     }
     return total;
@@ -793,7 +794,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
                 continue;
             }
             const die = extra.weaponDie ? Number(strike.damage[0].die) || 6 : extra.die;
-            let amount = extra.bonus ?? 0;
+            let amount = (extra.bonus ?? 0) + (extra.perFrightened ?? 0) * (target.cond?.frightened ?? 0);
             for (let roll = 0; roll < extra.dice; roll++) amount += state.rng.die(die);
             if (extra.persistent) {
                 addPersistent(target, { type: extra.type ?? "bleed", dice: extra.dice, die, bonus: 0, amount: extra.dice * (die + 1) / 2 }, attacker);
