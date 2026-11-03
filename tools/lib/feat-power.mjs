@@ -601,6 +601,10 @@ const HAND = {
     // (A DC 15 flat check against a reaction's disruption, B55.)
     "steady-spellcasting": () => ({ builtins: { steadySpellcasting: 15 }, played: "a DC 15 flat check against disruption" }),
     // (A critical hit that deals damage: the target frightened 1.)
+    // (A critical hit's target off-guard to the PC until the end of its next turn.)
+    "unbalancing-blow": () => ({ builtins: { strikeExtras: [{ when: "critical", offGuardToAttacker: true, source: "Unbalancing Blow" }] }, played: "off-guard to the PC after a critical hit (always on)" }),
+    // (+4 AC against a ranged attack, a hand free — a monk's.)
+    "deflect-projectile": () => ({ builtins: { acReaction: { value: 4, when: "targeted", name: "Deflect Projectile", against: "ranged" } }, played: "+4 AC against a ranged attack (reaction)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),

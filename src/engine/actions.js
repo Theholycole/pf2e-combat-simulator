@@ -777,6 +777,16 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             if (!extraApplies(extra, target, { offGuard, packAllies, attacker, critical })) continue;
             // (Brutal Critical: melee Strikes only, its weapon's own die, not doubled — an extra die like deadly's; its bleed persistent.)
             if (extra.melee && !strike.melee) continue;
+            // (2026-11-03, Unbalancing Blow: the target off-guard to the attacker's attacks until the end of its next turn.)
+            if (extra.offGuardToAttacker) {
+                if (isActive(target)) {
+                    const entry = { attacker: attacker.id, attacks: "all", uses: Infinity };
+                    target.offGuardTo = [...(target.offGuardTo ?? []), entry];
+                    (target.timers ??= []).push({ offGuardTo: entry, round: state.round + 1, turnOf: attacker.id, at: "end" });
+                    log(state, `  ${target.name} is off-guard to ${attacker.name} (${extra.source ?? "a Strike's extra"})`);
+                }
+                continue;
+            }
             // (2026-11-03, Brutal Beating: a condition on the target.)
             if (extra.condition) {
                 if (isActive(target) && applyCondition(state, target, extra.condition.slug, extra.condition.value ?? null, extra.condition.duration ?? null, attacker)) log(state, `  ${target.name} is ${extra.condition.slug}${extra.condition.value ? ` ${extra.condition.value}` : ""} (${extra.source ?? "a Strike's extra"})`);
