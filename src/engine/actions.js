@@ -1486,7 +1486,7 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     const main = instances.filter(sets).reduce((best, instance) => (!best || instance.amount > best.amount ? instance : best), null)?.type ?? "untyped";
     const entries = (resist.types ?? ["all-damage"]).map((type) => ({ type: type === "triggering" ? main : type, value, exceptions: [] }));
     target.resistances = [...(before ?? []), ...entries];
-    log(state, `  ${target.name} uses ${resist.name}: resistance ${value}${resist.types ? ` to ${entries.map((entry) => entry.type).join(", ")}` : ""} against it`);
+    log(state, value > 0 ? `  ${target.name} uses ${resist.name}: resistance ${value}${resist.types ? ` to ${entries.map((entry) => entry.type).join(", ")}` : ""} against it` : `  ${target.name} uses ${resist.name}`);
     // (B155: what it kept off, and of which type, for a lash back.)
     const resisted = Math.max(0, plain - adjustDamage(target, instances).total);
     const type = instances.find((instance) => !instance.persistent && instance.amount > 0 && PHYSICAL_TYPES.has(instance.type))?.type ?? instances[0]?.type ?? "untyped";

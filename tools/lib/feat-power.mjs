@@ -793,6 +793,8 @@ const HAND = {
     // (Twice the target's frightened as damage on its Strikes at a frightened creature, three times from master in Intimidation — 15th
     // here.)
     "fearsome-brute": (level) => ({ builtins: { strikeExtras: [{ when: "frightened", dice: 0, die: 0, bonus: 0, perFrightened: level >= 15 ? 3 : 2, precision: false, type: null, source: "Fearsome Brute" }] }, played: "damage of twice a foe's frightened (always on)" }),
+    // (Fire damage of its level back at an adjacent creature whose melee attack hits it, once a fight — resist-damage's retort, no resistance.)
+    "fiery-retort": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 0, retort: `${level}[fire]`, melee: true, foe: true, uses: 1 }], played: `${level} fire back at a melee attacker (reaction, once a fight)` }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),

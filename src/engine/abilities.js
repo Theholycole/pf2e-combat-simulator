@@ -252,8 +252,9 @@ export function addBuiltin(spec, plan, name) {
                 spec.resistUses = Number(plan.uses) || Infinity;
                 return true;
             }
-            if (!(Number(plan.value) > 0)) return false;
-            spec.resistReaction = { name, value: Number(plan.value), on: plan.on ?? null, types: plan.types ?? null, ...(plan.magical ? { magical: true } : {}), ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}), ...(plan.lasts ? { lasts: plan.lasts } : {}), ...(plan.acPenalty ? { acPenalty: plan.acPenalty } : {}), ...(plan.quickened ? { quickened: plan.quickened } : {}), ...(plan.lashBack ? { lashBack: { bonus: Number(plan.lashBack.bonus) || 0 } } : {}),
+            // (2026-11-03, Fiery Retort: damage back with no resistance of its own.)
+            if (!(Number(plan.value) > 0) && !plan.retort) return false;
+            spec.resistReaction = { name, value: Number(plan.value) || 0, on: plan.on ?? null, types: plan.types ?? null, ...(plan.magical ? { magical: true } : {}), ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}), ...(plan.lasts ? { lasts: plan.lasts } : {}), ...(plan.acPenalty ? { acPenalty: plan.acPenalty } : {}), ...(plan.quickened ? { quickened: plan.quickened } : {}), ...(plan.lashBack ? { lashBack: { bonus: Number(plan.lashBack.bonus) || 0 } } : {}),
                 // (B237, Sharp Riposte: damage back at the attacker; only a melee attack from beside it.)
                 ...(plan.retort ? { retort: plan.retort } : {}), ...(plan.melee ? { melee: true } : {}) };
             spec.resistUses = Number(plan.uses) || Infinity;
