@@ -618,6 +618,14 @@ const HAND = {
     "negate-damage": () => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 15 }], played: "15 less damage (reaction)" }),
     // (Full sneak attack at a creature that isn't off-guard: 4d6 at 20th.)
     "impossible-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 17 ? 4 : level >= 11 ? 3 : level >= 5 ? 2 : 1, die: 6, precision: true, type: null, source: "Impossible Striker" }] }, played: "full sneak attack at a creature that isn't off-guard (always on)" }),
+    // (Rage on another class's PC — the fighter's —: +2 damage on its melee weapon (no instinct, no specialization), temporary Hit Points of
+    // its level and Constitution modifier, −1 AC; the class's own Rage, classes.js.)
+    "barbarian-dedication": (level, host) => {
+        const weapon = (host?.strikes ?? []).find((strike) => strike.melee && !strike.unarmed);
+        if (!weapon || (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage")) return null;
+        const con = 2 + (level >= 5) + (level >= 10) + (level >= 20);
+        return { builtins: { selfBuffs: [{ name: "Rage", actions: 1, tempHp: level + con, noConcentrate: true, acPenalty: 1, strikeDeltas: { [weapon.name]: [{ dice: 0, die: 0, bonus: 2, multiplier: 1, type: weapon.damage?.[0]?.type ?? "slashing", precision: false, persistent: false }] } }] }, played: `Rage (+2 damage with its ${weapon.name})` };
+    },
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
@@ -637,8 +645,8 @@ const HAND = {
     "acquired-tolerance": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "poison" }], played: "a failed save against poison rerolled" }),
     "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" })
 };
-function handEntry(doc, level, builtins, wields) {
-    const read = HAND[slugOf(doc)]?.(level);
+function handEntry(doc, level, builtins, wields, host = null) {
+    const read = HAND[slugOf(doc)]?.(level, host);
     if (!read) return null;
     // (Its requirement — Reactive Shield's "You are wielding a shield" —: a PC whose loadout can't meet it gets one that can.)
     const requirement = requirementText(doc);
@@ -993,7 +1001,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
-        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = handEntry(doc, level, builtins, wields) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = handEntry(doc, level, builtins, wields, { ...host, strikes: wields.strikes ?? host.strikes }) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = zeroHpEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = passiveRulesEntry(doc, level, builtins) ?? entries;
         // (A requirement on what the PC wields the plan doesn't carry — Dueling Dance's "a single one-handed melee weapon and nothing else in
