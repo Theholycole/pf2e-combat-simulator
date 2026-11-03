@@ -291,7 +291,7 @@ const CLASSES = {
             // Fists (Powerful Fist's d6) with handwraps' runes; Flurry of Blows.
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const fist = weaponStrike(lv, { name: "Fist", die: 6, type: "bludgeoning", toHit: a.str, damageAttr: a.str, prof, group: "brawling", extra: { agile: true, finesse: true, unarmed: true } });
-            return { strikes: [fist], speed: 25 + (lv >= 19 ? 30 : lv >= 15 ? 25 : lv >= 11 ? 20 : lv >= 7 ? 15 : lv >= 3 ? 10 : 0), fields: { multiStrikes: [{ name: "Flurry of Blows", actions: 1, strikes: ["fist", "fist"], oncePerTurn: true, flourish: true }] } };
+            return { strikes: [fist], speed: 25 + (lv >= 19 ? 30 : lv >= 15 ? 25 : lv >= 11 ? 20 : lv >= 7 ? 15 : lv >= 3 ? 10 : 0), fields: { multiStrikes: [{ name: "Flurry of Blows", actions: 1, strikes: [null, null], oncePerTurn: true, flourish: true }] } };
         }
     },
     necromancer: {

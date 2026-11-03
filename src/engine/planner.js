@@ -9,7 +9,7 @@
 
 import { degreeDistribution, degreeOf, CRITICAL_SUCCESS, SUCCESS, FAILURE, CRITICAL_FAILURE } from "./checks.js";
 import { adjustInstance, strikeContext } from "./damage.js";
-import { effectBenefit, resistanceKept, weaknessCost } from "./effects.js";
+import { effectBenefit, resistanceKept, strikesGranted, weaknessCost } from "./effects.js";
 import { deviantEntryOf, deviantRisk } from "./deviant.js";
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
@@ -1877,7 +1877,8 @@ function expandClassActions(env) {
             const average = parseDamage(entry.model.hitBack).reduce((sum, instance) => sum + (instance.constant ?? 0) + (instance.dice ?? []).reduce((total, term) => total + (term.factor ?? 1) * term.count * (term.die + 1) / 2, 0), 0);
             benefit += span * 0.5 * ctx.enemies.filter((enemy) => isActive(enemy) && sameMelee(c, enemy)).length * average / threatHere;
         }
-        if (entry.strikes?.length && ctx.enemies.length) {
+        const better = entry.strikes?.length ? entry.strikes : entry.model.grantedStrikes?.length ? strikesGranted(c, entry.model) : null;
+        if (better?.length && ctx.enemies.length) {
             const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
             const expected = (strike) => {
                 const hit = Math.min(0.95, Math.max(0.05, (21 - (ac - strike.bonus)) / 20));
@@ -1885,7 +1886,7 @@ function expandClassActions(env) {
             };
             const best = (list) => Math.max(0, ...list.filter((strike) => strike.melee && strikeUsable(c, strike)).map(expected));
             // About three rounds of the better Strike, twice a round.
-            benefit += 3 * 2 * Math.max(0, best(entry.strikes) - best(c.strikes ?? [])) / Math.max(1, state.threat?.get(c.id) ?? 1);
+            benefit += 3 * 2 * Math.max(0, best(better) - best(c.strikes ?? [])) / Math.max(1, state.threat?.get(c.id) ?? 1);
         }
         const gain = ctx.ownValue * benefit * ROUND_TO_KILL;
 

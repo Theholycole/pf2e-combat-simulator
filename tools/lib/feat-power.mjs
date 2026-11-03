@@ -279,6 +279,43 @@ function innateSpellEntry(doc, level, host) {
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
+// (2026-11-03, Cole: "begin working on implementing them" — the class feats no fight played: "You learn the Hymn of Healing composition spell",
+// "You gain the Fungal Exhalation order spell".) A focus spell the feat teaches: cast at half the PC's level rounded up from its Focus Points,
+// one more point for it (three at most), at its spell DC — else its class DC.
+export function taughtFocusSpells(doc) {
+    const text = String(doc.system?.description?.value ?? "");
+    const found = [];
+    for (const hit of text.matchAll(/\b(?:learn|gain|learns|gains)\s+(?:the\s+)?(?:@UUID\[Compendium\.pf2e\.spells-srd\.Item\.([^\]]+)\](?:\{([^}]*)\})?)\s+(?:[\w-]+\s+){0,2}?(?:spell|cantrip|hex|composition)/gi)) {
+        const spell = spellPack.spellNamed(hit[1]) ?? spellPack.spellNamed(hit[2] ?? "") ?? spellPack.spellById?.(hit[1]) ?? null;
+        if (!spell || !(spell.system?.traits?.value ?? []).includes("focus") || found.includes(spell)) continue;
+        found.push(spell);
+    }
+    return found;
+}
+function focusSpellEntry(doc, level, host) {
+    const spells = taughtFocusSpells(doc);
+    if (!spells.length) return null;
+    const own = dcsOf(host);
+    const dc = own.spell ?? own.class ?? 10 + level + 2;
+    const castRank = Math.max(1, Math.ceil(level / 2));
+    const pool = `${host.id}:focus`;
+    const entries = [];
+    for (const spell of spells) {
+        let plan;
+        try {
+            plan = spellPack.compileSpell(spell);
+        } catch {
+            continue;
+        }
+        if (!plan?.resolution || ["unsupported", "no-effect"].includes(plan.resolution.kind)) continue;
+        const cantrip = (spell.system?.traits?.value ?? []).includes("cantrip");
+        entries.push({ name: `${spell.name} (${doc.name})`, plan, castRank, dc, attack: dc - 10, pool: cantrip ? null : pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) });
+    }
+    if (!entries.length) return null;
+    const pools = entries.some((entry) => entry.pool) ? { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) } : {};
+    return { spells: entries, pools, gap: null, played: `focus spell${entries.length > 1 ? "s" : ""}: ${entries.map((entry) => `${entry.name.replace(/ \(.*$/, "")} (rank ${castRank})`).join(", ")}` };
+}
+
 // (2026-11-02, the same ask: staying up at 0 Hit Points, which the engine plays for monsters — Ferocity's kin and an ally's rescue,
 // actions.js knockOut —, and the feats that raise maximum Hit Points by the PC's level.)
 const ZERO_HP = {
@@ -483,6 +520,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             entries = strikes ? { spells: [], pools: {}, gap: null, played: "PF2e rules: a bigger damage die" } : { ...entries, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (the weapon its damage die upgrade names)` } };
         }
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = zeroHpEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = passiveRulesEntry(doc, level, builtins) ?? entries;
         // (A requirement on what the PC wields the plan doesn't carry — Dueling Dance's "a single one-handed melee weapon and nothing else in

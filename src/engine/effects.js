@@ -819,6 +819,13 @@ export function upgradeStrike(strike, upgrade) {
     const [first, ...rest] = strike.damage ?? [];
     return { ...strike, bonus: (Number(strike.bonus) || 0) + Math.max(0, (upgrade.potency ?? 0) - potency), potency: Math.max(potency, upgrade.potency ?? 0), damage: first ? [{ ...first, dice: Math.max(Number(first.dice) || 1, 1 + (upgrade.striking ?? 0)) }, ...rest] : strike.damage };
 }
+// (2026-11-03) The Strikes an effect would give a creature (a stance's Dragon Tail with its fist's runes), without giving them: for the planner.
+export function strikesGranted(target, model) {
+    if (!model?.grantedStrikes?.length) return [];
+    const armed = { ...target, strikes: [...(target.strikes ?? [])] };
+    armStrikes(armed, { model, key: "planned" });
+    return armed.strikes.filter((strike) => strike.fromEffect === "planned");
+}
 function armStrikes(target, effect) {
     const model = effect.model;
     const own = (target.strikes ?? []).filter((strike) => !strike.fromEffect);
@@ -826,7 +833,13 @@ function armStrikes(target, effect) {
     const from = melee.length ? melee : own;
     const bonus = from.length ? Math.max(...from.map((strike) => (Number(strike.bonus) || 0) - (Number(strike.potency) || 0))) : Number(target.level) || 0;
     const str = Number.isFinite(target.str) ? target.str : Math.max(0, ...melee.map((strike) => Number(strike.damage?.[0]?.bonus) || 0));
-    const granted = (model.grantedStrikes ?? []).map((spec) => ({ name: spec.name, bonus, melee: true, agile: spec.traits.includes("agile"), finesse: spec.traits.includes("finesse"), unarmed: spec.unarmed, ...(spec.reach ? { reach: spec.reach } : {}), iwr: { traits: spec.traits.filter((trait) => trait === "magical") }, damage: [{ dice: spec.dice, die: spec.die, bonus: str, type: spec.type }, ...spec.extra.map((part) => ({ dice: part.dice, die: part.die, bonus: 0, type: part.type }))], fromEffect: effect.key }));
+    // (2026-11-03, a monk's stance Strikes — Tiger Claw, Dragon Tail —: an unarmed attack, so its handwraps' runes and its own unarmed attack's
+    // damage bonus (weapon specialization) are on it, as on its fist.)
+    const fist = own.filter((strike) => strike.unarmed && strike.melee).sort((a, b) => (Number(b.bonus) || 0) - (Number(a.bonus) || 0))[0] ?? null;
+    const granted = (model.grantedStrikes ?? []).map((spec) => {
+        const runed = spec.unarmed && fist;
+        return { name: spec.name, bonus: runed ? Number(fist.bonus) || bonus : bonus, ...(runed && fist.potency ? { potency: fist.potency } : {}), melee: true, agile: spec.traits.includes("agile"), finesse: spec.traits.includes("finesse"), unarmed: spec.unarmed, ...(spec.reach ? { reach: spec.reach } : {}), iwr: { traits: spec.traits.filter((trait) => trait === "magical"), ...(spec.unarmed ? { group: "brawling" } : {}) }, damage: [{ dice: runed ? Math.max(spec.dice, Number(fist.damage?.[0]?.dice) || 1) : spec.dice, die: spec.die, bonus: runed ? Number(fist.damage?.[0]?.bonus) || str : str, type: spec.type }, ...spec.extra.map((part) => ({ dice: part.dice, die: part.die, bonus: 0, type: part.type }))], fromEffect: effect.key };
+    });
     target.strikes = [...(target.strikes ?? []).filter((strike) => strike.fromEffect !== effect.key), ...granted];
     const upgrade = model.runeUpgrade;
     if (!upgrade) return;
