@@ -924,6 +924,15 @@ const HAND = {
     // (Exude Demonic Corruption: until its next turn, 1d6 poison on its melee Strikes and on each creature that hits it in melee — hitBack —;
     // 2d6 at 14th level, 3d6 at 20th.)
     "exude-demonic-corruption": (level) => { const dice = level >= 20 ? 3 : level >= 14 ? 2 : 1; return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, melee: true, damage: [`${dice}d6[poison]`], model: { rounds: 1, hitBack: `${dice}d6[poison]` } }], played: `${dice}d6 poison on its melee Strikes and on who hits it, for a round` }; },
+    // (Electrify Armor: for a round, 1d4 electricity on each creature that hits it in melee — hitBack —, 2d4 with the revolutionary
+    // innovation, 15th level. Its unstable minute of d12s isn't played.)
+    "electrify-armor": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, model: { rounds: 1, hitBack: `${level >= 15 ? 2 : 1}d4[electricity]` } }], played: "electricity on who hits it in melee, for a round" }),
+    // (Surprise Attack, an archetype's: off-guard to it the first round, before they act — the rogue's makesOffGuard; its Deception or
+    // Stealth initiative is taken as rolled, as the rogue's is.)
+    "surprise-attack": () => ({ builtins: { makesOffGuard: [{ when: { round: 1, notActed: true }, strikes: "all", spells: true, source: "Surprise Attack" }] }, played: "foes that haven't acted are off-guard to it the first round" }),
+    // (Fortified Flesh: resistance to physical damage but adamantine, its Living Monolith class feats' number — taken as 3 at 8th level,
+    // the dedication, the two before this one, and 1 more every 4 levels.)
+    "fortified-flesh": (level) => ({ builtins: { resistances: [{ type: "physical", value: 3 + Math.max(0, Math.floor((level - 8) / 4)), exceptions: ["adamantine"] }] }, played: "resistance to physical damage (always on)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
