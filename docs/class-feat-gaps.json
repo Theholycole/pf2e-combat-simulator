@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-03",
- "rated": 840,
+ "rated": 849,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -23320,29 +23320,6 @@
    "text": "Requirements You're adjacent to an enemy larger than you. Using a technique pioneered by goblins, you conceal your movements from a larger creature and hit them where it hurts. You use Quick Alchemy to create a bomb or quick vial, then Stri"
   },
   {
-   "id": "sv4LeEbkOJyLen10",
-   "name": "Debilitating Bomb",
-   "level": 6,
-   "owner": "alchemist",
-   "classes": [
-    "alchemist"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "additive",
-    "alchemist"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "feature-upgrade",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You can add a crystalline additive to an alchemical bomb to have it undermine your enemy. Choose Dazzled, Deafened, Off-Guard, or a –5-foot status penalty to Speeds. If the attack with the bomb hits, in addition to the bomb's normal effects"
-  },
-  {
    "id": "ozvYhY4hG1deXly8",
    "name": "Directional Bombs",
    "level": 6,
@@ -23385,29 +23362,6 @@
    "reason": null,
    "detail": null,
    "text": "You have expanded your supply of near-infinite items. Choose a research field. Add one item from the list of options available to that field from perpetual infusions, or two items if you choose your own field. If you have Perpetual Potency "
-  },
-  {
-   "id": "zXKfKKOxht0b0XNL",
-   "name": "Sticky Bomb",
-   "level": 8,
-   "owner": "alchemist",
-   "classes": [
-    "alchemist"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "additive",
-    "alchemist"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "feature-upgrade",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You can mix in a sticky additive to an alchemical bomb to make its contents adhere and continue to deal damage. A creature hit by a sticky bomb also takes persistent damage equal to and of the same type as the bomb's splash damage. Use the "
   },
   {
    "id": "gyVcJfZTmBytLsXq",
@@ -27341,28 +27295,6 @@
    "text": "The magical reinforcement from your Arcane Cascade extends to nearby allies. While you're in Arcane Cascade stance, you grant its extra damage and resistance in an aura affecting all allies in a @Template[type:emanation|distance:5]. This us"
   },
   {
-   "id": "zy7lx4SWkfDxqH6m",
-   "name": "Supreme Spellstrike",
-   "level": 20,
-   "owner": "magus",
-   "classes": [
-    "magus"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "magus"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "feature-upgrade",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "For you, it is almost effortless to combine spells and attacks into devastating combinations. You're permanently Quickened. You can use your extra action only to Strike or to recharge Spellstrike."
-  },
-  {
    "id": "wz2edbLFnDKDNWWZ",
    "name": "Flurry of Maneuvers",
    "level": 4,
@@ -28415,28 +28347,6 @@
    "reason": null,
    "detail": null,
    "text": "Your easily maneuver against your foes. Your Disarm, Grapple, Reposition, Shove, and Trip actions have a lower multiple attack penalty. Even if your weapon or unarmed attack doesn't have the agile trait, the penalty is –4 if the action is y"
-  },
-  {
-   "id": "qeLpqH2cMSmIrILV",
-   "name": "Precise Finisher",
-   "level": 6,
-   "owner": "swashbuckler",
-   "classes": [
-    "swashbuckler"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "swashbuckler"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "feature-upgrade",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Even when your foe avoids your Confident Finisher, you can still hit a vital spot. On a failure with Confident Finisher, you apply your full precise strike damage instead of half."
   },
   {
    "id": "SAOtGk9k8veaX3Ww",
@@ -33779,30 +33689,6 @@
    "text": "Shield in hand, you offer your ally its full protection you do yourself. While the companion shield is in effect, if your shield is raised, the ally with the companion shield gets the same bonus to AC your shield grants, and you can trigger"
   },
   {
-   "id": "pRqcm5P2ZFihSpVI",
-   "name": "Quick Shield Block",
-   "level": 8,
-   "owner": "champion",
-   "classes": [
-    "champion",
-    "fighter"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "champion",
-    "fighter"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You can bring your shield into place with hardly a thought. At the start of each of your turns, you gain an additional reaction that you can use only to Shield Block."
-  },
-  {
    "id": "pCx2vSnIYIdnSKnr",
    "name": "Spectral Advance",
    "level": 10,
@@ -34730,28 +34616,6 @@
    "text": "Fighter, Rogue, Investigator Your battle instincts make you more aware of Concealed and Invisible opponents. Ranger Your heightened senses allow you to instinctively detect unseen opponents. You don't need to succeed at a flat check to targ"
   },
   {
-   "id": "j4zGMRiTi5t6guMF",
-   "name": "Disorienting Opening",
-   "level": 8,
-   "owner": "fighter",
-   "classes": [
-    "fighter"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "fighter"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You use your foes' openings to expose even greater weaknesses. When you hit a creature as part of a Reactive Strike, that creature becomes Off-Guard until the start of your next turn."
-  },
-  {
    "id": "dTO1ShJovbzrKUY4",
    "name": "Resounding Bravery",
    "level": 8,
@@ -34794,28 +34658,6 @@
    "reason": null,
    "detail": null,
    "text": "You can dash your foe to the ground with a single blow. If the Strike you make with Slam Down hits, you can automatically get a critical success on your Trip instead of rolling a check. (Both the Strike and Trip still count toward your mult"
-  },
-  {
-   "id": "rzaoi5Roef9zO22G",
-   "name": "Tactical Reflexes",
-   "level": 10,
-   "owner": "fighter",
-   "classes": [
-    "fighter"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "fighter"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You are particularly swift at punishing foes who leave you openings. At the start of each of your turns when you regain your actions, you gain an additional reaction that can be used only to make a Reactive Strike."
   },
   {
    "id": "d6Vb8D9yOX93mdUI",
@@ -34930,28 +34772,6 @@
    "reason": null,
    "detail": null,
    "text": "Fighter With a sixth sense for the flow of combat, you can quickly react to any situation as required. At the start of each enemy's turn, you gain a reaction you can use only during that turn for any reaction from a fighter feat or class fe"
-  },
-  {
-   "id": "JEFPufbvaCeiA0Zo",
-   "name": "Weapon Supremacy",
-   "level": 20,
-   "owner": "fighter",
-   "classes": [
-    "fighter"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "fighter"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Your skill with weapons bends the laws of reality, allowing you to continuously attack with speed that would normally require magical assistance. You're permanently Quickened. You can use your extra action only to Strike."
   },
   {
    "id": "3cE56QOhylFdM8UD",
@@ -35335,28 +35155,6 @@
    "reason": null,
    "detail": null,
    "text": "Your twirling weapons create a grand distraction that's difficult to look away from. When using Pistol Twirl to Feint, you can target all enemies within your weapon's first range increment who you can perceive and who can see you. You roll "
-  },
-  {
-   "id": "qwnyuCsl5YvX0fdY",
-   "name": "Fatal Bullet",
-   "level": 16,
-   "owner": "gunslinger",
-   "classes": [
-    "gunslinger"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "gunslinger"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You're especially talented at striking your enemies in their most vulnerable areas. When you critically hit with a fatal firearm, you deal an additional die of the appropriate size and damage type for the fatal trait after doubling the weap"
   },
   {
    "id": "qkHVva51N6H8NNGR",

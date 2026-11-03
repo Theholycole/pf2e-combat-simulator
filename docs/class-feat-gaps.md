@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-03 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 840 are rated; 3516 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-03 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 849 are rated; 3507 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -10,34 +10,34 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 |---|---:|---:|---:|
 | Archetype dedications (grant class features) | 181 | 2 | 183 |
 | Combat actions and reactions | 409 | 461 | 870 |
-| Passives that change a class feature | 239 | 14 | 253 |
-| Other combat passives | 427 | 21 | 448 |
+| Passives that change a class feature | 235 | 14 | 249 |
+| Other combat passives | 422 | 21 | 443 |
 | Spellcasting (slots, focus, spellshapes) | 277 | 36 | 313 |
 | Companions, familiars and eidolons | 218 | 33 | 251 |
 | Out of combat (exploration, downtime, skills) | 321 | 27 | 348 |
 | Nothing a fight would use | 781 | 69 | 850 |
-| **All** | 2853 | 663 | 3516 |
+| **All** | 2844 | 663 | 3507 |
 
 ## By class
 
 | Class | dedication | combat-action | feature-upgrade | combat-passive | spellcasting | companion | out-of-combat | other | Total |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| alchemist |  | 5 | 19 | 16 |  | 1 | 12 | 15 | 68 |
+| alchemist |  | 5 | 17 | 16 |  | 1 | 12 | 15 | 66 |
 | animist |  | 9 | 4 |  | 13 | 3 | 5 | 2 | 36 |
 | barbarian |  | 36 | 15 | 5 |  |  |  | 11 | 67 |
 | bard |  | 8 | 12 |  | 26 | 2 | 14 | 14 | 76 |
-| champion |  | 12 | 16 | 20 | 3 | 11 | 6 | 16 | 84 |
+| champion |  | 12 | 16 | 19 | 3 | 11 | 6 | 16 | 83 |
 | cleric |  | 10 | 1 | 16 | 19 | 1 | 8 | 18 | 73 |
 | commander |  | 12 | 1 | 6 |  | 4 | 5 | 7 | 35 |
 | druid |  | 5 | 13 | 4 | 21 | 11 | 7 | 20 | 81 |
 | exemplar |  | 6 | 28 | 2 |  |  | 3 | 4 | 43 |
-| fighter |  | 38 |  | 14 |  |  | 1 | 11 | 64 |
+| fighter |  | 38 |  | 11 |  |  | 1 | 11 | 61 |
 | guardian |  | 23 | 3 | 9 |  |  | 2 | 5 | 42 |
-| gunslinger |  | 33 | 4 | 14 |  | 1 | 4 | 11 | 67 |
+| gunslinger |  | 33 | 4 | 13 |  | 1 | 4 | 11 | 66 |
 | inventor |  | 12 | 8 | 1 |  | 8 | 5 | 11 | 45 |
 | investigator |  | 5 | 4 | 13 |  | 1 | 17 | 11 | 51 |
 | kineticist |  | 42 | 5 | 1 | 1 | 1 | 6 | 22 | 78 |
-| magus |  | 18 | 11 | 2 | 11 | 1 | 6 | 6 | 55 |
+| magus |  | 18 | 10 | 2 | 11 | 1 | 6 | 6 | 54 |
 | monk |  | 33 | 2 | 13 | 3 |  | 2 | 25 | 78 |
 | necromancer |  | 13 | 5 | 6 | 9 | 1 | 6 | 20 | 60 |
 | oracle |  | 8 | 6 |  | 10 |  | 4 | 4 | 32 |
@@ -47,7 +47,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | runesmith |  | 19 | 11 | 1 |  | 2 | 6 | 10 | 49 |
 | sorcerer |  | 1 | 1 | 6 | 24 | 1 | 7 | 11 | 51 |
 | summoner |  |  |  |  | 1 | 56 | 5 |  | 62 |
-| swashbuckler |  | 20 | 9 | 8 |  |  |  | 9 | 46 |
+| swashbuckler |  | 20 | 8 | 8 |  |  |  | 9 | 45 |
 | thaumaturge |  | 10 | 9 | 2 | 1 | 1 | 5 | 10 | 38 |
 | witch |  | 2 | 3 | 2 | 4 | 16 | 7 | 3 | 37 |
 | wizard |  | 3 |  | 1 | 16 | 4 | 10 | 6 | 40 |
@@ -1147,7 +1147,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Convincing Illusion | 6 | wizard | reaction | no plan |  |
 | Spell Tinker | 16 | wizard | 2 actions | no plan |  |
 
-## Passives that change a class feature (253)
+## Passives that change a class feature (249)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -1156,10 +1156,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Calculated Splash | 4 | alchemist | passive | no plan |  |
 | Healing Bomb | 4 | alchemist | passive | no plan |  |
 | Longshanks Slam | 4 | alchemist | passive | no plan |  |
-| Debilitating Bomb | 6 | alchemist | passive | no plan |  |
 | Directional Bombs | 6 | alchemist | passive | no plan |  |
 | Perpetual Breadth | 8 | alchemist | passive | no plan |  |
-| Sticky Bomb | 8 | alchemist | passive | no plan |  |
 | Expanded Splash | 10 | alchemist | passive | no plan |  |
 | Greater Debilitating Bomb | 10 | alchemist | passive | no plan |  |
 | Lingering Bomb | 10 | alchemist | passive | no plan |  |
@@ -1339,7 +1337,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Sprinting Spellstrike | 12 | magus | passive | no plan |  |
 | Arcane Shroud | 14 | magus | passive | no plan |  |
 | Resounding Cascade | 16 | magus | passive | no plan |  |
-| Supreme Spellstrike | 20 | magus | passive | no plan |  |
 | Flurry of Maneuvers | 4 | monk | passive | no plan |  |
 | Stumbling Feint | 6 | monk | passive | no plan |  |
 | Song of the Soul | 2 | necromancer | passive | plan | a spell the engine doesn't cast (Song of the Soul) |
@@ -1388,7 +1385,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Finishing Follow-Through | 2 | swashbuckler | passive | no plan |  |
 | Flamboyant Athlete | 4 | swashbuckler | passive | no plan |  |
 | Agile Maneuvers | 6 | swashbuckler | passive | no plan |  |
-| Precise Finisher | 6 | swashbuckler | passive | no plan |  |
 | Flamboyant Cruelty | 8 | swashbuckler | passive | no plan |  |
 | Derring-Do | 10 | swashbuckler | passive | no plan |  |
 | Parry and Riposte | 18 | swashbuckler | passive | no plan |  |
@@ -1405,7 +1401,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Syu Tak-nwa's Hexed Locks | 8 | witch | passive | no plan |  |
 | Hex Master | 20 | witch | passive | no plan |  |
 
-## Other combat passives (448)
+## Other combat passives (443)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -1653,7 +1649,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Shield Warden | 6 | champion | passive | no plan |  |
 | Greater Mercy | 8 | champion | passive | no plan |  |
 | Greater Security | 8 | champion | passive | no plan |  |
-| Quick Shield Block | 8 | champion | passive | no plan |  |
 | Spectral Advance | 10 | champion | passive | plan | a spell the engine doesn't cast (Spectral Advance) |
 | Divine Wall | 12 | champion | passive | no plan |  |
 | Lasting Doubt | 12 | champion | passive | no plan |  |
@@ -1695,16 +1690,13 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Shielded Stride | 4 | fighter | passive | no plan |  |
 | Reflexive Shield | 6 | fighter | passive | no plan |  |
 | Blind-Fight | 8 | fighter | passive | no plan |  |
-| Disorienting Opening | 8 | fighter | passive | no plan |  |
 | Resounding Bravery | 8 | fighter | passive | no plan |  |
 | Crashing Slam | 10 | fighter | passive | no plan |  |
-| Tactical Reflexes | 10 | fighter | passive | no plan |  |
 | Flinging Shove | 12 | fighter | passive | no plan |  |
 | Guiding Riposte | 14 | fighter | passive | no plan |  |
 | Improved Reflexive Shield | 16 | fighter | passive | no plan |  |
 | Savage Critical | 18 | fighter | passive | no plan |  |
 | Boundless Reprisals | 20 | fighter | passive | no plan |  |
-| Weapon Supremacy | 20 | fighter | passive | no plan |  |
 | Punishing Shove | 1 | guardian | passive | no plan |  |
 | Phalanx Formation | 2 | guardian | passive | no plan |  |
 | Raise Haft | 2 | guardian | passive | no plan |  |
@@ -1722,7 +1714,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Unshakable Grit | 12 | gunslinger | passive | no plan |  |
 | Disruptive Blur | 14 | gunslinger | passive | no plan |  |
 | Showstopper | 14 | gunslinger | passive | no plan |  |
-| Fatal Bullet | 16 | gunslinger | passive | no plan |  |
 | Ricochet Master | 16 | gunslinger | passive | no plan |  |
 | Piercing Critical | 18 | gunslinger | passive | no plan |  |
 | Unerring Shot | 18 | gunslinger | passive | no plan |  |
