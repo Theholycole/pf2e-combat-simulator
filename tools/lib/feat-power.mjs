@@ -471,6 +471,29 @@ function quickenAllEntry(doc, level) {
     return { spells: [entry], pools: { [pool]: 1 }, gap: null, played: `${read.played}, the PC and its allies within ${read.area} feet (once a fight)` };
 }
 
+// (2026-11-03, the class feats no fight played: a passive aura that frightens — Frightful Aura's 15-foot emanation, a Will save against the
+// higher of its class or spell DC, frightened 1 on a failure, 2 on a critical failure —: the engine's monster aura (spells.js applyAuras, a
+// Frightful Presence's), each enemy in range saving as the fight starts. Its enter-or-end-turn saves later aren't played.)
+const SAVE_AURAS = { "frightful-aura": { radius: 15, save: "will", failure: ["frightened", 1], criticalFailure: ["frightened", 2] } };
+function saveAuraEntry(doc, level, host) {
+    const read = SAVE_AURAS[slugOf(doc)];
+    if (!read) return null;
+    const fear = spellPack.spellNamed("Fear");
+    let base;
+    try {
+        base = fear && spellPack.compileSpell(fear);
+    } catch {
+        base = null;
+    }
+    if (!base?.resolution?.outcomes?.failure) return null;
+    const row = (condition) => ({ ...structuredClone(base.resolution.outcomes.failure), effects: condition ? [{ kind: "condition", slug: condition[0], name: condition[0], value: condition[1], duration: null, source: doc.name }] : [], rawText: "" });
+    const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...new Set([...(doc.system?.traits?.value ?? []), "emotion", "fear", "mental"])], trigger: { event: "aura" }, activation: { ...base.activation, time: "0" }, targeting: { ...base.targeting, target: null, range: null, area: { type: "emanation", value: read.radius, foes: true }, actorConstraints: { sourceText: "each enemy", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } }, heightening: null, resolution: { ...base.resolution, check: { ...base.resolution.check, statistic: read.save }, outcomes: { criticalSuccess: row(null), success: row(null), failure: row(read.failure), criticalFailure: row(read.criticalFailure) } } };
+    const own = dcsOf(host);
+    const dc = Math.max(own.class ?? 0, own.spell ?? 0) || 10 + level + 2;
+    const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool: null, effects: spellPack.effectModels(plan, 1) };
+    return { spells: [entry], pools: {}, gap: null, played: `an aura: each enemy within ${read.radius} feet saves (${read.save}, DC ${dc}) or is ${read.failure[0]} as the fight starts` };
+}
+
 // (2026-11-03, the class feats no fight played: a skill check against one foe's save DC with conditions by degree — Surgical Shock's
 // Medicine against Fortitude: clumsy 2, clumsy 3 on a critical success, until the end of its next turn —, as Demoralize-each-enemy is: the
 // foe's save against the PC's skill DC, the degrees turned around, on Fear's compiled shape at one creature in reach. The stupefied
@@ -1277,6 +1300,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = dedicationCantripEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = allyEffectEntry(doc, level) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = skillAttackEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = saveAuraEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
