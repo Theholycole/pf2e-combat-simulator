@@ -71,17 +71,31 @@ export function featSources() {
         } catch {
             continue;
         }
-        for (const pack of (manifest.packs ?? []).filter((entry) => entry.type === "Item" && entry.system !== "sf2e")) sources.push({ source: mod, pack: `${mod}/${pack.name}`, path: `${MODULES}/${mod}/${pack.path}` });
+        for (const pack of (manifest.packs ?? []).filter((entry) => entry.type === "Item" && entry.system !== "sf2e")) {
+            sources.push({ source: mod, pack: `${mod}/${pack.name}`, path: `${MODULES}/${mod}/${pack.path}` });
+            PACK_COLLECTIONS.set(`${MODULES}/${mod}/${pack.path}`, `${mod}.${pack.name}`);
+        }
     }
     return sources;
 }
 
+// (2026-11-03: the compendium each pack is in Foundry — "pf2e.feats-srd", "pf2e.actionspf2e", "<module>.<pack>" —, so a document gets the
+// sourceId a world item has. The feat module looks its hand-written plans up by it (src/plans/index.js handEntry); without it the simulator
+// never saw any of them — Dual-Weapon Blitz's two Strikes, Deadly Aim's penalty and damage — and read the text alone.)
+const PF2E_COLLECTIONS = { feats: "pf2e.feats-srd", actions: "pf2e.actionspf2e" };
+const PACK_COLLECTIONS = new Map();
+const collectionOf = (path) => {
+    if (PACK_COLLECTIONS.has(path)) return PACK_COLLECTIONS.get(path);
+    const pf2e = /\/systems\/pf2e\/packs\/(\w+)$/.exec(path);
+    return pf2e ? PF2E_COLLECTIONS[pf2e[1]] ?? null : null;
+};
 const docsCache = new Map();
 export function docsOf(path) {
     if (!docsCache.has(path)) {
         let docs = [];
         try {
-            docs = readDocuments(path).filter((doc) => doc.collection === "items");
+            const collection = collectionOf(path);
+            docs = readDocuments(path).filter((doc) => doc.collection === "items").map((doc) => (collection && !doc.sourceId ? { ...doc, sourceId: `Compendium.${collection}.Item.${doc._id}` } : doc));
         } catch {
             docs = [];
         }
@@ -200,7 +214,8 @@ export function dcsOf(c) {
         class: Number.isFinite(c.classDC) ? c.classDC : null,
         spell: spellDC,
         perception: 10 + (c.perception ?? 0),
-        byClass: {},
+        // (2026-11-03: its class's own DC by the class's slug, as Foundry's actor.classDCs gives it — Stunning Finisher's "against:swashbuckler".)
+        byClass: Number.isFinite(c.classDC) && CLASS_SLUGS.includes(c.id) ? { [c.id]: c.classDC } : {},
         byTradition: spellDC && tradition ? { [tradition]: spellDC } : {},
         statistics: Object.fromEntries(Object.entries(c.skills ?? {}).map(([slug, mod]) => [slug, 10 + mod])),
         abilities,

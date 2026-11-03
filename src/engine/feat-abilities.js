@@ -279,8 +279,10 @@ export function featEntries(plan, info, builtins, helpers = {}) {
         }
         // (A Strike and nothing the simulator reads on top — plain, or a rider the feat module didn't read: Overwhelming Blow, Grievous Blow —
         // is a gap: played, it's a worse Strike for more actions and the AI rightly never takes it, which would rate the feat as useless.)
+        // (A target the simulator can't tell — Wrath Against the Divine's "a foe that can cast divine spells".)
+        if (plan.targetUnread) return gap(`a target the simulator can't tell (${plan.targetUnread})`);
         const onHit = plan.onHit ?? {};
-        const adds = plan.strides || plan.attackBonus || plan.damageBonus || plan.damage || plan.offGuard || plan.exacting || plan.extraWeaponDice || plan.riderSpell
+        const adds = plan.strides || plan.attackBonus || plan.damageBonus || plan.damagePerWeaponDie || plan.failureDice || plan.fatal || plan.deadly || plan.damage || plan.offGuard || plan.exacting || plan.extraWeaponDice || plan.riderSpell
             || onHit.conditions?.length || onHit.damage?.length || onHit.save || onHit.push || onHit.size || onHit.critical || onHit.follow || onHit.criticalDamage?.length;
         if (!adds) return gap("a Strike with nothing more the simulator reads");
         if (!addBuiltin(builtins, { ...plan, traits }, name)) return gap("a Strike the simulator doesn't play");
@@ -293,6 +295,9 @@ export function featEntries(plan, info, builtins, helpers = {}) {
         return { ...result, played: plan.builtin };
     }
     if (!plan.resolution) return gap("no roll or effect the simulator reads");
+    // (2026-11-03, Trick Shot's "The GM might determine that … a particular effect isn't a valid option": effects on the scenery around the
+    // target, the GM's to allow — not a fight on the simulator's open field.)
+    if (/\bThe GM (?:might|may) determine\b|\bThe GM should inform you if\b/i.test(info?.text ?? "")) return gap("effects the GM allows from the scenery");
     const event = plan.trigger?.event ?? "use";
     if (event !== "use") return gap(`a reaction to "${event}"`);
     if (actionType === "passive") return gap("a passive's roll with no action to use it");

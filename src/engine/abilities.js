@@ -512,6 +512,15 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.noMap ? { noMap: true } : {}),
                 ...(plan.oncePerTurn ? { oncePerTurn: true } : {}),
                 ...(plan.extraWeaponDice ? { extraWeaponDice: plan.extraWeaponDice } : {}),
+                // (2026-11-03, the feat module's Strike riders: Strangle's, Hell-Lancer Shot's damage of its weapon dice — chargeStrike.)
+                ...(plan.damagePerWeaponDie ? { damagePerWeaponDie: plan.damagePerWeaponDie } : {}),
+                // (2026-11-03: a swashbuckler's finisher feat — Bleeding Finisher, Unbalancing Finisher —: it needs panache, spends it, adds
+                // its precise strike finisher dice and ends its attacks for the turn, as Confident Finisher does. Before, the feats' finisher
+                // trait wasn't read and they played as plain Strikes, any time.)
+                ...(plan.finisher || (plan.traits ?? []).includes("finisher") ? { finisher: plan.finisher ?? "finisher" } : {}),
+                // (Brutal Finish: its turn ends after the Strike; a failure's weapon dice — fight.js.)
+                ...(plan.endsTurn ? { endsTurn: true } : {}),
+                ...(plan.failureDice ? { failureDice: plan.failureDice } : {}),
                 // A follow-up's Strike (B68): only straight after a Strike that fits; previousMap, at that Strike's penalty.
                 ...(plan.after ? { after: { ...plan.after } } : {}),
                 ...(plan.previousMap ? { previousMap: true } : {}),
@@ -708,10 +717,12 @@ export function withExtraDamage(strike, formulas) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard === true ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length) return strike;
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.damagePerWeaponDie && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length) return strike;
     // (2026-10-16: Sniper's Bead's, no range penalty out to that many increments — space.js rangePenalty.)
     const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
+    // (A bonus of its weapon dice, or twice that: the dice the Strike has — its striking runes'.)
+    if (charge.damagePerWeaponDie) changed.damage = (changed.damage ?? strike.damage).map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damagePerWeaponDie * (Number(strike.damage[0]?.dice) || 1) } : part));
     // Vicious Swing: extra dice of the weapon's own damage (PF2e's critical formula would leave them out).
     // (C34: PF2e's critical formula kept — deadly, critical specialization, flaming's persistent fire — with the dice in its doubled part.)
     if (charge.extraWeaponDice) {
