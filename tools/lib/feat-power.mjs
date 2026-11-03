@@ -291,9 +291,12 @@ function innateSpellEntry(doc, level, host) {
 // Fortitude, Spike Skin's resistance —: cast as Heroism's compiled shape (one creature) at an ally within the text's feet (30 without),
 // the Effect's own rules its model; once a fight with a frequency, else at will.)
 // (Or one read by hand, with no PF2e Effect: Protect Ally's +1 AC to an adjacent ally until the start of its next turn.)
-const ALLY_BUFFS = { "protect-ally": { feet: 0, model: { modifiers: [{ on: "ac", type: "circumstance", value: 1 }] }, rounds: 1, played: "+1 AC to an adjacent ally for a round" } };
+const ALLY_BUFFS = { "protect-ally": () => ({ feet: 0, model: { modifiers: [{ on: "ac", type: "circumstance", value: 1 }] }, rounds: 1, played: "+1 AC to an adjacent ally for a round" }),
+    // (Spike Skin, a wood impulse: resistance 4 to physical damage but adamantine, and piercing damage on each creature that damages it in
+    // melee — the engine's hitBack —, +2 each every 2 levels; 10 minutes, a fight.)
+    "spike-skin": (level) => ({ feet: 0, model: { resistances: [{ type: "physical", value: 4 + 2 * Math.max(0, Math.floor((level - 8) / 2)), exceptions: ["adamantine"] }], hitBack: `${Math.max(2, Math.floor((level - 8) / 2) * 2 + 2)}[piercing]` }, rounds: 100, played: "resistance to physical damage and spikes on an ally it touches" }) };
 function allyEffectEntry(doc, level) {
-    const hand = ALLY_BUFFS[slugOf(doc)];
+    const hand = ALLY_BUFFS[slugOf(doc)]?.(level);
     const type = doc.system?.actionType?.value;
     if (type !== "action" || !(Number(doc.system?.actions?.value) <= 2)) return null;
     const html = String(doc.system?.description?.value ?? "");
@@ -902,6 +905,15 @@ const HAND = {
     // (A stance with its shield always raised — the engine's shieldUp, its shield's bonus without Raise a Shield each turn.)
     "paragons-guard": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its shield always raised" }),
     "buckler-dance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its buckler always raised" }),
+    // (Harden Flesh: resistance 3 to physical damage, but adamantine, until its next turn; +1 at 12th level and every 4 after. Its earthen
+    // ground is taken as met — most battlefields' floor.)
+    "harden-flesh": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, model: { rounds: 1, resistances: [{ type: "physical", value: Math.min(6, 3 + Math.max(0, Math.floor((level - 8) / 4))), exceptions: ["adamantine"] }] } }], played: "resistance to physical damage until its next turn" }),
+    // (Ironblood Surge, in Ironblood Stance: +1 AC until its next turn and the stance's resistance up to its Strength — the highest
+    // resistance counts, so its Strength's is enough; a Strength key's, 4, 5 at 10th, 6 at 17th.)
+    "ironblood-surge": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, requiresEffect: "Ironblood Stance", model: { rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 1 }], resistances: [{ type: "all-damage", value: level >= 17 ? 6 : level >= 10 ? 5 : 4 }] } }], played: "+1 AC and its Strength as resistance for a round" }),
+    // (Wounded Rage: Rage as its reaction when it takes damage — the engine's reactionRage; Wounded Party's ally's damage isn't played.)
+    "wounded-rage": (_level, host) => (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage") ? ({ builtins: { reactionRage: "Wounded Rage" }, played: "Rage as a reaction when it takes damage" }) : null,
+    "wounded-party": (_level, host) => (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage") ? ({ builtins: { reactionRage: "Wounded Party" }, played: "Rage as a reaction when it takes damage (its own, not its ally's)" }) : null,
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),

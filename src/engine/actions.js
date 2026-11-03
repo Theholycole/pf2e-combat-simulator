@@ -13,7 +13,7 @@ import { aloft, canStepOut, distanceBetween, engage, engagedEnemies, fliesNow, f
 import { breachOdds, coverToward, dropOffEdge, gateOnStep, gridFlanked, moveTo as moveOnGrid, obstacleNext, pillarLine, planStep, planStride, regroup } from "./grid-fight.js";
 import { footingAt, groundZ, isClimb, occupiedBy as squaresOf, reaches as gridReaches, sightLine, spaceOf as spaceOfGrid, squareOf } from "./grid.js";
 import { harmedAfterGivingUp, isShaken } from "./morale.js";
-import { canReact, chargeStrike, extraApplies, hasOwnEffect, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
+import { canReact, chargeStrike, extraApplies, hasOwnEffect, isRaging, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNextStrike, takeAttackFortune } from "./effects.js";
 import { actionTraits, applyCondition, applyMove, castPlan, castSpell, curseOnHit, deathThroes, forbiddingBonus, skillValue, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
@@ -1167,6 +1167,15 @@ export function castAnswers(state, caster) {
 }
 
 // A rage or frenzy its trigger sets off (B65): once a fight (it ends fatigued), the reaction spent when it's one.
+function rageReaction(state, c) {
+    const buff = (c.selfBuffs ?? []).find((entry) => entry.name === "Rage");
+    if (!buff || isRaging(c) || c.buffsUsed?.has(buff.name) || !canReact(c, c.reactionRage)) return;
+    spendReaction(c, c.reactionRage);
+    (c.activeBuffs ??= []).push(buff);
+    c.buffsUsed = new Set([...(c.buffsUsed ?? []), buff.name]);
+    if (buff.tempHp) c.hp.temp = Math.max(c.hp.temp ?? 0, buff.tempHp);
+    log(state, `  ${c.name} uses ${c.reactionRage}: Rage`);
+}
 function triggeredSelfEffect(state, c, matches) {
     for (const entry of c.selfEffects ?? []) {
         if (!entry.trigger || !matches(entry.trigger) || c.buffsUsed?.has(entry.name)) continue;
@@ -1408,6 +1417,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // Vengeful Rage (B65): damage that leaves it at that many Hit Points or fewer.
     // (B244, Enraged Growth: any damage it takes.)
     if (dealt > 0 && isActive(target)) triggeredSelfEffect(state, target, (trigger) => (trigger.kind === "hp-at-most" && target.hp.value <= trigger.value) || trigger.kind === "damaged");
+    // (2026-11-03, Wounded Rage: a barbarian that isn't raging Rages as its reaction when it takes damage.)
+    if (dealt > 0 && isActive(target) && target.reactionRage) rageReaction(state, target);
     // Solar Flare, Caustic Blood: the monster's reaction to damage on it (B44).
     if (dealt > 0) reactToDamage(state, target, source, instances.filter((instance) => instance.amount > 0).map((instance) => instance.type));
     // (Retributive Pain: half of it back at its source.)
