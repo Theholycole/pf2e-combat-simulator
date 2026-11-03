@@ -271,6 +271,13 @@ export function featEntries(plan, info, builtins, helpers = {}) {
         plan = { ...plan, requires };
         // (Two or three Strikes — Double Slice, Double Shot, Twin Takedown's — : the engine's multi-strike, at the best Strikes; "your multiple
         // attack penalty doesn't increase until …" — the same penalty for each.)
+        // (2026-11-03, the Strike riders: a Strike at each enemy in reach — Whirlwind Strike, Avalanche Strike —, or at up to two with one
+        // roll — Swipe, Piston Punch, Penetrating Shot: the engine's multi-strike at each, played as a roll at each at the same penalty.)
+        if (plan.each) {
+            const multi = { builtin: "multi-strike", actions: actionCount(plan, info), strikes: [plan.strike === "ranged" ? "ranged" : null], each: true, sameMap: true, ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.countsAs > 1 ? { countsAs: plan.countsAs } : {}), ...(traits.includes("flourish") ? { flourish: true } : {}), ...(requires ? { requires } : {}), ...(plan.needs?.length ? { needs: plan.needs } : {}) };
+            if (!addBuiltin(builtins, multi, name)) return gap("Strikes the simulator doesn't play");
+            return { ...result, played: Number.isFinite(plan.max) ? `a Strike at up to ${plan.max} foes` : "a Strike at each enemy in reach" };
+        }
         if (Array.isArray(plan.strikes) && plan.strikes.length > 1) {
             const sameMap = /\bpenalty (?:doesn't|does not) increase until\b|\bboth (?:attacks|Strikes) (?:count|use) (?:your )?(?:current )?multiple attack penalty\b/i.test(info?.text ?? "");
             const multi = { builtin: "multi-strike", actions: actionCount(plan, info), strikes: plan.strikes.map((strike) => (strike === "ranged" ? "ranged" : null)), ...(sameMap ? { sameMap: true } : {}), ...(traits.includes("flourish") ? { flourish: true } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(requires ? { requires } : {}), ...(plan.needs?.length ? { needs: plan.needs } : {}) };
