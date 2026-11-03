@@ -527,6 +527,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.fortune ? { fortune: true } : {}),
                 ...(plan.hitCrits ? { hitCrits: true } : {}),
                 ...(plan.ignoreResistances ? { ignoreResistances: true } : {}),
+                // (Lead by Example: its hit sets up an ally's next attack, as Set-Up Strike's does — commander.js setUp.)
+                ...(plan.setUp ? { setUp: true } : {}),
                 // A follow-up's Strike (B68): only straight after a Strike that fits; previousMap, at that Strike's penalty.
                 ...(plan.after ? { after: { ...plan.after } } : {}),
                 ...(plan.previousMap ? { previousMap: true } : {}),
