@@ -1563,18 +1563,29 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // (2026-11-03: "Spend a Mythic Point" — the PC's three Mythic Points a fight, as a monster's (B72, the user's choice), shared by what
     // spends them; an entry with a pool of its own keeps it too.)
     const mythic = /\bSpend (?:a|1) Mythic Point\b/i.test(String(doc.system?.description?.value ?? ""));
-    pc.spells = [...(pc.spells ?? []), ...entries.spells.map((entry) => (mythic && !entry.pool ? { ...entry, pool: "mythic" } : entry))];
+    // (2026-11-03, Cole: "change the rating to be based on the ability being used often. It is not helpful to evaluate an ability with an AI
+    // that does not use it": the feat's own actions marked featForced, and the PC forceUse — the planner takes one in every turn it can,
+    // ahead of anything else, as the deviants' "all out". FEAT_FORCE=0 rates them as the AI would pick them.)
+    const forced = FORCE ? (entry) => ({ ...entry, featForced: true }) : (entry) => entry;
+    pc.spells = [...(pc.spells ?? []), ...entries.spells.map((entry) => forced(mythic && !entry.pool ? { ...entry, pool: "mythic" } : entry))];
     // (2026-11-03, Cole's pick "share the 3 points": its Strike activities, multi-Strikes and self-effects spend them too — Decree of War,
     // Telling Blow, Godspeed, Divine Invulnerability.)
     const pooledBuiltins = mythic ? Object.fromEntries(Object.entries(builtins).map(([field, value]) => [field, ["strikeActivities", "multiStrikes", "selfEffects"].includes(field) && Array.isArray(value) ? value.map((entry) => (entry.pool || (field === "selfEffects" && !entry.actions && !entry.stance && entry.model?.rounds === Infinity) ? entry : { ...entry, pool: "mythic" })) : value])) : builtins;
     const mythicBuiltins = pooledBuiltins !== builtins && ["strikeActivities", "multiStrikes", "selfEffects"].some((field) => (pooledBuiltins[field] ?? []).some((entry) => entry.pool === "mythic"));
     pc.spellPools = { ...(pc.spellPools ?? {}), ...entries.pools, ...(mythic && (entries.spells.some((entry) => !entry.pool) || mythicBuiltins) ? { mythic: 3 } : {}) };
+    if (FORCE) {
+        for (const field of FORCED_FIELDS) if (Array.isArray(pooledBuiltins[field])) pooledBuiltins[field] = pooledBuiltins[field].map(forced);
+        pc.forceUse = true;
+    }
     joinBuiltins(pc, pooledBuiltins);
     if (tried.strikes) pc.strikes = tried.strikes;
     // (Stunning Blows: the rider on the PC's Flurry of Blows.)
     if (entries.flurryRider) pc.multiStrikes = (pc.multiStrikes ?? []).map((entry) => (entry.name === "Flurry of Blows" ? { ...entry, bothHit: { conditions: [], damage: [], ...entries.flurryRider } } : entry));
     return { party: withFeat, ...(loadout || classPC ? { plain: base } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan };
 }
+
+const FORCE = process.env.FEAT_FORCE !== "0";
+const FORCED_FIELDS = ["strikeActivities", "multiStrikes", "selfEffects", "selfBuffs", "charges", "skillSweeps"];
 
 // Loadouts for a feat's requirement the party's own weapons don't meet: the PC's main weapon changed for others of the same runes.
 // (A ranged main weapon — a ranger's bow — made a melee one: no range, reload or ammunition.)

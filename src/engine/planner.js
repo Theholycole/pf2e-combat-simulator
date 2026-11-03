@@ -11,6 +11,29 @@ import { degreeDistribution, degreeOf, CRITICAL_SUCCESS, SUCCESS, FAILURE, CRITI
 import { adjustInstance, strikeContext } from "./damage.js";
 import { effectBenefit, resistanceKept, strikesGranted, weaknessCost } from "./effects.js";
 import { deviantEntryOf, deviantRisk } from "./deviant.js";
+
+// The entry an action uses: a cast's spell, a Strike activity, a self-effect, a buff, a multi-Strike, a charge, a skill sweep.
+function actionEntryOf(c, action) {
+    if (!action) return null;
+    switch (action.type) {
+        case "cast":
+            return c.spells?.[action.spellIndex] ?? null;
+        case "strikeActivity":
+            return c.strikeActivities?.[action.index] ?? null;
+        case "selfEffect":
+            return c.selfEffects?.[action.index] ?? null;
+        case "selfBuff":
+            return c.selfBuffs?.[action.index] ?? null;
+        case "multiStrike":
+            return c.multiStrikes?.[action.ability] ?? null;
+        case "charge":
+            return c.charges?.[action.ability] ?? null;
+        case "skillSweep":
+            return c.skillSweeps?.[action.index] ?? null;
+        default:
+            return null;
+    }
+}
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hinderedBy, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
@@ -1133,7 +1156,8 @@ function expandAll(ctx, node, actionsLeft) {
         // a deviant ability in every turn it can go, ahead of anything else, whatever its risk; its best use the beam's.)
         if (c.forceUse && !node.casts.includes("forced")) {
             for (const next of children) {
-                if (!deviantEntryOf(c, next.last)) continue;
+                // (2026-11-03, Cole: a feat's own actions rated as used often — featForced, tools/lib/feat-power.mjs.)
+                if (!deviantEntryOf(c, next.last) && !actionEntryOf(c, next.last)?.featForced) continue;
                 next.value += 10 * ctx.ownValue;
                 next.casts = [...next.casts, "forced"];
             }
