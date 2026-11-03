@@ -554,6 +554,13 @@ const HAND = {
     "sidestep": () => ({ builtins: {}, plans: [{ builtin: "redirect-attack" }], played: "a missed Strike redirected (reaction)" }),
     // (+2 initiative and temporary Hit Points of half its level for allies within 20 feet; played as the initiative.)
     "oracular-warning": () => ({ builtins: {}, plans: [{ builtin: "initiative-warning", value: 2, within: 20, free: true }], played: "+2 initiative to allies within 20 feet" }),
+    // (A failed save rerolled, the better kept, once a fight — the engine's save-reroll, B93. Grit and Tenacity's Fortitude or Will played as
+    // any save.)
+    "grit-and-tenacity": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null }], played: "a failed save rerolled (once a fight)" }),
+    "turn-back-the-clock": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null }], played: "a failed save rerolled (once a fight)" }),
+    "guarded-mind": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "mental", free: true }], played: "a failed save against a mental effect rerolled" }),
+    "perfect-clarity": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: "will" }], played: "a failed Will save rerolled (once a fight)" }),
+    "acquired-tolerance": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "poison" }], played: "a failed save against poison rerolled" }),
     "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" })
 };
 function handEntry(doc, level, builtins, wields) {
