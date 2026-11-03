@@ -1515,8 +1515,12 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // spends them; an entry with a pool of its own keeps it too.)
     const mythic = /\bSpend (?:a|1) Mythic Point\b/i.test(String(doc.system?.description?.value ?? ""));
     pc.spells = [...(pc.spells ?? []), ...entries.spells.map((entry) => (mythic && !entry.pool ? { ...entry, pool: "mythic" } : entry))];
-    pc.spellPools = { ...(pc.spellPools ?? {}), ...entries.pools, ...(mythic && entries.spells.some((entry) => !entry.pool) ? { mythic: 3 } : {}) };
-    joinBuiltins(pc, builtins);
+    // (2026-11-03, Cole's pick "share the 3 points": its Strike activities, multi-Strikes and self-effects spend them too — Decree of War,
+    // Telling Blow, Godspeed, Divine Invulnerability.)
+    const pooledBuiltins = mythic ? Object.fromEntries(Object.entries(builtins).map(([field, value]) => [field, ["strikeActivities", "multiStrikes", "selfEffects"].includes(field) && Array.isArray(value) ? value.map((entry) => (entry.pool || (field === "selfEffects" && !entry.actions && !entry.stance && entry.model?.rounds === Infinity) ? entry : { ...entry, pool: "mythic" })) : value])) : builtins;
+    const mythicBuiltins = pooledBuiltins !== builtins && ["strikeActivities", "multiStrikes", "selfEffects"].some((field) => (pooledBuiltins[field] ?? []).some((entry) => entry.pool === "mythic"));
+    pc.spellPools = { ...(pc.spellPools ?? {}), ...entries.pools, ...(mythic && (entries.spells.some((entry) => !entry.pool) || mythicBuiltins) ? { mythic: 3 } : {}) };
+    joinBuiltins(pc, pooledBuiltins);
     if (tried.strikes) pc.strikes = tried.strikes;
     // (Stunning Blows: the rider on the PC's Flurry of Blows.)
     if (entries.flurryRider) pc.multiStrikes = (pc.multiStrikes ?? []).map((entry) => (entry.name === "Flurry of Blows" ? { ...entry, bothHit: { conditions: [], damage: [], ...entries.flurryRider } } : entry));

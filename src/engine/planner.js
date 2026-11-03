@@ -1427,6 +1427,8 @@ function expandMultiStrikes(env) {
         if (ability.flourish && flourishUsed(c, node)) continue;
         if (ability.needs && !needsMet(state, c, ability.needs, { fresh: node.used === 0 })) continue;
         if (ability.oncePerFight && c.multiUsed?.has(ability.name)) continue;
+        // (2026-11-03, Cole: a Mythic feat's activity spends one of the PC's 3 Mythic Points a fight — its pool.)
+        if (ability.pool && (c.spellPools?.[ability.pool] ?? 0) <= 0) continue;
         // (B258, Gaze Upon: its recharge.)
         if ((c.multiUntil?.get(ability.name) ?? -Infinity) > state.round) continue;
         const order = multiStrikeOrder(c, ability);
@@ -1846,6 +1848,7 @@ function expandClassActions(env) {
         // (B155: only while its rage lasts; B158, Mountain Stronghold: only while its own stance is on it.)
         if (entry.whileRaging && !isRaging(c)) continue;
         if (entry.requiresEffect && !stanceHeld(c, `stance:${entry.requiresEffect}`)) continue;
+        if (entry.pool && (c.spellPools?.[entry.pool] ?? 0) <= 0) continue;
         // (2026-11-01, Starlight Armor's resistance 10 to each physical type: counted, out of a fight's context, as 0.02 a point a round for each
         // type — three times over, and whether or not anything is hitting it —, so the fighter spent its first round on it at range while the
         // boss hit the rogue. Now as a spell's on its target: the Hit Points it keeps off the foes' Strikes, its share of them —

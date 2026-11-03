@@ -1161,6 +1161,7 @@ function actOn(state, c, action) {
             if (ability.flourish) c.usedThisTurn?.add("flourish");
             // (B153, Heads Will Roll!: once a minute — once a fight.)
             if (ability.oncePerFight) (c.multiUsed ??= new Set()).add(ability.name);
+            if (ability.pool) c.spellPools[ability.pool] = Math.max(0, (c.spellPools[ability.pool] ?? 0) - 1);
             if (ability.recharge) (c.multiUntil ??= new Map()).set(ability.name, state.round + rollCount(state, ability.recharge));
             let target = state.byId.get(action.targetId);
             // (B108, Chase Prey: a Stride to the creature first; B109, Mauling Rush: to its Melee, then a Strike at each there.)
@@ -1271,6 +1272,7 @@ function actOn(state, c, action) {
         case "selfEffect": {
             const entry = c.selfEffects[action.index];
             state.log?.push(`  ${c.name} uses ${entry.name}`);
+            if (entry.pool) c.spellPools[entry.pool] = Math.max(0, (c.spellPools[entry.pool] ?? 0) - 1);
             if (entry.stance) {
                 for (const other of c.selfEffects.filter((self) => self.stance && self !== entry)) for (const effect of (c.effects ?? []).filter((active) => active.key === `self:${other.name}`)) removeEffect(c, effect);
             }
