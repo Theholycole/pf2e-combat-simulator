@@ -122,13 +122,15 @@ function targetCount(target) {
     const text = String(target ?? "").toLowerCase();
     if (!text) return 0;
     // (Dispel Magic: "1 spell effect" — on a creature.)
-    if (!/creature|enem|foe|target|object|construct|undead|animal|humanoid|beast|fiend|spirit|dragon|spell effect/.test(text)) return 0;
+    // (2026-11-03, Hymn of Healing's "you or 1 ally", Allegro's "1 ally": an ally is a creature too — the count after it; "the triggering
+    // ally" stays a reaction's.)
+    if (!/creature|enem|foe|target|object|construct|undead|animal|humanoid|beast|fiend|spirit|dragon|spell effect|\bally\b|\ballies\b/.test(text)) return 0;
     const upTo = /up to (\d+|one|two|three|four|five|six|ten)/.exec(text);
     const words = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, ten: 10 };
     if (upTo) return Number(upTo[1]) || words[upTo[1]] || 1;
     const orMore = /(\d+) or (\d+)/.exec(text);
     if (orMore) return Number(orMore[2]);
-    const count = /^(\d+)\s/.exec(text);
+    const count = /^(\d+)\s/.exec(text) ?? /^you (?:or|and) (\d+) /.exec(text);
     return count ? Number(count[1]) : 1;
 }
 
