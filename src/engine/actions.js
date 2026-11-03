@@ -1452,7 +1452,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
 const PHYSICAL_TYPES = new Set(["bludgeoning", "piercing", "slashing"]);
 function resistReaction(state, target, instances, { source, physical, spell = null }) {
     const resist = target.resistReaction;
-    if (!resist || !isActive(target) || !canReact(target, resist.name) || !((target.resistUses ?? Infinity) > 0)) return null;
+    if (!resist || !isActive(target) || !(resist.free || canReact(target, resist.name)) || !((target.resistUses ?? Infinity) > 0)) return null;
     // (T5, Countered by Earth: Liquefy can't be used until the end of its next turn.)
     if ((target.disabledUntil?.[String(resist.name).toLowerCase()] ?? -Infinity) >= state.round) return null;
     if ((resist.attack && !physical) || (resist.foe && !(source && source.side !== target.side))) return null;
@@ -1468,7 +1468,9 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     const value = resist.value === "rank" ? spell.rank : resist.value;
     const sets = (instance) => !instance.persistent && instance.amount > 0 && (!resist.on || resist.on.includes(instance.type) || (resist.on.includes("physical") && PHYSICAL_TYPES.has(instance.type)));
     if (adjustDamage(target, instances.filter(sets)).total <= 0) return null;
-    spendReaction(target, resist.name);
+    // (2026-11-03, Defensive Roll: only an attack that would drop it to 0 Hit Points.)
+    if (resist.lethal && adjustDamage(target, instances).total < target.hp.value + (target.hp.temp ?? 0)) return null;
+    if (!resist.free) spendReaction(target, resist.name);
     if (fromSpell) spendPool(target, fromSpell);
     state.stats.reactions++;
     if (Number.isFinite(target.resistUses)) target.resistUses--;

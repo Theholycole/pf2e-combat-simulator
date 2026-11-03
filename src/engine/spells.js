@@ -2233,6 +2233,9 @@ function applyNativeEffect(state, caster, spell, target, change, actions = undef
     let model = pickChoice(state, forActions(offered, actions), target, change.effect?.degree);
     // (Magic Stone: disrupting's damage on its stones against undead — runes.js, as a lent rune's.)
     if (model?.stones?.runes?.length) model = { ...model, strikeDeltas: { ...(model.strikeDeltas ?? {}), [STONE_NAME]: model.stones.runes.flatMap((rune) => RUNE_LOANS[rune === "vitalizing" ? "disrupting" : rune]?.parts ?? []) } };
+    // (2026-11-03: an emanation's effect with no check and no target of its own — Courageous Anthem's "you and all allies" — helps only the
+    // caster's side. Before, the foes standing in it gained its bonus too; a harmful one (Dirge of Doom's frightened) still goes on them.)
+    if (model && target.side !== caster.side && !spell.plan?.resolution?.check && spell.plan?.targeting?.area && !spell.plan?.targeting?.target && effectBenefit(model, target, conditionWorth, 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit }) > 0) return;
     if (model && isActive(target) && polymorphReplaces(state, caster, spell, target)) {
         const isSpell = isSpellCast(spell);
         const effect = applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell, traits: spell.plan?.traits ?? [] }, formDC: effectDC(spell) });
@@ -4059,6 +4062,10 @@ export function outsideTargets(caster, target, spell) {
             case "enemy-of-caster":
             case "non-ally-of-caster":
                 if (target.side === caster.side) return "not an enemy";
+                break;
+            // (2026-11-03, Song of Grace and Speed: "you and all allies" — the caster's side only.)
+            case "ally-of-caster":
+                if (target.side !== caster.side) return "not an ally";
                 break;
             case "not-caster":
                 if (target === caster) return "the caster";

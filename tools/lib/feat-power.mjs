@@ -370,6 +370,30 @@ function demoralizeAllEntry(doc, level, host) {
     return { spells: [entry], pools: { [pool]: 1 }, gap: null, played: `Demoralize each enemy within 30 feet (Intimidation DC ${dc}, once a fight)` };
 }
 
+// (2026-11-03, the class feats no fight played: quickened for the PC and its allies around it — Song of Grace and Speed, 1 minute;
+// Quickening Banner, 1 round in the banner's 30-foot aura.) Built on Courageous Anthem's compiled shape (an emanation's effect on the
+// PC's side), its effect quickened. Once a fight; the extra action's Strike-or-Stride limit is the engine's quickened.
+const QUICKEN_ALL = { "song-of-grace-and-speed": { actions: 2, area: 30, rounds: 10 }, "quickening-banner": { actions: 1, area: 30, rounds: 1 } };
+function quickenAllEntry(doc, level) {
+    const read = QUICKEN_ALL[slugOf(doc)];
+    if (!read) return null;
+    const anthem = spellPack.spellNamed("Courageous Anthem");
+    let base;
+    try {
+        base = anthem && spellPack.compileSpell(anthem);
+    } catch {
+        base = null;
+    }
+    if (base?.resolution?.kind !== "effect") return null;
+    const uuid = `feat:${doc._id}:quickened`;
+    const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], activation: { ...base.activation, time: String(read.actions) }, targeting: { ...base.targeting, area: { type: "emanation", value: read.area }, actorConstraints: { ...base.targeting.actorConstraints, predicates: [{ kind: "ally-of-caster" }] } }, heightening: null, resolution: { ...base.resolution, applications: [{ kind: "native-spell-effect", uuid, source: "nativeEffects.onUse" }] } };
+    const pool = `feat:${doc._id}`;
+    const effects = { [uuid]: { name: doc.name, rounds: read.rounds, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [{ slug: "quickened", value: null }], unsupported: [], situational: 0 } };
+    const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc: 0, attack: 0, pool, effects };
+    if (!castable(entry)) return null;
+    return { spells: [entry], pools: { [pool]: 1 }, gap: null, played: `quickened for ${read.rounds === 1 ? "a round" : "a minute"}, the PC and its allies within ${read.area} feet (once a fight)` };
+}
+
 // (2026-11-03, the class feats no fight played: more spellshapes, as Widen Spell — a copy of each of the PC's spells it shapes, an action
 // more.) Intimidating Spell: an area damage spell's failure frightened 1, critical failure frightened 2. Burning Spell: a single-target
 // non-cantrip damage spell's persistent fire of its rank. Reverberating Spell: an area non-cantrip damage spell's extra 1d8 sonic (its
@@ -686,6 +710,14 @@ const HAND = {
         const con = 2 + (level >= 5) + (level >= 10) + (level >= 20);
         return { builtins: { selfBuffs: [{ name: "Rage", actions: 1, tempHp: level + con, noConcentrate: true, acPenalty: 1, strikeDeltas: { [weapon.name]: [{ dice: 0, die: 0, bonus: 2, multiplier: 1, type: weapon.damage?.[0]?.type ?? "slashing", precision: false, persistent: false }] } }] }, played: `Rage (+2 damage with its ${weapon.name})` };
     },
+    // (Half the damage of an attack that would drop it to 0 Hit Points, a free action once a fight — the engine's resist-damage "half".)
+    "defensive-roll": () => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: "half", attack: true, foe: true, lethal: true, free: true, uses: 1 }], played: "half the damage of an attack that would drop it (once a fight)" }),
+    // (An enemy's hit rerolled, the lower kept, or a failed save rerolled — the engine's attack-misfortune and save-reroll, one reaction.)
+    "impossible-technique": () => ({ builtins: {}, plans: [{ builtin: "attack-misfortune" }, { builtin: "save-reroll", save: null }], played: "an enemy's hit rerolled lower, or a failed save rerolled (reaction)" }),
+    // (+2 AC as a Strike targets it; its +2 to a save against a spell isn't played.)
+    "preternatural-parry": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Preternatural Parry" } }, played: "+2 AC as it's targeted (reaction)" }),
+    // (A Strike back at an enemy that critically misses it; the Stride for off-guard isn't played.)
+    "clang": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a reaction Strike on a critical miss" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
@@ -1084,6 +1116,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = widenEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellshapeEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = demoralizeAllEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = quickenAllEntry(doc, level) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;

@@ -246,7 +246,9 @@ export function addBuiltin(spec, plan, name) {
             }
             // (B213, Shadow Siphon: half the damage of a spell, in place of a resistance.)
             if (plan.value === "half") {
-                spec.resistReaction = { name, value: "half", on: plan.on ?? null, types: null, ...(plan.magical ? { magical: true } : {}), ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}) };
+                spec.resistReaction = { name, value: "half", on: plan.on ?? null, types: null, ...(plan.magical ? { magical: true } : {}), ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}),
+                    // (2026-11-03, Defensive Roll: only damage that would drop it to 0 Hit Points; a free action, not its reaction.)
+                    ...(plan.lethal ? { lethal: true } : {}), ...(plan.free ? { free: true } : {}) };
                 spec.resistUses = Number(plan.uses) || Infinity;
                 return true;
             }
