@@ -2493,6 +2493,12 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
         applyEffect(state, target, { name: activity.name, rounds: rider.speedPenalty.rounds ?? 1, modifiers: [{ on: "speed", type: rider.speedPenalty.type ?? "status", value: -slowed }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, attacker, { applyCondition, key: `slow:${activity.name}` });
         log(state, `  ${target.name} is slowed by ${slowed} feet (${activity.name})`);
     }
+    // (Felling Strike, Serpentcoil Slam: a flier brought down — landed —, and on a critical hit (or for a while) unable to take off — grounded.)
+    if (rider.grounds && isActive(target)) {
+        if (applyCondition(state, target, "landed", null, null, attacker)) log(state, `  ${target.name} is brought down (${activity.name})`);
+        const rounds = critical ? rider.grounds.critical : rider.grounds.rounds;
+        if (rounds > 0) applyCondition(state, target, "grounded", null, { mode: "fixed", value: rounds, unit: "rounds" }, attacker);
+    }
     if (rider.selfTempHp > 0 && isActive(attacker)) {
         applyEffect(state, attacker, { name: activity.name, rounds: 1, modifiers: [], tempHp: rider.selfTempHp, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, attacker, { applyCondition, key: `temp:${activity.name}` });
         log(state, `  ${attacker.name} gains ${rider.selfTempHp} temporary HP`);
