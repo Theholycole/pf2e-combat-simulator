@@ -247,7 +247,8 @@ export function innateSpells(doc, level) {
         const end = text.indexOf(".", hit.index + hit[0].length);
         const sentence = text.slice(Math.max(0, start - 40), end < 0 ? undefined : end + 1).replace(/<[^>]+>/g, " ");
         const cantrip = (spell.system?.traits?.value ?? []).includes("cantrip");
-        const fixed = new RegExp(`${ORDINAL}[- ](?:rank|level)`, "i").exec(sentence)?.[1];
+        // (Not a cap: "any spell of 6th rank or lower".)
+        const fixed = new RegExp(`${ORDINAL}[- ](?:rank|level)(?! or lower)`, "i").exec(sentence)?.[1];
         const heightened = /half your level|heightened to a spell rank equal to half/i.test(sentence) || cantrip;
         const own = Number(spell.system?.level?.value) || 1;
         const castRank = Number(fixed) || (heightened ? half : own);
@@ -266,6 +267,7 @@ function innateSpellEntry(doc, level, host) {
     const dc = own.spell ?? 10 + level + 2 + (abilities.cha ?? 0);
     const entries = [];
     const pools = {};
+    const choice = /\b(?:chosen|choose(?: one)?) from the following\b|\bone of the following spells\b/i.test(String(doc.system?.description?.value ?? ""));
     for (const { spell, castRank, uses } of spells) {
         let plan;
         try {
@@ -274,8 +276,10 @@ function innateSpellEntry(doc, level, host) {
             continue;
         }
         if (!plan?.resolution || ["unsupported", "no-effect"].includes(plan.resolution.kind)) continue;
-        const pool = uses ? `innate:${doc._id}:${spell._id}` : null;
-        if (pool) pools[pool] = uses;
+        // (2026-11-03, Avenging Runelord Dedication's "This spell must be chosen from the following list": one of them, so one use shared —
+        // the fight casts the one it wants. Before, each listed spell came with its own use.)
+        const pool = uses ? (choice ? `innate:${doc._id}:choice` : `innate:${doc._id}:${spell._id}`) : null;
+        if (pool) pools[pool] = choice ? 1 : uses;
         const entry = { name: `${spell.name} (${doc.name})`, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
         if (castable(entry)) entries.push(entry);
     }
@@ -1083,7 +1087,11 @@ export function partyWithFeat(doc, level, options = {}) {
     if (!result.skipped || options.granted) return result;
     // (2026-11-03, the class feats no fight played: Bastion Dedication's "You gain the Reactive Shield fighter feat", Dual-Weapon Warrior
     // Dedication's Double Slice — a feat that only grants another: played as that feat.)
-    const granted = /You gain the @UUID\[Compendium\.pf2e\.feats-srd\.Item\.([^\]]+)\](?:\{[^}]*\})? (?:[\w-]+ )?(?:feat|class feat)\b/.exec(String(doc.system?.description?.value ?? ""))?.[1];
+    // (2026-11-03: or an action from the actions pack — Stone Brawler Dedication's "You gain the Stonestrike Stance action", Stalwart
+    // Defender's Tenacious Stance.)
+    const html = String(doc.system?.description?.value ?? "");
+    const granted = /You gain the @UUID\[Compendium\.pf2e\.feats-srd\.Item\.([^\]]+)\](?:\{[^}]*\})? (?:[\w-]+ )?(?:feat|class feat)\b/.exec(html)?.[1]
+        ?? /You gain the @UUID\[Compendium\.pf2e\.actionspf2e\.Item\.([^\]]+)\](?:\{[^}]*\})? (?:action|reaction|activity|free action)\b/.exec(html)?.[1];
     const grantedDoc = granted ? featByName(granted) ?? docsOf(`${PACK_ROOT}/feats`).get(granted) ?? null : null;
     if (!grantedDoc || grantedDoc === doc) return result;
     const through = partyWithFeat(grantedDoc, level, { ...options, granted: true });
