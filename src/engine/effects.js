@@ -63,9 +63,10 @@ export function numericValue(value, rank) {
     // (2026-11-03, the class feats no fight played: Unstoppable Juggernaut's "@actor.abilities.con.mod+3" — a PC's modifier other than its key
     // one at the level, +2 rising by one at 5th, 10th and 20th; Stoney Skin's "@actor.flags.system.stoneBrawlerArchetype.featCount" — the
     // archetype's feats the PC has, its dedication and this one.)
-    if (/@actor\.abilities\.\w+\.mod/.test(value)) {
+    // (Defiant Banner's "@item.origin.abilities.int.mod": its giver's, the same.)
+    if (/@(?:actor|item\.origin)\.abilities\.\w+\.mod/.test(value)) {
         const level = actorLevelNow ?? Math.max(1, 2 * (Number(rank) || 1) - 1);
-        value = value.replace(/@actor\.abilities\.\w+\.mod/g, String(2 + (level >= 5) + (level >= 10) + (level >= 20)));
+        value = value.replace(/@(?:actor|item\.origin)\.abilities\.\w+\.mod/g, String(2 + (level >= 5) + (level >= 10) + (level >= 20)));
     }
     value = value.replace(/@actor\.flags\.system\.\w*(?:Archetype\.featCount|DedicationCount|FeatCount|featCount)\b/g, "2");
     // (2026-10-22, Anticipate Peril's "clamp(ceil(@item.level / 2), 1, 4)": the clamp read here, the rest the core's.)
@@ -111,6 +112,8 @@ function toggleTerm(term, toggles) {
 const COMPARE = { gte: (a, b) => a >= b, gt: (a, b) => a > b, lte: (a, b) => a <= b, lt: (a, b) => a < b, eq: (a, b) => a === b };
 const RANK_ARG = /^(?:(?:parent|item|parent:origin:item):(?:level|rank)|\{item\|level\})$/;
 function rankTerm(term, rank) {
+    // (2026-11-03, Come and Get Me's "target:enemy": a Strike's target in a fight here is.)
+    if (term === "target:enemy") return true;
     if (!term || typeof term !== "object") return null;
     if (Array.isArray(term.or) && term.or.length && term.or.every((each) => /^self:type:(?:character|npc)$/.test(String(each)))) return true;
     // (2026-10-22, Enlarge's Large size "at rank 3 or less, or 6 or more": either of its terms on the rank.)
