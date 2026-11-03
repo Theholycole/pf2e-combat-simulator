@@ -399,12 +399,20 @@ const HAND = {
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
     // A melee critical hit's extra weapon die (not doubled) and persistent bleed of two of its dice.
+    // (A frightened creature off-guard to the PC — actions.js.)
+    "dread-striker": () => ({ builtins: { dreadStriker: true }, played: "frightened foes are off-guard to it (always on)" }),
+    // (Reactive Strike, as a fighter's.)
+    "reactive-striker": () => ({ builtins: { reactions: { aoo: true } }, played: "Reactive Strike" }),
+    // (The rogue's Sneak Attack at 1d4, 1d6 from 6th.)
+    "sneak-attacker": (level) => ({ builtins: { strikeExtras: [{ when: "off-guard", dice: 1, die: level >= 6 ? 6 : 4, precision: true, type: null, source: "Sneak Attacker" }] }, played: "Sneak Attack (always on)" }),
+    // (3 Hit Points for each of the archetype's class feats: its dedication and this one.)
+    ...Object.fromEntries(["barbarian", "champion", "fighter", "guardian", "monk", "ranger", "rogue", "swashbuckler", "investigator", "gunslinger", "inventor", "thaumaturge", "exemplar", "commander", "kineticist", "magus", "summoner", "alchemist"].map((cls) => [`${cls}-resiliency`, () => ({ builtins: { maxHpBonus: 6 }, played: "6 more Hit Points" })])),
     "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" })
 };
 function handEntry(doc, level, builtins) {
     const read = HAND[slugOf(doc)]?.(level);
     if (!read) return null;
-    for (const [field, value] of Object.entries(read.builtins)) builtins[field] = Array.isArray(value) ? [...(builtins[field] ?? []), ...value] : value;
+    for (const [field, value] of Object.entries(read.builtins)) builtins[field] = Array.isArray(value) ? [...(builtins[field] ?? []), ...value] : value && typeof value === "object" ? { ...(builtins[field] ?? {}), ...value } : value;
     return { spells: [], pools: {}, gap: null, played: read.played };
 }
 

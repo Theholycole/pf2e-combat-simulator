@@ -489,7 +489,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const history = reaction ? [] : (attacker.turnAttacks ?? []);
     const modifier = attackModifier(state, attacker, target, strike, attacksMade, { history });
     // (L1, L4: off-guard to an attacker it can't see — darkness without darkvision — or one that started its turn hidden, Hidden Movement.)
-    const unseenAttacker = unseen(state, target, attacker) || hiddenMovementOffGuard(state, attacker, target);
+    // (2026-11-03, Dread Striker: a frightened creature is off-guard to its attacker — tools/lib/feat-power.mjs HAND.)
+    const unseenAttacker = unseen(state, target, attacker) || hiddenMovementOffGuard(state, attacker, target) || Boolean(attacker.dreadStriker && target.cond?.frightened > 0);
     // (H1: a party member aiming at a hydra's head it can sever in one hit.)
     const headAimed = !reaction && aimsAtHead(attacker, target, strike, { expectedHitDamage });
     const ac = targetAC(state, attacker, target, strike, flanked || surprised || unseenAttacker);
