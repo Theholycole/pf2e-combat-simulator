@@ -746,6 +746,16 @@ const HAND = {
     "redirecting-draft": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Redirecting Draft", against: "ranged" } }, played: "+2 AC against a ranged attack (reaction)" }),
     // (+2 to a save against an emotion effect — the engine's saveBonusReaction; the temporary Hit Points and free Demoralize aren't played.)
     "stoic-as-hell": () => ({ builtins: { saveBonusReaction: { name: "Stoic as Hell", value: 2, against: "emotion" } }, played: "+2 to a save against an emotion effect (reaction)" }),
+    // (Electricity and sonic equal to its weapon dice on its melee Strikes until the end of its next turn; the Grapple damage isn't played.)
+    "heavens-thunder": (level) => {
+        const dice = level >= 19 ? 4 : level >= 12 ? 3 : level >= 4 ? 2 : 1;
+        return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, melee: true, damage: [`${dice}[electricity]`, `${dice}[sonic]`], model: { rounds: 2 } }], played: `+${dice} electricity and +${dice} sonic on its melee Strikes (1 action)` };
+    },
+    // (Its next melee Strike's extra spirit damage: 1d6, 2d6 at 10th, 3d6 at 18th.)
+    "spirit-of-the-blade": (level) => {
+        const dice = level >= 18 ? 3 : level >= 10 ? 2 : 1;
+        return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, melee: true, nextStrike: true, damage: [`${dice}d6[spirit]`], model: { rounds: 1 } }], played: `+${dice}d6 spirit on its next melee Strike (1 action)` };
+    },
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
