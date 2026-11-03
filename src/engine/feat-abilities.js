@@ -114,7 +114,7 @@ export function mappedRequirement(text) {
 export function meetsWielding(text, wields) {
     if (!wields) return null;
     // (Snagging Strike's and Combat Grab's ", and your target is within reach of that hand": a melee Strike's target is.)
-    const words = String(text ?? "").toLowerCase().replace(/@uuid\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/,? and your target is within reach of that hand/, "");
+    const words = String(text ?? "").toLowerCase().replace(/@uuid\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/,? and your target is within reach of that hand/, "").replace(/ and your target is within your reach/, "");
     const checks = [];
     const add = (pattern, holds) => {
         if (pattern.test(words)) checks.push(Boolean(holds));
@@ -141,6 +141,15 @@ export function meetsWielding(text, wields) {
     add(/^you are medium or smaller\.?$/, true);
     // (Tenacious Stance's "You are wearing armor", Stonestrike Stance's "You are standing on the ground".)
     add(/^you are wearing armor\.?$/, wields.armor !== "unarmored");
+    // (A gunslinger's: Trick Shot's "a loaded crossbow or firearm", Phalanx Breaker's "a two-handed firearm or a two-handed crossbow", Paired
+    // Shots' and Twin Shot Knockdown's one in each hand; Into the Fray's weapon and shield; Dual Finisher's "two melee weapons, one in each
+    // hand"; a thaumaturge's implement, which it always holds.)
+    add(/loaded crossbow or (?:loaded )?firearm|kickback or scatter trait/, wields.firearm);
+    add(/two-handed firearm or a two-handed crossbow/, wields.firearm && wields.twoHandedRanged !== false);
+    add(/(?:crossbow or loaded firearm|firearm or crossbow) in each hand|two weapons, each of which can be either a loaded one-handed/, wields.firearm && wields.twoWeapons);
+    add(/one-handed melee weapon in one hand and a shield/, wields.oneHanded && wields.shield);
+    add(/wield two melee weapons, one in each hand/, wields.twoWeapons);
+    add(/^you(?:'re| are) holding an implement\.?$/, true);
     add(/^you are standing on the ground\.?$/, true);
     // (Extravagant Parry's "You're wielding one or more one-handed weapons", Spell Parry's "You have one or more hands free".)
     add(/one or more one-handed weapons/, wields.oneHanded);
