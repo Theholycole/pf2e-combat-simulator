@@ -34,6 +34,11 @@ export function pcNeeds(text) {
     const said = String(text ?? "").replace(/@UUID\[[^\]]*?Item\.([^\]]+)\](?:\{([^}]*)\})?/g, (_all, name, label) => label ?? name).trim().replace(/\.$/, "");
     const clauses = [
         [/^You(?:'re| are) adjacent to (?:an enemy|a foe|an opponent)(?: .*)?$/i, () => ({ enemyAdjacent: true })],
+        // (2026-11-03, more of the class feats' requirements: Quick Reversal's "You're flanked by at least two enemies" — two foes in reach.)
+        [/^You(?:'re| are) flanked by at least two enemies$/i, () => ({ enemyAdjacent: 2 })],
+        [/^Your (?:last|previous) action was a successful [\w ,-]+? Strike$/i, () => ({ afterStrike: { on: ["success", "criticalSuccess"] } })],
+        [/^Your (?:last|previous) action dealt damage to a creature$/i, () => ({ afterStrike: { on: ["success", "criticalSuccess"] } })],
+        [/^Your (?:last|previous) action was a missed Strike with a (melee )?(?:unarmed attack|weapon)$/i, (m) => ({ afterStrike: { on: ["failure", "criticalFailure"], ...(m[1] ? { melee: true } : {}) } })],
         [/^Your (?:last|previous) action (?:this turn )?was a successful (melee )?Strike(?: (?:against|with) [^.]*)?(?:\s+[A-Z].*)?$/, (m) => ({ afterStrike: { on: ["success", "criticalSuccess"], ...(m[1] ? { melee: true } : {}) } })],
         [/^Your (?:last|previous) action was a critically successful (melee )?Strike$/i, (m) => ({ afterStrike: { on: ["criticalSuccess"], ...(m[1] ? { melee: true } : {}) } })],
         [/^You used your previous action to make a (melee )?Strike that missed$/i, (m) => ({ afterStrike: { on: ["failure", "criticalFailure"], ...(m[1] ? { melee: true } : {}) } })],
@@ -50,6 +55,8 @@ export function pcNeeds(text) {
         const m = pattern.exec(said);
         if (m) return [need(m)];
     }
+    // (What a fight on the simulator's lit, open field always meets — the PC's own staff or favored weapon is the one it holds —: no need.)
+    if (/^(?:You(?:'re| are) wielding your (?:staff|deity's favored weapon|order's favored weapon)|You aren't unholy|You aren't in dim light or darkness|You(?:'re| are) in bright light|You(?:'re| are) aware of the hostile effect, and you aren't Off-Guard against it)$/i.test(said)) return [];
     return null;
 }
 

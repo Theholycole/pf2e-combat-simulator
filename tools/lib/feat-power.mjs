@@ -279,6 +279,33 @@ function innateSpellEntry(doc, level, host) {
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
+// (2026-11-03, the class feats no fight played: Quaking Stomp's "Cast as Earthquake".) The feat module's spell-like plan: the spell it names at
+// its rank (else half the PC's level rounded up) and DC, in the feat's own actions, from a pool of its frequency (none: at will). A reaction or
+// free action's cast isn't played (the engine casts on the PC's turn).
+function spellLikeEntry(doc, level, plan) {
+    if (plan?.builtin !== "spell-like" || !plan.spell) return null;
+    const type = doc.system?.actionType?.value ?? "passive";
+    if (type !== "action") return null;
+    const named = String(plan.spell.uuid ?? "").replace(/^.*\.Item\./, "");
+    const spell = spellPack.spellNamed(plan.spell.name ?? named) ?? spellPack.spellNamed(named) ?? spellPack.spellById?.(named) ?? null;
+    if (!spell) return null;
+    let compiled;
+    try {
+        compiled = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    if (!compiled?.resolution || ["unsupported", "no-effect"].includes(compiled.resolution.kind)) return null;
+    const actions = Number(plan.actions ?? doc.system?.actions?.value) || null;
+    if (actions && compiled.activation) compiled = { ...compiled, activation: { ...compiled.activation, time: String(actions) } };
+    const castRank = Number(plan.rank) || Math.max(1, Math.ceil(level / 2), Number(spell.system?.level?.value) || 1);
+    const dc = Number(plan.dc) || 10 + level + 2;
+    const uses = Number(doc.system?.frequency?.max) || 0;
+    const pool = uses ? `feat:${doc._id}` : null;
+    const entry = { name: `${spell.name} (${doc.name})`, plan: compiled, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(compiled, castRank), spell, castRank) };
+    return { spells: [entry], pools: pool ? { [pool]: uses } : {}, gap: null, played: `casts ${spell.name} (rank ${castRank}, DC ${dc}${uses ? `, ${uses}/fight` : ""})` };
+}
+
 // (2026-11-03, Cole: "begin working on implementing them" — the class feats no fight played: "You learn the Hymn of Healing composition spell",
 // "You gain the Fungal Exhalation order spell".) A focus spell the feat teaches: cast at half the PC's level rounded up from its Focus Points,
 // one more point for it (three at most), at its spell DC — else its class DC.
@@ -577,6 +604,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             strikes = upgradedStrikes(doc, wields.strikes ?? []);
             entries = strikes ? { spells: [], pools: {}, gap: null, played: "PF2e rules: a bigger damage die" } : { ...entries, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (the weapon its damage die upgrade names)` } };
         }
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellLikeEntry(doc, level, plan) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = handEntry(doc, level, builtins) ?? entries;

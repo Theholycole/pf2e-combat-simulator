@@ -31,7 +31,7 @@ function holds(state, c, need, { fresh = true } = {}) {
     if (need.notFatigued) return !c.cond.fatigued;
     if (need.self) return need.self.every((condition) => (condition === "offGuard" ? isOffGuard(c) : Boolean(c.cond[condition])));
     if (need.shieldRaised) return Boolean(c.shield?.raised && !c.shield.broken);
-    if (need.enemyAdjacent) return engagedEnemies(state, c).length > 0;
+    if (need.enemyAdjacent) return engagedEnemies(state, c).length >= (need.enemyAdjacent === true ? 1 : Number(need.enemyAdjacent));
     if (need.allyAdjacent) return state.list.some((other) => other !== c && other.side === c.side && isActive(other) && sameMelee(other, c));
     if (need.freeHand) return holding(state, c).length === 0;
     if (need.allyTrait) return state.list.some((other) => other !== c && other.side === c.side && isActive(other) && (other.traits ?? []).includes(need.allyTrait.trait) && within(c, other, need.allyTrait.within ?? 10));
