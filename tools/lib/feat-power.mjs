@@ -382,6 +382,34 @@ function textSelfEffectEntry(doc, level, builtins, host, wields) {
     return { spells: [], pools: {}, gap: null, played: `its text's self buff (${rules.map((rule) => `${rule.key} ${rule.selector ?? rule.type ?? ""} ${rule.value}`.replace(/\s+/g, " ")).join(", ")})` };
 }
 
+// (2026-11-03, the class feats no fight played: Ocean's Balm, Rallying Banner — healing written as an inline @Damage[…[healing]].) The feat
+// as a healing spell the spell compiler reads, as Soothe is: one willing creature (touch, or the range it names), the dice at the PC's level,
+// from a pool of its frequency. Only an action without a requirement.
+function inlineHealEntry(doc, level) {
+    if ((doc.system?.actionType?.value ?? "passive") !== "action" || requirementText(doc)) return null;
+    const html = String(doc.system?.description?.value ?? "");
+    const hit = /@Damage\[((?:[^\[\]]|\[[^\]]*\])*?\[healing\])(?:\|[^\]]*)?\]/.exec(html);
+    // (One creature only: Rallying Banner's "each ally in your banner's aura" isn't this.)
+    if (!hit || /@Check\[(?:type:)?(?:reflex|fortitude|will)/.test(html) || /\beach (?:ally|creature|of your allies)\b|@Template/i.test(html)) return null;
+    const read = inlineFormula(hit[1].replace(/\[healing\]$/, ""), level);
+    if (!read) return null;
+    const range = /\btouch\b/i.test(html) ? "touch" : /within (\d+) feet/i.exec(html) ? `${/within (\d+) feet/i.exec(html)[1]} feet` : "touch";
+    // (Only the healing: the rest of the text — Ocean's Balm's fire resistance — reads as something else to the compiler.)
+    const spell = { ...doc, type: "spell", system: { ...doc.system, rules: [], traits: { value: ["healing", "manipulate"], rarity: "common" }, description: { value: `<p>You heal the target's wounds. The target regains ${read.formula} Hit Points when you Cast the Spell.</p>` }, level: { value: 1 }, heightening: undefined, time: { value: String(doc.system?.actions?.value ?? 1) }, area: null, target: { value: "1 willing creature" }, range: { value: range }, defense: null, damage: { 0: { applyMod: false, category: null, formula: read.formula, kinds: ["healing"], materials: [], type: "untyped" } } } };
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    if (!plan?.resolution || ["unsupported", "no-effect"].includes(plan.resolution.kind)) return null;
+    const uses = Number(doc.system?.frequency?.max) || 0;
+    const pool = uses ? `feat:${doc._id}` : null;
+    const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc: null, attack: null, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, 1), spell, 1) };
+    if (!castable(entry)) return null;
+    return { spells: [entry], pools: pool ? { [pool]: uses } : {}, gap: null, played: `heals ${read.formula} (${range}${uses ? `, ${uses}/fight` : ""})` };
+}
+
 // (2026-11-03, the class feats no fight played: Farabellus Flip, Sense the Strike — a reaction's bonus to AC against the attack that sets it
 // off.) The engine's acReaction: "targets you with a (melee|ranged) Strike/attack" → as it's targeted, "hits you" → after the hit (it may turn
 // it); its "+N circumstance bonus to AC against the triggering attack". Nothing else in the reaction is played.
@@ -843,6 +871,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellLikeEntry(doc, level, plan) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineSaveEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = acReactionEntry(doc, builtins) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineHealEntry(doc, level) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = widenEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
