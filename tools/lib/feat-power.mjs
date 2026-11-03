@@ -298,7 +298,7 @@ function innateSpellEntry(doc, level, host) {
         // the fight casts the one it wants. Before, each listed spell came with its own use.)
         const pool = uses ? (choice ? `innate:${doc._id}:choice` : `innate:${doc._id}:${spell._id}`) : null;
         if (pool) pools[pool] = choice ? 1 : uses;
-        const entry = { name: `${spell.name} (${doc.name})`, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+        const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
         if (castable(entry)) entries.push(entry);
     }
     if (!entries.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
@@ -880,7 +880,7 @@ function focusSpellEntry(doc, level, host) {
         // reads its healing from the text. Not other unsupported ones: Heal Companion went to the wizard.)
         if (!plan?.resolution || plan.resolution.kind === "no-effect" || (plan.resolution.kind === "unsupported" && spell.name !== "Lay on Hands")) continue;
         const cantrip = (spell.system?.traits?.value ?? []).includes("cantrip");
-        const entry = { name: `${spell.name} (${doc.name})`, plan, castRank, dc, attack: dc - 10, pool: cantrip ? null : pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+        const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan, castRank, dc, attack: dc - 10, pool: cantrip ? null : pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
         if (castable(entry)) entries.push(entry);
     }
     if (!entries.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };

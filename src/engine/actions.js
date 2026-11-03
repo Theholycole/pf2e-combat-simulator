@@ -1976,7 +1976,9 @@ export const meleeBuilt = (c) => {
 // the move leaves squares in their reach (B123). Not those already beside the target, nor a flier past those on the ground. On the grid,
 // the squares themselves say (grid-fight.js).
 // (At the back: one not melee-built, or a caster — two or more spells of its own, the wizard with a staff.)
-export const backRow = (c) => !meleeBuilt(c) || (c.spells ?? []).filter((entry) => !entry.kind || entry.kind === "spell").length >= 2;
+// (2026-11-03: not the spells a feat gives — Infernal Magic's innate Divine Lance and Fear, a devotion spell —: a fighter with them is still a
+// fighter, and stood at the back it lost about a quarter of a level against a boss, on every such feat's rating.)
+export const backRow = (c) => !meleeBuilt(c) || (c.spells ?? []).filter((entry) => (!entry.kind || entry.kind === "spell") && !entry.fromFeat).length >= 2;
 export function screenGuards(state, mover, target) {
     if (state.grid || !target || !backRow(target)) return [];
     const flier = fliesNow(mover);
