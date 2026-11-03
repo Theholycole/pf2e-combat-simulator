@@ -532,6 +532,9 @@ const HAND = {
     "reactive-striker": () => ({ builtins: { reactions: { aoo: true } }, played: "Reactive Strike" }),
     // (The rogue's Sneak Attack at 1d4, 1d6 from 6th.)
     "sneak-attacker": (level) => ({ builtins: { strikeExtras: [{ when: "off-guard", dice: 1, die: level >= 6 ? 6 : 4, precision: true, type: null, source: "Sneak Attacker" }] }, played: "Sneak Attack (always on)" }),
+    // (Sneak Attack at a fixed 1d6: Butterfly's Sting, Shadow Sneak Attack.)
+    "butterflys-sting": () => ({ builtins: { strikeExtras: [{ when: "off-guard", dice: 1, die: 6, precision: true, type: null, source: "Butterfly's Sting" }] }, played: "Sneak Attack 1d6 (always on)" }),
+    "shadow-sneak-attack": () => ({ builtins: { strikeExtras: [{ when: "off-guard", dice: 1, die: 6, precision: true, type: null, source: "Shadow Sneak Attack" }] }, played: "Sneak Attack 1d6 (always on)" }),
     // (3 Hit Points for each of the archetype's class feats: its dedication and this one.)
     ...Object.fromEntries(["barbarian", "champion", "fighter", "guardian", "monk", "ranger", "rogue", "swashbuckler", "investigator", "gunslinger", "inventor", "thaumaturge", "exemplar", "commander", "kineticist", "magus", "summoner", "alchemist"].map((cls) => [`${cls}-resiliency`, () => ({ builtins: { maxHpBonus: 6 }, played: "6 more Hit Points" })])),
     // (A melee Strike at a creature in reach an ally critically hits — the engine's ally-hit trigger, critical hits only.)
@@ -739,6 +742,17 @@ function impulsePlan(doc, level) {
 // (2026-11-03, Cole: "begin working on implementing them" — the class feats no fight played. A feat that needs a stance, Tiger Slash's "You
 // are in Tiger Stance": the stance is the PC's on both sides, the feat's party against the same party with the stance alone.)
 export function partyWithFeat(doc, level, options = {}) {
+    const result = partyWithFeatOwn(doc, level, options);
+    if (!result.skipped || options.granted) return result;
+    // (2026-11-03, the class feats no fight played: Bastion Dedication's "You gain the Reactive Shield fighter feat", Dual-Weapon Warrior
+    // Dedication's Double Slice — a feat that only grants another: played as that feat.)
+    const granted = /You gain the @UUID\[Compendium\.pf2e\.feats-srd\.Item\.([^\]]+)\](?:\{[^}]*\})? (?:[\w-]+ )?(?:feat|class feat)\b/.exec(String(doc.system?.description?.value ?? ""))?.[1];
+    const grantedDoc = granted ? featByName(granted) ?? docsOf(`${PACK_ROOT}/feats`).get(granted) ?? null : null;
+    if (!grantedDoc || grantedDoc === doc) return result;
+    const through = partyWithFeat(grantedDoc, level, { ...options, granted: true });
+    return through.skipped ? result : { ...through, played: `${grantedDoc.name}: ${through.played}` };
+}
+function partyWithFeatOwn(doc, level, options = {}) {
     // (Or the feat whose Effect it needs: Dueling Riposte's "You are benefiting from Dueling Parry".)
     const needed = requiredEffectFeat(requirementText(doc) ?? "");
     const stances = requiredStances(requirementText(doc) ?? "") ?? (needed && featByName(needed) ? [needed] : null);
