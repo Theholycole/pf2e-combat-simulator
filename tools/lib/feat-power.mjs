@@ -349,7 +349,7 @@ function widenEntry(doc, host) {
 // (2026-11-03, the class feats no fight played: Terrifying Howl, Dazzling Display — Demoralize each enemy within 30 feet, one action.) As a
 // Will save of each enemy in a 30-foot emanation against the PC's Intimidation DC (the same odds turned around), on Fear's compiled shape: a
 // failure frightened 1, a critical failure frightened 2; once a fight (each foe is then immune for a minute).
-const DEMORALIZE_ALL = new Set(["terrifying-howl", "dazzling-display"]);
+const DEMORALIZE_ALL = new Set(["terrifying-howl", "dazzling-display", "terrifying-transformation", "deimatic-display", "reach-for-the-sky"]);
 function demoralizeAllEntry(doc, level, host) {
     if (!DEMORALIZE_ALL.has(slugOf(doc))) return null;
     const fear = spellPack.spellNamed("Fear");
@@ -373,9 +373,17 @@ function demoralizeAllEntry(doc, level, host) {
 // (2026-11-03, the class feats no fight played: quickened for the PC and its allies around it — Song of Grace and Speed, 1 minute;
 // Quickening Banner, 1 round in the banner's 30-foot aura.) Built on Courageous Anthem's compiled shape (an emanation's effect on the
 // PC's side), its effect quickened. Once a fight; the extra action's Strike-or-Stride limit is the engine's quickened.
-const QUICKEN_ALL = { "song-of-grace-and-speed": { actions: 2, area: 30, rounds: 10 }, "quickening-banner": { actions: 1, area: 30, rounds: 1 } };
+const quick = { conditions: [{ slug: "quickened", value: null }] };
+// (Plant Banner's temporary Hit Points, renewed each turn in the burst: played as lasting the fight. Orchard's Endurance: resistance to
+// bludgeoning and piercing in the kinetic aura, its stance played as the fight; the persistent-damage fortune isn't played.)
+const QUICKEN_ALL = {
+    "song-of-grace-and-speed": () => ({ actions: 2, area: 30, rounds: 10, model: quick, played: "quickened for a minute" }),
+    "quickening-banner": () => ({ actions: 1, area: 30, rounds: 1, model: quick, played: "quickened for a round" }),
+    "plant-banner": (level) => ({ actions: 1, area: 30, rounds: 100, model: { tempHp: 4 * (1 + Math.floor(level / 4)) }, played: `${4 * (1 + Math.floor(level / 4))} temporary Hit Points` }),
+    "orchards-endurance": (level) => ({ actions: 1, area: 10, rounds: 100, model: { resistances: ["bludgeoning", "piercing"].map((type) => ({ type, value: 5 + 2 * Math.max(0, Math.floor((level - 14) / 4)), exceptions: [] })) }, played: "resistance to bludgeoning and piercing" })
+};
 function quickenAllEntry(doc, level) {
-    const read = QUICKEN_ALL[slugOf(doc)];
+    const read = QUICKEN_ALL[slugOf(doc)]?.(level);
     if (!read) return null;
     const anthem = spellPack.spellNamed("Courageous Anthem");
     let base;
@@ -388,10 +396,10 @@ function quickenAllEntry(doc, level) {
     const uuid = `feat:${doc._id}:quickened`;
     const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], activation: { ...base.activation, time: String(read.actions) }, targeting: { ...base.targeting, area: { type: "emanation", value: read.area }, actorConstraints: { ...base.targeting.actorConstraints, predicates: [{ kind: "ally-of-caster" }] } }, heightening: null, resolution: { ...base.resolution, applications: [{ kind: "native-spell-effect", uuid, source: "nativeEffects.onUse" }] } };
     const pool = `feat:${doc._id}`;
-    const effects = { [uuid]: { name: doc.name, rounds: read.rounds, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [{ slug: "quickened", value: null }], unsupported: [], situational: 0 } };
+    const effects = { [uuid]: { name: doc.name, rounds: read.rounds, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...read.model } };
     const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc: 0, attack: 0, pool, effects };
     if (!castable(entry)) return null;
-    return { spells: [entry], pools: { [pool]: 1 }, gap: null, played: `quickened for ${read.rounds === 1 ? "a round" : "a minute"}, the PC and its allies within ${read.area} feet (once a fight)` };
+    return { spells: [entry], pools: { [pool]: 1 }, gap: null, played: `${read.played}, the PC and its allies within ${read.area} feet (once a fight)` };
 }
 
 // (2026-11-03, the class feats no fight played: more spellshapes, as Widen Spell — a copy of each of the PC's spells it shapes, an action
