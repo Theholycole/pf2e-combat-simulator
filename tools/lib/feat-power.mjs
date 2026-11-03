@@ -532,6 +532,8 @@ const HAND = {
     "reactive-striker": () => ({ builtins: { reactions: { aoo: true } }, played: "Reactive Strike" }),
     // (The rogue's Sneak Attack at 1d4, 1d6 from 6th.)
     "sneak-attacker": (level) => ({ builtins: { strikeExtras: [{ when: "off-guard", dice: 1, die: level >= 6 ? 6 : 4, precision: true, type: null, source: "Sneak Attacker" }] }, played: "Sneak Attack (always on)" }),
+    // (Opportune Riposte: a melee Strike back at a creature in reach that critically fails a Strike against the PC.)
+    "swashbucklers-riposte": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "Opportune Riposte (reaction Strike on a critical miss)" }),
     // (The champion archetype's reaction, played as a paladin's Retributive Strike — the champion PC's, classes.js.)
     "champions-reaction": (level) => ({ builtins: { championReaction: { slug: "retributive-strike", name: "Retributive Strike", self: false, resistance: 2 + level, dice: 1 } }, played: "Retributive Strike (reaction)" }),
     // (Sneak Attack at a fixed 1d6: Butterfly's Sting, Shadow Sneak Attack.)
