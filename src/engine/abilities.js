@@ -288,6 +288,8 @@ export function addBuiltin(spec, plan, name) {
                 // (B227: the save that keeps the disrupted action.)
                 ...(plan.disruptSave?.statistic && Number.isFinite(Number(plan.disruptSave.dc)) ? { disruptSave: { statistic: plan.disruptSave.statistic, dc: Number(plan.disruptSave.dc) } } : {}),
                 // (B122: Knowing Glance's melee Strikes only; Bodyguard's Reprisal's charge, played as any ally.)
+                // (2026-11-03, Opportune Opening: an ally's critical hit only.)
+                ...(plan.critOnly ? { critOnly: true } : {}),
                 ...(plan.melee ? { melee: true } : {}), ...(plan.ward ? { ward: true } : {}), ...(plan.persistentType ? { persistentType: plan.persistentType } : {}),
                 // (B227: only a ranged attack at it.)
                 ...(plan.rangedAttack ? { rangedAttack: true } : {}),

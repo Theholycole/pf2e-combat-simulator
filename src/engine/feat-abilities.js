@@ -74,7 +74,7 @@ export function pcReactionTriggers(text) {
     if (/^An? (?:enemy|creature|foe) within your (?:melee )?reach critically hits you(?: with a melee Strike)?$/i.test(said)) return ["critical-hit"];
     if (/^Your melee Strike reduces an enemy to 0 Hit Points, and another enemy is adjacent to that creature$/i.test(said)) return ["downs"];
     if (/^An? creature within your (?:melee )?reach is hit by a melee attack from one of your allies$/i.test(said)) return ["ally-hit"];
-    const near = /^An? (?:creature|enemy|foe)(?: you can observe)? within (?:your (?:melee )?reach|(?:5|10) feet of you)(?: of your deity's favored weapon)? (.+)$/i.exec(said)
+    const near = /^An? (?:creature|enemy|foe)(?: you can observe)? within (?:your (?:melee )?reach|reach of your deity's favored weapon|(?:5|10) feet of you)(?: of your deity's favored weapon)? (.+)$/i.exec(said)
         ?? /^Your hunted prey is within your reach, and it (.+)$/i.exec(said);
     if (!near) return null;
     const kinds = [];

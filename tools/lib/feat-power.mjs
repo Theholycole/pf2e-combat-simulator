@@ -407,6 +407,8 @@ const HAND = {
     "sneak-attacker": (level) => ({ builtins: { strikeExtras: [{ when: "off-guard", dice: 1, die: level >= 6 ? 6 : 4, precision: true, type: null, source: "Sneak Attacker" }] }, played: "Sneak Attack (always on)" }),
     // (3 Hit Points for each of the archetype's class feats: its dedication and this one.)
     ...Object.fromEntries(["barbarian", "champion", "fighter", "guardian", "monk", "ranger", "rogue", "swashbuckler", "investigator", "gunslinger", "inventor", "thaumaturge", "exemplar", "commander", "kineticist", "magus", "summoner", "alchemist"].map((cls) => [`${cls}-resiliency`, () => ({ builtins: { maxHpBonus: 6 }, played: "6 more Hit Points" })])),
+    // (A melee Strike at a creature in reach an ally critically hits — the engine's ally-hit trigger, critical hits only.)
+    "opportune-opening": () => ({ builtins: { reactionStrikes: [{ name: "Opportune Opening", triggers: ["ally-hit"], critOnly: true, strike: null, penalty: 0, disrupts: false, melee: true }] }, played: "reaction Strike on an ally's critical hit" }),
     "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" })
 };
 function handEntry(doc, level, builtins) {

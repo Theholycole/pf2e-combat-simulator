@@ -878,7 +878,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         let kinAnswered = false;
         for (const ally of state.list) {
             if (ally === attacker || ally.side !== attacker.side || !isActive(ally) || !isActive(target)) continue;
-            const answer = (ally.reactionStrikes ?? []).find((entry) => entry.triggers.includes("ally-hit") && (!entry.kin || (!kinAnswered && kind(ally) === kind(attacker))) && (!entry.allyStrike || String(strike.name ?? "").toLowerCase().includes(entry.allyStrike)));
+            const answer = (ally.reactionStrikes ?? []).find((entry) => entry.triggers.includes("ally-hit") && (!entry.critOnly || degree >= CRITICAL_SUCCESS) && (!entry.kin || (!kinAnswered && kind(ally) === kind(attacker))) && (!entry.allyStrike || String(strike.name ?? "").toLowerCase().includes(entry.allyStrike)));
             if (answer && canReact(ally, answer.name) && canAct(ally) && !ally.cond.fleeing && sameMelee(ally, target)) {
                 reactionStrikeAt(state, ally, target, answer, "ally-hit");
                 if (answer.kin) kinAnswered = true;
