@@ -682,7 +682,7 @@ const HAND = {
     "reactive-shield": () => ({ builtins: { acReaction: { value: 2, when: "hit", name: "Reactive Shield", against: "melee" } }, played: "Raise a Shield against a melee hit (reaction)" }),
     // (Strikes at one enemy +3 status damage (+4 at master) until its next turn: the engine's self-effect damage on the PC's Strikes, the
     // target its own pick.)
-    "smite": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, damage: [String(level >= 13 ? 4 : 3)], model: { rounds: 1 } }], played: "+3 damage on its Strikes for a round (1 action)" }),
+    "smite": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, damage: [`${level >= 13 ? 4 : 3}[untyped]`], model: { rounds: 1 } }], played: "+3 damage on its Strikes for a round (1 action)" }),
     // (A spell at least two ranks under its highest slot, or a cantrip, an action fewer, once a fight — the engine's Quickened Casting, B72.)
     "quickened-casting": (level) => ({ builtins: { quickenedCasting: { name: "Quickened Casting", maxRank: Math.max(0, Math.ceil(level / 2) - 2) } }, played: "Quickened Casting (once a fight)" }),
     // (A DC 15 flat check against a reaction's disruption, B55.)
@@ -719,12 +719,25 @@ const HAND = {
     // (A Strike back at an enemy that critically misses it; the Stride for off-guard isn't played.)
     "clang": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a reaction Strike on a critical miss" }),
     // (+2 damage on its Strikes while in the stance — a ranged PC's, the requirement's; the volley penalty it drops isn't played.)
-    "point-blank-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, damage: ["2"] }], played: "stance: +2 damage on its Strikes" }),
+    "point-blank-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, damage: ["2[untyped]"] }], played: "stance: +2 damage on its Strikes" }),
     // (Raging at half its Hit Points or fewer: +2 attack, -1 AC and saves, a free action at its turn — the engine's self-effect while raging.)
     "desperate-wrath": (_level, host) => (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage") ? ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 0, requires: "raging", belowHalf: true, model: { rounds: 10, modifiers: [{ on: "attack", type: "circumstance", value: 2 }, { on: "ac", type: "untyped", value: -1 }, ...["fortitude", "reflex", "will"].map((on) => ({ on, type: "untyped", value: -1 }))] } }], played: "+2 attack, -1 AC and saves while raging at half Hit Points" }) : null,
     // (Damage equal to its weapon's dice on its Strikes for the fight — one dice a striking rune; the penalty against other foes and the
     // one-handed-weapon wording aren't played.)
-    "duelists-challenge": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, damage: [String(level >= 19 ? 4 : level >= 12 ? 3 : level >= 4 ? 2 : 1)], model: { rounds: 100 } }], played: "+its weapon dice damage on its Strikes (1 action, the fight)" }),
+    "duelists-challenge": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, damage: [`${level >= 19 ? 4 : level >= 12 ? 3 : level >= 4 ? 2 : 1}[untyped]`], model: { rounds: 100 } }], played: "+its weapon dice damage on its Strikes (1 action, the fight)" }),
+    // (Resistance of half its level against a critical hit on it — the engine's crit-resistance; the reload or Stand and the +1 after aren't played.)
+    "equitable-defense": (level) => ({ builtins: {}, plans: [{ builtin: "crit-resistance", value: Math.max(1, Math.floor(level / 2)) }], played: "resistance against a critical hit (reaction)" }),
+    // (Its Constitution modifier and half its level against a critical hit on it; once a day, played as each one.)
+    "scars-of-steel": (level) => ({ builtins: {}, plans: [{ builtin: "crit-resistance", value: 2 + (level >= 5) + (level >= 10) + (level >= 20) + Math.floor(level / 2) }], played: "resistance against a critical hit (reaction)" }),
+    // (Temporary Hit Points of twice its level just before damage that would drop it, once a fight — as resistance of that much to the blow.)
+    "deaths-door": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 2 * level, lethal: true, uses: 1 }], played: `${2 * level} less of the damage that would drop it (once a fight)` }),
+    // (The attack that would drop it does nothing, once a fight; the broken weapon and an ally's protection aren't played.)
+    "transcendent-deflection": () => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 9999, attack: true, foe: true, lethal: true, uses: 1 }], played: "an attack that would drop it negated (once a fight)" }),
+    // (+2 AC against a ranged attack at it; an ally's isn't played.)
+    "snap-falling-fruit": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Snap Falling Fruit", against: "ranged" } }, played: "+2 AC against a ranged attack (reaction)" }),
+    "redirecting-draft": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Redirecting Draft", against: "ranged" } }, played: "+2 AC against a ranged attack (reaction)" }),
+    // (+2 to a save against an emotion effect — the engine's saveBonusReaction; the temporary Hit Points and free Demoralize aren't played.)
+    "stoic-as-hell": () => ({ builtins: { saveBonusReaction: { name: "Stoic as Hell", value: 2, against: "emotion" } }, played: "+2 to a save against an emotion effect (reaction)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
