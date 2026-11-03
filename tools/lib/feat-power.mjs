@@ -532,6 +532,8 @@ const HAND = {
     "reactive-striker": () => ({ builtins: { reactions: { aoo: true } }, played: "Reactive Strike" }),
     // (The rogue's Sneak Attack at 1d4, 1d6 from 6th.)
     "sneak-attacker": (level) => ({ builtins: { strikeExtras: [{ when: "off-guard", dice: 1, die: level >= 6 ? 6 : 4, precision: true, type: null, source: "Sneak Attacker" }] }, played: "Sneak Attack (always on)" }),
+    // (Its two-action way: an unarmed Strike with one more weapon die, two at 10th, three at 18th.)
+    "one-inch-punch": (level) => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 2, strides: 0, strike: null, extraWeaponDice: level >= 18 ? 3 : level >= 10 ? 2 : 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a 2-action Strike with more weapon dice" }),
     // (Opportune Riposte: a melee Strike back at a creature in reach that critically fails a Strike against the PC.)
     "swashbucklers-riposte": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "Opportune Riposte (reaction Strike on a critical miss)" }),
     // (The champion archetype's reaction, played as a paladin's Retributive Strike — the champion PC's, classes.js.)
