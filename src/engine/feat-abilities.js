@@ -27,6 +27,32 @@ export function requiredStances(text) {
     return plain ? [plain[1], plain[2]].filter(Boolean) : null;
 }
 
+// (2026-11-03, the class feats no fight played.) A PC's requirement in its own words read into the needs the planner checks (src/engine/needs.js
+// needsMet: the ability module's vocabulary for a monster's), or null: "You are adjacent to an enemy", "Your last action was a successful
+// Strike", "You used your previous action to make a melee Strike that missed", "Your current Hit Points are at half your maximum or less".
+export function pcNeeds(text) {
+    const said = String(text ?? "").replace(/@UUID\[[^\]]*?Item\.([^\]]+)\](?:\{([^}]*)\})?/g, (_all, name, label) => label ?? name).trim().replace(/\.$/, "");
+    const clauses = [
+        [/^You(?:'re| are) adjacent to (?:an enemy|a foe|an opponent)(?: .*)?$/i, () => ({ enemyAdjacent: true })],
+        [/^Your (?:last|previous) action (?:this turn )?was a successful (melee )?Strike(?: (?:against|with) [^.]*)?(?:\s+[A-Z].*)?$/, (m) => ({ afterStrike: { on: ["success", "criticalSuccess"], ...(m[1] ? { melee: true } : {}) } })],
+        [/^Your (?:last|previous) action was a critically successful (melee )?Strike$/i, (m) => ({ afterStrike: { on: ["criticalSuccess"], ...(m[1] ? { melee: true } : {}) } })],
+        [/^You used your previous action to make a (melee )?Strike that missed$/i, (m) => ({ afterStrike: { on: ["failure", "criticalFailure"], ...(m[1] ? { melee: true } : {}) } })],
+        [/^Your (?:last|previous) action was a (melee )?Strike that missed$/i, (m) => ({ afterStrike: { on: ["failure", "criticalFailure"], ...(m[1] ? { melee: true } : {}) } })],
+        [/^Your current Hit Points are (?:at )?half your maximum or (?:less|lower)$/i, () => ({ hpBelowHalf: true })],
+        [/^You have (?:one or more hands|a hand|one hand) free$/i, () => ({ freeHand: true })],
+        [/^An? (?:enemy|creature|foe) has you Grabbed or Restrained$/i, () => ({ any: [{ self: ["grabbed"] }, { self: ["restrained"] }] })],
+        [/^You(?:'re| are) (?:Prone|prone)$/, () => ({ self: ["prone"] })],
+        [/^An? (?:creature|enemy|foe) within your (?:melee )?reach is (Prone|Frightened|Off-Guard)(?: or swimming)?$/i, (m) => ({ target: { conditions: [m[1].toLowerCase().replace("off-guard", "offGuard")], within: 5 } })],
+        [/^An? (Frightened|Prone) (?:creature|enemy|foe) is (?:with)?in your (?:melee )?reach$/i, (m) => ({ target: { conditions: [m[1].toLowerCase()], within: 5 } })],
+        [/^You(?:'re| are) adjacent to an? (Prone) (?:enemy|creature|foe)$/i, (m) => ({ target: { conditions: [m[1].toLowerCase()], within: 5 } })]
+    ];
+    for (const [pattern, need] of clauses) {
+        const m = pattern.exec(said);
+        if (m) return [need(m)];
+    }
+    return null;
+}
+
 // A requirement in the feat's words the planner checks under its own name, or null.
 export function mappedRequirement(text) {
     const stances = requiredStances(text);
@@ -62,7 +88,13 @@ export function meetsWielding(text, wields) {
     add(/unarmored or wearing light armor|wearing light armor or (?:no armor|are unarmored)/, ["unarmored", "light"].includes(wields.armor));
     add(/^you are unarmored|you're unarmored\.?$/, wields.armor === "unarmored");
     for (const type of ["slashing", "piercing", "bludgeoning"]) add(new RegExp(`deals ${type} damage`), (wields.damage ?? []).includes(type));
-    add(/polearm or spear/, (wields.groups ?? []).some((group) => ["polearm", "spear"].includes(group)));
+    add(/polearm or spear|spear or polearm group/, (wields.groups ?? []).some((group) => ["polearm", "spear"].includes(group)));
+    // (2026-11-03, the class feats no fight played: Lunge's "You are wielding a melee weapon", Revealing Stab's "a melee weapon that can deal
+    // piercing damage", Sleek Reposition's "a finesse weapon or polearm", Giant's Stature's "You are Medium or smaller" — every PC here is.)
+    add(/^you are wielding a melee weapon\.?$/, wields.melee ?? !wields.ranged);
+    add(/melee weapon that can deal (slashing|piercing|bludgeoning) damage/, (wields.damage ?? []).includes(/can deal (\w+) damage/.exec(words)?.[1]));
+    add(/finesse weapon or polearm/, Boolean(wields.finesse) || (wields.groups ?? []).includes("polearm"));
+    add(/^you are medium or smaller\.?$/, true);
     if (!checks.length) return null;
     // (Only when the whole requirement is about this: "…, and your target is within reach of that hand" is more than a free hand.)
     if (/,? and (?:your|the) target|and you (?:are|have)\b(?! (?:no|nothing))/.test(words)) return checks.every(Boolean) ? null : false;
@@ -112,6 +144,9 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     // (A stance it needs: the planner's check, the stance among the PC's feats — tools/lib/feat-power.mjs partyWithFeat.)
     const stanceNeeded = plan.requirementUnread ? requiredStances(plan.requirementUnread) : null;
     if (stanceNeeded) plan = { ...plan, requirementUnread: undefined, requires: plan.requires && !/^You|^Requirements?/i.test(String(plan.requires)) ? plan.requires : `stance:${stanceNeeded.join("|")}` };
+    // (A requirement the planner checks as a need: on the plan, or on its Strike activity.)
+    const needed = plan.requirementUnread && helpers.meets?.(plan.requirementUnread) !== true ? pcNeeds(plan.requirementUnread) : null;
+    if (needed) plan = { ...plan, requirementUnread: undefined, needs: needed };
     if (plan.requirementUnread && helpers.meets?.(plan.requirementUnread) !== true) return gap(helpers.meets?.(plan.requirementUnread) === false ? `its requirement, which the PC doesn't meet (${plan.requirementUnread})` : `its requirement (${plan.requirementUnread})`);
     const actionType = info?.actionType ?? "passive";
     const frequency = info?.frequency;
@@ -158,7 +193,9 @@ export function featEntries(plan, info, builtins, helpers = {}) {
             const text = String(requires).replace(/^Requirements?:?\s*/i, "");
             const mapped = mappedRequirement(text);
             const met = mapped ? null : helpers.meets?.(text);
-            if (!mapped && met !== true) return gap(met === false ? `its requirement, which the PC doesn't meet (${text})` : `its requirement (${text})`);
+            const needs = mapped || met === true ? null : pcNeeds(text);
+            if (needs) plan = { ...plan, needs };
+            if (!mapped && met !== true && !needs) return gap(met === false ? `its requirement, which the PC doesn't meet (${text})` : `its requirement (${text})`);
             requires = mapped;
         }
         plan = { ...plan, requires };
@@ -166,7 +203,7 @@ export function featEntries(plan, info, builtins, helpers = {}) {
         // attack penalty doesn't increase until …" — the same penalty for each.)
         if (Array.isArray(plan.strikes) && plan.strikes.length > 1) {
             const sameMap = /\bpenalty (?:doesn't|does not) increase until\b|\bboth (?:attacks|Strikes) (?:count|use) (?:your )?(?:current )?multiple attack penalty\b/i.test(info?.text ?? "");
-            const multi = { builtin: "multi-strike", actions: actionCount(plan, info), strikes: plan.strikes.map((strike) => (strike === "ranged" ? "ranged" : null)), ...(sameMap ? { sameMap: true } : {}), ...(traits.includes("flourish") ? { flourish: true } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(requires ? { requires } : {}) };
+            const multi = { builtin: "multi-strike", actions: actionCount(plan, info), strikes: plan.strikes.map((strike) => (strike === "ranged" ? "ranged" : null)), ...(sameMap ? { sameMap: true } : {}), ...(traits.includes("flourish") ? { flourish: true } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(requires ? { requires } : {}), ...(plan.needs?.length ? { needs: plan.needs } : {}) };
             if (!addBuiltin(builtins, multi, name)) return gap("Strikes the simulator doesn't play");
             return { ...result, played: `${plan.strikes.length} Strikes` };
         }
@@ -174,7 +211,7 @@ export function featEntries(plan, info, builtins, helpers = {}) {
         // is a gap: played, it's a worse Strike for more actions and the AI rightly never takes it, which would rate the feat as useless.)
         const onHit = plan.onHit ?? {};
         const adds = plan.strides || plan.attackBonus || plan.damageBonus || plan.damage || plan.offGuard || plan.exacting || plan.extraWeaponDice || plan.riderSpell
-            || onHit.conditions?.length || onHit.damage?.length || onHit.save || onHit.push || onHit.size || onHit.critical;
+            || onHit.conditions?.length || onHit.damage?.length || onHit.save || onHit.push || onHit.size || onHit.critical || onHit.follow || onHit.criticalDamage?.length;
         if (!adds) return gap("a Strike with nothing more the simulator reads");
         if (!addBuiltin(builtins, { ...plan, traits }, name)) return gap("a Strike the simulator doesn't play");
         return { ...result, played: "Strike activity" };

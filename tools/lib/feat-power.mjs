@@ -157,7 +157,7 @@ const ABILITIES = {
 // What each PC wields and wears (src/engine/party.js), for a feat's requirement about it.
 const WIELDS = {
     fighter: { twoHanded: true, oneHanded: false, twoWeapons: false, freeHand: false, ranged: false, reload0: false, firearm: false, thrown: false, shield: false, armor: "heavy", damage: ["slashing", "piercing"], groups: ["sword"] },
-    rogue: { twoHanded: false, oneHanded: true, twoWeapons: false, freeHand: true, ranged: false, reload0: false, firearm: false, thrown: false, shield: false, armor: "light", damage: ["piercing"], groups: ["sword"] },
+    rogue: { twoHanded: false, oneHanded: true, twoWeapons: false, freeHand: true, ranged: false, reload0: false, firearm: false, thrown: false, shield: false, armor: "light", damage: ["piercing"], groups: ["sword"], finesse: true },
     wizard: { twoHanded: false, oneHanded: true, twoWeapons: false, freeHand: true, ranged: false, reload0: false, firearm: false, thrown: false, shield: false, armor: "unarmored", damage: ["bludgeoning"], groups: ["club"] },
     cleric: { twoHanded: false, oneHanded: true, twoWeapons: false, freeHand: true, ranged: false, reload0: false, firearm: false, thrown: false, shield: false, armor: "light", damage: ["bludgeoning"], groups: ["club"] }
 };
@@ -170,6 +170,7 @@ function wieldsOf(c) {
     const meleeHeld = strikes.filter((strike) => strike.melee && strike.held);
     return {
         twoHanded, oneHanded: !twoHanded && meleeHeld.length > 0, twoWeapons: false, freeHand: !twoHanded && !c.shield && meleeHeld.length <= 1 && !(main.hands === 2),
+        melee: strikes.some((strike) => strike.melee && strike.held !== false && !strike.unarmed) || Boolean(main.melee), finesse: strikes.some((strike) => strike.melee && strike.finesse),
         ranged: !main.melee, reload0: !main.melee && !main.reload, firearm: Boolean(main.firearm), thrown: Boolean(main.thrown), shield: Boolean(c.shield),
         armor: classArmor(c.id) ?? "unarmored", damage: [...new Set(strikes.flatMap((strike) => [strike.damage?.[0]?.type, ...(strike.versatile ?? [])]).filter(Boolean))],
         groups: [...new Set(strikes.map((strike) => strike.iwr?.group).filter(Boolean))]
@@ -497,7 +498,8 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     let loadout = null;
     if (tried.entries.gap && /doesn't meet/.test(tried.entries.gap.name)) {
         for (const [name, way] of Object.entries(LOADOUTS)) {
-            if (!way.hosts.includes(host.id) && !(classPC && way.hosts.includes(seatOf(host.id)) && host.strikes?.[0]?.melee && host.strikes[0].held)) continue;
+            // (2026-11-03: a class PC in a seat the loadout fits — a ranger's bow traded for two blades for Twin Takedown.)
+            if (!way.hosts.includes(host.id) && !(classPC && way.hosts.includes(seatOf(host.id)) && (host.strikes?.[0]?.held || !host.strikes?.[0]?.melee))) continue;
             const again = attempt({ ...wieldsOf(host), ...way.wields, strikes: way.strikes(host.strikes) });
             if (again.entries.gap) continue;
             tried = again;
@@ -521,7 +523,8 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
 }
 
 // Loadouts for a feat's requirement the party's own weapons don't meet: the PC's main weapon changed for others of the same runes.
-const oneHanded = (strike, name, die, extra = {}) => ({ ...strike, name, hands: 1, versatile: undefined, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, die } : part)), ...extra });
+// (A ranged main weapon — a ranger's bow — made a melee one: no range, reload or ammunition.)
+const oneHanded = (strike, name, die, extra = {}) => ({ ...strike, name, hands: 1, versatile: undefined, melee: true, held: true, increment: undefined, range: undefined, reload: undefined, volley: undefined, ammo: undefined, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, die } : part)), ...extra });
 const LOADOUTS = {
     "two weapons (longsword and shortsword)": { hosts: ["fighter", "rogue"], wields: { twoHanded: false, oneHanded: true, twoWeapons: true, freeHand: false, damage: ["slashing", "piercing"] }, strikes: (strikes) => [oneHanded(strikes[0], "Longsword", 8, { versatile: ["piercing"] }), oneHanded(strikes[0], "Shortsword", 6, { agile: true, finesse: true, damage: strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: 6, type: "piercing" } : part)) }), ...strikes.slice(1)] },
     "a one-handed weapon and a free hand": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: true, freeHand: true }, strikes: (strikes) => [oneHanded(strikes[0], "Longsword", 8, { versatile: ["piercing"] }), ...strikes.slice(1)] },

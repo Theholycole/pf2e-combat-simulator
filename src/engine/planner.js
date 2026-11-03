@@ -1424,6 +1424,7 @@ function expandMultiStrikes(env) {
         // A flourish (Flurry of Blows): once a turn.
         if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ms${abilityIndex}`))) continue;
         if (ability.flourish && flourishUsed(c, node)) continue;
+        if (ability.needs && !needsMet(state, c, ability.needs, { fresh: node.used === 0 })) continue;
         if (ability.oncePerFight && c.multiUsed?.has(ability.name)) continue;
         // (B258, Gaze Upon: its recharge.)
         if ((c.multiUntil?.get(ability.name) ?? -Infinity) > state.round) continue;
@@ -1594,6 +1595,7 @@ function expandStrikeActivities(env) {
         // (B126: a requirement the engine doesn't play — "The dragon is burrowed", "It's the first round of combat" — not planned.)
         if (activity.requires === "requirement") continue;
         if (!stanceHeld(c, activity.requires)) continue;
+        if (activity.needs && !needsMet(state, c, activity.needs, { fresh: node.used === 0 })) continue;
         if (activity.requires === "first-round" && state.round !== 1) continue;
         // (B147: straight after a spell it cast.)
         if (activity.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, activity.nonCantrip))) continue;
@@ -1625,6 +1627,7 @@ function expandStrikeActivities(env) {
             // (B151, Shatter Defenses: "A Frightened creature is within melee reach".)
             if (activity.requires === "frightened" && !(target.cond.frightened > 0)) continue;
             if (activity.targetTraits && !activity.targetTraits.some((trait) => (target.traits ?? []).includes(trait))) continue;
+            if (activity.needs && !targetNeedsMet(c, target, activity.needs)) continue;
             // (B105: Stunning Strike's "hit a foe earlier this turn with a weapon Strike", at that foe; after Strikes made, not planned.)
             if (activity.requires === "hit-earlier" && !(node.used === 0 && (c.turnAttacks ?? []).some((attack) => attack.hit && attack.targetId === target.id))) continue;
             // (B104: Terrifying Smite's "an enemy that has one of its allies within its reach".)
