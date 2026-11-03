@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-03 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 841 are rated; 3515 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-03 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 843 are rated; 3513 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -8,15 +8,15 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 
 | Bucket | No plan | Plan, not played | Total |
 |---|---:|---:|---:|
-| Archetype dedications (grant class features) | 182 | 2 | 184 |
-| Combat actions and reactions | 409 | 462 | 871 |
+| Archetype dedications (grant class features) | 181 | 2 | 183 |
+| Combat actions and reactions | 409 | 461 | 870 |
 | Passives that change a class feature | 239 | 14 | 253 |
 | Other combat passives | 427 | 21 | 448 |
 | Spellcasting (slots, focus, spellshapes) | 277 | 36 | 313 |
 | Companions, familiars and eidolons | 218 | 33 | 251 |
 | Out of combat (exploration, downtime, skills) | 321 | 26 | 347 |
 | Nothing a fight would use | 781 | 67 | 848 |
-| **All** | 2854 | 661 | 3515 |
+| **All** | 2853 | 660 | 3513 |
 
 ## By class
 
@@ -51,8 +51,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | thaumaturge |  | 10 | 9 | 2 | 1 | 1 | 5 | 10 | 38 |
 | witch |  | 2 | 3 | 2 | 4 | 16 | 7 | 3 | 37 |
 | wizard |  | 3 |  | 1 | 16 | 4 | 10 | 6 | 40 |
-| archetype | 172 | 378 | 45 | 213 | 110 | 102 | 147 | 489 | 1656 |
-| other | 12 | 64 | 2 | 42 | 18 | 12 | 29 | 36 | 215 |
+| archetype | 171 | 378 | 45 | 213 | 110 | 102 | 147 | 489 | 1655 |
+| other | 12 | 63 | 2 | 42 | 18 | 12 | 29 | 36 | 214 |
 
 ## Why the simulator doesn't play the ones with a plan
 
@@ -65,7 +65,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | a teleport | 41 |
 | an Effect with nothing a fight counts | 32 |
 | a reaction's Strike | 24 |
-| its requirement, which the PC doesn't meet | 20 |
+| its requirement, which the PC doesn't meet | 19 |
 | a spell the feat casts | 15 |
 | its text has no Strike of its user's | 14 |
 | a roll whose results the simulator doesn't read | 14 |
@@ -84,7 +84,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | a companion's Strike | 1 |
 | a reaction to "own-strike" | 1 |
 
-## Archetype dedications (grant class features) (184)
+## Archetype dedications (grant class features) (183)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -129,7 +129,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Fan Dancer Dedication | 2 | archetype | passive | no plan |  |
 | Field Propagandist Dedication | 2 | archetype | passive | no plan |  |
 | Fighter Dedication | 2 | archetype | passive | no plan |  |
-| Firework Technician Dedication | 2 | archetype | passive | no plan |  |
 | Flexible Spellcaster Dedication | 2 | archetype | passive | no plan |  |
 | Folklorist Dedication | 2 | archetype | passive | no plan |  |
 | Game Hunter Dedication | 2 | archetype | passive | no plan |  |
@@ -273,7 +272,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Warshard Warrior Dedication | 12 | other | passive | no plan |  |
 | Wildspell Dedication | 12 | other | passive | plan | a spell the engine doesn't cast (Spellsurge) |
 
-## Combat actions and reactions (871)
+## Combat actions and reactions (870)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -1021,7 +1020,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Second Sight | 14 | other | 1 action | plan | its text has no Strike of its user's |
 | Temporal Fury | 14 | other | 2 actions | plan | a Strike with nothing more the simulator reads |
 | To Thine Own Self | 14 | other | reaction | no plan |  |
-| Writhing Runelord Weapon | 14 | other | 2 actions | plan | its requirement, which the PC doesn't meet (You are wielding a polearm or spear.) |
 | You Can't Keep Us Down | 14 | other | 3 actions | no plan |  |
 | Abjure Harm | 16 | other | reaction | no plan |  |
 | Bring Into the Fold | 16 | other | 2 actions | plan | a roll whose results the simulator doesn't read |

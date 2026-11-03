@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-03",
- "rated": 841,
+ "rated": 843,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -868,27 +868,6 @@
    "reason": null,
    "detail": null,
    "text": "You become trained in martial weapons. You become trained in your choice of Acrobatics or Athletics; if you are already trained in both of these skills, you instead become trained in a skill of your choice. You become trained in fighter cla"
-  },
-  {
-   "id": "MVbNnjqQOK9d8Ki3",
-   "name": "Firework Technician Dedication",
-   "level": 2,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "dedication"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "dedication",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You've learned the secrets of making fire and sound bloom using black powder, metals, and paper. You most likely came by this knowledge through formal training with a fireworks house in Tian Xia or a fireworks company from Vudra, though per"
   },
   {
    "id": "CrS0iDwHmjKqvKti",
@@ -20373,28 +20352,6 @@
    "reason": null,
    "detail": null,
    "text": "Trigger You fail a saving throw against an effect that would alter your memory or cause you to become controlled by another creature. Awareness of your past perils protects you from those who would manipulate your thoughts. Attempt to count"
-  },
-  {
-   "id": "ABobcAdaA8p1nHRV",
-   "name": "Writhing Runelord Weapon",
-   "level": 14,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "arcane",
-    "flourish",
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "its requirement, which the PC doesn't meet",
-   "detail": "its requirement, which the PC doesn't meet (You are wielding a polearm or spear.)",
-   "text": "Requirements You are wielding a polearm or spear. Your prowess with long-hafted weapons catches your opponents by surprise, as it bends or elongates in an obviously supernatural manner. Spend a Mythic Point. Your weapon gains the reach trai"
   },
   {
    "id": "2q8vzxnlYYWcUGJd",
