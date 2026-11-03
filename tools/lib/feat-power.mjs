@@ -279,6 +279,24 @@ function innateSpellEntry(doc, level, host) {
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
+// (2026-11-03, the class feats no fight played: Farabellus Flip, Sense the Strike — a reaction's bonus to AC against the attack that sets it
+// off.) The engine's acReaction: "targets you with a (melee|ranged) Strike/attack" → as it's targeted, "hits you" → after the hit (it may turn
+// it); its "+N circumstance bonus to AC against the triggering attack". Nothing else in the reaction is played.
+function acReactionEntry(doc, builtins) {
+    if ((doc.system?.actionType?.value ?? "passive") !== "reaction" || requirementText(doc)) return null;
+    const html = String(doc.system?.description?.value ?? "");
+    const trigger = /<strong>\s*Trigger\s*<\/strong>\s*([^<]*)/i.exec(html)?.[1]?.trim().replace(/\.$/, "") ?? "";
+    const bonus = /\+(\d) circumstance bonus to (?:your )?AC against (?:the )?(?:triggering|that) (?:attack|Strike)/i.exec(html);
+    if (!bonus) return null;
+    const targeted = /^(?:An? (?:enemy|creature|foe|opponent)(?: you can see| you're observing| you are observing)? (?:targets you with|attempts) an? (melee |ranged )?(?:weapon )?(?:Strike|attack)(?: against you)?|You are targeted (?:with|by) an? (melee |ranged )?(?:Strike|attack)(?: by an? (?:observed )?(?:attacker|enemy|creature))?|An? creature targets you with an attack and you can see the attacker)$/i.exec(trigger);
+    const hit = /^An? (?:enemy|creature|foe) hits you with an? (melee |ranged )?(?:Strike|attack)$/i.exec(trigger);
+    const read = targeted ?? hit;
+    if (!read) return null;
+    const kind = (read[1] ?? read[2] ?? "").trim();
+    builtins.acReaction = { value: Number(bonus[1]), when: targeted ? "targeted" : "hit", name: doc.name, ...(kind ? { against: kind } : {}) };
+    return { spells: [], pools: {}, gap: null, played: `+${bonus[1]} AC as a reaction ${targeted ? "when targeted" : "against a hit"}${kind ? ` (${kind})` : ""}` };
+}
+
 // (2026-11-03, the class feats no fight played: Dragon's Rage Breath, Megavolt, Stomp Ground — a save in an area written with PF2e's inline
 // rolls, which the feat module reads nothing for.) The feat as a spell the spell compiler reads: its @Template's area, its @Check's save, its
 // first @Damage's dice at the PC's level (a type PF2e fills in from the actor — a dragon instinct's — is fire), at the PC's class DC, from a
@@ -669,6 +687,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         }
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellLikeEntry(doc, level, plan) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineSaveEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = acReactionEntry(doc, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = handEntry(doc, level, builtins) ?? entries;
