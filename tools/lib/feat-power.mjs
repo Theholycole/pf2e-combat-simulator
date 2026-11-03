@@ -484,6 +484,13 @@ const HAND = {
     "steady-spellcasting": () => ({ builtins: { steadySpellcasting: 15 }, played: "a DC 15 flat check against disruption" }),
     // (A critical hit that deals damage: the target frightened 1.)
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
+    // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
+    "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
+    "guardians-deflection-swashbuckler": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
+    // (A failed Strike at it redirected to another creature in the attacker's reach — the engine's redirect-attack, B191.)
+    "sidestep": () => ({ builtins: {}, plans: [{ builtin: "redirect-attack" }], played: "a missed Strike redirected (reaction)" }),
+    // (+2 initiative and temporary Hit Points of half its level for allies within 20 feet; played as the initiative.)
+    "oracular-warning": () => ({ builtins: {}, plans: [{ builtin: "initiative-warning", value: 2, within: 20, free: true }], played: "+2 initiative to allies within 20 feet" }),
     "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" })
 };
 function handEntry(doc, level, builtins, wields) {
