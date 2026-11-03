@@ -468,6 +468,28 @@ function passiveRulesEntry(doc, level, builtins) {
     return { spells: [], pools: {}, gap: null, played: "PF2e rules (always on)", situational: Boolean(rest.situational) };
 }
 
+let kineticistReader = null;
+try {
+    const KINETICIST_ROOT = SIBLING(["pf2e-automatic-kineticist-resolution", "PF2e AUTOMATIC KINETICIST RESOLUTION"]);
+    if (KINETICIST_ROOT) kineticistReader = await import(new URL("src/reader/impulse-reader.js", KINETICIST_ROOT).href);
+} catch {
+    kineticistReader = null;
+}
+function impulsePlan(doc, level) {
+    if (!kineticistReader || !(doc.system?.traits?.value ?? []).includes("impulse")) return null;
+    let plan;
+    try {
+        plan = kineticistReader.readImpulse(doc, { level });
+    } catch {
+        return null;
+    }
+    // (A save with what a fight reads — its damage or a degree's condition —, used as an action.)
+    if (plan?.resolution?.kind !== "save" || plan.trigger?.event === "reaction") return null;
+    const outcomes = Object.values(plan.resolution.outcomes ?? {});
+    if (!plan.resolution.sharedDamage?.components?.length && !outcomes.some((row) => row?.conditions?.length)) return null;
+    return { ...plan, trigger: { ...(plan.trigger ?? {}), event: "use" } };
+}
+
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
 // (else the standard one: an ancestry's PC with its feats so far, tools/lib/ancestry-power.mjs).
@@ -527,12 +549,21 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         }
     }
     if (compiled.error) return { skipped: true, reason: `compile error: ${compiled.error}`, host: host.id };
-    const plan = withResolvedEffects(compiled.plan, resolveUuid);
+    // (2026-11-03, the class feats no fight played: a kineticist's impulse, read by the kineticist module — pf2e-automatic-kineticist-resolution's
+    // reader, the plan its cards play — where it reads a save: Aerial Boomerang's line, Rain of Razors' burst, Glacial Prison's slow. The feat
+    // module read some of them as timers.)
+    const impulse = impulsePlan(doc, level);
+    const plan = withResolvedEffects(impulse ?? compiled.plan, resolveUuid);
     // Its entries with what the PC wields: the party's own, or (a requirement it doesn't meet — Double Slice's two weapons) a loadout that does,
     // the plain party then fought with the same loadout.
     const attempt = (wields) => {
         const builtins = {};
         let entries = featEntries(plan, featInfo(doc, level), builtins, { ...helpersAt(level), meets: (text) => meetsWielding(text, wields) });
+        // (An impulse's save at its class DC.)
+        if (impulse && !entries.gap) {
+            const dc = dcsOf(host).class ?? 10 + level + 2;
+            entries = { ...entries, spells: entries.spells.map((entry) => ({ ...entry, dc, attack: dc - 10, castRank: Math.max(1, Math.ceil(level / 2)) })) };
+        }
         // (What the feat module leaves, PF2e's own Effect an action links for its user — Dragon Stance's —: as the live snapshot plays it,
         // scripts/snapshot.js readSelfEffects.)
         if (entries.gap) {
