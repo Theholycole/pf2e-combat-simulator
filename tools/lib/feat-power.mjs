@@ -468,6 +468,9 @@ const HAND = {
     "opportune-opening": () => ({ builtins: { reactionStrikes: [{ name: "Opportune Opening", triggers: ["ally-hit"], critOnly: true, strike: null, penalty: 0, disrupts: false, melee: true }] }, played: "reaction Strike on an ally's critical hit" }),
     // (Raise a Shield as a melee hit lands: its +2 AC may turn the hit — the engine's acReaction after a hit.)
     "reactive-shield": () => ({ builtins: { acReaction: { value: 2, when: "hit", name: "Reactive Shield", against: "melee" } }, played: "Raise a Shield against a melee hit (reaction)" }),
+    // (Strikes at one enemy +3 status damage (+4 at master) until its next turn: the engine's self-effect damage on the PC's Strikes, the
+    // target its own pick.)
+    "smite": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, damage: [String(level >= 13 ? 4 : 3)], model: { rounds: 1 } }], played: "+3 damage on its Strikes for a round (1 action)" }),
     "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" })
 };
 function handEntry(doc, level, builtins, wields) {
@@ -476,6 +479,7 @@ function handEntry(doc, level, builtins, wields) {
     // (Its requirement — Reactive Shield's "You are wielding a shield" —: a PC whose loadout can't meet it gets one that can.)
     const requirement = requirementText(doc);
     if (requirement && wields && meetsWielding(requirement, wields) === false) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (${requirement})` } };
+    for (const plan of read.plans ?? []) addBuiltin(builtins, plan, doc.name);
     for (const [field, value] of Object.entries(read.builtins)) builtins[field] = Array.isArray(value) ? [...(builtins[field] ?? []), ...value] : value && typeof value === "object" ? { ...(builtins[field] ?? {}), ...value } : value;
     return { spells: [], pools: {}, gap: null, played: read.played };
 }

@@ -138,6 +138,9 @@ export function meetsWielding(text, wields) {
     add(/melee weapon that can deal (slashing|piercing|bludgeoning) damage/, (wields.damage ?? []).includes(/can deal (\w+) damage/.exec(words)?.[1]));
     add(/finesse weapon or polearm/, Boolean(wields.finesse) || (wields.groups ?? []).includes("polearm"));
     add(/^you are medium or smaller\.?$/, true);
+    // (Extravagant Parry's "You're wielding one or more one-handed weapons", Spell Parry's "You have one or more hands free".)
+    add(/one or more one-handed weapons/, wields.oneHanded);
+    add(/one or more hands free/, wields.freeHand);
     if (!checks.length) return null;
     // (Only when the whole requirement is about this: "…, and your target is within reach of that hand" is more than a free hand.)
     if (/,? and (?:your|the) target|and you (?:are|have)\b(?! (?:no|nothing))/.test(words)) return checks.every(Boolean) ? null : false;
