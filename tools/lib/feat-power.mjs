@@ -333,7 +333,7 @@ const DEDICATION_CANTRIP = { arcane: "Electric Arc", primal: "Electric Arc", div
 function dedicationCantripEntry(doc, level, host) {
     if (!/Dedication$/.test(doc.name)) return null;
     const text = String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, "$1");
-    const sentence = /[^.]*\b(?:one|two|four|a single|a)\s+(?:common\s+)?(?:[a-z]+\s+)?cantrips?\b[^.]*\./i.exec(text)?.[0];
+    const sentence = /[^.]*\b(?:one|two|four|a single|a)\s+(?:common\s+)?(?:[a-z]+\s+){0,3}cantrips?\b[^.]*\./i.exec(text)?.[0];
     if (!sentence || /\bof the following\b|\bpsi cantrip|\bHalcyon\b/i.test(sentence)) return null;
     const tradition = /\b(arcane|divine|occult|primal)\b/i.exec(sentence)?.[1]?.toLowerCase() ?? (/\b(?:tradition|spell list) of your choice\b|\bbloodline\b|\bpatron\b/i.test(sentence) ? "arcane" : null);
     const spell = tradition && spellPack.spellNamed(DEDICATION_CANTRIP[tradition]);
@@ -899,6 +899,9 @@ const HAND = {
     "rune-ward": () => ({ builtins: { acReaction: { value: 1, when: "targeted", name: "Rune Ward", spellOnly: true }, saveBonusReaction: { name: "Rune Ward", value: 1, against: "spell" } }, played: "+1 AC or save against a spell (reaction)" }),
     // (Resistance of its level to an enemy's acid, bludgeoning, fire or slashing damage — its double against acid or fire isn't played.)
     "deflecting-wave": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: level, on: ["acid", "bludgeoning", "fire", "slashing"], foe: true }], played: `resistance ${level} to an enemy's acid, bludgeoning, fire or slashing damage (reaction)` }),
+    // (A stance with its shield always raised — the engine's shieldUp, its shield's bonus without Raise a Shield each turn.)
+    "paragons-guard": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its shield always raised" }),
+    "buckler-dance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its buckler always raised" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),

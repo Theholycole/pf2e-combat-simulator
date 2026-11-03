@@ -1855,7 +1855,8 @@ function expandClassActions(env) {
         // and without — for its rounds. Before, 0.08 a point a round wherever it stood, so a fighter at range took a 1-round AC buff with
         // its third action over closing in, and any such feat rated below nothing: a near tie in the plan, tipped by a defence where nothing
         // reached it.)
-        const acBonus = entry.model.modifiers.filter((modifier) => modifier.on === "ac").reduce((sum, modifier) => sum + (Number(modifier.value) || 0), 0);
+        // (2026-11-03, Paragon's Guard: a shield kept raised — its bonus each round it wouldn't be raised otherwise.)
+        const acBonus = entry.model.modifiers.filter((modifier) => modifier.on === "ac").reduce((sum, modifier) => sum + (Number(modifier.value) || 0), 0) + (entry.model.shieldUp && c.shield && !c.shield.broken ? Number(c.shield.ac) || 0 : 0);
         const acRounds = Number.isFinite(entry.model.rounds) ? Math.max(1, Math.min(3, entry.model.rounds)) : 3;
         const acKept = acBonus ? Math.max(0, ctx.exposure(node) - ctx.exposure({ ...node, acDelta: acBonus })) * acRounds : 0;
         const withoutAc = acBonus ? { ...entry.model, modifiers: entry.model.modifiers.filter((modifier) => modifier.on !== "ac") } : entry.model;

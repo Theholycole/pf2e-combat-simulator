@@ -483,7 +483,8 @@ function startTurn(state, c) {
     c.lastStrike = null;
     c.noAttacksThisTurn = false;
     c.turnAttacks = [];
-    if (c.shield) c.shield.raised = false;
+    // (2026-11-03, Paragon's Guard, Buckler Dance: a stance that keeps its shield raised.)
+    if (c.shield) c.shield.raised = Boolean(!c.shield.broken && (c.effects ?? []).some((effect) => effect.model?.shieldUp));
     // A complex hazard: its routine's actions.
     let actions = isHazard(c) ? (c.hazard?.routineActions ?? 1) : 3 + (c.cond.quickened ? 1 : 0);
     // (A summoner and its eidolon: three actions between them and Act Together's one more — two each, classes.js.)
@@ -1275,6 +1276,7 @@ function actOn(state, c, action) {
             const effect = applyEffect(state, c, entry.model, c, { applyCondition, key: `self:${entry.name}` });
             // (B308: shut in its shell for the rest of its turn; coming out costs an action at its next.)
             if (entry.shell) c.inShell = true;
+            if (entry.model?.shieldUp && c.shield && !c.shield.broken) c.shield.raised = true;
             if (entry.strikes?.length) c.strikes = [...(c.strikes ?? []).filter((strike) => strike.fromEffect !== effect.key), ...entry.strikes.map((strike) => ({ ...strike, fromEffect: effect.key }))];
             break;
         }
