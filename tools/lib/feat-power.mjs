@@ -897,6 +897,8 @@ const HAND = {
     "emergency-targe": () => ({ builtins: { acReaction: { value: 2, when: "hit", name: "Emergency Targe" } }, played: "+2 AC as a Strike hits (reaction)" }),
     // (+1 AC against a spell attack at it, or +1 to its save against a spell — one reaction.)
     "rune-ward": () => ({ builtins: { acReaction: { value: 1, when: "targeted", name: "Rune Ward", spellOnly: true }, saveBonusReaction: { name: "Rune Ward", value: 1, against: "spell" } }, played: "+1 AC or save against a spell (reaction)" }),
+    // (Resistance of its level to an enemy's acid, bludgeoning, fire or slashing damage — its double against acid or fire isn't played.)
+    "deflecting-wave": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: level, on: ["acid", "bludgeoning", "fire", "slashing"], foe: true }], played: `resistance ${level} to an enemy's acid, bludgeoning, fire or slashing damage (reaction)` }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
