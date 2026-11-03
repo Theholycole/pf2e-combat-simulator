@@ -532,6 +532,8 @@ const HAND = {
     "reactive-striker": () => ({ builtins: { reactions: { aoo: true } }, played: "Reactive Strike" }),
     // (The rogue's Sneak Attack at 1d4, 1d6 from 6th.)
     "sneak-attacker": (level) => ({ builtins: { strikeExtras: [{ when: "off-guard", dice: 1, die: level >= 6 ? 6 : 4, precision: true, type: null, source: "Sneak Attacker" }] }, played: "Sneak Attack (always on)" }),
+    // (The champion archetype's reaction, played as a paladin's Retributive Strike — the champion PC's, classes.js.)
+    "champions-reaction": (level) => ({ builtins: { championReaction: { slug: "retributive-strike", name: "Retributive Strike", self: false, resistance: 2 + level, dice: 1 } }, played: "Retributive Strike (reaction)" }),
     // (Sneak Attack at a fixed 1d6: Butterfly's Sting, Shadow Sneak Attack.)
     "butterflys-sting": () => ({ builtins: { strikeExtras: [{ when: "off-guard", dice: 1, die: 6, precision: true, type: null, source: "Butterfly's Sting" }] }, played: "Sneak Attack 1d6 (always on)" }),
     "shadow-sneak-attack": () => ({ builtins: { strikeExtras: [{ when: "off-guard", dice: 1, die: 6, precision: true, type: null, source: "Shadow Sneak Attack" }] }, played: "Sneak Attack 1d6 (always on)" }),
