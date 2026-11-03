@@ -316,6 +316,21 @@ function focusSpellEntry(doc, level, host) {
     return { spells: entries, pools, gap: null, played: `focus spell${entries.length > 1 ? "s" : ""}: ${entries.map((entry) => `${entry.name.replace(/ \(.*$/, "")} (rank ${castRank})`).join(", ")}` };
 }
 
+// (2026-11-03, the class feats no fight played: passives that change a class feature, read by hand where neither the feat module nor PF2e's
+// rules have anything — the builtins they put on the PC.)
+const HAND = {
+    // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
+    "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
+    // A melee critical hit's extra weapon die (not doubled) and persistent bleed of two of its dice.
+    "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" })
+};
+function handEntry(doc, level, builtins) {
+    const read = HAND[slugOf(doc)]?.(level);
+    if (!read) return null;
+    for (const [field, value] of Object.entries(read.builtins)) builtins[field] = Array.isArray(value) ? [...(builtins[field] ?? []), ...value] : value;
+    return { spells: [], pools: {}, gap: null, played: read.played };
+}
+
 // (2026-11-02, the same ask: staying up at 0 Hit Points, which the engine plays for monsters — Ferocity's kin and an ally's rescue,
 // actions.js knockOut —, and the feats that raise maximum Hit Points by the PC's level.)
 const ZERO_HP = {
@@ -521,6 +536,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         }
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = handEntry(doc, level, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = zeroHpEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = passiveRulesEntry(doc, level, builtins) ?? entries;
         // (A requirement on what the PC wields the plan doesn't carry — Dueling Dance's "a single one-handed melee weapon and nothing else in

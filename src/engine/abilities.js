@@ -811,7 +811,7 @@ export function isUndead(c) {
 
 // Whether an extra-damage ability applies to this hit. offGuard: the target is
 // off-guard to the attack; packAllies: the attacker's allies within reach of the target.
-export function extraApplies(extra, target, { offGuard, packAllies, attacker = null }) {
+export function extraApplies(extra, target, { offGuard, packAllies, attacker = null, critical = false }) {
     // (T1: any condition on its target — Gang Up's Grabbed, Punch Down's Prone; Mauler's, a creature it has Grabbed itself.)
     if (String(extra.when).startsWith("condition:")) return conditionHeld(target, extra.when.slice("condition:".length));
     if (extra.when === "grabbing") return Boolean(attacker) && target.grabbedBy === attacker.id && Boolean(target.cond?.grabbed || target.cond?.restrained);
@@ -826,6 +826,11 @@ export function extraApplies(extra, target, { offGuard, packAllies, attacker = n
             return isUndead(target);
         case "frightened":
             return (target.cond?.frightened ?? 0) > 0;
+        // (2026-11-03: Sly Striker's "against a creature that isn't off-guard"; Brutal Critical's, on a critical hit — actions.js.)
+        case "not-off-guard":
+            return !offGuard;
+        case "critical":
+            return Boolean(critical);
         default:
             return false;
     }

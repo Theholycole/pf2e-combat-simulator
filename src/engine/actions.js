@@ -770,10 +770,17 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (attacker.strikeExtras?.length) {
         const packAllies = engagedEnemies(state, target).filter((other) => other !== attacker).length;
         for (const extra of attacker.strikeExtras) {
-            if (!extraApplies(extra, target, { offGuard, packAllies, attacker })) continue;
+            if (!extraApplies(extra, target, { offGuard, packAllies, attacker, critical })) continue;
+            // (Brutal Critical: melee Strikes only, its weapon's own die, not doubled — an extra die like deadly's; its bleed persistent.)
+            if (extra.melee && !strike.melee) continue;
+            const die = extra.weaponDie ? Number(strike.damage[0].die) || 6 : extra.die;
             let amount = extra.bonus ?? 0;
-            for (let die = 0; die < extra.dice; die++) amount += state.rng.die(extra.die);
-            instances.push({ type: extra.type ?? strike.damage[0].type, amount: critical ? amount * 2 : amount, precision: !!extra.precision, persistent: false });
+            for (let roll = 0; roll < extra.dice; roll++) amount += state.rng.die(die);
+            if (extra.persistent) {
+                addPersistent(target, { type: extra.type ?? "bleed", dice: extra.dice, die, bonus: 0, amount: extra.dice * (die + 1) / 2 }, attacker);
+                continue;
+            }
+            instances.push({ type: extra.type ?? strike.damage[0].type, amount: critical && !extra.noDouble ? amount * 2 : amount, precision: !!extra.precision, persistent: false });
         }
     }
     // (B153, Draining Touch: a Strike that deals no damage on a hit.)
