@@ -911,8 +911,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         if (answer && canReact(target, answer.name) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, "hit");
     }
     // (B286, Conductive Shell: while its effect lasts, a creature that hits it in melee takes the damage it names.)
-    if (degree >= SUCCESS && strike.melee && isActive(attacker)) {
-        for (const effect of (target.effects ?? []).filter((entry) => entry.model?.hitBack)) {
+    // (2026-11-03, Inviolable: any attack's hit — hitBackAny.)
+    if (degree >= SUCCESS && isActive(attacker)) {
+        for (const effect of (target.effects ?? []).filter((entry) => entry.model?.hitBack && (strike.melee || entry.model.hitBackAny))) {
             log(state, `  ${attacker.name} is hurt by ${target.name}'s ${effect.model.name ?? effect.name}`);
             applyDamage(state, attacker, rollInstances(state, parseDamage(effect.model.hitBack)), { source: target });
             if (!isActive(attacker)) break;
