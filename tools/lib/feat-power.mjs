@@ -35,6 +35,9 @@ export const itemReaders = ITEM_ROOT ? await (async () => {
 })() : null;
 const { featEntries, featInfo, meetsWielding, pcNeeds, requiredEffectFeat, requiredStances, withResolvedEffects, worthSomething } = await import("../../src/engine/feat-abilities.js");
 const { effectModel } = await import("../../src/engine/effects.js");
+// (2026-11-03: a spell entry a feat gives only when the engine can cast it at all — Hymn of Healing's, Mantis Form's aren't.)
+const { canCast } = await import("../../src/engine/spells.js");
+const castable = (entry) => canCast({ cond: {}, hindrances: [], spellPools: entry.pool ? { [entry.pool]: 99 } : {} }, entry);
 const { addBuiltin } = await import("../../src/engine/abilities.js");
 const { dangerFights, dangerSummary, DANGER_OPTIONS, DEATH_WEIGHT } = await import("../../src/engine/danger-scale.js");
 const { powerFoes } = await import("../../src/engine/spell-power.js");
@@ -273,9 +276,10 @@ function innateSpellEntry(doc, level, host) {
         if (!plan?.resolution || ["unsupported", "no-effect"].includes(plan.resolution.kind)) continue;
         const pool = uses ? `innate:${doc._id}:${spell._id}` : null;
         if (pool) pools[pool] = uses;
-        entries.push({ name: `${spell.name} (${doc.name})`, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) });
+        const entry = { name: `${spell.name} (${doc.name})`, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+        if (castable(entry)) entries.push(entry);
     }
-    if (!entries.length) return null;
+    if (!entries.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
@@ -383,6 +387,7 @@ function inlineSaveEntry(doc, level, host) {
     const uses = Number(doc.system?.frequency?.max) || 0;
     const pool = uses ? `feat:${doc._id}` : null;
     const entry = { name: doc.name, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+    if (!castable(entry)) return null;
     return { spells: [entry], pools: pool ? { [pool]: uses } : {}, gap: null, played: `inline save: ${template ? `${template[2]}-foot ${template[1]}` : `1 creature, ${reach.range}`}, ${check[1]}${damage ? `, ${damage.formula} ${damage.type}` : ""} (DC ${dc}${uses ? `, ${uses}/fight` : ""})` };
 }
 
@@ -410,6 +415,7 @@ function spellLikeEntry(doc, level, plan) {
     const uses = Number(doc.system?.frequency?.max) || 0;
     const pool = uses ? `feat:${doc._id}` : null;
     const entry = { name: `${spell.name} (${doc.name})`, plan: compiled, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(compiled, castRank), spell, castRank) };
+    if (!castable(entry)) return null;
     return { spells: [entry], pools: pool ? { [pool]: uses } : {}, gap: null, played: `casts ${spell.name} (rank ${castRank}, DC ${dc}${uses ? `, ${uses}/fight` : ""})` };
 }
 
@@ -443,9 +449,10 @@ function focusSpellEntry(doc, level, host) {
         }
         if (!plan?.resolution || ["unsupported", "no-effect"].includes(plan.resolution.kind)) continue;
         const cantrip = (spell.system?.traits?.value ?? []).includes("cantrip");
-        entries.push({ name: `${spell.name} (${doc.name})`, plan, castRank, dc, attack: dc - 10, pool: cantrip ? null : pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) });
+        const entry = { name: `${spell.name} (${doc.name})`, plan, castRank, dc, attack: dc - 10, pool: cantrip ? null : pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+        if (castable(entry)) entries.push(entry);
     }
-    if (!entries.length) return null;
+    if (!entries.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
     const pools = entries.some((entry) => entry.pool) ? { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) } : {};
     return { spells: entries, pools, gap: null, played: `focus spell${entries.length > 1 ? "s" : ""}: ${entries.map((entry) => `${entry.name.replace(/ \(.*$/, "")} (rank ${castRank})`).join(", ")}` };
 }
