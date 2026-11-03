@@ -629,6 +629,8 @@ const HAND = {
     "turn-back-the-clock": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null }], played: "a failed save rerolled (once a fight)" }),
     "guarded-mind": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "mental", free: true }], played: "a failed save against a mental effect rerolled" }),
     "perfect-clarity": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: "will" }], played: "a failed Will save rerolled (once a fight)" }),
+    "liberated-mind": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "mental" }], played: "a failed save against a mental effect rerolled" }),
+    "stalwart-mind": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: "will" }], played: "a failed Will save rerolled" }),
     "acquired-tolerance": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "poison" }], played: "a failed save against poison rerolled" }),
     "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" })
 };
