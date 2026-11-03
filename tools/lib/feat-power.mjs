@@ -1240,7 +1240,9 @@ export function partyWithFeat(doc, level, options = {}) {
     // Defender's Tenacious Stance.)
     const html = String(doc.system?.description?.value ?? "");
     const granted = /You gain the @UUID\[Compendium\.pf2e\.feats-srd\.Item\.([^\]]+)\](?:\{[^}]*\})? (?:[\w-]+ )?(?:feat|class feat)\b/.exec(html)?.[1]
-        ?? /You gain the @UUID\[Compendium\.pf2e\.actionspf2e\.Item\.([^\]]+)\](?:\{[^}]*\})? (?:action|reaction|activity|free action)\b/.exec(html)?.[1];
+        ?? /You gain the @UUID\[Compendium\.pf2e\.actionspf2e\.Item\.([^\]]+)\](?:\{[^}]*\})? (?:action|reaction|activity|free action)\b/.exec(html)?.[1]
+        // (Or named without a link — Bullet Dancer Dedication's "You gain the Bullet Dancer Stance action", when the packs have it.)
+        ?? [/You gain the ((?:[A-Z][\w'-]*)(?: (?:[A-Z][\w'-]*|of|the|a))*) (?:action|reaction|activity|free action|feat)\b/.exec(html.replace(/<[^>]+>/g, " "))?.[1]].find((name) => name && featByName(name));
     const grantedDoc = granted ? featByName(granted) ?? docsOf(`${PACK_ROOT}/feats`).get(granted) ?? null : null;
     if (!grantedDoc || grantedDoc === doc) return result;
     const through = partyWithFeat(grantedDoc, level, { ...options, granted: true });
