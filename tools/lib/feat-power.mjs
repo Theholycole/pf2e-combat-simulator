@@ -287,6 +287,41 @@ function innateSpellEntry(doc, level, host) {
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
+// (2026-11-03, the class feats no fight played: an action that puts its PF2e Effect on one ally — Steel Yourself!'s temporary Hit Points and
+// Fortitude, Spike Skin's resistance —: cast as Heroism's compiled shape (one creature) at an ally within the text's feet (30 without),
+// the Effect's own rules its model; once a fight with a frequency, else at will.)
+function allyEffectEntry(doc, level) {
+    const type = doc.system?.actionType?.value;
+    if (type !== "action" || !(Number(doc.system?.actions?.value) <= 2)) return null;
+    const html = String(doc.system?.description?.value ?? "");
+    const text = html.replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/<[^>]+>/g, " ");
+    if (!/\b(?:(?:choose|select|touch|target) (?:one|an|a) (?:willing )?(?:ally|creature)|an ally (?:within|in your)|one ally (?:within|in your)|a willing creature)\b/i.test(text) || /\benem(?:y|ies)\b.*\bEffect:/i.test(text)) return null;
+    // (Not one behind a check of its own — Helpful Tinkering's Crafting check and its critical failure's harm.)
+    if (/<strong>\s*Requirements?\s*<\/strong>/i.test(html) || /@Check\[|Critical Failure/i.test(html)) return null;
+    const uuid = /@UUID\[(Compendium\.pf2e\.feat-effects\.Item\.[^\]]+)\]/.exec(html)?.[1];
+    const effect = uuid && effectDoc(uuid);
+    if (!effect) return null;
+    const model = effectModel(effect, { rank: level, actorLevel: level, conditionSlug });
+    if (model.unsupported?.length || !(model.modifiers.length || model.tempHp || model.fastHealing || model.resistances.length || model.conditions.length || model.strikeParts)) return null;
+    const heroism = spellPack.spellNamed("Heroism");
+    let base;
+    try {
+        base = heroism && spellPack.compileSpell(heroism);
+    } catch {
+        base = null;
+    }
+    if (base?.resolution?.kind !== "effect") return null;
+    // (A marshal's aura: 10 feet.)
+    const feet = Number(/\bwithin (\d+) feet\b/i.exec(text)?.[1]) || (/\btouch\b/i.test(text) ? 0 : /\bmarshal's aura\b/i.test(text) ? 10 : 30);
+    const key = `feat:${doc._id}:ally`;
+    const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], activation: { ...base.activation, time: String(doc.system?.actions?.value ?? 1) }, targeting: { ...base.targeting, range: feet ? `${feet} feet` : "touch" }, heightening: null, resolution: { ...base.resolution, applications: [{ kind: "native-spell-effect", uuid: key, source: "nativeEffects.onUse" }] } };
+    const once = /\bFrequency\b/i.test(html);
+    const pool = once ? `feat:${doc._id}` : null;
+    const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc: 0, attack: 0, pool, effects: { [key]: { ...model, name: doc.name } } };
+    if (!castable(entry)) return null;
+    return { spells: [entry], pools: pool ? { [pool]: 1 } : {}, gap: null, played: `its Effect on an ally${feet ? ` within ${feet} feet` : " it touches"}${once ? " (once a fight)" : ""}` };
+}
+
 // (2026-11-03, the class feats no fight played: a spellcasting dedication's cantrips — Cleric, Wizard, Bard, Sorcerer Dedication and their
 // kin, "two common cantrips from the divine spell list" —: one damage cantrip of its tradition, picked as a martial PC would — Electric
 // Arc (arcane, primal; a bloodline's or patron's list played as arcane), Divine Lance (divine), Void Warp (occult) —, at will, heightened to half its level, its DC trained with the PC's
@@ -1209,6 +1244,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = demoralizeAllEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = quickenAllEntry(doc, level) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = dedicationCantripEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = allyEffectEntry(doc, level) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
