@@ -617,6 +617,9 @@ function inlineHealEntry(doc, level) {
     const hit = /@Damage\[((?:[^\[\]]|\[[^\]]*\])*?\[healing\])(?:\|[^\]]*)?\]/.exec(html);
     // (One creature only: Rallying Banner's "each ally in your banner's aura" isn't this.)
     if (!hit || /@Check\[(?:type:)?(?:reflex|fortitude|will)/.test(html) || /\beach (?:ally|creature|of your allies)\b|@Template/i.test(html)) return null;
+    // (2026-11-03: not a heal with a condition the simulator doesn't check — You Can't Keep Us Down's dying allies, Reclaim Power's thralls,
+    // Cleansing Spell's next healing spell, Vital Compound Invocation's runes.)
+    if (/\b(?:Dying|Unconscious|thralls?|next action|Invoke)\b/i.test(html.replace(/<[^>]+>/g, " ").replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, "$1"))) return null;
     const read = inlineFormula(hit[1].replace(/\[healing\]$/, ""), level);
     if (!read) return null;
     const range = /\btouch\b/i.test(html) ? "touch" : /within (\d+) feet/i.exec(html) ? `${/within (\d+) feet/i.exec(html)[1]} feet` : "touch";
@@ -681,6 +684,22 @@ function saveBonusEntry(doc, builtins) {
 // pool of its frequency. Only an action without a requirement.
 const LEVEL_MATH = { floor: Math.floor, ceil: Math.ceil, max: Math.max, min: Math.min, ternary: (test, a, b) => (test ? a : b), gte: (a, b) => a >= b, gt: (a, b) => a > b, lte: (a, b) => a <= b, lt: (a, b) => a < b };
 function inlineFormula(raw, level) {
+    // (2026-11-03, Nudge the Scales' "(2*(1+@actor.level))[healing]": a flat amount, no dice.)
+    const flat = /^\(?([^\[\]]*?)\)?(?:\[([^\]]*)\])?$/.exec(raw.trim());
+    if (flat && !/\dd\d|\bd\d/.test(flat[1])) {
+        const expr = flat[1].replace(/@actor\.level/g, String(level)).replace(/@item\.level/g, String(level));
+        if (!/^[\d\s()+\-*/,a-z]*$/.test(expr) || /[a-z]/.test(expr.replace(/\b(?:floor|ceil|max|min|ternary|gte|gt|lte|lt)\b/g, ""))) return null;
+        let amount;
+        try {
+            amount = Function(...Object.keys(LEVEL_MATH), `return (${expr || 0});`)(...Object.values(LEVEL_MATH));
+        } catch {
+            return null;
+        }
+        if (!Number.isFinite(amount) || amount < 1) return null;
+        const kinds = String(flat[2] ?? "").split(",");
+        const type = kinds.find((kind) => /^[a-z]+$/.test(kind) && !["persistent", "splash", "precision"].includes(kind)) ?? "fire";
+        return { formula: String(Math.floor(amount)), type, ...(kinds.includes("persistent") ? { category: "persistent" } : {}) };
+    }
     const m = /^(.*?)d(\d+)(?:\[([^\]]*)\])?$/.exec(raw.trim());
     if (!m) return null;
     const expr = m[1].replace(/@actor\.level/g, String(level)).replace(/@item\.level/g, String(level));
@@ -698,11 +717,12 @@ function inlineFormula(raw, level) {
 }
 function inlineSaveEntry(doc, level, host) {
     if ((doc.system?.actionType?.value ?? "passive") !== "action" || !alwaysMet(doc)) return null;
-    const html = String(doc.system?.description?.value ?? "");
+    // (2026-11-03, Deep Freeze: an inventor's Unstable Function — a bigger version with its own risk — isn't the action's own.)
+    const html = String(doc.system?.description?.value ?? "").split(/Unstable Function/)[0];
     const template = /@Template\[(?:type:)?(\w+)\|distance:(\d+)/.exec(html);
     const check = /@Check\[(?:type:)?(reflex|fortitude|will)\b([^\]]*)\]/.exec(html);
     // (One creature instead — Fling Head's "an enemy within 30 feet", Witchwood Seed's touch.)
-    const reach = template ? null : /\b(?:an? (?:creature|enemy|foe|target)|a creature you target|Select a creature|Choose a creature) within (\d+) feet\b/i.exec(html) ? { range: `${/within (\d+) feet/i.exec(html)[1]} feet` } : /\bYou touch a creature\b/i.test(html) ? { range: "touch" } : null;
+    const reach = template ? null : /\b(?:an? (?:creature|enemy|foe|target)|a creature you target|(?:Select|Choose|Target) (?:a|one) (?:creature|enemy|foe)) within (\d+) feet\b/i.exec(html) ? { range: `${/within (\d+) feet/i.exec(html)[1]} feet` } : /\bYou touch a creature\b/i.test(html) ? { range: "touch" } : null;
     if ((!template && !reach) || !check) return null;
     const damageHit = /@Damage\[((?:[^\[\]]|\[[^\]]*\])*?)(?:\|[^\]]*)?\]/.exec(html);
     const damage = damageHit ? inlineFormula(damageHit[1], level) : null;
@@ -973,6 +993,9 @@ const HAND = {
     "reflexive-courage": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["move", "manipulate", "ranged"], strike: null, penalty: 0, disrupts: false, melee: true, requiresEffect: "Spell Effect: Courageous Anthem" }], played: "a Reactive Strike while Courageous Anthem is on it" }),
     // (Clinch Strike: an unarmed Strike on a creature that escapes its grab — the engine's "escaped" trigger.)
     "clinch-strike": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["escaped"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a reaction Strike on a creature that escapes its grab" }),
+    // (Consume Power: resistance its level to acid, electricity, fire or sonic damage it would take — the engine's resist-damage on those
+    // types; the energy it holds for an impulse isn't played.)
+    "consume-power": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: level, on: ["acid", "electricity", "fire", "sonic"] }], played: "resistance its level to acid, electricity, fire or sonic damage (reaction)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
