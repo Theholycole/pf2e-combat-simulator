@@ -1470,9 +1470,14 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     const plan = withResolvedEffects(impulse ?? compiled.plan, resolveUuid);
     // Its entries with what the PC wields: the party's own, or (a requirement it doesn't meet — Double Slice's two weapons) a loadout that does,
     // the plain party then fought with the same loadout.
-    const attempt = (wields) => {
+    // (2026-11-03: the simulator's own readings — the hand table, Quickening Banner's quickened allies, Instant Opening's off-guard — win over
+    // the feat module's plan when both read the feat. Once the plans resolved by their compendium source, a plan the AI never takes —
+    // Quickening Banner's check — had set them aside, and the feat rated nothing.)
+    const attemptWith = (wields, useModule) => {
         const builtins = {};
-        let entries = featEntries(plan, featInfo(doc, level), builtins, { ...helpersAt(level), meets: (text) => meetsWielding(text, wields) });
+        let entries = useModule
+            ? featEntries(plan, featInfo(doc, level), builtins, { ...helpersAt(level), meets: (text) => meetsWielding(text, wields) })
+            : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: the feat module's plan set aside` } };
         // (An impulse's save at its class DC.)
         if (impulse && !entries.gap) {
             const dc = dcsOf(host).class ?? 10 + level + 2;
@@ -1522,6 +1527,12 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             entries = { ...entries, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (${required})` } };
         }
         return { entries, builtins, strikes };
+    };
+    const attempt = (wields) => {
+        const own = attemptWith(wields, true);
+        if (own.entries.gap || impulse) return own;
+        const simulator = attemptWith(wields, false);
+        return simulator.entries.gap ? own : simulator;
     };
     let tried = attempt({ ...wieldsOf(host), strikes: host.strikes });
     let base = party;
