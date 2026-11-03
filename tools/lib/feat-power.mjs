@@ -860,7 +860,31 @@ function impulsePlan(doc, level) {
     if (plan?.resolution?.kind !== "save" || plan.trigger?.event === "reaction") return null;
     const outcomes = Object.values(plan.resolution.outcomes ?? {});
     if (!plan.resolution.sharedDamage?.components?.length && !outcomes.some((row) => row?.conditions?.length)) return null;
-    return { ...plan, trigger: { ...(plan.trigger ?? {}), event: "use" } };
+    // (2026-11-03: its targeting in the spell compiler's words — the kineticist reader's "target: { count: 1, range: 120 }" and "area: { …,
+    // within: 60 }" read as no target by the planner, so Glacial Prison, Storm Spiral and Rain of Razors were never used.)
+    const targeting = plan.targeting ?? {};
+    const target = targeting.target && typeof targeting.target === "object" ? targeting.target : null;
+    const range = Number(target?.range ?? targeting.area?.within ?? (typeof targeting.range === "number" ? targeting.range : NaN));
+    const fixed = {
+        ...targeting,
+        target: target ? `${Number(target.count) > 1 ? `${target.count} creatures` : "1 creature"}` : targeting.target ?? null,
+        range: Number.isFinite(range) ? `${range} feet` : typeof targeting.range === "string" ? targeting.range : null,
+        area: targeting.area ? { type: targeting.area.type, value: targeting.area.value } : null
+    };
+    // (Its damage and degrees in the spell compiler's words too: components with ids the degrees' damage names, "shared" or "none", a
+    // degree's conditions as condition effects (its generated Effects aren't played), the save at the source's DC. Read as written, every
+    // impulse here dealt nothing, so none was ever used — batch 1's impulse ratings were all 0.)
+    const shared = plan.resolution.sharedDamage;
+    const components = (shared?.components ?? []).filter((part) => !part.healing).map((part, index) => ({ id: String(index), formula: part.formula, type: part.type ?? "untyped", category: part.category ?? null, applyModifier: false, kinds: ["damage"], materials: [] }));
+    const ids = components.map((part) => part.id);
+    const degrees = Object.fromEntries(Object.entries(plan.resolution.outcomes ?? {}).map(([degree, row]) => {
+        const multiplier = Number(row?.damage?.multiplier) || 0;
+        const effects = (row?.conditions ?? []).filter((each) => each?.slug).map((each) => ({ kind: "condition", slug: each.slug, name: each.slug, value: Number.isFinite(each.value) ? each.value : null, duration: null, source: doc.name }));
+        return [degree, { damage: { mode: multiplier > 0 && ids.length ? "shared" : "none", multiplier: ids.length ? multiplier : 0, sourceComponentIds: multiplier > 0 ? ids : [] }, effects, nativeEffects: [], modifiers: [], followUps: [], decisions: [], manualInstructions: [], terminal: null, rawText: "" }];
+    }));
+    const check = plan.resolution.check ?? {};
+    const resolution = { ...plan.resolution, check: { statistic: check.statistic, basic: Boolean(check.basic), dcSource: "source-actor" }, sharedDamage: components.length ? { mode: "pf2e-item-damage", rollOnce: true, components, heightening: null } : null, outcomes: degrees };
+    return { ...plan, targeting: fixed, resolution, trigger: { ...(plan.trigger ?? {}), event: "use" } };
 }
 
 // (2026-11-03, the class feats no fight played: the impulses the kineticist module reads as something other than a save — Timber Sentinel's
