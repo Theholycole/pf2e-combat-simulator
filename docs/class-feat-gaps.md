@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-03 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 485 are rated; 3871 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-03 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 841 are rated; 3515 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -8,83 +8,83 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 
 | Bucket | No plan | Plan, not played | Total |
 |---|---:|---:|---:|
-| Archetype dedications (grant class features) | 219 | 1 | 220 |
-| Combat actions and reactions | 507 | 576 | 1083 |
-| Passives that change a class feature | 268 | 4 | 272 |
-| Other combat passives | 459 | 18 | 477 |
-| Spellcasting (slots, focus, spellshapes) | 300 | 30 | 330 |
-| Companions, familiars and eidolons | 225 | 30 | 255 |
-| Out of combat (exploration, downtime, skills) | 334 | 23 | 357 |
-| Nothing a fight would use | 806 | 71 | 877 |
-| **All** | 3118 | 753 | 3871 |
+| Archetype dedications (grant class features) | 182 | 2 | 184 |
+| Combat actions and reactions | 409 | 462 | 871 |
+| Passives that change a class feature | 239 | 14 | 253 |
+| Other combat passives | 427 | 21 | 448 |
+| Spellcasting (slots, focus, spellshapes) | 277 | 36 | 313 |
+| Companions, familiars and eidolons | 218 | 33 | 251 |
+| Out of combat (exploration, downtime, skills) | 321 | 26 | 347 |
+| Nothing a fight would use | 781 | 67 | 848 |
+| **All** | 2854 | 661 | 3515 |
 
 ## By class
 
 | Class | dedication | combat-action | feature-upgrade | combat-passive | spellcasting | companion | out-of-combat | other | Total |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | alchemist |  | 5 | 19 | 16 |  | 1 | 12 | 15 | 68 |
-| animist |  | 10 | 4 |  | 14 | 3 | 5 | 2 | 38 |
-| barbarian |  | 50 | 16 | 6 |  |  |  | 13 | 85 |
-| bard |  | 10 | 15 | 1 | 28 | 2 | 14 | 14 | 84 |
-| champion |  | 13 | 16 | 21 | 3 | 11 | 6 | 18 | 88 |
-| cleric |  | 11 | 1 | 17 | 19 | 1 | 8 | 18 | 75 |
-| commander |  | 15 | 1 | 6 |  | 4 | 5 | 7 | 38 |
-| druid |  | 8 | 18 | 4 | 23 | 11 | 8 | 21 | 93 |
-| exemplar |  | 9 | 28 | 2 |  |  | 3 | 4 | 46 |
-| fighter |  | 47 |  | 15 |  |  | 1 | 12 | 75 |
-| guardian |  | 26 | 3 | 9 |  |  | 2 | 5 | 45 |
-| gunslinger |  | 36 | 4 | 14 |  | 1 | 4 | 11 | 70 |
-| inventor |  | 18 | 8 | 1 |  | 8 | 5 | 11 | 51 |
-| investigator |  | 6 | 4 | 13 |  | 1 | 17 | 11 | 52 |
-| kineticist |  | 87 | 5 | 1 | 1 | 1 | 6 | 22 | 123 |
-| magus |  | 21 | 11 | 2 | 11 | 1 | 6 | 7 | 59 |
-| monk |  | 59 | 3 | 14 | 4 |  | 2 | 28 | 110 |
-| necromancer |  | 14 | 6 | 6 | 9 | 1 | 6 | 23 | 65 |
-| oracle |  | 11 | 6 |  | 10 |  | 5 | 4 | 36 |
+| animist |  | 9 | 4 |  | 13 | 3 | 5 | 2 | 36 |
+| barbarian |  | 36 | 15 | 5 |  |  |  | 11 | 67 |
+| bard |  | 8 | 12 |  | 26 | 2 | 14 | 14 | 76 |
+| champion |  | 12 | 16 | 20 | 3 | 11 | 6 | 16 | 84 |
+| cleric |  | 10 | 1 | 16 | 19 | 1 | 8 | 18 | 73 |
+| commander |  | 12 | 1 | 6 |  | 4 | 5 | 7 | 35 |
+| druid |  | 5 | 13 | 4 | 21 | 11 | 7 | 20 | 81 |
+| exemplar |  | 6 | 28 | 2 |  |  | 3 | 4 | 43 |
+| fighter |  | 38 |  | 14 |  |  | 1 | 11 | 64 |
+| guardian |  | 23 | 3 | 9 |  |  | 2 | 5 | 42 |
+| gunslinger |  | 33 | 4 | 14 |  | 1 | 4 | 11 | 67 |
+| inventor |  | 12 | 8 | 1 |  | 8 | 5 | 11 | 45 |
+| investigator |  | 5 | 4 | 13 |  | 1 | 17 | 11 | 51 |
+| kineticist |  | 42 | 5 | 1 | 1 | 1 | 6 | 22 | 78 |
+| magus |  | 18 | 11 | 2 | 11 | 1 | 6 | 6 | 55 |
+| monk |  | 33 | 2 | 13 | 3 |  | 2 | 25 | 78 |
+| necromancer |  | 13 | 5 | 6 | 9 | 1 | 6 | 20 | 60 |
+| oracle |  | 8 | 6 |  | 10 |  | 4 | 4 | 32 |
 | psychic |  | 5 | 1 | 1 | 20 |  | 1 | 7 | 35 |
-| ranger |  | 13 | 12 | 7 |  | 13 | 14 | 18 | 77 |
-| rogue |  | 35 | 5 | 26 | 3 |  | 3 | 17 | 89 |
-| runesmith |  | 20 | 11 | 1 |  | 2 | 6 | 10 | 50 |
-| sorcerer |  | 2 | 1 | 6 | 24 | 1 | 7 | 11 | 52 |
-| summoner |  |  |  |  | 1 | 58 | 5 |  | 64 |
-| swashbuckler |  | 28 | 9 | 8 |  |  |  | 11 | 56 |
+| ranger |  | 11 | 12 | 7 |  | 11 | 14 | 17 | 72 |
+| rogue |  | 30 | 3 | 23 | 3 |  | 3 | 17 | 79 |
+| runesmith |  | 19 | 11 | 1 |  | 2 | 6 | 10 | 49 |
+| sorcerer |  | 1 | 1 | 6 | 24 | 1 | 7 | 11 | 51 |
+| summoner |  |  |  |  | 1 | 56 | 5 |  | 62 |
+| swashbuckler |  | 20 | 9 | 8 |  |  |  | 9 | 46 |
 | thaumaturge |  | 10 | 9 | 2 | 1 | 1 | 5 | 10 | 38 |
 | witch |  | 2 | 3 | 2 | 4 | 16 | 7 | 3 | 37 |
 | wizard |  | 3 |  | 1 | 16 | 4 | 10 | 6 | 40 |
-| archetype | 208 | 440 | 51 | 232 | 120 | 102 | 154 | 500 | 1807 |
-| other | 12 | 69 | 2 | 43 | 19 | 12 | 30 | 38 | 225 |
+| archetype | 172 | 378 | 45 | 213 | 110 | 102 | 147 | 489 | 1656 |
+| other | 12 | 64 | 2 | 42 | 18 | 12 | 29 | 36 | 215 |
 
 ## Why the simulator doesn't play the ones with a plan
 
 | Reason | Count |
 |---|---:|
-| its requirement | 172 |
-| a timer with no rules a fight counts | 171 |
-| a Strike with nothing more the simulator reads | 121 |
-| an Effect with nothing a fight counts | 47 |
-| a teleport | 42 |
-| a reaction's Strike | 40 |
-| its requirement, which the PC doesn't meet | 30 |
-| a spell the feat casts | 21 |
-| a roll whose results the simulator doesn't read | 18 |
-| a reaction to "passive" | 16 |
+| a timer with no rules a fight counts | 139 |
+| its requirement | 138 |
+| a Strike with nothing more the simulator reads | 119 |
+| a spell the engine doesn't cast | 43 |
+| a teleport | 41 |
+| an Effect with nothing a fight counts | 32 |
+| a reaction's Strike | 24 |
+| its requirement, which the PC doesn't meet | 20 |
+| a spell the feat casts | 15 |
 | its text has no Strike of its user's | 14 |
-| a lasting area | 14 |
-| a reroll | 11 |
-| a choice of ways the simulator doesn't play | 10 |
+| a roll whose results the simulator doesn't read | 14 |
+| a reaction to "passive" | 14 |
+| a lasting area | 11 |
+| a choice of ways the simulator doesn't play | 7 |
 | a passive's Strike | 6 |
-| nothing a fight uses | 6 |
+| a reroll | 6 |
+| nothing a fight uses | 5 |
 | a roll twice | 3 |
 | a reaction to "aura" | 2 |
 | a passive's roll with no action to use it | 2 |
 | a Focus or Mythic Point back | 2 |
 | a free's Strike | 1 |
-| its Effect has nothing a fight counts | 1 |
 | a reaction to "hit-by" | 1 |
 | a companion's Strike | 1 |
 | a reaction to "own-strike" | 1 |
 
-## Archetype dedications (grant class features) (220)
+## Archetype dedications (grant class features) (184)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -94,49 +94,35 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Alkenstar Agent Dedication | 2 | archetype | passive | no plan |  |
 | Alter Ego Dedication | 2 | archetype | passive | no plan |  |
 | Animal Trainer Dedication | 2 | archetype | passive | no plan |  |
-| Animist Dedication | 2 | archetype | passive | no plan |  |
 | Archaeologist Dedication | 2 | archetype | passive | no plan |  |
 | Archer Dedication | 2 | archetype | passive | no plan |  |
 | Artillerist Dedication | 2 | archetype | passive | no plan |  |
 | Assassin Dedication | 2 | archetype | passive | no plan |  |
-| Barbarian Dedication | 2 | archetype | passive | no plan |  |
-| Bard Dedication | 2 | archetype | passive | no plan |  |
-| Bastion Dedication | 2 | archetype | passive | no plan |  |
-| Battle Harbinger Dedication | 2 | archetype | passive | no plan |  |
 | Beastmaster Dedication | 2 | archetype | passive | no plan |  |
 | Blackjacket Dedication | 2 | archetype | passive | no plan |  |
-| Blessed One Dedication | 2 | archetype | passive | no plan |  |
-| Bloodrager Dedication | 2 | archetype | passive | no plan |  |
 | Bounty Hunter Dedication | 2 | archetype | passive | no plan |  |
 | Bright Lion Dedication | 2 | archetype | passive | no plan |  |
 | Bullet Dancer Dedication | 2 | archetype | passive | no plan |  |
 | Campfire Chronicler Dedication | 2 | archetype | passive | no plan |  |
 | Captain Dedication | 2 | archetype | passive | no plan |  |
-| Captivator Dedication | 2 | archetype | passive | no plan |  |
-| Cathartic Mage Dedication | 2 | archetype | passive | no plan |  |
 | Cavalier Dedication | 2 | archetype | passive | no plan |  |
 | Celebrity Dedication | 2 | archetype | passive | no plan |  |
 | Champion Dedication | 2 | archetype | passive | no plan |  |
 | Chelaxian Scion Dedication | 2 | archetype | passive | no plan |  |
 | Chronoskimmer Dedication | 2 | archetype | passive | no plan |  |
 | Clawdancer Dedication | 2 | archetype | passive | no plan |  |
-| Cleric Dedication | 2 | archetype | passive | no plan |  |
 | Clockwork Reanimator Dedication | 2 | archetype | passive | no plan |  |
 | Commander Dedication | 2 | archetype | passive | no plan |  |
 | Corpse Tender Dedication | 2 | archetype | passive | no plan |  |
 | Crossbow Infiltrator Dedication | 2 | archetype | passive | no plan |  |
-| Cultivator Dedication | 2 | archetype | passive | no plan |  |
 | Curse Maelstrom Dedication | 2 | archetype | passive | no plan |  |
 | Dandy Dedication | 2 | archetype | passive | no plan |  |
 | Demolitionist Dedication | 2 | archetype | passive | no plan |  |
 | Draconic Acolyte Dedication | 2 | archetype | passive | no plan |  |
 | Drake Rider Dedication | 2 | archetype | passive | no plan |  |
-| Druid Dedication | 2 | archetype | passive | no plan |  |
-| Dual-Weapon Warrior Dedication | 2 | archetype | passive | no plan |  |
 | Duelist Dedication | 2 | archetype | passive | no plan |  |
 | Eagle Knight Dedication | 2 | archetype | passive | no plan |  |
 | Edgewatch Detective Dedication | 2 | archetype | passive | no plan |  |
-| Eldritch Researcher Dedication | 2 | archetype | passive | no plan |  |
 | Elementalist Dedication | 2 | archetype | passive | no plan |  |
 | Exemplar Dedication | 2 | archetype | passive | no plan |  |
 | Familiar Master Dedication | 2 | archetype | passive | no plan |  |
@@ -148,19 +134,15 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Folklorist Dedication | 2 | archetype | passive | no plan |  |
 | Game Hunter Dedication | 2 | archetype | passive | no plan |  |
 | Geomancer Dedication | 2 | archetype | passive | no plan |  |
-| Ghost Hunter Dedication | 2 | archetype | passive | no plan |  |
 | Gladiator Dedication | 2 | archetype | passive | no plan |  |
 | Guardian Dedication | 2 | archetype | passive | no plan |  |
 | Guerrilla Dedication | 2 | archetype | passive | no plan |  |
 | Gunslinger Dedication | 2 | archetype | passive | no plan |  |
-| Hallowed Necromancer Dedication | 2 | archetype | passive | no plan |  |
 | Harrower Dedication | 2 | archetype | passive | no plan |  |
 | Hedge Mage Dedication | 2 | archetype | passive | no plan |  |
 | Hellbreaker Dedication | 2 | archetype | passive | no plan |  |
-| Hellknight Dedication | 2 | archetype | passive | no plan |  |
 | Herbalist Dedication | 2 | archetype | passive | no plan |  |
 | Horizon Walker Dedication | 2 | archetype | passive | no plan |  |
-| Infernal Pactbreaker Dedication | 2 | archetype | passive | no plan |  |
 | Inventor Dedication | 2 | archetype | passive | no plan |  |
 | Investigator Dedication | 2 | archetype | passive | no plan |  |
 | Iridian Choirmaster Dedication | 2 | archetype | passive | no plan |  |
@@ -172,11 +154,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Linguist Dedication | 2 | archetype | passive | no plan |  |
 | Lion Blade Dedication | 2 | archetype | passive | no plan |  |
 | Living Monolith Dedication | 2 | archetype | passive | no plan |  |
-| Living Nexus Dedication | 2 | archetype | passive | no plan |  |
 | Living Vessel Dedication | 2 | archetype | passive | no plan |  |
 | Loremaster Dedication | 2 | archetype | passive | no plan |  |
-| Magaambyan Attendant Dedication | 2 | archetype | passive | no plan |  |
-| Magus Dedication | 2 | archetype | passive | no plan |  |
 | Marine Marauder Dedication | 2 | archetype | passive | no plan |  |
 | Mauler Dedication | 2 | archetype | passive | no plan |  |
 | Medic Dedication | 2 | archetype | passive | no plan |  |
@@ -184,11 +163,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Mind Smith Dedication | 2 | archetype | passive | no plan |  |
 | Monk Dedication | 2 | archetype | passive | no plan |  |
 | Munitions Master Dedication | 2 | archetype | passive | no plan |  |
-| Nantambu Chime-Ringer Dedication | 2 | archetype | passive | no plan |  |
-| Necromancer Dedication | 2 | archetype | passive | no plan |  |
 | Nidalese Horselord Dedication | 2 | archetype | passive | no plan |  |
 | Oatia Skysage Dedication | 2 | archetype | passive | no plan |  |
-| Oracle Dedication | 2 | archetype | passive | no plan |  |
 | Ostilli Host Dedication | 2 | archetype | passive | no plan |  |
 | Pactbinder Dedication | 2 | archetype | passive | no plan |  |
 | Palatine Detective Dedication | 2 | archetype | passive | no plan |  |
@@ -196,7 +172,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Pirate Dedication | 2 | archetype | passive | no plan |  |
 | Pistol Phenom Dedication | 2 | archetype | passive | no plan |  |
 | Poisoner Dedication | 2 | archetype | passive | no plan |  |
-| Prophet of Kalistrade Dedication | 2 | archetype | passive | no plan |  |
 | Psychic Dedication | 2 | archetype | passive | no plan |  |
 | Ranger Dedication | 2 | archetype | passive | no plan |  |
 | Razmiran Priest Dedication | 2 | archetype | passive | no plan |  |
@@ -204,11 +179,9 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Red Mantis Assassin Dedication | 2 | archetype | passive | no plan |  |
 | Rivethun Emissary Dedication | 2 | archetype | passive | no plan |  |
 | Rivethun Invoker Dedication | 2 | archetype | passive | no plan |  |
-| Rivethun Involutionist Dedication | 2 | archetype | passive | no plan |  |
 | Rogue Dedication | 2 | archetype | passive | no plan |  |
 | Rose Warden Dedication | 2 | archetype | passive | no plan |  |
 | Runelord Dedication | 2 | archetype | passive | no plan |  |
-| Runescarred Dedication | 2 | archetype | passive | no plan |  |
 | Runesmith Dedication | 2 | archetype | passive | no plan |  |
 | Scout Dedication | 2 | archetype | passive | no plan |  |
 | Scroll Trickster Dedication | 2 | archetype | passive | no plan |  |
@@ -220,16 +193,12 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Sister of the Golden Erinys Dedication | 2 | archetype | passive | no plan |  |
 | Snarecrafter Dedication | 2 | archetype | passive | no plan |  |
 | Sniping Duo Dedication | 2 | archetype | passive | no plan |  |
-| Sorcerer Dedication | 2 | archetype | passive | no plan |  |
 | Soulforger Dedication | 2 | archetype | passive | plan | a passive's Strike |
 | Spell Trickster Dedication | 2 | archetype | passive | no plan |  |
 | Spellshifter Dedication | 2 | archetype | passive | no plan |  |
-| Spellshot Dedication | 2 | archetype | passive | no plan |  |
 | Staff Acrobat Dedication | 2 | archetype | passive | no plan |  |
-| Stalwart Defender Dedication | 2 | archetype | passive | no plan |  |
 | Starlit Sentinel Dedication | 2 | archetype | passive | no plan |  |
 | Starstone Aspirant Dedication | 2 | archetype | passive | no plan |  |
-| Stone Brawler Dedication | 2 | archetype | passive | no plan |  |
 | Student of Perfection Dedication | 2 | archetype | passive | no plan |  |
 | Summoner Dedication | 2 | archetype | passive | no plan |  |
 | Swarmkeeper Dedication | 2 | archetype | passive | no plan |  |
@@ -246,7 +215,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Undersea Privateer Dedication | 2 | archetype | passive | no plan |  |
 | Unexpected Sharpshooter Dedication | 2 | archetype | passive | no plan |  |
 | Vehicle Mechanic Dedication | 2 | archetype | passive | no plan |  |
-| Veil Dancer Dedication | 2 | archetype | passive | no plan |  |
 | Verduran Shadow Dedication | 2 | archetype | passive | no plan |  |
 | Vigilante Dedication | 2 | archetype | passive | no plan |  |
 | Viking Dedication | 2 | archetype | passive | no plan |  |
@@ -258,8 +226,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Wellspring Mage Dedication | 2 | archetype | passive | no plan |  |
 | Wild Mimic Dedication | 2 | archetype | passive | no plan |  |
 | Winged Warrior Dedication | 2 | archetype | passive | no plan |  |
-| Witch Dedication | 2 | archetype | passive | no plan |  |
-| Wizard Dedication | 2 | archetype | passive | no plan |  |
 | World Rouser Dedication | 2 | archetype | passive | no plan |  |
 | Worm Caller Dedication | 2 | archetype | passive | no plan |  |
 | Wrestler Dedication | 2 | archetype | passive | no plan |  |
@@ -280,8 +246,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Trapsmith Dedication | 4 | archetype | passive | no plan |  |
 | Twilight Talon Dedication | 4 | archetype | passive | no plan |  |
 | Venture-Gossip Dedication | 4 | archetype | passive | no plan |  |
-| Beast Gunner Dedication | 6 | archetype | passive | no plan |  |
-| Eldritch Archer Dedication | 6 | archetype | passive | no plan |  |
 | Five-Breath Vanguard Dedication | 6 | archetype | passive | no plan |  |
 | Halcyon Speaker Dedication | 6 | archetype | passive | no plan |  |
 | Knight Reclaimant Dedication | 6 | archetype | passive | no plan |  |
@@ -307,9 +271,9 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Prophesied Monarch Dedication | 12 | other | passive | no plan |  |
 | Timewracked Dedication | 12 | other | passive | no plan |  |
 | Warshard Warrior Dedication | 12 | other | passive | no plan |  |
-| Wildspell Dedication | 12 | other | passive | no plan |  |
+| Wildspell Dedication | 12 | other | passive | plan | a spell the engine doesn't cast (Spellsurge) |
 
-## Combat actions and reactions (1083)
+## Combat actions and reactions (871)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -323,7 +287,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Grudge Strike | 6 | animist | 2 actions | plan | its requirement (Your attuned apparition grants Heraldry Lore or Underworld Lore as an apparition skill.) |
 | Roaring Heart | 6 | animist | 2 actions | no plan |  |
 | Shadows Within Shadows | 12 | animist | reaction | no plan |  |
-| Whispers of Warning | 12 | animist | reaction | no plan |  |
 | Banish Falsehoods of Flesh | 14 | animist | 1 action | no plan |  |
 | Forest's Heart | 16 | animist | 1 action | no plan |  |
 | Jester's Gambol | 16 | animist | 1 action | no plan |  |
@@ -347,21 +310,16 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Disengaging Twist | 4 | archetype | reaction | no plan |  |
 | Doctor's Visitation | 4 | archetype | 1 action | plan | a teleport |
 | Dread Marshal Stance | 4 | archetype | 1 action | no plan |  |
-| Duelist's Challenge | 4 | archetype | 1 action | plan | an Effect with nothing a fight counts |
-| Duelist's Edge | 4 | archetype | free | no plan |  |
 | Elbow Breaker | 4 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Face Your Fears | 4 | archetype | 1 action | no plan |  |
 | Feast | 4 | archetype | 2 actions | plan | a timer with no rules a fight counts |
-| Ferocity Mimicry | 4 | archetype | reaction | no plan |  |
 | Focused Fire | 4 | archetype | 1 action | no plan |  |
 | For the Fallen! | 4 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Ghost Blade | 4 | archetype | 1 action | plan | a timer with no rules a fight counts |
-| Golden Erinys Stance | 4 | archetype | 1 action | no plan |  |
 | Gossamer Blade | 4 | archetype | 1 action | no plan |  |
 | Heaven's Step Offense | 4 | archetype | reaction | no plan |  |
 | Hurling Charge | 4 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | In Lightning, Life | 4 | archetype | 1 action | plan | an Effect with nothing a fight counts |
-| Inked Panoply | 4 | archetype | reaction | no plan |  |
 | Invoke Offense | 4 | archetype | 1 action | plan | its requirement (You're under the effects of @UUID[Compendium.pf2e.actionspf2e.Item.Enter Spirit Trance]. You manifest a |
 | Ivy Playhouse Strike | 4 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Lassoing Lash | 4 | archetype | 1 action | plan | its requirement (The target can't be more than one size larger than you) |
@@ -374,7 +332,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Patronize the Arts | 4 | archetype | reaction | plan | a timer with no rules a fight counts |
 | Play to the Crowd | 4 | archetype | reaction | no plan |  |
 | Poisoner's Twist | 4 | archetype | 1 action | no plan |  |
-| Push Back the Dead! | 4 | archetype | 1 action | plan | an Effect with nothing a fight counts |
 | Pyre Ant Sting | 4 | archetype | 1 action | plan | its requirement (Your swarm is outside your body) |
 | Quick Shot | 4 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Reach Beyond | 4 | archetype | 1 action | no plan |  |
@@ -385,22 +342,17 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Snap Out of It! (Marshal) | 4 | archetype | 1 action | no plan |  |
 | Soul Flare | 4 | archetype | reaction | no plan |  |
 | Spot Translate | 4 | archetype | reaction | no plan |  |
-| Stalwart Song | 4 | archetype | reaction | no plan |  |
-| Steel Yourself! | 4 | archetype | 1 action | no plan |  |
 | Strategist Stance | 4 | archetype | 1 action | no plan |  |
 | Suplex | 4 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Swift Leap | 4 | archetype | 1 action | plan | a teleport |
 | Talon Sweep | 4 | archetype | reaction | plan | a reaction's Strike |
-| Turn Back the Clock | 4 | archetype | reaction | plan | a reroll |
 | Tut-Tut | 4 | archetype | free | no plan |  |
 | Weaver's Web | 4 | archetype | 1 action | plan | its requirement (Your swarm is outside your body) |
 | Wing Bounce | 4 | archetype | 2 actions | plan | a teleport |
-| Abscission Shards | 6 | archetype | 1 action | plan | its requirement (Your last action was a successful frenzied claw or spinning talon Strike) |
 | Aldori Riposte | 6 | archetype | reaction | plan | a reaction's Strike |
 | All Returns To Slumber | 6 | archetype | 1 action | plan | its requirement (Your waking world is active) |
 | Antler Rush | 6 | archetype | 2 actions | plan | its text has no Strike of its user's |
 | Battlefield Agility | 6 | archetype | 1 action | plan | its requirement (You're flanked by at least two enemies.) |
-| Bear Hug | 6 | archetype | 1 action | plan | its requirement (Your last action was a successful claw Strike.) |
 | Bear Hug (Werecreature) | 6 | archetype | 2 actions | plan | its requirement (You're in bear or hybrid shape, and your last action was a successful claw Strike.) |
 | Benevolent Spirit Deck | 6 | archetype | 2 actions | no plan |  |
 | Betraying Shank | 6 | archetype | 1 action | plan | its requirement (You are within melee reach of a target, but it is not in combat with you.) |
@@ -408,7 +360,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Boaster's Challenge | 6 | archetype | 1 action | plan | a roll whose results the simulator doesn't read |
 | Cadence Call | 6 | archetype | 1 action | no plan |  |
 | Clear the Way | 6 | archetype | 2 actions | no plan |  |
-| Clinch Strike | 6 | archetype | reaction | plan | a reaction's Strike |
 | Commitment to Justice | 6 | archetype | 1 action | plan | its requirement (You witnessed a creature kill or reduce an ally to 0 Hit Points since your last turn.) |
 | Commitment to Liberty | 6 | archetype | 2 actions | plan | its requirement (A creature has an ally Grabbed or Restrained.) |
 | Crossbow Terror | 6 | archetype | 1 action | no plan |  |
@@ -416,7 +367,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Death Roll | 6 | archetype | 1 action | no plan |  |
 | Disarming Smile | 6 | archetype | reaction | plan | its requirement (You are aware of the attacker, the attacker is an intelligent humanoid creature, and you have not attem |
 | Discerning Strike | 6 | archetype | 1 action | plan | its requirement (You have successfully identified the target with @UUID[Compendium.pf2e.actionspf2e.Item.Recall Knowledg |
-| Dodge Away | 6 | archetype | reaction | no plan |  |
 | Ensnaring Disarm | 6 | archetype | free | no plan |  |
 | Essence Overflow | 6 | archetype | 2 actions | plan | its requirement (You are Channeling Draconic Essence) |
 | Exploit Opening | 6 | archetype | reaction | plan | a reaction's Strike |
@@ -425,14 +375,11 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Feeling Your Oats | 6 | archetype | 1 action | no plan |  |
 | Feverish Enzymes | 6 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Fiendish Brand | 6 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
-| Fling Head | 6 | archetype | 1 action | no plan |  |
 | Follow-Up Strike | 6 | archetype | 1 action | plan | its requirement (Your last action was a missed Strike with a melee unarmed attack.) |
 | Fortune's Favor | 6 | archetype | free | no plan |  |
 | Frightful Condemnation | 6 | archetype | free | no plan |  |
 | Ghost Strike | 6 | archetype | 2 actions | no plan |  |
-| Guarded Mind | 6 | archetype | free | plan | a reroll |
 | Guide the Timeline | 6 | archetype | 1 action | no plan |  |
-| Heaven's Thunder | 6 | archetype | 1 action | no plan |  |
 | Hey! Over Here! | 6 | archetype | reaction | no plan |  |
 | Hindquarter Kick | 6 | archetype | 1 action | plan | its requirement (You are in claw stance and have Grabbed a creature.) |
 | Hit and Run | 6 | archetype | 2 actions | plan | a teleport |
@@ -443,28 +390,19 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Keep Pace | 6 | archetype | reaction | plan | a teleport |
 | Leverage Anguish | 6 | archetype | reaction | no plan |  |
 | Mammoth Charge | 6 | archetype | 2 actions | plan | its requirement (You are riding your megafauna companion.) |
-| Mummy's Despair | 6 | archetype | 2 actions | plan | a lasting area |
 | Opportune Trickster | 6 | archetype | reaction | plan | its requirement (You're adjacent to both your ally and the creature) |
 | Piston Punch | 6 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Poison Coat | 6 | archetype | reaction | no plan |  |
-| Polished Distraction | 6 | archetype | 2 actions | plan | its requirement (You aren't in dim light or darkness) |
 | Practiced Opposition | 6 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Reloading Trick | 6 | archetype | 1 action | no plan |  |
 | Repulse the Wicked | 6 | archetype | reaction | no plan |  |
 | Rushing Boar | 6 | archetype | reaction | no plan |  |
 | Shark Attack | 6 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Sheltering Hand | 6 | archetype | 1 action | plan | a timer with no rules a fight counts |
-| Sky and Heaven Stance | 6 | archetype | 1 action | plan | its requirement, which the PC doesn't meet (You're unarmored.) |
-| Snap Falling Fruit | 6 | archetype | reaction | no plan |  |
-| Spinning Stand | 6 | archetype | 1 action | plan | its requirement (You're Prone.) |
 | Spiral Sworn | 6 | archetype | 1 action | no plan |  |
-| Spirit of the Blade | 6 | archetype | 1 action | no plan |  |
 | Spirit's Absolution | 6 | archetype | 1 action | no plan |  |
 | Staggering Fire | 6 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Startling Appearance (Vigilante) | 6 | archetype | 1 action | plan | its requirement (You are completely unnoticed by the target creature.) |
-| Stoic as Hell | 6 | archetype | reaction | no plan |  |
-| Stoney Deflection | 6 | archetype | 1 action | plan | its requirement (You are in Stonestrike Stance) |
-| Sunbird Glare | 6 | archetype | 1 action | plan | its requirement (You're in bright light) |
 | Sundown Street Posturing | 6 | archetype | 1 action | no plan |  |
 | Surging Smash | 6 | archetype | 2 actions | plan | its requirement (You are overflowing) |
 | Sweeping Fan Block | 6 | archetype | reaction | no plan |  |
@@ -474,10 +412,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Unbalancing Appearance | 6 | archetype | 1 action | plan | its requirement (A creature within your reach is Off-Guard to you, and you are Unnoticed by that creature.) |
 | Unfettering Strike | 6 | archetype | 1 action | plan | its requirement (A creature within your reach has an ally Grabbed or Restrained.) |
 | Unnerving Prowess | 6 | archetype | free | no plan |  |
-| Upset Balance | 6 | archetype | reaction | plan | its requirement (You are in Tenacious Stance) |
 | Vacate Vision | 6 | archetype | reaction | no plan |  |
-| Vengeance Strike | 6 | archetype | reaction | plan | a reaction's Strike |
-| Verbose Distraction | 6 | archetype | reaction | no plan |  |
 | Verduran Ambush | 6 | archetype | 3 actions | plan | a timer with no rules a fight counts |
 | Vision of Foresight | 6 | archetype | 1 action | no plan |  |
 | Warp Path | 6 | archetype | 1 action | plan | its requirement (You are veiled.) |
@@ -489,17 +424,13 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Aether Beam | 8 | archetype | 2 actions | plan | its requirement (You are overflowing) |
 | Archaeologist's Luck | 8 | archetype | free | plan | a reroll |
 | Armored Rebuff | 8 | archetype | reaction | no plan |  |
-| Black Powder Blaze | 8 | archetype | 2 actions | plan | its requirement, which the PC doesn't meet (You're wielding a loaded firearm.) |
 | Bolster Ally | 8 | archetype | reaction | no plan |  |
 | Commitment to Valor | 8 | archetype | reaction | no plan |  |
-| Condemn Soul | 8 | archetype | 2 actions | plan | a roll whose results the simulator doesn't read |
 | Cornered Animal | 8 | archetype | 2 actions | no plan |  |
 | Counter Curse | 8 | archetype | reaction | no plan |  |
 | Death from Above | 8 | archetype | 2 actions | plan | its requirement (You are standing, climbing, or balancing on a surface at least 10 feet above your target) |
 | Drive Back | 8 | archetype | reaction | no plan |  |
 | Dust Cloud | 8 | archetype | 1 action | plan | its requirement (Your waking world is active) |
-| Equitable Defense | 8 | archetype | reaction | no plan |  |
-| Exude Demonic Corruption | 8 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | Feline Dance | 8 | archetype | reaction | plan | a roll twice |
 | Fine Print | 8 | archetype | free | plan | an Effect with nothing a fight counts |
 | Flashing Shield | 8 | archetype | free | plan | a timer with no rules a fight counts |
@@ -512,13 +443,11 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Hot Foot | 8 | archetype | 1 action | no plan |  |
 | Infernal Anguish | 8 | archetype | 1 action | no plan |  |
 | Interrupt Charge | 8 | archetype | reaction | no plan |  |
-| Into the Fray | 8 | archetype | 2 actions | plan | its requirement (You are wielding a one-handed melee weapon in one hand and a shield in another hand.) |
 | Invoke Defense | 8 | archetype | 1 action | no plan |  |
 | Lead by Example | 8 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Lesson of Mutual Gambits | 8 | archetype | 1 action | no plan |  |
 | Lesson of Sympathetic Vulnerability | 8 | archetype | 1 action | no plan |  |
 | Levering Strike | 8 | archetype | 2 actions | plan | its requirement (You are wielding your staff.) |
-| Liberated Mind | 8 | archetype | reaction | plan | an Effect with nothing a fight counts |
 | Lobbed Attack | 8 | archetype | 1 action | plan | its requirement, which the PC doesn't meet (You are Juggling a thrown weapon.) |
 | Majestic Proclamation | 8 | archetype | 2 actions | plan | a timer with no rules a fight counts |
 | Makeshift Strike | 8 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
@@ -529,26 +458,21 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Piercing Doom | 8 | archetype | 2 actions | plan | its requirement (You are Doomed 2 or greater.) |
 | Pluck from the Sky | 8 | archetype | 2 actions | plan | a roll whose results the simulator doesn't read |
 | Pressure Change | 8 | archetype | 1 action | plan | its requirement (You have a swim Speed, are underwater, and have a creature Grabbed or Restrained) |
-| Protect Ally | 8 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | Quick Positioning | 8 | archetype | free | no plan |  |
 | Reactive Resilience | 8 | archetype | reaction | no plan |  |
 | Reminder of the Greater Fear | 8 | archetype | reaction | no plan |  |
-| Remote Detonation (Snarecrafter) | 8 | archetype | 1 action | no plan |  |
 | Rend Armor | 8 | archetype | 1 action | no plan |  |
 | Riptide (Undersea Privateer) | 8 | archetype | 1 action | plan | its requirement (You're in Anchor Stance, and your target is within 5 feet of the edge of a water vehicle or already in  |
 | Rule of Three | 8 | archetype | reaction | no plan |  |
 | Running Tackle | 8 | archetype | 2 actions | plan | a teleport |
 | Shamble | 8 | archetype | 2 actions | plan | a teleport |
-| Sheltering Pulse | 8 | archetype | 2 actions | no plan |  |
 | Shoving Sweep | 8 | archetype | reaction | no plan |  |
 | Show-Off | 8 | archetype | free | no plan |  |
-| Silence the Profane | 8 | archetype | reaction | plan | a reaction's Strike |
 | Skyseeker | 8 | archetype | 2 actions | plan | its requirement (You're in Sky and Heaven Stance.) |
 | Slurp Up | 8 | archetype | 1 action | no plan |  |
 | Soul Well | 8 | archetype | 2 actions | no plan |  |
 | Spirit's Anguish | 8 | archetype | 2 actions | no plan |  |
 | Sportlebore Choke | 8 | archetype | 1 action | plan | its requirement (Your swarm is outside your body) |
-| Stalwart Mind | 8 | archetype | reaction | no plan |  |
 | Stasian Smash | 8 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Statement Strut | 8 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | Statue | 8 | archetype | 1 action | no plan |  |
@@ -559,19 +483,16 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Swap Reflections | 8 | archetype | 2 actions | plan | a roll whose results the simulator doesn't read |
 | Tail Guard | 8 | archetype | reaction | plan | a reaction's Strike |
 | Tear Tendons | 8 | archetype | 2 actions | plan | its requirement (You are in claw stance and have two open hands) |
-| Terrifying Transformation | 8 | archetype | 1 action | no plan |  |
 | Tight Follower | 8 | archetype | reaction | no plan |  |
 | To Battle! | 8 | archetype | 2 actions | no plan |  |
 | Transfusion | 8 | archetype | 2 actions | plan | a timer with no rules a fight counts |
 | Tumbling Strike | 8 | archetype | 1 action | plan | its requirement (You are adjacent to an enemy.) |
 | Twirling Strike | 8 | archetype | 2 actions | plan | its requirement (You're wielding a fan.) |
 | Uncanny Prediction | 8 | archetype | 2 actions | plan | its requirement (You're benefiting from the bonuses of @UUID[Compendium.pf2e.actionspf2e.Item.Size Up]. You have an eeri |
-| Unfazed Assessment | 8 | archetype | 1 action | no plan |  |
 | Walk the Plank | 8 | archetype | 2 actions | no plan |  |
 | Warped Constriction | 8 | archetype | 1 action | no plan |  |
 | Wing Shove | 8 | archetype | 1 action | no plan |  |
 | Work Yourself Up | 8 | archetype | 2 actions | no plan |  |
-| Wrath of the Hold | 8 | archetype | 2 actions | no plan |  |
 | A Hush Falls Over the World | 10 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | Aerial Piledriver | 10 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Battlefront Sabotage | 10 | archetype | 2 actions | plan | a roll whose results the simulator doesn't read |
@@ -583,7 +504,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Clarify Hellfire | 10 | archetype | 1 action | no plan |  |
 | Close Contract | 10 | archetype | 1 action | plan | its requirement (You have completed your active course of action but haven't Dismissed it or chosen a new one) |
 | Command Attention | 10 | archetype | 1 action | plan | a timer with no rules a fight counts |
-| Defy Hell | 10 | archetype | 1 action | plan | its requirement (You aren't unholy) |
 | Defy Sorrow | 10 | archetype | reaction | plan | a timer with no rules a fight counts |
 | Dispute Terms | 10 | archetype | free | no plan |  |
 | Dizzying Spin Dance | 10 | archetype | 3 actions | no plan |  |
@@ -600,7 +520,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Harrying Strike | 10 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Hell-Lancer Shot | 10 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Hematocritical | 10 | archetype | free | plan | a roll twice |
-| Hunting Snag | 10 | archetype | reaction | plan | a reaction's Strike |
 | I Meant to do That | 10 | archetype | 1 action | no plan |  |
 | Infiltration Assassination | 10 | archetype | 2 actions | plan | its requirement (You're wearing a loaded gauntlet bow.) |
 | Interstitial Escape | 10 | archetype | reaction | no plan |  |
@@ -612,13 +531,11 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Mockingbird's Disarm | 10 | archetype | reaction | no plan |  |
 | Null Field | 10 | archetype | 1 action | no plan |  |
 | Open the Blazing Eye | 10 | archetype | 2 actions | plan | a timer with no rules a fight counts |
-| Opportune Opening | 10 | archetype | reaction | no plan |  |
 | Pass Through | 10 | archetype | 3 actions | plan | a teleport |
 | Protective Strike | 10 | archetype | reaction | plan | a reaction's Strike |
 | Quicken Heartbeat | 10 | archetype | 1 action | no plan |  |
 | Rain-Scribe Mobility | 10 | archetype | 2 actions | no plan |  |
 | Reactive Charm | 10 | archetype | reaction | no plan |  |
-| Redirecting Draft | 10 | archetype | reaction | no plan |  |
 | Reel 'Em In | 10 | archetype | 1 action | plan | a roll whose results the simulator doesn't read |
 | Scout's Pounce | 10 | archetype | 2 actions | plan | its requirement (You are Hidden from or Undetected by all of your opponents, and you aren't within 10 feet of any enemy. |
 | Seize Advantage | 10 | archetype | reaction | plan | a teleport |
@@ -630,11 +547,9 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Staggering Blow | 10 | archetype | 2 actions | no plan |  |
 | Steal Time | 10 | archetype | 2 actions | no plan |  |
 | Stir Allies | 10 | archetype | 2 actions | no plan |  |
-| Stunt Performer Stance | 10 | archetype | 1 action | plan | its requirement, which the PC doesn't meet (You are unarmored.) |
 | Tag Team | 10 | archetype | reaction | plan | a reaction's Strike |
 | Topple Foe | 10 | archetype | reaction | no plan |  |
 | Torrential Backlash | 10 | archetype | 2 actions | plan | its requirement (You are in a curse maelstrom state) |
-| Transcendent Deflection | 10 | archetype | reaction | no plan |  |
 | Tumbling Opportunist | 10 | archetype | free | no plan |  |
 | Venipuncture | 10 | archetype | 2 actions | no plan |  |
 | Aegis of Arnisant | 12 | archetype | 2 actions | plan | a timer with no rules a fight counts |
@@ -647,12 +562,10 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Blessed Denial | 12 | archetype | reaction | no plan |  |
 | Call the Hunt | 12 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | Cartwheel Dodge | 12 | archetype | reaction | plan | a teleport |
-| Catch and Kill | 12 | archetype | reaction | plan | a reaction's Strike |
 | Cautious Word | 12 | archetype | free | plan | a timer with no rules a fight counts |
 | Chain Reaction | 12 | archetype | 3 actions | plan | a Strike with nothing more the simulator reads |
 | Claw and Talon Flow | 12 | archetype | 1 action | plan | its requirement (You're in either claw stance or talon stance.) |
 | Collapse Wall | 12 | archetype | reaction | no plan |  |
-| Cracked Mountain | 12 | archetype | reaction | plan | a reaction's Strike |
 | Cut the Bonds | 12 | archetype | 1 action | no plan |  |
 | Danse Macabre | 12 | archetype | 2 actions | no plan |  |
 | Drive-By Attack | 12 | archetype | 1 action | plan | its requirement (You are piloting a vehicle.) |
@@ -661,13 +574,11 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Forewarn | 12 | archetype | reaction | no plan |  |
 | Frightening Power | 12 | archetype | 1 action | no plan |  |
 | General's Gambit | 12 | archetype | 3 actions | no plan |  |
-| Ghostly Condemnation | 12 | archetype | 2 actions | plan | a spell the feat casts |
 | Guarded Advance (Knight Vigilant) | 12 | archetype | 1 action | no plan |  |
 | Hungry Blade | 12 | archetype | 1 action | no plan |  |
 | One-On-One | 12 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Pouncing Transformation | 12 | archetype | 1 action | no plan |  |
 | Propelled Leap | 12 | archetype | 2 actions | no plan |  |
-| Reach for the Sky | 12 | archetype | 2 actions | no plan |  |
 | Redirect Elements | 12 | archetype | reaction | no plan |  |
 | Reflexive Grapple | 12 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Shake Off the Gods | 12 | archetype | 1 action | no plan |  |
@@ -687,20 +598,17 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Cratering Drop | 14 | archetype | 1 action | no plan |  |
 | Curse of the Saumen Kar | 14 | archetype | 2 actions | no plan |  |
 | Death Rattle | 14 | archetype | 1 action | no plan |  |
-| Death's Door | 14 | archetype | reaction | no plan |  |
 | Devastating Manifestation | 14 | archetype | 2 actions | plan | its requirement (At least one of your soulforged armaments is not manifested.) |
 | Dragon's Journey | 14 | archetype | 1 action | plan | a teleport |
 | Even the Odds (Eagle Knight) | 14 | archetype | free | plan | a roll twice |
 | Execution | 14 | archetype | 2 actions | plan | its requirement (You have condemned a foe with Harsh Judgment.) |
 | Forceful Shot | 14 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
-| Fumigate | 14 | archetype | 2 actions | plan | its requirement (You are adjacent to an enemy that harmed a member of your crop during their last turn or has a member o |
 | Hammer Quake | 14 | archetype | 3 actions | no plan |  |
 | Homing Shot | 14 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Hush | 14 | archetype | 2 actions | plan | its requirement (You are veiled) |
 | In the Horde's Grip | 14 | archetype | 1 action | no plan |  |
 | Induce Imbalance | 14 | archetype | 2 actions | plan | its requirement (You're in an elemental stance.) |
 | It Was Me All Along! | 14 | archetype | 1 action | plan | a teleport |
-| It's Not Over | 14 | archetype | reaction | no plan |  |
 | Lonely Army | 14 | archetype | 3 actions | plan | a Strike with nothing more the simulator reads |
 | March of Law | 14 | archetype | 1 action | no plan |  |
 | Mist Escape | 14 | archetype | free | no plan |  |
@@ -709,7 +617,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Path of Iron | 14 | archetype | 3 actions | no plan |  |
 | Phase Bullet | 14 | archetype | 1 action | no plan |  |
 | Pivot Strike | 14 | archetype | 2 actions | plan | its requirement (You are wielding your staff.) |
-| Pounce Mimicry | 14 | archetype | 1 action | plan | its requirement, which the PC doesn't meet (You're unarmored or wearing light armor.) |
 | Prayer Attack | 14 | archetype | 1 action | no plan |  |
 | Ranged Disarm | 14 | archetype | 1 action | no plan |  |
 | Sailfish Strike | 14 | archetype | reaction | plan | a reaction's Strike |
@@ -732,22 +639,17 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Dive of the Divine | 16 | archetype | 2 actions | plan | its requirement (You are at least 20 feet above the ground) |
 | Duelist's Form | 16 | archetype | 1 action | plan | an Effect with nothing a fight counts |
 | Emergency Regeneration | 16 | archetype | reaction | plan | a spell the feat casts |
-| Fiend Slayer | 16 | archetype | 1 action | plan | its requirement (Your last action was a successful Strike against a fiend that dealt damage) |
 | Focus Ally | 16 | archetype | reaction | no plan |  |
 | Following Smite | 16 | archetype | 1 action | plan | its requirement (Your last action was a Strike made with a weapon or unarmed attack empowered by @UUID[Compendium.pf2e.f |
 | Grave Threat | 16 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Incorporeal Shot | 16 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
-| Infernal Interference | 16 | archetype | 2 actions | plan | its requirement (You're wielding your order's favored weapon.) |
 | Infiltrator's Blitz | 16 | archetype | 3 actions | plan | a timer with no rules a fight counts |
 | Mobile Magical Combat | 16 | archetype | 1 action | plan | its requirement (You're wielding a melee weapon and have Cast a Spell requiring at least 1 action this turn.) |
 | One with the Spirits | 16 | archetype | 1 action | no plan |  |
 | Opportune Throw | 16 | archetype | reaction | plan | a reaction's Strike |
 | Purge of Moments | 16 | archetype | 3 actions | no plan |  |
 | Ruthless Orator | 16 | archetype | 2 actions | no plan |  |
-| Song of Grace and Speed | 16 | archetype | 2 actions | plan | a timer with no rules a fight counts |
 | Sonic Strafe | 16 | archetype | 2 actions | plan | its requirement (You currently have a fly Speed) |
-| Stone Body | 16 | archetype | 1 action | plan | its requirement (You are in Tenacious Stance) |
-| Storm of Claws | 16 | archetype | 3 actions | plan | its requirement (You're in either claw stance or talon stance.) |
 | Tempo Shift | 16 | archetype | free | plan | a timer with no rules a fight counts |
 | Ward Mind | 16 | archetype | reaction | plan | a timer with no rules a fight counts |
 | Wave the Flag | 16 | archetype | 1 action | no plan |  |
@@ -764,7 +666,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Stand for the Fallen | 18 | archetype | reaction | no plan |  |
 | Timeline-Splitting Spell | 18 | archetype | 3 actions | no plan |  |
 | Tragic Lament | 18 | archetype | reaction | plan | a timer with no rules a fight counts |
-| Cross the Final Horizon | 20 | archetype | 3 actions | plan | its requirement (You're in Sky and Heaven Stance.) |
 | Flash of Omnipotence | 20 | archetype | free | no plan |  |
 | The Tyrant Falls! | 20 | archetype | 2 actions | plan | a timer with no rules a fight counts |
 | Wrath of the First Ghoul | 20 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
@@ -775,24 +676,15 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Barreling Charge | 4 | barbarian | 2 actions | plan | a roll whose results the simulator doesn't read |
 | Brutal Crush | 4 | barbarian | 1 action | plan | its requirement (Your last action dealt bludgeoning damage using an unarmed Strike granted by a morph or polymorph effec |
 | Creature Comforts | 4 | barbarian | reaction | no plan |  |
-| Farabellus Flip | 4 | barbarian | reaction | no plan |  |
-| Oversized Throw | 4 | barbarian | 2 actions | plan | its requirement (You have one or more hands free.) |
 | Rip and Tear | 4 | barbarian | 1 action | plan | its requirement (Your last action dealt piercing or slashing damage using an unarmed Strike granted by a morph or polymo |
-| Scars of Steel | 4 | barbarian | reaction | no plan |  |
 | Swipe | 4 | barbarian | 2 actions | plan | a Strike with nothing more the simulator reads |
-| Wounded Rage | 4 | barbarian | reaction | plan | an Effect with nothing a fight counts |
-| Cleave | 6 | barbarian | reaction | plan | a reaction's Strike |
-| Dragon's Rage Breath | 6 | barbarian | 2 actions | no plan |  |
-| Elemental Explosion | 6 | barbarian | 2 actions | no plan |  |
 | Mage Hunter | 6 | barbarian | 2 actions | plan | its requirement (You've seen the target Cast a Spell) |
-| Scouring Rage | 6 | barbarian | free | no plan |  |
 | Animal Rage | 8 | barbarian | 1 action | plan | a spell the feat casts |
 | Disarming Assault | 8 | barbarian | 1 action | plan | a Strike with nothing more the simulator reads |
 | Follow-Up Assault | 8 | barbarian | 1 action | plan | its requirement (You used your previous action to make a melee Strike that missed.) |
 | Friendly Toss | 8 | barbarian | 2 actions | no plan |  |
 | Sudden Leap | 8 | barbarian | 2 actions | no plan |  |
 | Thrash | 8 | barbarian | 1 action | no plan |  |
-| Come and Get Me | 10 | barbarian | 1 action | plan | an Effect with nothing a fight counts |
 | Corpse-Killer's Defiance | 10 | barbarian | reaction | no plan |  |
 | Determined Dash | 10 | barbarian | 2 actions | plan | a teleport |
 | Furious Sprint | 10 | barbarian | 2 actions | no plan |  |
@@ -801,7 +693,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Resounding Blow | 10 | barbarian | 2 actions | plan | its requirement, which the PC doesn't meet (You are wielding a melee weapon that deals bludgeoning damage.) |
 | Silencing Strike | 10 | barbarian | 1 action | plan | a Strike with nothing more the simulator reads |
 | Tangle of Battle | 10 | barbarian | reaction | no plan |  |
-| Terrifying Howl | 10 | barbarian | 1 action | no plan |  |
 | Dragon's Rage Wings | 12 | barbarian | 1 action | plan | an Effect with nothing a fight counts |
 | Furious Grab | 12 | barbarian | 1 action | no plan |  |
 | Predator's Pounce | 12 | barbarian | 1 action | plan | its requirement, which the PC doesn't meet (You are unarmored or wearing light armor) |
@@ -809,20 +700,14 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Sunder Spell | 12 | barbarian | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Unbalancing Sweep | 12 | barbarian | 3 actions | no plan |  |
 | Meditate on This! | 14 | barbarian | 1 action | plan | a timer with no rules a fight counts |
-| Vengeful Strike | 14 | barbarian | reaction | plan | a reaction's Strike |
 | Whirlwind Strike | 14 | barbarian | 3 actions | plan | a Strike with nothing more the simulator reads |
-| Desperate Wrath | 16 | barbarian | free | plan | an Effect with nothing a fight counts |
 | Dragon Transformation | 16 | barbarian | 1 action | no plan |  |
-| Furious Vengeance | 16 | barbarian | reaction | plan | a reaction's Strike |
 | Penetrating Projectile | 16 | barbarian | 2 actions | plan | its requirement, which the PC doesn't meet (You are wielding a ranged or thrown weapon that deals piercing damage.) |
-| Perfect Clarity | 18 | barbarian | reaction | plan | a reroll |
 | Whirlwind Toss | 18 | barbarian | 1 action | no plan |  |
 | Annihilating Swing | 20 | barbarian | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Emotional Push | 2 | bard | reaction | no plan |  |
 | Combat Reading | 4 | bard | 1 action | no plan |  |
-| Pirouette | 6 | bard | reaction | no plan |  |
 | Grand Dance | 8 | bard | 2 actions | no plan |  |
-| Reflexive Courage | 8 | bard | reaction | plan | a reaction's Strike |
 | Reverberate | 12 | bard | reaction | plan | a roll whose results the simulator doesn't read |
 | Triumphant Inspiration | 14 | bard | free | no plan |  |
 | Resounding Finale | 16 | bard | reaction | no plan |  |
@@ -833,7 +718,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Devoted Guardian | 2 | champion | 1 action | no plan |  |
 | Everstand Strike | 4 | champion | 1 action | plan | a Strike with nothing more the simulator reads |
 | Knock Sense | 4 | champion | 1 action | no plan |  |
-| Smite | 6 | champion | 1 action | no plan |  |
 | Impassable Wall Stance | 8 | champion | 1 action | no plan |  |
 | Sacrifice Armor | 8 | champion | reaction | no plan |  |
 | Shield of Reckoning | 10 | champion | reaction | no plan |  |
@@ -846,31 +730,24 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Channel Smite | 4 | cleric | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Restorative Strike | 4 | cleric | 2 actions | plan | its requirement (You have a Harm or Heal spell you can cast.) |
 | Divine Rebuttal | 6 | cleric | reaction | plan | a reaction's Strike |
-| Divine Weapon | 6 | cleric | free | no plan |  |
 | Sanctify Armament | 8 | cleric | 1 action | no plan |  |
 | Zealous Rush | 8 | cleric | reaction | plan | a teleport |
 | Rebounding Smite | 16 | cleric | reaction | no plan |  |
 | Avatar's Protection | 20 | cleric | reaction | no plan |  |
 | Denier of Destruction | 20 | cleric | reaction | no plan |  |
 | Combat Assessment | 1 | commander | 1 action | plan | a Strike with nothing more the simulator reads |
-| Plant Banner | 1 | commander | 1 action | no plan |  |
 | Defensive Swap | 2 | commander | reaction | no plan |  |
 | Guiding Shot | 2 | commander | 1 action | no plan |  |
 | Set-Up Strike | 2 | commander | 1 action | no plan |  |
 | Banner Twirl | 4 | commander | 1 action | plan | a timer with no rules a fight counts |
 | Banner's Inspiration | 4 | commander | 1 action | no plan |  |
 | Unsteadying Strike | 4 | commander | 1 action | plan | a Strike with nothing more the simulator reads |
-| Defiant Banner | 8 | commander | 1 action | plan | an Effect with nothing a fight counts |
 | Rallying Banner | 8 | commander | 1 action | no plan |  |
 | Standard-Bearer's Sacrifice | 10 | commander | reaction | no plan |  |
 | Reactive Interference | 12 | commander | reaction | no plan |  |
-| Quickening Banner | 14 | commander | 1 action | plan | a timer with no rules a fight counts |
 | Demand Surrender | 18 | commander | 2 actions | no plan |  |
 | Mercenary Reversal | 18 | commander | 2 actions | no plan |  |
-| Deimatic Display | 8 | druid | 1 action | no plan |  |
-| Fiery Retort | 8 | druid | reaction | no plan |  |
 | Eerie Proclamation | 10 | druid | 2 actions | plan | a timer with no rules a fight counts |
-| Harden Flesh | 10 | druid | 1 action | plan | its requirement (You're standing on earthen or stone ground) |
 | Defensive Dismissal | 12 | druid | reaction | no plan |  |
 | Pesh Skin | 12 | druid | 1 action | no plan |  |
 | Reactive Transformation | 14 | druid | reaction | plan | a spell the feat casts |
@@ -879,14 +756,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Topple The Titans | 4 | exemplar | 1 action | no plan |  |
 | Flow of War | 6 | exemplar | free | no plan |  |
 | As a Thousand Soldiers | 8 | exemplar | 2 actions | no plan |  |
-| Battle Hymn to the Lost | 8 | exemplar | 2 actions | plan | a Strike with nothing more the simulator reads |
-| Forward Gaze Into Life | 8 | exemplar | 2 actions | no plan |  |
 | Raise Island | 8 | exemplar | 3 actions | plan | a timer with no rules a fight counts |
-| Rejoice in Solstice Storm | 8 | exemplar | 2 actions | no plan |  |
 | Exult in Violence | 10 | exemplar | 1 action | no plan |  |
-| Point Blank Stance | 1 | fighter | 1 action | plan | its requirement, which the PC doesn't meet (You are wielding a ranged weapon.) |
-| Reactive Shield | 1 | fighter | reaction | no plan |  |
-| Snagging Strike | 1 | fighter | 1 action | plan | its requirement, which the PC doesn't meet (You have one hand free, and your target is within reach of that hand.) |
 | Aggressive Block | 2 | fighter | free | plan | a timer with no rules a fight counts |
 | Assisting Shot | 2 | fighter | 1 action | plan | its requirement, which the PC doesn't meet (You are wielding a ranged weapon.) |
 | Combat Grab | 2 | fighter | 1 action | plan | its requirement, which the PC doesn't meet (You have one hand free, and your target is within reach of that hand.) |
@@ -902,24 +773,18 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Advantageous Assault | 6 | fighter | 1 action | plan | a Strike with nothing more the simulator reads |
 | Dazing Blow | 6 | fighter | 1 action | plan | a Strike with nothing more the simulator reads |
 | Disarming Stance | 6 | fighter | 1 action | plan | its requirement, which the PC doesn't meet (You are wielding a single one-handed melee weapon and hold nothing else in y |
-| Guardian's Deflection (Fighter) | 6 | fighter | reaction | no plan |  |
 | Revealing Stab | 6 | fighter | 2 actions | plan | its requirement (You are wielding a melee weapon that can deal piercing damage.) |
 | Ricochet Stance (Fighter) | 6 | fighter | 1 action | plan | an Effect with nothing a fight counts |
-| Shatter Defenses | 6 | fighter | 1 action | plan | its requirement (A Frightened creature is in your melee reach.) |
 | Spear Dancer | 6 | fighter | 1 action | plan | its requirement (You are wielding a weapon from the spear or polearm group) |
-| Dueling Riposte | 8 | fighter | reaction | plan | a reaction's Strike |
 | Felling Strike | 8 | fighter | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Knight's Retaliation | 8 | fighter | reaction | no plan |  |
 | Mobile Shot Stance | 8 | fighter | 1 action | no plan |  |
 | Positioning Assault | 8 | fighter | 2 actions | plan | its requirement (You are wielding a two-handed melee weapon and your target is within your reach.) |
 | Certain Strike | 10 | fighter | 1 action | plan | a Strike with nothing more the simulator reads |
-| Cut From the Air | 10 | fighter | reaction | no plan |  |
-| Dazzling Display | 10 | fighter | 1 action | no plan |  |
 | Disruptive Stance | 10 | fighter | 1 action | no plan |  |
 | Haft Beatdown | 10 | fighter | 3 actions | plan | its requirement (You are in Haft Striker Stance.) |
 | Halyard Strike | 10 | fighter | 2 actions | plan | its requirement (A rope is within your reach, or you have a rope or grappling weapon in your hand.) |
 | Mirror Shield | 10 | fighter | reaction | no plan |  |
-| Twin Riposte | 10 | fighter | reaction | plan | a reaction's Strike |
 | Brutal Finish | 12 | fighter | 1 action | plan | a Strike with nothing more the simulator reads |
 | Dashing Strike | 12 | fighter | 1 action | plan | its requirement (You are adjacent to an enemy.) |
 | Incredible Ricochet | 12 | fighter | 1 action | plan | a Strike with nothing more the simulator reads |
@@ -944,21 +809,17 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Lock Down | 6 | guardian | 1 action | plan | its requirement (You are in Hampering Stance.) |
 | Retaliating Rescue | 6 | guardian | 2 actions | plan | its text has no Strike of its user's |
 | Ring Their Bell | 6 | guardian | 1 action | plan | a Strike with nothing more the simulator reads |
-| Stomp Ground | 6 | guardian | 2 actions | no plan |  |
 | Repositioning Block | 8 | guardian | free | no plan |  |
 | Shield from Arrows | 8 | guardian | reaction | plan | an Effect with nothing a fight counts |
 | Shield Wallop | 8 | guardian | 1 action | no plan |  |
 | Belly Flop | 10 | guardian | 1 action | plan | a Strike with nothing more the simulator reads |
 | Momentum Strike | 10 | guardian | 2 actions | plan | a Strike with nothing more the simulator reads |
-| Tough Cookie | 10 | guardian | 2 actions | plan | its requirement (Your current Hit Points are at half your maximum or less) |
 | Armor Break | 12 | guardian | 2 actions | no plan |  |
 | Armored Counterattack | 12 | guardian | free | no plan |  |
 | Scattering Charge | 12 | guardian | 3 actions | plan | a teleport |
 | Blanket Defense | 14 | guardian | 3 actions | no plan |  |
 | Bloody Denial | 14 | guardian | 2 actions | plan | a Strike with nothing more the simulator reads |
-| Clang! | 16 | guardian | reaction | plan | a timer with no rules a fight counts |
 | Blast Lock | 1 | gunslinger | 1 action | no plan |  |
-| Hit the Dirt! | 1 | gunslinger | reaction | plan | a teleport |
 | Fake Out | 2 | gunslinger | reaction | no plan |  |
 | Pistol Twirl | 2 | gunslinger | 1 action | no plan |  |
 | Quick Draw | 2 | gunslinger | 1 action | plan | nothing a fight uses |
@@ -975,7 +836,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Scatter Blast | 6 | gunslinger | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Seize an Advantage | 6 | gunslinger | 1 action | plan | its requirement (Your last action this turn was to attempt a Dirty Trick against a foe.) |
 | Triggerbrand Salvo | 6 | gunslinger | 1 action | plan | its requirement (You're wielding a combination weapon.) |
-| Grit and Tenacity | 8 | gunslinger | reaction | plan | a reroll |
 | Smoke Curtain | 8 | gunslinger | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Deflecting Shot | 10 | gunslinger | reaction | no plan |  |
 | Penetrating Fire | 10 | gunslinger | 2 actions | plan | a Strike with nothing more the simulator reads |
@@ -990,126 +850,71 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Dance of Thunder | 14 | gunslinger | 3 actions | plan | a timer with no rules a fight counts |
 | Headshot | 14 | gunslinger | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Triggerbrand Blitz | 14 | gunslinger | 3 actions | plan | a timer with no rules a fight counts |
-| Two-Weapon Fusillade | 14 | gunslinger | 1 action | plan | its requirement, which the PC doesn't meet (You're wielding two weapons, each in a different hand. At least one of these |
 | Instant Return | 16 | gunslinger | reaction | plan | a reaction's Strike |
 | Final Shot | 18 | gunslinger | 3 actions | plan | its requirement (You're wielding an unloaded firearm.) |
 | Oil Fire | 2 | inventor | 1 action | no plan |  |
 | Wukong Extension | 2 | inventor | 1 action | no plan |  |
 | Megaton Strike | 4 | inventor | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Clockwork Celerity | 6 | inventor | free | plan | a free's Strike |
-| Megavolt | 6 | inventor | 2 actions | no plan |  |
 | Silk Bracelet | 6 | inventor | 2 actions | plan | a Strike with nothing more the simulator reads |
-| Guardian Lion Roar | 8 | inventor | 2 actions | plan | a timer with no rules a fight counts |
 | Overdrive Ally | 8 | inventor | 1 action | no plan |  |
-| Distracting Explosion | 10 | inventor | reaction | plan | a reaction's Strike |
-| Electrify Armor | 10 | inventor | 1 action | plan | a timer with no rules a fight counts |
 | Geobukseon Retaliation | 10 | inventor | reaction | no plan |  |
 | Helpful Tinkering | 10 | inventor | 1 action | no plan |  |
 | Celestial Cacophony | 12 | inventor | 3 actions | plan | a timer with no rules a fight counts |
-| Deep Freeze | 12 | inventor | 2 actions | no plan |  |
 | Explosive Maneuver | 14 | inventor | 1 action | no plan |  |
 | You Failed to Account For... This! | 16 | inventor | reaction | no plan |  |
 | Devastating Weaponry | 18 | inventor | 3 actions | plan | a Strike with nothing more the simulator reads |
-| Negate Damage | 18 | inventor | reaction | no plan |  |
 | Exploit Blunder | 2 | investigator | reaction | plan | a teleport |
 | Connect the Dots | 6 | investigator | 2 actions | no plan |  |
 | Read the Dust | 6 | investigator | reaction | no plan |  |
 | Foresee Danger | 12 | investigator | reaction | no plan |  |
 | Just as Planned | 12 | investigator | free | no plan |  |
-| Surgical Shock | 12 | investigator | 1 action | plan | a roll whose results the simulator doesn't read |
-| Aerial Boomerang | 1 | kineticist | 2 actions | plan | a timer with no rules a fight counts |
 | Air Cushion | 1 | kineticist | reaction | no plan |  |
 | Armor in Earth | 1 | kineticist | 1 action | plan | a timer with no rules a fight counts |
 | Burning Jet | 1 | kineticist | 2 actions | plan | a timer with no rules a fight counts |
-| Deflecting Wave | 1 | kineticist | reaction | plan | its requirement (You're aware of the hostile effect, and you aren't Off-Guard against it) |
-| Flying Flame | 1 | kineticist | 2 actions | no plan |  |
 | Four Winds | 1 | kineticist | 2 actions | no plan |  |
 | Fresh Produce | 1 | kineticist | 1 action | no plan |  |
-| Hail of Splinters | 1 | kineticist | 2 actions | no plan |  |
 | Hardwood Armor | 1 | kineticist | 1 action | plan | a timer with no rules a fight counts |
-| Magnetic Pinions | 1 | kineticist | 3 actions | no plan |  |
 | Metal Carapace | 1 | kineticist | 1 action | plan | a timer with no rules a fight counts |
-| Ocean's Balm | 1 | kineticist | 1 action | no plan |  |
-| Scorching Column | 1 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
-| Shard Strike | 1 | kineticist | 2 actions | plan | a timer with no rules a fight counts |
-| Tidal Hands | 1 | kineticist | 2 actions | no plan |  |
-| Tremor | 1 | kineticist | 2 actions | plan | a lasting area |
 | Weapon Infusion | 1 | kineticist | free | plan | an Effect with nothing a fight counts |
-| Winter's Clutch | 1 | kineticist | 2 actions | plan | a lasting area |
 | Ambush Bladderwort | 4 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
-| Blazing Wave | 4 | kineticist | 2 actions | no plan |  |
 | Command Elemental | 4 | kineticist | 2 actions | no plan |  |
-| Lightning Dash | 4 | kineticist | 2 actions | no plan |  |
 | Living Bonfire | 4 | kineticist | 2 actions | plan | a timer with no rules a fight counts |
-| Rain of Rust | 4 | kineticist | 3 actions | no plan |  |
 | Ravel of Thorns | 4 | kineticist | 1 action | no plan |  |
 | Return to the Sea | 4 | kineticist | 2 actions | plan | a spell the feat casts |
 | Thermal Nimbus | 4 | kineticist | 1 action | no plan |  |
-| Tumbling Lumber | 4 | kineticist | 2 actions | no plan |  |
-| Whirling Grindstone | 4 | kineticist | 2 actions | plan | a timer with no rules a fight counts |
 | Winter Sleet | 4 | kineticist | 1 action | no plan |  |
 | Ash Strider | 6 | kineticist | 2 actions | plan | a timer with no rules a fight counts |
-| Consume Power | 6 | kineticist | reaction | plan | a choice of ways the simulator doesn't play |
 | Counter Element | 6 | kineticist | reaction | no plan |  |
 | Crawling Fire | 6 | kineticist | 2 actions | plan | a timer with no rules a fight counts |
-| Dash of Herbs | 6 | kineticist | 2 actions | no plan |  |
 | Desert Wind | 6 | kineticist | 1 action | plan | an Effect with nothing a fight counts |
-| Driving Rain | 6 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
-| Elemental Artillery | 6 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
-| Flinging Updraft | 6 | kineticist | 2 actions | no plan |  |
 | Jagged Berms | 6 | kineticist | 3 actions | no plan |  |
 | Lightning Rod | 6 | kineticist | 3 actions | no plan |  |
-| Molten Wire | 6 | kineticist | 2 actions | no plan |  |
-| Rising Hurricane | 6 | kineticist | 3 actions | no plan |  |
-| Roiling Mudslide | 6 | kineticist | 2 actions | no plan |  |
 | Sand Snatcher | 6 | kineticist | 2 actions | plan | a timer with no rules a fight counts |
 | Scrap Barricade | 6 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
 | Torrent in the Blood | 6 | kineticist | 2 actions | no plan |  |
 | Tree of Duality | 6 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
 | Two-Element Infusion | 6 | kineticist | free | no plan |  |
 | Volcanic Escape | 6 | kineticist | reaction | no plan |  |
-| Weight of Stone | 6 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
 | Wooden Palisade | 6 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
-| Call the Hurricane | 8 | kineticist | 2 actions | no plan |  |
 | Conductive Sphere | 8 | kineticist | 2 actions | no plan |  |
 | Drifting Pollen | 8 | kineticist | 1 action | no plan |  |
 | Kindle Inner Flames | 8 | kineticist | 1 action | no plan |  |
-| Retch Rust | 8 | kineticist | 2 actions | no plan |  |
-| Sanguivolent Roots | 8 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
-| Solar Detonation | 8 | kineticist | 3 actions | no plan |  |
-| Spike Skin | 8 | kineticist | 2 actions | no plan |  |
-| Storm Spiral | 8 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
 | Swim Through Earth | 8 | kineticist | 2 actions | plan | a timer with no rules a fight counts |
 | Chain Infusion | 10 | kineticist | 1 action | no plan |  |
 | Architect of Flame | 12 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
 | Ghosts in the Storm | 12 | kineticist | 1 action | no plan |  |
-| Glacial Prison | 12 | kineticist | 2 actions | plan | a timer with no rules a fight counts |
-| Rain of Razors | 12 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
 | Rock Rampart | 12 | kineticist | 3 actions | plan | a spell the feat casts |
 | Sea Glass Guardians | 12 | kineticist | 1 action | no plan |  |
-| Shattershields | 12 | kineticist | 1 action | plan | an Effect with nothing a fight counts |
-| Witchwood Seed | 12 | kineticist | 2 actions | no plan |  |
-| Alloy Flesh and Steel | 14 | kineticist | 2 actions | no plan |  |
 | Body of Air | 14 | kineticist | reaction | plan | a timer with no rules a fight counts |
 | Liberating Dive | 14 | kineticist | 2 actions | no plan |  |
-| Orchard's Endurance | 14 | kineticist | 1 action | no plan |  |
-| Walk Through the Conflagration | 14 | kineticist | 2 actions | no plan |  |
-| All Shall End in Flames | 18 | kineticist | 3 actions | no plan |  |
-| Hell of 1,000,000 Needles | 18 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
-| Ignite the Sun | 18 | kineticist | 2 actions | plan | a timer with no rules a fight counts |
-| Infinite Expanse of Bluest Heaven | 18 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
-| Ride the Tsunami | 18 | kineticist | 3 actions | no plan |  |
 | Rouse the Forest's Fury | 18 | kineticist | 3 actions | plan | its text has no Strike of its user's |
-| The Shattered Mountain Weeps | 18 | kineticist | 3 actions | no plan |  |
-| The Thousand Lashes of the Weeping Willow | 18 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
 | Turn the Wheel of Seasons | 18 | kineticist | 3 actions | plan | a timer with no rules a fight counts |
 | Usurp the Lunar Reins | 18 | kineticist | 3 actions | plan | a lasting area |
 | Magus's Analysis | 1 | magus | 1 action | no plan |  |
-| Spell Parry | 2 | magus | 1 action | plan | an Effect with nothing a fight counts |
 | Devastating Spellstrike | 4 | magus | 2 actions | no plan |  |
 | Distant Waterbird's Poise | 4 | magus | reaction | plan | a timer with no rules a fight counts |
 | Distracting Spellstrike | 4 | magus | 2 actions | no plan |  |
-| Emergency Targe | 4 | magus | reaction | no plan |  |
 | Exploding Bullet | 4 | magus | 1 action | no plan |  |
 | Recharging Flurry | 4 | magus | 2 actions | plan | its requirement, which the PC doesn't meet (You're wielding two melee weapons, each in a different hand.) |
 | Running Recharge | 4 | magus | 1 action | no plan |  |
@@ -1121,45 +926,24 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Killshot's Report | 10 | magus | reaction | no plan |  |
 | Unsheathing the Sword-Light | 10 | magus | 2 actions | plan | a choice of ways the simulator doesn't play |
 | Overwhelming Spellstrike | 12 | magus | 2 actions | no plan |  |
-| Preternatural Parry | 14 | magus | reaction | plan | a timer with no rules a fight counts |
 | Dispelling Spellstrike | 16 | magus | 3 actions | no plan |  |
 | Stolen Spell | 18 | magus | free | no plan |  |
 | Whirlwind Spell | 20 | magus | 3 actions | plan | its text has no Strike of its user's |
-| Dragon Stance | 1 | monk | 1 action | no plan |  |
-| Gorilla Stance | 1 | monk | 1 action | no plan |  |
 | Monastic Archer Stance | 1 | monk | 1 action | no plan |  |
-| Reflective Ripple Stance | 1 | monk | 1 action | no plan |  |
-| Rushing Goat Stance | 1 | monk | 1 action | no plan |  |
-| Stumbling Stance | 1 | monk | 1 action | plan | its Effect has nothing a fight counts |
-| Twisting Petal Stance | 1 | monk | 1 action | no plan |  |
 | Waterfowl Stance | 2 | monk | 1 action | no plan |  |
-| Deflect Projectile | 4 | monk | reaction | no plan |  |
 | Divert Streamflow | 4 | monk | reaction | no plan |  |
 | Flying Kick | 4 | monk | 2 actions | no plan |  |
 | Peafowl Stance | 4 | monk | 1 action | plan | an Effect with nothing a fight counts |
-| Stand Still | 4 | monk | reaction | plan | a reaction's Strike |
-| Tributary Circulation | 4 | monk | 1 action | plan | an Effect with nothing a fight counts |
-| Blazing Talon Surge | 6 | monk | 2 actions | plan | its requirement (You are in Rain of Embers Stance.) |
 | Crane Flutter | 6 | monk | reaction | plan | a reaction's Strike |
 | Culvert's Collapse | 6 | monk | 1 action | plan | its requirement (You are in Flood Stance and were damaged by an enemy since your previous turn.) |
-| Dragon Roar | 6 | monk | 1 action | plan | its requirement (You are in @UUID[Compendium.pf2e.feats-srd.Item.Dragon Stance] You bellow, instilling fear in your enem |
-| Gorilla Pound | 6 | monk | 1 action | plan | its requirement (You are in Gorilla Stance.) |
-| Momentous Charge | 6 | monk | 2 actions | plan | its requirement (You're in Rushing Goat Stance.) |
-| Mountain Stronghold | 6 | monk | 1 action | plan | its requirement (You are in @UUID[Compendium.pf2e.feats-srd.Item.Mountain Stance] You focus on your connection to the ea |
-| One-Inch Punch | 6 | monk | 2 actions | plan | a choice of ways the simulator doesn't play |
 | Tiger Slash | 6 | monk | 2 actions | plan | its requirement (You are in Tiger Stance) |
 | Whirling Throw | 6 | monk | 1 action | no plan |  |
 | Wolf Drag | 6 | monk | 2 actions | plan | its requirement (You are in Wolf Stance) |
-| Kaiju Stance | 8 | monk | 1 action | no plan |  |
 | Pinning Fire | 8 | monk | reaction | no plan |  |
 | Rippling Spin | 8 | monk | reaction | no plan |  |
-| Scattering in Spring | 8 | monk | reaction | no plan |  |
 | Snakebird's Shadow | 8 | monk | 2 actions | plan | its requirement (You are in Waterfowl Stance and are wielding a monk weapon from the sword group.) |
-| Tangled Forest Stance | 8 | monk | 1 action | no plan |  |
-| Wake to Strife | 8 | monk | 2 actions | plan | its requirement (A creature within your reach is Prone or swimming) |
 | Wall Run | 8 | monk | 1 action | plan | a teleport |
 | Blazing Streak | 10 | monk | 3 actions | plan | a teleport |
-| Cobra Envenom | 10 | monk | 1 action | plan | its requirement (You are in Cobra Stance.) |
 | Knockback Strike | 10 | monk | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Peafowl Strut | 10 | monk | 1 action | plan | its requirement (You are in Peafowl Stance.) |
 | Sleeper Hold | 10 | monk | 1 action | no plan |  |
@@ -1167,13 +951,9 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Winding Flow | 10 | monk | 1 action | no plan |  |
 | Disrupt Qi | 12 | monk | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Dodging Roll | 12 | monk | reaction | plan | a choice of ways the simulator doesn't play |
-| Five-Gods Ram | 12 | monk | 3 actions | plan | its requirement (You're in Rushing Goat Stance.) |
 | Focused Shot | 12 | monk | 1 action | plan | its requirement (You are in Monastic Archer Stance.) |
-| Whirling in the Summer Storm | 12 | monk | 3 actions | plan | its requirement (You're in @UUID[Compendium.pf2e.feats-srd.Item.Twisting Petal Stance]. Your hands move in a hypnotic an |
 | Explosive Death Drop | 14 | monk | 1 action | plan | its requirement (You are in @UUID[Compendium.pf2e.feats-srd.Item.Rain of Embers Stance] and have a target Grabbed or Res |
 | Form Lock | 14 | monk | 1 action | no plan |  |
-| Ironblood Surge | 14 | monk | 1 action | plan | a timer with no rules a fight counts |
-| Mountain Quake | 14 | monk | 1 action | plan | its requirement (You are in @UUID[Compendium.pf2e.feats-srd.Item.Mountain Stance] You stomp, shaking the earth beneath y |
 | Tangled Forest Rake | 14 | monk | 1 action | plan | its requirement (You are in Tangled Forest Stance.) |
 | Whirling Blade Stance | 14 | monk | 1 action | plan | an Effect with nothing a fight counts |
 | Wild Winds Gust | 14 | monk | 2 actions | plan | its requirement (You are in Wild Winds Stance) |
@@ -1182,8 +962,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Shattering Strike (Monk) | 16 | monk | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Swift River | 18 | monk | free | no plan |  |
 | Godbreaker | 20 | monk | 3 actions | plan | a Strike with nothing more the simulator reads |
-| Impossible Technique | 20 | monk | reaction | no plan |  |
-| Vitality-Manipulating Stance | 20 | monk | 1 action | no plan |  |
 | Draining Strike | 2 | necromancer | 1 action | plan | a choice of ways the simulator doesn't play |
 | Body Shield | 4 | necromancer | reaction | no plan |  |
 | Ghostly Stride | 4 | necromancer | 1 action | plan | a teleport |
@@ -1196,14 +974,10 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Amalgamate | 14 | necromancer | 1 action | no plan |  |
 | Blood Pool | 14 | necromancer | reaction | plan | a timer with no rules a fight counts |
 | Anatomical Quartering | 16 | necromancer | 3 actions | no plan |  |
-| Desperate Revival | 16 | necromancer | reaction | plan | a roll whose results the simulator doesn't read |
 | Soul Thief | 20 | necromancer | 3 actions | no plan |  |
-| Oracular Warning | 1 | oracle | free | plan | an Effect with nothing a fight counts |
 | Whispers of Weakness | 1 | oracle | 1 action | plan | an Effect with nothing a fight counts |
 | Meddling Futures | 2 | oracle | free | no plan |  |
-| Bespell Strikes | 4 | oracle | free | no plan |  |
 | Thousand Visions | 4 | oracle | free | plan | a timer with no rules a fight counts |
-| On Borrowed Time | 10 | oracle | 2 actions | no plan |  |
 | Roll the Bones of Fate | 10 | oracle | 1 action | no plan |  |
 | The Dead Walk | 10 | oracle | 2 actions | no plan |  |
 | Waters of Creation | 10 | oracle | 2 actions | no plan |  |
@@ -1211,7 +985,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Blaze of Revelation | 18 | oracle | free | plan | its requirement (You are Cursebound 4) |
 | Free the Bound | 1 | other | reaction | no plan |  |
 | Blasting Beams | 2 | other | 1 action | no plan |  |
-| Bone Spikes | 2 | other | 1 action | no plan |  |
 | Borrowed Ability | 2 | other | 1 action | plan | a timer with no rules a fight counts |
 | Consume Energy | 2 | other | reaction | no plan |  |
 | Draining Touch | 2 | other | 1 action | no plan |  |
@@ -1219,14 +992,12 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Ghostly Grasp (Deviant) | 2 | other | 1 action | plan | a timer with no rules a fight counts |
 | Release Spores | 2 | other | 2 actions | plan | a lasting area |
 | Rotten Slurry | 2 | other | 1 action | no plan |  |
-| Sonic Dash | 2 | other | 1 action | plan | a timer with no rules a fight counts |
 | Sprout Fruit | 2 | other | 1 action | no plan |  |
 | Vine Lash | 2 | other | 1 action | no plan |  |
 | Prescience | 4 | other | free | no plan |  |
 | Surface Rush | 4 | other | 2 actions | no plan |  |
 | Correct the Story | 6 | other | reaction | no plan |  |
 | Divert Destiny | 6 | other | free | no plan |  |
-| Kinetic Dampening | 6 | other | 1 action | plan | a timer with no rules a fight counts |
 | Repel Assault | 6 | other | reaction | plan | a reaction's Strike |
 | Unrivaled Retort | 6 | other | reaction | plan | a reaction's Strike |
 | Arc of Destruction | 8 | other | reaction | no plan |  |
@@ -1269,10 +1040,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Army of One | 18 | other | 3 actions | plan | its requirement (Your nimbus is active.) |
 | Brandish Authority | 18 | other | 2 actions | plan | a timer with no rules a fight counts |
 | Final Shot Knows the Way | 18 | other | 2 actions | no plan |  |
-| Imprison Foe | 18 | other | 1 action | plan | its requirement (Your last action dealt damage to a creature) |
 | Legend of Combat | 18 | other | 1 action | no plan |  |
 | Liberty or Death | 18 | other | 2 actions | plan | its requirement (A creature has been the target of your Ultimatum of Liberation for at least 1 minute) |
-| On My Best Day | 18 | other | 1 action | no plan |  |
 | Pass Vengeful Judgment | 18 | other | 1 action | plan | its requirement (Your hierophant invoked your judgment on their previous turn To prevent yourself from frivolously calli |
 | Shining Glory | 18 | other | 2 actions | plan | its requirement (Your nimbus is active) |
 | Sovereign's Blade | 18 | other | 2 actions | plan | a timer with no rules a fight counts |
@@ -1284,9 +1053,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Scour the Library | 10 | psychic | 1 action | no plan |  |
 | All in Your Head | 18 | psychic | reaction | no plan |  |
 | Crossbow Ace | 1 | ranger | 1 action | no plan |  |
-| Twin Takedown | 1 | ranger | 1 action | plan | its requirement, which the PC doesn't meet (You are wielding two melee weapons, each in a different hand.) |
 | Relentless Stalker | 2 | ranger | reaction | no plan |  |
-| Disrupt Prey | 4 | ranger | reaction | plan | a reaction's Strike |
 | Skirmish Strike | 6 | ranger | 1 action | plan | nothing a fight uses |
 | Deadly Aim | 8 | ranger | 1 action | plan | a Strike with nothing more the simulator reads |
 | Hamstringing Strike | 8 | ranger | 1 action | plan | a Strike with nothing more the simulator reads |
@@ -1312,10 +1079,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Twist the Knife | 6 | rogue | 1 action | no plan |  |
 | Bullseye | 8 | rogue | 1 action | no plan |  |
 | Delay Trap | 8 | rogue | reaction | no plan |  |
-| Opportune Backstab | 8 | rogue | reaction | plan | a reaction's Strike |
 | Ricochet Stance (Rogue) | 8 | rogue | 1 action | plan | an Effect with nothing a fight counts |
 | Sawtooth Grapple | 8 | rogue | 2 actions | plan | its requirement (You're wielding two weapons, at least one of which is a sawtooth saber.) |
-| Sidestep | 8 | rogue | reaction | no plan |  |
 | Subtle Shank | 8 | rogue | 2 actions | no plan |  |
 | Swipe Souvenir | 8 | rogue | 2 actions | no plan |  |
 | Tactical Entry | 8 | rogue | free | plan | a teleport |
@@ -1323,17 +1088,13 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Fantastic Leap | 12 | rogue | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Felling Shot | 12 | rogue | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Preparation | 12 | rogue | 1 action | no plan |  |
-| Defensive Roll | 14 | rogue | free | no plan |  |
-| Instant Opening | 14 | rogue | 1 action | plan | a timer with no rules a fight counts |
 | Cognitive Loophole | 16 | rogue | reaction | plan | a timer with no rules a fight counts |
 | Cutthroat Grapple | 16 | rogue | reaction | plan | a reaction's Strike |
 | Dispelling Slice | 16 | rogue | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Swift Elusion | 16 | rogue | reaction | no plan |  |
-| Sanguine Evasion | 18 | rogue | reaction | no plan |  |
 | Reactive Distraction | 20 | rogue | reaction | no plan |  |
 | Engraving Strike | 1 | runesmith | 1 action | no plan |  |
 | Remote Detonation | 1 | runesmith | 1 action | plan | a Strike with nothing more the simulator reads |
-| Rune Ward | 1 | runesmith | reaction | no plan |  |
 | Pattern Flight | 2 | runesmith | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Artist's Attendance | 4 | runesmith | 2 actions | plan | a teleport |
 | Engraving Maneuver | 6 | runesmith | 1 action | no plan |  |
@@ -1352,32 +1113,23 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Return Unto Runes | 16 | runesmith | reaction | plan | a timer with no rules a fight counts |
 | Annihilating Compound Invocation | 18 | runesmith | 1 action | no plan |  |
 | Blood Rising | 1 | sorcerer | reaction | plan | a timer with no rules a fight counts |
-| Ruby Resurrection | 20 | sorcerer | reaction | plan | a timer with no rules a fight counts |
-| Extravagant Parry | 1 | swashbuckler | 1 action | no plan |  |
-| Flashy Dodge | 1 | swashbuckler | reaction | no plan |  |
 | One for All | 1 | swashbuckler | 1 action | no plan |  |
 | Brandishing Draw | 2 | swashbuckler | 1 action | no plan |  |
-| Charmed Life | 2 | swashbuckler | reaction | no plan |  |
 | Retreating Finisher | 2 | swashbuckler | 1 action | plan | a Strike with nothing more the simulator reads |
 | Swan Dive | 2 | swashbuckler | 1 action | no plan |  |
 | Dastardly Dash | 4 | swashbuckler | 1 action | plan | a teleport |
-| Guardian's Deflection (Swashbuckler) | 4 | swashbuckler | reaction | no plan |  |
 | Impaling Finisher | 4 | swashbuckler | 1 action | plan | a Strike with nothing more the simulator reads |
-| Leading Dance | 4 | swashbuckler | 1 action | plan | its requirement (You are adjacent to an enemy) |
 | Twirling Throw | 4 | swashbuckler | 1 action | no plan |  |
 | Vexing Tumble | 6 | swashbuckler | 1 action | plan | a teleport |
 | Bleeding Finisher | 8 | swashbuckler | 1 action | plan | a Strike with nothing more the simulator reads |
 | Distracting Toss | 8 | swashbuckler | 2 actions | plan | a Strike with nothing more the simulator reads |
-| Dual Finisher | 8 | swashbuckler | 1 action | plan | its requirement (You wield two melee weapons, one in each hand.) |
 | Stunning Finisher | 8 | swashbuckler | 1 action | plan | a Strike with nothing more the simulator reads |
 | Vivacious Bravado | 8 | swashbuckler | 1 action | plan | its requirement (You gained @UUID[Compendium.pf2e.classfeatures.Item.Panache] this turn) |
 | Switcheroo | 10 | swashbuckler | reaction | no plan |  |
-| Cheat Death | 12 | swashbuckler | reaction | plan | an Effect with nothing a fight counts |
 | Get Used to Disappointment | 12 | swashbuckler | free | no plan |  |
 | The Bigger They Are | 12 | swashbuckler | 1 action | no plan |  |
 | Flamboyant Leap | 14 | swashbuckler | 2 actions | no plan |  |
 | Perfect Finisher | 14 | swashbuckler | 1 action | plan | a Strike with nothing more the simulator reads |
-| Revitalizing Finisher | 16 | swashbuckler | 1 action | plan | a Strike with nothing more the simulator reads |
 | Lethal Finisher | 18 | swashbuckler | 1 action | plan | a Strike with nothing more the simulator reads |
 | Illimitable Finisher | 20 | swashbuckler | 1 action | plan | a teleport |
 | Vivacious Afterimage | 20 | swashbuckler | 1 action | plan | a timer with no rules a fight counts |
@@ -1397,7 +1149,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Convincing Illusion | 6 | wizard | reaction | no plan |  |
 | Spell Tinker | 16 | wizard | 2 actions | no plan |  |
 
-## Passives that change a class feature (272)
+## Passives that change a class feature (253)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -1431,14 +1183,10 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Investigator's Stratagem | 4 | archetype | passive | no plan |  |
 | Repeating Hand Crossbow Training | 4 | archetype | passive | no plan |  |
 | Safety Measures | 4 | archetype | passive | no plan |  |
-| Sneak Attacker | 4 | archetype | passive | no plan |  |
 | Spell Runes | 4 | archetype | passive | no plan |  |
 | Spellstriker | 4 | archetype | passive | no plan |  |
 | Through the Gate | 4 | archetype | passive | no plan |  |
 | Advanced Element Control | 6 | archetype | passive | no plan |  |
-| Butterfly's Sting | 6 | archetype | passive | no plan |  |
-| Champion's Reaction | 6 | archetype | passive | no plan |  |
-| Explosion | 6 | archetype | passive | no plan |  |
 | Implement Initiate | 6 | archetype | passive | no plan |  |
 | Living Rune | 6 | archetype | passive | no plan |  |
 | Multifaceted Will | 6 | archetype | passive | no plan |  |
@@ -1461,10 +1209,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Expanded Repertoire | 10 | archetype | passive | no plan |  |
 | Greater Spell Runes | 10 | archetype | passive | no plan |  |
 | Hilt Hammer | 10 | archetype | passive | no plan |  |
-| Monk's Flurry | 10 | archetype | passive | no plan |  |
 | Phenom's Verve | 10 | archetype | passive | no plan |  |
 | Practiced Reloads | 10 | archetype | passive | no plan |  |
-| Shadow Sneak Attack | 10 | archetype | passive | no plan |  |
 | Stalwart Standard | 10 | archetype | passive | no plan |  |
 | Touch of Lunacy | 10 | archetype | passive | plan | a reaction to "passive" |
 | Expert Kinetic Control | 12 | archetype | passive | no plan |  |
@@ -1490,21 +1236,17 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Furious Bully | 8 | barbarian | passive | no plan |  |
 | Shattering Blows | 16 | barbarian | passive | no plan |  |
 | Contagious Rage | 20 | barbarian | passive | no plan |  |
-| Unstoppable Juggernaut | 20 | barbarian | passive | no plan |  |
-| Hymn of Healing | 1 | bard | passive | no plan |  |
 | Martial Performance | 1 | bard | passive | no plan |  |
 | Cantrip Expansion | 2 | bard | passive | no plan |  |
 | Directed Audience | 2 | bard | passive | no plan |  |
-| Loremaster's Etude | 2 | bard | passive | no plan |  |
-| Songbird's Call | 8 | bard | passive | no plan |  |
-| Ode to Ouroboros | 10 | bard | passive | no plan |  |
+| Loremaster's Etude | 2 | bard | passive | plan | a spell the engine doesn't cast (Loremaster's Etude) |
+| Ode to Ouroboros | 10 | bard | passive | plan | a spell the engine doesn't cast (Ode to Ouroboros) |
 | Symphony of the Unfettered Heart | 10 | bard | passive | no plan |  |
 | Shared Assault | 12 | bard | passive | no plan |  |
-| Soothing Ballad | 14 | bard | passive | no plan |  |
 | Discordant Voice | 18 | bard | passive | no plan |  |
-| Fatal Aria | 20 | bard | passive | no plan |  |
-| Pied Piping | 20 | bard | passive | no plan |  |
-| Song of the Fallen | 20 | bard | passive | no plan |  |
+| Fatal Aria | 20 | bard | passive | plan | a spell the engine doesn't cast (Fatal Aria) |
+| Pied Piping | 20 | bard | passive | plan | a spell the engine doesn't cast (Pied Piping) |
+| Song of the Fallen | 20 | bard | passive | plan | a spell the engine doesn't cast (Song of the Fallen) |
 | Symphony of the Muse | 20 | bard | passive | no plan |  |
 | Nimble Reprisal | 1 | champion | passive | no plan |  |
 | Oath of the Avenger | 2 | champion | passive | no plan |  |
@@ -1524,24 +1266,19 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Banishing Blow | 20 | champion | passive | no plan |  |
 | Castigating Weapon | 10 | cleric | passive | no plan |  |
 | Claim the Field | 6 | commander | passive | no plan |  |
-| Untamed Form | 1 | druid | passive | no plan |  |
 | Anthropomorphic Shape | 4 | druid | passive | no plan |  |
 | Order Magic | 4 | druid | passive | no plan |  |
 | Advanced Elemental Spell | 6 | druid | passive | no plan |  |
-| Fungal Exhalation | 6 | druid | passive | no plan |  |
-| Hedge Prison | 6 | druid | passive | no plan |  |
 | Insect Shape | 6 | druid | passive | no plan |  |
 | Ferocious Shape | 8 | druid | passive | no plan |  |
 | Soaring Shape | 8 | druid | passive | no plan |  |
-| Wind Caller | 8 | druid | passive | no plan |  |
 | Elemental Shape | 10 | druid | passive | no plan |  |
 | Dragon Shape | 12 | druid | passive | no plan |  |
 | Primal Summons | 12 | druid | passive | no plan |  |
 | Impaling Briars | 16 | druid | passive | no plan |  |
 | Monstrosity Shape | 16 | druid | passive | no plan |  |
-| Invoke Disaster | 18 | druid | passive | no plan |  |
 | Perfect Form Control | 18 | druid | passive | no plan |  |
-| Apex Companion | 20 | druid | passive | no plan |  |
+| Apex Companion | 20 | druid | passive | plan | a spell the engine doesn't cast (Apex Companion) |
 | Twin Stars | 1 | exemplar | passive | no plan |  |
 | Hurl at the Horizon | 2 | exemplar | passive | no plan |  |
 | Leap the Falls | 2 | exemplar | passive | no plan |  |
@@ -1600,18 +1337,16 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Burning Cascade | 4 | magus | passive | no plan |  |
 | Starlit Eyes | 4 | magus | passive | no plan |  |
 | Striker's Scroll | 4 | magus | passive | no plan |  |
-| Runic Impression | 8 | magus | passive | no plan |  |
+| Runic Impression | 8 | magus | passive | plan | a spell the engine doesn't cast (Runic Impression) |
 | Sprinting Spellstrike | 12 | magus | passive | no plan |  |
 | Arcane Shroud | 14 | magus | passive | no plan |  |
 | Resounding Cascade | 16 | magus | passive | no plan |  |
 | Supreme Spellstrike | 20 | magus | passive | no plan |  |
-| Stunning Blows | 2 | monk | passive | no plan |  |
 | Flurry of Maneuvers | 4 | monk | passive | no plan |  |
 | Stumbling Feint | 6 | monk | passive | no plan |  |
-| Deathly Scream | 2 | necromancer | passive | no plan |  |
-| Song of the Soul | 2 | necromancer | passive | no plan |  |
+| Song of the Soul | 2 | necromancer | passive | plan | a spell the engine doesn't cast (Song of the Soul) |
 | Mobile Thralls | 4 | necromancer | passive | no plan |  |
-| Sanguine Transference | 8 | necromancer | passive | no plan |  |
+| Sanguine Transference | 8 | necromancer | passive | plan | a spell the engine doesn't cast (Sanguine Transference) |
 | Become as Spirit | 12 | necromancer | passive | no plan |  |
 | Perfected Thrall | 20 | necromancer | passive | no plan |  |
 | Domain Acumen | 2 | oracle | passive | no plan |  |
@@ -1637,9 +1372,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Triple Threat | 20 | ranger | passive | no plan |  |
 | Magical Trickster | 4 | rogue | passive | no plan |  |
 | The Harder They Fall | 4 | rogue | passive | no plan |  |
-| Sly Striker | 8 | rogue | passive | no plan |  |
 | Powerful Sneak | 18 | rogue | passive | no plan |  |
-| Impossible Striker | 20 | rogue | passive | no plan |  |
 | Rune-Singer | 1 | runesmith | passive | no plan |  |
 | Seek the Hidden Glyphs | 1 | runesmith | passive | no plan |  |
 | Invisible Ink | 2 | runesmith | passive | no plan |  |
@@ -1670,11 +1403,11 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Implement's Flight | 16 | thaumaturge | passive | no plan |  |
 | Intense Implement | 18 | thaumaturge | passive | no plan |  |
 | Ubiquitous Weakness | 20 | thaumaturge | passive | no plan |  |
-| Cackle | 1 | witch | passive | no plan |  |
+| Cackle | 1 | witch | passive | plan | a spell the engine doesn't cast (Cackle) |
 | Syu Tak-nwa's Hexed Locks | 8 | witch | passive | no plan |  |
 | Hex Master | 20 | witch | passive | no plan |  |
 
-## Other combat passives (477)
+## Other combat passives (448)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -1698,51 +1431,39 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Always Ready | 4 | archetype | passive | no plan |  |
 | Angel of Vindication | 4 | archetype | passive | no plan |  |
 | Ankle Biter | 4 | archetype | passive | no plan |  |
-| Barbarian Resiliency | 4 | archetype | passive | no plan |  |
 | Barrier Shield | 4 | archetype | passive | no plan |  |
 | Basic Skysage Divination | 4 | archetype | passive | no plan |  |
 | Beastkin Resilience | 4 | archetype | passive | no plan |  |
 | Brastlewark Snare Engineering | 4 | archetype | passive | no plan |  |
 | Bullet Dancer Burn | 4 | archetype | passive | no plan |  |
-| Champion Resiliency | 4 | archetype | passive | no plan |  |
 | Contortionist | 4 | archetype | passive | no plan |  |
 | Contract Blade | 4 | archetype | passive | no plan |  |
 | Defender's Grit | 4 | archetype | passive | no plan |  |
 | Deft Cooperation | 4 | archetype | passive | no plan |  |
-| Disturbing Defense | 4 | archetype | passive | no plan |  |
 | Dragon Arcana | 4 | archetype | passive | no plan |  |
 | Dread Blade | 4 | archetype | passive | no plan |  |
 | Dual Thrower | 4 | archetype | passive | no plan |  |
 | Elemental Substitution | 4 | archetype | passive | no plan |  |
 | Entity's Strike | 4 | archetype | passive | no plan |  |
-| Exemplar Resiliency | 4 | archetype | passive | no plan |  |
 | Experienced Follower | 4 | archetype | passive | no plan |  |
 | Expert Backstabber | 4 | archetype | passive | no plan |  |
-| Fighter Resiliency | 4 | archetype | passive | no plan |  |
 | Fly Swat | 4 | archetype | passive | no plan |  |
 | Forceful Push | 4 | archetype | passive | no plan |  |
 | Gravelands Herbalist | 4 | archetype | passive | no plan |  |
-| Guardian Resiliency | 4 | archetype | passive | no plan |  |
 | Guerrilla Weaponry | 4 | archetype | passive | no plan |  |
 | Hijack Undead | 4 | archetype | passive | plan | a reaction to "passive" |
 | Improvised Pummel | 4 | archetype | passive | no plan |  |
 | Leader of All | 4 | archetype | passive | no plan |  |
 | Modular Dynamo | 4 | archetype | passive | no plan |  |
-| Monk Resiliency | 4 | archetype | passive | no plan |  |
-| Mortification | 4 | archetype | passive | no plan |  |
 | Patch Job | 4 | archetype | passive | no plan |  |
-| Perfect Strike | 4 | archetype | passive | no plan |  |
+| Perfect Strike | 4 | archetype | passive | plan | a spell the engine doesn't cast (Perfect Strike) |
 | Poultice Preparation | 4 | archetype | passive | no plan |  |
 | Raging Stories | 4 | archetype | passive | no plan |  |
-| Ranger Resiliency | 4 | archetype | passive | no plan |  |
-| Reactive Striker | 4 | archetype | passive | no plan |  |
 | Replenishing Consumption | 4 | archetype | passive | no plan |  |
 | Rescuer's Press | 4 | archetype | passive | no plan |  |
 | Shining Arms | 4 | archetype | passive | no plan |  |
 | Snare Expert | 4 | archetype | passive | no plan |  |
-| Stoney Skin | 4 | archetype | passive | no plan |  |
 | Summon Ensemble | 4 | archetype | passive | no plan |  |
-| Surprise Attack | 4 | archetype | passive | no plan |  |
 | Tandem Onslaught | 4 | archetype | passive | no plan |  |
 | Tools of the Trade | 4 | archetype | passive | no plan |  |
 | Tricksterbane Oath | 4 | archetype | passive | no plan |  |
@@ -1769,7 +1490,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Gray Corsair Training | 6 | archetype | passive | no plan |  |
 | Guardian's Intercept | 6 | archetype | passive | no plan |  |
 | Hellknight Preferment | 6 | archetype | passive | no plan |  |
-| Hellknight-Errant | 6 | archetype | passive | no plan |  |
 | Inevitable Thralls | 6 | archetype | passive | no plan |  |
 | Inexorable | 6 | archetype | passive | no plan |  |
 | No Hard Feelings | 6 | archetype | passive | no plan |  |
@@ -1783,7 +1503,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Stone Blood (Stonebound) | 6 | archetype | passive | no plan |  |
 | Superior Propulsion | 6 | archetype | passive | no plan |  |
 | Surprise Strike | 6 | archetype | passive | no plan |  |
-| Swashbuckler's Riposte | 6 | archetype | passive | no plan |  |
 | Uneasy Rest | 6 | archetype | passive | no plan |  |
 | Volatile Grease | 6 | archetype | passive | no plan |  |
 | Accurate Swing | 8 | archetype | passive | no plan |  |
@@ -1794,7 +1513,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Controlled Blast | 8 | archetype | passive | no plan |  |
 | Creed Magic | 8 | archetype | passive | no plan |  |
 | Deadly Mutation | 8 | archetype | passive | no plan |  |
-| Fortified Flesh | 8 | archetype | passive | no plan |  |
 | Glyph Expert | 8 | archetype | passive | no plan |  |
 | Grasping Corpses | 8 | archetype | passive | no plan |  |
 | Impervious Vehicle | 8 | archetype | passive | no plan |  |
@@ -1818,7 +1536,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Unshaken in Iron | 8 | archetype | passive | no plan |  |
 | Vantage Shot | 8 | archetype | passive | no plan |  |
 | Vicious Fangs | 8 | archetype | passive | no plan |  |
-| Viking Vindicator | 8 | archetype | passive | no plan |  |
 | World-Wise Vigilance | 8 | archetype | passive | no plan |  |
 | And Yet it Still Hurts | 10 | archetype | passive | no plan |  |
 | Beast Dynamo Howl | 10 | archetype | passive | no plan |  |
@@ -1836,13 +1553,11 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Lastwall Warden | 10 | archetype | passive | no plan |  |
 | Mask of the 12th Step | 10 | archetype | passive | no plan |  |
 | Renewing Cycle | 10 | archetype | passive | no plan |  |
-| Rocky Flesh | 10 | archetype | passive | no plan |  |
-| Rubbery Skin | 10 | archetype | passive | no plan |  |
 | Secrets of Steel | 10 | archetype | passive | no plan |  |
 | Shadow of Death | 10 | archetype | passive | no plan |  |
 | Sin Counterspell | 10 | archetype | passive | no plan |  |
 | Spiritual Flurry | 10 | archetype | passive | no plan |  |
-| Steal the Sky | 10 | archetype | passive | no plan |  |
+| Steal the Sky | 10 | archetype | passive | plan | a spell the engine doesn't cast (Steal the Sky) |
 | Stonebane | 10 | archetype | passive | no plan |  |
 | Sweeping Fan Redirection | 10 | archetype | passive | no plan |  |
 | Tiller's Aid | 10 | archetype | passive | no plan |  |
@@ -1915,7 +1630,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Emboldened with Glorious Purpose | 18 | archetype | passive | no plan |  |
 | Ever Dreaming | 18 | archetype | passive | no plan |  |
 | Fight Choreography | 18 | archetype | passive | no plan |  |
-| Frightful Aura | 18 | archetype | passive | plan | a reaction to "passive" |
 | Heightened Instincts | 18 | archetype | passive | no plan |  |
 | Repelling Enforcer | 18 | archetype | passive | no plan |  |
 | School Spell Redirection | 18 | archetype | passive | no plan |  |
@@ -1931,21 +1645,18 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Overpowering Charge | 10 | barbarian | passive | no plan |  |
 | Awesome Blow | 14 | barbarian | passive | plan | a passive's roll with no action to use it |
 | Collateral Thrash | 16 | barbarian | passive | no plan |  |
-| Brutal Critical | 18 | barbarian | passive | no plan |  |
-| Steady Spellcasting | 6 | bard | passive | no plan |  |
 | Brilliant Flash | 1 | champion | passive | no plan |  |
 | Iron Repercussions | 1 | champion | passive | no plan |  |
 | Ongoing Selfishness | 1 | champion | passive | no plan |  |
 | Unimpeded Step | 1 | champion | passive | no plan |  |
 | Vicious Vengeance | 1 | champion | passive | no plan |  |
-| Aura of Courage | 4 | champion | passive | no plan |  |
 | Aura of Despair | 4 | champion | passive | no plan |  |
 | Cruelty | 4 | champion | passive | no plan |  |
 | Shield Warden | 6 | champion | passive | no plan |  |
 | Greater Mercy | 8 | champion | passive | no plan |  |
 | Greater Security | 8 | champion | passive | no plan |  |
 | Quick Shield Block | 8 | champion | passive | no plan |  |
-| Spectral Advance | 10 | champion | passive | no plan |  |
+| Spectral Advance | 10 | champion | passive | plan | a spell the engine doesn't cast (Spectral Advance) |
 | Divine Wall | 12 | champion | passive | no plan |  |
 | Lasting Doubt | 12 | champion | passive | no plan |  |
 | Liberating Stride | 12 | champion | passive | no plan |  |
@@ -1969,7 +1680,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Shared Replenishment | 12 | cleric | passive | no plan |  |
 | Deity's Protection | 14 | cleric | passive | no plan |  |
 | Resurrectionist | 16 | cleric | passive | no plan |  |
-| Inviolable | 18 | cleric | passive | no plan |  |
 | Shared Clarity | 18 | cleric | passive | no plan |  |
 | Observational Analysis | 4 | commander | passive | no plan |  |
 | Drilled Reflexes | 10 | commander | passive | no plan |  |
@@ -1990,7 +1700,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Disorienting Opening | 8 | fighter | passive | no plan |  |
 | Resounding Bravery | 8 | fighter | passive | no plan |  |
 | Crashing Slam | 10 | fighter | passive | no plan |  |
-| Fearsome Brute | 10 | fighter | passive | no plan |  |
 | Tactical Reflexes | 10 | fighter | passive | no plan |  |
 | Flinging Shove | 12 | fighter | passive | no plan |  |
 | Guiding Riposte | 14 | fighter | passive | no plan |  |
@@ -2042,7 +1751,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Dancing Leaf | 2 | monk | passive | no plan |  |
 | Elemental Fist | 2 | monk | passive | no plan |  |
 | Guarded Movement | 4 | monk | passive | no plan |  |
-| Inner Fire (Monk) | 6 | monk | passive | no plan |  |
 | Return Fire | 6 | monk | passive | no plan |  |
 | Water Step | 6 | monk | passive | no plan |  |
 | Projectile Snatching | 8 | monk | passive | no plan |  |
@@ -2054,9 +1762,9 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Immortal Techniques | 20 | monk | passive | no plan |  |
 | The Hallowed Dead | 1 | necromancer | passive | no plan |  |
 | The Unholy Dead | 1 | necromancer | passive | no plan |  |
-| Bloody Tendrils | 6 | necromancer | passive | no plan |  |
+| Bloody Tendrils | 6 | necromancer | passive | plan | a spell the engine doesn't cast (Bloody Tendrils) |
 | Endless Return | 12 | necromancer | passive | no plan |  |
-| Reanimate Foe | 18 | necromancer | passive | no plan |  |
+| Reanimate Foe | 18 | necromancer | passive | plan | a spell the engine doesn't cast (Reanimate Foe) |
 | Final Union | 20 | necromancer | passive | no plan |  |
 | Bestiary Secrets | 1 | other | passive | no plan |  |
 | The Harder They Fall (Hellknight) | 1 | other | passive | no plan |  |
@@ -2087,7 +1795,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Terrifying Mien | 16 | other | passive | no plan |  |
 | Vigorous Victor | 16 | other | passive | no plan |  |
 | Walk on the Wind | 16 | other | passive | no plan |  |
-| Fracture Timeflow | 18 | other | passive | plan | a reaction to "passive" |
 | Mythic Weapon Specialization | 18 | other | passive | no plan |  |
 | Not This Time | 18 | other | passive | plan | a reaction to "passive" |
 | Rebellious Existence | 18 | other | passive | no plan |  |
@@ -2111,11 +1818,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Improved Twin Riposte (Ranger) | 16 | ranger | passive | no plan |  |
 | Overextending Feint | 1 | rogue | passive | no plan |  |
 | Tumble Behind (Rogue) | 1 | rogue | passive | no plan |  |
-| Brutal Beating | 2 | rogue | passive | no plan |  |
 | Distracting Feint | 2 | rogue | passive | no plan |  |
 | Strong Arm | 2 | rogue | passive | no plan |  |
-| Unbalancing Blow | 2 | rogue | passive | no plan |  |
-| Dread Striker | 4 | rogue | passive | no plan |  |
 | Twin Distraction | 4 | rogue | passive | no plan |  |
 | Far Throw | 6 | rogue | passive | no plan |  |
 | Light Step | 6 | rogue | passive | no plan |  |
@@ -2156,7 +1860,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Witch's Hut | 20 | witch | passive | no plan |  |
 | Spell Combination | 20 | wizard | passive | no plan |  |
 
-## Spellcasting (slots, focus, spellshapes) (330)
+## Spellcasting (slots, focus, spellshapes) (313)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -2164,7 +1868,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Conceal Spell | 2 | animist | 1 action | no plan |  |
 | Embodiment of the Balance | 2 | animist | passive | no plan |  |
 | Grasping Spirits Spell | 2 | animist | 1 action | no plan |  |
-| Spiritual Expansion Spell | 2 | animist | 1 action | no plan |  |
 | Apparition's Enhancement | 4 | animist | free | no plan |  |
 | Channeled Protection | 4 | animist | 1 action | no plan |  |
 | Walk the Wilds | 4 | animist | passive | no plan |  |
@@ -2193,10 +1896,9 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Gusting Spell | 4 | archetype | 1 action | no plan |  |
 | Hallowed Initiate | 4 | archetype | passive | no plan |  |
 | Harrow Casting | 4 | archetype | 1 action | plan | a timer with no rules a fight counts |
-| Immortal Lightness | 4 | archetype | passive | no plan |  |
 | Mage's Field Dressing | 4 | archetype | 1 action | no plan |  |
-| Magic Warrior Aspect | 4 | archetype | passive | no plan |  |
-| Magic Warrior Transformation | 4 | archetype | passive | no plan |  |
+| Magic Warrior Aspect | 4 | archetype | passive | plan | a spell the engine doesn't cast (Magic Warrior Aspect) |
+| Magic Warrior Transformation | 4 | archetype | passive | plan | a spell the engine doesn't cast (Magic Warrior Transformation) |
 | Minor Deific Power | 4 | archetype | passive | no plan |  |
 | Painful Spell | 4 | archetype | 1 action | no plan |  |
 | Pin the Spears in the Lamb | 4 | archetype | passive | no plan |  |
@@ -2210,11 +1912,9 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Wyldsinger | 4 | archetype | passive | no plan |  |
 | Basic Magus Spellcasting | 6 | archetype | passive | no plan |  |
 | Beastmaster's Trance | 6 | archetype | passive | no plan |  |
-| Burning Spell | 6 | archetype | 1 action | no plan |  |
 | Cascade Bearer's Flexibility | 6 | archetype | free | no plan |  |
 | Heightened Captivation | 6 | archetype | 1 action | no plan |  |
 | Humble Spell | 6 | archetype | 1 action | no plan |  |
-| Intimidating Spell | 6 | archetype | 1 action | no plan |  |
 | Night's Glow | 6 | archetype | passive | no plan |  |
 | Red Mantis School Spell | 6 | archetype | passive | no plan |  |
 | Sinbladed Spell | 6 | archetype | 1 action | no plan |  |
@@ -2224,40 +1924,35 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Urgent Upwelling | 6 | archetype | reaction | no plan |  |
 | Vengeful Spirit Deck | 6 | archetype | 2 actions | no plan |  |
 | Wisteria-and-Peony Reunion | 6 | archetype | free | no plan |  |
-| Achaekek's Grip | 8 | archetype | passive | no plan |  |
 | Advanced Hallowed Spell | 8 | archetype | passive | no plan |  |
 | Anthemic Performance | 8 | archetype | passive | no plan |  |
 | Apparition Magic | 8 | archetype | passive | no plan |  |
 | Basic Beast Gunner Spellcasting | 8 | archetype | passive | no plan |  |
 | Basic Eldritch Archer Spellcasting | 8 | archetype | passive | no plan |  |
 | Blessed Spell | 8 | archetype | 1 action | no plan |  |
-| Breath of the Dragon (Dragon Disciple) | 8 | archetype | passive | no plan |  |
 | Chronomancer's Secrets | 8 | archetype | passive | no plan |  |
 | Countercharm | 8 | archetype | reaction | no plan |  |
-| Divine Healing | 8 | archetype | passive | no plan |  |
 | Enhance Spell | 8 | archetype | 1 action | no plan |  |
 | Glimpse the Netherworld | 8 | archetype | passive | no plan |  |
-| Mantis Form | 8 | archetype | passive | no plan |  |
+| Mantis Form | 8 | archetype | passive | plan | a spell the engine doesn't cast (Mantis Form) |
 | Primal Guardian | 8 | archetype | passive | no plan |  |
 | Shadow Spell | 8 | archetype | 1 action | plan | a timer with no rules a fight counts |
-| Shielding Formation | 8 | archetype | passive | no plan |  |
+| Shielding Formation | 8 | archetype | passive | plan | a spell the engine doesn't cast (Shielding Formation) |
 | Simple Mastery | 8 | archetype | 1 action | no plan |  |
 | What Could Have Been | 8 | archetype | free | no plan |  |
 | Cascade Bearer's Spellcasting | 10 | archetype | passive | no plan |  |
 | Eldritch Reload | 10 | archetype | free | no plan |  |
 | Expert Skysage Divination | 10 | archetype | passive | no plan |  |
 | Greater Deathly Secrets | 10 | archetype | passive | no plan |  |
-| Growth Spell | 10 | archetype | 1 action | no plan |  |
 | Halcyon Spellcasting Initiate | 10 | archetype | passive | no plan |  |
 | Into the Future | 10 | archetype | 1 action | no plan |  |
 | Recover Spell | 10 | archetype | 1 action | no plan |  |
-| Reverberating Spell | 10 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | Rockslide Spell | 10 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | Shadow Magic | 10 | archetype | passive | no plan |  |
 | Shadow Reservoir | 10 | archetype | passive | no plan |  |
-| Spellmaster's Ward | 10 | archetype | passive | no plan |  |
+| Spellmaster's Ward | 10 | archetype | passive | plan | a spell the engine doesn't cast (Spellmaster's Ward) |
 | Tempest-Sun Shielding | 10 | archetype | reaction | no plan |  |
-| Vindicator's Judgment | 10 | archetype | passive | no plan |  |
+| Vindicator's Judgment | 10 | archetype | passive | plan | a spell the engine doesn't cast (Vindicator's Judgment) |
 | Additional Shadow Magic | 12 | archetype | passive | no plan |  |
 | Afterimage | 12 | archetype | free | plan | a timer with no rules a fight counts |
 | Battlefield Arcana | 12 | archetype | passive | no plan |  |
@@ -2265,13 +1960,11 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Flexible Halcyon Spellcasting | 12 | archetype | passive | no plan |  |
 | Interfering Surge | 12 | archetype | reaction | no plan |  |
 | Maneuvering Spell | 12 | archetype | free | plan | a teleport |
-| Manifold Conduit | 12 | archetype | 1 action | no plan |  |
 | Night's Shine | 12 | archetype | passive | no plan |  |
 | Shadow Illusion | 12 | archetype | passive | no plan |  |
 | Six Pillars Stance | 12 | archetype | 1 action | plan | its requirement, which the PC doesn't meet (You are unarmored.) |
 | Sunless Slide | 12 | archetype | 2 actions | plan | a teleport |
 | Surging Blood Magic | 12 | archetype | passive | no plan |  |
-| Wings of the Dragon | 12 | archetype | passive | no plan |  |
 | Absorb Spell | 14 | archetype | reaction | no plan |  |
 | Community Needs | 14 | archetype | passive | no plan |  |
 | Halcyon Spellcasting Adept | 14 | archetype | passive | no plan |  |
@@ -2294,8 +1987,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Retain Absorbed Spell | 18 | archetype | passive | no plan |  |
 | Tripartite Omen | 18 | archetype | passive | no plan |  |
 | Synergistic Spell | 20 | archetype | 1 action | no plan |  |
-| Lingering Composition | 1 | bard | passive | no plan |  |
-| Reach Spell | 1 | bard | 1 action | plan | nothing a fight uses |
+| Lingering Composition | 1 | bard | passive | plan | a spell the engine doesn't cast (Lingering Composition) |
 | Song of Strength | 2 | bard | passive | no plan |  |
 | Uplifting Overture | 2 | bard | passive | no plan |  |
 | Courageous Advance | 4 | bard | 1 action | no plan |  |
@@ -2309,11 +2001,10 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Accompany | 8 | bard | reaction | no plan |  |
 | Call and Response | 8 | bard | 1 action | no plan |  |
 | Chaotic Spell | 8 | bard | 1 action | plan | a choice of ways the simulator doesn't play |
-| Fortissimo Composition | 8 | bard | passive | no plan |  |
+| Fortissimo Composition | 8 | bard | passive | plan | a spell the engine doesn't cast (Fortissimo Composition) |
 | Helt's Spelldance | 8 | bard | 3 actions | no plan |  |
 | Courageous Assault | 10 | bard | 1 action | no plan |  |
 | House of Imaginary Walls | 10 | bard | passive | no plan |  |
-| Quickened Casting | 10 | bard | free | no plan |  |
 | Unusual Composition | 10 | bard | 1 action | no plan |  |
 | Shared Sight | 12 | bard | 1 action | plan | a timer with no rules a fight counts |
 | Silver's Refrain | 12 | bard | passive | no plan |  |
@@ -2344,11 +2035,9 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Improved Swift Banishment | 18 | cleric | passive | no plan |  |
 | Maker of Miracles | 20 | cleric | passive | no plan |  |
 | Spellshape Channel | 20 | cleric | free | no plan |  |
-| Widen Spell | 1 | druid | 1 action | no plan |  |
 | Cryptic Spell | 4 | druid | 1 action | no plan |  |
 | Form Control | 4 | druid | 1 action | no plan |  |
 | Snowdrift Spell | 4 | druid | 1 action | plan | a timer with no rules a fight counts |
-| Current Spell | 6 | druid | 1 action | no plan |  |
 | Storm Retribution | 6 | druid | reaction | plan | a spell the feat casts |
 | Healing Transformation | 10 | druid | 1 action | no plan |  |
 | Overwhelming Energy | 10 | druid | 1 action | no plan |  |
@@ -2379,7 +2068,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Meteoric Spellstrike | 10 | magus | 2 actions | no plan |  |
 | Sustaining Steel | 10 | magus | free | no plan |  |
 | Vermillion Threads | 10 | magus | reaction | plan | a lasting area |
-| Flood Stance | 1 | monk | 1 action | no plan |  |
 | Align Qi | 6 | monk | reaction | no plan |  |
 | Overwhelming Breath | 12 | monk | 1 action | no plan |  |
 | Qi Center | 18 | monk | free | no plan |  |
@@ -2419,7 +2107,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Thundering Surge | 16 | other | 1 action | plan | its requirement (Your @UUID[Compendium.pf2e.spells-srd.Item.Spellsurge] aura is active) |
 | Contagious Spell | 18 | other | 1 action | no plan |  |
 | Galvanize Spell | 18 | other | free | no plan |  |
-| Mana Detonation | 18 | other | passive | no plan |  |
 | Surging Interference | 20 | other | reaction | no plan |  |
 | Counter Thought | 1 | psychic | reaction | no plan |  |
 | Psychic Rapport | 1 | psychic | passive | no plan |  |
@@ -2491,7 +2178,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reclaim Spell | 20 | wizard | passive | no plan |  |
 | Worldsphere Gravity | 20 | wizard | 1 action | plan | a lasting area |
 
-## Companions, familiars and eidolons (255)
+## Companions, familiars and eidolons (251)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -2522,7 +2209,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Repel Darkness | 4 | archetype | 2 actions | plan | a timer with no rules a fight counts |
 | Ride-By Recovery | 4 | archetype | reaction | no plan |  |
 | Spirit Companion | 4 | archetype | passive | no plan |  |
-| Spirit of the Beast | 4 | archetype | passive | no plan |  |
+| Spirit of the Beast | 4 | archetype | passive | plan | a spell the engine doesn't cast (Spirit of the Beast) |
 | Spiritual Explorer | 4 | archetype | passive | no plan |  |
 | Winged Leap | 4 | archetype | passive | no plan |  |
 | Adaptive Mask Familiar | 6 | archetype | passive | no plan |  |
@@ -2549,7 +2236,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Behold My Creation! | 8 | archetype | passive | no plan |  |
 | Dismounting Strike | 8 | archetype | 1 action | plan | its requirement (You are mounted on your horse, and your last action was to Command an Animal to order your horse to Str |
 | Enhanced Psychopomp Familiar | 8 | archetype | passive | no plan |  |
-| Familiar Form | 8 | archetype | passive | no plan |  |
+| Familiar Form | 8 | archetype | passive | plan | a spell the engine doesn't cast (Familiar Form) |
 | Familiar Ritualist | 8 | archetype | passive | no plan |  |
 | Future Spell Learning | 8 | archetype | passive | no plan |  |
 | Golden Dragon's Bounty | 8 | archetype | 1 action | plan | a choice of ways the simulator doesn't play |
@@ -2657,12 +2344,10 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Pack of the Beast Lord | 18 | other | 3 actions | plan | a timer with no rules a fight counts |
 | Animal Companion (Ranger) | 1 | ranger | passive | no plan |  |
 | Heal Companion | 1 | ranger | passive | no plan |  |
-| Magic Hide | 2 | ranger | passive | no plan |  |
 | Companion's Cry | 4 | ranger | passive | no plan |  |
 | Galloping Launch | 4 | ranger | 1 action | plan | its requirement (You're mounted, and your mount moved closer to your prey this round.) |
 | Natural Conduit | 4 | ranger | 1 action | no plan |  |
 | Mature Animal Companion (Ranger) | 6 | ranger | passive | no plan |  |
-| Enlarge Companion | 8 | ranger | passive | no plan |  |
 | Incredible Companion (Ranger) | 10 | ranger | passive | no plan |  |
 | Side by Side (Ranger) | 12 | ranger | passive | no plan |  |
 | Stealthy Companion | 14 | ranger | passive | no plan |  |
@@ -2675,7 +2360,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Dual Studies | 1 | summoner | passive | no plan |  |
 | Energy Heart | 1 | summoner | passive | no plan |  |
 | Expanded Senses | 1 | summoner | passive | no plan |  |
-| Extend Boost | 1 | summoner | passive | no plan |  |
+| Extend Boost | 1 | summoner | passive | plan | a spell the engine doesn't cast (Extend Boost) |
 | Glider Form | 1 | summoner | 1 action | plan | nothing a fight uses |
 | Meld into Eidolon | 1 | summoner | 3 actions | no plan |  |
 | Unfetter Eidolon | 1 | summoner | passive | no plan |  |
@@ -2686,9 +2371,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reinforce Eidolon | 2 | summoner | passive | no plan |  |
 | Steed Form | 2 | summoner | passive | no plan |  |
 | Bloodletting Claws | 4 | summoner | passive | no plan |  |
-| Defend Summoner | 4 | summoner | 1 action | plan | a timer with no rules a fight counts |
 | Dual Energy Heart | 4 | summoner | passive | no plan |  |
-| Lifelink Surge | 4 | summoner | passive | no plan |  |
+| Lifelink Surge | 4 | summoner | passive | plan | a spell the engine doesn't cast (Lifelink Surge) |
 | Reactive Dismissal | 4 | summoner | reaction | no plan |  |
 | Shrink Down | 4 | summoner | 1 action | no plan |  |
 | Skilled Partner | 4 | summoner | passive | no plan |  |
@@ -2696,7 +2380,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Vibration Sense | 4 | summoner | passive | no plan |  |
 | Blood Frenzy | 6 | summoner | passive | no plan |  |
 | Eidolon's Retort | 6 | summoner | reaction | plan | a reaction's Strike |
-| Eidolon's Wrath | 6 | summoner | passive | no plan |  |
 | Ostentatious Arrival | 6 | summoner | free | no plan |  |
 | Phase Out | 6 | summoner | 3 actions | no plan |  |
 | Tandem Strike | 6 | summoner | 2 actions | no plan |  |
@@ -2751,7 +2434,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Bond Conservation | 8 | wizard | 1 action | no plan |  |
 | Superior Bond | 14 | wizard | passive | no plan |  |
 
-## Out of combat (exploration, downtime, skills) (357)
+## Out of combat (exploration, downtime, skills) (347)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -2799,7 +2482,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Mask Familiar | 4 | archetype | passive | no plan |  |
 | Mercenary Motivation | 4 | archetype | passive | no plan |  |
 | Morning Side Dishes | 4 | archetype | passive | no plan |  |
-| Necrotic Bomber | 4 | archetype | passive | no plan |  |
 | Order Spell | 4 | archetype | passive | no plan |  |
 | Posse | 4 | archetype | passive | no plan |  |
 | Quick Study | 4 | archetype | passive | no plan |  |
@@ -2818,7 +2500,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Barricade Snare | 6 | archetype | passive | no plan |  |
 | Basic Scroll Cache | 6 | archetype | passive | no plan |  |
 | Brains! | 6 | archetype | free | plan | a timer with no rules a fight counts |
-| Counter Perform | 6 | archetype | passive | no plan |  |
+| Counter Perform | 6 | archetype | passive | plan | a spell the engine doesn't cast (Counter Performance) |
 | Cozy Campfire | 6 | archetype | passive | plan | a reaction to "passive" |
 | Deathly Secrets | 6 | archetype | passive | no plan |  |
 | Domain Spirit | 6 | archetype | passive | no plan |  |
@@ -2831,16 +2513,14 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Liberty's Promise | 6 | archetype | passive | no plan |  |
 | Magical Scrounger | 6 | archetype | passive | no plan |  |
 | Mastermind's Eye | 6 | archetype | passive | no plan |  |
-| Pact of Draconic Fury | 6 | archetype | passive | no plan |  |
 | Perfect Truths | 6 | archetype | passive | no plan |  |
 | Perpetual Scout | 6 | archetype | passive | no plan |  |
 | Practical Magic | 6 | archetype | passive | no plan |  |
 | Psi Development | 6 | archetype | passive | no plan |  |
-| Sun's Fury | 6 | archetype | passive | no plan |  |
+| Sun's Fury | 6 | archetype | passive | plan | a spell the engine doesn't cast (Sun's Fury) |
 | Symphony of Agony | 6 | archetype | passive | no plan |  |
 | Westyr's Wayfinder Repository | 6 | archetype | passive | no plan |  |
 | Wild Speech | 6 | archetype | passive | no plan |  |
-| Acquired Tolerance | 8 | archetype | reaction | plan | a reroll |
 | Aroden's Innovation | 8 | archetype | passive | no plan |  |
 | Call Gun | 8 | archetype | passive | no plan |  |
 | Deceptive Deduction | 8 | archetype | reaction | no plan |  |
@@ -2853,7 +2533,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Haunting Memories | 8 | archetype | passive | no plan |  |
 | Hell's Bane | 8 | archetype | passive | no plan |  |
 | Innate Magical Intuition | 8 | archetype | passive | no plan |  |
-| Invoke the Crimson Oath | 8 | archetype | passive | no plan |  |
 | Know Your Enemy | 8 | archetype | 1 action | no plan |  |
 | Lethargy Poisoner | 8 | archetype | passive | no plan |  |
 | Living for the Applause | 8 | archetype | reaction | no plan |  |
@@ -2864,9 +2543,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Sin Reservoir | 8 | archetype | passive | no plan |  |
 | Spelldrinker | 8 | archetype | 1 action | no plan |  |
 | Spellshield | 8 | archetype | passive | no plan |  |
-| Transcribe Moment | 8 | archetype | passive | no plan |  |
+| Transcribe Moment | 8 | archetype | passive | plan | a spell the engine doesn't cast (Transcribe Moment) |
 | Veil of Eternity | 8 | archetype | passive | no plan |  |
-| Waking Dream | 8 | archetype | passive | no plan |  |
 | Worm Empathy | 8 | archetype | passive | no plan |  |
 | Armor Rune Shifter | 10 | archetype | passive | no plan |  |
 | Beneath Notice | 10 | archetype | passive | no plan |  |
@@ -2878,12 +2556,11 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Emissary of Peace | 10 | archetype | 3 actions | no plan |  |
 | Font of Knowledge | 10 | archetype | passive | no plan |  |
 | Gather Disciples | 10 | archetype | passive | no plan |  |
-| Gaze of Veracity | 10 | archetype | passive | no plan |  |
 | Know It All (Eldritch Researcher) | 10 | archetype | passive | no plan |  |
 | Practiced Defender | 10 | archetype | passive | no plan |  |
 | Repurposed Parts | 10 | archetype | passive | no plan |  |
 | Runic Mind Smithing | 10 | archetype | passive | no plan |  |
-| Shall not Falter, Shall not Rout | 10 | archetype | passive | no plan |  |
+| Shall not Falter, Shall not Rout | 10 | archetype | passive | plan | a spell the engine doesn't cast (Shall not Falter, Shall not Rout) |
 | Shared Synergy | 10 | archetype | passive | no plan |  |
 | Spy's Countermeasures | 10 | archetype | free | no plan |  |
 | Tales of the Road | 10 | archetype | passive | no plan |  |
@@ -2896,10 +2573,10 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Consult the Spirits (Rivethun Emissary) | 12 | archetype | passive | no plan |  |
 | Educated Assessment | 12 | archetype | passive | no plan |  |
 | Enticing Dwelling | 12 | archetype | passive | no plan |  |
-| For Love, For Lightning | 12 | archetype | passive | no plan |  |
+| For Love, For Lightning | 12 | archetype | passive | plan | a spell the engine doesn't cast (For Love, For Lightning) |
 | Illusory Identity | 12 | archetype | passive | no plan |  |
 | Lightning Snares | 12 | archetype | passive | no plan |  |
-| Master of the Dead | 12 | archetype | passive | no plan |  |
+| Master of the Dead | 12 | archetype | passive | plan | a spell the engine doesn't cast (Shambling Horror) |
 | Perfect Pitch | 12 | archetype | passive | no plan |  |
 | Student of the Dueling Arts | 12 | archetype | passive | no plan |  |
 | Tense Negotiator | 12 | archetype | passive | no plan |  |
@@ -2915,7 +2592,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Stories of Home | 14 | archetype | passive | no plan |  |
 | Unstable Patronage | 14 | archetype | passive | no plan |  |
 | Advanced Runic Mind Smithing | 16 | archetype | passive | no plan |  |
-| Faith in the Fallen | 16 | archetype | passive | no plan |  |
 | Greater Armament | 16 | archetype | passive | no plan |  |
 | Invisible Hand | 16 | archetype | passive | no plan |  |
 | Pact of the Rune Dragon | 16 | archetype | passive | no plan |  |
@@ -2964,7 +2640,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Green Empathy | 6 | druid | passive | no plan |  |
 | Intensified Element Stance | 6 | druid | 1 action | plan | its requirement (You were the recipient of elemental medicine (see @UUID[Compendium.pf2e.feats-srd.Item.Prepare Elementa |
 | Eerie Traces | 8 | druid | passive | no plan |  |
-| Floral Restoration | 8 | druid | 1 action | plan | a timer with no rules a fight counts |
 | Forgotten Presence | 8 | druid | passive | no plan |  |
 | Primal Focus | 12 | druid | passive | no plan |  |
 | Extract Vow of Nonviolence | 12 | exemplar | 2 actions | plan | a timer with no rules a fight counts |
@@ -3020,7 +2695,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Speak With Days Long Dead | 10 | necromancer | passive | no plan |  |
 | Grave Focus | 12 | necromancer | passive | no plan |  |
 | Glean Lore | 1 | oracle | 1 action | no plan |  |
-| Nudge the Scales | 1 | oracle | 1 action | plan | a choice of ways the simulator doesn't play |
 | Read Disaster | 8 | oracle | passive | no plan |  |
 | Revelation's Focus | 14 | oracle | passive | no plan |  |
 | Paradoxical Mystery | 20 | oracle | passive | no plan |  |
@@ -3031,7 +2705,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Unbelievably Believable | 4 | other | passive | no plan |  |
 | Steal Magic | 8 | other | passive | no plan |  |
 | Distant Wandering | 10 | other | 1 action | no plan |  |
-| Gift of the Hoard | 10 | other | passive | no plan |  |
 | Avenger of Sloth | 14 | other | passive | no plan |  |
 | Claim Cardinal Domains | 14 | other | passive | no plan |  |
 | Consult Celestial Advisor | 14 | other | passive | no plan |  |
@@ -3113,7 +2786,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reprepare Spell | 18 | wizard | passive | no plan |  |
 | Spell Mastery | 20 | wizard | passive | no plan |  |
 
-## Nothing a fight would use (877)
+## Nothing a fight would use (848)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -3171,7 +2844,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Basic Trickery | 4 | archetype | passive | no plan |  |
 | Basic Wilding | 4 | archetype | passive | no plan |  |
 | Big Game Trapper | 4 | archetype | passive | no plan |  |
-| Blessed Sacrifice | 4 | archetype | passive | no plan |  |
+| Blessed Sacrifice | 4 | archetype | passive | plan | a spell the engine doesn't cast (Protector's Sacrifice) |
 | Brilliant Crafter | 4 | archetype | passive | no plan |  |
 | Bullying Staff | 4 | archetype | passive | no plan |  |
 | Careful Explorer | 4 | archetype | passive | no plan |  |
@@ -3201,7 +2874,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Inspiring Recitation | 4 | archetype | 1 action | plan | an Effect with nothing a fight counts |
 | Into The Storm | 4 | archetype | passive | no plan |  |
 | Just the Tool | 4 | archetype | 1 action | no plan |  |
-| Ka Stone Ritual | 4 | archetype | 2 actions | plan | a spell the feat casts |
 | Like a Fish in Water | 4 | archetype | passive | no plan |  |
 | Lion's Might | 4 | archetype | passive | no plan |  |
 | Lost in the Crowd | 4 | archetype | passive | no plan |  |
@@ -3295,7 +2967,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Denounce Tyranny | 6 | archetype | 2 actions | no plan |  |
 | Devout Blessing | 6 | archetype | passive | no plan |  |
 | Discerning Gaze | 6 | archetype | passive | no plan |  |
-| Disciple of Shade | 6 | archetype | passive | no plan |  |
 | Disk Rider | 6 | archetype | passive | no plan |  |
 | Dismantle Spell | 6 | archetype | passive | no plan |  |
 | Drenching Mist | 6 | archetype | passive | no plan |  |
@@ -3411,7 +3082,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Supreme Psychic Center | 8 | archetype | free | no plan |  |
 | Surreptitious Spellcaster | 8 | archetype | passive | no plan |  |
 | Unbelievable Luck | 8 | archetype | passive | no plan |  |
-| Unkillable | 8 | archetype | reaction | no plan |  |
 | Veteran Follower | 8 | archetype | passive | no plan |  |
 | Watcher on the Wall | 8 | archetype | 2 actions | no plan |  |
 | Wayfinder Resonance Infiltrator | 8 | archetype | passive | no plan |  |
@@ -3420,7 +3090,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Assured Ritualist | 10 | archetype | passive | no plan |  |
 | Attunement to Stone | 10 | archetype | passive | no plan |  |
 | Azure Fins | 10 | archetype | passive | no plan |  |
-| Bat Form | 10 | archetype | 1 action | plan | a spell the feat casts |
 | Bear Empathy | 10 | archetype | passive | no plan |  |
 | Beastmaster Bond | 10 | archetype | passive | no plan |  |
 | Blade of the Heart | 10 | archetype | 1 action | no plan |  |
@@ -3428,7 +3097,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Close Formation | 10 | archetype | passive | no plan |  |
 | Communal Tale | 10 | archetype | passive | no plan |  |
 | Deathguard | 10 | archetype | passive | no plan |  |
-| Dire Growth | 10 | archetype | 2 actions | plan | a spell the feat casts |
 | Emerald Boughs Hideaway | 10 | archetype | passive | no plan |  |
 | Emphatic Emissary | 10 | archetype | reaction | no plan |  |
 | Exemplar Expertise | 10 | archetype | passive | no plan |  |
@@ -3457,7 +3125,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reflexive Devotion | 10 | archetype | free | no plan |  |
 | Roadkill | 10 | archetype | passive | no plan |  |
 | Rope Mastery | 10 | archetype | passive | no plan |  |
-| Saving Slash | 10 | archetype | reaction | no plan |  |
 | Ship's Shadow | 10 | archetype | passive | no plan |  |
 | Signifer's Sight | 10 | archetype | passive | no plan |  |
 | Slayer's Presence | 10 | archetype | passive | no plan |  |
@@ -3516,7 +3183,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Greater Deific Power | 12 | archetype | passive | no plan |  |
 | Greater Esoteric Spellcasting | 12 | archetype | passive | no plan |  |
 | Greater Sun Blessing | 12 | archetype | passive | no plan |  |
-| Instigate Psychic Duel | 12 | archetype | 3 actions | plan | a roll whose results the simulator doesn't read |
 | Intercepting Hand | 12 | archetype | passive | no plan |  |
 | Invoke Movement | 12 | archetype | 1 action | plan | its requirement (You're under the effects of Enter Spirit Trance) |
 | Judgement of the Monolith | 12 | archetype | passive | no plan |  |
@@ -3544,8 +3210,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Shroud of the Seas | 12 | archetype | passive | no plan |  |
 | Signifer Armor Expertise | 12 | archetype | passive | no plan |  |
 | Smooth Hover | 12 | archetype | free | no plan |  |
-| Speaking Sky | 12 | archetype | passive | no plan |  |
-| Spell Acceleration | 12 | archetype | passive | no plan |  |
 | Swap Investment | 12 | archetype | passive | no plan |  |
 | Tandem Auras | 12 | archetype | passive | no plan |  |
 | Tunneling Claws | 12 | archetype | passive | no plan |  |
@@ -3576,7 +3240,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Stone Communion | 14 | archetype | passive | no plan |  |
 | Talismanic Sage | 14 | archetype | passive | no plan |  |
 | Thwart Evil | 14 | archetype | reaction | no plan |  |
-| Unending Emptiness | 14 | archetype | passive | no plan |  |
 | Unfetter Sight | 14 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | Unlimited Ghost Flight | 14 | archetype | passive | no plan |  |
 | Adamantine Fists | 16 | archetype | passive | no plan |  |
@@ -3590,7 +3253,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Officer's Protection | 16 | archetype | passive | no plan |  |
 | Performance Weapon Expert | 16 | archetype | passive | no plan |  |
 | Resuscitate | 16 | archetype | 3 actions | no plan |  |
-| Tempo Duelist | 16 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | The Bitter Scholar's Promotion | 16 | archetype | passive | no plan |  |
 | The Immortal Attains the Summit | 16 | archetype | passive | no plan |  |
 | Unwind Death | 16 | archetype | 3 actions | no plan |  |
@@ -3636,12 +3298,10 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Tower Shield Mastery | 20 | archetype | passive | no plan |  |
 | Moment of Clarity | 1 | barbarian | 1 action | no plan |  |
 | Spiritual Guides | 4 | barbarian | reaction | plan | a reroll |
-| Giant's Stature | 6 | barbarian | 1 action | plan | its requirement (You are Medium or smaller) |
 | Inner Strength | 6 | barbarian | 1 action | no plan |  |
 | Spirits' Interference | 6 | barbarian | 1 action | no plan |  |
 | Animalistic Brutality | 8 | barbarian | 1 action | no plan |  |
 | Invulnerable Rager | 8 | barbarian | passive | no plan |  |
-| Share Rage | 8 | barbarian | 1 action | plan | an Effect with nothing a fight counts |
 | Embrace the Pain | 12 | barbarian | reaction | no plan |  |
 | Titan's Stature | 12 | barbarian | passive | no plan |  |
 | Giant's Lunge | 14 | barbarian | 1 action | plan | an Effect with nothing a fight counts |
@@ -3663,10 +3323,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Ultimate Polymath | 20 | bard | passive | no plan |  |
 | Deity's Domain | 1 | champion | passive | no plan |  |
 | Weight of Guilt | 1 | champion | passive | no plan |  |
-| Divine Grace | 2 | champion | reaction | no plan |  |
 | Light of Revelation | 4 | champion | passive | no plan |  |
 | Security | 4 | champion | passive | no plan |  |
-| Sun Blade | 4 | champion | passive | no plan |  |
 | Expand Aura | 6 | champion | 1 action | plan | a timer with no rules a fight counts |
 | Shield Wall | 6 | champion | reaction | no plan |  |
 | Advanced Deity's Domain | 8 | champion | passive | no plan |  |
@@ -3724,7 +3382,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Verdant Metamorphosis | 14 | druid | passive | no plan |  |
 | Too Much to Swallow | 16 | druid | reaction | plan | a spell the feat casts |
 | Cunning Trickster Mask | 20 | druid | passive | no plan |  |
-| True Shapeshifter | 20 | druid | 2 actions | plan | a spell the feat casts |
 | Lightning Swap | 2 | exemplar | 1 action | no plan |  |
 | Rapid Spark | 12 | exemplar | free | no plan |  |
 | Complete the Hero's Journey | 14 | exemplar | 1 action | no plan |  |
@@ -3735,7 +3392,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Furious Focus | 6 | fighter | passive | no plan |  |
 | Triple Shot | 6 | fighter | passive | plan | a passive's Strike |
 | Agile Grace | 10 | fighter | passive | no plan |  |
-| Paragon's Guard | 12 | fighter | 1 action | plan | its requirement, which the PC doesn't meet (You are wielding a shield.) |
 | Desperate Finisher | 14 | fighter | reaction | plan | a timer with no rules a fight counts |
 | Opening Stance | 14 | fighter | free | no plan |  |
 | Master of Many Styles | 16 | fighter | free | no plan |  |
@@ -3802,7 +3458,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Elemental Apotheosis | 18 | kineticist | passive | no plan |  |
 | Omnikinesis | 20 | kineticist | 1 action | no plan |  |
 | Force Fang | 2 | magus | passive | no plan |  |
-| Conjurer's Countermeasure | 6 | magus | passive | no plan |  |
 | Spell Swipe | 8 | magus | 3 actions | no plan |  |
 | Maelstrom Flow | 10 | magus | 1 action | plan | a timer with no rules a fight counts |
 | Rapid Recharge | 10 | magus | free | no plan |  |
@@ -3814,19 +3469,16 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Brawling Focus | 2 | monk | passive | no plan |  |
 | Shooting Stars Stance | 2 | monk | 1 action | plan | an Effect with nothing a fight counts |
 | Student of Water | 2 | monk | passive | no plan |  |
-| Harmonize Self | 4 | monk | passive | no plan |  |
 | Advanced Monastic Weaponry | 6 | monk | passive | no plan |  |
 | Advanced Qi Spells | 6 | monk | passive | no plan |  |
 | Ki Cutting Sight | 6 | monk | passive | no plan |  |
 | Clinging Shadows Initiate | 8 | monk | passive | no plan |  |
 | Mixed Maneuver | 8 | monk | 2 actions | no plan |  |
 | Wild Winds Initiate | 8 | monk | passive | no plan |  |
-| Wind Jump | 10 | monk | passive | no plan |  |
-| Wronged Monk's Wrath | 10 | monk | passive | no plan |  |
+| Wronged Monk's Wrath | 10 | monk | passive | plan | a spell the engine doesn't cast (Wronged Monk's Wrath) |
 | Reflexive Stance | 12 | monk | free | no plan |  |
 | Sense Ki | 12 | monk | passive | no plan |  |
 | Wave Spiral | 12 | monk | 2 actions | no plan |  |
-| Shadow's Web | 14 | monk | passive | no plan |  |
 | Tongue of Sun and Moon | 14 | monk | passive | no plan |  |
 | Fuse Stance | 16 | monk | passive | no plan |  |
 | Master Qi Spells | 16 | monk | passive | no plan |  |
@@ -3838,24 +3490,21 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Wake of Devastation | 20 | monk | passive | no plan |  |
 | Widespread Fascination | 1 | necromancer | passive | no plan |  |
 | Invert Harm | 2 | necromancer | passive | no plan |  |
-| Muscle Barrier | 2 | necromancer | passive | no plan |  |
+| Muscle Barrier | 2 | necromancer | passive | plan | a spell the engine doesn't cast (Muscle Barrier) |
 | Undead Creator | 2 | necromancer | passive | no plan |  |
-| Bony Barrage | 4 | necromancer | passive | no plan |  |
 | Overwhelming Harm | 4 | necromancer | passive | no plan |  |
-| Bind Heroic Spirit | 6 | necromancer | passive | no plan |  |
-| Zombie Horde (Necromancer) | 6 | necromancer | passive | no plan |  |
+| Bind Heroic Spirit | 6 | necromancer | passive | plan | a spell the engine doesn't cast (Bind Heroic Spirit) |
 | Conglomerate of Limbs | 8 | necromancer | passive | no plan |  |
-| Blossoming Gore | 10 | necromancer | passive | no plan |  |
+| Blossoming Gore | 10 | necromancer | passive | plan | a spell the engine doesn't cast (Blossoming Gore) |
 | Expanded Necromancy | 10 | necromancer | passive | no plan |  |
-| Bridge of Graves | 12 | necromancer | passive | no plan |  |
+| Bridge of Graves | 12 | necromancer | passive | plan | a spell the engine doesn't cast (Bridge of Graves) |
 | Instinctual Creation | 14 | necromancer | free | no plan |  |
 | Ocular Flesh | 14 | necromancer | 1 action | plan | a timer with no rules a fight counts |
 | Recurring Nightmare | 14 | necromancer | passive | no plan |  |
 | Skeletal Lancers | 14 | necromancer | passive | no plan |  |
 | Flesh Tsunami | 16 | necromancer | passive | no plan |  |
-| Temporary Possession | 16 | necromancer | passive | no plan |  |
-| Calcification | 18 | necromancer | passive | no plan |  |
-| Dread Mosquito Storm | 18 | necromancer | passive | no plan |  |
+| Temporary Possession | 16 | necromancer | passive | plan | a spell the engine doesn't cast (Temporary Possession) |
+| Calcification | 18 | necromancer | passive | plan | a spell the engine doesn't cast (Calcification) |
 | Power Hungry | 18 | necromancer | passive | no plan |  |
 | Instant Army | 20 | necromancer | 1 action | no plan |  |
 | Living Graveyard | 20 | necromancer | passive | no plan |  |
@@ -3870,11 +3519,9 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Hands That Unweave Disaster | 2 | other | passive | no plan |  |
 | Awakened Power | 4 | other | passive | no plan |  |
 | Become Shadow | 4 | other | passive | no plan |  |
-| Echo of the Fallen | 4 | other | passive | no plan |  |
 | Mythic Refocus | 8 | other | 1 action | no plan |  |
 | Summon Mythic Power | 8 | other | 1 action | plan | a Focus or Mythic Point back |
 | Become Destiny | 10 | other | free | no plan |  |
-| Eyes That See Eternity | 10 | other | 1 action | plan | a spell the feat casts |
 | Greater Awakened Power | 10 | other | passive | no plan |  |
 | Expert Spellcasting | 12 | other | passive | no plan |  |
 | Athlete's Ally | 14 | other | 1 action | plan | a timer with no rules a fight counts |
@@ -3910,7 +3557,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Autonomic Psychic Action | 20 | psychic | passive | no plan |  |
 | Initiate Warden | 1 | ranger | passive | no plan |  |
 | Favored Terrain | 2 | ranger | passive | no plan |  |
-| Snare Hopping | 2 | ranger | passive | no plan |  |
+| Snare Hopping | 2 | ranger | passive | plan | a spell the engine doesn't cast (Snare Hopping) |
 | Advanced Warden | 4 | ranger | passive | no plan |  |
 | Far Shot | 4 | ranger | passive | no plan |  |
 | Masterful Warden | 6 | ranger | passive | no plan |  |
@@ -3923,7 +3570,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Legendary Monster Hunter | 16 | ranger | passive | no plan |  |
 | Ubiquitous Snares | 16 | ranger | passive | no plan |  |
 | Warden's Reload | 16 | ranger | free | no plan |  |
-| Impossible Flurry | 18 | ranger | 3 actions | plan | its requirement, which the PC doesn't meet (You are wielding two melee weapons, each in a different hand.) |
 | Accurate Flurry | 20 | ranger | passive | no plan |  |
 | Ultimate Skirmisher | 20 | ranger | passive | no plan |  |
 | Plant Evidence | 1 | rogue | 1 action | no plan |  |
@@ -3969,9 +3615,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | After You | 2 | swashbuckler | free | plan | an Effect with nothing a fight counts |
 | Enjoy the Show | 2 | swashbuckler | passive | no plan |  |
 | Even the Odds | 4 | swashbuckler | free | plan | an Effect with nothing a fight counts |
-| Swaggering Initiative | 4 | swashbuckler | free | plan | an Effect with nothing a fight counts |
 | Combination Finisher | 6 | swashbuckler | passive | no plan |  |
-| Buckler Dance | 10 | swashbuckler | 1 action | plan | an Effect with nothing a fight counts |
 | Deadly Grace | 16 | swashbuckler | passive | no plan |  |
 | Incredible Luck (Swashbuckler) | 18 | swashbuckler | passive | no plan |  |
 | Panache Paragon | 20 | swashbuckler | passive | no plan |  |
