@@ -232,10 +232,13 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     if (plan.builtin === "strike-activity") {
         // (A reaction's Strike on a trigger the engine plays: the reaction-strike builtin, as a monster's.)
         const effectNeeded = actionType === "reaction" && plan.requires ? requiredEffectFeat(String(plan.requires).replace(/^Requirements?:?\s*/i, "")) : null;
-        const triggers = actionType === "reaction" && (!plan.requires || effectNeeded) ? pcReactionTriggers(info?.trigger) : null;
+        // (2026-11-03: or a requirement the PC's loadout meets, or one a fight here always meets — Silence the Profane's deity's weapon.)
+        const requirementSaid = String(plan.requires ?? "").replace(/^Requirements?:?\s*/i, "");
+        const requirementMet = !plan.requires || Boolean(effectNeeded) || helpers.meets?.(requirementSaid) === true || pcNeeds(requirementSaid)?.length === 0;
+        const triggers = actionType === "reaction" && requirementMet ? pcReactionTriggers(info?.trigger) : null;
         if (triggers) {
             const disrupts = /\bdisrupt/i.test(info?.text ?? "") ? "critical" : false;
-            if (!addBuiltin(builtins, { builtin: "reaction-strike", triggers, strike: null, penalty: 0, disrupts, ...(plan.strike === "ranged" ? { ranged: true } : {}), ...(plan.extraWeaponDice ? { extraDamage: plan.extraWeaponDice } : {}), ...(effectNeeded ? { requiresEffect: effectNeeded } : {}) }, name)) return gap("a reaction's Strike the engine doesn't play");
+            if (!addBuiltin(builtins, { builtin: "reaction-strike", triggers, strike: null, penalty: 0, disrupts, ...(plan.strike === "ranged" && !plan.melee ? { ranged: true } : {}), ...(plan.extraWeaponDice ? { extraDamage: plan.extraWeaponDice } : {}), ...(effectNeeded ? { requiresEffect: effectNeeded } : {}) }, name)) return gap("a reaction's Strike the engine doesn't play");
             return { ...result, played: `reaction Strike (${triggers.join(", ")})` };
         }
         if (actionType !== "action") return gap(`a ${actionType}'s Strike`);
