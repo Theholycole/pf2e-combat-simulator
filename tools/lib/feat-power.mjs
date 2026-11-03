@@ -471,6 +471,35 @@ function quickenAllEntry(doc, level) {
     return { spells: [entry], pools: { [pool]: 1 }, gap: null, played: `${read.played}, the PC and its allies within ${read.area} feet (once a fight)` };
 }
 
+// (2026-11-03, the class feats no fight played: a skill check against one foe's save DC with conditions by degree — Surgical Shock's
+// Medicine against Fortitude: clumsy 2, clumsy 3 on a critical success, until the end of its next turn —, as Demoralize-each-enemy is: the
+// foe's save against the PC's skill DC, the degrees turned around, on Fear's compiled shape at one creature in reach. The stupefied
+// choice isn't played; the failure's +1 to its next attack isn't either.)
+const SKILL_ATTACKS = {
+    "surgical-shock": { skill: "medicine", save: "fortitude", range: "touch", success: ["clumsy", 2], critical: ["clumsy", 3], rounds: 1, once: true }
+};
+function skillAttackEntry(doc, level, host) {
+    const read = SKILL_ATTACKS[slugOf(doc)];
+    if (!read) return null;
+    const fear = spellPack.spellNamed("Fear");
+    let base;
+    try {
+        base = fear && spellPack.compileSpell(fear);
+    } catch {
+        base = null;
+    }
+    if (!base?.resolution?.outcomes?.failure) return null;
+    const duration = { mode: "fixed", value: read.rounds, unit: "rounds" };
+    const row = (condition) => ({ ...structuredClone(base.resolution.outcomes.failure), effects: condition ? [{ kind: "condition", slug: condition[0], name: condition[0], value: condition[1], duration, source: doc.name }] : [], rawText: "" });
+    const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], activation: { ...base.activation, time: String(doc.system?.actions?.value ?? 1) }, targeting: { ...base.targeting, range: read.range, actorConstraints: { ...base.targeting.actorConstraints, predicates: [{ kind: "enemy-of-caster" }] } }, heightening: null, resolution: { ...base.resolution, check: { ...base.resolution.check, statistic: read.save }, outcomes: { criticalSuccess: row(null), success: row(null), failure: row(read.success), criticalFailure: row(read.critical) } } };
+    const modifier = Number(host?.skills?.[read.skill]);
+    const dc = 10 + (Number.isFinite(modifier) ? modifier : level + 2);
+    const pool = read.once ? `feat:${doc._id}` : null;
+    const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool, effects: spellPack.effectModels(plan, 1) };
+    if (!castable(entry)) return null;
+    return { spells: [entry], pools: pool ? { [pool]: 1 } : {}, gap: null, played: `${read.success[0]} ${read.success[1]} on a foe that fails a ${read.save} save against its ${read.skill} DC ${dc}${read.once ? " (once a fight)" : ""}` };
+}
+
 // (2026-11-03, the class feats no fight played: more spellshapes, as Widen Spell — a copy of each of the PC's spells it shapes, an action
 // more.) Intimidating Spell: an area damage spell's failure frightened 1, critical failure frightened 2. Burning Spell: a single-target
 // non-cantrip damage spell's persistent fire of its rank. Reverberating Spell: an area non-cantrip damage spell's extra 1d8 sonic (its
@@ -1245,6 +1274,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = quickenAllEntry(doc, level) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = dedicationCantripEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = allyEffectEntry(doc, level) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = skillAttackEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
