@@ -478,6 +478,10 @@ const HAND = {
     // (Strikes at one enemy +3 status damage (+4 at master) until its next turn: the engine's self-effect damage on the PC's Strikes, the
     // target its own pick.)
     "smite": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, damage: [String(level >= 13 ? 4 : 3)], model: { rounds: 1 } }], played: "+3 damage on its Strikes for a round (1 action)" }),
+    // (A spell at least two ranks under its highest slot, or a cantrip, an action fewer, once a fight — the engine's Quickened Casting, B72.)
+    "quickened-casting": (level) => ({ builtins: { quickenedCasting: { name: "Quickened Casting", maxRank: Math.max(0, Math.ceil(level / 2) - 2) } }, played: "Quickened Casting (once a fight)" }),
+    // (A DC 15 flat check against a reaction's disruption, B55.)
+    "steady-spellcasting": () => ({ builtins: { steadySpellcasting: 15 }, played: "a DC 15 flat check against disruption" }),
     "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" })
 };
 function handEntry(doc, level, builtins, wields) {
