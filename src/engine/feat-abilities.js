@@ -56,7 +56,7 @@ export function pcNeeds(text) {
         if (m) return [need(m)];
     }
     // (What a fight on the simulator's lit, open field always meets — the PC's own staff or favored weapon is the one it holds —: no need.)
-    if (/^(?:You(?:'re| are) wielding your (?:staff|deity's favored weapon|order's favored weapon)|You aren't unholy|You aren't in dim light or darkness|You(?:'re| are) in bright light|You(?:'re| are) aware of the hostile effect, and you aren't Off-Guard against it|You aren't Encumbered|You(?:'re| are) not Encumbered)$/i.test(said)) return [];
+    if (/^(?:You(?:'re| are) wielding your (?:staff|deity's favored weapon|order's favored weapon)|You aren't unholy|You aren't in dim light or darkness|You(?:'re| are) in bright light|You(?:'re| are) aware of the hostile effect, and you aren't Off-Guard against it|You aren't Encumbered|You(?:'re| are) not Encumbered|You(?:'re| are) aware of the attack(?:,| and) (?:aren't|are not|not) Off-Guard(?: against it)?(?:, and either have a hand free or are wielding a melee weapon)?)$/i.test(said)) return [];
     return null;
 }
 

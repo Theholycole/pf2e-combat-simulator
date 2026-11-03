@@ -421,11 +421,13 @@ function acReactionEntry(doc, builtins) {
     const trigger = /<strong>\s*Trigger\s*<\/strong>\s*([^<]*)/i.exec(html)?.[1]?.trim().replace(/\.$/, "") ?? "";
     const bonus = /\+(\d) circumstance bonus to (?:your )?AC against (?:the )?(?:triggering|that) (?:attack|Strike)/i.exec(html);
     if (!bonus) return null;
-    const targeted = /^(?:An? (?:enemy|creature|foe|opponent)(?: you can see| you're observing| you are observing)? (?:targets you with|attempts) an? (melee |ranged )?(?:weapon )?(?:Strike|attack)(?: against you)?|You are targeted (?:with|by) an? (melee |ranged )?(?:Strike|attack)(?: by an? (?:observed )?(?:attacker|enemy|creature))?|An? creature targets you with an attack and you can see the attacker)$/i.exec(trigger);
+    // (Dodge Away's "You are the target of a melee attack", Cut From the Air's "… a physical ranged Strike", Inked Panoply's "A creature
+    // targets you with an attack, and you can see the attacker".)
+    const targeted = /^(?:An? (?:enemy|creature|foe|opponent)(?: you can see| you're observing| you are observing)? (?:targets you with|attempts) an? (melee |ranged )?(?:weapon )?(?:Strike|attack)(?: against you)?|You are targeted (?:with|by) an? (melee |ranged )?(?:Strike|attack)(?: by an? (?:observed )?(?:attacker|enemy|creature))?|An? creature targets you with an attack,? and you can see the attacker|You(?:'re| are) the target of an? (?:physical )?(melee |ranged )?(?:Strike|attack))$/i.exec(trigger);
     const hit = /^An? (?:enemy|creature|foe) hits you with an? (melee |ranged )?(?:Strike|attack)$/i.exec(trigger);
     const read = targeted ?? hit;
     if (!read) return null;
-    const kind = (read[1] ?? read[2] ?? "").trim();
+    const kind = (read[1] ?? read[2] ?? read[3] ?? "").trim();
     builtins.acReaction = { value: Number(bonus[1]), when: targeted ? "targeted" : "hit", name: doc.name, ...(kind ? { against: kind } : {}) };
     return { spells: [], pools: {}, gap: null, played: `+${bonus[1]} AC as a reaction ${targeted ? "when targeted" : "against a hit"}${kind ? ` (${kind})` : ""}` };
 }
@@ -605,6 +607,8 @@ const HAND = {
     "unbalancing-blow": () => ({ builtins: { strikeExtras: [{ when: "critical", offGuardToAttacker: true, source: "Unbalancing Blow" }] }, played: "off-guard to the PC after a critical hit (always on)" }),
     // (+4 AC against a ranged attack, a hand free — a monk's.)
     "deflect-projectile": () => ({ builtins: { acReaction: { value: 4, when: "targeted", name: "Deflect Projectile", against: "ranged" } }, played: "+4 AC against a ranged attack (reaction)" }),
+    // (Its own half: frightened it gains 1 lower, as Bravery's — the end-of-turn help to allies in its aura isn't played.)
+    "aura-of-courage": () => ({ builtins: { lessFrightened: 1 }, played: "frightened it gains 1 lower (always on)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
