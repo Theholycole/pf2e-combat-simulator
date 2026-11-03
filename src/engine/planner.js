@@ -1637,6 +1637,8 @@ function expandStrikeActivities(env) {
         if (!stanceHeld(c, activity.requires)) continue;
         if (activity.needs && !needsMet(state, c, activity.needs, { fresh: node.used === 0 })) continue;
         if (activity.requires === "first-round" && state.round !== 1) continue;
+        // (2026-11-03, Furious Finish: only while raging.)
+        if (activity.requires === "raging" && !isRaging(c)) continue;
         // (B147: straight after a spell it cast.)
         if (activity.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, activity.nonCantrip))) continue;
         if (activity.strides && (!mobile || ctx.wavering)) continue;

@@ -1061,7 +1061,17 @@ function actOn(state, c, action) {
             if (activity.previousMap) c.attacksThisTurn = Math.max(0, attacksBefore - 1);
             // (C34, Shatter Defenses: whether it was off-guard to it before the hit.)
             const offGuardBefore = activity.shatter ? isOffGuard(target) : false;
-            const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...activity, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : activity));
+            // (2026-11-03, Furious Finish: "a circumstance bonus to damage equal to the number of rounds remaining in your Rage (maximum 10)" —
+            // a minute's Rage, the rounds since it began taken off.)
+            const rageLeft = activity.rageFinish ? Math.max(0, Math.min(10, 10 - (state.round - (c.buffRounds?.get("Rage") ?? state.round)))) : 0;
+            const charged = activity.rageFinish ? { ...activity, damageBonus: (activity.damageBonus ?? 0) + rageLeft } : activity;
+            const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...charged, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : charged));
+            // ("After this Strike, your Rage immediately ends, and you are Fatigued until you rest for at least 10 minutes.")
+            if (activity.rageFinish) {
+                c.activeBuffs = (c.activeBuffs ?? []).filter((buff) => !buff.noConcentrate);
+                c.effects = (c.effects ?? []).filter((effect) => !effect.model?.noConcentrate);
+                if (applyCondition(state, c, "fatigued", null, null, c)) state.log?.push(`  ${c.name}'s Rage ends; it is fatigued`);
+            }
             if (activity.noMap || activity.previousMap) c.attacksThisTurn = attacksBefore;
             if (fired?.reload) (c.unloaded ??= new Set()).add(fired.name);
             // A finisher spends panache, and no more attacks this turn; Confident Finisher's miss still deals half its dice (all of them with
@@ -1281,6 +1291,7 @@ function actOn(state, c, action) {
             c.buffsUsed = new Set([...(c.buffsUsed ?? []), buff.name]);
             if (buff.tempHp) c.hp.temp = Math.max(c.hp.temp ?? 0, buff.tempHp);
             if (buff.name === "Rage") rageTriggers(state, c);
+            (c.buffRounds ??= new Map()).set(buff.name, state.round);
             break;
         }
         // A stance or another action that puts an effect on itself (Tiger Stance):
