@@ -797,6 +797,14 @@ const HAND = {
     "fiery-retort": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 0, retort: `${level}[fire]`, melee: true, foe: true, uses: 1 }], played: `${level} fire back at a melee attacker (reaction, once a fight)` }),
     // (1d4 spirit on its weapon for the rest of its turn after a slot spell — a free action, the engine's after-cast self effect.)
     "divine-weapon": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 0, requires: "after-cast", nonCantrip: true, damage: ["1d4[spirit]"], model: { rounds: 1 } }], played: "+1d4 spirit on its Strikes after a slot spell (free)" }),
+    // (1d6 force on its Strikes for the rest of its turn after a non-cantrip spell — free, the engine's after-cast self effect; the spell's own
+    // damage type isn't played.)
+    "bespell-strikes": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 0, requires: "after-cast", nonCantrip: true, damage: ["1d6[force]"], model: { rounds: 1 } }], played: "+1d6 force on its Strikes after a slot spell (free)" }),
+    // (Raise a Shield as a Strike hits: +2 AC on that attack — the engine's acReaction after a hit; the failed save against a spell isn't
+    // played.)
+    "emergency-targe": () => ({ builtins: { acReaction: { value: 2, when: "hit", name: "Emergency Targe" } }, played: "+2 AC as a Strike hits (reaction)" }),
+    // (+1 AC against a spell attack at it, or +1 to its save against a spell — one reaction.)
+    "rune-ward": () => ({ builtins: { acReaction: { value: 1, when: "targeted", name: "Rune Ward", spellOnly: true }, saveBonusReaction: { name: "Rune Ward", value: 1, against: "spell" } }, played: "+1 AC or save against a spell (reaction)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
