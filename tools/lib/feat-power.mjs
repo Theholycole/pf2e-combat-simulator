@@ -283,6 +283,29 @@ function innateSpellEntry(doc, level, host) {
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
+// (2026-11-03, the class feats no fight played: Widen Spell, the spellshape a blaster takes.) Each of the PC's 1- or 2-action spells with a
+// burst, emanation, cone or line as a widened copy, an action more, from the same slot: a burst or emanation of 10 feet or more 5 feet
+// wider, a cone or line of 15 feet or less 5 feet longer, a longer one 10 feet.
+function widenEntry(doc, host) {
+    if (slugOf(doc) !== "widen-spell") return null;
+    const spells = [];
+    for (const spell of host.spells ?? []) {
+        const area = spell.plan?.targeting?.area;
+        const time = String(spell.plan?.activation?.time ?? "");
+        if (!area || !["1", "2"].includes(time) || spell.kind || !(Number(area.value) > 0)) continue;
+        const value = Number(area.value);
+        let wider = null;
+        if (["burst", "emanation"].includes(area.type) && value >= 10) wider = value + 5;
+        if (["cone", "line"].includes(area.type)) wider = value + (value <= 15 ? 5 : 10);
+        if (!wider) continue;
+        const plan = { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(time) + 1) }, targeting: { ...spell.plan.targeting, area: { ...area, value: wider } } };
+        const entry = { ...spell, name: `${spell.name} (widened)`, plan };
+        if (castable(entry)) spells.push(entry);
+    }
+    if (!spells.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no spell of the PC's it widens` } };
+    return { spells, pools: {}, gap: null, played: `widened copies of ${spells.length} area spell${spells.length > 1 ? "s" : ""}` };
+}
+
 // (2026-11-03, the class feats no fight played: Tough Cookie, Spell Parry, Kinetic Dampening — a buff on the PC the feat module only times.)
 // Its text's own "you gain …" as PF2e rules on an Effect (effects.js effectModel), put on as a self-effect: a +N bonus to AC and/or saving
 // throws, resistance N to physical or all damage, temporary Hit Points of a level formula; for a round ("until the start of your next turn"),
@@ -753,6 +776,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellLikeEntry(doc, level, plan) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineSaveEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = acReactionEntry(doc, builtins) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = widenEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
