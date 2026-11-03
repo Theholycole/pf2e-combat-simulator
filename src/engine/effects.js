@@ -403,6 +403,9 @@ function effectModelAt(item, { rank = 1, conditionSlug = () => null, chosen = nu
         // while it lasts; a die more on its fists, reach, no longer nonlethal — Wooden Fists' alterations on "xxxxxxFISTxxxxxx".)
         if (rule?.key === "Strike" && (rule.fist || rule.damage?.base)) {
             const base = rule.fist ? { damageType: "bludgeoning", dice: 1, die: "d4" } : rule.damage.base;
+            // (2026-11-03, Sky and Heaven Stance's "The only Strikes you can make are skyward slash unarmed attacks": replaceAll — the
+            // creature's own Strikes put away while it lasts.)
+            if (rule.replaceAll) model.strikesOnly = true;
             (model.grantedStrikes ??= []).push({ slug: rule.fist ? "fist" : String(rule.slug ?? ""), name: rule.fist ? "Fist" : String(rule.label ?? rule.slug ?? "Strike").split(".").pop(), dice: Number(base.dice) || 1, die: Number(String(base.die ?? "d4").replace("d", "")) || 4, type: String(base.damageType ?? "bludgeoning"), traits: rule.fist ? ["agile", "finesse", "nonlethal", "unarmed"] : [...(rule.traits ?? [])], unarmed: Boolean(rule.fist || rule.category === "unarmed"), extra: [] });
             continue;
         }
@@ -809,6 +812,8 @@ export function removeEffect(target, effect) {
     if (effect.grantedAoo) target.reactions = { ...(target.reactions ?? {}), aoo: false };
     // A Strike the effect gave (Tiger Stance's tiger claw) goes with it.
     if ((target.strikes ?? []).some((strike) => strike.fromEffect === effect.key)) target.strikes = target.strikes.filter((strike) => strike.fromEffect !== effect.key);
+    // (The Strikes a stance's own put away, back.)
+    if (effect.hiddenStrikes?.length) target.strikes = [...effect.hiddenStrikes, ...(target.strikes ?? [])];
 }
 
 // A roll-twice on its next attack roll (Sure Strike, S54): "higher" or "lower", the effect used up; null without one.
@@ -851,6 +856,10 @@ function armStrikes(target, effect) {
         const runed = spec.unarmed && fist;
         return { name: spec.name, bonus: runed ? Number(fist.bonus) || bonus : bonus, ...(runed && fist.potency ? { potency: fist.potency } : {}), melee: true, agile: spec.traits.includes("agile"), finesse: spec.traits.includes("finesse"), unarmed: spec.unarmed, ...(spec.reach ? { reach: spec.reach } : {}), iwr: { traits: spec.traits.filter((trait) => trait === "magical"), ...(spec.unarmed ? { group: "brawling" } : {}) }, damage: [{ dice: runed ? Math.max(spec.dice, Number(fist.damage?.[0]?.dice) || 1) : spec.dice, die: spec.die, bonus: runed ? Number(fist.damage?.[0]?.bonus) || str : str, type: spec.type }, ...spec.extra.map((part) => ({ dice: part.dice, die: part.die, bonus: 0, type: part.type }))], fromEffect: effect.key };
     });
+    if (model.strikesOnly && granted.length) {
+        effect.hiddenStrikes = [...(effect.hiddenStrikes ?? []), ...(target.strikes ?? []).filter((strike) => !strike.fromEffect && !strike.fromForm)];
+        target.strikes = (target.strikes ?? []).filter((strike) => strike.fromEffect || strike.fromForm);
+    }
     target.strikes = [...(target.strikes ?? []).filter((strike) => strike.fromEffect !== effect.key), ...granted];
     const upgrade = model.runeUpgrade;
     if (!upgrade) return;

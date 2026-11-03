@@ -124,6 +124,7 @@ export function effectDoc(uuid) {
     const last = String(uuid ?? "").split(/\.Item\./).pop() ?? "";
     return effectsById.get(last) ?? effectsByName.get(last.toLowerCase()) ?? effectsByName.get(`effect: ${last.toLowerCase()}`) ?? null;
 }
+const pf2eEffectNamed = (name) => (process.env.FEAT_PF2E_EFFECT === "0" ? null : ["stance", "effect"].map((prefix) => effectsByName.get(`${prefix}: ${String(name ?? "").toLowerCase()}`)).find(Boolean) ?? null);
 const resolveUuid = (uuid) => {
     const doc = effectDoc(uuid);
     return doc ? `Compendium.pf2e.feat-effects.Item.${doc._id}` : null;
@@ -134,7 +135,9 @@ function helpersAt(level) {
             const uuids = [...(plan?.resolution?.applications ?? []).map((application) => application?.uuid), ...Object.values(plan?.resolution?.outcomes ?? {}).flatMap((row) => (row?.nativeEffects ?? []).map((native) => native?.uuid))].filter(Boolean);
             return Object.fromEntries(uuids.map((uuid) => [uuid, effectDoc(uuid)]).filter(([, doc]) => doc).map(([uuid, doc]) => [uuid, effectModel(doc, { rank: level, actorLevel: level, conditionSlug })]));
         },
-        rulesModel: (effect) => effectModel({ name: effect.name, type: "effect", system: { rules: effect.rules ?? [], duration: effect.duration ?? { value: -1, unit: "unlimited" } } }, { rank: level, actorLevel: level, conditionSlug }),
+        // (2026-11-03: PF2e's own Effect of that name when there is one — Sky and Heaven Stance's skyward slash and resistances that grow
+        // with level, which the module's Effect from the text leaves out.)
+        rulesModel: (effect) => (pf2eEffectNamed(effect.name) ? effectModel(pf2eEffectNamed(effect.name), { rank: level, actorLevel: level, conditionSlug }) : null) ?? effectModel({ name: effect.name, type: "effect", system: { rules: effect.rules ?? [], duration: effect.duration ?? { value: -1, unit: "unlimited" } } }, { rank: level, actorLevel: level, conditionSlug }),
         passiveModel: (uuid) => {
             const doc = effectDoc(uuid);
             return doc ? effectModel(doc, { rank: level, actorLevel: level, conditionSlug }) : null;
@@ -587,7 +590,9 @@ function textSelfEffectEntry(doc, level, builtins, host, wields) {
     if (/<strong>\s*Trigger\s*<\/strong>/i.test(html)) return null;
     const text = html.replace(/<[^>]+>/g, " ").replace(/@UUID\[[^\]]*?Item\.([^\]]+)\](?:\{([^}]*)\})?/g, (_all, name, label) => label ?? name).replace(/\s+/g, " ");
     const rules = [];
-    const bonus = /\b(?:you (?:gain|get)|gaining|You and (?:your )?allies [^.]*? gain) an? \+(\d) (circumstance|status) bonus to (?:your )?(AC|all saving throws|saving throws|AC and (?:to )?(?:all )?saving throws(?: against spells that target you)?)\b/i.exec(text);
+    // (Not a bonus only against some things or at some times — Six Pillars Stance's "+4 circumstance bonus to AC against reactions triggered
+    // by …" —: that's no flat bonus.)
+    const bonus = /\b(?:you (?:gain|get)|gaining|You and (?:your )?allies [^.]*? gain) an? \+(\d) (circumstance|status) bonus to (?:your )?(AC|all saving throws|saving throws|AC and (?:to )?(?:all )?saving throws(?: against spells that target you)?)\b(?!,? (?:against|when|if|versus)\b)/i.exec(text);
     if (bonus) {
         const value = Number(bonus[1]);
         if (/AC/.test(bonus[3])) rules.push({ key: "FlatModifier", selector: "ac", type: bonus[2].toLowerCase(), value });
@@ -1345,9 +1350,12 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     const classTrait = (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait] || CLASS_SLUGS.includes(trait));
     // (2026-11-02, the user: "Get the simulator working with all classes": a class's feat on its own class — classes.js — the standard party
     // with that class's PC in its seat, rated against the same party without the feat.)
-    const classPC = !start && !hostId && classTrait && CLASS_SLUGS.includes(classTrait) && !["fighter", "rogue", "wizard", "cleric"].includes(classTrait) && process.env.FEAT_OWN_CLASS !== "0";
-    const party = start ?? (classPC ? classPartyFor(classTrait, level) : partyFor(level));
-    if (classPC) hostId = classTrait;
+    // (2026-11-03: an archetype's stance for the unarmored — Six Pillars Stance's, Stunt Performer Stance's "You are unarmored" — on the
+    // monk, the class that fights unarmored, rather than a fighter stripped of its armor.)
+    const ownClass = classTrait ?? (!start && !hostId && /\b(?:are|you're) unarmored\b/i.test(requirementText(doc) ?? "") && CLASS_SLUGS.includes("monk") ? "monk" : null);
+    const classPC = !start && !hostId && ownClass && CLASS_SLUGS.includes(ownClass) && !["fighter", "rogue", "wizard", "cleric"].includes(ownClass) && process.env.FEAT_OWN_CLASS !== "0";
+    const party = start ?? (classPC ? classPartyFor(ownClass, level) : partyFor(level));
+    if (classPC) hostId = ownClass;
     const compileFor = (host) => {
         try {
             return { plan: compileFeat(doc, { dcs: dcsOf(host), basicActions, itemReaders }) };
