@@ -60,6 +60,14 @@ export function numericValue(value, rank) {
     if (typeof value === "number") return value;
     if (typeof value !== "string") return null;
     if (value.includes("@actor.level")) value = value.replace(/@actor\.level/g, String(actorLevelNow ?? Math.max(1, 2 * (Number(rank) || 1) - 1)));
+    // (2026-11-03, the class feats no fight played: Unstoppable Juggernaut's "@actor.abilities.con.mod+3" — a PC's modifier other than its key
+    // one at the level, +2 rising by one at 5th, 10th and 20th; Stoney Skin's "@actor.flags.system.stoneBrawlerArchetype.featCount" — the
+    // archetype's feats the PC has, its dedication and this one.)
+    if (/@actor\.abilities\.\w+\.mod/.test(value)) {
+        const level = actorLevelNow ?? Math.max(1, 2 * (Number(rank) || 1) - 1);
+        value = value.replace(/@actor\.abilities\.\w+\.mod/g, String(2 + (level >= 5) + (level >= 10) + (level >= 20)));
+    }
+    value = value.replace(/@actor\.flags\.system\.\w*(?:Archetype\.featCount|DedicationCount|FeatCount|featCount)\b/g, "2");
     // (2026-10-22, Anticipate Peril's "clamp(ceil(@item.level / 2), 1, 4)": the clamp read here, the rest the core's.)
     const clamp = /^\s*clamp\((.*),\s*(-?\d+)\s*,\s*(-?\d+)\s*\)\s*$/.exec(value);
     if (clamp) {
