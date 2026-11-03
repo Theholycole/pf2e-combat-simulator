@@ -939,6 +939,10 @@ const HAND = {
     // (Inner Fire, in Stoked Flame Stance: cold and fire resistance half its level, and its Wisdom in fire on who hits it in melee — every
     // melee hit, not only unarmed ones; a Wisdom of 3, 4 at 10th level.)
     "inner-fire-monk": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 0, requiresEffect: "Stoked Flame Stance", model: { rounds: 100, resistances: ["cold", "fire"].map((type) => ({ type, value: Math.floor(level / 2) })), hitBack: `${level >= 10 ? 4 : 3}[fire]` } }], played: "cold and fire resistance and fire on who hits it" }),
+    // (Swaggering Initiative: +2 circumstance to its initiative roll — a passive effect's, fight.js; its panache when first isn't played.)
+    "swaggering-initiative": () => ({ builtins: { passiveEffects: [{ name: "Swaggering Initiative", rounds: Infinity, modifiers: [{ on: "initiative", type: "circumstance", value: 2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }] }, played: "+2 to its initiative" }),
+    // (Tributary Circulation: +2 circumstance to Will saves until its next turn; the poison saves and flat check aren't played.)
+    "tributary-circulation": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, model: { rounds: 1, modifiers: [{ on: "will", type: "circumstance", value: 2 }] } }], played: "+2 to Will saves for a round" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
