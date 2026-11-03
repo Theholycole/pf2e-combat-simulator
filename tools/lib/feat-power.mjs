@@ -814,6 +814,68 @@ function impulsePlan(doc, level) {
     return { ...plan, trigger: { ...(plan.trigger ?? {}), event: "use" } };
 }
 
+// (2026-11-03, the class feats no fight played: the impulses the kineticist module reads as something other than a save — Timber Sentinel's
+// "spell" (Protector Tree), Molten Wire's and Elemental Artillery's impulse "attack", Dash of Herbs' "heal".) As a spell the spell compiler
+// reads, at the PC's class DC (its impulse attack the DC − 10): the named spell at half the PC's level rounded up; an attack's first damage
+// (its riders aren't played) against one creature in its range; a heal's dice on one creature. An action only.
+function kineticistEntry(doc, level, host) {
+    if (!kineticistReader || !(doc.system?.traits?.value ?? []).includes("impulse") || (doc.system?.actionType?.value ?? "passive") !== "action" || !alwaysMet(doc)) return null;
+    let plan;
+    try {
+        plan = kineticistReader.readImpulse(doc, { level });
+    } catch {
+        return null;
+    }
+    const resolution = plan?.resolution;
+    if (!resolution || plan.trigger?.event === "reaction") return null;
+    const own = dcsOf(host);
+    const dc = own.class ?? 10 + level + 2;
+    const castRank = Math.max(1, Math.ceil(level / 2));
+    const time = String(plan.activation?.time ?? doc.system?.actions?.value ?? 2);
+    const finish = (spell, compiled, played) => {
+        if (!compiled?.resolution || ["unsupported", "no-effect"].includes(compiled.resolution.kind)) return null;
+        if (compiled.activation) compiled = { ...compiled, activation: { ...compiled.activation, time } };
+        const entry = { name: `${spell.name === doc.name ? doc.name : `${spell.name} (${doc.name})`}`, plan: compiled, castRank, dc, attack: dc - 10, pool: null, effects: spellPack.withTextConditions(spellPack.effectModels(compiled, castRank), spell, castRank) };
+        return castable(entry) ? { spells: [entry], pools: {}, gap: null, played } : null;
+    };
+    const compile = (spell) => {
+        try {
+            return spellPack.compileSpell(spell);
+        } catch {
+            return null;
+        }
+    };
+    if (resolution.kind === "spell" && resolution.spell) {
+        const named = String(resolution.spell.uuid ?? "").replace(/^.*\.Item\./, "");
+        const spell = spellPack.spellNamed(resolution.spell.name ?? named) ?? spellPack.spellNamed(named) ?? null;
+        if (!spell) return null;
+        return finish(spell, compile(spell), `impulse: casts ${spell.name} (rank ${castRank}, DC ${dc})`);
+    }
+    const base = (traits, description, extra) => ({ ...doc, type: "spell", system: { ...doc.system, rules: [], traits: { value: traits, rarity: "common" }, description: { value: description }, level: { value: 1 }, heightening: undefined, time: { value: time }, area: null, defense: null, duration: { value: "" }, ...extra } });
+    if (resolution.kind === "attack" && resolution.attack && resolution.sharedDamage?.components?.length) {
+        // (Every part of its damage — Whirling Grindstone's slashing and fire —; Magnetic Pinions' three targets are one here.)
+        const parts = resolution.sharedDamage.components.filter((each) => !each.healing && /^\d+d\d+(?:\+\d+)?$/.test(String(each.formula)));
+        if (!parts.length || parts.length < resolution.sharedDamage.components.length) return null;
+        const typeOf = (each) => each.type ?? (doc.system?.traits?.value ?? []).find((trait) => ["fire", "cold", "electricity", "acid", "sonic"].includes(trait)) ?? "bludgeoning";
+        const part = { formula: parts.map((each) => each.formula).join(" + ") };
+        const type = parts.map(typeOf).join(" and ");
+        const range = Number(resolution.attack.range) || 30;
+        // (On a spell attack cantrip's own shape, Ignition's: the compiler reads an attack from it.)
+        const template = spellPack.spellNamed("Ignition");
+        if (!template) return null;
+        const spell = { ...template, _id: doc._id, name: doc.name, system: { ...template.system, traits: { value: ["attack", "manipulate"], rarity: "common" }, description: { value: `<p>Make a spell attack roll against the target's AC, dealing ${parts.map((each) => `${each.formula} ${typeOf(each)} damage`).join(" and ")} on a hit.</p><hr /><p><strong>Critical Success</strong> The target takes double damage.</p><p><strong>Success</strong> The target takes full damage.</p>` }, heightening: undefined, time: { value: time }, target: { value: "1 creature" }, range: { value: `${range} feet` }, damage: Object.fromEntries(parts.map((each, index) => [index, { applyMod: false, category: null, formula: each.formula, kinds: ["damage"], materials: [], type: typeOf(each) }])) } };
+        return finish(spell, compile(spell), `impulse attack: ${part.formula} ${type} (${range} feet, attack +${dc - 10})`);
+    }
+    if (resolution.kind === "heal" && resolution.healing?.components?.length && plan.targeting?.target?.count === 1) {
+        const formula = String(resolution.healing.components[0].formula);
+        if (!/^\d+d\d+(?:\+\d+)?$/.test(formula)) return null;
+        const range = Number(plan.targeting.target.range) || 30;
+        const spell = base(["healing", "manipulate"], `<p>You heal the target's wounds. The target regains ${formula} Hit Points when you Cast the Spell.</p>`, { target: { value: "1 willing creature" }, range: { value: `${range} feet` }, damage: { 0: { applyMod: false, category: null, formula, kinds: ["healing"], materials: [], type: "untyped" } } });
+        return finish(spell, compile(spell), `impulse heal: ${formula} (${range} feet)`);
+    }
+    return null;
+}
+
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
 // (else the standard one: an ancestry's PC with its feats so far, tools/lib/ancestry-power.mjs).
@@ -914,6 +976,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         }
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellLikeEntry(doc, level, plan) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineSaveEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = kineticistEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = acReactionEntry(doc, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = saveBonusEntry(doc, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineHealEntry(doc, level) ?? entries;
