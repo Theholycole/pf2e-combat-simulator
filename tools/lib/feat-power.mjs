@@ -413,7 +413,8 @@ function inlineHealEntry(doc, level) {
 // (2026-11-03, the class feats no fight played: Farabellus Flip, Sense the Strike — a reaction's bonus to AC against the attack that sets it
 // off.) The engine's acReaction: "targets you with a (melee|ranged) Strike/attack" → as it's targeted, "hits you" → after the hit (it may turn
 // it); its "+N circumstance bonus to AC against the triggering attack". Nothing else in the reaction is played.
-const alwaysMet = (doc) => !requirementText(doc) || pcNeeds(requirementText(doc))?.length === 0;
+// (Or a stance it needs — Stalwart Song's "You're in Tenacious Stance" —, which partyWithFeatOwn gives the PC on both sides.)
+const alwaysMet = (doc) => !requirementText(doc) || pcNeeds(requirementText(doc))?.length === 0 || Boolean(requiredStances(requirementText(doc)));
 function acReactionEntry(doc, builtins) {
     // (Flashy Dodge's "You aren't Encumbered": met.)
     if ((doc.system?.actionType?.value ?? "passive") !== "reaction" || !alwaysMet(doc)) return null;
@@ -662,6 +663,8 @@ const ZERO_HP = {
     "ruby-resurrection": { ferocity: { hp: 30, wounded: false, uses: 1 } },
     // (10 + its level + its Constitution modifier.)
     "its-not-over": { ferocity: { hp: (level) => 10 + level + 2 + (level >= 5) + (level >= 10) + (level >= 20), wounded: false, uses: 1 } },
+    // (In Tenacious Stance: and a melee Strike.)
+    "cracked-mountain": { ferocity: { hp: 1, wounded: true, uses: 1, strike: true } },
     "cant-fall-here": { rescue: { within: 5, hp: 1, uses: 1 } },
     caterwaul: { rescue: { within: 30, hp: 1, uses: 1 } }
 };
@@ -916,7 +919,9 @@ function partyWithFeatOwn(doc, level, options = {}) {
 }
 const featsByName = new Map();
 function featByName(name) {
-    if (!featsByName.size) for (const doc of docsOf(`${PACK_ROOT}/feats`).values()) featsByName.set(doc.name.toLowerCase(), doc);
+    // (2026-11-03: or an action of the packs' — Tenacious Stance, Claw Stance and Stonestrike Stance, which archetype feats need —, a feat's
+    // own first.)
+    if (!featsByName.size) for (const pack of ["actions", "feats"]) for (const doc of docsOf(`${PACK_ROOT}/${pack}`).values()) featsByName.set(doc.name.toLowerCase(), doc);
     return featsByName.get(String(name).toLowerCase()) ?? null;
 }
 

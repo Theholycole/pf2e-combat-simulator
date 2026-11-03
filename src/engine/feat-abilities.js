@@ -139,6 +139,9 @@ export function meetsWielding(text, wields) {
     add(/melee weapon that can deal (slashing|piercing|bludgeoning) damage/, (wields.damage ?? []).includes(/can deal (\w+) damage/.exec(words)?.[1]));
     add(/finesse weapon or polearm/, Boolean(wields.finesse) || (wields.groups ?? []).includes("polearm"));
     add(/^you are medium or smaller\.?$/, true);
+    // (Tenacious Stance's "You are wearing armor", Stonestrike Stance's "You are standing on the ground".)
+    add(/^you are wearing armor\.?$/, wields.armor !== "unarmored");
+    add(/^you are standing on the ground\.?$/, true);
     // (Extravagant Parry's "You're wielding one or more one-handed weapons", Spell Parry's "You have one or more hands free".)
     add(/one or more one-handed weapons/, wields.oneHanded);
     add(/one or more hands free/, wields.freeHand);
