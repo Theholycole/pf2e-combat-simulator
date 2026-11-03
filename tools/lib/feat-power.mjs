@@ -357,17 +357,20 @@ function stunningBlowsEntry(doc, level, host) {
 // (2026-11-03, the class feats no fight played: Widen Spell, the spellshape a blaster takes.) Each of the PC's 1- or 2-action spells with a
 // burst, emanation, cone or line as a widened copy, an action more, from the same slot: a burst or emanation of 10 feet or more 5 feet
 // wider, a cone or line of 15 feet or less 5 feet longer, a longer one 10 feet.
+// (2026-11-03: Spiritual Expansion Spell, an animist's Widen Spell; Growth Spell, a slot spell's burst 5 feet more, a cone's 10, a line's
+// 15.)
 function widenEntry(doc, host) {
-    if (slugOf(doc) !== "widen-spell") return null;
+    const growth = slugOf(doc) === "growth-spell";
+    if (!["widen-spell", "spiritual-expansion-spell"].includes(slugOf(doc)) && !growth) return null;
     const spells = [];
     for (const spell of host.spells ?? []) {
         const area = spell.plan?.targeting?.area;
         const time = String(spell.plan?.activation?.time ?? "");
-        if (!area || !["1", "2"].includes(time) || spell.kind || !(Number(area.value) > 0)) continue;
+        if (!area || !["1", "2"].includes(time) || spell.kind || !(Number(area.value) > 0) || (growth && !spell.pool)) continue;
         const value = Number(area.value);
         let wider = null;
-        if (["burst", "emanation"].includes(area.type) && value >= 10) wider = value + 5;
-        if (["cone", "line"].includes(area.type)) wider = value + (value <= 15 ? 5 : 10);
+        if (["burst", "emanation"].includes(area.type) && (value >= 10 || growth)) wider = value + 5;
+        if (["cone", "line"].includes(area.type)) wider = value + (growth ? (area.type === "cone" ? 10 : 15) : value <= 15 ? 5 : 10);
         if (!wider) continue;
         const plan = { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(time) + 1) }, targeting: { ...spell.plan.targeting, area: { ...area, value: wider } } };
         const entry = { ...spell, name: `${spell.name} (widened)`, plan };
