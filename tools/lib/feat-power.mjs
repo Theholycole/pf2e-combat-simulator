@@ -283,6 +283,29 @@ function innateSpellEntry(doc, level, host) {
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
+// (2026-11-03, the class feats no fight played: Stunning Blows.) A Flurry of Blows that hits: a Fortitude save at the monk's class DC or
+// stunned 1 (3 on a critical failure) — the save as a spell compiled from that text, cast by the flurry's rider (spells.js bothHitRider's
+// affliction), not on its own.
+function stunningBlowsEntry(doc, level, host) {
+    if (slugOf(doc) !== "stunning-blows") return null;
+    const flurry = (host.multiStrikes ?? []).find((entry) => entry.name === "Flurry of Blows");
+    if (!flurry) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no Flurry of Blows on the PC` } };
+    const stunned = "@UUID[Compendium.pf2e.conditionitems.Item.Stunned]";
+    const html = `<p>The target must attempt a @Check[fortitude] save.</p><hr /><p><strong>Critical Success</strong> The creature is unaffected.</p><p><strong>Success</strong> The creature is unaffected.</p><p><strong>Failure</strong> The creature is ${stunned}{Stunned 1}.</p><p><strong>Critical Failure</strong> The creature is ${stunned}{Stunned 3}.</p>`;
+    const spell = { ...doc, type: "spell", system: { ...doc.system, description: { value: html }, level: { value: 1 }, heightening: undefined, time: { value: "1" }, area: null, target: { value: "1 creature" }, range: { value: "touch" }, defense: { save: { statistic: "fortitude", basic: false } }, damage: {}, traits: { ...doc.system.traits, value: [...(doc.system.traits?.value ?? []), "incapacitation"] } } };
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    if (!plan?.resolution || plan.resolution.kind !== "save") return null;
+    plan = { ...plan, trigger: { ...(plan.trigger ?? {}), event: "strike", attackEffect: "stunning blows" } };
+    const dc = dcsOf(host).class ?? 10 + level + 2;
+    const entry = { name: "Stunning Blows", plan, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool: null, effects: {} };
+    return { spells: [entry], pools: {}, gap: null, played: "a Fortitude save or stunned when a Flurry of Blows hits", flurryRider: { affliction: "stunning blows", atLeast: 1 } };
+}
+
 // (2026-11-03, the class feats no fight played: Widen Spell, the spellshape a blaster takes.) Each of the PC's 1- or 2-action spells with a
 // burst, emanation, cone or line as a widened copy, an action more, from the same slot: a burst or emanation of 10 feet or more 5 feet
 // wider, a cone or line of 15 feet or less 5 feet longer, a longer one 10 feet.
@@ -777,6 +800,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineSaveEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = acReactionEntry(doc, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = widenEntry(doc, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
@@ -817,6 +841,8 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     pc.spellPools = { ...(pc.spellPools ?? {}), ...entries.pools };
     joinBuiltins(pc, builtins);
     if (tried.strikes) pc.strikes = tried.strikes;
+    // (Stunning Blows: the rider on the PC's Flurry of Blows.)
+    if (entries.flurryRider) pc.multiStrikes = (pc.multiStrikes ?? []).map((entry) => (entry.name === "Flurry of Blows" ? { ...entry, bothHit: { conditions: [], damage: [], ...entries.flurryRider } } : entry));
     return { party: withFeat, ...(loadout || classPC ? { plain: base } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan };
 }
 
