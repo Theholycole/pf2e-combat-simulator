@@ -521,6 +521,12 @@ export function addBuiltin(spec, plan, name) {
                 // (Brutal Finish: its turn ends after the Strike; a failure's weapon dice — fight.js.)
                 ...(plan.endsTurn ? { endsTurn: true } : {}),
                 ...(plan.failureDice ? { failureDice: plan.failureDice } : {}),
+                // (2026-11-03, the Strike riders: Certain Strike's failure, a hit's damage without its dice; Perfect Finisher's attack rolled
+                // twice; Overwhelming Blow's hit that is a critical hit.)
+                ...(plan.failureFlat ? { failureFlat: true } : {}),
+                ...(plan.fortune ? { fortune: true } : {}),
+                ...(plan.hitCrits ? { hitCrits: true } : {}),
+                ...(plan.ignoreResistances ? { ignoreResistances: true } : {}),
                 // A follow-up's Strike (B68): only straight after a Strike that fits; previousMap, at that Strike's penalty.
                 ...(plan.after ? { after: { ...plan.after } } : {}),
                 ...(plan.previousMap ? { previousMap: true } : {}),
@@ -550,7 +556,8 @@ export function addBuiltin(spec, plan, name) {
                 // (Exacting Strike's: a failure doesn't count toward the multiple attack penalty.)
                 ...(plan.exacting ? { exacting: true } : {}),
                 ...(plan.flourish || (plan.traits ?? []).includes("flourish") ? { flourish: true } : {}),
-                onHit: plan.onHit,
+                // (2026-11-03: rulesDamage — damage PF2e's own rules add to the Strike, or the GM does —: the card leaves it, a fight counts it.)
+                onHit: plan.onHit?.rulesDamage?.length ? { ...plan.onHit, damage: [...(plan.onHit.damage ?? []), ...plan.onHit.rulesDamage] } : plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];
             return true;
@@ -717,9 +724,9 @@ export function withExtraDamage(strike, formulas) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard === true ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.damagePerWeaponDie && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length) return strike;
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.damagePerWeaponDie && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length && !charge.fortune && !charge.hitCrits && !charge.ignoreResistances) return strike;
     // (2026-10-16: Sniper's Bead's, no range penalty out to that many increments — space.js rangePenalty.)
-    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}) };
+    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}), ...(charge.fortune ? { fortune: true } : {}), ...(charge.hitCrits ? { hitCrits: true } : {}), ...(charge.ignoreResistances ? { ignoreResistances: true } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
     // (A bonus of its weapon dice, or twice that: the dice the Strike has — its striking runes'.)
     if (charge.damagePerWeaponDie) changed.damage = (changed.damage ?? strike.damage).map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damagePerWeaponDie * (Number(strike.damage[0]?.dice) || 1) } : part));

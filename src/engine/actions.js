@@ -554,6 +554,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         ? attackFortune(state, attacker, target, strike, { modifier, circumstance: circumstancePenalty(state, attacker, target, strike) + (attacker.rollPenalty ?? 0), ac: ac + defence, damage: [expectedHitDamage(attacker, strike, target, false), expectedHitDamage(attacker, strike, target, true)] })
         : null;
     if (talisman) fortune = true;
+    // (2026-11-03, Perfect Finisher: its attack rolled twice, the better.)
+    if (strike.fortune) fortune = true;
     // (A fortune Strike, B90: twice, the better; with misfortune too, neither.)
     const roll = () => (misfortune && !fortune ? Math.min(state.rng.d20(), state.rng.d20()) : fortune && !misfortune ? Math.max(state.rng.d20(), state.rng.d20()) : state.rng.d20());
     let natural = roll();
@@ -581,6 +583,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (Sacred Defender: a natural 20 against it doesn't improve the result. Keen: a natural 19 that hits is a critical hit.)
     if (natural === 20 && target.noNaturalTwenty) degree = degreeOf(natural + modifier + bonus, ac + defence, 10);
     if (keenCritical(strike, natural, degree)) degree = CRITICAL_SUCCESS;
+    // (2026-11-03, Overwhelming Blow: "If this Strike hits, you get a critical hit.")
+    if (strike.hitCrits && degree === SUCCESS) degree = CRITICAL_SUCCESS;
     // (U11: Gorum's Tear leaves its user off-guard to that creature until its next turn.)
     if (talisman) afterAttackFortune(state, attacker, target, talisman);
     // Hammer Block, Stygian Guardian (B94): an ally's +AC once the attack hits, when that turns it aside (its Strike back after, Reactive

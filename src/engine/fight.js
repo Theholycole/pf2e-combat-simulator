@@ -1104,6 +1104,14 @@ function actOn(state, c, action) {
                 const dealt = applyDamage(state, target, [{ type: fired.damage[0].type, amount, persistent: false, precision: false, context: strikeContext(c, fired) }], { source: c, physical: true });
                 state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
             }
+            // (2026-11-03, Certain Strike: a failure deals a hit's damage without any of its dice — its flat parts.)
+            if (activity.failureFlat && result?.degree === FAILURE && !result.image && isActive(target)) {
+                const flat = (fired?.damage ?? []).filter((part) => !part.persistent && !part.precision).reduce((sum, part) => sum + (part.bonus ?? 0), 0);
+                if (flat > 0) {
+                    const dealt = applyDamage(state, target, [{ type: fired.damage[0].type, amount: flat, persistent: false, precision: false, context: strikeContext(c, fired) }], { source: c, physical: true });
+                    state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
+                }
+            }
             // (C34, Shatter Defenses: a hit that deals damage leaves it off-guard while it's frightened; already off-guard to it, its frightened
             // can't drop below 1 until the attacker's next turn.)
             if (activity.shatter && result?.degree >= SUCCESS && (result.damage ?? 1) > 0 && isActive(target)) shatterDefenses(state, c, target, offGuardBefore, { applyCondition });

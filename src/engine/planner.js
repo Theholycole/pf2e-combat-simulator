@@ -537,7 +537,17 @@ class PlanContext {
         const feinted = !isOffGuard(target) && (offGuardTo(target, c, strike.melee) || offGuardFrom(state, c, target, { melee: strike.melee }));
         const ac = armorClass(target, { ranged: !strike.melee, coverBonus: Math.max(coverFor(state, target, at && !strike.melee ? { ...c, square: at.square, ...(at.z !== undefined ? { z: at.z } : {}) } : null), sight && !strike.melee ? sight.cover : 0), flanked: feinted });
         // (A stratagem's roll: the one degree it gives, with Intelligence.)
-        const odds = strategic === null ? (dc) => degreeDistribution(modifier, dc) : (dc) => {
+        // (2026-11-03, the Strike riders: Perfect Finisher's attack rolled twice, the better — each natural's chance (2n − 1)/400 —;
+        // Overwhelming Blow's hit that is a critical hit.)
+        const rolled = strike.fortune
+            ? (dc) => {
+                  const out = [0, 0, 0, 0];
+                  for (let natural = 1; natural <= 20; natural++) out[degreeOf(natural + modifier, dc, natural)] += (2 * natural - 1) / 400;
+                  return out;
+              }
+            : (dc) => degreeDistribution(modifier, dc);
+        const lifted = strike.hitCrits ? (dc) => { const out = rolled(dc); return [out[0], out[1], 0, out[2] + out[3]]; } : rolled;
+        const odds = strategic === null ? lifted : (dc) => {
             const total = strategic + modifier + c.stratagemFeature.strikeBonus[strike.name];
             return [0, 1, 2, 3].map((degree) => (degree === degreeOf(total, dc, strategic) ? 1 : 0));
         };
@@ -1665,7 +1675,7 @@ function expandStrikeActivities(env) {
             const before = node.damage[target.id] ?? 0;
             const hp = remainingHp(target);
             // (Focused Assault, B74: a failure deals the Strike's damage too.)
-            const expected = best.expectation.damage + best.expectation.hitChance * rider.damage + (activity.failureDamage ? (best.expectation.failChance ?? 0) * (best.expectation.hitDamage ?? 0) : 0);
+            const expected = best.expectation.damage + best.expectation.hitChance * rider.damage + (activity.failureDamage ? (best.expectation.failChance ?? 0) * (best.expectation.hitDamage ?? 0) : 0) + (activity.failureFlat ? (best.expectation.failChance ?? 0) * c.strikes[best.index].damage.filter((part) => !part.persistent && !part.precision).reduce((sum, part) => sum + (part.bonus ?? 0), 0) : 0);
             // Set-Up Strike: off-guard for an ally's next attack, about a tenth more of its damage.
             const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * 0.12 / hp : 0;
             // (U7: a PC's item used by Striking weighed as a consumable.)
