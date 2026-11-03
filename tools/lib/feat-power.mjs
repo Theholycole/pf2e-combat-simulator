@@ -716,7 +716,10 @@ function inlineFormula(raw, level) {
     return { formula: `${Math.floor(count)}d${m[2]}`, type, ...(kinds.includes("persistent") ? { category: "persistent" } : {}) };
 }
 function inlineSaveEntry(doc, level, host) {
-    if ((doc.system?.actionType?.value ?? "passive") !== "action" || !alwaysMet(doc)) return null;
+    // (2026-11-03, Elemental Explosion's "You're raging, and you haven't used this ability since you last Raged": while raging, once a
+    // fight — a Rage lasts it.)
+    const raging = /^You(?:'re| are) raging\b/i.test(requirementText(doc) ?? "") && (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage");
+    if ((doc.system?.actionType?.value ?? "passive") !== "action" || !(raging || alwaysMet(doc))) return null;
     // (2026-11-03, Deep Freeze: an inventor's Unstable Function — a bigger version with its own risk — isn't the action's own.)
     const html = String(doc.system?.description?.value ?? "").split(/Unstable Function/)[0];
     const template = /@Template\[(?:type:)?(\w+)\|distance:(\d+)/.exec(html);
@@ -742,9 +745,9 @@ function inlineSaveEntry(doc, level, host) {
     const own = dcsOf(host);
     const dc = own.class ?? own.spell ?? 10 + level + 2;
     const castRank = Math.max(1, Math.ceil(level / 2));
-    const uses = Number(doc.system?.frequency?.max) || 0;
+    const uses = Number(doc.system?.frequency?.max) || (raging ? 1 : 0);
     const pool = uses ? `feat:${doc._id}` : null;
-    const entry = { name: doc.name, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+    const entry = { name: doc.name, plan: raging ? { ...plan, requires: "raging" } : plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
     if (!castable(entry)) return null;
     return { spells: [entry], pools: pool ? { [pool]: uses } : {}, gap: null, played: `inline save: ${template ? `${template[2]}-foot ${template[1]}` : `1 creature, ${reach.range}`}, ${check[1]}${damage ? `, ${damage.formula} ${damage.type}` : ""} (DC ${dc}${uses ? `, ${uses}/fight` : ""})` };
 }
