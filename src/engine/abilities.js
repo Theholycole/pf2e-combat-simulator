@@ -199,6 +199,8 @@ export function addBuiltin(spec, plan, name) {
             const model = { name, rounds, ...(plan.model?.hitBack ? { hitBack: plan.model.hitBack, ...(plan.model.hitBackAny ? { hitBackAny: true } : {}) } : {}), modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: Number(plan.model?.fastHealing) || 0, resistances: (plan.model?.resistances ?? []).map((entry) => ({ type: entry.type, value: Number(entry.value) || 0, exceptions: [...(entry.exceptions ?? [])] })), weaknesses: [], immunities: [], conditions: (plan.model?.conditions ?? []).map((entry) => ({ ...entry })), unsupported: [], situational: 0, ...(plan.model?.endsWithTempHp ? { endsWithTempHp: true } : {}), ...(plan.nextStrike ? { nextStrike: true } : {}), ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}),
                 // (2026-11-03, a monk's stance: the unarmed Strike its PF2e Effect grants, a rune upgrade an Effect gives.)
                 ...(plan.model?.strikesOnly ? { strikesOnly: true } : {}),
+                ...(plan.model?.answerHitters ? { answerHitters: { ...plan.model.answerHitters } } : {}),
+                ...(plan.model?.weaknesses?.length ? { weaknesses: plan.model.weaknesses.map((entry) => ({ ...entry })) } : {}),
                 ...(plan.model?.grantedStrikes?.length ? { grantedStrikes: plan.model.grantedStrikes.map((entry) => ({ ...entry, traits: [...(entry.traits ?? [])], extra: [...(entry.extra ?? [])] })) } : {}),
                 ...(plan.model?.runeUpgrade ? { runeUpgrade: { ...plan.model.runeUpgrade } } : {}),
                 // (2026-11-03, Paragon's Guard: its shield kept raised — fight.js.)

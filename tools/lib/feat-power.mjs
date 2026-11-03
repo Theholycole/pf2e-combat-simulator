@@ -1008,6 +1008,10 @@ const HAND = {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
     },
+    // (2026-11-03, Come and Get Me, raging: off-guard (-2 AC) and +2 to damage rolls against it (played as weakness 2 to all damage) until its
+    // rage ends; a creature that hits it is off-guard to it until the end of its next turn, and its hits on that creature give temporary Hit
+    // Points equal to its Constitution modifier — fight.js/actions.js answerHitters.)
+    "come-and-get-me": (_level, host) => (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage") ? ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, requires: "raging", model: { rounds: 10, modifiers: [{ on: "ac", type: "circumstance", value: -2 }], weaknesses: [{ type: "all-damage", value: 2 }], answerHitters: { tempHp: Number.isFinite(host.con) ? host.con : 4 } } }], played: "off-guard and +2 damage taken while raging; foes that hit it off-guard to it, temporary Hit Points as it hits them back" }) : null,
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),

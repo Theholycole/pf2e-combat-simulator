@@ -919,6 +919,21 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             if (!isActive(attacker)) break;
         }
     }
+    // (2026-11-03, Come and Get Me: a creature that hits it is off-guard to it until the end of its next turn — and its hits on that creature
+    // then give it temporary Hit Points, model.answerHitters.tempHp, twice that on a critical hit.)
+    if (degree >= SUCCESS && isActive(attacker) && attacker.side !== target.side) {
+        const answer = (target.effects ?? []).find((entry) => entry.model?.answerHitters);
+        if (answer) {
+            const entry = { attacker: target.id, attacks: "any", uses: Infinity, tempHpOnHit: Number(answer.model.answerHitters.tempHp) || 0 };
+            attacker.offGuardTo = [...(attacker.offGuardTo ?? []).filter((held) => !(held.attacker === target.id && held.tempHpOnHit !== undefined)), entry];
+            (attacker.timers ??= []).push({ offGuardTo: entry, round: target.lastTurnRound === state.round ? state.round + 1 : state.round, turnOf: target.id, at: "end" });
+            log(state, `  ${attacker.name} is off-guard to ${target.name} (${answer.model.name ?? "an effect"})`);
+        }
+    }
+    if (degree >= SUCCESS && isActive(attacker)) {
+        const opened = (target.offGuardTo ?? []).find((held) => held.attacker === attacker.id && held.tempHpOnHit > 0);
+        if (opened) attacker.hp.temp = Math.max(attacker.hp.temp ?? 0, opened.tempHpOnHit * (degree === CRITICAL_SUCCESS ? 2 : 1));
+    }
     // Violent Retort (B70): a critical hit on it, answered with a Strike.
     if (degree === CRITICAL_SUCCESS && !reaction && isActive(attacker) && isActive(target)) {
         const answer = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("critical-hit"));

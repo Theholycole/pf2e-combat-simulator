@@ -1889,8 +1889,21 @@ function expandClassActions(env) {
                 return hit * strike.damage.reduce((sum, part) => sum + ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1), 0);
             };
             const best = (list) => Math.max(0, ...list.filter((strike) => strike.melee && strikeUsable(c, strike)).map(expected));
-            // About three rounds of the better Strike, twice a round.
-            benefit += 3 * 2 * Math.max(0, best(better) - best(c.strikes ?? [])) / Math.max(1, state.threat?.get(c.id) ?? 1);
+            // About three rounds of the better Strike, twice a round. (2026-11-03, Sky and Heaven Stance's "The only Strikes you can make":
+            // a worse one counts against it too — model.strikesOnly.)
+            const change = entry.model.strikesOnly ? best(better) - best(c.strikes ?? []) : Math.max(0, best(better) - best(c.strikes ?? []));
+            benefit += 3 * 2 * change / Math.max(1, state.threat?.get(c.id) ?? 1);
+        }
+        // (2026-11-03, Come and Get Me: a foe beside it that hits it — about one in two a round — is off-guard to it, +2 on its two Strikes
+        // at it (a tenth of a hit's damage each), and each of its hits then gives temporary Hit Points.)
+        if (entry.model.answerHitters && ctx.enemies.some((enemy) => isActive(enemy) && sameMelee(c, enemy))) {
+            const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
+            const strike = (c.strikes ?? []).filter((each) => each.melee && strikeUsable(c, each)).sort((a, b) => b.bonus - a.bonus)[0];
+            if (strike) {
+                const hit = Math.min(0.95, Math.max(0.05, (21 - (ac - strike.bonus)) / 20));
+                const damage = strike.damage.reduce((sum, part) => sum + ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1), 0);
+                benefit += span * 0.5 * (2 * 0.1 * damage / Math.max(1, state.threat?.get(c.id) ?? 1) + 3 * ctx.profile.selfPreservation * 2 * hit * (Number(entry.model.answerHitters.tempHp) || 0) / remainingHp(c));
+            }
         }
         // (2026-11-03: a reaction Strike it unlocks — Dueling Riposte while Dueling Parry is on: about one trigger in four rounds of its best
         // melee Strike, for the rounds it lasts.)

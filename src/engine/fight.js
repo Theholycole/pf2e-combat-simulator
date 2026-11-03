@@ -1736,6 +1736,8 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
             for (; turnIndex < state.order.length && !state.outcome; turnIndex++) {
                 const c = state.byId.get(state.order[turnIndex]);
                 takeTurn(state, c);
+                // (2026-11-03: the round its last turn ended — "until the end of your next turn" set off its turn.)
+                c.lastTurnRound = state.round;
                 // "Until the end of your next turn" runs out here (not for one that Delays: its turn hasn't ended).
                 if (!c.delaying) expireTimers(state, c, "end");
                 if (!state.outcome) checkEnd(state);
