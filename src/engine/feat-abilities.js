@@ -56,7 +56,7 @@ export function pcNeeds(text) {
         if (m) return [need(m)];
     }
     // (What a fight on the simulator's lit, open field always meets — the PC's own staff or favored weapon is the one it holds —: no need.)
-    if (/^(?:You(?:'re| are) wielding your (?:staff|deity's favored weapon|order's favored weapon)|You aren't unholy|You aren't in dim light or darkness|You(?:'re| are) in bright light|You(?:'re| are) aware of the hostile effect, and you aren't Off-Guard against it)$/i.test(said)) return [];
+    if (/^(?:You(?:'re| are) wielding your (?:staff|deity's favored weapon|order's favored weapon)|You aren't unholy|You aren't in dim light or darkness|You(?:'re| are) in bright light|You(?:'re| are) aware of the hostile effect, and you aren't Off-Guard against it|You aren't Encumbered|You(?:'re| are) not Encumbered)$/i.test(said)) return [];
     return null;
 }
 
@@ -113,7 +113,8 @@ export function mappedRequirement(text) {
 // when it's about something else.
 export function meetsWielding(text, wields) {
     if (!wields) return null;
-    const words = String(text ?? "").toLowerCase().replace(/@uuid\[[^\]]*\]\{([^}]*)\}/g, "$1");
+    // (Snagging Strike's and Combat Grab's ", and your target is within reach of that hand": a melee Strike's target is.)
+    const words = String(text ?? "").toLowerCase().replace(/@uuid\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/,? and your target is within reach of that hand/, "");
     const checks = [];
     const add = (pattern, holds) => {
         if (pattern.test(words)) checks.push(Boolean(holds));

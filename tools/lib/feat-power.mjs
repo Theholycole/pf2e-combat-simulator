@@ -386,7 +386,7 @@ function textSelfEffectEntry(doc, level, builtins, host, wields) {
 // as a healing spell the spell compiler reads, as Soothe is: one willing creature (touch, or the range it names), the dice at the PC's level,
 // from a pool of its frequency. Only an action without a requirement.
 function inlineHealEntry(doc, level) {
-    if ((doc.system?.actionType?.value ?? "passive") !== "action" || requirementText(doc)) return null;
+    if ((doc.system?.actionType?.value ?? "passive") !== "action" || !alwaysMet(doc)) return null;
     const html = String(doc.system?.description?.value ?? "");
     const hit = /@Damage\[((?:[^\[\]]|\[[^\]]*\])*?\[healing\])(?:\|[^\]]*)?\]/.exec(html);
     // (One creature only: Rallying Banner's "each ally in your banner's aura" isn't this.)
@@ -413,8 +413,10 @@ function inlineHealEntry(doc, level) {
 // (2026-11-03, the class feats no fight played: Farabellus Flip, Sense the Strike — a reaction's bonus to AC against the attack that sets it
 // off.) The engine's acReaction: "targets you with a (melee|ranged) Strike/attack" → as it's targeted, "hits you" → after the hit (it may turn
 // it); its "+N circumstance bonus to AC against the triggering attack". Nothing else in the reaction is played.
+const alwaysMet = (doc) => !requirementText(doc) || pcNeeds(requirementText(doc))?.length === 0;
 function acReactionEntry(doc, builtins) {
-    if ((doc.system?.actionType?.value ?? "passive") !== "reaction" || requirementText(doc)) return null;
+    // (Flashy Dodge's "You aren't Encumbered": met.)
+    if ((doc.system?.actionType?.value ?? "passive") !== "reaction" || !alwaysMet(doc)) return null;
     const html = String(doc.system?.description?.value ?? "");
     const trigger = /<strong>\s*Trigger\s*<\/strong>\s*([^<]*)/i.exec(html)?.[1]?.trim().replace(/\.$/, "") ?? "";
     const bonus = /\+(\d) circumstance bonus to (?:your )?AC against (?:the )?(?:triggering|that) (?:attack|Strike)/i.exec(html);
@@ -426,6 +428,22 @@ function acReactionEntry(doc, builtins) {
     const kind = (read[1] ?? read[2] ?? "").trim();
     builtins.acReaction = { value: Number(bonus[1]), when: targeted ? "targeted" : "hit", name: doc.name, ...(kind ? { against: kind } : {}) };
     return { spells: [], pools: {}, gap: null, played: `+${bonus[1]} AC as a reaction ${targeted ? "when targeted" : "against a hit"}${kind ? ` (${kind})` : ""}` };
+}
+
+// (2026-11-03, the class feats no fight played: Charmed Life — a reaction's bonus to a save it makes before the roll.) The engine's
+// saveBonusReaction (Occult Ward's): "You attempt a saving throw[ against a spell / a <trait> effect], but you haven't rolled yet" and "+N
+// circumstance/status bonus to the triggering save". Only what a fight here meets (not a hazard's).
+function saveBonusEntry(doc, builtins) {
+    if ((doc.system?.actionType?.value ?? "passive") !== "reaction" || !alwaysMet(doc)) return null;
+    const html = String(doc.system?.description?.value ?? "");
+    const trigger = (/<strong>\s*Trigger\s*<\/strong>\s*([^<]*)/i.exec(html)?.[1] ?? "").replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, "$1").trim().replace(/\.$/, "");
+    const bonus = /\+(\d) (?:circumstance|status) bonus to (?:the|your) (?:triggering )?sav(?:e|ing throw)/i.exec(html);
+    if (!bonus) return null;
+    const read = /^You(?:'re| are)? (?:attempt|about to attempt|about to roll|roll) an? (Fortitude|Reflex|Will)? ?sav(?:e|ing throw)(?: against an? (spell|magical effect|[a-z]+ effect))?(?:,? but (?:you )?haven't rolled(?: yet)?)?$/i.exec(trigger);
+    if (!read) return null;
+    const against = !read[2] ? null : /^spell$/i.test(read[2]) ? "spell" : /^magical/i.test(read[2]) ? "magical" : read[2].toLowerCase().replace(/ effect$/, "");
+    builtins.saveBonusReaction = { name: doc.name, value: Number(bonus[1]), against, ...(read[1] ? { kind: read[1].toLowerCase() } : {}) };
+    return { spells: [], pools: {}, gap: null, played: `+${bonus[1]} to a ${read[1] ? `${read[1]} ` : ""}save as a reaction${against ? ` (against ${against})` : ""}` };
 }
 
 // (2026-11-03, the class feats no fight played: Dragon's Rage Breath, Megavolt, Stomp Ground — a save in an area written with PF2e's inline
@@ -450,7 +468,7 @@ function inlineFormula(raw, level) {
     return { formula: `${Math.floor(count)}d${m[2]}`, type, ...(kinds.includes("persistent") ? { category: "persistent" } : {}) };
 }
 function inlineSaveEntry(doc, level, host) {
-    if ((doc.system?.actionType?.value ?? "passive") !== "action" || requirementText(doc)) return null;
+    if ((doc.system?.actionType?.value ?? "passive") !== "action" || !alwaysMet(doc)) return null;
     const html = String(doc.system?.description?.value ?? "");
     const template = /@Template\[(?:type:)?(\w+)\|distance:(\d+)/.exec(html);
     const check = /@Check\[(?:type:)?(reflex|fortitude|will)\b([^\]]*)\]/.exec(html);
@@ -871,6 +889,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellLikeEntry(doc, level, plan) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineSaveEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = acReactionEntry(doc, builtins) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = saveBonusEntry(doc, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineHealEntry(doc, level) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = widenEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
@@ -897,7 +916,11 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             // (2026-11-03: a class PC in a seat the loadout fits — a ranger's bow traded for two blades for Twin Takedown.)
             if (!way.hosts.includes(host.id) && !(classPC && way.hosts.includes(seatOf(host.id)) && (host.strikes?.[0]?.held || !host.strikes?.[0]?.melee))) continue;
             const again = attempt({ ...wieldsOf(host), ...way.wields, strikes: way.strikes(host.strikes) });
-            if (again.entries.gap) continue;
+            // (The reason the loadout that meets the requirement still doesn't play — Combat Grab's Strike —, the one reported.)
+            if (again.entries.gap) {
+                if (!/doesn't meet/.test(again.entries.gap.name) && /doesn't meet/.test(tried.entries.gap.name)) tried = { ...tried, entries: again.entries };
+                continue;
+            }
             tried = again;
             loadout = name;
             base = clone(party);
@@ -924,7 +947,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
 // (A ranged main weapon — a ranger's bow — made a melee one: no range, reload or ammunition.)
 const oneHanded = (strike, name, die, extra = {}) => ({ ...strike, name, hands: 1, versatile: undefined, melee: true, held: true, increment: undefined, range: undefined, reload: undefined, volley: undefined, ammo: undefined, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, die } : part)), ...extra });
 const LOADOUTS = {
-    "two weapons (longsword and shortsword)": { hosts: ["fighter", "rogue"], wields: { twoHanded: false, oneHanded: true, twoWeapons: true, freeHand: false, damage: ["slashing", "piercing"] }, strikes: (strikes) => [oneHanded(strikes[0], "Longsword", 8, { versatile: ["piercing"] }), oneHanded(strikes[0], "Shortsword", 6, { agile: true, finesse: true, damage: strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: 6, type: "piercing" } : part)) }), ...strikes.slice(1)] },
+    "two weapons (longsword and shortsword)": { hosts: ["fighter", "rogue"], wields: { twoHanded: false, oneHanded: true, twoWeapons: true, freeHand: false, finesse: true, damage: ["slashing", "piercing"] }, strikes: (strikes) => [oneHanded(strikes[0], "Longsword", 8, { versatile: ["piercing"] }), oneHanded(strikes[0], "Shortsword", 6, { agile: true, finesse: true, damage: strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: 6, type: "piercing" } : part)) }), ...strikes.slice(1)] },
     "a one-handed weapon and a free hand": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: true, freeHand: true }, strikes: (strikes) => [oneHanded(strikes[0], "Longsword", 8, { versatile: ["piercing"] }), ...strikes.slice(1)] },
     // (Shield Warfare's shield bash: a longsword and a steel shield, raised when the PC has an action to spare.)
     "a weapon and a shield": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: true, freeHand: false, shield: true }, strikes: (strikes) => [oneHanded(strikes[0], "Longsword", 8, { versatile: ["piercing"] }), oneHanded(strikes[0], "Shield Bash", 4, { versatile: undefined, iwr: { group: "shield" }, damage: strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: 4, type: "bludgeoning" } : part)) }), ...strikes.slice(1)], extra: (pc) => { pc.shield = { ac: 2, hardness: 5 + Math.floor(pc.level / 2), hp: 20 + pc.level * 4, bt: 10 + pc.level * 2 }; } },
