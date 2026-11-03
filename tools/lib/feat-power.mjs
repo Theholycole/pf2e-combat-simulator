@@ -455,6 +455,8 @@ const QUICKEN_ALL = {
     "song-of-grace-and-speed": () => ({ actions: 2, area: 30, rounds: 10, model: quick, played: "quickened for a minute" }),
     "quickening-banner": () => ({ actions: 1, area: 30, rounds: 1, model: quick, played: "quickened for a round" }),
     "plant-banner": (level) => ({ actions: 1, area: 30, rounds: 100, model: { tempHp: 4 * (1 + Math.floor(level / 4)) }, played: `${4 * (1 + Math.floor(level / 4))} temporary Hit Points` }),
+    // (Sheltering Pulse: +1 status bonus to AC in a 15-foot emanation for 3 rounds — played around itself.)
+    "sheltering-pulse": () => ({ actions: 2, area: 15, rounds: 3, model: { modifiers: [{ on: "ac", type: "status", value: 1 }] }, once: false, played: "+1 AC to allies near it for 3 rounds" }),
     "orchards-endurance": (level) => ({ actions: 1, area: 10, rounds: 100, model: { resistances: ["bludgeoning", "piercing"].map((type) => ({ type, value: 5 + 2 * Math.max(0, Math.floor((level - 14) / 4)), exceptions: [] })) }, played: "resistance to bludgeoning and piercing" })
 };
 function quickenAllEntry(doc, level) {
@@ -470,17 +472,20 @@ function quickenAllEntry(doc, level) {
     if (base?.resolution?.kind !== "effect") return null;
     const uuid = `feat:${doc._id}:quickened`;
     const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], activation: { ...base.activation, time: String(read.actions) }, targeting: { ...base.targeting, area: { type: "emanation", value: read.area }, actorConstraints: { ...base.targeting.actorConstraints, predicates: [{ kind: "ally-of-caster" }] } }, heightening: null, resolution: { ...base.resolution, applications: [{ kind: "native-spell-effect", uuid, source: "nativeEffects.onUse" }] } };
-    const pool = `feat:${doc._id}`;
+    const pool = read.once === false ? null : `feat:${doc._id}`;
     const effects = { [uuid]: { name: doc.name, rounds: read.rounds, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...read.model } };
     const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc: 0, attack: 0, pool, effects };
     if (!castable(entry)) return null;
-    return { spells: [entry], pools: { [pool]: 1 }, gap: null, played: `${read.played}, the PC and its allies within ${read.area} feet (once a fight)` };
+    return { spells: [entry], pools: pool ? { [pool]: 1 } : {}, gap: null, played: `${read.played}, the PC and its allies within ${read.area} feet${pool ? " (once a fight)" : ""}` };
 }
 
 // (2026-11-03, the class feats no fight played: a passive aura that frightens — Frightful Aura's 15-foot emanation, a Will save against the
 // higher of its class or spell DC, frightened 1 on a failure, 2 on a critical failure —: the engine's monster aura (spells.js applyAuras, a
 // Frightful Presence's), each enemy in range saving as the fight starts. Its enter-or-end-turn saves later aren't played.)
-const SAVE_AURAS = { "frightful-aura": { radius: 15, save: "will", failure: ["frightened", 1], criticalFailure: ["frightened", 2] } };
+const SAVE_AURAS = { "frightful-aura": { radius: 15, save: "will", failure: ["frightened", 1], criticalFailure: ["frightened", 2] },
+    // (Mummy's Despair: its 2 actions, once a fight, the aura's save on each enemy in 30 feet as it comes up — those entering it later,
+    // and the turns after, aren't played.)
+    "mummys-despair": { radius: 30, save: "will", failure: ["frightened", 1], criticalFailure: ["frightened", 2], actions: 2, once: true } };
 function saveAuraEntry(doc, level, host) {
     const read = SAVE_AURAS[slugOf(doc)];
     if (!read) return null;
@@ -493,10 +498,12 @@ function saveAuraEntry(doc, level, host) {
     }
     if (!base?.resolution?.outcomes?.failure) return null;
     const row = (condition) => ({ ...structuredClone(base.resolution.outcomes.failure), effects: condition ? [{ kind: "condition", slug: condition[0], name: condition[0], value: condition[1], duration: null, source: doc.name }] : [], rawText: "" });
-    const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...new Set([...(doc.system?.traits?.value ?? []), "emotion", "fear", "mental"])], trigger: { event: "aura" }, activation: { ...base.activation, time: "0" }, targeting: { ...base.targeting, target: null, range: null, area: { type: "emanation", value: read.radius, foes: true }, actorConstraints: { sourceText: "each enemy", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } }, heightening: null, resolution: { ...base.resolution, check: { ...base.resolution.check, statistic: read.save }, outcomes: { criticalSuccess: row(null), success: row(null), failure: row(read.failure), criticalFailure: row(read.criticalFailure) } } };
+    const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...new Set([...(doc.system?.traits?.value ?? []), "emotion", "fear", "mental"])], ...(read.actions ? {} : { trigger: { event: "aura" } }), activation: { ...base.activation, time: String(read.actions ?? 0) }, targeting: { ...base.targeting, target: null, range: null, area: { type: "emanation", value: read.radius, foes: true }, actorConstraints: { sourceText: "each enemy", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } }, heightening: null, resolution: { ...base.resolution, check: { ...base.resolution.check, statistic: read.save }, outcomes: { criticalSuccess: row(null), success: row(null), failure: row(read.failure), criticalFailure: row(read.criticalFailure) } } };
     const own = dcsOf(host);
     const dc = Math.max(own.class ?? 0, own.spell ?? 0) || 10 + level + 2;
-    const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool: null, effects: spellPack.effectModels(plan, 1) };
+    const pool = read.once ? `feat:${doc._id}` : null;
+    const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool, effects: spellPack.effectModels(plan, 1) };
+    if (read.actions) return castable(entry) ? { spells: [entry], pools: pool ? { [pool]: 1 } : {}, gap: null, played: `each enemy within ${read.radius} feet saves (${read.save}, DC ${dc}) or is ${read.failure[0]} (${read.actions} actions, once a fight)` } : null;
     return { spells: [entry], pools: {}, gap: null, played: `an aura: each enemy within ${read.radius} feet saves (${read.save}, DC ${dc}) or is ${read.failure[0]} as the fight starts` };
 }
 
@@ -914,6 +921,9 @@ const HAND = {
     // (Wounded Rage: Rage as its reaction when it takes damage — the engine's reactionRage; Wounded Party's ally's damage isn't played.)
     "wounded-rage": (_level, host) => (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage") ? ({ builtins: { reactionRage: "Wounded Rage" }, played: "Rage as a reaction when it takes damage" }) : null,
     "wounded-party": (_level, host) => (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage") ? ({ builtins: { reactionRage: "Wounded Party" }, played: "Rage as a reaction when it takes damage (its own, not its ally's)" }) : null,
+    // (Exude Demonic Corruption: until its next turn, 1d6 poison on its melee Strikes and on each creature that hits it in melee — hitBack —;
+    // 2d6 at 14th level, 3d6 at 20th.)
+    "exude-demonic-corruption": (level) => { const dice = level >= 20 ? 3 : level >= 14 ? 2 : 1; return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, melee: true, damage: [`${dice}d6[poison]`], model: { rounds: 1, hitBack: `${dice}d6[poison]` } }], played: `${dice}d6 poison on its melee Strikes and on who hits it, for a round` }; },
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
