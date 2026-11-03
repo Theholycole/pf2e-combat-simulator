@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-03",
- "rated": 843,
+ "rated": 840,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -52353,6 +52353,26 @@
    "text": "You've found a new mental form. You gain another psi cantrip from your conscious mind: either the standard cantrip you didn't take with Psychic Dedication, or the unique surface psi cantrip. You gain the psychic benefits for this second psi"
   },
   {
+   "id": "DpmdmRNMg6LZpNB0",
+   "name": "Simple Crystal Magic",
+   "level": 6,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": false,
+   "bucket": "out-of-combat",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Read Aura, Sigil)",
+   "text": "As long as you meditate before a gemstone worth at least 10 gp as part of your daily preparations, you are capable of seeing magic as flowing runes that reveal information about magic objects, and you can scribe a personal rune that represe"
+  },
+  {
    "id": "vqLt1qjdrflTmdsw",
    "name": "Sun's Fury",
    "level": 6,
@@ -59956,6 +59976,26 @@
    "text": "You've learned how to move as one with crowds and hide among them, vanishing into a busy street in the flicker of an eye. You move at full Speed in crowds and can use cover from crowds to Hide and Sneak, gaining a +2 circumstance bonus to y"
   },
   {
+   "id": "AuIE19F9rY3YvXf6",
+   "name": "Magical Scholastics",
+   "level": 4,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Detect Magic, Guidance, Read Aura)",
+   "text": "While study is key to your success, a bit of magic can be a helpful aid in discovering the secrets of the past. You can cast Detect Magic, Guidance, and Read Aura as occult innate cantrips."
+  },
+  {
    "id": "hNuEmaUjFGOjrhGv",
    "name": "Marine Combat Training",
    "level": 4,
@@ -66998,6 +67038,26 @@
    "reason": null,
    "detail": null,
    "text": "Frequency Once per day Requirements You are standing at the bottom of an open grave adjacent to up to four willing target creatures or objects roughly the size of a creature. The maggots inhabiting your body impart you with the knowledge to"
+  },
+  {
+   "id": "aOYnK0xe9DKFtx7d",
+   "name": "Innocent Butterfly",
+   "level": 14,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": false,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Aura of the Unremarkable)",
+   "text": "You know how to alter the perceptions of others. You can cast Aura of the Unremarkable once per day as an innate arcane spell. The spell uses your class DC or spell DC, whichever is higher."
   },
   {
    "id": "VaKsW4wjZ9g7UZGh",

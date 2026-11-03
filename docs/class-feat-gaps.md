@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-03 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 843 are rated; 3513 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-03 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 840 are rated; 3516 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -14,9 +14,9 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Other combat passives | 427 | 21 | 448 |
 | Spellcasting (slots, focus, spellshapes) | 277 | 36 | 313 |
 | Companions, familiars and eidolons | 218 | 33 | 251 |
-| Out of combat (exploration, downtime, skills) | 321 | 26 | 347 |
-| Nothing a fight would use | 781 | 67 | 848 |
-| **All** | 2853 | 660 | 3513 |
+| Out of combat (exploration, downtime, skills) | 321 | 27 | 348 |
+| Nothing a fight would use | 781 | 69 | 850 |
+| **All** | 2853 | 663 | 3516 |
 
 ## By class
 
@@ -51,7 +51,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | thaumaturge |  | 10 | 9 | 2 | 1 | 1 | 5 | 10 | 38 |
 | witch |  | 2 | 3 | 2 | 4 | 16 | 7 | 3 | 37 |
 | wizard |  | 3 |  | 1 | 16 | 4 | 10 | 6 | 40 |
-| archetype | 171 | 378 | 45 | 213 | 110 | 102 | 147 | 489 | 1655 |
+| archetype | 171 | 378 | 45 | 213 | 110 | 102 | 148 | 491 | 1658 |
 | other | 12 | 63 | 2 | 42 | 18 | 12 | 29 | 36 | 214 |
 
 ## Why the simulator doesn't play the ones with a plan
@@ -61,7 +61,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | a timer with no rules a fight counts | 139 |
 | its requirement | 138 |
 | a Strike with nothing more the simulator reads | 119 |
-| a spell the engine doesn't cast | 43 |
+| a spell the engine doesn't cast | 46 |
 | a teleport | 41 |
 | an Effect with nothing a fight counts | 32 |
 | a reaction's Strike | 24 |
@@ -2432,7 +2432,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Bond Conservation | 8 | wizard | 1 action | no plan |  |
 | Superior Bond | 14 | wizard | passive | no plan |  |
 
-## Out of combat (exploration, downtime, skills) (347)
+## Out of combat (exploration, downtime, skills) (348)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -2515,6 +2515,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Perpetual Scout | 6 | archetype | passive | no plan |  |
 | Practical Magic | 6 | archetype | passive | no plan |  |
 | Psi Development | 6 | archetype | passive | no plan |  |
+| Simple Crystal Magic | 6 | archetype | passive | plan | a spell the engine doesn't cast (Read Aura, Sigil) |
 | Sun's Fury | 6 | archetype | passive | plan | a spell the engine doesn't cast (Sun's Fury) |
 | Symphony of Agony | 6 | archetype | passive | no plan |  |
 | Westyr's Wayfinder Repository | 6 | archetype | passive | no plan |  |
@@ -2784,7 +2785,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reprepare Spell | 18 | wizard | passive | no plan |  |
 | Spell Mastery | 20 | wizard | passive | no plan |  |
 
-## Nothing a fight would use (848)
+## Nothing a fight would use (850)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -2875,6 +2876,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Like a Fish in Water | 4 | archetype | passive | no plan |  |
 | Lion's Might | 4 | archetype | passive | no plan |  |
 | Lost in the Crowd | 4 | archetype | passive | no plan |  |
+| Magical Scholastics | 4 | archetype | passive | plan | a spell the engine doesn't cast (Detect Magic, Guidance, Read Aura) |
 | Marine Combat Training | 4 | archetype | passive | no plan |  |
 | Mental Forge | 4 | archetype | passive | no plan |  |
 | Mountain Skin | 4 | archetype | passive | no plan |  |
@@ -3223,6 +3225,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Exceptional Follower | 14 | archetype | passive | no plan |  |
 | Expanded Swarm | 14 | archetype | passive | no plan |  |
 | Graveshift | 14 | archetype | passive | no plan |  |
+| Innocent Butterfly | 14 | archetype | passive | plan | a spell the engine doesn't cast (Aura of the Unremarkable) |
 | Instant Credentials | 14 | archetype | passive | no plan |  |
 | Iron Lung | 14 | archetype | passive | no plan |  |
 | Pact of Eldritch Eyes | 14 | archetype | passive | no plan |  |
