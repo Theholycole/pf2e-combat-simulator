@@ -1004,6 +1004,10 @@ const HAND = {
     // (Consume Power: resistance its level to acid, electricity, fire or sonic damage it would take — the engine's resist-damage on those
     // types; the energy it holds for an impulse isn't played.)
     "consume-power": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: level, on: ["acid", "electricity", "fire", "sonic"] }], played: "resistance its level to acid, electricity, fire or sonic damage (reaction)" }),
+    "instant-opening": () => {
+        const entry = offGuardToMeEntry("Instant Opening");
+        return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
+    },
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
@@ -1031,7 +1035,20 @@ function handEntry(doc, level, builtins, wields, host = null) {
     if (requirement && wields && meetsWielding(requirement, wields) === false) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (${requirement})` } };
     for (const plan of read.plans ?? []) addBuiltin(builtins, plan, doc.name);
     for (const [field, value] of Object.entries(read.builtins)) builtins[field] = Array.isArray(value) ? [...(builtins[field] ?? []), ...value] : value && typeof value === "object" ? { ...(builtins[field] ?? {}), ...value } : value;
-    return { spells: [], pools: {}, gap: null, played: read.played };
+    return { spells: read.spells ?? [], pools: read.pools ?? {}, gap: null, played: read.played };
+}
+
+// (2026-11-03, Instant Opening's "Choose a target within 30 feet. It's Off-Guard against your attacks until the end of your next turn": Feint's
+// own plan with no roll that matters — each degree the same, off-guard to the PC's attacks (all of them, any number) to the end of its next
+// turn, 30 feet.)
+function offGuardToMeEntry(name, { range = "30 feet", traits = ["visual"] } = {}) {
+    const feint = basicActions.feint;
+    if (!feint) return null;
+    const effects = [{ kind: "condition", slug: "off-guard", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" }, scope: { against: "actor", attacks: "any", uses: null } }];
+    const outcome = (row) => ({ ...row, effects: effects.map((effect) => structuredClone(effect)) });
+    const outcomes = Object.fromEntries(Object.entries(feint.resolution.outcomes).map(([degree, row]) => [degree, outcome(row)]));
+    const plan = { ...structuredClone(feint), source: { ...feint.source, name }, traits, activation: { ...feint.activation, traits }, targeting: { ...feint.targeting, range }, resolution: { ...structuredClone(feint.resolution), outcomes } };
+    return { name, plan, castRank: 1, pool: null, kind: "basic" };
 }
 
 // (2026-11-02, the same ask: staying up at 0 Hit Points, which the engine plays for monsters — Ferocity's kin and an ally's rescue,
