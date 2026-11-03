@@ -968,6 +968,11 @@ const HAND = {
     "tempo-duelist": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, model: { rounds: 1, conditions: [{ slug: "concealed", value: null }] } }], played: "concealed for a round" }),
     // (Duelist's Edge: +2 circumstance to its initiative roll, as Swaggering Initiative's; drawing its weapon isn't needed — PCs start armed.)
     "duelists-edge": () => ({ builtins: { passiveEffects: [{ name: "Duelist's Edge", rounds: Infinity, modifiers: [{ on: "initiative", type: "circumstance", value: 2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }] }, played: "+2 to its initiative" }),
+    // (Reflexive Courage: a Reactive Strike's triggers — move, manipulate, a ranged attack — while Courageous Anthem is on it; the auditory
+    // effect trigger isn't played.)
+    "reflexive-courage": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["move", "manipulate", "ranged"], strike: null, penalty: 0, disrupts: false, melee: true, requiresEffect: "Spell Effect: Courageous Anthem" }], played: "a Reactive Strike while Courageous Anthem is on it" }),
+    // (Clinch Strike: an unarmed Strike on a creature that escapes its grab — the engine's "escaped" trigger.)
+    "clinch-strike": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["escaped"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a reaction Strike on a creature that escapes its grab" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
