@@ -734,7 +734,10 @@ export function gridAreaSets(state, caster, area, range, { affected = () => true
     const seen = new Set();
     const sets = [];
     for (const placement of areaCatches(state, caster, area, range, { healing, helpful })) {
-        const caught = placement.caught.filter((other) => affected(other) && (!foesOnly || other.side !== caster.side));
+        // (2026-11-03, Elemental Explosion: the creature an emanation is about chooses whether it's in it — PF2e's area rules —, so a harmful
+        // one leaves it out. It was counted burning itself, and a barbarian never used the feat. A caster planned where a Stride takes it
+        // (a copy at that square): not where it stood.)
+        const caught = placement.caught.filter((other) => affected(other) && (!foesOnly || other.side !== caster.side) && !(other.id === caster.id && (other !== caster || (placement.origin === "self" && area.type === "emanation" && !helpful && !healing))));
         // (A cone or a line from the caster isn't in it; a burst on it, or an emanation, is.)
         const targets = placement.origin === "self" ? [...new Set([...caught, ...(helpful || healing ? [caster] : [])])] : caught;
         if (!targets.length) continue;

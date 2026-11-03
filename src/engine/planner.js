@@ -1316,7 +1316,10 @@ function expandSpells(env) {
             const drawOnly = draw > 0 && draw <= remaining && info.actions + extra > remaining && !quickFits && node.used === 0;
             if (pacifiedAll(c) && !(info.helpful || info.healing || info.self || spell.drinker)) continue;
             if (!info.actions || (info.actions + extra > remaining && !quickFits && !drawOnly) || (restrained && (info.manipulate || info.attack || extra)) || (noAttacks && info.attack)) continue;
-            const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, c, spell, {
+            // (2026-11-03, Cole's pick "Raise the planner's value" for area actions: on the grid, an area about or from the caster where the
+            // plan's Stride has taken it — Elemental Explosion after closing in —, not where it stood when the turn began.)
+            const at = state.grid && !rider && info.area && node.pos.at?.square && c.square && (node.pos.at.square[0] !== c.square[0] || node.pos.at.square[1] !== c.square[1]) ? { ...c, square: node.pos.at.square } : c;
+            const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, at, spell, {
                 enemies: ctx.enemies,
                 allies: ctx.alliesAndDown,
                 inMelee: (other) => inMelee(node.pos, other),
