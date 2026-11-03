@@ -22,7 +22,7 @@ import { addFloor, floorOf } from "./floors.js";
 import { counterables, counterChance, counterRank, counterReaches, counterRoll } from "./counteract.js";
 import { applyNoteState, noteState, noteStateWorth, spellLocked } from "./note-states.js";
 import { allyStrike } from "./commander.js";
-import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
+import { canReact, isBravado, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
 import { effectImmunity, immuneToCondition } from "./immunities.js";
 import { elementalAnswers, hydraScaled, troopIgnores, troopSegmentLost } from "./creature-rules.js";
@@ -3503,7 +3503,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         if (["success", "criticalSuccess"].includes(result.degrees[target.id]) && isActive(target)) castPlan(state, caster, { name: spell.name, plan: spell.thenSave, castRank: spell.castRank, pool: null, kind: "ability" }, [target.id]);
     }
     // A swashbuckler's bravado action: panache on a success, until the end of the turn on a failure.
-    if (caster.panacheStyle && (caster.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
+    if (isBravado(caster, spell)) {
         const degrees = targets.map((target) => result.degrees[target.id]).filter(Boolean);
         if (degrees.some((degree) => degree === "success" || degree === "criticalSuccess")) {
             if (caster.panache !== true) log(state, `  ${caster.name} gains panache`);

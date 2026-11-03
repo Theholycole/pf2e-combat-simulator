@@ -1056,7 +1056,30 @@ const HAND = {
     "liberated-mind": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "mental" }], played: "a failed save against a mental effect rerolled" }),
     "stalwart-mind": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: "will" }], played: "a failed Will save rerolled" }),
     "acquired-tolerance": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "poison" }], played: "a failed save against poison rerolled" }),
-    "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" })
+    "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" }),
+    // (2026-11-03, Cole: "Look through class feats to see if any more can be automated or integrated into the simulator". An alchemist's
+    // additives on every bomb it throws — the bombs come from its vials as it throws them, so the additive goes in each one; one additive
+    // a bomb, but each is rated alone. Off-guard is the debilitation picked: the one the party's Strikes use.)
+    "debilitating-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, condition: { slug: "off-guard", duration: { mode: "fixed", value: 1, unit: "rounds" } }, source: "Debilitating Bomb" }] }, played: "its bombs leave a hit foe off-guard until its next turn (always on)" }),
+    // (Persistent damage of the bomb's splash, its type.)
+    "sticky-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, splashPersistent: true, source: "Sticky Bomb" }] }, played: "its bombs' splash as persistent damage on a hit (always on)" }),
+    // (A second reaction each round, for Reactive Strike only — B303's spare reaction.)
+    "tactical-reflexes": (_level, host) => (host?.reactions?.aoo ? { builtins: { spareReactions: [{ names: ["reactive strike"], count: 1 }] }, played: "a second reaction each round, for Reactive Strike" } : null),
+    // (A second reaction each round, for Shield Block only.)
+    "quick-shield-block": (_level, host) => (host?.reactions?.shieldBlock ? { builtins: { spareReactions: [{ names: ["shield block"], count: 1 }] }, played: "a second reaction each round, for Shield Block" } : null),
+    // (A Reactive Strike's hit leaves its target off-guard until the start of the PC's next turn.)
+    "disorienting-opening": (_level, host) => (host?.reactions?.aoo ? { builtins: { strikeExtras: [{ when: "hit", reaction: true, condition: { slug: "off-guard", duration: { mode: "fixed", value: 1, unit: "rounds" } }, source: "Disorienting Opening" }] }, played: "off-guard after its Reactive Strike hits (always on)" } : null),
+    // (Permanently quickened, the extra action for a Strike — or Spellstrike's recharge —: a fighter's and a magus's turns are Strikes, so
+    // played as quickened.)
+    "weapon-supremacy": () => ({ builtins: { permanent: [{ slug: "quickened" }] }, played: "permanently quickened (always on)" }),
+    "supreme-spellstrike": () => ({ builtins: { permanent: [{ slug: "quickened" }] }, played: "permanently quickened (always on)" }),
+    // (Confident Finisher's miss deals all its precise dice, not half — fight.js.)
+    "precise-finisher": (_level, host) => (host?.panacheStyle ? { builtins: { preciseFinisher: true }, played: "Confident Finisher's miss deals its full dice (always on)" } : null),
+    // (A fatal firearm's critical hit: one more fatal die, after the doubling.)
+    "fatal-bullet": (_level, host) => {
+        const gun = (host?.strikes ?? []).find((strike) => strike.firearm && strike.fatal);
+        return gun ? { builtins: { strikeExtras: [{ when: "critical", firearm: true, dice: 1, die: gun.fatal, noDouble: true, type: null, source: "Fatal Bullet" }] }, played: `one more d${gun.fatal} on a firearm's critical hit (always on)` } : null;
+    },
 };
 function handEntry(doc, level, builtins, wields, host = null) {
     const read = HAND[slugOf(doc)]?.(level, host);

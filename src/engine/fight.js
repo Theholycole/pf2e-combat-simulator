@@ -1064,14 +1064,15 @@ function actOn(state, c, action) {
             const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...activity, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : activity));
             if (activity.noMap || activity.previousMap) c.attacksThisTurn = attacksBefore;
             if (fired?.reload) (c.unloaded ??= new Set()).add(fired.name);
-            // A finisher spends panache, and no more attacks this turn; Confident Finisher's miss still deals half its dice.
+            // A finisher spends panache, and no more attacks this turn; Confident Finisher's miss still deals half its dice (all of them with
+            // Precise Finisher).
             if (activity.finisher) {
                 c.panache = false;
                 c.noAttacksThisTurn = true;
                 if (activity.finisher === "confident" && result?.degree === 1 && !result.image && isActive(target)) {
                     let amount = 0;
                     for (let die = 0; die < (c.panacheStyle?.finisherDice ?? 2); die++) amount += state.rng.die(6);
-                    const dealt = applyDamage(state, target, [{ type: c.strikes[action.strikeIndex].damage[0].type, amount: Math.floor(amount / 2), persistent: false, precision: true, context: strikeContext(c, c.strikes[action.strikeIndex]) }], { source: c });
+                    const dealt = applyDamage(state, target, [{ type: c.strikes[action.strikeIndex].damage[0].type, amount: c.preciseFinisher ? amount : Math.floor(amount / 2), persistent: false, precision: true, context: strikeContext(c, c.strikes[action.strikeIndex]) }], { source: c });
                     state.log?.push(`  ${target.name} takes ${dealt} from the finisher's miss`);
                 }
             }

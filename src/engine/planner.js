@@ -20,7 +20,7 @@ import { distanceFeet, footingAt, occupiedBy, reaches as gridReaches, sightLine,
 import { moderate } from "./creature-tables.js";
 import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, meleeBuilt, nonlethalAgainst, screenGuards, spellStops, strikeStops } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { canReact, castJustNow, chargeOn, hasOwnEffect, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { canReact, castJustNow, isBravado, chargeOn, hasOwnEffect, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
@@ -1367,7 +1367,7 @@ function expandSpells(env) {
                     if (!ally) damage[target.id] = before + expected + follow;
                 }
                 // A swashbuckler's bravado action also brings panache: Precise Strike's damage for the fight and a finisher.
-                if (!c.panache && c.panacheStyle && (c.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
+                if (!c.panache && isBravado(c, spell)) {
                     const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
                     gain += 0.6 * ctx.ownValue * ROUND_TO_KILL * (3 * c.panacheStyle.precise + c.panacheStyle.finisherDice * 3.5 * 0.6) / threat;
                 }

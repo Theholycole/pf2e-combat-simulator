@@ -841,9 +841,22 @@ export function extraApplies(extra, target, { offGuard, packAllies, attacker = n
             return !offGuard;
         case "critical":
             return Boolean(critical);
+        // (2026-11-03: any hit — an alchemist's additive, Disorienting Opening's.)
+        case "hit":
+            return true;
         default:
             return false;
     }
+}
+
+// (A swashbuckler's bravado action: its panache style's actions or one with the bravado trait. 2026-11-03: the basic actions' compiled plans
+// carry no slug — Feint's source is { name: "Feint", slug: null } —, so the name's slug counts too; before, the swashbuckler never gained
+// panache from Feint.)
+export function isBravado(c, spell) {
+    if (!c.panacheStyle) return false;
+    const source = spell?.plan?.source ?? {};
+    const slug = source.slug ?? String(source.name ?? spell?.name ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return c.panacheStyle.bravado.includes(slug) || (spell?.plan?.traits ?? []).includes("bravado");
 }
 
 // Regeneration works unless damage of a listed type turned it off.

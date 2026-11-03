@@ -28,7 +28,10 @@ for (const doc of readDocuments(`${PACK_ROOT}/equipment`).filter((entry) => entr
 }
 const weaponAmmo = (item, weapon) => weapon?.system?.ammo?.baseType ?? WEAPON_AMMO.get(String(item.name).toLowerCase()) ?? WEAPON_AMMO.get(String(item.name).toLowerCase().replace(/[^a-z0-9]+/g, "-")) ?? null;
 const weaponGroup = (item, traits) => (traits.includes("unarmed") ? "brawling" : WEAPON_GROUPS.get(String(item.name).toLowerCase()) ?? WEAPON_GROUPS.get(String(item.name).toLowerCase().replace(/[^a-z0-9]+/g, "-")) ?? null);
-export const basicActions = compileBasicActions(readDocuments(`${PACK_ROOT}/actions`).filter((doc) => doc.collection === "items"));
+// (2026-11-03: the compiled plans keep the item's own slug, which PF2e's pack leaves empty for most of them — Feint's source was { name:
+// "Feint", slug: null }, so the swashbuckler's bravado, Battle Cry's Demoralize and a Strike's follow-up Shove looked for a slug none had.
+// The key they're compiled under is that slug.)
+export const basicActions = Object.fromEntries(Object.entries(compileBasicActions(readDocuments(`${PACK_ROOT}/actions`).filter((doc) => doc.collection === "items"))).map(([slug, plan]) => [slug, plan ? { ...plan, source: { ...(plan.source ?? {}), slug: plan.source?.slug ?? slug } } : plan]));
 const SKILL_OF = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics", disarm: "athletics", reposition: "athletics", feint: "deception", "create-a-diversion": "deception", "administer-first-aid": "medicine" };
 const heldWeapon = (npc, item) => Boolean(item.flags?.pf2e?.linkedWeapon) || npc.items.some((entry) => entry.type === "weapon" && entry.name.toLowerCase() === item.name.toLowerCase())
     || WEAPON_GROUPS.has(String(item.name).toLowerCase()) || WEAPON_GROUPS.has(String(item.name).toLowerCase().replace(/[^a-z0-9]+/g, "-"));

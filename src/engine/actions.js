@@ -303,6 +303,10 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
 const ENERGIES = ["fire", "cold", "electricity", "acid"];
 const bestEnergy = (target) => ENERGIES.reduce((best, type) => (adjustInstance(target, type, 4) > adjustInstance(target, best, 4) ? type : best), ENERGIES[0]);
 
+// (2026-11-03, class feats: an extra kept to some Strikes — Brutal Critical's melee ones, an alchemist's additive on its bombs, Fatal
+// Bullet's firearms, Disorienting Opening's Reactive Strikes.)
+const extraFits = (extra, strike, reaction = false) => (!extra.melee || strike.melee) && (!extra.bomb || strike.splashKind === "bomb") && (!extra.firearm || strike.firearm) && (!extra.reaction || reaction);
+
 // The extra dice of abilities such as Sneak Attack, on average (doubled on a critical hit).
 function expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies) {
     let total = 0;
@@ -310,9 +314,14 @@ function expectedExtras(attacker, strike, target, critical, offGuardChance, pack
         const chance = extra.when === "off-guard" ? offGuardChance : extraApplies(extra, target, { offGuard: false, packAllies, attacker, critical }) ? 1 : 0;
         // (2026-11-03: a condition it puts on — Brutal Beating's frightened — isn't damage; Brutal Critical's melee Strikes only, its weapon's
         // own die, not doubled.)
-        if (!chance || extra.condition || (extra.melee && !strike.melee)) continue;
+        if (!chance || extra.condition || extra.offGuardToAttacker || !extraFits(extra, strike)) continue;
         const die = extra.weaponDie ? Number(strike.damage?.[0]?.die) || 6 : extra.die;
         // (2026-11-03, Fearsome Brute: a bonus for each point of the target's frightened.)
+        // (Sticky Bomb: persistent damage of its bomb's splash.)
+        if (extra.splashPersistent) {
+            total += chance * adjustInstance(target, strike.damage[0]?.type ?? "untyped", strike.splashAmount ?? 0, false, strikeContext(attacker, strike, critical));
+            continue;
+        }
         const amount = (extra.dice * (die + 1) / 2 + (extra.bonus ?? 0) + (extra.perFrightened ?? 0) * (target.cond?.frightened ?? 0)) * (critical && !extra.noDouble && !extra.persistent ? 2 : 1);
         total += chance * adjustInstance(target, extra.type ?? strike.damage[0]?.type ?? "untyped", amount, extra.precision, strikeContext(attacker, strike, critical));
     }
@@ -777,7 +786,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         for (const extra of attacker.strikeExtras) {
             if (!extraApplies(extra, target, { offGuard, packAllies, attacker, critical })) continue;
             // (Brutal Critical: melee Strikes only, its weapon's own die, not doubled — an extra die like deadly's; its bleed persistent.)
-            if (extra.melee && !strike.melee) continue;
+            if (!extraFits(extra, strike, reaction)) continue;
             // (2026-11-03, Unbalancing Blow: the target off-guard to the attacker's attacks until the end of its next turn.)
             if (extra.offGuardToAttacker) {
                 if (isActive(target)) {
@@ -791,6 +800,10 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             // (2026-11-03, Brutal Beating: a condition on the target.)
             if (extra.condition) {
                 if (isActive(target) && applyCondition(state, target, extra.condition.slug, extra.condition.value ?? null, extra.condition.duration ?? null, attacker)) log(state, `  ${target.name} is ${extra.condition.slug}${extra.condition.value ? ` ${extra.condition.value}` : ""} (${extra.source ?? "a Strike's extra"})`);
+                continue;
+            }
+            if (extra.splashPersistent) {
+                if (strike.splashAmount) addPersistent(target, { type: strike.damage[0].type, dice: 0, die: 0, bonus: strike.splashAmount, amount: strike.splashAmount }, attacker);
                 continue;
             }
             const die = extra.weaponDie ? Number(strike.damage[0].die) || 6 : extra.die;
