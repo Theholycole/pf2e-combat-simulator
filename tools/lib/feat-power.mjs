@@ -718,6 +718,13 @@ const HAND = {
     "preternatural-parry": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Preternatural Parry" } }, played: "+2 AC as it's targeted (reaction)" }),
     // (A Strike back at an enemy that critically misses it; the Stride for off-guard isn't played.)
     "clang": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a reaction Strike on a critical miss" }),
+    // (+2 damage on its Strikes while in the stance — a ranged PC's, the requirement's; the volley penalty it drops isn't played.)
+    "point-blank-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, damage: ["2"] }], played: "stance: +2 damage on its Strikes" }),
+    // (Raging at half its Hit Points or fewer: +2 attack, -1 AC and saves, a free action at its turn — the engine's self-effect while raging.)
+    "desperate-wrath": (_level, host) => (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage") ? ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 0, requires: "raging", belowHalf: true, model: { rounds: 10, modifiers: [{ on: "attack", type: "circumstance", value: 2 }, { on: "ac", type: "untyped", value: -1 }, ...["fortitude", "reflex", "will"].map((on) => ({ on, type: "untyped", value: -1 }))] } }], played: "+2 attack, -1 AC and saves while raging at half Hit Points" }) : null,
+    // (Damage equal to its weapon's dice on its Strikes for the fight — one dice a striking rune; the penalty against other foes and the
+    // one-handed-weapon wording aren't played.)
+    "duelists-challenge": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, damage: [String(level >= 19 ? 4 : level >= 12 ? 3 : level >= 4 ? 2 : 1)], model: { rounds: 100 } }], played: "+its weapon dice damage on its Strikes (1 action, the fight)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
