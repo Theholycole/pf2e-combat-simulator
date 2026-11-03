@@ -795,6 +795,8 @@ const HAND = {
     "fearsome-brute": (level) => ({ builtins: { strikeExtras: [{ when: "frightened", dice: 0, die: 0, bonus: 0, perFrightened: level >= 15 ? 3 : 2, precision: false, type: null, source: "Fearsome Brute" }] }, played: "damage of twice a foe's frightened (always on)" }),
     // (Fire damage of its level back at an adjacent creature whose melee attack hits it, once a fight — resist-damage's retort, no resistance.)
     "fiery-retort": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 0, retort: `${level}[fire]`, melee: true, foe: true, uses: 1 }], played: `${level} fire back at a melee attacker (reaction, once a fight)` }),
+    // (1d4 spirit on its weapon for the rest of its turn after a slot spell — a free action, the engine's after-cast self effect.)
+    "divine-weapon": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 0, requires: "after-cast", nonCantrip: true, damage: ["1d4[spirit]"], model: { rounds: 1 } }], played: "+1d4 spirit on its Strikes after a slot spell (free)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
