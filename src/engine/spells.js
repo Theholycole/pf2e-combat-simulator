@@ -3655,6 +3655,16 @@ export function applyAuras(state) {
     }
 }
 
+// (2026-11-03, Scouring Rage: an ability that goes off as its creature Rages — trigger event "rage" —, on each enemy within its area.)
+export function rageTriggers(state, c) {
+    for (const [index, spell] of (c.spells ?? []).entries()) {
+        if (spell.plan?.trigger?.event !== "rage") continue;
+        const radius = describeSpell(spell.plan).area?.value ?? 20;
+        const targets = state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone" && distanceBetween(c, other) <= radius);
+        if (targets.length) castSpell(state, c, index, targets.map((target) => target.id));
+    }
+}
+
 // Death throes (B42): a monster's abilities that act as it dies ("When the skeleton is destroyed, … adjacent creatures take
 // 2d6 slashing damage"), on everyone in their area: its Melee for 10 feet or less, and the creatures not far off for more (as
 // auras reach), everyone from 60 feet. melee: the ids in its Melee as it died. One with no area isn't played.

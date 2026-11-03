@@ -729,6 +729,27 @@ function inlineSaveEntry(doc, level, host) {
     return { spells: [entry], pools: pool ? { [pool]: uses } : {}, gap: null, played: `inline save: ${template ? `${template[2]}-foot ${template[1]}` : `1 creature, ${reach.range}`}, ${check[1]}${damage ? `, ${damage.formula} ${damage.type}` : ""} (DC ${dc}${uses ? `, ${uses}/fight` : ""})` };
 }
 
+// (2026-11-03, the class feats no fight played: Scouring Rage — as it Rages, each enemy within 20 feet takes its level in damage, a basic
+// Fortitude save at its class DC, of its Rage's damage type: its Strike's.) Compiled as an inline save is, set off by the engine's Rage
+// (spells.js rageTriggers), never cast on its own.
+function rageSaveEntry(doc, level, host) {
+    if (slugOf(doc) !== "scouring-rage" || !(host?.selfBuffs ?? []).some((buff) => buff.name === "Rage")) return null;
+    const type = (host.strikes ?? []).find((strike) => strike.melee)?.damage?.[0]?.type ?? "bludgeoning";
+    const spell = { ...doc, type: "spell", system: { ...doc.system, description: { value: `<p>Each enemy in a 20-foot emanation takes ${level} ${type} damage (basic Fortitude save).</p>` }, level: { value: 1 }, heightening: undefined, time: { value: "1" }, area: { type: "emanation", value: 20 }, target: { value: "" }, range: { value: "" }, defense: { save: { statistic: "fortitude", basic: true } }, damage: { 0: { applyMod: false, category: null, formula: String(level), kinds: ["damage"], materials: [], type } } } };
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    if (plan?.resolution?.kind !== "save") return null;
+    const own = dcsOf(host);
+    const dc = own.class ?? 10 + level + 2;
+    const castRank = Math.max(1, Math.ceil(level / 2));
+    const entry = { name: doc.name, plan: { ...plan, trigger: { event: "rage" } }, castRank, dc, attack: dc - 10, pool: null, effects: spellPack.effectModels(plan, castRank) };
+    return { spells: [entry], pools: {}, gap: null, played: `as it Rages, each enemy within 20 feet saves (Fortitude, basic, DC ${dc}) or takes ${level} ${type}` };
+}
+
 // (2026-11-03, the class feats no fight played: Quaking Stomp's "Cast as Earthquake".) The feat module's spell-like plan: the spell it names at
 // its rank (else half the PC's level rounded up) and DC, in the feat's own actions, from a pool of its frequency (none: at will). A reaction or
 // free action's cast isn't played (the engine casts on the PC's turn).
@@ -945,6 +966,8 @@ const HAND = {
     "tributary-circulation": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, model: { rounds: 1, modifiers: [{ on: "will", type: "circumstance", value: 2 }] } }], played: "+2 to Will saves for a round" }),
     // (Tempo Duelist: concealed for a round.)
     "tempo-duelist": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, model: { rounds: 1, conditions: [{ slug: "concealed", value: null }] } }], played: "concealed for a round" }),
+    // (Duelist's Edge: +2 circumstance to its initiative roll, as Swaggering Initiative's; drawing its weapon isn't needed — PCs start armed.)
+    "duelists-edge": () => ({ builtins: { passiveEffects: [{ name: "Duelist's Edge", rounds: Infinity, modifiers: [{ on: "initiative", type: "circumstance", value: 2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }] }, played: "+2 to its initiative" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
@@ -1362,6 +1385,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = rageSaveEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = handEntry(doc, level, builtins, wields, { ...host, strikes: wields.strikes ?? host.strikes }) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = zeroHpEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = passiveRulesEntry(doc, level, builtins) ?? entries;
