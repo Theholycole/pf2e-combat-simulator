@@ -290,18 +290,21 @@ function innateSpellEntry(doc, level, host) {
 // (2026-11-03, the class feats no fight played: an action that puts its PF2e Effect on one ally — Steel Yourself!'s temporary Hit Points and
 // Fortitude, Spike Skin's resistance —: cast as Heroism's compiled shape (one creature) at an ally within the text's feet (30 without),
 // the Effect's own rules its model; once a fight with a frequency, else at will.)
+// (Or one read by hand, with no PF2e Effect: Protect Ally's +1 AC to an adjacent ally until the start of its next turn.)
+const ALLY_BUFFS = { "protect-ally": { feet: 0, model: { modifiers: [{ on: "ac", type: "circumstance", value: 1 }] }, rounds: 1, played: "+1 AC to an adjacent ally for a round" } };
 function allyEffectEntry(doc, level) {
+    const hand = ALLY_BUFFS[slugOf(doc)];
     const type = doc.system?.actionType?.value;
     if (type !== "action" || !(Number(doc.system?.actions?.value) <= 2)) return null;
     const html = String(doc.system?.description?.value ?? "");
     const text = html.replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/<[^>]+>/g, " ");
-    if (!/\b(?:(?:choose|select|touch|target) (?:one|an|a) (?:willing )?(?:ally|creature)|an ally (?:within|in your)|one ally (?:within|in your)|a willing creature)\b/i.test(text) || /\benem(?:y|ies)\b.*\bEffect:/i.test(text)) return null;
+    if (!hand && (!/\b(?:(?:choose|select|touch|target) (?:one|an|a) (?:willing )?(?:ally|creature)|an ally (?:within|in your)|one ally (?:within|in your)|a willing creature)\b/i.test(text) || /\benem(?:y|ies)\b.*\bEffect:/i.test(text))) return null;
     // (Not one behind a check of its own — Helpful Tinkering's Crafting check and its critical failure's harm.)
     if (/<strong>\s*Requirements?\s*<\/strong>/i.test(html) || /@Check\[|Critical Failure/i.test(html)) return null;
     const uuid = /@UUID\[(Compendium\.pf2e\.feat-effects\.Item\.[^\]]+)\]/.exec(html)?.[1];
-    const effect = uuid && effectDoc(uuid);
-    if (!effect) return null;
-    const model = effectModel(effect, { rank: level, actorLevel: level, conditionSlug });
+    const effect = !hand && uuid && effectDoc(uuid);
+    if (!hand && !effect) return null;
+    const model = hand ? { name: doc.name, rounds: hand.rounds, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...hand.model } : effectModel(effect, { rank: level, actorLevel: level, conditionSlug });
     if (model.unsupported?.length || !(model.modifiers.length || model.tempHp || model.fastHealing || model.resistances.length || model.conditions.length || model.strikeParts)) return null;
     const heroism = spellPack.spellNamed("Heroism");
     let base;
@@ -312,14 +315,14 @@ function allyEffectEntry(doc, level) {
     }
     if (base?.resolution?.kind !== "effect") return null;
     // (A marshal's aura: 10 feet.)
-    const feet = Number(/\bwithin (\d+) feet\b/i.exec(text)?.[1]) || (/\btouch\b/i.test(text) ? 0 : /\bmarshal's aura\b/i.test(text) ? 10 : 30);
+    const feet = hand ? hand.feet : Number(/\bwithin (\d+) feet\b/i.exec(text)?.[1]) || (/\btouch\b/i.test(text) ? 0 : /\bmarshal's aura\b/i.test(text) ? 10 : 30);
     const key = `feat:${doc._id}:ally`;
     const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], activation: { ...base.activation, time: String(doc.system?.actions?.value ?? 1) }, targeting: { ...base.targeting, range: feet ? `${feet} feet` : "touch" }, heightening: null, resolution: { ...base.resolution, applications: [{ kind: "native-spell-effect", uuid: key, source: "nativeEffects.onUse" }] } };
     const once = /\bFrequency\b/i.test(html);
     const pool = once ? `feat:${doc._id}` : null;
     const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc: 0, attack: 0, pool, effects: { [key]: { ...model, name: doc.name } } };
     if (!castable(entry)) return null;
-    return { spells: [entry], pools: pool ? { [pool]: 1 } : {}, gap: null, played: `its Effect on an ally${feet ? ` within ${feet} feet` : " it touches"}${once ? " (once a fight)" : ""}` };
+    return { spells: [entry], pools: pool ? { [pool]: 1 } : {}, gap: null, played: `${hand ? hand.played : `its Effect on an ally${feet ? ` within ${feet} feet` : " it touches"}`}${once ? " (once a fight)" : ""}` };
 }
 
 // (2026-11-03, the class feats no fight played: a spellcasting dedication's cantrips — Cleric, Wizard, Bard, Sorcerer Dedication and their
