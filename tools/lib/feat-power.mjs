@@ -346,6 +346,30 @@ function widenEntry(doc, host) {
     return { spells, pools: {}, gap: null, played: `widened copies of ${spells.length} area spell${spells.length > 1 ? "s" : ""}` };
 }
 
+// (2026-11-03, the class feats no fight played: Terrifying Howl, Dazzling Display — Demoralize each enemy within 30 feet, one action.) As a
+// Will save of each enemy in a 30-foot emanation against the PC's Intimidation DC (the same odds turned around), on Fear's compiled shape: a
+// failure frightened 1, a critical failure frightened 2; once a fight (each foe is then immune for a minute).
+const DEMORALIZE_ALL = new Set(["terrifying-howl", "dazzling-display"]);
+function demoralizeAllEntry(doc, level, host) {
+    if (!DEMORALIZE_ALL.has(slugOf(doc))) return null;
+    const fear = spellPack.spellNamed("Fear");
+    let base;
+    try {
+        base = fear && spellPack.compileSpell(fear);
+    } catch {
+        base = null;
+    }
+    if (!base?.resolution?.outcomes?.failure) return null;
+    const row = (value) => ({ ...structuredClone(base.resolution.outcomes.failure), effects: value ? [{ kind: "condition", slug: "frightened", name: "Frightened", value, duration: null, source: doc.name }] : [], rawText: "" });
+    const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...new Set([...(doc.system?.traits?.value ?? []), "emotion", "fear", "mental"])], activation: { ...base.activation, time: String(doc.system?.actions?.value ?? 1) }, targeting: { ...base.targeting, target: null, range: null, area: { type: "emanation", value: 30, foes: true }, actorConstraints: { sourceText: "each enemy", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } }, heightening: null, resolution: { ...base.resolution, outcomes: { criticalSuccess: row(0), success: row(0), failure: row(1), criticalFailure: row(2) } } };
+    const intimidation = Number(host?.skills?.intimidation);
+    const dc = 10 + (Number.isFinite(intimidation) ? intimidation : level + 2);
+    const pool = `feat:${doc._id}`;
+    const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool, effects: spellPack.effectModels(plan, 1) };
+    if (!castable(entry)) return null;
+    return { spells: [entry], pools: { [pool]: 1 }, gap: null, played: `Demoralize each enemy within 30 feet (Intimidation DC ${dc}, once a fight)` };
+}
+
 // (2026-11-03, the class feats no fight played: more spellshapes, as Widen Spell — a copy of each of the PC's spells it shapes, an action
 // more.) Intimidating Spell: an area damage spell's failure frightened 1, critical failure frightened 2. Burning Spell: a single-target
 // non-cantrip damage spell's persistent fire of its rank. Reverberating Spell: an area non-cantrip damage spell's extra 1d8 sonic (its
@@ -460,11 +484,11 @@ function acReactionEntry(doc, builtins) {
     if (!bonus) return null;
     // (Dodge Away's "You are the target of a melee attack", Cut From the Air's "… a physical ranged Strike", Inked Panoply's "A creature
     // targets you with an attack, and you can see the attacker".)
-    const targeted = /^(?:An? (?:enemy|creature|foe|opponent)(?: you can see| you're observing| you are observing)? (?:targets you with|attempts) an? (melee |ranged )?(?:weapon )?(?:Strike|attack)(?: against you)?|You are targeted (?:with|by) an? (melee |ranged )?(?:Strike|attack)(?: by an? (?:observed )?(?:attacker|enemy|creature))?|An? creature targets you with an attack,? and you can see the attacker|You(?:'re| are) the target of an? (?:physical )?(melee |ranged )?(?:Strike|attack))$/i.exec(trigger);
+    const targeted = /^(?:An? (?:enemy|creature|foe|opponent)(?: you can see| you're observing| you are observing)? (?:targets you with|attempts) an? (melee |ranged )?(?:weapon )?(?:Strike|attack)(?: against you)?|You are targeted (?:with|by) an? (melee |ranged )?(?:Strike|attack)(?: by an? (?:observed )?(?:attacker|enemy|creature))?|An? creature targets you with an attack,? and you can see the attacker|You(?:'re| are) the target of an? (?:physical )?(melee |ranged )?(?:Strike|attack)|An? (?:enemy|creature|foe) within your reach targets you with an? (melee )?(?:Strike|attack),? and you(?:'re| are) aware of the attack)$/i.exec(trigger);
     const hit = /^An? (?:enemy|creature|foe) hits you with an? (melee |ranged )?(?:Strike|attack)$/i.exec(trigger);
     const read = targeted ?? hit;
     if (!read) return null;
-    const kind = (read[1] ?? read[2] ?? read[3] ?? "").trim();
+    const kind = (read[1] ?? read[2] ?? read[3] ?? read[4] ?? "").trim();
     builtins.acReaction = { value: Number(bonus[1]), when: targeted ? "targeted" : "hit", name: doc.name, ...(kind ? { against: kind } : {}) };
     return { spells: [], pools: {}, gap: null, played: `+${bonus[1]} AC as a reaction ${targeted ? "when targeted" : "against a hit"}${kind ? ` (${kind})` : ""}` };
 }
@@ -1059,6 +1083,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineHealEntry(doc, level) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = widenEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellshapeEntry(doc, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = demoralizeAllEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
