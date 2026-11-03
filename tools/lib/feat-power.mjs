@@ -398,6 +398,33 @@ function stunningBlowsEntry(doc, level, host) {
     return { spells: [entry], pools: {}, gap: null, played: "a Fortitude save or stunned when a Flurry of Blows hits", flurryRider: { affliction: "stunning blows", atLeast: 1 } };
 }
 
+// (2026-11-03, the class feats' passives that answer a critical hit: Fracture Timeflow's "Whenever you achieve a critical success with a
+// Strike, the target of that Strike must also attempt a … save".) The feat's own save text compiled as a spell the engine casts at the target
+// after any critical Strike of the PC's (actions.js critRiders), at the higher of its class and spell DCs; a spell trigger the planner
+// doesn't cast on its own.
+const CRIT_RIDERS = { "fracture-timeflow": { save: "will" } };
+function critRiderEntry(doc, level, host, builtins) {
+    const way = CRIT_RIDERS[slugOf(doc)];
+    if (!way) return null;
+    const html = String(doc.system?.description?.value ?? "");
+    const spell = { ...doc, type: "spell", system: { ...doc.system, description: { value: html.replace(/^[\s\S]*?(?=The target|the target)/, "<p>").replace(/@Check\[(\w+)\|[^\]]*\]/g, "@Check[$1]") }, level: { value: 1 }, heightening: undefined, time: { value: "1" }, area: null, target: { value: "1 creature" }, range: { value: "touch" }, defense: { save: { statistic: way.save, basic: false } }, damage: {}, traits: { ...doc.system.traits, value: [...(doc.system.traits?.value ?? [])] } } };
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    if (!plan?.resolution || plan.resolution.kind !== "save") return null;
+    const name = doc.name.toLowerCase();
+    plan = { ...plan, trigger: { ...(plan.trigger ?? {}), event: "strike", attackEffect: name } };
+    const dcs = dcsOf(host);
+    const dc = Math.max(dcs.class ?? 0, dcs.spell ?? 0) || 10 + level + 2;
+    const castRank = Math.max(1, Math.ceil(level / 2));
+    const entry = { name: doc.name, plan, castRank, dc, attack: dc - 10, pool: null, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+    builtins.critRiders = [...(builtins.critRiders ?? []), { affliction: name, source: doc.name }];
+    return { spells: [entry], pools: {}, gap: null, played: `a ${way.save[0].toUpperCase()}${way.save.slice(1)} save at DC ${dc} after each critical Strike` };
+}
+
 // (2026-11-03, the class feats no fight played: Widen Spell, the spellshape a blaster takes.) Each of the PC's 1- or 2-action spells with a
 // burst, emanation, cone or line as a widened copy, an action more, from the same slot: a burst or emanation of 10 feet or more 5 feet
 // wider, a cone or line of 15 feet or less 5 feet longer, a longer one 10 feet.
@@ -1442,6 +1469,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = saveAuraEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = critRiderEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
