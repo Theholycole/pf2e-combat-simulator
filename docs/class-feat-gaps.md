@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-03 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1025 are rated; 3331 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-03 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1047 are rated; 3309 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -9,14 +9,14 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Bucket | No plan | Plan, not played | Total |
 |---|---:|---:|---:|
 | Archetype dedications (grant class features) | 177 | 4 | 181 |
-| Combat actions and reactions | 278 | 453 | 731 |
+| Combat actions and reactions | 278 | 431 | 709 |
 | Passives that change a class feature | 228 | 21 | 249 |
 | Other combat passives | 390 | 49 | 439 |
 | Spellcasting (slots, focus, spellshapes) | 269 | 39 | 308 |
 | Companions, familiars and eidolons | 195 | 51 | 246 |
 | Out of combat (exploration, downtime, skills) | 313 | 33 | 346 |
 | Nothing a fight would use | 739 | 92 | 831 |
-| **All** | 2589 | 742 | 3331 |
+| **All** | 2589 | 720 | 3309 |
 
 ## By class
 
@@ -24,35 +24,35 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | alchemist |  | 5 | 17 | 16 |  | 1 | 12 | 15 | 66 |
 | animist |  | 6 | 4 |  | 12 | 3 | 4 | 2 | 31 |
-| barbarian |  | 29 | 15 | 5 |  |  |  | 10 | 59 |
+| barbarian |  | 26 | 15 | 5 |  |  |  | 10 | 56 |
 | bard |  | 7 | 12 |  | 26 | 1 | 14 | 14 | 74 |
 | champion |  | 11 | 16 | 19 | 3 | 11 | 6 | 15 | 81 |
 | cleric |  | 9 | 1 | 16 | 18 | 1 | 8 | 18 | 71 |
 | commander |  | 11 | 1 | 6 |  | 4 | 5 | 7 | 34 |
 | druid |  | 5 | 13 | 4 | 21 | 11 | 7 | 18 | 79 |
 | exemplar |  | 6 | 28 | 2 |  |  | 3 | 4 | 43 |
-| fighter |  | 31 |  | 11 |  |  | 1 | 11 | 54 |
+| fighter |  | 28 |  | 11 |  |  | 1 | 11 | 51 |
 | guardian |  | 16 | 3 | 9 |  |  | 2 | 5 | 35 |
-| gunslinger |  | 28 | 4 | 13 |  | 1 | 4 | 11 | 61 |
-| inventor |  | 10 | 8 | 1 |  | 7 | 5 | 11 | 42 |
+| gunslinger |  | 27 | 4 | 13 |  | 1 | 4 | 11 | 60 |
+| inventor |  | 9 | 8 | 1 |  | 7 | 5 | 11 | 41 |
 | investigator |  | 5 | 4 | 13 |  | 1 | 17 | 11 | 51 |
 | kineticist |  | 42 | 5 | 1 | 1 | 1 | 6 | 22 | 78 |
 | magus |  | 16 | 10 | 2 | 11 | 1 | 6 | 6 | 52 |
-| monk |  | 26 | 2 | 13 | 2 |  | 2 | 23 | 68 |
+| monk |  | 25 | 2 | 13 | 2 |  | 2 | 23 | 67 |
 | necromancer |  | 12 | 5 | 6 | 9 | 1 | 6 | 20 | 59 |
 | oracle |  | 6 | 6 |  | 10 |  | 4 | 4 | 30 |
 | psychic |  | 5 | 1 | 1 | 20 |  | 1 | 7 | 35 |
-| ranger |  | 9 | 12 | 7 |  | 11 | 14 | 17 | 70 |
+| ranger |  | 7 | 12 | 7 |  | 11 | 14 | 17 | 68 |
 | rogue |  | 27 | 3 | 23 | 3 |  | 2 | 16 | 74 |
-| runesmith |  | 18 | 11 | 1 |  | 2 | 6 | 9 | 47 |
+| runesmith |  | 17 | 11 | 1 |  | 2 | 6 | 9 | 46 |
 | sorcerer |  | 1 | 1 | 6 | 24 | 1 | 7 | 11 | 51 |
 | summoner |  |  |  |  | 1 | 55 | 5 |  | 61 |
-| swashbuckler |  | 16 | 8 | 8 |  |  |  | 9 | 41 |
+| swashbuckler |  | 15 | 8 | 8 |  |  |  | 9 | 40 |
 | thaumaturge |  | 10 | 9 | 2 | 1 | 1 | 5 | 10 | 38 |
 | witch |  | 2 | 3 | 2 | 4 | 16 | 7 | 3 | 37 |
 | wizard |  | 2 |  | 1 | 16 | 4 | 10 | 6 | 39 |
-| archetype | 169 | 307 | 45 | 210 | 108 | 100 | 148 | 481 | 1568 |
-| other | 12 | 53 | 2 | 41 | 18 | 12 | 29 | 35 | 202 |
+| archetype | 169 | 299 | 45 | 210 | 108 | 100 | 148 | 481 | 1560 |
+| other | 12 | 52 | 2 | 41 | 18 | 12 | 29 | 35 | 201 |
 
 ## Why the simulator doesn't play the ones with a plan
 
@@ -60,7 +60,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 |---|---:|
 | a timer with no rules a fight counts | 126 |
 | its requirement | 119 |
-| a Strike with nothing more the simulator reads | 110 |
+| a Strike with nothing more the simulator reads | 88 |
 | a spell the engine doesn't cast | 46 |
 | an Effect with nothing a fight counts | 42 |
 | a roll whose results the simulator doesn't read | 38 |
@@ -276,7 +276,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Warshard Warrior Dedication | 12 | other | passive | no plan |  |
 | Wildspell Dedication | 12 | other | passive | plan | a spell the engine doesn't cast (Spellsurge) |
 
-## Combat actions and reactions (731)
+## Combat actions and reactions (709)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -314,7 +314,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Hurling Charge | 4 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | In Lightning, Life | 4 | archetype | 1 action | plan | an Effect with nothing a fight counts |
 | Invoke Offense | 4 | archetype | 1 action | plan | its requirement (You're under the effects of @UUID[Compendium.pf2e.actionspf2e.Item.Enter Spirit Trance]. You manifest a |
-| Ivy Playhouse Strike | 4 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Lassoing Lash | 4 | archetype | 1 action | plan | its requirement (The target can't be more than one size larger than you) |
 | Lesson of the Broken Wing | 4 | archetype | 1 action | plan | an Effect with nothing a fight counts |
 | Lesson of the Circling Gale | 4 | archetype | 1 action | plan | a teleport |
@@ -329,7 +328,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reach Beyond | 4 | archetype | 1 action | no plan |  |
 | Reflexive Catch | 4 | archetype | reaction | no plan |  |
 | Semblance of Life | 4 | archetype | free | plan | a spell the feat casts |
-| Slayer's Strike | 4 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Soul Flare | 4 | archetype | reaction | no plan |  |
 | Spot Translate | 4 | archetype | reaction | no plan |  |
 | Swift Leap | 4 | archetype | 1 action | plan | a teleport |
@@ -342,7 +340,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Battlefield Agility | 6 | archetype | 1 action | plan | its requirement (You're flanked by at least two enemies.) |
 | Bear Hug (Werecreature) | 6 | archetype | 2 actions | plan | its requirement (You're in bear or hybrid shape, and your last action was a successful claw Strike.) |
 | Betraying Shank | 6 | archetype | 1 action | plan | its requirement (You are within melee reach of a target, but it is not in combat with you.) |
-| Blessed Sentinel | 6 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Boaster's Challenge | 6 | archetype | 1 action | plan | a roll whose results the simulator doesn't read |
 | Commitment to Justice | 6 | archetype | 1 action | plan | its requirement (You witnessed a creature kill or reduce an ally to 0 Hit Points since your last turn.) |
 | Commitment to Liberty | 6 | archetype | 2 actions | plan | its requirement (A creature has an ally Grabbed or Restrained.) |
@@ -355,7 +352,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Exsanguinate | 6 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | Feeling Your Oats | 6 | archetype | 1 action | no plan |  |
 | Feverish Enzymes | 6 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
-| Fiendish Brand | 6 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Follow-Up Strike | 6 | archetype | 1 action | plan | its requirement (Your last action was a missed Strike with a melee unarmed attack.) |
 | Fortune's Favor | 6 | archetype | free | no plan |  |
 | Frightful Condemnation | 6 | archetype | free | no plan |  |
@@ -370,7 +366,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Leverage Anguish | 6 | archetype | reaction | no plan |  |
 | Mammoth Charge | 6 | archetype | 2 actions | plan | its requirement (You are riding your megafauna companion.) |
 | Opportune Trickster | 6 | archetype | reaction | plan | its requirement (You're adjacent to both your ally and the creature) |
-| Piston Punch | 6 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Poison Coat | 6 | archetype | reaction | no plan |  |
 | Practiced Opposition | 6 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Reloading Trick | 6 | archetype | 1 action | plan | its text has no Strike of its user's |
@@ -414,7 +409,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Hot Foot | 8 | archetype | 1 action | no plan |  |
 | Interrupt Charge | 8 | archetype | reaction | plan | a roll whose results the simulator doesn't read |
 | Invoke Defense | 8 | archetype | 1 action | no plan |  |
-| Lead by Example | 8 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Lesson of Sympathetic Vulnerability | 8 | archetype | 1 action | no plan |  |
 | Lobbed Attack | 8 | archetype | 1 action | plan | its requirement, which the PC doesn't meet (You are Juggling a thrown weapon.) |
 | Makeshift Strike | 8 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
@@ -436,7 +430,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Slurp Up | 8 | archetype | 1 action | no plan |  |
 | Soul Well | 8 | archetype | 2 actions | no plan |  |
 | Sportlebore Choke | 8 | archetype | 1 action | plan | its requirement (Your swarm is outside your body) |
-| Stasian Smash | 8 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Statement Strut | 8 | archetype | 1 action | plan | a roll whose results the simulator doesn't read |
 | Stay Here! | 8 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Superimpose Time Duplicates | 8 | archetype | 1 action | plan | a timer with no rules a fight counts |
@@ -563,7 +556,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Target of Opportunity | 14 | archetype | reaction | plan | a reaction's Strike |
 | Watch Your Back (Golden Legionnaire) | 14 | archetype | 1 action | plan | an Effect with nothing a fight counts |
 | Worm Form | 14 | archetype | 2 actions | no plan |  |
-| Avalanche Strike | 16 | archetype | 3 actions | plan | a Strike with nothing more the simulator reads |
 | Controlled Bullet | 16 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Converge | 16 | archetype | reaction | no plan |  |
 | Deathblow | 16 | archetype | 2 actions | plan | its text has no Strike of its user's |
@@ -606,7 +598,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Brutal Crush | 4 | barbarian | 1 action | plan | its requirement (Your last action dealt bludgeoning damage using an unarmed Strike granted by a morph or polymorph effec |
 | Creature Comforts | 4 | barbarian | reaction | no plan |  |
 | Rip and Tear | 4 | barbarian | 1 action | plan | its requirement (Your last action dealt piercing or slashing damage using an unarmed Strike granted by a morph or polymo |
-| Swipe | 4 | barbarian | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Mage Hunter | 6 | barbarian | 2 actions | plan | its requirement (You've seen the target Cast a Spell) |
 | Animal Rage | 8 | barbarian | 1 action | plan | a spell the feat casts |
 | Follow-Up Assault | 8 | barbarian | 1 action | plan | a Strike with nothing more the simulator reads |
@@ -622,11 +613,9 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Predator's Pounce | 12 | barbarian | 1 action | plan | its requirement, which the PC doesn't meet (You are unarmored or wearing light armor) |
 | Sunder Spell | 12 | barbarian | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Meditate on This! | 14 | barbarian | 1 action | plan | a timer with no rules a fight counts |
-| Whirlwind Strike | 14 | barbarian | 3 actions | plan | a Strike with nothing more the simulator reads |
 | Dragon Transformation | 16 | barbarian | 1 action | no plan |  |
 | Penetrating Projectile | 16 | barbarian | 2 actions | plan | its requirement, which the PC doesn't meet (You are wielding a ranged or thrown weapon that deals piercing damage.) |
 | Whirlwind Toss | 18 | barbarian | 1 action | no plan |  |
-| Annihilating Swing | 20 | barbarian | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Combat Reading | 4 | bard | 1 action | no plan |  |
 | Grand Dance | 8 | bard | 2 actions | no plan |  |
 | Reverberate | 12 | bard | reaction | plan | a roll whose results the simulator doesn't read |
@@ -685,7 +674,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | United Assault | 2 | fighter | 1 action | plan | a choice of ways the simulator doesn't play |
 | Dual-Handed Assault | 4 | fighter | 1 action | plan | its requirement, which the PC doesn't meet (You are wielding a one-handed melee weapon and have a free hand.) |
 | Advantageous Assault | 6 | fighter | 1 action | plan | a Strike with nothing more the simulator reads |
-| Dazing Blow | 6 | fighter | 1 action | plan | a Strike with nothing more the simulator reads |
 | Disarming Stance | 6 | fighter | 1 action | plan | its requirement, which the PC doesn't meet (You are wielding a single one-handed melee weapon and hold nothing else in y |
 | Revealing Stab | 6 | fighter | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Ricochet Stance (Fighter) | 6 | fighter | 1 action | plan | an Effect with nothing a fight counts |
@@ -694,7 +682,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Knight's Retaliation | 8 | fighter | reaction | no plan |  |
 | Mobile Shot Stance | 8 | fighter | 1 action | no plan |  |
 | Positioning Assault | 8 | fighter | 2 actions | plan | a Strike with nothing more the simulator reads |
-| Certain Strike | 10 | fighter | 1 action | plan | a Strike with nothing more the simulator reads |
 | Disruptive Stance | 10 | fighter | 1 action | no plan |  |
 | Haft Beatdown | 10 | fighter | 3 actions | plan | its requirement (You are in Haft Striker Stance.) |
 | Halyard Strike | 10 | fighter | 2 actions | plan | its requirement (A rope is within your reach, or you have a rope or grappling weapon in your hand.) |
@@ -704,7 +691,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Determination | 14 | fighter | 1 action | no plan |  |
 | Guiding Finish | 14 | fighter | 1 action | plan | a Strike with nothing more the simulator reads |
 | Graceful Poise | 16 | fighter | 1 action | no plan |  |
-| Overwhelming Blow | 16 | fighter | 3 actions | plan | a Strike with nothing more the simulator reads |
 | Reflecting Riposte | 20 | fighter | reaction | no plan |  |
 | Sever Space | 20 | fighter | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Covering Stance | 2 | guardian | 1 action | plan | a timer with no rules a fight counts |
@@ -738,7 +724,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Triggerbrand Salvo | 6 | gunslinger | 1 action | plan | its requirement (You're wielding a combination weapon.) |
 | Smoke Curtain | 8 | gunslinger | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Deflecting Shot | 10 | gunslinger | reaction | no plan |  |
-| Penetrating Fire | 10 | gunslinger | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Rebounding Assault | 10 | gunslinger | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Trick Shot | 10 | gunslinger | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Twin Shot Knockdown | 10 | gunslinger | 2 actions | plan | its requirement (You're wielding a loaded crossbow or loaded firearm in each hand.) |
@@ -753,7 +738,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Final Shot | 18 | gunslinger | 3 actions | plan | its requirement (You're wielding an unloaded firearm.) |
 | Oil Fire | 2 | inventor | 1 action | no plan |  |
 | Wukong Extension | 2 | inventor | 1 action | plan | a Strike with nothing more the simulator reads |
-| Megaton Strike | 4 | inventor | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Clockwork Celerity | 6 | inventor | free | plan | a free's Strike |
 | Overdrive Ally | 8 | inventor | 1 action | plan | an Effect with nothing a fight counts |
 | Geobukseon Retaliation | 10 | inventor | reaction | no plan |  |
@@ -848,7 +832,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Wild Winds Gust | 14 | monk | 2 actions | plan | its stance (Wild Winds Stance), not in the packs |
 | World-Breaking Footfall | 14 | monk | 2 actions | no plan |  |
 | Electric Counter | 16 | monk | reaction | no plan |  |
-| Shattering Strike (Monk) | 16 | monk | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Swift River | 18 | monk | free | no plan |  |
 | Draining Strike | 2 | necromancer | 1 action | plan | a choice of ways the simulator doesn't play |
 | Body Shield | 4 | necromancer | reaction | no plan |  |
@@ -893,7 +876,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Aegis for the Innocent | 14 | other | 1 action | plan | its requirement (Your nimbus is active) |
 | Burning Surge | 14 | other | reaction | no plan |  |
 | Faultless Defense | 14 | other | reaction | no plan |  |
-| History of Violence | 14 | other | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Immovable Object | 14 | other | 1 action | no plan |  |
 | Invigorating Surge | 14 | other | 1 action | plan | an Effect with nothing a fight counts |
 | Release Me! | 14 | other | 1 action | plan | its requirement (An enemy has you Grabbed or Restrained.) |
@@ -929,9 +911,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Crossbow Ace | 1 | ranger | 1 action | no plan |  |
 | Relentless Stalker | 2 | ranger | reaction | no plan |  |
 | Skirmish Strike | 6 | ranger | 1 action | plan | a Strike with nothing more the simulator reads |
-| Penetrating Shot | 10 | ranger | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Roll with it (Kingmaker) | 12 | ranger | reaction | no plan |  |
-| Second Sting | 12 | ranger | 1 action | plan | a Strike with nothing more the simulator reads |
 | Targeting Shot | 14 | ranger | 1 action | plan | a Strike with nothing more the simulator reads |
 | Perfect Shot | 18 | ranger | 3 actions | plan | a Strike with nothing more the simulator reads |
 | Time Dilation Cascade | 20 | ranger | 3 actions | plan | its text has no Strike of its user's |
@@ -969,7 +949,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Engraving Maneuver | 6 | runesmith | 1 action | no plan |  |
 | Drawn In Vital Ink | 8 | runesmith | free | no plan |  |
 | Edifying Trace | 8 | runesmith | 1 action | no plan |  |
-| Swiping Trace | 8 | runesmith | 3 actions | plan | a Strike with nothing more the simulator reads |
 | Chain of Words | 10 | runesmith | 2 actions | plan | a timer with no rules a fight counts |
 | Clashing Compound Invocation | 10 | runesmith | 1 action | no plan |  |
 | Astral Compound Invocation | 12 | runesmith | 1 action | no plan |  |
@@ -993,7 +972,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Switcheroo | 10 | swashbuckler | reaction | no plan |  |
 | The Bigger They Are | 12 | swashbuckler | 1 action | no plan |  |
 | Flamboyant Leap | 14 | swashbuckler | 2 actions | no plan |  |
-| Perfect Finisher | 14 | swashbuckler | 1 action | plan | a Strike with nothing more the simulator reads |
 | Lethal Finisher | 18 | swashbuckler | 1 action | plan | a roll whose results the simulator doesn't read |
 | Illimitable Finisher | 20 | swashbuckler | 1 action | plan | its text has no Strike of its user's |
 | Vivacious Afterimage | 20 | swashbuckler | 1 action | plan | a timer with no rules a fight counts |
