@@ -283,12 +283,12 @@ function innateSpellEntry(doc, level, host) {
 // rolls, which the feat module reads nothing for.) The feat as a spell the spell compiler reads: its @Template's area, its @Check's save, its
 // first @Damage's dice at the PC's level (a type PF2e fills in from the actor — a dragon instinct's — is fire), at the PC's class DC, from a
 // pool of its frequency. Only an action without a requirement.
-const LEVEL_MATH = { floor: Math.floor, ceil: Math.ceil, max: Math.max, min: Math.min };
+const LEVEL_MATH = { floor: Math.floor, ceil: Math.ceil, max: Math.max, min: Math.min, ternary: (test, a, b) => (test ? a : b), gte: (a, b) => a >= b, gt: (a, b) => a > b, lte: (a, b) => a <= b, lt: (a, b) => a < b };
 function inlineFormula(raw, level) {
     const m = /^(.*?)d(\d+)(?:\[([^\]]*)\])?$/.exec(raw.trim());
     if (!m) return null;
     const expr = m[1].replace(/@actor\.level/g, String(level)).replace(/@item\.level/g, String(level));
-    if (!/^[\d\s()+\-*/,a-z]*$/.test(expr) || /[a-z]/.test(expr.replace(/\b(?:floor|ceil|max|min)\b/g, ""))) return null;
+    if (!/^[\d\s()+\-*/,a-z]*$/.test(expr) || /[a-z]/.test(expr.replace(/\b(?:floor|ceil|max|min|ternary|gte|gt|lte|lt)\b/g, ""))) return null;
     let count;
     try {
         count = Function(...Object.keys(LEVEL_MATH), `return (${expr || 1});`)(...Object.values(LEVEL_MATH));
@@ -296,23 +296,26 @@ function inlineFormula(raw, level) {
         return null;
     }
     if (!Number.isFinite(count) || count < 1) return null;
-    const type = /^[a-z]+$/.test(m[3] ?? "") ? m[3] : "fire";
-    return { formula: `${Math.floor(count)}d${m[2]}`, type };
+    const kinds = String(m[3] ?? "").split(",");
+    const type = kinds.find((kind) => /^[a-z]+$/.test(kind) && !["persistent", "splash", "precision"].includes(kind)) ?? "fire";
+    return { formula: `${Math.floor(count)}d${m[2]}`, type, ...(kinds.includes("persistent") ? { category: "persistent" } : {}) };
 }
 function inlineSaveEntry(doc, level, host) {
     if ((doc.system?.actionType?.value ?? "passive") !== "action" || requirementText(doc)) return null;
     const html = String(doc.system?.description?.value ?? "");
     const template = /@Template\[(?:type:)?(\w+)\|distance:(\d+)/.exec(html);
     const check = /@Check\[(?:type:)?(reflex|fortitude|will)\b([^\]]*)\]/.exec(html);
-    if (!template || !check) return null;
+    // (One creature instead — Fling Head's "an enemy within 30 feet", Witchwood Seed's touch.)
+    const reach = template ? null : /\b(?:an? (?:creature|enemy|foe|target)|a creature you target|Select a creature|Choose a creature) within (\d+) feet\b/i.exec(html) ? { range: `${/within (\d+) feet/i.exec(html)[1]} feet` } : /\bYou touch a creature\b/i.test(html) ? { range: "touch" } : null;
+    if ((!template && !reach) || !check) return null;
     const damageHit = /@Damage\[((?:[^\[\]]|\[[^\]]*\])*?)(?:\|[^\]]*)?\]/.exec(html);
     const damage = damageHit ? inlineFormula(damageHit[1], level) : null;
     if (damageHit && !damage) return null;
     const text = html.replace(/@Damage\[(?:[^\[\]]|\[[^\]]*\])*\]/g, (all) => {
         const read = inlineFormula(/@Damage\[((?:[^\[\]]|\[[^\]]*\])*?)(?:\|[^\]]*)?\]/.exec(all)?.[1] ?? "", level);
-        return read ? `${read.formula} ${read.type}` : all;
+        return read ? `${read.formula} ${read.category ? "persistent " : ""}${read.type}` : all;
     });
-    const spell = { ...doc, type: "spell", system: { ...doc.system, description: { value: text }, level: { value: 1 }, heightening: undefined, time: { value: String(doc.system?.actions?.value ?? 1) }, area: { type: template[1], value: Number(template[2]) }, target: { value: "" }, range: { value: "" }, defense: { save: { statistic: check[1], basic: /\bbasic\b/.test(check[2]) } }, damage: damage ? { 0: { applyMod: false, category: null, formula: damage.formula, kinds: ["damage"], materials: [], type: damage.type } } : {} } };
+    const spell = { ...doc, type: "spell", system: { ...doc.system, description: { value: text }, level: { value: 1 }, heightening: undefined, time: { value: String(doc.system?.actions?.value ?? 1) }, area: template ? { type: template[1], value: Number(template[2]) } : null, target: { value: template ? "" : "1 creature" }, range: { value: reach?.range ?? "" }, defense: { save: { statistic: check[1], basic: /\bbasic\b/.test(check[2]) } }, damage: damage ? { 0: { applyMod: false, category: damage.category ?? null, formula: damage.formula, kinds: ["damage"], materials: [], type: damage.type } } : {} } };
     let plan;
     try {
         plan = spellPack.compileSpell(spell);
@@ -326,7 +329,7 @@ function inlineSaveEntry(doc, level, host) {
     const uses = Number(doc.system?.frequency?.max) || 0;
     const pool = uses ? `feat:${doc._id}` : null;
     const entry = { name: doc.name, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
-    return { spells: [entry], pools: pool ? { [pool]: uses } : {}, gap: null, played: `inline save: ${template[2]}-foot ${template[1]}, ${check[1]}${damage ? `, ${damage.formula} ${damage.type}` : ""} (DC ${dc}${uses ? `, ${uses}/fight` : ""})` };
+    return { spells: [entry], pools: pool ? { [pool]: uses } : {}, gap: null, played: `inline save: ${template ? `${template[2]}-foot ${template[1]}` : `1 creature, ${reach.range}`}, ${check[1]}${damage ? `, ${damage.formula} ${damage.type}` : ""} (DC ${dc}${uses ? `, ${uses}/fight` : ""})` };
 }
 
 // (2026-11-03, the class feats no fight played: Quaking Stomp's "Cast as Earthquake".) The feat module's spell-like plan: the spell it names at
