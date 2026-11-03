@@ -100,7 +100,8 @@ export function requiredEffectFeat(text) {
 export function mappedRequirement(text) {
     const stances = requiredStances(text);
     if (stances) return `stance:${stances.join("|")}`;
-    const words = String(text ?? "").toLowerCase();
+    // (2026-11-03: PF2e's links — "@UUID[Compendium.pf2e.conditionitems.Item.Grabbed]" or "…{Grabbed}" — as their words.)
+    const words = String(text ?? "").toLowerCase().replace(/@uuid\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/@uuid\[[^\]]*\.item\.([^\]]+)\]/g, "$1");
     if (/\b(?:a creature|an enemy|a foe) (?:grabbed|restrained)|creature grabbed or restrained|grabbed or restrained\b/.test(words) && /\byou have\b/.test(words)) return "grabbed";
     if (/aren't fatigued or raging|not fatigued/.test(words)) return "not-fatigued";
     if (/^(?:you are |you're )?raging\.?$/.test(words.trim())) return "raging";
@@ -203,6 +204,9 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     // (A stance it needs: the planner's check, the stance among the PC's feats — tools/lib/feat-power.mjs partyWithFeat.)
     const stanceNeeded = plan.requirementUnread ? requiredStances(plan.requirementUnread) : null;
     if (stanceNeeded) plan = { ...plan, requirementUnread: undefined, requires: plan.requires && !/^You|^Requirements?/i.test(String(plan.requires)) ? plan.requires : `stance:${stanceNeeded.join("|")}` };
+    // (2026-11-03, Dazing Blow's "You have a creature Grabbed": a requirement the planner checks on its target — mappedRequirement.)
+    const mappedUnread = plan.requirementUnread && plan.builtin === "strike-activity" ? mappedRequirement(plan.requirementUnread) : null;
+    if (mappedUnread) plan = { ...plan, requirementUnread: undefined, requires: mappedUnread };
     // (A requirement the planner checks as a need: on the plan, or on its Strike activity.)
     const needed = plan.requirementUnread && helpers.meets?.(plan.requirementUnread) !== true ? pcNeeds(plan.requirementUnread) : null;
     if (needed) plan = { ...plan, requirementUnread: undefined, needs: needed };
