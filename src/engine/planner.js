@@ -1837,6 +1837,8 @@ function expandClassActions(env) {
         if (entry.actions > remaining || (c.effects ?? []).some((effect) => effect.key === `self:${entry.name}`) || node.casts.includes(`self${index}`)) continue;
         // Fanatical Frenzy: once it's hurt (B64). Blood Frenzy and the like come with their trigger, not as an action (B65).
         if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
+        // (2026-11-03, Tough Cookie: at half its Hit Points or fewer.)
+        if (entry.belowHalf && c.hp.value > c.hp.max / 2) continue;
         if (entry.trigger) continue;
         // (B308: a shell — only badly hurt, under 40% of its Hit Points, with a foe in its reach; it spends the rest of its turn in it.)
         if (entry.shell && !(c.hp.value < c.hp.max * 0.4 && ctx.enemies.some((enemy) => isActive(enemy) && sameMelee(c, enemy)))) continue;

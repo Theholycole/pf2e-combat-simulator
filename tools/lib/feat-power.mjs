@@ -33,7 +33,7 @@ export const itemReaders = ITEM_ROOT ? await (async () => {
         return null;
     }
 })() : null;
-const { featEntries, featInfo, meetsWielding, requiredEffectFeat, requiredStances, withResolvedEffects, worthSomething } = await import("../../src/engine/feat-abilities.js");
+const { featEntries, featInfo, meetsWielding, pcNeeds, requiredEffectFeat, requiredStances, withResolvedEffects, worthSomething } = await import("../../src/engine/feat-abilities.js");
 const { effectModel } = await import("../../src/engine/effects.js");
 const { addBuiltin } = await import("../../src/engine/abilities.js");
 const { dangerFights, dangerSummary, DANGER_OPTIONS, DEATH_WEIGHT } = await import("../../src/engine/danger-scale.js");
@@ -277,6 +277,42 @@ function innateSpellEntry(doc, level, host) {
     }
     if (!entries.length) return null;
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
+}
+
+// (2026-11-03, the class feats no fight played: Tough Cookie, Spell Parry, Kinetic Dampening — a buff on the PC the feat module only times.)
+// Its text's own "you gain …" as PF2e rules on an Effect (effects.js effectModel), put on as a self-effect: a +N bonus to AC and/or saving
+// throws, resistance N to physical or all damage, temporary Hit Points of a level formula; for a round ("until the start of your next turn"),
+// else a minute. Only an action or free action with no trigger or requirement.
+function textSelfEffectEntry(doc, level, builtins, host, wields) {
+    const type = doc.system?.actionType?.value;
+    if (!["action", "free"].includes(type)) return null;
+    // (A requirement the PC's loadout meets, or Tough Cookie's "at half your maximum or less" — the planner's check.)
+    const requirement = requirementText(doc);
+    const belowHalf = requirement ? (pcNeeds(requirement) ?? []).some((need) => need.hpBelowHalf) : false;
+    if (requirement && !belowHalf && meetsWielding(requirement, wields) !== true) return null;
+    const html = String(doc.system?.description?.value ?? "");
+    if (/<strong>\s*Trigger\s*<\/strong>/i.test(html)) return null;
+    const text = html.replace(/<[^>]+>/g, " ").replace(/@UUID\[[^\]]*?Item\.([^\]]+)\](?:\{([^}]*)\})?/g, (_all, name, label) => label ?? name).replace(/\s+/g, " ");
+    const rules = [];
+    const bonus = /\b(?:you (?:gain|get)|gaining|You and (?:your )?allies [^.]*? gain) an? \+(\d) (circumstance|status) bonus to (?:your )?(AC|all saving throws|saving throws|AC and (?:to )?(?:all )?saving throws(?: against spells that target you)?)\b/i.exec(text);
+    if (bonus) {
+        const value = Number(bonus[1]);
+        if (/AC/.test(bonus[3])) rules.push({ key: "FlatModifier", selector: "ac", type: bonus[2].toLowerCase(), value });
+        if (/saving throws/.test(bonus[3]) && !/against spells/.test(bonus[3])) rules.push({ key: "FlatModifier", selector: "saving-throw", type: bonus[2].toLowerCase(), value });
+    }
+    const resist = /\byou gain resistance (\d+) to (physical|all) damage\b/i.exec(text);
+    if (resist) rules.push({ key: "Resistance", type: resist[2].toLowerCase() === "all" ? "all-damage" : "physical", value: Number(resist[1]) });
+    const temp = /\byou gain (?:a number of )?temporary Hit Points equal to (half your level|your level|double your level|twice your level|half your maximum Hit Points)\b/i.exec(text);
+    if (temp) {
+        const f = temp[1].toLowerCase();
+        rules.push({ key: "TempHP", value: f === "half your level" ? Math.max(1, Math.floor(level / 2)) : f === "your level" ? level : f.startsWith("half your maximum") ? Math.floor((host?.hp?.max ?? level * 10) / 2) : level * 2 });
+    }
+    if (!rules.length) return null;
+    const round = /until the (?:start|beginning) of your next turn/i.test(text);
+    const model = effectModel({ name: doc.name, type: "effect", system: { rules, duration: round ? { value: 1, unit: "rounds", expiry: "turn-start" } : { value: 10, unit: "rounds" } } }, { rank: level, actorLevel: level, conditionSlug });
+    if (!(model.modifiers.length || model.tempHp || model.resistances.length)) return null;
+    addBuiltin(builtins, { builtin: "self-effect", actions: type === "free" ? 0 : Number(doc.system?.actions?.value) || 1, stance: false, model, ...(belowHalf ? { belowHalf: true } : {}) }, doc.name);
+    return { spells: [], pools: {}, gap: null, played: `its text's self buff (${rules.map((rule) => `${rule.key} ${rule.selector ?? rule.type ?? ""} ${rule.value}`.replace(/\s+/g, " ")).join(", ")})` };
 }
 
 // (2026-11-03, the class feats no fight played: Farabellus Flip, Sense the Strike — a reaction's bonus to AC against the attack that sets it
@@ -688,6 +724,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellLikeEntry(doc, level, plan) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineSaveEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = acReactionEntry(doc, builtins) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = handEntry(doc, level, builtins) ?? entries;
