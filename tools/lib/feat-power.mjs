@@ -346,6 +346,42 @@ function widenEntry(doc, host) {
     return { spells, pools: {}, gap: null, played: `widened copies of ${spells.length} area spell${spells.length > 1 ? "s" : ""}` };
 }
 
+// (2026-11-03, the class feats no fight played: more spellshapes, as Widen Spell — a copy of each of the PC's spells it shapes, an action
+// more.) Intimidating Spell: an area damage spell's failure frightened 1, critical failure frightened 2. Burning Spell: a single-target
+// non-cantrip damage spell's persistent fire of its rank. Reverberating Spell: an area non-cantrip damage spell's extra 1d8 sonic (its
+// deafened isn't played).
+const SPELLSHAPES = {
+    "intimidating-spell": { area: true, conditions: { failure: ["frightened", 1], criticalFailure: ["frightened", 2] } },
+    "burning-spell": { area: false, nonCantrip: true, extra: (rank) => ({ formula: String(rank), type: "fire", category: "persistent" }) },
+    "reverberating-spell": { area: true, nonCantrip: true, extra: () => ({ formula: "1d8", type: "sonic", category: null }) }
+};
+function spellshapeEntry(doc, host) {
+    const shape = SPELLSHAPES[slugOf(doc)];
+    if (!shape) return null;
+    const spells = [];
+    for (const spell of host.spells ?? []) {
+        const resolution = spell.plan?.resolution;
+        const time = String(spell.plan?.activation?.time ?? "");
+        const area = spell.plan?.targeting?.area;
+        if (resolution?.kind !== "save" || !resolution.sharedDamage?.components?.length || !["1", "2"].includes(time) || spell.kind) continue;
+        if (shape.area ? !area : area || !/^1 /.test(String(spell.plan?.targeting?.target ?? ""))) continue;
+        if (shape.nonCantrip && !spell.pool) continue;
+        const outcomes = structuredClone(resolution.outcomes ?? {});
+        let sharedDamage = resolution.sharedDamage;
+        if (shape.extra) {
+            const part = shape.extra(spell.castRank ?? 1);
+            sharedDamage = { ...sharedDamage, components: [...sharedDamage.components, { id: "spellshape", formula: part.formula, type: part.type, category: part.category, applyModifier: false, kinds: ["damage"], materials: [] }] };
+            for (const row of Object.values(outcomes)) if (row?.damage?.mode === "shared" && row.damage.multiplier > 0) row.damage.sourceComponentIds = [...(row.damage.sourceComponentIds ?? []), "spellshape"];
+        }
+        for (const [degree, [slug, value]] of Object.entries(shape.conditions ?? {})) if (outcomes[degree]) outcomes[degree].effects = [...(outcomes[degree].effects ?? []), { kind: "condition", slug, name: slug, value, duration: null, source: doc.name }];
+        const plan = { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(time) + 1) }, resolution: { ...resolution, sharedDamage, outcomes } };
+        const entry = { ...spell, name: `${spell.name} (${doc.name})`, plan, effects: shape.conditions ? spellPack.effectModels(plan, spell.castRank ?? 1) : spell.effects };
+        if (castable(entry)) spells.push(entry);
+    }
+    if (!spells.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no spell of the PC's it shapes` } };
+    return { spells, pools: {}, gap: null, played: `${doc.name} copies of ${spells.length} spell${spells.length > 1 ? "s" : ""}` };
+}
+
 // (2026-11-03, the class feats no fight played: Tough Cookie, Spell Parry, Kinetic Dampening — a buff on the PC the feat module only times.)
 // Its text's own "you gain …" as PF2e rules on an Effect (effects.js effectModel), put on as a self-effect: a +N bonus to AC and/or saving
 // throws, resistance N to physical or all damage, temporary Hit Points of a level formula; for a round ("until the start of your next turn"),
@@ -949,7 +985,9 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             return { error: error.message };
         }
     };
-    let host = party.find((c) => c.id === (hostId ?? (classTrait ? HOSTS[classTrait] : "fighter")));
+    // (An archetype's spellshape — Intimidating Spell's — on the wizard: the party's caster of area spells.)
+    const spellshape = (doc.system?.traits?.value ?? []).includes("spellshape");
+    let host = party.find((c) => c.id === (hostId ?? (classTrait ? HOSTS[classTrait] : spellshape ? "wizard" : "fighter")));
     let compiled = compileFor(host);
     // (A feat of no class: the PC best at the skill its check uses.)
     if (!hostId && !classTrait && planSkill(compiled.plan)) {
@@ -996,6 +1034,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = saveBonusEntry(doc, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineHealEntry(doc, level) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = widenEntry(doc, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellshapeEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
