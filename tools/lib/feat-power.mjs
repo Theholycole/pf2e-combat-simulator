@@ -1454,8 +1454,11 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     if (entries.gap) return { skipped: true, reason: entries.gap.name.slice(doc.name.length + 2), host: host.id, plan };
     const withFeat = clone(base);
     const pc = withFeat.find((c) => c.id === host.id);
-    pc.spells = [...(pc.spells ?? []), ...entries.spells];
-    pc.spellPools = { ...(pc.spellPools ?? {}), ...entries.pools };
+    // (2026-11-03: "Spend a Mythic Point" — the PC's three Mythic Points a fight, as a monster's (B72, the user's choice), shared by what
+    // spends them; an entry with a pool of its own keeps it too.)
+    const mythic = /\bSpend (?:a|1) Mythic Point\b/i.test(String(doc.system?.description?.value ?? ""));
+    pc.spells = [...(pc.spells ?? []), ...entries.spells.map((entry) => (mythic && !entry.pool ? { ...entry, pool: "mythic" } : entry))];
+    pc.spellPools = { ...(pc.spellPools ?? {}), ...entries.pools, ...(mythic && entries.spells.some((entry) => !entry.pool) ? { mythic: 3 } : {}) };
     joinBuiltins(pc, builtins);
     if (tried.strikes) pc.strikes = tried.strikes;
     // (Stunning Blows: the rider on the PC's Flurry of Blows.)
