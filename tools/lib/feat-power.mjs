@@ -749,7 +749,9 @@ function focusSpellEntry(doc, level, host) {
         } catch {
             continue;
         }
-        if (!plan?.resolution || ["unsupported", "no-effect"].includes(plan.resolution.kind)) continue;
+        // (2026-11-03: Lay on Hands, whose compiled plan says "unsupported" but which the engine heals with as it does a champion's — spells.js
+        // reads its healing from the text. Not other unsupported ones: Heal Companion went to the wizard.)
+        if (!plan?.resolution || plan.resolution.kind === "no-effect" || (plan.resolution.kind === "unsupported" && spell.name !== "Lay on Hands")) continue;
         const cantrip = (spell.system?.traits?.value ?? []).includes("cantrip");
         const entry = { name: `${spell.name} (${doc.name})`, plan, castRank, dc, attack: dc - 10, pool: cantrip ? null : pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
         if (castable(entry)) entries.push(entry);
