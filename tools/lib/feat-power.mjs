@@ -279,6 +279,56 @@ function innateSpellEntry(doc, level, host) {
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
+// (2026-11-03, the class feats no fight played: Dragon's Rage Breath, Megavolt, Stomp Ground — a save in an area written with PF2e's inline
+// rolls, which the feat module reads nothing for.) The feat as a spell the spell compiler reads: its @Template's area, its @Check's save, its
+// first @Damage's dice at the PC's level (a type PF2e fills in from the actor — a dragon instinct's — is fire), at the PC's class DC, from a
+// pool of its frequency. Only an action without a requirement.
+const LEVEL_MATH = { floor: Math.floor, ceil: Math.ceil, max: Math.max, min: Math.min };
+function inlineFormula(raw, level) {
+    const m = /^(.*?)d(\d+)(?:\[([^\]]*)\])?$/.exec(raw.trim());
+    if (!m) return null;
+    const expr = m[1].replace(/@actor\.level/g, String(level)).replace(/@item\.level/g, String(level));
+    if (!/^[\d\s()+\-*/,a-z]*$/.test(expr) || /[a-z]/.test(expr.replace(/\b(?:floor|ceil|max|min)\b/g, ""))) return null;
+    let count;
+    try {
+        count = Function(...Object.keys(LEVEL_MATH), `return (${expr || 1});`)(...Object.values(LEVEL_MATH));
+    } catch {
+        return null;
+    }
+    if (!Number.isFinite(count) || count < 1) return null;
+    const type = /^[a-z]+$/.test(m[3] ?? "") ? m[3] : "fire";
+    return { formula: `${Math.floor(count)}d${m[2]}`, type };
+}
+function inlineSaveEntry(doc, level, host) {
+    if ((doc.system?.actionType?.value ?? "passive") !== "action" || requirementText(doc)) return null;
+    const html = String(doc.system?.description?.value ?? "");
+    const template = /@Template\[(?:type:)?(\w+)\|distance:(\d+)/.exec(html);
+    const check = /@Check\[(?:type:)?(reflex|fortitude|will)\b([^\]]*)\]/.exec(html);
+    if (!template || !check) return null;
+    const damageHit = /@Damage\[((?:[^\[\]]|\[[^\]]*\])*?)(?:\|[^\]]*)?\]/.exec(html);
+    const damage = damageHit ? inlineFormula(damageHit[1], level) : null;
+    if (damageHit && !damage) return null;
+    const text = html.replace(/@Damage\[(?:[^\[\]]|\[[^\]]*\])*\]/g, (all) => {
+        const read = inlineFormula(/@Damage\[((?:[^\[\]]|\[[^\]]*\])*?)(?:\|[^\]]*)?\]/.exec(all)?.[1] ?? "", level);
+        return read ? `${read.formula} ${read.type}` : all;
+    });
+    const spell = { ...doc, type: "spell", system: { ...doc.system, description: { value: text }, level: { value: 1 }, heightening: undefined, time: { value: String(doc.system?.actions?.value ?? 1) }, area: { type: template[1], value: Number(template[2]) }, target: { value: "" }, range: { value: "" }, defense: { save: { statistic: check[1], basic: /\bbasic\b/.test(check[2]) } }, damage: damage ? { 0: { applyMod: false, category: null, formula: damage.formula, kinds: ["damage"], materials: [], type: damage.type } } : {} } };
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    if (!plan?.resolution || ["unsupported", "no-effect"].includes(plan.resolution.kind)) return null;
+    const own = dcsOf(host);
+    const dc = own.class ?? own.spell ?? 10 + level + 2;
+    const castRank = Math.max(1, Math.ceil(level / 2));
+    const uses = Number(doc.system?.frequency?.max) || 0;
+    const pool = uses ? `feat:${doc._id}` : null;
+    const entry = { name: doc.name, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+    return { spells: [entry], pools: pool ? { [pool]: uses } : {}, gap: null, played: `inline save: ${template[2]}-foot ${template[1]}, ${check[1]}${damage ? `, ${damage.formula} ${damage.type}` : ""} (DC ${dc}${uses ? `, ${uses}/fight` : ""})` };
+}
+
 // (2026-11-03, the class feats no fight played: Quaking Stomp's "Cast as Earthquake".) The feat module's spell-like plan: the spell it names at
 // its rank (else half the PC's level rounded up) and DC, in the feat's own actions, from a pool of its frequency (none: at will). A reaction or
 // free action's cast isn't played (the engine casts on the PC's turn).
@@ -605,6 +655,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             entries = strikes ? { spells: [], pools: {}, gap: null, played: "PF2e rules: a bigger damage die" } : { ...entries, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (the weapon its damage die upgrade names)` } };
         }
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellLikeEntry(doc, level, plan) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = inlineSaveEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = handEntry(doc, level, builtins) ?? entries;
