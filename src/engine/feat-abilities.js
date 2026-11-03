@@ -53,6 +53,42 @@ export function pcNeeds(text) {
     return null;
 }
 
+// (2026-11-03, Cole: "Prioritize what's meaningful in play (e.g. PC reaction triggers, Strike riders)".) A PC's reaction Strike trigger in its
+// own words → the engine's reaction-strike triggers (actions.js), or null: "A creature within your reach critically fails a Strike against
+// you" (Dueling Riposte), "… uses a move action or leaves a square during a move action it's using" (Stand Still), "A creature within your
+// reach succeeds at an attack against you" (Vengeful Strike), "Your melee Strike reduces an enemy to 0 Hit Points, and another enemy is
+// adjacent to that creature" (Cleave).
+export function pcReactionTriggers(text) {
+    const said = String(text ?? "").replace(/@UUID\[[^\]]*?Item\.([^\]]+)\](?:\{([^}]*)\})?/g, (_all, name, label) => label ?? name).trim().replace(/\.$/, "");
+    if (/\b(?:ally|allies|companion|eidolon|spotter|crop|flank|Escape|frightened|turn ends|Propelled|saving throw|counteracts)\b/i.test(said) && !/^An? creature within your (?:melee )?reach is hit by a melee attack from one of your allies$/i.test(said)) return null;
+    if (/^An? (?:creature|enemy|foe|opponent) within your (?:melee )?reach critically fails (?:a Strike against you|to Strike you)$/i.test(said)) return ["critical-miss"];
+    if (/^An? (?:creature|enemy|foe|opponent) within your (?:melee )?reach (?:succeeds at an attack against you|hits you with a (?:melee )?(?:Strike|attack))$/i.test(said)) return ["hit"];
+    if (/^An? (?:enemy|creature|foe) damages you and is within your (?:melee )?reach$/i.test(said)) return ["damaged-adjacent"];
+    if (/^An? (?:enemy|creature|foe) within your (?:melee )?reach critically hits you(?: with a melee Strike)?$/i.test(said)) return ["critical-hit"];
+    if (/^Your melee Strike reduces an enemy to 0 Hit Points, and another enemy is adjacent to that creature$/i.test(said)) return ["downs"];
+    if (/^An? creature within your (?:melee )?reach is hit by a melee attack from one of your allies$/i.test(said)) return ["ally-hit"];
+    const near = /^An? (?:creature|enemy|foe)(?: you can observe)? within (?:your (?:melee )?reach|(?:5|10) feet of you)(?: of your deity's favored weapon)? (.+)$/i.exec(said)
+        ?? /^Your hunted prey is within your reach, and it (.+)$/i.exec(said);
+    if (!near) return null;
+    const kinds = [];
+    const rest = near[1];
+    if (/\buses a move action\b/i.test(rest)) kinds.push("move");
+    if (/\bleaves a square during (?:a|its) move action\b/i.test(rest)) kinds.push("leave");
+    if (/\bmanipulate action\b/i.test(rest)) kinds.push("manipulate");
+    if (/\bconcentrate action\b/i.test(rest)) kinds.push("concentrate");
+    if (/\bmakes a ranged attack\b/i.test(rest)) kinds.push("ranged");
+    if (/\bcasts a spell\b/i.test(rest)) kinds.push("cast");
+    // (Only when the whole trigger is read: "uses an auditory effect" isn't.)
+    const leftover = rest.replace(/\b(?:uses|an?|or|a|move action|manipulate action|concentrate action|makes a ranged attack|leaves a square during (?:a|its) move action(?: it's using)?|casts a spell|it's using)\b|[,;]/gi, "").trim();
+    return kinds.length && !leftover ? [...new Set(kinds)] : null;
+}
+
+// The feat whose Effect a requirement names: "You are benefiting from Dueling Parry", "You're under the effect of Come and Get Me" → its name.
+export function requiredEffectFeat(text) {
+    const said = String(text ?? "").replace(/@UUID\[[^\]]*?Item\.([^\]]+)\](?:\{([^}]*)\})?/g, (_all, name, label) => label ?? name).trim().replace(/\.$/, "");
+    return /^You(?:'re| are) (?:benefiting from|under the effects? of|affected by) ([A-Z][\w' -]+?)$/.exec(said)?.[1] ?? null;
+}
+
 // A requirement in the feat's words the planner checks under its own name, or null.
 export function mappedRequirement(text) {
     const stances = requiredStances(text);
@@ -184,6 +220,14 @@ export function featEntries(plan, info, builtins, helpers = {}) {
         return { ...result, played: "ways" };
     }
     if (plan.builtin === "strike-activity") {
+        // (A reaction's Strike on a trigger the engine plays: the reaction-strike builtin, as a monster's.)
+        const effectNeeded = actionType === "reaction" && plan.requires ? requiredEffectFeat(String(plan.requires).replace(/^Requirements?:?\s*/i, "")) : null;
+        const triggers = actionType === "reaction" && (!plan.requires || effectNeeded) ? pcReactionTriggers(info?.trigger) : null;
+        if (triggers) {
+            const disrupts = /\bdisrupt/i.test(info?.text ?? "") ? "critical" : false;
+            if (!addBuiltin(builtins, { builtin: "reaction-strike", triggers, strike: null, penalty: 0, disrupts, ...(plan.strike === "ranged" ? { ranged: true } : {}), ...(plan.extraWeaponDice ? { extraDamage: plan.extraWeaponDice } : {}), ...(effectNeeded ? { requiresEffect: effectNeeded } : {}) }, name)) return gap("a reaction's Strike the engine doesn't play");
+            return { ...result, played: `reaction Strike (${triggers.join(", ")})` };
+        }
         if (actionType !== "action") return gap(`a ${actionType}'s Strike`);
         // (The feat module reads a Strike into any text that names one — Sneak's "If you attempt to Strike a creature", Command an Animal's list
         // of actions, Only You and I's foe's Strikes: only an action whose text has its user make the Strike is played; a companion's isn't.)
@@ -281,6 +325,8 @@ export function featInfo(item, level) {
         frequency: item.system?.frequency ?? null,
         traits: [...(item.system?.traits?.value ?? [])],
         level,
+        // (Its trigger's words, for a reaction: pcReactionTriggers.)
+        trigger: /<strong>\s*Trigger\s*<\/strong>\s*([\s\S]*?)<\/p>/i.exec(String(item.system?.description?.value ?? ""))?.[1]?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() ?? null,
         // (Its words, plain, without its heading blocks: for a Strike activity's check, userStrike.)
         text: String(item.system?.description?.value ?? "").replace(/<p>\s*<strong>\s*(?:Requirements?|Frequency|Trigger|Cost|Access|Prerequisites?)\s*<\/strong>[\s\S]*?<\/p>/gi, " ").replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/@\w+\[[^\]]*\]/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
         companion: /\beidolon\b|\bcompanion\b/i.test(String(item.system?.description?.value ?? "")) && (item.system?.traits?.value ?? []).some((trait) => ["eidolon", "summoner", "companion"].includes(trait))

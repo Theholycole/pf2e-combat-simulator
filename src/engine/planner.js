@@ -275,7 +275,8 @@ function inMelee(pos, other) {
 export function stanceHeld(c, requires) {
     if (typeof requires !== "string" || !requires.startsWith("stance:")) return true;
     const names = requires.slice(7).toLowerCase().split("|");
-    return (c.effects ?? []).some((effect) => names.includes(String(effect.key ?? "").replace(/^self:/, "").toLowerCase()));
+    const label = (text) => String(text ?? "").toLowerCase().replace(/^self:/, "").replace(/^(?:effect|stance): /, "");
+    return (c.effects ?? []).some((effect) => names.includes(label(effect.key)) || names.includes(label(effect.model?.name)));
 }
 const stanceRequirement = (requires) => typeof requires === "string" && requires.startsWith("stance:");
 
@@ -1887,6 +1888,14 @@ function expandClassActions(env) {
             const best = (list) => Math.max(0, ...list.filter((strike) => strike.melee && strikeUsable(c, strike)).map(expected));
             // About three rounds of the better Strike, twice a round.
             benefit += 3 * 2 * Math.max(0, best(better) - best(c.strikes ?? [])) / Math.max(1, state.threat?.get(c.id) ?? 1);
+        }
+        // (2026-11-03: a reaction Strike it unlocks — Dueling Riposte while Dueling Parry is on: about one trigger in four rounds of its best
+        // melee Strike, for the rounds it lasts.)
+        const unlocks = (c.reactionStrikes ?? []).filter((reaction) => reaction.requiresEffect && String(reaction.requiresEffect).toLowerCase() === String(entry.name).toLowerCase());
+        if (unlocks.length && ctx.enemies.length) {
+            const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
+            const swing = Math.max(0, ...(c.strikes ?? []).filter((strike) => strike.melee && strikeUsable(c, strike)).map((strike) => Math.min(0.95, Math.max(0.05, (21 - (ac - strike.bonus)) / 20)) * strike.damage.reduce((sum, part) => sum + ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1), 0)));
+            benefit += span * 0.25 * swing / threatHere;
         }
         const gain = ctx.ownValue * benefit * ROUND_TO_KILL;
 

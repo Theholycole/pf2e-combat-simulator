@@ -33,7 +33,7 @@ export const itemReaders = ITEM_ROOT ? await (async () => {
         return null;
     }
 })() : null;
-const { featEntries, featInfo, meetsWielding, requiredStances, withResolvedEffects, worthSomething } = await import("../../src/engine/feat-abilities.js");
+const { featEntries, featInfo, meetsWielding, requiredEffectFeat, requiredStances, withResolvedEffects, worthSomething } = await import("../../src/engine/feat-abilities.js");
 const { effectModel } = await import("../../src/engine/effects.js");
 const { addBuiltin } = await import("../../src/engine/abilities.js");
 const { dangerFights, dangerSummary, DANGER_OPTIONS, DEATH_WEIGHT } = await import("../../src/engine/danger-scale.js");
@@ -474,14 +474,26 @@ function passiveRulesEntry(doc, level, builtins) {
 // (2026-11-03, Cole: "begin working on implementing them" — the class feats no fight played. A feat that needs a stance, Tiger Slash's "You
 // are in Tiger Stance": the stance is the PC's on both sides, the feat's party against the same party with the stance alone.)
 export function partyWithFeat(doc, level, options = {}) {
-    const stances = requiredStances(requirementText(doc) ?? "");
+    // (Or the feat whose Effect it needs: Dueling Riposte's "You are benefiting from Dueling Parry".)
+    const needed = requiredEffectFeat(requirementText(doc) ?? "");
+    const stances = requiredStances(requirementText(doc) ?? "") ?? (needed && featByName(needed) ? [needed] : null);
     if (!stances || options.party) return partyWithFeatAlone(doc, level, options);
     const stanceDoc = stances.map((name) => featByName(name)).find(Boolean);
     if (!stanceDoc) return { skipped: true, reason: `its stance (${stances.join(" or ")}), not in the packs` };
     const withStance = partyWithFeatAlone(stanceDoc, level, options);
     if (withStance.skipped) return { ...withStance, reason: `its stance (${stanceDoc.name}): ${withStance.reason}` };
     const result = partyWithFeatAlone(doc, level, { hostId: withStance.host, party: withStance.party });
-    return result.skipped ? result : { ...result, plain: result.plain ?? withStance.party, stance: stanceDoc.name, played: `${result.played} (in ${stanceDoc.name})` };
+    if (result.skipped) return result;
+    // (The Effect it puts on, by its own name — Dueling Parry's is PF2e's "Effect: Parry" —: the requirement's names too.)
+    const pc = result.party.find((c) => c.id === result.host);
+    const aliases = [...new Set((pc?.spells ?? []).filter((entry) => entry.name === stanceDoc.name).flatMap((entry) => Object.values(entry.effects ?? {}).map((model) => String(model?.name ?? "").replace(/^(?:Effect|Stance): /, ""))).filter(Boolean))];
+    if (pc && aliases.length) {
+        const widen = (requires) => (typeof requires === "string" && requires.startsWith("stance:") ? `${requires}|${aliases.join("|")}` : requires);
+        for (const list of ["strikeActivities", "multiStrikes"]) if (pc[list]) pc[list] = pc[list].map((entry) => ({ ...entry, requires: widen(entry.requires) }));
+        pc.spells = (pc.spells ?? []).map((entry) => (entry.plan?.requires ? { ...entry, plan: { ...entry.plan, requires: widen(entry.plan.requires) } } : entry));
+        if (pc.reactionStrikes) pc.reactionStrikes = pc.reactionStrikes.map((entry) => (entry.requiresEffect && entry.requiresEffect.toLowerCase() === stanceDoc.name.toLowerCase() ? { ...entry, requiresEffect: aliases[0] } : entry));
+    }
+    return { ...result, plain: result.plain ?? withStance.party, stance: stanceDoc.name, played: `${result.played} (in ${stanceDoc.name})` };
 }
 const featsByName = new Map();
 function featByName(name) {
