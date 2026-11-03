@@ -616,6 +616,8 @@ const HAND = {
     "whispers-of-warning": () => ({ builtins: {}, plans: [{ builtin: "attack-misfortune" }], played: "an attack that hits it rolled twice, the lower kept (reaction)" }),
     // (15 less of the damage it would take — the engine's resist-damage; the unstable 50 isn't played.)
     "negate-damage": () => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 15 }], played: "15 less damage (reaction)" }),
+    // (Full sneak attack at a creature that isn't off-guard: 4d6 at 20th.)
+    "impossible-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 17 ? 4 : level >= 11 ? 3 : level >= 5 ? 2 : 1, die: 6, precision: true, type: null, source: "Impossible Striker" }] }, played: "full sneak attack at a creature that isn't off-guard (always on)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
