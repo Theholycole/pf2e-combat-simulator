@@ -482,6 +482,8 @@ const HAND = {
     "quickened-casting": (level) => ({ builtins: { quickenedCasting: { name: "Quickened Casting", maxRank: Math.max(0, Math.ceil(level / 2) - 2) } }, played: "Quickened Casting (once a fight)" }),
     // (A DC 15 flat check against a reaction's disruption, B55.)
     "steady-spellcasting": () => ({ builtins: { steadySpellcasting: 15 }, played: "a DC 15 flat check against disruption" }),
+    // (A critical hit that deals damage: the target frightened 1.)
+    "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     "brutal-critical": () => ({ builtins: { strikeExtras: [{ when: "critical", dice: 1, weaponDie: true, noDouble: true, melee: true, type: null, source: "Brutal Critical" }, { when: "critical", dice: 2, weaponDie: true, melee: true, persistent: true, type: "bleed", source: "Brutal Critical" }] }, played: "more on a critical hit (always on)" })
 };
 function handEntry(doc, level, builtins, wields) {

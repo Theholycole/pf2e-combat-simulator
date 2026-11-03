@@ -307,9 +307,12 @@ const bestEnergy = (target) => ENERGIES.reduce((best, type) => (adjustInstance(t
 function expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies) {
     let total = 0;
     for (const extra of attacker.strikeExtras) {
-        const chance = extra.when === "off-guard" ? offGuardChance : extraApplies(extra, target, { offGuard: false, packAllies, attacker }) ? 1 : 0;
-        if (!chance) continue;
-        const amount = (extra.dice * (extra.die + 1) / 2 + (extra.bonus ?? 0)) * (critical ? 2 : 1);
+        const chance = extra.when === "off-guard" ? offGuardChance : extraApplies(extra, target, { offGuard: false, packAllies, attacker, critical }) ? 1 : 0;
+        // (2026-11-03: a condition it puts on — Brutal Beating's frightened — isn't damage; Brutal Critical's melee Strikes only, its weapon's
+        // own die, not doubled.)
+        if (!chance || extra.condition || (extra.melee && !strike.melee)) continue;
+        const die = extra.weaponDie ? Number(strike.damage?.[0]?.die) || 6 : extra.die;
+        const amount = (extra.dice * (die + 1) / 2 + (extra.bonus ?? 0)) * (critical && !extra.noDouble && !extra.persistent ? 2 : 1);
         total += chance * adjustInstance(target, extra.type ?? strike.damage[0]?.type ?? "untyped", amount, extra.precision, strikeContext(attacker, strike, critical));
     }
     return total;
@@ -774,6 +777,11 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             if (!extraApplies(extra, target, { offGuard, packAllies, attacker, critical })) continue;
             // (Brutal Critical: melee Strikes only, its weapon's own die, not doubled — an extra die like deadly's; its bleed persistent.)
             if (extra.melee && !strike.melee) continue;
+            // (2026-11-03, Brutal Beating: a condition on the target.)
+            if (extra.condition) {
+                if (isActive(target) && applyCondition(state, target, extra.condition.slug, extra.condition.value ?? null, extra.condition.duration ?? null, attacker)) log(state, `  ${target.name} is ${extra.condition.slug}${extra.condition.value ? ` ${extra.condition.value}` : ""} (${extra.source ?? "a Strike's extra"})`);
+                continue;
+            }
             const die = extra.weaponDie ? Number(strike.damage[0].die) || 6 : extra.die;
             let amount = extra.bonus ?? 0;
             for (let roll = 0; roll < extra.dice; roll++) amount += state.rng.die(die);
