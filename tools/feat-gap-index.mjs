@@ -16,6 +16,17 @@ const FEAT_ROOT = path.resolve(process.env.FEAT_MODULE ?? new URL("../../pf2e-au
 const { compileFeat } = await import(path.join(FEAT_ROOT, "src/compiler/index.js"));
 const { turnTrigger } = await import(path.join(FEAT_ROOT, "src/compiler/turn-reminders.js"));
 const { eventTrigger, preRollTrigger, ownUseTrigger } = await import(path.join(FEAT_ROOT, "src/compiler/event-reminders.js"));
+// A kineticist impulse feat the kineticist module (pf2e-automatic-kineticist-resolution) reads plays from there, not the feat module.
+const KIN_ROOT = path.resolve(process.env.KINETICIST_MODULE ?? new URL("../../pf2e-automatic-kineticist-resolution", import.meta.url).pathname);
+const readImpulse = fs.existsSync(path.join(KIN_ROOT, "src/reader/impulse-reader.js")) ? (await import(path.join(KIN_ROOT, "src/reader/impulse-reader.js"))).readImpulse : null;
+const impulseRead = (doc, level) => {
+    if (!readImpulse || !(doc.system?.traits?.value ?? []).includes("impulse")) return false;
+    try {
+        return Boolean(readImpulse(doc, { level }));
+    } catch {
+        return false;
+    }
+};
 
 const args = process.argv.slice(2);
 const files = args.filter((arg) => !arg.startsWith("--"));
@@ -107,7 +118,7 @@ for (const doc of docs) {
     } catch {
         reminder = null;
     }
-    const featModule = plan ? "card" : named.has(doc._id) ? "by hand" : reminder ? "reminder" : error ? "error" : "none";
+    const featModule = plan ? "card" : named.has(doc._id) ? "by hand" : impulseRead(doc, level) ? "kineticist module" : reminder ? "reminder" : error ? "error" : "none";
     const pf2e = kinds.filter((kind) => DOING.has(kind));
     const row = rows.get(doc._id) ?? null;
     const simulator = !row ? "not screened" : row.skipped || row.error ? "not rated" : "rated";
