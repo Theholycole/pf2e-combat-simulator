@@ -32,7 +32,7 @@ import { distanceBetween, engage, engagedEnemies, fliesNow, leaveMelee, sameMele
 import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
 import { applyWard, wardBlocks, wardWorth } from "./wards.js";
 import { applyImages, imageOdds, imageShare, imageTakes, imagesWorth } from "./images.js";
-import { hiddenDC, hiddenFrom, outlineWorth } from "./sight.js";
+import { blindFought, hiddenDC, hiddenFrom, outlineWorth } from "./sight.js";
 import { lastingRounds } from "./lasting.js";
 import { takeControl } from "./control.js";
 import { noteKnown } from "./readings.js";
@@ -3301,7 +3301,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // (A zone's save is the area's: nothing to find.)
     // (S59, a spell attack Sure Strike rolls twice: no flat check for the target being concealed or hidden.)
     const finds = info.attack && forcedDegree === null && caster.fortuneFinds && (caster.effects ?? []).some((effect) => effect.model?.fortune?.on === "attack");
-    const findDC = (target) => (info.area || spell.fromZone || target === caster ? 0 : Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, target.side !== caster.side && !finds ? hiddenDC(state, caster, target) : 0, target.cond?.outlined && sightDC(state, caster, target) < 11 ? 0 : sightDC(state, caster, target)));
+    const findDC = (target) => (info.area || spell.fromZone || target === caster ? 0 : blindFought(caster, Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, target.side !== caster.side && !finds ? hiddenDC(state, caster, target) : 0, target.cond?.outlined && sightDC(state, caster, target) < 11 ? 0 : sightDC(state, caster, target))));
     if (targets.some((target) => findDC(target) > 0)) {
         const found = targets.filter((target) => !findDC(target) || flatCheck(state.rng, findDC(target)) >= SUCCESS);
         if (found.length < targets.length) log(state, `  ${caster.name} fails to find ${targets.length - found.length} target(s)`);

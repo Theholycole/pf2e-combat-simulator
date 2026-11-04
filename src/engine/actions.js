@@ -26,7 +26,7 @@ import { afterAttackFortune, attackFortune } from "./fortune-items.js";
 import { hostility, ownHostility } from "./pacify.js";
 import { wardBlocks } from "./wards.js";
 import { imageTakes } from "./images.js";
-import { hiddenDC, hiddenFrom } from "./sight.js";
+import { blindFought, hiddenDC, hiddenFrom } from "./sight.js";
 import { airLost, flewThisTurn, swimCheck } from "./void.js";
 import { lifelinkMaster } from "./familiars.js";
 import { keenCritical, runeCritEffects } from "./runes.js";
@@ -490,7 +490,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (Brand the Impenitent: its caster ignores the creature's concealment.)
     const brandSees = Boolean(markOn(target, attacker)?.seesConcealed);
     const seen = (dc) => (brandSees && dc <= 5 ? 0 : dc);
-    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : seen(hiddenDC(state, attacker, target)), target.cond?.outlined && lightDC < 11 ? 0 : seen(lightDC));
+    const findDC = blindFought(attacker, Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : seen(hiddenDC(state, attacker, target)), target.cond?.outlined && lightDC < 11 ? 0 : seen(lightDC)));
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
         // Counterattack (B94): a miss from beside it because it's concealed, a Strike back.
@@ -503,7 +503,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const modifier = attackModifier(state, attacker, target, strike, attacksMade, { history });
     // (L1, L4: off-guard to an attacker it can't see — darkness without darkvision — or one that started its turn hidden, Hidden Movement.)
     // (2026-11-03, Dread Striker: a frightened creature is off-guard to its attacker — tools/lib/feat-power.mjs HAND.)
-    const unseenAttacker = unseen(state, target, attacker) || hiddenMovementOffGuard(state, attacker, target) || Boolean(attacker.dreadStriker && target.cond?.frightened > 0);
+    // (Blind-Fight: not off-guard to a creature hidden from it.)
+    const unseenAttacker = (!target.blindFight && (unseen(state, target, attacker) || hiddenMovementOffGuard(state, attacker, target))) || Boolean(attacker.dreadStriker && target.cond?.frightened > 0);
     // (H1: a party member aiming at a hydra's head it can sever in one hit.)
     const headAimed = !reaction && aimsAtHead(attacker, target, strike, { expectedHitDamage });
     const ac = targetAC(state, attacker, target, strike, flanked || surprised || unseenAttacker);
