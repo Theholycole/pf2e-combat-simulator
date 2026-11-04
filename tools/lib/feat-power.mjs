@@ -918,6 +918,10 @@ const HAND = {
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
     // A melee critical hit's extra weapon die (not doubled) and persistent bleed of two of its dice.
     // (A frightened creature off-guard to the PC — actions.js.)
+    // (2026-11-04: a ranged Strike whose failure still deals one weapon die; a press Strike at a prone creature with a circumstance bonus
+    // of its weapon dice — PF2e's rules on Advantageous Assault hold the bonus; grabbed and restrained targets aren't counted here.)
+    "flesh-wound": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", failureDice: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged Strike whose failure deals a weapon die" }),
+    "advantageous-assault": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, press: true, requires: "prone", damagePerWeaponDie: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a press Strike at a prone foe, + its weapon dice in damage" }),
     // (2026-11-04: Deflect Projectile, and a deflected ranged attack thrown back at the attacker.)
     "projectile-snatching": () => ({ builtins: { acReaction: { value: 4, when: "targeted", name: "Deflect Projectile", against: "ranged", snatch: true } }, played: "Deflect Projectile, a deflected attack thrown back (reaction)" }),
     // (2026-11-04, reactions' Strikes: a riposte on a critical miss with the Aldori dueling sword; a ranged Strike when an ally's ranged

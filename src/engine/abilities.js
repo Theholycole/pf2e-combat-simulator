@@ -504,6 +504,8 @@ export function addBuiltin(spec, plan, name) {
                 damage: plan.damage ?? null,
                 offGuard: !!plan.offGuard,
                 requires: plan.requires ?? null,
+                // (2026-11-04, Flesh Wound's ranged Strike: "ranged", "melee" or "any" — the planner's fits; melee when not said.)
+                ...(plan.range ? { range: plan.range } : {}),
                 // (2026-11-03: a PC's requirement as needs — feat-abilities.js pcNeeds.)
                 ...(plan.needs?.length ? { needs: plan.needs } : {}),
                 ...(plan.nonCantrip ? { nonCantrip: true } : {}),
