@@ -75,8 +75,18 @@ const typeOf = (formula) => /\[([a-z,-]+)\]/.exec(String(formula ?? ""))?.[1]?.s
 // One item as the advice reads it: a bomb (its damage, splash, persistent damage, item bonus, the item module's compileBomb plan for its
 // riders) or an item with a save (the item module's compileItem plan: its save, DC, delivery, what each degree does). null: neither (an
 // elixir, a mutagen, a drug, an ingested poison — nothing used on a monster).
+// What its text asks of the target or the place (2026-11-04 Foundry test: Steelscour "has no effect on living or undead flesh", Cold Comfort
+// "emptied into an adjacent body of water"): a trait the target needs, or a place it works in.
+export function requirementsOf(doc) {
+    const text = String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ");
+    const requires = {};
+    if (/\bmetal creature\b|no effect on living or undead/i.test(text)) requires.trait = "metal";
+    if (/body of water/i.test(text)) requires.place = "water";
+    return requires;
+}
+
 export function describeItem(doc, { itemPlan = null, bombPlan = null } = {}) {
-    const base = { family: familyOf(doc.name), name: doc.name, level: Number(doc.system?.level?.value) || 0, rarity: doc.system?.traits?.rarity ?? "common", traits: traitsOf(doc), uuid: doc.uuid ?? null };
+    const base = { family: familyOf(doc.name), name: doc.name, level: Number(doc.system?.level?.value) || 0, rarity: doc.system?.traits?.rarity ?? "common", traits: traitsOf(doc), uuid: doc.uuid ?? null, requires: requirementsOf(doc) };
     if (isBomb(doc)) {
         const damage = doc.system?.damage ?? {};
         const dice = Number(damage.dice) || 0;
@@ -126,14 +136,19 @@ export function bombStrike(item, numbers) {
 
 // An item with a save as an entry the alchemist uses (the adapter's itemEntry): Quick Alchemy's action added, its DC its class DC with
 // Powerful Alchemy when that's higher.
-export function saveEntry(item, numbers) {
+// (inReach: for the advice, a target already within its reach — one step of the planner's, without the Stride to get there.)
+export function saveEntry(item, numbers, { inReach = false } = {}) {
     const plan = item.itemPlan;
     const check = plan.resolution.check;
     const dc = Math.max(Number(check.against?.value) || 0, numbers.powerfulAlchemy || !check.against?.value ? numbers.classDC : 0);
     const fitted = { ...plan, resolution: { ...plan.resolution, check: { ...check, against: { dc: "fixed", value: dc } } } };
-    const entry = itemEntry(fitted, { id: `alchemist-${item.family.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, name: item.name });
+    // (An inhaled poison: released at a creature within reach of its cloud, not on a Strike — the item module reads its target as an injury
+    // poison's; 2026-11-04 Foundry test.)
+    let released = item.delivery === "inhaled" ? { ...fitted, targeting: { target: "1 creature", range: "10 feet", area: null }, trigger: { event: "use" } } : fitted;
+    if (inReach && !released.targeting?.area) released = { ...released, targeting: { ...(released.targeting ?? {}), range: "30 feet" } };
+    const entry = itemEntry(released, { id: `alchemist-${item.family.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, name: item.name });
     if (!entry) return null;
-    const time = String(Number(entry.plan.activation?.time ?? 1) + 1);
+    const time = String(item.actions - (item.delivery === "injury" ? 1 : 0));
     return { ...entry, dc, plan: { ...entry.plan, activation: { ...(entry.plan.activation ?? {}), time } }, pool: "reagents", consumable: false, from: "Quick Alchemy" };
 }
 
@@ -144,7 +159,7 @@ function iwrNotes(creature, parts) {
         if (!(amount > 0)) continue;
         const after = adjustInstance(creature, type, amount, false, null);
         const note = after === 0 ? (type === "vitality" ? "vitality harms only undead" : type === "void" ? "void doesn't harm undead" : (creature.immunities ?? []).includes(type) ? `immune to ${type}` : `resists ${type} (all of it)`) : after > amount ? `weak to ${type} (+${after - amount})` : after < amount ? `resists ${type} (−${amount - after})` : null;
-        if (note && !notes.includes(note)) notes.push(note);
+        if (note && !notes.some((other) => other.split(" (")[0].endsWith(type))) notes.push(note);
     }
     return notes;
 }
@@ -158,8 +173,13 @@ export function rankItems(creature, items, numbers, { options = {} } = {}) {
     const foe = { ...creature, id: "advice-foe", side: "foes" };
     const rows = [];
     for (const item of items) {
+        // (A trait its text needs the target to have: nothing on one without it.)
+        if (item.requires?.trait && !(creature.traits ?? []).includes(item.requires.trait)) {
+            rows.push({ item, power: 0, perAction: 0, chance: 0, targets: item.kind === "bomb" ? `AC ${creature.ac}` : item.targets, notes: [`only a ${item.requires.trait} creature`], effects: item.effects, verdict: "none" });
+            continue;
+        }
         const strike = item.kind === "bomb" ? bombStrike(item, numbers) : null;
-        const entry = item.kind === "save" ? saveEntry(item, numbers) : null;
+        const entry = item.kind === "save" ? saveEntry(item, numbers, { inReach: true }) : null;
         if (!strike && !entry) continue;
         const rider = strike && item.bombPlan ? bombRider(item.bombPlan, item.family) : null;
         const alchemist = { ...base, id: "advice-alchemist", side: "party", strikes: strike ? [strike] : [], spells: entry ? [entry] : rider ? [rider] : [], spellPools: { reagents: 10 } };
@@ -200,7 +220,12 @@ export function rankItems(creature, items, numbers, { options = {} } = {}) {
             const immune = (creature.immunities ?? []).filter((immunity) => item.traits.includes(immunity));
             if (immune.length) notes.unshift(`immune (${immune.join(", ")})`);
         }
-        rows.push({ item, power, perAction: power / item.actions, chance, targets, notes, effects: item.effects });
+        if (item.requires?.place) notes.push(`needs ${item.requires.place} where the monster is`);
+        // Its verdict: useful, situational (a place it needs), no effect on this monster (immune, all resisted, vitality on the living), or
+        // one the simulator can't rate yet.
+        const noEffect = notes.some((note) => /^immune|all of it|harms only|doesn't harm/.test(note)) || chance === 0;
+        const verdict = power > 0 ? (item.requires?.place ? "situational" : "useful") : noEffect ? "none" : "unrated";
+        rows.push({ item, power, perAction: power / item.actions, chance, targets, notes, effects: item.effects, verdict });
     }
     return rows.sort((a, b) => b.perAction - a.perAction || b.chance - a.chance);
 }

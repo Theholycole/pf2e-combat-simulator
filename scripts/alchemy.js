@@ -96,10 +96,19 @@ export async function alchemyAdvice() {
     return ChatMessage.create({ speaker: { alias: "Alchemical advice" }, whisper: [game.user.id], content: `<p><strong>Alchemical advice</strong> for ${foundry.utils.escapeHTML?.(who) ?? who}: power per action is the simulator's worth of one use on the monster, as a share of beating it.</p>${sections.join("")}` });
 }
 
+let lastClick = 0;
+function onceAClick() {
+    const now = Date.now();
+    if (now - lastClick < 500) return;
+    lastClick = now;
+    alchemyAdvice();
+}
+
 export function setUpAlchemyAdvice() {
     if (!enabled()) return;
     Hooks.on("getSceneControlButtons", (controls) => {
-        const tool = { name: "alchemy-advice", title: "Alchemical advice for the targeted monsters", icon: "fa-solid fa-flask-vial", button: true, onClick: () => alchemyAdvice(), onChange: () => alchemyAdvice() };
+        // (Foundry 13 calls onChange for a button, older versions onClick; some call both — once a click: 2026-11-04 Foundry test.)
+        const tool = { name: "alchemy-advice", title: "Alchemical advice for the targeted monsters", icon: "fa-solid fa-flask-vial", button: true, onClick: () => onceAClick(), onChange: () => onceAClick() };
         // (Foundry 13+: controls is a record by name, tools a record; before, arrays.)
         const tokens = Array.isArray(controls) ? controls.find((control) => control.name === "token") : controls.tokens ?? controls.token;
         if (!tokens) return;
