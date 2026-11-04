@@ -532,6 +532,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         target.pendingAcPenalty = 0;
     }
     let misfortune = false;
+    let deflected = false;
     if (target.misfortuneReaction && !target.misfortuneReaction.spell && canReact(target, target.misfortuneReaction.name)) {
         misfortune = true;
         spendReaction(target, target.misfortuneReaction.name);
@@ -539,6 +540,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     } else if (foresightReact(state, target, attacker)) misfortune = true;
     else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && (!target.reactions?.aoo || target.acReaction.deviant) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.deviant || deviantUsable(target))) {
         defence = target.acReaction.value;
+        deflected = true;
         spendReaction(target, target.acReaction.name);
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
         // (2026-11-01, Defensive Growth, a deviant ability: its flat check and backlash — deviant.js.)
@@ -633,6 +635,12 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         }
         if (conceal.concealAfter && isActive(target) && applyCondition(state, target, "concealed", null, { mode: "fixed", value: conceal.concealAfter, unit: "rounds" }, target)) log(state, `  ${target.name} is concealed`);
         if (conceal.deviant) deviantUsed(state, target, conceal, { affected: [attacker] });
+    }
+    // (2026-11-04, Projectile Snatching: a ranged attack it deflects, thrown back at the attacker as part of the reaction.)
+    if (deflected && degree < SUCCESS && target.acReaction?.snatch && !reaction && !strike.melee && isActive(target) && isActive(attacker)) {
+        const own = Math.max(...(target.strikes ?? []).map((each) => Number(each.bonus) || 0));
+        log(state, `  ${target.name} throws the projectile back`);
+        performStrike(state, target, attacker, { ...strike, name: "Snatched projectile", melee: false, bonus: own, ammo: undefined, reload: 0 }, { reaction: true, trigger: "snatch" });
     }
     // Resilient Form and the like: a critical hit on it becomes a normal hit on a flat check.
     const downgrade = target.critDowngrade;

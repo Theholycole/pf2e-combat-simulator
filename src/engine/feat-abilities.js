@@ -132,7 +132,9 @@ export function meetsWielding(text, wields) {
     add(/wielding a (?:loaded )?ranged weapon|wielding a bow\b/, wields.ranged);
     add(/reload 0/, wields.reload0);
     add(/loaded firearm or crossbow|wielding a (?:loaded )?firearm/, wields.firearm);
-    add(/thrown weapon/, wields.thrown);
+    // (Target of Opportunity's "a ranged or thrown weapon in hand": either.)
+    add(/ranged or thrown weapon/, wields.ranged || wields.thrown);
+    add(/(?<!ranged or )thrown weapon/, wields.thrown);
     add(/wielding a shield|shield raised|shield in two hands/, wields.shield);
     add(/medium or heavy armor/, ["medium", "heavy"].includes(wields.armor));
     add(/unarmored or wearing light armor|wearing light armor or (?:no armor|are unarmored)/, ["unarmored", "light"].includes(wields.armor));
