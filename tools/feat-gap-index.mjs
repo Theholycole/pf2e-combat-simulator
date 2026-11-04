@@ -113,7 +113,7 @@ for (const doc of docs) {
     const simulator = !row ? "not screened" : row.skipped || row.error ? "not rated" : "rated";
     all.push({
         id: doc._id, name: doc.name, level: Number(doc.system?.level?.value ?? 0), category: categoryOf(doc), actionType: doc.system?.actionType?.value ?? "passive", actions: doc.system?.actions?.value ?? null,
-        rarity: doc.system?.traits?.rarity ?? "common", traits: doc.system?.traits?.value ?? [], featModule, pf2eRules: pf2e, grants: kinds.some((kind) => GRANTS.has(kind)), what: whatOf(doc, text, kinds),
+        rarity: doc.system?.traits?.rarity ?? "common", selfEffect: Boolean(doc.system?.selfEffect), traits: doc.system?.traits?.value ?? [], featModule, pf2eRules: pf2e, grants: kinds.some((kind) => GRANTS.has(kind)), what: whatOf(doc, text, kinds),
         simulator, simReason: simulator === "rated" ? null : simulator === "not screened" ? "not in the feat screen" : reasonOf(row.error ? `error: ${row.error}` : row.reason), simDetail: row?.reason ?? row?.error ?? null,
         rating: simulator === "rated" ? Number(row.levels.toFixed(2)) : null, text: text.slice(0, 200)
     });
@@ -124,6 +124,8 @@ const moduleWhy = (row) => {
     if (row.featModule !== "none" && row.featModule !== "error") return null;
     if (row.featModule === "error") return "compile error";
     if (row.pf2eRules.length) return "PF2e's own rule elements already do it";
+    // (Its own Effect PF2e puts on from the feat's Use button — docs/feats.md D9 leaves it to PF2e.)
+    if (row.selfEffect) return "PF2e's own Effect, from the feat's Use button";
     if (row.grants || row.what === "dedication") return "only grants other feats, features or choices";
     return {
         "out-of-combat": "out of combat (exploration, downtime, skills)",

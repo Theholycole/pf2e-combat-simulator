@@ -233,8 +233,24 @@ const planSkill = (plan) => {
 
 const clone = (value) => structuredClone(value);
 // Builtin fields joined onto a combatant: lists added to, objects merged, the rest set.
+function withRider(entry, rider) {
+    const plan = structuredClone(entry.plan);
+    const id = `rider-${(plan.resolution.sharedDamage?.components ?? []).length}`;
+    plan.resolution.sharedDamage = { rollOnce: true, ...(plan.resolution.sharedDamage ?? {}), components: [...(plan.resolution.sharedDamage?.components ?? []), { id, formula: rider.damage, type: null, category: null }] };
+    for (const [degree, multiplier] of [["success", 1], ["criticalSuccess", rider.criticalDouble ? 2 : 1]]) {
+        const row = plan.resolution.outcomes[degree];
+        row.damage = { mode: "shared", multiplier, sourceComponentIds: [...(row.damage?.sourceComponentIds ?? []), id] };
+    }
+    return { ...entry, plan, riders: [...(entry.riders ?? []), rider.source] };
+}
 function joinBuiltins(c, builtins) {
     for (const [field, value] of Object.entries(builtins)) {
+        // (2026-11-04: a rider on a basic action's success — Crushing Grab's damage on a Grapple, Agonizing Rebuke's on a Demoralize: the
+        // PC's own basic entry gets the damage on its success and critical success.)
+        if (field === "basicRiders") {
+            for (const rider of value) c.spells = (c.spells ?? []).map((entry) => (entry.kind === "basic" && rider.slugs.includes(entry.plan?.source?.slug) ? withRider(entry, rider) : entry));
+            continue;
+        }
         if (field === "maxHpBonus") {
             c.hp = { ...c.hp, value: c.hp.value + value, max: c.hp.max + value };
             continue;
@@ -1055,6 +1071,13 @@ const HAND = {
     // rage ends; a creature that hits it is off-guard to it until the end of its next turn, and its hits on that creature give temporary Hit
     // Points equal to its Constitution modifier — fight.js/actions.js answerHitters.)
     "come-and-get-me": (_level, host) => (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage") ? ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, requires: "raging", model: { rounds: 10, modifiers: [{ on: "ac", type: "circumstance", value: -2 }], weaknesses: [{ type: "all-damage", value: 2 }], answerHitters: { tempHp: Number.isFinite(host.con) ? host.con : 4 } } }], played: "off-guard and +2 damage taken while raging; foes that hit it off-guard to it, temporary Hit Points as it hits them back" }) : null,
+    // (2026-11-04, the gap index: damage on a basic action's success — basicRiders, joinBuiltins.)
+    "crushing-grab": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["grapple"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Crushing Grab" }] }, played: "Strength damage on a successful Grapple (always on)" }),
+    "punishing-shove": (level, host) => ({ builtins: { basicRiders: [{ slugs: ["shove"], damage: `${Math.max(1, host?.abilities?.str ?? 4) + (level >= 15 ? 12 : level >= 7 ? 6 : level >= 3 ? 2 : 0)}[bludgeoning]`, criticalDouble: true, source: "Punishing Shove" }] }, played: "damage on a successful Shove (always on)" }),
+    "brutal-bully": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["disarm", "grapple", "reposition", "shove", "trip"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Brutal Bully" }] }, played: "Strength damage on a successful maneuver (always on; raging not checked)" }),
+    "agonizing-rebuke": (level) => ({ builtins: { basicRiders: [{ slugs: ["demoralize"], damage: `${level >= 15 ? 3 : level >= 7 ? 2 : 1}d4[mental]`, source: "Agonizing Rebuke" }] }, played: "mental damage on a successful Demoralize (always on; once, not each turn)" }),
+    // (2026-11-04, the gap index's batch 2: a larger foe's Trip — the rating's foes are often larger; 2d8 once a master in Athletics, 15th here.)
+    "the-harder-they-fall-kingmaker": (level) => ({ builtins: { basicRiders: [{ slugs: ["trip"], damage: `${level >= 15 ? 2 : 1}d8[bludgeoning]`, criticalDouble: true, source: "The Harder They Fall" }] }, played: "bludgeoning damage on a successful Trip (always on)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
@@ -1395,10 +1418,74 @@ export function partyWithFeat(doc, level, options = {}) {
         ?? /You gain the @UUID\[Compendium\.pf2e\.actionspf2e\.Item\.([^\]]+)\](?:\{[^}]*\})? (?:action|reaction|activity|free action)\b/.exec(html)?.[1]
         // (Or named without a link — Bullet Dancer Dedication's "You gain the Bullet Dancer Stance action", when the packs have it.)
         ?? [/You gain the ((?:[A-Z][\w'-]*)(?: (?:[A-Z][\w'-]*|of|the|a))*) (?:action|reaction|activity|free action|feat)\b/.exec(html.replace(/<[^>]+>/g, " "))?.[1]].find((name) => name && featByName(name));
-    const grantedDoc = granted ? featByName(granted) ?? docsOf(`${PACK_ROOT}/feats`).get(granted) ?? null : null;
-    if (!grantedDoc || grantedDoc === doc) return result;
-    const through = partyWithFeat(grantedDoc, level, { ...options, granted: true });
-    return through.skipped ? result : { ...through, played: `${grantedDoc.name}: ${through.played}` };
+    const textDoc = granted ? featByName(granted) ?? docsOf(`${PACK_ROOT}/feats`).get(granted) ?? null : null;
+    // (2026-11-04, Cole: "Make sure the simulator recognizes the feats that grant feats, features or choices": PF2e's GrantItem rules — Wind
+    // Pillow's Powerful Leap, Spellstriker's Spellstrike, Uncanny Dodge's Deny Advantage —, and a GrantItem of a ChoiceSet's pick — Basic
+    // Shooting's — each of its options in turn. The first the fights play is the feat's.)
+    const candidates = [...(textDoc ? [textDoc] : []), ...grantedItems(doc, level)].filter((each, index, all) => each !== doc && all.indexOf(each) === index);
+    if (!candidates.length) return result;
+    const tried = [];
+    for (const grantedDoc of candidates) {
+        const through = partyWithFeat(grantedDoc, level, { ...options, granted: true });
+        if (!through.skipped) return { ...through, granted: grantedDoc.name, played: `${grantedDoc.name}: ${through.played}` };
+        tried.push(`${grantedDoc.name}: ${through.reason}`);
+    }
+    return { ...result, reason: `it grants ${tried.length === 1 ? tried[0] : `one of ${tried.length} (${tried.slice(0, 4).join("; ")}${tried.length > 4 ? "; …" : ""})`}` };
+}
+
+// The items a feat's GrantItem rules give, from the packs the simulator reads (feats, actions, class features), a ChoiceSet's options for
+// one that grants its pick ("{item|flags.system.rulesSelections.basicShooting}"); the ones at or below the level only. Equipment, spells
+// and ancestry features aren't followed.
+const GRANT_PACKS = { "feats-srd": "feats", actionspf2e: "actions", classfeatures: "class-features" };
+function packDoc(uuid) {
+    const hit = /^Compendium\.pf2e\.([\w-]+)\.(?:Item\.)?(.+)$/.exec(String(uuid ?? ""));
+    const pack = hit && GRANT_PACKS[hit[1]];
+    if (!pack) return null;
+    const docs = docsOf(`${PACK_ROOT}/${pack}`);
+    return docs.get(hit[2]) ?? [...docs.values()].find((each) => each.name.toLowerCase() === hit[2].toLowerCase()) ?? null;
+}
+function grantedItems(doc, level) {
+    const rules = doc.system?.rules ?? [];
+    const out = [];
+    for (const rule of rules) {
+        if (rule.key !== "GrantItem" || typeof rule.uuid !== "string") continue;
+        const flag = /^\{item\|flags\.(?:system|pf2e)\.rulesSelections\.([\w-]+)\}$/.exec(rule.uuid)?.[1];
+        if (!flag) {
+            const each = packDoc(rule.uuid);
+            if (each) out.push(each);
+            continue;
+        }
+        const choice = rules.find((other) => other.key === "ChoiceSet" && (other.flag ?? "") === flag);
+        // (A list of options, or a filter of the packs' feats — Basic Shooting's "item:category:class", "item:trait:gunslinger", level ≤ 2.)
+        const options = Array.isArray(choice?.choices) ? choice.choices.map((option) => packDoc(option?.value)).filter(Boolean)
+            : choice?.choices?.filter && (choice.choices.itemType ?? "feat") === "feat" ? [...docsOf(`${PACK_ROOT}/feats`).values()].filter((each) => itemMatches(each, choice.choices.filter)) : [];
+        for (const each of options) if (Number(each.system?.level?.value ?? 0) <= level) out.push(each);
+    }
+    // (The strongest first is unknown here: the lowest level first, then by name, so the pick is the same each run.)
+    return out.sort((a, b) => Number(a.system?.level?.value ?? 0) - Number(b.system?.level?.value ?? 0) || a.name.localeCompare(b.name)).slice(0, 24);
+}
+// A ChoiceSet filter on an item: its strings ("item:category:class", "item:trait:x", "item:slug:x", "item:tag:x") and { lte, gte, or, and, not }
+// on "item:level"; anything else fails the item.
+function itemMatches(item, filter) {
+    const traits = item.system?.traits?.value ?? [];
+    const level = Number(item.system?.level?.value ?? 0);
+    const one = (term) => {
+        if (typeof term === "string") {
+            const [, kind, value] = /^item:(category|trait|slug|tag|level):(.+)$/.exec(term) ?? [];
+            if (kind === "category") return item.system?.category === value;
+            if (kind === "trait") return traits.includes(value);
+            if (kind === "slug") return (item.system?.slug ?? slugOf(item)) === value;
+            if (kind === "level") return level === Number(value);
+            return false;
+        }
+        if (term?.lte) return term.lte[0] === "item:level" && level <= Number(term.lte[1]);
+        if (term?.gte) return term.gte[0] === "item:level" && level >= Number(term.gte[1]);
+        if (term?.or) return term.or.some(one);
+        if (term?.and) return term.and.every(one);
+        if (term?.not) return !one(term.not);
+        return false;
+    };
+    return (Array.isArray(filter) ? filter : [filter]).every(one);
 }
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
 function partyWithFeatOwn(doc, level, options = {}) {
@@ -1431,6 +1518,17 @@ function featByName(name) {
     // own first.)
     if (!featsByName.size) for (const pack of ["actions", "feats"]) for (const doc of docsOf(`${PACK_ROOT}/${pack}`).values()) featsByName.set(doc.name.toLowerCase(), doc);
     return featsByName.get(String(name).toLowerCase()) ?? null;
+}
+
+// (2026-11-04, Cole: "Prioritize the combat passives and actions": Rallying Banner's "each ally within 30 feet", Torrent in the Blood's "each
+// creature in a 30-foot cone" — a heal the feat module rolls for each creature it names, with no area the engine reads.) Its allies within that
+// many feet, as Inspire Courage's emanation reaches them; only a plan whose every effect is a heal and which deals no damage.
+function alliesAreaHeal(plan) {
+    const said = /^each (?:ally|creature|living creature|of your allies)(?: \(including you\))? (?:within (\d+) feet|in an? (\d+)-foot (cone|emanation|burst))$/i.exec(String(plan?.targeting?.target ?? ""));
+    if (!said || plan.targeting.area || plan.resolution?.sharedDamage) return plan;
+    const effects = Object.values(plan.resolution?.outcomes ?? {}).flatMap((row) => row?.effects ?? []);
+    if (!effects.length || !effects.every((effect) => effect.kind === "heal")) return plan;
+    return { ...plan, targeting: { ...plan.targeting, allies: true, area: { type: said[3]?.toLowerCase() ?? "emanation", value: Number(said[1] ?? said[2]) } } };
 }
 
 function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } = {}) {
@@ -1468,7 +1566,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // reader, the plan its cards play — where it reads a save: Aerial Boomerang's line, Rain of Razors' burst, Glacial Prison's slow. The feat
     // module read some of them as timers.)
     const impulse = impulsePlan(doc, level);
-    const plan = withResolvedEffects(impulse ?? compiled.plan, resolveUuid);
+    const plan = alliesAreaHeal(withResolvedEffects(impulse ?? compiled.plan, resolveUuid));
     // Its entries with what the PC wields: the party's own, or (a requirement it doesn't meet — Double Slice's two weapons) a loadout that does,
     // the plain party then fought with the same loadout.
     // (2026-11-03: the simulator's own readings — the hand table, Quickening Banner's quickened allies, Instant Opening's off-guard — win over

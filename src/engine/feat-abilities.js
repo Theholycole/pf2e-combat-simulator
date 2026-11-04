@@ -353,7 +353,7 @@ export function worthSomething(model) {
 }
 
 // Whether a feat's words have its user make a Strike: "Make a melee Strike", "Stride twice, then make a Strike", "Strike twice", "You Strike".
-const USER_STRIKE = /(?:^|[.:;,]\s+|\b(?:then|and|finally|or)\s+)(?:you\s+)?(?:can\s+|may\s+|then\s+)?(?:make|makes)\s+(?:a|an|one|two|three|another|a single|up to (?:two|three))\s+(?:[\w'-]+\s+){0,4}?Strikes?\b|(?:^|[.:;,]\s+|\b(?:then|and|finally)\s+)(?:you\s+)?(?:can\s+)?Strike(?!\s+a target other)(?:\s+(?:twice|three times|an?|the|one|each|it|that|your))?\b/i;
+const USER_STRIKE = /(?:^|[.:;,]\s+|\b(?:then|and|finally|or)\s+)(?:you\s+)?(?:can\s+|may\s+|then\s+)?(?:make|makes|attempt|attempts)\s+(?:a|an|one|two|three|another|a single|up to (?:two|three))\s+(?:[\w'-]+\s+){0,4}?Strikes?\b|(?:^|[.:;,]\s+|\b(?:then|and|finally)\s+)(?:you\s+)?(?:can\s+)?Strike(?!\s+a target other)(?:\s+(?:twice|three times|an?|the|one|each|it|that|your))?\b/i;
 const OTHERS_STRIKE = /\b(?:your|the|an?) (?:eidolon|companion|familiar|mount|ally|minion|follower|animal|summon|construct|underling)s?\b[^.]{0,120}\bStrikes?\b/i;
 export function userStrike(text) {
     const plain = String(text ?? "");
