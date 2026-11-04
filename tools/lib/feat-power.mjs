@@ -1467,8 +1467,23 @@ function grantedItems(doc, level) {
             : choice?.choices?.filter && (choice.choices.itemType ?? "feat") === "feat" ? [...docsOf(`${PACK_ROOT}/feats`).values()].filter((each) => itemMatches(each, choice.choices.filter)) : [];
         for (const each of options) if (Number(each.system?.level?.value ?? 0) <= level) out.push(each);
     }
-    // (The strongest first is unknown here: the lowest level first, then by name, so the pick is the same each run.)
-    return out.sort((a, b) => Number(a.system?.level?.value ?? 0) - Number(b.system?.level?.value ?? 0) || a.name.localeCompare(b.name)).slice(0, 24);
+    // (The pick a player would make: the option with the best rating the compendium already shows, src/data/feat-ratings.json — Basic
+    // Breakthrough's first option, a weak one, rated it −1.28 —; the unrated after, the lowest level first, then by name, so the pick is the
+    // same each run.)
+    const rated = (each) => storedRating(each._id);
+    return out.sort((a, b) => (rated(b) ?? -Infinity) - (rated(a) ?? -Infinity) || Number(a.system?.level?.value ?? 0) - Number(b.system?.level?.value ?? 0) || a.name.localeCompare(b.name)).slice(0, 24);
+}
+let storedRatings = null;
+function storedRating(id) {
+    if (!storedRatings) {
+        try {
+            const data = JSON.parse(fs.readFileSync(new URL("../../src/data/feat-ratings.json", import.meta.url), "utf8"));
+            storedRatings = Object.assign({}, ...Object.values(data.ratings ?? {}));
+        } catch {
+            storedRatings = {};
+        }
+    }
+    return Number.isFinite(storedRatings[id]) ? storedRatings[id] : null;
 }
 // A ChoiceSet filter on an item: its strings ("item:category:class", "item:trait:x", "item:slug:x", "item:tag:x") and { lte, gte, or, and, not }
 // on "item:level"; anything else fails the item.
