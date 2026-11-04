@@ -1,6 +1,6 @@
 # Class power in combat
 
-Made by `node tools/feat-power.mjs <out> classes` and `classes-report` on 2026-11-02. Each class's PC (src/engine/classes.js) takes the seat of the standard party's PC who fights most like it (the fighter, the rogue, the wizard or the cleric) at every level from 1 to 20, and fights the same encounters on the same dice as the standard party. The number is how much stronger the party is with that class in the seat, in levels of the foes (the feat ratings' scale); 0 is the seat's own class. Averages are over the 20 levels.
+Made by `node tools/feat-power.mjs <out> classes` and `classes-report` on 2026-11-04. Each class's PC (src/engine/classes.js) takes the seat of the standard party's PC who fights most like it (the fighter, the rogue, the wizard or the cleric) at every level from 1 to 20, and fights the same encounters on the same dice as the standard party. The number is how much stronger the party is with that class in the seat, in levels of the foes (the feat ratings' scale); 0 is the seat's own class. Averages are over the 20 levels.
 
 | # | Class | Seat | Average | Lvl 1 | Lvl 3 | Lvl 5 | Lvl 7 | Lvl 9 | Lvl 11 | Lvl 13 | Lvl 15 | Lvl 17 | Lvl 20 | Best level | Worst level |
 |---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -19,7 +19,7 @@ Made by `node tools/feat-power.mjs <out> classes` and `classes-report` on 2026-1
 | 13 | Alchemist | Rogue | −0.33 ± 0.02 | −0.24 | −0.34 | −0.18 | −0.16 | −0.33 | −0.27 | −0.40 | −0.38 | −0.33 | −0.39 | 7 | 14 |
 | 14 | Champion | Fighter | −0.38 ± 0.02 | −0.06 | −0.31 | −0.24 | −0.48 | −0.56 | −0.28 | −0.28 | −0.48 | −0.29 | −0.35 | 1 | 8 |
 | 15 | Exemplar | Fighter | −0.40 ± 0.02 | −0.23 | −0.31 | −0.13 | −0.40 | −0.55 | −0.27 | −0.32 | −0.51 | −0.43 | −0.42 | 5 | 16 |
-| 16 | Magus | Fighter | −0.45 ± 0.02 | −0.34 | −0.56 | −0.50 | −0.55 | −0.50 | +0.00 | −0.45 | −0.56 | −0.35 | −0.25 | 11 | 4 |
+| 16 | Magus | Fighter | −0.40 ± 0.02 | −0.33 | −0.31 | −0.25 | −0.47 | −0.52 | −0.10 | −0.27 | −0.50 | −0.25 | −0.31 | 11 | 6 |
 | 17 | Monk | Fighter | −0.48 ± 0.02 | −0.26 | −0.28 | −0.24 | −0.41 | −0.52 | −0.37 | −0.36 | −0.62 | −0.44 | −0.57 | 5 | 16 |
 | 18 | Ranger | Fighter | −0.51 ± 0.02 | −0.06 | −0.42 | −0.31 | −0.53 | −0.61 | −0.30 | −0.46 | −0.58 | −0.62 | −0.60 | 1 | 4 |
 | 19 | Runesmith | Fighter | −0.59 ± 0.02 | −0.39 | −0.46 | −0.42 | −0.51 | −0.55 | −0.41 | −0.47 | −0.58 | −0.46 | −0.49 | 19 | 6 |
