@@ -1192,6 +1192,8 @@ const ZERO_HP = {
     "its-not-over": { ferocity: { hp: (level) => 10 + level + 2 + (level >= 5) + (level >= 10) + (level >= 20), wounded: false, uses: 1 } },
     // (In Tenacious Stance: and a melee Strike.)
     "cracked-mountain": { ferocity: { hp: 1, wounded: true, uses: 1, strike: true } },
+    // (2026-11-04: 1 Hit Point and its level in temporary Hit Points for a round — counted as Hit Points —, wounded 1 more; once an hour.)
+    "keep-up-the-good-fight": { ferocity: { hp: (level) => 1 + level, wounded: true, uses: 1 } },
     "cant-fall-here": { rescue: { within: 5, hp: 1, uses: 1 } },
     caterwaul: { rescue: { within: 30, hp: 1, uses: 1 } }
 };

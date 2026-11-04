@@ -3,7 +3,7 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-04. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2625: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3741 it doesn't.**
-- **The simulator** rates 1571 in whole fights. **4795 it doesn't.**
+- **The simulator** rates 1572 in whole fights. **4794 it doesn't.**
 - **3171** are in neither.
 
 ## Summary by category
@@ -11,13 +11,13 @@ Made by `node tools/feat-gap-index.mjs` on 2026-11-04. It covers all 6366 feats 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
 | class | 2282 | 1096 | 1712 | 985 |
-| archetype | 2074 | 1251 | 1539 | 1029 |
+| archetype | 2074 | 1251 | 1538 | 1029 |
 | ancestry | 1613 | 1089 | 1171 | 858 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 11 | 6 |
 | class feature | 3 | 2 | 2 | 1 |
-| **All** | 6366 | 3741 | 4795 | 3171 |
+| **All** | 6366 | 3741 | 4794 | 3171 |
 
 ## Why the feat module doesn't automate them
 
@@ -61,7 +61,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a spell the feat casts | 14 | 5 | 9 |  |  | 1 |  | 29 |
 | a passive's Effect on other creatures | 10 | 7 | 1 | 3 | 1 |  |  | 22 |
 | a reaction's Strike | 11 | 5 | 5 |  |  |  |  | 21 |
-| a passive's roll with no action to use it | 3 | 9 | 7 |  |  |  | 1 | 20 |
+| a passive's roll with no action to use it | 3 | 8 | 7 |  |  |  | 1 | 19 |
 | a reaction to "passive" | 7 | 7 | 4 |  |  |  |  | 18 |
 | it grants one of 2 | 4 | 6 | 8 |  |  |  |  | 18 |
 | a passive's Effect posted by hand | 4 | 11 | 2 | 1 |  |  |  | 18 |
@@ -5475,7 +5475,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Preserve the Moment | 16 | class | reaction | card | a reaction's Strike |
 | Pack Performance | 18 | class | reaction | card | a reaction's Strike |
 
-### a passive's roll with no action to use it (20)
+### a passive's roll with no action to use it (19)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5494,7 +5494,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Coffin Bound | 12 | archetype | passive | card | a passive's roll with no action to use it |
 | Competitive Eater | 12 | archetype | passive | card | a passive's roll with no action to use it |
 | Sword of Sealing | 12 | archetype | passive | card | a passive's roll with no action to use it |
-| Keep up the Good Fight | 14 | archetype | passive | card | a passive's roll with no action to use it |
 | Awesome Blow | 14 | class | passive | card | a passive's roll with no action to use it |
 | Momentary Respite | 16 | class | passive | card | a passive's roll with no action to use it |
 | Immortal Techniques | 20 | class | passive | card | a passive's roll with no action to use it |
