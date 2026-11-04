@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-04. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2625: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3741 it doesn't.**
-- **The simulator** rates 1567 in whole fights. **4799 it doesn't.**
+- **The simulator** rates 1570 in whole fights. **4796 it doesn't.**
 - **3171** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1096 | 1714 | 985 |
-| archetype | 2074 | 1251 | 1541 | 1029 |
+| class | 2282 | 1096 | 1712 | 985 |
+| archetype | 2074 | 1251 | 1540 | 1029 |
 | ancestry | 1613 | 1089 | 1171 | 858 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 11 | 6 |
 | class feature | 3 | 2 | 2 | 1 |
-| **All** | 6366 | 3741 | 4799 | 3171 |
+| **All** | 6366 | 3741 | 4796 | 3171 |
 
 ## Why the feat module doesn't automate them
 
@@ -52,7 +52,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: spellcasting the spell module or PF2e handles | 61 | 51 | 2 |  |  | 1 |  | 115 |
 | no card: a combat action no reader or hand plan covers yet | 38 | 32 | 14 | 4 | 1 |  |  | 89 |
 | no card: companions, familiars and eidolons | 45 | 35 | 1 | 5 |  |  |  | 86 |
-| a Strike with nothing more the simulator reads | 54 | 25 | 2 |  |  | 1 |  | 82 |
+| a Strike with nothing more the simulator reads | 52 | 24 | 2 |  |  | 1 |  | 79 |
 | an Effect with nothing a fight counts | 31 | 11 | 12 | 1 |  |  |  | 55 |
 | a teleport | 21 | 16 | 18 |  |  |  |  | 55 |
 | a roll whose results the simulator doesn't read | 20 | 18 | 7 | 8 |  |  |  | 53 |
@@ -5084,7 +5084,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Shining Glory | 18 | class | 2 actions | card | its requirement (Your nimbus is active) |
 | Throw and Catch | 18 | class | 3 actions | card | its requirement (You are wielding a melee warshard weapon.) |
 
-### a Strike with nothing more the simulator reads (82)
+### a Strike with nothing more the simulator reads (79)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5105,7 +5105,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Aerial Flash | 12 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
 | Chain Reaction | 12 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
 | One-On-One | 12 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
-| Homing Shot | 14 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Lonely Army | 14 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
 | Murderer's Circle | 14 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Simultaneous Strike | 14 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
@@ -5153,13 +5152,11 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Trick Shot | 10 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Fantastic Leap | 12 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Felling Shot | 12 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-| Incredible Ricochet | 12 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Sunder Spell | 12 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Blast Tackle | 14 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Guiding Finish | 14 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Headshot | 14 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Tangled Forest Rake | 14 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Targeting Shot | 14 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Temporal Fury | 14 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Unerring Runic Attraction | 14 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Bat Around | 16 | class | 2 actions | card | a Strike with nothing more the simulator reads |

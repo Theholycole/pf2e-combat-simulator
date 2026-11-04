@@ -918,6 +918,11 @@ const HAND = {
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
     // A melee critical hit's extra weapon die (not doubled) and persistent bleed of two of its dice.
     // (A frightened creature off-guard to the PC — actions.js.)
+    // (2026-11-04: ranged Strikes that ignore the target's concealment and cover — Targeting Shot at the hunted prey, a press; Incredible
+    // Ricochet, a press (at a creature attacked this turn, not checked here); Homing Shot.)
+    "targeting-shot": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", press: true, unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged press Strike ignoring concealment and cover" }),
+    "incredible-ricochet": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", press: true, unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged press Strike ignoring concealment and cover" }),
+    "homing-shot": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged Strike ignoring concealment and cover" }),
     // (2026-11-04: a ranged Strike whose failure still deals one weapon die; a press Strike at a prone creature with a circumstance bonus
     // of its weapon dice — PF2e's rules on Advantageous Assault hold the bonus; grabbed and restrained targets aren't counted here.)
     "flesh-wound": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", failureDice: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged Strike whose failure deals a weapon die" }),

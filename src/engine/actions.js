@@ -127,7 +127,7 @@ export function targetAC(state, attacker, target, strike, flanked) {
     const mark = markOn(target, attacker);
     const branded = mark?.ac ? Math.max(0, mark.ac - statusPenalty(target, "ac")) : 0;
     // (2026-10-22, Forbidding Ward: its status bonus against the foe it names.)
-    return armorClass(target, { ranged: !strike.melee, coverBonus: strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded + forbiddingBonus(target, attacker);
+    return armorClass(target, { ranged: !strike.melee, coverBonus: strike.unerring ? 0 : strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded + forbiddingBonus(target, attacker);
 }
 
 // Cache of expected hit damage per Strike object (shared by every run of a
@@ -489,7 +489,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const lightDC = sightDC(state, attacker, target);
     // (Brand the Impenitent: its caster ignores the creature's concealment.)
     const brandSees = Boolean(markOn(target, attacker)?.seesConcealed);
-    const seen = (dc) => (brandSees && dc <= 5 ? 0 : dc);
+    // (2026-11-04: a Strike that ignores the target's concealment — Targeting Shot's.)
+    const seen = (dc) => ((brandSees || strike.unerring) && dc <= 5 ? 0 : dc);
     const findDC = blindFought(attacker, Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : seen(hiddenDC(state, attacker, target)), target.cond?.outlined && lightDC < 11 ? 0 : seen(lightDC)));
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);

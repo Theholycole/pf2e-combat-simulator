@@ -504,6 +504,8 @@ export function addBuiltin(spec, plan, name) {
                 damage: plan.damage ?? null,
                 offGuard: !!plan.offGuard,
                 requires: plan.requires ?? null,
+                // (2026-11-04, Targeting Shot, Incredible Ricochet, Homing Shot: the target's concealment and cover ignored.)
+                ...(plan.unerring ? { unerring: true } : {}),
                 // (2026-11-04, Flesh Wound's ranged Strike: "ranged", "melee" or "any" — the planner's fits; melee when not said.)
                 ...(plan.range ? { range: plan.range } : {}),
                 // (2026-11-03: a PC's requirement as needs — feat-abilities.js pcNeeds.)
@@ -730,9 +732,9 @@ export function withExtraDamage(strike, formulas) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard === true ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.damagePerWeaponDie && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length && !charge.fortune && !charge.hitCrits && !charge.ignoreResistances) return strike;
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.damagePerWeaponDie && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length && !charge.fortune && !charge.hitCrits && !charge.ignoreResistances && !charge.unerring) return strike;
     // (2026-10-16: Sniper's Bead's, no range penalty out to that many increments — space.js rangePenalty.)
-    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}), ...(charge.fortune ? { fortune: true } : {}), ...(charge.hitCrits ? { hitCrits: true } : {}), ...(charge.ignoreResistances ? { ignoreResistances: true } : {}) };
+    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}), ...(charge.fortune ? { fortune: true } : {}), ...(charge.hitCrits ? { hitCrits: true } : {}), ...(charge.ignoreResistances ? { ignoreResistances: true } : {}), ...(charge.unerring ? { unerring: true } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
     // (A bonus of its weapon dice, or twice that: the dice the Strike has — its striking runes'.)
     if (charge.damagePerWeaponDie) changed.damage = (changed.damage ?? strike.damage).map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damagePerWeaponDie * (Number(strike.damage[0]?.dice) || 1) } : part));
