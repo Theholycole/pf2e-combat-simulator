@@ -66,6 +66,10 @@ function spell(name, castRank) {
     const plan = plans.get(name);
     return plan ? { name, plan, effects: effectModels(plan, castRank) } : null;
 }
+// The simulated alchemist's kit (tools/lib/alchemy.mjs): its bombs' riders and elixir of life; SIM_ALCHEMY=full, every bomb family and save
+// item in its formula book (2026-11-04, Cole's optional feature).
+const { alchemistKit } = await import("./alchemy.mjs");
+const alchemy = (lv) => alchemistKit(lv, { full: process.env.SIM_ALCHEMY === "full" });
 const parties = new Map();
 export function partyFor(level) {
     const lv = Math.max(1, Math.min(20, level));
@@ -78,13 +82,13 @@ export function partyFor(level) {
 const classParties = new Map();
 export function classesPartyFor(slugs, level) {
     const lv = Math.max(1, Math.min(20, level));
-    return classesParty(slugs, lv, { spell: dangerPartySpell(spell), basics: Object.values(basicActions) });
+    return classesParty(slugs, lv, { spell: dangerPartySpell(spell), basics: Object.values(basicActions), alchemy });
 }
 
 export function classPartyFor(slug, level) {
     const lv = Math.max(1, Math.min(20, level));
     const id = `${slug}|${lv}`;
-    if (!classParties.has(id)) classParties.set(id, classParty(slug, lv, { spell: dangerPartySpell(spell), basics: Object.values(basicActions) }));
+    if (!classParties.has(id)) classParties.set(id, classParty(slug, lv, { spell: dangerPartySpell(spell), basics: Object.values(basicActions), alchemy }));
     return classParties.get(id);
 }
 

@@ -105,17 +105,36 @@ const CLASSES = {
         armor: "medium", armorSteps: [[1, T], [13, E], [19, M]],
         fort: [[1, E], [11, M]], ref: [[1, E], [15, M]], will: [[1, T], [7, E]], perception: [[1, T], [9, E]],
         classDC: [[1, T], [9, E], [17, M]],
-        build(lv, a) {
-            // Bombs from its versatile vials (an alchemist's fire of its level: lesser, moderate at 3rd, greater at 11th, major at 17th), the
-            // field of bomber's splash; Alchemical Weapon Expertise at 7th and Mastery at 15th.
+        build(lv, a, { alchemy = null } = {}) {
+            // (2026-11-04, Cole: "Yes, bombs, elixirs and vial limit".) Player Core 2's alchemist, a bomber: versatile vials, 2 + its
+            // Intelligence a day (2 back for each 10 minutes of exploration, so a full stock each fight); Quick Alchemy (1 action, a vial)
+            // makes a bomb in hand, so each throw is Quick Alchemy then the Strike; Advanced Alchemy's 4 + Intelligence items a day, a
+            // quarter of them each fight (four fights a day), as ready alchemist's fire (still drawn, 1 Interact). Its bombs: alchemist's
+            // fire, frost vial and bottled lightning at its level's type (lesser, moderate at 3rd, greater at 11th, major at 17th), the one
+            // its target minds most; Field Discovery (5th): splash equal to its Intelligence. Alchemical Weapon Expertise at 7th, Mastery
+            // at 15th. With the tools' kit (options.alchemy, tools/lib/alchemy.mjs alchemistKit): the bombs' riders, elixir of life from
+            // Quick Alchemy, and with SIM_ALCHEMY=full every bomb family and save item in its formula book.
             const prof = rank(lv, [[1, T], [7, E], [15, M]]);
             const grade = lv >= 17 ? 4 : lv >= 11 ? 3 : lv >= 3 ? 2 : 1;
-            const bomb = {
-                name: "Alchemist's Fire", bonus: lv + prof + a.dex + (grade - 1), melee: false, increment: 20, thrown: true, held: true, splashKind: "bomb", splashAmount: grade + a.int, iwr: { group: "bomb", traits: ["magical"] },
-                damage: [{ dice: grade, die: 8, bonus: specialization(lv, prof), type: "fire" }, { dice: 0, die: 0, bonus: grade, type: "fire", persistent: true }]
-            };
+            const kit = alchemy?.(lv) ?? null;
+            const bombs = kit?.bombs ?? [
+                { name: "Alchemist's Fire", itemBonus: grade - 1, damage: { dice: grade, die: 8, bonus: 0, type: "fire" }, splash: grade, persistent: { dice: 0, die: 0, bonus: grade, type: "fire" } },
+                { name: "Frost Vial", itemBonus: grade - 1, damage: { dice: grade, die: 6, bonus: 0, type: "cold" }, splash: grade, persistent: null },
+                { name: "Bottled Lightning", itemBonus: grade - 1, damage: { dice: grade, die: 6, bonus: 0, type: "electricity" }, splash: grade, persistent: null }
+            ];
+            const strikes = bombs.map((bomb) => ({
+                name: bomb.name, bonus: lv + prof + a.dex + (bomb.itemBonus ?? 0), melee: false, increment: 20, thrown: true, held: true, splashKind: "bomb",
+                splashAmount: lv >= 5 ? Math.max(bomb.splash ?? 0, a.int) : bomb.splash ?? 0, iwr: { group: "bomb", traits: ["alchemical"] },
+                damage: [{ dice: bomb.damage.dice, die: bomb.damage.die, bonus: (bomb.damage.bonus ?? 0) + specialization(lv, prof), type: bomb.damage.type }, ...(bomb.persistent ? [{ ...bomb.persistent, persistent: true }] : [])],
+                ammo: { pool: `alchemist:${bomb.name}`, reagents: true, startsEmpty: true }, reload: 1
+            }));
             const dagger = weaponStrike(lv, { name: "Dagger", die: 4, type: "piercing", toHit: a.dex, damageAttr: a.str, prof: rank(lv, [[1, T], [7, E], [15, M]]), group: "knife", extra: { agile: true, finesse: true } });
-            return { strikes: [bomb, dagger], skills: { crafting: lv + primarySkill(lv) + a.int } };
+            const ready = Math.floor((4 + a.int) / 4);
+            return {
+                strikes: [...strikes, dagger], skills: { crafting: lv + primarySkill(lv) + a.int },
+                spellPools: { reagents: 2 + a.int, [`alchemist:${strikes[0].name}`]: ready },
+                ...(kit?.spells?.length ? { spells: kit.spells } : {})
+            };
         }
     },
     animist: {
@@ -426,7 +445,7 @@ export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "r
 export const CLASS_GAPS = Object.freeze({
     animist: "apparitions", necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes other than atryl, ranshu and marssyl (diacritics, shield and support runes, higher-level runes)", summoner: "evolution feats on the eidolon",
     bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "hexes and the familiar", oracle: "the curse", druid: "Untamed Form",
-    barbarian: "Rage's -1 AC", alchemist: "vials as a daily limit (bombs aren't counted)", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
+    barbarian: "Rage's -1 AC", alchemist: "mutagens, poisons and the research fields other than bomber", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });
 // The standard party's seat each class sits in (the PC it replaces in classParty).
 export const seatOf = (slug) => (["fighter", "rogue", "wizard", "cleric"].includes(slug) ? slug : CLASSES[slug]?.seat ?? null);
@@ -435,7 +454,7 @@ export const classAttributes = (slug, level) => CLASSES[slug]?.attrs(key(level),
 export const classArmor = (slug) => CLASSES[slug]?.armor ?? null;
 
 // A PC of a class at a level (null: a class this doesn't know). options: { spell, basics } as standardParty's.
-export function classPC(slug, level, { spell = () => null, basics = [] } = {}) {
+export function classPC(slug, level, { spell = () => null, basics = [], alchemy = null } = {}) {
     const lv = Math.max(1, Math.min(20, level));
     if (["fighter", "rogue", "wizard", "cleric"].includes(slug)) return standardParty(lv, { spell, basics }).find((c) => c.id === slug);
     const def = CLASSES[slug];
@@ -444,7 +463,7 @@ export function classPC(slug, level, { spell = () => null, basics = [] } = {}) {
     const a = def.attrs(k, lv);
     const armor = ARMOR[def.armor];
     const ac = 10 + lv + rank(lv, def.armorSteps) + armor.item + Math.min(a.dex, armor.cap) + armorPotency(lv);
-    const built = def.build?.(lv, a) ?? {};
+    const built = def.build?.(lv, a, { alchemy }) ?? {};
     const casterStaff = { name: "Staff", bonus: lv + T + a.str, melee: true, agile: false, iwr: { group: "club" }, damage: [{ dice: 1, die: 4, bonus: a.str, type: "bludgeoning" }] };
     const [strike, ...backups] = built.strikes?.length ? built.strikes : [casterStaff];
     const spellAttr = def.caster ? a[def.caster.attr] : 0;
@@ -489,6 +508,8 @@ export function classPC(slug, level, { spell = () => null, basics = [] } = {}) {
     if (def.psyche) c.spellDamageBonus = { perRank: 1, slotsOnly: false };
     // (A runesmith's runes: abilities of its own, runesmithRunes.)
     if (built.spells?.length) c.spells = [...(c.spells ?? []), ...built.spells];
+    // (An alchemist's versatile vials and ready bombs.)
+    if (built.spellPools) c.spellPools = { ...(c.spellPools ?? {}), ...built.spellPools };
     c.spells = [...(c.spells ?? []), ...basics.map((plan) => ({ name: plan.source?.name ?? plan.name, plan, castRank: 1, pool: null, kind: "basic" }))];
     // (Creatures that come with it — the summoner's eidolon —, for classParty.)
     if (built.companions?.length) Object.defineProperty(c, "companions", { value: built.companions.map((make) => make(c)), enumerable: false });
