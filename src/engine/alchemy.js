@@ -143,7 +143,7 @@ function iwrNotes(creature, parts) {
     for (const { type, amount } of parts) {
         if (!(amount > 0)) continue;
         const after = adjustInstance(creature, type, amount, false, null);
-        const note = after === 0 ? (type === "vitality" ? "vitality harms only undead" : type === "void" ? "void doesn't harm undead" : `immune to ${type}`) : after > amount ? `weak to ${type} (+${after - amount})` : after < amount ? `resists ${type} (−${amount - after})` : null;
+        const note = after === 0 ? (type === "vitality" ? "vitality harms only undead" : type === "void" ? "void doesn't harm undead" : (creature.immunities ?? []).includes(type) ? `immune to ${type}` : `resists ${type} (all of it)`) : after > amount ? `weak to ${type} (+${after - amount})` : after < amount ? `resists ${type} (−${amount - after})` : null;
         if (note && !notes.includes(note)) notes.push(note);
     }
     return notes;
