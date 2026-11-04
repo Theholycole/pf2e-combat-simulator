@@ -1126,6 +1126,12 @@ function actOn(state, c, action) {
             // (C34, Shatter Defenses: a hit that deals damage leaves it off-guard while it's frightened; already off-guard to it, its frightened
             // can't drop below 1 until the attacker's next turn.)
             if (activity.shatter && result?.degree >= SUCCESS && (result.damage ?? 1) > 0 && isActive(target)) shatterDefenses(state, c, target, offGuardBefore, { applyCondition });
+            if (activity.offGuardNext && result && isActive(target)) {
+                const entry = { attacker: c.id, attacks: "all", uses: 1 };
+                target.offGuardTo = [...(target.offGuardTo ?? []), entry];
+                (target.timers ??= []).push({ offGuardTo: entry, round: state.round, turnOf: c.id, at: "end" });
+                state.log?.push(`  ${target.name} is off-guard to ${c.name}'s next Strike this turn`);
+            }
             if (activity.endsTurn) c.actionsLeft = 0;
             // (B156, Battering Blow: "then Shoves the same creature" — hit or miss.)
             if (result && activity.afterStrike && isActive(target) && canAct(c)) bothHitRider(state, c, target, { follow: activity.afterStrike }, { said: null });

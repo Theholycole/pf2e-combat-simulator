@@ -3,7 +3,7 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-04. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2625: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3741 it doesn't.**
-- **The simulator** rates 1570 in whole fights. **4796 it doesn't.**
+- **The simulator** rates 1571 in whole fights. **4795 it doesn't.**
 - **3171** are in neither.
 
 ## Summary by category
@@ -11,13 +11,13 @@ Made by `node tools/feat-gap-index.mjs` on 2026-11-04. It covers all 6366 feats 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
 | class | 2282 | 1096 | 1712 | 985 |
-| archetype | 2074 | 1251 | 1540 | 1029 |
+| archetype | 2074 | 1251 | 1539 | 1029 |
 | ancestry | 1613 | 1089 | 1171 | 858 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 11 | 6 |
 | class feature | 3 | 2 | 2 | 1 |
-| **All** | 6366 | 3741 | 4796 | 3171 |
+| **All** | 6366 | 3741 | 4795 | 3171 |
 
 ## Why the feat module doesn't automate them
 
@@ -52,7 +52,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: spellcasting the spell module or PF2e handles | 61 | 51 | 2 |  |  | 1 |  | 115 |
 | no card: a combat action no reader or hand plan covers yet | 38 | 32 | 14 | 4 | 1 |  |  | 89 |
 | no card: companions, familiars and eidolons | 45 | 35 | 1 | 5 |  |  |  | 86 |
-| a Strike with nothing more the simulator reads | 52 | 24 | 2 |  |  | 1 |  | 79 |
+| a Strike with nothing more the simulator reads | 52 | 23 | 2 |  |  | 1 |  | 78 |
 | an Effect with nothing a fight counts | 31 | 11 | 12 | 1 |  |  |  | 55 |
 | a teleport | 21 | 16 | 18 |  |  |  |  | 55 |
 | a roll whose results the simulator doesn't read | 20 | 18 | 7 | 8 |  |  |  | 53 |
@@ -5084,7 +5084,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Shining Glory | 18 | class | 2 actions | card | its requirement (Your nimbus is active) |
 | Throw and Catch | 18 | class | 3 actions | card | its requirement (You are wielding a melee warshard weapon.) |
 
-### a Strike with nothing more the simulator reads (79)
+### a Strike with nothing more the simulator reads (78)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5106,7 +5106,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Chain Reaction | 12 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
 | One-On-One | 12 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Lonely Army | 14 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
-| Murderer's Circle | 14 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Simultaneous Strike | 14 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Controlled Bullet | 16 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Grave Threat | 16 | archetype | 1 action | card | a Strike with nothing more the simulator reads |

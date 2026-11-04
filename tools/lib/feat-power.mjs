@@ -918,6 +918,8 @@ const HAND = {
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
     // A melee critical hit's extra weapon die (not doubled) and persistent bleed of two of its dice.
     // (A frightened creature off-guard to the PC — actions.js.)
+    // (2026-11-04: a Strike, then its target off-guard to the next one this turn — the Step to its other side not played.)
+    "murderers-circle": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, offGuardNext: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a Strike, then the target off-guard to the next one this turn" }),
     // (2026-11-04: ranged Strikes that ignore the target's concealment and cover — Targeting Shot at the hunted prey, a press; Incredible
     // Ricochet, a press (at a creature attacked this turn, not checked here); Homing Shot.)
     "targeting-shot": () => ({ requires: "You are wielding a bow.", builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", press: true, unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged press Strike ignoring concealment and cover" }),

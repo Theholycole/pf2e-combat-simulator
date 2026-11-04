@@ -506,6 +506,8 @@ export function addBuiltin(spec, plan, name) {
                 requires: plan.requires ?? null,
                 // (2026-11-04, Targeting Shot, Incredible Ricochet, Homing Shot: the target's concealment and cover ignored.)
                 ...(plan.unerring ? { unerring: true } : {}),
+                // (2026-11-04, Murderer's Circle: the target off-guard to its next Strike this turn, hit or miss.)
+                ...(plan.offGuardNext ? { offGuardNext: true } : {}),
                 // (2026-11-04, Flesh Wound's ranged Strike: "ranged", "melee" or "any" — the planner's fits; melee when not said.)
                 ...(plan.range ? { range: plan.range } : {}),
                 // (2026-11-03: a PC's requirement as needs — feat-abilities.js pcNeeds.)
