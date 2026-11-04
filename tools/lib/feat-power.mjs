@@ -269,9 +269,14 @@ const spellPack = await spellTools();
 const ORDINAL = "(\\d+)(?:st|nd|rd|th)";
 // The spells a feat's text has its user cast innately: [{ spell, castRank, pool uses (0: at will) }]. Its rank: the text's ("5th-rank",
 // "as a 7th-rank innate spell"), else heightened to half the PC's level rounded up where it says so or for a cantrip, else the spell's own.
+const FOCUS_GRANT = /\bYou (?:gain|learn)(?: either)? (?:the|a|an|your choice of the|one) [^.]*?\b(?:focus spells?|(?:composition|hex|link|conflux|grave|order|warden|devotion|ki|qi|domain|bloodline|school|revelation|apparition|eidolon) (?:cantrip|spell)s?)\b/i;
 export function innateSpells(doc, level) {
     const text = String(doc.system?.description?.value ?? "");
-    if (!/\binnate\b/i.test(text)) return [];
+    // (2026-11-04, Cole: "Automate the spellcasting and companion feats not handled by other modules": or a focus spell or cantrip it
+    // teaches — Mantis Form's "You gain the Mantis Form focus spell", Song of Strength's composition cantrip —, heightened to half the
+    // level, a focus spell once a fight, a cantrip at will. Not one on a companion: the simulator's PCs have none.)
+    const focus = FOCUS_GRANT.test(text.replace(/@UUID\[[^\]]*?([^.\]]+)\](?:\{([^}]*)\})?/g, (_all, id, label) => label ?? id).replace(/<[^>]+>/g, " "));
+    if (!/\binnate\b/i.test(text) && !focus) return [];
     const half = Math.max(1, Math.ceil(level / 2));
     const found = [];
     for (const hit of text.matchAll(/@UUID\[Compendium\.pf2e\.spells-srd\.Item\.([^\]]+)\](?:\{([^}]*)\})?/g)) {
@@ -289,6 +294,7 @@ export function innateSpells(doc, level) {
         const castRank = Number(fixed) || (heightened ? half : own);
         if (castRank > half && !fixed) continue;
         const uses = cantrip || /at will/i.test(sentence) ? 0 : /twice per day/i.test(sentence) ? 2 : 1;
+        if (focus && !/\binnate\b/i.test(sentence) && /\b(?:companion|eidolon|familiar|minion|thrall|mount)\b/i.test(String(spell.system?.target?.value ?? ""))) continue;
         found.push({ spell, castRank, uses });
     }
     return found;
@@ -302,7 +308,7 @@ function innateSpellEntry(doc, level, host) {
     const dc = own.spell ?? 10 + level + 2 + (abilities.cha ?? 0);
     const entries = [];
     const pools = {};
-    const choice = /\b(?:chosen|choose(?: one)?) from the following\b|\bone of the following spells\b/i.test(String(doc.system?.description?.value ?? ""));
+    const choice = /\b(?:chosen|choose(?: one)?) from the following\b|\bone of the following spells\b|\b(?:gain|learn) either\b|\byour choice of\b/i.test(String(doc.system?.description?.value ?? ""));
     for (const { spell, castRank, uses } of spells) {
         let plan;
         try {
