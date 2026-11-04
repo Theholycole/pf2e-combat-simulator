@@ -12,6 +12,7 @@ import { expectedStrikeDamage } from "./damage.js";
 import { describeSpell, planDamages, skillValue } from "./spells.js";
 import { moderate } from "./creature-tables.js";
 import { voidJoin } from "./void.js";
+import { backRow } from "./actions.js";
 
 const ACTIVE_BANDS = new Set(["engaged", "near", "far"]);
 
@@ -83,7 +84,14 @@ export function setUpGrid(state, spec) {
         const up = placeSide(map, lofty, map.spawns.overlook?.[side] ?? [], taken);
         for (const c of lofty) if (up[c.id]) c.square = up[c.id];
         const waiting = frontFirst(state.list.filter((c) => c.side === side && !c.square && c.status !== "pending" && c.kind !== "object"));
-        const placed = placeSide(map, waiting, map.spawns[side] ?? [], taken);
+        // (2026-11-01, the user: the fighter in front, its Reactive Strike between the foes and the casters — those at the back, actions.js
+        // backRow, start two columns behind the front rank when there's a front rank to stand behind.)
+        const spawns = map.spawns[side] ?? [];
+        const front = waiting.filter((c) => !backRow(c));
+        const frontX = spawns.length ? squareOf(spawns[0])[0] : null;
+        const behind = frontX === null ? [] : spawns.filter((spawn) => Math.abs(squareOf(spawn)[0] - frontX) >= 2);
+        const split = front.length && front.length < waiting.length && behind.length && !spec.squares;
+        const placed = split ? { ...placeSide(map, front, spawns, taken), ...placeSide(map, waiting.filter((c) => backRow(c)), behind, taken) } : placeSide(map, waiting, spawns, taken);
         for (const c of waiting) if (placed[c.id]) c.square = placed[c.id];
     }
     // (Objects — a hazard's, a door — stand where their side's front is.)
@@ -726,7 +734,10 @@ export function gridAreaSets(state, caster, area, range, { affected = () => true
     const seen = new Set();
     const sets = [];
     for (const placement of areaCatches(state, caster, area, range, { healing, helpful })) {
-        const caught = placement.caught.filter((other) => affected(other) && (!foesOnly || other.side !== caster.side));
+        // (2026-11-03, Elemental Explosion: the creature an emanation is about chooses whether it's in it — PF2e's area rules —, so a harmful
+        // one leaves it out. It was counted burning itself, and a barbarian never used the feat. A caster planned where a Stride takes it
+        // (a copy at that square): not where it stood.)
+        const caught = placement.caught.filter((other) => affected(other) && (!foesOnly || other.side !== caster.side) && !(other.id === caster.id && (other !== caster || (placement.origin === "self" && area.type === "emanation" && !helpful && !healing))));
         // (A cone or a line from the caster isn't in it; a burst on it, or an emanation, is.)
         const targets = placement.origin === "self" ? [...new Set([...caught, ...(helpful || healing ? [caster] : [])])] : caught;
         if (!targets.length) continue;

@@ -9,16 +9,17 @@
 
 import { MODULE_ID } from "./snapshot.js";
 import { aloneRatings, worldRatings } from "./danger-run.js";
-import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, powerDetailOf, powerLabel, powerTooltip, preferencesOf, preferencesTooltip, ratingOf, ratingOfUuid, sortByDanger, withAlone, withRuleChoices } from "../src/live/danger.js";
+import { boundOf, dangerBand, dangerLabel, dangerOrder, dangerTooltip, characterTooltip, featBand, featDetailOf, featLabel, featTooltip, powerDetailOf, powerLabel, powerTooltip, preferencesOf, preferencesTooltip, ratingOf, ratingOfUuid, sortByDanger, withAlone, withRuleChoices } from "../src/live/danger.js";
 
 const SETTING = "dangerRatings";
 const SPELL_SETTING = "spellPower";
+const FEAT_SETTING = "featPower";
 // The GM's choices of rules the rules leave open, for the spell numbers (power-readings.js RULE_CHOICES; the user, 2026-10-21: "put a
 // toggle in the settings for the gm to determine how it calculates healing done" — Moment of Renewal's).
 const RULE_SETTINGS = { renewalHealing: "renewalHealing" };
 const ruleChoices = () => Object.fromEntries(Object.entries(RULE_SETTINGS).map(([rule, setting]) => [rule, game.settings.get(MODULE_ID, setting)]));
 // The numbers in use for each kind (creatures: the world's or the module's; spells: the module's), and the module's files once read.
-const numbers = { creatures: null, spells: null };
+const numbers = { creatures: null, spells: null, feats: null, actions: null, ancestry: null, heritage: null, background: null };
 const files = {};
 // The compendiums sorted by their numbers, this session.
 const sorted = new Set();
@@ -58,10 +59,33 @@ const KINDS = {
         sortIcon: "fa-wand-sparkles", sortTip: "Sort by combat power for their rank (Combat Simulator)",
         load: () => fetchJSON("spell-ratings.json").then((data) => withRuleChoices(data, ruleChoices())),
         badge: (value, bound, known, collection, id) => ({ className: "pcs-power", label: powerLabel(value, bound, powerDetailOf(known, collection, id)), tooltip: powerTooltip(value, known, bound, powerDetailOf(known, collection, id)) })
-    }
+    },
+    // (2026-11-01, Cole: "put every feat's power next to it in the compendium browser": feats and actions, src/data/feat-ratings.json.)
+    feats: {
+        documentName: "Item", type: "feat", setting: FEAT_SETTING, tab: "feat", order: "pcsFeatPower", orderLabel: "Combat power", ownOrder: "level",
+        sortIcon: "fa-hand-fist", sortTip: "Sort by combat power (Combat Simulator)",
+        load: () => fetchJSON("feat-ratings.json"),
+        band: featBand,
+        badge: (value, bound, known, collection, id) => ({ className: "pcs-power pcs-feat-power", label: featLabel(value), tooltip: featTooltip(value, known, featDetailOf(known, collection, id)) })
+    },
+    actions: {
+        documentName: "Item", type: "action", setting: FEAT_SETTING, tab: "action", order: "pcsFeatPower", orderLabel: "Combat power", ownOrder: "name",
+        sortIcon: "fa-hand-fist", sortTip: "Sort by combat power (Combat Simulator)",
+        load: () => fetchJSON("feat-ratings.json"),
+        band: featBand,
+        badge: (value, bound, known, collection, id) => ({ className: "pcs-power pcs-feat-power", label: featLabel(value), tooltip: featTooltip(value, known, featDetailOf(known, collection, id)) })
+    },
+    // (2026-11-01, Cole: "evaluate the power of each ancestry and background": their compendium windows — PF2e's Compendium Browser has no
+    // tab for them.)
+    ...Object.fromEntries(["ancestry", "heritage", "background"].map((type) => [type, {
+        documentName: "Item", type, setting: FEAT_SETTING, tab: null, sortIcon: "fa-hand-fist", sortTip: "Sort by combat power (Combat Simulator)",
+        load: () => fetchJSON("feat-ratings.json"),
+        band: featBand,
+        badge: (value, bound, known, collection, id) => ({ className: "pcs-power pcs-feat-power", label: featLabel(value), tooltip: characterTooltip(value, known, featDetailOf(known, collection, id)) })
+    }]))
 };
-const kindOfDocument = (documentName) => Object.values(KINDS).find((kind) => kind.documentName === documentName) ?? null;
-const kindOfTab = (tabName) => Object.values(KINDS).find((kind) => kind.tab === tabName) ?? null;
+const kindsOfDocument = (documentName) => Object.values(KINDS).filter((kind) => kind.documentName === documentName);
+const kindOfTab = (tabName) => Object.values(KINDS).find((kind) => kind.tab && kind.tab === tabName) ?? null;
 const keyOf = (kind) => Object.keys(KINDS).find((key) => KINDS[key] === kind);
 const shown = (kind) => game.settings.get(MODULE_ID, kind.setting);
 
@@ -102,6 +126,15 @@ export function registerDangerSetting() {
         default: "rest",
         onChange: () => load(KINDS.spells).then(refreshAll)
     });
+    game.settings.register(MODULE_ID, FEAT_SETTING, {
+        name: "Feat power in compendiums (combat only)",
+        hint: "Show each feat's and action's power in combat beside its name in compendium windows and PF2e's Compendium Browser, with a button to sort by it: how many levels easier (+) or harder (−) it makes a fight, from the simulator's whole fights with it and without it on one PC of a party of four. Rated for combat only; feats with nothing a fight uses get no number.",
+        scope: "client",
+        config: true,
+        type: Boolean,
+        default: true,
+        onChange: refreshAll
+    });
     game.settings.register(MODULE_ID, SPELL_SETTING, {
         name: "Spell power in compendiums (combat only)",
         hint: "Show each spell's power for its rank in combat beside its name in compendium windows and PF2e's Compendium Browser, with a button to sort by it: levels above (+) or below (−) a typical spell of its rank, from the simulator's fights with one cast in a party's hands. Rated for combat only: what a spell does outside a fight (healing over hours, travel, information) isn't counted, and utility spells get no number.",
@@ -114,10 +147,17 @@ export function registerDangerSetting() {
 }
 
 export function setUpDanger() {
-    Hooks.on("renderCompendium", (app, element) => {
-        const kind = kindOfDocument(app.collection?.documentName);
-        if (!kind || !shown(kind)) return;
-        mark(app, element instanceof HTMLElement ? element : element?.[0], kind).catch((error) => console.error(`${MODULE_ID} | ${keyOf(kind)} numbers`, error));
+    Hooks.on("renderCompendium", async (app, element) => {
+        // (Items: spells, feats or actions — the kind whose numbers name this compendium, the first that does.)
+        const root = element instanceof HTMLElement ? element : element?.[0];
+        for (const kind of kindsOfDocument(app.collection?.documentName)) {
+            if (!shown(kind)) continue;
+            try {
+                if (await mark(app, root, kind)) return;
+            } catch (error) {
+                console.error(`${MODULE_ID} | ${keyOf(kind)} numbers`, error);
+            }
+        }
     });
     // (PF2e makes its Compendium Browser at its own ready, before a module's.)
     Hooks.once("ready", () => setUpBrowser().catch((error) => console.error(`${MODULE_ID} | numbers in the Compendium Browser`, error)));
@@ -129,7 +169,7 @@ export function setUpDanger() {
 function badgeFor(kind, value, bound, known, collection, id) {
     const made = kind.badge(value, bound, known, collection, id);
     const badge = document.createElement("span");
-    badge.className = `pcs-danger pcs-danger-${dangerBand(value)}${made.className ? ` ${made.className}` : ""}`;
+    badge.className = `pcs-danger pcs-danger-${(kind.band ?? dangerBand)(value)}${made.className ? ` ${made.className}` : ""}`;
     badge.textContent = made.label;
     badge.dataset.tooltip = made.tooltip;
     badge.setAttribute("aria-label", made.tooltip);
@@ -138,9 +178,11 @@ function badgeFor(kind, value, bound, known, collection, id) {
 
 async function mark(app, root, kind) {
     const pack = app.collection;
-    if (!root || !pack) return;
+    if (!root || !pack) return false;
     const known = await load(kind);
-    if (!known?.ratings?.[pack.collection]) return;
+    if (!known?.ratings?.[pack.collection]) return false;
+    // (Items of another kind — the ancestries' compendium for the feats' numbers, which share a file —: the next kind's.)
+    if (pack.documentName === "Item" && pack.index?.size && ![...pack.index.values()].some((entry) => !entry.type || entry.type === kind.type)) return false;
     if (kind === KINDS.creatures) await loadPreferences();
     const entries = [...root.querySelectorAll("li.directory-item.entry[data-entry-id]")];
     entries.forEach((item, index) => {
@@ -179,6 +221,7 @@ async function mark(app, root, kind) {
     }
     button?.classList.toggle("active", sorted.has(pack.collection));
     order(root, pack.collection);
+    return true;
 }
 
 // Each list's entries (a folder's, or the compendium's own) by their numbers, or back in their first order; folders stay where they are.
@@ -203,7 +246,7 @@ async function setUpBrowser() {
     const browser = game.pf2e?.compendiumBrowser;
     if (!browser?.tabs) return;
     for (const kind of Object.values(KINDS)) {
-        const tab = browser.tabs[kind.tab];
+        const tab = kind.tab ? browser.tabs[kind.tab] : null;
         if (!tab || typeof tab.sortResult !== "function" || tab[kind.order]) continue;
         await load(kind);
         if (kind === KINDS.creatures) await loadPreferences();
@@ -225,7 +268,7 @@ async function setUpBrowser() {
 // Each kind's sort among its tab's while its setting is on (the tab's filters now and those it resets to).
 function syncBrowserOrders() {
     for (const kind of Object.values(KINDS)) {
-        const tab = game.pf2e?.compendiumBrowser?.tabs?.[kind.tab];
+        const tab = kind.tab ? game.pf2e?.compendiumBrowser?.tabs?.[kind.tab] : null;
         if (!tab?.[kind.order]) continue;
         const on = shown(kind);
         for (const filters of [tab.filterData, tab.defaultFilterData]) {

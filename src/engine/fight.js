@@ -12,7 +12,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { canCast, outsideTargets, poolReady, agitationTurnEnd, atCastRank, duplicateTurnEnd, heldTurnStart, hinderTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { canCast, rageTriggers, outsideTargets, poolReady, agitationTurnEnd, atCastRank, duplicateTurnEnd, heldTurnStart, hinderTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -22,11 +22,13 @@ import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startD
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
+import { thrallForSpell, thrallStrikes } from "./thralls.js";
 import { lastingTurnStart } from "./lasting.js";
 import { noteStatesTurnStart } from "./note-states.js";
 import { floorOf } from "./floors.js";
 import { buildEnvironment, covenCast, covenTurnStart, hiddenAtTurnStart, lightAtStart, sunlightTurnEnd, terrainTurn } from "./environment.js";
 import { lightTurnStart } from "./light.js";
+import { deviantEntryOf, deviantTurnStart, deviantUsed } from "./deviant.js";
 import { attachedTurnStart, berserkTurnStart, followAttached, headsMend, hydraRegrow, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
 import { controlTurnStart } from "./control.js";
 import { familiarFocus, familiarKeepsUp } from "./familiars.js";
@@ -108,6 +110,11 @@ function outcomeCache(snapshot) {
 function createState(snapshot, options, seed, withLog) {
     const list = snapshot.combatants.map(createCombatant);
     for (const c of list) keepPermanent(c);
+    // (2026-11-02, classes.js: a summoner and its eidolon share one pool of Hit Points — the same object, so damage and healing to either is to both.)
+    for (const c of list) {
+        const partner = c.sharesHpWith ? list.find((other) => other.id === c.sharesHpWith) : null;
+        if (partner) c.hp = partner.hp;
+    }
     const state = {
         rng: createRng(seed),
         seed,
@@ -121,7 +128,8 @@ function createState(snapshot, options, seed, withLog) {
         moraleRules: options.moraleRules ?? MORALE_RULES,
         objective: options.objective ? createObjective(snapshot.setup?.objective, snapshot.partyLevel) : null,
         pendingEvents: [],
-        log: withLog ? [] : null,
+        // (2026-11-03: or a sink of its own — an object with push(line) — that counts lines instead of keeping them: the feat ratings' uses.)
+        log: withLog ? (typeof withLog === "object" ? withLog : []) : null,
         damageBy: { party: 0, foes: 0, foesInduced: 0 },
         stats: { moraleChecks: 0, moraleFailures: 0, moraleBreaks: 0, moraleRecoveries: 0, moraleGated: 0, heroPointsSpent: 0, reactions: 0, partyItemsUsed: 0, foeItemsUsed: 0 },
         outcome: null,
@@ -213,6 +221,13 @@ function rollInitiative(state, snapshot) {
     // Roaring Initiative's Intimidation; B303) when it's better than its Perception; else Perception.
     const usesStealth = (c) => ambush && ambush === c.side && typeof c.stealth === "number";
     state.initiativeStat = new Map(state.list.map((c) => [c.id, usesStealth(c) ? { stat: "stealth", value: c.stealth } : initiativeSkill(c) ?? { stat: "perception", value: c.perception ?? 0 }]));
+    // (2026-11-01: a passive feat's initiative bonus — Incredible Initiative's —, its PF2e rules: the best of each type.)
+    for (const c of state.list) {
+        const best = {};
+        for (const modifier of (c.passiveEffects ?? []).flatMap((model) => model.modifiers ?? []).filter((each) => each.on === "initiative")) best[modifier.type] = Math.max(best[modifier.type] ?? 0, Number(modifier.value) || 0);
+        const bonus = Object.values(best).reduce((sum, value) => sum + value, 0);
+        if (bonus) state.initiativeStat.set(c.id, { ...state.initiativeStat.get(c.id), value: state.initiativeStat.get(c.id).value + bonus });
+    }
     // (B170, Guide's Warning: its allies' initiative rolls a circumstance bonus higher, when it rolls Perception (or a skill it names) — its
     // reaction, or a free action.)
     const warned = new Map();
@@ -253,6 +268,8 @@ function rollInitiative(state, snapshot) {
 function initiativeDeeds(state) {
     for (const c of state.list) {
         if (c.status !== ACTIVE) continue;
+        // (2026-11-01: a passive feat's own PF2e rules — tools/lib/feat-power.mjs passiveRulesEntry —, on it from the start, all fight.)
+        for (const model of c.passiveEffects ?? []) applyEffect(state, c, { ...model, rounds: Infinity }, c, { key: `passive:${model.name}` });
         if (c.livingFortification) {
             const effect = applyEffect(state, c, { name: "Living Fortification", rounds: Infinity, modifiers: [{ on: "ac", type: "circumstance", value: c.livingFortification }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { key: "living-fortification" });
             (c.timers ??= []).push({ effect, round: state.round, turnOf: c.id, at: "end" });
@@ -467,9 +484,12 @@ function startTurn(state, c) {
     c.lastStrike = null;
     c.noAttacksThisTurn = false;
     c.turnAttacks = [];
-    if (c.shield) c.shield.raised = false;
+    // (2026-11-03, Paragon's Guard, Buckler Dance: a stance that keeps its shield raised.)
+    if (c.shield) c.shield.raised = Boolean(!c.shield.broken && (c.effects ?? []).some((effect) => effect.model?.shieldUp));
     // A complex hazard: its routine's actions.
     let actions = isHazard(c) ? (c.hazard?.routineActions ?? 1) : 3 + (c.cond.quickened ? 1 : 0);
+    // (A summoner and its eidolon: three actions between them and Act Together's one more — two each, classes.js.)
+    if (c.actionsPerTurn) actions = Math.min(actions, c.actionsPerTurn + (c.cond.quickened ? 1 : 0));
     if (c.cond.stunned > 0) {
         const lost = Math.min(c.cond.stunned, actions);
         c.cond.stunned -= lost;
@@ -504,6 +524,8 @@ function startTurn(state, c) {
     const fastHealing = fastHealingNow(state, c);
     if (fastHealing > 0) applyHeal(state, c, fastHealing);
     if (regenerating(c, state) && c.regeneratedRound !== state.round) applyHeal(state, c, c.regeneration.value);
+    // (High-Speed Regeneration, a deviant ability: at the start of its turn — deviant.js.)
+    if (c.deviantClassification) deviantTurnStart(state, c);
     // (H1: a hydra's stumps regrow heads after it regenerates.)
     if (c.hydra?.stumps && regenerating(c, state)) hydraRegrow(state, c);
 }
@@ -730,6 +752,13 @@ function reloadWords(c, strike) {
 }
 
 function act(state, c, action) {
+    // (2026-11-01: a deviant ability's flat check and backlash, after it's used — deviant.js.)
+    const deviant = deviantEntryOf(c, action);
+    actOn(state, c, action);
+    if (deviant) deviantUsed(state, c, deviant, { affected: [].concat(action.targetIds ?? action.targetId ?? []).map((id) => state.byId.get(id)).filter(Boolean) });
+}
+
+function actOn(state, c, action) {
     // A rider (Grab, Knockdown) must follow the Strike straight away.
     const rider = c.riderReady;
     c.riderReady = null;
@@ -746,6 +775,8 @@ function act(state, c, action) {
                 state.log?.push(`  ${c.name} ${reloadWords(c, strike)}`);
                 c.unloaded?.delete(strike.name);
             }
+            // (A necromancer's thrall: Create Thrall's or Command a Thrall's — thralls.js.)
+            if (strike?.thrall) thrallStrikes(state, c);
             performStrike(state, c, target, strike);
             if (strike?.reload) (c.unloaded ??= new Set()).add(strike.name);
             break;
@@ -906,6 +937,8 @@ function act(state, c, action) {
             // Casting with the manipulate trait provokes (S12; Reactive Strike's critical hit disrupts it), and with the
             // concentrate trait, the reactions that say so (B51).
             const spell = c.spells[action.spellIndex];
+            // (A spell cast through one of its thralls: Create Thrall first when it has none; the thrall spent — thralls.js.)
+            thrallForSpell(state, c, spell, action);
             // (2026-10-22, under water: speaking — a linguistic action — loses all its air.)
             if (c.air !== undefined && (spell?.plan?.traits ?? []).includes("linguistic")) airLost(state, c, { all: true });
             // (S22: Trick Magic Item first. A failure costs its own action, not the cast's, and the item can't be tried again this turn;
@@ -1029,17 +1062,28 @@ function act(state, c, action) {
             if (activity.previousMap) c.attacksThisTurn = Math.max(0, attacksBefore - 1);
             // (C34, Shatter Defenses: whether it was off-guard to it before the hit.)
             const offGuardBefore = activity.shatter ? isOffGuard(target) : false;
-            const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...activity, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : activity));
+            // (2026-11-03, Furious Finish: "a circumstance bonus to damage equal to the number of rounds remaining in your Rage (maximum 10)" —
+            // a minute's Rage, the rounds since it began taken off.)
+            const rageLeft = activity.rageFinish ? Math.max(0, Math.min(10, 10 - (state.round - (c.buffRounds?.get("Rage") ?? state.round)))) : 0;
+            const charged = activity.rageFinish ? { ...activity, damageBonus: (activity.damageBonus ?? 0) + rageLeft } : activity;
+            const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...charged, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : charged));
+            // ("After this Strike, your Rage immediately ends, and you are Fatigued until you rest for at least 10 minutes.")
+            if (activity.rageFinish) {
+                c.activeBuffs = (c.activeBuffs ?? []).filter((buff) => !buff.noConcentrate);
+                c.effects = (c.effects ?? []).filter((effect) => !effect.model?.noConcentrate);
+                if (applyCondition(state, c, "fatigued", null, null, c)) state.log?.push(`  ${c.name}'s Rage ends; it is fatigued`);
+            }
             if (activity.noMap || activity.previousMap) c.attacksThisTurn = attacksBefore;
             if (fired?.reload) (c.unloaded ??= new Set()).add(fired.name);
-            // A finisher spends panache, and no more attacks this turn; Confident Finisher's miss still deals half its dice.
+            // A finisher spends panache, and no more attacks this turn; Confident Finisher's miss still deals half its dice (all of them with
+            // Precise Finisher).
             if (activity.finisher) {
                 c.panache = false;
                 c.noAttacksThisTurn = true;
                 if (activity.finisher === "confident" && result?.degree === 1 && !result.image && isActive(target)) {
                     let amount = 0;
                     for (let die = 0; die < (c.panacheStyle?.finisherDice ?? 2); die++) amount += state.rng.die(6);
-                    const dealt = applyDamage(state, target, [{ type: c.strikes[action.strikeIndex].damage[0].type, amount: Math.floor(amount / 2), persistent: false, precision: true, context: strikeContext(c, c.strikes[action.strikeIndex]) }], { source: c });
+                    const dealt = applyDamage(state, target, [{ type: c.strikes[action.strikeIndex].damage[0].type, amount: c.preciseFinisher ? amount : Math.floor(amount / 2), persistent: false, precision: true, context: strikeContext(c, c.strikes[action.strikeIndex]) }], { source: c });
                     state.log?.push(`  ${target.name} takes ${dealt} from the finisher's miss`);
                 }
             }
@@ -1071,12 +1115,27 @@ function act(state, c, action) {
                 const dealt = applyDamage(state, target, [{ type: fired.damage[0].type, amount, persistent: false, precision: false, context: strikeContext(c, fired) }], { source: c, physical: true });
                 state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
             }
+            // (2026-11-03, Certain Strike: a failure deals a hit's damage without any of its dice — its flat parts.)
+            if (activity.failureFlat && result?.degree === FAILURE && !result.image && isActive(target)) {
+                const flat = (fired?.damage ?? []).filter((part) => !part.persistent && !part.precision).reduce((sum, part) => sum + (part.bonus ?? 0), 0);
+                if (flat > 0) {
+                    const dealt = applyDamage(state, target, [{ type: fired.damage[0].type, amount: flat, persistent: false, precision: false, context: strikeContext(c, fired) }], { source: c, physical: true });
+                    state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
+                }
+            }
             // (C34, Shatter Defenses: a hit that deals damage leaves it off-guard while it's frightened; already off-guard to it, its frightened
             // can't drop below 1 until the attacker's next turn.)
             if (activity.shatter && result?.degree >= SUCCESS && (result.damage ?? 1) > 0 && isActive(target)) shatterDefenses(state, c, target, offGuardBefore, { applyCondition });
             if (activity.endsTurn) c.actionsLeft = 0;
             // (B156, Battering Blow: "then Shoves the same creature" — hit or miss.)
             if (result && activity.afterStrike && isActive(target) && canAct(c)) bothHitRider(state, c, target, { follow: activity.afterStrike }, { said: null });
+            // (2026-11-03, Taunting Strike: "Regardless of whether the Strike hits, you Taunt the target" — as a guardian's Taunt.)
+            if (result && activity.taunt && isActive(target)) {
+                for (const other of state.list) if (other.tauntedBy === c.id) other.tauntedBy = null;
+                target.tauntedBy = c.id;
+                (target.timers ??= []).push({ taunt: c.id, round: state.round + 1, turnOf: c.id, at: "start" });
+                state.log?.push(`  ${c.name} taunts ${target.name}`);
+            }
             // Set-Up Strike: its hit leaves the target off-guard to an ally's next attack.
             if (activity.setUp && result && result.degree >= SUCCESS && isActive(target)) setUp(state, c, target);
             // (B139: Off-Guard or a guard on itself until its next turn starts.)
@@ -1129,6 +1188,7 @@ function act(state, c, action) {
             if (ability.flourish) c.usedThisTurn?.add("flourish");
             // (B153, Heads Will Roll!: once a minute — once a fight.)
             if (ability.oncePerFight) (c.multiUsed ??= new Set()).add(ability.name);
+            if (ability.pool) c.spellPools[ability.pool] = Math.max(0, (c.spellPools[ability.pool] ?? 0) - 1);
             if (ability.recharge) (c.multiUntil ??= new Map()).set(ability.name, state.round + rollCount(state, ability.recharge));
             let target = state.byId.get(action.targetId);
             // (B108, Chase Prey: a Stride to the creature first; B109, Mauling Rush: to its Melee, then a Strike at each there.)
@@ -1231,6 +1291,8 @@ function act(state, c, action) {
             (c.activeBuffs ??= []).push(buff);
             c.buffsUsed = new Set([...(c.buffsUsed ?? []), buff.name]);
             if (buff.tempHp) c.hp.temp = Math.max(c.hp.temp ?? 0, buff.tempHp);
+            if (buff.name === "Rage") rageTriggers(state, c);
+            (c.buffRounds ??= new Map()).set(buff.name, state.round);
             break;
         }
         // A stance or another action that puts an effect on itself (Tiger Stance):
@@ -1238,12 +1300,14 @@ function act(state, c, action) {
         case "selfEffect": {
             const entry = c.selfEffects[action.index];
             state.log?.push(`  ${c.name} uses ${entry.name}`);
+            if (entry.pool) c.spellPools[entry.pool] = Math.max(0, (c.spellPools[entry.pool] ?? 0) - 1);
             if (entry.stance) {
                 for (const other of c.selfEffects.filter((self) => self.stance && self !== entry)) for (const effect of (c.effects ?? []).filter((active) => active.key === `self:${other.name}`)) removeEffect(c, effect);
             }
             const effect = applyEffect(state, c, entry.model, c, { applyCondition, key: `self:${entry.name}` });
             // (B308: shut in its shell for the rest of its turn; coming out costs an action at its next.)
             if (entry.shell) c.inShell = true;
+            if (entry.model?.shieldUp && c.shield && !c.shield.broken) c.shield.raised = true;
             if (entry.strikes?.length) c.strikes = [...(c.strikes ?? []).filter((strike) => strike.fromEffect !== effect.key), ...entry.strikes.map((strike) => ({ ...strike, fromEffect: effect.key }))];
             break;
         }
@@ -1353,7 +1417,7 @@ function actionCost(c, action) {
     if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon" || action.type === "grantAoo" || action.type === "allyAdvance" || action.type === "summon") return action.actions ?? 1;
     // (Quickened Casting, B72: one action fewer.)
     // (S22: Trick Magic Item first, an action more; a stowed item taken out, its retrieve actions.)
-    if (action.type === "cast") return castActions(c, action) + (action.trick ? 1 : 0) + (action.draw ? c.spells[action.spellIndex].draw?.actions ?? 1 : 0);
+    if (action.type === "cast") return castActions(c, action) + (action.trick ? 1 : 0) + (action.makeThrall ? 1 : 0) + (action.draw ? c.spells[action.spellIndex].draw?.actions ?? 1 : 0);
     return action.type === "task" ? 2 : 1;
 }
 
@@ -1702,6 +1766,8 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
             for (; turnIndex < state.order.length && !state.outcome; turnIndex++) {
                 const c = state.byId.get(state.order[turnIndex]);
                 takeTurn(state, c);
+                // (2026-11-03: the round its last turn ended — "until the end of your next turn" set off its turn.)
+                c.lastTurnRound = state.round;
                 // "Until the end of your next turn" runs out here (not for one that Delays: its turn hasn't ended).
                 if (!c.delaying) expireTimers(state, c, "end");
                 if (!state.outcome) checkEnd(state);
@@ -1757,9 +1823,12 @@ function summarize(state) {
             id: c.id,
             name: c.name,
             kind: c.kind,
+            ...(c.sharesHpWith ? { linked: true } : {}),
             down: c.everDown,
             dead: c.status === DEAD,
-            hp: Math.max(0, c.hp.value)
+            hp: Math.max(0, c.hp.value),
+            // (A deviation as the fight left it, for the day's next fight — deviant.js.)
+            ...(c.deviation ? { deviation: { dc: c.deviation.dc, stage: c.deviation.stage, spent: c.deviation.spent, lasting: [...(c.deviation.lasting ?? [])] } } : {})
         })),
         foes: state.list.filter((c) => c.side === "foes").map((c) => ({
             id: c.id,

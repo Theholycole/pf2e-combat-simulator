@@ -22,7 +22,7 @@ import { addFloor, floorOf } from "./floors.js";
 import { counterables, counterChance, counterRank, counterReaches, counterRoll } from "./counteract.js";
 import { applyNoteState, noteState, noteStateWorth, spellLocked } from "./note-states.js";
 import { allyStrike } from "./commander.js";
-import { canReact, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
+import { canReact, isBravado, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
 import { effectImmunity, immuneToCondition } from "./immunities.js";
 import { elementalAnswers, hydraScaled, troopIgnores, troopSegmentLost } from "./creature-rules.js";
@@ -122,13 +122,15 @@ function targetCount(target) {
     const text = String(target ?? "").toLowerCase();
     if (!text) return 0;
     // (Dispel Magic: "1 spell effect" — on a creature.)
-    if (!/creature|enem|foe|target|object|construct|undead|animal|humanoid|beast|fiend|spirit|dragon|spell effect/.test(text)) return 0;
+    // (2026-11-03, Hymn of Healing's "you or 1 ally", Allegro's "1 ally": an ally is a creature too — the count after it; "the triggering
+    // ally" stays a reaction's.)
+    if (!/creature|enem|foe|target|object|construct|undead|animal|humanoid|beast|fiend|spirit|dragon|spell effect|\bally\b|\ballies\b/.test(text)) return 0;
     const upTo = /up to (\d+|one|two|three|four|five|six|ten)/.exec(text);
     const words = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, ten: 10 };
     if (upTo) return Number(upTo[1]) || words[upTo[1]] || 1;
     const orMore = /(\d+) or (\d+)/.exec(text);
     if (orMore) return Number(orMore[2]);
-    const count = /^(\d+)\s/.exec(text);
+    const count = /^(\d+)\s/.exec(text) ?? /^you (?:or|and) (\d+) /.exec(text);
     return count ? Number(count[1]) : 1;
 }
 
@@ -2233,6 +2235,9 @@ function applyNativeEffect(state, caster, spell, target, change, actions = undef
     let model = pickChoice(state, forActions(offered, actions), target, change.effect?.degree);
     // (Magic Stone: disrupting's damage on its stones against undead — runes.js, as a lent rune's.)
     if (model?.stones?.runes?.length) model = { ...model, strikeDeltas: { ...(model.strikeDeltas ?? {}), [STONE_NAME]: model.stones.runes.flatMap((rune) => RUNE_LOANS[rune === "vitalizing" ? "disrupting" : rune]?.parts ?? []) } };
+    // (2026-11-03: an emanation's effect with no check and no target of its own — Courageous Anthem's "you and all allies" — helps only the
+    // caster's side. Before, the foes standing in it gained its bonus too; a harmful one (Dirge of Doom's frightened) still goes on them.)
+    if (model && target.side !== caster.side && !spell.plan?.resolution?.check && spell.plan?.targeting?.area && !spell.plan?.targeting?.target && effectBenefit(model, target, conditionWorth, 1, { state, senseLight: senseLightBenefit, flight: flightBenefit, strikeAdd: strikeAddBenefit }) > 0) return;
     if (model && isActive(target) && polymorphReplaces(state, caster, spell, target)) {
         const isSpell = isSpellCast(spell);
         const effect = applyEffect(state, target, model, caster, { applyCondition, key, counter: { dc: effectDC(spell), rank: counterRank(caster, spell, isSpell), spell: isSpell, traits: spell.plan?.traits ?? [] }, formDC: effectDC(spell) });
@@ -2480,6 +2485,23 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
     if (rider.weakness && isActive(target)) {
         applyEffect(state, target, { name: activity.name, rounds: 1, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [{ type: "physical", value: rider.weakness, exceptions: [] }], immunities: [], conditions: [], unsupported: [], situational: 0 }, attacker, { applyCondition, key: `weakness:${activity.name}` });
         log(state, `  ${target.name} is weak ${rider.weakness} to Strikes (${activity.name})`);
+    }
+    // (2026-11-03, the Strike riders: Kneecap's, Harrying Strike's, Staggering Fire's penalty to its Speed for a round — a critical hit's
+    // bigger one —; Gods' Palm's temporary Hit Points on itself; Taunting Strike's Taunt.)
+    const slowed = critical && rider.speedPenalty?.critical ? rider.speedPenalty.critical : rider.speedPenalty?.value;
+    if (slowed > 0 && isActive(target)) {
+        applyEffect(state, target, { name: activity.name, rounds: rider.speedPenalty.rounds ?? 1, modifiers: [{ on: "speed", type: rider.speedPenalty.type ?? "status", value: -slowed }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, attacker, { applyCondition, key: `slow:${activity.name}` });
+        log(state, `  ${target.name} is slowed by ${slowed} feet (${activity.name})`);
+    }
+    // (Felling Strike, Serpentcoil Slam: a flier brought down — landed —, and on a critical hit (or for a while) unable to take off — grounded.)
+    if (rider.grounds && isActive(target)) {
+        if (applyCondition(state, target, "landed", null, null, attacker)) log(state, `  ${target.name} is brought down (${activity.name})`);
+        const rounds = critical ? rider.grounds.critical : rider.grounds.rounds;
+        if (rounds > 0) applyCondition(state, target, "grounded", null, { mode: "fixed", value: rounds, unit: "rounds" }, attacker);
+    }
+    if (rider.selfTempHp > 0 && isActive(attacker)) {
+        applyEffect(state, attacker, { name: activity.name, rounds: 1, modifiers: [], tempHp: rider.selfTempHp, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, attacker, { applyCondition, key: `temp:${activity.name}` });
+        log(state, `  ${attacker.name} gains ${rider.selfTempHp} temporary HP`);
     }
     // (B153, Draining Touch: the Hit Points it regains on a hit.)
     // (B207, Devour Flesh: dice, "3d6", rolled.)
@@ -3050,6 +3072,22 @@ function applyChanges(state, caster, spell, changes, context, io) {
 }
 
 // Casts spell spellIndex at the targets (ids). Spends its pool.
+// (2026-11-02, classes.js: a sorcerer's Sorcerous Potency — its spell's rank more damage on each creature a slot spell damages — and the like:
+// caster.spellDamageBonus { perRank, slotsOnly }.)
+export function withCasterDamage(caster, spell, changes) {
+    const bonus = caster?.spellDamageBonus;
+    if (!bonus || spell.kind || !Array.isArray(changes)) return changes;
+    if (bonus.slotsOnly && (!spell.pool || (spell.plan?.traits ?? []).includes("cantrip") || /:focus$/.test(spell.pool))) return changes;
+    const extra = Math.max(0, Math.round((bonus.perRank ?? 1) * (Number(spell.castRank) || 1)));
+    if (!extra) return changes;
+    const seen = new Set();
+    return changes.map((change) => {
+        if (change.op !== "damage" || !change.instances?.length || seen.has(change.target)) return change;
+        seen.add(change.target);
+        return { ...change, instances: change.instances.map((instance, index) => (index === 0 ? { ...instance, amount: (Number(instance.amount) || 0) + extra } : instance)) };
+    });
+}
+
 export function castSpell(state, caster, spellIndex, targetIds, actions, options = {}) {
     const spell = caster.spells[spellIndex];
     // (Vibrant Thorns: a spell of the trait its thorns feed on — vitality — ups their damage until the caster's next turn starts.)
@@ -3445,7 +3483,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     if (info.immunity && info.immunityDegrees) markImmune(targets.filter((target) => !result.degrees[target.id] || info.immunityDegrees.includes(result.degrees[target.id])));
     // (2026-10-27: an immunity to one part of it — trigger.partImmunity, part-immunity.js: that condition left out of an immune target's row.)
-    result.changes = partImmune(state, caster, spell.plan, spell.name, result).kept;
+    result.changes = withCasterDamage(caster, spell, partImmune(state, caster, spell.plan, spell.name, result).kept);
     applyChanges(state, caster, spell, result.changes, context, io);
     // (S56, Acid Splash: a hit's splash damage on the others within 5 feet of the target — its Melee — not doubled on a critical hit.)
     if (spell.plan?.resolution?.splash) splashAround(state, caster, spell, targets, result);
@@ -3482,7 +3520,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         if (["success", "criticalSuccess"].includes(result.degrees[target.id]) && isActive(target)) castPlan(state, caster, { name: spell.name, plan: spell.thenSave, castRank: spell.castRank, pool: null, kind: "ability" }, [target.id]);
     }
     // A swashbuckler's bravado action: panache on a success, until the end of the turn on a failure.
-    if (caster.panacheStyle && (caster.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
+    if (isBravado(caster, spell)) {
         const degrees = targets.map((target) => result.degrees[target.id]).filter(Boolean);
         if (degrees.some((degree) => degree === "success" || degree === "criticalSuccess")) {
             if (caster.panache !== true) log(state, `  ${caster.name} gains panache`);
@@ -3631,6 +3669,16 @@ export function applyAuras(state) {
             const targets = state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone" && (radius >= 60 || other.band !== "far" || c.band === "far"));
             if (targets.length) castSpell(state, c, index, targets.map((target) => target.id));
         }
+    }
+}
+
+// (2026-11-03, Scouring Rage: an ability that goes off as its creature Rages — trigger event "rage" —, on each enemy within its area.)
+export function rageTriggers(state, c) {
+    for (const [index, spell] of (c.spells ?? []).entries()) {
+        if (spell.plan?.trigger?.event !== "rage") continue;
+        const radius = describeSpell(spell.plan).area?.value ?? 20;
+        const targets = state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone" && distanceBetween(c, other) <= radius);
+        if (targets.length) castSpell(state, c, index, targets.map((target) => target.id));
     }
 }
 
@@ -4043,6 +4091,10 @@ export function outsideTargets(caster, target, spell) {
             case "enemy-of-caster":
             case "non-ally-of-caster":
                 if (target.side === caster.side) return "not an enemy";
+                break;
+            // (2026-11-03, Song of Grace and Speed: "you and all allies" — the caster's side only.)
+            case "ally-of-caster":
+                if (target.side !== caster.side) return "not an ally";
                 break;
             case "not-caster":
                 if (target === caster) return "the caster";
@@ -4467,7 +4519,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
         for (const [degreeIndex, changes] of outcomes.entries()) {
             const chance = finds * reached * odds[degreeIndex];
             if (!chance) continue;
-            for (let change of changes) {
+            for (let change of withCasterDamage(caster, spell, changes)) {
                 // (A value the text rolls, at its average.)
                 if (change.op === "condition" && change.valueRoll && !Number.isFinite(change.value)) change = { ...change, value: averageRoll(change.valueRoll) };
                 if (change.target === caster.id && target !== caster) {

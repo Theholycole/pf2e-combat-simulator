@@ -29,7 +29,11 @@ export const hasSense = (c, ...types) => sensesOf(c).some((sense) => types.inclu
 function strongest(lights) {
     const magical = lights.filter((light) => light.magical);
     if (!magical.length) return lights[0];
-    return magical.sort((a, b) => b.rank - a.rank || (a.level === "dark" ? -1 : b.level === "dark" ? 1 : LEVELS.indexOf(b.level) - LEVELS.indexOf(a.level)))[0];
+    const top = magical.sort((a, b) => b.rank - a.rank || (a.level === "dark" ? -1 : b.level === "dark" ? 1 : LEVELS.indexOf(b.level) - LEVELS.indexOf(a.level)))[0];
+    if (top.level === "dark") return top;
+    // (A light only adds to the light there, 2026-11-02: a torch's dim edge doesn't dim a lit field. The brightest holds, magical on a tie.)
+    const lit = lights.filter((light) => light.level !== "dark");
+    return lit.sort((a, b) => LEVELS.indexOf(b.level) - LEVELS.indexOf(a.level) || Number(b.magical) - Number(a.magical))[0];
 }
 
 // The light a creature stands in: { level: "bright" | "dim" | "dark", magical, rank, deep? }. extra: lights to count as well (a spell

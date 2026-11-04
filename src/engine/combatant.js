@@ -224,6 +224,8 @@ export function multipleAttackPenalty(strike, attacksMade) {
 // options: the attack's roll options, for an effect's conditional AC (Tempest Cloak's against ranged physical attacks).
 export function armorClass(defender, { ranged = false, coverBonus = 0, flanked = false, shieldRaised, options = null } = {}) {
     let ac = defender.ac - statusPenalty(defender, "ac") + effectBonus(defender, "ac", options);
+    // (Rage's −1 to AC while it lasts — classes.js.)
+    for (const buff of defender.activeBuffs ?? []) ac -= buff.acPenalty ?? 0;
     const raised = shieldRaised ?? defender.shield?.raised;
     const shieldBonus = raised && defender.shield && !defender.shield.broken ? defender.shield.ac : 0;
     // (2026-10-25: the whole field's cover — heavy undergrowth — against ranged attacks; weather.js.)

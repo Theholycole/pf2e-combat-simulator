@@ -10,6 +10,8 @@ import { maneuverWays, withReading } from "../src/engine/readings.js";
 import { effectModel, iwrException, looseRetaliation, resolveAuraGrants, withSpellText } from "../src/engine/effects.js";
 import { addBuiltin, PLAYED_REQUIRES, predicateOptions, shareRecharges } from "../src/engine/abilities.js";
 import { requirementPlayable } from "../src/engine/needs.js";
+import { featEntries, featInfo, withResolvedEffects } from "../src/engine/feat-abilities.js";
+import { DEVIANT, deviantFields, deviantSlug } from "../src/engine/deviant.js";
 import { markParts, toggleWays } from "../src/engine/toggles.js";
 import { zoneSpell } from "../src/engine/zones.js";
 import { strikeIwr, versatileTypes } from "../src/engine/damage.js";
@@ -693,6 +695,75 @@ function readGaps(actor, gaps, handled = new Set()) {
 }
 
 export const CORE_ID = "pf2e-resolution-core";
+export const FEAT_MODULE_ID = "pf2e-automatic-feat-resolution";
+
+// A PC's feats and actions through the feat module (api.compileFeat: the plan with the character's own DCs), into result (readAbilities'):
+// the abilities it uses, the builtins it has, their pools; each item played is handled. The Effects a plan links are read first (by name,
+// the feat module's way, too), so featEntries can take their models as it goes.
+async function readFeatModule(actor, result, skip) {
+    const module = game.modules.get(FEAT_MODULE_ID);
+    const compile = module?.active ? module.api?.compileFeat : null;
+    if (!compile) return;
+    const level = actor.level ?? 1;
+    const byName = (uuid) => {
+        const parts = /^Compendium\.([\w-]+)\.([\w-]+)\.Item\.(.+)$/.exec(String(uuid ?? ""));
+        if (!parts || /^[A-Za-z0-9]{16}$/.test(parts[3])) return null;
+        const entry = game.packs.get(`${parts[1]}.${parts[2]}`)?.index?.getName?.(parts[3]) ?? game.packs.get(`${parts[1]}.${parts[2]}`)?.index?.getName?.(`Effect: ${parts[3]}`);
+        return entry ? `Compendium.${parts[1]}.${parts[2]}.Item.${entry._id}` : null;
+    };
+    for (const item of [...(actor.itemTypes?.action ?? []), ...(actor.itemTypes?.feat ?? [])]) {
+        if (skip?.has(item) || BASIC_ACTION_SKILLS[item.slug] || item.slug === "escape") continue;
+        let plan = null;
+        try {
+            plan = compile(item);
+        } catch {
+            plan = null;
+        }
+        if (!plan) continue;
+        plan = withResolvedEffects(plan, byName);
+        const models = await effectModels(plan, level);
+        const passiveEffect = plan.builtin === "passive-effect" ? await effectItem(byName(plan.effect) ?? plan.effect) : null;
+        const helpers = {
+            effectModels: () => models,
+            rulesModel: (effect) => effectModel({ name: effect.name, type: "effect", system: { rules: effect.rules ?? [], duration: effect.duration ?? { value: -1, unit: "unlimited" } } }, { rank: level, conditionSlug }),
+            passiveModel: () => (passiveEffect ? effectModel(passiveEffect, { rank: level, conditionSlug }) : null)
+        };
+        const entries = featEntries(plan, featInfo(item, level), result.builtins, helpers);
+        if (entries.gap) continue;
+        result.handled.add(item);
+        Object.assign(result.pools, entries.pools);
+        for (const entry of entries.spells) result.abilities.push({ ...entry, plan: leanPlan(entry.plan), sourceItem: item });
+    }
+}
+// (2026-11-01) A PC's deviant feats (src/engine/deviant.js): each as a fight plays it, with the awakenings its Awakened Power feats chose
+// (PF2e's roll options awakening:<feat>:<awakening>) and its deviation DC (PF2e's deviant statistic, else the higher of its class and spell
+// DCs); each one played is handled, so the feat module doesn't read it again.
+function readDeviant(actor, result, skip) {
+    const feats = (actor.itemTypes?.feat ?? []).filter((item) => !skip?.has(item) && (item.system?.traits?.value ?? []).includes("deviant") && DEVIANT[deviantSlug(item.name)]);
+    if (!feats.length) return;
+    const options = (() => {
+        try {
+            return actor.getRollOptions?.() ?? [];
+        } catch {
+            return [];
+        }
+    })();
+    const spellDCs = (actor.spellcasting?.regular ?? actor.spellcasting?.contents ?? []).map((entry) => entry?.statistic?.dc?.value).filter(Number.isFinite);
+    const dc = actor.getStatistic?.("deviant")?.dc?.value ?? Math.max(actor.classDC?.dc?.value ?? actor.system?.attributes?.classDC?.value ?? 0, ...spellDCs, 10 + (actor.level ?? 1));
+    for (const item of feats) {
+        const slug = deviantSlug(item.name);
+        const awakenings = options.filter((option) => option.startsWith(`awakening:${slug}:`)).map((option) => option.split(":")[2]);
+        const made = deviantFields(slug, actor.level ?? 1, dc, awakenings);
+        if (made.gap) continue;
+        result.handled.add(item);
+        for (const [field, value] of Object.entries(made.fields)) {
+            if (field === "spells") for (const entry of value) result.abilities.push({ ...entry, sourceItem: item });
+            else if (Array.isArray(value)) result.builtins[field] = [...(result.builtins[field] ?? []), ...value];
+            else result.builtins[field] = value;
+        }
+    }
+}
+
 export const ABILITY_MODULE_ID = "pf2e-automatic-ability-resolution";
 const BASIC_ACTION_SKILLS = { demoralize: "intimidation", trip: "athletics", grapple: "athletics", shove: "athletics", disarm: "athletics", reposition: "athletics", feint: "deception", "create-a-diversion": "deception", "administer-first-aid": "medicine" };
 // A melee Strike that is a weapon in hand (B313): PF2e links it to a weapon item, the creature carries a weapon of its name, or its name is
@@ -710,18 +781,22 @@ function heldWeapon(actor, item, name) {
 // compiler with the core), the basic actions it uses, and the rules the engine
 // plays itself (Ferocity, Rend, Sneak Attack, Regeneration …). Returns
 // { abilities, handled, builtins }, builtins being combatant fields (abilities.js addBuiltin).
-async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
+async function readAbilities(actor, { fresh = false, gaps = [], skip = new Set() } = {}) {
     const result = { abilities: [], handled: new Set(), builtins: { reactions: {}, rend: null }, castSpells: new Set() };
     const core = game.modules.get(CORE_ID)?.active ? game.modules.get(CORE_ID).api : null;
     const abilityModule = game.modules.get(ABILITY_MODULE_ID);
     if (!core || !abilityModule?.active) return result;
     const pc = actorKind(actor) === "pc";
+    result.pools = {};
+    // (2026-11-01: a PC's feats and actions as the feat module compiles them, with the character's own DCs — src/engine/feat-abilities.js.
+    // What it plays is handled; the rest go on to the readings below.)
+    if (pc) readDeviant(actor, result, skip);
+    if (pc) await readFeatModule(actor, result, skip);
     // A monster's abilities; a PC's feat actions that are a check or a save against a creature (Bon Mot, Dirty Trick; C15).
     const items = pc
-        ? [...(actor.itemTypes?.action ?? []), ...(actor.itemTypes?.feat ?? [])].filter((item) => item.system?.actionType?.value === "action" && !BASIC_ACTION_SKILLS[item.slug] && item.slug !== "escape")
+        ? [...(actor.itemTypes?.action ?? []), ...(actor.itemTypes?.feat ?? [])].filter((item) => item.system?.actionType?.value === "action" && !BASIC_ACTION_SKILLS[item.slug] && item.slug !== "escape" && !result.handled.has(item))
         : [...(actor.itemTypes?.action ?? [])];
     const prepared = items.length ? await core.registry.preparePlans(items) : [];
-    result.pools = {};
     for (const { item, result: compiled } of prepared) {
         const plan = compiled?.plan;
         if (!plan) continue;
@@ -858,7 +933,7 @@ async function readAbilities(actor, { fresh = false, gaps = [] } = {}) {
     // by the ability module's own compiler: the core's registry hands it only a PC's check actions.)
     const compileAbility = abilityModule.api?.compileAbility;
     if (pc && compileAbility) {
-        for (const item of (actor.itemTypes?.feat ?? []).filter((entry) => entry.system?.actionType?.value === "passive")) {
+        for (const item of (actor.itemTypes?.feat ?? []).filter((entry) => entry.system?.actionType?.value === "passive" && !result.handled.has(entry))) {
             let plan = null;
             try {
                 plan = compileAbility(item);
@@ -1614,6 +1689,19 @@ function readIwr(list) {
     }));
 }
 
+// Two sets of combatant fields as one: lists joined, objects merged, the rest the second's.
+function joinedFields(first, second) {
+    const out = { ...first };
+    for (const [field, value] of Object.entries(second ?? {})) {
+        const had = out[field];
+        if (Array.isArray(value) && Array.isArray(had)) out[field] = [...had, ...value];
+        else if (value && typeof value === "object" && !Array.isArray(value) && had && typeof had === "object" && !Array.isArray(had)) out[field] = { ...had, ...value };
+        else out[field] = value;
+    }
+    out.multiStrikes = [...(first?.multiStrikes ?? []), ...(second?.multiStrikes ?? [])];
+    return out;
+}
+
 export function actorKind(actor) {
     if (actor.type === "character") return "pc";
     if (actor.type === "hazard") return "hazard";
@@ -1640,8 +1728,9 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
             if (altStrike) strikes.push({ ...altStrike, name: `${altStrike.name} (${alt.item?.isThrown ? "thrown" : "alt"})` });
         }
     }
-    const abilities = await readAbilities(actor, { fresh, gaps });
+    // (The class features first: a feat one plays, Rage or Battle Medicine, isn't also the feat module's.)
     const features = readClassFeatures(actor, strikes);
+    const abilities = await readAbilities(actor, { fresh, gaps, skip: features.handled });
     for (const item of features.handled) abilities.handled.add(item);
     // A PC feat a class feature already plays (Battle Medicine) isn't also an ability; the item itself stays out of the snapshot.
     abilities.abilities = abilities.abilities.filter((ability) => !(ability.sourceItem && features.handled.has(ability.sourceItem)));
@@ -1729,16 +1818,16 @@ export async function readActor(actor, { id, name, fresh = false } = {}) {
         // (Its Focus Points' most, for a familiar's Familiar Focus.)
         ...(Number(actor.system?.resources?.focus?.max) > 0 ? { focusMax: Number(actor.system.resources.focus.max) } : {}),
         shield: fresh && shield ? { ...shield, broken: false, raised: false } : shield,
-        ...abilities.builtins,
-        ...features.fields,
-        multiStrikes: [...(abilities.builtins.multiStrikes ?? []), ...(features.fields.multiStrikes ?? [])],
+        // (2026-11-01: a PC's builtins now come from the feat module too — its Strike activities, stances, save bonuses — beside its class
+        // features': lists joined, not one over the other.)
+        ...joinedFields(abilities.builtins, features.fields),
         // (U7: items used by Striking, after the creature's own activities.)
         ...(consumables.fortunes.length ? { fortuneItems: consumables.fortunes } : {}),
         ...(consumables.reduceTriggers.length ? { reduceTriggers: consumables.reduceTriggers } : {}),
         ...(consumables.triggered.length ? { triggeredItems: consumables.triggered } : {}),
         ...(consumables.activities.length ? { strikeActivities: [...(abilities.builtins.strikeActivities ?? []), ...(features.fields.strikeActivities ?? []), ...consumables.activities] } : {}),
-        // (Its PF2e self-effects, and a class feature's — Immortal Bastion's deflect, C33.)
-        ...(selfEffects.length || features.fields.selfEffects?.length ? { selfEffects: [...(features.fields.selfEffects ?? []), ...selfEffects] } : {}),
+        // (Its PF2e self-effects, and a class feature's — Immortal Bastion's deflect, C33 —, and the feat module's.)
+        ...(selfEffects.length || features.fields.selfEffects?.length || abilities.builtins.selfEffects?.length ? { selfEffects: [...(features.fields.selfEffects ?? []), ...(abilities.builtins.selfEffects ?? []), ...selfEffects] } : {}),
         ...(exemplar ? { exemplar } : {}),
         reactions: { aoo: hasItemSlug(actor, AOO_SLUGS), shieldBlock: hasItemSlug(actor, new Set(["shield-block"])), ...abilities.builtins.reactions },
         size: actor.size ?? actor.system?.traits?.size?.value ?? "med",

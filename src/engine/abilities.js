@@ -150,7 +150,7 @@ export function addBuiltin(spec, plan, name) {
             else spec.fastHealing = Math.max(spec.fastHealing ?? 0, plan.value);
             return true;
         case "multi-strike":
-            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.bothHit ? { bothHit: { conditions: [...(plan.bothHit.conditions ?? [])], damage: [...(plan.bothHit.damage ?? [])], ...(plan.bothHit.follow ? { follow: plan.bothHit.follow } : {}), ...(plan.bothHit.strikeDamage ? { strikeDamage: plan.bothHit.strikeDamage } : {}), ...(plan.bothHit.affliction ? { affliction: plan.bothHit.affliction } : {}), ...(plan.bothHit.atLeast ? { atLeast: plan.bothHit.atLeast } : {}), ...(plan.bothHit.perHit ? { perHit: true } : {}) } } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}), ...(plan.ifFirstHits ? { ifFirstHits: true } : {}), ...(plan.penalties?.length ? { penalties: [...plan.penalties] } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(plan.notGrabbed ? { notGrabbed: true } : {}), ...(plan.noGrab ? { noGrab: true } : {}), ...(plan.flourish ? { flourish: true } : {}), ...(plan.critical ? { critical: { conditions: [...(plan.critical.conditions ?? [])], damage: [...(plan.critical.damage ?? [])] } } : {}), ...(plan.extraDamage?.length ? { extraDamage: [...plan.extraDamage] } : {}), ...(plan.missDamage?.length ? { missDamage: [...plan.missDamage] } : {}), ...(plan.then ? { then: plan.then } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}), ...(plan.noMomentum ? { noMomentum: true } : {}), ...(plan.chain ? { chain: true } : {}), ...(plan.recharge ? { recharge: plan.recharge } : {}) }];
+            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.needs?.length ? { needs: plan.needs } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.bothHit ? { bothHit: { conditions: [...(plan.bothHit.conditions ?? [])], damage: [...(plan.bothHit.damage ?? [])], ...(plan.bothHit.follow ? { follow: plan.bothHit.follow } : {}), ...(plan.bothHit.strikeDamage ? { strikeDamage: plan.bothHit.strikeDamage } : {}), ...(plan.bothHit.affliction ? { affliction: plan.bothHit.affliction } : {}), ...(plan.bothHit.atLeast ? { atLeast: plan.bothHit.atLeast } : {}), ...(plan.bothHit.perHit ? { perHit: true } : {}) } } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}), ...(plan.ifFirstHits ? { ifFirstHits: true } : {}), ...(plan.penalties?.length ? { penalties: [...plan.penalties] } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(plan.notGrabbed ? { notGrabbed: true } : {}), ...(plan.noGrab ? { noGrab: true } : {}), ...(plan.flourish ? { flourish: true } : {}), ...(plan.critical ? { critical: { conditions: [...(plan.critical.conditions ?? [])], damage: [...(plan.critical.damage ?? [])] } } : {}), ...(plan.extraDamage?.length ? { extraDamage: [...plan.extraDamage] } : {}), ...(plan.missDamage?.length ? { missDamage: [...plan.missDamage] } : {}), ...(plan.then ? { then: plan.then } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}), ...(plan.noMomentum ? { noMomentum: true } : {}), ...(plan.chain ? { chain: true } : {}), ...(plan.recharge ? { recharge: plan.recharge } : {}) }];
             return true;
         // (B255, Chaotic Gizmos: a die rolled twice, each face a Strike it names or nothing — the Strikes the faces give, in its best order.)
         case "random-strikes": {
@@ -196,9 +196,17 @@ export function addBuiltin(spec, plan, name) {
             const rounds = plan.stance ? Infinity : plan.model?.rounds ?? 10;
             // (B248: regeneration on itself, played as fast healing.)
             // (B286, Conductive Shell: damage on each creature that hits it in melee while it lasts — hitBack.)
-            const model = { name, rounds, ...(plan.model?.hitBack ? { hitBack: plan.model.hitBack } : {}), modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: Number(plan.model?.fastHealing) || 0, resistances: (plan.model?.resistances ?? []).map((entry) => ({ type: entry.type, value: Number(entry.value) || 0, exceptions: [...(entry.exceptions ?? [])] })), weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...(plan.model?.endsWithTempHp ? { endsWithTempHp: true } : {}), ...(plan.nextStrike ? { nextStrike: true } : {}), ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}) };
+            const model = { name, rounds, ...(plan.model?.hitBack ? { hitBack: plan.model.hitBack, ...(plan.model.hitBackAny ? { hitBackAny: true } : {}) } : {}), modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: Number(plan.model?.fastHealing) || 0, resistances: (plan.model?.resistances ?? []).map((entry) => ({ type: entry.type, value: Number(entry.value) || 0, exceptions: [...(entry.exceptions ?? [])] })), weaknesses: [], immunities: [], conditions: (plan.model?.conditions ?? []).map((entry) => ({ ...entry })), unsupported: [], situational: 0, ...(plan.model?.endsWithTempHp ? { endsWithTempHp: true } : {}), ...(plan.nextStrike ? { nextStrike: true } : {}), ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}),
+                // (2026-11-03, a monk's stance: the unarmed Strike its PF2e Effect grants, a rune upgrade an Effect gives.)
+                ...(plan.model?.strikesOnly ? { strikesOnly: true } : {}),
+                ...(plan.model?.answerHitters ? { answerHitters: { ...plan.model.answerHitters } } : {}),
+                ...(plan.model?.weaknesses?.length ? { weaknesses: plan.model.weaknesses.map((entry) => ({ ...entry })) } : {}),
+                ...(plan.model?.grantedStrikes?.length ? { grantedStrikes: plan.model.grantedStrikes.map((entry) => ({ ...entry, traits: [...(entry.traits ?? [])], extra: [...(entry.extra ?? [])] })) } : {}),
+                ...(plan.model?.runeUpgrade ? { runeUpgrade: { ...plan.model.runeUpgrade } } : {}),
+                // (2026-11-03, Paragon's Guard: its shield kept raised — fight.js.)
+                ...(plan.model?.shieldUp ? { shieldUp: true } : {}) };
             // (B137, Cower, Entrench: a stance that ends when it moves.)
-            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model: plan.shell ? { ...model, rounds: 1 } : model, ...(plan.shell ? { shell: true } : plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}), ...(Number(plan.heal) > 0 ? { heal: Number(plan.heal) } : {}) }];
+            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model: plan.shell ? { ...model, rounds: 1 } : model, ...(plan.shell ? { shell: true } : plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.belowHalf ? { belowHalf: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}), ...(Number(plan.heal) > 0 ? { heal: Number(plan.heal) } : {}) }];
             return true;
         }
         // Golem Antimagic (B56): what others' magic does to it.
@@ -243,12 +251,15 @@ export function addBuiltin(spec, plan, name) {
             }
             // (B213, Shadow Siphon: half the damage of a spell, in place of a resistance.)
             if (plan.value === "half") {
-                spec.resistReaction = { name, value: "half", on: plan.on ?? null, types: null, ...(plan.magical ? { magical: true } : {}), ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}) };
+                spec.resistReaction = { name, value: "half", on: plan.on ?? null, types: null, ...(plan.magical ? { magical: true } : {}), ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}),
+                    // (2026-11-03, Defensive Roll: only damage that would drop it to 0 Hit Points; a free action, not its reaction.)
+                    ...(plan.lethal ? { lethal: true } : {}), ...(plan.free ? { free: true } : {}) };
                 spec.resistUses = Number(plan.uses) || Infinity;
                 return true;
             }
-            if (!(Number(plan.value) > 0)) return false;
-            spec.resistReaction = { name, value: Number(plan.value), on: plan.on ?? null, types: plan.types ?? null, ...(plan.magical ? { magical: true } : {}), ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}), ...(plan.lasts ? { lasts: plan.lasts } : {}), ...(plan.acPenalty ? { acPenalty: plan.acPenalty } : {}), ...(plan.quickened ? { quickened: plan.quickened } : {}), ...(plan.lashBack ? { lashBack: { bonus: Number(plan.lashBack.bonus) || 0 } } : {}),
+            // (2026-11-03, Fiery Retort: damage back with no resistance of its own.)
+            if (!(Number(plan.value) > 0) && !plan.retort) return false;
+            spec.resistReaction = { name, value: Number(plan.value) || 0, on: plan.on ?? null, types: plan.types ?? null, ...(plan.magical ? { magical: true } : {}), ...(plan.attack ? { attack: true } : {}), ...(plan.foe ? { foe: true } : {}), ...(plan.lasts ? { lasts: plan.lasts } : {}), ...(plan.acPenalty ? { acPenalty: plan.acPenalty } : {}), ...(plan.quickened ? { quickened: plan.quickened } : {}), ...(plan.lashBack ? { lashBack: { bonus: Number(plan.lashBack.bonus) || 0 } } : {}),
                 // (B237, Sharp Riposte: damage back at the attacker; only a melee attack from beside it.)
                 ...(plan.retort ? { retort: plan.retort } : {}), ...(plan.melee ? { melee: true } : {}) };
             spec.resistUses = Number(plan.uses) || Infinity;
@@ -285,6 +296,8 @@ export function addBuiltin(spec, plan, name) {
                 // (B227: the save that keeps the disrupted action.)
                 ...(plan.disruptSave?.statistic && Number.isFinite(Number(plan.disruptSave.dc)) ? { disruptSave: { statistic: plan.disruptSave.statistic, dc: Number(plan.disruptSave.dc) } } : {}),
                 // (B122: Knowing Glance's melee Strikes only; Bodyguard's Reprisal's charge, played as any ally.)
+                // (2026-11-03, Opportune Opening: an ally's critical hit only.)
+                ...(plan.critOnly ? { critOnly: true } : {}),
                 ...(plan.melee ? { melee: true } : {}), ...(plan.ward ? { ward: true } : {}), ...(plan.persistentType ? { persistentType: plan.persistentType } : {}),
                 // (B227: only a ranged attack at it.)
                 ...(plan.rangedAttack ? { rangedAttack: true } : {}),
@@ -491,12 +504,33 @@ export function addBuiltin(spec, plan, name) {
                 damage: plan.damage ?? null,
                 offGuard: !!plan.offGuard,
                 requires: plan.requires ?? null,
+                // (2026-11-03: a PC's requirement as needs — feat-abilities.js pcNeeds.)
+                ...(plan.needs?.length ? { needs: plan.needs } : {}),
                 ...(plan.nonCantrip ? { nonCantrip: true } : {}),
                 oncePerFight: !!plan.oncePerFight,
                 ...(plan.countsAs > 1 ? { countsAs: plan.countsAs } : {}),
                 ...(plan.noMap ? { noMap: true } : {}),
                 ...(plan.oncePerTurn ? { oncePerTurn: true } : {}),
                 ...(plan.extraWeaponDice ? { extraWeaponDice: plan.extraWeaponDice } : {}),
+                // (2026-11-03, the feat module's Strike riders: Strangle's, Hell-Lancer Shot's damage of its weapon dice — chargeStrike.)
+                ...(plan.damagePerWeaponDie ? { damagePerWeaponDie: plan.damagePerWeaponDie } : {}),
+                // (2026-11-03: a swashbuckler's finisher feat — Bleeding Finisher, Unbalancing Finisher —: it needs panache, spends it, adds
+                // its precise strike finisher dice and ends its attacks for the turn, as Confident Finisher does. Before, the feats' finisher
+                // trait wasn't read and they played as plain Strikes, any time.)
+                ...(plan.finisher || (plan.traits ?? []).includes("finisher") ? { finisher: plan.finisher ?? "finisher" } : {}),
+                // (Brutal Finish: its turn ends after the Strike; a failure's weapon dice — fight.js.)
+                ...(plan.endsTurn ? { endsTurn: true } : {}),
+                ...(plan.failureDice ? { failureDice: plan.failureDice } : {}),
+                // (2026-11-03, the Strike riders: Certain Strike's failure, a hit's damage without its dice; Perfect Finisher's attack rolled
+                // twice; Overwhelming Blow's hit that is a critical hit.)
+                ...(plan.failureFlat ? { failureFlat: true } : {}),
+                ...(plan.fortune ? { fortune: true } : {}),
+                ...(plan.hitCrits ? { hitCrits: true } : {}),
+                ...(plan.ignoreResistances ? { ignoreResistances: true } : {}),
+                // (Lead by Example: its hit sets up an ally's next attack, as Set-Up Strike's does — commander.js setUp.)
+                ...(plan.setUp ? { setUp: true } : {}),
+                ...(plan.taunt ? { taunt: true } : {}),
+                ...(plan.rageFinish ? { rageFinish: true } : {}),
                 // A follow-up's Strike (B68): only straight after a Strike that fits; previousMap, at that Strike's penalty.
                 ...(plan.after ? { after: { ...plan.after } } : {}),
                 ...(plan.previousMap ? { previousMap: true } : {}),
@@ -520,7 +554,14 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.initiative ? { initiative: true } : {}),
                 // (2026-10-15: its traits — a concentrate one, Hunter's Aim, provokes what concentrate does.)
                 ...(plan.traits?.length ? { traits: [...plan.traits] } : {}),
-                onHit: plan.onHit,
+                // (2026-11-01, the feat module's Strike feats: their press and flourish traits — Exacting Strike only after an attack this
+                // turn; found in the Foundry test, it opened turns.)
+                ...(plan.press || (plan.traits ?? []).includes("press") ? { press: true } : {}),
+                // (Exacting Strike's: a failure doesn't count toward the multiple attack penalty.)
+                ...(plan.exacting ? { exacting: true } : {}),
+                ...(plan.flourish || (plan.traits ?? []).includes("flourish") ? { flourish: true } : {}),
+                // (2026-11-03: rulesDamage — damage PF2e's own rules add to the Strike, or the GM does —: the card leaves it, a fight counts it.)
+                onHit: plan.onHit?.rulesDamage?.length ? { ...plan.onHit, damage: [...(plan.onHit.damage ?? []), ...plan.onHit.rulesDamage] } : plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];
             return true;
@@ -687,10 +728,12 @@ export function withExtraDamage(strike, formulas) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard === true ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length) return strike;
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.damagePerWeaponDie && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length && !charge.fortune && !charge.hitCrits && !charge.ignoreResistances) return strike;
     // (2026-10-16: Sniper's Bead's, no range penalty out to that many increments — space.js rangePenalty.)
-    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}) };
+    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}), ...(charge.fortune ? { fortune: true } : {}), ...(charge.hitCrits ? { hitCrits: true } : {}), ...(charge.ignoreResistances ? { ignoreResistances: true } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
+    // (A bonus of its weapon dice, or twice that: the dice the Strike has — its striking runes'.)
+    if (charge.damagePerWeaponDie) changed.damage = (changed.damage ?? strike.damage).map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damagePerWeaponDie * (Number(strike.damage[0]?.dice) || 1) } : part));
     // Vicious Swing: extra dice of the weapon's own damage (PF2e's critical formula would leave them out).
     // (C34: PF2e's critical formula kept — deadly, critical specialization, flaming's persistent fire — with the dice in its doubled part.)
     if (charge.extraWeaponDice) {
@@ -800,7 +843,7 @@ export function isUndead(c) {
 
 // Whether an extra-damage ability applies to this hit. offGuard: the target is
 // off-guard to the attack; packAllies: the attacker's allies within reach of the target.
-export function extraApplies(extra, target, { offGuard, packAllies, attacker = null }) {
+export function extraApplies(extra, target, { offGuard, packAllies, attacker = null, critical = false }) {
     // (T1: any condition on its target — Gang Up's Grabbed, Punch Down's Prone; Mauler's, a creature it has Grabbed itself.)
     if (String(extra.when).startsWith("condition:")) return conditionHeld(target, extra.when.slice("condition:".length));
     if (extra.when === "grabbing") return Boolean(attacker) && target.grabbedBy === attacker.id && Boolean(target.cond?.grabbed || target.cond?.restrained);
@@ -815,9 +858,27 @@ export function extraApplies(extra, target, { offGuard, packAllies, attacker = n
             return isUndead(target);
         case "frightened":
             return (target.cond?.frightened ?? 0) > 0;
+        // (2026-11-03: Sly Striker's "against a creature that isn't off-guard"; Brutal Critical's, on a critical hit — actions.js.)
+        case "not-off-guard":
+            return !offGuard;
+        case "critical":
+            return Boolean(critical);
+        // (2026-11-03: any hit — an alchemist's additive, Disorienting Opening's.)
+        case "hit":
+            return true;
         default:
             return false;
     }
+}
+
+// (A swashbuckler's bravado action: its panache style's actions or one with the bravado trait. 2026-11-03: the basic actions' compiled plans
+// carry no slug — Feint's source is { name: "Feint", slug: null } —, so the name's slug counts too; before, the swashbuckler never gained
+// panache from Feint.)
+export function isBravado(c, spell) {
+    if (!c.panacheStyle) return false;
+    const source = spell?.plan?.source ?? {};
+    const slug = source.slug ?? String(source.name ?? spell?.name ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return c.panacheStyle.bravado.includes(slug) || (spell?.plan?.traits ?? []).includes("bravado");
 }
 
 // Regeneration works unless damage of a listed type turned it off.

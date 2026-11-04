@@ -3430,6 +3430,36 @@ test("A Strike activity that leaves it Off-Guard or guarded until its next turn 
     }
 });
 
+test("Strike riders: a hit that is a critical hit, the attack rolled twice, a failure's flat damage (2026-11-03)", () => {
+    const [fighter] = martialParty(5);
+    const activity = (extra) => ({ builtin: "strike-activity", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, ...extra });
+    const run = (extra, rolls) => {
+        const brute = withBuiltins({ ...moderateCreature(5, "brute", "Brute"), engagement: 1 }, ["Test Swing", activity(extra)]);
+        const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, brute] }, {}, 1);
+        state.log = [];
+        const b = state.byId.get("brute");
+        const f = state.byId.get(fighter.id);
+        b.actionsLeft = 3;
+        const queue = [...rolls];
+        state.rng.d20 = () => queue.shift() ?? 10;
+        const ac = armorClass(f);
+        const before = f.hp.value;
+        const result = performAction(state, b, { type: "strikeActivity", index: 0, targetId: fighter.id, strikeIndex: 0, actions: 1 });
+        return { state, b, f, ac, lost: before - f.hp.value, result };
+    };
+    // (A natural that just hits: with hitCrits, the log names a critical hit.)
+    const probe = run({}, [10]);
+    const needed = probe.ac - probe.b.strikes[0].bonus;
+    const crit = run({ hitCrits: true }, [Math.min(19, Math.max(2, needed))]);
+    assert.match(crit.state.log.join("\n"), /critical/i, crit.state.log.join("\n"));
+    // (Fortune: a 1 and a 20, the 20 kept.)
+    const lucky = run({ fortune: true }, [1, 20]);
+    assert.ok(lucky.lost > 0, lucky.state.log.join("\n"));
+    // (A failure with failureFlat: damage, though the Strike missed.)
+    const glancing = run({ failureFlat: true }, [Math.max(2, needed - 3)]);
+    if (glancing.b.strikes[0].damage[0].bonus > 0) assert.ok(glancing.lost > 0, glancing.state.log.join("\n"));
+});
+
 test("Hit Points back on itself as it downs a creature (Absorb Sin, 2026-10-12, B140)", () => {
     const [fighter] = martialParty(5);
     const heal = { modelVersion: 13, source: { name: "Test Absorb" }, rank: 1, traits: [], activation: { time: "free", traits: [] }, targeting: { target: "self", range: null, area: null }, trigger: { event: "downs", reaction: true, free: true }, resolution: { kind: "healing", native: { healing: { components: [{ id: "0", formula: "6d6", kinds: ["healing"] }], recipients: "any" } } } };

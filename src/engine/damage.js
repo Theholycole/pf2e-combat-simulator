@@ -145,7 +145,9 @@ export function strikeContext(attacker, strike, critical = false) {
         if (ignored) cached.normal.ignored = cached.critical.ignored = ignored;
         strikeContexts.set(strike, cached);
     }
-    const base = critical ? cached.critical : cached.normal;
+    let base = critical ? cached.critical : cached.normal;
+    // (2026-11-03, Annihilating Swing, Shattering Strike: "ignores any resistances the target has" — each lowered by all of it.)
+    if (strike.ignoreResistances) base = Object.assign(new Set(base), { ignored: base.ignored, lowered: [{ types: ["*"], value: 1e9 }] });
     // (2026-10-21: runes and traits its effects add to its Strikes — Ghostly Weapon's ghost touch, a plane's holy — effects.js strikeAdds.)
     const adds = (attacker?.effects ?? []).map((effect) => effect.model?.strikeAdds).filter(Boolean);
     if (!adds.length) return base;
@@ -160,6 +162,7 @@ export function strikeContext(attacker, strike, critical = false) {
         }
     }
     if (base.ignored) options.ignored = base.ignored;
+    if (base.lowered) options.lowered = base.lowered;
     return options;
 }
 

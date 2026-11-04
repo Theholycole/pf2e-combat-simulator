@@ -9,7 +9,31 @@
 
 import { degreeDistribution, degreeOf, CRITICAL_SUCCESS, SUCCESS, FAILURE, CRITICAL_FAILURE } from "./checks.js";
 import { adjustInstance, strikeContext } from "./damage.js";
-import { effectBenefit } from "./effects.js";
+import { effectBenefit, resistanceKept, strikesGranted, weaknessCost } from "./effects.js";
+import { deviantEntryOf, deviantRisk } from "./deviant.js";
+
+// The entry an action uses: a cast's spell, a Strike activity, a self-effect, a buff, a multi-Strike, a charge, a skill sweep.
+function actionEntryOf(c, action) {
+    if (!action) return null;
+    switch (action.type) {
+        case "cast":
+            return c.spells?.[action.spellIndex] ?? null;
+        case "strikeActivity":
+            return c.strikeActivities?.[action.index] ?? null;
+        case "selfEffect":
+            return c.selfEffects?.[action.index] ?? null;
+        case "selfBuff":
+            return c.selfBuffs?.[action.index] ?? null;
+        case "multiStrike":
+            return c.multiStrikes?.[action.ability] ?? null;
+        case "charge":
+            return c.charges?.[action.ability] ?? null;
+        case "skillSweep":
+            return c.skillSweeps?.[action.index] ?? null;
+        default:
+            return null;
+    }
+}
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hinderedBy, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
@@ -17,15 +41,16 @@ import { canStepOut, fliesNow, flankChance, isIncorporeal, levitating, mapGap, r
 import { bandAt, canTakeCover, gridFlanked, gridStrides, obstacleNext, pillarLine, pillarsInReach, planStride, shoots, standZ, strideGoes } from "./grid-fight.js";
 import { distanceFeet, footingAt, occupiedBy, reaches as gridReaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
 import { moderate } from "./creature-tables.js";
-import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, nonlethalAgainst, spellStops, strikeStops } from "./actions.js";
+import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, meleeBuilt, nonlethalAgainst, screenGuards, spellStops, strikeStops } from "./actions.js";
 import { isShaken, leaderDownWorth } from "./morale.js";
-import { canReact, castJustNow, chargeOn, hasOwnEffect, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { canReact, castJustNow, isBravado, chargeOn, hasOwnEffect, chargeStrike, ducksFromCoverFire, followsStrike, grantAooAllies, isRaging, levelDC, multiStrikeOrder, randomStrikeShare, sizeRank, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
 import { actionTraits, isHex, battleMedicineOdds, outsideTargets, skillValue, canCast, conditionWorth, describeSpell, exploitValue, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition, traitsAllowed } from "./spells.js";
 import { canSummon, summonPool } from "./summons.js";
+import { needsThrall, thrallsOf } from "./thralls.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { needsMet, targetNeedsMet } from "./needs.js";
 import { calmedUntilHostility, pacifiedAll, spares } from "./pacify.js";
@@ -47,6 +72,7 @@ export const ROLE_PROFILES = Object.freeze({
 
 const BEAM_WIDTH = 5;
 const NEXT_TURN_WEIGHT = 0.5;
+const GUARD = Number(globalThis.process?.env?.SIM_GUARD ?? 0.05);
 // Conditions and spell effects are weighed in rounds of a creature's threat;
 // damage as the share of its HP removed, where a kill (all of its threat for
 // the rest of the fight) counts once. A fight has about three rounds left, so
@@ -268,6 +294,15 @@ function inMelee(pos, other) {
 }
 
 // place: where the position is on the map (map objectives), or null.
+// (2026-11-03, a class feat's "You are in Tiger Stance": met while that stance's Effect is on it; any other requirement, met here.)
+export function stanceHeld(c, requires) {
+    if (typeof requires !== "string" || !requires.startsWith("stance:")) return true;
+    const names = requires.slice(7).toLowerCase().split("|");
+    const label = (text) => String(text ?? "").toLowerCase().replace(/^self:/, "").replace(/^(?:effect|stance): /, "");
+    return (c.effects ?? []).some((effect) => names.includes(label(effect.key)) || names.includes(label(effect.model?.name)));
+}
+const stanceRequirement = (requires) => typeof requires === "string" && requires.startsWith("stance:");
+
 function distanceTo(pos, other, place = null) {
     if (pos.at && other.square) return distanceFeet(pos.at, other);
     if (inMelee(pos, other)) return DISTANCE_FEET.engaged;
@@ -525,7 +560,17 @@ class PlanContext {
         const feinted = !isOffGuard(target) && (offGuardTo(target, c, strike.melee) || offGuardFrom(state, c, target, { melee: strike.melee }));
         const ac = armorClass(target, { ranged: !strike.melee, coverBonus: Math.max(coverFor(state, target, at && !strike.melee ? { ...c, square: at.square, ...(at.z !== undefined ? { z: at.z } : {}) } : null), sight && !strike.melee ? sight.cover : 0), flanked: feinted });
         // (A stratagem's roll: the one degree it gives, with Intelligence.)
-        const odds = strategic === null ? (dc) => degreeDistribution(modifier, dc) : (dc) => {
+        // (2026-11-03, the Strike riders: Perfect Finisher's attack rolled twice, the better — each natural's chance (2n − 1)/400 —;
+        // Overwhelming Blow's hit that is a critical hit.)
+        const rolled = strike.fortune
+            ? (dc) => {
+                  const out = [0, 0, 0, 0];
+                  for (let natural = 1; natural <= 20; natural++) out[degreeOf(natural + modifier, dc, natural)] += (2 * natural - 1) / 400;
+                  return out;
+              }
+            : (dc) => degreeDistribution(modifier, dc);
+        const lifted = strike.hitCrits ? (dc) => { const out = rolled(dc); return [out[0], out[1], 0, out[2] + out[3]]; } : rolled;
+        const odds = strategic === null ? lifted : (dc) => {
             const total = strategic + modifier + c.stratagemFeature.strikeBonus[strike.name];
             return [0, 1, 2, 3].map((degree) => (degree === degreeOf(total, dc, strategic) ? 1 : 0));
         };
@@ -713,6 +758,21 @@ class PlanContext {
     }
 
     // Expected damage this creature takes from one enemy's Attack of Opportunity.
+    // A Stride to engage target past the front line, actions.js screenGuards: their Reactive Strikes, those not spent in this plan.
+    screenLoss(node, target) {
+        const guards = screenGuards(this.state, this.c, target);
+        if (!guards.length) return 0;
+        let loss = 0;
+        for (const guard of guards) {
+            const index = this.enemies.indexOf(guard);
+            const bit = index >= 0 && index < 30 ? 1 << index : 0;
+            if ((bit && node.provoked & bit) || !canReact(guard, "Reactive Strike")) continue;
+            node.provoked |= bit;
+            loss += this.enemyStrikeDamage(guard, node.shield, 0);
+        }
+        return this.profile.selfPreservation * this.ownValue * Math.min(1, loss / remainingHp(this.c));
+    }
+
     aooLoss(pos, node) {
         let loss = 0;
         for (const [index, enemy] of this.enemies.entries()) {
@@ -744,7 +804,8 @@ class PlanContext {
     exposure(node) {
         const { state, c } = this;
         const pos = node.pos;
-        const ac = armorClass(c, { shieldRaised: node.shield }) - (node.prone && !c.cond.prone ? 2 : 0) + (!node.prone && c.cond.prone ? 2 : 0);
+        // (node.acDelta: an AC bonus the plan would bring, for what it's worth — a self Effect's, expandClassActions.)
+        const ac = armorClass(c, { shieldRaised: node.shield }) - (node.prone && !c.cond.prone ? 2 : 0) + (!node.prone && c.cond.prone ? 2 : 0) + (node.acDelta ?? 0);
         // Enemies spread their attention over everyone they can reach: stepping
         // back doesn't make an enemy forget you, it just costs it attacks.
         const share = 1 / Math.max(1, this.defenders);
@@ -906,10 +967,19 @@ class PlanContext {
         let cached = this.terminalCache.get(key);
         if (cached === undefined) {
             const exposureValue = this.ownValue * Math.min(1.5, this.exposure(node) / remainingHp(this.c));
-            cached = NEXT_TURN_WEIGHT * this.profile.aggression * this.offenseNext(node) - this.profile.selfPreservation * exposureValue + this.mapValue(node) + this.alarmValue(node) + this.dangerValue(node);
+            cached = NEXT_TURN_WEIGHT * this.profile.aggression * this.offenseNext(node) - this.profile.selfPreservation * exposureValue + this.mapValue(node) + this.alarmValue(node) + this.dangerValue(node) + this.guardValue(node);
             this.terminalCache.set(key, cached);
         }
         return cached - this.restless(node);
+    }
+
+    // (2026-11-01, a PC built to fight in melee: standing in a foe's Melee holds the foe's attention off its allies — worth GUARD of its own
+    // value, which nothing counted before, so a fighter's plan of bow shots and a small buff at range tied with closing in and won.)
+    guardValue(node) {
+        const c = this.c;
+        if (c.side !== "party" || !GUARD || node.pos.melee === null) return 0;
+        if (!(this.meleeBuilt ??= meleeBuilt(c))) return 0;
+        return this.enemies.some((enemy) => isActive(enemy) && inMelee(node.pos, enemy)) ? GUARD * this.ownValue : 0;
     }
 
     // Agitated with no Stride in the plan: the spell's damage as the turn ends, as exposure.
@@ -959,7 +1029,9 @@ function child(node, action, cost, value, changes = {}) {
         sunk: changes.sunk ?? node.sunk,
         burning: changes.burning ?? node.burning,
         atItem: changes.atItem ?? (changes.pos && changes.pos !== node.pos && changes.pos.melee !== null ? false : node.atItem),
-        first: node.first ?? action
+        first: node.first ?? action,
+        // (Its own action — a deviant ability's, for its risk: expandAll.)
+        last: action
     };
 }
 
@@ -1065,6 +1137,31 @@ function expandAll(ctx, node, actionsLeft) {
         expandClassActions(env);
         expandTactics(env);
         expandOtherActions(env);
+        // (2026-11-01, deviant abilities — deviant.js: none once its deviations are spent; otherwise each plan with one pays its backlash's
+        // risk, once a plan, so the AI weighs it as a player does.)
+        if (c.deviantClassification) {
+            const risk = deviantRisk(c, conditionWorth);
+            const planned = node.casts.includes("deviant");
+            for (let index = children.length - 1; index >= 0; index--) {
+                const next = children[index];
+                if (!deviantEntryOf(c, next.last)) continue;
+                if (!Number.isFinite(risk)) children.splice(index, 1);
+                else if (!planned) {
+                    next.value -= ctx.ownValue * risk * ROUND_TO_KILL;
+                    next.casts = [...next.casts, "deviant"];
+                }
+            }
+        }
+        // (2026-11-01, the user: "have the simulator use them as much as possible to determine how effective they are in combat" — c.forceUse:
+        // a deviant ability in every turn it can go, ahead of anything else, whatever its risk; its best use the beam's.)
+        if (c.forceUse && !node.casts.includes("forced")) {
+            for (const next of children) {
+                // (2026-11-03, Cole: a feat's own actions rated as used often — featForced, tools/lib/feat-power.mjs.)
+                if (!deviantEntryOf(c, next.last) && !actionEntryOf(c, next.last)?.featForced) continue;
+                next.value += 10 * ctx.ownValue;
+                next.casts = [...next.casts, "forced"];
+            }
+        }
     }
     // Moving away.
     if (!mobile) {
@@ -1130,7 +1227,7 @@ function expandStrikes(env) {
             // (U2: a PC's bomb weighed as a consumable.)
             const gain = (targetValue(state, target, c) * (Math.min(1, (before + expectation.damage) / hp) - Math.min(1, before / hp)) + ctx.freeRiderGain(strike, target, expectation.hitChance) + ctx.splashGain(strike, target, expectation.hitChance)) * consumableWeight(state, c, strike, [target]);
             const usesStratagem = natural !== null && c.stratagemFeature.strikeBonus[strike.name] !== undefined;
-            const marks = [...(strike.reload || strike.ammo ? [`fired${index}`] : []), ...(usesStratagem ? ["stratagem"] : [])];
+            const marks = [...(strike.reload || strike.ammo ? [`fired${index}`] : []), ...(usesStratagem ? ["stratagem"] : []), ...(strike.thrall ? ["thrall"] : [])];
             const next = child(node, { type: "strike", targetId: target.id, strikeIndex: index, ...(reload ? { reload } : {}) }, 1 + reload, ctx.profile.aggression * gain, {
                 attack: true,
                 damage: { ...node.damage, [target.id]: before + expectation.damage },
@@ -1223,6 +1320,7 @@ function expandSpells(env) {
         // 15 feet"): frightened, or down and dying.
         // (B133: a requirement it can't check, Bushwhack's unseen creature: not planned.)
         if (spell.plan?.requires === "requirement" && !spell.plan.needs) continue;
+        if (!stanceHeld(c, spell.plan?.requires)) continue;
         // (B304: its needs — a corpse, a creature it holds, its last action — as things stand.)
         if (spell.plan?.needs && !needsMet(state, c, spell.plan.needs, { fresh: node.used === 0 })) continue;
         // (B262, Rage-Charged Breath: only while raging.)
@@ -1240,7 +1338,9 @@ function expandSpells(env) {
         // unless it tricked the item already this turn. A stowed one, taken out first: its retrieve actions.)
         const trick = spell.trick && !c.usedThisTurn?.has(`tricked:${spell.item}`) ? 1 : 0;
         const draw = spell.draw && !c.itemsAtHand?.has(spell.item) && !node.casts.includes(`drawn${index}`) ? spell.draw.actions : 0;
-        const extra = trick + draw;
+        // (A spell cast through a thrall, with none — none left, nor one a thrall Strike this turn made: Create Thrall first, an action more.)
+        const makeThrall = c.thrallMaker && needsThrall(spell) && !(thrallsOf(c) > 0) && !node.casts.includes("thrall") ? 1 : 0;
+        const extra = trick + draw + makeThrall;
         // (Taking it out alone, when the cast doesn't fit after it this turn — a 2-action spell from a backpack: worth part of the cast
         // it readies, as a reload is.)
         let readies = 0;
@@ -1250,7 +1350,10 @@ function expandSpells(env) {
             const drawOnly = draw > 0 && draw <= remaining && info.actions + extra > remaining && !quickFits && node.used === 0;
             if (pacifiedAll(c) && !(info.helpful || info.healing || info.self || spell.drinker)) continue;
             if (!info.actions || (info.actions + extra > remaining && !quickFits && !drawOnly) || (restrained && (info.manipulate || info.attack || extra)) || (noAttacks && info.attack)) continue;
-            const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, c, spell, {
+            // (2026-11-03, Cole's pick "Raise the planner's value" for area actions: on the grid, an area about or from the caster where the
+            // plan's Stride has taken it — Elemental Explosion after closing in —, not where it stood when the turn began.)
+            const at = state.grid && !rider && info.area && node.pos.at?.square && c.square && (node.pos.at.square[0] !== c.square[0] || node.pos.at.square[1] !== c.square[1]) ? { ...c, square: node.pos.at.square } : c;
+            const sets = rider ? [{ targets: [riderTarget] }] : targetSets(state, at, spell, {
                 enemies: ctx.enemies,
                 allies: ctx.alliesAndDown,
                 inMelee: (other) => inMelee(node.pos, other),
@@ -1298,7 +1401,7 @@ function expandSpells(env) {
                     if (!ally) damage[target.id] = before + expected + follow;
                 }
                 // A swashbuckler's bravado action also brings panache: Precise Strike's damage for the fight and a finisher.
-                if (!c.panache && c.panacheStyle && (c.panacheStyle.bravado.includes(spell.plan?.source?.slug) || (spell.plan?.traits ?? []).includes("bravado"))) {
+                if (!c.panache && isBravado(c, spell)) {
                     const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
                     gain += 0.6 * ctx.ownValue * ROUND_TO_KILL * (3 * c.panacheStyle.precise + c.panacheStyle.finisherDice * 3.5 * 0.6) / threat;
                 }
@@ -1317,7 +1420,7 @@ function expandSpells(env) {
                     readies = Math.max(readies, gain);
                     continue;
                 }
-                const tricks = { ...(trick ? { trick: true } : {}), ...(draw ? { draw: true } : {}) };
+                const tricks = { ...(trick ? { trick: true } : {}), ...(draw ? { draw: true } : {}), ...(makeThrall ? { makeThrall: true } : {}) };
                 // (Mirror Image on itself: the images, for the next round's danger.)
                 const images = spell.plan?.resolution?.kind === "image-decoys" && set.targets.length === 1 && set.targets[0] === c ? spell.plan.resolution.imageDecoys : undefined;
                 if (info.actions + extra <= remaining) {
@@ -1359,7 +1462,10 @@ function expandMultiStrikes(env) {
         // A flourish (Flurry of Blows): once a turn.
         if (ability.oncePerTurn && (c.usedThisTurn?.has(ability.name) || node.casts.includes(`ms${abilityIndex}`))) continue;
         if (ability.flourish && flourishUsed(c, node)) continue;
+        if (ability.needs && !needsMet(state, c, ability.needs, { fresh: node.used === 0 })) continue;
         if (ability.oncePerFight && c.multiUsed?.has(ability.name)) continue;
+        // (2026-11-03, Cole: a Mythic feat's activity spends one of the PC's 3 Mythic Points a fight — its pool.)
+        if (ability.pool && (c.spellPools?.[ability.pool] ?? 0) <= 0) continue;
         // (B258, Gaze Upon: its recharge.)
         if ((c.multiUntil?.get(ability.name) ?? -Infinity) > state.round) continue;
         const order = multiStrikeOrder(c, ability);
@@ -1368,7 +1474,7 @@ function expandMultiStrikes(env) {
         if (ability.each) {
             // (B120: Rampage's "is uncontrollable", Bladestorm's "holding six spirit blades": states the engine doesn't play.)
             // (B200, Power Through: not while Fatigued.)
-            if (ability.requires && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0) && !(ability.requires === "raging" && isRaging(c)) && !(ability.requires === "not-fatigued" && !c.cond.fatigued)) continue;
+            if (ability.requires && !(stanceRequirement(ability.requires) && stanceHeld(c, ability.requires)) && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0) && !(ability.requires === "raging" && isRaging(c)) && !(ability.requires === "not-fatigued" && !c.cond.fatigued)) continue;
             const ranged = !c.strikes[order[0]].melee;
             // Where it Strikes from: here, or (B109, Mauling Rush) the Melee of a creature one Stride away.
             const places = [{ pos: node.pos, first: null }];
@@ -1425,7 +1531,7 @@ function expandMultiStrikes(env) {
             if (ability.requires === "not-fatigued" && c.cond.fatigued) continue;
             // (B287, Radical Surgery: at a Prone or Immobilized creature.)
             if (ability.requires === "prone-or-immobilized" && !(target.cond.prone || target.cond.immobilized)) continue;
-            if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging", "helpless", "not-fatigued", "prone-or-immobilized"].includes(ability.requires)) continue;
+            if (ability.requires && !["grabbed", "first-attack", "off-guard", "raging", "helpless", "not-fatigued", "prone-or-immobilized"].includes(ability.requires) && !(stanceRequirement(ability.requires) && stanceHeld(c, ability.requires))) continue;
             let expected = 0;
             // (B106: a second Strike only after a first that hits, worth that chance.)
             let firstHits = 1;
@@ -1514,6 +1620,8 @@ function expandStrikeActivities(env) {
     for (const [activityIndex, activity] of (c.strikeActivities ?? []).entries()) {
         if (restrained || noAttacks || activity.actions > remaining || (activity.oncePerFight && c.activitiesUsed?.has(activityIndex))) continue;
         if (activity.flourish && flourishUsed(c, node)) continue;
+        // (2026-11-01, Lightspeed Assault: another Stride and Strike only after its last Strike this turn hit; one at a time.)
+        if (activity.deviant?.oncePerTurn && (node.casts.includes(`sa${activityIndex}`) || (c.usedThisTurn?.has(`deviant:${activity.name}`) && !(node.used === 0 && c.lastStrike?.round === state.round && c.lastStrike.degree >= SUCCESS)))) continue;
         // (B199, Uncanny Pounce: only as it rolls initiative.)
         if (activity.initiative) continue;
         // "Frequency once per round" (Wriggling Beard).
@@ -1526,7 +1634,11 @@ function expandStrikeActivities(env) {
         if (activity.requires === "berserk") continue;
         // (B126: a requirement the engine doesn't play — "The dragon is burrowed", "It's the first round of combat" — not planned.)
         if (activity.requires === "requirement") continue;
+        if (!stanceHeld(c, activity.requires)) continue;
+        if (activity.needs && !needsMet(state, c, activity.needs, { fresh: node.used === 0 })) continue;
         if (activity.requires === "first-round" && state.round !== 1) continue;
+        // (2026-11-03, Furious Finish: only while raging.)
+        if (activity.requires === "raging" && !isRaging(c)) continue;
         // (B147: straight after a spell it cast.)
         if (activity.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, activity.nonCantrip))) continue;
         if (activity.strides && (!mobile || ctx.wavering)) continue;
@@ -1557,6 +1669,7 @@ function expandStrikeActivities(env) {
             // (B151, Shatter Defenses: "A Frightened creature is within melee reach".)
             if (activity.requires === "frightened" && !(target.cond.frightened > 0)) continue;
             if (activity.targetTraits && !activity.targetTraits.some((trait) => (target.traits ?? []).includes(trait))) continue;
+            if (activity.needs && !targetNeedsMet(c, target, activity.needs)) continue;
             // (B105: Stunning Strike's "hit a foe earlier this turn with a weapon Strike", at that foe; after Strikes made, not planned.)
             if (activity.requires === "hit-earlier" && !(node.used === 0 && (c.turnAttacks ?? []).some((attack) => attack.hit && attack.targetId === target.id))) continue;
             // (B104: Terrifying Smite's "an enemy that has one of its allies within its reach".)
@@ -1588,7 +1701,7 @@ function expandStrikeActivities(env) {
             const before = node.damage[target.id] ?? 0;
             const hp = remainingHp(target);
             // (Focused Assault, B74: a failure deals the Strike's damage too.)
-            const expected = best.expectation.damage + best.expectation.hitChance * rider.damage + (activity.failureDamage ? (best.expectation.failChance ?? 0) * (best.expectation.hitDamage ?? 0) : 0);
+            const expected = best.expectation.damage + best.expectation.hitChance * rider.damage + (activity.failureDamage ? (best.expectation.failChance ?? 0) * (best.expectation.hitDamage ?? 0) : 0) + (activity.failureFlat ? (best.expectation.failChance ?? 0) * c.strikes[best.index].damage.filter((part) => !part.persistent && !part.precision).reduce((sum, part) => sum + (part.bonus ?? 0), 0) : 0);
             // Set-Up Strike: off-guard for an ally's next attack, about a tenth more of its damage.
             const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * 0.12 / hp : 0;
             // (U7: a PC's item used by Striking weighed as a consumable.)
@@ -1603,7 +1716,7 @@ function expandStrikeActivities(env) {
                 attacks: activity.noMap || activity.previousMap ? 0 : activity.countsAs ?? 1,
                 pos,
                 damage: { ...node.damage, [target.id]: before + expected },
-                ...(activity.finisher || activity.coverFire || activity.flourish || activity.oncePerTurn || activity.pool ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : []), ...(activity.oncePerTurn ? [`sa${activityIndex}`] : []), ...(activity.pool ? [`pool:${activity.pool}`] : [])] } : {})
+                ...(activity.finisher || activity.coverFire || activity.flourish || activity.oncePerTurn || activity.deviant?.oncePerTurn || activity.pool ? { cast: [...(activity.finisher ? ["finisher"] : []), ...(activity.coverFire ? ["coverFire", ...(c.strikes[best.index].reload ? [`fired${best.index}`] : [])] : []), ...(activity.flourish ? ["flourish"] : []), ...(activity.oncePerTurn || activity.deviant?.oncePerTurn ? [`sa${activityIndex}`] : []), ...(activity.pool ? [`pool:${activity.pool}`] : [])] } : {})
             });
             if (activity.strides && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
             children.push(next);
@@ -1765,14 +1878,35 @@ function expandClassActions(env) {
         if (entry.actions > remaining || (c.effects ?? []).some((effect) => effect.key === `self:${entry.name}`) || node.casts.includes(`self${index}`)) continue;
         // Fanatical Frenzy: once it's hurt (B64). Blood Frenzy and the like come with their trigger, not as an action (B65).
         if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
+        // (2026-11-03, Tough Cookie: at half its Hit Points or fewer.)
+        if (entry.belowHalf && c.hp.value > c.hp.max / 2) continue;
         if (entry.trigger) continue;
         // (B308: a shell — only badly hurt, under 40% of its Hit Points, with a foe in its reach; it spends the rest of its turn in it.)
         if (entry.shell && !(c.hp.value < c.hp.max * 0.4 && ctx.enemies.some((enemy) => isActive(enemy) && sameMelee(c, enemy)))) continue;
         if (entry.afterCast && !(node.used === 0 && castJustNow(state, c, entry.afterCast === "non-cantrip"))) continue;
         // (B155: only while its rage lasts; B158, Mountain Stronghold: only while its own stance is on it.)
         if (entry.whileRaging && !isRaging(c)) continue;
-        if (entry.requiresEffect && !(c.effects ?? []).some((effect) => effect.key === `self:${entry.requiresEffect}`)) continue;
-        let benefit = effectBenefit(entry.model, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1);
+        if (entry.requiresEffect && !stanceHeld(c, `stance:${entry.requiresEffect}`)) continue;
+        if (entry.pool && (c.spellPools?.[entry.pool] ?? 0) <= 0) continue;
+        // (2026-11-01, Starlight Armor's resistance 10 to each physical type: counted, out of a fight's context, as 0.02 a point a round for each
+        // type — three times over, and whether or not anything is hitting it —, so the fighter spent its first round on it at range while the
+        // boss hit the rogue. Now as a spell's on its target: the Hit Points it keeps off the foes' Strikes, its share of them —
+        // resistanceKept —, and a weakness's cost.)
+        const keptRounds = Number.isFinite(entry.model.rounds) ? Math.max(0.5, Math.min(3, entry.model.rounds)) : 3;
+        // (2026-11-01: its AC bonus, as the Hit Points it keeps off what would hit it where this plan leaves it — exposure's, with the bonus
+        // and without — for its rounds. Before, 0.08 a point a round wherever it stood, so a fighter at range took a 1-round AC buff with
+        // its third action over closing in, and any such feat rated below nothing: a near tie in the plan, tipped by a defence where nothing
+        // reached it.)
+        // (2026-11-03, Paragon's Guard: a shield kept raised — its bonus each round it wouldn't be raised otherwise.)
+        const acBonus = entry.model.modifiers.filter((modifier) => modifier.on === "ac").reduce((sum, modifier) => sum + (Number(modifier.value) || 0), 0) + (entry.model.shieldUp && c.shield && !c.shield.broken ? Number(c.shield.ac) || 0 : 0);
+        const acRounds = Number.isFinite(entry.model.rounds) ? Math.max(1, Math.min(3, entry.model.rounds)) : 3;
+        const acKept = acBonus ? Math.max(0, ctx.exposure(node) - ctx.exposure({ ...node, acDelta: acBonus })) * acRounds : 0;
+        const withoutAc = acBonus ? { ...entry.model, modifiers: entry.model.modifiers.filter((modifier) => modifier.on !== "ac") } : entry.model;
+        let benefit = effectBenefit(withoutAc, c, conditionWorth, state.strikeShare?.get(c.id) ?? 1, { state, ownSide: true })
+            + 3 * ctx.profile.selfPreservation * acKept / remainingHp(c)
+            // (Kept off what reaches it from where this plan has it: all of it beside a foe, less out of reach — Kinetic Dampening isn't a
+            // reason to step back.)
+            + 3 * ((node.pos.melee !== null ? 1 : node.pos.band === "far" ? 0.3 : 0.6) * resistanceKept(state, entry.model, c, keptRounds) - weaknessCost(state, entry.model, c, keptRounds)) / Math.max(1, c.hp?.max ?? 1);
         // Its measured change to the Strikes (Arcane Cascade's force damage): about three rounds of it.
         const threatHere = Math.max(1, state.threat?.get(c.id) ?? 1);
         let perRound = 0;
@@ -1789,17 +1923,40 @@ function expandClassActions(env) {
             const average = parseDamage(entry.model.hitBack).reduce((sum, instance) => sum + (instance.constant ?? 0) + (instance.dice ?? []).reduce((total, term) => total + (term.factor ?? 1) * term.count * (term.die + 1) / 2, 0), 0);
             benefit += span * 0.5 * ctx.enemies.filter((enemy) => isActive(enemy) && sameMelee(c, enemy)).length * average / threatHere;
         }
-        if (entry.strikes?.length && ctx.enemies.length) {
+        const better = entry.strikes?.length ? entry.strikes : entry.model.grantedStrikes?.length ? strikesGranted(c, entry.model) : null;
+        if (better?.length && ctx.enemies.length) {
             const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
             const expected = (strike) => {
                 const hit = Math.min(0.95, Math.max(0.05, (21 - (ac - strike.bonus)) / 20));
                 return hit * strike.damage.reduce((sum, part) => sum + ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1), 0);
             };
             const best = (list) => Math.max(0, ...list.filter((strike) => strike.melee && strikeUsable(c, strike)).map(expected));
-            // About three rounds of the better Strike, twice a round.
-            benefit += 3 * 2 * Math.max(0, best(entry.strikes) - best(c.strikes ?? [])) / Math.max(1, state.threat?.get(c.id) ?? 1);
+            // About three rounds of the better Strike, twice a round. (2026-11-03, Sky and Heaven Stance's "The only Strikes you can make":
+            // a worse one counts against it too — model.strikesOnly.)
+            const change = entry.model.strikesOnly ? best(better) - best(c.strikes ?? []) : Math.max(0, best(better) - best(c.strikes ?? []));
+            benefit += 3 * 2 * change / Math.max(1, state.threat?.get(c.id) ?? 1);
+        }
+        // (2026-11-03, Come and Get Me: a foe beside it that hits it — about one in two a round — is off-guard to it, +2 on its two Strikes
+        // at it (a tenth of a hit's damage each), and each of its hits then gives temporary Hit Points.)
+        if (entry.model.answerHitters && ctx.enemies.some((enemy) => isActive(enemy) && sameMelee(c, enemy))) {
+            const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
+            const strike = (c.strikes ?? []).filter((each) => each.melee && strikeUsable(c, each)).sort((a, b) => b.bonus - a.bonus)[0];
+            if (strike) {
+                const hit = Math.min(0.95, Math.max(0.05, (21 - (ac - strike.bonus)) / 20));
+                const damage = strike.damage.reduce((sum, part) => sum + ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1), 0);
+                benefit += span * 0.5 * (2 * 0.1 * damage / Math.max(1, state.threat?.get(c.id) ?? 1) + 3 * ctx.profile.selfPreservation * 2 * hit * (Number(entry.model.answerHitters.tempHp) || 0) / remainingHp(c));
+            }
+        }
+        // (2026-11-03: a reaction Strike it unlocks — Dueling Riposte while Dueling Parry is on: about one trigger in four rounds of its best
+        // melee Strike, for the rounds it lasts.)
+        const unlocks = (c.reactionStrikes ?? []).filter((reaction) => reaction.requiresEffect && String(reaction.requiresEffect).toLowerCase() === String(entry.name).toLowerCase());
+        if (unlocks.length && ctx.enemies.length) {
+            const ac = ctx.enemies.reduce((sum, enemy) => sum + armorClass(enemy), 0) / ctx.enemies.length;
+            const swing = Math.max(0, ...(c.strikes ?? []).filter((strike) => strike.melee && strikeUsable(c, strike)).map((strike) => Math.min(0.95, Math.max(0.05, (21 - (ac - strike.bonus)) / 20)) * strike.damage.reduce((sum, part) => sum + ((part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0)) * (part.multiplier ?? 1), 0)));
+            benefit += span * 0.25 * swing / threatHere;
         }
         const gain = ctx.ownValue * benefit * ROUND_TO_KILL;
+
         const cost = entry.shell ? remaining : entry.actions;
         if (gain > 0) children.push(child(node, { type: "selfEffect", index, actions: cost }, cost, gain, { cast: `self${index}` }));
     }
@@ -1965,6 +2122,7 @@ function expandTactics(env) {
                 const surged = target.meleeId !== null ? { band: "engaged", melee: target.meleeId, newWith: null } : { band: "engaged", melee: "new", newWith: target.id };
                 const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id }, surge: true }, 1, 0, { pos: surged, moved: false, cast: "surge" });
                 if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
+                next.value -= ctx.screenLoss(next, target);
                 children.push(next);
             }
             if (strides !== 1) continue;
@@ -1973,6 +2131,7 @@ function expandTactics(env) {
                 : { band: "engaged", melee: "new", newWith: target.id };
             const next = child(node, { type: "stride", move: { kind: "engage", targetId: target.id } }, 1, 0, { pos, moved: false });
             if (inAnyMelee) next.value -= ctx.moveLoss(node.pos, next, "engage");
+            next.value -= ctx.screenLoss(next, target);
             children.push(next);
         }
         // (2026-10-22, a battlefield: one that shoots, a Stride to a better place to shoot from — a balcony, a cliff's edge, a parapet.)
