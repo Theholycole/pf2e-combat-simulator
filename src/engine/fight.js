@@ -128,7 +128,8 @@ function createState(snapshot, options, seed, withLog) {
         moraleRules: options.moraleRules ?? MORALE_RULES,
         objective: options.objective ? createObjective(snapshot.setup?.objective, snapshot.partyLevel) : null,
         pendingEvents: [],
-        log: withLog ? [] : null,
+        // (2026-11-03: or a sink of its own — an object with push(line) — that counts lines instead of keeping them: the feat ratings' uses.)
+        log: withLog ? (typeof withLog === "object" ? withLog : []) : null,
         damageBy: { party: 0, foes: 0, foesInduced: 0 },
         stats: { moraleChecks: 0, moraleFailures: 0, moraleBreaks: 0, moraleRecoveries: 0, moraleGated: 0, heroPointsSpent: 0, reactions: 0, partyItemsUsed: 0, foeItemsUsed: 0 },
         outcome: null,

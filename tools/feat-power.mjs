@@ -9,7 +9,16 @@
 //   node tools/feat-power.mjs <out folder> classes   every class's PC in its seat of the standard party, levels 1–20 (classes-report: the table)
 //   node tools/feat-power.mjs <out folder> deviant   the deviant abilities: plain, without backlash, each awakening (deviant-report: the table)
 //
-//   --workers N (default: the cores less two); FEAT_FIGHTS=200 fights an encounter (the default)
+//   node tools/feat-power.mjs <out folder> probe     after a code change: every stored rating's first seeds replayed (FEAT_PROBE=8 an
+//                                                    encounter); <out>/changed.txt lists the feats whose fights changed (--strict: or whose
+//                                                    party did), the new ones and the ones played or skipped now
+//   node tools/feat-power.mjs <out folder> refresh   the probe, then a screen of only what it found (--only=<out>/changed.txt)
+//   node tools/feat-power.mjs <out folder> canary    before a long batch: ~40 stored ratings replayed on their first 50 seeds (FEAT_CANARY),
+//                                                    then and now side by side (<out>/canary.md); --only=… for a list of your own
+//
+//   --workers N (default: the cores less two); FEAT_FIGHTS=200 fights an encounter at most (the default). A feat's fights stop early once its
+//   answer is clear (tools/lib/feat-power.mjs stopReason; FEAT_EARLY=0 for every fight, FEAT_BATCH=25, FEAT_SE=0.03). The screen runs the
+//   feats most likely to matter first (their stored rating, else docs/rough-power.json's score; --order=name for the old order).
 import fs from "node:fs";
 import { isMainThread } from "node:worker_threads";
 import { defaultWorkers, runPool, workerLoop } from "./lib/pool.mjs";
@@ -28,6 +37,54 @@ if (!isMainThread) {
     const read = (name) => (fs.existsSync(`${out}/${name}`) ? fs.readFileSync(`${out}/${name}`, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : []);
     const run = (tasks, file, { append = false } = {}) => runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/${file}`, append });
     const scalePath = fs.realpathSync(out) + "/scale.jsonl";
+    // (2026-11-03: the feats most likely to matter first — by their stored rating's size, else the rough power score's —, so the top of
+    // the table is ready early in a long batch.)
+    const ordered = (refs) => {
+        if (process.argv.includes("--order=name")) return refs;
+        const weight = new Map();
+        try {
+            for (const row of JSON.parse(fs.readFileSync(new URL("../docs/rough-power.json", import.meta.url), "utf8")).scores ?? []) weight.set(row.ref, Math.abs(row.rough ?? 0));
+        } catch {
+            // (No rough scores: the stored ratings alone.)
+        }
+        for (const row of read("screen.jsonl")) if (row.ref?.ref && Number.isFinite(row.levels)) weight.set(row.ref.ref, Math.abs(row.levels) + 1);
+        return [...refs].sort((a, b) => (weight.get(b.ref) ?? 0) - (weight.get(a.ref) ?? 0));
+    };
+    const latest = () => {
+        const byRef = new Map();
+        for (const row of read("screen.jsonl")) if (row.ref?.ref) byRef.set(row.ref.ref, row);
+        return byRef;
+    };
+    const probe = async () => {
+        if (!fs.existsSync(scalePath)) {
+            console.error("Run the scale phase first.");
+            process.exit(1);
+        }
+        const { KINDS, PROBE } = await import("./lib/feat-power.mjs");
+        const started = Date.now();
+        await run(Array.from({ length: 20 }, (_, index) => index + 1).flatMap((level) => KINDS.map((encounter) => ({ kind: "scale-probe", level, encounter, scalePath }))), "scale-probe.jsonl");
+        const staleScale = read("scale-probe.jsonl").filter((row) => row.changed);
+        if (staleScale.length) {
+            console.log(`The plain party's own fights changed at ${staleScale.map((row) => `${row.level} ${row.encounter}`).join(", ")}: rerun the scale phase, then the whole screen (every rating stands on the scale).`);
+            process.exit(2);
+        }
+        const rows = latest();
+        await run([...rows.values()].map((row) => ({ kind: "probe", row, seeds: PROBE, scalePath })), "probe.jsonl");
+        const probed = read("probe.jsonl");
+        const strict = process.argv.includes("--strict");
+        const changed = probed.filter((row) => row.changed || (strict && row.party));
+        const { featRefs } = await import("./lib/feat-power.mjs");
+        const fresh = featRefs().filter((ref) => !rows.has(ref.ref));
+        const list = [...changed.map((row) => row.ref.ref), ...fresh.map((ref) => ref.ref)];
+        fs.writeFileSync(`${out}/changed.txt`, list.length ? `${list.join("\n")}\n` : "");
+        const why = new Map();
+        for (const row of changed) why.set(row.why ?? "party changed", (why.get(row.why ?? "party changed") ?? 0) + 1);
+        console.log(`Probe: ${probed.length} stored, ${changed.length} changed, ${fresh.length} new, in ${Math.round((Date.now() - started) / 1000)} s → ${out}/changed.txt`);
+        for (const [reason, count] of [...why].sort((a, b) => b[1] - a[1])) console.log(`  ${count} ${reason}`);
+        const partyOnly = probed.filter((row) => !row.changed && row.party).length;
+        if (partyOnly && !strict) console.log(`  (${partyOnly} more have a changed party but the same fights on the probe's seeds: --strict reruns them too)`);
+        return list;
+    };
 
     if (phase === "scale") {
         const { KINDS } = await import("./lib/feat-power.mjs");
@@ -45,7 +102,7 @@ if (!isMainThread) {
             return fs.existsSync(value) && fs.statSync(value).isFile() ? fs.readFileSync(value, "utf8").split("\n").map((line) => line.trim()).filter(Boolean) : [value];
         });
         const chosen = only.length ? refs.filter((ref) => only.some((value) => value === ref.ref || value === ref.id || value.toLowerCase() === ref.name.toLowerCase())) : refs;
-        const tasks = chosen.map((ref) => ({ kind: "feat", ref, scalePath }));
+        const tasks = ordered(chosen).map((ref) => ({ kind: "feat", ref, scalePath }));
         if (only.length) {
             await run(tasks, "screen-only.jsonl");
             const fresh = read("screen-only.jsonl");
@@ -58,6 +115,33 @@ if (!isMainThread) {
         const done = resume ? new Set(read("screen.jsonl").map((row) => row.ref?.ref)) : new Set();
         console.log(`${tasks.length} feats and actions`);
         await run(tasks.filter((task) => !done.has(task.ref.ref)), "screen.jsonl", { append: resume });
+    } else if (phase === "probe" || phase === "refresh") {
+        // (2026-11-03: after a code change, only the feats whose fights changed — tools/lib/feat-power.mjs probeTask.)
+        const list = await probe();
+        if (phase === "refresh" && list.length) {
+            const { featRefs } = await import("./lib/feat-power.mjs");
+            const wanted = new Set(list);
+            await run(ordered(featRefs().filter((ref) => wanted.has(ref.ref))).map((ref) => ({ kind: "feat", ref, scalePath })), "screen-only.jsonl");
+            const fresh = read("screen-only.jsonl");
+            const again = new Set(fresh.map((row) => row.ref?.ref));
+            fs.writeFileSync(`${out}/screen.jsonl`, `${[...read("screen.jsonl").filter((row) => !again.has(row.ref?.ref)), ...fresh].map((row) => JSON.stringify(row)).join("\n")}\n`);
+            console.log(`${fresh.length} rerun → ${out}/screen.jsonl (now the report phase)`);
+        }
+    } else if (phase === "canary") {
+        // (2026-11-03: a sample of the stored ratings replayed before a long batch, to see what a change moved — canaryTask.)
+        const rows = [...latest().values()].filter((row) => Number.isFinite(row.levels));
+        const only = process.argv.filter((arg) => arg.startsWith("--only=")).flatMap((arg) => {
+            const value = arg.slice("--only=".length);
+            return fs.existsSync(value) && fs.statSync(value).isFile() ? fs.readFileSync(value, "utf8").split("\n").map((line) => line.trim()).filter(Boolean) : [value];
+        });
+        const { canarySample } = await import("./lib/feat-report.mjs");
+        const sample = only.length ? rows.filter((row) => only.some((value) => value === row.ref.ref || value === row.ref.id || value.toLowerCase() === row.name.toLowerCase())) : canarySample(rows);
+        const started = Date.now();
+        await run(sample.map((row) => ({ kind: "canary", row, scalePath })), "canary.jsonl");
+        const { canaryReport } = await import("./lib/feat-report.mjs");
+        const { markdown, moved } = canaryReport(read("canary.jsonl"), Math.round((Date.now() - started) / 1000));
+        fs.writeFileSync(`${out}/canary.md`, markdown);
+        console.log(`Canary: ${sample.length} feats, ${moved} moved by 0.05 levels or more → ${out}/canary.md`);
     } else if (phase === "basics") {
         const { basicActionList } = await import("./lib/feat-power.mjs");
         await run(basicActionList().map((entry) => ({ kind: "basic", ...entry, scalePath })), "basics.jsonl");

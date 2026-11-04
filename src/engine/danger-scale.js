@@ -39,13 +39,14 @@ export const canFight = (monster) => !!(monster?.strikes?.length || (monster?.sp
 
 // The fights: seeds [from, to). Per fight: the party's damage share, PCs downed and killed, a wipe; rounds; the creature killed.
 // (grid: on the square grid — a layout's name, grid-fight.js —, 2026-11-01, the user: "it should not be abstract".)
-export function dangerFights(party, foes, from, to, { setup = null, grid = null } = {}) {
+// log: a sink (an object with push(line)) each fight's log lines go to (2026-11-03: the feat ratings count a feat's uses in the fights they score).
+export function dangerFights(party, foes, from, to, { setup = null, grid = null, log = null } = {}) {
     // (An eidolon shares its summoner's Hit Points: counted once — classes.js.)
     const partyHp = party.filter((c) => !c.sharesHpWith).reduce((sum, c) => sum + c.hp.max, 0);
     const sum = { n: 0, damage: 0, downs: 0, deaths: 0, wipes: 0, rounds: 0, killed: 0, timeouts: 0, score: 0, scores: [] };
     for (let seed = from; seed < to; seed++) {
         // (setup: a creature's preferences' fights — preferences.js: the light, the cover, a battlefield.)
-        const result = simulate({ combatants: [...party, ...foes], ...(setup ? { setup } : {}) }, grid ? { ...DANGER_OPTIONS, grid } : DANGER_OPTIONS, seed);
+        const result = simulate({ combatants: [...party, ...foes], ...(setup ? { setup } : {}) }, grid ? { ...DANGER_OPTIONS, grid } : DANGER_OPTIONS, seed, log ? { log } : undefined);
         const damage = ((result.damageBy?.foes ?? 0) + (result.damageBy?.foesInduced ?? 0)) / partyHp;
         const downs = result.party.filter((c) => c.down && !c.linked).length;
         const deaths = result.party.filter((c) => c.dead && !c.linked).length;
