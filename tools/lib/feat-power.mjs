@@ -918,6 +918,11 @@ const HAND = {
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
     // A melee critical hit's extra weapon die (not doubled) and persistent bleed of two of its dice.
     // (A frightened creature off-guard to the PC — actions.js.)
+    // (2026-11-04, reactions' Strikes: a riposte on a critical miss with the Aldori dueling sword; a ranged Strike when an ally's ranged
+    // Strike hits (–2), or with +2 when an ally — the spotter — critically hits.)
+    "aldori-riposte": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a riposte Strike on a critical miss (reaction)" }),
+    "target-of-opportunity": () => ({ builtins: { reactionStrikes: [{ name: "Target of Opportunity", triggers: ["ally-hit"], allyRanged: true, ranged: true, strike: "", penalty: 2, disrupts: false }] }, played: "a ranged Strike (–2) when an ally's ranged Strike hits (reaction)" }),
+    "exploit-opening": () => ({ builtins: { reactionStrikes: [{ name: "Exploit Opening", triggers: ["ally-hit"], critOnly: true, ranged: true, strike: "", penalty: -2, disrupts: false }] }, played: "a ranged Strike (+2) when an ally critically hits (reaction)" }),
     // (Its full sneak attack, 4d6 at 17th, on a hit at a creature that isn't off-guard.)
     "impossible-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 17 ? 4 : level >= 11 ? 3 : level >= 5 ? 2 : 1, die: 6, precision: true, type: null, source: "Impossible Striker" }] }, played: "full sneak attack on a creature that isn't off-guard (always on)" }),
     // (No flat check against a concealed target, DC 5 against a hidden one, and not off-guard to hidden creatures — sight.js blindFought.)
