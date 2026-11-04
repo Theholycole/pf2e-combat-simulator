@@ -920,12 +920,12 @@ const HAND = {
     // (A frightened creature off-guard to the PC — actions.js.)
     // (2026-11-04: ranged Strikes that ignore the target's concealment and cover — Targeting Shot at the hunted prey, a press; Incredible
     // Ricochet, a press (at a creature attacked this turn, not checked here); Homing Shot.)
-    "targeting-shot": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", press: true, unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged press Strike ignoring concealment and cover" }),
-    "incredible-ricochet": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", press: true, unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged press Strike ignoring concealment and cover" }),
-    "homing-shot": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged Strike ignoring concealment and cover" }),
+    "targeting-shot": () => ({ requires: "You are wielding a bow.", builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", press: true, unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged press Strike ignoring concealment and cover" }),
+    "incredible-ricochet": () => ({ requires: "You are wielding a bow.", builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", press: true, unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged press Strike ignoring concealment and cover" }),
+    "homing-shot": () => ({ requires: "You are wielding a bow.", builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged Strike ignoring concealment and cover" }),
     // (2026-11-04: a ranged Strike whose failure still deals one weapon die; a press Strike at a prone creature with a circumstance bonus
     // of its weapon dice — PF2e's rules on Advantageous Assault hold the bonus; grabbed and restrained targets aren't counted here.)
-    "flesh-wound": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", failureDice: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged Strike whose failure deals a weapon die" }),
+    "flesh-wound": () => ({ requires: "You are wielding a bow.", builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", failureDice: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged Strike whose failure deals a weapon die" }),
     "advantageous-assault": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, press: true, requires: "prone", damagePerWeaponDie: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a press Strike at a prone foe, + its weapon dice in damage" }),
     // (2026-11-04: Deflect Projectile, and a deflected ranged attack thrown back at the attacker.)
     "projectile-snatching": () => ({ builtins: { acReaction: { value: 4, when: "targeted", name: "Deflect Projectile", against: "ranged", snatch: true } }, played: "Deflect Projectile, a deflected attack thrown back (reaction)" }),
@@ -1150,7 +1150,8 @@ function handEntry(doc, level, builtins, wields, host = null) {
     const read = HAND[slugOf(doc)]?.(level, host);
     if (!read) return null;
     // (Its requirement — Reactive Shield's "You are wielding a shield" —: a PC whose loadout can't meet it gets one that can.)
-    const requirement = requirementText(doc);
+    // (2026-11-04: or what the hand reading says it needs — Homing Shot's bow, a ranged Strike its text doesn't make a requirement.)
+    const requirement = [requirementText(doc), read.requires].find((text) => text && wields && meetsWielding(text, wields) === false) ?? requirementText(doc);
     if (requirement && wields && meetsWielding(requirement, wields) === false) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (${requirement})` } };
     for (const plan of read.plans ?? []) addBuiltin(builtins, plan, doc.name);
     for (const [field, value] of Object.entries(read.builtins)) builtins[field] = Array.isArray(value) ? [...(builtins[field] ?? []), ...value] : value && typeof value === "object" ? { ...(builtins[field] ?? {}), ...value } : value;
