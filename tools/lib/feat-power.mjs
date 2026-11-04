@@ -1661,7 +1661,7 @@ const meanSe = (values) => {
 };
 
 // Why an encounter's fights can stop now (null: not yet). No effect: not one fight changed and the PC never used it (after one batch), or
-// not one fight changed (after two). About zero: the rating's 95% range sits inside ±0.05 levels. Precise: its standard error is at the
+// not one fight changed (after two). From four batches on, about zero: the rating's 95% range sits inside ±0.05 levels. Precise: its standard error is at the
 // target. A strong feat's fights vary too much for either, so the top of the table still gets every fight.
 export function stopReason(diffs, step, uses) {
     const n = diffs.length;
@@ -1671,6 +1671,9 @@ export function stopReason(diffs, step, uses) {
     if (unchanged && uses === 0) return "no effect";
     if (n < 2 * BATCH) return null;
     if (unchanged) return "no effect";
+    // (2026-11-04: the other two only from 100 fights. Tried on 54 feats against all 200 fights: from 50, a standard error read off so
+    // few fights ran small, and three feats ended more than one standard error from their 200-fight rating; from 100, none did.)
+    if (n < 4 * BATCH) return null;
     const { mean, se } = meanSe(diffs);
     const levels = -mean / step;
     const levelsSe = se / step;
