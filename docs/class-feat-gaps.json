@@ -1,6 +1,6 @@
 {
- "generated": "2026-11-03",
- "rated": 1047,
+ "generated": "2026-11-04",
+ "rated": 1024,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -3475,6 +3475,27 @@
    "text": "Your Swords training taught you to never lose hold of your weapon. You gain a +2 circumstance bonus to your Reflex DC when foes attempt to Disarm you. If you have the Deft Cooperation feat and critically succeed on a check to Aid an ally's "
   },
   {
+   "id": "bTQVvkEuPj9QAiAi",
+   "name": "Time Mage Dedication",
+   "level": 6,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype",
+    "dedication"
+   ],
+   "rarity": "uncommon",
+   "remaster": true,
+   "bucket": "dedication",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Delay Consequence)",
+   "text": "You might be a novice in the temporal arts now, but in the future, you'll hold time in the palm of your hand. As some of your future knowledge leaks back to your present self, you gain the Delay Consequence domain spell. You can Refocus by "
+  },
+  {
    "id": "jTOxxy19o2VRJTbH",
    "name": "Golden League Xun Dedication",
    "level": 8,
@@ -4283,26 +4304,6 @@
    "text": "Requirements You witnessed an enemy harm an ally with a Strike or spell last round. When you see a foe hurt one of your allies, your righteous retribution causes your weapon to sprout holy thorns. Make a Strike against the triggering enemy."
   },
   {
-   "id": "H318YDsDaFomRrjn",
-   "name": "Claw Snag",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a reaction's Strike",
-   "detail": "a reaction's Strike",
-   "text": "Trigger A creature attempts to Escape while you have them Grabbed or Restrained. You hook into the target, pulling yourself forward and rending flesh. Shift into claw stance if you aren't in it already, then make a frenzied claw Strike agai"
-  },
-  {
    "id": "Bs5vvCSFAU7n2xtC",
    "name": "Contingency Leap",
    "level": 4,
@@ -4324,26 +4325,6 @@
    "reason": null,
    "detail": null,
    "text": "Trigger You fall, and there is an edge or handhold within 30 feet. When imperiled by a fall, you swiftly transport yourself out of danger. You teleport to any edge or handhold in range, stopping your fall. If your destination is one you cou"
-  },
-  {
-   "id": "yHiH50dPLyvemeL5",
-   "name": "Crop Protection",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a reaction's Strike",
-   "detail": "a reaction's Strike",
-   "text": "Trigger An enemy within your reach attacks a member of your crop. While you prefer to keep a low profile, you are quick to attack to protect your crop. Make a melee Strike against the triggering enemy. If your attack is successful, the memb"
   },
   {
    "id": "dSSwRyuhKTq1VubX",
@@ -5816,26 +5797,6 @@
    "text": "Frequency once per 10 minutes You trace a spiral in the air while intoning prayers to Pharasma, gaining her blessing for a time. For 3 rounds, your Strikes and spells deal additional damage against undead, creatures in possession of an impr"
   },
   {
-   "id": "fngPLUD4Sltho2kn",
-   "name": "Staggering Fire",
-   "level": 6,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 1,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "uncommon",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "You've learned how to fire at enemies to slow them down, allowing innocents and fellow knights alike time to escape. Make a ranged Strike with a weapon in the bow or crossbow weapon group. On a hit, the target takes a –5-foot circumstance p"
-  },
-  {
    "id": "qg8TlLJRgvjzW9YK",
    "name": "Startling Appearance (Vigilante)",
    "level": 6,
@@ -6464,27 +6425,6 @@
    "reason": "a timer with no rules a fight counts",
    "detail": "a timer with no rules a fight counts",
    "text": "Frequency once per day You can suppress your tether to the ground, overcoming your resistance to fly free. For 10 minutes, your fly Speed doesn't restrict you to only a few inches off the ground, allowing you to travel to any height you cho"
-  },
-  {
-   "id": "ZuKEEP4S4b4fbgAt",
-   "name": "Gods' Palm",
-   "level": 8,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 1,
-   "traits": [
-    "archetype",
-    "flourish"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "You control your spirit energy when you attack, using it to reinforce yourself or to thrust past your enemy's physical defenses. Make a fist Strike; on a success, you can choose to either deal all damage from the attack as spirit damage, or"
   },
   {
    "id": "fJxIdcg7kWPwlULY",
@@ -7727,28 +7667,6 @@
    "text": "You've trained in battle formations for a plethora of situations. Choose a formation. Allies within your aura can use their reaction to Stride up to their Speed and take a place in the chosen formation. Allies can't benefit from this moveme"
   },
   {
-   "id": "fCsIyglmpb7NYwiy",
-   "name": "Harrying Strike",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 1,
-   "traits": [
-    "archetype",
-    "attack",
-    "press"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "Your attack prevents a foe from pursuing your allies. Make a melee Strike, adding the following effects in addition to the normal effects of the Strike. Critical Success The target takes a –15-foot status penalty to its Speeds until the sta"
-  },
-  {
    "id": "AY3XRv2j0cZvHaks",
    "name": "Hematocritical",
    "level": 10,
@@ -7975,26 +7893,6 @@
    "reason": "a teleport",
    "detail": "a teleport",
    "text": "Frequency once per 10 minutes Filtering your form through the substance of an object, you can pass through walls, doors, and more. You Fly up to your Speed. During this movement, you can try to move through one object. Attempt an Acrobatics"
-  },
-  {
-   "id": "aymNcrPx6zMt5ILp",
-   "name": "Protective Strike",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a reaction's Strike",
-   "detail": "a reaction's Strike",
-   "text": "Trigger A creature moves adjacent to or attempts a melee Strike against your designated ally. You keep harm at bay. Make a melee Strike against the triggering creature. On a critical success, you interrupt the triggering action."
   },
   {
    "id": "nobsCgNmsDX6aKR5",
@@ -9977,6 +9875,26 @@
    "text": "Requirements You are Juggling a thrown weapon. Trigger A creature within 10 feet of you uses a manipulate action or a move action, makes a ranged attack, or leaves a square during a move action it's using. You make a thrown ranged Strike wi"
   },
   {
+   "id": "7G1gMSHyMdMGMsF9",
+   "name": "Protective Cycle",
+   "level": 16,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "reaction",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "combat-action",
+   "featModule": "plan",
+   "reason": "its stance",
+   "detail": "its stance (an elemental stance), not in the packs",
+   "text": "Trigger You take damage from an attack. Requirements You're in an elemental stance. You react to harm by flowing into an elemental stance with new advantages. You Cycle Elemental Stance and gain a +2 circumstance bonus to AC until the end o"
+  },
+  {
    "id": "hKemfam7Hvkllsgp",
    "name": "Purge of Moments",
    "level": 16,
@@ -10256,6 +10174,27 @@
    "text": "Trigger An ally takes damage that would bring them to 0 Hit Points You protect your allies at the cost of your own blood, but your deity shields you from the worst of the harm. Stride twice to be adjacent to the triggering ally. You can Bur"
   },
   {
+   "id": "Rbp08BSSzwpkWVjh",
+   "name": "Terrifying Countenance",
+   "level": 18,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "free",
+   "actions": null,
+   "traits": [
+    "archetype",
+    "vigilante"
+   ],
+   "rarity": "common",
+   "remaster": false,
+   "bucket": "combat-action",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Mask of Terror)",
+   "text": "You can erect a magical cowl that terrorizes your enemies. Once per day, you can cast Mask of Terror as an innate occult spell, targeting yourself. If you critically hit a creature that's temporarily immune to the spell, the creature's temp"
+  },
+  {
    "id": "Ky7ZEtt4TchQNmFc",
    "name": "Timeline-Splitting Spell",
    "level": 18,
@@ -10390,29 +10329,6 @@
    "reason": "a teleport",
    "detail": "a teleport",
    "text": "You smash, bust, and charge through solid obstacles without hesitation. Stride twice. Once during your movement, if your movement passes through or ends adjacent to a door, window, fence, wall, or similar obstacle, you can attempt an Athlet"
-  },
-  {
-   "id": "5gnBhockV7O32jTR",
-   "name": "Furious Finish",
-   "level": 2,
-   "owner": "barbarian",
-   "classes": [
-    "barbarian"
-   ],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 1,
-   "traits": [
-    "barbarian",
-    "rage"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "Desperate to finish the fight, you pour all your rage into one final blow. Make a Strike. If it hits, you gain a circumstance bonus to damage equal to the number of rounds remaining in your Rage (maximum 10). After this Strike, your Rage im"
   },
   {
    "id": "lT8XlX1Ig900BblS",
@@ -12445,28 +12361,6 @@
    "text": "Requirements You are wielding a weapon from the spear or polearm group You favor weapons that allow you to lash out viciously while keeping enemies at bay, giving you an opportunity to strike without fear of reprisal. You Step and then Stri"
   },
   {
-   "id": "Ad0XBuETAkMD6doj",
-   "name": "Felling Strike",
-   "level": 8,
-   "owner": "fighter",
-   "classes": [
-    "fighter"
-   ],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "fighter"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "Your attack can ground an airborne foe. Make a Strike. If it hits and deals damage to a flying target, the target falls up to 120 feet. The fall is gradual enough that if it causes the target to hit the ground, the target takes no damage fr"
-  },
-  {
    "id": "jZy91ekcS9ZqmdEH",
    "name": "Knight's Retaliation",
    "level": 8,
@@ -12842,29 +12736,6 @@
    "reason": "a lasting area",
    "detail": "a lasting area",
    "text": "You make it difficult for enemies to move past you. While you are in this stance, squares in a @Template[type:emanation|distance:5] are difficult terrain for your enemies."
-  },
-  {
-   "id": "Um5owecqPW17dtl2",
-   "name": "Taunting Strike",
-   "level": 2,
-   "owner": "guardian",
-   "classes": [
-    "guardian"
-   ],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 1,
-   "traits": [
-    "flourish",
-    "guardian"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "The force of your blow causes your enemy to focus their attention on you. Make a Strike. Regardless of whether the Strike hits, you Taunt the target. Your Taunt gains the visual trait."
   },
   {
    "id": "46mkvetP7cdi7LO0",
@@ -15670,28 +15541,6 @@
    "text": "Requirements You are wielding a sword that has the monk trait in one hand. You enter a tall and proud stance while remaining mobile, with all the grace and composure of a peafowl. While in this stance, the only Strikes you can make are mele"
   },
   {
-   "id": "S14S52HjszTgIy4l",
-   "name": "Crane Flutter",
-   "level": 6,
-   "owner": "monk",
-   "classes": [
-    "monk"
-   ],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "monk"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a reaction's Strike",
-   "detail": "a reaction's Strike",
-   "text": "Trigger You are targeted with an attack by an observed attacker. Requirements You are in Crane Stance. You interpose your arm between yourself and your opponent. Your circumstance bonus to AC from Crane Stance increases to +3 against the tr"
-  },
-  {
    "id": "AsOVi8AqE3v10ee0",
    "name": "Culvert's Collapse",
    "level": 6,
@@ -18456,28 +18305,6 @@
    "text": "Trigger Your turn ends. Requirements You are currently affected by a mental effect. You can find a loophole in a mental effect to temporarily overcome it. Until the end of your next turn, you ignore a single mental effect. You can suppress "
   },
   {
-   "id": "mpuWLBCw1dUKivRO",
-   "name": "Cutthroat Grapple",
-   "level": 16,
-   "owner": "rogue",
-   "classes": [
-    "rogue"
-   ],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "rogue"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a reaction's Strike",
-   "detail": "a reaction's Strike",
-   "text": "Trigger A creature attempts to Escape from your Sawtooth Grapple. You can punish a creature that tries to escape your blades. Make a melee Strike against the triggering creature. On a hit, the creature takes a –4 circumstance penalty to its"
-  },
-  {
    "id": "6AXAJuMEMpxU27PJ",
    "name": "Dispelling Slice",
    "level": 16,
@@ -19010,29 +18837,6 @@
    "text": "You draw and attack with the same motion. You Interact to draw a weapon, then either Strike or use a one-action finisher. You must still meet any other requirements to use a finisher, and any Strike you make must be made with the weapon you"
   },
   {
-   "id": "HxMkvkxd8QMXcQ67",
-   "name": "Retreating Finisher",
-   "level": 2,
-   "owner": "swashbuckler",
-   "classes": [
-    "swashbuckler"
-   ],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 1,
-   "traits": [
-    "finisher",
-    "swashbuckler"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "You make a calculated attack without letting down your guard. Make a melee Strike with the following failure effect. Failure You Step as a free action."
-  },
-  {
    "id": "UwsQi1YLzU66Txy9",
    "name": "Swan Dive",
    "level": 2,
@@ -19309,6 +19113,31 @@
    "reason": "a timer with no rules a fight counts",
    "detail": "a timer with no rules a fight counts",
    "text": "Requirements You have Panache. You move so quickly that you create a short-lived afterimage, looks exactly like you, in front of you or behind you. You Stride. At any point along your movement, you leave an afterimage of yourself behind. Al"
+  },
+  {
+   "id": "fUR72e3t7p2IcqqG",
+   "name": "Divine Disharmony",
+   "level": 1,
+   "owner": "thaumaturge",
+   "classes": [
+    "thaumaturge"
+   ],
+   "archetype": false,
+   "actionType": "action",
+   "actions": 1,
+   "traits": [
+    "divine",
+    "esoterica",
+    "manipulate",
+    "thaumaturge"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "combat-action",
+   "featModule": "plan",
+   "reason": "effects the GM allows from the scenery",
+   "detail": "effects the GM allows from the scenery",
+   "text": "From your collection of religious trinkets, you pull out opposing divine objects-such as the religious symbols of two deities that are hated enemies-and combine them in a display that causes discordant clashes of divine energy that are espe"
   },
   {
    "id": "oQVp2UhXVBcELma5",
@@ -24538,6 +24367,28 @@
    "text": "You have mastered the art of singing your runes. You can Trace a Rune with song once per round instead of once per 10 minutes."
   },
   {
+   "id": "dyapTyfHVQ4n8kRn",
+   "name": "Maze of Runes",
+   "level": 16,
+   "owner": "runesmith",
+   "classes": [
+    "runesmith"
+   ],
+   "archetype": false,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "runesmith"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "feature-upgrade",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Quandary)",
+   "text": "You can trap a foe in a twisting, extradimensional labyrinth of ever-shifting runes. You can cast Quandary once per day as an innate spell. The rank of this spell is equal to half your level rounded up, and the tradition can be any traditio"
+  },
+  {
    "id": "s3BptP81zelsJWos",
    "name": "Runesight",
    "level": 16,
@@ -27662,6 +27513,26 @@
    "reason": null,
    "detail": null,
    "text": "You aim for your victim's prominent arteries. Your fangs Strike deals an additional 1d6 persistent bleed damage on a critical hit. At 14th level, the persistent bleed damage increases to 2d6, and at 20th level, the persistent bleed damage i"
+  },
+  {
+   "id": "xANbzN9fbrrPSpZw",
+   "name": "Wall of Roses",
+   "level": 8,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "combat-passive",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Wall of Thorns)",
+   "text": "Roses are the symbol of Milani, and you can call forth a wall of them to stymie those who don't follow her teachings. You can cast Wall of Thorns once per day as a 4th-rank divine innate spell. The wall is immune to fire and the piercing da"
   },
   {
    "id": "thNurw2OnN9jpBGV",
@@ -32872,6 +32743,28 @@
    "text": "You cheat the rules of time to co-locate during your attack. When you use Temporal Fury, your Step can be up to 15 feet. If your second Strike is against the same creature as your first Strike, your second Strike deals an additional die of "
   },
   {
+   "id": "jSu9h6UvZtUJ7InD",
+   "name": "Fey Life",
+   "level": 16,
+   "owner": "other",
+   "classes": [],
+   "archetype": false,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "aftermath",
+    "healing",
+    "primal"
+   ],
+   "rarity": "rare",
+   "remaster": true,
+   "bucket": "combat-passive",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Summon Fey)",
+   "text": "There are some fates worse than death–and you worked to save a fey from one such fate. In return, your life became bound to theirs. Fey magic has since become a part of you, bringing the vibrant colors of the First World to you and all that"
+  },
+  {
    "id": "pGIJ6iXyg2CRzQxb",
    "name": "Gird Champion",
    "level": 16,
@@ -32951,6 +32844,26 @@
    "reason": "a passive's roll with no action to use it",
    "detail": "a passive's roll with no action to use it",
    "text": "Frequency once per day Trigger You lose Hit Points from persistent damage. Your sense of destiny manifests as rapid physical healing. Spend a Mythic Point. You regain 8d8 Hit Points and remove any persistent damage condition affecting you. "
+  },
+  {
+   "id": "DFA3qFdvSD5uHBKI",
+   "name": "Realm Strider",
+   "level": 16,
+   "owner": "other",
+   "classes": [],
+   "archetype": false,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "mythic"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "combat-passive",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Translocate)",
+   "text": "You can teleport across the battlefield, disappearing and appearing in a burst of hellfire and brimstone, a flash of lightning, a cloud of caustic gas, or other environmental hazard common within your planned realm. You can cast Translocate"
   },
   {
    "id": "Egx5NWOVhoaij7a3",
@@ -35282,6 +35195,26 @@
    "reason": null,
    "detail": null,
    "text": "You gain the Thrall Charge grave cantrip, allowing you to more aggressively use your undead servants."
+  },
+  {
+   "id": "J1MURfqf0kbxrKG9",
+   "name": "Warding Light",
+   "level": 4,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": false,
+   "bucket": "spellcasting",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Light, Peaceful Rest)",
+   "text": "You gain a tattoo that serves as a special ward to defend you against Walkena's forces. The tattoo allows you to cast the Light cantrip as a divine innate spell at will. The cantrip is heightened to a spell rank equal to half your level rou"
   },
   {
    "id": "UyMQ1X8KLSZvm7AT",
@@ -44570,6 +44503,26 @@
    "text": "You and your united companion call upon the service of others of its kind, creating figment duplicates of your companion to form a massive swarm of formidable power. Spend a Mythic Point. Your united companion becomes Gargantuan for 1 minut"
   },
   {
+   "id": "drcZf55HVsTnnTcF",
+   "name": "Soul Vessel Mount",
+   "level": 18,
+   "owner": "other",
+   "classes": [],
+   "archetype": false,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "mythic"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "companion",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Seize Soul)",
+   "text": "Your mount has a supernatural hunger for mortal souls that you can feed. Once per day, you can cast Seize Soul as a divine innate spell. The spell gains a cost of 1 Mythic Point but you can use your apocalypse mount as the item in which you"
+  },
+  {
    "id": "1JnERVwnPtX620f2",
    "name": "Animal Companion (Ranger)",
    "level": 1,
@@ -47128,6 +47081,26 @@
    "text": "You have learned limited divine magic from your Red Mantis training. You gain the Cast a Spell activity. You can prepare two common cantrips each day from the divine spell list or any other divine cantrips you have access to. You also gain "
   },
   {
+   "id": "J8BSHRkmP3QLknwF",
+   "name": "Beast Speaker",
+   "level": 4,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "uncommon",
+   "remaster": false,
+   "bucket": "out-of-combat",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Speak with Animals)",
+   "text": "You constantly have the effects of Speak with Animals as a 2nd-rank innate primal spell. You gain a +2 circumstance bonus to Diplomacy checks to Make a Request of animals while this spell is active."
+  },
+  {
    "id": "U7dntZ2dAklzsqw8",
    "name": "Blessing of the Sun Gods",
    "level": 4,
@@ -48692,6 +48665,26 @@
    "text": "You can connect with oozes (and other amorphous aberrations, at the GM's discretion) on a rudimentary level. You can use Diplomacy to Make an Impression on oozes and to make very simple Requests of them. In most instances, oozes will give y"
   },
   {
+   "id": "L9aBLPG2veBkVow9",
+   "name": "Persistent Creation",
+   "level": 8,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": false,
+   "bucket": "out-of-combat",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Creation)",
+   "text": "You can cast Creation as an innate spell at will, choosing whether it is arcane or primal each time. The created object lasts until you spend 1 hour not within its immediate vicinity or until it is destroyed. Such objects are called persist"
+  },
+  {
    "id": "wIAiDaNztd52ltT2",
    "name": "Positive Luminance",
    "level": 8,
@@ -49078,6 +49071,27 @@
    "reason": null,
    "detail": null,
    "text": "Your knowledge of abstruse topics is unparalleled. When you succeed at a check to Recall Knowledge, you gain additional information or context. When you critically succeed at a Knowledge check, at the GM's discretion you might gain even mor"
+  },
+  {
+   "id": "byLeVAcRoSWgT5DK",
+   "name": "Patron's Whisper",
+   "level": 10,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype",
+    "auditory"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "out-of-combat",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Message)",
+   "text": "You gain the ability to speak to your charge over great distances. You gain Message as an innate cantrip of your former patron's tradition. You can send a message to a creature regardless of range if they have ever been your charge. If you "
   },
   {
    "id": "vu0R9VfRZ6RWTczZ",
@@ -55807,6 +55821,26 @@
    "text": "You've trained with the weapons of the Bright Lions. You gain access to Lion Scythes and Sun Slings. Whenever you gain a class feature that grants you expert or greater proficiency in certain weapons, you also gain that proficiency rank wit"
   },
   {
+   "id": "chmQgMamyaZX90Tc",
+   "name": "Magical Edification",
+   "level": 4,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": false,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Guidance, Message, Sigil)",
+   "text": "You've learned those tidbits of magic that are most conducive to furthering your acquisition and transmission of knowledge. You gain Guidance, Message, and Sigil as innate occult cantrips."
+  },
+  {
    "id": "AuIE19F9rY3YvXf6",
    "name": "Magical Scholastics",
    "level": 4,
@@ -56368,6 +56402,26 @@
    "reason": null,
    "detail": null,
    "text": "Long hours in darkened observatories have sharpened your senses. If you don't have low-light vision or darkvision, you gain low-light vision, or if you already have low-light vision, you gain darkvision. Special You can take this feat a sec"
+  },
+  {
+   "id": "AGEr2Zby6Nc5g0bR",
+   "name": "Stone Guardian",
+   "level": 4,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": false,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Summon Elemental)",
+   "text": "You learn to call a powerful guardian of earth and stone to your side. You can cast Summon Elemental as an innate primal spell once per day, and can only summon elementals with the earth trait. This spell is automatically heightened to half"
   },
   {
    "id": "WPHq7MWHlGWpTnme",
@@ -58841,6 +58895,28 @@
    "text": "Frequency once per day Requirements You have cast Summon Undead this turn. You sway with the motions of your spells that animate the dead, channeling your power to sustain two at the same time. You Sustain your previous casting of animate d"
   },
   {
+   "id": "kYYB7ziQZjlgQWWu",
+   "name": "Call Ursine Ally",
+   "level": 8,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype",
+    "primal",
+    "summon"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Summon Animal)",
+   "text": "Frequency once per hour You can cast a 3rd-rank Summon Animal as an innate spell, but only to summon a Black Bear. At 10th level, the summon animal spell is heightened to 4th level, and you can summon a Grizzly Bear. At 12th level, your sum"
+  },
+  {
    "id": "vQHnEkyBjcuER8Kf",
    "name": "Cantrip Supremacy",
    "level": 8,
@@ -59271,6 +59347,26 @@
    "text": "You gain access to the Lion Scythe's and Sun Sling's critical specialization effects."
   },
   {
+   "id": "cdeVm8fTDzrP71Sw",
+   "name": "Lorefinder",
+   "level": 8,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": false,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Locate)",
+   "text": "You know that fate sometimes conspires to keep dangerous knowledge or items from the eyes of those most able to understand them. You deny fate the ability to conceal truths from you. You can cast Locate as an innate occult spell once per da"
+  },
+  {
    "id": "vUFvcrvszXlHvz2Y",
    "name": "Magic Ammunition",
    "level": 8,
@@ -59678,6 +59774,26 @@
    "reason": null,
    "detail": null,
    "text": "Frequency once per day Requirements You are in Tenacious Stance. Every dwarf knows that the rock they walk upon can be either a best friend or a treacherous path. With a heavy impact of your armored heel, you crack the ground underneath you"
+  },
+  {
+   "id": "jyNLPVWczMYA1ZXR",
+   "name": "Salt Kissed",
+   "level": 8,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Air Bubble, Water Breathing)",
+   "text": "You have a supernatural ability to survive at sea and keep your companions from drowning. You can cast Air Bubble and Water Breathing as 4th-rank divine innate spells once per day each. Add the water domain to those that you can select with"
   },
   {
    "id": "cDNxHLIgvyD7yBfM",
@@ -60146,6 +60262,26 @@
    "text": "You practiced fan dance as a member of a large group, coordinating your moves together to create living art and heightening your sense of spatial awareness. When you wield two fans, each in a different hand, you gain tremorsense as an impre"
   },
   {
+   "id": "XeFMWjJkZy2O7lou",
+   "name": "Cloud Walk",
+   "level": 10,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "uncommon",
+   "remaster": false,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Air Walk)",
+   "text": "Your growing link to cloud dragons has granted you the ability to walk on clouds. Once per hour, you can cast Air Walk on yourself as an innate arcane spell, but only to walk on clouds or fog."
+  },
+  {
    "id": "hsMcKK92ho39djgI",
    "name": "Communal Tale",
    "level": 10,
@@ -60426,6 +60562,46 @@
    "text": "Your ability to sense undead has improved. You sense undead as an imprecise sense with a range of 60 feet: an uncomfortable sensation brushes against your spirit and stinks of rot. When in proximity to an undead, you can sense its presence,"
   },
   {
+   "id": "jBHDVsTVOBeoMoO4",
+   "name": "Greater Magical Edification",
+   "level": 10,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": false,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Translate, Mindlink, Secret Page)",
+   "text": "You've continued to expand your compendium of tools to compile knowledge. You can cast Translate, Mindlink, and Secret Page as innate occult spells, each once per day. When you cast secret page , it is automatically heightened to the same s"
+  },
+  {
+   "id": "ErKwliHplziJY2BW",
+   "name": "Greater Magical Scholastics",
+   "level": 10,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Augury, Locate, Veil of Privacy)",
+   "text": "You broaden your magical studies, allowing you to find the right path, detect hidden objects, and conceal those objects from unscrupulous rivals. You can cast Augury, Locate, and Veil of Privacy as occult innate spells, each once per day. Y"
+  },
+  {
    "id": "C0lm4rtptGdRbLem",
    "name": "Holy Flower",
    "level": 10,
@@ -60665,6 +60841,26 @@
    "reason": null,
    "detail": null,
    "text": "Trigger You cast summon undead. Requirements Your horde is raised. The act of summoning additional undead minions doesn't make you lose the focus required to maintain the animation of your horde. You Sustain your horde."
+  },
+  {
+   "id": "EFowS1mD93OmBxqu",
+   "name": "Prophet's Lockbox",
+   "level": 10,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Imaginary Lockbox)",
+   "text": "You've learned secret methods that allow you to store your valuables where no one else can reach them. You can cast Imaginary Lockbox as a 5th-rank innate occult spell once per day. At 12th level and every 2 levels thereafter, the maximum a"
   },
   {
    "id": "eAcMHQgfsOePtYgp",
@@ -62519,6 +62715,66 @@
    "text": "You've spent time training in your armor alongside other agents from the Swords. Your proficiency rank for light, medium, and heavy armor increases to expert for whichever of those you already had the trained proficiency rank in."
   },
   {
+   "id": "kC92uxCvrxDkrCpO",
+   "name": "Borrow Memories",
+   "level": 14,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "uncommon",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Mind Probe)",
+   "text": "Knowing how someone thinks makes it much easier to know where they'll be, or even replace them altogether. You can cast Mind Probe as an innate occult spell once per day, using your class DC or spell DC, whichever is higher. If you cast min"
+  },
+  {
+   "id": "7hucfLLgeNeX5Pkw",
+   "name": "Call Draconic Ally",
+   "level": 14,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Summon Dragon)",
+   "text": "Either by beseeching a dragon or bending it to your will, you conjure a mighty creature to assist you. Once per day while you are Channeling Draconic Essence, you can cast Summon Dragon as an innate spell with a tradition matching your drac"
+  },
+  {
+   "id": "NKCeu18Y8VoZyfsX",
+   "name": "Commandeer Hellmouth",
+   "level": 14,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "rare",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Teleport, Interplanar Teleport)",
+   "text": "Your folio contains a contract with one of the hellmouths, enormous living portals connected to Hell itself. You can cast a 6th-rank Teleport once per day as a divine innate spell. By spending 8 hours poring over your contracts, you can ins"
+  },
+  {
    "id": "wBL5h0hTmVD4EJLw",
    "name": "Control Tower",
    "level": 14,
@@ -62640,6 +62896,26 @@
    "reason": null,
    "detail": null,
    "text": "Elegant and expensive components are no replacement for your skill and practice at ritual casting. If a ritual has a Cost entry that has a value in gp, reduce the amount you need to spend by 10%. If you critically succeed at the primary che"
+  },
+  {
+   "id": "8nCxI2SZ64UmMuRZ",
+   "name": "Entities From Afar",
+   "level": 14,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": false,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Summon Entity, Read Omens)",
+   "text": "You can call in aberrations to fight for you or to answer questions. You can cast Summon Entity as an innate occult spell once per day. If you couldn't already cast occult spells, these spells use Intelligence as your spellcasting ability, "
   },
   {
    "id": "upsDl9drHCoH6jrz",
@@ -63289,6 +63565,46 @@
    "text": "Requirements You are holding healer's tools or are wearing them and have a hand free. You resuscitate the dead. Attempt a @Check[medicine|dc:40|showDC:all] check to revive a dead creature who has been dead for no more than 3 rounds and whos"
   },
   {
+   "id": "PVx3D9ndoytRAPca",
+   "name": "Rivethun Adept",
+   "level": 16,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Speak with Stones, Spiritual Guardian)",
+   "text": "Your ability to wield spirit magic has increased. You can cast Speak with Stones and Spiritual Guardian as a 5th-rank divine innate spells. You can cast each of these spells once per day. If you're legendary in Religion, spiritual guardian "
+  },
+  {
+   "id": "ZXLbIgL3NNplgnuB",
+   "name": "Shared Dream",
+   "level": 16,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Dream Council)",
+   "text": "You've learned to create a shared dreamscape to communicate with others. You can cast Dream Council as an innate occult spell once per day."
+  },
+  {
    "id": "z3tH63RsLkVze82H",
    "name": "The Bitter Scholar's Promotion",
    "level": 16,
@@ -63347,6 +63663,26 @@
    "reason": "a roll whose results the simulator doesn't read",
    "detail": "a roll whose results the simulator doesn't read",
    "text": "Requirements The target's body must be mostly intact. Combining necromancy with the mysterious temporal powers of clockwork, you wind a creature backward from the moment of its death. Attempt a @Check[crafting|dc:40] check to revive a dead "
+  },
+  {
+   "id": "qf25HIPLdGVjui88",
+   "name": "Call the Worm",
+   "level": 18,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": false,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Summon Animal)",
+   "text": "You gain Summon Animal, heightened to 9th rank, as an innate primal spell that you can cast once per day, but can only summon a Purple Worm. At 20th level, you can summon an elite purple worm instead."
   },
   {
    "id": "IA8p9oYmsCbipmhw",
@@ -64010,6 +64346,26 @@
    "reason": null,
    "detail": null,
    "text": "Though the city of Vigil itself has been destroyed, you will carry on its warrior spirit to the end of your days. The value of your Dying condition at which you die increases by 1 (normally to dying 5, or dying 6 if you have Diehard), and t"
+  },
+  {
+   "id": "4KxG9QC6jPn2CJeZ",
+   "name": "Enter Divine Realm",
+   "level": 20,
+   "owner": "archetype",
+   "classes": [],
+   "archetype": true,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "archetype"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Interplanar Teleport)",
+   "text": "You are granted access to your deity's realm and can travel there quickly. You can cast Interplanar Teleport once per day as an innate divine spell with a casting time of only 1 minute. You act as the planar key for the destination, and you"
   },
   {
    "id": "fUvV0zsNf1Rj0eox",
@@ -64777,6 +65133,30 @@
    "text": "You've learned to call upon light to reveal what is hidden. You gain the Light of Revelation devotion spell. Increase the number of Focus Points in your focus pool by 1."
   },
   {
+   "id": "wbS8f7R7KqHkwOzM",
+   "name": "Sacral Lord",
+   "level": 4,
+   "owner": "champion",
+   "classes": [
+    "champion",
+    "oracle"
+   ],
+   "archetype": false,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "champion",
+    "oracle"
+   ],
+   "rarity": "rare",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Detect Magic, Guidance, Sigil)",
+   "text": "By right of ritual or sheer stubbornness, you have claimed rulership of the land. Claim a defined territory, such as a small section of forest or river, or a district of a larger city. Within its borders, you can cast Detect Magic, Guidance"
+  },
+  {
    "id": "YAr465ZVQ4blqDzT",
    "name": "Security",
    "level": 4,
@@ -65420,6 +65800,28 @@
    "reason": null,
    "detail": null,
    "text": "Your life has made you a nexus for your deity's vile power. You're continuously surrounded by a Bane spell, with a spell rank equal to half your level (rounded up). The radius is 15 feet, and you can't increase it. You can Dismiss the spell"
+  },
+  {
+   "id": "opeP0JF9WGmNG0pb",
+   "name": "Avatar's Audience",
+   "level": 20,
+   "owner": "cleric",
+   "classes": [
+    "cleric"
+   ],
+   "archetype": false,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "cleric"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Commune, Interplanar Teleport)",
+   "text": "Your extensive service affords you certain divine privileges. First, any creature you encounter knows instinctively that you speak for your deity. Second, if you conduct the Commune ritual to contact your deity, you don't have to pay any co"
   },
   {
    "id": "DMECB9RwLAhY0T9o",
@@ -66569,6 +66971,32 @@
    "reason": null,
    "detail": null,
    "text": "You've dedicated your training to mastering even the most complex and weird firearms and crossbows from across the world. You gain proficiency with all advanced firearms as if they were martial firearms and with all advanced crossbows as if"
+  },
+  {
+   "id": "2leK1eGVcIBTmx6J",
+   "name": "Unseen Passage",
+   "level": 8,
+   "owner": "gunslinger",
+   "classes": [
+    "gunslinger",
+    "investigator",
+    "ranger"
+   ],
+   "archetype": false,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "gunslinger",
+    "investigator",
+    "ranger"
+   ],
+   "rarity": "rare",
+   "remaster": false,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Vanishing Tracks)",
+   "text": "Frequency once per day You have mastered a magical technique for moving through dangerous woodlands unseen. You can cast Vanishing Tracks as an innate primal spell heightened to a spell rank equal to half your level rounded up."
   },
   {
    "id": "vxDL78Yz0dPZdAJ5",
@@ -69354,6 +69782,26 @@
    "text": "With a thought, the passion of your fiendish desires becomes evident in your eyes and posture. For the next minute, you gain a +2 circumstance bonus to Deception, Diplomacy, and Intimidation skill checks. In addition, you gain a +2 circumst"
   },
   {
+   "id": "UTgVD8LwSjFVMlqc",
+   "name": "Expanded Runelord Magic",
+   "level": 14,
+   "owner": "other",
+   "classes": [],
+   "archetype": false,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "mythic"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Contingency, Spell Riposte)",
+   "text": "Your ability to use magic associated with your chosen sin grows. You gain the ability to cast one more arcane spell as an innate spell. This spell must be chosen from those listed in Avenging Runelord Dedication above, as well as Contingenc"
+  },
+  {
    "id": "nksxAtBmwDUmrTcS",
    "name": "Extend Surge",
    "level": 14,
@@ -70622,6 +71070,28 @@
    "reason": null,
    "detail": null,
    "text": "With a pinching gesture, you pick up a word and move it elsewhere. You move any one of your runes within 30 feet to a different eligible target within 30 feet."
+  },
+  {
+   "id": "v2MEJI6jEchstnMN",
+   "name": "Writing On the Wall",
+   "level": 4,
+   "owner": "runesmith",
+   "classes": [
+    "runesmith"
+   ],
+   "archetype": false,
+   "actionType": "passive",
+   "actions": null,
+   "traits": [
+    "runesmith"
+   ],
+   "rarity": "common",
+   "remaster": true,
+   "bucket": "other",
+   "featModule": "plan",
+   "reason": "a spell the engine doesn't cast",
+   "detail": "a spell the engine doesn't cast (Embed Message)",
+   "text": "You place hidden messages written in a runic cipher of your devising. You can cast Embed Message once per day as an innate spell. The rank of this spell is equal to half your level, rounded up, and the tradition can be any tradition for whi"
   },
   {
    "id": "7s0I9i0eyo8Gkapa",

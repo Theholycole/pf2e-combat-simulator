@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-03 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1047 are rated; 3309 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-04 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1024 are rated; 3332 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -8,15 +8,15 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 
 | Bucket | No plan | Plan, not played | Total |
 |---|---:|---:|---:|
-| Archetype dedications (grant class features) | 177 | 4 | 181 |
-| Combat actions and reactions | 278 | 431 | 709 |
-| Passives that change a class feature | 228 | 21 | 249 |
-| Other combat passives | 390 | 49 | 439 |
-| Spellcasting (slots, focus, spellshapes) | 269 | 39 | 308 |
-| Companions, familiars and eidolons | 195 | 51 | 246 |
-| Out of combat (exploration, downtime, skills) | 313 | 33 | 346 |
-| Nothing a fight would use | 739 | 92 | 831 |
-| **All** | 2589 | 720 | 3309 |
+| Archetype dedications (grant class features) | 177 | 5 | 182 |
+| Combat actions and reactions | 278 | 422 | 700 |
+| Passives that change a class feature | 228 | 22 | 250 |
+| Other combat passives | 390 | 52 | 442 |
+| Spellcasting (slots, focus, spellshapes) | 269 | 40 | 309 |
+| Companions, familiars and eidolons | 195 | 52 | 247 |
+| Out of combat (exploration, downtime, skills) | 313 | 36 | 349 |
+| Nothing a fight would use | 739 | 114 | 853 |
+| **All** | 2589 | 743 | 3332 |
 
 ## By class
 
@@ -24,35 +24,35 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | alchemist |  | 5 | 17 | 16 |  | 1 | 12 | 15 | 66 |
 | animist |  | 6 | 4 |  | 12 | 3 | 4 | 2 | 31 |
-| barbarian |  | 26 | 15 | 5 |  |  |  | 10 | 56 |
+| barbarian |  | 25 | 15 | 5 |  |  |  | 10 | 55 |
 | bard |  | 7 | 12 |  | 26 | 1 | 14 | 14 | 74 |
-| champion |  | 11 | 16 | 19 | 3 | 11 | 6 | 15 | 81 |
-| cleric |  | 9 | 1 | 16 | 18 | 1 | 8 | 18 | 71 |
+| champion |  | 11 | 16 | 19 | 3 | 11 | 6 | 16 | 82 |
+| cleric |  | 9 | 1 | 16 | 18 | 1 | 8 | 19 | 72 |
 | commander |  | 11 | 1 | 6 |  | 4 | 5 | 7 | 34 |
 | druid |  | 5 | 13 | 4 | 21 | 11 | 7 | 18 | 79 |
 | exemplar |  | 6 | 28 | 2 |  |  | 3 | 4 | 43 |
-| fighter |  | 28 |  | 11 |  |  | 1 | 11 | 51 |
-| guardian |  | 16 | 3 | 9 |  |  | 2 | 5 | 35 |
-| gunslinger |  | 27 | 4 | 13 |  | 1 | 4 | 11 | 60 |
+| fighter |  | 27 |  | 11 |  |  | 1 | 11 | 50 |
+| guardian |  | 15 | 3 | 9 |  |  | 2 | 5 | 34 |
+| gunslinger |  | 27 | 4 | 13 |  | 1 | 4 | 12 | 61 |
 | inventor |  | 9 | 8 | 1 |  | 7 | 5 | 11 | 41 |
 | investigator |  | 5 | 4 | 13 |  | 1 | 17 | 11 | 51 |
 | kineticist |  | 42 | 5 | 1 | 1 | 1 | 6 | 22 | 78 |
 | magus |  | 16 | 10 | 2 | 11 | 1 | 6 | 6 | 52 |
-| monk |  | 25 | 2 | 13 | 2 |  | 2 | 23 | 67 |
+| monk |  | 24 | 2 | 13 | 2 |  | 2 | 23 | 66 |
 | necromancer |  | 12 | 5 | 6 | 9 | 1 | 6 | 20 | 59 |
 | oracle |  | 6 | 6 |  | 10 |  | 4 | 4 | 30 |
 | psychic |  | 5 | 1 | 1 | 20 |  | 1 | 7 | 35 |
 | ranger |  | 7 | 12 | 7 |  | 11 | 14 | 17 | 68 |
-| rogue |  | 27 | 3 | 23 | 3 |  | 2 | 16 | 74 |
-| runesmith |  | 17 | 11 | 1 |  | 2 | 6 | 9 | 46 |
+| rogue |  | 26 | 3 | 23 | 3 |  | 2 | 16 | 73 |
+| runesmith |  | 17 | 12 | 1 |  | 2 | 6 | 10 | 48 |
 | sorcerer |  | 1 | 1 | 6 | 24 | 1 | 7 | 11 | 51 |
 | summoner |  |  |  |  | 1 | 55 | 5 |  | 61 |
-| swashbuckler |  | 15 | 8 | 8 |  |  |  | 9 | 40 |
-| thaumaturge |  | 10 | 9 | 2 | 1 | 1 | 5 | 10 | 38 |
+| swashbuckler |  | 14 | 8 | 8 |  |  |  | 9 | 39 |
+| thaumaturge |  | 11 | 9 | 2 | 1 | 1 | 5 | 10 | 39 |
 | witch |  | 2 | 3 | 2 | 4 | 16 | 7 | 3 | 37 |
 | wizard |  | 2 |  | 1 | 16 | 4 | 10 | 6 | 39 |
-| archetype | 169 | 299 | 45 | 210 | 108 | 100 | 148 | 481 | 1560 |
-| other | 12 | 52 | 2 | 41 | 18 | 12 | 29 | 35 | 201 |
+| archetype | 170 | 295 | 45 | 211 | 109 | 100 | 151 | 498 | 1579 |
+| other | 12 | 52 | 2 | 43 | 18 | 13 | 29 | 36 | 205 |
 
 ## Why the simulator doesn't play the ones with a plan
 
@@ -60,13 +60,13 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 |---|---:|
 | a timer with no rules a fight counts | 126 |
 | its requirement | 119 |
-| a Strike with nothing more the simulator reads | 88 |
-| a spell the engine doesn't cast | 46 |
+| a Strike with nothing more the simulator reads | 81 |
+| a spell the engine doesn't cast | 79 |
 | an Effect with nothing a fight counts | 42 |
 | a roll whose results the simulator doesn't read | 38 |
 | a teleport | 37 |
 | its text has no Strike of its user's | 36 |
-| a reaction's Strike | 24 |
+| a reaction's Strike | 19 |
 | a spell the feat casts | 18 |
 | a passive's Effect on other creatures | 17 |
 | a passive's Effect posted by hand | 15 |
@@ -79,7 +79,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | an Effect on another creature | 8 |
 | a choice of ways the simulator doesn't play | 7 |
 | a reroll | 6 |
-| its stance | 4 |
+| its stance | 5 |
 | a Focus or Mythic Point back | 4 |
 | a companion's Strike | 4 |
 | nothing a fight uses | 3 |
@@ -87,10 +87,11 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | a reaction to "aura" | 2 |
 | a target the simulator can't tell | 1 |
 | a free's Strike | 1 |
+| effects the GM allows from the scenery | 1 |
 | a reaction to "hit-by" | 1 |
 | a reaction to "own-strike" | 1 |
 
-## Archetype dedications (grant class features) (181)
+## Archetype dedications (grant class features) (182)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -258,6 +259,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Scrollmaster Dedication | 6 | archetype | passive | no plan |  |
 | Spellmaster Dedication | 6 | archetype | passive | no plan |  |
 | Swordmaster Dedication | 6 | archetype | passive | no plan |  |
+| Time Mage Dedication | 6 | archetype | passive | plan | a spell the engine doesn't cast (Delay Consequence) |
 | Golden League Xun Dedication | 8 | archetype | passive | no plan |  |
 | Shadowdancer Dedication | 8 | archetype | passive | no plan |  |
 | Provocator Dedication | 10 | archetype | passive | no plan |  |
@@ -276,7 +278,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Warshard Warrior Dedication | 12 | other | passive | no plan |  |
 | Wildspell Dedication | 12 | other | passive | plan | a spell the engine doesn't cast (Spellsurge) |
 
-## Combat actions and reactions (709)
+## Combat actions and reactions (700)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -300,9 +302,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Belay That! | 4 | archetype | reaction | no plan |  |
 | Bless Shield | 4 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | Blessed Thorn Strike | 4 | archetype | 1 action | plan | its requirement (You witnessed an enemy harm an ally with a Strike or spell last round.) |
-| Claw Snag | 4 | archetype | reaction | plan | a reaction's Strike |
 | Contingency Leap | 4 | archetype | reaction | no plan |  |
-| Crop Protection | 4 | archetype | reaction | plan | a reaction's Strike |
 | Disarming Block | 4 | archetype | free | no plan |  |
 | Doctor's Visitation | 4 | archetype | 1 action | plan | a teleport |
 | Elbow Breaker | 4 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
@@ -373,7 +373,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Shark Attack | 6 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Sheltering Hand | 6 | archetype | 1 action | plan | a timer with no rules a fight counts |
 | Spiral Sworn | 6 | archetype | 1 action | plan | an Effect with nothing a fight counts |
-| Staggering Fire | 6 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Startling Appearance (Vigilante) | 6 | archetype | 1 action | plan | its requirement (You are completely unnoticed by the target creature.) |
 | Sundown Street Posturing | 6 | archetype | 1 action | no plan |  |
 | Surging Smash | 6 | archetype | 2 actions | plan | its requirement (You are overflowing) |
@@ -404,7 +403,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Flashing Shield | 8 | archetype | free | plan | a timer with no rules a fight counts |
 | Gardener's Resolve | 8 | archetype | reaction | no plan |  |
 | Ghost Flight | 8 | archetype | 2 actions | plan | a timer with no rules a fight counts |
-| Gods' Palm | 8 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Guardian's Embrace | 8 | archetype | 1 action | plan | its requirement (You are adjacent to your spirit guide or it is sharing your space) |
 | Hot Foot | 8 | archetype | 1 action | no plan |  |
 | Interrupt Charge | 8 | archetype | reaction | plan | a roll whose results the simulator doesn't read |
@@ -464,7 +462,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Feral Scramble | 10 | archetype | 2 actions | plan | its requirement (You're in hybrid or animal shape.) |
 | Feral Toss | 10 | archetype | 2 actions | plan | its requirement (You're in hybrid or animal shape.) |
 | Form Up! | 10 | archetype | 2 actions | no plan |  |
-| Harrying Strike | 10 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Hematocritical | 10 | archetype | free | plan | a roll twice |
 | I Meant to do That | 10 | archetype | 1 action | no plan |  |
 | Infiltration Assassination | 10 | archetype | 2 actions | plan | its requirement (You're wearing a loaded gauntlet bow.) |
@@ -476,7 +473,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Null Field | 10 | archetype | 1 action | no plan |  |
 | Open the Blazing Eye | 10 | archetype | 2 actions | plan | a timer with no rules a fight counts |
 | Pass Through | 10 | archetype | 3 actions | plan | a teleport |
-| Protective Strike | 10 | archetype | reaction | plan | a reaction's Strike |
 | Rain-Scribe Mobility | 10 | archetype | 2 actions | no plan |  |
 | Reactive Charm | 10 | archetype | reaction | no plan |  |
 | Reel 'Em In | 10 | archetype | 1 action | plan | a roll whose results the simulator doesn't read |
@@ -572,6 +568,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Mobile Magical Combat | 16 | archetype | 1 action | plan | its requirement (You're wielding a melee weapon and have Cast a Spell requiring at least 1 action this turn.) |
 | One with the Spirits | 16 | archetype | 1 action | no plan |  |
 | Opportune Throw | 16 | archetype | reaction | plan | a reaction's Strike |
+| Protective Cycle | 16 | archetype | reaction | plan | its stance (an elemental stance), not in the packs |
 | Purge of Moments | 16 | archetype | 3 actions | no plan |  |
 | Ruthless Orator | 16 | archetype | 2 actions | no plan |  |
 | Sonic Strafe | 16 | archetype | 2 actions | plan | its requirement (You currently have a fly Speed) |
@@ -585,13 +582,13 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Guillotine Blade | 18 | archetype | 1 action | no plan |  |
 | No Need to Fear | 18 | archetype | reaction | no plan |  |
 | Stand for the Fallen | 18 | archetype | reaction | no plan |  |
+| Terrifying Countenance | 18 | archetype | free | plan | a spell the engine doesn't cast (Mask of Terror) |
 | Timeline-Splitting Spell | 18 | archetype | 3 actions | no plan |  |
 | Tragic Lament | 18 | archetype | reaction | plan | a timer with no rules a fight counts |
 | Flash of Omnipotence | 20 | archetype | free | no plan |  |
 | The Tyrant Falls! | 20 | archetype | 2 actions | plan | a timer with no rules a fight counts |
 | Wrath of the First Ghoul | 20 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Bashing Charge | 2 | barbarian | 2 actions | plan | a teleport |
-| Furious Finish | 2 | barbarian | 1 action | plan | a Strike with nothing more the simulator reads |
 | No Escape | 2 | barbarian | reaction | plan | a teleport |
 | Shake it Off | 2 | barbarian | 1 action | no plan |  |
 | Barreling Charge | 4 | barbarian | 2 actions | plan | a roll whose results the simulator doesn't read |
@@ -678,7 +675,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Revealing Stab | 6 | fighter | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Ricochet Stance (Fighter) | 6 | fighter | 1 action | plan | an Effect with nothing a fight counts |
 | Spear Dancer | 6 | fighter | 1 action | plan | a Strike with nothing more the simulator reads |
-| Felling Strike | 8 | fighter | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Knight's Retaliation | 8 | fighter | reaction | no plan |  |
 | Mobile Shot Stance | 8 | fighter | 1 action | no plan |  |
 | Positioning Assault | 8 | fighter | 2 actions | plan | a Strike with nothing more the simulator reads |
@@ -695,7 +691,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Sever Space | 20 | fighter | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Covering Stance | 2 | guardian | 1 action | plan | a timer with no rules a fight counts |
 | Hampering Stance | 2 | guardian | 1 action | plan | a lasting area |
-| Taunting Strike | 2 | guardian | 1 action | plan | a Strike with nothing more the simulator reads |
 | Not So Fast! | 4 | guardian | reaction | plan | a reaction's Strike |
 | Proud Nail | 4 | guardian | 1 action | plan | its requirement (Your taunted enemy is Off-Guard because it didn't target you or include you in an area effect.) |
 | Shielded Attrition | 4 | guardian | 1 action | plan | a timer with no rules a fight counts |
@@ -813,7 +808,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Divert Streamflow | 4 | monk | reaction | plan | a roll whose results the simulator doesn't read |
 | Flying Kick | 4 | monk | 2 actions | plan | its text has no Strike of its user's |
 | Peafowl Stance | 4 | monk | 1 action | plan | an Effect with nothing a fight counts |
-| Crane Flutter | 6 | monk | reaction | plan | a reaction's Strike |
 | Culvert's Collapse | 6 | monk | 1 action | plan | its requirement (You are in Flood Stance and were damaged by an enemy since your previous turn.) |
 | Gorilla Pound | 6 | monk | 1 action | plan | a Strike with nothing more the simulator reads |
 | Pinning Fire | 8 | monk | reaction | no plan |  |
@@ -938,7 +932,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Felling Shot | 12 | rogue | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Preparation | 12 | rogue | 1 action | no plan |  |
 | Cognitive Loophole | 16 | rogue | reaction | plan | a timer with no rules a fight counts |
-| Cutthroat Grapple | 16 | rogue | reaction | plan | a reaction's Strike |
 | Dispelling Slice | 16 | rogue | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Swift Elusion | 16 | rogue | reaction | no plan |  |
 | Reactive Distraction | 20 | rogue | reaction | no plan |  |
@@ -962,7 +955,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Blood Rising | 1 | sorcerer | reaction | plan | a timer with no rules a fight counts |
 | One for All | 1 | swashbuckler | 1 action | no plan |  |
 | Brandishing Draw | 2 | swashbuckler | 1 action | plan | its text has no Strike of its user's |
-| Retreating Finisher | 2 | swashbuckler | 1 action | plan | a Strike with nothing more the simulator reads |
 | Swan Dive | 2 | swashbuckler | 1 action | no plan |  |
 | Dastardly Dash | 4 | swashbuckler | 1 action | plan | a teleport |
 | Impaling Finisher | 4 | swashbuckler | 1 action | plan | a Strike with nothing more the simulator reads |
@@ -975,6 +967,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Lethal Finisher | 18 | swashbuckler | 1 action | plan | a roll whose results the simulator doesn't read |
 | Illimitable Finisher | 20 | swashbuckler | 1 action | plan | its text has no Strike of its user's |
 | Vivacious Afterimage | 20 | swashbuckler | 1 action | plan | a timer with no rules a fight counts |
+| Divine Disharmony | 1 | thaumaturge | 1 action | plan | effects the GM allows from the scenery |
 | Root to Life | 1 | thaumaturge | 1 action | no plan |  |
 | Turn Away Misfortune | 2 | thaumaturge | reaction | no plan |  |
 | Instructive Strike | 4 | thaumaturge | 1 action | plan | a Strike with nothing more the simulator reads |
@@ -990,7 +983,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Convincing Illusion | 6 | wizard | reaction | plan | a roll whose results the simulator doesn't read |
 | Spell Tinker | 16 | wizard | 2 actions | no plan |  |
 
-## Passives that change a class feature (249)
+## Passives that change a class feature (250)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -1217,6 +1210,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Ghostly Resonance | 4 | runesmith | passive | no plan |  |
 | Runic Reprisal | 6 | runesmith | passive | no plan |  |
 | Prodigal Rune-Singer | 10 | runesmith | passive | no plan |  |
+| Maze of Runes | 16 | runesmith | passive | plan | a spell the engine doesn't cast (Quandary) |
 | Runesight | 16 | runesmith | passive | no plan |  |
 | Unbounded Invocations | 18 | runesmith | passive | no plan |  |
 | Forge New Word | 20 | runesmith | passive | no plan |  |
@@ -1244,7 +1238,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Syu Tak-nwa's Hexed Locks | 8 | witch | passive | no plan |  |
 | Hex Master | 20 | witch | passive | no plan |  |
 
-## Other combat passives (439)
+## Other combat passives (442)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -1373,6 +1367,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Unshaken in Iron | 8 | archetype | passive | no plan |  |
 | Vantage Shot | 8 | archetype | passive | no plan |  |
 | Vicious Fangs | 8 | archetype | passive | no plan |  |
+| Wall of Roses | 8 | archetype | passive | plan | a spell the engine doesn't cast (Wall of Thorns) |
 | World-Wise Vigilance | 8 | archetype | passive | no plan |  |
 | And Yet it Still Hurts | 10 | archetype | passive | no plan |  |
 | Beast Dynamo Howl | 10 | archetype | passive | no plan |  |
@@ -1617,10 +1612,12 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Steadfast Grip | 14 | other | passive | no plan |  |
 | Bolstered Recovery | 16 | other | passive | no plan |  |
 | Echoing Fury | 16 | other | passive | no plan |  |
+| Fey Life | 16 | other | passive | plan | a spell the engine doesn't cast (Summon Fey) |
 | Gird Champion | 16 | other | passive | no plan |  |
 | Let Death be my Weapon | 16 | other | passive | no plan |  |
 | Marshall Fiendish Forces | 16 | other | passive | no plan |  |
 | Momentary Respite | 16 | other | passive | plan | a passive's roll with no action to use it |
+| Realm Strider | 16 | other | passive | plan | a spell the engine doesn't cast (Translocate) |
 | Terrifying Mien | 16 | other | passive | plan | its Effect has nothing a fight counts |
 | Vigorous Victor | 16 | other | passive | no plan |  |
 | Walk on the Wind | 16 | other | passive | no plan |  |
@@ -1688,7 +1685,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Witch's Hut | 20 | witch | passive | no plan |  |
 | Spell Combination | 20 | wizard | passive | no plan |  |
 
-## Spellcasting (slots, focus, spellshapes) (308)
+## Spellcasting (slots, focus, spellshapes) (309)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -1734,6 +1731,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Snowcaster | 4 | archetype | passive | no plan |  |
 | Tender Ministrations | 4 | archetype | 1 action | no plan |  |
 | Thrall Charger | 4 | archetype | passive | no plan |  |
+| Warding Light | 4 | archetype | passive | plan | a spell the engine doesn't cast (Light, Peaceful Rest) |
 | Wayfinder Resonance Tinkerer | 4 | archetype | passive | no plan |  |
 | Wyldsinger | 4 | archetype | passive | no plan |  |
 | Basic Magus Spellcasting | 6 | archetype | passive | no plan |  |
@@ -2001,7 +1999,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reclaim Spell | 20 | wizard | passive | no plan |  |
 | Worldsphere Gravity | 20 | wizard | 1 action | plan | a lasting area |
 
-## Companions, familiars and eidolons (246)
+## Companions, familiars and eidolons (247)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -2161,6 +2159,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Unified Stance | 16 | other | 1 action | no plan |  |
 | Creature of Myth | 18 | other | passive | plan | a passive's Strike |
 | Pack of the Beast Lord | 18 | other | 3 actions | plan | a timer with no rules a fight counts |
+| Soul Vessel Mount | 18 | other | passive | plan | a spell the engine doesn't cast (Seize Soul) |
 | Animal Companion (Ranger) | 1 | ranger | passive | no plan |  |
 | Heal Companion | 1 | ranger | passive | no plan |  |
 | Companion's Cry | 4 | ranger | passive | no plan |  |
@@ -2252,7 +2251,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Bond Conservation | 8 | wizard | 1 action | no plan |  |
 | Superior Bond | 14 | wizard | passive | no plan |  |
 
-## Out of combat (exploration, downtime, skills) (346)
+## Out of combat (exploration, downtime, skills) (349)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -2279,6 +2278,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Arcane School Spell | 4 | archetype | passive | no plan |  |
 | Basic Bloodline Spell | 4 | archetype | passive | no plan |  |
 | Basic Red Mantis Magic | 4 | archetype | passive | no plan |  |
+| Beast Speaker | 4 | archetype | passive | plan | a spell the engine doesn't cast (Speak with Animals) |
 | Blessing of the Sun Gods | 4 | archetype | passive | no plan |  |
 | Broadside Buckos | 4 | archetype | passive | no plan |  |
 | Cathartic Focus Spell | 4 | archetype | passive | no plan |  |
@@ -2356,6 +2356,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Living for the Applause | 8 | archetype | reaction | no plan |  |
 | Malleable Mental Forge | 8 | archetype | passive | no plan |  |
 | Ooze Empathy | 8 | archetype | passive | no plan |  |
+| Persistent Creation | 8 | archetype | passive | plan | a spell the engine doesn't cast (Creation) |
 | Positive Luminance | 8 | archetype | passive | no plan |  |
 | Sense Iniquity | 8 | archetype | 1 action | plan | an Effect with nothing a fight counts |
 | Sin Reservoir | 8 | archetype | passive | no plan |  |
@@ -2375,6 +2376,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Font of Knowledge | 10 | archetype | passive | no plan |  |
 | Gather Disciples | 10 | archetype | passive | no plan |  |
 | Know It All (Eldritch Researcher) | 10 | archetype | passive | no plan |  |
+| Patron's Whisper | 10 | archetype | passive | plan | a spell the engine doesn't cast (Message) |
 | Practiced Defender | 10 | archetype | passive | no plan |  |
 | Repurposed Parts | 10 | archetype | passive | no plan |  |
 | Runic Mind Smithing | 10 | archetype | passive | no plan |  |
@@ -2603,7 +2605,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reprepare Spell | 18 | wizard | passive | no plan |  |
 | Spell Mastery | 20 | wizard | passive | no plan |  |
 
-## Nothing a fight would use (831)
+## Nothing a fight would use (853)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -2692,6 +2694,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Just the Tool | 4 | archetype | 1 action | no plan |  |
 | Like a Fish in Water | 4 | archetype | passive | no plan |  |
 | Lion's Might | 4 | archetype | passive | no plan |  |
+| Magical Edification | 4 | archetype | passive | plan | a spell the engine doesn't cast (Guidance, Message, Sigil) |
 | Magical Scholastics | 4 | archetype | passive | plan | a spell the engine doesn't cast (Detect Magic, Guidance, Read Aura) |
 | Marine Combat Training | 4 | archetype | passive | no plan |  |
 | Mental Forge | 4 | archetype | passive | no plan |  |
@@ -2720,6 +2723,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Spyglass Modification | 4 | archetype | passive | no plan |  |
 | Stage Fighting | 4 | archetype | passive | no plan |  |
 | Stargazer's Eyes | 4 | archetype | passive | no plan |  |
+| Stone Guardian | 4 | archetype | passive | plan | a spell the engine doesn't cast (Summon Elemental) |
 | Strange Script | 4 | archetype | passive | no plan |  |
 | Subtle Shift | 4 | archetype | passive | no plan |  |
 | Tactical Excellence | 4 | archetype | passive | no plan |  |
@@ -2842,6 +2846,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Benefactor's Wings | 8 | archetype | 1 action | plan | nothing a fight uses |
 | Bloodline Breadth | 8 | archetype | passive | no plan |  |
 | Bonds of Death | 8 | archetype | free | no plan |  |
+| Call Ursine Ally | 8 | archetype | passive | plan | a spell the engine doesn't cast (Summon Animal) |
 | Cantrip Supremacy | 8 | archetype | passive | no plan |  |
 | Captivating Intensity | 8 | archetype | passive | no plan |  |
 | Carried with the Swarm | 8 | archetype | passive | no plan |  |
@@ -2863,6 +2868,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Larcenous Hand | 8 | archetype | passive | no plan |  |
 | Levered Swing | 8 | archetype | 1 action | no plan |  |
 | Lion's Fury | 8 | archetype | passive | no plan |  |
+| Lorefinder | 8 | archetype | passive | plan | a spell the engine doesn't cast (Locate) |
 | Magic Ammunition | 8 | archetype | passive | no plan |  |
 | Magic Finder | 8 | archetype | passive | no plan |  |
 | Magical Knowledge | 8 | archetype | passive | no plan |  |
@@ -2883,6 +2889,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Recoiling Relocation | 8 | archetype | free | no plan |  |
 | Recycled Cogwheels | 8 | archetype | passive | no plan |  |
 | Rupture Stomp | 8 | archetype | 2 actions | no plan |  |
+| Salt Kissed | 8 | archetype | passive | plan | a spell the engine doesn't cast (Air Bubble, Water Breathing) |
 | Scattered Fire | 8 | archetype | passive | no plan |  |
 | Scholar's Hunch | 8 | archetype | passive | no plan |  |
 | Shambling March | 8 | archetype | passive | no plan |  |
@@ -2906,6 +2913,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Blade of the Heart | 10 | archetype | 1 action | no plan |  |
 | Cautious Delver | 10 | archetype | passive | no plan |  |
 | Close Formation | 10 | archetype | passive | no plan |  |
+| Cloud Walk | 10 | archetype | passive | plan | a spell the engine doesn't cast (Air Walk) |
 | Communal Tale | 10 | archetype | passive | no plan |  |
 | Deathguard | 10 | archetype | passive | no plan |  |
 | Emerald Boughs Hideaway | 10 | archetype | passive | no plan |  |
@@ -2920,6 +2928,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Glutton for Flesh | 10 | archetype | passive | no plan |  |
 | Goblin Jubilee Display | 10 | archetype | passive | no plan |  |
 | Grave Sight | 10 | archetype | passive | no plan |  |
+| Greater Magical Edification | 10 | archetype | passive | plan | a spell the engine doesn't cast (Translate, Mindlink, Secret Page) |
+| Greater Magical Scholastics | 10 | archetype | passive | plan | a spell the engine doesn't cast (Augury, Locate, Veil of Privacy) |
 | Holy Flower | 10 | archetype | passive | no plan |  |
 | Horselord's Bond | 10 | archetype | passive | no plan |  |
 | Inked Cache | 10 | archetype | passive | no plan |  |
@@ -2932,6 +2942,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | No Gods, Only Mortals! | 10 | archetype | free | no plan |  |
 | Perfect Ki Expert | 10 | archetype | passive | no plan |  |
 | Preserve the Horde | 10 | archetype | free | no plan |  |
+| Prophet's Lockbox | 10 | archetype | passive | plan | a spell the engine doesn't cast (Imaginary Lockbox) |
 | Reflexive Devotion | 10 | archetype | free | no plan |  |
 | Roadkill | 10 | archetype | passive | no plan |  |
 | Rope Mastery | 10 | archetype | passive | no plan |  |
@@ -3024,12 +3035,16 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Vernai Training | 12 | archetype | passive | no plan |  |
 | Wings of the Moon | 12 | archetype | passive | no plan |  |
 | Armored Exercise | 14 | archetype | passive | no plan |  |
+| Borrow Memories | 14 | archetype | passive | plan | a spell the engine doesn't cast (Mind Probe) |
+| Call Draconic Ally | 14 | archetype | passive | plan | a spell the engine doesn't cast (Summon Dragon) |
+| Commandeer Hellmouth | 14 | archetype | passive | plan | a spell the engine doesn't cast (Teleport, Interplanar Teleport) |
 | Control Tower | 14 | archetype | passive | plan | a passive's Effect on other creatures |
 | Costume Change | 14 | archetype | passive | no plan |  |
 | Domino Effect | 14 | archetype | reaction | no plan |  |
 | Dream Logic | 14 | archetype | passive | no plan |  |
 | Effortless Captivation | 14 | archetype | free | no plan |  |
 | Enterprising Ritualist | 14 | archetype | passive | no plan |  |
+| Entities From Afar | 14 | archetype | passive | plan | a spell the engine doesn't cast (Summon Entity, Read Omens) |
 | Exceptional Follower | 14 | archetype | passive | no plan |  |
 | Expanded Swarm | 14 | archetype | passive | no plan |  |
 | Graveshift | 14 | archetype | passive | no plan |  |
@@ -3062,9 +3077,12 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Officer's Protection | 16 | archetype | passive | no plan |  |
 | Performance Weapon Expert | 16 | archetype | passive | no plan |  |
 | Resuscitate | 16 | archetype | 3 actions | plan | a roll whose results the simulator doesn't read |
+| Rivethun Adept | 16 | archetype | passive | plan | a spell the engine doesn't cast (Speak with Stones, Spiritual Guardian) |
+| Shared Dream | 16 | archetype | passive | plan | a spell the engine doesn't cast (Dream Council) |
 | The Bitter Scholar's Promotion | 16 | archetype | passive | no plan |  |
 | The Immortal Attains the Summit | 16 | archetype | passive | no plan |  |
 | Unwind Death | 16 | archetype | 3 actions | plan | a roll whose results the simulator doesn't read |
+| Call the Worm | 18 | archetype | passive | plan | a spell the engine doesn't cast (Summon Animal) |
 | Chemical Contagion | 18 | archetype | passive | no plan |  |
 | Eyes of God | 18 | archetype | passive | no plan |  |
 | Flash of Omniscience | 18 | archetype | free | no plan |  |
@@ -3098,6 +3116,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Perfect Ki Grandmaster | 18 | archetype | passive | no plan |  |
 | Soaring Dynamo | 18 | archetype | passive | no plan |  |
 | Spirit of Vigil | 18 | archetype | passive | no plan |  |
+| Enter Divine Realm | 20 | archetype | passive | plan | a spell the engine doesn't cast (Interplanar Teleport) |
 | Live the Creed | 20 | archetype | 1 action | no plan |  |
 | May Death Itself Reconsider | 20 | archetype | passive | no plan |  |
 | Moment of Apotheosis | 20 | archetype | passive | no plan |  |
@@ -3132,6 +3151,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Deity's Domain | 1 | champion | passive | no plan |  |
 | Weight of Guilt | 1 | champion | passive | no plan |  |
 | Light of Revelation | 4 | champion | passive | no plan |  |
+| Sacral Lord | 4 | champion | passive | plan | a spell the engine doesn't cast (Detect Magic, Guidance, Sigil) |
 | Security | 4 | champion | passive | no plan |  |
 | Expand Aura | 6 | champion | 1 action | plan | a timer with no rules a fight counts |
 | Advanced Deity's Domain | 8 | champion | passive | no plan |  |
@@ -3161,6 +3181,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Lasting Armament | 14 | cleric | passive | no plan |  |
 | Swift Banishment | 14 | cleric | reaction | no plan |  |
 | Eternal Bane | 16 | cleric | passive | no plan |  |
+| Avatar's Audience | 20 | cleric | passive | plan | a spell the engine doesn't cast (Commune, Interplanar Teleport) |
 | Emblazon Divinity | 20 | cleric | passive | no plan |  |
 | Deceptive Tactics | 1 | commander | passive | no plan |  |
 | Officer's Medical Training | 1 | commander | passive | no plan |  |
@@ -3212,6 +3233,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Instant Backup | 4 | gunslinger | reaction | no plan |  |
 | Ostentatious Reload | 4 | gunslinger | 1 action | plan | a roll whose results the simulator doesn't read |
 | Advanced Shooter | 6 | gunslinger | passive | no plan |  |
+| Unseen Passage | 8 | gunslinger | passive | plan | a spell the engine doesn't cast (Vanishing Tracks) |
 | Precious Munitions | 10 | gunslinger | passive | no plan |  |
 | Redirecting Shot | 10 | gunslinger | reaction | no plan |  |
 | Deadeye | 12 | gunslinger | 1 action | plan | a timer with no rules a fight counts |
@@ -3335,6 +3357,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Bloom of Health | 14 | other | 1 action | plan | an Effect on another creature |
 | Break the Cycle | 14 | other | passive | no plan |  |
 | Don Thy Fervor | 14 | other | 1 action | plan | an Effect with nothing a fight counts |
+| Expanded Runelord Magic | 14 | other | passive | plan | a spell the engine doesn't cast (Contingency, Spell Riposte) |
 | Extend Surge | 14 | other | 1 action | plan | a timer with no rules a fight counts |
 | Internal Dialogue | 14 | other | reaction | no plan |  |
 | Lightless Sight | 14 | other | passive | no plan |  |
@@ -3393,6 +3416,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Fortifying Knock | 2 | runesmith | 1 action | plan | an Effect with nothing a fight counts |
 | Terrifying Invocation | 4 | runesmith | 1 action | no plan |  |
 | Transpose Etching | 4 | runesmith | 1 action | no plan |  |
+| Writing On the Wall | 4 | runesmith | passive | plan | a spell the engine doesn't cast (Embed Message) |
 | Diacritic Fluency | 6 | runesmith | free | no plan |  |
 | Tracing Trance | 6 | runesmith | free | plan | an Effect with nothing a fight counts |
 | Words, Fly Free | 6 | runesmith | 1 action | no plan |  |

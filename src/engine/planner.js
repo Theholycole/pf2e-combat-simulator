@@ -1706,7 +1706,9 @@ function expandStrikeActivities(env) {
             const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * 0.12 / hp : 0;
             // (U7: a PC's item used by Striking weighed as a consumable.)
             const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + best.expectation.hitChance * rider.worth * ROUND_TO_KILL + setUpWorth) * consumableWeight(state, c, activity, [target]);
-            if (gain <= 0) continue;
+            // (2026-11-04: a forced feat's Strike whose rider the planner can't put a worth on — Kneecap's Speed penalty, no damage — still goes,
+            // so its rating is of its use, not of a Strike never taken.)
+            if (gain <= 0 && !(c.forceUse && activity.featForced)) continue;
             // Exacting Strike: a miss doesn't raise the penalty for what follows (worth a little).
             const exacting = activity.exacting ? 0.15 * (1 - best.expectation.hitChance) * gain : 0;
             // (B139: Off-Guard on itself costs, a guard helps, for about a round.)
