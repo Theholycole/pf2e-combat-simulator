@@ -127,9 +127,11 @@ function recallKnowledgeOf(message) {
     // roller's targets, recorded on the message as it's made (preCreateChatMessage below), else context.target.)
     const tokenUuid = message.flags?.[MODULE_ID]?.recallTargets?.[0] ?? context.target?.token ?? null;
     const token = tokenUuid ? fromUuidSync(tokenUuid)?.object ?? null : null;
-    if (!token?.actor || token.actor.type === "character" || token.actor.hasPlayerOwner) return null;
     const actor = message.actor ?? (message.speaker?.actor ? game.actors.get(message.speaker.actor) : null);
     if (actor?.type !== "character") return null;
+    // (No monster targeted: a GM note says why no advice came, rather than nothing.)
+    if (!token?.actor) return { actor, token: null, outcome: context.outcome };
+    if (token.actor.type === "character" || token.actor.hasPlayerOwner) return null;
     // Secret: Recall Knowledge has the secret trait (PF2e sets messageMode "gm" for a GM's roll, "blind" for a player's); older versions
     // used rollMode and message.blind.
     const secret = !!message.blind || options.includes("secret") || ["gm", "blind"].includes(context.messageMode) || ["blindroll", "gmroll"].includes(context.rollMode);
@@ -145,6 +147,10 @@ async function onRecallKnowledge(message) {
     if (recall?.blind && !game.user.isGM) return;
     if (!recall || (mode === "alchemists" && recall.actor.class?.slug !== "alchemist")) return;
     const gms = game.users.filter((user) => user.isGM && user.active).map((user) => user.id);
+    if (!recall.token) {
+        if (!gms.length) return;
+        return ChatMessage.create({ speaker: { alias: "Alchemical advice" }, whisper: gms, content: `<p><strong>Alchemical advice:</strong> ${foundry.utils.escapeHTML?.(recall.actor.name) ?? recall.actor.name} succeeded at Recall Knowledge with no monster targeted, so no advice was posted. Target the monster and use the flask button.</p>` });
+    }
     const players = game.users.filter((user) => !user.isGM && recall.actor.testUserPermission(user, "OWNER")).map((user) => user.id);
     const whisper = recall.blind ? gms : [...new Set([...players, ...gms])];
     if (!whisper.length) return;
