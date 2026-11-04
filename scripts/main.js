@@ -8,6 +8,7 @@ import { setUpEscalationTracking } from "./escalation-tracking.js";
 import { registerMoraleSetting, setUpMoraleInPlay } from "./morale-live.js";
 import { registerDangerSetting, setUpDanger } from "./danger.js";
 import { registerDangerRun } from "./danger-run.js";
+import { alchemyAdvice, registerAlchemySetting, setUpAlchemyAdvice } from "./alchemy.js";
 
 function openSimulator({ combat = null, tokens = null } = {}) {
     if (!game.user.isGM) return ui.notifications.warn("Combat Simulator is for the GM.");
@@ -80,6 +81,9 @@ Hooks.once("init", () => {
     // Morale checks in play: the GM's cards when foes must check (active GM).
     registerMoraleSetting();
     setUpMoraleInPlay();
+    // (2026-11-04: alchemical items ranked against the targeted monsters, optional — scripts/alchemy.js.)
+    registerAlchemySetting();
+    setUpAlchemyAdvice();
 });
 
 function openLog() {
@@ -88,7 +92,7 @@ function openLog() {
 }
 
 Hooks.once("ready", () => {
-    game.modules.get(MODULE_ID).api = { open: openSimulator, oddsCheck, openLog };
+    game.modules.get(MODULE_ID).api = { open: openSimulator, oddsCheck, openLog, alchemyAdvice };
 });
 
 Hooks.on("renderCombatTracker", (app, html) => {

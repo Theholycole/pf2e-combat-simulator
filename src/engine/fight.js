@@ -1725,6 +1725,17 @@ export function desperate(state, c) {
     return c.side === "party" ? ratio < 1 : ratio > 1;
 }
 
+// A fight's state as it starts, its threats computed, for advice that asks the planner what an option is worth (alchemy.js): no initiative,
+// no turns.
+export function adviceState(snapshot, options = {}, seed = 1) {
+    const merged = { ...DEFAULT_OPTIONS, ...options };
+    merged.moraleRules = options.moraleRules ?? mergeMoraleRules(snapshot.moraleRules);
+    const state = createState(snapshot, merged, seed, false);
+    state.round = 1;
+    computeThreats(state);
+    return state;
+}
+
 export function simulate(snapshot, options = {}, seed = 1, { log = false } = {}) {
     const merged = { ...DEFAULT_OPTIONS, ...options };
     if (options.moraleRules) merged.moraleRules = options.moraleRules;
