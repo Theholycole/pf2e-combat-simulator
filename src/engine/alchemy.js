@@ -155,11 +155,15 @@ export function saveEntry(item, numbers, { inReach = false } = {}) {
 // The monster's side of an item: immune, weak or resistant to what it deals.
 function iwrNotes(creature, parts) {
     const notes = [];
+    const seen = new Set();
     for (const { type, amount } of parts) {
-        if (!(amount > 0)) continue;
+        if (!(amount > 0) || seen.has(type)) continue;
         const after = adjustInstance(creature, type, amount, false, null);
         const note = after === 0 ? (type === "vitality" ? "vitality harms only undead" : type === "void" ? "void doesn't harm undead" : (creature.immunities ?? []).includes(type) ? `immune to ${type}` : `resists ${type} (all of it)`) : after > amount ? `weak to ${type} (+${after - amount})` : after < amount ? `resists ${type} (−${amount - after})` : null;
-        if (note && !notes.some((other) => other.split(" (")[0].endsWith(type))) notes.push(note);
+        if (note) {
+            seen.add(type);
+            notes.push(note);
+        }
     }
     return notes;
 }
@@ -217,14 +221,19 @@ export function rankItems(creature, items, numbers, { options = {} } = {}) {
             chance = delivered * (critFail + fail);
             targets = `${item.targets} +${saveOf(creature, item.targets)} vs DC ${entry.dc}${item.delivery === "injury" ? `, after a Strike hits AC ${creature.ac}` : ""}`;
             notes = iwrNotes(creature, [...(item.outcomes.failure ?? []), ...(item.outcomes.criticalFailure ?? [])].map((part) => ({ type: part.type, amount: part.average })));
+            // An immunity to one of its traits (poison, mental...): one note for each, not again as damage.
             const immune = (creature.immunities ?? []).filter((immunity) => item.traits.includes(immunity));
+            notes = notes.filter((note) => !immune.some((type) => note === `immune to ${type}`));
             if (immune.length) notes.unshift(`immune (${immune.join(", ")})`);
         }
         if (item.requires?.place) notes.push(`needs ${item.requires.place} where the monster is`);
         // Its verdict: useful, situational (a place it needs), no effect on this monster (immune, all resisted, vitality on the living), or
         // one the simulator can't rate yet.
-        const noEffect = notes.some((note) => /^immune|all of it|harms only|doesn't harm/.test(note)) || chance === 0;
+        const blocks = (note) => /^immune|all of it|harms only|doesn't harm/.test(note);
+        const noEffect = notes.some(blocks) || chance === 0;
         const verdict = power > 0 ? (item.requires?.place ? "situational" : "useful") : noEffect ? "none" : "unrated";
+        // With no effect, only the reasons it has none (a resistance beside an immunity isn't one).
+        if (verdict === "none" && notes.some(blocks)) notes = notes.filter(blocks);
         rows.push({ item, power, perAction: power / item.actions, chance, targets, notes, effects: item.effects, verdict });
     }
     return rows.sort((a, b) => b.perAction - a.perAction || b.chance - a.chance);
