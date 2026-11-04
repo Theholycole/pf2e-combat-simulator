@@ -23,7 +23,7 @@ export function registerAlchemySetting() {
     // (2026-11-04, Cole: "Add an option for the alchemy advice to happen on successful recall knowledge checks against a monster".)
     game.settings.register(MODULE_ID, RECALL_SETTING, {
         name: "Alchemical advice on Recall Knowledge",
-        hint: "With Alchemical advice on: when a character succeeds at Recall Knowledge against a monster (a check with a DC, the monster targeted), whisper the advice for it to that character's players. A blind (secret) roll's advice goes to the GM only, so it doesn't give the result away.",
+        hint: "With Alchemical advice on: when a character succeeds at Recall Knowledge against a targeted monster (a check with a DC), whisper the advice for it. Recall Knowledge is secret in PF2e, so the card goes to the GM only (it would give the result away); a check rolled openly also goes to the character's players.",
         scope: "world",
         config: true,
         type: String,
@@ -123,12 +123,17 @@ function recallKnowledgeOf(message) {
     const options = context.options ?? [];
     const recall = options.includes("action:recall-knowledge") || /recall knowledge/i.test(`${message.flavor ?? ""} ${context.title ?? ""}`);
     if (!recall || !["success", "criticalSuccess"].includes(context.outcome)) return null;
-    const tokenUuid = context.target?.token ?? null;
+    // (PF2e leaves context.target null on Recall Knowledge, even with the DC from the targeted monster: 2026-11-04 Foundry test. The
+    // roller's targets, recorded on the message as it's made (preCreateChatMessage below), else context.target.)
+    const tokenUuid = message.flags?.[MODULE_ID]?.recallTargets?.[0] ?? context.target?.token ?? null;
     const token = tokenUuid ? fromUuidSync(tokenUuid)?.object ?? null : null;
     if (!token?.actor || token.actor.type === "character" || token.actor.hasPlayerOwner) return null;
     const actor = message.actor ?? (message.speaker?.actor ? game.actors.get(message.speaker.actor) : null);
     if (actor?.type !== "character") return null;
-    return { actor, token, outcome: context.outcome, blind: !!message.blind || context.rollMode === "blindroll" };
+    // Secret: Recall Knowledge has the secret trait (PF2e sets messageMode "gm" for a GM's roll, "blind" for a player's); older versions
+    // used rollMode and message.blind.
+    const secret = !!message.blind || options.includes("secret") || ["gm", "blind"].includes(context.messageMode) || ["blindroll", "gmroll"].includes(context.rollMode);
+    return { actor, token, outcome: context.outcome, blind: secret };
 }
 
 async function onRecallKnowledge(message) {
@@ -157,6 +162,13 @@ function onceAClick() {
 
 export function setUpAlchemyAdvice() {
     if (!enabled()) return;
+    // The roller's targets on a Recall Knowledge check message, read by the GM's client when it's posted.
+    Hooks.on("preCreateChatMessage", (message) => {
+        const context = message.flags?.pf2e?.context;
+        if (!context || !(context.options ?? []).includes("action:recall-knowledge") && !/recall knowledge/i.test(message.flavor ?? "")) return;
+        const targets = [...game.user.targets].filter((token) => token.actor && token.actor.type !== "character").map((token) => token.document.uuid);
+        if (targets.length) message.updateSource({ [`flags.${MODULE_ID}.recallTargets`]: targets });
+    });
     Hooks.on("createChatMessage", (message) => {
         onRecallKnowledge(message).catch((error) => console.warn("Alchemical advice on Recall Knowledge:", error));
     });
