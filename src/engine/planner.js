@@ -1158,6 +1158,10 @@ function expandAll(ctx, node, actionsLeft) {
             for (const next of children) {
                 // (2026-11-03, Cole: a feat's own actions rated as used often — featForced, tools/lib/feat-power.mjs.)
                 if (!deviantEntryOf(c, next.last) && !actionEntryOf(c, next.last)?.featForced) continue;
+                // (2026-11-05: not an Effect spell again on a creature that already holds it — Devoted Guardian's, Bloom of Health's, cast
+                // every turn before.)
+                const forcedEntry = actionEntryOf(c, next.last);
+                if (next.last?.type === "cast" && forcedEntry?.plan?.resolution?.kind === "effect" && forcedEntry.effects && (next.last.targetIds ?? []).length && next.last.targetIds.every((id) => (state.byId.get(id)?.effects ?? []).some((effect) => effect.key in forcedEntry.effects))) continue;
                 next.value += 10 * ctx.ownValue;
                 next.casts = [...next.casts, "forced"];
             }
