@@ -1186,6 +1186,7 @@ const HAND = {
     // (Raise a Tome: a book raised as a shield, +2 AC — no Shield Block.)
     "raise-a-tome": () => ({ builtins: { shield: { ac: 2, hardness: 0, hp: 1, bt: 0, broken: false, raised: false, noBlock: true } }, played: "a book raised for +2 AC" }),
     "quick-vengeance": () => ({ builtins: { quickVengeance: true }, played: "an extra action after its Intercept Attack or Shield Block" }),
+    "armored-counterattack": () => ({ builtins: { armoredCounterattack: true }, played: "a Strike back after its Intercept Attack, a Taunt on a hit (free)" }),
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;

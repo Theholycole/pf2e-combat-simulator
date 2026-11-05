@@ -1463,7 +1463,22 @@ export function applyDamage(state, target, instances, { source = null, critical 
                 spendReaction(guardian, guardian.interceptAttack.name);
                 state.stats.reactions++;
                 log(state, `  ${guardian.name} uses Intercept Attack for ${target.name}`);
-                return applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
+                const dealt = applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
+                // (2026-11-05, Armored Counterattack: a free Strike back at an attacker beside it — taken as a melee one's —, a Taunt on a hit.)
+                if (guardian.armoredCounterattack && isActive(guardian) && canAct(guardian) && isActive(source) && sameMelee(guardian, source)) {
+                    const strike = bestMeleeStrike(guardian, source);
+                    if (strike) {
+                        log(state, `  ${guardian.name} uses Armored Counterattack`);
+                        const result = performStrike(state, guardian, source, strike, { reaction: true });
+                        if (result?.degree >= 2 && isActive(source)) {
+                            for (const other of state.list) if (other.tauntedBy === guardian.id) other.tauntedBy = null;
+                            source.tauntedBy = guardian.id;
+                            (source.timers ??= []).push({ taunt: guardian.id, round: state.round + 1, turnOf: guardian.id, at: "start" });
+                            log(state, `  ${guardian.name} taunts ${source.name}`);
+                        }
+                    }
+                }
+                return dealt;
             }
         }
     }
