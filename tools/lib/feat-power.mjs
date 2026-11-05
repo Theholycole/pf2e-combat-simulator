@@ -1526,6 +1526,7 @@ const HAND = {
     // (Arcane Cascade riders — fight.js selfEffect: as the magus enters the stance.)
     "burning-cascade": () => ({ builtins: { burningCascade: true }, played: "its Arcane Cascade's extra damage on each enemy beside it as it enters the stance" }),
     "resounding-cascade": () => ({ builtins: { resoundingCascade: true }, played: "its Arcane Cascade's extra damage for allies beside it" }),
+    "flamboyant-cruelty": () => ({ builtins: { flamboyantCruelty: true }, played: "+1 damage for each of clumsy, drained, enfeebled, frightened, sickened, stupefied on the foe, when it has two or more" }),
     // (Kinetic aura stances — kineticAura.)
     "thermal-nimbus": (level, host, doc) => kineticAura(doc, { model: { resistances: [{ type: "fire", value: level, exceptions: [] }] }, start: `${Math.floor(level / 2)}[fire]`, enter: `${Math.floor(level / 2)}[fire]`, played: `fire resistance ${level} for the PC and its allies, ${Math.floor(level / 2)} fire to foes starting their turn or moving` }),
     "ghosts-in-the-storm": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: 2 }] }, played: "+2 Reflex for the PC and its allies" }),

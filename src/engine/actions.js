@@ -850,7 +850,11 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const earlier = history.filter((entry) => entry.strike === strike.name).length;
     // (2026-10-15: an effect's conditional damage — unarmed Strikes' extra dice, melee ones', against a trait.)
     const damageOptions = hasConditional(attacker) ? strikeRollOptions(attacker, strike, target, strikeContext(attacker, strike)) : null;
-    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage", damageOptions);
+    // (2026-11-05, Flamboyant Cruelty: a melee weapon Strike at a foe with two or more of clumsy, drained, enfeebled, frightened, sickened
+    // and stupefied — a circumstance bonus to damage of how many it has.)
+    const cruel = attacker.flamboyantCruelty && strike.melee && !strike.unarmed ? ["clumsy", "drained", "enfeebled", "frightened", "sickened", "stupefied"].filter((slug) => (target.cond?.[slug] ?? 0) > 0).length : 0;
+    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage", damageOptions) - (cruel >= 2 ? cruel : 0);
+    if (cruel >= 2) log(state, `  Flamboyant Cruelty: +${cruel} damage`);
     const instances = rollStrikeDamage(state.rng, strike, { critical, penalty });
     if (strike.backstabber && offGuard) {
         instances.push({ type: strike.damage[0].type, amount: critical ? 2 : 1, precision: true, persistent: false });
