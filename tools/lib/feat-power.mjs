@@ -971,9 +971,23 @@ const strikeRider = ({ onHit = {}, ...rest } = {}) => ({ builtin: "strike-activi
 // it and lasts the fight (zones.js: the creatures in its Melee). Its effect on the PC and its allies inside (model), the damage a foe
 // takes as it starts its turn there (start) or moves in (enter). One action, once — its stance kept up. What it does only after a move
 // action, its heals on a critical, and the Shock rune aren't played.)
-function kineticAura(doc, { model = null, start = null, enter = null, played }) {
+// A save plan on Fear's compiled shape: its statistic, a condition on a failure and on a critical failure (Winter Sleet's prone).
+function conditionSavePlan(doc, statistic, failure, criticalFailure) {
+    const fear = spellPack.spellNamed("Fear");
+    let base;
+    try {
+        base = fear && spellPack.compileSpell(fear);
+    } catch {
+        base = null;
+    }
+    if (!base?.resolution?.outcomes?.failure) return null;
+    const row = (condition) => ({ ...structuredClone(base.resolution.outcomes.failure), effects: condition ? [{ kind: "condition", slug: condition[0], name: condition[0], value: condition[1], duration: null, source: doc.name }] : [], rawText: "" });
+    return { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], heightening: null, resolution: { ...base.resolution, check: { ...base.resolution.check, statistic }, outcomes: { criticalSuccess: row(null), success: row(null), failure: row(failure), criticalFailure: row(criticalFailure) } } };
+}
+
+function kineticAura(doc, { model = null, start = null, enter = null, saves = null, castAs = null, played }) {
     const uuid = `feat:${doc._id}:aura`;
-    const zone = { area: { type: "emanation", value: 10 }, lasts: null, ...(start ? { damage: [{ when: "start", formulas: [start] }] } : {}), ...(enter ? { hazard: { formulas: [enter] } } : {}), ...(model ? { effect: { allies: true, uuid, label: doc.name } } : {}) };
+    const zone = { area: { type: "emanation", value: 10 }, lasts: null, ...(start ? { damage: [{ when: "start", formulas: [start] }] } : {}), ...(enter ? { hazard: { formulas: [enter] } } : {}), ...(model ? { effect: { allies: true, uuid, label: doc.name } } : {}), ...(saves ? { saves } : {}), ...(castAs ? { castAs } : {}) };
     const effectModel = model ? { name: doc.name, rounds: 100, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...model } : null;
     const entry = zoneSpell(doc.name, { builtin: "zone", actions: 1, trigger: { event: "use" }, zone }, effectModel ? { effectModel } : {});
     if (!entry) return null;
@@ -1539,6 +1553,13 @@ const HAND = {
     "ghosts-in-the-storm": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: 2 }] }, played: "+2 Reflex for the PC and its allies" }),
     "sea-glass-guardians": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "ac", type: "status", value: 1 }, { on: "saving-throw", type: "status", value: 1 }] }, played: "+1 AC and saves for the PC and its allies" }),
     "kindle-inner-flames": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: level >= 12 ? 2 : 1 }] }, played: `+${level >= 12 ? 2 : 1} Reflex for the PC and its allies` }),
+    // (Winter Sleet: a foe that moves onto its ice — comes into the aura — falls prone unless it makes a Reflex save at its impulse DC − 2
+    // (the Acrobatics choice not played); a water impulse's critical not played.)
+    "winter-sleet": (level, host, doc) => {
+        const plan = conditionSavePlan(doc, "reflex", ["prone", null], ["prone", null]);
+        const dc = (dcsOf(host).class ?? 10 + level + 2 + 4) - 2;
+        return plan ? kineticAura(doc, { saves: [{ when: ["enter"], plan }], castAs: { castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10 }, played: `a foe coming in falls prone on a failed Reflex save (DC ${dc})` }) : null;
+    },
     "ravel-of-thorns": (level, host, doc) => kineticAura(doc, { enter: `${Math.floor((level - 4) / 4) + 2}[piercing]`, played: `${Math.floor((level - 4) / 4) + 2} piercing to foes moving` }),
     "rearing-display": (level, host) => ({ builtins: { companionFields: { multiStrikes: [{ name: "Rearing Display", actions: 1, strikes: ["jaws"], flourish: true, hitRiders: [{ atLeast: 1, conditions: [], damage: [], follow: "demoralize" }] }], skills: { intimidation: (host?.skills?.intimidation ?? level + 2) + 1 } } }, played: "its mount's Strike, a hit followed by a Demoralize" }),
     "defend-mount": () => ({ builtins: { defendMount: true }, played: "a Strike at its mount taken on its own AC instead (reaction)" }),
