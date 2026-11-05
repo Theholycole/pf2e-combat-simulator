@@ -2064,7 +2064,12 @@ function expandTactics(env) {
     if (c.taunt && !raging && ctx.allies.length) {
         for (const target of ctx.enemies) {
             if (target.status !== "active" || target.tauntedBy === c.id || target.band === "far" || node.casts.includes("taunt")) continue;
-            children.push(child(node, { type: "taunt", targetId: target.id }, 1, targetValue(state, target, c) * 0.2 * ROUND_TO_KILL, { cast: "taunt" }));
+            // (2026-11-05: Shielding Taunt's raised shield with it; a taunt feat — Group Taunt, Shielding Taunt — forced, as a feat's own action.)
+            const tauntFeat = c.forceUse && (c.taunt.raise || c.taunt.max > 1) && !node.casts.includes("forced");
+            const raises = c.taunt.raise && c.shield && !c.shield.broken && !node.shield;
+            const next = child(node, { type: "taunt", targetId: target.id }, 1, tauntFeat ? 10 * ctx.ownValue : targetValue(state, target, c) * 0.2 * ROUND_TO_KILL, { cast: "taunt", ...(raises ? { shield: true } : {}) });
+            if (tauntFeat) next.casts = [...next.casts, "forced"];
+            children.push(next);
         }
     }
     // Overdrive (once a round, until it works): its Strikes' extra damage over about three rounds.
@@ -2175,7 +2180,8 @@ function expandTactics(env) {
         const warden = c.forceUse && c.shieldWarden && c.reactions?.shieldBlock && !c.shield.spell && !node.casts.includes("forced")
             && state.list.some((other) => other !== c && other.side === c.side && isActive(other) && other.meleeId != null && (other.meleeId === node.pos.melee || (node.pos.melee === undefined && other.meleeId === c.meleeId)));
         // (2026-11-05, Mounted Shield: raised, forced, while it rides — its mount behind it too.)
-        const mountGuard = c.forceUse && c.mountedShield && c.mountId && !c.shield.spell && !node.casts.includes("forced");
+        // (Raise a Tome: its book raised, forced.)
+        const mountGuard = c.forceUse && ((c.mountedShield && c.mountId) || c.shield.noBlock) && !c.shield.spell && !node.casts.includes("forced");
         const next = child(node, { type: "raiseShield" }, 1, warden || mountGuard ? 10 * ctx.ownValue : 0, { shield: true });
         if (warden || mountGuard) next.casts = [...next.casts, "forced"];
         children.push(next);

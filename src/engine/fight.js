@@ -1355,9 +1355,15 @@ function actOn(state, c, action) {
             const target = state.byId.get(action.targetId);
             if (!target || !isActive(target)) break;
             for (const other of state.list) if (other.tauntedBy === c.id) other.tauntedBy = null;
-            target.tauntedBy = c.id;
-            (target.timers ??= []).push({ taunt: c.id, round: state.round + 1, turnOf: c.id, at: "start" });
-            state.log?.push(`  ${c.name} taunts ${target.name}`);
+            // (2026-11-05, Group Taunt: up to three foes within 30 feet, the chosen one first.)
+            const others = (c.taunt?.max ?? 1) > 1 ? state.list.filter((other) => other !== target && other.side !== c.side && isActive(other) && other.band !== "gone" && distanceBetween(c, other) <= 30).slice(0, c.taunt.max - 1) : [];
+            for (const foe of [target, ...others]) {
+                foe.tauntedBy = c.id;
+                (foe.timers ??= []).push({ taunt: c.id, round: state.round + 1, turnOf: c.id, at: "start" });
+                state.log?.push(`  ${c.name} taunts ${foe.name}`);
+            }
+            // (Shielding Taunt: its shield raised with it.)
+            if (c.taunt?.raise && c.shield && !c.shield.broken && !c.shield.raised) raiseShield(state, c);
             break;
         }
         case "overdrive":

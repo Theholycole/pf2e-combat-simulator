@@ -1180,6 +1180,11 @@ const HAND = {
     "instrument-of-slaughter": () => ({ builtins: { championReaction: { slaughter: true } }, played: "its champion's reaction Strike: a critical hit's persistent bleed" }),
     // (Body Shield: +2 AC against an attack, a thrall thrown in the way — its resistance on a hit, and the thrall lost, aren't played.)
     "body-shield": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Body Shield" } }, played: "+2 AC against an attack (reaction)" }),
+    // (Guardian taunts: Group Taunt's three foes at once; Shielding Taunt's raised shield with it — the guardian's Taunt, fight.js.)
+    "group-taunt": () => ({ builtins: { taunt: { name: "Taunt", max: 3 } }, played: "Taunt at up to three foes" }),
+    "shielding-taunt": () => ({ requires: "You are wielding a shield", builtins: { taunt: { name: "Taunt", raise: true } }, played: "Taunt that raises its shield" }),
+    // (Raise a Tome: a book raised as a shield, +2 AC — no Shield Block.)
+    "raise-a-tome": () => ({ builtins: { shield: { ac: 2, hardness: 0, hp: 1, bt: 0, broken: false, raised: false, noBlock: true } }, played: "a book raised for +2 AC" }),
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
