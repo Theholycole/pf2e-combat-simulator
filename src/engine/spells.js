@@ -515,6 +515,9 @@ function persistentInstance(damage) {
 function durationRounds(duration) {
     if (!duration || duration.mode !== "fixed") return Infinity;
     const value = Number.isFinite(Number(duration.value)) ? Number(duration.value) : 1;
+    // (2026-11-05: "until the end of your turn" — 0 rounds to the end of the source's turn — the rest of this turn, about a third of a
+    // round. Before, nothing: Pointed Question's off-guard was worth 0, and the investigator never asked one.)
+    if (duration.unit === "rounds" && value === 0 && duration.expiry === "turn-end") return 1 / 3;
     if (duration.unit === "rounds") return value;
     if (duration.unit === "minutes") return value * 10;
     return Infinity;
