@@ -1478,12 +1478,14 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // Intercept Attack: a guardian next to the ally takes physical damage meant for it,
     // when the ally would drop or is the more hurt of the two.
     if (!intercepted && source && source.side !== target.side && instances.some((instance) => ["bludgeoning", "piercing", "slashing"].includes(instance.type))) {
-        const guardian = state.list.find((c) => c.interceptAttack && c !== target && c.side === target.side && canReact(c, c.interceptAttack.name) && sameMelee(c, target));
+        // (2026-11-05, Guardian's Intercept: once a fight — interceptAttack.once.)
+        const guardian = state.list.find((c) => c.interceptAttack && !(c.interceptAttack.once && c.interceptUsed) && c !== target && c.side === target.side && canReact(c, c.interceptAttack.name) && sameMelee(c, target));
         if (guardian) {
             const total = adjustDamage(target, instances).total;
             const fraction = (c) => Math.max(0, c.hp.value) / Math.max(1, c.hp.max);
             if (total >= target.hp.value + (target.hp.temp ?? 0) || fraction(guardian) > fraction(target) + 0.2) {
                 spendReaction(guardian, guardian.interceptAttack.name);
+                guardian.interceptUsed = true;
                 state.stats.reactions++;
                 log(state, `  ${guardian.name} uses Intercept Attack for ${target.name}`);
                 const dealt = applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
