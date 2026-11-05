@@ -1217,6 +1217,35 @@ const HAND = {
     "heightened-instincts": () => ({ builtins: { companionFields: { saveDegrees: [{ saves: ["fortitude", "reflex", "will"], adjustment: { success: "one-degree-better" } }] } }, played: "its companion's successful saves critical successes" }),
     "tenacious-endurance": () => ({ builtins: { companionFields: { ferocityRule: { name: "Tenacious Endurance", hp: 1, wounded: true, free: true, uses: 1 } } }, played: "its companion stays up at 1 HP once (wounded 1)" }),
     "ferocious-beasts": () => ({ builtins: { companionFields: { ferocityRule: { name: "Orc Ferocity", hp: 1, wounded: true, uses: 1 }, reactions: { ferocity: true } } }, played: "its companion's Orc Ferocity" }),
+    // (A construct, dragon, megafauna or undead companion: played with the bear's numbers at its stage — advanced as mature, paragon as
+    // specialized.)
+    "prototype-companion": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its companion young, the bear's numbers (Commanded each turn)" }),
+    "drake-rider-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its companion young, the bear's numbers (Commanded each turn)" }),
+    "mammoth-lord-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its companion young, the bear's numbers (Commanded each turn)" }),
+    "undead-master-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its companion young, the bear's numbers (Commanded each turn)" }),
+    "demon-hunting-companion": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its companion young, the bear's numbers (Commanded each turn)" }),
+    "advanced-construct-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its companion mature, the bear's numbers (against one young)" }),
+    "let-my-creature-live": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its companion mature, the bear's numbers (against one young)" }),
+    "advanced-reanimated-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its companion mature, the bear's numbers (against one young)" }),
+    "mature-dragon-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its companion mature, the bear's numbers (against one young)" }),
+    "mature-megafauna-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its companion mature, the bear's numbers (against one young)" }),
+    "incredible-construct-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its companion incredible, the bear's numbers (against one mature)" }),
+    "behold-my-creation": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its companion incredible, the bear's numbers (against one mature)" }),
+    "incredible-reanimated-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its companion incredible, the bear's numbers (against one mature)" }),
+    "incredible-dragon-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its companion incredible, the bear's numbers (against one mature)" }),
+    "incredible-megafauna-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its companion incredible, the bear's numbers (against one mature)" }),
+    "paragon-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its companion specialized, the bear's numbers (against one incredible)" }),
+    "a-miracle-of-science": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its companion specialized, the bear's numbers (against one incredible)" }),
+    "paragon-reanimated-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its companion specialized, the bear's numbers (against one incredible)" }),
+    "specialized-megafauna-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its companion specialized, the bear's numbers (against one incredible)" }),
+    "specialized-spirit-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its companion specialized, the bear's numbers (against one incredible)" }),
+    // (A summoner's eidolon — classes.js —: its evolutions. plus: added to the eidolon's own number.)
+    "resilient-shell": (level) => ({ builtins: { companionFields: { resistances: [{ type: "physical", value: level >= 17 ? 6 : 5, exceptions: [] }] } }, played: "its eidolon's resistance to physical damage" }),
+    "hulking-size": () => ({ builtins: { companionFields: { reach: 10, size: "large" } }, played: "its eidolon Large, reach 10 feet" }),
+    "towering-size": () => ({ builtins: { companionFields: { reach: 15, size: "huge" } }, played: "its eidolon Huge, reach 15 feet" }),
+    "alacritous-action": () => ({ builtins: { companionFields: { plus: { speed: 10 } } }, played: "its eidolon's Speed +10 feet" }),
+    "eidolons-retort": () => ({ builtins: { companionFields: { reactions: { aoo: true } } }, played: "its eidolon's Retort (a Reactive Strike)" }),
+    "ever-vigilant-senses": () => ({ builtins: { companionFields: { plus: { perception: 2 } } }, played: "its eidolon's +2 Perception" }),
     "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
@@ -1912,7 +1941,8 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     if (entries.gap) return { skipped: true, reason: entries.gap.name.slice(doc.name.length + 2), host: host.id, plan };
     // (2026-11-05: a feat for a PC with an animal companion — Pack Movement, Heal Companion's spell, Bestial Protection —: the companion on
     // both sides, at the stage a PC of the level has.)
-    const companionNeeded = !HAND_COMPANION.has(slugOf(doc)) && (COMPANION_TEXT.test(featText(doc)) || HAND_ON_COMPANION.has(slugOf(doc))) ? companionStageAt(level) : null;
+    // (Not beside an eidolon: a summoner's feat for "your companion" is for it.)
+    const companionNeeded = !HAND_COMPANION.has(slugOf(doc)) && !base.some((c) => c.sharesHpWith === host.id) && (COMPANION_TEXT.test(featText(doc)) || HAND_ON_COMPANION.has(slugOf(doc))) ? companionStageAt(level) : null;
     if (companionNeeded) base = withCompanion(base, host.id, companionNeeded);
     const withFeat = clone(base);
     const pc = withFeat.find((c) => c.id === host.id);
@@ -1954,14 +1984,18 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     }
     // (What the feat gives the companion — companionFields: Heightened Instincts' saves, Tenacious Endurance —; companionActions: Companion's
     // Cry's 2-action Command, the master's turn one action, the companion's three; tandem: Side by Side's flanking.)
-    const companion = fought.find((c) => c.companionOf === host.id) ?? null;
+    const companion = fought.find((c) => c.companionOf === host.id || c.sharesHpWith === host.id) ?? null;
     const master = fought.find((c) => c.id === host.id);
     for (const field of ["companionFields", "companionActions", "tandem"]) {
         const value = master?.[field];
         if (value === undefined) continue;
         delete master[field];
         if (!companion) continue;
-        if (field === "companionFields") joinBuiltins(companion, value);
+        if (field === "companionFields") {
+            const { plus = {}, ...rest } = value;
+            joinBuiltins(companion, rest);
+            for (const [key, add] of Object.entries(plus)) companion[key] = (Number(companion[key]) || 0) + add;
+        }
         else if (field === "companionActions") {
             master.actionsPerTurn = value.master;
             companion.actionsPerTurn = value.companion;
