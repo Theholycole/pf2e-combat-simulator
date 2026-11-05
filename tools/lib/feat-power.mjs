@@ -1510,6 +1510,12 @@ const HAND = {
     "calculated-splash": (level) => ({ builtins: level < 5 ? { splashBonus: Math.max(0, 4 - (level >= 3 ? 2 : 1)) } : {}, played: level < 5 ? "bomb splash equal to its Intelligence" : "nothing past 5th (Field Discovery does it)" }),
     "expanded-splash": (level) => ({ builtins: { splashBonus: level >= 10 ? 5 : 4 }, played: "its Intelligence added to its bombs' splash" }),
     "directional-bombs": () => ({ builtins: { splashFoesOnly: true }, played: "its bombs' splash on its foes only (a cone away from it)" }),
+    // (A champion's Lay on Hands riders, on each ally it heals — spells.js touchRiders. Amplifying Touch's spirit damage played as +1 damage;
+    // Rejuvenating Touch's temporary Hit Points given once, not each turn.)
+    "amplifying-touch": () => ({ builtins: { touchRiders: [{ name: "Amplifying Touch", model: { rounds: 1, modifiers: [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "untyped", value: 1 }] } }] }, played: "+1 to attacks and 1 more damage until its next turn for an ally its Lay on Hands heals" }),
+    "resilient-touch": () => ({ builtins: { touchRiders: [{ name: "Resilient Touch", model: { rounds: 1, modifiers: [{ on: "saving-throw", type: "status", value: 1 }] } }] }, played: "+1 to saves until its next turn for an ally its Lay on Hands heals" }),
+    "rejuvenating-touch": () => ({ builtins: { touchRiders: [{ name: "Rejuvenating Touch", model: { rounds: 10, tempHp: 10 } }] }, played: "10 temporary Hit Points for an ally its Lay on Hands heals" }),
+    "accelerating-touch": () => ({ builtins: { touchRiders: [{ name: "Accelerating Touch", model: { rounds: 1, modifiers: [{ on: "speed", type: "status", value: 10 }] } }] }, played: "+10 feet Speed until its next turn for an ally its Lay on Hands heals" }),
     // (Kinetic aura stances — kineticAura.)
     "thermal-nimbus": (level, host, doc) => kineticAura(doc, { model: { resistances: [{ type: "fire", value: level, exceptions: [] }] }, start: `${Math.floor(level / 2)}[fire]`, enter: `${Math.floor(level / 2)}[fire]`, played: `fire resistance ${level} for the PC and its allies, ${Math.floor(level / 2)} fire to foes starting their turn or moving` }),
     "ghosts-in-the-storm": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: 2 }] }, played: "+2 Reflex for the PC and its allies" }),

@@ -3138,6 +3138,16 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
             if (other) log(state, `  Communal Healing: ${other.name} regains ${applyHeal(state, other, rank)}`);
         }
     }
+    // (2026-11-05, a champion's Lay on Hands riders — Amplifying, Resilient, Rejuvenating, Accelerating Touch —: their effect on each ally
+    // it healed, caster.touchRiders [{ name, model }].)
+    if (caster.touchRiders?.length && spell?.plan?.source?.slug === "lay-on-hands") for (const id of targetIds ?? []) {
+        const healed = state.byId.get(id);
+        if (!healed || healed.side !== caster.side || !isActive(healed)) continue;
+        for (const rider of caster.touchRiders) {
+            applyEffect(state, healed, { name: rider.name, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...rider.model }, caster, { applyCondition, key: `touch:${rider.name}` });
+            log(state, `  ${rider.name}: on ${healed.name}`);
+        }
+    }
     // (U10: an item's own counteract — Surging Serum, Panacea — on those it was used on.)
     if (spell?.counteract) for (const id of targetIds ?? []) {
         const target = state.byId.get(id);
