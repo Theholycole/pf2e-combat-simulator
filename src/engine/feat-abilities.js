@@ -229,8 +229,26 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     // The feat module's own Effect from the feat's rules: a stance, a moment's bonus — on the PC itself.
     if (plan.builtin === "feat-effect") {
         if (plan.timer || !(plan.effect?.rules ?? []).length) return gap("a timer with no rules a fight counts");
-        if (plan.who === "target") return gap("an Effect on another creature");
-        if (actionType === "passive") return gap("a passive's Effect posted by hand");
+        if (actionType === "passive") return gap(plan.who === "target" ? "an Effect on another creature" : "a passive's Effect posted by hand");
+        // (2026-11-05, the one-off feats: the module's Effect on its target — Sovereign's Blade's +2 to its knights, Pack of the Beast Lord's
+        // resistance — as a buff the PC puts on an ally within 30 feet, its Effect the model; a foe's penalty or weakness — Marked for
+        // Rebuke, Shadow Spell — isn't played.)
+        if (plan.who === "target") {
+            const model = helpers.rulesModel?.(plan.effect) ?? null;
+            if (!model || !worthSomething(model)) return gap("its Effect has nothing a fight counts");
+            if ((model.weaknesses ?? []).length || (model.modifiers ?? []).some((modifier) => Number(modifier.value) < 0)) return gap("an Effect on another creature (a foe's penalty)");
+            const uuid = `feat-effect:${name}`;
+            const time = actionType === "free" || actionType === "reaction" ? actionType : String(actionCount(null, info) || 1);
+            const allyPlan = {
+                source: plan.source ?? { name }, traits, activation: { time, traits: [] }, trigger: { event: "use" },
+                targeting: { target: "1 creature", range: "30 feet", area: null },
+                resolution: { kind: "effect", check: null, sharedDamage: null, applications: [{ kind: "native-spell-effect", uuid }] },
+                nativeEffects: { onUse: [{ kind: "native-spell-effect", uuid, recipient: { actor: "target" } }] }
+            };
+            result.spells.push({ ...abilityEntry(name, allyPlan, { pool, actionType, helpers: {}, rechargeGroup: name }), effects: { [uuid]: model } });
+            usePool();
+            return { ...result, played: "an Effect on an ally" };
+        }
         const model = helpers.rulesModel?.(plan.effect) ?? null;
         if (!model || !worthSomething(model)) return gap("its Effect has nothing a fight counts");
         const stance = Boolean(plan.effect.stance) || traits.includes("stance");
