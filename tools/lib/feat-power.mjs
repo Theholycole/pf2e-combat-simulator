@@ -1403,6 +1403,14 @@ const HAND = {
     // (A hit is a critical hit; off-guard and stunned 1 after.)
     "final-shot": () => ({ builtins: {}, plans: [strikeRider({ actions: 3, range: "ranged", hitCrits: true, selfAfter: [{ slug: "off-guard" }, { slug: "stunned", value: 1 }] })], played: "a ranged Strike whose hit is a critical hit, then off-guard and stunned 1 (3 actions)" }),
     // (Mythic proficiency, +10: about +4 over a martial's own.)
+    // (2026-11-05, Shield Wallop: a flourish Strike — its shield's, or its weapon's when the guardian has none —, stupefied 1 on a hit and 2
+    // on a critical hit until its next turn.)
+    // (Reflexive Shield: its raised shield's bonus to Reflex saves; Shield Block against a Reflex save's damage isn't played.)
+    "reflexive-shield": () => ({ builtins: { reflexiveShield: true }, played: "its raised shield's bonus to Reflex saves (Raise a Shield forced, on the guardian)" }),
+    "shield-wallop": () => {
+        const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
+        return { builtins: {}, plans: [strikeRider({ flourish: true, onHit: { conditions: [{ slug: "stupefied", value: 1, duration: until }], critical: [{ slug: "stupefied", value: 2, duration: until }] } })], played: "a flourish Strike, stupefied 1 (2 on a critical hit) until its next turn" };
+    },
     "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),
     // (Reach 10 feet: Giant's Lunge while raging, for the rage; Jotun's Battle Stance, its two-handed weapon not checked.)
     "giants-lunge": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, requires: "raging", model: { rounds: 10, reach: 10 } }], played: "reach 10 feet while raging (1 action)" }),
@@ -1790,6 +1798,8 @@ function kineticistEntry(doc, level, host) {
 }
 
 const HOST_OVERRIDE = { "shield-block": "cleric" };
+// (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
+const CLASS_OVERRIDE = { "reflexive-shield": "guardian" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
@@ -2011,7 +2021,7 @@ const companionStageAt = (level) => (level >= 16 ? "specialized" : level >= 10 ?
 function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } = {}) {
     // (2026-11-05: Shield Block on the cleric — the fighter has it already, so on the fighter it would rate as nothing.)
     if (!hostId && !start && HOST_OVERRIDE[slugOf(doc)]) hostId = HOST_OVERRIDE[slugOf(doc)];
-    const classTrait = (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait] || CLASS_SLUGS.includes(trait));
+    const classTrait = (!start && !hostId && CLASS_OVERRIDE[slugOf(doc)]) || (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait] || CLASS_SLUGS.includes(trait));
     // (2026-11-02, the user: "Get the simulator working with all classes": a class's feat on its own class — classes.js — the standard party
     // with that class's PC in its seat, rated against the same party without the feat.)
     // (2026-11-03: an archetype's stance for the unarmored — Six Pillars Stance's, Stunt Performer Stance's "You are unarmored" — on the

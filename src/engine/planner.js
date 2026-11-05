@@ -2181,7 +2181,8 @@ function expandTactics(env) {
             && state.list.some((other) => other !== c && other.side === c.side && isActive(other) && other.meleeId != null && (other.meleeId === node.pos.melee || (node.pos.melee === undefined && other.meleeId === c.meleeId)));
         // (2026-11-05, Mounted Shield: raised, forced, while it rides — its mount behind it too.)
         // (Raise a Tome: its book raised, forced.)
-        const mountGuard = c.forceUse && ((c.mountedShield && c.mountId) || c.shield.noBlock) && !c.shield.spell && !node.casts.includes("forced");
+        // (Reflexive Shield: raised, forced, for its Reflex bonus.)
+        const mountGuard = c.forceUse && ((c.mountedShield && c.mountId) || c.shield.noBlock || c.reflexiveShield) && !c.shield.spell && !node.casts.includes("forced");
         const next = child(node, { type: "raiseShield" }, 1, warden || mountGuard ? 10 * ctx.ownValue : 0, { shield: true });
         if (warden || mountGuard) next.casts = [...next.casts, "forced"];
         children.push(next);

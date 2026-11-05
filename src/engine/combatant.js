@@ -239,7 +239,9 @@ export function armorClass(defender, { ranged = false, coverBonus = 0, flanked =
 }
 
 export function saveModifier(c, save) {
-    return (c.saves?.[save] ?? 0) - statusPenalty(c, save) + effectBonus(c, save);
+    // (2026-11-05, Reflexive Shield: its raised shield's circumstance bonus to Reflex saves too.)
+    const shield = save === "reflex" && c.reflexiveShield && c.shield?.raised && !c.shield.broken ? c.shield.ac ?? 0 : 0;
+    return (c.saves?.[save] ?? 0) - statusPenalty(c, save) + effectBonus(c, save) + shield;
 }
 
 // The Will modifier used for the morale threshold: no condition penalties.
