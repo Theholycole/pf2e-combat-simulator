@@ -1498,6 +1498,10 @@ const HAND = {
     "overextending-feint": () => ({ builtins: { goadingFeint: true }, spells: basicActions.feint ? [{ name: "Feint", plan: structuredClone(basicActions.feint), castRank: 1, pool: null, kind: "basic" }] : [], played: "Feint (forced), each one goading (–2 to the foe's next attack on the PC, all on a critical success) instead of off-guard" }),
     // (Temporal Fury: a Strike, a Step, another Strike for two actions and a Mythic Point — the Step not played.)
     "temporal-fury": () => ({ builtins: { multiStrikes: [{ name: "Temporal Fury", actions: 2, strikes: [null, null] }] }, played: "two Strikes for two actions (a Mythic Point)" }),
+    // (Hampering Stance: its 5-foot difficult terrain for foes isn't played — on the bands, foes beside it rarely walk off; the stance is
+    // here for Not So Fast!'s Strike at a foe leaving its reach (its Speed penalty and a critical hit's disruption not played).)
+    "hampering-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: {} }], played: "a stance (its difficult terrain not played)" }),
+    "not-so-fast": () => ({ builtins: { reactionStrikes: [{ name: "Not So Fast!", triggers: ["leave"], strike: null, penalty: 0, disrupts: false, melee: true, requiresEffect: "Hampering Stance", featForced: true }] }, played: "a Strike at a foe leaving its reach, in Hampering Stance (reaction)" }),
     "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),
     // (Reach 10 feet: Giant's Lunge while raging, for the rage; Jotun's Battle Stance, its two-handed weapon not checked.)
     "giants-lunge": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, requires: "raging", model: { rounds: 10, reach: 10 } }], played: "reach 10 feet while raging (1 action)" }),
