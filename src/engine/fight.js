@@ -110,6 +110,10 @@ function outcomeCache(snapshot) {
 function createState(snapshot, options, seed, withLog) {
     const list = snapshot.combatants.map(createCombatant);
     for (const c of list) keepPermanent(c);
+    // (2026-11-05: a self-effect's Strike deltas for a snapshot that wasn't prepared — the feat ratings' fights call simulate directly.)
+    for (const c of list) {
+        if (c.selfEffects?.some((entry) => entry.model?.strikeParts && !entry.model.strikeDeltas)) c.selfEffects = c.selfEffects.map((entry) => (entry.model?.strikeParts && !entry.model.strikeDeltas ? { ...entry, model: { ...entry.model, strikeDeltas: deltasFor(c.strikes ?? [], entry.model.strikeParts) } } : entry));
+    }
     // (2026-11-02, classes.js: a summoner and its eidolon share one pool of Hit Points — the same object, so damage and healing to either is to both.)
     for (const c of list) {
         const partner = c.sharesHpWith ? list.find((other) => other.id === c.sharesHpWith) : null;
