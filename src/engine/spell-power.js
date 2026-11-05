@@ -83,7 +83,9 @@ const TRAIT_PACKAGES = {
     // recharging — so a save feat (Cat's Luck, Guarded Mind, Divine Aegis) has something to answer. saveAbilities.)
     saves: { saves: true },
     // (2026-11-05: the fear reactions' benchmark — Reassuring Presence, Mask of Fear —: Dread Gaze only, so the foe frightens every time.)
-    fear: { saves: ["Dread Gaze"] }
+    // forceAbility: used whenever it has recharged, ahead of a Strike (the planner's forceUse; before, the foe struck and seldom gazed — the
+    // fear reactions rated with no uses).
+    fear: { saves: ["Dread Gaze"], forceAbility: "Dread Gaze" }
 };
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
 export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
@@ -117,6 +119,10 @@ export function powerFoes(kind, level, trait = null) {
         if (pack?.biter && (foe.strikes ?? []).length) foe.strikes = [{ ...foe.strikes[0], name: "Jaws" }, { ...foe.strikes[0], name: "Claw", agile: true, damage: foe.strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: Math.max(4, part.die - 2), type: "slashing" } : part)) }];
         if (pack?.rangedStrike && (foe.strikes ?? []).length) foe.strikes = [...foe.strikes, { ...foe.strikes[0], name: `${foe.strikes[0].name ?? "Strike"} (ranged)`, melee: false, increment: 60, reach: undefined }];
         if (pack?.saves) foe.spells = [...(foe.spells ?? []), ...saveAbilities(foe).filter((ability) => !Array.isArray(pack.saves) || pack.saves.includes(ability.name))];
+        if (pack?.forceAbility) {
+            foe.spells = foe.spells.map((ability) => (ability.name === pack.forceAbility ? { ...ability, featForced: true } : ability));
+            foe.forceUse = true;
+        }
         if (pack?.resistances) foe.resistances = [...(foe.resistances ?? []), ...pack.resistances.map((entry) => ({ ...entry, value: typicalWeakness(foe.level) }))];
         return pack?.traits ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities], weaknesses: (pack.weaknesses ?? []).map((type) => ({ type, value: typicalWeakness(foe.level) })) } : foe;
     };

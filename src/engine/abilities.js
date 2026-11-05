@@ -325,7 +325,7 @@ export function addBuiltin(spec, plan, name) {
         // Shell's only against ranged attacks; Reactive Defense's Strike at the attacker after.
         case "ally-ac-reaction":
             // (B182: itself too, a dragon's shield.)
-            spec.allyAcReaction = { name, value: Number(plan.value) || 2, within: plan.within === "reach" ? 10 : Number(plan.within) || 10, ...(plan.ranged ? { ranged: true } : {}), ...(plan.strike ? { strike: plan.strike } : {}), ...(plan.self ? { self: true } : {}) };
+            spec.allyAcReaction = { name, value: Number(plan.value) || 2, within: plan.within === "reach" ? 10 : Number(plan.within) || 10, ...(plan.ranged ? { ranged: true } : {}), ...(plan.strike ? { strike: plan.strike } : {}), ...(plan.self ? { self: true } : {}), ...(plan.dcInstead ? { dcInstead: plan.dcInstead } : {}) };
             return true;
         case "save-boost":
             // (B226, Light of Diligence: only a critical failure, each ally once a fight.)

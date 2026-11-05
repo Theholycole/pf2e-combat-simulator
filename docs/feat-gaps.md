@@ -2,22 +2,22 @@
 
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
-- **The feat module** automates 2632: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3734 it doesn't.**
+- **The feat module** automates 2635: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3731 it doesn't.**
 - **The simulator** rates 1685 in whole fights. **4681 it doesn't.**
-- **3133** are in neither.
+- **3130** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1092 | 1668 | 973 |
-| archetype | 2074 | 1249 | 1484 | 1000 |
-| ancestry | 1613 | 1088 | 1156 | 860 |
+| class | 2282 | 1091 | 1668 | 972 |
+| archetype | 2074 | 1248 | 1484 | 999 |
+| ancestry | 1613 | 1087 | 1156 | 859 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3734 | 4681 | 3133 |
+| **All** | 6366 | 3731 | 4681 | 3130 |
 
 ## Why the feat module doesn't automate them
 
@@ -27,7 +27,7 @@ Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats 
 | roleplay or nothing to automate | 212 | 236 | 163 | 46 | 9 |  |  | 666 |
 | only grants other feats, features or choices | 137 | 263 | 95 | 20 | 2 | 1 | 1 | 519 |
 | out of combat (exploration, downtime, skills) | 93 | 102 | 44 | 111 | 2 |  |  | 352 |
-| a combat passive no reader or hand plan covers yet | 74 | 66 | 34 | 13 | 2 |  | 1 | 190 |
+| a combat passive no reader or hand plan covers yet | 73 | 65 | 33 | 13 | 2 |  | 1 | 187 |
 | spellcasting the spell module or PF2e handles | 74 | 87 | 14 | 1 |  | 1 |  | 177 |
 | companions, familiars and eidolons | 52 | 37 | 2 | 5 |  |  |  | 96 |
 | a combat action no reader or hand plan covers yet | 35 | 30 | 14 | 4 | 1 |  |  | 84 |
@@ -41,12 +41,12 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 294 | 216 | 321 | 59 | 15 | 4 |  | 909 |
 | no card: roleplay or nothing to automate | 158 | 202 | 154 | 46 | 9 |  |  | 569 |
-| no card: the feat module's reminder, which a fight doesn't play | 213 | 140 | 104 | 22 | 1 | 1 |  | 481 |
+| no card: the feat module's reminder, which a fight doesn't play | 211 | 138 | 103 | 22 | 1 | 1 |  | 476 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 81 | 39 | 111 | 2 |  |  | 324 |
 | no card: only grants other feats, features or choices | 87 | 127 | 47 | 16 | 2 |  |  | 279 |
 | a spell the engine doesn't cast | 59 | 57 | 108 | 1 |  | 1 |  | 226 |
-| no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 72 | 67 | 44 | 21 | 1 |  |  | 205 |
-| no card: a combat passive no reader or hand plan covers yet | 64 | 60 | 33 | 13 | 2 |  | 1 | 173 |
+| no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 75 | 70 | 46 | 21 | 1 |  |  | 213 |
+| no card: a combat passive no reader or hand plan covers yet | 63 | 59 | 32 | 13 | 2 |  | 1 | 170 |
 | a timer with no rules a fight counts | 59 | 28 | 17 | 4 |  | 1 |  | 109 |
 | a Strike with nothing more the simulator reads | 64 | 37 | 2 |  |  | 1 |  | 104 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
@@ -3424,7 +3424,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Unified Theory | 15 | skill | passive | no card: out of combat (exploration, downtime, skills) |
 | Preternatural Polish | 16 | skill | passive | no card: out of combat (exploration, downtime, skills) |
 
-### a combat passive no reader or hand plan covers yet (190)
+### a combat passive no reader or hand plan covers yet (187)
 
 | Feat | Lvl | Category | Type | Simulator |
 |---|---:|---|---|---|
@@ -3444,7 +3444,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Insulated Poppet | 5 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Loud Singer | 5 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Loyal Empath | 5 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
-| Lucky Break | 5 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Mask of Power | 5 | ancestry | passive | rated -0.17 |
 | Metabolic Control | 5 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Sealed Poppet | 5 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
@@ -3491,7 +3490,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Live Ammunition | 8 | archetype | passive | no card: a combat passive no reader or hand plan covers yet |
 | Magpie Manor Recovery | 8 | archetype | passive | no card: a combat passive no reader or hand plan covers yet |
 | Mind Projectiles | 8 | archetype | passive | no card: a combat passive no reader or hand plan covers yet |
-| Pact of Infernal Prowess | 8 | archetype | passive | no card: a combat passive no reader or hand plan covers yet |
 | Beast Dynamo Howl | 10 | archetype | passive | no card: a combat passive no reader or hand plan covers yet |
 | Crack Retort | 10 | archetype | passive | no card: a combat passive no reader or hand plan covers yet |
 | Hook 'Em | 10 | archetype | passive | no card: a combat passive no reader or hand plan covers yet |
@@ -3565,7 +3563,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Projectile Snatching | 8 | class | passive | rated 0 |
 | Syu Tak-nwa's Hexed Locks | 8 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Water Walker | 8 | class | passive | no card: a combat passive no reader or hand plan covers yet |
-| Windborne Shove | 8 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Crashing Slam | 10 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Spectral Advance | 10 | class | passive | a spell the engine doesn't cast |
 | Unstable Concoction | 10 | class | passive | no card: a combat passive no reader or hand plan covers yet |
@@ -4074,7 +4071,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (481)
+### no card: the feat module's reminder, which a fight doesn't play (476)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4083,7 +4080,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Dwarven Doughtiness | 1 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Elemental Embellish | 1 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Everyday Form | 1 | ancestry | passive | reminder | the feat module reads nothing for it |
-| Hunter's Defense | 1 | ancestry | reaction | reminder | the feat module reads nothing for it |
+| Hunter's Defense | 1 | ancestry | reaction | card | the feat module reads nothing for it |
 | Leshy Superstition | 1 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Marsh Runner | 1 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Polymorphic Escape | 1 | ancestry | reaction | reminder | the feat module reads nothing for it |
@@ -4109,7 +4106,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Immobile Form | 5 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Inspire Imitation | 5 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Intuitive Illusions | 5 | ancestry | free | reminder | the feat module reads nothing for it |
-| Mistaken Identity | 5 | ancestry | reaction | reminder | the feat module reads nothing for it |
+| Mistaken Identity | 5 | ancestry | reaction | card | the feat module reads nothing for it |
 | Noble Bloom | 5 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Phantom Resemblance | 5 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Powerful Guts | 5 | ancestry | passive | reminder | the feat module reads nothing for it |
@@ -4157,7 +4154,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Unyielding Disguise | 9 | ancestry | passive | reminder | the feat module reads nothing for it |
 | You Seem Somewhat Familiar | 9 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Alter Resistance | 13 | ancestry | reaction | reminder | the feat module reads nothing for it |
-| Black Cat Curse | 13 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Bonekeeper's Bane | 13 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Bounce Back | 13 | ancestry | free | reminder | the feat module reads nothing for it |
 | Clinging to Life | 13 | ancestry | free | reminder | the feat module reads nothing for it |
@@ -4181,7 +4177,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | See You in Hell | 17 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Stonewall | 17 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | System Override | 17 | ancestry | passive | reminder | the feat module reads nothing for it |
-| Wood Ward | 17 | ancestry | reaction | reminder | the feat module reads nothing for it |
+| Wood Ward | 17 | ancestry | reaction | card | the feat module reads nothing for it |
 | Acrobat Dedication | 2 | archetype | passive | reminder | the feat module reads nothing for it |
 | Fan Dancer Dedication | 2 | archetype | passive | reminder | the feat module reads nothing for it |
 | Agile Hand | 4 | archetype | passive | reminder | the feat module reads nothing for it |
@@ -4193,7 +4189,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Dread Blade | 4 | archetype | passive | reminder | the feat module reads nothing for it |
 | Forceful Push | 4 | archetype | passive | reminder | the feat module reads nothing for it |
 | Heaven's Step Offense | 4 | archetype | reaction | reminder | the feat module reads nothing for it |
-| Lucky Escape | 4 | archetype | reaction | reminder | the feat module reads nothing for it |
+| Lucky Escape | 4 | archetype | reaction | card | the feat module reads nothing for it |
 | Play to the Crowd | 4 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Shining Arms | 4 | archetype | passive | reminder | the feat module reads nothing for it |
 | Soul Flare | 4 | archetype | reaction | reminder | the feat module reads nothing for it |
@@ -4219,7 +4215,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Propulsive Mutation | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Reactive Spellshift | 6 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Rushing Boar | 6 | archetype | reaction | reminder | the feat module reads nothing for it |
-| Siege Celerity | 6 | archetype | free | reminder | the feat module reads nothing for it |
+| Siege Celerity | 6 | archetype | free | card | the feat module reads nothing for it |
 | Soul Bleed | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Sweeping Fan Block | 6 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Symphony of Agony | 6 | archetype | passive | reminder | the feat module reads nothing for it |
@@ -4232,7 +4228,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Accursed Touch | 8 | archetype | passive | reminder | the feat module reads nothing for it |
 | Beacon Mark | 8 | archetype | passive | reminder | the feat module reads nothing for it |
 | Challenge Insight | 8 | archetype | reaction | reminder | the feat module reads nothing for it |
-| Commitment to Valor | 8 | archetype | reaction | reminder | the feat module reads nothing for it |
+| Commitment to Valor | 8 | archetype | reaction | card | the feat module reads nothing for it |
 | Counter Curse | 8 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Countercharm | 8 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Guardian Ghosts | 8 | archetype | reaction | reminder | the feat module reads nothing for it |
@@ -4244,7 +4240,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Reactive Resilience | 8 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Scattered Fire | 8 | archetype | passive | reminder | the feat module reads nothing for it |
 | Shoving Sweep | 8 | archetype | reaction | reminder | the feat module reads nothing for it |
-| Show-Off | 8 | archetype | free | reminder | the feat module reads nothing for it |
 | Siphoning Touch | 8 | archetype | passive | reminder | the feat module reads nothing for it |
 | Slayer's Blessing | 8 | archetype | passive | reminder | the feat module reads nothing for it |
 | Smoldering Explosion | 8 | archetype | passive | reminder | the feat module reads nothing for it |
@@ -4267,7 +4262,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Reflexive Devotion | 10 | archetype | free | reminder | the feat module reads nothing for it |
 | Roadkill | 10 | archetype | passive | reminder | the feat module reads nothing for it |
 | Secrets of Steel | 10 | archetype | passive | reminder | the feat module reads nothing for it |
-| Sense the Strike | 10 | archetype | reaction | reminder | the feat module reads nothing for it |
+| Sense the Strike | 10 | archetype | reaction | card | the feat module reads nothing for it |
 | Slayer's Presence | 10 | archetype | passive | reminder | the feat module reads nothing for it |
 | Slingshot Maneuver | 10 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Spiritual Flurry | 10 | archetype | passive | reminder | the feat module reads nothing for it |
@@ -4300,7 +4295,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Improved Hijack Undead | 14 | archetype | passive | reminder | the feat module reads nothing for it |
 | Lesson of the Hurricane's Might | 14 | archetype | passive | reminder | the feat module reads nothing for it |
 | Mist Escape | 14 | archetype | free | reminder | the feat module reads nothing for it |
-| Night's Warning | 14 | archetype | reaction | reminder | the feat module reads nothing for it |
+| Night's Warning | 14 | archetype | reaction | card | the feat module reads nothing for it |
 | Rapid Hybridization | 14 | archetype | free | reminder | the feat module reads nothing for it |
 | Shattered Sacrament | 14 | archetype | passive | reminder | the feat module reads nothing for it |
 | Shifting Terrain | 14 | archetype | 1 action | card | the feat module reads nothing for it |
@@ -4309,7 +4304,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Unlimited Ghost Flight | 14 | archetype | passive | reminder | the feat module reads nothing for it |
 | Aura Expertise | 16 | archetype | free | reminder | the feat module reads nothing for it |
 | Deflecting Cloud | 16 | archetype | reaction | reminder | the feat module reads nothing for it |
-| Focus Ally | 16 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Master's Counterspell | 16 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Officer's Protection | 16 | archetype | passive | reminder | the feat module reads nothing for it |
 | Stunning Appearance | 16 | archetype | passive | reminder | the feat module reads nothing for it |
@@ -4366,7 +4360,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Portents of the Haruspex | 4 | class | reaction | reminder | the feat module reads nothing for it |
 | Prescience | 4 | class | free | reminder | the feat module reads nothing for it |
 | Ravel of Thorns | 4 | class | 1 action | kineticist module | the feat module reads nothing for it |
-| Scout's Warning | 4 | class | free | reminder | the feat module reads nothing for it |
+| Scout's Warning | 4 | class | free | card | the feat module reads nothing for it |
 | Shielded Recovery | 4 | class | passive | reminder | the feat module reads nothing for it |
 | Thermal Nimbus | 4 | class | 1 action | kineticist module | the feat module reads nothing for it |
 | Winter Sleet | 4 | class | 1 action | kineticist module | the feat module reads nothing for it |
@@ -4375,12 +4369,11 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Assured Knowledge | 6 | class | passive | reminder | the feat module reads nothing for it |
 | Blazing Spirit | 6 | class | reaction | card | the feat module reads nothing for it |
 | Collateral Reinforcement | 6 | class | 1 action | card | the feat module reads nothing for it |
-| Correct the Story | 6 | class | reaction | reminder | the feat module reads nothing for it |
 | Counter Element | 6 | class | reaction | kineticist module | the feat module reads nothing for it |
 | Divert Destiny | 6 | class | free | reminder | the feat module reads nothing for it |
 | Energetic Resonance | 6 | class | reaction | reminder | the feat module reads nothing for it |
 | Fearsome Familiar | 6 | class | 3 actions | kineticist module | the feat module reads nothing for it |
-| Flow of War | 6 | class | free | reminder | the feat module reads nothing for it |
+| Flow of War | 6 | class | free | card | the feat module reads nothing for it |
 | Instinctive Support | 6 | class | free | reminder | the feat module reads nothing for it |
 | Jagged Berms | 6 | class | 3 actions | kineticist module | the feat module reads nothing for it |
 | Magic Hands | 6 | class | passive | reminder | the feat module reads nothing for it |
@@ -4415,9 +4408,9 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Repositioning Block | 8 | class | free | reminder | the feat module reads nothing for it |
 | Retaliatory Cleansing | 8 | class | reaction | reminder | the feat module reads nothing for it |
 | Rippling Spin | 8 | class | reaction | reminder | the feat module reads nothing for it |
-| Sacrifice Armor | 8 | class | reaction | reminder | the feat module reads nothing for it |
+| Sacrifice Armor | 8 | class | reaction | card | the feat module reads nothing for it |
 | Unrivaled Analysis | 8 | class | passive | reminder | the feat module reads nothing for it |
-| Deflecting Shot | 10 | class | reaction | reminder | the feat module reads nothing for it |
+| Deflecting Shot | 10 | class | reaction | card | the feat module reads nothing for it |
 | Deny Support | 10 | class | passive | reminder | the feat module reads nothing for it |
 | Devoted Focus | 10 | class | passive | reminder | the feat module reads nothing for it |
 | Dimensional Disappearance | 10 | class | passive | reminder | the feat module reads nothing for it |
@@ -4447,7 +4440,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Embrace the Pain | 12 | class | reaction | reminder | the feat module reads nothing for it |
 | Endless Return | 12 | class | passive | reminder | the feat module reads nothing for it |
 | Flinging Shove | 12 | class | passive | reminder | the feat module reads nothing for it |
-| Foresee Danger | 12 | class | reaction | reminder | the feat module reads nothing for it |
+| Foresee Danger | 12 | class | reaction | card | the feat module reads nothing for it |
 | Fortunate Relief | 12 | class | passive | reminder | the feat module reads nothing for it |
 | Ghosts in the Storm | 12 | class | 1 action | kineticist module | the feat module reads nothing for it |
 | Grave Focus | 12 | class | passive | reminder | the feat module reads nothing for it |
@@ -4479,7 +4472,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Guiding Riposte | 14 | class | passive | reminder | the feat module reads nothing for it |
 | Impossible Riposte | 14 | class | passive | reminder | the feat module reads nothing for it |
 | Instinctual Creation | 14 | class | free | reminder | the feat module reads nothing for it |
-| Internal Dialogue | 14 | class | reaction | reminder | the feat module reads nothing for it |
 | Liberating Dive | 14 | class | 2 actions | kineticist module | the feat module reads nothing for it |
 | Revelation's Focus | 14 | class | passive | reminder | the feat module reads nothing for it |
 | Shared Prey | 14 | class | passive | reminder | the feat module reads nothing for it |
@@ -4507,7 +4499,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Steal Death | 16 | class | reaction | reminder | the feat module reads nothing for it |
 | Steal Spell | 16 | class | passive | reminder | the feat module reads nothing for it |
 | Swift Elusion | 16 | class | reaction | reminder | the feat module reads nothing for it |
-| You Failed to Account For... This! | 16 | class | reaction | reminder | the feat module reads nothing for it |
+| You Failed to Account For... This! | 16 | class | reaction | card | the feat module reads nothing for it |
 | All in My Head | 18 | class | reaction | reminder | the feat module reads nothing for it |
 | All in Your Head | 18 | class | reaction | reminder | the feat module reads nothing for it |
 | Deduce Habits | 18 | class | passive | reminder | the feat module reads nothing for it |
@@ -4560,7 +4552,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Foil Senses | 7 | skill | passive | reminder | the feat module reads nothing for it |
 | Temperature Adjustment | 7 | skill | passive | reminder | the feat module reads nothing for it |
 
-### no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play (205)
+### no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play (213)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4585,6 +4577,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Hasty Celebration | 5 | ancestry | reaction | by hand | the feat module reads nothing for it |
 | Healing Flesh | 5 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Jungle Runner | 5 | ancestry | passive | by hand | the feat module reads nothing for it |
+| Lucky Break | 5 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Natural Ambassador | 5 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Reflective Pocket | 5 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Reincarnated Ridiculer | 5 | ancestry | passive | by hand | the feat module reads nothing for it |
@@ -4604,6 +4597,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Terrain Advantage | 9 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Water Dancer | 9 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Attuned Electroreceptors | 13 | ancestry | passive | by hand | the feat module reads nothing for it |
+| Black Cat Curse | 13 | ancestry | reaction | by hand | the feat module reads nothing for it |
 | Cobble Dancer | 13 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Crush Their Spirits | 13 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Elucidation | 13 | ancestry | free | by hand | the feat module reads nothing for it |
@@ -4651,6 +4645,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Incredible Mount | 8 | archetype | passive | by hand | the feat module reads nothing for it |
 | Incredible Reanimated Companion | 8 | archetype | passive | by hand | the feat module reads nothing for it |
 | Necromantic Bulwark | 8 | archetype | passive | by hand | the feat module reads nothing for it |
+| Pact of Infernal Prowess | 8 | archetype | passive | by hand | the feat module reads nothing for it |
+| Show-Off | 8 | archetype | free | by hand | the feat module reads nothing for it |
 | Sickening Bite | 8 | archetype | passive | by hand | the feat module reads nothing for it |
 | Emphatic Emissary | 10 | archetype | reaction | by hand | the feat module reads nothing for it |
 | Menacing Prowess | 10 | archetype | passive | by hand | the feat module reads nothing for it |
@@ -4670,6 +4666,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Specialized Beastmaster Companion | 14 | archetype | passive | by hand | the feat module reads nothing for it |
 | Specialized Megafauna Companion | 14 | archetype | passive | by hand | the feat module reads nothing for it |
 | Winter's Kiss | 14 | archetype | passive | by hand | the feat module reads nothing for it |
+| Focus Ally | 16 | archetype | reaction | by hand | the feat module reads nothing for it |
 | Greater Snow Step | 16 | archetype | passive | by hand | the feat module reads nothing for it |
 | Lead the Pack | 16 | archetype | passive | by hand | the feat module reads nothing for it |
 | Heightened Instincts | 18 | archetype | passive | by hand | the feat module reads nothing for it |
@@ -4698,6 +4695,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Vibration Sense | 4 | class | passive | by hand | the feat module reads nothing for it |
 | Agile Maneuvers | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Chiardmar Steed | 6 | class | passive | by hand | the feat module reads nothing for it |
+| Correct the Story | 6 | class | reaction | by hand | the feat module reads nothing for it |
 | Knowledge is Power | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Light Step | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Mature Animal Companion (Ranger) | 6 | class | passive | by hand | the feat module reads nothing for it |
@@ -4713,6 +4711,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Murksight | 8 | class | passive | by hand | the feat module reads nothing for it |
 | Resounding Bravery | 8 | class | passive | by hand | the feat module reads nothing for it |
 | Spirit Walk | 8 | class | passive | by hand | the feat module reads nothing for it |
+| Windborne Shove | 8 | class | passive | by hand | the feat module reads nothing for it |
 | Battle-Hardened Companion | 10 | class | passive | by hand | the feat module reads nothing for it |
 | Burrowing Form | 10 | class | passive | by hand | the feat module reads nothing for it |
 | Incredible Companion (Ranger) | 10 | class | passive | by hand | the feat module reads nothing for it |
@@ -4729,6 +4728,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Towering Size | 12 | class | passive | by hand | the feat module reads nothing for it |
 | Wandering Oasis | 12 | class | passive | by hand | the feat module reads nothing for it |
 | Explosive Maneuver | 14 | class | 1 action | by hand | the feat module reads nothing for it |
+| Internal Dialogue | 14 | class | reaction | by hand | the feat module reads nothing for it |
 | Leave an Opening | 14 | class | passive | by hand | the feat module reads nothing for it |
 | Opening Stance | 14 | class | free | by hand | the feat module reads nothing for it |
 | Paragon Companion | 14 | class | passive | by hand | the feat module reads nothing for it |

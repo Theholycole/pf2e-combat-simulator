@@ -610,13 +610,16 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             const entry = guard.allyAcReaction;
             if (!entry || (guard === target && !entry.self) || guard.side !== target.side || !isActive(guard) || !canReact(guard, entry.name) || !canAct(guard) || (entry.ranged && strike.melee)) continue;
             if (guard !== target && (entry.within <= 10 ? !sameMelee(guard, target) : entry.within < 60 && target.band === "far" && guard.band !== "far")) continue;
-            const lower = degreeOf(natural + modifier + bonus, ac + defence + entry.value, natural);
+            // (2026-11-05, Forewarn: the attack against its Perception DC instead of the ally's AC — the gain, when there is one.)
+            const value = entry.dcInstead ? 10 + (Number(guard.perception) || 0) - (ac + defence) : entry.value;
+            if (!(value > 0)) continue;
+            const lower = degreeOf(natural + modifier + bonus, ac + defence + value, natural);
             if (lower >= degree) continue;
             degree = lower;
-            defence += entry.value;
+            defence += value;
             spendReaction(guard, entry.name);
             state.stats.reactions++;
-            log(state, `  ${guard.name} uses ${entry.name}: ${target.name} +${entry.value} AC`);
+            log(state, `  ${guard.name} uses ${entry.name}: ${target.name} +${value} AC`);
             if (entry.strike && sameMelee(guard, attacker) && isActive(attacker)) {
                 const index = enemyStrikeIndex(guard, attacker, entry.strike);
                 if (index >= 0) performStrike(state, guard, attacker, guard.strikes[index], { reaction: true, trigger: "ally-guarded" });
