@@ -500,7 +500,7 @@ function startTurn(state, c) {
     const vengeance = Boolean(c.vengeful) && !c.cond.quickened;
     if (c.vengeful) {
         c.vengeful = false;
-        state.log?.push(`  ${c.name} is quickened (Quick Vengeance)`);
+        state.log?.push(`  ${c.name} is quickened (${c.swiftRetribution ? "Swift Retribution" : "Quick Vengeance"})`);
     }
     // A complex hazard: its routine's actions.
     let actions = isHazard(c) ? (c.hazard?.routineActions ?? 1) : 3 + (c.cond.quickened || vengeance ? 1 : 0);

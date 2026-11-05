@@ -1203,6 +1203,9 @@ const HAND = {
     "battle-cry": (level) => ({ builtins: { battleCry: { reaction: level >= 15 } }, played: `a free Demoralize as the fight begins${level >= 15 ? ", and one on a critical hit (reaction)" : ""}` }),
     // (Diehard: dies at dying 5, not 4.)
     "diehard": () => ({ builtins: { deathAt: 5 }, played: "dies at dying 5" }),
+    "bloody-debilitation": () => ({ builtins: { debilitation: { bleed: 3 } }, played: "Debilitating Strike's 3d6 persistent bleed in place of enfeebled 1" }),
+    "eldritch-debilitations": () => ({ builtins: { debilitation: { slug: "stupefied", value: 1 } }, played: "Debilitating Strike's stupefied 1 in place of enfeebled 1" }),
+    "swift-retribution": () => ({ builtins: { swiftRetribution: true }, played: "an extra action after its champion's reaction" }),
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;

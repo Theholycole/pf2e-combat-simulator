@@ -882,6 +882,16 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
                 // (2026-11-04, Vicious Debilitations: the debilitation its feat adds, picked in place of Debilitating Strike's — one a Strike.)
                 const condition = extra.source === "Debilitating Strike" && attacker.debilitation ? { ...extra.condition, ...attacker.debilitation } : extra.condition;
                 // (Tactical Debilitations: "The target can't use reactions", until the end of the rogue's next turn.)
+                // (2026-11-05, Bloody Debilitation: 3d6 persistent bleed in place of a condition.)
+                if (condition.bleed) {
+                    if (isActive(target)) {
+                        let amount = 0;
+                        for (let die = 0; die < condition.bleed; die++) amount += state.rng.die(6);
+                        addPersistent(target, { type: "bleed", dice: 0, die: 0, bonus: amount, amount }, attacker);
+                        log(state, `  ${target.name} takes ${amount} persistent bleed (${extra.source})`);
+                    }
+                    continue;
+                }
                 if (condition.lockReactions) {
                     if (isActive(target)) {
                         target.reactionLocks = [...(target.reactionLocks ?? []).filter((held) => held.by !== attacker.id || held.spell !== extra.source), { by: attacker.id, spell: extra.source, untilRound: state.round + 1, ownTurn: false, sustained: false }];
