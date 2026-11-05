@@ -362,7 +362,8 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     // find — is a gap too, for the same reason.)
     if (["check", "save"].includes(plan.resolution.kind)) {
         const outcomes = Object.values(plan.resolution.outcomes ?? {});
-        const does = (row) => row && ((row.damage?.mode === "formulas" && row.damage.formulas?.length) || row.effects?.length || row.nativeEffects?.length || row.healing);
+        // (2026-11-05: or a modifier on the target — Bon Mot's -2 to Will and Perception, spells.js modifierModel.)
+        const does = (row) => row && ((row.damage?.mode === "formulas" && row.damage.formulas?.length) || row.effects?.length || row.nativeEffects?.length || row.healing || row.modifiers?.some((modifier) => modifier.recipient !== "self"));
         if (!plan.resolution.sharedDamage && !outcomes.some(does)) return gap("a roll whose results the simulator doesn't read");
     }
     // (An Effect with nothing a fight counts — Disarming Stance's, Duelist's Challenge's, Shooting Stars Stance's: what they do is in rules the

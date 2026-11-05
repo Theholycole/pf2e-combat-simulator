@@ -1201,6 +1201,8 @@ const HAND = {
     // (Battle Cry: a free Demoralize as the fight begins — champion.js championOpening —, and from 15th, legendary in Intimidation, its
     // reaction Demoralize on a critical hit.)
     "battle-cry": (level) => ({ builtins: { battleCry: { reaction: level >= 15 } }, played: `a free Demoralize as the fight begins${level >= 15 ? ", and one on a critical hit (reaction)" : ""}` }),
+    // (Diehard: dies at dying 5, not 4.)
+    "diehard": () => ({ builtins: { deathAt: 5 }, played: "dies at dying 5" }),
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
