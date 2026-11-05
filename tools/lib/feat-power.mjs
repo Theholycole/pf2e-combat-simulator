@@ -1608,6 +1608,10 @@ export function featTriggerOf(doc) {
     const whileDown = /\beven while\b/i.test(text);
     if (/^Your turn begins$/i.test(said)) return { on: "turn-start" };
     if (/^(?:A|An) (?:creature(?: or object)?|enemy|foe)(?: adjacent to you| you are aware of| within \d+ feet)? damages you\b/i.test(said)) return { on: "damaged", ...(/adjacent|melee|unarmed|reach/i.test(said) ? { melee: true } : {}) };
+    const would = /^(?:A Strike|An attack(?: or effect)?|An? (?:creature|enemy|foe)(?:'s)? (?:attack|Strike)) would (?:deal )?damage (?:to )?you$/i.exec(said);
+    if (would) return { on: "would-damage", ...(/effect/i.test(said) ? {} : { strike: true }) };
+    const typed = /^You would take (\w+) damage$/i.exec(said);
+    if (typed) return { on: "would-damage", type: typed[1].toLowerCase() };
     if (/^You (?:bring|reduce) (?:a|an) (?:foe|enemy|creature) to 0 Hit Points/i.test(said) || /^You successfully reduce one or more .*(?:enemies|foes|creatures) to 0 Hit Points/i.test(said)) return { on: "foe-down" };
     if (/^You critically (?:succeed|hit) (?:with|on) an? (unarmed )?Strike/i.test(said)) return { on: "crit", ...(/unarmed/i.test(said) ? { unarmed: true } : {}) };
     if (/^A creature reduces you or (?:a|an) (?:living )?ally within \d+ feet to 0 Hit Points/i.test(said)) return { on: "ally-down", ...(whileDown ? { whileDown: true } : {}) };

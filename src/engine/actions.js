@@ -1371,6 +1371,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
         log(state, `  ${target.name} is untouched (${untouched.spell})`);
         return 0;
     }
+    // (2026-11-05, triggers.js: a feat's reaction before damage it's about to take — Adamantine Body, Terrain Shield, Void Siphon.)
+    if (target.featTriggers && !intercepted && source && source.side !== target.side && instances.some((instance) => instance.amount > 0)) featTriggers(state, target, "would-damage", { by: source, physical, types: instances.filter((instance) => instance.amount > 0).map((instance) => instance.type) });
     // (Undermine Reality: a quasi-real creature's Strikes deal half damage.)
     // (2026-10-22: and Duplicate Foe's copy, on a success.)
     if (physical && !intercepted && (source?.cond?.quasiReal || source?.halfStrikes)) instances = instances.map((instance) => ({ ...instance, amount: Math.floor(instance.amount / 2) }));

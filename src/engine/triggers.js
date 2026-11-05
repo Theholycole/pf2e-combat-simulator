@@ -5,6 +5,7 @@
 // - "turn-start": its turn begins (Blazing Aura, High-Speed Regeneration, Harness Natural Magic).
 // - "damaged": a foe damages it (Impose Order, Gaping Flesh, Calcifying Sand, Inscribed Blast) — melee: by a melee attack or from beside it.
 // - "foe-down": it drops a foe (Victorious Vigor, Cranial Detonation).
+// - "would-damage": before damage from a foe lands (Adamantine Body, Terrain Shield) — strike: only a Strike's; type: only that type's.
 // - "crit": it critically hits with a Strike (Echoing Violence) — unarmed: an unarmed one.
 // - "self-down" / "ally-down": a foe drops it, or it or an ally within 30 feet (Bleak Humorist, Final Spite) — at that foe.
 // The entry's own targeting picks who: itself, its allies or foes about it for an area (its Melee for 10 feet or less), or the creature
@@ -40,6 +41,8 @@ export function featTriggers(state, c, on, ctx = {}) {
         if (c.status !== ACTIVE && !(trigger.whileDown && c.status === DOWN)) continue;
         if (trigger.melee && ctx.by && !(ctx.strike?.melee || sameMelee(c, ctx.by))) continue;
         if (trigger.unarmed && !ctx.strike?.unarmed) continue;
+        if (trigger.strike && !ctx.physical) continue;
+        if (trigger.type && !(ctx.types ?? []).includes(trigger.type)) continue;
         if (!poolReady(c, spell)) continue;
         const reaction = spell.plan?.activation?.time === "reaction";
         if (reaction && !canReact(c, spell.name)) continue;
