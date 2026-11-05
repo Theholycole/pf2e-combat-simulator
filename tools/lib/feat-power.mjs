@@ -1532,10 +1532,10 @@ const HAND = {
     "unstable-concoction": () => ({ builtins: { unstableConcoction: true }, played: "its bombs' damage dice a step bigger" }),
     "directional-bombs": () => ({ builtins: { splashFoesOnly: true }, played: "its bombs' splash on its foes only (a cone away from it)" }),
     // (A champion's Lay on Hands riders, on each ally it heals — spells.js touchRiders. Amplifying Touch's spirit damage played as +1 damage;
-    // Rejuvenating Touch's temporary Hit Points given once, not each turn.)
+    // Rejuvenating Touch's temporary Hit Points renewed at each turn — fight.js tempHpEachTurn.)
     "amplifying-touch": () => ({ builtins: { touchRiders: [{ name: "Amplifying Touch", model: { rounds: 1, modifiers: [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "untyped", value: 1 }] } }] }, played: "+1 to attacks and 1 more damage until its next turn for an ally its Lay on Hands heals" }),
     "resilient-touch": () => ({ builtins: { touchRiders: [{ name: "Resilient Touch", model: { rounds: 1, modifiers: [{ on: "saving-throw", type: "status", value: 1 }] } }] }, played: "+1 to saves until its next turn for an ally its Lay on Hands heals" }),
-    "rejuvenating-touch": () => ({ builtins: { touchRiders: [{ name: "Rejuvenating Touch", model: { rounds: 10, tempHp: 10 } }] }, played: "10 temporary Hit Points for an ally its Lay on Hands heals" }),
+    "rejuvenating-touch": () => ({ builtins: { touchRiders: [{ name: "Rejuvenating Touch", model: { rounds: 10, tempHp: 10, tempHpEachTurn: 10 } }] }, played: "10 temporary Hit Points, renewed each turn for 10 rounds, for an ally its Lay on Hands heals" }),
     "accelerating-touch": () => ({ builtins: { touchRiders: [{ name: "Accelerating Touch", model: { rounds: 1, modifiers: [{ on: "speed", type: "status", value: 10 }] } }] }, played: "+10 feet Speed until its next turn for an ally its Lay on Hands heals" }),
     "leave-an-opening": () => ({ builtins: { leaveAnOpening: true }, played: "its melee critical hit on an off-guard foe sets off an ally's Reactive Strike" }),
     // (Tangle of Battle: a Grapple at the foe it critically hits, its reaction — the basic action's plan at its trigger, triggers.js "crit".)

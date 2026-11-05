@@ -546,6 +546,9 @@ function startTurn(state, c) {
     // Fast healing (the creature's own, or from spell effects) and regeneration.
     const fastHealing = fastHealingNow(state, c);
     if (fastHealing > 0) applyHeal(state, c, fastHealing);
+    // (2026-11-05, Rejuvenating Touch: temporary Hit Points renewed at each of its turns while the effect lasts — model.tempHpEachTurn.)
+    const renewed = Math.max(0, ...(c.effects ?? []).map((effect) => Number(effect.model?.tempHpEachTurn) || 0));
+    if (renewed > 0 && c.hp) c.hp.temp = Math.max(c.hp.temp ?? 0, renewed);
     if (regenerating(c, state) && c.regeneratedRound !== state.round) applyHeal(state, c, c.regeneration.value);
     // (High-Speed Regeneration, a deviant ability: at the start of its turn — deviant.js.)
     if (c.deviantClassification) deviantTurnStart(state, c);
