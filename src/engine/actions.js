@@ -539,7 +539,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         spendReaction(target, target.misfortuneReaction.name);
         log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
     } else if (foresightReact(state, target, attacker)) misfortune = true;
-    else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && (!target.reactions?.aoo || target.acReaction.deviant) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.deviant || deviantUsable(target))) {
+    else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && (!target.reactions?.aoo || target.acReaction.deviant || target.acReaction.featForced) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.deviant || deviantUsable(target))) {
         defence = target.acReaction.value;
         deflected = true;
         spendReaction(target, target.acReaction.name);

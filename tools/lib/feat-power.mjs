@@ -1752,6 +1752,9 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     pc.spellPools = { ...(pc.spellPools ?? {}), ...entries.pools, ...(mythic && (entries.spells.some((entry) => !entry.pool) || mythicBuiltins) ? { mythic: 3 } : {}) };
     if (FORCE) {
         for (const field of FORCED_FIELDS) if (Array.isArray(pooledBuiltins[field])) pooledBuiltins[field] = pooledBuiltins[field].map(forced);
+        // (2026-11-05: the feat's +AC reaction used even by a PC with Reactive Strike — actions.js otherwise keeps the reaction for that,
+        // and Timely Dodge, Dodge Away and the like on a fighter rated 0.00, never used.)
+        if (pooledBuiltins.acReaction && typeof pooledBuiltins.acReaction === "object") pooledBuiltins.acReaction = { ...pooledBuiltins.acReaction, featForced: true };
         pc.forceUse = true;
     }
     joinBuiltins(pc, pooledBuiltins);
