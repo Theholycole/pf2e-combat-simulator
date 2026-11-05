@@ -1329,7 +1329,7 @@ const HAND = {
     // (+2 status to its next attack this turn — a next-Strike effect; its weaknesses learned aren't played.)
     "whispers-of-weakness": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, model: { rounds: 1, modifiers: [{ on: "attack", type: "status", value: 2 }] } }], played: "+2 to its next attack (1 action)" }),
     // (Its next claw hit's 1d6 bleed, once a fight — the claw not checked.)
-    "hone-claws": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, oncePerFight: true, damage: ["1d6[persistent,bleed]"], model: { rounds: 10 } }], played: "1d6 bleed on its next hit (1 action, once a fight)" }),
+    "hone-claws": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, pool: "feat:hone-claws", damage: ["1d6[persistent,bleed]"], model: { rounds: 10 } }], pools: { "feat:hone-claws": 1 }, played: "1d6 bleed on its next hit (1 action, once a fight)" }),
     "legendary-rider": () => ({ builtins: { companionActions: { master: 3, companion: 2 } }, played: "quickened for its Command: its own three actions and its mount's two" }),
     "mounted-shield": () => ({ builtins: { mountedShield: true }, requires: "You are wielding a shield", played: "its raised shield's bonus to its mount's AC too" }),
     // (Rearing Display: its mount's Strike — one action of the mount's turn, the Command its rider spent —, a hit followed by a Demoralize
