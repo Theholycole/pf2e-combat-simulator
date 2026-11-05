@@ -3,7 +3,7 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1852 in whole fights. **4514 it doesn't.**
+- **The simulator** rates 1854 in whole fights. **4512 it doesn't.**
 - **3082** are in neither.
 
 ## Summary by category
@@ -12,12 +12,12 @@ Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats 
 |---|---:|---:|---:|---:|
 | class | 2282 | 1088 | 1572 | 945 |
 | archetype | 2074 | 1246 | 1425 | 981 |
-| ancestry | 1613 | 1086 | 1148 | 857 |
+| ancestry | 1613 | 1086 | 1146 | 857 |
 | skill | 340 | 261 | 324 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4514 | 3082 |
+| **All** | 6366 | 3725 | 4512 | 3082 |
 
 ## Why the feat module doesn't automate them
 
@@ -59,7 +59,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a roll whose results the simulator doesn't read | 26 | 14 | 5 | 7 |  |  |  | 52 |
 | an Effect with nothing a fight counts | 28 | 13 | 8 | 1 |  |  |  | 50 |
 | no card: PF2e's own Effect, from the feat's Use button | 19 | 17 | 7 | 2 |  |  |  | 45 |
-| a passive's roll with no action to use it | 13 | 14 | 11 |  |  |  | 1 | 39 |
+| a passive's roll with no action to use it | 13 | 14 | 10 |  |  |  | 1 | 38 |
 | it grants one of 2 | 6 | 15 | 12 |  |  |  |  | 33 |
 | its text has no Strike of its user's | 15 | 9 | 1 |  |  |  |  | 25 |
 | a spell the feat casts | 14 | 5 | 5 |  |  |  |  | 24 |
@@ -68,7 +68,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a passive's Effect posted by hand | 7 | 11 | 3 | 1 |  |  |  | 22 |
 | its Effect has nothing a fight counts | 6 | 8 | 3 | 2 |  |  |  | 19 |
 | nothing a fight uses | 2 | 1 | 14 |  |  |  |  | 17 |
-| a reaction's Strike | 6 | 5 | 5 |  |  |  |  | 16 |
+| a reaction's Strike | 6 | 5 | 4 |  |  |  |  | 15 |
 | its stance's own gap | 8 | 4 |  |  |  |  |  | 12 |
 | its requirement, which the PC doesn't meet | 6 | 2 | 3 |  |  |  |  | 11 |
 | a lasting area | 8 |  | 2 |  |  |  |  | 10 |
@@ -5222,12 +5222,11 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Resounding Finale | 16 | class | reaction | card | an Effect with nothing a fight counts |
 | Emergency Medical Assistance | 12 | skill | 2 actions | card | an Effect with nothing a fight counts |
 
-### a passive's roll with no action to use it (39)
+### a passive's roll with no action to use it (38)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
 | Native Waters | 1 | ancestry | passive | card | a passive's roll with no action to use it |
-| Cornered Fury | 5 | ancestry | passive | card | a passive's roll with no action to use it |
 | Nourishing Symbiosis | 5 | ancestry | passive | card | a passive's roll with no action to use it |
 | Restoring Blood | 5 | ancestry | passive | card | a passive's roll with no action to use it |
 | Nodal Healing | 9 | ancestry | passive | card | a passive's roll with no action to use it |
@@ -5453,11 +5452,10 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Glider Form | 1 | class | 1 action | card | nothing a fight uses |
 | Wings of Bone and Sinew | 8 | class | 1 action | card | nothing a fight uses |
 
-### a reaction's Strike (16)
+### a reaction's Strike (15)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
-| Deliberate Death | 1 | ancestry | reaction | card | a reaction's Strike |
 | Ankle Bite | 5 | ancestry | reaction | card | a reaction's Strike |
 | Demonblood Frenzy | 5 | ancestry | reaction | card | a reaction's Strike |
 | Jealous Grip | 5 | ancestry | reaction | card | a reaction's Strike |
