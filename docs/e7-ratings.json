@@ -1,5 +1,5 @@
 {
- "made": "2026-11-05T12:50:38.045Z",
+ "made": "2026-11-05T13:54:01.162Z",
  "rated": [
   {
    "id": "apex-cleric",
@@ -155,6 +155,68 @@
    "levels": 0.21585413461092157,
    "share": 1.3728429111925224,
    "xp": 1350
+  },
+  {
+   "id": "master-slots-cleric",
+   "feat": "Rework: Master Spellcasting (slots only)",
+   "pc": "cleric",
+   "note": "with Expert's: 5th- to 8th-rank slots, no proficiency",
+   "byTier": {
+    "cap": {
+     "levels": 0.11389329984432228,
+     "se": 0.03467641277133516,
+     "boss": 0.0837606269680424,
+     "group": 0.14402597272060216
+    },
+    "above": {
+     "levels": 0.30401366237531424,
+     "se": 0.07139812158959477,
+     "boss": 0.28396184513863915,
+     "group": 0.32406547961198934
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.20895348110981826,
+   "share": 1.2647313684359243,
+   "xp": 1250
+  },
+  {
+   "id": "master-slots-wizard",
+   "feat": "Rework: Master Spellcasting (slots only)",
+   "pc": "wizard",
+   "note": "with Expert's: 5th- to 8th-rank slots, no proficiency",
+   "byTier": {
+    "cap": {
+     "levels": 0.14204002705884156,
+     "se": 0.0344367485981437,
+     "boss": 0.1353902492146286,
+     "group": 0.14868980490305453
+    },
+    "above": {
+     "levels": 0.1739164902674457,
+     "se": 0.06996388741117901,
+     "boss": 0.07126012563186054,
+     "group": 0.2765728549030309
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.15797825866314363,
+   "share": 1.108106118599375,
+   "xp": 1100
   },
   {
    "id": "level-8-rogue",
@@ -374,6 +436,37 @@
    "xp": 550
   },
   {
+   "id": "master-prof-only-cleric",
+   "feat": "Rework: Master Spellcasting Proficiency",
+   "pc": "cleric",
+   "note": "spell DC and attack +2, no slots",
+   "byTier": {
+    "cap": {
+     "levels": 0.035003867325629615,
+     "se": 0.025205719779007364,
+     "boss": 0.039019384180352924,
+     "group": 0.030988350470906298
+    },
+    "above": {
+     "levels": 0.09640003978813498,
+     "se": 0.053187689275940676,
+     "boss": 0.15579725471119474,
+     "group": 0.037002824865075216
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.0657019535568823,
+   "share": 0.3954792536186867,
+   "xp": 400
+  },
+  {
    "id": "ability-dex-rogue",
    "feat": "Ability Advancement (key)",
    "pc": "rogue",
@@ -403,6 +496,37 @@
    "levels": 0.04437486990785513,
    "share": 0.37157806268518345,
    "xp": 350
+  },
+  {
+   "id": "stamina-rework-cleric",
+   "feat": "Rework: Expanded Caster Stamina",
+   "pc": "cleric",
+   "note": "a highest-rank slot and a recast: two copies of its most-cast 4th-rank spell",
+   "byTier": {
+    "cap": {
+     "levels": 0.020876337653278718,
+     "se": 0.023706617054007628,
+     "boss": -0.0024733195270422496,
+     "group": 0.04422599483359969
+    },
+    "above": {
+     "levels": 0.067011484682647,
+     "se": 0.04974577594448971,
+     "boss": 0.047170110615257645,
+     "group": 0.08685285875003637
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.04394391116796286,
+   "share": 0.2576245899113173,
+   "xp": 250
   },
   {
    "id": "ability-con-fighter",
@@ -746,6 +870,68 @@
    "xp": 0
   },
   {
+   "id": "master-fort-crit-fighter",
+   "feat": "Rework: master save with rider",
+   "pc": "fighter",
+   "note": "Fortitude expert → master (+2), a success is a critical success",
+   "byTier": {
+    "cap": {
+     "levels": -0.0022856030391805223,
+     "se": 0.012477662343020357,
+     "boss": 0.018989187532992953,
+     "group": -0.023560393611353998
+    },
+    "above": {
+     "levels": 0.001223307392993804,
+     "se": 0.031131253908712256,
+     "boss": -0.010458746642414495,
+     "group": 0.012905361428402103
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": -0.0005311478230933591,
+   "share": -0.00863633589652249,
+   "xp": 0
+  },
+  {
+   "id": "master-will-crit-cleric",
+   "feat": "Rework: master save with rider",
+   "pc": "cleric",
+   "note": "Will expert → master (+2), a success is a critical success",
+   "byTier": {
+    "cap": {
+     "levels": -0.0005094299921370581,
+     "se": 0.001892389140977912,
+     "boss": -0.0010188599842741162,
+     "group": 0
+    },
+    "above": {
+     "levels": -0.007586820205265287,
+     "se": 0.020414265004680007,
+     "boss": -0.03117002601467818,
+     "group": 0.015996385604147605
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": -0.004048125098701173,
+   "share": -0.0198927760161916,
+   "xp": 0
+  },
+  {
    "id": "master-fort-fighter",
    "feat": "Juggernaut's Fortitude (master save)",
    "pc": "fighter",
@@ -843,6 +1029,37 @@
    "feat": "Expanded Caster Stamina ×2",
    "pc": "wizard",
    "note": "two more 4th-rank slots",
+   "byTier": {
+    "cap": {
+     "levels": -0.013860850931270407,
+     "se": 0.027425947277134117,
+     "boss": -0.02672661697878481,
+     "group": -0.000995084883756005
+    },
+    "above": {
+     "levels": -0.03244842506569724,
+     "se": 0.04677469868230784,
+     "boss": -0.02921363761341758,
+     "group": -0.03568321251797691
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": -0.023154637998483826,
+   "share": -0.143515975187839,
+   "xp": -150
+  },
+  {
+   "id": "stamina-rework-wizard",
+   "feat": "Rework: Expanded Caster Stamina",
+   "pc": "wizard",
+   "note": "a highest-rank slot and a recast: two copies of its most-cast 4th-rank spell",
    "byTier": {
     "cap": {
      "levels": -0.013860850931270407,

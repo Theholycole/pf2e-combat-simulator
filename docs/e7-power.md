@@ -1,6 +1,6 @@
 # E7 feats in combat
 
-Made by `node tools/e7-power.mjs <out> scale|rate|report` on 2026-11-05. Each post-cap feat of the E7 rules goes on one PC of the standard 7th-level party (fighter, rogue, wizard, cleric), which then fights the same encounters on the same dice as the plain party, in days of four fights (spell slots spent stay spent; Hit Points fresh each fight). The foes cast a Reflex, a Will and a Fortitude spell beside their Strikes, so saves count. **Levels** is how much stronger the party is, in levels of the foes (the feat ratings' scale). **At the cap**: a 9th-level boss or four 5th-level foes; **above**: an 11th-level boss or four 7th-level foes. **Share of a level** divides by a PC raised to 8th level (what 1,000 XP buys before the cap), averaged over the four PCs, so **XP** is the price that makes the feat as good per XP as a level.
+Made by `node tools/e7-power.mjs <out> scale|rate|report` on 2026-11-05. Each post-cap feat of the E7 rules goes on one PC of the standard 7th-level party (fighter, rogue, wizard, cleric), which then fights the same encounters on the same dice as the plain party, in days of 4 fights (spell slots spent stay spent; Hit Points fresh each fight). The foes cast a Reflex, a Will and a Fortitude spell (1 cast of each, a group's foes one each) beside their Strikes, so saves count. An added slot holds the spell at that rank the caster spends most. **Levels** is how much stronger the party is, in levels of the foes (the feat ratings' scale). **At the cap**: a 9th-level boss or four 5th-level foes; **above**: an 11th-level boss or four 7th-level foes. **Share of a level** divides by a PC raised to 8th level (what 1,000 XP buys before the cap), averaged over the four PCs, so **XP** is the price that makes the feat as good per XP as a level.
 
 | # | Feat | PC | What it does here | At the cap | Above the cap | Average | Share of a level | XP |
 |---:|---|---|---|---:|---:|---:|---:|---:|
@@ -9,30 +9,37 @@ Made by `node tools/e7-power.mjs <out> scale|rate|report` on 2026-11-05. Each po
 | 3 | Master Spellcasting Advancement | cleric | with Expert's: 5th- to 8th-rank slots, spell DC and attack +2 | +0.11 | +0.50 | +0.30 ± 0.04 | 168% | 1700 |
 | 4 | Yardstick: a level (8th) | fighter | the same PC at 8th level | +0.13 | +0.46 | +0.29 ± 0.04 | 169% | 1700 |
 | 5 | Master Spellcasting Advancement | wizard | with Expert's: 5th- to 8th-rank slots, spell DC and attack +2 | +0.14 | +0.29 | +0.22 ± 0.04 | 137% | 1350 |
-| 6 | Yardstick: a level (8th) | rogue | the same PC at 8th level | +0.07 | +0.19 | +0.13 ± 0.03 | 81% | 800 |
-| 7 | Yardstick: a level (8th) | wizard | the same PC at 8th level | +0.12 | +0.14 | +0.13 ± 0.04 | 91% | 900 |
-| 8 | Ability Advancement (key) | fighter | Strength +1: Strikes +1 to hit and damage (melee), Athletics, class DC | +0.10 | +0.12 | +0.11 ± 0.03 | 79% | 800 |
-| 9 | Yardstick: a level (8th) | cleric | the same PC at 8th level | +0.08 | +0.09 | +0.08 ± 0.03 | 59% | 600 |
-| 10 | Something of an Expert (armor) / Armored Exercise | fighter | heavy armor trained → expert: AC +2 | +0.02 | +0.14 | +0.08 ± 0.03 | 42% | 400 |
-| 11 | Expert Spellcasting Advancement | cleric | a 5th- and a 6th-rank slot (spells assumed earned) | −0.00 | +0.15 | +0.07 ± 0.04 | 32% | 300 |
-| 12 | Expert Spellcasting Advancement | wizard | a 5th- and a 6th-rank slot (spells assumed earned) | +0.08 | +0.06 | +0.07 ± 0.04 | 54% | 550 |
-| 13 | Ability Advancement (key) | rogue | Dexterity +1: Strikes +1 to hit and damage (thief), Reflex, Dexterity skills (leather's cap keeps AC) | +0.06 | +0.03 | +0.04 ± 0.03 | 37% | 350 |
-| 14 | Ability Advancement (other) | fighter | Constitution +1: +7 HP, Fortitude +1 | −0.00 | +0.09 | +0.04 ± 0.03 | 20% | 200 |
-| 15 | Something of an Expert (save) | wizard | Reflex trained → expert (+2) | +0.04 | +0.05 | +0.04 ± 0.02 | 29% | 300 |
-| 16 | Diverse Weapon Expert | cleric | mace trained → expert: +2 to hit | +0.02 | +0.06 | +0.04 ± 0.02 | 25% | 250 |
-| 17 | Ability Advancement (key) | cleric | Wisdom +1: spell DC and attack, Will, Perception, Medicine | +0.03 | +0.05 | +0.04 ± 0.03 | 26% | 250 |
-| 18 | (Master proficiency alone) | wizard | spell DC and attack +2, no slots: how much of Master is the proficiency | +0.00 | +0.07 | +0.04 ± 0.03 | 17% | 150 |
-| 19 | Expanded Caster Stamina | cleric | one more 4th-rank slot | +0.02 | +0.04 | +0.03 ± 0.03 | 19% | 200 |
-| 20 | Ability Advancement (other) | wizard | Dexterity +1: AC +1, Reflex +1 | +0.04 | +0.02 | +0.03 ± 0.03 | 22% | 200 |
-| 21 | Something of an Expert (armor) | wizard | unarmored trained → expert: AC +2 | +0.07 | −0.03 | +0.02 ± 0.03 | 28% | 300 |
-| 22 | Ability Advancement (other) | wizard | Constitution +1: +7 HP, Fortitude +1 | +0.06 | −0.03 | +0.02 ± 0.03 | 24% | 250 |
-| 23 | Something of an Expert (save) | wizard | Fortitude trained → expert (+2); Canny Acumen is the same | +0.00 | +0.01 | +0.01 ± 0.01 | 5% | 50 |
-| 24 | Something of an Expert (save) | rogue | Fortitude trained → expert (+2) | −0.00 | +0.00 | +0.00 ± 0.01 | 1% | 0 |
-| 25 | Juggernaut's Fortitude (master save) | fighter | Fortitude expert → master (+2) | −0.01 | +0.00 | −0.01 ± 0.01 | -6% | -50 |
-| 26 | Resolute (master save) | cleric | Will expert → master (+2) | −0.00 | −0.02 | −0.01 ± 0.01 | -4% | -50 |
-| 27 | Ability Advancement (key) | wizard | Intelligence +1: spell DC and spell attack | −0.01 | −0.03 | −0.02 ± 0.03 | -12% | -100 |
-| 28 | Expanded Caster Stamina ×2 | wizard | two more 4th-rank slots | −0.01 | −0.03 | −0.02 ± 0.03 | -14% | -150 |
-| 29 | Expanded Caster Stamina | wizard | one more 4th-rank slot | −0.01 | −0.04 | −0.02 ± 0.02 | -14% | -150 |
+| 6 | Rework: Master Spellcasting (slots only) | cleric | with Expert's: 5th- to 8th-rank slots, no proficiency | +0.11 | +0.30 | +0.21 ± 0.04 | 126% | 1250 |
+| 7 | Rework: Master Spellcasting (slots only) | wizard | with Expert's: 5th- to 8th-rank slots, no proficiency | +0.14 | +0.17 | +0.16 ± 0.04 | 111% | 1100 |
+| 8 | Yardstick: a level (8th) | rogue | the same PC at 8th level | +0.07 | +0.19 | +0.13 ± 0.03 | 81% | 800 |
+| 9 | Yardstick: a level (8th) | wizard | the same PC at 8th level | +0.12 | +0.14 | +0.13 ± 0.04 | 91% | 900 |
+| 10 | Ability Advancement (key) | fighter | Strength +1: Strikes +1 to hit and damage (melee), Athletics, class DC | +0.10 | +0.12 | +0.11 ± 0.03 | 79% | 800 |
+| 11 | Yardstick: a level (8th) | cleric | the same PC at 8th level | +0.08 | +0.09 | +0.08 ± 0.03 | 59% | 600 |
+| 12 | Something of an Expert (armor) / Armored Exercise | fighter | heavy armor trained → expert: AC +2 | +0.02 | +0.14 | +0.08 ± 0.03 | 42% | 400 |
+| 13 | Expert Spellcasting Advancement | cleric | a 5th- and a 6th-rank slot (spells assumed earned) | −0.00 | +0.15 | +0.07 ± 0.04 | 32% | 300 |
+| 14 | Expert Spellcasting Advancement | wizard | a 5th- and a 6th-rank slot (spells assumed earned) | +0.08 | +0.06 | +0.07 ± 0.04 | 54% | 550 |
+| 15 | Rework: Master Spellcasting Proficiency | cleric | spell DC and attack +2, no slots | +0.04 | +0.10 | +0.07 ± 0.03 | 40% | 400 |
+| 16 | Ability Advancement (key) | rogue | Dexterity +1: Strikes +1 to hit and damage (thief), Reflex, Dexterity skills (leather's cap keeps AC) | +0.06 | +0.03 | +0.04 ± 0.03 | 37% | 350 |
+| 17 | Rework: Expanded Caster Stamina | cleric | a highest-rank slot and a recast: two copies of its most-cast 4th-rank spell | +0.02 | +0.07 | +0.04 ± 0.03 | 26% | 250 |
+| 18 | Ability Advancement (other) | fighter | Constitution +1: +7 HP, Fortitude +1 | −0.00 | +0.09 | +0.04 ± 0.03 | 20% | 200 |
+| 19 | Something of an Expert (save) | wizard | Reflex trained → expert (+2) | +0.04 | +0.05 | +0.04 ± 0.02 | 29% | 300 |
+| 20 | Diverse Weapon Expert | cleric | mace trained → expert: +2 to hit | +0.02 | +0.06 | +0.04 ± 0.02 | 25% | 250 |
+| 21 | Ability Advancement (key) | cleric | Wisdom +1: spell DC and attack, Will, Perception, Medicine | +0.03 | +0.05 | +0.04 ± 0.03 | 26% | 250 |
+| 22 | (Master proficiency alone) | wizard | spell DC and attack +2, no slots: how much of Master is the proficiency | +0.00 | +0.07 | +0.04 ± 0.03 | 17% | 150 |
+| 23 | Expanded Caster Stamina | cleric | one more 4th-rank slot | +0.02 | +0.04 | +0.03 ± 0.03 | 19% | 200 |
+| 24 | Ability Advancement (other) | wizard | Dexterity +1: AC +1, Reflex +1 | +0.04 | +0.02 | +0.03 ± 0.03 | 22% | 200 |
+| 25 | Something of an Expert (armor) | wizard | unarmored trained → expert: AC +2 | +0.07 | −0.03 | +0.02 ± 0.03 | 28% | 300 |
+| 26 | Ability Advancement (other) | wizard | Constitution +1: +7 HP, Fortitude +1 | +0.06 | −0.03 | +0.02 ± 0.03 | 24% | 250 |
+| 27 | Something of an Expert (save) | wizard | Fortitude trained → expert (+2); Canny Acumen is the same | +0.00 | +0.01 | +0.01 ± 0.01 | 5% | 50 |
+| 28 | Something of an Expert (save) | rogue | Fortitude trained → expert (+2) | −0.00 | +0.00 | +0.00 ± 0.01 | 1% | 0 |
+| 29 | Rework: master save with rider | fighter | Fortitude expert → master (+2), a success is a critical success | −0.00 | +0.00 | −0.00 ± 0.02 | -1% | 0 |
+| 30 | Rework: master save with rider | cleric | Will expert → master (+2), a success is a critical success | −0.00 | −0.01 | −0.00 ± 0.01 | -2% | 0 |
+| 31 | Juggernaut's Fortitude (master save) | fighter | Fortitude expert → master (+2) | −0.01 | +0.00 | −0.01 ± 0.01 | -6% | -50 |
+| 32 | Resolute (master save) | cleric | Will expert → master (+2) | −0.00 | −0.02 | −0.01 ± 0.01 | -4% | -50 |
+| 33 | Ability Advancement (key) | wizard | Intelligence +1: spell DC and spell attack | −0.01 | −0.03 | −0.02 ± 0.03 | -12% | -100 |
+| 34 | Expanded Caster Stamina ×2 | wizard | two more 4th-rank slots | −0.01 | −0.03 | −0.02 ± 0.03 | -14% | -150 |
+| 35 | Rework: Expanded Caster Stamina | wizard | a highest-rank slot and a recast: two copies of its most-cast 4th-rank spell | −0.01 | −0.03 | −0.02 ± 0.03 | -14% | -150 |
+| 36 | Expanded Caster Stamina | wizard | one more 4th-rank slot | −0.01 | −0.04 | −0.02 ± 0.02 | -14% | -150 |
 
 ## Class feats above the cap
 

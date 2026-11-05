@@ -1,5 +1,5 @@
 {
- "made": "2026-11-05T13:32:00.251Z",
+ "made": "2026-11-05T14:00:41.940Z",
  "rated": [
   {
    "id": "level-8-fighter",
@@ -219,6 +219,37 @@
    "xp": 1250
   },
   {
+   "id": "master-slots-wizard",
+   "feat": "Rework: Master Spellcasting (slots only)",
+   "pc": "wizard",
+   "note": "with Expert's: 5th- to 8th-rank slots, no proficiency",
+   "byTier": {
+    "cap": {
+     "levels": 0.059043296413732085,
+     "se": 0.03753917911215223,
+     "boss": 0.07282504695898231,
+     "group": 0.04526154586848185
+    },
+    "above": {
+     "levels": 0.17383358914339966,
+     "se": 0.08060423197210324,
+     "boss": 0.11564843250658634,
+     "group": 0.23201874578021298
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.14724906938779142
+    },
+    "above": {
+     "levels": 0.09211002123347538
+    }
+   },
+   "levels": 0.11643844277856588,
+   "share": 1.1441071511511067,
+   "xp": 1150
+  },
+  {
    "id": "level-8-wizard",
    "feat": "Yardstick: a level (8th)",
    "pc": "wizard",
@@ -281,6 +312,37 @@
    "xp": 650
   },
   {
+   "id": "master-slots-cleric",
+   "feat": "Rework: Master Spellcasting (slots only)",
+   "pc": "cleric",
+   "note": "with Expert's: 5th- to 8th-rank slots, no proficiency",
+   "byTier": {
+    "cap": {
+     "levels": 0.03360532144496228,
+     "se": 0.041088329150669706,
+     "boss": 0.027327010698245505,
+     "group": 0.039883632191679064
+    },
+    "above": {
+     "levels": 0.10913240354233307,
+     "se": 0.08051999846207025,
+     "boss": 0.13723167100565872,
+     "group": 0.08103313607900742
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.14724906938779142
+    },
+    "above": {
+     "levels": 0.09211002123347538
+    }
+   },
+   "levels": 0.07136886249364768,
+   "share": 0.7065129162300692,
+   "xp": 700
+  },
+  {
    "id": "expert-armor-fighter",
    "feat": "Something of an Expert (armor) / Armored Exercise",
    "pc": "fighter",
@@ -340,6 +402,37 @@
    },
    "levels": 0.057859497037661946,
    "share": 0.595149586801687,
+   "xp": 600
+  },
+  {
+   "id": "master-prof-only-cleric",
+   "feat": "Rework: Master Spellcasting Proficiency",
+   "pc": "cleric",
+   "note": "spell DC and attack +2, no slots",
+   "byTier": {
+    "cap": {
+     "levels": 0.009230656052303722,
+     "se": 0.03499640000234429,
+     "boss": 0.030671737062224366,
+     "group": -0.01221042495761692
+    },
+    "above": {
+     "levels": 0.10226617793648082,
+     "se": 0.07865812239836834,
+     "boss": 0.1050711646686515,
+     "group": 0.09946119120431016
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.14724906938779142
+    },
+    "above": {
+     "levels": 0.09211002123347538
+    }
+   },
+   "levels": 0.05574841699439227,
+   "share": 0.5864742562448234,
    "xp": 600
   },
   {
@@ -465,6 +558,37 @@
    "levels": 0.039510948834727236,
    "share": 0.31144852254984456,
    "xp": 300
+  },
+  {
+   "id": "master-will-crit-cleric",
+   "feat": "Rework: master save with rider",
+   "pc": "cleric",
+   "note": "Will expert → master (+2), a success is a critical success",
+   "byTier": {
+    "cap": {
+     "levels": -0.006801833696245657,
+     "se": 0.006685069789923412,
+     "boss": -0.013368063555221861,
+     "group": -0.00023560383726945307
+    },
+    "above": {
+     "levels": 0.049456716604050016,
+     "se": 0.027546309146064585,
+     "boss": 0.09891343320810003,
+     "group": 0
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.14724906938779142
+    },
+    "above": {
+     "levels": 0.09211002123347538
+    }
+   },
+   "levels": 0.02132744145390218,
+   "share": 0.2453690945598421,
+   "xp": 250
   },
   {
    "id": "master-will-cleric",
@@ -653,6 +777,37 @@
    "xp": -50
   },
   {
+   "id": "stamina-rework-wizard",
+   "feat": "Rework: Expanded Caster Stamina",
+   "pc": "wizard",
+   "note": "a highest-rank slot and a recast: two copies of its most-cast 4th-rank spell",
+   "byTier": {
+    "cap": {
+     "levels": -0.0019309907110485053,
+     "se": 0.03107194621985366,
+     "boss": 0.02153201477751066,
+     "group": -0.02539399619960767
+    },
+    "above": {
+     "levels": -0.007144974047078079,
+     "se": 0.06085610278149506,
+     "boss": -0.04889550563549342,
+     "group": 0.03460555754133726
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.14724906938779142
+    },
+    "above": {
+     "levels": 0.09211002123347538
+    }
+   },
+   "levels": -0.004537982379063292,
+   "share": -0.045341884330360196,
+   "xp": -50
+  },
+  {
    "id": "stamina-wizard",
    "feat": "Expanded Caster Stamina",
    "pc": "wizard",
@@ -682,6 +837,37 @@
    "levels": -0.008184952991663287,
    "share": -0.045279025514178756,
    "xp": -50
+  },
+  {
+   "id": "stamina-rework-cleric",
+   "feat": "Rework: Expanded Caster Stamina",
+   "pc": "cleric",
+   "note": "a highest-rank slot and a recast: two copies of its most-cast 4th-rank spell",
+   "byTier": {
+    "cap": {
+     "levels": -0.005733165127710297,
+     "se": 0.023896736494501126,
+     "boss": -0.008142267420901555,
+     "group": -0.003324062834519039
+    },
+    "above": {
+     "levels": -0.01124968526001817,
+     "se": 0.06308133509365572,
+     "boss": -0.04381342853134205,
+     "group": 0.021314058011305707
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.14724906938779142
+    },
+    "above": {
+     "levels": 0.09211002123347538
+    }
+   },
+   "levels": -0.008491425193864234,
+   "share": -0.08053414211716783,
+   "xp": -100
   },
   {
    "id": "expert-weapon-cleric",
@@ -867,6 +1053,37 @@
    },
    "levels": -0.028600677348416342,
    "share": -0.3540076407762727,
+   "xp": -350
+  },
+  {
+   "id": "master-fort-crit-fighter",
+   "feat": "Rework: master save with rider",
+   "pc": "fighter",
+   "note": "Fortitude expert → master (+2), a success is a critical success",
+   "byTier": {
+    "cap": {
+     "levels": 0.004389242927673919,
+     "se": 0.0032132683907021647,
+     "boss": 0.0023147457980858617,
+     "group": 0.006463740057261977
+    },
+    "above": {
+     "levels": -0.07119955710056157,
+     "se": 0.036820901485740166,
+     "boss": -0.015838620668152812,
+     "group": -0.12656049353297033
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.14724906938779142
+    },
+    "above": {
+     "levels": 0.09211002123347538
+    }
+   },
+   "levels": -0.03340515708644382,
+   "share": -0.3715877706944924,
    "xp": -350
   },
   {
