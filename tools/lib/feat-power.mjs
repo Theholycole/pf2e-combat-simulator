@@ -1172,6 +1172,7 @@ const HAND = {
     // (2026-11-05: Scout's Warning, +1 to its allies' initiative as it rolls, a free action; Deflecting Shot, +2 AC to an ally its gun covers
     // as it's hit.)
     "scouts-warning": () => ({ builtins: {}, plans: [{ builtin: "initiative-warning", value: 1, free: true }], played: "+1 initiative to its allies (free action)" }),
+    "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
     "deflecting-shot": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: 60 }], played: "+2 AC to an ally within 60 feet as it's hit (reaction)" }),
     "oracular-warning": () => ({ builtins: {}, plans: [{ builtin: "initiative-warning", value: 2, within: 20, free: true }], played: "+2 initiative to allies within 20 feet" }),

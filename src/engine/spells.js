@@ -3401,7 +3401,20 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         const keep = ownFortune(statistic);
         const options = raised(statistic, keep ? { ...given, [keep === "higher" ? "fortune" : "misfortune"]: true } : given);
         const result = betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
-        const final = heroReroll(statistic, options, result) ?? result;
+        let final = heroReroll(statistic, options, result) ?? result;
+        // (2026-11-05, Black Cat Curse: a foe's successful save against the party, rerolled with the worse kept — a PC's reaction within
+        // 30 feet, once a fight.)
+        if (SAVE_SLUGS.has(statistic) && forcedDegree === null && options?.actor?.id && final?.degree && DEGREE_NAMES.indexOf(final.degree) >= 2) {
+            const curser = state.list.find((c) => c.saveCurse && !c.saveCurseUsed && c.side === caster.side && c.side !== options.actor.side && isActive(c) && canReact(c, c.saveCurse.name) && (c.band !== "far" || options.actor.band !== "far"));
+            if (curser) {
+                spendReaction(curser, curser.saveCurse.name);
+                curser.saveCurseUsed = true;
+                state.stats.reactions++;
+                const again = adjusted(statistic, options, rolled(statistic, options));
+                log(state, `  ${curser.name} uses ${curser.saveCurse.name}: ${options.actor.name} rerolls (${final.degree} → ${again?.degree})`);
+                if (again?.degree && DEGREE_NAMES.indexOf(again.degree) < DEGREE_NAMES.indexOf(final.degree)) final = again;
+            }
+        }
         // (Spellstrike's forced degree is its Strike's, which met the images already.)
         if (info.check?.roll === "attack" && forcedDegree === null && options?.target?.id && final?.degree) {
             const taken = imageTakes(state, caster, options.target, DEGREE_NAMES.indexOf(final.degree), { applyDamage, applyCondition });
