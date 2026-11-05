@@ -1161,6 +1161,20 @@ const HAND = {
         const entry = offGuardToMeEntry("Call the Hunt", { range: "touch", traits: [], everyone: true });
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe in its reach off-guard to all until its next turn (1 action)" } : null;
     },
+    // (Invented Vulnerability: Deception against the target's Will, weakness 5 for a round on a success, 3 + half its level on a critical
+    // one — to the PC's own Strike's damage type, the one it picks. Once a fight at a target; the feat module's plan, its Effect read here.)
+    "invented-vulnerability": (level, host) => {
+        const doc = [...docsOf(`${PACK_ROOT}/feats`).values()].find((each) => each.name === "Invented Vulnerability");
+        const plan = doc && compileFeat(doc, { dcs: dcsOf(host ?? {}), basicActions, itemReaders });
+        if (plan?.resolution?.kind !== "check") return null;
+        const type = (host?.strikes ?? []).find((strike) => strike.melee)?.damage?.[0]?.type ?? "slashing";
+        const weak = (value) => ({ name: "Invented Vulnerability", rounds: 1, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [{ type, value }], immunities: [], conditions: [], unsupported: [], situational: 0 });
+        const uuid = (degree) => `feat:invented-vulnerability:${degree}`;
+        const outcomes = structuredClone(plan.resolution.outcomes);
+        for (const degree of ["criticalSuccess", "success"]) outcomes[degree] = { ...outcomes[degree], nativeEffects: [{ kind: "native-spell-effect", uuid: uuid(degree) }], manualInstructions: [] };
+        const entry = { name: "Invented Vulnerability", plan: { ...plan, resolution: { ...plan.resolution, outcomes } }, castRank: 1, dc: null, attack: null, pool: "feat:invented-vulnerability", kind: "ability", actionType: "action", rechargeGroup: "Invented Vulnerability", feat: true, effects: { [uuid("criticalSuccess")]: weak(3 + Math.floor(level / 2)), [uuid("success")]: weak(5) } };
+        return { builtins: {}, plans: [], spells: [entry], pools: { "feat:invented-vulnerability": 1 }, played: `Deception against Will: weakness 5 to ${type} for a round (1 action, once a fight)` };
+    },
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
