@@ -36,6 +36,9 @@ Every PC already has the basic actions, and each rated alone is worth about 0 le
 | Pounding Leap | 2 | Strike + High or Long Jump (2) | move | +0.015 |  |
 | Winding Flow | 1 | two of Stand, Step, Stride | stride | +0.015 |  |
 | Doctor's Visitation | 1 | Stride + Battle Medicine | stride | +0.015 |  |
+| Zealous Rush | 0 | Stride, as a reaction to a self spell | stride | +0.015 |  |
+| Elude Trouble | 0 | Stride, as a reaction to a missed melee attack | stride | +0.015 |  |
+| Dastardly Dash | 1 | Stride (half) + Trip or Dirty Trick (flourish) | maneuver | +0.013 |  |
 | Skirmish Strike | 1 | Step + Strike | step | +0.010 |  |
 | Spear Dancer | 1 | Step + Strike (spear or polearm) | step | +0.010 |  |
 | For the Fallen! | 1 | Step + Strike (press) | step | +0.010 |  |
@@ -43,14 +46,25 @@ Every PC already has the basic actions, and each rated alone is worth about 0 le
 | Infiltrator's Reload | 1 | Interact (reload) + Hide, Sneak or Take Cover | cover | +0.010 |  |
 | Silent Step | 1 | Step + Hide or Sneak | stealth | +0.010 |  |
 | Guarded Advance (Knight Vigilant) | 1 | Step + Raise a Shield | step | +0.010 |  |
+| Elf Step | 1 | Step, Step | step | +0.010 |  |
+| Wing Step | 1 | Step, Step | step | +0.010 |  |
 | Sudden Leap | 2 | Leap, High or Long Jump + Strike | move | +0.007 | saves an action only with a High or Long Jump |
 | Flying Kick | 2 | Leap, High or Long Jump + Strike | move | +0.007 | saves an action only with a High or Long Jump |
 | Furious Sprint | 2 | Stride ×5 (×8 for 3 actions) | move | +0.006 | only long dashes; most fights don't need them |
+| Tactical Entry | 0 | Stride, free, before anyone acts (Stealth initiative) | stride | +0.006 | only when it rolled Stealth for initiative |
+| No Escape | 0 | Stride after a retreating foe (reaction) | stride | +0.006 | foes seldom retreat |
+| Reactive Pursuit | 0 | Stride after a retreating foe (reaction) | stride | +0.006 | foes seldom retreat |
+| Shadow Tempo | 0 | Stride following an ally (reaction) | stride | +0.006 |  |
 | Battlefield Agility | 1 | Strike + Step (while flanked) | step | +0.004 | only when flanked by two foes |
+| Clever Gambit | 0 | Step or Stride, as a reaction to a critical hit on a creature it Recalled Knowledge on | stride | +0.004 |  |
+| Coursing Weave | 0 | Stride or Fly, as a reaction to a missed ranged attack | stride | +0.004 | ranged attacks on it are rare |
 | Shark Attack | 2 | Swim, Swim + Strike | move | +0.003 | under water only |
 | Practiced Opposition | 1 | Recall Knowledge + Strike (undead) | knowledge | +0.000 |  |
 | Makeshift Strike | 1 | Interact (pick up) + Strike | pickup | +0.000 |  |
 | Magpie Snatch | 2 | Stride, Stride + Interact (pick up) | pickup | +0.000 |  |
+| Bashing Charge | 2 | Stride, Stride (Force Open on the way) | nothing | +0.000 |  |
+| Hopping Stride | 1 | Stride (Speed − 10, over difficult terrain) | nothing | +0.000 |  |
+| Shift the Little Ones | 1 | Stride (allies Step aside) | nothing | +0.000 |  |
 | Light Paws | 2 | Stride + Step | nothing | +0.000 |  |
 | Retaliating Rescue | 2 | Stride + Strike | nothing | +0.000 |  |
 | Wall Run | 1 | Stride (up walls) | nothing | +0.000 |  |
