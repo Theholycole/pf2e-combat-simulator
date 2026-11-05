@@ -1321,6 +1321,11 @@ const HAND = {
     "final-shot": () => ({ builtins: {}, plans: [strikeRider({ actions: 3, range: "ranged", hitCrits: true, selfAfter: [{ slug: "off-guard" }, { slug: "stunned", value: 1 }] })], played: "a ranged Strike whose hit is a critical hit, then off-guard and stunned 1 (3 actions)" }),
     // (Mythic proficiency, +10: about +4 over a martial's own.)
     "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),
+    // (Reach 10 feet: Giant's Lunge while raging, for the rage; Jotun's Battle Stance, its two-handed weapon not checked.)
+    "giants-lunge": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, requires: "raging", model: { rounds: 10, reach: 10 } }], played: "reach 10 feet while raging (1 action)" }),
+    "jotuns-battle-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { reach: 10 } }], played: "a stance: reach 10 feet" }),
+    // (Duelist's Form: quickened while in the stance — the engine's quickened, a Strike or Stride.)
+    "duelists-form": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { conditions: [{ slug: "quickened", value: null }] } }], played: "a stance: quickened" }),
     "legendary-rider": () => ({ builtins: { companionActions: { master: 3, companion: 2 } }, played: "quickened for its Command: its own three actions and its mount's two" }),
     "mounted-shield": () => ({ builtins: { mountedShield: true }, requires: "You are wielding a shield", played: "its raised shield's bonus to its mount's AC too" }),
     // (Rearing Display: its mount's Strike — one action of the mount's turn, the Command its rider spent —, a hit followed by a Demoralize

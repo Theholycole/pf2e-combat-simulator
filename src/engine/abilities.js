@@ -205,7 +205,9 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.model?.grantedStrikes?.length ? { grantedStrikes: plan.model.grantedStrikes.map((entry) => ({ ...entry, traits: [...(entry.traits ?? [])], extra: [...(entry.extra ?? [])] })) } : {}),
                 ...(plan.model?.runeUpgrade ? { runeUpgrade: { ...plan.model.runeUpgrade } } : {}),
                 // (2026-11-03, Paragon's Guard: its shield kept raised — fight.js.)
-                ...(plan.model?.shieldUp ? { shieldUp: true } : {}) };
+                ...(plan.model?.shieldUp ? { shieldUp: true } : {}),
+                // (2026-11-05, Giant's Lunge, Jotun's Battle Stance: its melee reach while it lasts — effects.js.)
+                ...(plan.model?.reach ? { reach: plan.model.reach } : {}) };
             // (B137, Cower, Entrench: a stance that ends when it moves.)
             spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model: plan.shell ? { ...model, rounds: 1 } : model, ...(plan.shell ? { shell: true } : plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.belowHalf ? { belowHalf: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}), ...(Number(plan.heal) > 0 ? { heal: Number(plan.heal) } : {}) }];
             return true;

@@ -810,6 +810,7 @@ export function removeEffect(target, effect) {
     // (A rune upgrade's Strikes as they were; a Reactive Strike it gave, gone.)
     if (effect.replaced?.length) target.strikes = (target.strikes ?? []).map((strike) => effect.replaced.find((entry) => entry.upgraded === strike)?.original ?? strike);
     if (effect.grantedAoo) target.reactions = { ...(target.reactions ?? {}), aoo: false };
+    if (Number.isFinite(effect.reachBefore)) target.reach = effect.reachBefore;
     // A Strike the effect gave (Tiger Stance's tiger claw) goes with it.
     if ((target.strikes ?? []).some((strike) => strike.fromEffect === effect.key)) target.strikes = target.strikes.filter((strike) => strike.fromEffect !== effect.key);
     // (The Strikes a stance's own put away, back.)
@@ -1029,6 +1030,11 @@ export function applyEffect(state, target, model, source, { applyCondition, key 
     if (Number.isFinite(model.rounds)) (target.timers ??= []).push({ effect, round: state.round + model.rounds, turnOf: source?.id ?? target.id });
     // (Weapon buffs: the Strikes it gives and its rune upgrade, on the creature's Strikes while it lasts — armStrikes; its Reactive Strike.)
     if (model.runeUpgrade || model.grantedStrikes?.length) armStrikes(target, effect);
+    // (2026-11-05: a longer reach while it lasts — Giant's Lunge.)
+    if (model.reach > (target.reach ?? 5)) {
+        effect.reachBefore = target.reach ?? 5;
+        target.reach = model.reach;
+    }
     if (model.grantsReactiveStrike && !target.reactions?.aoo) {
         target.reactions = { ...(target.reactions ?? {}), aoo: true };
         effect.grantedAoo = true;
