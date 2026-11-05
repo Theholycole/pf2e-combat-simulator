@@ -1105,6 +1105,8 @@ const HAND = {
     // (2026-11-05, Haft Beatdown: four Strikes for 3 actions, once a fight — the first two at its current multiple attack penalty, the
     // next two one step worse (5, taken as not agile). Haft Striker Stance isn't checked.)
     "haft-beatdown": () => ({ builtins: {}, plans: [{ builtin: "multi-strike", actions: 3, strikes: [null, null, null, null], sameTarget: true, sameMap: true, penalties: [0, 0, 5, 5], countsAs: 4, oncePerFight: true }], played: "four Strikes, two at its penalty and two one step worse (3 actions, once a fight)" }),
+    // (2026-11-05, Nimble Strike: Nimble Dodge's +2 AC as it's targeted, and a melee Strike back with no multiple attack penalty.)
+    "nimble-strike": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Nimble Dodge", strikeBack: "Nimble Strike" } }, played: "Nimble Dodge, then a melee Strike at the attacker (reaction)" }),
     // (2026-11-05, Shield Warden: its Shield Block for an adjacent ally — actions.js wardenBlocks.)
     "shield-warden": () => ({ builtins: { shieldWarden: true }, played: "Shield Block for an adjacent ally (reaction)" }),
     // (2026-11-05, Not So Fast!: a melee Strike at a creature leaving a square in its reach — the engine's "move" trigger. Its Speed

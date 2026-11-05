@@ -643,6 +643,17 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         log(state, `  ${target.name} throws the projectile back`);
         performStrike(state, target, attacker, { ...strike, name: "Snatched projectile", melee: false, bonus: own, ammo: undefined, reload: 0 }, { reaction: true, trigger: "snatch" });
     }
+    // (2026-11-05, Nimble Strike: with its Nimble Dodge, a melee Strike at the attacker, hit or miss, with no multiple attack penalty.)
+    if (deflected && target.acReaction?.strikeBack && !reaction && isActive(target) && canAct(target) && isActive(attacker) && sameMelee(target, attacker)) {
+        const melee = (target.strikes ?? []).filter((each) => each.melee && strikeUsable(target, each)).sort((x, y) => (Number(y.bonus) || 0) - (Number(x.bonus) || 0))[0];
+        if (melee) {
+            const attacks = target.attacksThisTurn;
+            target.attacksThisTurn = 0;
+            log(state, `  ${target.name} strikes back (${target.acReaction.strikeBack})`);
+            performStrike(state, target, attacker, melee, { reaction: true, trigger: "strike-back" });
+            target.attacksThisTurn = attacks;
+        }
+    }
     // Resilient Form and the like: a critical hit on it becomes a normal hit on a flat check.
     const downgrade = target.critDowngrade;
     if (degree === CRITICAL_SUCCESS && downgrade && (Number.isFinite(downgrade.uses) ? downgrade.uses > 0 : canReact(target, downgrade.name))) {
