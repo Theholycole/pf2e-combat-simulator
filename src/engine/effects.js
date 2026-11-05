@@ -964,8 +964,9 @@ export function withSpellText(models, doc, rank = 1) {
 const STONES = /\bThe stones become\s+\+(\d)\s+(striking\s+)?(?:(disrupting|vitalizing)\s+)?sling bullets\b/i;
 // (Precious Gleam's "On the next successful attack with that weapon" too.)
 const NEXT_STRIKE = /\bon (?:your|the) next (?:successful )?(?:Strike|attack)\b/i;
-export function spendNextStrike(c) {
-    for (const effect of (c.effects ?? []).filter((entry) => entry.model?.nextStrike)) {
+// (2026-11-05: one with Strike deltas — Spirit of the Blade's next melee Strike — only by a Strike they're for; a Longbow shot used it up.)
+export function spendNextStrike(c, strike = null) {
+    for (const effect of (c.effects ?? []).filter((entry) => entry.model?.nextStrike && (!strike || !entry.model.strikeDeltas || entry.model.strikeDeltas[strike.name]))) {
         removeEffect(c, effect);
         c.timers = (c.timers ?? []).filter((timer) => timer.effect !== effect);
     }

@@ -385,7 +385,7 @@ export function performStrike(state, attacker, target, strike, options = {}) {
         const result = strikeOnce(state, attacker, target, strike, options);
         // (Invisibility: it ends once the attack is done. Weapon Surge, Judgment's success: used up by the Strike.)
         ownHostility(state, attacker);
-        spendNextStrike(attacker);
+        spendNextStrike(attacker, strike);
         spendMark(target, attacker);
         return result;
     }
@@ -396,7 +396,7 @@ export function performStrike(state, attacker, target, strike, options = {}) {
     } finally {
         state.inReaction = before;
         ownHostility(state, attacker);
-        spendNextStrike(attacker);
+        spendNextStrike(attacker, strike);
         spendMark(target, attacker);
     }
 }
