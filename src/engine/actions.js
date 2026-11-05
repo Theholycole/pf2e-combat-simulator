@@ -1020,6 +1020,17 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         applyCondition(state, attacker, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" }, target, { attacker: target.id, attacks: "any", uses: null });
         log(state, `  ${attacker.name} is off-guard to ${target.name} (Cornered Fury)`);
     }
+    // (2026-11-05, Giant Slayer: its second critical hit this turn on a giant — a Fortitude save against its class DC or it dies.)
+    if (attacker.giantSlayer && degree === CRITICAL_SUCCESS && (target.traits ?? []).includes("giant") && isActive(target)) {
+        const turnKey = `${state.round}:${attacker.id}:${target.id}`;
+        attacker.giantCrits = attacker.giantCrits?.key === turnKey ? { key: turnKey, count: attacker.giantCrits.count + 1 } : { key: turnKey, count: 1 };
+        if (attacker.giantCrits.count === 2 && !(target.immunities ?? []).includes("death-effects")) {
+            const natural = state.rng.d20();
+            const saved = degreeOf(natural + saveModifier(target, "fortitude"), attacker.classDC ?? 10 + (attacker.level ?? 1) + 3, natural);
+            log(state, `  Giant Slayer: ${target.name} ${saved >= SUCCESS ? "survives" : "dies"}`);
+            if (saved < SUCCESS) kill(state, target, attacker);
+        }
+    }
     // (2026-11-05, Distracting Shot: its hunted prey off-guard until its next turn after a ranged critical hit or a second ranged hit this
     // turn; Greater Distracting Shot: after any ranged hit — its longer time on a critical hit not played.)
     if (attacker.distractingShot && !strike.melee && attacker.prey === target.id && degree >= SUCCESS && isActive(target)) {

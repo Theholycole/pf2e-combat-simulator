@@ -1577,6 +1577,7 @@ const HAND = {
     "burning-cascade": () => ({ builtins: { burningCascade: true }, played: "its Arcane Cascade's extra damage on each enemy beside it as it enters the stance" }),
     "resounding-cascade": () => ({ builtins: { resoundingCascade: true }, played: "its Arcane Cascade's extra damage for allies beside it" }),
     "flamboyant-cruelty": () => ({ builtins: { flamboyantCruelty: true }, played: "+1 damage for each of clumsy, drained, enfeebled, frightened, sickened, stupefied on the foe, when it has two or more" }),
+    "giant-slayer": () => ({ builtins: { giantSlayer: true }, played: "two critical hits on a giant in a turn: a Fortitude save or it dies" }),
     "distracting-shot": () => ({ builtins: { distractingShot: true }, played: "its prey off-guard until its next turn after a ranged critical hit or two ranged hits in a turn" }),
     "greater-distracting-shot": () => ({ builtins: { distractingShot: "greater" }, played: "its prey off-guard until its next turn after any ranged hit" }),
     "ongoing-strategy": () => ({ builtins: { ongoingStrategy: true }, played: "precision damage of its strategic strike dice's number on Strikes without a stratagem" }),
