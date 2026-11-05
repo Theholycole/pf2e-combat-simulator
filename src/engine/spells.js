@@ -3415,6 +3415,18 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
                 if (again?.degree && DEGREE_NAMES.indexOf(again.degree) < DEGREE_NAMES.indexOf(final.degree)) final = again;
             }
         }
+        // (Correct the Story: a foe's critically successful save, rerolled with the new result kept — a reaction and a Mythic Point.)
+        if (SAVE_SLUGS.has(statistic) && forcedDegree === null && options?.actor?.id && final?.degree === "criticalSuccess") {
+            const teller = state.list.find((c) => c.correctTheStory && c.side === caster.side && c.side !== options.actor.side && isActive(c) && (c.mythicPoints ?? 0) > 0 && canReact(c, "Correct the Story"));
+            if (teller) {
+                spendReaction(teller, "Correct the Story");
+                teller.mythicPoints--;
+                state.stats.reactions++;
+                const again = adjusted(statistic, options, rolled(statistic, options));
+                log(state, `  ${teller.name} uses Correct the Story: ${options.actor.name} rerolls (${again?.degree})`);
+                if (again?.degree) final = again;
+            }
+        }
         // (2026-11-05, Resounding Bravery: a critically successful Will save — +1 status to saves and temporary Hit Points of half its level
         // for a minute, both doubled against fear.)
         if (statistic === "will" && final?.degree === "criticalSuccess" && options?.actor?.resoundingBravery && isActive(options.actor)) {

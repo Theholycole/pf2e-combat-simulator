@@ -603,6 +603,19 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (strike.hitCrits && degree === SUCCESS) degree = CRITICAL_SUCCESS;
     // (U11: Gorum's Tear leaves its user off-guard to that creature until its next turn.)
     if (talisman) afterAttackFortune(state, attacker, target, talisman);
+    // (2026-11-05, Correct the Story: a foe's critical hit rerolled, the new result kept — a PC's reaction and a Mythic Point.)
+    if (degree === CRITICAL_SUCCESS && !reaction) {
+        const teller = state.list.find((c) => c.correctTheStory && c.side !== attacker.side && isActive(c) && (c.mythicPoints ?? 0) > 0 && canReact(c, "Correct the Story"));
+        if (teller) {
+            spendReaction(teller, "Correct the Story");
+            teller.mythicPoints--;
+            state.stats.reactions++;
+            natural = state.rng.d20();
+            degree = degreeOf(natural + modifier + bonus, ac + defence, natural);
+            if (keenCritical(strike, natural, degree)) degree = CRITICAL_SUCCESS;
+            log(state, `  ${teller.name} uses Correct the Story: ${attacker.name} rerolls (${natural})`);
+        }
+    }
     // Hammer Block, Stygian Guardian (B94): an ally's +AC once the attack hits, when that turns it aside (its Strike back after, Reactive
     // Defense's).
     if (degree >= SUCCESS && !reaction) {
