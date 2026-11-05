@@ -1519,6 +1519,9 @@ const HAND = {
     "leave-an-opening": () => ({ builtins: { leaveAnOpening: true }, played: "its melee critical hit on an off-guard foe sets off an ally's Reactive Strike" }),
     // (Tangle of Battle: a Grapple at the foe it critically hits, its reaction — the basic action's plan at its trigger, triggers.js "crit".)
     "tangle-of-battle": () => ({ builtins: {}, spells: [{ name: "Tangle of Battle", plan: { ...structuredClone(basicActions.grapple), activation: { time: "reaction", traits: ["attack"] } }, castRank: 1, pool: null, kind: "basic", featTrigger: { on: "crit" } }], played: "a Grapple at a foe it critically hits (reaction)" }),
+    // (Blazing Streak: two Strides with a Strike at each of up to four creatures along them — at each enemy within 60 feet, four at most,
+    // each at its own multiple attack penalty; its stance and the sparks' fire not played.)
+    "blazing-streak": () => ({ builtins: { multiStrikes: [{ name: "Blazing Streak", actions: 3, strikes: [null], each: true, within: 60, max: 4, flourish: true }] }, played: "a Strike at up to four enemies within 60 feet (3 actions)" }),
     // (Kinetic aura stances — kineticAura.)
     "thermal-nimbus": (level, host, doc) => kineticAura(doc, { model: { resistances: [{ type: "fire", value: level, exceptions: [] }] }, start: `${Math.floor(level / 2)}[fire]`, enter: `${Math.floor(level / 2)}[fire]`, played: `fire resistance ${level} for the PC and its allies, ${Math.floor(level / 2)} fire to foes starting their turn or moving` }),
     "ghosts-in-the-storm": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: 2 }] }, played: "+2 Reflex for the PC and its allies" }),
