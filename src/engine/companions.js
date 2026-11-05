@@ -43,7 +43,7 @@ export function companionStats(level, stage = "young") {
 export function animalCompanion(master, stage = "young") {
     const stats = companionStats(master.level, stage);
     return {
-        id: `${master.id}-companion`, name: `${master.name}'s Bear`, side: master.side, kind: "npc", level: master.level,
+        id: `${master.id}-companion`, name: `${master.name}'s Animal Companion`, side: master.side, kind: "npc", level: master.level,
         traits: ["animal", "minion"], senses: ["low-light-vision", "scent"], companionOf: master.id, companionStage: stage,
         hp: { value: stats.hp, max: stats.hp }, con: stats.con, str: stats.str, ac: stats.ac, saves: stats.saves, perception: stats.perception,
         skills: { athletics: stats.athletics }, speed: 35, reach: 5, heroPoints: 0, shield: null, reactions: { aoo: false, shieldBlock: false },
