@@ -521,6 +521,8 @@ export function addBuiltin(spec, plan, name) {
                 oncePerFight: !!plan.oncePerFight,
                 ...(plan.countsAs > 1 ? { countsAs: plan.countsAs } : {}),
                 ...(plan.noMap ? { noMap: true } : {}),
+                // (2026-11-05, United Assault: damage for each other creature that hurt the target since its last turn — fight.js.)
+                ...(plan.united ? { united: true } : {}),
                 ...(plan.oncePerTurn ? { oncePerTurn: true } : {}),
                 ...(plan.extraWeaponDice ? { extraWeaponDice: plan.extraWeaponDice } : {}),
                 // (2026-11-03, the feat module's Strike riders: Strangle's, Hell-Lancer Shot's damage of its weapon dice — chargeStrike.)

@@ -606,6 +606,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (2026-11-05, Goading Feint: –2 to its attack on the feinter, the next one or all until the end of the feinter's next turn.)
     if (attacker.goaded && attacker.goaded.by === target.id) {
         bonus -= 2;
+        log(state, `  ${attacker.name} is goaded: –2 against ${target.name}`);
         if (attacker.goaded.uses) attacker.goaded = null;
     }
     // (Antagonize: an attack on the swashbuckler ends its frightened floor.)
@@ -1663,6 +1664,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
         if (strike) retributionAfter(state, retribution, source, strike, performStrike(state, retribution, source, strike, { reaction: true }), { applyDamage, applyCondition });
         exaltedStrikes(state, retribution, source, { bestMeleeStrike, performStrike });
     }
+    // (2026-11-05, United Assault: who has damaged it since the end of its last turn.)
+    if (dealt > 0 && source && source.id !== target.id) (target.damagers ??= new Set()).add(source.id);
     return dealt;
 }
 

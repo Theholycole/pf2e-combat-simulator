@@ -687,6 +687,7 @@ function staysInside(state, c) {
 }
 
 function endTurn(state, c) {
+    c.damagers = null;
     // (2026-10-22, Sky and Underwater: its breath; in the sky, whoever can't fly falls — void.js.)
     // (2026-10-25: or air the weather makes it hold — weather.js.)
     if (state.grid?.void || c.air !== undefined) breathTurnEnd(state, c, { leaveField });
@@ -1081,7 +1082,9 @@ function actOn(state, c, action) {
             // (2026-11-03, Furious Finish: "a circumstance bonus to damage equal to the number of rounds remaining in your Rage (maximum 10)" —
             // a minute's Rage, the rounds since it began taken off.)
             const rageLeft = activity.rageFinish ? Math.max(0, Math.min(10, 10 - (state.round - (c.buffRounds?.get("Rage") ?? state.round)))) : 0;
-            const charged = activity.rageFinish ? { ...activity, damageBonus: (activity.damageBonus ?? 0) + rageLeft } : activity;
+            // (2026-11-05, United Assault: +1 damage for each other creature that damaged the target since the end of its last turn, up to +4.)
+            const united = activity.united ? Math.min(4, [...(target.damagers ?? [])].filter((id) => id !== c.id).length) : 0;
+            const charged = activity.rageFinish || united ? { ...activity, damageBonus: (activity.damageBonus ?? 0) + rageLeft + united } : activity;
             const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...charged, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : charged));
             // ("After this Strike, your Rage immediately ends, and you are Fatigued until you rest for at least 10 minutes.")
             if (activity.rageFinish) {
