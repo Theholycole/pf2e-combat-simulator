@@ -1421,6 +1421,13 @@ const HAND = {
     },
     // (2026-11-05, Crashing Slam: Slam Down's Trip a critical success when its Strike hits — prone and 1d6 bludgeoning; rated as Slam Down
     // with it, against no Slam Down.)
+    // (2026-11-05, Vivacious Bravado: with panache, temporary Hit Points equal to its level plus Charisma until its next turn.)
+    // (Mage Hunter: a 2-action Strike, stupefied 1 (2 on a critical hit) until its next turn — "seen the target Cast a Spell" not checked.)
+    "mage-hunter": () => {
+        const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
+        return { builtins: {}, plans: [strikeRider({ actions: 2, onHit: { conditions: [{ slug: "stupefied", value: 1, duration: until }], critical: [{ slug: "stupefied", value: 2, duration: until }] } })], played: "a 2-action Strike, stupefied 1 (2 on a critical hit) until its next turn (whether it saw a spell cast isn't checked)" };
+    },
+    "vivacious-bravado": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, requires: "panache", model: { rounds: 1, tempHp: level + 4 + (level >= 10) + (level >= 15) + (level >= 20) } }], played: "with panache, temporary Hit Points of its level plus Charisma until its next turn" }),
     "crashing-slam": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, onHit: { conditions: [{ slug: "prone", value: null }], damage: ["1d6[bludgeoning]"] } })], played: "Slam Down (with it) whose hit trips as a critical success: prone and 1d6 bludgeoning" }),
     "united-assault": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, united: true })], played: "a flourish Strike, +1 damage for each other creature that hurt the target since its last turn (up to +4)" }),
     // (Overextending Feint, the rogue's Goading Feint — its Feint given again, forced, as the rogue rarely Feints.)

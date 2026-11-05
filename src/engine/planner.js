@@ -1887,6 +1887,8 @@ function expandClassActions(env) {
         if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
         // (2026-11-03, Tough Cookie: at half its Hit Points or fewer.)
         if (entry.belowHalf && c.hp.value > c.hp.max / 2) continue;
+        // (2026-11-05, Vivacious Bravado: with panache, gained this turn — played as having it.)
+        if (entry.needsPanache && !c.panache) continue;
         if (entry.trigger) continue;
         // (B308: a shell — only badly hurt, under 40% of its Hit Points, with a foe in its reach; it spends the rest of its turn in it.)
         if (entry.shell && !(c.hp.value < c.hp.max * 0.4 && ctx.enemies.some((enemy) => isActive(enemy) && sameMelee(c, enemy)))) continue;
