@@ -737,14 +737,21 @@ function acReactionEntry(doc, builtins) {
     const html = String(doc.system?.description?.value ?? "");
     const trigger = /<strong>\s*Trigger\s*<\/strong>\s*([^<]*)/i.exec(html)?.[1]?.trim().replace(/\.$/, "") ?? "";
     const bonus = /\+(\d) circumstance bonus to (?:your )?AC against (?:the )?(?:triggering|that) (?:attack|Strike)/i.exec(html);
-    if (!bonus) return null;
+    // (2026-11-05: "The triggering attack roll targets your Perception/Survival DC instead of your AC" — Foresee Danger, Sense the Strike.)
+    const instead = /attack(?: roll)? targets your (Perception|[A-Z][a-z]+) DC instead of your AC/.exec(html.replace(/<[^>]+>/g, ""));
+    if (!bonus && !instead) return null;
     // (Dodge Away's "You are the target of a melee attack", Cut From the Air's "… a physical ranged Strike", Inked Panoply's "A creature
     // targets you with an attack, and you can see the attacker".)
-    const targeted = /^(?:An? (?:enemy|creature|foe|opponent)(?: you can see| you're observing| you are observing)? (?:targets you with|attempts) an? (melee |ranged )?(?:weapon )?(?:Strike|attack)(?: against you)?|You are targeted (?:with|by) an? (melee |ranged )?(?:Strike|attack)(?: by an? (?:observed )?(?:attacker|enemy|creature))?|An? creature targets you with an attack,? and you can see the attacker|You(?:'re| are) the target of an? (?:physical )?(melee |ranged )?(?:Strike|attack)|An? (?:enemy|creature|foe) within your reach targets you with an? (melee )?(?:Strike|attack),? and you(?:'re| are) aware of the attack)$/i.exec(trigger);
+    const targeted = /^(?:An? (?:enemy|creature|foe|opponent)(?: you can see| you're observing| you are observing)? (?:targets you with|attempts) an? (melee |ranged )?(?:weapon )?(?:Strike|attack)(?: against you)?|You are targeted (?:with|by) an? (melee |ranged )?(?:Strike|attack)(?: by an? (?:observed )?(?:attacker|enemy|creature))?|An? creature targets you with an attack,? and you can see the attacker|An? creature you can see targets you with an attack against your AC|You(?:'re| are) the target of an? (?:physical )?(melee |ranged )?(?:Strike|attack)|An? (?:enemy|creature|foe) within your reach targets you with an? (melee )?(?:Strike|attack),? and you(?:'re| are) aware of the attack)$/i.exec(trigger);
     const hit = /^An? (?:enemy|creature|foe) hits you with an? (melee |ranged )?(?:Strike|attack)$/i.exec(trigger);
     const read = targeted ?? hit;
     if (!read) return null;
     const kind = (read[1] ?? read[2] ?? read[3] ?? read[4] ?? "").trim();
+    if (instead && !bonus) {
+        if (!targeted) return null;
+        builtins.acReaction = { value: 0, dcInstead: instead[1].toLowerCase(), when: "targeted", name: doc.name, ...(kind ? { against: kind } : {}) };
+        return { spells: [], pools: {}, gap: null, played: `its ${instead[1]} DC in place of its AC as it's targeted (reaction, when higher)` };
+    }
     builtins.acReaction = { value: Number(bonus[1]), when: targeted ? "targeted" : "hit", name: doc.name, ...(kind ? { against: kind } : {}) };
     return { spells: [], pools: {}, gap: null, played: `+${bonus[1]} AC as a reaction ${targeted ? "when targeted" : "against a hit"}${kind ? ` (${kind})` : ""}` };
 }
@@ -1663,6 +1670,8 @@ export function featTriggerOf(doc) {
     // (A foe's roll: misfortune as it's about to attack — Harbinger's Caw — or after its critical failure — Ill Tide.)
     const foeRoll = /^A creature within (\d+) feet(?: of you)? (is about to attempt an attack roll|critically fails an attack roll)\b/i.exec(said);
     if (foeRoll) return { on: /critically/i.test(foeRoll[2]) ? "foe-crit-fail" : "foe-attack", within: Number(foeRoll[1]) };
+    // (Lucky Escape, Wood Ward: an attack on it, before the roll.)
+    if (/^An? (?:creature|enemy|foe)(?: you can see)? targets you with an attack(?:,? even if you aren't aware of it|,? and you can see the attacker)?$/i.test(said)) return { on: "foe-attack", atYou: true };
     if (allyFear) return { on: "ally-frightened", toTrigger: true, within: /adjacent/i.test(allyFear[1]) ? 5 : Number(allyFear[2] ?? allyFear[3]) };
     return null;
 }

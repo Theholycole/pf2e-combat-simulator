@@ -378,6 +378,14 @@ function computeHitDamage(attacker, strike, target, critical, penalty, offGuardC
 const dodges = (reaction, strike, state = null, c = null) => (!reaction.against || (reaction.against === "melee") === Boolean(strike.melee))
     && (reaction.requires !== "grabbed" || Boolean(state?.list?.some((other) => other.grabbedBy === c?.id && (other.cond.grabbed || other.cond.restrained))));
 
+// (2026-11-05, Foresee Danger, Sense the Strike: "the triggering attack roll targets your Perception (or a skill) DC instead of your AC" —
+// used only when that DC is higher than the AC it faces, the gain as its AC bonus. A skill the PC has no number for: expert, +3.)
+function insteadOfAC(c, ac) {
+    const stat = c.acReaction.dcInstead;
+    const modifier = stat === "perception" ? Number(c.perception) : Number(c.skills?.[stat] ?? (Number(c.level) || 1) + 4 + 3);
+    return 10 + (Number.isFinite(modifier) ? modifier : 0) - ac;
+}
+
 // (M38: harm in a reaction — a Reactive Strike at a creature leaving — doesn't count as refusing its surrender.)
 export function performStrike(state, attacker, target, strike, options = {}) {
     // (An attack ends Take Cover.)
@@ -509,6 +517,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const unseenAttacker = (!target.blindFight && (unseen(state, target, attacker) || hiddenMovementOffGuard(state, attacker, target))) || Boolean(attacker.dreadStriker && target.cond?.frightened > 0);
     // (H1: a party member aiming at a hydra's head it can sever in one hit.)
     const headAimed = !reaction && aimsAtHead(attacker, target, strike, { expectedHitDamage });
+    // (2026-11-05: a PC's reaction as a foe is about to attack — Harbinger's Caw's misfortune, its Effect then used by the roll below;
+    // attacked: the one it attacks, for "A creature targets you with an attack" — Lucky Escape, Wood Ward's cover, before its AC is read.)
+    if (!reaction) foeRollTriggers(state, attacker, "foe-attack", { attacked: target });
     const ac = targetAC(state, attacker, target, strike, flanked || surprised || unseenAttacker);
     // Off-guard to this attack: for Sneak Attack and backstabber.
     const offGuard = flanked || surprised || unseenAttacker || isOffGuard(target) || offGuardTo(target, attacker, strike.melee);
@@ -540,16 +551,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         spendReaction(target, target.misfortuneReaction.name);
         log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
     } else if (foresightReact(state, target, attacker)) misfortune = true;
-    else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && (!target.reactions?.aoo || target.acReaction.deviant || target.acReaction.featForced) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.deviant || deviantUsable(target))) {
-        defence = target.acReaction.value;
+    else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && (!target.acReaction.dcInstead || insteadOfAC(target, ac) > 0) && canReact(target, target.acReaction.name) && (!target.reactions?.aoo || target.acReaction.deviant || target.acReaction.featForced) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.deviant || deviantUsable(target))) {
+        defence = target.acReaction.dcInstead ? insteadOfAC(target, ac) : target.acReaction.value;
         deflected = true;
         spendReaction(target, target.acReaction.name);
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
         // (2026-11-01, Defensive Growth, a deviant ability: its flat check and backlash — deviant.js.)
         if (target.acReaction.deviant) deviantUsed(state, target, target.acReaction, { affected: [attacker] });
     }
-    // (2026-11-05: a PC's reaction as a foe is about to attack — Harbinger's Caw's misfortune, its Effect then used by the roll below.)
-    if (!reaction) foeRollTriggers(state, attacker, "foe-attack");
     // (S54, Sure Strike: its next attack roll twice, the better kept.)
     const own = reaction ? null : takeAttackFortune(attacker);
     if (own) attacker.fortuneFinds = false;

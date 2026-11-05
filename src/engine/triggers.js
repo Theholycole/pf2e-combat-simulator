@@ -14,7 +14,7 @@
 // - "frightened": it becomes frightened (Creature Comforts). "ally-frightened": an ally within its trigger's range does (Reassuring
 //   Presence; toTrigger: the card goes on that ally). withCondition: only while it has that condition (Mask of Fear's turn start).
 // - "foe-attack": a foe within its range is about to attack (Harbinger's Caw). "foe-crit-fail": a foe within its range critically misses
-//   (Ill Tide). Both at that foe.
+//   (Ill Tide). Both at that foe. atYou: only an attack on it (Lucky Escape's "A creature targets you with an attack").
 // The entry's own targeting picks who: itself, its allies or foes about it for an area (its Melee for 10 feet or less), or the creature
 // of the trigger. A reaction spends its reaction; a pool, its use.
 import { canReact, spendReaction } from "./abilities.js";
@@ -53,6 +53,7 @@ export function featTriggers(state, c, on, ctx = {}) {
         if (trigger.strike && !ctx.physical) continue;
         if (trigger.type && !(ctx.types ?? []).includes(trigger.type)) continue;
         if (trigger.withCondition && !(c.cond?.[trigger.withCondition] > 0)) continue;
+        if (trigger.atYou && ctx.attacked !== c) continue;
         const about = ctx.target ?? ctx.by ?? null;
         if (trigger.within && about && about !== c && !withinFeet(c, about, trigger.within)) continue;
         if (!poolReady(c, spell)) continue;
@@ -80,9 +81,9 @@ export function fearTriggers(state, target) {
 }
 
 // A foe's roll: each PC on the other side with a reaction for it (a quick check first: most have none).
-export function foeRollTriggers(state, foe, on) {
+export function foeRollTriggers(state, foe, on, more = {}) {
     if (!(state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers))) return;
-    for (const pc of state.list) if (pc.featTriggers && pc.side !== foe.side) featTriggers(state, pc, on, { by: foe });
+    for (const pc of state.list) if (pc.featTriggers && pc.side !== foe.side) featTriggers(state, pc, on, { by: foe, ...more });
 }
 
 // A creature dropped (fight.js-free: actions.js knockOut calls it): "foe-down" for the one that dropped it, "self-down" for it, and
