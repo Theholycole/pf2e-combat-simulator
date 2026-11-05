@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2631: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3735 it doesn't.**
-- **The simulator** rates 1618 in whole fights. **4748 it doesn't.**
+- **The simulator** rates 1623 in whole fights. **4743 it doesn't.**
 - **3136** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1093 | 1689 | 974 |
-| archetype | 2074 | 1249 | 1516 | 1002 |
+| class | 2282 | 1093 | 1685 | 974 |
+| archetype | 2074 | 1249 | 1515 | 1002 |
 | ancestry | 1613 | 1088 | 1169 | 860 |
 | skill | 340 | 261 | 327 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3735 | 4748 | 3136 |
+| **All** | 6366 | 3735 | 4743 | 3136 |
 
 ## Why the feat module doesn't automate them
 
@@ -68,11 +68,11 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a passive's Effect posted by hand | 7 | 11 | 3 | 1 |  |  |  | 22 |
 | a reaction's Strike | 9 | 5 | 5 |  |  |  |  | 19 |
 | nothing a fight uses | 2 | 1 | 14 |  |  |  |  | 17 |
-| an Effect on another creature | 11 | 5 |  |  |  |  |  | 16 |
-| its Effect has nothing a fight counts | 3 | 7 | 1 | 2 |  |  |  | 13 |
+| its Effect has nothing a fight counts | 4 | 7 | 1 | 2 |  |  |  | 14 |
 | its stance's own gap | 8 | 4 |  |  |  |  |  | 12 |
 | a passive's Strike | 4 | 6 | 1 |  |  |  |  | 11 |
 | its requirement, which the PC doesn't meet | 6 | 2 | 3 |  |  |  |  | 11 |
+| an Effect on another creature | 6 | 4 |  |  |  |  |  | 10 |
 | a lasting area | 8 |  | 2 |  |  |  |  | 10 |
 | a choice of ways the simulator doesn't play | 6 | 1 | 2 |  |  |  |  | 9 |
 | a reroll | 3 | 2 | 4 |  |  |  |  | 9 |
@@ -5631,28 +5631,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Glider Form | 1 | class | 1 action | card | nothing a fight uses |
 | Wings of Bone and Sinew | 8 | class | 1 action | card | nothing a fight uses |
 
-### an Effect on another creature (16)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Selfless Parry | 8 | archetype | passive | card | an Effect on another creature |
-| Shadow Spell | 8 | archetype | 1 action | card | an Effect on another creature |
-| Transfusion | 8 | archetype | 2 actions | card | an Effect on another creature |
-| Demanding Challenge | 10 | archetype | passive | card | an Effect on another creature |
-| Marked for Rebuke | 18 | archetype | 1 action | card | an Effect on another creature |
-| Free the Bound | 1 | class | reaction | card | an Effect on another creature |
-| Overextending Feint | 1 | class | passive | card | an Effect on another creature |
-| Devoted Guardian | 2 | class | 1 action | card | an Effect on another creature |
-| Phase Out | 6 | class | 3 actions | card | an Effect on another creature |
-| Cursed Effigy | 8 | class | 1 action | card | an Effect on another creature |
-| Edifying Trace | 8 | class | 1 action | card | an Effect on another creature |
-| Heartless Debilitations | 10 | class | passive | card | an Effect on another creature |
-| Shared Warding | 12 | class | passive | card | an Effect on another creature |
-| Bloom of Health | 14 | class | 1 action | card | an Effect on another creature |
-| Pack of the Beast Lord | 18 | class | 3 actions | card | an Effect on another creature |
-| Sovereign's Blade | 18 | class | 2 actions | card | an Effect on another creature |
-
-### its Effect has nothing a fight counts (13)
+### its Effect has nothing a fight counts (14)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5664,6 +5643,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Harbinger's Armament | 8 | archetype | passive | card | its Effect has nothing a fight counts |
 | Phenom's Verve | 10 | archetype | passive | card | its Effect has nothing a fight counts |
 | Inescapable Grasp | 12 | archetype | passive | card | its Effect has nothing a fight counts |
+| Free the Bound | 1 | class | reaction | card | its Effect has nothing a fight counts |
 | Finishing Follow-Through | 2 | class | passive | card | its Effect has nothing a fight counts |
 | Terrifying Mien | 16 | class | passive | card | its Effect has nothing a fight counts |
 | Armament Paragon | 20 | class | passive | card | its Effect has nothing a fight counts |
@@ -5702,6 +5682,21 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Ambushing Knockdown | 8 | class | passive | card | a passive's Strike |
 | Creature of Myth | 18 | class | passive | card | a passive's Strike |
 | Full Automation | 20 | class | passive | card | a passive's Strike |
+
+### an Effect on another creature (10)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Selfless Parry | 8 | archetype | passive | card | an Effect on another creature |
+| Shadow Spell | 8 | archetype | 1 action | card | an Effect on another creature (a foe's penalty) |
+| Demanding Challenge | 10 | archetype | passive | card | an Effect on another creature |
+| Marked for Rebuke | 18 | archetype | 1 action | card | an Effect on another creature (a foe's penalty) |
+| Overextending Feint | 1 | class | passive | card | an Effect on another creature |
+| Cursed Effigy | 8 | class | 1 action | card | an Effect on another creature (a foe's penalty) |
+| Edifying Trace | 8 | class | 1 action | card | an Effect on another creature (a foe's penalty) |
+| Heartless Debilitations | 10 | class | passive | card | an Effect on another creature |
+| Shared Warding | 12 | class | passive | card | an Effect on another creature |
+| Pack of the Beast Lord | 18 | class | 3 actions | card | an Effect on another creature (a foe's penalty) |
 
 ### its stance's own gap (10)
 

@@ -1,11 +1,11 @@
 # Feat and action power in combat
 
-Made by `node tools/feat-power.mjs` on 2026-11-05: 1743 feats and actions rated, 5200 not simulated, 6 errors.
+Made by `node tools/feat-power.mjs` on 2026-11-05: 1749 feats and actions rated, 5194 not simulated, 6 errors.
 
 ## How it's measured
 
 - The feat module compiles each feat with the numbers of the standard party's PC who'd take it (fighter, rogue, wizard or cleric; a class outside the party goes to the one who fights most like it), at the feat's level.
-- The party fights a moderate boss (one creature 2 levels up) and a moderate group (four creatures 2 levels down), 200 fights each (at most; a feat's fights stop once its answer is clear: on average 138 an encounter here, all fights 1137, no effect 597, precise 107, about zero 45 encounters), with the feat and without it, on the same dice, on a 5-foot square grid (an open field, the sides 30 feet apart, each side's melee fighters in front and its casters two squares behind; moving out of a foe's reach provokes its Reactive Strike). Fights go to the end (no morale, no retreat).
+- The party fights a moderate boss (one creature 2 levels up) and a moderate group (four creatures 2 levels down), 200 fights each (at most; a feat's fights stop once its answer is clear: on average 139 an encounter here, all fights 1147, no effect 599, precise 107, about zero 45 encounters), with the feat and without it, on the same dice, on a 5-foot square grid (an open field, the sides 30 feet apart, each side's melee fighters in front and its casters two squares behind; moving out of a foe's reach provokes its Reactive Strike). Fights go to the end (no morale, no retreat).
 - A fight's score is the danger scale's: the party's Hit Points lost as a share, +0.25 a PC down, +1 a PC killed, +1 a wipe.
 - **Rating** is the change in levels of the foes: the score the feat saves, divided by how much the score moves when the foes are a level stronger. +0.25 means having the feat is like fighting foes a quarter of a level lower. The ± is one standard error.
 - **Uses a fight** is how often the PC used it in the fights that rated it. A feat the AI never picks rates near zero even if it's good at the table.
@@ -13,8 +13,8 @@ Made by `node tools/feat-power.mjs` on 2026-11-05: 1743 feats and actions rated,
 
 ## Summary
 
-- no clear effect: 1207
-- hurts: 429
+- no clear effect: 1210
+- hurts: 432
 - good: 52
 - minor: 29
 - strong: 21
@@ -1046,787 +1046,793 @@ Each basic action left out of every PC, at levels 1, 5, 10, 15 and 20: what the 
 | 960 | Wrapped In Smoke | 4 | Class | — | check | +0.00 ± 0.00 | +0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
 | 961 | Flashing Shield | 8 | Class | — | check | +0.00 ± 0.00 | +0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
 | 962 | Aggressive Block | 2 | Class | fighter | check | +0.00 ± 0.00 | +0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 963 | Spellmaster's Resilience | 12 | Class | — | PF2e rules (always on) | −0.00 ± 0.00 | −0.00 | +0.00 | 0.0 | no clear effect | always on (its moment isn't checked) |
-| 964 | Soul Oubliette | 20 | Class | — | passive effect (always on) | −0.00 ± 0.00 | −0.00 | +0.00 | 1.0 | no clear effect | always on (its moment isn't checked) |
-| 965 | Arcane Locomotion | 13 | Ancestry | — | PF2e rules (always on) | −0.00 ± 0.00 | −0.00 | −0.00 | 0.0 | no clear effect | the AI never used it |
-| 966 | Smile at Failure | 4 | Class | — | PF2e rules (always on) | −0.00 ± 0.02 | +0.03 | −0.03 | 0.0 | no clear effect | always on (its moment isn't checked) |
-| 967 | Warding Jewel | 5 | Ancestry | — | PF2e rules (always on) | −0.00 ± 0.01 | +0.01 | −0.02 | 0.0 | no clear effect | the AI never used it |
-| 968 | Breath of the Dragon (Dragon Disciple) | 8 | Class | — | innate spell: Dragon Breath (rank 3) | −0.00 ± 0.05 | +0.01 | −0.01 | 1.0 | no clear effect |  |
-| 969 | Shame the Sin | 5 | Ancestry | — | check | −0.00 ± 0.03 | −0.03 | +0.03 | 1.0 | no clear effect |  |
-| 970 | Unbalancing Blow | 2 | Class | rogue | off-guard to the PC after a critical hit (always on) | −0.00 ± 0.01 | −0.01 | +0.00 | 0.6 | no clear effect |  |
-| 971 | Tragic Lament | 18 | Class | — | save | −0.00 ± 0.00 | −0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 972 | Tectonic Stomp | 10 | Class | — | save | −0.00 ± 0.04 | +0.02 | −0.03 | 1.0 | no clear effect |  |
-| 973 | Dashing Strike | 12 | Class | fighter | Strike activity | −0.00 ± 0.03 | +0.01 | −0.01 | 1.7 | no clear effect |  |
-| 974 | Monk Moves | 8 | Class | — | PF2e rules (always on) | −0.00 ± 0.00 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
-| 975 | Weakening Assault | 12 | Class | guardian | 2 Strikes | −0.00 ± 0.04 | −0.02 | +0.02 | 4.4 | no clear effect |  |
-| 976 | Spell Parry | 2 | Class | magus | its text's self buff (FlatModifier ac 1) | −0.00 ± 0.06 | +0.09 | −0.09 | 2.8 | no clear effect | with a one-handed weapon and a free hand |
-| 977 | Serpentcoil Slam | 9 | Ancestry | — | Strike activity | −0.00 ± 0.01 | +0.00 | −0.00 | 1.8 | no clear effect |  |
-| 978 | Fighter Resiliency | 4 | Class | — | 6 more Hit Points | −0.00 ± 0.04 | −0.08 | +0.07 | 0.0 | no clear effect | the AI never used it |
-| 979 | Champion Resiliency | 4 | Class | — | 6 more Hit Points | −0.00 ± 0.04 | −0.08 | +0.07 | 0.0 | no clear effect | the AI never used it |
-| 980 | Exemplar Resiliency | 4 | Class | — | 6 more Hit Points | −0.00 ± 0.04 | −0.08 | +0.07 | 0.0 | no clear effect | the AI never used it |
-| 981 | Twitchy | 1 | Ancestry | — | PF2e rules (always on) | −0.00 ± 0.03 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 982 | Crane Flutter | 6 | Class | monk | reaction Strike (missed) (in Crane Stance) | −0.00 ± 0.00 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
-| 983 | Ghostly Resistance | 4 | Class | — | PF2e rules (always on) | −0.00 ± 0.05 | −0.03 | +0.03 | 0.0 | no clear effect | the AI never used it |
-| 984 | Spinning Stand | 6 | Class | — | 2 Strikes | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 985 | Fiendish Form | 18 | Class | champion | PF2e rules (always on) | −0.00 ± 0.01 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
-| 986 | Celestial Form | 18 | Class | champion | PF2e rules (always on) | −0.00 ± 0.01 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
-| 987 | Walk Through the Conflagration | 14 | Class | kineticist | save | −0.00 ± 0.04 | −0.00 | −0.00 | 0.4 | no clear effect |  |
-| 988 | Furious Finish | 2 | Class | barbarian | Strike activity | −0.00 ± 0.03 | −0.05 | +0.04 | 1.3 | no clear effect |  |
-| 989 | Spirit's Anguish | 8 | Class | — | save | −0.00 ± 0.05 | +0.12 | −0.13 | 2.4 | no clear effect |  |
-| 990 | Rushing Goat Stance | 1 | Class | monk | PF2e's stance Effect | −0.00 ± 0.04 | +0.06 | −0.07 | 1.1 | no clear effect |  |
-| 991 | Gorilla Stance | 1 | Class | monk | PF2e's stance Effect | −0.00 ± 0.04 | +0.06 | −0.07 | 1.1 | no clear effect |  |
-| 992 | Flood Stance | 1 | Class | monk | PF2e's stance Effect | −0.00 ± 0.04 | +0.06 | −0.07 | 1.1 | no clear effect |  |
-| 993 | Unstable Gearshift | 6 | Class | — | self effect | −0.00 ± 0.00 | +0.00 | −0.01 | 2.5 | no clear effect |  |
-| 994 | Perfect Ki Exemplar | 14 | Class | — | innate spells: Unblinking Flame Emblem (rank 7), Unbreaking Wave Barrier (rank 7), Unfolding Wind Blitz (rank 7), Untwisting Iron Augmentation (rank 7) | −0.00 ± 0.03 | +0.00 | −0.01 | 0.7 | no clear effect |  |
-| 995 | Suplex | 4 | Class | — | Strike activity | −0.00 ± 0.01 | −0.01 | +0.00 | 0.2 | no clear effect |  |
-| 996 | Lost in the Crowd | 4 | Class | — | passive effect (always on) | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | always on (its moment isn't checked) |
-| 997 | You're an Embarrassment! | 4 | Class | — | effect | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 998 | Spell Protection Array | 4 | Class | wizard | effect | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 999 | Heroic Defiance | 4 | Class | — | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1000 | Kaiju Defense Oath | 4 | Class | — | save-bonus | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect |  |
-| 1001 | Fane's Escape | 4 | Skill | — | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1002 | Such a Disgrace! | 4 | Class | — | effect | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1003 | Golden Erinys Stance | 4 | Class | — | PF2e's stance Effect | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1004 | Push Back the Dead! | 4 | Class | — | effect | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1005 | Inspiring Marshal Stance | 4 | Class | — | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1006 | Scoundrel's Surprise | 4 | Class | rogue | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1007 | Strategist Stance | 4 | Class | — | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1008 | Ardent Armiger | 4 | Class | — | save-bonus | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect |  |
-| 1009 | Loose Cannon | 4 | Class | — | save | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1010 | Norgorber's Secret | 4 | Class | — | PF2e rules (always on) | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | always on (its moment isn't checked) |
-| 1011 | Bitter Taste of Betrayal | 4 | Class | — | save-bonus | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect |  |
-| 1012 | Fiery Rebirth | 4 | Class | — | save | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1013 | Necromantic Resistance (Undead Slayer) | 4 | Class | — | PF2e rules (always on) | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | always on (its moment isn't checked) |
-| 1014 | Necromantic Resistance | 4 | Class | — | PF2e rules (always on) | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | always on (its moment isn't checked) |
-| 1015 | Devrin's Cunning Stance | 4 | Class | — | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1016 | Reactive Striker | 4 | Class | — | Reactive Strike | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1017 | Ride the Tsunami | 18 | Class | kineticist | save | −0.00 ± 0.07 | −0.24 | +0.23 | 2.7 | no clear effect |  |
-| 1018 | Irresistible Bloom | 17 | Ancestry | — | save | −0.00 ± 0.01 | +0.00 | −0.01 | 0.1 | no clear effect |  |
-| 1019 | Dragon Stance | 1 | Class | monk | PF2e's stance Effect | −0.00 ± 0.05 | +0.08 | −0.09 | 1.1 | no clear effect |  |
-| 1020 | Mana Detonation | 18 | Class | — | innate spell: Arcane Explosion (rank 9) | −0.00 ± 0.02 | +0.03 | −0.04 | 0.2 | no clear effect |  |
-| 1021 | Bloodline Resistance | 8 | Class | sorcerer | PF2e rules (always on) | −0.00 ± 0.01 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
-| 1022 | Dueling Dance (Fighter) | 12 | Class | fighter | PF2e's stance Effect | −0.01 ± 0.07 | −0.01 | +0.00 | 1.0 | no clear effect | with a one-handed weapon and a free hand |
-| 1023 | Paragon's Guard | 12 | Class | fighter | stance: its shield always raised | −0.01 ± 0.07 | −0.01 | +0.00 | 1.0 | no clear effect | with a weapon and a shield |
-| 1024 | Chronomancer's Secrets | 8 | Class | — | innate spell: Stasis (rank 4), Path of Least Resistance (rank 4) | −0.01 ± 0.06 | +0.19 | −0.20 | 1.0 | no clear effect |  |
-| 1025 | Mooneater | 17 | Ancestry | — | innate spell: Eclipse Burst (rank 7) | −0.01 ± 0.01 | −0.01 | +0.00 | 0.1 | no clear effect |  |
-| 1026 | Punishing Shove | 1 | Class | guardian | damage on a successful Shove (always on) | −0.01 ± 0.01 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
-| 1027 | As a Thousand Soldiers | 8 | Class | exemplar | save | −0.01 ± 0.07 | +0.05 | −0.06 | 1.0 | no clear effect |  |
-| 1028 | Conjure Hell | 12 | Class | — | inline save: 15-foot burst, fortitude, 9d6 fire (DC 31, 1/fight) | −0.01 ± 0.06 | +0.07 | −0.09 | 1.0 | no clear effect |  |
-| 1029 | Witch's Armaments | 1 | Class | witch | PF2e rules (always on) | −0.01 ± 0.01 | −0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
-| 1030 | Bend Time | 0 | Action | — | check | −0.01 ± 0.02 | −0.03 | +0.02 | 1.0 | no clear effect |  |
-| 1031 | Animal Swiftness | 17 | Ancestry | — | PF2e rules (always on) | −0.01 ± 0.00 | −0.00 | −0.01 | 0.0 | no clear effect | always on (its moment isn't checked) |
-| 1032 | Basic Witchcraft | 4 | Class | — | Witch's Armaments: PF2e rules (always on) | −0.01 ± 0.01 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1033 | Exsanguinate | 6 | Class | — | check | −0.01 ± 0.02 | +0.01 | −0.02 | 0.5 | no clear effect |  |
-| 1034 | Bony Barrage | 4 | Class | — | innate spell: Bony Barrage (rank 2) | −0.01 ± 0.02 | −0.02 | +0.01 | 0.4 | no clear effect |  |
-| 1035 | Stunning Blows | 2 | Class | monk | a Fortitude save or stunned when a Flurry of Blows hits | −0.01 ± 0.04 | +0.02 | −0.03 | 1.1 | no clear effect |  |
-| 1036 | Brutal Beating | 2 | Class | rogue | frightened 1 on a critical hit (always on) | −0.01 ± 0.01 | −0.01 | −0.00 | 0.6 | no clear effect |  |
-| 1037 | Ivy Playhouse Strike | 4 | Class | — | Strike activity | −0.01 ± 0.02 | −0.04 | +0.02 | 4.2 | no clear effect |  |
-| 1038 | Bellflower Tiller Dedication | 2 | Class | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.02 | 0.0 | no clear effect | the AI never used it |
-| 1039 | Calaca's Showstopper | 13 | Ancestry | — | save | −0.01 ± 0.01 | +0.00 | −0.02 | 0.0 | no clear effect | the AI never used it |
-| 1040 | Masked Casting | 8 | Class | — | self effect | −0.01 ± 0.01 | −0.01 | −0.00 | 3.2 | no clear effect |  |
-| 1041 | Ghost Dedication | 2 | Class | — | PF2e rules (always on) | −0.01 ± 0.03 | +0.01 | −0.03 | 0.0 | no clear effect | the AI never used it |
-| 1042 | Asp Stance | 6 | Class | monk | PF2e's stance Effect | −0.01 ± 0.06 | +0.03 | −0.04 | 1.0 | no clear effect |  |
-| 1043 | Tactical Debilitations | 10 | Class | rogue | Debilitating Strike's no reactions in place of enfeebled 1 | −0.01 ± 0.02 | −0.05 | +0.03 | 0.0 | no clear effect | the AI never used it |
-| 1044 | Cautious Word | 12 | Class | — | check | −0.01 ± 0.01 | +0.00 | −0.02 | 0.2 | no clear effect |  |
-| 1045 | Convocation of Earth and Moon | 17 | Ancestry | — | save | −0.01 ± 0.04 | +0.04 | −0.06 | 1.0 | no clear effect |  |
-| 1046 | Exacting Strike | 1 | Class | fighter | Strike activity | −0.01 ± 0.02 | +0.01 | −0.03 | 2.7 | no clear effect |  |
-| 1047 | Assume Earth's Mantle | 14 | Class | kineticist | PF2e's stance Effect | −0.01 ± 0.05 | −0.06 | +0.05 | 1.0 | no clear effect |  |
-| 1048 | Sky and Heaven Stance | 6 | Class | — | PF2e's stance Effect | −0.01 ± 0.06 | +0.11 | −0.13 | 1.0 | no clear effect |  |
-| 1049 | Opportune Riposte | 0 | Action | swashbuckler | reaction Strike (critical-miss) | −0.01 ± 0.01 | −0.02 | +0.00 | 0.1 | no clear effect |  |
-| 1050 | Monk Dedication | 2 | Class | — | Powerful Fist: PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.02 | 0.0 | no clear effect | the AI never used it |
-| 1051 | Burning Demand | 12 | Class | kineticist | save | −0.01 ± 0.09 | −0.05 | +0.03 | 4.2 | no clear effect |  |
-| 1052 | Elemental Explosion | 6 | Class | barbarian | inline save: 15-foot emanation, reflex, 6d8 fire (DC 22, 1/fight) | −0.01 ± 0.04 | −0.02 | −0.00 | 0.7 | no clear effect |  |
-| 1053 | For My House! | 0 | Action | — | self effect | −0.01 ± 0.02 | −0.01 | −0.02 | 1.6 | no clear effect |  |
-| 1054 | Rejoice in Solstice Storm | 8 | Class | exemplar | inline save: 30-foot emanation, reflex, 5d8 electricity (DC 24, 1/fight) | −0.01 ± 0.04 | −0.07 | +0.05 | 0.9 | no clear effect |  |
-| 1055 | Unleash the Blight | 10 | Class | — | save | −0.01 ± 0.02 | −0.02 | −0.00 | 0.5 | no clear effect |  |
-| 1056 | Death Drone | 0 | Action | — | save | −0.01 ± 0.05 | +0.02 | −0.04 | 1.4 | no clear effect |  |
-| 1057 | Cover Fire | 1 | Class | gunslinger | Strike activity | −0.01 ± 0.04 | −0.00 | −0.02 | 6.8 | no clear effect |  |
-| 1058 | Defiant Banner | 8 | Class | commander | effect | −0.01 ± 0.07 | −0.20 | +0.18 | 10.7 | no clear effect |  |
-| 1059 | Swift Sower | 10 | Class | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.02 | 0.0 | no clear effect | the AI never used it |
-| 1060 | Basic Muse's Whispers | 4 | Class | — | Hymn of Healing: innate spell: Hymn of Healing (rank 1) | −0.01 ± 0.05 | −0.02 | −0.00 | 0.0 | no clear effect | the AI never used it |
-| 1061 | Dread Mosquito Storm | 18 | Class | — | innate spell: Dread Mosquito Storm (rank 9) | −0.01 ± 0.01 | −0.02 | +0.00 | 0.5 | no clear effect |  |
-| 1062 | Indomitable Spirit | 17 | Ancestry | — | its text's self buff (FlatModifier ac 4) | −0.01 ± 0.04 | −0.03 | +0.00 | 1.0 | no clear effect |  |
-| 1063 | Retreating Finisher | 2 | Class | swashbuckler | Strike activity | −0.01 ± 0.03 | −0.00 | −0.02 | 2.0 | no clear effect |  |
-| 1064 | Basic Flair | 4 | Class | — | Unbalancing Finisher: Strike activity | −0.01 ± 0.03 | −0.02 | −0.01 | 0.0 | no clear effect | the AI never used it |
-| 1065 | Roar Mimicry | 12 | Class | — | inline save: 15-foot emanation, fortitude, 8d6 sonic (DC 31, 1/fight) | −0.01 ± 0.03 | −0.05 | +0.03 | 0.6 | no clear effect |  |
-| 1066 | Duelist's Edge | 4 | Class | — | +2 to its initiative | −0.01 ± 0.03 | −0.03 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1067 | Deathly Scream | 2 | Class | — | innate spell: Deathly Scream (rank 1) | −0.01 ± 0.03 | +0.02 | −0.04 | 1.0 | no clear effect |  |
-| 1068 | Felling Strike | 8 | Class | fighter | Strike activity | −0.01 ± 0.06 | −0.03 | +0.01 | 5.9 | no clear effect |  |
-| 1069 | Bespell Strikes | 4 | Class | oracle | +1d6 force on its Strikes after a slot spell (free) | −0.01 ± 0.01 | −0.03 | +0.00 | 1.9 | no clear effect |  |
-| 1070 | Eternal Wings (Sylph) | 17 | Ancestry | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.03 | 0.0 | no clear effect | the AI never used it |
-| 1071 | Wyrmling Flight | 17 | Ancestry | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.03 | 0.0 | no clear effect | the AI never used it |
-| 1072 | Soaring Poppet | 17 | Ancestry | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.03 | 0.0 | no clear effect | the AI never used it |
-| 1073 | Eternal Wings (Nephilim) | 17 | Ancestry | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.03 | 0.0 | no clear effect | the AI never used it |
-| 1074 | Hellbreaker Strike | 0 | Action | — | Strike activity | −0.01 ± 0.04 | +0.02 | −0.05 | 1.8 | no clear effect |  |
-| 1075 | Pennant of Victory | 20 | Class | commander | effect | −0.01 ± 0.10 | −0.46 | +0.43 | 2.0 | no clear effect |  |
-| 1076 | Swaggering Initiative | 4 | Class | swashbuckler | +2 to its initiative | −0.01 ± 0.03 | −0.07 | +0.04 | 0.0 | no clear effect | the AI never used it |
-| 1077 | Juggernaut Charge | 8 | Class | guardian | Strike activity | −0.01 ± 0.03 | −0.01 | −0.02 | 2.8 | no clear effect |  |
-| 1078 | Tiger Slash | 6 | Class | monk | Strike activity (in Tiger Stance) | −0.01 ± 0.06 | +0.03 | −0.05 | 4.1 | no clear effect |  |
-| 1079 | Emit Defensive Odor | 1 | Ancestry | — | save | −0.01 ± 0.04 | −0.05 | +0.02 | 1.0 | no clear effect |  |
-| 1080 | Guide the Timeline | 6 | Class | — | effect | −0.01 ± 0.03 | −0.01 | −0.02 | 2.0 | no clear effect |  |
-| 1081 | Pouncing Transformation | 12 | Class | — | check | −0.02 ± 0.06 | +0.13 | −0.16 | 5.5 | no clear effect |  |
-| 1082 | Mighty Wings | 18 | Class | — | PF2e rules (always on) | −0.02 ± 0.01 | +0.00 | −0.03 | 0.0 | no clear effect | the AI never used it |
-| 1083 | Debilitating Shot | 10 | Class | fighter | Strike activity | −0.02 ± 0.05 | +0.09 | −0.12 | 3.5 | no clear effect |  |
-| 1084 | Needle in the Gods' Eyes | 16 | Class | fighter | 2 Strikes | −0.02 ± 0.03 | +0.04 | −0.07 | 4.7 | no clear effect |  |
-| 1085 | Dual-Weapon Warrior Dedication | 2 | Class | — | Double Slice: 2 Strikes | −0.02 ± 0.02 | −0.01 | −0.02 | 0.0 | no clear effect | with two weapons (longsword and shortsword); the AI never used it |
-| 1086 | Coordinated Charge | 12 | Class | — | Strike activity | −0.02 ± 0.03 | +0.01 | −0.04 | 1.7 | no clear effect |  |
-| 1087 | Twin Riposte | 10 | Class | fighter | reaction Strike (critical-miss) (in Twin Parry) | −0.02 ± 0.03 | +0.01 | −0.04 | 0.2 | no clear effect |  |
-| 1088 | Spiritual Disruption | 0 | Bonus | — | Strike activity | −0.02 ± 0.04 | +0.00 | −0.04 | 1.8 | no clear effect |  |
-| 1089 | Dazzling Display | 10 | Class | fighter | Demoralize each enemy within 30 feet (Intimidation DC 24, once a fight) | −0.02 ± 0.04 | −0.02 | −0.02 | 1.0 | no clear effect |  |
-| 1090 | Revivifying Mutagen | 2 | Class | alchemist | check | −0.02 ± 0.01 | −0.03 | +0.00 | 0.0 | no clear effect | the AI never used it |
-| 1091 | Trance of Celerity | 1 | Class | oracle | PF2e's self Effect | −0.02 ± 0.04 | −0.06 | +0.02 | 1.0 | no clear effect |  |
-| 1092 | Kishin Rage | 17 | Ancestry | — | PF2e's self Effect | −0.02 ± 0.05 | −0.03 | −0.00 | 1.0 | no clear effect |  |
-| 1093 | Dodge Away | 6 | Class | — | +1 AC as a reaction when targeted (melee) | −0.02 ± 0.02 | −0.02 | −0.02 | 0.8 | no clear effect |  |
-| 1094 | Dragging Strike | 2 | Class | fighter | Strike activity | −0.02 ± 0.02 | −0.01 | −0.02 | 3.1 | no clear effect |  |
-| 1095 | Fungal Exhalation | 6 | Class | druid | innate spell: Fungal Exhalation (rank 3) | −0.02 ± 0.03 | −0.05 | +0.01 | 0.5 | no clear effect |  |
-| 1096 | Polished Distraction | 6 | Class | — | inline save: 5-foot emanation, fortitude (DC 22) | −0.02 ± 0.03 | −0.02 | −0.02 | 0.3 | no clear effect |  |
-| 1097 | Shaitan Skin | 13 | Ancestry | — | innate spell: Mountain Resilience (rank 4) | −0.02 ± 0.02 | −0.02 | −0.02 | 0.7 | no clear effect |  |
-| 1098 | Primal Rampage | 13 | Ancestry | — | innate spells: Unfettered Movement (rank 4), Mountain Resilience (rank 4) | −0.02 ± 0.02 | −0.02 | −0.02 | 0.7 | no clear effect |  |
-| 1099 | Harrying Strike | 10 | Class | — | Strike activity | −0.02 ± 0.01 | −0.03 | −0.01 | 7.0 | no clear effect |  |
-| 1100 | Crowned in Tempest's Fury | 18 | Class | kineticist | PF2e's stance Effect | −0.02 ± 0.04 | −0.02 | −0.02 | 1.0 | no clear effect |  |
-| 1101 | Stumbling Finisher | 10 | Class | swashbuckler | Strike activity | −0.02 ± 0.04 | +0.02 | −0.06 | 5.2 | no clear effect |  |
-| 1102 | Toughness | 1 | General | — | more maximum Hit Points | −0.02 ± 0.02 | +0.00 | −0.05 | 0.0 | no clear effect | the AI never used it |
-| 1103 | Current Spell | 6 | Class | druid | its text's self buff (FlatModifier ac 1) | −0.02 ± 0.06 | −0.07 | +0.03 | 2.3 | no clear effect |  |
-| 1104 | Extraplanar Haze | 5 | Ancestry | — | check | −0.02 ± 0.03 | +0.00 | −0.04 | 1.0 | no clear effect |  |
-| 1105 | Nanite Shroud | 5 | Ancestry | — | check | −0.02 ± 0.03 | +0.00 | −0.04 | 1.0 | no clear effect |  |
-| 1106 | Follow-Up Assault | 8 | Class | barbarian | after a missed melee Strike, raging: a Strike +1 with its weapon dice in damage | −0.02 ± 0.02 | −0.02 | −0.02 | 5.2 | no clear effect |  |
-| 1107 | Bristle | 5 | Ancestry | — | effect | −0.02 ± 0.03 | −0.02 | −0.02 | 3.2 | no clear effect |  |
-| 1108 | Guardian Resiliency | 4 | Class | — | 6 more Hit Points | −0.02 ± 0.04 | −0.08 | +0.04 | 0.0 | no clear effect | the AI never used it |
-| 1109 | Barbarian Resiliency | 4 | Class | — | 6 more Hit Points | −0.02 ± 0.04 | −0.08 | +0.04 | 0.0 | no clear effect | the AI never used it |
-| 1110 | Ranger Resiliency | 4 | Class | — | 6 more Hit Points | −0.02 ± 0.04 | −0.08 | +0.04 | 0.0 | no clear effect | the AI never used it |
-| 1111 | Monk Resiliency | 4 | Class | — | 6 more Hit Points | −0.02 ± 0.04 | −0.08 | +0.04 | 0.0 | no clear effect | the AI never used it |
-| 1112 | Paralyzing Jewel | 9 | Ancestry | — | inline save: 15-foot emanation, will (DC 25, 1/fight) | −0.02 ± 0.02 | −0.04 | −0.01 | 0.3 | no clear effect |  |
-| 1113 | Basic Thoughtform | 4 | Class | — | Psi Burst: save | −0.02 ± 0.04 | −0.08 | +0.04 | 0.0 | no clear effect | the AI never used it |
-| 1114 | Symphony of Blood | 17 | Ancestry | — | innate spell: Vampiric Exsanguination (rank 7) | −0.02 ± 0.03 | −0.01 | −0.03 | 0.8 | no clear effect |  |
-| 1115 | Blessing of the Five | 0 | Bonus | — | casts Heal (rank 1, DC 17, 1/fight) | −0.02 ± 0.03 | −0.04 | −0.00 | 0.7 | no clear effect |  |
-| 1116 | Sky Master Mask | 20 | Class | druid | PF2e rules (always on) | −0.02 ± 0.03 | −0.01 | −0.04 | 0.0 | no clear effect | the AI never used it |
-| 1117 | Brandish Authority | 18 | Class | — | check | −0.02 ± 0.07 | −0.01 | −0.04 | 3.0 | no clear effect |  |
-| 1118 | Fox Possession | 17 | Ancestry | — | innate spell: Possession (rank 7) | −0.02 ± 0.02 | +0.00 | −0.05 | 1.0 | no clear effect |  |
-| 1119 | Broken Chain Dedication | 12 | Class | — | Ultimatum of Liberation: save | −0.02 ± 0.05 | +0.06 | −0.11 | 0.0 | no clear effect | the AI never used it |
-| 1120 | Writhing Runelord Weapon | 14 | Class | — | 2 Strikes | −0.02 ± 0.05 | −0.01 | −0.03 | 3.0 | no clear effect | with a spear and a free hand |
-| 1121 | History of Violence | 14 | Class | — | Strike activity | −0.02 ± 0.06 | +0.03 | −0.08 | 1.0 | no clear effect |  |
-| 1122 | Scouring Rage | 6 | Class | barbarian | as it Rages, each enemy within 20 feet saves (Fortitude, basic, DC 22) or takes 6 slashing | −0.02 ± 0.06 | −0.13 | +0.08 | 3.1 | no clear effect |  |
-| 1123 | Imbue Mindlessness | 12 | Class | — | innate spell: Harm (rank 1) | −0.03 ± 0.06 | −0.01 | −0.04 | 1.0 | no clear effect |  |
-| 1124 | Greater than the Sum | 17 | Ancestry | — | innate spell: Enlarge (rank 6) | −0.03 ± 0.04 | −0.02 | −0.03 | 1.0 | no clear effect |  |
-| 1125 | Skeletal Resistance | 9 | Ancestry | — | PF2e rules (always on) | −0.03 ± 0.03 | −0.03 | −0.02 | 0.0 | no clear effect | the AI never used it |
-| 1126 | Fling Magic | 0 | Action | thaumaturge | save | −0.03 ± 0.05 | −0.03 | −0.02 | 2.4 | no clear effect |  |
-| 1127 | Lion's Magic | 8 | Class | — | innate spells: Suggestion (rank 4), Subconscious Suggestion (rank 12) | −0.03 ± 0.03 | −0.02 | −0.03 | 1.5 | no clear effect |  |
-| 1128 | Drifter's Wake | 0 | Action | gunslinger | 3 Strikes | −0.03 ± 0.04 | +0.05 | −0.11 | 1.8 | no clear effect |  |
-| 1129 | Spiritual Expansion Spell | 2 | Class | animist | widened copies of 1 area spell | −0.03 ± 0.06 | −0.11 | +0.06 | 0.0 | no clear effect | the AI never used it |
-| 1130 | Glory and Valor! | 9 | Ancestry | — | heals 4 (touch, 1/fight) | −0.03 ± 0.02 | −0.04 | −0.01 | 0.7 | no clear effect |  |
-| 1131 | Disrupt Prey | 4 | Class | ranger | reaction Strike (move, leave, manipulate) | −0.03 ± 0.02 | +0.01 | −0.06 | 0.2 | no clear effect |  |
-| 1132 | Arcane Cascade | 0 | Action | magus | PF2e's stance Effect | −0.03 ± 0.04 | +0.10 | −0.16 | 1.0 | no clear effect |  |
-| 1133 | Tap Vitality | 6 | Class | — | heals 24 (touch, 1/fight) | −0.03 ± 0.02 | +0.02 | −0.07 | 0.6 | no clear effect |  |
-| 1134 | Toppling Transformation | 6 | Class | druid | check | −0.03 ± 0.02 | −0.06 | −0.00 | 0.0 | no clear effect | the AI never used it |
-| 1135 | Reach Spell | 1 | Class | bard | reach copies of 5 spells | −0.03 ± 0.03 | −0.10 | +0.04 | 0.0 | no clear effect | the AI never used it |
-| 1136 | Fling Head | 6 | Class | — | inline save: 1 creature, 30 feet, will (DC 22, 1/fight) | −0.03 ± 0.04 | −0.05 | −0.01 | 1.0 | no clear effect |  |
-| 1137 | Frighten Undead | 6 | Class | — | check | −0.03 ± 0.04 | +0.01 | −0.07 | 3.3 | no clear effect |  |
-| 1138 | Crossbow Terror | 6 | Class | — | check | −0.03 ± 0.04 | +0.01 | −0.07 | 3.3 | no clear effect |  |
-| 1139 | Ease the Burden | 20 | Class | — | heals 100 (touch, 1/fight) | −0.03 ± 0.03 | −0.03 | −0.03 | 0.8 | no clear effect |  |
-| 1140 | Voice Cold as Death | 7 | Skill | — | check | −0.03 ± 0.03 | −0.01 | −0.05 | 3.2 | no clear effect |  |
-| 1141 | Nagaji Spell Expertise | 13 | Ancestry | — | innate spells: Flicker (rank 4), Control Water (rank 5), Subconscious Suggestion (rank 5) | −0.03 ± 0.02 | −0.01 | −0.05 | 0.3 | no clear effect |  |
-| 1142 | Iivlar's Boundary Break | 13 | Ancestry | — | innate spell: Flicker (rank 4) | −0.03 ± 0.02 | −0.01 | −0.05 | 0.3 | no clear effect |  |
-| 1143 | Invoke Disaster | 18 | Class | druid | innate spell: Storm Lord (rank 9) | −0.03 ± 0.02 | −0.05 | −0.01 | 0.3 | no clear effect |  |
-| 1144 | Kraken's Call | 17 | Ancestry | — | inline save: 30-foot burst, fortitude, 8d6 untyped (DC 37, 1/fight) | −0.03 ± 0.03 | −0.01 | −0.06 | 0.5 | no clear effect |  |
-| 1145 | Steal Time | 10 | Class | — | save | −0.03 ± 0.05 | +0.05 | −0.12 | 1.0 | no clear effect |  |
-| 1146 | Benefactor's Majesty | 17 | Ancestry | — | PF2e's self Effect | −0.03 ± 0.05 | −0.06 | −0.00 | 1.0 | no clear effect |  |
-| 1147 | Feathered Flechettes | 6 | Class | — | inline save: 15-foot emanation, reflex, 6d6 slashing (DC 22, 1/fight) | −0.03 ± 0.03 | −0.10 | +0.04 | 0.8 | no clear effect |  |
-| 1148 | Roiling Mudslide | 6 | Class | kineticist | save | −0.03 ± 0.05 | +0.01 | −0.07 | 1.4 | no clear effect |  |
-| 1149 | Fleeing Shriek | 9 | Ancestry | — | inline save: 10-foot emanation, fortitude, 5d6 sonic (DC 25, 1/fight) | −0.03 ± 0.03 | −0.11 | +0.04 | 0.8 | no clear effect |  |
-| 1150 | Hit and Run | 6 | Class | — | Strike activity | −0.03 ± 0.03 | +0.01 | −0.07 | 1.6 | no clear effect |  |
-| 1151 | Songbird's Call | 8 | Class | bard | focus spell: Songbird's Call (rank 4) | −0.03 ± 0.02 | −0.02 | −0.05 | 0.6 | no clear effect |  |
-| 1152 | Cleansing Light | 17 | Ancestry | — | check | −0.04 ± 0.05 | −0.02 | −0.05 | 1.0 | no clear effect |  |
-| 1153 | Rallying Charge (Marshal) | 6 | Class | — | Strike activity | −0.04 ± 0.03 | +0.00 | −0.07 | 1.5 | no clear effect |  |
-| 1154 | On My Best Day | 18 | Class | — | its text's self buff (FlatModifier ac 3) | −0.04 ± 0.05 | −0.15 | +0.08 | 1.0 | no clear effect |  |
-| 1155 | Demolishing Knockback | 14 | Class | — | Strike activity | −0.04 ± 0.04 | −0.08 | +0.00 | 3.0 | no clear effect |  |
-| 1156 | Primadonna | 12 | Class | — | check | −0.04 ± 0.04 | −0.06 | −0.01 | 0.3 | no clear effect |  |
-| 1157 | Pact of Draconic Fury | 6 | Class | — | Dragon Breath: inline save: 30-foot cone, reflex, 6d6 untyped (DC 22, 1/fight) | −0.04 ± 0.03 | −0.08 | +0.01 | 0.9 | no clear effect |  |
-| 1158 | Blessed Counterstrike | 12 | Class | champion | Strike activity | −0.04 ± 0.02 | −0.04 | −0.04 | 1.5 | no clear effect |  |
-| 1159 | Banner Twirl | 4 | Class | commander | check | −0.04 ± 0.09 | +0.12 | −0.20 | 3.1 | no clear effect |  |
-| 1160 | Undead Hunter | 1 | Ancestry | — | innate spells: Vitality Lash (rank 1), Infuse Vitality (rank 3) | −0.04 ± 0.05 | +0.09 | −0.16 | 1.0 | no clear effect |  |
-| 1161 | Wither Away | 16 | Class | — | save | −0.04 ± 0.06 | −0.04 | −0.04 | 1.0 | no clear effect |  |
-| 1162 | Solidarity | 9 | Ancestry | — | heals 18 (touch, 1/fight) | −0.04 ± 0.03 | −0.06 | −0.02 | 0.7 | no clear effect |  |
-| 1163 | Growth Spell | 10 | Class | — | widened copies of 6 area spells | −0.04 ± 0.04 | −0.00 | −0.07 | 0.0 | no clear effect | the AI never used it |
-| 1164 | Devil's Wings | 16 | Class | — | PF2e rules (always on) | −0.04 ± 0.02 | +0.00 | −0.08 | 0.0 | no clear effect | the AI never used it |
-| 1165 | Break Them Down | 0 | Action | gunslinger | Strike activity | −0.04 ± 0.04 | −0.01 | −0.07 | 3.7 | no clear effect |  |
-| 1166 | Widen Spell | 1 | Class | druid | widened copies of 1 area spell | −0.04 ± 0.02 | −0.07 | −0.00 | 0.0 | no clear effect | the AI never used it |
-| 1167 | Winter's Clutch | 1 | Class | kineticist | save | −0.04 ± 0.06 | −0.10 | +0.02 | 2.4 | no clear effect |  |
-| 1168 | Spark Fist | 5 | Ancestry | — | PF2e's self Effect | −0.04 ± 0.03 | −0.03 | −0.05 | 2.0 | no clear effect |  |
-| 1169 | Dominion Aura | 17 | Ancestry | — | inline save: 10-foot emanation, fortitude, 8d6 force (DC 37, 1/fight) | −0.04 ± 0.02 | −0.05 | −0.03 | 0.3 | no clear effect |  |
-| 1170 | This is What it's Like to Die | 17 | Ancestry | — | innate spell: Phantasmagoria (rank 9) | −0.04 ± 0.05 | −0.09 | +0.01 | 2.0 | no clear effect |  |
-| 1171 | Channel Smite | 4 | Class | cleric | a melee Strike with a 1-action harm on the hit (2 actions) | −0.04 ± 0.03 | −0.03 | −0.05 | 0.8 | no clear effect |  |
-| 1172 | Siren Song | 9 | Ancestry | — | inline save: 60-foot emanation, will (DC 25, 1/fight) | −0.04 ± 0.01 | −0.07 | −0.01 | 0.2 | no clear effect |  |
-| 1173 | Gluttonous Feast | 0 | Action | — | save | −0.04 ± 0.04 | −0.07 | −0.01 | 1.0 | no clear effect |  |
-| 1174 | Momentous Charge | 6 | Class | monk | Strike activity (in Rushing Goat Stance) | −0.04 ± 0.05 | −0.04 | −0.05 | 2.3 | no clear effect |  |
-| 1175 | Basic Arcana | 4 | Class | — | Reach Spell: reach copies of 9 spells | −0.04 ± 0.04 | −0.14 | +0.06 | 0.0 | no clear effect | the AI never used it |
-| 1176 | Speaker in Training | 5 | Ancestry | — | innate spell: Bless (rank 1), Fleet Step (rank 1) | −0.04 ± 0.03 | −0.02 | −0.07 | 1.0 | no clear effect |  |
-| 1177 | Basic Breakthrough | 4 | Class | — | Searing Restoration: heals 2d10 (touch) | −0.04 ± 0.07 | +0.01 | −0.09 | 3.3 | no clear effect |  |
-| 1178 | Reflexive Grapple | 12 | Class | — | Strike activity | −0.04 ± 0.06 | −0.05 | −0.03 | 8.2 | no clear effect |  |
-| 1179 | Now You See Me | 14 | Class | — | check | −0.04 ± 0.06 | −0.02 | −0.07 | 2.4 | no clear effect |  |
-| 1180 | Sacred Defender | 20 | Class | champion | PF2e rules (always on) | −0.04 ± 0.05 | −0.02 | −0.07 | 0.0 | no clear effect | the AI never used it |
-| 1181 | Mortal Ascension | 14 | Class | — | PF2e rules (always on) | −0.04 ± 0.02 | −0.00 | −0.08 | 0.0 | no clear effect | the AI never used it |
-| 1182 | Ascend | 14 | Class | — | PF2e rules (always on) | −0.04 ± 0.02 | −0.00 | −0.08 | 0.0 | no clear effect | the AI never used it |
-| 1183 | Kaiju Stance | 8 | Class | monk | PF2e's stance Effect | −0.04 ± 0.07 | −0.12 | +0.03 | 1.0 | no clear effect |  |
-| 1184 | Bestial Snarling | 2 | Class | bard | check | −0.05 ± 0.04 | +0.01 | −0.10 | 5.3 | no clear effect |  |
-| 1185 | Explode | 0 | Action | inventor | inline save: 5-foot emanation, reflex, 2d6 fire (DC 17) | −0.05 ± 0.04 | −0.03 | −0.06 | 1.2 | no clear effect |  |
-| 1186 | Irradiate | 6 | Class | — | save | −0.05 ± 0.02 | −0.06 | −0.03 | 0.1 | no clear effect |  |
-| 1187 | Turn to Mist | 10 | Class | — | PF2e's self Effect | −0.05 ± 0.05 | +0.02 | −0.12 | 1.0 | no clear effect |  |
-| 1188 | Stunt Performer Stance | 10 | Class | — | PF2e's stance Effect | −0.05 ± 0.06 | −0.09 | −0.00 | 1.0 | no clear effect |  |
-| 1189 | Talmandor's Shout | 12 | Class | — | check | −0.05 ± 0.06 | −0.11 | +0.02 | 1.0 | no clear effect |  |
-| 1190 | To Me! | 18 | Class | — | Strike activity | −0.05 ± 0.04 | +0.00 | −0.10 | 2.4 | no clear effect |  |
-| 1191 | Shadowcaster Dedication | 2 | Class | — | innate spell: Dazzling Flash (rank 1), Cloak of Shadow (rank 1) | −0.05 ± 0.04 | −0.03 | −0.07 | 0.8 | no clear effect |  |
-| 1192 | Glass Skin | 10 | Class | — | innate spell: Mountain Resilience (rank 4) | −0.05 ± 0.02 | +0.01 | −0.11 | 0.7 | no clear effect |  |
-| 1193 | Intimidating Spell | 6 | Class | — | Intimidating Spell copies of 3 spells | −0.05 ± 0.04 | −0.09 | −0.01 | 1.6 | no clear effect |  |
-| 1194 | Disrupt Qi | 12 | Class | monk | Strike activity | −0.05 ± 0.09 | +0.18 | −0.28 | 4.9 | no clear effect |  |
-| 1195 | Rain of Bolts | 9 | Ancestry | — | inline save: 30-foot cone, reflex, 6d6 piercing (DC 25, 1/fight) | −0.05 ± 0.04 | −0.08 | −0.02 | 0.8 | no clear effect |  |
-| 1196 | Spore Cloud | 9 | Ancestry | — | inline save: 10-foot emanation, fortitude (DC 25, 1/fight) | −0.05 ± 0.03 | −0.07 | −0.03 | 0.2 | no clear effect |  |
-| 1197 | Perfume Cloud | 9 | Ancestry | — | inline save: 10-foot emanation, fortitude (DC 25, 1/fight) | −0.05 ± 0.03 | −0.07 | −0.03 | 0.2 | no clear effect |  |
-| 1198 | Terrifying Howl | 10 | Class | barbarian | Demoralize each enemy within 30 feet (Intimidation DC 22, once a fight) | −0.05 ± 0.04 | −0.10 | +0.00 | 1.0 | no clear effect |  |
-| 1199 | Mountain Stance | 1 | Class | monk | PF2e's stance Effect | −0.05 ± 0.05 | +0.03 | −0.12 | 1.0 | no clear effect |  |
-| 1200 | Mortal Herald Dedication | 12 | Class | — | innate spells: Atone (rank 4), Heal (rank 6), Harm (rank 6) | −0.05 ± 0.06 | −0.08 | −0.02 | 2.0 | no clear effect |  |
-| 1201 | Gift of the Hoard | 10 | Class | — | innate spell: Dragon Breath (rank 3) | −0.05 ± 0.04 | +0.01 | −0.11 | 1.0 | no clear effect |  |
-| 1202 | Starlit Transformation | 0 | Action | — | PF2e's self Effect | −0.05 ± 0.04 | −0.02 | −0.08 | 1.0 | no clear effect |  |
-| 1203 | Grudging Compliment | 7 | Skill | — | check | −0.05 ± 0.03 | −0.08 | −0.02 | 2.2 | no clear effect |  |
-| 1204 | Basic Fury | 4 | Class | — | Sudden Charge: Strike activity | −0.05 ± 0.04 | −0.13 | +0.03 | 0.0 | no clear effect | the AI never used it |
-| 1205 | Endure Death's Touch | 10 | Class | — | PF2e rules (always on) | −0.05 ± 0.04 | +0.03 | −0.13 | 0.0 | no clear effect | the AI never used it |
-| 1206 | Elemental Assault | 1 | Ancestry | — | PF2e's self Effect | −0.05 ± 0.04 | +0.01 | −0.12 | 1.5 | no clear effect |  |
-| 1207 | Vitality-Manipulating Stance | 20 | Class | monk | PF2e's stance Effect | −0.05 ± 0.08 | −0.13 | +0.02 | 1.0 | no clear effect |  |
-| 1208 | Decompose | 0 | Action | — | inline save: 5-foot emanation, fortitude, 1d6 void (DC 17, 1/fight) | −0.05 ± 0.02 | −0.13 | +0.02 | 0.6 | hurts |  |
-| 1209 | One-Inch Punch | 6 | Class | monk | a 2-action Strike with more weapon dice | −0.05 ± 0.06 | +0.13 | −0.23 | 7.7 | no clear effect |  |
-| 1210 | Inscribe Shadow Pamor | 0 | Action | — | check | −0.05 ± 0.04 | −0.11 | +0.01 | 1.0 | no clear effect |  |
-| 1211 | Dream Magic | 8 | Class | — | innate spell: Dream Message (rank 3), Sleep (rank 4) | −0.05 ± 0.03 | +0.00 | −0.11 | 1.0 | no clear effect |  |
-| 1212 | Form of the Beloved Mother | 17 | Ancestry | — | innate spell: Animal Form (rank 5), Slither (rank 5) | −0.05 ± 0.03 | −0.02 | −0.09 | 0.7 | no clear effect |  |
-| 1213 | Moldersoul | 1 | Ancestry | — | Decompose: inline save: 5-foot emanation, fortitude, 1d6 void (DC 17, 1/fight) | −0.05 ± 0.02 | −0.13 | +0.02 | 0.7 | hurts |  |
-| 1214 | Trial by Skyfire | 10 | Class | oracle | inline save: 10-foot emanation, reflex, 2d6 fire (DC 29) | −0.05 ± 0.03 | −0.08 | −0.02 | 1.6 | no clear effect |  |
-| 1215 | Scout's Charge | 4 | Class | — | Strike activity | −0.05 ± 0.02 | −0.01 | −0.10 | 1.1 | hurts |  |
-| 1216 | Ravenous Charge | 4 | Class | — | Strike activity | −0.05 ± 0.02 | −0.01 | −0.10 | 1.2 | hurts |  |
-| 1217 | Interpose | 4 | Class | — | Strike activity | −0.05 ± 0.02 | −0.01 | −0.10 | 1.2 | hurts |  |
-| 1218 | Roaring Charge | 0 | Action | commander | save | −0.05 ± 0.05 | +0.00 | −0.11 | 1.0 | no clear effect |  |
-| 1219 | Blessed One Dedication | 2 | Class | — | focus spell: Lay on Hands (rank 1) | −0.06 ± 0.03 | −0.03 | −0.08 | 0.8 | no clear effect |  |
-| 1220 | No Scar but This | 0 | Action | — | check | −0.06 ± 0.03 | −0.02 | −0.09 | 1.3 | no clear effect |  |
-| 1221 | Goring Charge | 9 | Ancestry | — | Strike activity | −0.06 ± 0.03 | +0.01 | −0.13 | 2.0 | no clear effect |  |
-| 1222 | Instinct Ability | 6 | Class | — | Sudden Charge: Strike activity | −0.06 ± 0.04 | −0.04 | −0.07 | 0.0 | no clear effect | the AI never used it |
-| 1223 | Smite | 6 | Class | champion | +3 damage on its Strikes for a round (1 action) | −0.06 ± 0.06 | +0.01 | −0.12 | 3.3 | no clear effect |  |
-| 1224 | Killing Stone | 13 | Ancestry | — | innate spell: Toxic Cloud (rank 5) | −0.06 ± 0.02 | −0.00 | −0.11 | 0.8 | hurts |  |
-| 1225 | Unstoppable Juggernaut | 20 | Class | barbarian | PF2e rules (always on) | −0.06 ± 0.03 | −0.03 | −0.09 | 0.0 | hurts | the AI never used it |
-| 1226 | Quill Spray | 9 | Ancestry | — | inline save: 30-foot cone, reflex, 5d8 piercing (DC 25, 1/fight) | −0.06 ± 0.03 | −0.10 | −0.01 | 1.0 | no clear effect |  |
-| 1227 | Storm Shroud | 8 | Class | — | check | −0.06 ± 0.06 | +0.04 | −0.16 | 1.0 | no clear effect |  |
-| 1228 | Tenacious Stance | 0 | Action | — | PF2e's stance Effect | −0.06 ± 0.05 | −0.08 | −0.04 | 1.0 | no clear effect |  |
-| 1229 | Desiccating Inhalation | 12 | Class | — | inline save: 30-foot cone, reflex, 6d8 void (DC 31, 1/fight) | −0.06 ± 0.05 | −0.08 | −0.04 | 0.9 | no clear effect |  |
-| 1230 | Awaken the Obake | 13 | Ancestry | — | innate spell: Fear (rank 5) | −0.06 ± 0.04 | −0.07 | −0.06 | 1.0 | no clear effect |  |
-| 1231 | Pummeling Whirlpool | 13 | Ancestry | — | inline save: 10-foot emanation, reflex, 8d6 bludgeoning (DC 32, 1/fight) | −0.06 ± 0.02 | −0.07 | −0.05 | 0.3 | hurts |  |
-| 1232 | Lantern Strobe | 0 | Action | — | save | −0.06 ± 0.03 | −0.12 | −0.01 | 0.6 | hurts |  |
-| 1233 | Hag Magic | 13 | Ancestry | — | innate spells: Augury (rank 4), Charm (rank 1), Clairaudience (rank 3), Clairvoyance (rank 4), Dream Message (rank 3), Illusory Disguise (rank 1), Nightmare (rank 4), Spellwrack (rank 6), Earthbind (rank 3), Humanoid Form (rank 2), Mariner's Curse (rank 5), Water Walk (rank 2), Honeyed Words (rank 4), Outcast's Curse (rank 4) | −0.06 ± 0.04 | −0.02 | −0.10 | 2.1 | no clear effect |  |
-| 1234 | Hellbreaker's Resolve | 4 | Class | — | its text's self buff (TempHP 4) | −0.06 ± 0.04 | −0.15 | +0.02 | 1.0 | no clear effect |  |
-| 1235 | Revitalizing Finisher | 16 | Class | swashbuckler | its text's self buff (TempHP 8) | −0.06 ± 0.07 | +0.00 | −0.13 | 1.0 | no clear effect |  |
-| 1236 | Cenotaph Stance | 20 | Class | — | PF2e's stance Effect | −0.07 ± 0.07 | −0.18 | +0.05 | 1.0 | no clear effect | with a weapon and a shield |
-| 1237 | Impaling Finisher | 4 | Class | swashbuckler | Strike activity | −0.07 ± 0.04 | −0.12 | −0.01 | 2.2 | no clear effect |  |
-| 1238 | Radiant Burst | 13 | Ancestry | — | save | −0.07 ± 0.04 | −0.11 | −0.02 | 1.0 | no clear effect |  |
-| 1239 | Twinned Defense (Swashbuckler) | 14 | Class | swashbuckler | effect | −0.07 ± 0.07 | −0.04 | −0.09 | 1.0 | no clear effect |  |
-| 1240 | Battle Hymn to the Lost | 8 | Class | exemplar | inline save: 30-foot cone, reflex, 2d10 untyped (DC 24, 1/fight) | −0.07 ± 0.05 | −0.10 | −0.03 | 1.0 | no clear effect |  |
-| 1241 | Taste Blood | 5 | Ancestry | — | save | −0.07 ± 0.03 | −0.05 | −0.08 | 2.6 | hurts |  |
-| 1242 | Cadence Call | 6 | Class | — | check | −0.07 ± 0.04 | −0.13 | −0.01 | 1.0 | no clear effect |  |
-| 1243 | Shadow Power | 14 | Class | — | innate spell: Shadow Blast (rank 5) | −0.07 ± 0.05 | −0.12 | −0.02 | 1.0 | no clear effect |  |
-| 1244 | Apprentice Sea Witch | 5 | Ancestry | — | innate spell: Create Water (rank 1), Hydraulic Push (rank 1) | −0.07 ± 0.03 | −0.09 | −0.05 | 1.0 | hurts |  |
-| 1245 | Stalwart Defender Dedication | 2 | Class | — | Tenacious Stance: PF2e's stance Effect | −0.07 ± 0.04 | +0.02 | −0.16 | 0.0 | no clear effect | the AI never used it |
-| 1246 | Lesson of Mutual Gambits | 8 | Class | — | check | −0.07 ± 0.06 | +0.19 | −0.32 | 5.1 | no clear effect |  |
-| 1247 | Decree of Execution | 18 | Class | — | save | −0.07 ± 0.03 | +0.00 | −0.14 | 1.0 | hurts |  |
-| 1248 | Daydream Trance | 0 | Action | — | PF2e's self Effect | −0.07 ± 0.04 | −0.05 | −0.08 | 1.0 | no clear effect |  |
-| 1249 | Enter Spirit Trance | 0 | Action | — | PF2e's self Effect | −0.07 ± 0.04 | −0.05 | −0.08 | 1.0 | no clear effect |  |
-| 1250 | Flash of Omnipresence | 14 | Class | — | save | −0.07 ± 0.06 | −0.07 | −0.06 | 1.0 | no clear effect |  |
-| 1251 | Sapping Symbol | 12 | Class | cleric | check | −0.07 ± 0.05 | −0.00 | −0.14 | 2.9 | no clear effect |  |
-| 1252 | Zombie Horde (Necromancer) | 6 | Class | — | focus spell: Zombie Horde (rank 3) | −0.07 ± 0.04 | −0.09 | −0.04 | 3.3 | no clear effect |  |
-| 1253 | Campfire Chronicler Dedication | 2 | Class | — | Offer Story: effect | −0.07 ± 0.05 | +0.02 | −0.16 | 0.0 | no clear effect | the AI never used it |
-| 1254 | Reclaimant Plea | 12 | Class | — | innate spells: Air Walk (rank 4), Planar Tether (rank 4), Unfettered Movement (rank 4), Invisibility (rank 2), Cleanse Affliction (rank 2), Holy Light (rank 3), Death Ward (rank 14), Flame Strike (rank 5), Sunburst (rank 18) | −0.07 ± 0.06 | −0.10 | −0.04 | 1.0 | no clear effect |  |
-| 1255 | Dueling Parry | 2 | Class | fighter | PF2e's self Effect | −0.07 ± 0.05 | −0.06 | −0.07 | 2.0 | no clear effect | with a one-handed weapon and a free hand |
-| 1256 | Underwater Volcano | 17 | Ancestry | — | innate spell: Volcanic Eruption (rank 7) | −0.07 ± 0.04 | −0.08 | −0.06 | 1.0 | no clear effect |  |
-| 1257 | Soothing Pulse | 4 | Class | — | Administer Ambient Magic: check | −0.07 ± 0.04 | −0.11 | −0.03 | 0.0 | no clear effect | the AI never used it |
-| 1258 | Crimson Shroud | 6 | Class | — | PF2e's self Effect | −0.07 ± 0.04 | −0.12 | −0.02 | 1.0 | no clear effect |  |
-| 1259 | Come and Get Me | 10 | Class | barbarian | off-guard and +2 damage taken while raging; foes that hit it off-guard to it, temporary Hit Points as it hits them back | −0.07 ± 0.05 | −0.05 | −0.09 | 1.7 | no clear effect |  |
-| 1260 | Disciple's Breath | 16 | Class | — | save | −0.07 ± 0.05 | −0.11 | −0.03 | 2.4 | no clear effect |  |
-| 1261 | Puncture Flesh | 0 | Action | — | check | −0.07 ± 0.04 | −0.10 | −0.04 | 1.8 | no clear effect |  |
-| 1262 | Grapple | 0 | Action | — | check | −0.07 ± 0.04 | −0.10 | −0.04 | 1.8 | no clear effect |  |
-| 1263 | Viper Strike | 9 | Ancestry | — | Strike activity | −0.07 ± 0.03 | −0.00 | −0.14 | 2.2 | hurts |  |
-| 1264 | Wave Spiral | 12 | Class | monk | check (in Reflective Ripple Stance) | −0.07 ± 0.09 | −0.05 | −0.09 | 1.0 | no clear effect |  |
-| 1265 | Stoney Skin | 4 | Class | — | PF2e rules (always on) | −0.07 ± 0.04 | −0.05 | −0.09 | 0.0 | no clear effect | the AI never used it |
-| 1266 | Mortification | 4 | Class | — | PF2e rules (always on) | −0.07 ± 0.04 | −0.05 | −0.09 | 0.0 | no clear effect | the AI never used it |
-| 1267 | Waking Dream | 8 | Class | — | innate spell: Waking Dream (rank 4) | −0.07 ± 0.06 | +0.01 | −0.16 | 1.0 | no clear effect |  |
-| 1268 | Flash Your Badge | 10 | Class | — | check | −0.07 ± 0.06 | +0.02 | −0.17 | 2.8 | no clear effect |  |
-| 1269 | Greater Deathly Secrets | 10 | Class | — | innate spells: Malignant Sustenance (rank 4), Grasping Grave (rank 5) | −0.07 ± 0.05 | −0.12 | −0.03 | 1.6 | no clear effect |  |
-| 1270 | Plane-Stepping Dash | 1 | Ancestry | — | effect | −0.07 ± 0.04 | −0.05 | −0.09 | 2.0 | no clear effect |  |
-| 1271 | Xidao Sea Mine Drop | 6 | Class | inventor | save | −0.07 ± 0.09 | −0.05 | −0.10 | 4.1 | no clear effect |  |
-| 1272 | Invoke the Crimson Oath | 8 | Class | — | innate spell: Invoke the Crimson Oath (rank 2) | −0.07 ± 0.04 | −0.04 | −0.11 | 0.9 | no clear effect |  |
-| 1273 | Tributary Circulation | 4 | Class | monk | +2 to Will saves for a round | −0.07 ± 0.07 | −0.10 | −0.05 | 3.2 | no clear effect |  |
-| 1274 | Majestic Presence | 13 | Ancestry | — | inline save: 20-foot emanation, will (DC 32) | −0.07 ± 0.03 | −0.12 | −0.03 | 1.3 | hurts |  |
-| 1275 | Advanced Elemental Spell | 6 | Class | druid | innate spells: Combustion (rank 3), Stone Lance (rank 3), Powerful Inhalation (rank 3), Pulverizing Cascade (rank 3) | −0.07 ± 0.06 | −0.09 | −0.06 | 2.5 | no clear effect |  |
-| 1276 | Split Spellstrike | 10 | Class | magus | 2 Strikes | −0.07 ± 0.07 | −0.04 | −0.11 | 3.7 | no clear effect | with two weapons (longsword and shortsword) |
-| 1277 | Shield the Faithful | 14 | Class | — | PF2e's self Effect | −0.08 ± 0.06 | −0.03 | −0.12 | 1.0 | no clear effect |  |
-| 1278 | Meditate on This! | 14 | Class | barbarian | save | −0.08 ± 0.07 | −0.00 | −0.15 | 3.8 | no clear effect |  |
-| 1279 | Sniper's Aim | 6 | Class | gunslinger | Strike activity | −0.08 ± 0.05 | −0.04 | −0.11 | 5.9 | no clear effect |  |
-| 1280 | Dragon Roar | 6 | Class | monk | save (in Dragon Stance) | −0.08 ± 0.04 | −0.10 | −0.06 | 0.3 | hurts |  |
-| 1281 | Repel Ambient Magic | 0 | Action | — | PF2e's self Effect | −0.08 ± 0.05 | −0.09 | −0.06 | 2.1 | no clear effect |  |
-| 1282 | Tremor | 1 | Class | kineticist | save | −0.08 ± 0.04 | −0.11 | −0.05 | 2.2 | no clear effect |  |
-| 1283 | Duelist's Challenge | 4 | Class | — | +its weapon dice damage on its Strikes (1 action, the fight) | −0.08 ± 0.06 | −0.17 | +0.01 | 1.0 | no clear effect |  |
-| 1284 | Unending Emptiness | 14 | Class | — | innate spell: Darklight (rank 7) | −0.08 ± 0.04 | −0.05 | −0.11 | 0.8 | hurts |  |
-| 1285 | Unfaltering Ranks | 17 | Ancestry | — | check | −0.08 ± 0.05 | −0.08 | −0.08 | 3.1 | no clear effect |  |
-| 1286 | Divine Declaration | 17 | Ancestry | — | innate spell: Divine Decree (rank 7) | −0.08 ± 0.05 | −0.11 | −0.05 | 1.0 | no clear effect |  |
-| 1287 | Breath of Calamity | 17 | Ancestry | — | innate spell: Chain Lightning (rank 7) | −0.08 ± 0.05 | −0.10 | −0.06 | 1.0 | no clear effect |  |
-| 1288 | Incredible Ricochet | 12 | Class | fighter | a ranged press Strike ignoring concealment and cover | −0.08 ± 0.05 | −0.12 | −0.03 | 8.3 | no clear effect | with a loaded arquebus |
-| 1289 | Stonestrike Stance | 0 | Action | — | PF2e's self Effect | −0.08 ± 0.04 | −0.05 | −0.11 | 1.0 | no clear effect |  |
-| 1290 | Targeting Finisher | 10 | Class | swashbuckler | Strike activity | −0.08 ± 0.03 | −0.11 | −0.06 | 5.3 | hurts |  |
-| 1291 | Howling Aspect | 1 | Ancestry | — | PF2e's self Effect | −0.08 ± 0.04 | −0.05 | −0.11 | 1.0 | no clear effect |  |
-| 1292 | Fiendish Brand | 6 | Class | — | Strike activity | −0.08 ± 0.04 | −0.15 | −0.02 | 2.5 | hurts |  |
-| 1293 | Warped Reflection | 1 | Ancestry | — | save | −0.08 ± 0.04 | −0.01 | −0.15 | 1.0 | hurts |  |
-| 1294 | Idol Threat | 13 | Ancestry | — | check | −0.08 ± 0.04 | −0.09 | −0.08 | 3.9 | hurts |  |
-| 1295 | Calculate Threats | 0 | Action | psychic | PF2e's self Effect | −0.08 ± 0.04 | −0.15 | −0.01 | 2.2 | hurts |  |
-| 1296 | Multitalented | 9 | Ancestry | — | Barbarian Dedication: Rage (+2 damage with its Greatsword) | −0.08 ± 0.05 | −0.15 | −0.01 | 1.0 | no clear effect |  |
-| 1297 | Ultimatum of Liberation | 0 | Action | — | save | −0.08 ± 0.04 | −0.03 | −0.13 | 1.0 | hurts |  |
-| 1298 | Wrath of the Hold | 8 | Class | — | inline save: 30-foot cone, will, 4d6 spirit (DC 24) | −0.08 ± 0.05 | −0.03 | −0.13 | 2.0 | no clear effect |  |
-| 1299 | Seven-Colored Cosmic Bridge | 18 | Class | exemplar | Fleeting Arc through Heaven and Earth: inline save: 60-foot cone, fortitude, 9d6 spirit (DC 38) | −0.08 ± 0.04 | −0.07 | −0.10 | 1.3 | hurts |  |
-| 1300 | Stonebound Magic | 6 | Class | — | innate spell: Scatter Scree (rank 3), One with Stone (rank 8), Shape Stone (rank 10), Wall of Stone (rank 12) | −0.09 ± 0.04 | −0.09 | −0.08 | 2.0 | no clear effect |  |
-| 1301 | Feast | 4 | Class | — | check | −0.09 ± 0.03 | −0.13 | −0.04 | 1.8 | hurts |  |
-| 1302 | Rallying Cry | 17 | Ancestry | — | its text's self buff (TempHP 17) | −0.09 ± 0.04 | −0.12 | −0.05 | 1.0 | no clear effect |  |
-| 1303 | Lead by Example | 8 | Class | — | Strike activity | −0.09 ± 0.04 | −0.04 | −0.13 | 6.8 | hurts |  |
-| 1304 | Backup Runic Enhancement | 1 | Class | — | innate spells: Sigil (rank 1), Runic Body (rank 1), Runic Weapon (rank 1) | −0.09 ± 0.07 | +0.12 | −0.29 | 1.0 | no clear effect |  |
-| 1305 | Storming Gaze | 5 | Ancestry | — | inline save: 15-foot cone, reflex, 3d4 fire (DC 21) | −0.09 ± 0.03 | −0.12 | −0.05 | 1.6 | hurts |  |
-| 1306 | Ocean's Balm | 1 | Class | kineticist | impulse heal: 1d8 (30 feet) | −0.09 ± 0.04 | −0.07 | −0.11 | 2.7 | hurts |  |
-| 1307 | Hail of Splinters | 1 | Class | kineticist | save | −0.09 ± 0.03 | −0.11 | −0.07 | 0.5 | hurts |  |
-| 1308 | Enervating Wail | 6 | Class | — | save | −0.09 ± 0.03 | −0.13 | −0.04 | 1.0 | hurts |  |
-| 1309 | Fade Into Daydreams | 0 | Action | psychic | check | −0.09 ± 0.04 | −0.16 | −0.01 | 1.9 | hurts |  |
-| 1310 | Corpse Tender's Font | 4 | Class | — | innate spell: Harm (rank 1) | −0.09 ± 0.05 | −0.06 | −0.12 | 1.0 | no clear effect |  |
-| 1311 | Evangelize | 7 | Skill | — | check | −0.09 ± 0.03 | −0.06 | −0.12 | 2.1 | hurts |  |
-| 1312 | Kitsune Spell Expertise | 13 | Ancestry | — | innate spells: Confusion (rank 4), Death Ward (rank 5), Illusory Scene (rank 5) | −0.09 ± 0.04 | −0.11 | −0.06 | 1.0 | hurts |  |
-| 1313 | Threatening Pursuit | 13 | Ancestry | — | check | −0.09 ± 0.04 | −0.11 | −0.07 | 3.9 | hurts |  |
-| 1314 | Alloy Flesh and Steel | 14 | Class | kineticist | PF2e's self Effect | −0.09 ± 0.10 | −0.09 | −0.09 | 1.0 | no clear effect |  |
-| 1315 | Daring Act | 6 | Class | — | check | −0.09 ± 0.04 | −0.07 | −0.11 | 2.4 | hurts |  |
-| 1316 | Targeting Shot | 14 | Class | ranger | a ranged press Strike ignoring concealment and cover | −0.09 ± 0.07 | +0.00 | −0.18 | 13.2 | no clear effect |  |
-| 1317 | Starlit Sentinel Dedication | 2 | Class | — | Starlit Transformation: PF2e's self Effect | −0.09 ± 0.04 | +0.04 | −0.22 | 0.0 | hurts | the AI never used it |
-| 1318 | Tidal Hands | 1 | Class | kineticist | save | −0.09 ± 0.03 | −0.13 | −0.05 | 0.8 | hurts |  |
-| 1319 | Topple Foe | 10 | Class | — | check | −0.09 ± 0.04 | −0.01 | −0.18 | 4.6 | hurts |  |
-| 1320 | Kneecap | 5 | Ancestry | — | Strike activity | −0.09 ± 0.02 | −0.08 | −0.11 | 5.8 | hurts |  |
-| 1321 | Kitsune Spell Mysteries | 5 | Ancestry | — | innate spell: Bane (rank 1), Illusory Object (rank 1), Sanctuary (rank 1) | −0.09 ± 0.03 | −0.09 | −0.09 | 3.3 | hurts |  |
-| 1322 | Tranquil Sanctuary | 5 | Ancestry | — | innate spell: Sanctuary (rank 1) | −0.09 ± 0.03 | −0.09 | −0.09 | 3.3 | hurts |  |
-| 1323 | Shard Strike | 1 | Class | kineticist | inline save: 15-foot cone, reflex, 1d6 slashing (DC 17) | −0.09 ± 0.03 | −0.15 | −0.03 | 0.7 | hurts |  |
-| 1324 | Rivethun Invoker Dedication | 2 | Class | — | Enter Spirit Trance: PF2e's self Effect | −0.09 ± 0.05 | +0.00 | −0.19 | 0.0 | hurts | the AI never used it |
-| 1325 | Herald's Strike | 20 | Class | — | save | −0.09 ± 0.07 | +0.08 | −0.27 | 3.3 | no clear effect |  |
-| 1326 | Stone Brawler Dedication | 2 | Class | — | Stonestrike Stance: PF2e's self Effect | −0.09 ± 0.05 | +0.00 | −0.19 | 1.0 | hurts |  |
-| 1327 | Ursine Avenger Form | 2 | Class | — | PF2e's self Effect | −0.09 ± 0.05 | +0.00 | −0.19 | 1.0 | hurts |  |
-| 1328 | Offer Story | 0 | Action | — | effect | −0.09 ± 0.05 | −0.09 | −0.10 | 4.2 | no clear effect |  |
-| 1329 | Swirl Crimson Shroud | 0 | Action | — | PF2e's self Effect | −0.09 ± 0.05 | −0.09 | −0.10 | 2.1 | no clear effect |  |
-| 1330 | Hydraulic Deflection | 1 | Ancestry | — | PF2e's self Effect | −0.09 ± 0.05 | −0.09 | −0.10 | 2.1 | no clear effect |  |
-| 1331 | Ceremony of Protection | 1 | Ancestry | — | its text's self buff (FlatModifier ac 1) | −0.09 ± 0.05 | −0.09 | −0.10 | 1.9 | no clear effect |  |
-| 1332 | Belly Flop | 10 | Class | guardian | Strike activity | −0.09 ± 0.05 | −0.17 | −0.02 | 10.4 | hurts |  |
-| 1333 | Renewed Vigor | 8 | Class | barbarian | its text's self buff (TempHP 4) | −0.10 ± 0.06 | +0.05 | −0.24 | 1.0 | no clear effect |  |
-| 1334 | Avenger of Gluttony | 14 | Class | — | Gluttonous Feast: save | −0.10 ± 0.05 | −0.15 | −0.04 | 0.0 | no clear effect | the AI never used it |
-| 1335 | Mind Shards | 6 | Class | — | save | −0.10 ± 0.03 | −0.11 | −0.08 | 0.9 | hurts |  |
-| 1336 | Elite Dracomancer | 13 | Ancestry | — | innate spell: Clairvoyance (rank 3), Paralyze (rank 3) | −0.10 ± 0.04 | −0.14 | −0.05 | 1.0 | hurts |  |
-| 1337 | Restitch | 17 | Ancestry | — | innate spell: Regenerate (rank 7) | −0.10 ± 0.05 | −0.12 | −0.08 | 1.0 | hurts |  |
-| 1338 | Regrowth | 17 | Ancestry | — | innate spell: Regenerate (rank 7) | −0.10 ± 0.05 | −0.12 | −0.08 | 1.0 | hurts |  |
-| 1339 | Nodal Regeneration | 17 | Ancestry | — | innate spell: Regenerate (rank 7) | −0.10 ± 0.05 | −0.12 | −0.08 | 1.0 | hurts |  |
-| 1340 | Compliant Gold | 12 | Class | exemplar | Topple the Pillar of Heaven: inline save: 60-foot line, reflex, 6d8 untyped (DC 31) | −0.10 ± 0.06 | −0.08 | −0.12 | 3.6 | no clear effect |  |
-| 1341 | Venomous Touch | 12 | Class | — | innate spell: Purple Worm Sting (rank 6) | −0.10 ± 0.06 | −0.13 | −0.07 | 1.0 | no clear effect |  |
-| 1342 | Penetrating Shot | 10 | Class | ranger | a Strike at up to 2 foes | −0.10 ± 0.04 | +0.00 | −0.20 | 3.3 | hurts |  |
-| 1343 | Frightening Power | 12 | Class | — | save | −0.10 ± 0.07 | −0.34 | +0.14 | 11.7 | no clear effect |  |
-| 1344 | Shadow's Assault | 13 | Ancestry | — | innate spell: Shadow Blast (rank 5) | −0.10 ± 0.03 | −0.11 | −0.09 | 1.0 | hurts |  |
-| 1345 | Hurricane Swing | 17 | Ancestry | — | innate spells: Lightning Bolt (rank 3), Gust of Wind (rank 1) | −0.10 ± 0.04 | −0.07 | −0.13 | 2.0 | hurts |  |
-| 1346 | Stoney Deflection | 6 | Class | — | effect (in Stonestrike Stance) | −0.10 ± 0.05 | −0.03 | −0.17 | 2.0 | no clear effect |  |
-| 1347 | Searing Restoration | 2 | Class | inventor | heals 1d10 (touch) | −0.10 ± 0.04 | −0.09 | −0.11 | 2.8 | hurts |  |
-| 1348 | Mummy's Despair | 6 | Class | — | each enemy within 30 feet saves (will, DC 22) or is frightened (2 actions, once a fight) | −0.10 ± 0.04 | −0.18 | −0.02 | 1.0 | hurts |  |
-| 1349 | Repair Module | 9 | Ancestry | — | PF2e's self Effect | −0.10 ± 0.05 | −0.16 | −0.04 | 1.0 | hurts |  |
-| 1350 | Tidal Shield | 17 | Ancestry | — | PF2e's self Effect | −0.10 ± 0.04 | −0.14 | −0.07 | 1.0 | hurts |  |
-| 1351 | Overwhelming Blow | 16 | Class | fighter | Strike activity | −0.10 ± 0.06 | −0.05 | −0.16 | 4.5 | no clear effect |  |
-| 1352 | Frightful Moan | 4 | Class | — | inline save: 30-foot emanation, will (DC 20, 1/fight) | −0.10 ± 0.03 | −0.16 | −0.05 | 0.3 | hurts |  |
-| 1353 | Ponpoko-Pon! | 13 | Ancestry | — | inline save: 30-foot cone, fortitude, 7d4 sonic (DC 32) | −0.10 ± 0.03 | −0.10 | −0.11 | 1.3 | hurts |  |
-| 1354 | Jotun's Grasp | 5 | Ancestry | — | check | −0.10 ± 0.03 | −0.16 | −0.05 | 2.1 | hurts |  |
-| 1355 | Manifold Conduit | 12 | Class | — | innate spell: Entreat the Many (rank 6) | −0.10 ± 0.06 | −0.22 | +0.01 | 1.0 | no clear effect |  |
-| 1356 | Doom of Sailors | 17 | Ancestry | — | save | −0.11 ± 0.05 | −0.14 | −0.07 | 1.0 | hurts |  |
-| 1357 | Velstrac Magic | 9 | Ancestry | — | innate spell: Telekinetic Maneuver (rank 2), Web (rank 2) | −0.11 ± 0.03 | −0.02 | −0.19 | 1.0 | hurts |  |
-| 1358 | Scarlet Strands | 9 | Ancestry | — | innate spell: Web (rank 4) | −0.11 ± 0.03 | −0.02 | −0.19 | 1.0 | hurts |  |
-| 1359 | Wyldsinger | 4 | Class | — | innate spell: Menacing Lament (rank 2), Valiant Anthem (rank 2) | −0.11 ± 0.04 | −0.12 | −0.09 | 1.0 | hurts |  |
-| 1360 | Avenging Runelord Dedication | 12 | Class | — | innate spells: Darkvision (rank 2), Mystic Armor (rank 1), Runic Body (rank 1), Runic Weapon (rank 1), See the Unseen (rank 2), Sending (rank 5), Truesight (rank 6) | −0.11 ± 0.06 | −0.08 | −0.13 | 1.0 | no clear effect |  |
-| 1361 | Worm's Feast | 6 | Class | — | save | −0.11 ± 0.05 | −0.15 | −0.06 | 1.0 | hurts |  |
-| 1362 | Impossible Flurry | 18 | Class | ranger | 3 Strikes | −0.11 ± 0.07 | −0.15 | −0.06 | 4.3 | no clear effect | with two weapons (longsword and shortsword) |
-| 1363 | Shattering Strike (Monk) | 16 | Class | monk | Strike activity | −0.11 ± 0.10 | +0.02 | −0.24 | 11.0 | no clear effect |  |
-| 1364 | Boulder Roll | 5 | Ancestry | — | save | −0.11 ± 0.03 | −0.15 | −0.07 | 2.3 | hurts |  |
-| 1365 | Twinned Defense (Fighter) | 16 | Class | fighter | effect | −0.11 ± 0.06 | −0.14 | −0.08 | 1.0 | no clear effect |  |
-| 1366 | Mobile Finisher | 12 | Class | swashbuckler | Strike activity | −0.11 ± 0.04 | −0.02 | −0.20 | 2.1 | hurts |  |
-| 1367 | Eternity-Incinerating Blaze | 18 | Class | exemplar | Burn out of Time: heals 5d8 (touch) | −0.11 ± 0.04 | −0.13 | −0.09 | 1.8 | hurts |  |
-| 1368 | Demoralize | 0 | Action | — | check | −0.11 ± 0.04 | −0.01 | −0.21 | 1.7 | hurts |  |
-| 1369 | Haunting Visage | 0 | Action | — | check | −0.11 ± 0.04 | −0.01 | −0.21 | 1.7 | hurts |  |
-| 1370 | Terrifying Croak | 1 | Ancestry | — | check | −0.11 ± 0.04 | −0.01 | −0.21 | 1.8 | hurts |  |
-| 1371 | Sudden Terror | 1 | Ancestry | — | check | −0.11 ± 0.04 | −0.01 | −0.21 | 1.8 | hurts |  |
-| 1372 | Conductive Sphere | 8 | Class | kineticist | save | −0.11 ± 0.09 | −0.17 | −0.05 | 5.5 | no clear effect |  |
-| 1373 | Hypnotic Lure | 5 | Ancestry | — | inline save: 1 creature, 30 feet, will (DC 21, 1/fight) | −0.11 ± 0.03 | −0.16 | −0.06 | 1.2 | hurts |  |
-| 1374 | Extravagant Parry | 1 | Class | swashbuckler | its text's self buff (FlatModifier ac 1) | −0.11 ± 0.05 | −0.07 | −0.15 | 2.2 | hurts |  |
-| 1375 | Buckler Dance | 10 | Class | swashbuckler | stance: its buckler always raised | −0.11 ± 0.05 | −0.08 | −0.14 | 1.0 | hurts |  |
-| 1376 | Aerial Boomerang | 1 | Class | kineticist | save | −0.11 ± 0.05 | −0.18 | −0.05 | 2.2 | hurts |  |
-| 1377 | Shattershields | 12 | Class | kineticist | its text's self buff (FlatModifier ac 1) | −0.11 ± 0.06 | −0.13 | −0.10 | 1.0 | no clear effect |  |
-| 1378 | Shackles of Law | 0 | Bonus | — | Strike activity | −0.11 ± 0.05 | −0.11 | −0.12 | 2.1 | hurts |  |
-| 1379 | Zombie Dedication | 2 | Class | — | PF2e rules (always on) | −0.11 ± 0.04 | −0.11 | −0.11 | 0.0 | hurts | the AI never used it |
-| 1380 | Waters of Creation | 10 | Class | oracle | check | −0.11 ± 0.06 | −0.14 | −0.09 | 2.3 | no clear effect |  |
-| 1381 | Reprisal of the Fallen | 18 | Class | — | innate spells: Invoke Spirits (rank 9), Wails of the Damned (rank 9) | −0.11 ± 0.06 | −0.27 | +0.05 | 2.0 | no clear effect |  |
-| 1382 | Tidal Wave | 16 | Class | — | 2 Strikes | −0.11 ± 0.06 | +0.01 | −0.23 | 3.9 | no clear effect |  |
-| 1383 | Basic Hunter's Trick | 4 | Class | — | Hunter's Aim: Strike activity | −0.11 ± 0.08 | −0.08 | −0.14 | 0.0 | no clear effect | the AI never used it |
-| 1384 | Triple Time | 4 | Class | bard | innate spell: Triple Time (rank 2) | −0.11 ± 0.05 | −0.10 | −0.12 | 12.7 | hurts |  |
-| 1385 | Tail Spin | 5 | Ancestry | — | check | −0.11 ± 0.03 | −0.13 | −0.10 | 2.3 | hurts |  |
-| 1386 | Defend Summoner | 4 | Class | summoner | its text's self buff (FlatModifier ac 2) | −0.12 ± 0.07 | −0.12 | −0.11 | 2.9 | no clear effect |  |
-| 1387 | Strident Command | 10 | Class | — | innate spell: Command (rank 1) | −0.12 ± 0.05 | −0.11 | −0.12 | 1.5 | hurts |  |
-| 1388 | Dueling Dance (Swashbuckler) | 10 | Class | swashbuckler | PF2e's stance Effect | −0.12 ± 0.05 | −0.07 | −0.16 | 1.0 | hurts |  |
-| 1389 | Necrotic Bomber | 4 | Class | — | innate spell: Necrotic Bomb (rank 1) | −0.12 ± 0.04 | −0.10 | −0.13 | 1.0 | hurts |  |
-| 1390 | Ka Stone Ritual | 4 | Class | — | casts Enlarge (rank 2, DC 20, 1/fight) | −0.12 ± 0.05 | −0.11 | −0.12 | 1.0 | hurts |  |
-| 1391 | Metallic Skin | 17 | Ancestry | — | PF2e's self Effect | −0.12 ± 0.05 | −0.11 | −0.13 | 1.0 | hurts |  |
-| 1392 | Mountain Stronghold | 6 | Class | monk | effect (in Mountain Stance) | −0.12 ± 0.07 | −0.01 | −0.23 | 7.6 | no clear effect |  |
-| 1393 | Raise Symbol | 4 | Class | cleric | self effect | −0.12 ± 0.04 | −0.21 | −0.04 | 3.5 | hurts |  |
-| 1394 | Supernatural Charm | 5 | Ancestry | — | innate spell: Charm (rank 1) | −0.12 ± 0.03 | −0.19 | −0.05 | 1.1 | hurts |  |
-| 1395 | Devilish Wiles | 5 | Ancestry | — | innate spell: Charm (rank 1) | −0.12 ± 0.03 | −0.19 | −0.05 | 1.1 | hurts |  |
-| 1396 | Enthralling Allure | 5 | Ancestry | — | innate spell: Charm (rank 1) | −0.12 ± 0.03 | −0.19 | −0.05 | 1.1 | hurts |  |
-| 1397 | Dragon Prince | 9 | Ancestry | — | innate spell: Dragon Breath (rank 3) | −0.12 ± 0.04 | −0.13 | −0.11 | 1.0 | hurts |  |
-| 1398 | Webslinger | 13 | Ancestry | — | casts Web (rank 2, DC 32, 1/fight) | −0.12 ± 0.03 | −0.09 | −0.15 | 1.0 | hurts |  |
-| 1399 | Harden Flesh | 10 | Class | druid | resistance to physical damage until its next turn | −0.12 ± 0.05 | −0.00 | −0.24 | 3.3 | hurts |  |
-| 1400 | Friendly Nudge | 1 | Ancestry | — | check | −0.12 ± 0.03 | −0.13 | −0.12 | 0.8 | hurts |  |
-| 1401 | Celestial Cacophony | 12 | Class | inventor | save | −0.12 ± 0.07 | −0.09 | −0.15 | 1.4 | no clear effect |  |
-| 1402 | Swamp Gas Form | 13 | Ancestry | — | innate spell: Vapor Form (rank 4) | −0.13 ± 0.04 | −0.17 | −0.08 | 1.0 | hurts |  |
-| 1403 | Pounce Mimicry | 14 | Class | — | Strike activity | −0.13 ± 0.06 | −0.04 | −0.22 | 4.2 | hurts |  |
-| 1404 | Starlit Spells | 10 | Class | — | innate spells: Revealing Light (rank 3), Holy Light (rank 3) | −0.13 ± 0.05 | −0.13 | −0.12 | 2.0 | hurts |  |
-| 1405 | Become as Shadow | 17 | Ancestry | — | PF2e's self Effect | −0.13 ± 0.04 | −0.16 | −0.10 | 1.0 | hurts |  |
-| 1406 | Alluring Performance | 9 | Ancestry | — | check | −0.13 ± 0.04 | −0.10 | −0.16 | 1.0 | hurts |  |
-| 1407 | Thunder Clap | 6 | Class | — | inline save: 15-foot cone, fortitude, 3d6 sonic (DC 22) | −0.13 ± 0.04 | −0.16 | −0.10 | 1.7 | hurts |  |
-| 1408 | Intimidating Strike | 2 | Class | barbarian | Strike activity | −0.13 ± 0.04 | −0.05 | −0.22 | 2.3 | hurts |  |
-| 1409 | Vicious Evisceration | 18 | Class | barbarian | Strike activity | −0.13 ± 0.06 | −0.13 | −0.14 | 4.7 | hurts |  |
-| 1410 | Tears of Pearl | 9 | Ancestry | — | save | −0.13 ± 0.05 | −0.07 | −0.19 | 1.0 | hurts |  |
-| 1411 | Devastating Spellstrike | 4 | Class | magus | check | −0.13 ± 0.09 | −0.03 | −0.23 | 2.7 | no clear effect |  |
-| 1412 | Trickster Tengu | 17 | Ancestry | — | innate spells: Aerial Form (rank 4), Cursed Metamorphosis (rank 7) | −0.13 ± 0.05 | −0.20 | −0.06 | 1.0 | hurts |  |
-| 1413 | Part the Veil | 0 | Action | — | check | −0.13 ± 0.05 | −0.12 | −0.15 | 1.0 | hurts |  |
-| 1414 | Empathic Calm | 5 | Ancestry | — | innate spells: Calm (rank 2), Sanctuary (rank 3) | −0.13 ± 0.04 | −0.24 | −0.03 | 5.7 | hurts |  |
-| 1415 | Burn out of Time | 0 | Action | — | heals 5d8 (touch) | −0.13 ± 0.03 | −0.12 | −0.15 | 0.8 | hurts |  |
-| 1416 | Shove | 0 | Action | — | check | −0.13 ± 0.04 | −0.11 | −0.16 | 0.9 | hurts | with a one-handed weapon and a free hand |
-| 1417 | Storyteller's Mask | 20 | Class | druid | innate spell: Foresight (rank 9) | −0.13 ± 0.07 | −0.03 | −0.24 | 4.2 | no clear effect |  |
-| 1418 | Veil Dancer Dedication | 2 | Class | — | Part the Veil: check | −0.13 ± 0.05 | +0.02 | −0.29 | 0.0 | hurts | the AI never used it |
-| 1419 | Nocturnal Kindred | 4 | Class | — | innate spell: Animal Allies (rank 1) | −0.14 ± 0.04 | −0.21 | −0.06 | 1.0 | hurts |  |
-| 1420 | Debilitating Dichotomy | 8 | Class | oracle | save | −0.14 ± 0.05 | −0.07 | −0.20 | 2.8 | hurts |  |
-| 1421 | Poisoner's Twist | 4 | Class | — | check | −0.14 ± 0.04 | −0.08 | −0.20 | 5.8 | hurts |  |
-| 1422 | Flickering Twirl | 12 | Class | — | check | −0.14 ± 0.06 | −0.15 | −0.13 | 3.7 | hurts |  |
-| 1423 | Heroes' Call | 9 | Ancestry | — | innate spell: Heroism (rank 3) | −0.14 ± 0.04 | −0.09 | −0.19 | 1.0 | hurts |  |
-| 1424 | Mentor of Legends | 9 | Ancestry | — | innate spell: Heroism (rank 5) | −0.14 ± 0.04 | −0.09 | −0.19 | 1.0 | hurts |  |
-| 1425 | Channel Divine Spark | 14 | Class | — | PF2e's self Effect | −0.14 ± 0.06 | −0.00 | −0.27 | 1.0 | hurts |  |
-| 1426 | Shaitan Magic | 9 | Ancestry | — | innate spells: Revealing Light (rank 2), Resist Energy (rank 2) | −0.14 ± 0.04 | −0.22 | −0.06 | 1.0 | hurts |  |
-| 1427 | Celestial Magic | 9 | Ancestry | — | innate spells: Clear Mind (rank 2), Everlight (rank 2), Humanoid Form (rank 2), Revealing Light (rank 2), Share Life (rank 2), Sure Footing (rank 2) | −0.14 ± 0.04 | −0.22 | −0.06 | 1.0 | hurts |  |
-| 1428 | First World Adept | 9 | Ancestry | — | innate spell: Invisibility (rank 2), Revealing Light (rank 2) | −0.14 ± 0.04 | −0.22 | −0.06 | 1.0 | hurts |  |
-| 1429 | Valkyrie's Charge | 0 | Action | commander | check | −0.14 ± 0.05 | −0.11 | −0.16 | 0.7 | hurts |  |
-| 1430 | Courageous Onslaught | 16 | Class | bard | Strike activity | −0.14 ± 0.03 | −0.06 | −0.22 | 3.9 | hurts |  |
-| 1431 | Dragonet Breath | 1 | Ancestry | — | save | −0.14 ± 0.03 | −0.23 | −0.05 | 0.7 | hurts |  |
-| 1432 | Earth to Heavens Strike | 14 | Class | — | Strike activity | −0.14 ± 0.06 | −0.14 | −0.14 | 4.0 | hurts |  |
-| 1433 | Storming Breath | 6 | Class | — | inline save: 30-foot cone, reflex, 4d6 untyped (DC 22) | −0.14 ± 0.04 | −0.22 | −0.07 | 1.5 | hurts |  |
-| 1434 | Unfettered Growth | 13 | Ancestry | — | innate spell: Enlarge (rank 2) | −0.14 ± 0.04 | −0.19 | −0.10 | 1.0 | hurts |  |
-| 1435 | Stridulating Song | 0 | Action | — | save | −0.14 ± 0.04 | −0.10 | −0.18 | 1.0 | hurts |  |
-| 1436 | Perfect Ki Grandmaster | 18 | Class | — | innate spells: Unblinking Flame Ignition (rank 9), Unbreaking Wave Containment (rank 9), Unfolding Wind Crash (rank 9), Untwisting Iron Pillar (rank 9) | −0.14 ± 0.05 | −0.25 | −0.04 | 2.0 | hurts |  |
-| 1437 | Impaling Bone | 17 | Ancestry | — | innate spell: Impaling Spike (rank 7) | −0.14 ± 0.05 | −0.22 | −0.07 | 1.0 | hurts |  |
-| 1438 | Edict of Mortality | 8 | Class | — | check | −0.14 ± 0.06 | −0.02 | −0.27 | 2.8 | hurts |  |
-| 1439 | Majestic Proclamation | 8 | Class | — | check | −0.14 ± 0.06 | −0.02 | −0.27 | 2.8 | hurts |  |
-| 1440 | Walk the Plank | 8 | Class | — | check | −0.14 ± 0.06 | −0.02 | −0.27 | 2.8 | hurts |  |
-| 1441 | Font of Life or Death | 16 | Class | — | innate spells: Heal (rank 1), Harm (rank 8) | −0.14 ± 0.07 | −0.18 | −0.11 | 2.0 | hurts |  |
-| 1442 | Pointed Question | 0 | Action | investigator | check | −0.14 ± 0.06 | −0.01 | −0.28 | 2.6 | hurts |  |
-| 1443 | Armored Courage | 4 | Class | guardian | PF2e's self Effect | −0.15 ± 0.05 | −0.22 | −0.07 | 1.0 | hurts |  |
-| 1444 | Lightning Rod | 6 | Class | kineticist | check | −0.15 ± 0.09 | +0.02 | −0.31 | 4.3 | no clear effect |  |
-| 1445 | Disturbing Knowledge | 7 | Skill | — | check | −0.15 ± 0.04 | −0.13 | −0.17 | 2.4 | hurts |  |
-| 1446 | Unyielding Force | 20 | Class | guardian | PF2e rules (always on) | −0.15 ± 0.05 | +0.02 | −0.31 | 0.0 | hurts | the AI never used it |
-| 1447 | Breath of the Dragon (Dragonblood) | 1 | Ancestry | — | save | −0.15 ± 0.03 | −0.18 | −0.12 | 0.8 | hurts |  |
-| 1448 | Kobold Breath | 1 | Ancestry | — | save | −0.15 ± 0.03 | −0.18 | −0.12 | 1.2 | hurts |  |
-| 1449 | Blessed Sentinel | 6 | Class | — | Strike activity | −0.15 ± 0.04 | −0.18 | −0.11 | 2.4 | hurts |  |
-| 1450 | Fleet Tempo | 4 | Class | — | effect | −0.15 ± 0.05 | −0.14 | −0.15 | 2.0 | hurts |  |
-| 1451 | Sleepwalker Dedication | 4 | Class | — | Daydream Trance: PF2e's self Effect | −0.15 ± 0.06 | −0.28 | −0.02 | 0.0 | hurts | the AI never used it |
-| 1452 | Jinx | 0 | Action | — | save | −0.15 ± 0.04 | −0.09 | −0.20 | 1.0 | hurts |  |
-| 1453 | Dragon Breath | 0 | Action | — | inline save: 30-foot cone, reflex, 1d6 untyped (DC 17, 1/fight) | −0.15 ± 0.04 | −0.14 | −0.16 | 0.8 | hurts |  |
-| 1454 | Begin Stampede | 17 | Ancestry | — | Strike activity | −0.15 ± 0.04 | −0.07 | −0.23 | 2.7 | hurts |  |
-| 1455 | Flinging Blow | 16 | Class | monk | Strike activity | −0.15 ± 0.10 | −0.00 | −0.30 | 6.3 | no clear effect |  |
-| 1456 | Night's Glow | 6 | Class | — | innate spells: Moonbeam (rank 1), Zenith Star (rank 1) | −0.15 ± 0.05 | −0.17 | −0.14 | 1.0 | hurts |  |
-| 1457 | Efreeti Magic | 9 | Ancestry | — | innate spell: Enlarge (rank 2), Illusory Object (rank 2) | −0.15 ± 0.04 | −0.12 | −0.18 | 1.0 | hurts |  |
-| 1458 | Towering Growth | 9 | Ancestry | — | innate spell: Enlarge (rank 2) | −0.15 ± 0.04 | −0.12 | −0.18 | 1.0 | hurts |  |
-| 1459 | Legendary Size | 9 | Ancestry | — | innate spells: Enlarge (rank 2), Shrink (rank 2) | −0.15 ± 0.04 | −0.12 | −0.18 | 1.0 | hurts |  |
-| 1460 | Janni Magic | 9 | Ancestry | — | innate spell: Enlarge (rank 2), Speak with Animals (rank 2) | −0.15 ± 0.04 | −0.12 | −0.18 | 1.0 | hurts |  |
-| 1461 | Crone's Cruelty | 17 | Ancestry | — | innate spell: Warp Mind (rank 7) | −0.15 ± 0.05 | −0.26 | −0.04 | 1.0 | hurts |  |
-| 1462 | Perfect Ki Adept | 6 | Class | — | innate spells: Unblinking Flame Revelation (rank 3), Unbreaking Wave Advance (rank 3), Unfolding Wind Rush (rank 3), Untwisting Iron Buffer (rank 3) | −0.15 ± 0.05 | −0.09 | −0.22 | 2.0 | hurts |  |
-| 1463 | Chain of Words | 10 | Class | — | save | −0.15 ± 0.06 | −0.13 | −0.18 | 1.0 | hurts |  |
-| 1464 | Divine Invulnerability | 14 | Class | — | PF2e's self Effect | −0.16 ± 0.06 | −0.02 | −0.29 | 1.0 | hurts |  |
-| 1465 | Immortal Lightness | 4 | Class | — | focus spell: Athletic Rush (rank 2) | −0.16 ± 0.06 | −0.28 | −0.03 | 1.0 | hurts |  |
-| 1466 | Forceful Shot | 14 | Class | — | Strike activity | −0.16 ± 0.04 | −0.18 | −0.13 | 5.3 | hurts |  |
-| 1467 | Kinetic Dampening | 6 | Class | — | its text's self buff (Resistance physical 5) | −0.16 ± 0.05 | −0.15 | −0.16 | 2.7 | hurts |  |
-| 1468 | Haft Striker Stance | 4 | Class | fighter | stance | −0.16 ± 0.06 | −0.30 | −0.02 | 1.2 | hurts |  |
-| 1469 | Godspeed | 4 | Class | — | PF2e's self Effect | −0.16 ± 0.06 | −0.28 | −0.03 | 1.0 | hurts |  |
-| 1470 | Meteoric Spellstrike | 10 | Class | magus | check | −0.16 ± 0.07 | +0.03 | −0.35 | 3.7 | hurts | with a loaded arquebus |
-| 1471 | Staggering Fire | 6 | Class | — | Strike activity | −0.16 ± 0.04 | −0.18 | −0.13 | 7.5 | hurts |  |
-| 1472 | Claw Stance | 0 | Action | — | PF2e's stance Effect | −0.16 ± 0.04 | −0.20 | −0.12 | 1.1 | hurts |  |
-| 1473 | Adamantine Mantra | 13 | Ancestry | — | innate spell: Blessing of Defiance (rank 5) | −0.16 ± 0.04 | −0.20 | −0.12 | 1.0 | hurts |  |
-| 1474 | Drag Down | 5 | Ancestry | — | check | −0.16 ± 0.03 | −0.19 | −0.13 | 1.8 | hurts |  |
-| 1475 | Steal for the Depths | 5 | Ancestry | — | check | −0.16 ± 0.03 | −0.19 | −0.13 | 1.8 | hurts |  |
-| 1476 | Pistol Twirl | 2 | Class | gunslinger | check | −0.16 ± 0.03 | −0.14 | −0.18 | 1.8 | hurts |  |
-| 1477 | Might of the Realm | 14 | Class | — | Strike activity | −0.16 ± 0.06 | −0.19 | −0.13 | 4.6 | hurts |  |
-| 1478 | Pistol Phenom Dedication | 2 | Class | — | Pistol Twirl: check | −0.16 ± 0.03 | −0.14 | −0.18 | 0.0 | hurts | the AI never used it |
-| 1479 | Disarming Assault | 8 | Class | barbarian | Strike activity | −0.16 ± 0.05 | −0.11 | −0.22 | 3.9 | hurts |  |
-| 1480 | Talon Stance | 0 | Action | — | PF2e's stance Effect | −0.16 ± 0.05 | −0.18 | −0.14 | 1.1 | hurts |  |
-| 1481 | Blazing Talon Surge | 6 | Class | monk | Strike activity (in Rain of Embers Stance) | −0.16 ± 0.06 | −0.14 | −0.18 | 2.1 | hurts |  |
-| 1482 | Bone Swarm | 17 | Ancestry | — | save | −0.16 ± 0.05 | −0.29 | −0.04 | 1.0 | hurts |  |
-| 1483 | Deny the Songs of War | 10 | Class | — | innate spells: Deafness (rank 4), Silence (rank 4) | −0.16 ± 0.05 | −0.17 | −0.16 | 1.0 | hurts |  |
-| 1484 | Five-Gods Ram | 12 | Class | monk | Strike activity (in Rushing Goat Stance) | −0.16 ± 0.07 | +0.06 | −0.39 | 2.7 | hurts |  |
-| 1485 | Stand Back, I'm A Doctor! | 12 | Class | — | save | −0.16 ± 0.06 | +0.03 | −0.36 | 3.3 | hurts |  |
-| 1486 | Viking Vindicator | 8 | Class | — | Sudden Charge: Strike activity | −0.16 ± 0.04 | −0.04 | −0.29 | 0.0 | hurts | the AI never used it |
-| 1487 | Furnace Form | 12 | Class | kineticist | PF2e's self Effect | −0.16 ± 0.11 | −0.21 | −0.12 | 1.0 | no clear effect |  |
-| 1488 | Flower Street Infamy | 11 | Skill | — | check | −0.17 ± 0.04 | −0.05 | −0.28 | 3.7 | hurts |  |
-| 1489 | Death of Hope | 17 | Ancestry | — | save | −0.17 ± 0.05 | −0.20 | −0.13 | 1.0 | hurts |  |
-| 1490 | Venipuncture | 10 | Class | — | save | −0.17 ± 0.05 | −0.14 | −0.19 | 1.5 | hurts |  |
-| 1491 | Sheltering Pulse | 8 | Class | — | +1 AC to allies near it for 3 rounds, the PC and its allies within 15 feet | −0.17 ± 0.06 | −0.09 | −0.24 | 20.5 | hurts |  |
-| 1492 | Draconic Resilience | 4 | Class | — | effect | −0.17 ± 0.04 | −0.27 | −0.06 | 6.0 | hurts |  |
-| 1493 | Twin Parry | 4 | Class | fighter | effect | −0.17 ± 0.04 | −0.27 | −0.06 | 2.8 | hurts |  |
-| 1494 | Vengeful Strike | 14 | Class | barbarian | reaction Strike (hit) (in Come and Get Me) | −0.17 ± 0.07 | −0.16 | −0.17 | 0.2 | hurts |  |
-| 1495 | Terrorize | 9 | Ancestry | — | innate spell: Fear (rank 3) | −0.17 ± 0.04 | −0.14 | −0.20 | 1.0 | hurts |  |
-| 1496 | Dracomancer | 9 | Ancestry | — | innate spell: Fear (rank 1), Invisibility (rank 2) | −0.17 ± 0.04 | −0.14 | −0.20 | 1.0 | hurts |  |
-| 1497 | Ferocious Gust | 9 | Ancestry | — | save | −0.17 ± 0.04 | −0.17 | −0.17 | 1.0 | hurts |  |
-| 1498 | Blood Shield | 4 | Class | — | its text's self buff (FlatModifier ac 1) | −0.17 ± 0.04 | −0.27 | −0.07 | 2.9 | hurts |  |
-| 1499 | Vigilant Benediction | 12 | Class | — | innate spells: Unfettered Movement (rank 4), Cleanse Affliction (rank 2), Resist Energy (rank 2), Spell Immunity (rank 4), Status (rank 2), Oaken Resilience (rank 2), Fire Shield (rank 4), Mountain Resilience (rank 4), Mystic Armor (rank 1), Wall of Fire (rank 14) | −0.17 ± 0.06 | −0.15 | −0.19 | 1.7 | hurts |  |
-| 1500 | Sheltering Wing | 9 | Ancestry | — | PF2e's self Effect | −0.17 ± 0.05 | −0.28 | −0.06 | 3.6 | hurts |  |
-| 1501 | Draconic Fury | 4 | Class | — | save | −0.17 ± 0.04 | −0.27 | −0.07 | 1.5 | hurts |  |
-| 1502 | You Can't Keep Us Down | 14 | Class | — | check | −0.17 ± 0.05 | −0.23 | −0.12 | 1.0 | hurts |  |
-| 1503 | Ulfen Guard Dedication | 2 | Class | — | Designate Ally: its Effect on an ally within 30 feet | −0.17 ± 0.05 | +0.09 | −0.43 | 0.0 | hurts | the AI never used it |
-| 1504 | Hellish Impression | 0 | Action | — | innate spell: Charm (rank 1) | −0.17 ± 0.04 | −0.12 | −0.22 | 1.6 | hurts |  |
-| 1505 | Mask of Power | 5 | Ancestry | — | innate spells: Fear (rank 1), Phantom Pain (rank 1), Sure Strike (rank 1) | −0.17 ± 0.04 | −0.18 | −0.16 | 2.9 | hurts |  |
-| 1506 | Remember Their Names | 16 | Class | — | save | −0.17 ± 0.07 | −0.05 | −0.30 | 4.6 | hurts |  |
-| 1507 | Raise Slabs | 0 | Action | — | save | −0.18 ± 0.05 | −0.13 | −0.22 | 1.0 | hurts |  |
-| 1508 | Flensing Slice | 8 | Class | — | check | −0.18 ± 0.06 | +0.22 | −0.57 | 8.9 | hurts |  |
-| 1509 | Shield Warden | 6 | Class | champion | Shield Block for an adjacent ally (reaction) | −0.18 ± 0.06 | −0.20 | −0.16 | 0.1 | hurts |  |
-| 1510 | Primal Proportions | 6 | Class | — | innate spell: Enlarge (rank 2) | −0.18 ± 0.05 | −0.17 | −0.18 | 1.0 | hurts |  |
-| 1511 | Slam Down | 4 | Class | fighter | Strike activity | −0.18 ± 0.05 | −0.29 | −0.06 | 2.7 | hurts |  |
-| 1512 | Share Rage | 8 | Class | barbarian | effect | −0.18 ± 0.06 | +0.03 | −0.39 | 8.0 | hurts |  |
-| 1513 | False Priest Form | 5 | Ancestry | — | innate spells: Divine Lance (rank 3), Haunting Hymn (rank 3) | −0.18 ± 0.03 | −0.28 | −0.08 | 2.5 | hurts |  |
-| 1514 | Sun Blade | 4 | Class | champion | innate spell: Sun Blade (rank 2) | −0.18 ± 0.05 | −0.09 | −0.27 | 1.0 | hurts |  |
-| 1515 | Scarred Hide | 14 | Class | — | PF2e rules (always on) | −0.18 ± 0.04 | −0.24 | −0.12 | 0.0 | hurts | the AI never used it |
-| 1516 | Cantorian Rejuvenation | 9 | Ancestry | — | PF2e's self Effect | −0.18 ± 0.05 | −0.19 | −0.17 | 1.0 | hurts |  |
-| 1517 | Ironblood Surge | 14 | Class | monk | +1 AC and its Strength as resistance for a round (in Ironblood Stance) | −0.18 ± 0.09 | −0.15 | −0.21 | 5.7 | no clear effect |  |
-| 1518 | Djinni Magic | 9 | Ancestry | — | innate spell: Gust of Wind (rank 1), Invisibility (rank 2) | −0.18 ± 0.04 | −0.21 | −0.16 | 1.0 | hurts |  |
-| 1519 | Electrogenesis | 6 | Class | — | save | −0.19 ± 0.05 | −0.22 | −0.15 | 1.0 | hurts |  |
-| 1520 | Knockback Strike | 10 | Class | monk | Strike activity | −0.19 ± 0.05 | −0.20 | −0.17 | 4.2 | hurts |  |
-| 1521 | Spirit's Wrath | 12 | Class | barbarian | check | −0.19 ± 0.08 | +0.03 | −0.41 | 10.3 | hurts |  |
-| 1522 | Homing Shot | 14 | Class | — | a ranged Strike ignoring concealment and cover | −0.19 ± 0.06 | −0.18 | −0.19 | 14.0 | hurts | with a loaded arquebus |
-| 1523 | Decree of War | 18 | Class | — | Strike activity | −0.19 ± 0.05 | −0.09 | −0.29 | 2.3 | hurts |  |
-| 1524 | On Borrowed Time | 10 | Class | oracle | inline save: 1 creature, 30 feet, will, 3d6 mental (DC 29) | −0.19 ± 0.05 | −0.04 | −0.34 | 3.1 | hurts |  |
-| 1525 | Nagaji Spell Mysteries | 5 | Ancestry | — | innate spells: Charm (rank 1), Fleet Step (rank 1), Heal (rank 1) | −0.19 ± 0.04 | −0.21 | −0.18 | 2.5 | hurts |  |
-| 1526 | Dominating Gaze | 16 | Class | — | innate spell: Dominate (rank 7) | −0.19 ± 0.07 | −0.27 | −0.12 | 1.0 | hurts |  |
-| 1527 | Cycle Spell | 4 | Class | — | innate spells: Bless (rank 1), Infuse Vitality (rank 1), Heal (rank 1) | −0.19 ± 0.05 | −0.11 | −0.28 | 1.9 | hurts |  |
-| 1528 | Infernal Interference | 16 | Class | — | Strike activity | −0.20 ± 0.06 | −0.17 | −0.22 | 4.8 | hurts |  |
-| 1529 | Subjugation | 16 | Class | — | save | −0.20 ± 0.06 | −0.08 | −0.31 | 3.0 | hurts |  |
-| 1530 | Resounding Blow | 10 | Class | barbarian | Strike activity | −0.20 ± 0.06 | −0.10 | −0.29 | 4.4 | hurts | with a warhammer and a free hand |
-| 1531 | Trip | 0 | Action | — | check | −0.20 ± 0.05 | −0.20 | −0.19 | 2.0 | hurts | with a one-handed weapon and a free hand |
-| 1532 | Methodical Magic | 9 | Ancestry | — | innate spells: Calm (rank 2), Dispel Magic (rank 2), Lock (rank 1), Mending (rank 1), Shape Wood (rank 2), Translate (rank 2) | −0.20 ± 0.04 | −0.23 | −0.16 | 1.6 | hurts |  |
-| 1533 | Megavolt | 6 | Class | inventor | inline save: 20-foot line, reflex, 3d4 electricity (DC 22) | −0.20 ± 0.08 | −0.02 | −0.37 | 3.3 | hurts |  |
-| 1534 | Opportunistic Grapple | 8 | Class | — | check | −0.20 ± 0.05 | −0.20 | −0.19 | 4.1 | hurts |  |
-| 1535 | Submission Hold | 8 | Class | — | check | −0.20 ± 0.05 | −0.20 | −0.19 | 4.0 | hurts |  |
-| 1536 | Staff Sweep | 6 | Class | — | check | −0.20 ± 0.04 | −0.23 | −0.17 | 2.6 | hurts |  |
-| 1537 | Animal Magic | 9 | Ancestry | — | innate spell: Animal Messenger (rank 2), Calm (rank 2), Speak with Animals (rank 2) | −0.20 ± 0.04 | −0.24 | −0.16 | 1.5 | hurts |  |
-| 1538 | Agathion Magic | 9 | Ancestry | — | innate spell: Animal Form (rank 2), Calm (rank 2) | −0.20 ± 0.04 | −0.24 | −0.16 | 1.5 | hurts |  |
-| 1539 | Ceremony of Aeon's Guidance | 9 | Ancestry | — | innate spell: Augury (rank 2), Calm (rank 2) | −0.20 ± 0.04 | −0.24 | −0.16 | 1.5 | hurts |  |
-| 1540 | Archer's Aim | 8 | Class | — | Strike activity | −0.20 ± 0.06 | −0.26 | −0.14 | 7.2 | hurts |  |
-| 1541 | Confusing Commands | 16 | Class | commander | save | −0.20 ± 0.10 | +0.10 | −0.51 | 4.5 | hurts |  |
-| 1542 | Tempo Duelist | 16 | Class | — | concealed for a round | −0.20 ± 0.06 | −0.24 | −0.16 | 4.9 | hurts |  |
-| 1543 | Touch of the Sea | 1 | Ancestry | — | innate spells: Gale Blast (rank 1), Spout (rank 1) | −0.21 ± 0.05 | −0.24 | −0.17 | 2.1 | hurts |  |
-| 1544 | Extract Element | 0 | Action | kineticist | save | −0.21 ± 0.05 | −0.20 | −0.21 | 6.1 | hurts |  |
-| 1545 | Annihilating Swing | 20 | Class | barbarian | Strike activity | −0.21 ± 0.07 | −0.10 | −0.31 | 10.2 | hurts |  |
-| 1546 | Fly on Shadowed Wings | 10 | Class | animist | PF2e's self Effect | −0.21 ± 0.05 | −0.14 | −0.28 | 1.0 | hurts |  |
-| 1547 | Analyze Weakness | 6 | Class | rogue | +2d6 precision on its next sneak attack (1 action) | −0.21 ± 0.05 | −0.32 | −0.11 | 4.5 | hurts |  |
-| 1548 | Kaiju's Footfalls | 13 | Ancestry | — | innate spell: Enlarge (rank 2) | −0.21 ± 0.04 | −0.26 | −0.17 | 2.0 | hurts |  |
-| 1549 | Abrasive Drag | 12 | Class | — | check | −0.22 ± 0.06 | −0.07 | −0.36 | 3.8 | hurts |  |
-| 1550 | Beast Gunner Dedication | 6 | Class | — | cantrip: Electric Arc (rank 3, DC 18) | −0.22 ± 0.05 | −0.27 | −0.17 | 2.6 | hurts |  |
-| 1551 | Eldritch Archer Dedication | 6 | Class | — | cantrip: Electric Arc (rank 3, DC 18) | −0.22 ± 0.05 | −0.27 | −0.17 | 2.6 | hurts |  |
-| 1552 | Stomp Ground | 6 | Class | guardian | inline save: 5-foot emanation, reflex, 1d6 bludgeoning (DC 22) | −0.22 ± 0.06 | −0.37 | −0.06 | 2.7 | hurts |  |
-| 1553 | Wheedle and Jig | 9 | Ancestry | — | innate spell: Enthrall (rank 3) | −0.22 ± 0.04 | −0.21 | −0.22 | 1.0 | hurts |  |
-| 1554 | Breath Like Honey | 9 | Ancestry | — | innate spell: Enthrall (rank 3) | −0.22 ± 0.04 | −0.21 | −0.22 | 1.0 | hurts |  |
-| 1555 | Natural Magnetism | 9 | Ancestry | — | innate spell: Magnetic Attraction (rank 2), Magnetic Repulsion (rank 2), Enthrall (rank 2) | −0.22 ± 0.04 | −0.21 | −0.22 | 1.0 | hurts |  |
-| 1556 | Captivating Curiosity | 9 | Ancestry | — | innate spell: Enthrall (rank 3) | −0.22 ± 0.04 | −0.21 | −0.22 | 1.0 | hurts |  |
-| 1557 | Aldori Parry | 4 | Class | — | self effect | −0.22 ± 0.05 | −0.36 | −0.08 | 2.9 | hurts |  |
-| 1558 | Fabricate Truth | 4 | Class | — | check | −0.22 ± 0.05 | −0.17 | −0.27 | 2.9 | hurts |  |
-| 1559 | Wiles on the Wind | 12 | Class | kineticist | save | −0.22 ± 0.08 | −0.12 | −0.32 | 4.3 | hurts |  |
-| 1560 | Weft and Warp | 16 | Class | — | Strike activity | −0.22 ± 0.05 | +0.02 | −0.46 | 2.8 | hurts |  |
-| 1561 | Marid Magic | 9 | Ancestry | — | innate spell: Hydraulic Push (rank 1), Mist (rank 2) | −0.23 ± 0.04 | −0.31 | −0.14 | 1.0 | hurts |  |
-| 1562 | Fiendish Magic | 9 | Ancestry | — | innate spells: Disguise Magic (rank 1), False Vitality (rank 2), Invisibility (rank 2), See the Unseen (rank 2), Shatter (rank 2), Paranoia (rank 2) | −0.23 ± 0.05 | −0.21 | −0.24 | 1.0 | hurts |  |
-| 1563 | The Dead Walk | 10 | Class | oracle | check | −0.23 ± 0.06 | −0.10 | −0.35 | 3.2 | hurts |  |
-| 1564 | Heavy is the Crown | 0 | Action | — | inline save: 15-foot burst, will, 1 spirit (DC 17) | −0.23 ± 0.04 | −0.23 | −0.23 | 1.9 | hurts |  |
-| 1565 | Drain Emotion | 9 | Ancestry | — | its text's self buff (TempHP 9) | −0.23 ± 0.05 | −0.22 | −0.24 | 1.0 | hurts |  |
-| 1566 | Benevolent Spirit Deck | 6 | Class | — | effect | −0.23 ± 0.05 | −0.31 | −0.15 | 5.5 | hurts |  |
-| 1567 | The Tyrant Falls! | 20 | Class | — | self effect | −0.23 ± 0.06 | −0.22 | −0.24 | 1.0 | hurts |  |
-| 1568 | Storm's Lash | 1 | Ancestry | — | innate spell: Electric Arc (rank 1) | −0.23 ± 0.05 | −0.25 | −0.21 | 2.1 | hurts |  |
-| 1569 | Virga May | 1 | Ancestry | — | innate spell: Electric Arc (rank 1) | −0.23 ± 0.05 | −0.25 | −0.21 | 2.1 | hurts |  |
-| 1570 | Fey Influence | 5 | Ancestry | — | innate spells: Grim Tendrils (rank 1), Pest Form (rank 1), Ill Omen (rank 1), Summon Plant or Fungus (rank 1), Fleet Step (rank 1), Bane (rank 1), Spider Sting (rank 1), Heal (rank 1) | −0.23 ± 0.04 | −0.33 | −0.13 | 2.7 | hurts |  |
-| 1571 | Warning Shot | 2 | Class | gunslinger | check | −0.23 ± 0.06 | −0.19 | −0.28 | 2.7 | hurts |  |
-| 1572 | Night's Shine | 12 | Class | — | innate spells: Asterism (rank 4), Touch of the Moon (rank 4) | −0.23 ± 0.06 | −0.20 | −0.26 | 3.5 | hurts |  |
-| 1573 | Burning Spell | 6 | Class | — | Burning Spell copies of 2 spells | −0.23 ± 0.05 | −0.20 | −0.27 | 2.0 | hurts |  |
-| 1574 | Thunderclap Spell | 10 | Class | druid | Thunderclap Spell copies of 4 spells | −0.24 ± 0.05 | −0.12 | −0.35 | 3.5 | hurts |  |
-| 1575 | Primal Roar | 0 | Action | — | check | −0.24 ± 0.05 | −0.11 | −0.36 | 1.3 | hurts |  |
-| 1576 | Threatening Approach | 0 | Action | — | check | −0.24 ± 0.05 | −0.11 | −0.36 | 1.3 | hurts |  |
-| 1577 | Buzzing Death Cicadas | 12 | Class | — | Death Drone: save | −0.24 ± 0.06 | −0.24 | −0.23 | 0.0 | hurts | the AI never used it |
-| 1578 | Dragon Spit | 1 | Ancestry | — | innate spells: Acid Splash (rank 1), Electric Arc (rank 1), Ignition (rank 1), Ray of Frost (rank 1) | −0.24 ± 0.05 | −0.28 | −0.20 | 2.1 | hurts |  |
-| 1579 | Dirty Trick | 1 | Skill | — | check | −0.24 ± 0.04 | −0.07 | −0.41 | 1.6 | hurts |  |
-| 1580 | Icy Influence | 1 | Ancestry | — | innate spell: Frostbite (rank 1) | −0.24 ± 0.05 | −0.26 | −0.22 | 2.1 | hurts |  |
-| 1581 | Arcane Tattoos | 1 | Ancestry | — | innate spells: Shield (rank 1), Tangle Vine (rank 1), Daze (rank 1), Electric Arc (rank 1), Ghost Sound (rank 1), Void Warp (rank 1), Sigil (rank 1) | −0.24 ± 0.05 | −0.25 | −0.23 | 2.1 | hurts |  |
-| 1582 | Thaumaturge Dedication | 2 | Class | — | Glimpse Vulnerability: effect | −0.24 ± 0.05 | +0.00 | −0.49 | 0.0 | hurts | the AI never used it |
-| 1583 | Spirit of the Blade | 6 | Class | — | +1d6 spirit on its next melee Strike (1 action) | −0.24 ± 0.05 | −0.29 | −0.20 | 4.9 | hurts |  |
-| 1584 | Whirling Throw | 6 | Class | monk | check | −0.25 ± 0.05 | −0.19 | −0.30 | 6.6 | hurts |  |
-| 1585 | Stranglehold | 9 | Ancestry | — | check | −0.25 ± 0.05 | −0.16 | −0.33 | 9.7 | hurts |  |
-| 1586 | Sonic Dash | 2 | Class | — | inline save: 5-foot emanation, fortitude, 1d4 sonic (DC 18) | −0.25 ± 0.04 | −0.33 | −0.16 | 4.3 | hurts |  |
-| 1587 | Reactive Tangle | 4 | Class | — | check | −0.25 ± 0.04 | −0.31 | −0.19 | 2.6 | hurts |  |
-| 1588 | Lingering Chill | 4 | Class | — | innate spell: Frostbite (rank 2) | −0.25 ± 0.05 | −0.23 | −0.27 | 2.7 | hurts |  |
-| 1589 | Hamstringing Strike | 8 | Class | ranger | Strike activity | −0.25 ± 0.07 | −0.45 | −0.05 | 17.5 | hurts |  |
-| 1590 | Dizzying Spell | 14 | Class | wizard | Dizzying Spell copies of 6 spells | −0.25 ± 0.06 | −0.20 | −0.30 | 4.6 | hurts |  |
-| 1591 | Scrap Barricade | 6 | Class | kineticist | save | −0.25 ± 0.10 | −0.18 | −0.32 | 4.7 | hurts |  |
-| 1592 | Tactical Takedown | 0 | Action | commander | save | −0.25 ± 0.06 | −0.20 | −0.31 | 2.5 | hurts |  |
-| 1593 | Dokkaebi Fire | 1 | Ancestry | — | innate spell: Ignition (rank 1) | −0.26 ± 0.05 | −0.25 | −0.26 | 1.9 | hurts |  |
-| 1594 | Inner Fire (Naari) | 1 | Ancestry | — | innate spell: Ignition (rank 1) | −0.26 ± 0.05 | −0.25 | −0.26 | 1.9 | hurts |  |
-| 1595 | Mariner's Fire | 1 | Ancestry | — | innate spell: Ignition (rank 1) | −0.26 ± 0.05 | −0.25 | −0.26 | 1.9 | hurts |  |
-| 1596 | Nantambu Chime-Ringer Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
-| 1597 | Sorcerer Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
-| 1598 | Spellshot Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
-| 1599 | Cathartic Mage Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
-| 1600 | Bloodrager Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
-| 1601 | Eldritch Researcher Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
-| 1602 | Runescarred Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
-| 1603 | Wizard Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
-| 1604 | Magus Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.5 | hurts |  |
-| 1605 | Witch Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.5 | hurts |  |
-| 1606 | Druid Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.5 | hurts |  |
-| 1607 | Magaambyan Attendant Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.5 | hurts |  |
-| 1608 | Catchy Tune | 5 | Ancestry | — | check | −0.26 ± 0.04 | −0.19 | −0.32 | 8.8 | hurts |  |
-| 1609 | Form a Flock | 13 | Ancestry | — | PF2e's self Effect | −0.26 ± 0.05 | −0.39 | −0.12 | 1.0 | hurts |  |
-| 1610 | Clobber | 16 | Class | guardian | Strike activity | −0.26 ± 0.07 | −0.36 | −0.16 | 11.7 | hurts |  |
-| 1611 | Sanguivolent Roots | 8 | Class | kineticist | save | −0.27 ± 0.11 | −0.51 | −0.03 | 5.6 | hurts |  |
-| 1612 | Cry of Rebellion | 16 | Class | — | save | −0.27 ± 0.07 | −0.27 | −0.27 | 1.0 | hurts |  |
-| 1613 | Scorching Column | 1 | Class | kineticist | save | −0.27 ± 0.07 | −0.32 | −0.22 | 2.7 | hurts |  |
-| 1614 | Deep Freeze | 12 | Class | inventor | inline save: 1 creature, 60 feet, reflex, 12 cold (DC 31) | −0.27 ± 0.11 | −0.32 | −0.22 | 8.3 | hurts |  |
-| 1615 | Engine of Destruction | 18 | Class | inventor | Strike activity | −0.27 ± 0.09 | −0.26 | −0.28 | 9.8 | hurts |  |
-| 1616 | Elemental Wrath | 1 | Ancestry | — | innate spell: Acid Splash (rank 1) | −0.27 ± 0.05 | −0.29 | −0.26 | 2.0 | hurts |  |
-| 1617 | Petrifying Gaze Mimicry | 10 | Class | — | save | −0.28 ± 0.06 | −0.25 | −0.30 | 4.1 | hurts |  |
-| 1618 | Grovel | 5 | Ancestry | — | check | −0.28 ± 0.04 | −0.23 | −0.32 | 6.1 | hurts |  |
-| 1619 | Kneel Before the Rightful Heir | 16 | Class | — | save | −0.28 ± 0.07 | −0.29 | −0.27 | 4.5 | hurts |  |
-| 1620 | Nagaji Spell Familiarity | 1 | Ancestry | — | innate spell: Daze (rank 1), Detect Magic (rank 1), Telekinetic Hand (rank 1) | −0.28 ± 0.05 | −0.27 | −0.29 | 2.1 | hurts |  |
-| 1621 | Memory of Nothing | 18 | Class | — | inline save: 1 creature, 30 feet, will, 12d8 mental (DC 38) | −0.29 ± 0.06 | −0.39 | −0.18 | 3.0 | hurts |  |
-| 1622 | Dire Growth | 10 | Class | — | casts Enlarge (rank 5, DC 27) | −0.29 ± 0.05 | −0.27 | −0.31 | 3.5 | hurts |  |
-| 1623 | Holy Light | 10 | Class | champion | save | −0.29 ± 0.06 | −0.18 | −0.40 | 4.8 | hurts |  |
-| 1624 | Magnetic Pinions | 1 | Class | kineticist | impulse attack: 1d4 + 1d4 bludgeoning and piercing (60 feet, attack +7) | −0.29 ± 0.06 | −0.25 | −0.33 | 2.1 | hurts |  |
-| 1625 | Designate Ally | 0 | Action | — | its Effect on an ally within 30 feet | −0.29 ± 0.06 | −0.14 | −0.44 | 7.5 | hurts |  |
-| 1626 | Spinebreaker | 10 | Class | — | check | −0.29 ± 0.05 | −0.33 | −0.25 | 4.2 | hurts |  |
-| 1627 | Ensnaring Wrappings | 10 | Class | — | check | −0.29 ± 0.05 | −0.33 | −0.25 | 4.2 | hurts |  |
-| 1628 | Hell-Lancer Shot | 10 | Class | — | Strike activity | −0.29 ± 0.05 | −0.30 | −0.29 | 7.3 | hurts |  |
-| 1629 | Bloody Denial | 14 | Class | guardian | Strike activity | −0.29 ± 0.06 | −0.33 | −0.26 | 9.5 | hurts |  |
-| 1630 | Armored Rebuff | 8 | Class | — | check | −0.30 ± 0.05 | −0.36 | −0.24 | 4.5 | hurts |  |
-| 1631 | Wing Shove | 8 | Class | — | check | −0.30 ± 0.05 | −0.36 | −0.24 | 3.9 | hurts |  |
-| 1632 | Distracting Spellstrike | 4 | Class | magus | check | −0.30 ± 0.07 | −0.33 | −0.27 | 1.9 | hurts |  |
-| 1633 | Sleeper Hold | 10 | Class | monk | check | −0.30 ± 0.08 | −0.45 | −0.15 | 6.8 | hurts |  |
-| 1634 | Spinning Crush | 0 | Action | gunslinger | save | −0.30 ± 0.05 | −0.26 | −0.34 | 1.3 | hurts |  |
-| 1635 | Mesmerizing Gaze | 6 | Class | — | save | −0.30 ± 0.05 | −0.21 | −0.39 | 3.1 | hurts |  |
-| 1636 | Running Tackle | 8 | Class | — | check | −0.30 ± 0.06 | −0.29 | −0.31 | 3.8 | hurts |  |
-| 1637 | Ghost Wrangler | 4 | Class | barbarian | PF2e's self Effect | −0.30 ± 0.06 | −0.37 | −0.23 | 3.1 | hurts |  |
-| 1638 | Clashing Compound Invocation | 10 | Class | — | save | −0.30 ± 0.07 | −0.40 | −0.20 | 11.4 | hurts |  |
-| 1639 | Molten Wire | 6 | Class | kineticist | impulse attack: 2d6 slashing (15 feet, attack +12) | −0.30 ± 0.09 | −0.36 | −0.24 | 5.1 | hurts |  |
-| 1640 | Guardian Lion Roar | 8 | Class | inventor | inline save: 20-foot line, fortitude, 2d8 sonic (DC 24) | −0.30 ± 0.09 | −0.20 | −0.40 | 4.3 | hurts |  |
-| 1641 | Launch Fireworks | 0 | Action | — | save | −0.30 ± 0.05 | −0.19 | −0.42 | 3.3 | hurts | with a one-handed weapon and a free hand |
-| 1642 | Catrina's Presence | 9 | Ancestry | — | innate spell: Calm (rank 2) | −0.30 ± 0.05 | −0.33 | −0.27 | 2.8 | hurts |  |
-| 1643 | Demolish Defenses | 18 | Class | guardian | save | −0.31 ± 0.06 | −0.44 | −0.17 | 5.1 | hurts |  |
-| 1644 | Clawdancer Dedication | 2 | Class | — | Claw Stance: PF2e's stance Effect | −0.31 ± 0.05 | −0.31 | −0.31 | 1.1 | hurts |  |
-| 1645 | Bard Dedication | 2 | Class | — | cantrip: Void Warp (rank 1, DC 14) | −0.31 ± 0.05 | −0.26 | −0.35 | 2.3 | hurts |  |
-| 1646 | Captivator Dedication | 2 | Class | — | cantrip: Void Warp (rank 1, DC 14) | −0.31 ± 0.05 | −0.26 | −0.35 | 2.3 | hurts |  |
-| 1647 | Ghost Hunter Dedication | 2 | Class | — | cantrip: Void Warp (rank 1, DC 14) | −0.31 ± 0.05 | −0.26 | −0.35 | 2.3 | hurts |  |
-| 1648 | Prophet of Kalistrade Dedication | 2 | Class | — | cantrip: Void Warp (rank 1, DC 14) | −0.31 ± 0.05 | −0.26 | −0.35 | 2.3 | hurts |  |
-| 1649 | Necromancer Dedication | 2 | Class | — | cantrip: Void Warp (rank 1, DC 14) | −0.31 ± 0.05 | −0.26 | −0.35 | 2.5 | hurts |  |
-| 1650 | Plane Step | 9 | Ancestry | — | check | −0.31 ± 0.05 | −0.32 | −0.30 | 2.3 | hurts |  |
-| 1651 | Electrify Armor | 10 | Class | inventor | electricity on who hits it in melee, for a round | −0.31 ± 0.08 | −0.32 | −0.30 | 5.0 | hurts |  |
-| 1652 | Cobra Stance | 4 | Class | monk | PF2e's stance Effect | −0.31 ± 0.09 | −0.47 | −0.16 | 1.0 | hurts |  |
-| 1653 | Wheeling Grab | 6 | Class | — | check | −0.32 ± 0.04 | −0.37 | −0.26 | 2.9 | hurts |  |
-| 1654 | Crown of Rule | 16 | Class | exemplar | Heavy is the Crown: inline save: 15-foot burst, will, 16 spirit (DC 35) | −0.32 ± 0.07 | −0.30 | −0.33 | 0.0 | hurts | the AI never used it |
-| 1655 | Putrefaction | 14 | Class | — | save | −0.32 ± 0.06 | −0.25 | −0.38 | 3.0 | hurts |  |
-| 1656 | Stay Down! | 14 | Class | rogue | check | −0.32 ± 0.07 | −0.27 | −0.37 | 11.2 | hurts |  |
-| 1657 | Parting Shot | 4 | Class | fighter | Strike activity | −0.32 ± 0.06 | −0.38 | −0.26 | 5.0 | hurts | with a bow in hand |
-| 1658 | Deadly Aim | 8 | Class | ranger | Strike activity | −0.32 ± 0.08 | −0.39 | −0.26 | 8.8 | hurts |  |
-| 1659 | Siegebreaker | 0 | Action | gunslinger | its text's self buff (FlatModifier ac 1) | −0.32 ± 0.06 | −0.25 | −0.40 | 2.3 | hurts |  |
-| 1660 | Exaltation Overwhelming | 18 | Class | — | save | −0.33 ± 0.06 | −0.30 | −0.35 | 2.9 | hurts |  |
-| 1661 | Animist Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.1 | hurts |  |
-| 1662 | Infernal Pactbreaker Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.1 | hurts |  |
-| 1663 | Oracle Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.1 | hurts |  |
-| 1664 | Cleric Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.4 | hurts |  |
-| 1665 | Rivethun Involutionist Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.4 | hurts |  |
-| 1666 | Soul Warden Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.4 | hurts |  |
-| 1667 | Glimpse Vulnerability | 0 | Action | — | effect | −0.33 ± 0.05 | −0.05 | −0.60 | 6.0 | hurts |  |
-| 1668 | Buckle-Cut Blitz | 0 | Action | commander | save | −0.33 ± 0.06 | −0.33 | −0.33 | 2.7 | hurts |  |
-| 1669 | Flinging Charge | 10 | Class | fighter | Strike activity | −0.33 ± 0.05 | −0.37 | −0.29 | 3.9 | hurts |  |
-| 1670 | Spiritual Awakening | 4 | Class | — | Spiritual Expansion Spell: widened copies of 3 area spells | −0.33 ± 0.08 | −0.69 | +0.02 | 0.0 | hurts | the AI never used it |
-| 1671 | Hallowed Initiate | 4 | Class | — | innate spell: Call of the Grave (rank 1), Death's Call (rank 1) | −0.33 ± 0.07 | −0.41 | −0.25 | 1.0 | hurts |  |
-| 1672 | Rising Hurricane | 6 | Class | kineticist | save | −0.33 ± 0.10 | −0.48 | −0.19 | 4.4 | hurts |  |
-| 1673 | Starlight Armor | 14 | Class | — | PF2e's self Effect | −0.33 ± 0.06 | −0.27 | −0.40 | 1.0 | hurts |  |
-| 1674 | Propulsive Leap | 10 | Class | — | save | −0.34 ± 0.06 | −0.37 | −0.32 | 10.4 | hurts |  |
-| 1675 | Called Shot | 10 | Class | gunslinger | Strike activity | −0.35 ± 0.05 | −0.34 | −0.35 | 4.5 | hurts |  |
-| 1676 | Storm of Claws | 16 | Class | — | 3 Strikes (in Claw Stance) | −0.35 ± 0.09 | −0.31 | −0.39 | 5.1 | hurts |  |
-| 1677 | Ostilli Host Dedication | 2 | Class | — | Spit Ambient Magic: save | −0.36 ± 0.05 | −0.25 | −0.47 | 0.0 | hurts | the AI never used it |
-| 1678 | Flames of Vision | 13 | Ancestry | — | innate spell: Clairvoyance (rank 4), Ignition (rank 7) | −0.36 ± 0.05 | −0.44 | −0.28 | 4.2 | hurts |  |
-| 1679 | Channeled Protection | 4 | Class | animist | effect | −0.37 ± 0.09 | −0.58 | −0.15 | 17.3 | hurts |  |
-| 1680 | Raise the Walls | 0 | Action | — | effect | −0.37 ± 0.06 | −0.26 | −0.48 | 7.3 | hurts |  |
-| 1681 | Cannonball Fall | 8 | Class | fighter | inline save: 1 creature, 10 feet, reflex (DC 24) | −0.37 ± 0.07 | −0.18 | −0.56 | 11.8 | hurts |  |
-| 1682 | Manipulative Charm | 4 | Class | — | innate spell: Charm (rank 1) | −0.37 ± 0.07 | −0.35 | −0.38 | 1.6 | hurts |  |
-| 1683 | Stupefying Raid | 0 | Action | commander | save | −0.38 ± 0.06 | −0.40 | −0.35 | 2.8 | hurts |  |
-| 1684 | Whirling Knockdown | 14 | Class | — | check | −0.39 ± 0.07 | −0.30 | −0.48 | 5.3 | hurts |  |
-| 1685 | Brain Drain | 8 | Class | psychic | save | −0.39 ± 0.05 | −0.59 | −0.19 | 3.2 | hurts |  |
-| 1686 | Perfect Shot | 18 | Class | ranger | a ranged Strike at maximum damage, then its turn ends (3 actions) | −0.39 ± 0.10 | −0.46 | −0.33 | 7.8 | hurts |  |
-| 1687 | Rend Mimicry | 4 | Class | — | check | −0.39 ± 0.05 | −0.36 | −0.43 | 7.9 | hurts |  |
-| 1688 | Firework Technician Dedication | 2 | Class | — | Launch Fireworks: save | −0.40 ± 0.06 | −0.41 | −0.38 | 0.0 | hurts | with a one-handed weapon and a free hand; the AI never used it |
-| 1689 | Protect the Royal Line | 16 | Class | — | check | −0.40 ± 0.06 | −0.51 | −0.29 | 5.2 | hurts |  |
-| 1690 | Drive Back | 8 | Class | — | check | −0.40 ± 0.06 | −0.47 | −0.33 | 4.3 | hurts | with a weapon and a shield |
-| 1691 | Wing Bounce | 4 | Class | — | check | −0.41 ± 0.07 | −0.43 | −0.38 | 2.5 | hurts |  |
-| 1692 | Hammer Quake | 14 | Class | — | check | −0.43 ± 0.07 | −0.20 | −0.67 | 4.0 | hurts |  |
-| 1693 | Protect Ally | 8 | Class | — | +1 AC to an adjacent ally for a round | −0.43 ± 0.07 | −0.31 | −0.56 | 19.2 | hurts |  |
-| 1694 | Anarchic Arcana | 9 | Ancestry | — | innate spells: Acid Grip (rank 2), Blur (rank 2), Gecko Grip (rank 2), Humanoid Form (rank 2), Illusory Object (rank 1), Laughing Fit (rank 2), Noise Blast (rank 2), Resist Energy (rank 2), See the Unseen (rank 2), Shatter (rank 2), Shrink (rank 2), Telekinetic Maneuver (rank 2) | −0.44 ± 0.05 | −0.62 | −0.26 | 5.3 | hurts |  |
-| 1695 | Kitsune Spell Familiarity | 1 | Ancestry | — | innate spells: Daze (rank 1), Forbidding Ward (rank 1), Ghost Sound (rank 1) | −0.45 ± 0.06 | −0.54 | −0.36 | 4.3 | hurts |  |
-| 1696 | Wing Buffet | 9 | Ancestry | — | check | −0.45 ± 0.05 | −0.58 | −0.33 | 4.4 | hurts |  |
-| 1697 | Fearful Symmetry | 6 | Class | — | save | −0.46 ± 0.06 | −0.56 | −0.37 | 8.3 | hurts |  |
-| 1698 | Infernal Magic | 6 | Class | — | innate spells: Divine Lance (rank 3), Fear (rank 1), Spiritual Armament (rank 2) | −0.47 ± 0.05 | −0.48 | −0.46 | 3.1 | hurts |  |
-| 1699 | Repulse the Wicked | 6 | Class | — | check | −0.50 ± 0.05 | −0.67 | −0.32 | 3.1 | hurts |  |
-| 1700 | Say That Again! | 6 | Skill | — | check | −0.50 ± 0.05 | −0.67 | −0.32 | 3.1 | hurts |  |
-| 1701 | Pain is Temporary | 13 | Ancestry | — | PF2e's self Effect | −0.50 ± 0.05 | −0.63 | −0.37 | 4.6 | hurts |  |
-| 1702 | Fey Ascension | 9 | Ancestry | — | innate spells: Slow (rank 3), Pest Form (rank 4), Charm (rank 1), Sleep (rank 1), Triple Time (rank 5), Mad Monkeys (rank 3) | −0.52 ± 0.05 | −0.41 | −0.62 | 7.3 | hurts |  |
-| 1703 | Mixed Maneuver | 8 | Class | monk | check | −0.52 ± 0.09 | −0.61 | −0.43 | 5.3 | hurts |  |
-| 1704 | Warped Constriction | 8 | Class | — | save | −0.53 ± 0.06 | −0.50 | −0.56 | 11.6 | hurts |  |
-| 1705 | Tamper | 1 | Class | inventor | check | −0.54 ± 0.06 | −0.51 | −0.56 | 7.4 | hurts |  |
-| 1706 | Twist the Knife | 6 | Class | rogue | check | −0.56 ± 0.06 | −0.44 | −0.67 | 8.3 | hurts |  |
-| 1707 | Chastise | 16 | Class | — | inline save: 1 creature, 30 feet, will, 2 spirit (DC 35) | −0.56 ± 0.07 | −0.48 | −0.64 | 5.8 | hurts |  |
-| 1708 | Trample Mimicry | 10 | Class | — | save | −0.56 ± 0.06 | −0.72 | −0.40 | 3.8 | hurts |  |
-| 1709 | Spirit Guide Form | 14 | Class | — | PF2e's self Effect | −0.57 ± 0.06 | −0.63 | −0.50 | 1.0 | hurts |  |
-| 1710 | Silk Bracelet | 6 | Class | inventor | save | −0.57 ± 0.10 | −0.42 | −0.72 | 4.5 | hurts |  |
-| 1711 | Muckraking | 16 | Class | — | save | −0.58 ± 0.08 | −0.54 | −0.63 | 4.2 | hurts |  |
-| 1712 | Perplex | 14 | Class | — | check | −0.58 ± 0.08 | −0.66 | −0.51 | 3.9 | hurts |  |
-| 1713 | Wild Dance | 12 | Class | — | save | −0.58 ± 0.07 | −0.44 | −0.73 | 9.9 | hurts |  |
-| 1714 | Steel Yourself! | 4 | Class | — | its Effect on an ally within 10 feet | −0.59 ± 0.06 | −0.56 | −0.62 | 19.3 | hurts |  |
-| 1715 | Whirling in the Summer Storm | 12 | Class | monk | save (in Twisting Petal Stance) | −0.60 ± 0.10 | −0.49 | −0.70 | 2.9 | hurts |  |
-| 1716 | Catfolk Dance | 1 | Ancestry | — | check | −0.60 ± 0.07 | −0.48 | −0.71 | 6.8 | hurts |  |
-| 1717 | Flying Tackle | 4 | Class | guardian | check | −0.61 ± 0.08 | −0.76 | −0.46 | 3.4 | hurts |  |
-| 1718 | Freeze It! | 9 | Ancestry | — | check | −0.63 ± 0.05 | −0.66 | −0.61 | 11.2 | hurts |  |
-| 1719 | Oversized Throw | 4 | Class | barbarian | PF2e's self Effect | −0.66 ± 0.10 | −0.75 | −0.56 | 4.3 | hurts | with a one-handed weapon and a free hand |
-| 1720 | Dazzling Bullet | 6 | Class | — | check | −0.67 ± 0.06 | −0.60 | −0.73 | 9.4 | hurts |  |
-| 1721 | Vengeful Remnant | 14 | Class | — | PF2e's self Effect | −0.67 ± 0.07 | −0.64 | −0.70 | 5.8 | hurts |  |
-| 1722 | Instant Opening | 14 | Class | rogue | a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action) | −0.68 ± 0.08 | −0.61 | −0.76 | 15.8 | hurts |  |
-| 1723 | Prayer Attack | 14 | Class | — | check | −0.70 ± 0.09 | −0.47 | −0.92 | 15.1 | hurts |  |
-| 1724 | Remote Detonation (Snarecrafter) | 8 | Class | — | inline save: 5-foot emanation, reflex, 1d6 force (DC 24) | −0.71 ± 0.07 | −0.89 | −0.54 | 12.9 | hurts |  |
-| 1725 | Gossamer Blade | 4 | Class | — | check | −0.73 ± 0.06 | −0.73 | −0.73 | 9.3 | hurts |  |
-| 1726 | Upset Balance | 6 | Class | — | check (in Tenacious Stance) | −0.75 ± 0.06 | −0.88 | −0.61 | 8.8 | hurts |  |
-| 1727 | Clear the Way | 6 | Class | — | check | −0.78 ± 0.07 | −1.03 | −0.52 | 3.8 | hurts |  |
-| 1728 | Lesson of the Splintered Aegis | 10 | Class | — | effect | −0.80 ± 0.07 | −0.99 | −0.61 | 28.3 | hurts |  |
-| 1729 | Flourishing Finish | 12 | Class | — | check | −0.82 ± 0.09 | −0.82 | −0.82 | 14.3 | hurts |  |
-| 1730 | One Moment till Glory | 0 | Action | — | effect | −0.87 ± 0.07 | −0.71 | −1.04 | 14.9 | hurts |  |
-| 1731 | Snap Out of It! (Marshal) | 4 | Class | — | effect | −0.89 ± 0.07 | −0.91 | −0.88 | 21.7 | hurts |  |
-| 1732 | Peony's Flourish | 14 | Class | — | check | −0.90 ± 0.10 | −0.50 | −1.31 | 6.7 | hurts |  |
-| 1733 | Impossible Volley | 18 | Class | fighter | Strike activity | −0.91 ± 0.08 | −1.07 | −0.74 | 8.9 | hurts | with a bow in hand |
-| 1734 | Purifying Breeze | 14 | Class | cleric | effect | −0.96 ± 0.09 | −1.16 | −0.77 | 20.6 | hurts |  |
-| 1735 | Dance of the Tiger | 9 | Ancestry | — | check | −0.98 ± 0.08 | −1.32 | −0.65 | 16.4 | hurts |  |
-| 1736 | Dissolution's Sovereignty | 17 | Ancestry | — | innate spell: Duplicate Foe (rank 7) | −1.05 ± 0.06 | +0.00 | −2.09 | 1.0 | hurts |  |
-| 1737 | Reflect Foe | 17 | Ancestry | — | innate spell: Duplicate Foe (rank 7) | −1.05 ± 0.06 | +0.00 | −2.09 | 1.0 | hurts |  |
-| 1738 | Unbalancing Sweep | 12 | Class | barbarian | check | −1.14 ± 0.12 | −1.22 | −1.05 | 4.3 | hurts |  |
-| 1739 | Scattering Charge | 12 | Class | guardian | check | −1.18 ± 0.11 | −1.26 | −1.11 | 4.6 | hurts |  |
-| 1740 | Silencing Strike | 10 | Class | barbarian | save | −1.24 ± 0.11 | −1.73 | −0.74 | 16.8 | hurts |  |
-| 1741 | Thrash | 8 | Class | barbarian | save | −1.26 ± 0.09 | −1.23 | −1.29 | 15.1 | hurts |  |
-| 1742 | Astral Compound Invocation | 12 | Class | — | save | −1.31 ± 0.13 | −1.33 | −1.29 | 15.6 | hurts |  |
-| 1743 | Scattering Shout | 14 | Class | — | inline save: 10-foot emanation, fortitude, 8d6 sonic (DC 33) | −1.39 ± 0.09 | −1.79 | −0.98 | 5.1 | hurts |  |
+| 963 | Phase Out | 6 | Class | summoner | an Effect on an ally | +0.00 ± 0.00 | +0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 964 | Spellmaster's Resilience | 12 | Class | — | PF2e rules (always on) | −0.00 ± 0.00 | −0.00 | +0.00 | 0.0 | no clear effect | always on (its moment isn't checked) |
+| 965 | Soul Oubliette | 20 | Class | — | passive effect (always on) | −0.00 ± 0.00 | −0.00 | +0.00 | 1.0 | no clear effect | always on (its moment isn't checked) |
+| 966 | Arcane Locomotion | 13 | Ancestry | — | PF2e rules (always on) | −0.00 ± 0.00 | −0.00 | −0.00 | 0.0 | no clear effect | the AI never used it |
+| 967 | Smile at Failure | 4 | Class | — | PF2e rules (always on) | −0.00 ± 0.02 | +0.03 | −0.03 | 0.0 | no clear effect | always on (its moment isn't checked) |
+| 968 | Warding Jewel | 5 | Ancestry | — | PF2e rules (always on) | −0.00 ± 0.01 | +0.01 | −0.02 | 0.0 | no clear effect | the AI never used it |
+| 969 | Breath of the Dragon (Dragon Disciple) | 8 | Class | — | innate spell: Dragon Breath (rank 3) | −0.00 ± 0.05 | +0.01 | −0.01 | 1.0 | no clear effect |  |
+| 970 | Shame the Sin | 5 | Ancestry | — | check | −0.00 ± 0.03 | −0.03 | +0.03 | 1.0 | no clear effect |  |
+| 971 | Unbalancing Blow | 2 | Class | rogue | off-guard to the PC after a critical hit (always on) | −0.00 ± 0.01 | −0.01 | +0.00 | 0.6 | no clear effect |  |
+| 972 | Tragic Lament | 18 | Class | — | save | −0.00 ± 0.00 | −0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 973 | Tectonic Stomp | 10 | Class | — | save | −0.00 ± 0.04 | +0.02 | −0.03 | 1.0 | no clear effect |  |
+| 974 | Dashing Strike | 12 | Class | fighter | Strike activity | −0.00 ± 0.03 | +0.01 | −0.01 | 1.7 | no clear effect |  |
+| 975 | Monk Moves | 8 | Class | — | PF2e rules (always on) | −0.00 ± 0.00 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
+| 976 | Weakening Assault | 12 | Class | guardian | 2 Strikes | −0.00 ± 0.04 | −0.02 | +0.02 | 4.4 | no clear effect |  |
+| 977 | Spell Parry | 2 | Class | magus | its text's self buff (FlatModifier ac 1) | −0.00 ± 0.06 | +0.09 | −0.09 | 2.8 | no clear effect | with a one-handed weapon and a free hand |
+| 978 | Serpentcoil Slam | 9 | Ancestry | — | Strike activity | −0.00 ± 0.01 | +0.00 | −0.00 | 1.8 | no clear effect |  |
+| 979 | Fighter Resiliency | 4 | Class | — | 6 more Hit Points | −0.00 ± 0.04 | −0.08 | +0.07 | 0.0 | no clear effect | the AI never used it |
+| 980 | Champion Resiliency | 4 | Class | — | 6 more Hit Points | −0.00 ± 0.04 | −0.08 | +0.07 | 0.0 | no clear effect | the AI never used it |
+| 981 | Exemplar Resiliency | 4 | Class | — | 6 more Hit Points | −0.00 ± 0.04 | −0.08 | +0.07 | 0.0 | no clear effect | the AI never used it |
+| 982 | Twitchy | 1 | Ancestry | — | PF2e rules (always on) | −0.00 ± 0.03 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 983 | Crane Flutter | 6 | Class | monk | reaction Strike (missed) (in Crane Stance) | −0.00 ± 0.00 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
+| 984 | Ghostly Resistance | 4 | Class | — | PF2e rules (always on) | −0.00 ± 0.05 | −0.03 | +0.03 | 0.0 | no clear effect | the AI never used it |
+| 985 | Spinning Stand | 6 | Class | — | 2 Strikes | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 986 | Fiendish Form | 18 | Class | champion | PF2e rules (always on) | −0.00 ± 0.01 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
+| 987 | Celestial Form | 18 | Class | champion | PF2e rules (always on) | −0.00 ± 0.01 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
+| 988 | Walk Through the Conflagration | 14 | Class | kineticist | save | −0.00 ± 0.04 | −0.00 | −0.00 | 0.4 | no clear effect |  |
+| 989 | Furious Finish | 2 | Class | barbarian | Strike activity | −0.00 ± 0.03 | −0.05 | +0.04 | 1.3 | no clear effect |  |
+| 990 | Spirit's Anguish | 8 | Class | — | save | −0.00 ± 0.05 | +0.12 | −0.13 | 2.4 | no clear effect |  |
+| 991 | Rushing Goat Stance | 1 | Class | monk | PF2e's stance Effect | −0.00 ± 0.04 | +0.06 | −0.07 | 1.1 | no clear effect |  |
+| 992 | Gorilla Stance | 1 | Class | monk | PF2e's stance Effect | −0.00 ± 0.04 | +0.06 | −0.07 | 1.1 | no clear effect |  |
+| 993 | Flood Stance | 1 | Class | monk | PF2e's stance Effect | −0.00 ± 0.04 | +0.06 | −0.07 | 1.1 | no clear effect |  |
+| 994 | Unstable Gearshift | 6 | Class | — | self effect | −0.00 ± 0.00 | +0.00 | −0.01 | 2.5 | no clear effect |  |
+| 995 | Perfect Ki Exemplar | 14 | Class | — | innate spells: Unblinking Flame Emblem (rank 7), Unbreaking Wave Barrier (rank 7), Unfolding Wind Blitz (rank 7), Untwisting Iron Augmentation (rank 7) | −0.00 ± 0.03 | +0.00 | −0.01 | 0.7 | no clear effect |  |
+| 996 | Suplex | 4 | Class | — | Strike activity | −0.00 ± 0.01 | −0.01 | +0.00 | 0.2 | no clear effect |  |
+| 997 | Lost in the Crowd | 4 | Class | — | passive effect (always on) | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | always on (its moment isn't checked) |
+| 998 | You're an Embarrassment! | 4 | Class | — | effect | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 999 | Spell Protection Array | 4 | Class | wizard | effect | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1000 | Heroic Defiance | 4 | Class | — | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1001 | Kaiju Defense Oath | 4 | Class | — | save-bonus | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect |  |
+| 1002 | Fane's Escape | 4 | Skill | — | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1003 | Such a Disgrace! | 4 | Class | — | effect | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1004 | Golden Erinys Stance | 4 | Class | — | PF2e's stance Effect | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1005 | Push Back the Dead! | 4 | Class | — | effect | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1006 | Inspiring Marshal Stance | 4 | Class | — | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1007 | Scoundrel's Surprise | 4 | Class | rogue | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1008 | Strategist Stance | 4 | Class | — | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1009 | Ardent Armiger | 4 | Class | — | save-bonus | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect |  |
+| 1010 | Loose Cannon | 4 | Class | — | save | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1011 | Norgorber's Secret | 4 | Class | — | PF2e rules (always on) | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | always on (its moment isn't checked) |
+| 1012 | Bitter Taste of Betrayal | 4 | Class | — | save-bonus | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect |  |
+| 1013 | Fiery Rebirth | 4 | Class | — | save | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1014 | Necromantic Resistance (Undead Slayer) | 4 | Class | — | PF2e rules (always on) | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | always on (its moment isn't checked) |
+| 1015 | Necromantic Resistance | 4 | Class | — | PF2e rules (always on) | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | always on (its moment isn't checked) |
+| 1016 | Devrin's Cunning Stance | 4 | Class | — | check | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1017 | Reactive Striker | 4 | Class | — | Reactive Strike | −0.00 ± 0.00 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1018 | Ride the Tsunami | 18 | Class | kineticist | save | −0.00 ± 0.07 | −0.24 | +0.23 | 2.7 | no clear effect |  |
+| 1019 | Irresistible Bloom | 17 | Ancestry | — | save | −0.00 ± 0.01 | +0.00 | −0.01 | 0.1 | no clear effect |  |
+| 1020 | Dragon Stance | 1 | Class | monk | PF2e's stance Effect | −0.00 ± 0.05 | +0.08 | −0.09 | 1.1 | no clear effect |  |
+| 1021 | Mana Detonation | 18 | Class | — | innate spell: Arcane Explosion (rank 9) | −0.00 ± 0.02 | +0.03 | −0.04 | 0.2 | no clear effect |  |
+| 1022 | Bloodline Resistance | 8 | Class | sorcerer | PF2e rules (always on) | −0.00 ± 0.01 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
+| 1023 | Dueling Dance (Fighter) | 12 | Class | fighter | PF2e's stance Effect | −0.01 ± 0.07 | −0.01 | +0.00 | 1.0 | no clear effect | with a one-handed weapon and a free hand |
+| 1024 | Paragon's Guard | 12 | Class | fighter | stance: its shield always raised | −0.01 ± 0.07 | −0.01 | +0.00 | 1.0 | no clear effect | with a weapon and a shield |
+| 1025 | Chronomancer's Secrets | 8 | Class | — | innate spell: Stasis (rank 4), Path of Least Resistance (rank 4) | −0.01 ± 0.06 | +0.19 | −0.20 | 1.0 | no clear effect |  |
+| 1026 | Mooneater | 17 | Ancestry | — | innate spell: Eclipse Burst (rank 7) | −0.01 ± 0.01 | −0.01 | +0.00 | 0.1 | no clear effect |  |
+| 1027 | Punishing Shove | 1 | Class | guardian | damage on a successful Shove (always on) | −0.01 ± 0.01 | +0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
+| 1028 | As a Thousand Soldiers | 8 | Class | exemplar | save | −0.01 ± 0.07 | +0.05 | −0.06 | 1.0 | no clear effect |  |
+| 1029 | Conjure Hell | 12 | Class | — | inline save: 15-foot burst, fortitude, 9d6 fire (DC 31, 1/fight) | −0.01 ± 0.06 | +0.07 | −0.09 | 1.0 | no clear effect |  |
+| 1030 | Witch's Armaments | 1 | Class | witch | PF2e rules (always on) | −0.01 ± 0.01 | −0.00 | −0.01 | 0.0 | no clear effect | the AI never used it |
+| 1031 | Bend Time | 0 | Action | — | check | −0.01 ± 0.02 | −0.03 | +0.02 | 1.0 | no clear effect |  |
+| 1032 | Animal Swiftness | 17 | Ancestry | — | PF2e rules (always on) | −0.01 ± 0.00 | −0.00 | −0.01 | 0.0 | no clear effect | always on (its moment isn't checked) |
+| 1033 | Basic Witchcraft | 4 | Class | — | Witch's Armaments: PF2e rules (always on) | −0.01 ± 0.01 | −0.01 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1034 | Exsanguinate | 6 | Class | — | check | −0.01 ± 0.02 | +0.01 | −0.02 | 0.5 | no clear effect |  |
+| 1035 | Bony Barrage | 4 | Class | — | innate spell: Bony Barrage (rank 2) | −0.01 ± 0.02 | −0.02 | +0.01 | 0.4 | no clear effect |  |
+| 1036 | Stunning Blows | 2 | Class | monk | a Fortitude save or stunned when a Flurry of Blows hits | −0.01 ± 0.04 | +0.02 | −0.03 | 1.1 | no clear effect |  |
+| 1037 | Brutal Beating | 2 | Class | rogue | frightened 1 on a critical hit (always on) | −0.01 ± 0.01 | −0.01 | −0.00 | 0.6 | no clear effect |  |
+| 1038 | Ivy Playhouse Strike | 4 | Class | — | Strike activity | −0.01 ± 0.02 | −0.04 | +0.02 | 4.2 | no clear effect |  |
+| 1039 | Bellflower Tiller Dedication | 2 | Class | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.02 | 0.0 | no clear effect | the AI never used it |
+| 1040 | Calaca's Showstopper | 13 | Ancestry | — | save | −0.01 ± 0.01 | +0.00 | −0.02 | 0.0 | no clear effect | the AI never used it |
+| 1041 | Masked Casting | 8 | Class | — | self effect | −0.01 ± 0.01 | −0.01 | −0.00 | 3.2 | no clear effect |  |
+| 1042 | Ghost Dedication | 2 | Class | — | PF2e rules (always on) | −0.01 ± 0.03 | +0.01 | −0.03 | 0.0 | no clear effect | the AI never used it |
+| 1043 | Asp Stance | 6 | Class | monk | PF2e's stance Effect | −0.01 ± 0.06 | +0.03 | −0.04 | 1.0 | no clear effect |  |
+| 1044 | Tactical Debilitations | 10 | Class | rogue | Debilitating Strike's no reactions in place of enfeebled 1 | −0.01 ± 0.02 | −0.05 | +0.03 | 0.0 | no clear effect | the AI never used it |
+| 1045 | Cautious Word | 12 | Class | — | check | −0.01 ± 0.01 | +0.00 | −0.02 | 0.2 | no clear effect |  |
+| 1046 | Convocation of Earth and Moon | 17 | Ancestry | — | save | −0.01 ± 0.04 | +0.04 | −0.06 | 1.0 | no clear effect |  |
+| 1047 | Exacting Strike | 1 | Class | fighter | Strike activity | −0.01 ± 0.02 | +0.01 | −0.03 | 2.7 | no clear effect |  |
+| 1048 | Assume Earth's Mantle | 14 | Class | kineticist | PF2e's stance Effect | −0.01 ± 0.05 | −0.06 | +0.05 | 1.0 | no clear effect |  |
+| 1049 | Sky and Heaven Stance | 6 | Class | — | PF2e's stance Effect | −0.01 ± 0.06 | +0.11 | −0.13 | 1.0 | no clear effect |  |
+| 1050 | Opportune Riposte | 0 | Action | swashbuckler | reaction Strike (critical-miss) | −0.01 ± 0.01 | −0.02 | +0.00 | 0.1 | no clear effect |  |
+| 1051 | Monk Dedication | 2 | Class | — | Powerful Fist: PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.02 | 0.0 | no clear effect | the AI never used it |
+| 1052 | Burning Demand | 12 | Class | kineticist | save | −0.01 ± 0.09 | −0.05 | +0.03 | 4.2 | no clear effect |  |
+| 1053 | Elemental Explosion | 6 | Class | barbarian | inline save: 15-foot emanation, reflex, 6d8 fire (DC 22, 1/fight) | −0.01 ± 0.04 | −0.02 | −0.00 | 0.7 | no clear effect |  |
+| 1054 | For My House! | 0 | Action | — | self effect | −0.01 ± 0.02 | −0.01 | −0.02 | 1.6 | no clear effect |  |
+| 1055 | Rejoice in Solstice Storm | 8 | Class | exemplar | inline save: 30-foot emanation, reflex, 5d8 electricity (DC 24, 1/fight) | −0.01 ± 0.04 | −0.07 | +0.05 | 0.9 | no clear effect |  |
+| 1056 | Unleash the Blight | 10 | Class | — | save | −0.01 ± 0.02 | −0.02 | −0.00 | 0.5 | no clear effect |  |
+| 1057 | Death Drone | 0 | Action | — | save | −0.01 ± 0.05 | +0.02 | −0.04 | 1.4 | no clear effect |  |
+| 1058 | Cover Fire | 1 | Class | gunslinger | Strike activity | −0.01 ± 0.04 | −0.00 | −0.02 | 6.8 | no clear effect |  |
+| 1059 | Defiant Banner | 8 | Class | commander | effect | −0.01 ± 0.07 | −0.20 | +0.18 | 10.7 | no clear effect |  |
+| 1060 | Swift Sower | 10 | Class | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.02 | 0.0 | no clear effect | the AI never used it |
+| 1061 | Basic Muse's Whispers | 4 | Class | — | Hymn of Healing: innate spell: Hymn of Healing (rank 1) | −0.01 ± 0.05 | −0.02 | −0.00 | 0.0 | no clear effect | the AI never used it |
+| 1062 | Dread Mosquito Storm | 18 | Class | — | innate spell: Dread Mosquito Storm (rank 9) | −0.01 ± 0.01 | −0.02 | +0.00 | 0.5 | no clear effect |  |
+| 1063 | Indomitable Spirit | 17 | Ancestry | — | its text's self buff (FlatModifier ac 4) | −0.01 ± 0.04 | −0.03 | +0.00 | 1.0 | no clear effect |  |
+| 1064 | Retreating Finisher | 2 | Class | swashbuckler | Strike activity | −0.01 ± 0.03 | −0.00 | −0.02 | 2.0 | no clear effect |  |
+| 1065 | Basic Flair | 4 | Class | — | Unbalancing Finisher: Strike activity | −0.01 ± 0.03 | −0.02 | −0.01 | 0.0 | no clear effect | the AI never used it |
+| 1066 | Roar Mimicry | 12 | Class | — | inline save: 15-foot emanation, fortitude, 8d6 sonic (DC 31, 1/fight) | −0.01 ± 0.03 | −0.05 | +0.03 | 0.6 | no clear effect |  |
+| 1067 | Duelist's Edge | 4 | Class | — | +2 to its initiative | −0.01 ± 0.03 | −0.03 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1068 | Deathly Scream | 2 | Class | — | innate spell: Deathly Scream (rank 1) | −0.01 ± 0.03 | +0.02 | −0.04 | 1.0 | no clear effect |  |
+| 1069 | Felling Strike | 8 | Class | fighter | Strike activity | −0.01 ± 0.06 | −0.03 | +0.01 | 5.9 | no clear effect |  |
+| 1070 | Bespell Strikes | 4 | Class | oracle | +1d6 force on its Strikes after a slot spell (free) | −0.01 ± 0.01 | −0.03 | +0.00 | 1.9 | no clear effect |  |
+| 1071 | Eternal Wings (Sylph) | 17 | Ancestry | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.03 | 0.0 | no clear effect | the AI never used it |
+| 1072 | Wyrmling Flight | 17 | Ancestry | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.03 | 0.0 | no clear effect | the AI never used it |
+| 1073 | Soaring Poppet | 17 | Ancestry | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.03 | 0.0 | no clear effect | the AI never used it |
+| 1074 | Eternal Wings (Nephilim) | 17 | Ancestry | — | PF2e rules (always on) | −0.01 ± 0.01 | +0.00 | −0.03 | 0.0 | no clear effect | the AI never used it |
+| 1075 | Hellbreaker Strike | 0 | Action | — | Strike activity | −0.01 ± 0.04 | +0.02 | −0.05 | 1.8 | no clear effect |  |
+| 1076 | Pennant of Victory | 20 | Class | commander | effect | −0.01 ± 0.10 | −0.46 | +0.43 | 2.0 | no clear effect |  |
+| 1077 | Swaggering Initiative | 4 | Class | swashbuckler | +2 to its initiative | −0.01 ± 0.03 | −0.07 | +0.04 | 0.0 | no clear effect | the AI never used it |
+| 1078 | Juggernaut Charge | 8 | Class | guardian | Strike activity | −0.01 ± 0.03 | −0.01 | −0.02 | 2.8 | no clear effect |  |
+| 1079 | Tiger Slash | 6 | Class | monk | Strike activity (in Tiger Stance) | −0.01 ± 0.06 | +0.03 | −0.05 | 4.1 | no clear effect |  |
+| 1080 | Emit Defensive Odor | 1 | Ancestry | — | save | −0.01 ± 0.04 | −0.05 | +0.02 | 1.0 | no clear effect |  |
+| 1081 | Guide the Timeline | 6 | Class | — | effect | −0.01 ± 0.03 | −0.01 | −0.02 | 2.0 | no clear effect |  |
+| 1082 | Pouncing Transformation | 12 | Class | — | check | −0.02 ± 0.06 | +0.13 | −0.16 | 5.5 | no clear effect |  |
+| 1083 | Mighty Wings | 18 | Class | — | PF2e rules (always on) | −0.02 ± 0.01 | +0.00 | −0.03 | 0.0 | no clear effect | the AI never used it |
+| 1084 | Debilitating Shot | 10 | Class | fighter | Strike activity | −0.02 ± 0.05 | +0.09 | −0.12 | 3.5 | no clear effect |  |
+| 1085 | Needle in the Gods' Eyes | 16 | Class | fighter | 2 Strikes | −0.02 ± 0.03 | +0.04 | −0.07 | 4.7 | no clear effect |  |
+| 1086 | Dual-Weapon Warrior Dedication | 2 | Class | — | Double Slice: 2 Strikes | −0.02 ± 0.02 | −0.01 | −0.02 | 0.0 | no clear effect | with two weapons (longsword and shortsword); the AI never used it |
+| 1087 | Coordinated Charge | 12 | Class | — | Strike activity | −0.02 ± 0.03 | +0.01 | −0.04 | 1.7 | no clear effect |  |
+| 1088 | Twin Riposte | 10 | Class | fighter | reaction Strike (critical-miss) (in Twin Parry) | −0.02 ± 0.03 | +0.01 | −0.04 | 0.2 | no clear effect |  |
+| 1089 | Spiritual Disruption | 0 | Bonus | — | Strike activity | −0.02 ± 0.04 | +0.00 | −0.04 | 1.8 | no clear effect |  |
+| 1090 | Dazzling Display | 10 | Class | fighter | Demoralize each enemy within 30 feet (Intimidation DC 24, once a fight) | −0.02 ± 0.04 | −0.02 | −0.02 | 1.0 | no clear effect |  |
+| 1091 | Revivifying Mutagen | 2 | Class | alchemist | check | −0.02 ± 0.01 | −0.03 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 1092 | Trance of Celerity | 1 | Class | oracle | PF2e's self Effect | −0.02 ± 0.04 | −0.06 | +0.02 | 1.0 | no clear effect |  |
+| 1093 | Kishin Rage | 17 | Ancestry | — | PF2e's self Effect | −0.02 ± 0.05 | −0.03 | −0.00 | 1.0 | no clear effect |  |
+| 1094 | Dodge Away | 6 | Class | — | +1 AC as a reaction when targeted (melee) | −0.02 ± 0.02 | −0.02 | −0.02 | 0.8 | no clear effect |  |
+| 1095 | Dragging Strike | 2 | Class | fighter | Strike activity | −0.02 ± 0.02 | −0.01 | −0.02 | 3.1 | no clear effect |  |
+| 1096 | Fungal Exhalation | 6 | Class | druid | innate spell: Fungal Exhalation (rank 3) | −0.02 ± 0.03 | −0.05 | +0.01 | 0.5 | no clear effect |  |
+| 1097 | Polished Distraction | 6 | Class | — | inline save: 5-foot emanation, fortitude (DC 22) | −0.02 ± 0.03 | −0.02 | −0.02 | 0.3 | no clear effect |  |
+| 1098 | Shaitan Skin | 13 | Ancestry | — | innate spell: Mountain Resilience (rank 4) | −0.02 ± 0.02 | −0.02 | −0.02 | 0.7 | no clear effect |  |
+| 1099 | Primal Rampage | 13 | Ancestry | — | innate spells: Unfettered Movement (rank 4), Mountain Resilience (rank 4) | −0.02 ± 0.02 | −0.02 | −0.02 | 0.7 | no clear effect |  |
+| 1100 | Harrying Strike | 10 | Class | — | Strike activity | −0.02 ± 0.01 | −0.03 | −0.01 | 7.0 | no clear effect |  |
+| 1101 | Crowned in Tempest's Fury | 18 | Class | kineticist | PF2e's stance Effect | −0.02 ± 0.04 | −0.02 | −0.02 | 1.0 | no clear effect |  |
+| 1102 | Stumbling Finisher | 10 | Class | swashbuckler | Strike activity | −0.02 ± 0.04 | +0.02 | −0.06 | 5.2 | no clear effect |  |
+| 1103 | Toughness | 1 | General | — | more maximum Hit Points | −0.02 ± 0.02 | +0.00 | −0.05 | 0.0 | no clear effect | the AI never used it |
+| 1104 | Current Spell | 6 | Class | druid | its text's self buff (FlatModifier ac 1) | −0.02 ± 0.06 | −0.07 | +0.03 | 2.3 | no clear effect |  |
+| 1105 | Extraplanar Haze | 5 | Ancestry | — | check | −0.02 ± 0.03 | +0.00 | −0.04 | 1.0 | no clear effect |  |
+| 1106 | Nanite Shroud | 5 | Ancestry | — | check | −0.02 ± 0.03 | +0.00 | −0.04 | 1.0 | no clear effect |  |
+| 1107 | Follow-Up Assault | 8 | Class | barbarian | after a missed melee Strike, raging: a Strike +1 with its weapon dice in damage | −0.02 ± 0.02 | −0.02 | −0.02 | 5.2 | no clear effect |  |
+| 1108 | Bristle | 5 | Ancestry | — | effect | −0.02 ± 0.03 | −0.02 | −0.02 | 3.2 | no clear effect |  |
+| 1109 | Guardian Resiliency | 4 | Class | — | 6 more Hit Points | −0.02 ± 0.04 | −0.08 | +0.04 | 0.0 | no clear effect | the AI never used it |
+| 1110 | Barbarian Resiliency | 4 | Class | — | 6 more Hit Points | −0.02 ± 0.04 | −0.08 | +0.04 | 0.0 | no clear effect | the AI never used it |
+| 1111 | Ranger Resiliency | 4 | Class | — | 6 more Hit Points | −0.02 ± 0.04 | −0.08 | +0.04 | 0.0 | no clear effect | the AI never used it |
+| 1112 | Monk Resiliency | 4 | Class | — | 6 more Hit Points | −0.02 ± 0.04 | −0.08 | +0.04 | 0.0 | no clear effect | the AI never used it |
+| 1113 | Paralyzing Jewel | 9 | Ancestry | — | inline save: 15-foot emanation, will (DC 25, 1/fight) | −0.02 ± 0.02 | −0.04 | −0.01 | 0.3 | no clear effect |  |
+| 1114 | Basic Thoughtform | 4 | Class | — | Psi Burst: save | −0.02 ± 0.04 | −0.08 | +0.04 | 0.0 | no clear effect | the AI never used it |
+| 1115 | Symphony of Blood | 17 | Ancestry | — | innate spell: Vampiric Exsanguination (rank 7) | −0.02 ± 0.03 | −0.01 | −0.03 | 0.8 | no clear effect |  |
+| 1116 | Blessing of the Five | 0 | Bonus | — | casts Heal (rank 1, DC 17, 1/fight) | −0.02 ± 0.03 | −0.04 | −0.00 | 0.7 | no clear effect |  |
+| 1117 | Sky Master Mask | 20 | Class | druid | PF2e rules (always on) | −0.02 ± 0.03 | −0.01 | −0.04 | 0.0 | no clear effect | the AI never used it |
+| 1118 | Brandish Authority | 18 | Class | — | check | −0.02 ± 0.07 | −0.01 | −0.04 | 3.0 | no clear effect |  |
+| 1119 | Fox Possession | 17 | Ancestry | — | innate spell: Possession (rank 7) | −0.02 ± 0.02 | +0.00 | −0.05 | 1.0 | no clear effect |  |
+| 1120 | Broken Chain Dedication | 12 | Class | — | Ultimatum of Liberation: save | −0.02 ± 0.05 | +0.06 | −0.11 | 0.0 | no clear effect | the AI never used it |
+| 1121 | Writhing Runelord Weapon | 14 | Class | — | 2 Strikes | −0.02 ± 0.05 | −0.01 | −0.03 | 3.0 | no clear effect | with a spear and a free hand |
+| 1122 | History of Violence | 14 | Class | — | Strike activity | −0.02 ± 0.06 | +0.03 | −0.08 | 1.0 | no clear effect |  |
+| 1123 | Scouring Rage | 6 | Class | barbarian | as it Rages, each enemy within 20 feet saves (Fortitude, basic, DC 22) or takes 6 slashing | −0.02 ± 0.06 | −0.13 | +0.08 | 3.1 | no clear effect |  |
+| 1124 | Imbue Mindlessness | 12 | Class | — | innate spell: Harm (rank 1) | −0.03 ± 0.06 | −0.01 | −0.04 | 1.0 | no clear effect |  |
+| 1125 | Greater than the Sum | 17 | Ancestry | — | innate spell: Enlarge (rank 6) | −0.03 ± 0.04 | −0.02 | −0.03 | 1.0 | no clear effect |  |
+| 1126 | Skeletal Resistance | 9 | Ancestry | — | PF2e rules (always on) | −0.03 ± 0.03 | −0.03 | −0.02 | 0.0 | no clear effect | the AI never used it |
+| 1127 | Fling Magic | 0 | Action | thaumaturge | save | −0.03 ± 0.05 | −0.03 | −0.02 | 2.4 | no clear effect |  |
+| 1128 | Lion's Magic | 8 | Class | — | innate spells: Suggestion (rank 4), Subconscious Suggestion (rank 12) | −0.03 ± 0.03 | −0.02 | −0.03 | 1.5 | no clear effect |  |
+| 1129 | Drifter's Wake | 0 | Action | gunslinger | 3 Strikes | −0.03 ± 0.04 | +0.05 | −0.11 | 1.8 | no clear effect |  |
+| 1130 | Spiritual Expansion Spell | 2 | Class | animist | widened copies of 1 area spell | −0.03 ± 0.06 | −0.11 | +0.06 | 0.0 | no clear effect | the AI never used it |
+| 1131 | Glory and Valor! | 9 | Ancestry | — | heals 4 (touch, 1/fight) | −0.03 ± 0.02 | −0.04 | −0.01 | 0.7 | no clear effect |  |
+| 1132 | Disrupt Prey | 4 | Class | ranger | reaction Strike (move, leave, manipulate) | −0.03 ± 0.02 | +0.01 | −0.06 | 0.2 | no clear effect |  |
+| 1133 | Arcane Cascade | 0 | Action | magus | PF2e's stance Effect | −0.03 ± 0.04 | +0.10 | −0.16 | 1.0 | no clear effect |  |
+| 1134 | Tap Vitality | 6 | Class | — | heals 24 (touch, 1/fight) | −0.03 ± 0.02 | +0.02 | −0.07 | 0.6 | no clear effect |  |
+| 1135 | Toppling Transformation | 6 | Class | druid | check | −0.03 ± 0.02 | −0.06 | −0.00 | 0.0 | no clear effect | the AI never used it |
+| 1136 | Reach Spell | 1 | Class | bard | reach copies of 5 spells | −0.03 ± 0.03 | −0.10 | +0.04 | 0.0 | no clear effect | the AI never used it |
+| 1137 | Fling Head | 6 | Class | — | inline save: 1 creature, 30 feet, will (DC 22, 1/fight) | −0.03 ± 0.04 | −0.05 | −0.01 | 1.0 | no clear effect |  |
+| 1138 | Frighten Undead | 6 | Class | — | check | −0.03 ± 0.04 | +0.01 | −0.07 | 3.3 | no clear effect |  |
+| 1139 | Crossbow Terror | 6 | Class | — | check | −0.03 ± 0.04 | +0.01 | −0.07 | 3.3 | no clear effect |  |
+| 1140 | Ease the Burden | 20 | Class | — | heals 100 (touch, 1/fight) | −0.03 ± 0.03 | −0.03 | −0.03 | 0.8 | no clear effect |  |
+| 1141 | Voice Cold as Death | 7 | Skill | — | check | −0.03 ± 0.03 | −0.01 | −0.05 | 3.2 | no clear effect |  |
+| 1142 | Nagaji Spell Expertise | 13 | Ancestry | — | innate spells: Flicker (rank 4), Control Water (rank 5), Subconscious Suggestion (rank 5) | −0.03 ± 0.02 | −0.01 | −0.05 | 0.3 | no clear effect |  |
+| 1143 | Iivlar's Boundary Break | 13 | Ancestry | — | innate spell: Flicker (rank 4) | −0.03 ± 0.02 | −0.01 | −0.05 | 0.3 | no clear effect |  |
+| 1144 | Invoke Disaster | 18 | Class | druid | innate spell: Storm Lord (rank 9) | −0.03 ± 0.02 | −0.05 | −0.01 | 0.3 | no clear effect |  |
+| 1145 | Kraken's Call | 17 | Ancestry | — | inline save: 30-foot burst, fortitude, 8d6 untyped (DC 37, 1/fight) | −0.03 ± 0.03 | −0.01 | −0.06 | 0.5 | no clear effect |  |
+| 1146 | Steal Time | 10 | Class | — | save | −0.03 ± 0.05 | +0.05 | −0.12 | 1.0 | no clear effect |  |
+| 1147 | Benefactor's Majesty | 17 | Ancestry | — | PF2e's self Effect | −0.03 ± 0.05 | −0.06 | −0.00 | 1.0 | no clear effect |  |
+| 1148 | Feathered Flechettes | 6 | Class | — | inline save: 15-foot emanation, reflex, 6d6 slashing (DC 22, 1/fight) | −0.03 ± 0.03 | −0.10 | +0.04 | 0.8 | no clear effect |  |
+| 1149 | Roiling Mudslide | 6 | Class | kineticist | save | −0.03 ± 0.05 | +0.01 | −0.07 | 1.4 | no clear effect |  |
+| 1150 | Fleeing Shriek | 9 | Ancestry | — | inline save: 10-foot emanation, fortitude, 5d6 sonic (DC 25, 1/fight) | −0.03 ± 0.03 | −0.11 | +0.04 | 0.8 | no clear effect |  |
+| 1151 | Hit and Run | 6 | Class | — | Strike activity | −0.03 ± 0.03 | +0.01 | −0.07 | 1.6 | no clear effect |  |
+| 1152 | Songbird's Call | 8 | Class | bard | focus spell: Songbird's Call (rank 4) | −0.03 ± 0.02 | −0.02 | −0.05 | 0.6 | no clear effect |  |
+| 1153 | Cleansing Light | 17 | Ancestry | — | check | −0.04 ± 0.05 | −0.02 | −0.05 | 1.0 | no clear effect |  |
+| 1154 | Rallying Charge (Marshal) | 6 | Class | — | Strike activity | −0.04 ± 0.03 | +0.00 | −0.07 | 1.5 | no clear effect |  |
+| 1155 | On My Best Day | 18 | Class | — | its text's self buff (FlatModifier ac 3) | −0.04 ± 0.05 | −0.15 | +0.08 | 1.0 | no clear effect |  |
+| 1156 | Demolishing Knockback | 14 | Class | — | Strike activity | −0.04 ± 0.04 | −0.08 | +0.00 | 3.0 | no clear effect |  |
+| 1157 | Primadonna | 12 | Class | — | check | −0.04 ± 0.04 | −0.06 | −0.01 | 0.3 | no clear effect |  |
+| 1158 | Pact of Draconic Fury | 6 | Class | — | Dragon Breath: inline save: 30-foot cone, reflex, 6d6 untyped (DC 22, 1/fight) | −0.04 ± 0.03 | −0.08 | +0.01 | 0.9 | no clear effect |  |
+| 1159 | Blessed Counterstrike | 12 | Class | champion | Strike activity | −0.04 ± 0.02 | −0.04 | −0.04 | 1.5 | no clear effect |  |
+| 1160 | Banner Twirl | 4 | Class | commander | check | −0.04 ± 0.09 | +0.12 | −0.20 | 3.1 | no clear effect |  |
+| 1161 | Undead Hunter | 1 | Ancestry | — | innate spells: Vitality Lash (rank 1), Infuse Vitality (rank 3) | −0.04 ± 0.05 | +0.09 | −0.16 | 1.0 | no clear effect |  |
+| 1162 | Wither Away | 16 | Class | — | save | −0.04 ± 0.06 | −0.04 | −0.04 | 1.0 | no clear effect |  |
+| 1163 | Solidarity | 9 | Ancestry | — | heals 18 (touch, 1/fight) | −0.04 ± 0.03 | −0.06 | −0.02 | 0.7 | no clear effect |  |
+| 1164 | Growth Spell | 10 | Class | — | widened copies of 6 area spells | −0.04 ± 0.04 | −0.00 | −0.07 | 0.0 | no clear effect | the AI never used it |
+| 1165 | Devil's Wings | 16 | Class | — | PF2e rules (always on) | −0.04 ± 0.02 | +0.00 | −0.08 | 0.0 | no clear effect | the AI never used it |
+| 1166 | Break Them Down | 0 | Action | gunslinger | Strike activity | −0.04 ± 0.04 | −0.01 | −0.07 | 3.7 | no clear effect |  |
+| 1167 | Widen Spell | 1 | Class | druid | widened copies of 1 area spell | −0.04 ± 0.02 | −0.07 | −0.00 | 0.0 | no clear effect | the AI never used it |
+| 1168 | Winter's Clutch | 1 | Class | kineticist | save | −0.04 ± 0.06 | −0.10 | +0.02 | 2.4 | no clear effect |  |
+| 1169 | Spark Fist | 5 | Ancestry | — | PF2e's self Effect | −0.04 ± 0.03 | −0.03 | −0.05 | 2.0 | no clear effect |  |
+| 1170 | Dominion Aura | 17 | Ancestry | — | inline save: 10-foot emanation, fortitude, 8d6 force (DC 37, 1/fight) | −0.04 ± 0.02 | −0.05 | −0.03 | 0.3 | no clear effect |  |
+| 1171 | This is What it's Like to Die | 17 | Ancestry | — | innate spell: Phantasmagoria (rank 9) | −0.04 ± 0.05 | −0.09 | +0.01 | 2.0 | no clear effect |  |
+| 1172 | Channel Smite | 4 | Class | cleric | a melee Strike with a 1-action harm on the hit (2 actions) | −0.04 ± 0.03 | −0.03 | −0.05 | 0.8 | no clear effect |  |
+| 1173 | Siren Song | 9 | Ancestry | — | inline save: 60-foot emanation, will (DC 25, 1/fight) | −0.04 ± 0.01 | −0.07 | −0.01 | 0.2 | no clear effect |  |
+| 1174 | Gluttonous Feast | 0 | Action | — | save | −0.04 ± 0.04 | −0.07 | −0.01 | 1.0 | no clear effect |  |
+| 1175 | Momentous Charge | 6 | Class | monk | Strike activity (in Rushing Goat Stance) | −0.04 ± 0.05 | −0.04 | −0.05 | 2.3 | no clear effect |  |
+| 1176 | Basic Arcana | 4 | Class | — | Reach Spell: reach copies of 9 spells | −0.04 ± 0.04 | −0.14 | +0.06 | 0.0 | no clear effect | the AI never used it |
+| 1177 | Speaker in Training | 5 | Ancestry | — | innate spell: Bless (rank 1), Fleet Step (rank 1) | −0.04 ± 0.03 | −0.02 | −0.07 | 1.0 | no clear effect |  |
+| 1178 | Basic Breakthrough | 4 | Class | — | Searing Restoration: heals 2d10 (touch) | −0.04 ± 0.07 | +0.01 | −0.09 | 3.3 | no clear effect |  |
+| 1179 | Reflexive Grapple | 12 | Class | — | Strike activity | −0.04 ± 0.06 | −0.05 | −0.03 | 8.2 | no clear effect |  |
+| 1180 | Now You See Me | 14 | Class | — | check | −0.04 ± 0.06 | −0.02 | −0.07 | 2.4 | no clear effect |  |
+| 1181 | Sacred Defender | 20 | Class | champion | PF2e rules (always on) | −0.04 ± 0.05 | −0.02 | −0.07 | 0.0 | no clear effect | the AI never used it |
+| 1182 | Mortal Ascension | 14 | Class | — | PF2e rules (always on) | −0.04 ± 0.02 | −0.00 | −0.08 | 0.0 | no clear effect | the AI never used it |
+| 1183 | Ascend | 14 | Class | — | PF2e rules (always on) | −0.04 ± 0.02 | −0.00 | −0.08 | 0.0 | no clear effect | the AI never used it |
+| 1184 | Kaiju Stance | 8 | Class | monk | PF2e's stance Effect | −0.04 ± 0.07 | −0.12 | +0.03 | 1.0 | no clear effect |  |
+| 1185 | Bestial Snarling | 2 | Class | bard | check | −0.05 ± 0.04 | +0.01 | −0.10 | 5.3 | no clear effect |  |
+| 1186 | Explode | 0 | Action | inventor | inline save: 5-foot emanation, reflex, 2d6 fire (DC 17) | −0.05 ± 0.04 | −0.03 | −0.06 | 1.2 | no clear effect |  |
+| 1187 | Irradiate | 6 | Class | — | save | −0.05 ± 0.02 | −0.06 | −0.03 | 0.1 | no clear effect |  |
+| 1188 | Turn to Mist | 10 | Class | — | PF2e's self Effect | −0.05 ± 0.05 | +0.02 | −0.12 | 1.0 | no clear effect |  |
+| 1189 | Stunt Performer Stance | 10 | Class | — | PF2e's stance Effect | −0.05 ± 0.06 | −0.09 | −0.00 | 1.0 | no clear effect |  |
+| 1190 | Talmandor's Shout | 12 | Class | — | check | −0.05 ± 0.06 | −0.11 | +0.02 | 1.0 | no clear effect |  |
+| 1191 | To Me! | 18 | Class | — | Strike activity | −0.05 ± 0.04 | +0.00 | −0.10 | 2.4 | no clear effect |  |
+| 1192 | Shadowcaster Dedication | 2 | Class | — | innate spell: Dazzling Flash (rank 1), Cloak of Shadow (rank 1) | −0.05 ± 0.04 | −0.03 | −0.07 | 0.8 | no clear effect |  |
+| 1193 | Glass Skin | 10 | Class | — | innate spell: Mountain Resilience (rank 4) | −0.05 ± 0.02 | +0.01 | −0.11 | 0.7 | no clear effect |  |
+| 1194 | Intimidating Spell | 6 | Class | — | Intimidating Spell copies of 3 spells | −0.05 ± 0.04 | −0.09 | −0.01 | 1.6 | no clear effect |  |
+| 1195 | Disrupt Qi | 12 | Class | monk | Strike activity | −0.05 ± 0.09 | +0.18 | −0.28 | 4.9 | no clear effect |  |
+| 1196 | Rain of Bolts | 9 | Ancestry | — | inline save: 30-foot cone, reflex, 6d6 piercing (DC 25, 1/fight) | −0.05 ± 0.04 | −0.08 | −0.02 | 0.8 | no clear effect |  |
+| 1197 | Spore Cloud | 9 | Ancestry | — | inline save: 10-foot emanation, fortitude (DC 25, 1/fight) | −0.05 ± 0.03 | −0.07 | −0.03 | 0.2 | no clear effect |  |
+| 1198 | Perfume Cloud | 9 | Ancestry | — | inline save: 10-foot emanation, fortitude (DC 25, 1/fight) | −0.05 ± 0.03 | −0.07 | −0.03 | 0.2 | no clear effect |  |
+| 1199 | Terrifying Howl | 10 | Class | barbarian | Demoralize each enemy within 30 feet (Intimidation DC 22, once a fight) | −0.05 ± 0.04 | −0.10 | +0.00 | 1.0 | no clear effect |  |
+| 1200 | Mountain Stance | 1 | Class | monk | PF2e's stance Effect | −0.05 ± 0.05 | +0.03 | −0.12 | 1.0 | no clear effect |  |
+| 1201 | Mortal Herald Dedication | 12 | Class | — | innate spells: Atone (rank 4), Heal (rank 6), Harm (rank 6) | −0.05 ± 0.06 | −0.08 | −0.02 | 2.0 | no clear effect |  |
+| 1202 | Gift of the Hoard | 10 | Class | — | innate spell: Dragon Breath (rank 3) | −0.05 ± 0.04 | +0.01 | −0.11 | 1.0 | no clear effect |  |
+| 1203 | Starlit Transformation | 0 | Action | — | PF2e's self Effect | −0.05 ± 0.04 | −0.02 | −0.08 | 1.0 | no clear effect |  |
+| 1204 | Grudging Compliment | 7 | Skill | — | check | −0.05 ± 0.03 | −0.08 | −0.02 | 2.2 | no clear effect |  |
+| 1205 | Basic Fury | 4 | Class | — | Sudden Charge: Strike activity | −0.05 ± 0.04 | −0.13 | +0.03 | 0.0 | no clear effect | the AI never used it |
+| 1206 | Endure Death's Touch | 10 | Class | — | PF2e rules (always on) | −0.05 ± 0.04 | +0.03 | −0.13 | 0.0 | no clear effect | the AI never used it |
+| 1207 | Elemental Assault | 1 | Ancestry | — | PF2e's self Effect | −0.05 ± 0.04 | +0.01 | −0.12 | 1.5 | no clear effect |  |
+| 1208 | Vitality-Manipulating Stance | 20 | Class | monk | PF2e's stance Effect | −0.05 ± 0.08 | −0.13 | +0.02 | 1.0 | no clear effect |  |
+| 1209 | Decompose | 0 | Action | — | inline save: 5-foot emanation, fortitude, 1d6 void (DC 17, 1/fight) | −0.05 ± 0.02 | −0.13 | +0.02 | 0.6 | hurts |  |
+| 1210 | One-Inch Punch | 6 | Class | monk | a 2-action Strike with more weapon dice | −0.05 ± 0.06 | +0.13 | −0.23 | 7.7 | no clear effect |  |
+| 1211 | Inscribe Shadow Pamor | 0 | Action | — | check | −0.05 ± 0.04 | −0.11 | +0.01 | 1.0 | no clear effect |  |
+| 1212 | Dream Magic | 8 | Class | — | innate spell: Dream Message (rank 3), Sleep (rank 4) | −0.05 ± 0.03 | +0.00 | −0.11 | 1.0 | no clear effect |  |
+| 1213 | Form of the Beloved Mother | 17 | Ancestry | — | innate spell: Animal Form (rank 5), Slither (rank 5) | −0.05 ± 0.03 | −0.02 | −0.09 | 0.7 | no clear effect |  |
+| 1214 | Moldersoul | 1 | Ancestry | — | Decompose: inline save: 5-foot emanation, fortitude, 1d6 void (DC 17, 1/fight) | −0.05 ± 0.02 | −0.13 | +0.02 | 0.7 | hurts |  |
+| 1215 | Trial by Skyfire | 10 | Class | oracle | inline save: 10-foot emanation, reflex, 2d6 fire (DC 29) | −0.05 ± 0.03 | −0.08 | −0.02 | 1.6 | no clear effect |  |
+| 1216 | Scout's Charge | 4 | Class | — | Strike activity | −0.05 ± 0.02 | −0.01 | −0.10 | 1.1 | hurts |  |
+| 1217 | Ravenous Charge | 4 | Class | — | Strike activity | −0.05 ± 0.02 | −0.01 | −0.10 | 1.2 | hurts |  |
+| 1218 | Interpose | 4 | Class | — | Strike activity | −0.05 ± 0.02 | −0.01 | −0.10 | 1.2 | hurts |  |
+| 1219 | Roaring Charge | 0 | Action | commander | save | −0.05 ± 0.05 | +0.00 | −0.11 | 1.0 | no clear effect |  |
+| 1220 | Blessed One Dedication | 2 | Class | — | focus spell: Lay on Hands (rank 1) | −0.06 ± 0.03 | −0.03 | −0.08 | 0.8 | no clear effect |  |
+| 1221 | No Scar but This | 0 | Action | — | check | −0.06 ± 0.03 | −0.02 | −0.09 | 1.3 | no clear effect |  |
+| 1222 | Goring Charge | 9 | Ancestry | — | Strike activity | −0.06 ± 0.03 | +0.01 | −0.13 | 2.0 | no clear effect |  |
+| 1223 | Instinct Ability | 6 | Class | — | Sudden Charge: Strike activity | −0.06 ± 0.04 | −0.04 | −0.07 | 0.0 | no clear effect | the AI never used it |
+| 1224 | Smite | 6 | Class | champion | +3 damage on its Strikes for a round (1 action) | −0.06 ± 0.06 | +0.01 | −0.12 | 3.3 | no clear effect |  |
+| 1225 | Killing Stone | 13 | Ancestry | — | innate spell: Toxic Cloud (rank 5) | −0.06 ± 0.02 | −0.00 | −0.11 | 0.8 | hurts |  |
+| 1226 | Unstoppable Juggernaut | 20 | Class | barbarian | PF2e rules (always on) | −0.06 ± 0.03 | −0.03 | −0.09 | 0.0 | hurts | the AI never used it |
+| 1227 | Quill Spray | 9 | Ancestry | — | inline save: 30-foot cone, reflex, 5d8 piercing (DC 25, 1/fight) | −0.06 ± 0.03 | −0.10 | −0.01 | 1.0 | no clear effect |  |
+| 1228 | Storm Shroud | 8 | Class | — | check | −0.06 ± 0.06 | +0.04 | −0.16 | 1.0 | no clear effect |  |
+| 1229 | Tenacious Stance | 0 | Action | — | PF2e's stance Effect | −0.06 ± 0.05 | −0.08 | −0.04 | 1.0 | no clear effect |  |
+| 1230 | Desiccating Inhalation | 12 | Class | — | inline save: 30-foot cone, reflex, 6d8 void (DC 31, 1/fight) | −0.06 ± 0.05 | −0.08 | −0.04 | 0.9 | no clear effect |  |
+| 1231 | Awaken the Obake | 13 | Ancestry | — | innate spell: Fear (rank 5) | −0.06 ± 0.04 | −0.07 | −0.06 | 1.0 | no clear effect |  |
+| 1232 | Pummeling Whirlpool | 13 | Ancestry | — | inline save: 10-foot emanation, reflex, 8d6 bludgeoning (DC 32, 1/fight) | −0.06 ± 0.02 | −0.07 | −0.05 | 0.3 | hurts |  |
+| 1233 | Lantern Strobe | 0 | Action | — | save | −0.06 ± 0.03 | −0.12 | −0.01 | 0.6 | hurts |  |
+| 1234 | Hag Magic | 13 | Ancestry | — | innate spells: Augury (rank 4), Charm (rank 1), Clairaudience (rank 3), Clairvoyance (rank 4), Dream Message (rank 3), Illusory Disguise (rank 1), Nightmare (rank 4), Spellwrack (rank 6), Earthbind (rank 3), Humanoid Form (rank 2), Mariner's Curse (rank 5), Water Walk (rank 2), Honeyed Words (rank 4), Outcast's Curse (rank 4) | −0.06 ± 0.04 | −0.02 | −0.10 | 2.1 | no clear effect |  |
+| 1235 | Hellbreaker's Resolve | 4 | Class | — | its text's self buff (TempHP 4) | −0.06 ± 0.04 | −0.15 | +0.02 | 1.0 | no clear effect |  |
+| 1236 | Revitalizing Finisher | 16 | Class | swashbuckler | its text's self buff (TempHP 8) | −0.06 ± 0.07 | +0.00 | −0.13 | 1.0 | no clear effect |  |
+| 1237 | Cenotaph Stance | 20 | Class | — | PF2e's stance Effect | −0.07 ± 0.07 | −0.18 | +0.05 | 1.0 | no clear effect | with a weapon and a shield |
+| 1238 | Impaling Finisher | 4 | Class | swashbuckler | Strike activity | −0.07 ± 0.04 | −0.12 | −0.01 | 2.2 | no clear effect |  |
+| 1239 | Radiant Burst | 13 | Ancestry | — | save | −0.07 ± 0.04 | −0.11 | −0.02 | 1.0 | no clear effect |  |
+| 1240 | Twinned Defense (Swashbuckler) | 14 | Class | swashbuckler | effect | −0.07 ± 0.07 | −0.04 | −0.09 | 1.0 | no clear effect |  |
+| 1241 | Battle Hymn to the Lost | 8 | Class | exemplar | inline save: 30-foot cone, reflex, 2d10 untyped (DC 24, 1/fight) | −0.07 ± 0.05 | −0.10 | −0.03 | 1.0 | no clear effect |  |
+| 1242 | Taste Blood | 5 | Ancestry | — | save | −0.07 ± 0.03 | −0.05 | −0.08 | 2.6 | hurts |  |
+| 1243 | Cadence Call | 6 | Class | — | check | −0.07 ± 0.04 | −0.13 | −0.01 | 1.0 | no clear effect |  |
+| 1244 | Shadow Power | 14 | Class | — | innate spell: Shadow Blast (rank 5) | −0.07 ± 0.05 | −0.12 | −0.02 | 1.0 | no clear effect |  |
+| 1245 | Apprentice Sea Witch | 5 | Ancestry | — | innate spell: Create Water (rank 1), Hydraulic Push (rank 1) | −0.07 ± 0.03 | −0.09 | −0.05 | 1.0 | hurts |  |
+| 1246 | Stalwart Defender Dedication | 2 | Class | — | Tenacious Stance: PF2e's stance Effect | −0.07 ± 0.04 | +0.02 | −0.16 | 0.0 | no clear effect | the AI never used it |
+| 1247 | Lesson of Mutual Gambits | 8 | Class | — | check | −0.07 ± 0.06 | +0.19 | −0.32 | 5.1 | no clear effect |  |
+| 1248 | Decree of Execution | 18 | Class | — | save | −0.07 ± 0.03 | +0.00 | −0.14 | 1.0 | hurts |  |
+| 1249 | Daydream Trance | 0 | Action | — | PF2e's self Effect | −0.07 ± 0.04 | −0.05 | −0.08 | 1.0 | no clear effect |  |
+| 1250 | Enter Spirit Trance | 0 | Action | — | PF2e's self Effect | −0.07 ± 0.04 | −0.05 | −0.08 | 1.0 | no clear effect |  |
+| 1251 | Flash of Omnipresence | 14 | Class | — | save | −0.07 ± 0.06 | −0.07 | −0.06 | 1.0 | no clear effect |  |
+| 1252 | Sapping Symbol | 12 | Class | cleric | check | −0.07 ± 0.05 | −0.00 | −0.14 | 2.9 | no clear effect |  |
+| 1253 | Zombie Horde (Necromancer) | 6 | Class | — | focus spell: Zombie Horde (rank 3) | −0.07 ± 0.04 | −0.09 | −0.04 | 3.3 | no clear effect |  |
+| 1254 | Campfire Chronicler Dedication | 2 | Class | — | Offer Story: effect | −0.07 ± 0.05 | +0.02 | −0.16 | 0.0 | no clear effect | the AI never used it |
+| 1255 | Reclaimant Plea | 12 | Class | — | innate spells: Air Walk (rank 4), Planar Tether (rank 4), Unfettered Movement (rank 4), Invisibility (rank 2), Cleanse Affliction (rank 2), Holy Light (rank 3), Death Ward (rank 14), Flame Strike (rank 5), Sunburst (rank 18) | −0.07 ± 0.06 | −0.10 | −0.04 | 1.0 | no clear effect |  |
+| 1256 | Dueling Parry | 2 | Class | fighter | PF2e's self Effect | −0.07 ± 0.05 | −0.06 | −0.07 | 2.0 | no clear effect | with a one-handed weapon and a free hand |
+| 1257 | Underwater Volcano | 17 | Ancestry | — | innate spell: Volcanic Eruption (rank 7) | −0.07 ± 0.04 | −0.08 | −0.06 | 1.0 | no clear effect |  |
+| 1258 | Soothing Pulse | 4 | Class | — | Administer Ambient Magic: check | −0.07 ± 0.04 | −0.11 | −0.03 | 0.0 | no clear effect | the AI never used it |
+| 1259 | Crimson Shroud | 6 | Class | — | PF2e's self Effect | −0.07 ± 0.04 | −0.12 | −0.02 | 1.0 | no clear effect |  |
+| 1260 | Come and Get Me | 10 | Class | barbarian | off-guard and +2 damage taken while raging; foes that hit it off-guard to it, temporary Hit Points as it hits them back | −0.07 ± 0.05 | −0.05 | −0.09 | 1.7 | no clear effect |  |
+| 1261 | Disciple's Breath | 16 | Class | — | save | −0.07 ± 0.05 | −0.11 | −0.03 | 2.4 | no clear effect |  |
+| 1262 | Puncture Flesh | 0 | Action | — | check | −0.07 ± 0.04 | −0.10 | −0.04 | 1.8 | no clear effect |  |
+| 1263 | Grapple | 0 | Action | — | check | −0.07 ± 0.04 | −0.10 | −0.04 | 1.8 | no clear effect |  |
+| 1264 | Viper Strike | 9 | Ancestry | — | Strike activity | −0.07 ± 0.03 | −0.00 | −0.14 | 2.2 | hurts |  |
+| 1265 | Wave Spiral | 12 | Class | monk | check (in Reflective Ripple Stance) | −0.07 ± 0.09 | −0.05 | −0.09 | 1.0 | no clear effect |  |
+| 1266 | Stoney Skin | 4 | Class | — | PF2e rules (always on) | −0.07 ± 0.04 | −0.05 | −0.09 | 0.0 | no clear effect | the AI never used it |
+| 1267 | Mortification | 4 | Class | — | PF2e rules (always on) | −0.07 ± 0.04 | −0.05 | −0.09 | 0.0 | no clear effect | the AI never used it |
+| 1268 | Waking Dream | 8 | Class | — | innate spell: Waking Dream (rank 4) | −0.07 ± 0.06 | +0.01 | −0.16 | 1.0 | no clear effect |  |
+| 1269 | Flash Your Badge | 10 | Class | — | check | −0.07 ± 0.06 | +0.02 | −0.17 | 2.8 | no clear effect |  |
+| 1270 | Greater Deathly Secrets | 10 | Class | — | innate spells: Malignant Sustenance (rank 4), Grasping Grave (rank 5) | −0.07 ± 0.05 | −0.12 | −0.03 | 1.6 | no clear effect |  |
+| 1271 | Plane-Stepping Dash | 1 | Ancestry | — | effect | −0.07 ± 0.04 | −0.05 | −0.09 | 2.0 | no clear effect |  |
+| 1272 | Xidao Sea Mine Drop | 6 | Class | inventor | save | −0.07 ± 0.09 | −0.05 | −0.10 | 4.1 | no clear effect |  |
+| 1273 | Invoke the Crimson Oath | 8 | Class | — | innate spell: Invoke the Crimson Oath (rank 2) | −0.07 ± 0.04 | −0.04 | −0.11 | 0.9 | no clear effect |  |
+| 1274 | Tributary Circulation | 4 | Class | monk | +2 to Will saves for a round | −0.07 ± 0.07 | −0.10 | −0.05 | 3.2 | no clear effect |  |
+| 1275 | Majestic Presence | 13 | Ancestry | — | inline save: 20-foot emanation, will (DC 32) | −0.07 ± 0.03 | −0.12 | −0.03 | 1.3 | hurts |  |
+| 1276 | Advanced Elemental Spell | 6 | Class | druid | innate spells: Combustion (rank 3), Stone Lance (rank 3), Powerful Inhalation (rank 3), Pulverizing Cascade (rank 3) | −0.07 ± 0.06 | −0.09 | −0.06 | 2.5 | no clear effect |  |
+| 1277 | Split Spellstrike | 10 | Class | magus | 2 Strikes | −0.07 ± 0.07 | −0.04 | −0.11 | 3.7 | no clear effect | with two weapons (longsword and shortsword) |
+| 1278 | Shield the Faithful | 14 | Class | — | PF2e's self Effect | −0.08 ± 0.06 | −0.03 | −0.12 | 1.0 | no clear effect |  |
+| 1279 | Meditate on This! | 14 | Class | barbarian | save | −0.08 ± 0.07 | −0.00 | −0.15 | 3.8 | no clear effect |  |
+| 1280 | Sniper's Aim | 6 | Class | gunslinger | Strike activity | −0.08 ± 0.05 | −0.04 | −0.11 | 5.9 | no clear effect |  |
+| 1281 | Dragon Roar | 6 | Class | monk | save (in Dragon Stance) | −0.08 ± 0.04 | −0.10 | −0.06 | 0.3 | hurts |  |
+| 1282 | Repel Ambient Magic | 0 | Action | — | PF2e's self Effect | −0.08 ± 0.05 | −0.09 | −0.06 | 2.1 | no clear effect |  |
+| 1283 | Tremor | 1 | Class | kineticist | save | −0.08 ± 0.04 | −0.11 | −0.05 | 2.2 | no clear effect |  |
+| 1284 | Duelist's Challenge | 4 | Class | — | +its weapon dice damage on its Strikes (1 action, the fight) | −0.08 ± 0.06 | −0.17 | +0.01 | 1.0 | no clear effect |  |
+| 1285 | Unending Emptiness | 14 | Class | — | innate spell: Darklight (rank 7) | −0.08 ± 0.04 | −0.05 | −0.11 | 0.8 | hurts |  |
+| 1286 | Unfaltering Ranks | 17 | Ancestry | — | check | −0.08 ± 0.05 | −0.08 | −0.08 | 3.1 | no clear effect |  |
+| 1287 | Divine Declaration | 17 | Ancestry | — | innate spell: Divine Decree (rank 7) | −0.08 ± 0.05 | −0.11 | −0.05 | 1.0 | no clear effect |  |
+| 1288 | Breath of Calamity | 17 | Ancestry | — | innate spell: Chain Lightning (rank 7) | −0.08 ± 0.05 | −0.10 | −0.06 | 1.0 | no clear effect |  |
+| 1289 | Incredible Ricochet | 12 | Class | fighter | a ranged press Strike ignoring concealment and cover | −0.08 ± 0.05 | −0.12 | −0.03 | 8.3 | no clear effect | with a loaded arquebus |
+| 1290 | Stonestrike Stance | 0 | Action | — | PF2e's self Effect | −0.08 ± 0.04 | −0.05 | −0.11 | 1.0 | no clear effect |  |
+| 1291 | Targeting Finisher | 10 | Class | swashbuckler | Strike activity | −0.08 ± 0.03 | −0.11 | −0.06 | 5.3 | hurts |  |
+| 1292 | Howling Aspect | 1 | Ancestry | — | PF2e's self Effect | −0.08 ± 0.04 | −0.05 | −0.11 | 1.0 | no clear effect |  |
+| 1293 | Fiendish Brand | 6 | Class | — | Strike activity | −0.08 ± 0.04 | −0.15 | −0.02 | 2.5 | hurts |  |
+| 1294 | Warped Reflection | 1 | Ancestry | — | save | −0.08 ± 0.04 | −0.01 | −0.15 | 1.0 | hurts |  |
+| 1295 | Idol Threat | 13 | Ancestry | — | check | −0.08 ± 0.04 | −0.09 | −0.08 | 3.9 | hurts |  |
+| 1296 | Calculate Threats | 0 | Action | psychic | PF2e's self Effect | −0.08 ± 0.04 | −0.15 | −0.01 | 2.2 | hurts |  |
+| 1297 | Multitalented | 9 | Ancestry | — | Barbarian Dedication: Rage (+2 damage with its Greatsword) | −0.08 ± 0.05 | −0.15 | −0.01 | 1.0 | no clear effect |  |
+| 1298 | Devoted Guardian | 2 | Class | champion | an Effect on an ally | −0.08 ± 0.04 | −0.12 | −0.05 | 5.0 | no clear effect |  |
+| 1299 | Ultimatum of Liberation | 0 | Action | — | save | −0.08 ± 0.04 | −0.03 | −0.13 | 1.0 | hurts |  |
+| 1300 | Wrath of the Hold | 8 | Class | — | inline save: 30-foot cone, will, 4d6 spirit (DC 24) | −0.08 ± 0.05 | −0.03 | −0.13 | 2.0 | no clear effect |  |
+| 1301 | Seven-Colored Cosmic Bridge | 18 | Class | exemplar | Fleeting Arc through Heaven and Earth: inline save: 60-foot cone, fortitude, 9d6 spirit (DC 38) | −0.08 ± 0.04 | −0.07 | −0.10 | 1.3 | hurts |  |
+| 1302 | Stonebound Magic | 6 | Class | — | innate spell: Scatter Scree (rank 3), One with Stone (rank 8), Shape Stone (rank 10), Wall of Stone (rank 12) | −0.09 ± 0.04 | −0.09 | −0.08 | 2.0 | no clear effect |  |
+| 1303 | Feast | 4 | Class | — | check | −0.09 ± 0.03 | −0.13 | −0.04 | 1.8 | hurts |  |
+| 1304 | Rallying Cry | 17 | Ancestry | — | its text's self buff (TempHP 17) | −0.09 ± 0.04 | −0.12 | −0.05 | 1.0 | no clear effect |  |
+| 1305 | Lead by Example | 8 | Class | — | Strike activity | −0.09 ± 0.04 | −0.04 | −0.13 | 6.8 | hurts |  |
+| 1306 | Backup Runic Enhancement | 1 | Class | — | innate spells: Sigil (rank 1), Runic Body (rank 1), Runic Weapon (rank 1) | −0.09 ± 0.07 | +0.12 | −0.29 | 1.0 | no clear effect |  |
+| 1307 | Storming Gaze | 5 | Ancestry | — | inline save: 15-foot cone, reflex, 3d4 fire (DC 21) | −0.09 ± 0.03 | −0.12 | −0.05 | 1.6 | hurts |  |
+| 1308 | Ocean's Balm | 1 | Class | kineticist | impulse heal: 1d8 (30 feet) | −0.09 ± 0.04 | −0.07 | −0.11 | 2.7 | hurts |  |
+| 1309 | Hail of Splinters | 1 | Class | kineticist | save | −0.09 ± 0.03 | −0.11 | −0.07 | 0.5 | hurts |  |
+| 1310 | Enervating Wail | 6 | Class | — | save | −0.09 ± 0.03 | −0.13 | −0.04 | 1.0 | hurts |  |
+| 1311 | Fade Into Daydreams | 0 | Action | psychic | check | −0.09 ± 0.04 | −0.16 | −0.01 | 1.9 | hurts |  |
+| 1312 | Corpse Tender's Font | 4 | Class | — | innate spell: Harm (rank 1) | −0.09 ± 0.05 | −0.06 | −0.12 | 1.0 | no clear effect |  |
+| 1313 | Evangelize | 7 | Skill | — | check | −0.09 ± 0.03 | −0.06 | −0.12 | 2.1 | hurts |  |
+| 1314 | Kitsune Spell Expertise | 13 | Ancestry | — | innate spells: Confusion (rank 4), Death Ward (rank 5), Illusory Scene (rank 5) | −0.09 ± 0.04 | −0.11 | −0.06 | 1.0 | hurts |  |
+| 1315 | Threatening Pursuit | 13 | Ancestry | — | check | −0.09 ± 0.04 | −0.11 | −0.07 | 3.9 | hurts |  |
+| 1316 | Alloy Flesh and Steel | 14 | Class | kineticist | PF2e's self Effect | −0.09 ± 0.10 | −0.09 | −0.09 | 1.0 | no clear effect |  |
+| 1317 | Daring Act | 6 | Class | — | check | −0.09 ± 0.04 | −0.07 | −0.11 | 2.4 | hurts |  |
+| 1318 | Targeting Shot | 14 | Class | ranger | a ranged press Strike ignoring concealment and cover | −0.09 ± 0.07 | +0.00 | −0.18 | 13.2 | no clear effect |  |
+| 1319 | Starlit Sentinel Dedication | 2 | Class | — | Starlit Transformation: PF2e's self Effect | −0.09 ± 0.04 | +0.04 | −0.22 | 0.0 | hurts | the AI never used it |
+| 1320 | Tidal Hands | 1 | Class | kineticist | save | −0.09 ± 0.03 | −0.13 | −0.05 | 0.8 | hurts |  |
+| 1321 | Topple Foe | 10 | Class | — | check | −0.09 ± 0.04 | −0.01 | −0.18 | 4.6 | hurts |  |
+| 1322 | Kneecap | 5 | Ancestry | — | Strike activity | −0.09 ± 0.02 | −0.08 | −0.11 | 5.8 | hurts |  |
+| 1323 | Kitsune Spell Mysteries | 5 | Ancestry | — | innate spell: Bane (rank 1), Illusory Object (rank 1), Sanctuary (rank 1) | −0.09 ± 0.03 | −0.09 | −0.09 | 3.3 | hurts |  |
+| 1324 | Tranquil Sanctuary | 5 | Ancestry | — | innate spell: Sanctuary (rank 1) | −0.09 ± 0.03 | −0.09 | −0.09 | 3.3 | hurts |  |
+| 1325 | Shard Strike | 1 | Class | kineticist | inline save: 15-foot cone, reflex, 1d6 slashing (DC 17) | −0.09 ± 0.03 | −0.15 | −0.03 | 0.7 | hurts |  |
+| 1326 | Rivethun Invoker Dedication | 2 | Class | — | Enter Spirit Trance: PF2e's self Effect | −0.09 ± 0.05 | +0.00 | −0.19 | 0.0 | hurts | the AI never used it |
+| 1327 | Herald's Strike | 20 | Class | — | save | −0.09 ± 0.07 | +0.08 | −0.27 | 3.3 | no clear effect |  |
+| 1328 | Stone Brawler Dedication | 2 | Class | — | Stonestrike Stance: PF2e's self Effect | −0.09 ± 0.05 | +0.00 | −0.19 | 1.0 | hurts |  |
+| 1329 | Ursine Avenger Form | 2 | Class | — | PF2e's self Effect | −0.09 ± 0.05 | +0.00 | −0.19 | 1.0 | hurts |  |
+| 1330 | Offer Story | 0 | Action | — | effect | −0.09 ± 0.05 | −0.09 | −0.10 | 4.2 | no clear effect |  |
+| 1331 | Swirl Crimson Shroud | 0 | Action | — | PF2e's self Effect | −0.09 ± 0.05 | −0.09 | −0.10 | 2.1 | no clear effect |  |
+| 1332 | Hydraulic Deflection | 1 | Ancestry | — | PF2e's self Effect | −0.09 ± 0.05 | −0.09 | −0.10 | 2.1 | no clear effect |  |
+| 1333 | Ceremony of Protection | 1 | Ancestry | — | its text's self buff (FlatModifier ac 1) | −0.09 ± 0.05 | −0.09 | −0.10 | 1.9 | no clear effect |  |
+| 1334 | Belly Flop | 10 | Class | guardian | Strike activity | −0.09 ± 0.05 | −0.17 | −0.02 | 10.4 | hurts |  |
+| 1335 | Renewed Vigor | 8 | Class | barbarian | its text's self buff (TempHP 4) | −0.10 ± 0.06 | +0.05 | −0.24 | 1.0 | no clear effect |  |
+| 1336 | Avenger of Gluttony | 14 | Class | — | Gluttonous Feast: save | −0.10 ± 0.05 | −0.15 | −0.04 | 0.0 | no clear effect | the AI never used it |
+| 1337 | Mind Shards | 6 | Class | — | save | −0.10 ± 0.03 | −0.11 | −0.08 | 0.9 | hurts |  |
+| 1338 | Elite Dracomancer | 13 | Ancestry | — | innate spell: Clairvoyance (rank 3), Paralyze (rank 3) | −0.10 ± 0.04 | −0.14 | −0.05 | 1.0 | hurts |  |
+| 1339 | Restitch | 17 | Ancestry | — | innate spell: Regenerate (rank 7) | −0.10 ± 0.05 | −0.12 | −0.08 | 1.0 | hurts |  |
+| 1340 | Regrowth | 17 | Ancestry | — | innate spell: Regenerate (rank 7) | −0.10 ± 0.05 | −0.12 | −0.08 | 1.0 | hurts |  |
+| 1341 | Nodal Regeneration | 17 | Ancestry | — | innate spell: Regenerate (rank 7) | −0.10 ± 0.05 | −0.12 | −0.08 | 1.0 | hurts |  |
+| 1342 | Compliant Gold | 12 | Class | exemplar | Topple the Pillar of Heaven: inline save: 60-foot line, reflex, 6d8 untyped (DC 31) | −0.10 ± 0.06 | −0.08 | −0.12 | 3.6 | no clear effect |  |
+| 1343 | Venomous Touch | 12 | Class | — | innate spell: Purple Worm Sting (rank 6) | −0.10 ± 0.06 | −0.13 | −0.07 | 1.0 | no clear effect |  |
+| 1344 | Penetrating Shot | 10 | Class | ranger | a Strike at up to 2 foes | −0.10 ± 0.04 | +0.00 | −0.20 | 3.3 | hurts |  |
+| 1345 | Frightening Power | 12 | Class | — | save | −0.10 ± 0.07 | −0.34 | +0.14 | 11.7 | no clear effect |  |
+| 1346 | Shadow's Assault | 13 | Ancestry | — | innate spell: Shadow Blast (rank 5) | −0.10 ± 0.03 | −0.11 | −0.09 | 1.0 | hurts |  |
+| 1347 | Hurricane Swing | 17 | Ancestry | — | innate spells: Lightning Bolt (rank 3), Gust of Wind (rank 1) | −0.10 ± 0.04 | −0.07 | −0.13 | 2.0 | hurts |  |
+| 1348 | Stoney Deflection | 6 | Class | — | effect (in Stonestrike Stance) | −0.10 ± 0.05 | −0.03 | −0.17 | 2.0 | no clear effect |  |
+| 1349 | Searing Restoration | 2 | Class | inventor | heals 1d10 (touch) | −0.10 ± 0.04 | −0.09 | −0.11 | 2.8 | hurts |  |
+| 1350 | Mummy's Despair | 6 | Class | — | each enemy within 30 feet saves (will, DC 22) or is frightened (2 actions, once a fight) | −0.10 ± 0.04 | −0.18 | −0.02 | 1.0 | hurts |  |
+| 1351 | Repair Module | 9 | Ancestry | — | PF2e's self Effect | −0.10 ± 0.05 | −0.16 | −0.04 | 1.0 | hurts |  |
+| 1352 | Tidal Shield | 17 | Ancestry | — | PF2e's self Effect | −0.10 ± 0.04 | −0.14 | −0.07 | 1.0 | hurts |  |
+| 1353 | Overwhelming Blow | 16 | Class | fighter | Strike activity | −0.10 ± 0.06 | −0.05 | −0.16 | 4.5 | no clear effect |  |
+| 1354 | Frightful Moan | 4 | Class | — | inline save: 30-foot emanation, will (DC 20, 1/fight) | −0.10 ± 0.03 | −0.16 | −0.05 | 0.3 | hurts |  |
+| 1355 | Ponpoko-Pon! | 13 | Ancestry | — | inline save: 30-foot cone, fortitude, 7d4 sonic (DC 32) | −0.10 ± 0.03 | −0.10 | −0.11 | 1.3 | hurts |  |
+| 1356 | Jotun's Grasp | 5 | Ancestry | — | check | −0.10 ± 0.03 | −0.16 | −0.05 | 2.1 | hurts |  |
+| 1357 | Manifold Conduit | 12 | Class | — | innate spell: Entreat the Many (rank 6) | −0.10 ± 0.06 | −0.22 | +0.01 | 1.0 | no clear effect |  |
+| 1358 | Doom of Sailors | 17 | Ancestry | — | save | −0.11 ± 0.05 | −0.14 | −0.07 | 1.0 | hurts |  |
+| 1359 | Velstrac Magic | 9 | Ancestry | — | innate spell: Telekinetic Maneuver (rank 2), Web (rank 2) | −0.11 ± 0.03 | −0.02 | −0.19 | 1.0 | hurts |  |
+| 1360 | Scarlet Strands | 9 | Ancestry | — | innate spell: Web (rank 4) | −0.11 ± 0.03 | −0.02 | −0.19 | 1.0 | hurts |  |
+| 1361 | Sovereign's Blade | 18 | Class | — | an Effect on an ally | −0.11 ± 0.06 | −0.14 | −0.07 | 6.0 | no clear effect |  |
+| 1362 | Wyldsinger | 4 | Class | — | innate spell: Menacing Lament (rank 2), Valiant Anthem (rank 2) | −0.11 ± 0.04 | −0.12 | −0.09 | 1.0 | hurts |  |
+| 1363 | Avenging Runelord Dedication | 12 | Class | — | innate spells: Darkvision (rank 2), Mystic Armor (rank 1), Runic Body (rank 1), Runic Weapon (rank 1), See the Unseen (rank 2), Sending (rank 5), Truesight (rank 6) | −0.11 ± 0.06 | −0.08 | −0.13 | 1.0 | no clear effect |  |
+| 1364 | Worm's Feast | 6 | Class | — | save | −0.11 ± 0.05 | −0.15 | −0.06 | 1.0 | hurts |  |
+| 1365 | Impossible Flurry | 18 | Class | ranger | 3 Strikes | −0.11 ± 0.07 | −0.15 | −0.06 | 4.3 | no clear effect | with two weapons (longsword and shortsword) |
+| 1366 | Shattering Strike (Monk) | 16 | Class | monk | Strike activity | −0.11 ± 0.10 | +0.02 | −0.24 | 11.0 | no clear effect |  |
+| 1367 | Boulder Roll | 5 | Ancestry | — | save | −0.11 ± 0.03 | −0.15 | −0.07 | 2.3 | hurts |  |
+| 1368 | Twinned Defense (Fighter) | 16 | Class | fighter | effect | −0.11 ± 0.06 | −0.14 | −0.08 | 1.0 | no clear effect |  |
+| 1369 | Mobile Finisher | 12 | Class | swashbuckler | Strike activity | −0.11 ± 0.04 | −0.02 | −0.20 | 2.1 | hurts |  |
+| 1370 | Eternity-Incinerating Blaze | 18 | Class | exemplar | Burn out of Time: heals 5d8 (touch) | −0.11 ± 0.04 | −0.13 | −0.09 | 1.8 | hurts |  |
+| 1371 | Demoralize | 0 | Action | — | check | −0.11 ± 0.04 | −0.01 | −0.21 | 1.7 | hurts |  |
+| 1372 | Haunting Visage | 0 | Action | — | check | −0.11 ± 0.04 | −0.01 | −0.21 | 1.7 | hurts |  |
+| 1373 | Terrifying Croak | 1 | Ancestry | — | check | −0.11 ± 0.04 | −0.01 | −0.21 | 1.8 | hurts |  |
+| 1374 | Sudden Terror | 1 | Ancestry | — | check | −0.11 ± 0.04 | −0.01 | −0.21 | 1.8 | hurts |  |
+| 1375 | Conductive Sphere | 8 | Class | kineticist | save | −0.11 ± 0.09 | −0.17 | −0.05 | 5.5 | no clear effect |  |
+| 1376 | Hypnotic Lure | 5 | Ancestry | — | inline save: 1 creature, 30 feet, will (DC 21, 1/fight) | −0.11 ± 0.03 | −0.16 | −0.06 | 1.2 | hurts |  |
+| 1377 | Extravagant Parry | 1 | Class | swashbuckler | its text's self buff (FlatModifier ac 1) | −0.11 ± 0.05 | −0.07 | −0.15 | 2.2 | hurts |  |
+| 1378 | Buckler Dance | 10 | Class | swashbuckler | stance: its buckler always raised | −0.11 ± 0.05 | −0.08 | −0.14 | 1.0 | hurts |  |
+| 1379 | Aerial Boomerang | 1 | Class | kineticist | save | −0.11 ± 0.05 | −0.18 | −0.05 | 2.2 | hurts |  |
+| 1380 | Shattershields | 12 | Class | kineticist | its text's self buff (FlatModifier ac 1) | −0.11 ± 0.06 | −0.13 | −0.10 | 1.0 | no clear effect |  |
+| 1381 | Shackles of Law | 0 | Bonus | — | Strike activity | −0.11 ± 0.05 | −0.11 | −0.12 | 2.1 | hurts |  |
+| 1382 | Zombie Dedication | 2 | Class | — | PF2e rules (always on) | −0.11 ± 0.04 | −0.11 | −0.11 | 0.0 | hurts | the AI never used it |
+| 1383 | Waters of Creation | 10 | Class | oracle | check | −0.11 ± 0.06 | −0.14 | −0.09 | 2.3 | no clear effect |  |
+| 1384 | Reprisal of the Fallen | 18 | Class | — | innate spells: Invoke Spirits (rank 9), Wails of the Damned (rank 9) | −0.11 ± 0.06 | −0.27 | +0.05 | 2.0 | no clear effect |  |
+| 1385 | Tidal Wave | 16 | Class | — | 2 Strikes | −0.11 ± 0.06 | +0.01 | −0.23 | 3.9 | no clear effect |  |
+| 1386 | Basic Hunter's Trick | 4 | Class | — | Hunter's Aim: Strike activity | −0.11 ± 0.08 | −0.08 | −0.14 | 0.0 | no clear effect | the AI never used it |
+| 1387 | Triple Time | 4 | Class | bard | innate spell: Triple Time (rank 2) | −0.11 ± 0.05 | −0.10 | −0.12 | 12.7 | hurts |  |
+| 1388 | Tail Spin | 5 | Ancestry | — | check | −0.11 ± 0.03 | −0.13 | −0.10 | 2.3 | hurts |  |
+| 1389 | Defend Summoner | 4 | Class | summoner | its text's self buff (FlatModifier ac 2) | −0.12 ± 0.07 | −0.12 | −0.11 | 2.9 | no clear effect |  |
+| 1390 | Strident Command | 10 | Class | — | innate spell: Command (rank 1) | −0.12 ± 0.05 | −0.11 | −0.12 | 1.5 | hurts |  |
+| 1391 | Dueling Dance (Swashbuckler) | 10 | Class | swashbuckler | PF2e's stance Effect | −0.12 ± 0.05 | −0.07 | −0.16 | 1.0 | hurts |  |
+| 1392 | Necrotic Bomber | 4 | Class | — | innate spell: Necrotic Bomb (rank 1) | −0.12 ± 0.04 | −0.10 | −0.13 | 1.0 | hurts |  |
+| 1393 | Ka Stone Ritual | 4 | Class | — | casts Enlarge (rank 2, DC 20, 1/fight) | −0.12 ± 0.05 | −0.11 | −0.12 | 1.0 | hurts |  |
+| 1394 | Metallic Skin | 17 | Ancestry | — | PF2e's self Effect | −0.12 ± 0.05 | −0.11 | −0.13 | 1.0 | hurts |  |
+| 1395 | Mountain Stronghold | 6 | Class | monk | effect (in Mountain Stance) | −0.12 ± 0.07 | −0.01 | −0.23 | 7.6 | no clear effect |  |
+| 1396 | Raise Symbol | 4 | Class | cleric | self effect | −0.12 ± 0.04 | −0.21 | −0.04 | 3.5 | hurts |  |
+| 1397 | Supernatural Charm | 5 | Ancestry | — | innate spell: Charm (rank 1) | −0.12 ± 0.03 | −0.19 | −0.05 | 1.1 | hurts |  |
+| 1398 | Devilish Wiles | 5 | Ancestry | — | innate spell: Charm (rank 1) | −0.12 ± 0.03 | −0.19 | −0.05 | 1.1 | hurts |  |
+| 1399 | Enthralling Allure | 5 | Ancestry | — | innate spell: Charm (rank 1) | −0.12 ± 0.03 | −0.19 | −0.05 | 1.1 | hurts |  |
+| 1400 | Dragon Prince | 9 | Ancestry | — | innate spell: Dragon Breath (rank 3) | −0.12 ± 0.04 | −0.13 | −0.11 | 1.0 | hurts |  |
+| 1401 | Webslinger | 13 | Ancestry | — | casts Web (rank 2, DC 32, 1/fight) | −0.12 ± 0.03 | −0.09 | −0.15 | 1.0 | hurts |  |
+| 1402 | Harden Flesh | 10 | Class | druid | resistance to physical damage until its next turn | −0.12 ± 0.05 | −0.00 | −0.24 | 3.3 | hurts |  |
+| 1403 | Friendly Nudge | 1 | Ancestry | — | check | −0.12 ± 0.03 | −0.13 | −0.12 | 0.8 | hurts |  |
+| 1404 | Celestial Cacophony | 12 | Class | inventor | save | −0.12 ± 0.07 | −0.09 | −0.15 | 1.4 | no clear effect |  |
+| 1405 | Swamp Gas Form | 13 | Ancestry | — | innate spell: Vapor Form (rank 4) | −0.13 ± 0.04 | −0.17 | −0.08 | 1.0 | hurts |  |
+| 1406 | Pounce Mimicry | 14 | Class | — | Strike activity | −0.13 ± 0.06 | −0.04 | −0.22 | 4.2 | hurts |  |
+| 1407 | Starlit Spells | 10 | Class | — | innate spells: Revealing Light (rank 3), Holy Light (rank 3) | −0.13 ± 0.05 | −0.13 | −0.12 | 2.0 | hurts |  |
+| 1408 | Bloom of Health | 14 | Class | — | an Effect on an ally | −0.13 ± 0.06 | −0.16 | −0.09 | 7.7 | hurts |  |
+| 1409 | Become as Shadow | 17 | Ancestry | — | PF2e's self Effect | −0.13 ± 0.04 | −0.16 | −0.10 | 1.0 | hurts |  |
+| 1410 | Alluring Performance | 9 | Ancestry | — | check | −0.13 ± 0.04 | −0.10 | −0.16 | 1.0 | hurts |  |
+| 1411 | Thunder Clap | 6 | Class | — | inline save: 15-foot cone, fortitude, 3d6 sonic (DC 22) | −0.13 ± 0.04 | −0.16 | −0.10 | 1.7 | hurts |  |
+| 1412 | Intimidating Strike | 2 | Class | barbarian | Strike activity | −0.13 ± 0.04 | −0.05 | −0.22 | 2.3 | hurts |  |
+| 1413 | Vicious Evisceration | 18 | Class | barbarian | Strike activity | −0.13 ± 0.06 | −0.13 | −0.14 | 4.7 | hurts |  |
+| 1414 | Tears of Pearl | 9 | Ancestry | — | save | −0.13 ± 0.05 | −0.07 | −0.19 | 1.0 | hurts |  |
+| 1415 | Devastating Spellstrike | 4 | Class | magus | check | −0.13 ± 0.09 | −0.03 | −0.23 | 2.7 | no clear effect |  |
+| 1416 | Trickster Tengu | 17 | Ancestry | — | innate spells: Aerial Form (rank 4), Cursed Metamorphosis (rank 7) | −0.13 ± 0.05 | −0.20 | −0.06 | 1.0 | hurts |  |
+| 1417 | Part the Veil | 0 | Action | — | check | −0.13 ± 0.05 | −0.12 | −0.15 | 1.0 | hurts |  |
+| 1418 | Empathic Calm | 5 | Ancestry | — | innate spells: Calm (rank 2), Sanctuary (rank 3) | −0.13 ± 0.04 | −0.24 | −0.03 | 5.7 | hurts |  |
+| 1419 | Burn out of Time | 0 | Action | — | heals 5d8 (touch) | −0.13 ± 0.03 | −0.12 | −0.15 | 0.8 | hurts |  |
+| 1420 | Shove | 0 | Action | — | check | −0.13 ± 0.04 | −0.11 | −0.16 | 0.9 | hurts | with a one-handed weapon and a free hand |
+| 1421 | Storyteller's Mask | 20 | Class | druid | innate spell: Foresight (rank 9) | −0.13 ± 0.07 | −0.03 | −0.24 | 4.2 | no clear effect |  |
+| 1422 | Veil Dancer Dedication | 2 | Class | — | Part the Veil: check | −0.13 ± 0.05 | +0.02 | −0.29 | 0.0 | hurts | the AI never used it |
+| 1423 | Nocturnal Kindred | 4 | Class | — | innate spell: Animal Allies (rank 1) | −0.14 ± 0.04 | −0.21 | −0.06 | 1.0 | hurts |  |
+| 1424 | Debilitating Dichotomy | 8 | Class | oracle | save | −0.14 ± 0.05 | −0.07 | −0.20 | 2.8 | hurts |  |
+| 1425 | Poisoner's Twist | 4 | Class | — | check | −0.14 ± 0.04 | −0.08 | −0.20 | 5.8 | hurts |  |
+| 1426 | Flickering Twirl | 12 | Class | — | check | −0.14 ± 0.06 | −0.15 | −0.13 | 3.7 | hurts |  |
+| 1427 | Heroes' Call | 9 | Ancestry | — | innate spell: Heroism (rank 3) | −0.14 ± 0.04 | −0.09 | −0.19 | 1.0 | hurts |  |
+| 1428 | Mentor of Legends | 9 | Ancestry | — | innate spell: Heroism (rank 5) | −0.14 ± 0.04 | −0.09 | −0.19 | 1.0 | hurts |  |
+| 1429 | Channel Divine Spark | 14 | Class | — | PF2e's self Effect | −0.14 ± 0.06 | −0.00 | −0.27 | 1.0 | hurts |  |
+| 1430 | Shaitan Magic | 9 | Ancestry | — | innate spells: Revealing Light (rank 2), Resist Energy (rank 2) | −0.14 ± 0.04 | −0.22 | −0.06 | 1.0 | hurts |  |
+| 1431 | Celestial Magic | 9 | Ancestry | — | innate spells: Clear Mind (rank 2), Everlight (rank 2), Humanoid Form (rank 2), Revealing Light (rank 2), Share Life (rank 2), Sure Footing (rank 2) | −0.14 ± 0.04 | −0.22 | −0.06 | 1.0 | hurts |  |
+| 1432 | First World Adept | 9 | Ancestry | — | innate spell: Invisibility (rank 2), Revealing Light (rank 2) | −0.14 ± 0.04 | −0.22 | −0.06 | 1.0 | hurts |  |
+| 1433 | Valkyrie's Charge | 0 | Action | commander | check | −0.14 ± 0.05 | −0.11 | −0.16 | 0.7 | hurts |  |
+| 1434 | Courageous Onslaught | 16 | Class | bard | Strike activity | −0.14 ± 0.03 | −0.06 | −0.22 | 3.9 | hurts |  |
+| 1435 | Dragonet Breath | 1 | Ancestry | — | save | −0.14 ± 0.03 | −0.23 | −0.05 | 0.7 | hurts |  |
+| 1436 | Earth to Heavens Strike | 14 | Class | — | Strike activity | −0.14 ± 0.06 | −0.14 | −0.14 | 4.0 | hurts |  |
+| 1437 | Storming Breath | 6 | Class | — | inline save: 30-foot cone, reflex, 4d6 untyped (DC 22) | −0.14 ± 0.04 | −0.22 | −0.07 | 1.5 | hurts |  |
+| 1438 | Unfettered Growth | 13 | Ancestry | — | innate spell: Enlarge (rank 2) | −0.14 ± 0.04 | −0.19 | −0.10 | 1.0 | hurts |  |
+| 1439 | Stridulating Song | 0 | Action | — | save | −0.14 ± 0.04 | −0.10 | −0.18 | 1.0 | hurts |  |
+| 1440 | Perfect Ki Grandmaster | 18 | Class | — | innate spells: Unblinking Flame Ignition (rank 9), Unbreaking Wave Containment (rank 9), Unfolding Wind Crash (rank 9), Untwisting Iron Pillar (rank 9) | −0.14 ± 0.05 | −0.25 | −0.04 | 2.0 | hurts |  |
+| 1441 | Impaling Bone | 17 | Ancestry | — | innate spell: Impaling Spike (rank 7) | −0.14 ± 0.05 | −0.22 | −0.07 | 1.0 | hurts |  |
+| 1442 | Edict of Mortality | 8 | Class | — | check | −0.14 ± 0.06 | −0.02 | −0.27 | 2.8 | hurts |  |
+| 1443 | Majestic Proclamation | 8 | Class | — | check | −0.14 ± 0.06 | −0.02 | −0.27 | 2.8 | hurts |  |
+| 1444 | Walk the Plank | 8 | Class | — | check | −0.14 ± 0.06 | −0.02 | −0.27 | 2.8 | hurts |  |
+| 1445 | Font of Life or Death | 16 | Class | — | innate spells: Heal (rank 1), Harm (rank 8) | −0.14 ± 0.07 | −0.18 | −0.11 | 2.0 | hurts |  |
+| 1446 | Pointed Question | 0 | Action | investigator | check | −0.14 ± 0.06 | −0.01 | −0.28 | 2.6 | hurts |  |
+| 1447 | Armored Courage | 4 | Class | guardian | PF2e's self Effect | −0.15 ± 0.05 | −0.22 | −0.07 | 1.0 | hurts |  |
+| 1448 | Lightning Rod | 6 | Class | kineticist | check | −0.15 ± 0.09 | +0.02 | −0.31 | 4.3 | no clear effect |  |
+| 1449 | Disturbing Knowledge | 7 | Skill | — | check | −0.15 ± 0.04 | −0.13 | −0.17 | 2.4 | hurts |  |
+| 1450 | Unyielding Force | 20 | Class | guardian | PF2e rules (always on) | −0.15 ± 0.05 | +0.02 | −0.31 | 0.0 | hurts | the AI never used it |
+| 1451 | Breath of the Dragon (Dragonblood) | 1 | Ancestry | — | save | −0.15 ± 0.03 | −0.18 | −0.12 | 0.8 | hurts |  |
+| 1452 | Kobold Breath | 1 | Ancestry | — | save | −0.15 ± 0.03 | −0.18 | −0.12 | 1.2 | hurts |  |
+| 1453 | Blessed Sentinel | 6 | Class | — | Strike activity | −0.15 ± 0.04 | −0.18 | −0.11 | 2.4 | hurts |  |
+| 1454 | Fleet Tempo | 4 | Class | — | effect | −0.15 ± 0.05 | −0.14 | −0.15 | 2.0 | hurts |  |
+| 1455 | Sleepwalker Dedication | 4 | Class | — | Daydream Trance: PF2e's self Effect | −0.15 ± 0.06 | −0.28 | −0.02 | 0.0 | hurts | the AI never used it |
+| 1456 | Jinx | 0 | Action | — | save | −0.15 ± 0.04 | −0.09 | −0.20 | 1.0 | hurts |  |
+| 1457 | Dragon Breath | 0 | Action | — | inline save: 30-foot cone, reflex, 1d6 untyped (DC 17, 1/fight) | −0.15 ± 0.04 | −0.14 | −0.16 | 0.8 | hurts |  |
+| 1458 | Begin Stampede | 17 | Ancestry | — | Strike activity | −0.15 ± 0.04 | −0.07 | −0.23 | 2.7 | hurts |  |
+| 1459 | Flinging Blow | 16 | Class | monk | Strike activity | −0.15 ± 0.10 | −0.00 | −0.30 | 6.3 | no clear effect |  |
+| 1460 | Night's Glow | 6 | Class | — | innate spells: Moonbeam (rank 1), Zenith Star (rank 1) | −0.15 ± 0.05 | −0.17 | −0.14 | 1.0 | hurts |  |
+| 1461 | Efreeti Magic | 9 | Ancestry | — | innate spell: Enlarge (rank 2), Illusory Object (rank 2) | −0.15 ± 0.04 | −0.12 | −0.18 | 1.0 | hurts |  |
+| 1462 | Towering Growth | 9 | Ancestry | — | innate spell: Enlarge (rank 2) | −0.15 ± 0.04 | −0.12 | −0.18 | 1.0 | hurts |  |
+| 1463 | Legendary Size | 9 | Ancestry | — | innate spells: Enlarge (rank 2), Shrink (rank 2) | −0.15 ± 0.04 | −0.12 | −0.18 | 1.0 | hurts |  |
+| 1464 | Janni Magic | 9 | Ancestry | — | innate spell: Enlarge (rank 2), Speak with Animals (rank 2) | −0.15 ± 0.04 | −0.12 | −0.18 | 1.0 | hurts |  |
+| 1465 | Crone's Cruelty | 17 | Ancestry | — | innate spell: Warp Mind (rank 7) | −0.15 ± 0.05 | −0.26 | −0.04 | 1.0 | hurts |  |
+| 1466 | Perfect Ki Adept | 6 | Class | — | innate spells: Unblinking Flame Revelation (rank 3), Unbreaking Wave Advance (rank 3), Unfolding Wind Rush (rank 3), Untwisting Iron Buffer (rank 3) | −0.15 ± 0.05 | −0.09 | −0.22 | 2.0 | hurts |  |
+| 1467 | Chain of Words | 10 | Class | — | save | −0.15 ± 0.06 | −0.13 | −0.18 | 1.0 | hurts |  |
+| 1468 | Divine Invulnerability | 14 | Class | — | PF2e's self Effect | −0.16 ± 0.06 | −0.02 | −0.29 | 1.0 | hurts |  |
+| 1469 | Immortal Lightness | 4 | Class | — | focus spell: Athletic Rush (rank 2) | −0.16 ± 0.06 | −0.28 | −0.03 | 1.0 | hurts |  |
+| 1470 | Forceful Shot | 14 | Class | — | Strike activity | −0.16 ± 0.04 | −0.18 | −0.13 | 5.3 | hurts |  |
+| 1471 | Kinetic Dampening | 6 | Class | — | its text's self buff (Resistance physical 5) | −0.16 ± 0.05 | −0.15 | −0.16 | 2.7 | hurts |  |
+| 1472 | Haft Striker Stance | 4 | Class | fighter | stance | −0.16 ± 0.06 | −0.30 | −0.02 | 1.2 | hurts |  |
+| 1473 | Godspeed | 4 | Class | — | PF2e's self Effect | −0.16 ± 0.06 | −0.28 | −0.03 | 1.0 | hurts |  |
+| 1474 | Meteoric Spellstrike | 10 | Class | magus | check | −0.16 ± 0.07 | +0.03 | −0.35 | 3.7 | hurts | with a loaded arquebus |
+| 1475 | Staggering Fire | 6 | Class | — | Strike activity | −0.16 ± 0.04 | −0.18 | −0.13 | 7.5 | hurts |  |
+| 1476 | Claw Stance | 0 | Action | — | PF2e's stance Effect | −0.16 ± 0.04 | −0.20 | −0.12 | 1.1 | hurts |  |
+| 1477 | Adamantine Mantra | 13 | Ancestry | — | innate spell: Blessing of Defiance (rank 5) | −0.16 ± 0.04 | −0.20 | −0.12 | 1.0 | hurts |  |
+| 1478 | Drag Down | 5 | Ancestry | — | check | −0.16 ± 0.03 | −0.19 | −0.13 | 1.8 | hurts |  |
+| 1479 | Steal for the Depths | 5 | Ancestry | — | check | −0.16 ± 0.03 | −0.19 | −0.13 | 1.8 | hurts |  |
+| 1480 | Pistol Twirl | 2 | Class | gunslinger | check | −0.16 ± 0.03 | −0.14 | −0.18 | 1.8 | hurts |  |
+| 1481 | Might of the Realm | 14 | Class | — | Strike activity | −0.16 ± 0.06 | −0.19 | −0.13 | 4.6 | hurts |  |
+| 1482 | Pistol Phenom Dedication | 2 | Class | — | Pistol Twirl: check | −0.16 ± 0.03 | −0.14 | −0.18 | 0.0 | hurts | the AI never used it |
+| 1483 | Disarming Assault | 8 | Class | barbarian | Strike activity | −0.16 ± 0.05 | −0.11 | −0.22 | 3.9 | hurts |  |
+| 1484 | Talon Stance | 0 | Action | — | PF2e's stance Effect | −0.16 ± 0.05 | −0.18 | −0.14 | 1.1 | hurts |  |
+| 1485 | Blazing Talon Surge | 6 | Class | monk | Strike activity (in Rain of Embers Stance) | −0.16 ± 0.06 | −0.14 | −0.18 | 2.1 | hurts |  |
+| 1486 | Bone Swarm | 17 | Ancestry | — | save | −0.16 ± 0.05 | −0.29 | −0.04 | 1.0 | hurts |  |
+| 1487 | Deny the Songs of War | 10 | Class | — | innate spells: Deafness (rank 4), Silence (rank 4) | −0.16 ± 0.05 | −0.17 | −0.16 | 1.0 | hurts |  |
+| 1488 | Five-Gods Ram | 12 | Class | monk | Strike activity (in Rushing Goat Stance) | −0.16 ± 0.07 | +0.06 | −0.39 | 2.7 | hurts |  |
+| 1489 | Stand Back, I'm A Doctor! | 12 | Class | — | save | −0.16 ± 0.06 | +0.03 | −0.36 | 3.3 | hurts |  |
+| 1490 | Viking Vindicator | 8 | Class | — | Sudden Charge: Strike activity | −0.16 ± 0.04 | −0.04 | −0.29 | 0.0 | hurts | the AI never used it |
+| 1491 | Furnace Form | 12 | Class | kineticist | PF2e's self Effect | −0.16 ± 0.11 | −0.21 | −0.12 | 1.0 | no clear effect |  |
+| 1492 | Flower Street Infamy | 11 | Skill | — | check | −0.17 ± 0.04 | −0.05 | −0.28 | 3.7 | hurts |  |
+| 1493 | Death of Hope | 17 | Ancestry | — | save | −0.17 ± 0.05 | −0.20 | −0.13 | 1.0 | hurts |  |
+| 1494 | Venipuncture | 10 | Class | — | save | −0.17 ± 0.05 | −0.14 | −0.19 | 1.5 | hurts |  |
+| 1495 | Sheltering Pulse | 8 | Class | — | +1 AC to allies near it for 3 rounds, the PC and its allies within 15 feet | −0.17 ± 0.06 | −0.09 | −0.24 | 20.5 | hurts |  |
+| 1496 | Draconic Resilience | 4 | Class | — | effect | −0.17 ± 0.04 | −0.27 | −0.06 | 6.0 | hurts |  |
+| 1497 | Twin Parry | 4 | Class | fighter | effect | −0.17 ± 0.04 | −0.27 | −0.06 | 2.8 | hurts |  |
+| 1498 | Vengeful Strike | 14 | Class | barbarian | reaction Strike (hit) (in Come and Get Me) | −0.17 ± 0.07 | −0.16 | −0.17 | 0.2 | hurts |  |
+| 1499 | Terrorize | 9 | Ancestry | — | innate spell: Fear (rank 3) | −0.17 ± 0.04 | −0.14 | −0.20 | 1.0 | hurts |  |
+| 1500 | Dracomancer | 9 | Ancestry | — | innate spell: Fear (rank 1), Invisibility (rank 2) | −0.17 ± 0.04 | −0.14 | −0.20 | 1.0 | hurts |  |
+| 1501 | Ferocious Gust | 9 | Ancestry | — | save | −0.17 ± 0.04 | −0.17 | −0.17 | 1.0 | hurts |  |
+| 1502 | Blood Shield | 4 | Class | — | its text's self buff (FlatModifier ac 1) | −0.17 ± 0.04 | −0.27 | −0.07 | 2.9 | hurts |  |
+| 1503 | Vigilant Benediction | 12 | Class | — | innate spells: Unfettered Movement (rank 4), Cleanse Affliction (rank 2), Resist Energy (rank 2), Spell Immunity (rank 4), Status (rank 2), Oaken Resilience (rank 2), Fire Shield (rank 4), Mountain Resilience (rank 4), Mystic Armor (rank 1), Wall of Fire (rank 14) | −0.17 ± 0.06 | −0.15 | −0.19 | 1.7 | hurts |  |
+| 1504 | Sheltering Wing | 9 | Ancestry | — | PF2e's self Effect | −0.17 ± 0.05 | −0.28 | −0.06 | 3.6 | hurts |  |
+| 1505 | Draconic Fury | 4 | Class | — | save | −0.17 ± 0.04 | −0.27 | −0.07 | 1.5 | hurts |  |
+| 1506 | You Can't Keep Us Down | 14 | Class | — | check | −0.17 ± 0.05 | −0.23 | −0.12 | 1.0 | hurts |  |
+| 1507 | Ulfen Guard Dedication | 2 | Class | — | Designate Ally: its Effect on an ally within 30 feet | −0.17 ± 0.05 | +0.09 | −0.43 | 0.0 | hurts | the AI never used it |
+| 1508 | Hellish Impression | 0 | Action | — | innate spell: Charm (rank 1) | −0.17 ± 0.04 | −0.12 | −0.22 | 1.6 | hurts |  |
+| 1509 | Mask of Power | 5 | Ancestry | — | innate spells: Fear (rank 1), Phantom Pain (rank 1), Sure Strike (rank 1) | −0.17 ± 0.04 | −0.18 | −0.16 | 2.9 | hurts |  |
+| 1510 | Remember Their Names | 16 | Class | — | save | −0.17 ± 0.07 | −0.05 | −0.30 | 4.6 | hurts |  |
+| 1511 | Raise Slabs | 0 | Action | — | save | −0.18 ± 0.05 | −0.13 | −0.22 | 1.0 | hurts |  |
+| 1512 | Flensing Slice | 8 | Class | — | check | −0.18 ± 0.06 | +0.22 | −0.57 | 8.9 | hurts |  |
+| 1513 | Shield Warden | 6 | Class | champion | Shield Block for an adjacent ally (reaction) | −0.18 ± 0.06 | −0.20 | −0.16 | 0.1 | hurts |  |
+| 1514 | Primal Proportions | 6 | Class | — | innate spell: Enlarge (rank 2) | −0.18 ± 0.05 | −0.17 | −0.18 | 1.0 | hurts |  |
+| 1515 | Slam Down | 4 | Class | fighter | Strike activity | −0.18 ± 0.05 | −0.29 | −0.06 | 2.7 | hurts |  |
+| 1516 | Share Rage | 8 | Class | barbarian | effect | −0.18 ± 0.06 | +0.03 | −0.39 | 8.0 | hurts |  |
+| 1517 | False Priest Form | 5 | Ancestry | — | innate spells: Divine Lance (rank 3), Haunting Hymn (rank 3) | −0.18 ± 0.03 | −0.28 | −0.08 | 2.5 | hurts |  |
+| 1518 | Sun Blade | 4 | Class | champion | innate spell: Sun Blade (rank 2) | −0.18 ± 0.05 | −0.09 | −0.27 | 1.0 | hurts |  |
+| 1519 | Scarred Hide | 14 | Class | — | PF2e rules (always on) | −0.18 ± 0.04 | −0.24 | −0.12 | 0.0 | hurts | the AI never used it |
+| 1520 | Cantorian Rejuvenation | 9 | Ancestry | — | PF2e's self Effect | −0.18 ± 0.05 | −0.19 | −0.17 | 1.0 | hurts |  |
+| 1521 | Ironblood Surge | 14 | Class | monk | +1 AC and its Strength as resistance for a round (in Ironblood Stance) | −0.18 ± 0.09 | −0.15 | −0.21 | 5.7 | no clear effect |  |
+| 1522 | Djinni Magic | 9 | Ancestry | — | innate spell: Gust of Wind (rank 1), Invisibility (rank 2) | −0.18 ± 0.04 | −0.21 | −0.16 | 1.0 | hurts |  |
+| 1523 | Electrogenesis | 6 | Class | — | save | −0.19 ± 0.05 | −0.22 | −0.15 | 1.0 | hurts |  |
+| 1524 | Knockback Strike | 10 | Class | monk | Strike activity | −0.19 ± 0.05 | −0.20 | −0.17 | 4.2 | hurts |  |
+| 1525 | Spirit's Wrath | 12 | Class | barbarian | check | −0.19 ± 0.08 | +0.03 | −0.41 | 10.3 | hurts |  |
+| 1526 | Homing Shot | 14 | Class | — | a ranged Strike ignoring concealment and cover | −0.19 ± 0.06 | −0.18 | −0.19 | 14.0 | hurts | with a loaded arquebus |
+| 1527 | Decree of War | 18 | Class | — | Strike activity | −0.19 ± 0.05 | −0.09 | −0.29 | 2.3 | hurts |  |
+| 1528 | On Borrowed Time | 10 | Class | oracle | inline save: 1 creature, 30 feet, will, 3d6 mental (DC 29) | −0.19 ± 0.05 | −0.04 | −0.34 | 3.1 | hurts |  |
+| 1529 | Nagaji Spell Mysteries | 5 | Ancestry | — | innate spells: Charm (rank 1), Fleet Step (rank 1), Heal (rank 1) | −0.19 ± 0.04 | −0.21 | −0.18 | 2.5 | hurts |  |
+| 1530 | Dominating Gaze | 16 | Class | — | innate spell: Dominate (rank 7) | −0.19 ± 0.07 | −0.27 | −0.12 | 1.0 | hurts |  |
+| 1531 | Cycle Spell | 4 | Class | — | innate spells: Bless (rank 1), Infuse Vitality (rank 1), Heal (rank 1) | −0.19 ± 0.05 | −0.11 | −0.28 | 1.9 | hurts |  |
+| 1532 | Infernal Interference | 16 | Class | — | Strike activity | −0.20 ± 0.06 | −0.17 | −0.22 | 4.8 | hurts |  |
+| 1533 | Subjugation | 16 | Class | — | save | −0.20 ± 0.06 | −0.08 | −0.31 | 3.0 | hurts |  |
+| 1534 | Resounding Blow | 10 | Class | barbarian | Strike activity | −0.20 ± 0.06 | −0.10 | −0.29 | 4.4 | hurts | with a warhammer and a free hand |
+| 1535 | Trip | 0 | Action | — | check | −0.20 ± 0.05 | −0.20 | −0.19 | 2.0 | hurts | with a one-handed weapon and a free hand |
+| 1536 | Methodical Magic | 9 | Ancestry | — | innate spells: Calm (rank 2), Dispel Magic (rank 2), Lock (rank 1), Mending (rank 1), Shape Wood (rank 2), Translate (rank 2) | −0.20 ± 0.04 | −0.23 | −0.16 | 1.6 | hurts |  |
+| 1537 | Megavolt | 6 | Class | inventor | inline save: 20-foot line, reflex, 3d4 electricity (DC 22) | −0.20 ± 0.08 | −0.02 | −0.37 | 3.3 | hurts |  |
+| 1538 | Opportunistic Grapple | 8 | Class | — | check | −0.20 ± 0.05 | −0.20 | −0.19 | 4.1 | hurts |  |
+| 1539 | Submission Hold | 8 | Class | — | check | −0.20 ± 0.05 | −0.20 | −0.19 | 4.0 | hurts |  |
+| 1540 | Staff Sweep | 6 | Class | — | check | −0.20 ± 0.04 | −0.23 | −0.17 | 2.6 | hurts |  |
+| 1541 | Animal Magic | 9 | Ancestry | — | innate spell: Animal Messenger (rank 2), Calm (rank 2), Speak with Animals (rank 2) | −0.20 ± 0.04 | −0.24 | −0.16 | 1.5 | hurts |  |
+| 1542 | Agathion Magic | 9 | Ancestry | — | innate spell: Animal Form (rank 2), Calm (rank 2) | −0.20 ± 0.04 | −0.24 | −0.16 | 1.5 | hurts |  |
+| 1543 | Ceremony of Aeon's Guidance | 9 | Ancestry | — | innate spell: Augury (rank 2), Calm (rank 2) | −0.20 ± 0.04 | −0.24 | −0.16 | 1.5 | hurts |  |
+| 1544 | Archer's Aim | 8 | Class | — | Strike activity | −0.20 ± 0.06 | −0.26 | −0.14 | 7.2 | hurts |  |
+| 1545 | Confusing Commands | 16 | Class | commander | save | −0.20 ± 0.10 | +0.10 | −0.51 | 4.5 | hurts |  |
+| 1546 | Tempo Duelist | 16 | Class | — | concealed for a round | −0.20 ± 0.06 | −0.24 | −0.16 | 4.9 | hurts |  |
+| 1547 | Touch of the Sea | 1 | Ancestry | — | innate spells: Gale Blast (rank 1), Spout (rank 1) | −0.21 ± 0.05 | −0.24 | −0.17 | 2.1 | hurts |  |
+| 1548 | Extract Element | 0 | Action | kineticist | save | −0.21 ± 0.05 | −0.20 | −0.21 | 6.1 | hurts |  |
+| 1549 | Annihilating Swing | 20 | Class | barbarian | Strike activity | −0.21 ± 0.07 | −0.10 | −0.31 | 10.2 | hurts |  |
+| 1550 | Convocation of Greed | 0 | Action | — | an Effect on an ally | −0.21 ± 0.05 | −0.17 | −0.25 | 2.0 | hurts |  |
+| 1551 | Fly on Shadowed Wings | 10 | Class | animist | PF2e's self Effect | −0.21 ± 0.05 | −0.14 | −0.28 | 1.0 | hurts |  |
+| 1552 | Analyze Weakness | 6 | Class | rogue | +2d6 precision on its next sneak attack (1 action) | −0.21 ± 0.05 | −0.32 | −0.11 | 4.5 | hurts |  |
+| 1553 | Kaiju's Footfalls | 13 | Ancestry | — | innate spell: Enlarge (rank 2) | −0.21 ± 0.04 | −0.26 | −0.17 | 2.0 | hurts |  |
+| 1554 | Abrasive Drag | 12 | Class | — | check | −0.22 ± 0.06 | −0.07 | −0.36 | 3.8 | hurts |  |
+| 1555 | Beast Gunner Dedication | 6 | Class | — | cantrip: Electric Arc (rank 3, DC 18) | −0.22 ± 0.05 | −0.27 | −0.17 | 2.6 | hurts |  |
+| 1556 | Eldritch Archer Dedication | 6 | Class | — | cantrip: Electric Arc (rank 3, DC 18) | −0.22 ± 0.05 | −0.27 | −0.17 | 2.6 | hurts |  |
+| 1557 | Stomp Ground | 6 | Class | guardian | inline save: 5-foot emanation, reflex, 1d6 bludgeoning (DC 22) | −0.22 ± 0.06 | −0.37 | −0.06 | 2.7 | hurts |  |
+| 1558 | Wheedle and Jig | 9 | Ancestry | — | innate spell: Enthrall (rank 3) | −0.22 ± 0.04 | −0.21 | −0.22 | 1.0 | hurts |  |
+| 1559 | Breath Like Honey | 9 | Ancestry | — | innate spell: Enthrall (rank 3) | −0.22 ± 0.04 | −0.21 | −0.22 | 1.0 | hurts |  |
+| 1560 | Natural Magnetism | 9 | Ancestry | — | innate spell: Magnetic Attraction (rank 2), Magnetic Repulsion (rank 2), Enthrall (rank 2) | −0.22 ± 0.04 | −0.21 | −0.22 | 1.0 | hurts |  |
+| 1561 | Captivating Curiosity | 9 | Ancestry | — | innate spell: Enthrall (rank 3) | −0.22 ± 0.04 | −0.21 | −0.22 | 1.0 | hurts |  |
+| 1562 | Aldori Parry | 4 | Class | — | self effect | −0.22 ± 0.05 | −0.36 | −0.08 | 2.9 | hurts |  |
+| 1563 | Fabricate Truth | 4 | Class | — | check | −0.22 ± 0.05 | −0.17 | −0.27 | 2.9 | hurts |  |
+| 1564 | Wiles on the Wind | 12 | Class | kineticist | save | −0.22 ± 0.08 | −0.12 | −0.32 | 4.3 | hurts |  |
+| 1565 | Weft and Warp | 16 | Class | — | Strike activity | −0.22 ± 0.05 | +0.02 | −0.46 | 2.8 | hurts |  |
+| 1566 | Marid Magic | 9 | Ancestry | — | innate spell: Hydraulic Push (rank 1), Mist (rank 2) | −0.23 ± 0.04 | −0.31 | −0.14 | 1.0 | hurts |  |
+| 1567 | Fiendish Magic | 9 | Ancestry | — | innate spells: Disguise Magic (rank 1), False Vitality (rank 2), Invisibility (rank 2), See the Unseen (rank 2), Shatter (rank 2), Paranoia (rank 2) | −0.23 ± 0.05 | −0.21 | −0.24 | 1.0 | hurts |  |
+| 1568 | The Dead Walk | 10 | Class | oracle | check | −0.23 ± 0.06 | −0.10 | −0.35 | 3.2 | hurts |  |
+| 1569 | Heavy is the Crown | 0 | Action | — | inline save: 15-foot burst, will, 1 spirit (DC 17) | −0.23 ± 0.04 | −0.23 | −0.23 | 1.9 | hurts |  |
+| 1570 | Drain Emotion | 9 | Ancestry | — | its text's self buff (TempHP 9) | −0.23 ± 0.05 | −0.22 | −0.24 | 1.0 | hurts |  |
+| 1571 | Benevolent Spirit Deck | 6 | Class | — | effect | −0.23 ± 0.05 | −0.31 | −0.15 | 5.5 | hurts |  |
+| 1572 | The Tyrant Falls! | 20 | Class | — | self effect | −0.23 ± 0.06 | −0.22 | −0.24 | 1.0 | hurts |  |
+| 1573 | Storm's Lash | 1 | Ancestry | — | innate spell: Electric Arc (rank 1) | −0.23 ± 0.05 | −0.25 | −0.21 | 2.1 | hurts |  |
+| 1574 | Virga May | 1 | Ancestry | — | innate spell: Electric Arc (rank 1) | −0.23 ± 0.05 | −0.25 | −0.21 | 2.1 | hurts |  |
+| 1575 | Fey Influence | 5 | Ancestry | — | innate spells: Grim Tendrils (rank 1), Pest Form (rank 1), Ill Omen (rank 1), Summon Plant or Fungus (rank 1), Fleet Step (rank 1), Bane (rank 1), Spider Sting (rank 1), Heal (rank 1) | −0.23 ± 0.04 | −0.33 | −0.13 | 2.7 | hurts |  |
+| 1576 | Warning Shot | 2 | Class | gunslinger | check | −0.23 ± 0.06 | −0.19 | −0.28 | 2.7 | hurts |  |
+| 1577 | Night's Shine | 12 | Class | — | innate spells: Asterism (rank 4), Touch of the Moon (rank 4) | −0.23 ± 0.06 | −0.20 | −0.26 | 3.5 | hurts |  |
+| 1578 | Burning Spell | 6 | Class | — | Burning Spell copies of 2 spells | −0.23 ± 0.05 | −0.20 | −0.27 | 2.0 | hurts |  |
+| 1579 | Thunderclap Spell | 10 | Class | druid | Thunderclap Spell copies of 4 spells | −0.24 ± 0.05 | −0.12 | −0.35 | 3.5 | hurts |  |
+| 1580 | Primal Roar | 0 | Action | — | check | −0.24 ± 0.05 | −0.11 | −0.36 | 1.3 | hurts |  |
+| 1581 | Threatening Approach | 0 | Action | — | check | −0.24 ± 0.05 | −0.11 | −0.36 | 1.3 | hurts |  |
+| 1582 | Buzzing Death Cicadas | 12 | Class | — | Death Drone: save | −0.24 ± 0.06 | −0.24 | −0.23 | 0.0 | hurts | the AI never used it |
+| 1583 | Dragon Spit | 1 | Ancestry | — | innate spells: Acid Splash (rank 1), Electric Arc (rank 1), Ignition (rank 1), Ray of Frost (rank 1) | −0.24 ± 0.05 | −0.28 | −0.20 | 2.1 | hurts |  |
+| 1584 | Dirty Trick | 1 | Skill | — | check | −0.24 ± 0.04 | −0.07 | −0.41 | 1.6 | hurts |  |
+| 1585 | Icy Influence | 1 | Ancestry | — | innate spell: Frostbite (rank 1) | −0.24 ± 0.05 | −0.26 | −0.22 | 2.1 | hurts |  |
+| 1586 | Arcane Tattoos | 1 | Ancestry | — | innate spells: Shield (rank 1), Tangle Vine (rank 1), Daze (rank 1), Electric Arc (rank 1), Ghost Sound (rank 1), Void Warp (rank 1), Sigil (rank 1) | −0.24 ± 0.05 | −0.25 | −0.23 | 2.1 | hurts |  |
+| 1587 | Thaumaturge Dedication | 2 | Class | — | Glimpse Vulnerability: effect | −0.24 ± 0.05 | +0.00 | −0.49 | 0.0 | hurts | the AI never used it |
+| 1588 | Spirit of the Blade | 6 | Class | — | +1d6 spirit on its next melee Strike (1 action) | −0.24 ± 0.05 | −0.29 | −0.20 | 4.9 | hurts |  |
+| 1589 | Whirling Throw | 6 | Class | monk | check | −0.25 ± 0.05 | −0.19 | −0.30 | 6.6 | hurts |  |
+| 1590 | Stranglehold | 9 | Ancestry | — | check | −0.25 ± 0.05 | −0.16 | −0.33 | 9.7 | hurts |  |
+| 1591 | Sonic Dash | 2 | Class | — | inline save: 5-foot emanation, fortitude, 1d4 sonic (DC 18) | −0.25 ± 0.04 | −0.33 | −0.16 | 4.3 | hurts |  |
+| 1592 | Reactive Tangle | 4 | Class | — | check | −0.25 ± 0.04 | −0.31 | −0.19 | 2.6 | hurts |  |
+| 1593 | Lingering Chill | 4 | Class | — | innate spell: Frostbite (rank 2) | −0.25 ± 0.05 | −0.23 | −0.27 | 2.7 | hurts |  |
+| 1594 | Hamstringing Strike | 8 | Class | ranger | Strike activity | −0.25 ± 0.07 | −0.45 | −0.05 | 17.5 | hurts |  |
+| 1595 | Dizzying Spell | 14 | Class | wizard | Dizzying Spell copies of 6 spells | −0.25 ± 0.06 | −0.20 | −0.30 | 4.6 | hurts |  |
+| 1596 | Scrap Barricade | 6 | Class | kineticist | save | −0.25 ± 0.10 | −0.18 | −0.32 | 4.7 | hurts |  |
+| 1597 | Tactical Takedown | 0 | Action | commander | save | −0.25 ± 0.06 | −0.20 | −0.31 | 2.5 | hurts |  |
+| 1598 | Dokkaebi Fire | 1 | Ancestry | — | innate spell: Ignition (rank 1) | −0.26 ± 0.05 | −0.25 | −0.26 | 1.9 | hurts |  |
+| 1599 | Inner Fire (Naari) | 1 | Ancestry | — | innate spell: Ignition (rank 1) | −0.26 ± 0.05 | −0.25 | −0.26 | 1.9 | hurts |  |
+| 1600 | Mariner's Fire | 1 | Ancestry | — | innate spell: Ignition (rank 1) | −0.26 ± 0.05 | −0.25 | −0.26 | 1.9 | hurts |  |
+| 1601 | Nantambu Chime-Ringer Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
+| 1602 | Sorcerer Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
+| 1603 | Spellshot Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
+| 1604 | Cathartic Mage Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
+| 1605 | Bloodrager Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
+| 1606 | Eldritch Researcher Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
+| 1607 | Runescarred Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
+| 1608 | Wizard Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.2 | hurts |  |
+| 1609 | Magus Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.5 | hurts |  |
+| 1610 | Witch Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.5 | hurts |  |
+| 1611 | Druid Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.5 | hurts |  |
+| 1612 | Magaambyan Attendant Dedication | 2 | Class | — | cantrip: Electric Arc (rank 1, DC 14) | −0.26 ± 0.05 | −0.28 | −0.23 | 2.5 | hurts |  |
+| 1613 | Catchy Tune | 5 | Ancestry | — | check | −0.26 ± 0.04 | −0.19 | −0.32 | 8.8 | hurts |  |
+| 1614 | Form a Flock | 13 | Ancestry | — | PF2e's self Effect | −0.26 ± 0.05 | −0.39 | −0.12 | 1.0 | hurts |  |
+| 1615 | Clobber | 16 | Class | guardian | Strike activity | −0.26 ± 0.07 | −0.36 | −0.16 | 11.7 | hurts |  |
+| 1616 | Sanguivolent Roots | 8 | Class | kineticist | save | −0.27 ± 0.11 | −0.51 | −0.03 | 5.6 | hurts |  |
+| 1617 | Cry of Rebellion | 16 | Class | — | save | −0.27 ± 0.07 | −0.27 | −0.27 | 1.0 | hurts |  |
+| 1618 | Scorching Column | 1 | Class | kineticist | save | −0.27 ± 0.07 | −0.32 | −0.22 | 2.7 | hurts |  |
+| 1619 | Deep Freeze | 12 | Class | inventor | inline save: 1 creature, 60 feet, reflex, 12 cold (DC 31) | −0.27 ± 0.11 | −0.32 | −0.22 | 8.3 | hurts |  |
+| 1620 | Engine of Destruction | 18 | Class | inventor | Strike activity | −0.27 ± 0.09 | −0.26 | −0.28 | 9.8 | hurts |  |
+| 1621 | Elemental Wrath | 1 | Ancestry | — | innate spell: Acid Splash (rank 1) | −0.27 ± 0.05 | −0.29 | −0.26 | 2.0 | hurts |  |
+| 1622 | Petrifying Gaze Mimicry | 10 | Class | — | save | −0.28 ± 0.06 | −0.25 | −0.30 | 4.1 | hurts |  |
+| 1623 | Grovel | 5 | Ancestry | — | check | −0.28 ± 0.04 | −0.23 | −0.32 | 6.1 | hurts |  |
+| 1624 | Kneel Before the Rightful Heir | 16 | Class | — | save | −0.28 ± 0.07 | −0.29 | −0.27 | 4.5 | hurts |  |
+| 1625 | Nagaji Spell Familiarity | 1 | Ancestry | — | innate spell: Daze (rank 1), Detect Magic (rank 1), Telekinetic Hand (rank 1) | −0.28 ± 0.05 | −0.27 | −0.29 | 2.1 | hurts |  |
+| 1626 | Memory of Nothing | 18 | Class | — | inline save: 1 creature, 30 feet, will, 12d8 mental (DC 38) | −0.29 ± 0.06 | −0.39 | −0.18 | 3.0 | hurts |  |
+| 1627 | Dire Growth | 10 | Class | — | casts Enlarge (rank 5, DC 27) | −0.29 ± 0.05 | −0.27 | −0.31 | 3.5 | hurts |  |
+| 1628 | Holy Light | 10 | Class | champion | save | −0.29 ± 0.06 | −0.18 | −0.40 | 4.8 | hurts |  |
+| 1629 | Magnetic Pinions | 1 | Class | kineticist | impulse attack: 1d4 + 1d4 bludgeoning and piercing (60 feet, attack +7) | −0.29 ± 0.06 | −0.25 | −0.33 | 2.1 | hurts |  |
+| 1630 | Designate Ally | 0 | Action | — | its Effect on an ally within 30 feet | −0.29 ± 0.06 | −0.14 | −0.44 | 7.5 | hurts |  |
+| 1631 | Spinebreaker | 10 | Class | — | check | −0.29 ± 0.05 | −0.33 | −0.25 | 4.2 | hurts |  |
+| 1632 | Ensnaring Wrappings | 10 | Class | — | check | −0.29 ± 0.05 | −0.33 | −0.25 | 4.2 | hurts |  |
+| 1633 | Hell-Lancer Shot | 10 | Class | — | Strike activity | −0.29 ± 0.05 | −0.30 | −0.29 | 7.3 | hurts |  |
+| 1634 | Bloody Denial | 14 | Class | guardian | Strike activity | −0.29 ± 0.06 | −0.33 | −0.26 | 9.5 | hurts |  |
+| 1635 | Armored Rebuff | 8 | Class | — | check | −0.30 ± 0.05 | −0.36 | −0.24 | 4.5 | hurts |  |
+| 1636 | Wing Shove | 8 | Class | — | check | −0.30 ± 0.05 | −0.36 | −0.24 | 3.9 | hurts |  |
+| 1637 | Distracting Spellstrike | 4 | Class | magus | check | −0.30 ± 0.07 | −0.33 | −0.27 | 1.9 | hurts |  |
+| 1638 | Sleeper Hold | 10 | Class | monk | check | −0.30 ± 0.08 | −0.45 | −0.15 | 6.8 | hurts |  |
+| 1639 | Spinning Crush | 0 | Action | gunslinger | save | −0.30 ± 0.05 | −0.26 | −0.34 | 1.3 | hurts |  |
+| 1640 | Mesmerizing Gaze | 6 | Class | — | save | −0.30 ± 0.05 | −0.21 | −0.39 | 3.1 | hurts |  |
+| 1641 | Running Tackle | 8 | Class | — | check | −0.30 ± 0.06 | −0.29 | −0.31 | 3.8 | hurts |  |
+| 1642 | Ghost Wrangler | 4 | Class | barbarian | PF2e's self Effect | −0.30 ± 0.06 | −0.37 | −0.23 | 3.1 | hurts |  |
+| 1643 | Clashing Compound Invocation | 10 | Class | — | save | −0.30 ± 0.07 | −0.40 | −0.20 | 11.4 | hurts |  |
+| 1644 | Molten Wire | 6 | Class | kineticist | impulse attack: 2d6 slashing (15 feet, attack +12) | −0.30 ± 0.09 | −0.36 | −0.24 | 5.1 | hurts |  |
+| 1645 | Guardian Lion Roar | 8 | Class | inventor | inline save: 20-foot line, fortitude, 2d8 sonic (DC 24) | −0.30 ± 0.09 | −0.20 | −0.40 | 4.3 | hurts |  |
+| 1646 | Launch Fireworks | 0 | Action | — | save | −0.30 ± 0.05 | −0.19 | −0.42 | 3.3 | hurts | with a one-handed weapon and a free hand |
+| 1647 | Catrina's Presence | 9 | Ancestry | — | innate spell: Calm (rank 2) | −0.30 ± 0.05 | −0.33 | −0.27 | 2.8 | hurts |  |
+| 1648 | Demolish Defenses | 18 | Class | guardian | save | −0.31 ± 0.06 | −0.44 | −0.17 | 5.1 | hurts |  |
+| 1649 | Clawdancer Dedication | 2 | Class | — | Claw Stance: PF2e's stance Effect | −0.31 ± 0.05 | −0.31 | −0.31 | 1.1 | hurts |  |
+| 1650 | Bard Dedication | 2 | Class | — | cantrip: Void Warp (rank 1, DC 14) | −0.31 ± 0.05 | −0.26 | −0.35 | 2.3 | hurts |  |
+| 1651 | Captivator Dedication | 2 | Class | — | cantrip: Void Warp (rank 1, DC 14) | −0.31 ± 0.05 | −0.26 | −0.35 | 2.3 | hurts |  |
+| 1652 | Ghost Hunter Dedication | 2 | Class | — | cantrip: Void Warp (rank 1, DC 14) | −0.31 ± 0.05 | −0.26 | −0.35 | 2.3 | hurts |  |
+| 1653 | Prophet of Kalistrade Dedication | 2 | Class | — | cantrip: Void Warp (rank 1, DC 14) | −0.31 ± 0.05 | −0.26 | −0.35 | 2.3 | hurts |  |
+| 1654 | Necromancer Dedication | 2 | Class | — | cantrip: Void Warp (rank 1, DC 14) | −0.31 ± 0.05 | −0.26 | −0.35 | 2.5 | hurts |  |
+| 1655 | Plane Step | 9 | Ancestry | — | check | −0.31 ± 0.05 | −0.32 | −0.30 | 2.3 | hurts |  |
+| 1656 | Electrify Armor | 10 | Class | inventor | electricity on who hits it in melee, for a round | −0.31 ± 0.08 | −0.32 | −0.30 | 5.0 | hurts |  |
+| 1657 | Cobra Stance | 4 | Class | monk | PF2e's stance Effect | −0.31 ± 0.09 | −0.47 | −0.16 | 1.0 | hurts |  |
+| 1658 | Wheeling Grab | 6 | Class | — | check | −0.32 ± 0.04 | −0.37 | −0.26 | 2.9 | hurts |  |
+| 1659 | Crown of Rule | 16 | Class | exemplar | Heavy is the Crown: inline save: 15-foot burst, will, 16 spirit (DC 35) | −0.32 ± 0.07 | −0.30 | −0.33 | 0.0 | hurts | the AI never used it |
+| 1660 | Putrefaction | 14 | Class | — | save | −0.32 ± 0.06 | −0.25 | −0.38 | 3.0 | hurts |  |
+| 1661 | Stay Down! | 14 | Class | rogue | check | −0.32 ± 0.07 | −0.27 | −0.37 | 11.2 | hurts |  |
+| 1662 | Parting Shot | 4 | Class | fighter | Strike activity | −0.32 ± 0.06 | −0.38 | −0.26 | 5.0 | hurts | with a bow in hand |
+| 1663 | Deadly Aim | 8 | Class | ranger | Strike activity | −0.32 ± 0.08 | −0.39 | −0.26 | 8.8 | hurts |  |
+| 1664 | Siegebreaker | 0 | Action | gunslinger | its text's self buff (FlatModifier ac 1) | −0.32 ± 0.06 | −0.25 | −0.40 | 2.3 | hurts |  |
+| 1665 | Exaltation Overwhelming | 18 | Class | — | save | −0.33 ± 0.06 | −0.30 | −0.35 | 2.9 | hurts |  |
+| 1666 | Animist Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.1 | hurts |  |
+| 1667 | Infernal Pactbreaker Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.1 | hurts |  |
+| 1668 | Oracle Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.1 | hurts |  |
+| 1669 | Cleric Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.4 | hurts |  |
+| 1670 | Rivethun Involutionist Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.4 | hurts |  |
+| 1671 | Soul Warden Dedication | 2 | Class | — | cantrip: Divine Lance (rank 1, DC 14) | −0.33 ± 0.04 | −0.29 | −0.36 | 2.4 | hurts |  |
+| 1672 | Glimpse Vulnerability | 0 | Action | — | effect | −0.33 ± 0.05 | −0.05 | −0.60 | 6.0 | hurts |  |
+| 1673 | Buckle-Cut Blitz | 0 | Action | commander | save | −0.33 ± 0.06 | −0.33 | −0.33 | 2.7 | hurts |  |
+| 1674 | Flinging Charge | 10 | Class | fighter | Strike activity | −0.33 ± 0.05 | −0.37 | −0.29 | 3.9 | hurts |  |
+| 1675 | Spiritual Awakening | 4 | Class | — | Spiritual Expansion Spell: widened copies of 3 area spells | −0.33 ± 0.08 | −0.69 | +0.02 | 0.0 | hurts | the AI never used it |
+| 1676 | Hallowed Initiate | 4 | Class | — | innate spell: Call of the Grave (rank 1), Death's Call (rank 1) | −0.33 ± 0.07 | −0.41 | −0.25 | 1.0 | hurts |  |
+| 1677 | Rising Hurricane | 6 | Class | kineticist | save | −0.33 ± 0.10 | −0.48 | −0.19 | 4.4 | hurts |  |
+| 1678 | Starlight Armor | 14 | Class | — | PF2e's self Effect | −0.33 ± 0.06 | −0.27 | −0.40 | 1.0 | hurts |  |
+| 1679 | Propulsive Leap | 10 | Class | — | save | −0.34 ± 0.06 | −0.37 | −0.32 | 10.4 | hurts |  |
+| 1680 | Called Shot | 10 | Class | gunslinger | Strike activity | −0.35 ± 0.05 | −0.34 | −0.35 | 4.5 | hurts |  |
+| 1681 | Storm of Claws | 16 | Class | — | 3 Strikes (in Claw Stance) | −0.35 ± 0.09 | −0.31 | −0.39 | 5.1 | hurts |  |
+| 1682 | Ostilli Host Dedication | 2 | Class | — | Spit Ambient Magic: save | −0.36 ± 0.05 | −0.25 | −0.47 | 0.0 | hurts | the AI never used it |
+| 1683 | Flames of Vision | 13 | Ancestry | — | innate spell: Clairvoyance (rank 4), Ignition (rank 7) | −0.36 ± 0.05 | −0.44 | −0.28 | 4.2 | hurts |  |
+| 1684 | Channeled Protection | 4 | Class | animist | effect | −0.37 ± 0.09 | −0.58 | −0.15 | 17.3 | hurts |  |
+| 1685 | Raise the Walls | 0 | Action | — | effect | −0.37 ± 0.06 | −0.26 | −0.48 | 7.3 | hurts |  |
+| 1686 | Cannonball Fall | 8 | Class | fighter | inline save: 1 creature, 10 feet, reflex (DC 24) | −0.37 ± 0.07 | −0.18 | −0.56 | 11.8 | hurts |  |
+| 1687 | Manipulative Charm | 4 | Class | — | innate spell: Charm (rank 1) | −0.37 ± 0.07 | −0.35 | −0.38 | 1.6 | hurts |  |
+| 1688 | Stupefying Raid | 0 | Action | commander | save | −0.38 ± 0.06 | −0.40 | −0.35 | 2.8 | hurts |  |
+| 1689 | Whirling Knockdown | 14 | Class | — | check | −0.39 ± 0.07 | −0.30 | −0.48 | 5.3 | hurts |  |
+| 1690 | Brain Drain | 8 | Class | psychic | save | −0.39 ± 0.05 | −0.59 | −0.19 | 3.2 | hurts |  |
+| 1691 | Perfect Shot | 18 | Class | ranger | a ranged Strike at maximum damage, then its turn ends (3 actions) | −0.39 ± 0.10 | −0.46 | −0.33 | 7.8 | hurts |  |
+| 1692 | Rend Mimicry | 4 | Class | — | check | −0.39 ± 0.05 | −0.36 | −0.43 | 7.9 | hurts |  |
+| 1693 | Firework Technician Dedication | 2 | Class | — | Launch Fireworks: save | −0.40 ± 0.06 | −0.41 | −0.38 | 0.0 | hurts | with a one-handed weapon and a free hand; the AI never used it |
+| 1694 | Protect the Royal Line | 16 | Class | — | check | −0.40 ± 0.06 | −0.51 | −0.29 | 5.2 | hurts |  |
+| 1695 | Drive Back | 8 | Class | — | check | −0.40 ± 0.06 | −0.47 | −0.33 | 4.3 | hurts | with a weapon and a shield |
+| 1696 | Wing Bounce | 4 | Class | — | check | −0.41 ± 0.07 | −0.43 | −0.38 | 2.5 | hurts |  |
+| 1697 | Transfusion | 8 | Class | — | an Effect on an ally | −0.41 ± 0.06 | −0.34 | −0.47 | 7.4 | hurts |  |
+| 1698 | Hammer Quake | 14 | Class | — | check | −0.43 ± 0.07 | −0.20 | −0.67 | 4.0 | hurts |  |
+| 1699 | Protect Ally | 8 | Class | — | +1 AC to an adjacent ally for a round | −0.43 ± 0.07 | −0.31 | −0.56 | 19.2 | hurts |  |
+| 1700 | Anarchic Arcana | 9 | Ancestry | — | innate spells: Acid Grip (rank 2), Blur (rank 2), Gecko Grip (rank 2), Humanoid Form (rank 2), Illusory Object (rank 1), Laughing Fit (rank 2), Noise Blast (rank 2), Resist Energy (rank 2), See the Unseen (rank 2), Shatter (rank 2), Shrink (rank 2), Telekinetic Maneuver (rank 2) | −0.44 ± 0.05 | −0.62 | −0.26 | 5.3 | hurts |  |
+| 1701 | Kitsune Spell Familiarity | 1 | Ancestry | — | innate spells: Daze (rank 1), Forbidding Ward (rank 1), Ghost Sound (rank 1) | −0.45 ± 0.06 | −0.54 | −0.36 | 4.3 | hurts |  |
+| 1702 | Wing Buffet | 9 | Ancestry | — | check | −0.45 ± 0.05 | −0.58 | −0.33 | 4.4 | hurts |  |
+| 1703 | Fearful Symmetry | 6 | Class | — | save | −0.46 ± 0.06 | −0.56 | −0.37 | 8.3 | hurts |  |
+| 1704 | Infernal Magic | 6 | Class | — | innate spells: Divine Lance (rank 3), Fear (rank 1), Spiritual Armament (rank 2) | −0.47 ± 0.05 | −0.48 | −0.46 | 3.1 | hurts |  |
+| 1705 | Repulse the Wicked | 6 | Class | — | check | −0.50 ± 0.05 | −0.67 | −0.32 | 3.1 | hurts |  |
+| 1706 | Say That Again! | 6 | Skill | — | check | −0.50 ± 0.05 | −0.67 | −0.32 | 3.1 | hurts |  |
+| 1707 | Pain is Temporary | 13 | Ancestry | — | PF2e's self Effect | −0.50 ± 0.05 | −0.63 | −0.37 | 4.6 | hurts |  |
+| 1708 | Fey Ascension | 9 | Ancestry | — | innate spells: Slow (rank 3), Pest Form (rank 4), Charm (rank 1), Sleep (rank 1), Triple Time (rank 5), Mad Monkeys (rank 3) | −0.52 ± 0.05 | −0.41 | −0.62 | 7.3 | hurts |  |
+| 1709 | Mixed Maneuver | 8 | Class | monk | check | −0.52 ± 0.09 | −0.61 | −0.43 | 5.3 | hurts |  |
+| 1710 | Warped Constriction | 8 | Class | — | save | −0.53 ± 0.06 | −0.50 | −0.56 | 11.6 | hurts |  |
+| 1711 | Tamper | 1 | Class | inventor | check | −0.54 ± 0.06 | −0.51 | −0.56 | 7.4 | hurts |  |
+| 1712 | Twist the Knife | 6 | Class | rogue | check | −0.56 ± 0.06 | −0.44 | −0.67 | 8.3 | hurts |  |
+| 1713 | Chastise | 16 | Class | — | inline save: 1 creature, 30 feet, will, 2 spirit (DC 35) | −0.56 ± 0.07 | −0.48 | −0.64 | 5.8 | hurts |  |
+| 1714 | Trample Mimicry | 10 | Class | — | save | −0.56 ± 0.06 | −0.72 | −0.40 | 3.8 | hurts |  |
+| 1715 | Spirit Guide Form | 14 | Class | — | PF2e's self Effect | −0.57 ± 0.06 | −0.63 | −0.50 | 1.0 | hurts |  |
+| 1716 | Silk Bracelet | 6 | Class | inventor | save | −0.57 ± 0.10 | −0.42 | −0.72 | 4.5 | hurts |  |
+| 1717 | Muckraking | 16 | Class | — | save | −0.58 ± 0.08 | −0.54 | −0.63 | 4.2 | hurts |  |
+| 1718 | Perplex | 14 | Class | — | check | −0.58 ± 0.08 | −0.66 | −0.51 | 3.9 | hurts |  |
+| 1719 | Wild Dance | 12 | Class | — | save | −0.58 ± 0.07 | −0.44 | −0.73 | 9.9 | hurts |  |
+| 1720 | Steel Yourself! | 4 | Class | — | its Effect on an ally within 10 feet | −0.59 ± 0.06 | −0.56 | −0.62 | 19.3 | hurts |  |
+| 1721 | Whirling in the Summer Storm | 12 | Class | monk | save (in Twisting Petal Stance) | −0.60 ± 0.10 | −0.49 | −0.70 | 2.9 | hurts |  |
+| 1722 | Catfolk Dance | 1 | Ancestry | — | check | −0.60 ± 0.07 | −0.48 | −0.71 | 6.8 | hurts |  |
+| 1723 | Flying Tackle | 4 | Class | guardian | check | −0.61 ± 0.08 | −0.76 | −0.46 | 3.4 | hurts |  |
+| 1724 | Freeze It! | 9 | Ancestry | — | check | −0.63 ± 0.05 | −0.66 | −0.61 | 11.2 | hurts |  |
+| 1725 | Oversized Throw | 4 | Class | barbarian | PF2e's self Effect | −0.66 ± 0.10 | −0.75 | −0.56 | 4.3 | hurts | with a one-handed weapon and a free hand |
+| 1726 | Dazzling Bullet | 6 | Class | — | check | −0.67 ± 0.06 | −0.60 | −0.73 | 9.4 | hurts |  |
+| 1727 | Vengeful Remnant | 14 | Class | — | PF2e's self Effect | −0.67 ± 0.07 | −0.64 | −0.70 | 5.8 | hurts |  |
+| 1728 | Instant Opening | 14 | Class | rogue | a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action) | −0.68 ± 0.08 | −0.61 | −0.76 | 15.8 | hurts |  |
+| 1729 | Prayer Attack | 14 | Class | — | check | −0.70 ± 0.09 | −0.47 | −0.92 | 15.1 | hurts |  |
+| 1730 | Remote Detonation (Snarecrafter) | 8 | Class | — | inline save: 5-foot emanation, reflex, 1d6 force (DC 24) | −0.71 ± 0.07 | −0.89 | −0.54 | 12.9 | hurts |  |
+| 1731 | Gossamer Blade | 4 | Class | — | check | −0.73 ± 0.06 | −0.73 | −0.73 | 9.3 | hurts |  |
+| 1732 | Upset Balance | 6 | Class | — | check (in Tenacious Stance) | −0.75 ± 0.06 | −0.88 | −0.61 | 8.8 | hurts |  |
+| 1733 | Clear the Way | 6 | Class | — | check | −0.78 ± 0.07 | −1.03 | −0.52 | 3.8 | hurts |  |
+| 1734 | Lesson of the Splintered Aegis | 10 | Class | — | effect | −0.80 ± 0.07 | −0.99 | −0.61 | 28.3 | hurts |  |
+| 1735 | Flourishing Finish | 12 | Class | — | check | −0.82 ± 0.09 | −0.82 | −0.82 | 14.3 | hurts |  |
+| 1736 | One Moment till Glory | 0 | Action | — | effect | −0.87 ± 0.07 | −0.71 | −1.04 | 14.9 | hurts |  |
+| 1737 | Snap Out of It! (Marshal) | 4 | Class | — | effect | −0.89 ± 0.07 | −0.91 | −0.88 | 21.7 | hurts |  |
+| 1738 | Peony's Flourish | 14 | Class | — | check | −0.90 ± 0.10 | −0.50 | −1.31 | 6.7 | hurts |  |
+| 1739 | Impossible Volley | 18 | Class | fighter | Strike activity | −0.91 ± 0.08 | −1.07 | −0.74 | 8.9 | hurts | with a bow in hand |
+| 1740 | Purifying Breeze | 14 | Class | cleric | effect | −0.96 ± 0.09 | −1.16 | −0.77 | 20.6 | hurts |  |
+| 1741 | Dance of the Tiger | 9 | Ancestry | — | check | −0.98 ± 0.08 | −1.32 | −0.65 | 16.4 | hurts |  |
+| 1742 | Dissolution's Sovereignty | 17 | Ancestry | — | innate spell: Duplicate Foe (rank 7) | −1.05 ± 0.06 | +0.00 | −2.09 | 1.0 | hurts |  |
+| 1743 | Reflect Foe | 17 | Ancestry | — | innate spell: Duplicate Foe (rank 7) | −1.05 ± 0.06 | +0.00 | −2.09 | 1.0 | hurts |  |
+| 1744 | Unbalancing Sweep | 12 | Class | barbarian | check | −1.14 ± 0.12 | −1.22 | −1.05 | 4.3 | hurts |  |
+| 1745 | Scattering Charge | 12 | Class | guardian | check | −1.18 ± 0.11 | −1.26 | −1.11 | 4.6 | hurts |  |
+| 1746 | Silencing Strike | 10 | Class | barbarian | save | −1.24 ± 0.11 | −1.73 | −0.74 | 16.8 | hurts |  |
+| 1747 | Thrash | 8 | Class | barbarian | save | −1.26 ± 0.09 | −1.23 | −1.29 | 15.1 | hurts |  |
+| 1748 | Astral Compound Invocation | 12 | Class | — | save | −1.31 ± 0.13 | −1.33 | −1.29 | 15.6 | hurts |  |
+| 1749 | Scattering Shout | 14 | Class | — | inline save: 10-foot emanation, fortitude, 8d6 sonic (DC 33) | −1.39 ± 0.09 | −1.79 | −0.98 | 5.1 | hurts |  |
 
 ## Not simulated, by reason
 
@@ -1851,8 +1857,7 @@ Each basic action left out of every PC, at levels 1, 5, 10, 15 and 20: what the 
 | a spell the feat casts | 24 |
 | a passive's Effect on other creatures | 24 |
 | a passive's Effect posted by hand | 22 |
-| its Effect has nothing a fight counts | 18 |
-| an Effect on another creature | 17 |
+| its Effect has nothing a fight counts | 19 |
 | a reroll | 13 |
 | a choice of ways the simulator doesn't play | 12 |
 | a companion's Strike | 11 |
@@ -1860,6 +1865,7 @@ Each basic action left out of every PC, at levels 1, 5, 10, 15 and 20: what the 
 | a passive's Strike | 11 |
 | its requirement, which the PC doesn't meet | 11 |
 | a Focus or Mythic Point back | 10 |
+| an Effect on another creature | 10 |
 | it grants Pet: the feat module reads nothing for it | 8 |
 | it grants Alchemical Crafting: the feat module reads nothing for it | 6 |
 | it grants Cast a Spell: the feat module reads nothing for it | 5 |
