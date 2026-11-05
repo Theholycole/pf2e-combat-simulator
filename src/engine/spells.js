@@ -2882,6 +2882,8 @@ function applyChanges(state, caster, spell, changes, context, io) {
     const nonlethal = described.nonlethal;
     // (B193: a spell aimed at its targets, with its rank, for Divert Essence.)
     const isSpell = isSpellCast(spell);
+    // (2026-11-05, Dodging Roll: an area effect with a Reflex save.)
+    const areaReflex = Boolean(described.area) && spell.plan?.resolution?.kind === "save" && spell.plan.resolution.check?.statistic === "reflex";
     const aimed = isSpell ? { rank: Number(spell.castRank ?? spell.plan?.rank) || 1, targeted: !described.area } : null;
     // (I2: its context on its damage — area damage on a swarm, a holy spell on a fiend, a resistance to spells.)
     const damageContext = spellContext(spell, { isSpell, area: Boolean(described.area) });
@@ -2902,7 +2904,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
         switch (change.op) {
             case "damage": {
                 const instances = change.instances.map((instance) => ({ type: instance.type, amount: siphoned ? Math.floor(instance.amount / 2) : instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext, ...(instance.materials?.length ? { materials: instance.materials } : {}) }));
-                const dealt = applyDamage(state, target, instances, { source: caster, nonlethal, spell: aimed });
+                const dealt = applyDamage(state, target, instances, { source: caster, nonlethal, spell: aimed, areaReflex });
                 taken.set(change.target, (taken.get(change.target) ?? 0) + dealt);
                 log(state, `  ${target.name} takes ${dealt} ${change.instances.map((instance) => instance.type).join("/")}`);
                 // (2026-10-14, the vampiric spells: temporary Hit Points for the caster, a share of the damage dealt.)

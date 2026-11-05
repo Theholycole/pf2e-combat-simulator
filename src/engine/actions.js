@@ -1451,7 +1451,7 @@ function guards(state, c, target, { physical = false, critical = false } = {}) {
 }
 
 // (B193: spell { rank, targeted } — the damage of a spell aimed at it, for Divert Essence.)
-export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null } = {}) {
+export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null, areaReflex = false } = {}) {
     // (2026-10-22, under water: a critical hit costs a round of air.)
     if (critical && target.air !== undefined) airLost(state, target);
     // (2026-10-22, Indestructibility: harmed by nothing till its next turn.)
@@ -1536,7 +1536,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // (2026-10-22, family 3: a curse's damage on a hit — Bloodspray Curse, Implement of Destruction.)
     if (target.curses?.length) instances = curseOnHit(state, target, source, instances, { physical, critical });
     // Liquefy, Chipping Scales (B99): its reaction's resistance against this damage, and what it leaves.
-    const resisting = resistReaction(state, target, instances, { source, physical, spell });
+    const resisting = resistReaction(state, target, instances, { source, physical, spell, areaReflex });
     const adjusted = adjustDamage(target, instances);
     if (resisting?.half) adjusted.total = Math.floor(adjusted.total / 2);
     if (resisting) afterResisting(state, target, resisting, source);
@@ -1673,7 +1673,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
 // attack that deals physical damage"), an enemy's only; its uses. Its resistance (to the types it names, or to all the triggering damage)
 // is on the creature while this damage is adjusted; returns what to put back, or null.
 const PHYSICAL_TYPES = new Set(["bludgeoning", "piercing", "slashing"]);
-function resistReaction(state, target, instances, { source, physical, spell = null }) {
+function resistReaction(state, target, instances, { source, physical, spell = null, areaReflex = false }) {
     const resist = target.resistReaction;
     if (!resist || !isActive(target) || !(resist.free || canReact(target, resist.name)) || !((target.resistUses ?? Infinity) > 0)) return null;
     // (T5, Countered by Earth: Liquefy can't be used until the end of its next turn.)
@@ -1691,6 +1691,8 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     const value = resist.value === "rank" ? spell.rank : resist.value;
     const sets = (instance) => !instance.persistent && instance.amount > 0 && (!resist.on || resist.on.includes(instance.type) || (resist.on.includes("physical") && PHYSICAL_TYPES.has(instance.type)));
     if (adjustDamage(target, instances.filter(sets)).total <= 0) return null;
+    // (2026-11-05, Dodging Roll: only an area effect with a Reflex save.)
+    if (resist.areaReflex && !areaReflex) return null;
     // (2026-11-05, Repel Assault: only an attack that would deal at least its level.)
     if (resist.minDamage && adjustDamage(target, instances).total < resist.minDamage) return null;
     // (2026-11-03, Defensive Roll: only an attack that would drop it to 0 Hit Points.)

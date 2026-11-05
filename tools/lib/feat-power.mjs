@@ -1424,6 +1424,9 @@ const HAND = {
     // (2026-11-05, Vivacious Bravado: with panache, temporary Hit Points equal to its level plus Charisma until its next turn.)
     // (Mage Hunter: a 2-action Strike, stupefied 1 (2 on a critical hit) until its next turn — "seen the target Cast a Spell" not checked.)
     // (Fight or Flight: frightened by a foe in its reach — a melee Strike at it; the Stride away isn't played.)
+    // (2026-11-05, Dodging Roll: resistance equal to its level against an area effect's damage with a Reflex save (its level plus Dexterity
+    // when its Step leaves the area — not played); the Step isn't.)
+    "dodging-roll": (level) => ({ builtins: { resistReaction: { name: "Dodging Roll", value: level, on: null, types: null, areaReflex: true } }, played: "resistance equal to its level against an area Reflex effect's damage (reaction)" }),
     "fight-or-flight": () => ({ builtins: { fightOrFlight: true }, played: "frightened by a foe in its reach: a melee Strike at it (reaction)" }),
     "mage-hunter": () => {
         const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
@@ -1822,7 +1825,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "reflexive-shield": "guardian" };
+const CLASS_OVERRIDE = { "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
