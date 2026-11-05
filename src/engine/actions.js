@@ -624,6 +624,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (Sacred Defender: a natural 20 against it doesn't improve the result. Keen: a natural 19 that hits is a critical hit.)
     if (natural === 20 && target.noNaturalTwenty) degree = degreeOf(natural + modifier + bonus, ac + defence, 10);
     if (keenCritical(strike, natural, degree)) degree = CRITICAL_SUCCESS;
+    // (2026-11-05, Savage Critical, Piercing Critical: a 19 that hits is a critical hit — with its legendary weapons (all its Strikes for the
+    // fighter; its ranged ones for the gunslinger's firearm or crossbow).)
+    if (natural === 19 && degree === SUCCESS && attacker.savageCritical && (attacker.savageCritical !== "ranged" || !strike.melee)) degree = CRITICAL_SUCCESS;
     // (2026-11-03, Overwhelming Blow: "If this Strike hits, you get a critical hit.")
     if (strike.hitCrits && degree === SUCCESS) degree = CRITICAL_SUCCESS;
     // (U11: Gorum's Tear leaves its user off-guard to that creature until its next turn.)

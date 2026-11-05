@@ -1427,6 +1427,11 @@ const HAND = {
     // (2026-11-05, Dodging Roll: resistance equal to its level against an area effect's damage with a Reflex save (its level plus Dexterity
     // when its Step leaves the area — not played); the Step isn't.)
     // (2026-11-05, You're Next: downing a foe — a Demoralize at another, +2, as a reaction; spells.js downsAnswers.)
+    // (2026-11-05, Savage Critical: a 19 that hits is a critical hit with its legendary weapons — the fighter's Strikes. Piercing Critical:
+    // the same with a firearm or crossbow — the gunslinger's ranged Strikes.)
+    "diamond-fists": (level) => ({ builtins: { diamondFists: level }, played: "its unarmed attacks forceful and deadly d10" }),
+    "savage-critical": () => ({ builtins: { savageCritical: true }, played: "a natural 19 that hits is a critical hit" }),
+    "piercing-critical": () => ({ builtins: { savageCritical: "ranged" }, played: "a natural 19 that hits with its gun is a critical hit" }),
     "youre-next": () => {
         const demoralize = basicActions.demoralize;
         if (!demoralize?.resolution?.check) return null;
@@ -2226,6 +2231,18 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     }
     joinBuiltins(pc, pooledBuiltins);
     if (tried.strikes) pc.strikes = tried.strikes;
+    // (2026-11-05, Diamond Fists: its unarmed attacks forceful and deadly d10 — a die step bigger for one that had either; the deadly dice
+    // by its striking runes, 2 at greater striking, 3 at major.)
+    if (pc.diamondFists) {
+        const deadlyDice = pc.diamondFists >= 19 ? 3 : 2;
+        delete pc.diamondFists;
+        pc.strikes = (pc.strikes ?? []).map((strike) => {
+            if (!strike.unarmed) return strike;
+            const had = strike.forceful || strike.deadly;
+            const damage = had ? strike.damage.map((part, index) => (index === 0 ? { ...part, die: Math.min(12, (part.die ?? 6) + 2) } : part)) : strike.damage;
+            return { ...strike, damage, forceful: true, deadly: strike.deadly ?? { dice: deadlyDice, die: 10 } };
+        });
+    }
     // (Stunning Blows: the rider on the PC's Flurry of Blows.)
     if (entries.flurryRider) pc.multiStrikes = (pc.multiStrikes ?? []).map((entry) => (entry.name === "Flurry of Blows" ? { ...entry, bothHit: { conditions: [], damage: [], ...entries.flurryRider } } : entry));
     // (2026-11-05: its uses counted by the names its actions show in the log too — Explosion's Explode, a dedication's Rage — not its own
