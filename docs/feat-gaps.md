@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1847 in whole fights. **4519 it doesn't.**
-- **3085** are in neither.
+- **The simulator** rates 1852 in whole fights. **4514 it doesn't.**
+- **3082** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1577 | 948 |
+| class | 2282 | 1088 | 1572 | 945 |
 | archetype | 2074 | 1246 | 1425 | 981 |
 | ancestry | 1613 | 1086 | 1148 | 857 |
 | skill | 340 | 261 | 324 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4519 | 3085 |
+| **All** | 6366 | 3725 | 4514 | 3082 |
 
 ## Why the feat module doesn't automate them
 
@@ -39,9 +39,9 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 | Reason | class | archetype | ancestry | skill | general | bonus | class feature | Total |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| no card, and PF2e's rule elements on it change nothing a fight counts | 290 | 216 | 321 | 59 | 14 | 4 |  | 904 |
+| no card, and PF2e's rule elements on it change nothing a fight counts | 287 | 216 | 321 | 59 | 14 | 4 |  | 901 |
 | no card: roleplay or nothing to automate | 158 | 202 | 153 | 46 | 9 |  |  | 568 |
-| no card: the feat module's reminder, which a fight doesn't play | 197 | 133 | 101 | 21 |  | 1 |  | 453 |
+| no card: the feat module's reminder, which a fight doesn't play | 196 | 133 | 101 | 21 |  | 1 |  | 452 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 81 | 39 | 111 | 2 |  |  | 324 |
 | no card: only grants other feats, features or choices | 87 | 123 | 47 | 16 | 2 |  |  | 275 |
 | a spell the engine doesn't cast | 56 | 57 | 108 | 1 |  | 1 |  | 223 |
@@ -74,9 +74,9 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a lasting area | 8 |  | 2 |  |  |  |  | 10 |
 | a reroll | 3 | 2 | 4 |  |  |  |  | 9 |
 | a passive's Strike | 4 | 3 | 1 |  |  |  |  | 8 |
-| a choice of ways the simulator doesn't play | 5 | 1 | 2 |  |  |  |  | 8 |
 | it grants Pet | 3 | 2 | 3 |  |  |  |  | 8 |
 | a Focus or Mythic Point back | 4 |  | 3 |  |  |  |  | 7 |
+| a choice of ways the simulator doesn't play | 4 | 1 | 2 |  |  |  |  | 7 |
 | it grants Alchemical Crafting | 1 | 2 | 3 |  |  |  |  | 6 |
 | it grants Domain Initiate |  | 4 |  |  |  | 1 |  | 5 |
 | it grants Impressive Performance |  |  | 5 |  |  |  |  | 5 |
@@ -1743,7 +1743,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Brutal Critical | 18 | class | passive | rated 0.04 |
 | Celestial Form | 18 | class | passive | rated 0 |
 | Contagious Spell | 18 | class | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Diamond Fists | 18 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Diamond Fists | 18 | class | passive | rated 0.14 |
 | Discordant Voice | 18 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Echoing Channel | 18 | class | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Echoing Spell | 18 | class | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -1753,11 +1753,11 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Eyes Unclouded | 18 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Fiendish Form | 18 | class | passive | rated 0 |
 | Perfect Protection | 18 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Piercing Critical | 18 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Piercing Critical | 18 | class | passive | rated 0.02 |
 | Power Hungry | 18 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Primal Aegis | 18 | class | passive | rated 0 |
 | Rejuvenating Touch | 18 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Savage Critical | 18 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Savage Critical | 18 | class | passive | rated 0.03 |
 | Shield from Spells | 18 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Split Hex | 18 | class | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Sunwrecker | 18 | class | passive | it grants Break the Sun's Legs |
@@ -4062,7 +4062,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (453)
+### no card: the feat module's reminder, which a fight doesn't play (452)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4319,7 +4319,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Known Weaknesses | 1 | class | passive | reminder | the feat module reads nothing for it |
 | Long-Distance Taunt | 1 | class | passive | reminder | the feat module reads nothing for it |
 | Timber Sentinel | 1 | class | 2 actions | kineticist module | the feat module reads nothing for it |
-| You're Next | 1 | class | reaction | reminder | the feat module reads nothing for it |
 | Defensive Swap | 2 | class | reaction | reminder | the feat module reads nothing for it |
 | Directed Audience | 2 | class | passive | reminder | the feat module reads nothing for it |
 | Elemental Evolution | 2 | class | passive | reminder | the feat module reads nothing for it |
@@ -5549,19 +5548,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Creature of Myth | 18 | class | passive | card | a passive's Strike |
 | Full Automation | 20 | class | passive | card | a passive's Strike |
 
-### a choice of ways the simulator doesn't play (8)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Withstand the Storm | 5 | ancestry | reaction | card | a choice of ways the simulator doesn't play |
-| Starshot Arrow | 17 | ancestry | 1 action | card | a choice of ways the simulator doesn't play |
-| Golden Dragon's Bounty | 8 | archetype | 1 action | card | a choice of ways the simulator doesn't play |
-| Draining Strike | 2 | class | 1 action | card | a choice of ways the simulator doesn't play |
-| Chaotic Spell | 8 | class | 1 action | card | a choice of ways the simulator doesn't play |
-| Consecrate Spell | 10 | class | 1 action | card | a choice of ways the simulator doesn't play |
-| Unsheathing the Sword-Light | 10 | class | 2 actions | card | a choice of ways the simulator doesn't play |
-| Dodging Roll | 12 | class | reaction | card | a choice of ways the simulator doesn't play |
-
 ### a Focus or Mythic Point back (7)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5573,6 +5559,18 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Summon Mythic Power | 8 | class | 1 action | card | a Focus or Mythic Point back |
 | Surging Focus | 8 | class | free | card | a Focus or Mythic Point back |
 | Retributive Focus | 18 | class | free | card | a Focus or Mythic Point back |
+
+### a choice of ways the simulator doesn't play (7)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Withstand the Storm | 5 | ancestry | reaction | card | a choice of ways the simulator doesn't play |
+| Starshot Arrow | 17 | ancestry | 1 action | card | a choice of ways the simulator doesn't play |
+| Golden Dragon's Bounty | 8 | archetype | 1 action | card | a choice of ways the simulator doesn't play |
+| Draining Strike | 2 | class | 1 action | card | a choice of ways the simulator doesn't play |
+| Chaotic Spell | 8 | class | 1 action | card | a choice of ways the simulator doesn't play |
+| Consecrate Spell | 10 | class | 1 action | card | a choice of ways the simulator doesn't play |
+| Unsheathing the Sword-Light | 10 | class | 2 actions | card | a choice of ways the simulator doesn't play |
 
 ### its requirement, which the PC doesn't meet (6)
 
