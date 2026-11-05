@@ -19,11 +19,14 @@ export const DAY = Number(process.env.E7_DAY) || 4;
 // Each foe's spells, a save each (one use apiece, at its rank and the moderate spell DC for its level): a boss has all three, a group's
 // foes one each in turn.
 const FOE_SPELLS = [["Fireball", "reflex"], ["Fear", "will"], ["Blindness", "fortitude"]];
+// The harder test: E7_FOE_USES casts of each spell, and E7_FOE_ALL=1 gives every group foe all three.
+export const FOE_USES = Number(process.env.E7_FOE_USES) || 1;
+const FOE_ALL = process.env.E7_FOE_ALL === "1";
 export function casterFoes(kind, level) {
     return powerFoes(kind, level).map((foe, index) => {
         const castRank = Math.max(1, Math.min(10, Math.ceil(foe.level / 2)));
         const dc = moderate("spellDC", foe.level);
-        const picks = kind === "boss" ? FOE_SPELLS : [FOE_SPELLS[index % FOE_SPELLS.length]];
+        const picks = kind === "boss" || FOE_ALL ? FOE_SPELLS : [FOE_SPELLS[index % FOE_SPELLS.length]];
         const spells = [];
         const spellPools = {};
         for (const [name] of picks) {
@@ -31,7 +34,7 @@ export function casterFoes(kind, level) {
             if (!found) continue;
             const pool = `${foe.id}:${name}`;
             spells.push({ ...found, name, castRank, dc, attack: dc - 8, pool, tradition: "arcane" });
-            spellPools[pool] = 1;
+            spellPools[pool] = FOE_USES;
         }
         return { ...foe, spells: [...(foe.spells ?? []), ...spells], spellPools: { ...(foe.spellPools ?? {}), ...spellPools } };
     });
@@ -74,13 +77,46 @@ function withPC(id, change, base = partyFor(CAP)) {
 const realSpell = (entry) => !entry.kind;
 // Spell DC and spell attack (not the basic actions').
 const spellBonus = (c, n) => (c.spells = c.spells.map((e) => (realSpell(e) && e.dc != null ? { ...e, dc: e.dc + n, attack: e.attack + n } : e)));
-// Slots of a rank taken from a higher-level party's same caster (the spells it prepares at that rank), at this caster's DC and attack.
+// Slots of a rank taken from a higher-level party's same caster, at this caster's DC and attack. Each added slot holds the spell at that
+// rank the caster spends most over a probe of days (E7_SLOT_PICK=first keeps the old pick: the first spell it prepares at that rank) —
+// a player prepares the extra slot with what they cast, not with what they leave unspent.
+const SLOT_PICK = process.env.E7_SLOT_PICK || "used";
+const spentCache = new Map();
+function spentByName(party, id, level) {
+    const key = `${id}|${level}`;
+    if (spentCache.has(key)) return spentCache.get(key);
+    const caster = party.find((each) => each.id === id);
+    const spent = new Map();
+    for (const kind of KINDS) {
+        let pools = null;
+        for (let seed = 0; seed < 5 * DAY; seed++) {
+            if (seed % DAY === 0) pools = null;
+            const today = pools ? party.map((c) => (pools.has(c.id) ? { ...c, spellPools: { ...pools.get(c.id) } } : c)) : party;
+            const result = simulate({ combatants: [...today, ...casterFoes(kind, level + 2)] }, GRID ? { ...DANGER_OPTIONS, grid: GRID } : DANGER_OPTIONS, 9000 + seed);
+            const before = today.find((c) => c.id === id).spellPools ?? {};
+            const after = result.party.find((c) => c.id === id)?.spellPools ?? {};
+            for (const e of caster.spells.filter((e) => realSpell(e) && e.pool)) {
+                const used = (before[e.pool] ?? 0) - (after[e.pool] ?? 0);
+                if (used > 0) spent.set(`${e.castRank}|${e.name}`, (spent.get(`${e.castRank}|${e.name}`) ?? 0) + used);
+            }
+            pools = new Map(result.party.filter((c) => c.spellPools).map((c) => [c.id, c.spellPools]));
+        }
+    }
+    spentCache.set(key, spent);
+    return spent;
+}
 function addSlots(c, ranks, perRank = 1) {
     const dc = c.spells.find((e) => realSpell(e) && e.pool)?.dc;
     const attack = c.spells.find((e) => realSpell(e) && e.pool)?.attack;
-    const source = partyFor(Math.min(20, Math.max(...ranks) * 2 - 1 + 2)).find((each) => each.id === c.id);
+    const sourceLevel = Math.min(20, Math.max(...ranks) * 2 - 1 + 2);
+    const sourceParty = partyFor(sourceLevel);
+    const source = sourceParty.find((each) => each.id === c.id);
     for (const r of ranks) {
-        const entries = source.spells.filter((e) => realSpell(e) && e.castRank === r && e.pool && !e.pool.endsWith(":font"));
+        let entries = source.spells.filter((e) => realSpell(e) && e.castRank === r && e.pool && !e.pool.endsWith(":font"));
+        if (SLOT_PICK === "used" && entries.length) {
+            const spent = spentByName(sourceParty, c.id, sourceLevel);
+            entries = [...entries].sort((a, b) => (spent.get(`${r}|${b.name}`) ?? 0) - (spent.get(`${r}|${a.name}`) ?? 0));
+        }
         for (let i = 0; i < perRank && entries.length; i++) {
             const pool = `${c.id}:e7-${r}:${Object.keys(c.spellPools).length}`;
             c.spells.push({ ...entries[i % entries.length], dc, attack, pool });

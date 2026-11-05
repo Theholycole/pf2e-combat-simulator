@@ -24,7 +24,8 @@ if (!isMainThread) {
     fs.mkdirSync(out, { recursive: true });
     const read = (name) => (fs.existsSync(`${out}/${name}`) ? fs.readFileSync(`${out}/${name}`, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : []);
     const run = (tasks, file, options = {}) => runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/${file}`, ...options });
-    const { VARIANTS, TIERS, KINDS } = await import("./lib/e7-power.mjs");
+    const { VARIANTS, TIERS, KINDS, DAY, FOE_USES } = await import("./lib/e7-power.mjs");
+    globalThis.e7Setup = { DAY, FOE_USES, all: process.env.E7_FOE_ALL === "1", pick: process.env.E7_SLOT_PICK || "used" };
     const tiers = Object.keys(TIERS);
     if (phase === "scale") {
         await run(tiers.flatMap((tier) => KINDS.map((encounter) => ({ kind: "e7-scale", tier, encounter }))), "scale.jsonl");
@@ -74,7 +75,7 @@ function e7Report(rows, variants, tiers, kinds, featRows = []) {
     const lines = [
         "# E7 feats in combat",
         "",
-        `Made by \`node tools/e7-power.mjs <out> scale|rate|report\` on ${new Date().toISOString().slice(0, 10)}. Each post-cap feat of the E7 rules goes on one PC of the standard 7th-level party (fighter, rogue, wizard, cleric), which then fights the same encounters on the same dice as the plain party, in days of four fights (spell slots spent stay spent; Hit Points fresh each fight). The foes cast a Reflex, a Will and a Fortitude spell beside their Strikes, so saves count. **Levels** is how much stronger the party is, in levels of the foes (the feat ratings' scale). **At the cap**: a 9th-level boss or four 5th-level foes; **above**: an 11th-level boss or four 7th-level foes. **Share of a level** divides by a PC raised to 8th level (what 1,000 XP buys before the cap), averaged over the four PCs, so **XP** is the price that makes the feat as good per XP as a level.`,
+        `Made by \`node tools/e7-power.mjs <out> scale|rate|report\` on ${new Date().toISOString().slice(0, 10)}. Each post-cap feat of the E7 rules goes on one PC of the standard 7th-level party (fighter, rogue, wizard, cleric), which then fights the same encounters on the same dice as the plain party, in days of ${globalThis.e7Setup.DAY} fights (spell slots spent stay spent; Hit Points fresh each fight). The foes cast a Reflex, a Will and a Fortitude spell (${globalThis.e7Setup.FOE_USES} cast${globalThis.e7Setup.FOE_USES > 1 ? "s" : ""} of each, ${globalThis.e7Setup.all ? "every foe all three" : "a group's foes one each"}) beside their Strikes, so saves count. An added slot holds ${globalThis.e7Setup.pick === "used" ? "the spell at that rank the caster spends most" : "the first spell prepared at that rank"}. **Levels** is how much stronger the party is, in levels of the foes (the feat ratings' scale). **At the cap**: a 9th-level boss or four 5th-level foes; **above**: an 11th-level boss or four 7th-level foes. **Share of a level** divides by a PC raised to 8th level (what 1,000 XP buys before the cap), averaged over the four PCs, so **XP** is the price that makes the feat as good per XP as a level.`,
         "",
         "| # | Feat | PC | What it does here | At the cap | Above the cap | Average | Share of a level | XP |",
         "|---:|---|---|---|---:|---:|---:|---:|---:|",
