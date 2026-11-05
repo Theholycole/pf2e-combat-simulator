@@ -1612,6 +1612,16 @@ function alliesAreaHeal(plan) {
     return { ...plan, targeting: { ...plan.targeting, allies: true, area: { type: said[3]?.toLowerCase() ?? "emanation", value: Number(said[1] ?? said[2]) } } };
 }
 
+// (2026-11-05: "you" as the target of a plan whose every effect is a condition only good for its holder — Heat Wave's and Storm Shroud's
+// concealed — the caster itself, as "self". Before, no target the engine reads: never played. Not other conditions on "you": the module
+// reads Inner Strength's lowered enfeebled, Statue's ended off-guard and the like as the condition itself.)
+function youAsSelf(plan) {
+    if (!/^you$/i.test(String(plan?.targeting?.target ?? "")) || plan.targeting.area) return plan;
+    const effects = Object.values(plan.resolution?.outcomes ?? {}).flatMap((row) => row?.effects ?? []);
+    if (!effects.length || !effects.every((effect) => effect.kind === "condition" && ALLY_CONDITIONS.has(effect.slug))) return plan;
+    return { ...plan, targeting: { ...plan.targeting, target: "self" } };
+}
+
 function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } = {}) {
     const classTrait = (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait] || CLASS_SLUGS.includes(trait));
     // (2026-11-02, the user: "Get the simulator working with all classes": a class's feat on its own class — classes.js — the standard party
@@ -1647,7 +1657,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // reader, the plan its cards play — where it reads a save: Aerial Boomerang's line, Rain of Razors' burst, Glacial Prison's slow. The feat
     // module read some of them as timers.)
     const impulse = impulsePlan(doc, level);
-    const plan = alliesAreaHeal(withResolvedEffects(impulse ?? compiled.plan, resolveUuid));
+    const plan = youAsSelf(alliesAreaHeal(withResolvedEffects(impulse ?? compiled.plan, resolveUuid)));
     // Its entries with what the PC wields: the party's own, or (a requirement it doesn't meet — Double Slice's two weapons) a loadout that does,
     // the plain party then fought with the same loadout.
     // (2026-11-03: the simulator's own readings — the hand table, Quickening Banner's quickened allies, Instant Opening's off-guard — win over
