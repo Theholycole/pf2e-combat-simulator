@@ -2173,8 +2173,10 @@ function expandTactics(env) {
         // (Only with an ally beside it where the plan leaves it — in the same melee.)
         const warden = c.forceUse && c.shieldWarden && c.reactions?.shieldBlock && !c.shield.spell && !node.casts.includes("forced")
             && state.list.some((other) => other !== c && other.side === c.side && isActive(other) && other.meleeId != null && (other.meleeId === node.pos.melee || (node.pos.melee === undefined && other.meleeId === c.meleeId)));
-        const next = child(node, { type: "raiseShield" }, 1, warden ? 10 * ctx.ownValue : 0, { shield: true });
-        if (warden) next.casts = [...next.casts, "forced"];
+        // (2026-11-05, Mounted Shield: raised, forced, while it rides — its mount behind it too.)
+        const mountGuard = c.forceUse && c.mountedShield && c.mountId && !c.shield.spell && !node.casts.includes("forced");
+        const next = child(node, { type: "raiseShield" }, 1, warden || mountGuard ? 10 * ctx.ownValue : 0, { shield: true });
+        if (warden || mountGuard) next.casts = [...next.casts, "forced"];
         children.push(next);
     }
 }

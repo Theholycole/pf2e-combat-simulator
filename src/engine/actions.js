@@ -2689,6 +2689,9 @@ export function raiseShield(state, c) {
     if (c.shield && !c.shield.broken) {
         c.shield.raised = true;
         log(state, c.shield.spell ? `  ${c.name} casts ${c.shield.name}` : `  ${c.name} Raises a Shield`);
+        // (Mounted Shield: its mount behind it too.)
+        const mount = c.mountedShield && c.mountId ? state.byId?.get(c.mountId) : null;
+        if (mount) mount.borrowedShield = c.shield;
     }
 }
 

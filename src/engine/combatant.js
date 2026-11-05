@@ -227,7 +227,9 @@ export function armorClass(defender, { ranged = false, coverBonus = 0, flanked =
     // (Rage's −1 to AC while it lasts — classes.js.)
     for (const buff of defender.activeBuffs ?? []) ac -= buff.acPenalty ?? 0;
     const raised = shieldRaised ?? defender.shield?.raised;
-    const shieldBonus = raised && defender.shield && !defender.shield.broken ? defender.shield.ac : 0;
+    // (2026-11-05, Mounted Shield: its rider's raised shield — borrowedShield, the rider's own shield — covers the mount too.)
+    const borrowed = defender.borrowedShield?.raised && !defender.borrowedShield.broken ? defender.borrowedShield.ac : 0;
+    const shieldBonus = Math.max(raised && defender.shield && !defender.shield.broken ? defender.shield.ac : 0, borrowed);
     // (2026-10-25: the whole field's cover — heavy undergrowth — against ranged attacks; weather.js.)
     const cover = ranged && defender.band !== "engaged" ? Math.max(coverBonus, defender.groundCover ?? 0) : 0;
     ac += Math.max(shieldBonus, cover);

@@ -1285,6 +1285,7 @@ const HAND = {
         return melee ? { builtins: { multiStrikes: [{ name: "Dismounting Strike", actions: 2, strikes: [melee.name.toLowerCase()], strides: 1, countsAs: 2, extraDamage: [`${level >= 14 ? 2 : 1}d${die}[${type}]`], dismount: true }] }, played: "its mount's Stride, a leap off and a Strike with an extra weapon die (counts as two attacks)" } : null;
     },
     "legendary-rider": () => ({ builtins: { companionActions: { master: 3, companion: 2 } }, played: "quickened for its Command: its own three actions and its mount's two" }),
+    "mounted-shield": () => ({ builtins: { mountedShield: true }, requires: "You are wielding a shield", played: "its raised shield's bonus to its mount's AC too" }),
     "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
