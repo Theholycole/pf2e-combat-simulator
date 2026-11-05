@@ -4876,6 +4876,12 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     }
     // (Aura of Violent Light: an aura on an ally — each ally in reach, not the caster.)
     if (spell.plan?.resolution?.lingering?.centre === "target") return allies.filter((ally) => ally !== caster && ally.status === ACTIVE && reaches(ally)).map((ally) => ({ targets: [ally] }));
+    // (2026-11-05, companions: "your animal companion" — Magic Hide, Enlarge Companion, Heal Companion —: the caster's own, in reach, and
+    // no one else.)
+    if (/^(?:your animal companion|1 animal companion in your service)$/i.test(String(spell.plan?.targeting?.target ?? "").trim())) {
+        const own = allies.find((ally) => ally.companionOf === caster.id && ally.status === ACTIVE && reaches(ally));
+        return own && (!info.healing || own.hp.value < own.hp.max) ? [{ targets: [own] }] : [];
+    }
     if (!info.area) {
         const sets = [];
         // (A spell for a willing creature — Vapor Form — goes to no enemy. 2026-10-21, found rating spells: only when every choice is

@@ -926,7 +926,7 @@ function focusSpellEntry(doc, level, host) {
         }
         // (2026-11-03: Lay on Hands, whose compiled plan says "unsupported" but which the engine heals with as it does a champion's — spells.js
         // reads its healing from the text. Not other unsupported ones: Heal Companion went to the wizard.)
-        if (!plan?.resolution || plan.resolution.kind === "no-effect" || (plan.resolution.kind === "unsupported" && spell.name !== "Lay on Hands")) continue;
+        if (!plan?.resolution || plan.resolution.kind === "no-effect" || (plan.resolution.kind === "unsupported" && !["Lay on Hands", "Heal Companion"].includes(spell.name))) continue;
         const cantrip = (spell.system?.traits?.value ?? []).includes("cantrip");
         const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan, castRank, dc, attack: dc - 10, pool: cantrip ? null : pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
         if (castable(entry)) entries.push(entry);
@@ -1753,6 +1753,11 @@ function youAsSelf(plan) {
     return { ...plan, targeting: { ...plan.targeting, target: "self" } };
 }
 
+// (2026-11-05) The feats that give or grow a companion (HAND's animalCompanion), the text of one that needs it, the stage a PC has by its level.
+const HAND_COMPANION = new Set(Object.entries(HAND).filter(([, read]) => read.toString().includes("animalCompanion")).map(([slug]) => slug));
+const COMPANION_TEXT = /\byour (?:animal )?companion(?:'s|s)?\b|\byour (?:mount|steed)\b/i;
+const featText = (doc) => `${doc.system?.prerequisites?.value?.map((each) => each.value).join(" ") ?? ""} ${String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ")}`;
+const companionStageAt = (level) => (level >= 16 ? "specialized" : level >= 10 ? "incredible" : level >= 6 ? "mature" : "young");
 function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } = {}) {
     const classTrait = (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait] || CLASS_SLUGS.includes(trait));
     // (2026-11-02, the user: "Get the simulator working with all classes": a class's feat on its own class — classes.js — the standard party
@@ -1891,6 +1896,10 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     }
     const { entries, builtins } = tried;
     if (entries.gap) return { skipped: true, reason: entries.gap.name.slice(doc.name.length + 2), host: host.id, plan };
+    // (2026-11-05: a feat for a PC with an animal companion — Pack Movement, Heal Companion's spell, Bestial Protection —: the companion on
+    // both sides, at the stage a PC of the level has.)
+    const companionNeeded = !HAND_COMPANION.has(slugOf(doc)) && COMPANION_TEXT.test(featText(doc)) ? companionStageAt(level) : null;
+    if (companionNeeded) base = withCompanion(base, host.id, companionNeeded);
     const withFeat = clone(base);
     const pc = withFeat.find((c) => c.id === host.id);
     // (2026-11-03: "Spend a Mythic Point" — the PC's three Mythic Points a fight, as a monster's (B72, the user's choice), shared by what
@@ -1922,7 +1931,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // name alone, which counted 0.)
     // (2026-11-05: its animal companion, beside it; a stage upgrade's plain party has the stage before.)
     let fought = withFeat;
-    let plainParty = loadout || classPC ? base : null;
+    let plainParty = loadout || classPC || companionNeeded ? base : null;
     if (pc.animalCompanion) {
         const { stage, base: before = null } = pc.animalCompanion;
         delete pc.animalCompanion;
