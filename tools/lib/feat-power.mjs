@@ -1102,6 +1102,9 @@ const HAND = {
     // (2026-11-05, Channel Smite: a melee Strike that, on a hit, deals a 1-action harm at its highest rank — the save failed, a critical
     // failure on a critical hit: its d8s doubled. The font spell it spends isn't counted, nor a target harm would heal.)
     "channel-smite": (level) => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 2, strides: 0, strike: null, onHit: { conditions: [], critical: null, push: null, damage: [`${Math.ceil(level / 2)}d8[void]`], save: null, size: null } }], played: "a melee Strike with a 1-action harm on the hit (2 actions)" }),
+    // (2026-11-05, Haft Beatdown: four Strikes for 3 actions, once a fight — the first two at its current multiple attack penalty, the
+    // next two one step worse (5, taken as not agile). Haft Striker Stance isn't checked.)
+    "haft-beatdown": () => ({ builtins: {}, plans: [{ builtin: "multi-strike", actions: 3, strikes: [null, null, null, null], sameTarget: true, sameMap: true, penalties: [0, 0, 5, 5], countsAs: 4, oncePerFight: true }], played: "four Strikes, two at its penalty and two one step worse (3 actions, once a fight)" }),
     // (2026-11-05, Not So Fast!: a melee Strike at a creature leaving a square in its reach — the engine's "move" trigger. Its Speed
     // penalty isn't played, nor is Hampering Stance checked.)
     "not-so-fast": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["move"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a reaction Strike at a creature moving out of its reach" }),
