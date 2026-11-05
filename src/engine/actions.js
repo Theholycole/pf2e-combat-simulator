@@ -1017,6 +1017,16 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         applyCondition(state, attacker, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" }, target, { attacker: target.id, attacks: "any", uses: null });
         log(state, `  ${attacker.name} is off-guard to ${target.name} (Cornered Fury)`);
     }
+    // (2026-11-05, Distracting Shot: its hunted prey off-guard until its next turn after a ranged critical hit or a second ranged hit this
+    // turn; Greater Distracting Shot: after any ranged hit — its longer time on a critical hit not played.)
+    if (attacker.distractingShot && !strike.melee && attacker.prey === target.id && degree >= SUCCESS && isActive(target)) {
+        const turnKey = `${state.round}:${attacker.id}:${target.id}`;
+        attacker.distractingHits = attacker.distractingHits?.key === turnKey ? { key: turnKey, count: attacker.distractingHits.count + 1 } : { key: turnKey, count: 1 };
+        if ((attacker.distractingShot === "greater" || degree === CRITICAL_SUCCESS || attacker.distractingHits.count >= 2) && !target.cond?.["off-guard"]) {
+            applyCondition(state, target, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" }, attacker);
+            log(state, `  ${target.name} is off-guard (Distracting Shot)`);
+        }
+    }
     // (2026-11-05, Leave an Opening: its melee critical hit on an off-guard foe that hurts it sets off an ally's Reactive Strike, as a
     // manipulate action would — the first ally in that foe's Melee with one free.)
     if (attacker.leaveAnOpening && degree === CRITICAL_SUCCESS && strike.melee && offGuard && dealt > 0 && isActive(target)) {

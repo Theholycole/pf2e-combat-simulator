@@ -1527,6 +1527,8 @@ const HAND = {
     "burning-cascade": () => ({ builtins: { burningCascade: true }, played: "its Arcane Cascade's extra damage on each enemy beside it as it enters the stance" }),
     "resounding-cascade": () => ({ builtins: { resoundingCascade: true }, played: "its Arcane Cascade's extra damage for allies beside it" }),
     "flamboyant-cruelty": () => ({ builtins: { flamboyantCruelty: true }, played: "+1 damage for each of clumsy, drained, enfeebled, frightened, sickened, stupefied on the foe, when it has two or more" }),
+    "distracting-shot": () => ({ builtins: { distractingShot: true }, played: "its prey off-guard until its next turn after a ranged critical hit or two ranged hits in a turn" }),
+    "greater-distracting-shot": () => ({ builtins: { distractingShot: "greater" }, played: "its prey off-guard until its next turn after any ranged hit" }),
     // (Opportune Riposte's feats — actions.js.)
     "parry-and-riposte": () => ({ builtins: { parryAndRiposte: true }, played: "Opportune Riposte on a foe's failed Strike too (its finisher and parry taken as met)" }),
     "felicitous-riposte": () => ({ builtins: { felicitousRiposte: true }, played: "Opportune Riposte rolled twice, the better kept" }),
