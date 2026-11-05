@@ -608,10 +608,18 @@ function skillAttackEntry(doc, level, host) {
 // more.) Intimidating Spell: an area damage spell's failure frightened 1, critical failure frightened 2. Burning Spell: a single-target
 // non-cantrip damage spell's persistent fire of its rank. Reverberating Spell: an area non-cantrip damage spell's extra 1d8 sonic (its
 // deafened isn't played).
+const ROUND = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "effect-start", sourceText: "for 1 round" };
 const SPELLSHAPES = {
     "intimidating-spell": { area: true, conditions: { failure: ["frightened", 1], criticalFailure: ["frightened", 2] } },
     "burning-spell": { area: false, nonCantrip: true, extra: (rank) => ({ formula: String(rank), type: "fire", category: "persistent" }) },
-    "reverberating-spell": { area: true, nonCantrip: true, extra: () => ({ formula: "1d8", type: "sonic", category: null }) }
+    "reverberating-spell": { area: true, nonCantrip: true, extra: () => ({ formula: "1d8", type: "sonic", category: null }) },
+    // (2026-11-05, the real gaps: more spellshapes whose rider is a condition on a failed save.) Dizzying Spell: a single-target Will spell's
+    // failure stupefied 2, critical failure stupefied 3, for 1 round. Scintillating Spell: a Reflex spell with no duration (and no darkness):
+    // failure dazzled, critical failure blinded, for 1 round. Thunderclap Spell: an electricity spell with no duration: failure deafened for
+    // 1 round, critical failure deafened and prone.
+    "dizzying-spell": { save: "will", single: true, anyDamage: true, conditions: { failure: ["stupefied", 2, ROUND], criticalFailure: ["stupefied", 3, ROUND] } },
+    "scintillating-spell": { save: "reflex", anyArea: true, anyDamage: true, noTrait: "darkness", conditions: { failure: ["dazzled", null, ROUND], criticalFailure: ["blinded", null, ROUND] } },
+    "thunderclap-spell": { trait: "electricity", anyArea: true, conditions: { failure: ["deafened", null, ROUND], criticalFailure: [["deafened", null, ROUND], ["prone", null, null]] } }
 };
 function spellshapeEntry(doc, host) {
     const shape = SPELLSHAPES[slugOf(doc)];
@@ -621,8 +629,14 @@ function spellshapeEntry(doc, host) {
         const resolution = spell.plan?.resolution;
         const time = String(spell.plan?.activation?.time ?? "");
         const area = spell.plan?.targeting?.area;
-        if (resolution?.kind !== "save" || !resolution.sharedDamage?.components?.length || !["1", "2"].includes(time) || spell.kind) continue;
-        if (shape.area ? !area : area || !/^1 /.test(String(spell.plan?.targeting?.target ?? ""))) continue;
+        if (resolution?.kind !== "save" || (!shape.anyDamage && !resolution.sharedDamage?.components?.length) || !["1", "2"].includes(time) || spell.kind) continue;
+        const single = /^1 creature\b/.test(String(spell.plan?.targeting?.target ?? "")) && !/plus|additional/.test(String(spell.plan?.targeting?.target ?? ""));
+        if (shape.single ? area || !single : !shape.anyArea && (shape.area ? !area : area || !/^1 /.test(String(spell.plan?.targeting?.target ?? "")))) continue;
+        const traits = spell.plan?.traits ?? [];
+        if (shape.save && resolution.check?.statistic !== shape.save) continue;
+        if (shape.trait && !traits.includes(shape.trait) && !(resolution.sharedDamage?.components ?? []).some((part) => part.type === shape.trait)) continue;
+        if (shape.noTrait && traits.includes(shape.noTrait)) continue;
+        if (shape.save === "reflex" || shape.trait) if (Object.values(resolution.outcomes ?? {}).some((row) => (row?.effects ?? []).some((effect) => effect.duration?.unit === "minutes"))) continue;
         if (shape.nonCantrip && !spell.pool) continue;
         const outcomes = structuredClone(resolution.outcomes ?? {});
         let sharedDamage = resolution.sharedDamage;
@@ -631,7 +645,10 @@ function spellshapeEntry(doc, host) {
             sharedDamage = { ...sharedDamage, components: [...sharedDamage.components, { id: "spellshape", formula: part.formula, type: part.type, category: part.category, applyModifier: false, kinds: ["damage"], materials: [] }] };
             for (const row of Object.values(outcomes)) if (row?.damage?.mode === "shared" && row.damage.multiplier > 0) row.damage.sourceComponentIds = [...(row.damage.sourceComponentIds ?? []), "spellshape"];
         }
-        for (const [degree, [slug, value]] of Object.entries(shape.conditions ?? {})) if (outcomes[degree]) outcomes[degree].effects = [...(outcomes[degree].effects ?? []), { kind: "condition", slug, name: slug, value, duration: null, source: doc.name }];
+        for (const [degree, list] of Object.entries(shape.conditions ?? {})) {
+            if (!outcomes[degree]) continue;
+            for (const [slug, value, duration] of Array.isArray(list[0]) ? list : [list]) outcomes[degree].effects = [...(outcomes[degree].effects ?? []), { kind: "condition", slug, name: slug, value, duration: duration ?? null, source: doc.name }];
+        }
         const plan = { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(time) + 1) }, resolution: { ...resolution, sharedDamage, outcomes } };
         const entry = { ...spell, name: `${spell.name} (${doc.name})`, plan, effects: shape.conditions ? spellPack.effectModels(plan, spell.castRank ?? 1) : spell.effects };
         if (castable(entry)) spells.push(entry);
