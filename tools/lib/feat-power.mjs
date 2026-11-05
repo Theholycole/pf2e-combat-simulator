@@ -1601,11 +1601,14 @@ function featByName(name) {
 // (2026-11-04, Cole: "Prioritize the combat passives and actions": Rallying Banner's "each ally within 30 feet", Torrent in the Blood's "each
 // creature in a 30-foot cone" — a heal the feat module rolls for each creature it names, with no area the engine reads.) Its allies within that
 // many feet, as Inspire Courage's emanation reaches them; only a plan whose every effect is a heal and which deals no damage.
+const ALLY_CONDITIONS = new Set(["quickened", "concealed", "hidden", "invisible"]);
 function alliesAreaHeal(plan) {
-    const said = /^each (?:ally|creature|living creature|of your allies)(?: \(including you\))? (?:within (\d+) feet|in an? (\d+)-foot (cone|emanation|burst))$/i.exec(String(plan?.targeting?.target ?? ""));
+    // (2026-11-05: "you and each ally within 5 feet", "each willing ally", and a condition only good for its allies — Cadence Call's
+    // quickened, Banner Twirl's concealed — as well as a heal. Before, read as one creature and aimed at a foe, never used.)
+    const said = /^(?:you and )?each (?:ally|willing ally|creature|living creature|of your allies)(?: \(including you\))? (?:within (\d+) feet|in an? (\d+)-foot (cone|emanation|burst))$/i.exec(String(plan?.targeting?.target ?? ""));
     if (!said || plan.targeting.area || plan.resolution?.sharedDamage) return plan;
     const effects = Object.values(plan.resolution?.outcomes ?? {}).flatMap((row) => row?.effects ?? []);
-    if (!effects.length || !effects.every((effect) => effect.kind === "heal")) return plan;
+    if (!effects.length || !effects.every((effect) => effect.kind === "heal" || (effect.kind === "condition" && ALLY_CONDITIONS.has(effect.slug)))) return plan;
     return { ...plan, targeting: { ...plan.targeting, allies: true, area: { type: said[3]?.toLowerCase() ?? "emanation", value: Number(said[1] ?? said[2]) } } };
 }
 
