@@ -1009,6 +1009,18 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         applyCondition(state, attacker, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" }, target, { attacker: target.id, attacks: "any", uses: null });
         log(state, `  ${attacker.name} is off-guard to ${target.name} (Cornered Fury)`);
     }
+    // (2026-11-05, Leave an Opening: its melee critical hit on an off-guard foe that hurts it sets off an ally's Reactive Strike, as a
+    // manipulate action would — the first ally in that foe's Melee with one free.)
+    if (attacker.leaveAnOpening && degree === CRITICAL_SUCCESS && strike.melee && offGuard && dealt > 0 && isActive(target)) {
+        const ally = state.list.find((other) => other.side === attacker.side && other !== attacker && isActive(other) && canAct(other) && other.reactions?.aoo && canReact(other, "Reactive Strike") && (sameMelee(other, target) || distanceBetween(other, target) <= Math.max(5, other.reach ?? 5)));
+        const allyStrike = ally && bestMeleeStrike(ally, target);
+        if (allyStrike) {
+            spendReaction(ally, "Reactive Strike");
+            state.stats.reactions++;
+            log(state, `  ${ally.name} Attack of Opportunity (Leave an Opening)`);
+            performStrike(state, ally, target, allyStrike, { reaction: true, trigger: "manipulate" });
+        }
+    }
     // Defensive Quills, Searing Heat: the monster's passive answers a melee hit on it (B43).
     const dealtTypes = dealt > 0 ? instances.map((instance) => instance.type) : [];
     if (isActive(attacker)) hitByAnswers(state, target, attacker, strike, degree, dealtTypes);

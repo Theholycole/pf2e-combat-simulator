@@ -1516,6 +1516,7 @@ const HAND = {
     "resilient-touch": () => ({ builtins: { touchRiders: [{ name: "Resilient Touch", model: { rounds: 1, modifiers: [{ on: "saving-throw", type: "status", value: 1 }] } }] }, played: "+1 to saves until its next turn for an ally its Lay on Hands heals" }),
     "rejuvenating-touch": () => ({ builtins: { touchRiders: [{ name: "Rejuvenating Touch", model: { rounds: 10, tempHp: 10 } }] }, played: "10 temporary Hit Points for an ally its Lay on Hands heals" }),
     "accelerating-touch": () => ({ builtins: { touchRiders: [{ name: "Accelerating Touch", model: { rounds: 1, modifiers: [{ on: "speed", type: "status", value: 10 }] } }] }, played: "+10 feet Speed until its next turn for an ally its Lay on Hands heals" }),
+    "leave-an-opening": () => ({ builtins: { leaveAnOpening: true }, played: "its melee critical hit on an off-guard foe sets off an ally's Reactive Strike" }),
     // (Kinetic aura stances — kineticAura.)
     "thermal-nimbus": (level, host, doc) => kineticAura(doc, { model: { resistances: [{ type: "fire", value: level, exceptions: [] }] }, start: `${Math.floor(level / 2)}[fire]`, enter: `${Math.floor(level / 2)}[fire]`, played: `fire resistance ${level} for the PC and its allies, ${Math.floor(level / 2)} fire to foes starting their turn or moving` }),
     "ghosts-in-the-storm": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: 2 }] }, played: "+2 Reflex for the PC and its allies" }),
