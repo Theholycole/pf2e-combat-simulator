@@ -1155,6 +1155,12 @@ const HAND = {
     // (Consume Power: resistance its level to acid, electricity, fire or sonic damage it would take — the engine's resist-damage on those
     // types; the energy it holds for an impulse isn't played.)
     "consume-power": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: level, on: ["acid", "electricity", "fire", "sonic"] }], played: "resistance its level to acid, electricity, fire or sonic damage (reaction)" }),
+    // (Call the Hunt: its hunted prey off-guard to everyone's melee attacks while it and an ally reach it, until its next turn — played as
+    // off-guard to all, at a foe in its reach; its sanctification isn't.)
+    "call-the-hunt": () => {
+        const entry = offGuardToMeEntry("Call the Hunt", { range: "touch", traits: [], everyone: true });
+        return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe in its reach off-guard to all until its next turn (1 action)" } : null;
+    },
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
@@ -1330,6 +1336,9 @@ const HAND = {
     "whispers-of-weakness": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, model: { rounds: 1, modifiers: [{ on: "attack", type: "status", value: 2 }] } }], played: "+2 to its next attack (1 action)" }),
     // (Its next claw hit's 1d6 bleed, once a fight — the claw not checked.)
     "hone-claws": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, pool: "feat:hone-claws", damage: ["1d6[persistent,bleed]"], model: { rounds: 10 } }], pools: { "feat:hone-claws": 1 }, played: "1d6 bleed on its next hit (1 action, once a fight)" }),
+    "stretching-reach": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { reach: 10 } }], played: "a stance: reach 10 feet" }),
+    // (Its next fangs hit's 1d6 persistent poison, once a fight — the fangs not checked.)
+    "envenom-fangs": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, pool: "feat:envenom-fangs", damage: ["1d6[persistent,poison]"], model: { rounds: 2 } }], pools: { "feat:envenom-fangs": 1 }, played: "1d6 persistent poison on its next hit (1 action, once a fight)" }),
     "legendary-rider": () => ({ builtins: { companionActions: { master: 3, companion: 2 } }, played: "quickened for its Command: its own three actions and its mount's two" }),
     "mounted-shield": () => ({ builtins: { mountedShield: true }, requires: "You are wielding a shield", played: "its raised shield's bonus to its mount's AC too" }),
     // (Rearing Display: its mount's Strike — one action of the mount's turn, the Command its rider spent —, a hit followed by a Demoralize
@@ -1423,10 +1432,11 @@ function handEntry(doc, level, builtins, wields, host = null) {
 // (2026-11-03, Instant Opening's "Choose a target within 30 feet. It's Off-Guard against your attacks until the end of your next turn": Feint's
 // own plan with no roll that matters — each degree the same, off-guard to the PC's attacks (all of them, any number) to the end of its next
 // turn, 30 feet.)
-function offGuardToMeEntry(name, { range = "30 feet", traits = ["visual"] } = {}) {
+// (2026-11-05, everyone: Call the Hunt's off-guard to all melee attacks until its next turn — played as off-guard to all.)
+function offGuardToMeEntry(name, { range = "30 feet", traits = ["visual"], everyone = false } = {}) {
     const feint = basicActions.feint;
     if (!feint) return null;
-    const effects = [{ kind: "condition", slug: "off-guard", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" }, scope: { against: "actor", attacks: "any", uses: null } }];
+    const effects = [everyone ? { kind: "condition", slug: "off-guard", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" } } : { kind: "condition", slug: "off-guard", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" }, scope: { against: "actor", attacks: "any", uses: null } }];
     const outcome = (row) => ({ ...row, effects: effects.map((effect) => structuredClone(effect)) });
     const outcomes = Object.fromEntries(Object.entries(feint.resolution.outcomes).map(([degree, row]) => [degree, outcome(row)]));
     const plan = { ...structuredClone(feint), source: { ...feint.source, name }, traits, activation: { ...feint.activation, traits }, targeting: { ...feint.targeting, range }, resolution: { ...structuredClone(feint.resolution), outcomes } };
@@ -1444,6 +1454,11 @@ const ZERO_HP = {
     // doomed, Ruby Resurrection's Fireball and Desperate Revival's drain aren't played.)
     "ferocity-mimicry": { ferocity: { hp: 1, wounded: true, uses: 1 } },
     unkillable: { ferocity: { hp: 1, wounded: false, uses: 1 } },
+    // (2026-11-05, Iomedae's Valor: 1 Hit Point and temporary ones equal to its level — played as Hit Points; its +1 AC for a round isn't.)
+    // (Cellular Reconstruction: its level in Hit Points as it would die, half its level at each of its next two turns — played as twice its
+    // level at once.)
+    "cellular-reconstruction": { ferocity: { hp: (level) => 2 * level, wounded: false, uses: 1 } },
+    "iomedaes-valor": { ferocity: { hp: (level) => 1 + level, wounded: false, uses: 1 } },
     "cheat-death": { ferocity: { hp: 1, wounded: false, uses: 1 } },
     "sanguine-evasion": { ferocity: { hp: 1, wounded: false, uses: 1 } },
     "desperate-revival": { ferocity: { hp: 1, wounded: false, uses: 1 } },
