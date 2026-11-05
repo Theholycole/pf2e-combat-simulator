@@ -41,6 +41,13 @@ export function retributionAfter(state, champion, target, strike, result, { appl
         log(state, `  ${target.name} takes ${amount} persistent ${reaction.relentless.type} (Relentless Reaction)`);
     }
     if (reaction.zeal && result.degree === CRITICAL_SUCCESS) zealCritical(state, champion, target, strike, { applyDamage, applyCondition });
+    // (2026-11-05, Instrument of Slaughter: a critical hit's persistent bleed of two of the weapon's damage dice.)
+    const die = strike?.damage?.[0]?.die;
+    if (reaction.slaughter && result.degree === CRITICAL_SUCCESS && die && isActive(target)) {
+        const amount = state.rng.die(die) + state.rng.die(die);
+        applyDamage(state, target, [{ type: "bleed", persistent: true, amount, dice: 0, die: 0, bonus: amount, multiplier: 1 }], { source: champion });
+        log(state, `  ${target.name} takes ${amount} persistent bleed (Instrument of Slaughter)`);
+    }
 }
 
 // Instrument of Zeal's critical hit: a weapon damage die more (doubled, as the critical hit's), and slowed 1 on its next turn.

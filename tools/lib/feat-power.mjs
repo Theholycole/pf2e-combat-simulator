@@ -1175,6 +1175,11 @@ const HAND = {
         const entry = { name: "Invented Vulnerability", plan: { ...plan, resolution: { ...plan.resolution, outcomes } }, castRank: 1, dc: null, attack: null, pool: "feat:invented-vulnerability", kind: "ability", actionType: "action", rechargeGroup: "Invented Vulnerability", feat: true, effects: { [uuid("criticalSuccess")]: weak(3 + Math.floor(level / 2)), [uuid("success")]: weak(5) } };
         return { builtins: {}, plans: [], spells: [entry], pools: { "feat:invented-vulnerability": 1 }, played: `Deception against Will: weakness 5 to ${type} for a round (1 action, once a fight)` };
     },
+    // (2026-11-05, the champion's reaction riders on a critical hit: Instrument of Zeal's die and slowed 1, Instrument of Slaughter's bleed.)
+    "instrument-of-zeal": () => ({ builtins: { championReaction: { zeal: true } }, played: "its champion's reaction Strike: a critical hit's extra die and slowed 1" }),
+    "instrument-of-slaughter": () => ({ builtins: { championReaction: { slaughter: true } }, played: "its champion's reaction Strike: a critical hit's persistent bleed" }),
+    // (Body Shield: +2 AC against an attack, a thrall thrown in the way — its resistance on a hit, and the thrall lost, aren't played.)
+    "body-shield": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Body Shield" } }, played: "+2 AC against an attack (reaction)" }),
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
