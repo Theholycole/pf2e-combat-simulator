@@ -85,7 +85,12 @@ const TRAIT_PACKAGES = {
     // (2026-11-05: the fear reactions' benchmark — Reassuring Presence, Mask of Fear —: Dread Gaze only, so the foe frightens every time.)
     // forceAbility: used whenever it has recharged, ahead of a Strike (the planner's forceUse; before, the foe struck and seldom gazed — the
     // fear reactions rated with no uses).
-    fear: { saves: ["Dread Gaze"], forceAbility: "Dread Gaze" }
+    fear: { saves: ["Dread Gaze"], forceAbility: "Dread Gaze" },
+    // (2026-11-05, the feat ratings' foe-type benchmarks — tools/feat-foe-traits.mjs: Giant Slayer's giants, Dragon Slayer's dragons, the
+    // feats for foes larger than the PC — Large, reach 10 feet.)
+    giant: { traits: ["giant", "humanoid"], immunities: [], size: "large", reach: 10 },
+    dragon: { traits: ["dragon"], immunities: [], size: "large", reach: 10 },
+    large: { size: "large", reach: 10 }
 };
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
 export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
@@ -116,6 +121,8 @@ export function powerFoes(kind, level, trait = null) {
         if (pack?.permanent) foe.permanent = [...(foe.permanent ?? []), ...pack.permanent.map((entry) => ({ ...entry }))];
         if (pack?.strikeType) foe.strikes = (foe.strikes ?? []).map((strike) => ({ ...strike, damage: (strike.damage ?? []).map((part) => ({ ...part, type: pack.strikeType })) }));
         if (pack?.flies) foe.flies = true;
+        if (pack?.size) foe.size = pack.size;
+        if (pack?.reach) foe.reach = pack.reach;
         if (pack?.biter && (foe.strikes ?? []).length) foe.strikes = [{ ...foe.strikes[0], name: "Jaws" }, { ...foe.strikes[0], name: "Claw", agile: true, damage: foe.strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: Math.max(4, part.die - 2), type: "slashing" } : part)) }];
         if (pack?.rangedStrike && (foe.strikes ?? []).length) foe.strikes = [...foe.strikes, { ...foe.strikes[0], name: `${foe.strikes[0].name ?? "Strike"} (ranged)`, melee: false, increment: 60, reach: undefined }];
         if (pack?.saves) foe.spells = [...(foe.spells ?? []), ...saveAbilities(foe).filter((ability) => !Array.isArray(pack.saves) || pack.saves.includes(ability.name))];
