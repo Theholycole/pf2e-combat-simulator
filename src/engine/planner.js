@@ -2164,7 +2164,14 @@ function expandTactics(env) {
     }
     // (Shield, the spell: cast to raise its magic shield, no hand needed.)
     if (c.shield && !c.shield.broken && !node.shield && (!node.carrying || c.shield.spell)) {
-        children.push(child(node, { type: "raiseShield" }, 1, 0, { shield: true }));
+        // (2026-11-05, Shield Warden rated as used: its shield raised for the allies beside it too — what blocking for them brings isn't in
+        // this creature's own exposure, so with forced use the raise counts like a forced action; before, the champion never raised it.)
+        // (Only with an ally beside it where the plan leaves it — in the same melee.)
+        const warden = c.forceUse && c.shieldWarden && c.reactions?.shieldBlock && !c.shield.spell && !node.casts.includes("forced")
+            && state.list.some((other) => other !== c && other.side === c.side && isActive(other) && other.meleeId != null && (other.meleeId === node.pos.melee || (node.pos.melee === undefined && other.meleeId === c.meleeId)));
+        const next = child(node, { type: "raiseShield" }, 1, warden ? 10 * ctx.ownValue : 0, { shield: true });
+        if (warden) next.casts = [...next.casts, "forced"];
+        children.push(next);
     }
 }
 

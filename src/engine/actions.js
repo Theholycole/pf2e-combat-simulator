@@ -1496,7 +1496,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
             shield.hp -= total;
             if (shield.hp <= shield.bt) shield.broken = true;
             spendReaction(warden, "Shield Block");
-            log(state, `  ${warden.name} Shield Blocks for ${target.name} (${blocked} prevented${shield.broken ? ", shield broken" : ""})`);
+            log(state, `  ${warden.name} Shield Blocks for ${target.name} (Shield Warden, ${blocked} prevented${shield.broken ? ", shield broken" : ""})`);
         }
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance, source);
