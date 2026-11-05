@@ -470,7 +470,7 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
     // (Lucky Break: a failure only, not a critical one; its focus spent.)
     const fromSpell = Number.isInteger(reroll?.fromSpell) ? saver.spells?.[reroll.fromSpell] : null;
     const spellReady = !Number.isInteger(reroll?.fromSpell) || Boolean(fromSpell && poolReady(saver, fromSpell));
-    if (reroll && spellReady && (!reroll.failureOnly || result?.degree === "failure") && (!reroll.save || reroll.save === statistic) && (reroll.against !== "spell" || (spell && (!spell.kind || spell.kind === "spell"))) && (!reroll.againstTrait || traits.includes(reroll.againstTrait)) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
+    if (reroll && spellReady && (!reroll.failureOnly || result?.degree === "failure") && (!reroll.criticalOnly || result?.degree === "criticalFailure") && (!reroll.save || reroll.save === statistic) && (reroll.against !== "spell" || (spell && (!spell.kind || spell.kind === "spell"))) && (!reroll.againstTrait || traits.includes(reroll.againstTrait)) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
         saver.saveRerollUses--;
         if (fromSpell) spendPool(saver, fromSpell);
         if (reroll.mythic) saver.mythicPoints--;
