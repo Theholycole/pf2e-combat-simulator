@@ -802,7 +802,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
                 applyDamage(state, target, [{ type: strike.damage[0].type, amount: half, persistent: false, precision: true }], { source: attacker });
             }
         }
-        if (degree === FAILURE && strike.splashKind === "bomb" && !imageMiss) splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false }), strikeContext(attacker, strike)), { includeTarget: true });
+        if (degree === FAILURE && strike.splashKind === "bomb" && !imageMiss) splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false }), strikeContext(attacker, strike), attacker.splashBonus ?? 0), { includeTarget: true });
         // (B171, Sidestep, Glide Aside: the attack sent at another of the attacker's side beside it, the attacker rerolling against that one at
         // the same multiple attack penalty.)
         // (B286, Bouncy: when "critical", only a critically failed Strike.)
@@ -986,7 +986,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (T4: attached to a larger creature it hits.)
     if (attacker.attach && isActive(attacker)) attachAfterHit(state, attacker, target, sizeRank);
     // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
-    if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances, strikeContext(attacker, strike)), { includeTarget: false });
+    if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances, strikeContext(attacker, strike), attacker.splashBonus ?? 0), { includeTarget: false });
     // (B255: a table row's conditions and save on the creature hit.)
     for (const { slug, value, duration } of strike.hitConditions ?? []) if (isActive(target) && applyCondition(state, target, slug, value ?? null, duration ?? null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
     if (strike.hitSpell && isActive(target)) castPlan(state, attacker, { name: strike.hitName ?? strike.name, plan: strike.hitSpell, castRank: 1, pool: null, kind: "ability" }, [target.id]);
@@ -1368,7 +1368,8 @@ function triggeredSelfEffect(state, c, matches) {
 
 // A Strike's splash: its known amount (the snapshot reads it from the item), or its parts flagged splash.
 // (I2: in the Strike's context, for a swarm's weakness to splash damage.)
-const splashOf = (strike, instances, context = null) => (strike.splashAmount ? [{ type: strike.damage[0]?.type ?? "untyped", amount: strike.splashAmount, persistent: false, precision: false, splash: true }] : instances.filter((instance) => instance.splash)).map((instance) => ({ ...instance, weapon: false, context }));
+// (2026-11-05, Calculated Splash, Expanded Splash: the alchemist's bombs splash more — attacker.splashBonus, its bombs only.)
+const splashOf = (strike, instances, context = null, bonus = 0) => (strike.splashAmount ? [{ type: strike.damage[0]?.type ?? "untyped", amount: strike.splashAmount + (strike.splashKind === "bomb" ? bonus : 0), persistent: false, precision: false, splash: true }] : instances.filter((instance) => instance.splash)).map((instance) => ({ ...instance, weapon: false, context }));
 
 // Splash damage (the instances flagged splash) on the creatures in the target's
 // Melee (within the splash's few feet in range bands), and the target itself after a bomb's miss.
@@ -1377,7 +1378,8 @@ function splashAround(state, attacker, target, splash, { includeTarget }) {
         if (includeTarget && splash.length && isActive(target)) applyDamage(state, target, splash.map((instance) => ({ ...instance })), { source: attacker });
         return;
     }
-    const around = state.list.filter((other) => isActive(other) && other.meleeId === target.meleeId && (includeTarget || other !== target));
+    // (2026-11-05, Directional Bombs: its bombs' splash a cone away from it — on its foes only, attacker.splashFoesOnly.)
+    const around = state.list.filter((other) => isActive(other) && other.meleeId === target.meleeId && (includeTarget || other !== target) && !(attacker.splashFoesOnly && other.side === attacker.side));
     for (const other of around) {
         const dealt = applyDamage(state, other, splash.map((instance) => ({ ...instance })), { source: attacker });
         if (dealt > 0) log(state, `  ${other.name} takes ${dealt} splash (${Math.max(0, other.hp.value)}/${other.hp.max})`);

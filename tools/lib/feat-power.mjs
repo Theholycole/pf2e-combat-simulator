@@ -981,6 +981,12 @@ function kineticAura(doc, { model = null, start = null, enter = null, played }) 
     return { builtins: {}, spells: [{ ...entry, featForced: true }], played: `${played} in its 10-foot kinetic aura (stance, the fight)` };
 }
 
+function armorImpulse(level, { item, cap, speed }) {
+    const dex = level >= 20 ? 4 : level >= 10 ? 3 : 2;
+    const gain = item + Math.min(dex, cap) - (2 + Math.min(dex, 3));
+    return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, model: { rounds: 100, modifiers: [...(gain ? [{ on: "ac", type: "item", value: gain }] : []), { on: "speed", type: "untyped", value: speed }] } }], played: `its impulse armor for the fight: ${gain >= 0 ? "+" : ""}${gain} AC, ${speed} feet Speed (1 action)` };
+}
+
 const HAND = {
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
@@ -1493,6 +1499,17 @@ const HAND = {
     "mounted-shield": () => ({ builtins: { mountedShield: true }, requires: "You are wielding a shield", played: "its raised shield's bonus to its mount's AC too" }),
     // (Rearing Display: its mount's Strike — one action of the mount's turn, the Command its rider spent —, a hit followed by a Demoralize
     // at the rider's Intimidation +1.)
+    // (The kineticist's armor impulses: its own armor for 10 minutes (the fight), at the kineticist's best armor proficiency — the AC it
+    // gains over its studded leather (+2, Dex cap 3; the class's Dexterity +2, +3 from 10th, +4 at 20th) and the Speed it loses. The shield
+    // Metal Carapace and Hardwood Armor can make and Armor in Earth's armor specialization aren't played.)
+    "metal-carapace": (level) => armorImpulse(level, { item: 3, cap: 2, speed: -5 }),
+    "hardwood-armor": (level) => armorImpulse(level, { item: 3, cap: 2, speed: -5 }),
+    "armor-in-earth": (level) => armorImpulse(level, level >= 3 ? { item: 5, cap: 1, speed: -10 } : { item: 4, cap: 1, speed: -10 }),
+    // (The alchemist's splash: Calculated Splash's Intelligence as the splash before Field Discovery gives it (5th); Expanded Splash's
+    // Intelligence added (its 10 feet are the target's Melee here too); Directional Bombs' cone, so its allies there aren't splashed.)
+    "calculated-splash": (level) => ({ builtins: level < 5 ? { splashBonus: Math.max(0, 4 - (level >= 3 ? 2 : 1)) } : {}, played: level < 5 ? "bomb splash equal to its Intelligence" : "nothing past 5th (Field Discovery does it)" }),
+    "expanded-splash": (level) => ({ builtins: { splashBonus: level >= 10 ? 5 : 4 }, played: "its Intelligence added to its bombs' splash" }),
+    "directional-bombs": () => ({ builtins: { splashFoesOnly: true }, played: "its bombs' splash on its foes only (a cone away from it)" }),
     // (Kinetic aura stances — kineticAura.)
     "thermal-nimbus": (level, host, doc) => kineticAura(doc, { model: { resistances: [{ type: "fire", value: level, exceptions: [] }] }, start: `${Math.floor(level / 2)}[fire]`, enter: `${Math.floor(level / 2)}[fire]`, played: `fire resistance ${level} for the PC and its allies, ${Math.floor(level / 2)} fire to foes starting their turn or moving` }),
     "ghosts-in-the-storm": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: 2 }] }, played: "+2 Reflex for the PC and its allies" }),
