@@ -1423,6 +1423,8 @@ const HAND = {
     // with it, against no Slam Down.)
     // (2026-11-05, Vivacious Bravado: with panache, temporary Hit Points equal to its level plus Charisma until its next turn.)
     // (Mage Hunter: a 2-action Strike, stupefied 1 (2 on a critical hit) until its next turn — "seen the target Cast a Spell" not checked.)
+    // (Fight or Flight: frightened by a foe in its reach — a melee Strike at it; the Stride away isn't played.)
+    "fight-or-flight": () => ({ builtins: { fightOrFlight: true }, played: "frightened by a foe in its reach: a melee Strike at it (reaction)" }),
     "mage-hunter": () => {
         const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
         return { builtins: {}, plans: [strikeRider({ actions: 2, onHit: { conditions: [{ slug: "stupefied", value: 1, duration: until }], critical: [{ slug: "stupefied", value: 2, duration: until }] } })], played: "a 2-action Strike, stupefied 1 (2 on a critical hit) until its next turn (whether it saw a spell cast isn't checked)" };

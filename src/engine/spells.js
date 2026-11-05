@@ -14,7 +14,7 @@ import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf,
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, MOUTH, armorClass, canAct, canMove, createCombatant, defenceOf, effectBonus, hinderedBy, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune, weaknessCost } from "./effects.js";
-import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, bewilderFails, fall, footingShaken, foresightReact, leaveField, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, bewilderFails, fall, footingShaken, foresightReact, leaveField, log, performStrike, bestMeleeStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { dimWorth, lightAuraModel, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
@@ -2965,6 +2965,16 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     (target.condSources ??= {})[change.slug] = { dc: effectDC(spell), rank: counterRank(caster, spell, isSpellCast(spell)), spell: isSpellCast(spell), name: spell.name, traits: spell.plan?.traits ?? [] };
                     if (change.slug === "agitated") target.agitation = { name: spell.name, parts: agitationParts(spell) };
                     log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${stackedValue(target, change, true)}` : ""}`);
+                    // (2026-11-05, Fight or Flight: frightened by a creature in its reach — a melee Strike at it, a reaction.)
+                    if (change.slug === "frightened" && target.fightOrFlight && caster.side !== target.side && isActive(caster) && canReact(target, "Fight or Flight") && sameMelee(target, caster)) {
+                        const strike = bestMeleeStrike(target, caster);
+                        if (strike) {
+                            spendReaction(target, "Fight or Flight");
+                            state.stats.reactions++;
+                            log(state, `  ${target.name} uses Fight or Flight`);
+                            performStrike(state, target, caster, strike, { reaction: true });
+                        }
+                    }
                     // Retching: a Fortitude save against the DC of what made it sickened.
                     if (change.slug === "sickened") target.sickenedDC = Math.max(target.sickenedDC ?? 0, effectDC(spell) ?? 0) || null;
                     // (U13, Lion Badge: frightened from a Will save — its talisman lowers it.)
