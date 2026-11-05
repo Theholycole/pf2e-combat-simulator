@@ -1261,6 +1261,13 @@ const HAND = {
         const melee = (host?.strikes ?? []).find((strike) => strike.melee);
         return melee ? { builtins: { multiStrikes: [{ name: "Tandem Strike", actions: 2, strikes: [melee.name.toLowerCase()], companionStrike: true }], companionActions: { master: 2, companion: 1 } }, played: "its Strike and its eidolon's (two of their three actions)" } : null;
     },
+    // (Primal Howl's advanced maneuver — the actions pack's —: the companion's 30-foot cone at its master's DC, once a fight.)
+    "primal-howl": (level, host) => {
+        const action = [...docsOf(`${PACK_ROOT}/actions`).values()].find((doc) => doc.name === "Primal Howl");
+        const read = action && host ? inlineSaveEntry(action, level, host) : null;
+        return read ? { builtins: { companionFields: { spells: read.spells.map((entry) => ({ ...entry, name: "Primal Howl" })), spellPools: read.pools } }, played: `its companion's Primal Howl (${read.played.replace(/^inline save: /, "")})` } : null;
+    },
+    "bloodletting-claws": () => ({ builtins: { companionFields: { strikeExtras: [{ when: "critical", dice: 1, die: 6, melee: true, persistent: true, type: "bleed", noDouble: true, source: "Bloodletting Claws" }] } }, played: "its eidolon's critical hits 1d6 persistent bleed" }),
     "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
@@ -2009,7 +2016,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (field === "companionFields") {
             const { plus = {}, ...rest } = value;
             // (Its own activities used as often as they can be, as the PC's are — forced.)
-            if (FORCE) for (const list of FORCED_FIELDS) if (Array.isArray(rest[list])) {
+            if (FORCE) for (const list of [...FORCED_FIELDS, "spells"]) if (Array.isArray(rest[list])) {
                 rest[list] = rest[list].map((entry) => ({ ...entry, featForced: true }));
                 companion.forceUse = true;
             }
