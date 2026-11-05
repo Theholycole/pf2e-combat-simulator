@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2627: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3739 it doesn't.**
-- **The simulator** rates 1570 in whole fights. **4796 it doesn't.**
+- **The simulator** rates 1577 in whole fights. **4789 it doesn't.**
 - **3139** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1095 | 1704 | 976 |
-| archetype | 2074 | 1250 | 1534 | 1003 |
-| ancestry | 1613 | 1089 | 1184 | 860 |
+| class | 2282 | 1095 | 1703 | 976 |
+| archetype | 2074 | 1250 | 1532 | 1003 |
+| ancestry | 1613 | 1089 | 1180 | 860 |
 | skill | 340 | 261 | 327 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3739 | 4796 | 3139 |
+| **All** | 6366 | 3739 | 4789 | 3139 |
 
 ## Why the feat module doesn't automate them
 
@@ -53,7 +53,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a Strike with nothing more the simulator reads | 59 | 32 | 2 |  |  | 1 |  | 94 |
 | no card: a combat action no reader or hand plan covers yet | 36 | 31 | 14 | 4 | 1 |  |  | 86 |
 | no card: companions, familiars and eidolons | 43 | 34 | 1 | 5 |  |  |  | 83 |
-| a plan the engine can't play | 33 | 27 | 18 | 1 |  |  |  | 79 |
+| a plan the engine can't play | 32 | 25 | 14 | 1 |  |  |  | 72 |
 | a teleport | 22 | 16 | 21 |  |  |  |  | 59 |
 | a roll whose results the simulator doesn't read | 25 | 18 | 6 | 8 |  |  |  | 57 |
 | an Effect with nothing a fight counts | 31 | 12 | 12 | 1 |  |  |  | 56 |
@@ -1271,7 +1271,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Scout's Speed | 6 | archetype | passive | rated 0 |
 | Sinbladed Spell | 6 | archetype | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Spellmaster Dedication | 6 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Spirit of the Blade | 6 | archetype | 1 action | rated -0.25 |
+| Spirit of the Blade | 6 | archetype | 1 action | rated -0.24 |
 | Spiritual Secret | 6 | archetype | free | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Stone Blood | 6 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Stone Blood (Stonebound) | 6 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -5165,7 +5165,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Finish Their Story! | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sever Space | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 
-### a plan the engine can't play (79)
+### a plan the engine can't play (72)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5173,17 +5173,13 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Play Dead | 1 | ancestry | 1 action | card | a plan the engine can't play (its targeting or what it does) |
 | Bold Defiance | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
 | Call to Battle | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Extraplanar Haze | 5 | ancestry | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
 | Gaping Flesh | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Guided by the Stars | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
-| Heat Wave | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Inscribed Blast | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Nanite Shroud | 5 | ancestry | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
 | Quick Root | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Spark of Independence | 5 | ancestry | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
 | Victorious Vigor | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Ferocious Will | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Plane Step | 9 | ancestry | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
 | Hop Up | 13 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
 | Blazing Aura | 17 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Cantorian Restoration | 17 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
@@ -5198,13 +5194,11 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Gardener's Resolve | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Martyr's Parry | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Statue | 8 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Storm Shroud | 8 | archetype | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
 | Wake and Tremble | 8 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
 | Gathering Moss | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
 | Tumbling Opportunist | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
 | Bleak Humorist | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Cellular Reconstruction | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Flickering Twirl | 12 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
 | Propelled Leap | 12 | archetype | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
 | Self Destruct | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Awake With a Roar | 14 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
@@ -5240,7 +5234,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Drowning Mist | 12 | class | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
 | Get Used to Disappointment | 12 | class | free | card | a plan the engine can't play (its targeting or what it does) |
 | Live Off Borrowed Time | 14 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Now You See Me | 14 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
 | Premonition of Clarity | 14 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Towering Transformation | 14 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Vindictive Thoughts | 16 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
