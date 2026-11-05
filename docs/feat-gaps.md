@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2632: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3734 it doesn't.**
-- **The simulator** rates 1672 in whole fights. **4694 it doesn't.**
+- **The simulator** rates 1673 in whole fights. **4693 it doesn't.**
 - **3133** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1092 | 1672 | 973 |
+| class | 2282 | 1092 | 1671 | 973 |
 | archetype | 2074 | 1249 | 1485 | 1000 |
 | ancestry | 1613 | 1088 | 1163 | 860 |
 | skill | 340 | 261 | 327 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3734 | 4694 | 3133 |
+| **All** | 6366 | 3734 | 4693 | 3133 |
 
 ## Why the feat module doesn't automate them
 
@@ -47,12 +47,12 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a spell the engine doesn't cast | 59 | 57 | 108 | 1 |  | 1 |  | 226 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 70 | 65 | 44 | 21 | 1 |  |  | 201 |
 | no card: a combat passive no reader or hand plan covers yet | 64 | 60 | 33 | 13 | 2 |  | 1 | 173 |
-| a timer with no rules a fight counts | 62 | 29 | 21 | 4 |  | 1 |  | 117 |
+| a timer with no rules a fight counts | 59 | 28 | 17 | 4 |  | 1 |  | 109 |
 | a Strike with nothing more the simulator reads | 64 | 37 | 2 |  |  | 1 |  | 104 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | no card: companions, familiars and eidolons | 43 | 34 | 1 | 5 |  |  |  | 83 |
 | no card: a combat action no reader or hand plan covers yet | 33 | 30 | 14 | 4 | 1 |  |  | 82 |
-| a plan the engine can't play | 30 | 22 | 12 | 1 |  |  |  | 65 |
+| a plan the engine can't play | 32 | 23 | 15 | 1 |  |  |  | 71 |
 | its requirement | 20 | 36 | 7 |  |  |  |  | 63 |
 | a teleport | 22 | 16 | 21 |  |  |  |  | 59 |
 | a roll whose results the simulator doesn't read | 26 | 18 | 6 | 8 |  |  |  | 58 |
@@ -68,7 +68,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a passive's Effect posted by hand | 7 | 11 | 3 | 1 |  |  |  | 22 |
 | a reaction's Strike | 9 | 5 | 5 |  |  |  |  | 19 |
 | nothing a fight uses | 2 | 1 | 14 |  |  |  |  | 17 |
-| its Effect has nothing a fight counts | 4 | 7 | 1 | 2 |  |  |  | 14 |
+| its Effect has nothing a fight counts | 4 | 7 | 2 | 2 |  |  |  | 15 |
 | its stance's own gap | 8 | 4 |  |  |  |  |  | 12 |
 | a passive's Strike | 4 | 6 | 1 |  |  |  |  | 11 |
 | its requirement, which the PC doesn't meet | 6 | 2 | 3 |  |  |  |  | 11 |
@@ -4784,21 +4784,17 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Cloud Jump | 15 | skill | passive | by hand | the feat module reads nothing for it |
 | Legendary Survivalist | 15 | skill | passive | by hand | the feat module reads nothing for it |
 
-### a timer with no rules a fight counts (117)
+### a timer with no rules a fight counts (109)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
-| All This Has Happened Before | 5 | ancestry | reaction | card | a timer with no rules a fight counts |
 | Eclectic Obsession | 5 | ancestry | 1 action | card | a timer with no rules a fight counts |
 | Extinguish Light | 5 | ancestry | 2 actions | card | a timer with no rules a fight counts |
 | Glorious Gamtu | 5 | ancestry | 1 action | card | a timer with no rules a fight counts |
-| Vomit Stomach | 5 | ancestry | reaction | card | a timer with no rules a fight counts |
 | Bodily Disintegration | 9 | ancestry | 2 actions | card | a timer with no rules a fight counts |
 | Charred Remains | 9 | ancestry | free | card | a timer with no rules a fight counts |
-| Fierce Competitor | 9 | ancestry | 2 actions | card | a timer with no rules a fight counts |
 | Goblin Club | 9 | ancestry | 1 action | card | a timer with no rules a fight counts |
 | Grow Tool | 9 | ancestry | 3 actions | card | a timer with no rules a fight counts |
-| Hardening Necrosis | 9 | ancestry | reaction | card | a timer with no rules a fight counts |
 | Miraculous Repair | 9 | ancestry | 3 actions | card | a timer with no rules a fight counts |
 | Mirror Refuge | 9 | ancestry | 2 actions | card | a timer with no rules a fight counts |
 | Ride On | 9 | ancestry | reaction | card | a timer with no rules a fight counts |
@@ -4815,7 +4811,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Harrow Casting | 4 | archetype | 1 action | card | a timer with no rules a fight counts |
 | Nature's Embrace | 4 | archetype | 1 action | card | a timer with no rules a fight counts |
 | Never Tire | 4 | archetype | reaction | card | a timer with no rules a fight counts |
-| Patronize the Arts | 4 | archetype | reaction | card | a timer with no rules a fight counts |
 | Repel Darkness | 4 | archetype | 2 actions | card | a timer with no rules a fight counts |
 | Familiar's Resolve | 6 | archetype | 1 action | card | a timer with no rules a fight counts |
 | Sheltering Hand | 6 | archetype | 1 action | card | a timer with no rules a fight counts |
@@ -4856,7 +4851,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Snowdrift Spell | 4 | class | 1 action | card | a timer with no rules a fight counts |
 | Thousand Visions | 4 | class | free | card | a timer with no rules a fight counts |
 | Vampiric Spell | 4 | class | 1 action | card | a timer with no rules a fight counts |
-| Clear as Air | 6 | class | 2 actions | card | a timer with no rules a fight counts |
 | Corrupted Ground | 6 | class | 1 action | card | a timer with no rules a fight counts |
 | Crawling Fire | 6 | class | 2 actions | card | a timer with no rules a fight counts |
 | Expand Aura | 6 | class | 1 action | card | a timer with no rules a fight counts |
@@ -4894,9 +4888,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Profane Bargain | 18 | class | 3 actions | card | a timer with no rules a fight counts |
 | Second Thoughts | 18 | class | reaction | card | a timer with no rules a fight counts |
 | Turn the Wheel of Seasons | 18 | class | 3 actions | card | a timer with no rules a fight counts |
-| Astonishing Explosion | 20 | class | free | card | a timer with no rules a fight counts |
 | Enduring Debilitation | 20 | class | free | card | a timer with no rules a fight counts |
-| Hidden Paragon | 20 | class | reaction | card | a timer with no rules a fight counts |
 | Steal Essence | 20 | class | 2 actions | card | a timer with no rules a fight counts |
 | Stone Forge of the First | 20 | class | 2 actions | card | a timer with no rules a fight counts |
 | Tenacious Blood Magic | 20 | class | free | card | a timer with no rules a fight counts |
@@ -5015,7 +5007,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Finish Their Story! | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sever Space | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 
-### a plan the engine can't play (65)
+### a plan the engine can't play (71)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5023,16 +5015,20 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Play Dead | 1 | ancestry | 1 action | card | a plan the engine can't play (its targeting or what it does) |
 | Reflective Defense | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Sudden Mindfulness | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| All This Has Happened Before | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Bold Defiance | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
 | Call to Battle | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Guided by the Stars | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
 | Quick Root | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Spark of Independence | 5 | ancestry | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
+| Vomit Stomach | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Ferocious Will | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Hardening Necrosis | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Hop Up | 13 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
 | Cantorian Restoration | 17 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Blood Calls Blood | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Dread Marshal Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Patronize the Arts | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Fear No Pain! | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Iomedae's Valor | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Dismal Harvest | 8 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
@@ -5082,6 +5078,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Vindictive Thoughts | 16 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Blaze of Revelation | 18 | class | free | card | a plan the engine can't play (its targeting or what it does) |
 | Spirit's Sacrifice | 18 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Astonishing Explosion | 20 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Hidden Paragon | 20 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Ringmaster's Introduction | 20 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Kip Up | 7 | skill | free | card | a plan the engine can't play (its targeting or what it does) |
 
@@ -5587,10 +5585,11 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Glider Form | 1 | class | 1 action | card | nothing a fight uses |
 | Wings of Bone and Sinew | 8 | class | 1 action | card | nothing a fight uses |
 
-### its Effect has nothing a fight counts (14)
+### its Effect has nothing a fight counts (15)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
+| Fierce Competitor | 9 | ancestry | 2 actions | card | its Effect has nothing a fight counts |
 | Sharpened Senses | 13 | ancestry | free | card | its Effect has nothing a fight counts |
 | Starstone Aspirant Dedication | 2 | archetype | passive | card | its Effect has nothing a fight counts |
 | Brains! | 6 | archetype | free | card | its Effect has nothing a fight counts |
