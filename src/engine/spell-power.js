@@ -17,6 +17,7 @@
 //   trait.
 
 import { moderateCreatureAt } from "./creature-tables.js";
+import { savePlan } from "./deviant.js";
 import { createFightState } from "./fight.js";
 import { DOWN, armorClass, isActive, multipleAttackPenalty, saveModifier, strikeUsable } from "./combatant.js";
 import { engage } from "./space.js";
@@ -77,7 +78,10 @@ const TRAIT_PACKAGES = {
     // (Binding Muzzle's: foes that bite — their Strike their jaws, beside an agile claw a die size smaller.)
     biter: { biter: true },
     // (2026-10-22, Let Not the Fallen Rest's: the party's fighter down, dying 1.)
-    "downed-ally": { downedAlly: true }
+    "downed-ally": { downedAlly: true },
+    // (2026-11-05, the feat ratings' save benchmark: foes that force saves — a Fortitude poison, a Reflex fire burst and a Will fear, each
+    // recharging — so a save feat (Cat's Luck, Guarded Mind, Divine Aegis) has something to answer. saveAbilities.)
+    saves: { saves: true }
 };
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
 export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
@@ -110,6 +114,7 @@ export function powerFoes(kind, level, trait = null) {
         if (pack?.flies) foe.flies = true;
         if (pack?.biter && (foe.strikes ?? []).length) foe.strikes = [{ ...foe.strikes[0], name: "Jaws" }, { ...foe.strikes[0], name: "Claw", agile: true, damage: foe.strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: Math.max(4, part.die - 2), type: "slashing" } : part)) }];
         if (pack?.rangedStrike && (foe.strikes ?? []).length) foe.strikes = [...foe.strikes, { ...foe.strikes[0], name: `${foe.strikes[0].name ?? "Strike"} (ranged)`, melee: false, increment: 60, reach: undefined }];
+        if (pack?.saves) foe.spells = [...(foe.spells ?? []), ...saveAbilities(foe)];
         if (pack?.resistances) foe.resistances = [...(foe.resistances ?? []), ...pack.resistances.map((entry) => ({ ...entry, value: typicalWeakness(foe.level) }))];
         return pack?.traits ? { ...foe, traits: [...pack.traits], immunities: [...pack.immunities], weaknesses: (pack.weaknesses ?? []).map((type) => ({ type, value: typicalWeakness(foe.level) })) } : foe;
     };
@@ -119,6 +124,27 @@ export function powerFoes(kind, level, trait = null) {
     if (pack?.spellShare) Object.assign(foes, { spellShare: pack.spellShare });
     if (pack?.downedAlly) Object.assign(foes, { downedAlly: true });
     return pack?.environment ? Object.assign(foes, { environment: { ...pack.environment } }) : foes;
+}
+
+// (The save benchmark's abilities, at a moderate creature's spell DC and a limited-use ability's damage for its level — the Monster Core's
+// "Building Creatures": a DC about 18 + its level, about 1d8 a level for a limited-use area at higher levels: (level / 2 + 2)d8 here, an
+// area's share.) Each recharges in 1d4 rounds.
+function saveAbilities(foe) {
+    const level = Math.max(-1, Number(foe.level) || 1);
+    const dc = 17 + level;
+    const dice = Math.max(1, Math.round(level / 2) + 2);
+    const make = (name, save, traits, damage, effects = {}, area = null) => {
+        const plan = savePlan(name, { actions: 2, traits, save, dc, damage, area, target: area ? null : "1 creature", range: area ? null : "30 feet", effects });
+        plan.traits = plan.traits.filter((trait) => trait !== "deviant");
+        plan.activation.traits = plan.traits;
+        plan.trigger = { event: "use", recharge: { formula: "1d4" } };
+        return { name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: null, pool: null, kind: "ability", rechargeGroup: name };
+    };
+    return [
+        make("Venom Spit", "fortitude", ["poison"], `${dice}d6[poison]`, { failure: [["sickened", 1]], criticalFailure: [["sickened", 2]] }),
+        make("Fire Burst", "reflex", ["fire"], `${dice}d6[fire]`, {}, { type: "burst", value: 10 }),
+        make("Dread Gaze", "will", ["emotion", "fear", "mental", "visual"], null, { success: [["frightened", 1]], failure: [["frightened", 2]], criticalFailure: [["frightened", 3]] })
+    ];
 }
 
 // ("spell-buffed": a foe under Haste cast at its own rank — quickened, the effect a counteract can end.)

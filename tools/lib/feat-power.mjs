@@ -1827,6 +1827,8 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
 }
 
 const FORCE = process.env.FEAT_FORCE !== "0";
+// (2026-11-05: a benchmark of its own — FEAT_FOE_TRAIT=saves, the rating foes with save abilities, spell-power.js —, in its own run folder.)
+const FOE_TRAIT = process.env.FEAT_FOE_TRAIT || null;
 // (2026-11-05: reactionStrikes too — actions.js puts a forced one ahead of Reactive Strike on a move or manipulate trigger.)
 const FORCED_FIELDS = ["strikeActivities", "multiStrikes", "selfEffects", "selfBuffs", "charges", "skillSweeps", "reactionStrikes"];
 
@@ -1855,9 +1857,9 @@ export const partyLevelOf = (level) => Math.max(1, Math.min(20, Number(level) ||
 // The scale at a level for an encounter: the plain party's scores on seeds [0, FIGHTS), and against foes a level up and a level down.
 export function scaleTask({ level, encounter: kind }) {
     const party = partyFor(level);
-    const base = dangerSummary(dangerFights(party, powerFoes(kind, level), 0, FIGHTS, { grid: GRID }));
-    const up = dangerSummary(dangerFights(party, powerFoes(kind, level + 1), 0, FIGHTS, { grid: GRID }));
-    const down = dangerSummary(dangerFights(party, powerFoes(kind, level - 1), 0, FIGHTS, { grid: GRID }));
+    const base = dangerSummary(dangerFights(party, powerFoes(kind, level, FOE_TRAIT), 0, FIGHTS, { grid: GRID }));
+    const up = dangerSummary(dangerFights(party, powerFoes(kind, level + 1, FOE_TRAIT), 0, FIGHTS, { grid: GRID }));
+    const down = dangerSummary(dangerFights(party, powerFoes(kind, level - 1, FOE_TRAIT), 0, FIGHTS, { grid: GRID }));
     return { kind: "scale", level, encounter: kind, base: base.score, scores: base.scores, up: up.score, down: down.score, step: Math.max(0.02, (up.score - down.score) / 2), rounds: base.rounds };
 }
 
@@ -2007,7 +2009,7 @@ export function featTask(task) {
     for (const kind of KINDS) {
         const scaled = scale?.get(`${level}|${kind}`);
         if (!scaled) return { ...head, error: `no scale for level ${level} ${kind}: run the scale phase first` };
-        results[kind] = rateEncounter(built, powerFoes(kind, level), scaled, plainKey(built, level, kind), doc.name);
+        results[kind] = rateEncounter(built, powerFoes(kind, level, FOE_TRAIT), scaled, plainKey(built, level, kind), doc.name);
     }
     const levels = KINDS.reduce((sum, kind) => sum + results[kind].levels, 0) / KINDS.length;
     const se = Math.sqrt(KINDS.reduce((sum, kind) => sum + results[kind].levelsSe ** 2, 0)) / KINDS.length;
@@ -2030,7 +2032,7 @@ export function probeTask({ row, seeds = PROBE }) {
         const stored = row.results?.[kind];
         if (!stored?.scores) return { ...head, changed: true, why: "no fights kept (rated before the probe existed)" };
         const n = Math.min(seeds, stored.scores.length);
-        const foes = powerFoes(kind, level);
+        const foes = powerFoes(kind, level, FOE_TRAIT);
         const now = dangerFights(built.party, foes, 0, n, { grid: GRID }).scores;
         if (now.some((value, index) => value !== stored.scores[index])) return { ...head, changed: true, party, why: `${kind} fights differ` };
         if (Boolean(built.plain) !== Boolean(stored.plainScores)) return { ...head, changed: true, party, why: "its plain party changed" };
@@ -2046,7 +2048,7 @@ export function probeTask({ row, seeds = PROBE }) {
 export function scaleProbeTask({ level, encounter: kind, seeds = PROBE }) {
     const stored = scale?.get(`${level}|${kind}`);
     if (!stored) return { kind: "scale-probe", level, encounter: kind, changed: true };
-    const now = dangerFights(partyFor(level), powerFoes(kind, level), 0, Math.min(seeds, stored.scores.length), { grid: GRID }).scores;
+    const now = dangerFights(partyFor(level), powerFoes(kind, level, FOE_TRAIT), 0, Math.min(seeds, stored.scores.length), { grid: GRID }).scores;
     return { kind: "scale-probe", level, encounter: kind, changed: now.some((value, index) => value !== stored.scores[index]) };
 }
 
@@ -2064,7 +2066,7 @@ export function canaryTask({ row }) {
         const scaled = scale?.get(`${level}|${kind}`);
         const stored = row.results?.[kind];
         const n = Math.min(CANARY, stored?.scores?.length ?? CANARY);
-        const fresh = rateEncounter(built, powerFoes(kind, level), scaled, plainKey(built, level, kind), doc.name, { maxFights: n, early: false });
+        const fresh = rateEncounter(built, powerFoes(kind, level, FOE_TRAIT), scaled, plainKey(built, level, kind), doc.name, { maxFights: n, early: false });
         now.push(fresh.levels);
         if (stored?.scores) {
             const plain = stored.plainScores ?? scaled.scores;
@@ -2083,7 +2085,7 @@ export function partyRating(party, level, names = []) {
     for (const kind of KINDS) {
         const scaled = scale?.get(`${level}|${kind}`);
         if (!scaled) throw new Error(`no scale for level ${level} ${kind}`);
-        const foes = powerFoes(kind, level);
+        const foes = powerFoes(kind, level, FOE_TRAIT);
         const fights = dangerSummary(dangerFights(party, foes, 0, FIGHTS, { grid: GRID }));
         const diffs = fights.scores.map((score, index) => score - scaled.scores[index]);
         const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
@@ -2105,11 +2107,11 @@ export function basicTask(task) {
         for (const kind of KINDS) {
             const plain = scale?.get(`${level}|${kind}`);
             if (!plain) return { ...task, error: `no scale for level ${level} ${kind}` };
-            const fights = dangerSummary(dangerFights(party, powerFoes(kind, level), 0, FIGHTS, { grid: GRID }));
+            const fights = dangerSummary(dangerFights(party, powerFoes(kind, level, FOE_TRAIT), 0, FIGHTS, { grid: GRID }));
             const diffs = plain.scores.map((score, index) => score - fights.scores[index]);
             const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
             const sd = Math.sqrt(diffs.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
-            rows[`${level}|${kind}`] = { delta: mean, levels: -mean / plain.step, levelsSe: sd / Math.sqrt(diffs.length) / plain.step, uses: usesPerFight(partyFor(level), powerFoes(kind, level), task.name) };
+            rows[`${level}|${kind}`] = { delta: mean, levels: -mean / plain.step, levelsSe: sd / Math.sqrt(diffs.length) / plain.step, uses: usesPerFight(partyFor(level), powerFoes(kind, level, FOE_TRAIT), task.name) };
         }
     }
     const values = Object.values(rows);
