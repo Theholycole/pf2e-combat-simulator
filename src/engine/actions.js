@@ -1594,6 +1594,20 @@ export function applyDamage(state, target, instances, { source = null, critical 
             (source.timers ??= []).push({ key: "enfeebled", value: 2, round: source.round === state.round ? state.round + 1 : state.round, turnOf: source.id, at: "end" });
             log(state, `  ${source.name} refuses and is enfeebled 2`);
         }
+        // (2026-11-05, Shield of Reckoning: its Shield Block for the ally with the same reaction, once a round — its raised shield's
+        // Hardness off the damage, the shield taking the rest as a block's.)
+        const shield = champion.shield;
+        if (champion.shieldOfReckoning && physical && champion !== target && shield?.raised && !shield.broken && champion.reckoningRound !== state.round && adjusted.total > 0) {
+            champion.reckoningRound = state.round;
+            const blocked = Math.min(adjusted.total, shield.hardness ?? 0);
+            const through = adjusted.total - blocked;
+            adjusted.total = through;
+            if (through > 0 && Number.isFinite(shield.hp)) {
+                shield.hp = Math.max(0, shield.hp - through);
+                if (shield.hp <= (shield.bt ?? 0)) shield.broken = true;
+            }
+            log(state, `  ${champion.name} Shield Blocks for ${target.name} (Shield of Reckoning): ${blocked} prevented`);
+        }
         if (reaction.slug === "retributive-strike") retribution = champion;
         if (reaction.slug === "destructive-vengeance") retribution = { vengeance: champion };
         if (reaction.slug === "iron-command") retribution = { ironCommand: champion };
