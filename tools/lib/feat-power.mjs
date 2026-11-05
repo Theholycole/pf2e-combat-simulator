@@ -1204,6 +1204,19 @@ const HAND = {
     "specialized-beastmaster-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
     "specialized-companion-animal-trainer": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
     "peerless-mascot-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    // (Companion feats on the companion it has — the party with one on both sides.)
+    "loyal-warhorse": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "imposing-destrier": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "auspicious-mount": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "splendid-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "spirit-companion": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "specialized-mount": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "companions-cry": () => ({ builtins: { companionActions: { master: 1, companion: 3 } }, played: "Commanded with 2 actions every turn: the companion's third action" }),
+    "side-by-side-druid": () => ({ builtins: { tandem: true }, played: "it and its companion flank a foe both are beside" }),
+    "side-by-side-ranger": () => ({ builtins: { tandem: true }, played: "it and its companion flank a foe both are beside" }),
+    "heightened-instincts": () => ({ builtins: { companionFields: { saveDegrees: [{ saves: ["fortitude", "reflex", "will"], adjustment: { success: "one-degree-better" } }] } }, played: "its companion's successful saves critical successes" }),
+    "tenacious-endurance": () => ({ builtins: { companionFields: { ferocityRule: { name: "Tenacious Endurance", hp: 1, wounded: true, free: true, uses: 1 } } }, played: "its companion stays up at 1 HP once (wounded 1)" }),
+    "ferocious-beasts": () => ({ builtins: { companionFields: { ferocityRule: { name: "Orc Ferocity", hp: 1, wounded: true, uses: 1 }, reactions: { ferocity: true } } }, played: "its companion's Orc Ferocity" }),
     "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
@@ -1755,6 +1768,7 @@ function youAsSelf(plan) {
 
 // (2026-11-05) The feats that give or grow a companion (HAND's animalCompanion), the text of one that needs it, the stage a PC has by its level.
 const HAND_COMPANION = new Set(Object.entries(HAND).filter(([, read]) => read.toString().includes("animalCompanion")).map(([slug]) => slug));
+const HAND_ON_COMPANION = new Set(Object.entries(HAND).filter(([, read]) => /companionFields|companionActions|tandem/.test(read.toString())).map(([slug]) => slug));
 const COMPANION_TEXT = /\byour (?:animal )?companion(?:'s|s)?\b|\byour (?:mount|steed)\b/i;
 const featText = (doc) => `${doc.system?.prerequisites?.value?.map((each) => each.value).join(" ") ?? ""} ${String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ")}`;
 const companionStageAt = (level) => (level >= 16 ? "specialized" : level >= 10 ? "incredible" : level >= 6 ? "mature" : "young");
@@ -1898,7 +1912,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     if (entries.gap) return { skipped: true, reason: entries.gap.name.slice(doc.name.length + 2), host: host.id, plan };
     // (2026-11-05: a feat for a PC with an animal companion — Pack Movement, Heal Companion's spell, Bestial Protection —: the companion on
     // both sides, at the stage a PC of the level has.)
-    const companionNeeded = !HAND_COMPANION.has(slugOf(doc)) && COMPANION_TEXT.test(featText(doc)) ? companionStageAt(level) : null;
+    const companionNeeded = !HAND_COMPANION.has(slugOf(doc)) && (COMPANION_TEXT.test(featText(doc)) || HAND_ON_COMPANION.has(slugOf(doc))) ? companionStageAt(level) : null;
     if (companionNeeded) base = withCompanion(base, host.id, companionNeeded);
     const withFeat = clone(base);
     const pc = withFeat.find((c) => c.id === host.id);
@@ -1937,6 +1951,24 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         delete pc.animalCompanion;
         fought = withCompanion(withFeat, host.id, stage);
         if (before) plainParty = withCompanion(base, host.id, before);
+    }
+    // (What the feat gives the companion — companionFields: Heightened Instincts' saves, Tenacious Endurance —; companionActions: Companion's
+    // Cry's 2-action Command, the master's turn one action, the companion's three; tandem: Side by Side's flanking.)
+    const companion = fought.find((c) => c.companionOf === host.id) ?? null;
+    const master = fought.find((c) => c.id === host.id);
+    for (const field of ["companionFields", "companionActions", "tandem"]) {
+        const value = master?.[field];
+        if (value === undefined) continue;
+        delete master[field];
+        if (!companion) continue;
+        if (field === "companionFields") joinBuiltins(companion, value);
+        else if (field === "companionActions") {
+            master.actionsPerTurn = value.master;
+            companion.actionsPerTurn = value.companion;
+        } else {
+            master.tandemWith = companion.id;
+            companion.tandemWith = master.id;
+        }
     }
     const useNames = [...new Set([...(fought !== withFeat ? ["Animal Companion"] : []), ...entries.spells, ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => entry?.name).filter((name) => typeof name === "string" && name.length > 2))];
     return { party: fought, ...(plainParty ? { plain: plainParty } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan, useNames };

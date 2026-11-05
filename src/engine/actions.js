@@ -488,6 +488,12 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             if (chance > 0) flanked = state.rng.chance(chance);
         }
     }
+    // (2026-11-05, Side by Side: a PC and its animal companion both beside the same foe flank it, wherever they stand — tandemWith.)
+    if (!flanked && strike.melee && attacker.tandemWith && flankableBy(target, attacker)) {
+        const partner = state.byId.get(attacker.tandemWith);
+        const beside = (who) => (state.grid && who.square && target.square ? gridReaches(who, target) : sameMelee(who, target));
+        if (partner && isActive(partner) && canAct(partner) && beside(attacker) && beside(partner)) flanked = true;
+    }
     // (B302: off-guard to it by its own passive — Surprise Attack's first round, Dread Striker's frightened target.)
     const surprised = offGuardFrom(state, attacker, target, { melee: strike.melee });
     // Blinded or dazzled: a flat check to find the target first; a concealed or hidden target too (B41). (L1: the light and the weather.)
