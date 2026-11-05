@@ -6,6 +6,7 @@ import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, create
 import { engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
 import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, finishRegenerating, spellStops, strikeStops, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
+import { featTriggers } from "./triggers.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, adjustPart, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
@@ -1500,6 +1501,8 @@ export function takeTurn(state, c) {
     }
     // (A body that burns at a touch — Fiery Body —: a creature in a grapple with it, held by it or holding it, once as its turn starts.)
     contactRetaliation(state, c);
+    // (2026-11-05, triggers.js: a feat's free action or reaction as its turn begins — Blazing Aura, High-Speed Regeneration.)
+    if (c.featTriggers) featTriggers(state, c, "turn-start");
     // (2026-10-22, family 4: in Containment's field — its turn at the field —; Overwhelming Presence's tribute.)
     if (heldTurnStart(state, c)) {
         if (!checkEnd(state)) endTurn(state, c);

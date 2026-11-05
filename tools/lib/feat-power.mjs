@@ -1601,6 +1601,20 @@ function featByName(name) {
 // (2026-11-04, Cole: "Prioritize the combat passives and actions": Rallying Banner's "each ally within 30 feet", Torrent in the Blood's "each
 // creature in a 30-foot cone" — a heal the feat module rolls for each creature it names, with no area the engine reads.) Its allies within that
 // many feet, as Inspire Courage's emanation reaches them; only a plan whose every effect is a heal and which deals no damage.
+// (2026-11-05: a feat's Trigger line, as src/engine/triggers.js plays it — { on, melee?, unarmed?, whileDown? } —, or null.)
+export function featTriggerOf(doc) {
+    const text = String(doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/@\w+\[[^\]]*\](?:\{([^}]*)\})?/g, (all, label) => label ?? "").replace(/\s+/g, " ");
+    const said = /\bTrigger\s+(.+?)(?:\.|$)/i.exec(text)?.[1] ?? "";
+    const whileDown = /\beven while\b/i.test(text);
+    if (/^Your turn begins$/i.test(said)) return { on: "turn-start" };
+    if (/^(?:A|An) (?:creature(?: or object)?|enemy|foe)(?: adjacent to you| you are aware of| within \d+ feet)? damages you\b/i.test(said)) return { on: "damaged", ...(/adjacent|melee|unarmed|reach/i.test(said) ? { melee: true } : {}) };
+    if (/^You (?:bring|reduce) (?:a|an) (?:foe|enemy|creature) to 0 Hit Points/i.test(said) || /^You successfully reduce one or more .*(?:enemies|foes|creatures) to 0 Hit Points/i.test(said)) return { on: "foe-down" };
+    if (/^You critically (?:succeed|hit) (?:with|on) an? (unarmed )?Strike/i.test(said)) return { on: "crit", ...(/unarmed/i.test(said) ? { unarmed: true } : {}) };
+    if (/^A creature reduces you or (?:a|an) (?:living )?ally within \d+ feet to 0 Hit Points/i.test(said)) return { on: "ally-down", ...(whileDown ? { whileDown: true } : {}) };
+    if (/^You are reduced to 0 Hit Points by a creature/i.test(said)) return { on: "self-down", whileDown: true };
+    return null;
+}
+
 const ALLY_CONDITIONS = new Set(["quickened", "concealed", "hidden", "invisible"]);
 function alliesAreaHeal(plan) {
     // (2026-11-05: "you and each ally within 5 feet", "each willing ally", and a condition only good for its allies — Cadence Call's
@@ -1673,9 +1687,15 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             const dc = dcsOf(host).class ?? 10 + level + 2;
             entries = { ...entries, spells: entries.spells.map((entry) => ({ ...entry, dc, attack: dc - 10, castRank: Math.max(1, Math.ceil(level / 2)) })) };
         }
+        // (2026-11-05: a reaction or free action played at its trigger — src/engine/triggers.js —, when its Trigger line is one the engine
+        // reads.)
+        if (!entries.gap && entries.spells?.length) {
+            const trigger = featTriggerOf(doc);
+            if (trigger) entries = { ...entries, spells: entries.spells.map((entry) => (["reaction", "free"].includes(entry.plan?.activation?.time) ? { ...entry, featTrigger: trigger } : entry)) };
+        }
         // (2026-11-05: a plan the engine can't cast at all — Flying Flame's path, no target or area it reads —: a gap, not a 0.00 rating
         // from fights where it was never used; the readings below may still play it.)
-        if (!process.env.FEAT_KEEP_UNPLAYABLE && !entries.gap && entries.spells?.length && !Object.keys(builtins).length && entries.spells.every((entry) => !castable(entry))) entries = { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a plan the engine can't play (its targeting or what it does)` } };
+        if (!process.env.FEAT_KEEP_UNPLAYABLE && !entries.gap && entries.spells?.length && !Object.keys(builtins).length && entries.spells.every((entry) => !castable(entry) && !entry.featTrigger)) entries = { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a plan the engine can't play (its targeting or what it does)` } };
         // (What the feat module leaves, PF2e's own Effect an action links for its user — Dragon Stance's —: as the live snapshot plays it,
         // scripts/snapshot.js readSelfEffects.)
         if (entries.gap) {
@@ -1760,6 +1780,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // that does not use it": the feat's own actions marked featForced, and the PC forceUse — the planner takes one in every turn it can,
     // ahead of anything else, as the deviants' "all out". FEAT_FORCE=0 rates them as the AI would pick them.)
     const forced = FORCE ? (entry) => ({ ...entry, featForced: true }) : (entry) => entry;
+    if (entries.spells.some((entry) => entry.featTrigger)) pc.featTriggers = true;
     pc.spells = [...(pc.spells ?? []), ...entries.spells.map((entry) => forced(mythic && !entry.pool ? { ...entry, pool: "mythic" } : entry))];
     // (2026-11-03, Cole's pick "share the 3 points": its Strike activities, multi-Strikes and self-effects spend them too — Decree of War,
     // Telling Blow, Godspeed, Divine Invulnerability.)

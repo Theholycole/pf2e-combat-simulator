@@ -22,6 +22,7 @@ import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
 import { log } from "./log.js";
+import { dropTriggers, featTriggers } from "./triggers.js";
 import { afterAttackFortune, attackFortune } from "./fortune-items.js";
 import { hostility, ownHostility } from "./pacify.js";
 import { wardBlocks } from "./wards.js";
@@ -983,6 +984,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         const opened = (target.offGuardTo ?? []).find((held) => held.attacker === attacker.id && held.tempHpOnHit > 0);
         if (opened) attacker.hp.temp = Math.max(attacker.hp.temp ?? 0, opened.tempHpOnHit * (degree === CRITICAL_SUCCESS ? 2 : 1));
     }
+    // (2026-11-05, triggers.js: a feat's free action or reaction on its critical Strike — Echoing Violence.)
+    if (degree === CRITICAL_SUCCESS && attacker.featTriggers && isActive(target) && attacker.side !== target.side) featTriggers(state, attacker, "crit", { target, strike });
     // (2026-11-03, Fracture Timeflow: a passive's save after any critical Strike — the spell the attacker carries for it.)
     if (degree === CRITICAL_SUCCESS && isActive(target) && attacker.side !== target.side) for (const rider of attacker.critRiders ?? []) bothHitRider(state, attacker, target, { affliction: rider.affliction }, { said: `${rider.source} on` });
     // Violent Retort (B70): a critical hit on it, answered with a Strike.
@@ -1785,7 +1788,9 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
         const overwhelming = amount >= target.hp.max * state.moraleRules.measures.overwhelmingFraction;
         const massive = amount >= target.hp.max * 2;
         knockOut(state, target, { source, critical, nonlethal, overwhelming, massive, before });
-    }
+        // (2026-11-05, triggers.js: a feat's free action or reaction as a creature drops — Victorious Vigor, Final Spite, Bleak Humorist.)
+        if (source && target.hp.value <= 0 && (state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers))) dropTriggers(state, target, source);
+    } else if (dealt > 0 && target.featTriggers && source && source.side !== target.side) featTriggers(state, target, "damaged", { by: source });
     return dealt;
 }
 
