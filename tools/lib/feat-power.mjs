@@ -2347,6 +2347,8 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // (2026-11-05, a Lay on Hands rider — Amplifying Touch and kin —: its Lay on Hands used whenever it can go, as the rider's feat is rated
     // by use; cast 0.2 times a fight before.)
     if (pc.touchRiders?.length) pc.spells = (pc.spells ?? []).map((entry) => (entry.plan?.source?.slug === "lay-on-hands" ? { ...entry, featForced: true } : entry));
+    // (Burning and Resounding Cascade: its Arcane Cascade entered whenever it can be — the rider's use; 0.1 a fight before.)
+    if (pc.burningCascade || pc.resoundingCascade) pc.selfEffects = (pc.selfEffects ?? []).map((entry) => (entry.name === "Arcane Cascade" ? { ...entry, featForced: true } : entry));
     // (2026-11-05, Unstable Concoction: its bombs' initial damage dice a step bigger.)
     if (pc.unstableConcoction) {
         delete pc.unstableConcoction;
