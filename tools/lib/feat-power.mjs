@@ -939,6 +939,9 @@ const HAND = {
     // (2026-11-05: Debilitating Strike's debilitation as clumsy 1 — the other new one, weakness 5 to a physical type, the engine has no
     // condition for; Tactical Debilitations' no reactions, as its conditions don't.)
     "tactical-debilitations": () => ({ builtins: { debilitation: { lockReactions: true } }, played: "Debilitating Strike's no reactions in place of enfeebled 1" }),
+    // (2026-11-05, Precise Debilitations: off-guard in its place — what helps the rogue's own sneak attack and its allies; its other one,
+    // 2d6 more precision from its attacks, isn't played.)
+    "precise-debilitations": () => ({ builtins: { debilitation: { slug: "off-guard", value: null } }, played: "Debilitating Strike's off-guard in place of enfeebled 1" }),
     "vicious-debilitations": () => ({ builtins: { debilitation: { slug: "clumsy", value: 1 } }, played: "Debilitating Strike's clumsy 1 in place of enfeebled 1" }),
     // (2026-11-05: 2d6 more precision on its next sneak attack this turn, 3d6 at 11th, 4d6 at 17th — a self-effect for its next Strike
     // whose dice count only at an off-guard target, offGuardOnly. The Recall Knowledge it needs first isn't played: taken as known.)
