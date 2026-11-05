@@ -2286,12 +2286,16 @@ function expandOtherActions(env) {
         let worth = 0;
         for (const target of ctx.enemies) {
             if (target.status !== "active") continue;
-            const effect = spellExpectation(state, c, c.poisonWeapon.spell, [target]).find((entry) => entry.target === target);
+            // (A simple poison's damage: its average, on a hit — about two in three.)
+            const simple = c.poisonWeapon.damage ? parseDamage(c.poisonWeapon.damage).reduce((sum, part) => sum + part.constant + part.dice.reduce((each, die) => each + die.count * (die.die + 1) / 2, 0), 0) * 0.65 : null;
+            const effect = simple !== null ? { damage: simple, worth: 0 } : spellExpectation(state, c, c.poisonWeapon.spell, [target]).find((entry) => entry.target === target);
             if (effect) worth = Math.max(worth, targetValue(state, target, c) * ((effect.damage ?? 0) / Math.max(1, remainingHp(target)) + (effect.worth ?? 0) * ROUND_TO_KILL));
         }
-        const next = child(node, { type: "poisonWeapon", actions: 1 }, 1, ctx.profile.aggression * 0.6 * worth, { cast: "poisonWeapon" });
+        // (2026-11-05: rated as used — a feat's Poison Weapon forced, as the feats' actions are.)
+        const forcedPoison = c.forceUse && c.poisonWeapon.featForced;
+        const next = child(node, { type: "poisonWeapon", actions: 1 }, 1, forcedPoison ? 10 * ctx.ownValue : ctx.profile.aggression * 0.6 * worth, { cast: "poisonWeapon" });
         if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-        if (worth > 0) children.push(next);
+        if (worth > 0 || forcedPoison) children.push(next);
     }
     // Retch: a sickened creature's Fortitude save to shake it off. Each point
     // of sickened is about a quarter of a round of its threat over the fight.

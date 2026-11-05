@@ -963,6 +963,7 @@ function focusSpellEntry(doc, level, host) {
 // (2026-11-03, the class feats no fight played: passives that change a class feature, read by hand where neither the feat module nor PF2e's
 // rules have anything — the builtins they put on the PC.)
 // (2026-11-05: a HAND Strike activity — the feat-abilities strike-activity plan, its rider on top.)
+const simplePoison = (level, dice) => ({ name: "Poison Weapon", featForced: true, actions: 1, doses: level, damage: `${dice}[poison]`, spell: { name: "simple poison", plan: null, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" } });
 const strikeRider = ({ onHit = {}, ...rest } = {}) => ({ builtin: "strike-activity", actions: 1, strides: 0, strike: null, ...rest, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null, ...onHit } });
 
 const HAND = {
@@ -1225,6 +1226,11 @@ const HAND = {
     "diehard": () => ({ builtins: { deathAt: 5 }, played: "dies at dying 5" }),
     "bloody-debilitation": () => ({ builtins: { debilitation: { bleed: 3 } }, played: "Debilitating Strike's 3d6 persistent bleed in place of enfeebled 1" }),
     // (2026-11-05, Heartless Debilitations: frightened 1 — its weakness 5 to bleed and poison isn't taken.)
+    // (2026-11-05, Poison Weapon: an Interact, then its next weapon hit deals a simple poison's 1d4 poison — its level in poisons a day;
+    // Improved and Deadly Poison Weapon: 2d4 and 4d4, rated with Poison Weapon, which they need.)
+    "poison-weapon": (level) => ({ builtins: { poisonWeapon: simplePoison(level, "1d4") }, played: "Poison Weapon: an Interact, then 1d4 poison on its next weapon hit" }),
+    "improved-poison-weapon": (level) => ({ builtins: { poisonWeapon: simplePoison(level, "2d4") }, played: "Poison Weapon with 2d4 poison (Poison Weapon with it)" }),
+    "deadly-poison-weapon": (level) => ({ builtins: { poisonWeapon: simplePoison(level, "4d4") }, played: "Poison Weapon with 4d4 poison (Poison Weapon with it)" }),
     "heartless-debilitations": () => ({ builtins: { debilitation: { slug: "frightened", value: 1 } }, played: "Debilitating Strike's frightened 1 in place of enfeebled 1" }),
     "eldritch-debilitations": () => ({ builtins: { debilitation: { slug: "stupefied", value: 1 } }, played: "Debilitating Strike's stupefied 1 in place of enfeebled 1" }),
     "swift-retribution": () => ({ builtins: { swiftRetribution: true }, played: "an extra action after its champion's reaction" }),

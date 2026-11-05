@@ -6,6 +6,7 @@ import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, create
 import { distanceBetween, engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { reaches as gridReach } from "./grid.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
+import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, finishRegenerating, spellStops, strikeStops, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { featTriggers } from "./triggers.js";
 import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
@@ -153,6 +154,12 @@ function createState(snapshot, options, seed, withLog) {
     // Poison Weapon (B72): the poison's affliction on the creature hit.
     state.onPoison = (attacker, target) => {
         state.log?.push(`  ${attacker.poisonWeapon.spell.name} from ${attacker.name}'s weapon`);
+        // (2026-11-05, a rogue's simple poison: its poison damage, no save — Improved and Deadly Poison Weapon's more.)
+        if (attacker.poisonWeapon.damage) {
+            const dealt = applyDamage(state, target, rollInstances(state, parseDamage(attacker.poisonWeapon.damage)), { source: attacker });
+            state.log?.push(`  ${target.name} takes ${dealt} poison`);
+            return;
+        }
         castPlan(state, attacker, attacker.poisonWeapon.spell, [target.id]);
     };
     // (B298: a summon's creatures join the turns as it says.)
