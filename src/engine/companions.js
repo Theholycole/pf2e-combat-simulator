@@ -62,3 +62,16 @@ export function withCompanion(party, masterId, stage = "young") {
     out.splice(index + 1, 0, animalCompanion(out[index], stage));
     return out;
 }
+
+// (2026-11-05) A familiar beside its master: PF2e's numbers for one (5 Hit Points a level, its master's AC and saves), no Strikes and no
+// turns of its own (familiars.js plays what it does). spec: { hexAbility, lifelink, focus } — familiars.js.
+export function familiarFor(master, spec = {}) {
+    const hp = 5 * Math.max(1, Number(master.level) || 1);
+    return {
+        id: `${master.id}-familiar`, name: `${master.name}'s Familiar`, side: master.side, kind: "npc", acts: false, level: master.level,
+        traits: ["animal", "minion"], senses: ["low-light-vision"], hp: { value: hp, max: hp, temp: 0 }, ac: master.ac, hardness: 0,
+        saves: { ...master.saves }, perception: master.perception, skills: {}, speed: 25, reach: 5, heroPoints: 0, shield: null,
+        reactions: { aoo: false, shieldBlock: false }, strikes: [], spells: [], spellPools: {}, cond: {},
+        familiar: { masterId: master.id, hexAbility: spec.hexAbility ?? null, lifelink: Boolean(spec.lifelink), focus: Boolean(spec.focus) }
+    };
+}

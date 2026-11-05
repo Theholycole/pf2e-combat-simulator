@@ -152,4 +152,6 @@ export function familiarFocus(state, master) {
 export function familiarKeepsUp(state, master) {
     const familiar = state.list.find((c) => c.familiar?.masterId === master.id && isActive(c));
     if (familiar && familiar.meleeId === null) familiar.band = master.band;
+    // (On the grid: in its master's space again, as its turn starts.)
+    if (familiar && state.grid && master.square) familiar.square = [...master.square];
 }

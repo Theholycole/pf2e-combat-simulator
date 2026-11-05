@@ -10,6 +10,7 @@
 // runesmith's runes aren't played, only their spells and weapons; the necromancer's thralls are a count, by the spell module's thrall rules).
 import { savePlan } from "./deviant.js";
 import { E, L, M, T, armorPotency, key, pc, potency, preparedSpells, primarySkill, rank, SPELLBOOKS, specialization, spellProf, standardParty, striking } from "./party.js";
+import { familiarFor } from "./companions.js";
 
 // The two traditions the standard party doesn't cast (the wizard's arcane and the cleric's divine are party.js's), best first for each rank.
 export const MORE_SPELLBOOKS = Object.freeze({
@@ -437,14 +438,16 @@ const CLASSES = {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 0 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [5, E]], ref: [[1, T], [9, E]], will: [[1, E], [17, M]], perception: [[1, T], [11, E]],
-        caster: { tradition: "primal", attr: "int", slots: 3, extra: ["Evil Eye"] }
+        caster: { tradition: "primal", attr: "int", slots: 3, extra: ["Evil Eye"] },
+        // (2026-11-05: its familiar — The Resentment's, whose lesson gives Evil Eye: Familiar of Ongoing Misery —, beside it.)
+        companions: [(c) => familiarFor(c, { hexAbility: "familiar-of-ongoing-misery" })]
     }
 };
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
     animist: "apparitions", necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes other than atryl, ranshu and marssyl (diacritics, shield and support runes, higher-level runes)", summoner: "evolution feats on the eidolon",
-    bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "hexes and the familiar", oracle: "the curse", druid: "Untamed Form",
+    bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "familiar abilities other than its patron's and Familiar Focus/Lifelink", oracle: "the curse", druid: "Untamed Form",
     barbarian: "Rage's -1 AC", alchemist: "mutagens, poisons and the research fields other than bomber", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });
 // The standard party's seat each class sits in (the PC it replaces in classParty).
@@ -512,7 +515,8 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
     if (built.spellPools) c.spellPools = { ...(c.spellPools ?? {}), ...built.spellPools };
     c.spells = [...(c.spells ?? []), ...basics.map((plan) => ({ name: plan.source?.name ?? plan.name, plan, castRank: 1, pool: null, kind: "basic" }))];
     // (Creatures that come with it — the summoner's eidolon —, for classParty.)
-    if (built.companions?.length) Object.defineProperty(c, "companions", { value: built.companions.map((make) => make(c)), enumerable: false });
+    const makes = [...(built.companions ?? []), ...(def.companions ?? [])];
+    if (makes.length) Object.defineProperty(c, "companions", { value: makes.map((make) => make(c)), enumerable: false });
     return c;
 }
 

@@ -83,7 +83,7 @@ export function setUpGrid(state, spec) {
         const lofty = map.spawns.overlook?.[side]?.length ? state.list.filter((c) => c.side === side && !c.square && c.status !== "pending" && c.kind !== "object" && fightsFromAfar(c)) : [];
         const up = placeSide(map, lofty, map.spawns.overlook?.[side] ?? [], taken);
         for (const c of lofty) if (up[c.id]) c.square = up[c.id];
-        const waiting = frontFirst(state.list.filter((c) => c.side === side && !c.square && c.status !== "pending" && c.kind !== "object"));
+        const waiting = frontFirst(state.list.filter((c) => c.side === side && !c.square && c.status !== "pending" && c.kind !== "object" && !c.familiar));
         // (2026-11-01, the user: the fighter in front, its Reactive Strike between the foes and the casters — those at the back, actions.js
         // backRow, start two columns behind the front rank when there's a front rank to stand behind.)
         const spawns = map.spawns[side] ?? [];
@@ -93,6 +93,11 @@ export function setUpGrid(state, spec) {
         const split = front.length && front.length < waiting.length && behind.length && !spec.squares;
         const placed = split ? { ...placeSide(map, front, spawns, taken), ...placeSide(map, waiting.filter((c) => backRow(c)), behind, taken) } : placeSide(map, waiting, spawns, taken);
         for (const c of waiting) if (placed[c.id]) c.square = placed[c.id];
+    }
+    // (2026-11-05: a familiar in its master's space — familiars.js keeps it there.)
+    for (const c of state.list.filter((other) => other.familiar && !other.square)) {
+        const master = state.byId?.get(c.familiar.masterId) ?? state.list.find((other) => other.id === c.familiar.masterId);
+        if (master?.square) c.square = [...master.square];
     }
     // (Objects — a hazard's, a door — stand where their side's front is.)
     for (const c of state.list.filter((other) => !other.square && other.kind === "object")) {
