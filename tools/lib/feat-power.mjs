@@ -936,6 +936,10 @@ const HAND = {
     "aldori-riposte": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a riposte Strike on a critical miss (reaction)" }),
     "target-of-opportunity": () => ({ builtins: { reactionStrikes: [{ name: "Target of Opportunity", triggers: ["ally-hit"], allyRanged: true, ranged: true, strike: "", penalty: 2, disrupts: false }] }, played: "a ranged Strike (–2) when an ally's ranged Strike hits (reaction)" }),
     "exploit-opening": () => ({ builtins: { reactionStrikes: [{ name: "Exploit Opening", triggers: ["ally-hit"], critOnly: true, ranged: true, strike: "", penalty: -2, disrupts: false }] }, played: "a ranged Strike (+2) when an ally critically hits (reaction)" }),
+    // (2026-11-05: Debilitating Strike's debilitation as clumsy 1 — the other new one, weakness 5 to a physical type, the engine has no
+    // condition for; Tactical Debilitations' no reactions, as its conditions don't.)
+    "tactical-debilitations": () => ({ builtins: { debilitation: { lockReactions: true } }, played: "Debilitating Strike's no reactions in place of enfeebled 1" }),
+    "vicious-debilitations": () => ({ builtins: { debilitation: { slug: "clumsy", value: 1 } }, played: "Debilitating Strike's clumsy 1 in place of enfeebled 1" }),
     // (Its full sneak attack, 4d6 at 17th, on a hit at a creature that isn't off-guard.)
     "impossible-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 17 ? 4 : level >= 11 ? 3 : level >= 5 ? 2 : 1, die: 6, precision: true, type: null, source: "Impossible Striker" }] }, played: "full sneak attack on a creature that isn't off-guard (always on)" }),
     // (No flat check against a concealed target, DC 5 against a hidden one, and not off-guard to hidden creatures — sight.js blindFought.)

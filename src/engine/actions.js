@@ -813,7 +813,17 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             }
             // (2026-11-03, Brutal Beating: a condition on the target.)
             if (extra.condition) {
-                if (isActive(target) && applyCondition(state, target, extra.condition.slug, extra.condition.value ?? null, extra.condition.duration ?? null, attacker)) log(state, `  ${target.name} is ${extra.condition.slug}${extra.condition.value ? ` ${extra.condition.value}` : ""} (${extra.source ?? "a Strike's extra"})`);
+                // (2026-11-04, Vicious Debilitations: the debilitation its feat adds, picked in place of Debilitating Strike's — one a Strike.)
+                const condition = extra.source === "Debilitating Strike" && attacker.debilitation ? { ...extra.condition, ...attacker.debilitation } : extra.condition;
+                // (Tactical Debilitations: "The target can't use reactions", until the end of the rogue's next turn.)
+                if (condition.lockReactions) {
+                    if (isActive(target)) {
+                        target.reactionLocks = [...(target.reactionLocks ?? []).filter((held) => held.by !== attacker.id || held.spell !== extra.source), { by: attacker.id, spell: extra.source, untilRound: state.round + 1, ownTurn: false, sustained: false }];
+                        log(state, `  ${target.name} can't use reactions (${extra.source})`);
+                    }
+                    continue;
+                }
+                if (isActive(target) && applyCondition(state, target, condition.slug, condition.value ?? null, condition.duration ?? null, attacker)) log(state, `  ${target.name} is ${condition.slug}${condition.value ? ` ${condition.value}` : ""} (${extra.source ?? "a Strike's extra"})`);
                 continue;
             }
             if (extra.splashPersistent) {
