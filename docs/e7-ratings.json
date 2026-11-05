@@ -1,0 +1,1673 @@
+{
+ "made": "2026-11-05T12:50:38.045Z",
+ "rated": [
+  {
+   "id": "apex-cleric",
+   "feat": "Apex Spellcasting",
+   "pc": "cleric",
+   "note": "with Master's: 5th- to 9th-rank slots, spell DC and attack +2",
+   "byTier": {
+    "cap": {
+     "levels": 0.22528402694220043,
+     "se": 0.030691695625279763,
+     "boss": 0.2027014555669991,
+     "group": 0.24786659831740177
+    },
+    "above": {
+     "levels": 0.4920187359032473,
+     "se": 0.07075093282067735,
+     "boss": 0.4684492713775086,
+     "group": 0.515588200428986
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.35865138142272385,
+   "share": 2.251732783471851,
+   "xp": 2250
+  },
+  {
+   "id": "apex-wizard",
+   "feat": "Apex Spellcasting",
+   "pc": "wizard",
+   "note": "with Master's: 5th- to 9th-rank slots, spell DC and attack +2",
+   "byTier": {
+    "cap": {
+     "levels": 0.17052722760482586,
+     "se": 0.03215362427389341,
+     "boss": 0.16697490872712623,
+     "group": 0.17407954648252547
+    },
+    "above": {
+     "levels": 0.43505768559686475,
+     "se": 0.06721199233710416,
+     "boss": 0.3088820033417229,
+     "group": 0.5612333678520066
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.3027924566008453,
+   "share": 1.847608889147489,
+   "xp": 1850
+  },
+  {
+   "id": "master-casting-cleric",
+   "feat": "Master Spellcasting Advancement",
+   "pc": "cleric",
+   "note": "with Expert's: 5th- to 8th-rank slots, spell DC and attack +2",
+   "byTier": {
+    "cap": {
+     "levels": 0.10982337553908511,
+     "se": 0.03601640574374682,
+     "boss": 0.07210280149580449,
+     "group": 0.14754394958236575
+    },
+    "above": {
+     "levels": 0.49567187234466054,
+     "se": 0.06764074528113244,
+     "boss": 0.3907277764852687,
+     "group": 0.6006159682040524
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.3027476239418728,
+   "share": 1.6825300203854425,
+   "xp": 1700
+  },
+  {
+   "id": "level-8-fighter",
+   "feat": "Yardstick: a level (8th)",
+   "pc": "fighter",
+   "note": "the same PC at 8th level",
+   "byTier": {
+    "cap": {
+     "levels": 0.1293725317804148,
+     "se": 0.032150372268508656,
+     "boss": 0.18004289548194652,
+     "group": 0.07870216807888306
+    },
+    "above": {
+     "levels": 0.45665466732965854,
+     "se": 0.06597186671029195,
+     "boss": 0.456240350246399,
+     "group": 0.4570689844129181
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.2930135995550367,
+   "share": 1.691119596621971,
+   "xp": 1700
+  },
+  {
+   "id": "master-casting-wizard",
+   "feat": "Master Spellcasting Advancement",
+   "pc": "wizard",
+   "note": "with Expert's: 5th- to 8th-rank slots, spell DC and attack +2",
+   "byTier": {
+    "cap": {
+     "levels": 0.1420813776562736,
+     "se": 0.03540310332749234,
+     "boss": 0.11666685124275061,
+     "group": 0.1674959040697966
+    },
+    "above": {
+     "levels": 0.28962689156556953,
+     "se": 0.0687066936228111,
+     "boss": 0.1515249254457392,
+     "group": 0.4277288576853999
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.21585413461092157,
+   "share": 1.3728429111925224,
+   "xp": 1350
+  },
+  {
+   "id": "level-8-rogue",
+   "feat": "Yardstick: a level (8th)",
+   "pc": "rogue",
+   "note": "the same PC at 8th level",
+   "byTier": {
+    "cap": {
+     "levels": 0.07486643906079515,
+     "se": 0.03343544606230002,
+     "boss": 0.0873340199563661,
+     "group": 0.06239885816522422
+    },
+    "above": {
+     "levels": 0.19201675015696373,
+     "se": 0.06130182884164731,
+     "boss": 0.09625959687823854,
+     "group": 0.2877739034356889
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.13344159460887944,
+   "share": 0.8134717958221169,
+   "xp": 800
+  },
+  {
+   "id": "level-8-wizard",
+   "feat": "Yardstick: a level (8th)",
+   "pc": "wizard",
+   "note": "the same PC at 8th level",
+   "byTier": {
+    "cap": {
+     "levels": 0.11803892327482388,
+     "se": 0.03442405471774866,
+     "boss": 0.12414587417079181,
+     "group": 0.11193197237885594
+    },
+    "above": {
+     "levels": 0.13786806471434537,
+     "se": 0.0615556715165658,
+     "boss": 0.0889416467502802,
+     "group": 0.18679448267841053
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.1279534939945846,
+   "share": 0.905636730149357,
+   "xp": 900
+  },
+  {
+   "id": "ability-str-fighter",
+   "feat": "Ability Advancement (key)",
+   "pc": "fighter",
+   "note": "Strength +1: Strikes +1 to hit and damage (melee), Athletics, class DC",
+   "byTier": {
+    "cap": {
+     "levels": 0.10447784782562325,
+     "se": 0.028569370240211448,
+     "boss": 0.11990062423631635,
+     "group": 0.08905507141493016
+    },
+    "above": {
+     "levels": 0.11829144903247205,
+     "se": 0.05849529723948024,
+     "boss": 0.14989107675387572,
+     "group": 0.08669182131106838
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.11138464842904765,
+   "share": 0.7930470172998438,
+   "xp": 800
+  },
+  {
+   "id": "level-8-cleric",
+   "feat": "Yardstick: a level (8th)",
+   "pc": "cleric",
+   "note": "the same PC at 8th level",
+   "byTier": {
+    "cap": {
+     "levels": 0.07754821385149017,
+     "se": 0.031264023250205115,
+     "boss": 0.10303037014887896,
+     "group": 0.05206605755410139
+    },
+    "above": {
+     "levels": 0.08829833057481698,
+     "se": 0.05993403950371257,
+     "boss": 0.10820942873458679,
+     "group": 0.06838723241504717
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.08292327221315357,
+   "share": 0.589771877406555,
+   "xp": 600
+  },
+  {
+   "id": "expert-armor-fighter",
+   "feat": "Something of an Expert (armor) / Armored Exercise",
+   "pc": "fighter",
+   "note": "heavy armor trained → expert: AC +2",
+   "byTier": {
+    "cap": {
+     "levels": 0.01969512613054152,
+     "se": 0.02746604688448602,
+     "boss": 0.05112019225444914,
+     "group": -0.011729939993366098
+    },
+    "above": {
+     "levels": 0.13854492542470653,
+     "se": 0.060118769715752245,
+     "boss": 0.1292485353524672,
+     "group": 0.14784131549694585
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.07912002577762403,
+   "share": 0.4152512834385651,
+   "xp": 400
+  },
+  {
+   "id": "expert-casting-cleric",
+   "feat": "Expert Spellcasting Advancement",
+   "pc": "cleric",
+   "note": "a 5th- and a 6th-rank slot (spells assumed earned)",
+   "byTier": {
+    "cap": {
+     "levels": -0.0023005744454442055,
+     "se": 0.038905235646775234,
+     "boss": -0.05810455127708185,
+     "group": 0.05350340238619344
+    },
+    "above": {
+     "levels": 0.14539398612645782,
+     "se": 0.06344935738506999,
+     "boss": 0.09416573253526785,
+     "group": 0.19662223971764778
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.0715467058405068,
+   "share": 0.3208828469893,
+   "xp": 300
+  },
+  {
+   "id": "expert-casting-wizard",
+   "feat": "Expert Spellcasting Advancement",
+   "pc": "wizard",
+   "note": "a 5th- and a 6th-rank slot (spells assumed earned)",
+   "byTier": {
+    "cap": {
+     "levels": 0.07996240736340307,
+     "se": 0.03584808247983278,
+     "boss": 0.06013488820226579,
+     "group": 0.09978992652454036
+    },
+    "above": {
+     "levels": 0.05939752067939097,
+     "se": 0.06740516541506164,
+     "boss": -0.023450223134028426,
+     "group": 0.14224526449281036
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.06967996402139702,
+   "share": 0.5357768540588304,
+   "xp": 550
+  },
+  {
+   "id": "ability-dex-rogue",
+   "feat": "Ability Advancement (key)",
+   "pc": "rogue",
+   "note": "Dexterity +1: Strikes +1 to hit and damage (thief), Reflex, Dexterity skills (leather's cap keeps AC)",
+   "byTier": {
+    "cap": {
+     "levels": 0.06210664071286143,
+     "se": 0.030109126257311467,
+     "boss": 0.09851194760992417,
+     "group": 0.025701333815798692
+    },
+    "above": {
+     "levels": 0.026643099102848834,
+     "se": 0.057748604850429215,
+     "boss": 0.07151921490662207,
+     "group": -0.0182330167009244
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.04437486990785513,
+   "share": 0.37157806268518345,
+   "xp": 350
+  },
+  {
+   "id": "ability-con-fighter",
+   "feat": "Ability Advancement (other)",
+   "pc": "fighter",
+   "note": "Constitution +1: +7 HP, Fortitude +1",
+   "byTier": {
+    "cap": {
+     "levels": -0.001883358749526358,
+     "se": 0.026123178039997936,
+     "boss": -0.0050130864443632475,
+     "group": 0.0012463689453105318
+    },
+    "above": {
+     "levels": 0.08956885104892226,
+     "se": 0.05204434065119432,
+     "boss": -0.0258137518242,
+     "group": 0.20495145392204453
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.04384274614969795,
+   "share": 0.19534586802248716,
+   "xp": 200
+  },
+  {
+   "id": "expert-ref-wizard",
+   "feat": "Something of an Expert (save)",
+   "pc": "wizard",
+   "note": "Reflex trained → expert (+2)",
+   "byTier": {
+    "cap": {
+     "levels": 0.035336060586094904,
+     "se": 0.01873157636368947,
+     "boss": 0.054006962209892484,
+     "group": 0.016665158962297328
+    },
+    "above": {
+     "levels": 0.05083812988859715,
+     "se": 0.04389683519003426,
+     "boss": 0.09823184788815803,
+     "group": 0.0034444118890362635
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.043087095237346024,
+   "share": 0.29298012704698617,
+   "xp": 300
+  },
+  {
+   "id": "expert-weapon-cleric",
+   "feat": "Diverse Weapon Expert",
+   "pc": "cleric",
+   "note": "mace trained → expert: +2 to hit",
+   "byTier": {
+    "cap": {
+     "levels": 0.02123427377575945,
+     "se": 0.012541371131435716,
+     "boss": 0.040377864159385095,
+     "group": 0.0020906833921338053
+    },
+    "above": {
+     "levels": 0.06361414861905657,
+     "se": 0.031333915954571946,
+     "boss": 0.1182504600156511,
+     "group": 0.008977837222462051
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.04242421119740801,
+   "share": 0.2516482696906236,
+   "xp": 250
+  },
+  {
+   "id": "ability-wis-cleric",
+   "feat": "Ability Advancement (key)",
+   "pc": "cleric",
+   "note": "Wisdom +1: spell DC and attack, Will, Perception, Medicine",
+   "byTier": {
+    "cap": {
+     "levels": 0.027872784035639454,
+     "se": 0.032271438541465684,
+     "boss": 0.010705412878242528,
+     "group": 0.045040155193036384
+    },
+    "above": {
+     "levels": 0.05370507529682589,
+     "se": 0.04952356815946096,
+     "boss": 0.10264165309532366,
+     "group": 0.004768497498328115
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.04078892966623267,
+   "share": 0.26220174763288423,
+   "xp": 250
+  },
+  {
+   "id": "master-prof-only-wizard",
+   "feat": "(Master proficiency alone)",
+   "pc": "wizard",
+   "note": "spell DC and attack +2, no slots: how much of Master is the proficiency",
+   "byTier": {
+    "cap": {
+     "levels": 0.0035580944288403117,
+     "se": 0.028723218154149688,
+     "boss": -0.03913012983081756,
+     "group": 0.046246318688498184
+    },
+    "above": {
+     "levels": 0.06813712608366482,
+     "se": 0.058326048320024276,
+     "boss": 0.06527463463124716,
+     "group": 0.07099961753608246
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.03584761025625256,
+   "share": 0.17356908523359604,
+   "xp": 150
+  },
+  {
+   "id": "stamina-cleric",
+   "feat": "Expanded Caster Stamina",
+   "pc": "cleric",
+   "note": "one more 4th-rank slot",
+   "byTier": {
+    "cap": {
+     "levels": 0.01765487598414945,
+     "se": 0.023290637922181234,
+     "boss": -0.0024733195270422496,
+     "group": 0.03778307149534115
+    },
+    "above": {
+     "levels": 0.04443987207470909,
+     "se": 0.04919982248045957,
+     "boss": 0.014033121126879662,
+     "group": 0.07484662302253853
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.03104737402942927,
+   "share": 0.18990845404913168,
+   "xp": 200
+  },
+  {
+   "id": "ability-dex-wizard",
+   "feat": "Ability Advancement (other)",
+   "pc": "wizard",
+   "note": "Dexterity +1: AC +1, Reflex +1",
+   "byTier": {
+    "cap": {
+     "levels": 0.035376646898393815,
+     "se": 0.029964761106953973,
+     "boss": 0.031060463433631957,
+     "group": 0.03969283036315567
+    },
+    "above": {
+     "levels": 0.020791473218254378,
+     "se": 0.051496070525367844,
+     "boss": 0.008507645777373575,
+     "group": 0.03307530065913518
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.028084060058324097,
+   "share": 0.22449234216829936,
+   "xp": 200
+  },
+  {
+   "id": "expert-armor-wizard",
+   "feat": "Something of an Expert (armor)",
+   "pc": "wizard",
+   "note": "unarmored trained → expert: AC +2",
+   "byTier": {
+    "cap": {
+     "levels": 0.0675501345080444,
+     "se": 0.02715512253617066,
+     "boss": 0.0960607772129749,
+     "group": 0.039039491803113884
+    },
+    "above": {
+     "levels": -0.027102081812235886,
+     "se": 0.055926124763782656,
+     "boss": -0.0316723419555424,
+     "group": -0.02253182166892937
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.020224026347904253,
+   "share": 0.27593846666379335,
+   "xp": 300
+  },
+  {
+   "id": "ability-con-wizard",
+   "feat": "Ability Advancement (other)",
+   "pc": "wizard",
+   "note": "Constitution +1: +7 HP, Fortitude +1",
+   "byTier": {
+    "cap": {
+     "levels": 0.060468817690136234,
+     "se": 0.0243348577397581,
+     "boss": 0.09261289596184434,
+     "group": 0.02832473941842812
+    },
+    "above": {
+     "levels": -0.028653219762201292,
+     "se": 0.04720538132510479,
+     "boss": -0.08954971341553683,
+     "group": 0.032243273891134246
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.01590779896396747,
+   "share": 0.2369703681046042,
+   "xp": 250
+  },
+  {
+   "id": "expert-fort-wizard",
+   "feat": "Something of an Expert (save)",
+   "pc": "wizard",
+   "note": "Fortitude trained → expert (+2); Canny Acumen is the same",
+   "byTier": {
+    "cap": {
+     "levels": 0.0038559080490795927,
+     "se": 0.010132082507924996,
+     "boss": 0.015039259333089675,
+     "group": -0.0073274432349304894
+    },
+    "above": {
+     "levels": 0.012024861431309942,
+     "se": 0.02717919804589269,
+     "boss": 0.010379433599120153,
+     "group": 0.013670289263499731
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.007940384740194768,
+   "share": 0.0467784183945974,
+   "xp": 50
+  },
+  {
+   "id": "expert-fort-rogue",
+   "feat": "Something of an Expert (save)",
+   "pc": "rogue",
+   "note": "Fortitude trained → expert (+2)",
+   "byTier": {
+    "cap": {
+     "levels": -0.0002462583803234521,
+     "se": 0.00827810203145421,
+     "boss": 0,
+     "group": -0.0004925167606469042
+    },
+    "above": {
+     "levels": 0.0028024987642613205,
+     "se": 0.01172493816326118,
+     "boss": 0,
+     "group": 0.005604997528522641
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": 0.0012781201919689342,
+   "share": 0.005175071609598006,
+   "xp": 0
+  },
+  {
+   "id": "master-fort-fighter",
+   "feat": "Juggernaut's Fortitude (master save)",
+   "pc": "fighter",
+   "note": "Fortitude expert → master (+2)",
+   "byTier": {
+    "cap": {
+     "levels": -0.011946044286302996,
+     "se": 0.008093042048356078,
+     "boss": 0,
+     "group": -0.023892088572605993
+    },
+    "above": {
+     "levels": 0.0016372139628406221,
+     "se": 0.023358026344651103,
+     "boss": 0,
+     "group": 0.0032744279256812442
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": -0.005154415161731187,
+   "share": -0.05601330213369476,
+   "xp": -50
+  },
+  {
+   "id": "master-will-cleric",
+   "feat": "Resolute (master save)",
+   "pc": "cleric",
+   "note": "Will expert → master (+2)",
+   "byTier": {
+    "cap": {
+     "levels": -0.0005094299921370581,
+     "se": 0.001892389140977912,
+     "boss": -0.0010188599842741162,
+     "group": 0
+    },
+    "above": {
+     "levels": -0.015262938129403231,
+     "se": 0.018466509483974537,
+     "boss": -0.03117002601467818,
+     "group": 0.0006441497558717162
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": -0.007886184060770145,
+   "share": -0.03744144117912572,
+   "xp": -50
+  },
+  {
+   "id": "ability-int-wizard",
+   "feat": "Ability Advancement (key)",
+   "pc": "wizard",
+   "note": "Intelligence +1: spell DC and spell attack",
+   "byTier": {
+    "cap": {
+     "levels": -0.012087402361473612,
+     "se": 0.023998356762277424,
+     "boss": -0.015570838455319659,
+     "group": -0.008603966267627567
+    },
+    "above": {
+     "levels": -0.027959374999585035,
+     "se": 0.05251822793926383,
+     "boss": -0.020991518791903727,
+     "group": -0.03492723120726634
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": -0.020023388680529323,
+   "share": -0.1243822876989257,
+   "xp": -100
+  },
+  {
+   "id": "stamina-2-wizard",
+   "feat": "Expanded Caster Stamina ×2",
+   "pc": "wizard",
+   "note": "two more 4th-rank slots",
+   "byTier": {
+    "cap": {
+     "levels": -0.013860850931270407,
+     "se": 0.027425947277134117,
+     "boss": -0.02672661697878481,
+     "group": -0.000995084883756005
+    },
+    "above": {
+     "levels": -0.03244842506569724,
+     "se": 0.04677469868230784,
+     "boss": -0.02921363761341758,
+     "group": -0.03568321251797691
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": -0.023154637998483826,
+   "share": -0.143515975187839,
+   "xp": -150
+  },
+  {
+   "id": "stamina-wizard",
+   "feat": "Expanded Caster Stamina",
+   "pc": "wizard",
+   "note": "one more 4th-rank slot",
+   "byTier": {
+    "cap": {
+     "levels": -0.012649868632515139,
+     "se": 0.025293972364303932,
+     "boss": -0.0183542458036627,
+     "group": -0.0069454914613675785
+    },
+    "above": {
+     "levels": -0.035146352225871084,
+     "se": 0.04259159061606233,
+     "boss": -0.021784649224847134,
+     "group": -0.04850805522689504
+    }
+   },
+   "yardstick": {
+    "cap": {
+     "levels": 0.099956526991881
+    },
+    "above": {
+     "levels": 0.21870945319394616
+    }
+   },
+   "levels": -0.023898110429193112,
+   "share": -0.14362626419903213,
+   "xp": -150
+  }
+ ],
+ "classFeats": [
+  {
+   "name": "Sky Master Mask",
+   "level": 20,
+   "seat": "wizard",
+   "played": "PF2e rules (always on)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.01198683758785404,
+    "above": 0.355145695960482
+   },
+   "levels": 0.183566266774168,
+   "share": 1.1520920222932052
+  },
+  {
+   "name": "Coordinated Distraction",
+   "level": 12,
+   "seat": "rogue",
+   "played": "check",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.05769691007244779,
+    "above": 0.2775756758874818
+   },
+   "levels": 0.1676362929799648,
+   "share": 1.0521128918889253
+  },
+  {
+   "name": "Haft Beatdown",
+   "level": 10,
+   "seat": "fighter",
+   "played": "four Strikes, two at its penalty and two one step worse (3 actions, once a fight) (in Haft Striker Stance)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.15904455761766292,
+    "above": 0.16418076593710862
+   },
+   "levels": 0.16161266177738576,
+   "share": 1.0143075936950836
+  },
+  {
+   "name": "Certain Strike",
+   "level": 10,
+   "seat": "fighter",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.07408480389821492,
+    "above": 0.22798820299649697
+   },
+   "levels": 0.15103650344735595,
+   "share": 0.9479298879615602
+  },
+  {
+   "name": "Nimble Strike",
+   "level": 10,
+   "seat": "rogue",
+   "played": "Nimble Dodge, then a melee Strike at the attacker (reaction)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.09230245505105295,
+    "above": 0.19339056222495982
+   },
+   "levels": 0.14284650863800638,
+   "share": 0.8965281361675742
+  },
+  {
+   "name": "Rock The Boat",
+   "level": 8,
+   "seat": "fighter",
+   "played": "check",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.01922621983631538,
+    "above": 0.20999216338812488
+   },
+   "levels": 0.11460919161222013,
+   "share": 0.7193060994172445
+  },
+  {
+   "name": "Two-Weapon Flurry",
+   "level": 14,
+   "seat": "fighter",
+   "played": "2 Strikes",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.07008584729680567,
+    "above": 0.11603975184392118
+   },
+   "levels": 0.09306279957036342,
+   "share": 0.5840774061673901
+  },
+  {
+   "name": "Brutal Finish",
+   "level": 12,
+   "seat": "fighter",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.07250445214540406,
+    "above": 0.09608331073218032
+   },
+   "levels": 0.08429388143879218,
+   "share": 0.5290422365740891
+  },
+  {
+   "name": "Quickened Casting",
+   "level": 10,
+   "seat": "wizard",
+   "played": "Quickened Casting (once a fight)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.023888260968987458,
+    "above": 0.14210345697350957
+   },
+   "levels": 0.08299585897124852,
+   "share": 0.5208956345001136
+  },
+  {
+   "name": "Twin Riposte",
+   "level": 10,
+   "seat": "fighter",
+   "played": "reaction Strike (critical-miss) (in Twin Parry)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.03500655312109886,
+    "above": 0.12443757230411395
+   },
+   "levels": 0.0797220627126064,
+   "share": 0.5003487517940711
+  },
+  {
+   "name": "Impossible Striker",
+   "level": 20,
+   "seat": "rogue",
+   "played": "full sneak attack at a creature that isn't off-guard (always on)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.02240948021692416,
+    "above": 0.12416111576462431
+   },
+   "levels": 0.07328529799077424,
+   "share": 0.4599505598183941
+  },
+  {
+   "name": "Inviolable",
+   "level": 18,
+   "seat": "cleric",
+   "played": "3d6 spirit on each creature that hits it (always on)",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.0040965262923119495,
+    "above": 0.148450452900675
+   },
+   "levels": 0.07217696330418152,
+   "share": 0.45299446939451893
+  },
+  {
+   "name": "Weapon Supremacy",
+   "level": 20,
+   "seat": "fighter",
+   "played": "permanently quickened (always on)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.09182266337071776,
+    "above": 0.049337478512967936
+   },
+   "levels": 0.07058007094184285,
+   "share": 0.44297211080194204
+  },
+  {
+   "name": "Think Twice",
+   "level": 14,
+   "seat": "fighter",
+   "played": "ac-reaction",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.004920803021859797,
+    "above": 0.131024808865252
+   },
+   "levels": 0.0679728059435559,
+   "share": 0.4266084876956001
+  },
+  {
+   "name": "Opportune Backstab",
+   "level": 8,
+   "seat": "rogue",
+   "played": "reaction Strike (ally-hit)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.07312646937455428,
+    "above": 0.056625285151465914
+   },
+   "levels": 0.0648758772630101,
+   "share": 0.407171654942133
+  },
+  {
+   "name": "Sly Striker",
+   "level": 8,
+   "seat": "rogue",
+   "played": "precision damage on a hit (always on)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.011150501883767303,
+    "above": 0.0860210434179667
+   },
+   "levels": 0.048585772650867,
+   "share": 0.30493228440974246
+  },
+  {
+   "name": "Defensive Roll",
+   "level": 14,
+   "seat": "rogue",
+   "played": "half the damage of an attack that would drop it (once a fight)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.02253708911868304,
+    "above": 0.062113244232251175
+   },
+   "levels": 0.04232516667546711,
+   "share": 0.26563969364276396
+  },
+  {
+   "name": "Whirlwind Strike",
+   "level": 14,
+   "seat": "fighter",
+   "played": "a Strike at each enemy in reach",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.005588557528973045,
+    "above": 0.07732704690886398
+   },
+   "levels": 0.04145780221891851,
+   "share": 0.2601959719374046
+  },
+  {
+   "name": "Sanguine Evasion",
+   "level": 18,
+   "seat": "rogue",
+   "played": "staying up at 0 Hit Points",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.012120917867489247,
+    "above": 0.06894521106893635
+   },
+   "levels": 0.040533064468212796,
+   "share": 0.2543921660202091
+  },
+  {
+   "name": "Tactical Reflexes",
+   "level": 10,
+   "seat": "fighter",
+   "played": "a second reaction each round, for Reactive Strike",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.01792971786038177,
+    "above": 0.05758206758651849
+   },
+   "levels": 0.03775589272345013,
+   "share": 0.2369621802831487
+  },
+  {
+   "name": "Grand Medic's Mask",
+   "level": 20,
+   "seat": "wizard",
+   "played": "PF2e rules (always on)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.048438549427055236,
+    "above": 0.024359314168649844
+   },
+   "levels": 0.03639893179785254,
+   "share": 0.2284456707718021
+  },
+  {
+   "name": "Disarming Twist",
+   "level": 10,
+   "seat": "fighter",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.030514240559273036,
+    "above": 0.03504142954128059
+   },
+   "levels": 0.032777835050276816,
+   "share": 0.20571907318856392
+  },
+  {
+   "name": "Overwhelming Blow",
+   "level": 16,
+   "seat": "fighter",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.007785278526173049,
+    "above": 0.06050635872761453
+   },
+   "levels": 0.02636054010072074,
+   "share": 0.165443076699614
+  },
+  {
+   "name": "Spring from the Shadows",
+   "level": 12,
+   "seat": "rogue",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.06981192749396398,
+    "above": -0.026826074422576108
+   },
+   "levels": 0.021492926535693936,
+   "share": 0.13489313495692595
+  },
+  {
+   "name": "Dueling Riposte",
+   "level": 8,
+   "seat": "fighter",
+   "played": "reaction Strike (critical-miss) (in Dueling Parry)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.011152807985588296,
+    "above": 0.027257026606315782
+   },
+   "levels": 0.01920491729595204,
+   "share": 0.1205332133963774
+  },
+  {
+   "name": "Blind-Fight",
+   "level": 8,
+   "seat": "fighter",
+   "played": "concealed and hidden targets easier to hit, not off-guard to hidden foes (always on)",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.0006231844726552677,
+    "above": 0.03572794513991247
+   },
+   "levels": 0.0175523803336286,
+   "share": 0.11016162016035154
+  },
+  {
+   "name": "Twinned Defense (Fighter)",
+   "level": 16,
+   "seat": "fighter",
+   "played": "effect",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.03985553705042697,
+    "above": 0.06578446029364156
+   },
+   "levels": 0.012964461621607293,
+   "share": 0.08136708922645076
+  },
+  {
+   "name": "Quick Shield Block",
+   "level": 8,
+   "seat": "fighter",
+   "played": "a second reaction each round, for Shield Block",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.000025840651775067785,
+    "above": 0.00854813460810541
+   },
+   "levels": 0.004286987629940239,
+   "share": 0.02690583806555266
+  },
+  {
+   "name": "Eternal Blessing",
+   "level": 16,
+   "seat": "cleric",
+   "played": "PF2e rules (always on)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0,
+    "above": 0
+   },
+   "levels": 0,
+   "share": 0
+  },
+  {
+   "name": "Sanctify Armament",
+   "level": 8,
+   "seat": "cleric",
+   "played": "effect",
+   "skipped": null,
+   "byTier": {
+    "cap": 0,
+    "above": 0
+   },
+   "levels": 0,
+   "share": 0
+  },
+  {
+   "name": "Cut From the Air",
+   "level": 10,
+   "seat": "fighter",
+   "played": "+4 AC as a reaction when targeted (ranged)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0,
+    "above": 0
+   },
+   "levels": 0,
+   "share": 0
+  },
+  {
+   "name": "Improved Dueling Riposte",
+   "level": 12,
+   "seat": "fighter",
+   "played": "passive-rules",
+   "skipped": null,
+   "byTier": {
+    "cap": 0,
+    "above": 0
+   },
+   "levels": 0,
+   "share": 0
+  },
+  {
+   "name": "Improved Twin Riposte (Fighter)",
+   "level": 14,
+   "seat": "fighter",
+   "played": "passive-rules",
+   "skipped": null,
+   "byTier": {
+    "cap": 0,
+    "above": 0
+   },
+   "levels": 0,
+   "share": 0
+  },
+  {
+   "name": "Precise Debilitations",
+   "level": 10,
+   "seat": "rogue",
+   "played": "Debilitating Strike's off-guard in place of enfeebled 1",
+   "skipped": null,
+   "byTier": {
+    "cap": 0,
+    "above": 0
+   },
+   "levels": 0,
+   "share": 0
+  },
+  {
+   "name": "Tactical Debilitations",
+   "level": 10,
+   "seat": "rogue",
+   "played": "Debilitating Strike's no reactions in place of enfeebled 1",
+   "skipped": null,
+   "byTier": {
+    "cap": 0,
+    "above": 0
+   },
+   "levels": 0,
+   "share": 0
+  },
+  {
+   "name": "Vicious Debilitations",
+   "level": 10,
+   "seat": "rogue",
+   "played": "Debilitating Strike's clumsy 1 in place of enfeebled 1",
+   "skipped": null,
+   "byTier": {
+    "cap": 0,
+    "above": 0
+   },
+   "levels": 0,
+   "share": 0
+  },
+  {
+   "name": "Cutthroat Grapple",
+   "level": 16,
+   "seat": "rogue",
+   "played": "reaction Strike (escape)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0,
+    "above": 0
+   },
+   "levels": 0,
+   "share": 0
+  },
+  {
+   "name": "Nimble Roll",
+   "level": 8,
+   "seat": "rogue",
+   "played": "save-bonus",
+   "skipped": null,
+   "byTier": {
+    "cap": 0,
+    "above": 0
+   },
+   "levels": 0,
+   "share": 0
+  },
+  {
+   "name": "Disorienting Opening",
+   "level": 8,
+   "seat": "fighter",
+   "played": "off-guard after its Reactive Strike hits (always on)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.000480625481353184,
+    "above": -0.002970071375237115
+   },
+   "levels": -0.0012447229469419656,
+   "share": -0.007812085533674582
+  },
+  {
+   "name": "Sapping Symbol",
+   "level": 12,
+   "seat": "cleric",
+   "played": "check",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.024533580824398913,
+    "above": -0.029609375434619025
+   },
+   "levels": -0.002537897305110056,
+   "share": -0.015928260077402077
+  },
+  {
+   "name": "Sidestep",
+   "level": 8,
+   "seat": "rogue",
+   "played": "a missed Strike redirected (reaction)",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.010865522821618475,
+    "above": 0.0025408129259384547
+   },
+   "levels": -0.0041623549478400105,
+   "share": -0.02612362289449769
+  },
+  {
+   "name": "Replenishment of War",
+   "level": 10,
+   "seat": "cleric",
+   "played": "passive effect (always on)",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.008664614563755776,
+    "above": -0.0019519430017542448
+   },
+   "levels": -0.005308278782755011,
+   "share": -0.033315628983423565
+  },
+  {
+   "name": "Paragon's Guard",
+   "level": 12,
+   "seat": "fighter",
+   "played": "stance: its shield always raised",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.07275695176094253,
+    "above": 0.05449611034570364
+   },
+   "levels": -0.009130420707619446,
+   "share": -0.05730401910047081
+  },
+  {
+   "name": "Fearsome Brute",
+   "level": 10,
+   "seat": "fighter",
+   "played": "damage of twice a foe's frightened (always on)",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.00009671095544397303,
+    "above": -0.022280941698577614
+   },
+   "levels": -0.01109211537156682,
+   "share": -0.06961593681947822
+  },
+  {
+   "name": "Dazzling Display",
+   "level": 10,
+   "seat": "fighter",
+   "played": "Demoralize each enemy within 30 feet (Intimidation DC 19, once a fight)",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.00046795694879090376,
+    "above": -0.0222118388282254
+   },
+   "levels": -0.01133989788850815,
+   "share": -0.07117106056878361
+  },
+  {
+   "name": "Dueling Dance (Fighter)",
+   "level": 12,
+   "seat": "fighter",
+   "played": "PF2e's stance Effect",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.06301868967914992,
+    "above": 0.02373116793733253
+   },
+   "levels": -0.019643760870908696,
+   "share": -0.1232874677080598
+  },
+  {
+   "name": "Needle in the Gods' Eyes",
+   "level": 16,
+   "seat": "fighter",
+   "played": "2 Strikes",
+   "skipped": null,
+   "byTier": {
+    "cap": 0.00416634011037083,
+    "above": -0.05633327217948107
+   },
+   "levels": -0.026083466034555122,
+   "share": -0.1637041143792305
+  },
+  {
+   "name": "Incredible Ricochet",
+   "level": 12,
+   "seat": "fighter",
+   "played": "a ranged press Strike ignoring concealment and cover",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.037677220063721636,
+    "above": -0.02981721467257848
+   },
+   "levels": -0.03374721736815006,
+   "share": -0.21180307573761517
+  },
+  {
+   "name": "Dashing Strike",
+   "level": 12,
+   "seat": "fighter",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.019326423060544988,
+    "above": -0.08471300801742182
+   },
+   "levels": -0.05201971553898341,
+   "share": -0.32648427365009963
+  },
+  {
+   "name": "Subtle Shank",
+   "level": 8,
+   "seat": "rogue",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.06975473133775581,
+    "above": -0.037229983411548005
+   },
+   "levels": -0.05349235737465191,
+   "share": -0.33572681554183054
+  },
+  {
+   "name": "Incredible Aim",
+   "level": 8,
+   "seat": "fighter",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.021644796856297055,
+    "above": -0.13594006417533086
+   },
+   "levels": -0.07879243051581396,
+   "share": -0.4945142275298221
+  },
+  {
+   "name": "Debilitating Shot",
+   "level": 10,
+   "seat": "fighter",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.042897293478255535,
+    "above": -0.14695612041826564
+   },
+   "levels": -0.09492670694826058,
+   "share": -0.595775594827568
+  },
+  {
+   "name": "Felling Strike",
+   "level": 8,
+   "seat": "fighter",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.12529520979396078,
+    "above": -0.21242621780833565
+   },
+   "levels": -0.1688607138011482,
+   "share": -1.0597975579487877
+  },
+  {
+   "name": "Stay Down!",
+   "level": 14,
+   "seat": "rogue",
+   "played": "check",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.21873876792846073,
+    "above": -0.14699778336679123
+   },
+   "levels": -0.18286827564762598,
+   "share": -1.1477113154092446
+  },
+  {
+   "name": "Flinging Charge",
+   "level": 10,
+   "seat": "fighter",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.18513025672730649,
+    "above": -0.2839658983850139
+   },
+   "levels": -0.2345480775561602,
+   "share": -1.472062235318534
+  },
+  {
+   "name": "Cannonball Fall",
+   "level": 8,
+   "seat": "fighter",
+   "played": "inline save: 1 creature, 10 feet, reflex (DC 23)",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.25640574105020075,
+    "above": -0.33138956811110054
+   },
+   "levels": -0.29389765458065065,
+   "share": -1.8445499228330988
+  },
+  {
+   "name": "Purifying Breeze",
+   "level": 14,
+   "seat": "cleric",
+   "played": "effect",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.3647964221973554,
+    "above": -0.42933847055212115
+   },
+   "levels": -0.3970674463747383,
+   "share": -2.492060471238204
+  },
+  {
+   "name": "Instant Opening",
+   "level": 14,
+   "seat": "rogue",
+   "played": "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.5572561238720022,
+    "above": -0.5812684185451464
+   },
+   "levels": -0.5692622712085743,
+   "share": -3.572783457315489
+  },
+  {
+   "name": "Impossible Volley",
+   "level": 18,
+   "seat": "fighter",
+   "played": "Strike activity",
+   "skipped": null,
+   "byTier": {
+    "cap": -0.7001288432567554,
+    "above": -0.6003310149581893
+   },
+   "levels": -0.6502299291074723,
+   "share": -4.080949768960569
+  }
+ ]
+}
