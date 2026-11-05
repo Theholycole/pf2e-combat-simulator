@@ -752,6 +752,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         // Energy Shot counts its first three Strikes, hit or miss.
         if (strike.firearm && attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;
         // A bomb that misses (not critically) still splashes the target and those around it.
+        // (2026-11-05, Certain Stratagem: a stratagem Strike that misses still deals half its strategic strike dice, of the weapon's type.)
+        if (strategic && attacker.certainStratagem && !imageMiss && isActive(target)) {
+            const half = Math.floor(rollCount(state, `${attacker.stratagemFeature.dice ?? 1}d6`) / 2);
+            if (half > 0) {
+                log(state, `  ${attacker.name} Certain Stratagem: ${half} ${strike.damage[0].type} to ${target.name}`);
+                applyDamage(state, target, [{ type: strike.damage[0].type, amount: half, persistent: false, precision: true }], { source: attacker });
+            }
+        }
         if (degree === FAILURE && strike.splashKind === "bomb" && !imageMiss) splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false }), strikeContext(attacker, strike)), { includeTarget: true });
         // (B171, Sidestep, Glide Aside: the attack sent at another of the attacker's side beside it, the attacker rerolling against that one at
         // the same multiple attack penalty.)
