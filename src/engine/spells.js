@@ -3415,6 +3415,15 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
                 if (again?.degree && DEGREE_NAMES.indexOf(again.degree) < DEGREE_NAMES.indexOf(final.degree)) final = again;
             }
         }
+        // (2026-11-05, Resounding Bravery: a critically successful Will save — +1 status to saves and temporary Hit Points of half its level
+        // for a minute, both doubled against fear.)
+        if (statistic === "will" && final?.degree === "criticalSuccess" && options?.actor?.resoundingBravery && isActive(options.actor)) {
+            const saver = options.actor;
+            const twice = (spell.plan?.traits ?? []).includes("fear") ? 2 : 1;
+            const tempHp = Math.floor((Number(saver.level) || 1) / 2) * twice;
+            log(state, `  ${saver.name} Resounding Bravery: +${twice} status to saves, ${tempHp} temporary Hit Points`);
+            applyEffect(state, saver, { name: "Resounding Bravery", rounds: 10, modifiers: [{ on: "saving-throw", type: "status", value: twice }], tempHp, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, saver, { applyCondition });
+        }
         // (Spellstrike's forced degree is its Strike's, which met the images already.)
         if (info.check?.roll === "attack" && forcedDegree === null && options?.target?.id && final?.degree) {
             const taken = imageTakes(state, caster, options.target, DEGREE_NAMES.indexOf(final.degree), { applyDamage, applyCondition });

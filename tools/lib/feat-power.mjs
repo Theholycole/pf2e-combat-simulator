@@ -1177,6 +1177,7 @@ const HAND = {
     // attack rolls and skill checks not played; Lucky Break, Cat's Luck's better-of-two on a failed Fortitude or Will save too.)
     "pact-of-infernal-prowess": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, keep: "new", free: true, criticalOnly: true }], played: "a critically failed save rerolled (free, once a fight)" }),
     "lucky-break": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, free: true }], played: "a failed save rerolled, the better kept (free, once a fight)" }),
+    "resounding-bravery": () => ({ builtins: { resoundingBravery: true }, played: "+1 to saves and temporary Hit Points on a critically successful Will save (doubled against fear)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
     "deflecting-shot": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: 60 }], played: "+2 AC to an ally within 60 feet as it's hit (reaction)" }),
