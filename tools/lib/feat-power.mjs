@@ -1326,6 +1326,10 @@ const HAND = {
     "jotuns-battle-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { reach: 10 } }], played: "a stance: reach 10 feet" }),
     // (Duelist's Form: quickened while in the stance — the engine's quickened, a Strike or Stride.)
     "duelists-form": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { conditions: [{ slug: "quickened", value: null }] } }], played: "a stance: quickened" }),
+    // (+2 status to its next attack this turn — a next-Strike effect; its weaknesses learned aren't played.)
+    "whispers-of-weakness": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, model: { rounds: 1, modifiers: [{ on: "attack", type: "status", value: 2 }] } }], played: "+2 to its next attack (1 action)" }),
+    // (Its next claw hit's 1d6 bleed, once a fight — the claw not checked.)
+    "hone-claws": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, oncePerFight: true, damage: ["1d6[persistent,bleed]"], model: { rounds: 10 } }], played: "1d6 bleed on its next hit (1 action, once a fight)" }),
     "legendary-rider": () => ({ builtins: { companionActions: { master: 3, companion: 2 } }, played: "quickened for its Command: its own three actions and its mount's two" }),
     "mounted-shield": () => ({ builtins: { mountedShield: true }, requires: "You are wielding a shield", played: "its raised shield's bonus to its mount's AC too" }),
     // (Rearing Display: its mount's Strike — one action of the mount's turn, the Command its rider spent —, a hit followed by a Demoralize
