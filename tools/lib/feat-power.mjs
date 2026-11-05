@@ -1660,6 +1660,9 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             const dc = dcsOf(host).class ?? 10 + level + 2;
             entries = { ...entries, spells: entries.spells.map((entry) => ({ ...entry, dc, attack: dc - 10, castRank: Math.max(1, Math.ceil(level / 2)) })) };
         }
+        // (2026-11-05: a plan the engine can't cast at all — Flying Flame's path, no target or area it reads —: a gap, not a 0.00 rating
+        // from fights where it was never used; the readings below may still play it.)
+        if (!entries.gap && entries.spells?.length && !Object.keys(builtins).length && entries.spells.every((entry) => !castable(entry))) entries = { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a plan the engine can't play (its targeting or what it does)` } };
         // (What the feat module leaves, PF2e's own Effect an action links for its user — Dragon Stance's —: as the live snapshot plays it,
         // scripts/snapshot.js readSelfEffects.)
         if (entries.gap) {
