@@ -8,6 +8,9 @@
 // - "would-damage": before damage from a foe lands (Adamantine Body, Terrain Shield) — strike: only a Strike's; type: only that type's.
 // - "crit": it critically hits with a Strike (Echoing Violence) — unarmed: an unarmed one.
 // - "self-down" / "ally-down": a foe drops it, or it or an ally within 30 feet (Bleak Humorist, Final Spite) — at that foe.
+// - "hit": a foe's Strike hits it (Cautious Word, Dazzling Dragonet Disappearance) — critOnly: a critical hit (Tragic Lament).
+// - "strike-hit": its Strike hits (Lethal Edge). "shield-block": it Shield Blocks a foe's attack (Aggressive Block; Flashing Shield —
+//   creature: only that trait's, undead).
 // The entry's own targeting picks who: itself, its allies or foes about it for an area (its Melee for 10 feet or less), or the creature
 // of the trigger. A reaction spends its reaction; a pool, its use.
 import { canReact, spendReaction } from "./abilities.js";
@@ -41,6 +44,8 @@ export function featTriggers(state, c, on, ctx = {}) {
         if (c.status !== ACTIVE && !(trigger.whileDown && c.status === DOWN)) continue;
         if (trigger.melee && ctx.by && !(ctx.strike?.melee || sameMelee(c, ctx.by))) continue;
         if (trigger.unarmed && !ctx.strike?.unarmed) continue;
+        if (trigger.critOnly && !ctx.critical) continue;
+        if (trigger.creature && ctx.by && !(ctx.by.traits ?? []).includes(trigger.creature)) continue;
         if (trigger.strike && !ctx.physical) continue;
         if (trigger.type && !(ctx.types ?? []).includes(trigger.type)) continue;
         if (!poolReady(c, spell)) continue;

@@ -1641,7 +1641,11 @@ export function featTriggerOf(doc) {
     const said = (/\bTrigger\s+(.+?)(?:\.|$)/i.exec(text)?.[1] ?? "").split(/\s(?:Effect|Frequency|Requirements?)\s/)[0].trim();
     const whileDown = /\beven while\b/i.test(text);
     if (/^Your turn begins$/i.test(said)) return { on: "turn-start" };
-    if (/^(?:A|An) (?:creature(?: or object)?|enemy|foe)(?: adjacent to you| you are aware of| within \d+ feet)? damages you\b/i.test(said)) return { on: "damaged", ...(/adjacent|melee|unarmed|reach/i.test(said) ? { melee: true } : {}) };
+    if (/^(?:A|An) (?:creature(?: or object)?|enemy|foe)(?: adjacent to you| you are aware of| you can see| within \d+ feet)? damages you\b/i.test(said)) return { on: "damaged", ...(/adjacent|melee|unarmed|reach/i.test(said) ? { melee: true } : {}) };
+    // (2026-11-05, the one-off feats: a hit on it, its own hit, its Shield Block.)
+    if (/^(?:An? )?(?:adjacent )?(?:enemy|foe|creature)(?: you're aware of| you can see| you're observing)? (?:hits you with an? (?:attack|Strike)|critically succeeds (?:on|at) an? Strike against you)/i.test(said)) return { on: "hit", ...(/adjacent/i.test(said) ? { melee: true } : {}), ...(/critically/i.test(said) ? { critOnly: true } : {}) };
+    if (/^Your Strike (?:with [^,]+ )?hits\b/i.test(said)) return { on: "strike-hit" };
+    if (/^You use the Shield Block reaction\b/i.test(said)) return { on: "shield-block", ...(/adjacent/i.test(said) ? { melee: true } : {}), ...(/\bis undead\b/i.test(said) ? { creature: "undead" } : {}) };
     const would = /^(?:A Strike|An attack(?: or effect)?|An? (?:creature|enemy|foe)(?:'s)? (?:attack|Strike)) would (?:deal )?damage (?:to )?you$/i.exec(said);
     if (would) return { on: "would-damage", ...(/effect/i.test(said) ? {} : { strike: true }) };
     const typed = /^You would take (\w+) damage$/i.exec(said);
@@ -1670,7 +1674,9 @@ function alliesAreaHeal(plan) {
 function youAsSelf(plan) {
     if (!/^you$/i.test(String(plan?.targeting?.target ?? "")) || plan.targeting.area) return plan;
     const effects = Object.values(plan.resolution?.outcomes ?? {}).flatMap((row) => row?.effects ?? []);
-    if (!effects.length || !effects.every((effect) => effect.kind === "condition" && ALLY_CONDITIONS.has(effect.slug))) return plan;
+    const automatic = plan.resolution?.check?.roll === "automatic";
+    // (2026-11-05, the one-off feats: a hand card's temporary Hit Points on "you" — Feast's, Absorb Strength's — the PC's too.)
+    if (!effects.length || !effects.every((effect) => (effect.kind === "condition" && ALLY_CONDITIONS.has(effect.slug)) || (effect.kind === "temp-hp" && automatic))) return plan;
     return { ...plan, targeting: { ...plan.targeting, target: "self" } };
 }
 

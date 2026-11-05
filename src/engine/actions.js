@@ -986,6 +986,10 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     }
     // (2026-11-05, triggers.js: a feat's free action or reaction on its critical Strike — Echoing Violence.)
     if (degree === CRITICAL_SUCCESS && attacker.featTriggers && isActive(target) && attacker.side !== target.side) featTriggers(state, attacker, "crit", { target, strike });
+    // (2026-11-05, the one-off feats: "An enemy hits you with a Strike" — Cautious Word, Dazzling Dragonet Disappearance, Tragic Lament's
+    // critical one — and "Your Strike hits" — Lethal Edge.)
+    if (degree >= SUCCESS && target.featTriggers && isActive(target) && attacker.side !== target.side) featTriggers(state, target, "hit", { by: attacker, strike, critical: degree === CRITICAL_SUCCESS });
+    if (degree >= SUCCESS && attacker.featTriggers && isActive(target) && attacker.side !== target.side) featTriggers(state, attacker, "strike-hit", { target, strike });
     // (2026-11-03, Fracture Timeflow: a passive's save after any critical Strike — the spell the attacker carries for it.)
     if (degree === CRITICAL_SUCCESS && isActive(target) && attacker.side !== target.side) for (const rider of attacker.critRiders ?? []) bothHitRider(state, attacker, target, { affliction: rider.affliction }, { said: `${rider.source} on` });
     // Violent Retort (B70): a critical hit on it, answered with a Strike.
@@ -1491,6 +1495,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
             shield.raised = false;
         }
         log(state, `  ${target.name} Shield Blocks (${blocked} prevented${shield.spell ? `, ${shield.name} ends` : shield.broken ? ", shield broken" : ""})`);
+        // (2026-11-05: "You use the Shield Block reaction" — Aggressive Block, Flashing Shield.)
+        if (target.featTriggers && source && source.side !== target.side) featTriggers(state, target, "shield-block", { by: source });
     } else if (physical && !intercepted && total > 0) {
         // (2026-11-05, Shield Warden: an adjacent ally with its shield raised Shield Blocks for it — the ally's shield takes the rest.)
         const warden = state.list.find((other) => other !== target && other.side === target.side && other.shieldWarden && isActive(other) && canAct(other) && sameMelee(other, target) && wardenBlocks(other, target, total));
