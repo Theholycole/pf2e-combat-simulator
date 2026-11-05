@@ -526,6 +526,10 @@ const QUICKEN_ALL = {
     "plant-banner": (level) => ({ actions: 1, area: 30, rounds: 100, model: { tempHp: 4 * (1 + Math.floor(level / 4)) }, played: `${4 * (1 + Math.floor(level / 4))} temporary Hit Points` }),
     // (Sheltering Pulse: +1 status bonus to AC in a 15-foot emanation for 3 rounds — played around itself.)
     "sheltering-pulse": () => ({ actions: 2, area: 15, rounds: 3, model: { modifiers: [{ on: "ac", type: "status", value: 1 }] }, once: false, played: "+1 AC to allies near it for 3 rounds" }),
+    // (2026-11-05, the bard's composition focus spells the spell module doesn't cast: Lingering Composition's Courageous Anthem for 3
+    // rounds — its Performance check taken as a success, the free action and the anthem's one —; Fortissimo Composition's anthem at +2.)
+    "lingering-composition": () => ({ actions: 1, area: 60, rounds: 3, model: { modifiers: [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "status", value: 1 }] }, played: "Courageous Anthem for 3 rounds" }),
+    "fortissimo-composition": () => ({ actions: 1, area: 60, rounds: 1, model: { modifiers: [{ on: "attack", type: "status", value: 2 }, { on: "damage", type: "status", value: 2 }] }, played: "Courageous Anthem at +2 for a round" }),
     "orchards-endurance": (level) => ({ actions: 1, area: 10, rounds: 100, model: { resistances: ["bludgeoning", "piercing"].map((type) => ({ type, value: 5 + 2 * Math.max(0, Math.floor((level - 14) / 4)), exceptions: [] })) }, played: "resistance to bludgeoning and piercing" })
 };
 function quickenAllEntry(doc, level) {
