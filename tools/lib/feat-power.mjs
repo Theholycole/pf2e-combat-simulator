@@ -1206,6 +1206,7 @@ const HAND = {
     "bloody-debilitation": () => ({ builtins: { debilitation: { bleed: 3 } }, played: "Debilitating Strike's 3d6 persistent bleed in place of enfeebled 1" }),
     "eldritch-debilitations": () => ({ builtins: { debilitation: { slug: "stupefied", value: 1 } }, played: "Debilitating Strike's stupefied 1 in place of enfeebled 1" }),
     "swift-retribution": () => ({ builtins: { swiftRetribution: true }, played: "an extra action after its champion's reaction" }),
+    "critical-debilitation": () => ({ builtins: { debilitation: { critSave: true } }, played: "on a critical hit, Debilitating Strike's Fortitude save: slowed 1, slowed 2 or paralyzed" }),
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;

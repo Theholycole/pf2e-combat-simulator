@@ -880,7 +880,20 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             // (2026-11-03, Brutal Beating: a condition on the target.)
             if (extra.condition) {
                 // (2026-11-04, Vicious Debilitations: the debilitation its feat adds, picked in place of Debilitating Strike's — one a Strike.)
-                const condition = extra.source === "Debilitating Strike" && attacker.debilitation ? { ...extra.condition, ...attacker.debilitation } : extra.condition;
+                // (2026-11-05, Critical Debilitation: on a critical hit only — a Fortitude save against its class DC, slowed 1, slowed 2 or
+                // paralyzed to the end of its next turn; incapacitation, a degree better for a foe above its level. Otherwise Debilitating Strike's own.)
+                if (extra.source === "Debilitating Strike" && attacker.debilitation?.critSave && critical && isActive(target)) {
+                    const natural = state.rng.d20();
+                    let degree = degreeOf(natural + saveModifier(target, "fortitude"), attacker.classDC ?? 10 + (attacker.level ?? 1) + 3, natural);
+                    if ((target.level ?? 0) > (attacker.level ?? 0)) degree = Math.min(CRITICAL_SUCCESS, degree + 1);
+                    const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" };
+                    const [slug, value] = [null, ["slowed", 2], ["slowed", 1], null][degree] ?? [];
+                    const paralyzed = degree === CRITICAL_FAILURE;
+                    if (paralyzed && applyCondition(state, target, "paralyzed", null, until, attacker)) log(state, `  ${target.name} is paralyzed (Critical Debilitation)`);
+                    else if (slug && applyCondition(state, target, slug, value, until, attacker)) log(state, `  ${target.name} is ${slug} ${value} (Critical Debilitation)`);
+                    continue;
+                }
+                const condition = extra.source === "Debilitating Strike" && attacker.debilitation && !attacker.debilitation.critSave ? { ...extra.condition, ...attacker.debilitation } : extra.condition;
                 // (Tactical Debilitations: "The target can't use reactions", until the end of the rogue's next turn.)
                 // (2026-11-05, Bloody Debilitation: 3d6 persistent bleed in place of a condition.)
                 if (condition.bleed) {
