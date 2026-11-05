@@ -1667,7 +1667,15 @@ function afterAction(state) {
         if (entry.kind === "cleave") {
             const rule = c?.reactionStrikes?.find((each) => each.triggers.includes("downs"));
             const foe = c && isActive(c) && canReact(c, rule?.name) && canAct(c) ? engagedEnemies(state, c).find((other) => other !== target && isActive(other)) : null;
-            const index = foe ? strikeNamed(c, rule.strike) : -1;
+            // (2026-11-05: a PC's Cleave names no Strike — "a melee Strike": the one that downed it, else its best melee one. Before, it
+            // found none and never struck; Cleave rated 0.00.)
+            const melee = () => {
+                const same = (c.strikes ?? []).findIndex((each) => each.melee && String(c.lastStrike?.strike ?? "").startsWith(each.name));
+                if (same >= 0) return same;
+                const best = (c.strikes ?? []).map((each, at) => ({ each, at })).filter(({ each }) => each.melee && strikeUsable(c, each)).sort((x, y) => (Number(y.each.bonus) || 0) - (Number(x.each.bonus) || 0))[0];
+                return best ? best.at : -1;
+            };
+            const index = foe ? (rule.strike ? strikeNamed(c, rule.strike) : melee()) : -1;
             if (!foe || index < 0) continue;
             spendReaction(c, rule.name);
             state.stats.reactions++;
@@ -1675,6 +1683,16 @@ function afterAction(state) {
             const attacks = c.attacksThisTurn;
             c.attacksThisTurn = entry.attacks;
             performStrike(state, c, foe, c.strikes[index]);
+            // (2026-11-05, Great Cleave: while each Strike drops its creature, another at the next one beside it.)
+            let last = foe;
+            for (let more = 0; c.greatCleave && more < 10 && !isActive(last) && isActive(c) && canAct(c); more++) {
+                const next = engagedEnemies(state, c).find((other) => isActive(other));
+                if (!next) break;
+                state.log?.push(`  ${c.name} cleaves on (Great Cleave)`);
+                c.attacksThisTurn = entry.attacks;
+                performStrike(state, c, next, c.strikes[index]);
+                last = next;
+            }
             c.attacksThisTurn = attacks + 1;
             continue;
         }

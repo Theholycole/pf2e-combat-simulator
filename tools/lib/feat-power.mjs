@@ -1105,6 +1105,9 @@ const HAND = {
     // (2026-11-05, Haft Beatdown: four Strikes for 3 actions, once a fight — the first two at its current multiple attack penalty, the
     // next two one step worse (5, taken as not agile). Haft Striker Stance isn't checked.)
     "haft-beatdown": () => ({ builtins: {}, plans: [{ builtin: "multi-strike", actions: 3, strikes: [null, null, null, null], sameTarget: true, sameMap: true, penalties: [0, 0, 5, 5], countsAs: 4, oncePerFight: true }], played: "four Strikes, two at its penalty and two one step worse (3 actions, once a fight)" }),
+    // (2026-11-05, Great Cleave: Cleave goes on while each Strike drops its creature — fight.js. Its Cleave is played with it, as the
+    // rating's barbarian doesn't have it; rage not checked.)
+    "great-cleave": () => ({ builtins: { greatCleave: true, reactionStrikes: [{ name: "Cleave", triggers: ["downs"], strike: null, penalty: 0, disrupts: false }] }, played: "Cleave, going on while each Strike drops its creature (reaction)" }),
     // (2026-11-05, Nimble Strike: Nimble Dodge's +2 AC as it's targeted, and a melee Strike back with no multiple attack penalty.)
     "nimble-strike": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Nimble Dodge", strikeBack: "Nimble Strike" } }, played: "Nimble Dodge, then a melee Strike at the attacker (reaction)" }),
     // (2026-11-05, Shield Warden: its Shield Block for an adjacent ally — actions.js wardenBlocks.)
