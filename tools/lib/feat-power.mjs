@@ -1192,6 +1192,12 @@ const HAND = {
     // (Aura of Vengeance: allies' reaction Strikes at the champion's foe at −2, not −5 — the champion's Exalt, which the class here
     // doesn't play, given with it.)
     "aura-of-vengeance": () => ({ builtins: { championReaction: { exalted: { penalty: 2 } } }, played: "allies' reaction Strikes at −2 with its Retributive Strike (its Exalt with it)" }),
+    // (Shield Block, the general feat: the reaction, for a PC with a shield.)
+    // (On the cleric, whose loadout has no shield: a shield given with it, a champion's at its level.)
+    "shield-block": (level, host) => {
+        const hardness = level >= 13 ? 10 : level >= 7 ? 8 : 5;
+        return { builtins: { ...(host?.shield ? {} : { shield: { ac: 2, hardness, hp: hardness * 4, bt: hardness * 2, broken: false, raised: false } }), reactions: { shieldBlock: true } }, played: `Shield Block (reaction)${host?.shield ? "" : ", a shield with it"}` };
+    },
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
@@ -1743,6 +1749,8 @@ function kineticistEntry(doc, level, host) {
     return null;
 }
 
+const HOST_OVERRIDE = { "shield-block": "cleric" };
+
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
 // (else the standard one: an ancestry's PC with its feats so far, tools/lib/ancestry-power.mjs).
@@ -1961,6 +1969,8 @@ const COMPANION_TEXT = /\byour (?:animal )?companion(?:'s|s)?\b|\byour (?:mount|
 const featText = (doc) => `${doc.system?.prerequisites?.value?.map((each) => each.value).join(" ") ?? ""} ${String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ")}`;
 const companionStageAt = (level) => (level >= 16 ? "specialized" : level >= 10 ? "incredible" : level >= 6 ? "mature" : "young");
 function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } = {}) {
+    // (2026-11-05: Shield Block on the cleric — the fighter has it already, so on the fighter it would rate as nothing.)
+    if (!hostId && !start && HOST_OVERRIDE[slugOf(doc)]) hostId = HOST_OVERRIDE[slugOf(doc)];
     const classTrait = (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait] || CLASS_SLUGS.includes(trait));
     // (2026-11-02, the user: "Get the simulator working with all classes": a class's feat on its own class — classes.js — the standard party
     // with that class's PC in its seat, rated against the same party without the feat.)
