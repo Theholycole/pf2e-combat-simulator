@@ -1286,6 +1286,10 @@ const HAND = {
     },
     "legendary-rider": () => ({ builtins: { companionActions: { master: 3, companion: 2 } }, played: "quickened for its Command: its own three actions and its mount's two" }),
     "mounted-shield": () => ({ builtins: { mountedShield: true }, requires: "You are wielding a shield", played: "its raised shield's bonus to its mount's AC too" }),
+    // (Rearing Display: its mount's Strike — one action of the mount's turn, the Command its rider spent —, a hit followed by a Demoralize
+    // at the rider's Intimidation +1.)
+    "rearing-display": (level, host) => ({ builtins: { companionFields: { multiStrikes: [{ name: "Rearing Display", actions: 1, strikes: ["jaws"], flourish: true, hitRiders: [{ atLeast: 1, conditions: [], damage: [], follow: "demoralize" }] }], skills: { intimidation: (host?.skills?.intimidation ?? level + 2) + 1 } } }, played: "its mount's Strike, a hit followed by a Demoralize" }),
+    "defend-mount": () => ({ builtins: { defendMount: true }, played: "a Strike at its mount taken on its own AC instead (reaction)" }),
     "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),

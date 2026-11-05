@@ -453,6 +453,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             return performStrike(state, attacker, other, strike, { reaction, trigger, fortune });
         }
     }
+    // (2026-11-05, Defend Mount: a Strike at a mount its rider answers — the rider's AC, the rider taking it.)
+    const rider = target.riderId ? state.byId?.get(target.riderId) : null;
+    if (rider?.defendMount && rider.mountId === target.id && isActive(rider) && canAct(rider) && canReact(rider, "Defend Mount")) {
+        spendReaction(rider, "Defend Mount");
+        state.stats.reactions++;
+        log(state, `  ${rider.name} uses Defend Mount: the Strike goes to ${rider.name}`);
+        return performStrike(state, attacker, rider, strike, { reaction, trigger, fortune });
+    }
     const attacksMade = reaction ? 0 : attacker.attacksThisTurn;
     if (!reaction) attacker.attacksThisTurn++;
     // (Gravity Weapon: its first weapon Strike this round — hit or miss.)
