@@ -1736,7 +1736,7 @@ function expandStrikeActivities(env) {
             perRound = Math.max(perRound, average * 1.3);
         }
         const gain = ctx.ownValue * (ROUND_TO_KILL * 3 * perRound / threat + 0.5 * (buff.tempHp ?? 0) / Math.max(1, c.hp.max));
-        if (gain > 0) children.push(child(node, { type: "selfBuff", index: buffIndex, actions: buff.actions }, buff.actions, gain, { cast: `buff${buffIndex}` }));
+        if (gain > 0 || (c.forceUse && buff.featForced)) children.push(child(node, { type: "selfBuff", index: buffIndex, actions: buff.actions }, buff.actions, Math.max(gain, 0.01), { cast: `buff${buffIndex}` }));
     }
     // An exemplar (C25–C27): Shift Immanence into a better ikon (once a round), and a
     // transcendence while the spark is in its ikon (it casts the spark out).
@@ -1960,7 +1960,9 @@ function expandClassActions(env) {
         const gain = ctx.ownValue * benefit * ROUND_TO_KILL;
 
         const cost = entry.shell ? remaining : entry.actions;
-        if (gain > 0) children.push(child(node, { type: "selfEffect", index, actions: cost }, cost, gain, { cast: `self${index}` }));
+        // (2026-11-05: the feat's own self-effect, rated as used: offered even when the planner reads no gain in it — Cobra Stance's fang and
+        // +1 Fortitude, never entered.)
+        if (gain > 0 || (c.forceUse && entry.featForced)) children.push(child(node, { type: "selfEffect", index, actions: cost }, cost, Math.max(gain, 0.01), { cast: `self${index}` }));
     }
 }
 
