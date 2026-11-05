@@ -34,6 +34,7 @@ import { deviantEntryOf, deviantTurnStart, deviantUsed } from "./deviant.js";
 import { attachedTurnStart, berserkTurnStart, followAttached, headsMend, hydraRegrow, inexorableTurnEnd, proteanTurnEnd } from "./creature-rules.js";
 import { controlTurnStart } from "./control.js";
 import { familiarFocus, familiarKeepsUp } from "./familiars.js";
+import { dismount, keepMounted } from "./companions.js";
 import { championOpening, marchOfLaw, shatterDefenses, zealCritical } from "./champion.js";
 import { castLuminance, dismissLuminance, luminanceTurnStart } from "./luminance.js";
 import { initiativeFortune } from "./fortune-items.js";
@@ -482,6 +483,8 @@ function startTurn(state, c) {
     if (c.luminance) luminanceTurnStart(state, c);
     // (Its familiar beside it.)
     familiarKeepsUp(state, c);
+    // (A rider whose mount is down is on foot — companions.js.)
+    keepMounted(state, c);
     // (S22: a wand it may overcharge, only while the fight goes badly for its side.)
     if (c.spells?.some((spell) => spell.overcharge)) c.desperate = desperate(state, c);
     // Actions this turn, and its last hit (Strike, Breathe, Rend needs one just before).
@@ -1303,6 +1306,8 @@ function actOn(state, c, action) {
                     performStrike(state, partner, target, strike);
                 }
             }
+            // (Dismounting Strike: off its mount after the Strike.)
+            if (ability.dismount) dismount(state, c);
             multiStrikeAfter(state, c, ability);
             break;
         }

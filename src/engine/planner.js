@@ -270,7 +270,7 @@ function remainingHp(target) {
 // (On the grid, 2026-10-21: at, where it stands — { square, size, reach } — when that's known: where it began, where a Stride toward a
 // creature took it; reaching, there, by the squares.)
 function rootPos(c) {
-    return { band: c.band, melee: c.meleeId, newWith: null, ...(c.square ? { at: { square: c.square, size: c.size, reach: c.reach, ...(c.z !== undefined ? { z: c.z } : {}) } } : {}) };
+    return { band: c.band, melee: c.meleeId, newWith: null, ...(c.square ? { at: { square: c.square, size: c.size, reach: c.reach, ...(c.mountSpace ? { mountSpace: c.mountSpace } : {}), ...(c.z !== undefined ? { z: c.z } : {}) } } : {}) };
 }
 
 // A position with where it stands on the grid, when that's known.

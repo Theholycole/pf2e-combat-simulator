@@ -75,3 +75,42 @@ export function familiarFor(master, spec = {}) {
         familiar: { masterId: master.id, hexAbility: spec.hexAbility ?? null, lifelink: Boolean(spec.lifelink), focus: Boolean(spec.focus) }
     };
 }
+
+// (2026-11-05, Cole's pick "Mounted combat".) A rider on its companion: the mount Large, the rider in its space (grid.js spaceOf
+// mountSpace — its reach from every square of it), the two moving as one (grid-fight.js moveTo), the rider at its mount's Speed — its
+// Strides are the Commands that move the mount —, and a –2 circumstance penalty to its Reflex saves while mounted (B?: Player Core's
+// Mounted Combat).
+export function mountUp(rider, mount) {
+    mount.size = "large";
+    mount.riderId = rider.id;
+    rider.mountId = mount.id;
+    rider.mountSpace = 2;
+    rider.ownSpeed = rider.speed;
+    rider.speed = mount.speed ?? rider.speed;
+    rider.saves = { ...rider.saves, reflex: (rider.saves?.reflex ?? 0) - 2 };
+}
+
+// The rider off its mount (Dismounting Strike's leap): on foot in a square of its mount's space.
+export function dismount(state, rider) {
+    const mount = rider.mountId ? state.byId?.get(rider.mountId) : null;
+    if (!rider.mountId) return;
+    rider.mountId = null;
+    rider.mountSpace = null;
+    rider.speed = rider.ownSpeed ?? rider.speed;
+    rider.saves = { ...rider.saves, reflex: (rider.saves?.reflex ?? 0) + 2 };
+    if (mount) mount.riderId = null;
+    state.log?.push(`  ${rider.name} dismounts`);
+}
+
+// Its mount gone down: the rider off it (falls into its space, keeps its square), its own Speed and Reflex again.
+export function keepMounted(state, rider) {
+    if (!rider.mountId) return;
+    const mount = state.byId?.get(rider.mountId);
+    if (mount && mount.status === "active") return;
+    rider.mountId = null;
+    rider.mountSpace = null;
+    rider.speed = rider.ownSpeed ?? rider.speed;
+    rider.saves = { ...rider.saves, reflex: (rider.saves?.reflex ?? 0) + 2 };
+    if (mount) mount.riderId = null;
+    state.log?.push(`  ${rider.name} is no longer mounted`);
+}

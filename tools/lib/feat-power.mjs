@@ -25,7 +25,7 @@ const ITEM_ROOT = SIBLING(["pf2e-automatic-item-resolution", "PF2e AUTOMATIC ITE
 const { readDocuments, basicActions, PACK_ROOT } = await import("./pack-creatures.mjs");
 const { partyFor, classPartyFor, classesPartyFor } = await import("./deadliness.mjs");
 const { CLASS_SLUGS, classArmor, seatOf } = await import("../../src/engine/classes.js");
-const { withCompanion } = await import("../../src/engine/companions.js");
+const { withCompanion, mountUp } = await import("../../src/engine/companions.js");
 const { compileFeat } = await import(new URL("src/compiler/index.js", FEAT_ROOT).href);
 export const itemReaders = ITEM_ROOT ? await (async () => {
     try {
@@ -1268,6 +1268,23 @@ const HAND = {
         return read ? { builtins: { companionFields: { spells: read.spells.map((entry) => ({ ...entry, name: "Primal Howl" })), spellPools: read.pools } }, played: `its companion's Primal Howl (${read.played.replace(/^inline save: /, "")})` } : null;
     },
     "bloodletting-claws": () => ({ builtins: { companionFields: { strikeExtras: [{ when: "critical", dice: 1, die: 6, melee: true, persistent: true, type: "bleed", noDouble: true, source: "Bloodletting Claws" }] } }, played: "its eidolon's critical hits 1d6 persistent bleed" }),
+    // (2026-11-05, mounted combat — companions.js mountUp: the rider's own activities. Their Command is the one its turn already spent:
+    // a 3-action one, Shadowpiercing Charge, two of its own.)
+    "cavaliers-charge": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Cavalier's Charge", actions: 2, strikes: [melee.name.toLowerCase()], strides: 2, flourish: true, penalty: -1 }] }, played: "its mount's two Strides and a Strike at +1" } : null;
+    },
+    "shadowpiercing-charge": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Shadowpiercing Charge", actions: 2, strikes: [melee.name.toLowerCase(), melee.name.toLowerCase()], strides: 2, sameMap: true }] }, played: "its mount's double Stride and two Strikes at one multiple attack penalty (its extra damage in darkness not played)" } : null;
+    },
+    "dismounting-strike": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        const die = melee?.damage?.[0]?.die ?? 8;
+        const type = melee?.damage?.[0]?.type ?? "untyped";
+        return melee ? { builtins: { multiStrikes: [{ name: "Dismounting Strike", actions: 2, strikes: [melee.name.toLowerCase()], strides: 1, countsAs: 2, extraDamage: [`${level >= 14 ? 2 : 1}d${die}[${type}]`], dismount: true }] }, played: "its mount's Stride, a leap off and a Strike with an extra weapon die (counts as two attacks)" } : null;
+    },
+    "legendary-rider": () => ({ builtins: { companionActions: { master: 3, companion: 2 } }, played: "quickened for its Command: its own three actions and its mount's two" }),
     "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
@@ -1820,6 +1837,8 @@ function youAsSelf(plan) {
 // (2026-11-05) The feats that give or grow a companion (HAND's animalCompanion), the text of one that needs it, the stage a PC has by its level.
 const HAND_COMPANION = new Set(Object.entries(HAND).filter(([, read]) => read.toString().includes("animalCompanion")).map(([slug]) => slug));
 const HAND_ON_COMPANION = new Set(Object.entries(HAND).filter(([, read]) => /companionFields|companionActions|companionStrike|tandem/.test(read.toString())).map(([slug]) => slug));
+const MOUNT_SLUGS = new Set(["cavalier-dedication", "faithful-steed", "impressive-mount", "incredible-mount", "loyal-warhorse", "imposing-destrier", "auspicious-mount", "specialized-mount", "drake-rider-dedication", "mature-dragon-companion", "incredible-dragon-companion", "mammoth-lord-dedication", "mature-megafauna-companion", "incredible-megafauna-companion", "specialized-megafauna-companion"]);
+const RIDING_TEXT = /\b(?:riding (?:your|a|the) |you(?:'re| are) (?:mounted|riding)|while (?:you're |you are )?mounted|when you(?:'re| are) mounted|your mount\b|your steed\b)/i;
 const COMPANION_TEXT = /\byour (?:animal )?companion(?:'s|s)?\b|\byour (?:mount|steed)\b/i;
 const featText = (doc) => `${doc.system?.prerequisites?.value?.map((each) => each.value).join(" ") ?? ""} ${String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ")}`;
 const companionStageAt = (level) => (level >= 16 ? "specialized" : level >= 10 ? "incredible" : level >= 6 ? "mature" : "young");
@@ -2029,6 +2048,15 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         } else {
             master.tandemWith = companion.id;
             companion.tandemWith = master.id;
+        }
+    }
+    // (2026-11-05, Cole's pick "Mounted combat": a mount feat's companion ridden — the plain party's too when it has one —, and a feat for a
+    // rider on a mounted PC both sides. companions.js mountUp.)
+    if (MOUNT_SLUGS.has(slugOf(doc)) || RIDING_TEXT.test(featText(doc))) {
+        for (const side of [fought, plainParty]) {
+            const rider = side?.find((c) => c.id === host.id);
+            const mount = side?.find((c) => c.companionOf === host.id);
+            if (rider && mount && !rider.mountId) mountUp(rider, mount);
         }
     }
     const useNames = [...new Set([...(fought !== withFeat || companionNeeded ? ["Animal Companion"] : []), ...(companion?.sharesHpWith ? ["Eidolon"] : []), ...entries.spells, ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => entry?.name).filter((name) => typeof name === "string" && name.length > 2))];
