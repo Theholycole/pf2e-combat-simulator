@@ -603,6 +603,13 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         attacker.cond.offGuard = true;
         (attacker.timers ??= []).push({ key: "offGuard", value: true, round: attacker.round === state.round ? state.round + 1 : state.round, turnOf: attacker.id, at: "start" });
     }
+    // (2026-11-05, Goading Feint: –2 to its attack on the feinter, the next one or all until the end of the feinter's next turn.)
+    if (attacker.goaded && attacker.goaded.by === target.id) {
+        bonus -= 2;
+        if (attacker.goaded.uses) attacker.goaded = null;
+    }
+    // (Antagonize: an attack on the swashbuckler ends its frightened floor.)
+    if (attacker.condFloors?.some((entry) => entry.antagonizedBy === target.id)) attacker.condFloors = attacker.condFloors.filter((entry) => entry.antagonizedBy !== target.id);
     // Devise a Stratagem: the d20 rolled in advance, and Intelligence, for the first Strike at that creature.
     const stratagem = attacker.stratagem;
     const strategic = !reaction && stratagem && !stratagem.used && stratagem.targetId === target.id && stratagem.round === state.round && (attacker.stratagemFeature?.strikeBonus?.[strike.name] !== undefined);

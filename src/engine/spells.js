@@ -588,6 +588,14 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     // (2026-10-22, Indestructibility: harmed by nothing till its next turn.)
     if (source !== target && !NOT_HARMFUL.has(slug) && defenceOf(target, "indestructible")) return false;
     // Off-guard to one creature's attacks only (Feint, Create a Diversion).
+    // (2026-11-05, Goading Feint: the feinter's success and critical success taken instead — a –2 circumstance penalty to the target's
+    // next attack against the feinter (every one, on a critical success) until the end of the feinter's next turn; no off-guard.)
+    if (slug === "off-guard" && scope?.attacker && source?.goadingFeint && scope.attacker === source.id) {
+        const entry = { by: source.id, uses: scope.uses ?? null };
+        target.goaded = entry;
+        (target.timers ??= []).push({ goaded: entry, round: state.round + 1, turnOf: source.id, at: "end" });
+        return true;
+    }
     if (slug === "off-guard" && scope?.attacker) {
         const entry = { attacker: scope.attacker, attacks: scope.attacks ?? "any", uses: scope.uses ?? null };
         target.offGuardTo = [...(target.offGuardTo ?? []), entry];
@@ -595,6 +603,9 @@ export function applyCondition(state, target, slug, value, duration, source, sco
         if (Number.isFinite(rounds)) (target.timers ??= []).push({ offGuardTo: entry, round: state.round + rounds, turnOf: source?.id ?? target.id, at: duration?.expiry === "turn-end" ? "end" : "start" });
         return true;
     }
+    // (2026-11-05, Antagonize: frightened from the swashbuckler — its Demoralize — can't drop below 1 until the creature acts against it,
+    // played as attacking it.)
+    if (slug === "frightened" && source?.antagonize && source.side !== target.side && !(target.condFloors ?? []).some((entry) => entry.antagonizedBy === source.id)) target.condFloors = [...(target.condFloors ?? []), { slug: "frightened", value: 1, antagonizedBy: source.id, by: source.id, spell: "Antagonize", lifetime: null, untilRound: Infinity, sustained: false }];
     const flag = FLAGS[slug];
     if (!VALUED.has(slug) && !flag) return false;
     // (I1: a creature immune to the condition.)
@@ -763,6 +774,10 @@ export function expireTimers(state, c, phase = "start") {
             }
             if (timer.offGuardTo) {
                 other.offGuardTo = (other.offGuardTo ?? []).filter((entry) => entry !== timer.offGuardTo);
+                return false;
+            }
+            if (timer.goaded) {
+                if (other.goaded === timer.goaded) other.goaded = null;
                 return false;
             }
             if (timer.regenerationOff) {
@@ -3101,6 +3116,16 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
     // (B304, Consume Flesh: "from any given corpse only once" — each use takes one of the fight's corpses.)
     if ((spell?.plan?.needs ?? []).some((need) => need.corpse || need.any?.some((each) => each.corpse))) caster.corpsesUsed = (caster.corpsesUsed ?? 0) + 1;
     castPlan(state, caster, spell, targetIds, actions, options);
+    // (2026-11-05, Communal Healing: a heal spell that heals a single creature — another living one in reach of it, the caster or an ally,
+    // regains Hit Points equal to its rank; the most hurt ally taken.)
+    if (caster.communalHealing && spell?.plan?.source?.slug === "heal" && (targetIds ?? []).length === 1) {
+        const healed = state.byId.get(targetIds[0]);
+        if (healed && healed.side === caster.side) {
+            const other = state.list.filter((c) => c.side === caster.side && c.id !== healed.id && isActive(c) && c.hp.value < c.hp.max && !c.undead).sort((a, b) => (a.hp.value - a.hp.max) - (b.hp.value - b.hp.max))[0];
+            const rank = spell.castRank ?? 1;
+            if (other) log(state, `  Communal Healing: ${other.name} regains ${applyHeal(state, other, rank)}`);
+        }
+    }
     // (U10: an item's own counteract — Surging Serum, Panacea — on those it was used on.)
     if (spell?.counteract) for (const id of targetIds ?? []) {
         const target = state.byId.get(id);
@@ -4597,7 +4622,9 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 } else if (change.op === "condition" && change.scope) {
                     // Feint, Create a Diversion: the attacker's own attacks hit more often (+2): about a
                     // tenth of a hit's damage per attack (one for a single use, three otherwise).
-                    if (change.scope.attacker === caster.id) entry.damage += chance * 0.1 * bestHit(caster, target, change.scope.attacks === "melee") * (change.scope.uses ?? 3);
+                    // (Goading Feint: a –2 to its attacks on the feinter — about a tenth of its own hit, one or two attacks.)
+                    if (change.scope.attacker === caster.id && caster.goadingFeint) entry.damage += chance * 0.1 * bestHit(target, caster, true) * (change.scope.uses ? 1 : 2);
+                    else if (change.scope.attacker === caster.id) entry.damage += chance * 0.1 * bestHit(caster, target, change.scope.attacks === "melee") * (change.scope.uses ?? 3);
                 } else if (change.op === "condition") {
                     // (B303: Bravery's frightened 1 lower — none at all from frightened 1.)
                     const brave = change.slug === "frightened" && target.lessFrightened ? (change.value ?? 1) - target.lessFrightened : null;

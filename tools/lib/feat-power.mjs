@@ -417,6 +417,26 @@ function reachEntry(doc, host) {
 // (2026-11-03, the class feats no fight played: Stunning Blows.) A Flurry of Blows that hits: a Fortitude save at the monk's class DC or
 // stunned 1 (3 on a critical failure) — the save as a spell compiled from that text, cast by the flurry's rider (spells.js bothHitRider's
 // affliction), not on its own.
+// (2026-11-05, Twin Distraction: Twin Feint's two Strikes both dealing damage — a Will save at the rogue's class DC or stupefied 1 until
+// the end of its next turn; the save cast by the multi-Strike's bothHit rider as Stunning Blows' is. Twin Feint itself comes with it.)
+function twinDistractionEntry(doc, level, host) {
+    if (slugOf(doc) !== "twin-distraction") return null;
+    const stupefied = "@UUID[Compendium.pf2e.conditionitems.Item.Stupefied]";
+    const html = `<p>The target must attempt a @Check[will] save.</p><hr /><p><strong>Critical Success</strong> The creature is unaffected.</p><p><strong>Success</strong> The creature is unaffected.</p><p><strong>Failure</strong> The creature is ${stupefied}{Stupefied 1} until the end of your next turn.</p><p><strong>Critical Failure</strong> The creature is ${stupefied}{Stupefied 1} until the end of your next turn.</p>`;
+    const spell = { ...doc, type: "spell", system: { ...doc.system, description: { value: html }, level: { value: 1 }, heightening: undefined, time: { value: "1" }, area: null, target: { value: "1 creature" }, range: { value: "touch" }, defense: { save: { statistic: "will", basic: false } }, damage: {}, traits: { ...doc.system.traits, value: [...(doc.system.traits?.value ?? [])] } } };
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    if (!plan?.resolution || plan.resolution.kind !== "save") return null;
+    plan = { ...plan, trigger: { ...(plan.trigger ?? {}), event: "strike", attackEffect: "twin distraction" } };
+    const dc = dcsOf(host).class ?? 10 + level + 2;
+    const entry = { name: "Twin Distraction", plan, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool: null, effects: {} };
+    return { spells: [entry], pools: {}, gap: null, played: "Twin Feint (forced); both Strikes hit: a Will save or stupefied 1", twinFeint: { name: "Twin Feint", actions: 2, strikes: [null, null], sameTarget: true, secondOffGuard: true, bothHit: { conditions: [], damage: [], affliction: "twin distraction" } } };
+}
+
 function stunningBlowsEntry(doc, level, host) {
     if (slugOf(doc) !== "stunning-blows") return null;
     const flurry = (host.multiStrikes ?? []).find((entry) => entry.name === "Flurry of Blows");
@@ -1346,6 +1366,13 @@ const HAND = {
     },
     // (2026-11-05, the Strike riders sweep — Strikes whose rider the feat module doesn't read.)
     // (Twin Feint: two Strikes at one target, off-guard to the second — the PC's one weapon twice, its two weapons not checked.)
+    // (2026-11-05, Goading Feint: each Feint's success and critical success swapped for a –2 to the foe's attacks on the PC — always taken.)
+    // (Antagonize: its Demoralize's frightened stays at least 1 until the foe attacks it.)
+    // (The fencer swashbuckler never Demoralizes on its own — its Demoralize given again, forced.)
+    // (Communal Healing: a single-target heal spell heals the most hurt other ally by its rank too.)
+    "communal-healing": () => ({ builtins: { communalHealing: true }, played: "each single-target heal heals the most hurt other ally by its rank" }),
+    antagonize: () => ({ builtins: { antagonize: true }, spells: basicActions.demoralize ? [{ name: "Demoralize", plan: structuredClone(basicActions.demoralize), castRank: 1, pool: null, kind: "basic" }] : [], played: "Demoralize (forced); frightened from it stays at 1 or more until the foe attacks it" }),
+    "goading-feint": () => ({ builtins: { goadingFeint: true }, played: "every Feint goads (–2 to the foe's next attack on the PC, all of them on a critical success) instead of off-guard" }),
     "twin-feint": () => ({ builtins: { multiStrikes: [{ name: "Twin Feint", actions: 2, strikes: [null, null], sameTarget: true, secondOffGuard: true }] }, played: "two Strikes at one foe, off-guard to the second" }),
     // (A Strike at each enemy within 30 feet, at one multiple attack penalty — fight.js within.)
     "implements-assault": () => ({ builtins: { multiStrikes: [{ name: "Implement's Assault", actions: 3, strikes: [null], each: true, within: 30, sameMap: true }] }, played: "a Strike at each enemy within 30 feet (3 actions)" }),
@@ -2071,6 +2098,10 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = saveAuraEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) {
+            entries = twinDistractionEntry(doc, level, host) ?? entries;
+            if (entries.twinFeint) builtins.multiStrikes = [...(builtins.multiStrikes ?? []), entries.twinFeint];
+        }
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = critRiderEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
