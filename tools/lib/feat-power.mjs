@@ -25,7 +25,7 @@ const ITEM_ROOT = SIBLING(["pf2e-automatic-item-resolution", "PF2e AUTOMATIC ITE
 const { readDocuments, basicActions, PACK_ROOT } = await import("./pack-creatures.mjs");
 const { partyFor, classPartyFor, classesPartyFor } = await import("./deadliness.mjs");
 const { CLASS_SLUGS, classArmor, seatOf } = await import("../../src/engine/classes.js");
-const { withCompanion, mountUp } = await import("../../src/engine/companions.js");
+const { withCompanion, mountUp, companionStats } = await import("../../src/engine/companions.js");
 const { compileFeat } = await import(new URL("src/compiler/index.js", FEAT_ROOT).href);
 export const itemReaders = ITEM_ROOT ? await (async () => {
     try {
@@ -1290,6 +1290,22 @@ const HAND = {
     // at the rider's Intimidation +1.)
     "rearing-display": (level, host) => ({ builtins: { companionFields: { multiStrikes: [{ name: "Rearing Display", actions: 1, strikes: ["jaws"], flourish: true, hitRiders: [{ atLeast: 1, conditions: [], damage: [], follow: "demoralize" }] }], skills: { intimidation: (host?.skills?.intimidation ?? level + 2) + 1 } } }, played: "its mount's Strike, a hit followed by a Demoralize" }),
     "defend-mount": () => ({ builtins: { defendMount: true }, played: "a Strike at its mount taken on its own AC instead (reaction)" }),
+    // (Trampling Charge: its mount's double Stride through the foes in its way — a 70-foot line here, its Speed twice — each taking its
+    // Jaws' damage, basic Reflex at its Athletics DC; two of the rider's actions, its Command already spent. Off-guard on a critical
+    // failure not played.)
+    "trampling-charge": (level, host) => {
+        const stage = companionStageAt(level);
+        const stats = companionStats(level, stage);
+        const jaws = stats.strikes[0].damage[0];
+        const html = `<p>Your mount tramples each creature in a @Template[line|distance:70]: @Damage[${jaws.dice}d${jaws.die}[${jaws.type}]] damage, @Check[reflex|basic].</p>`;
+        const doc = { _id: "tramplingCharge0", name: "Trampling Charge", type: "feat", system: { actionType: { value: "action" }, actions: { value: 2 }, traits: { value: ["flourish"] }, description: { value: html } } };
+        const read = host ? inlineSaveEntry(doc, level, host) : null;
+        if (!read) return null;
+        const dc = 10 + stats.athletics;
+        // (Its Jaws' flat damage too: the inline reader takes dice alone.)
+        const withBonus = (plan) => JSON.parse(JSON.stringify(plan).replaceAll(`"formula":"${jaws.dice}d${jaws.die}"`, `"formula":"${jaws.dice}d${jaws.die}+${jaws.bonus}"`));
+        return { builtins: {}, spells: read.spells.map((entry) => ({ ...entry, plan: withBonus(entry.plan), dc, attack: dc - 10 })), pools: read.pools, played: `its mount through a 70-foot line, ${jaws.dice}d${jaws.die}+${jaws.bonus} ${jaws.type}, basic Reflex DC ${dc}` };
+    },
     "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
