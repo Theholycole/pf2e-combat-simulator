@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1775 in whole fights. **4591 it doesn't.**
-- **3096** are in neither.
+- **The simulator** rates 1799 in whole fights. **4567 it doesn't.**
+- **3094** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1628 | 957 |
-| archetype | 2074 | 1246 | 1437 | 982 |
-| ancestry | 1613 | 1086 | 1153 | 857 |
+| class | 2282 | 1088 | 1610 | 955 |
+| archetype | 2074 | 1246 | 1433 | 982 |
+| ancestry | 1613 | 1086 | 1151 | 857 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4591 | 3096 |
+| **All** | 6366 | 3725 | 4567 | 3094 |
 
 ## Why the feat module doesn't automate them
 
@@ -44,19 +44,19 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: the feat module's reminder, which a fight doesn't play | 205 | 133 | 101 | 22 | 1 | 1 |  | 463 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 81 | 39 | 111 | 2 |  |  | 324 |
 | no card: only grants other feats, features or choices | 87 | 123 | 47 | 16 | 2 |  |  | 275 |
-| a spell the engine doesn't cast | 58 | 57 | 108 | 1 |  | 1 |  | 225 |
+| a spell the engine doesn't cast | 56 | 57 | 108 | 1 |  | 1 |  | 223 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 57 | 51 | 46 | 21 | 1 |  |  | 176 |
 | no card: a combat passive no reader or hand plan covers yet | 62 | 59 | 31 | 13 | 2 |  | 1 | 168 |
 | a timer with no rules a fight counts | 59 | 28 | 17 | 4 |  | 1 |  | 109 |
-| a Strike with nothing more the simulator reads | 64 | 37 | 2 |  |  | 1 |  | 104 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
+| a Strike with nothing more the simulator reads | 50 | 34 | 2 |  |  | 1 |  | 87 |
 | no card: a combat action no reader or hand plan covers yet | 30 | 28 | 14 | 4 | 1 |  |  | 77 |
 | a plan the engine can't play | 32 | 25 | 15 | 1 |  |  |  | 73 |
 | no card: companions, familiars and eidolons | 35 | 25 | 1 | 5 |  |  |  | 66 |
 | its requirement | 20 | 35 | 7 |  |  |  |  | 62 |
 | a teleport | 22 | 16 | 21 |  |  |  |  | 59 |
 | a roll whose results the simulator doesn't read | 26 | 18 | 6 | 8 |  |  |  | 58 |
-| an Effect with nothing a fight counts | 31 | 14 | 12 | 1 |  |  |  | 58 |
+| an Effect with nothing a fight counts | 29 | 13 | 10 | 1 |  |  |  | 53 |
 | it grants Additional Lore | 1 | 11 | 39 | 1 |  |  |  | 52 |
 | no card: PF2e's own Effect, from the feat's Use button | 19 | 17 | 7 | 2 |  |  |  | 45 |
 | a passive's roll with no action to use it | 19 | 14 | 11 |  |  |  | 1 | 45 |
@@ -3721,7 +3721,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Vigilant Mask | 20 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Locate Lawbreakers | 0 | bonus | passive | no card: spellcasting the spell module or PF2e handles |
 | Backup Runic Enhancement | 1 | class | passive | rated -0.09 |
-| Lingering Composition | 1 | class | passive | a spell the engine doesn't cast |
+| Lingering Composition | 1 | class | passive | rated 0.01 |
 | Splinter Faith | 1 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Unbound Torrent | 1 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Embodiment of the Balance | 2 | class | passive | no card: spellcasting the spell module or PF2e handles |
@@ -3741,7 +3741,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Shielded Tome | 6 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Song of Marching | 6 | class | passive | a spell the engine doesn't cast |
 | Spell Crash | 6 | class | 2 actions | no card: spellcasting the spell module or PF2e handles |
-| Fortissimo Composition | 8 | class | passive | a spell the engine doesn't cast |
+| Fortissimo Composition | 8 | class | passive | rated 0.15 |
 | Helt's Spelldance | 8 | class | 3 actions | no card: spellcasting the spell module or PF2e handles |
 | Knockback Spell | 8 | class | 1 action | no card: spellcasting the spell module or PF2e handles |
 | Loaner Spell | 8 | class | passive | no card: spellcasting the spell module or PF2e handles |
@@ -4827,7 +4827,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Skeptic's Defense | 7 | skill | reaction | card | a timer with no rules a fight counts |
 | Fear of God | 14 | skill | free | card | a timer with no rules a fight counts |
 
-### a Strike with nothing more the simulator reads (104)
+### a Strike with nothing more the simulator reads (87)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4839,7 +4839,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Quick Shot | 4 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Battlefield Agility | 6 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Feverish Enzymes | 6 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
-| Follow-Up Strike | 6 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Practiced Opposition | 6 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Reloading Trick | 6 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Shark Attack | 6 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
@@ -4857,10 +4856,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Chain Reaction | 12 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
 | Claw and Talon Flow | 12 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Drive-By Attack | 12 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
-| One-On-One | 12 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Lonely Army | 14 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
 | Phase Bullet | 14 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
-| Pivot Strike | 14 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Simultaneous Strike | 14 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Controlled Bullet | 16 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Deathblow | 16 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
@@ -4875,11 +4872,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Engraving Strike | 1 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Quick Bomber | 1 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Remote Detonation | 1 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Twin Feint | 1 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-| Assisting Shot | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Bullet and a Broadside | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Combat Grab | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Guiding Shot | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Lunge | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Pattern Flight | 2 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Quick Draw | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
@@ -4887,9 +4880,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Sleek Reposition | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Underhanded Assault | 2 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Wukong Extension | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Alchemical Shot | 4 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-| Dual-Handed Assault | 4 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Everstand Strike | 4 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Instructive Strike | 4 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Knock Sense | 4 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Mug | 4 | class | 2 actions | card | a Strike with nothing more the simulator reads |
@@ -4905,11 +4895,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Distracting Toss | 8 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Positioning Assault | 8 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Smoke Curtain | 8 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-| Snakebird's Shadow | 8 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sudden Leap | 8 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Momentum Strike | 10 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-| Mythic Strike | 10 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Rebounding Assault | 10 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Trick Shot | 10 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Fantastic Leap | 12 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Ricochet Shot | 12 | class | 1 action | card | a Strike with nothing more the simulator reads |
@@ -4925,13 +4912,9 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Bat Around | 16 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Dispelling Slice | 16 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Leaping Hedgehog Strike | 16 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-| Penetrating Projectile | 16 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sever Magic | 16 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Virulent Strike | 16 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Army of One | 18 | class | 3 actions | card | a Strike with nothing more the simulator reads |
-| Devastating Weaponry | 18 | class | 3 actions | card | a Strike with nothing more the simulator reads |
-| Final Shot | 18 | class | 3 actions | card | a Strike with nothing more the simulator reads |
-| Implement's Assault | 18 | class | 3 actions | card | a Strike with nothing more the simulator reads |
 | Throw and Catch | 18 | class | 3 actions | card | a Strike with nothing more the simulator reads |
 | Finish Their Story! | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sever Space | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
@@ -5208,7 +5191,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Improvise Strategy | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 | Seasoned Command | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 
-### an Effect with nothing a fight counts (58)
+### an Effect with nothing a fight counts (53)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5220,9 +5203,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Envenom Fangs | 5 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | Favorable Winds | 5 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | Fortify Shield | 5 | ancestry | 1 action | card | an Effect with nothing a fight counts |
-| Jotun's Battle Stance | 5 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | Stretching Reach | 5 | ancestry | 1 action | card | an Effect with nothing a fight counts |
-| Hone Claws | 9 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | Augment Senses | 13 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | In Lightning, Life | 4 | archetype | 1 action | card | an Effect with nothing a fight counts |
 | Inspiring Recitation | 4 | archetype | 1 action | card | an Effect with nothing a fight counts |
@@ -5237,10 +5218,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Grief's Fury | 10 | archetype | reaction | card | an Effect with nothing a fight counts |
 | Invoke Movement | 12 | archetype | 1 action | card | an Effect with nothing a fight counts |
 | Watch Your Back (Golden Legionnaire) | 14 | archetype | 1 action | card | an Effect with nothing a fight counts |
-| Duelist's Form | 16 | archetype | 1 action | card | an Effect with nothing a fight counts |
 | Geologic Attunement | 1 | class | 1 action | card | an Effect with nothing a fight counts |
 | Weapon Infusion | 1 | class | free | card | an Effect with nothing a fight counts |
-| Whispers of Weakness | 1 | class | 1 action | card | an Effect with nothing a fight counts |
 | After You | 2 | class | free | card | an Effect with nothing a fight counts |
 | Fane's Fourberie | 2 | class | 1 action | card | an Effect with nothing a fight counts |
 | Fortifying Knock | 2 | class | 1 action | card | an Effect with nothing a fight counts |
@@ -5264,7 +5243,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Dragon's Rage Wings | 12 | class | 1 action | card | an Effect with nothing a fight counts |
 | Blanket Defense | 14 | class | 3 actions | card | an Effect with nothing a fight counts |
 | Don Thy Fervor | 14 | class | 1 action | card | an Effect with nothing a fight counts |
-| Giant's Lunge | 14 | class | 1 action | card | an Effect with nothing a fight counts |
 | Invigorating Surge | 14 | class | 1 action | card | an Effect with nothing a fight counts |
 | Lord of the Fiends | 14 | class | 2 actions | card | an Effect with nothing a fight counts |
 | Whirling Blade Stance | 14 | class | 1 action | card | an Effect with nothing a fight counts |
