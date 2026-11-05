@@ -3,7 +3,7 @@
 import { createRng } from "./rng.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
-import { engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
+import { distanceBetween, engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { reaches as gridReach } from "./grid.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
 import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, finishRegenerating, spellStops, strikeStops, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
@@ -1152,9 +1152,10 @@ function actOn(state, c, action) {
                 state.log?.push(`  ${c.name} taunts ${target.name}`);
             }
             // Set-Up Strike: its hit leaves the target off-guard to an ally's next attack.
-            if (activity.setUp && result && result.degree >= SUCCESS && isActive(target)) setUp(state, c, target);
+            if (activity.setUp && result && result.degree >= SUCCESS && isActive(target)) setUp(state, c, target, activity.setUp === "aid" ? (result.degree === CRITICAL_SUCCESS ? 2 : 1) : 0);
             // (B139: Off-Guard or a guard on itself until its next turn starts.)
-            if (activity.selfAfter?.length && isActive(c)) {
+            // (2026-11-05, Everstand Strike: its Raise a Shield only if the Strike hits — selfAfterHit.)
+            if (activity.selfAfter?.length && isActive(c) && (!activity.selfAfterHit || (result?.degree ?? 0) >= SUCCESS)) {
                 multiStrikeAfter(state, c, { after: activity.selfAfter.filter((entry) => entry.slug) });
                 const guards = activity.selfAfter.filter((entry) => entry.ac);
                 if (guards.length) {
@@ -1220,7 +1221,8 @@ function actOn(state, c, action) {
                 const order = multiStrikeOrder(c, ability) ?? [];
                 const ranged = order.length > 0 && c.strikes[order[0]] && !c.strikes[order[0]].melee;
                 // (H1: a hydra's Strikes up to its heads now.)
-                const foes = (ranged ? state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone") : engagedEnemies(state, c)).filter((other) => !(ability.notGrabbed && other.grabbedBy === c.id)).slice(0, Math.min(ability.max ?? Infinity, c.hydra?.count ? c.hydra.heads : Infinity));
+                // (2026-11-05, Implement's Assault, Devastating Weaponry: each enemy within 30 feet, a melee weapon thrown at those out of reach.)
+                const foes = (ability.within ? state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone" && distanceBetween(c, other) <= ability.within) : ranged ? state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone") : engagedEnemies(state, c)).filter((other) => !(ability.notGrabbed && other.grabbedBy === c.id)).slice(0, Math.min(ability.max ?? Infinity, c.hydra?.count ? c.hydra.heads : Infinity));
                 for (const [step, foe] of foes.entries()) {
                     // (Three-Headed Strike, B74: a different Strike at each creature, in turn.)
                     const index = order[Math.min(step, order.length - 1)];

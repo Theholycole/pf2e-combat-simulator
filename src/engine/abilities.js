@@ -537,7 +537,7 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.hitCrits ? { hitCrits: true } : {}),
                 ...(plan.ignoreResistances ? { ignoreResistances: true } : {}),
                 // (Lead by Example: its hit sets up an ally's next attack, as Set-Up Strike's does — commander.js setUp.)
-                ...(plan.setUp ? { setUp: true } : {}),
+                ...(plan.setUp ? { setUp: plan.setUp === "aid" ? "aid" : true } : {}),
                 ...(plan.taunt ? { taunt: true } : {}),
                 ...(plan.rageFinish ? { rageFinish: true } : {}),
                 // A follow-up's Strike (B68): only straight after a Strike that fits; previousMap, at that Strike's penalty.
@@ -559,6 +559,7 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.targetTraits?.length ? { targetTraits: [...plan.targetTraits] } : {}),
                 // (B139: what it does to itself after the Strike — Punishing Strike's Off-Guard, Defensive Slam's +2 AC — until its next turn.)
                 ...(plan.selfAfter?.length ? { selfAfter: plan.selfAfter.map((entry) => ({ ...entry })) } : {}),
+                ...(plan.selfAfterHit ? { selfAfterHit: true } : {}),
                 // (B199, Uncanny Pounce: as it rolls initiative only.)
                 ...(plan.initiative ? { initiative: true } : {}),
                 // (2026-10-15: its traits — a concentrate one, Hunter's Aim, provokes what concentrate does.)

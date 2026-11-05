@@ -210,7 +210,8 @@ export function gripPenalty(c, strike) {
 // Off-guard to one attacker only (Feint, Create a Diversion): the target is
 // off-guard against that creature's attacks (melee ones, for Feint).
 export function offGuardTo(target, attacker, melee) {
-    return (target.offGuardTo ?? []).some((entry) => entry.attacker === attacker?.id && (entry.attacks !== "melee" || melee) && (entry.uses ?? 1) > 0);
+    // (2026-11-05: an entry with a bonus — Guiding Shot's, Assisting Shot's +1 to the next ally's roll — isn't off-guard; actions.js reads it.)
+    return (target.offGuardTo ?? []).some((entry) => entry.attacker === attacker?.id && !entry.bonus && (entry.attacks !== "melee" || melee) && (entry.uses ?? 1) > 0);
 }
 
 export function multipleAttackPenalty(strike, attacksMade) {

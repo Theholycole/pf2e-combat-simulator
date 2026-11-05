@@ -98,14 +98,15 @@ export function pincerAttack(state, commander) {
 }
 
 // Set-Up Strike's hit: off-guard to the next attack any of the commander's allies makes, until its next turn.
-export function setUp(state, commander, target) {
+// (2026-11-05: or, with a bonus — Guiding Shot, Assisting Shot —, that circumstance bonus to the next ally's roll instead.)
+export function setUp(state, commander, target, bonus = 0) {
     const group = `setup-${commander.id}-${state.round}`;
     for (const ally of state.list.filter((other) => other.side === commander.side && other !== commander)) {
-        const entry = { attacker: ally.id, attacks: "any", uses: 1, group };
+        const entry = { attacker: ally.id, attacks: "any", uses: 1, group, ...(bonus ? { bonus } : {}) };
         target.offGuardTo = [...(target.offGuardTo ?? []), entry];
         (target.timers ??= []).push({ offGuardTo: entry, round: state.round + 1, turnOf: commander.id, at: "start" });
     }
-    log(state, `  ${target.name} is off-guard to the next attack from ${commander.name}'s allies`);
+    log(state, bonus ? `  The next attack at ${target.name} from ${commander.name}'s allies gets +${bonus}` : `  ${target.name} is off-guard to the next attack from ${commander.name}'s allies`);
 }
 
 // Banner's Inspiration: allies in the aura who are frightened and haven't had it this fight.

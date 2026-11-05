@@ -535,7 +535,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (2026-11-05: a PC's reaction as a foe is about to attack — Harbinger's Caw's misfortune, its Effect then used by the roll below;
     // attacked: the one it attacks, for "A creature targets you with an attack" — Lucky Escape, Wood Ward's cover, before its AC is read.)
     if (!reaction) foeRollTriggers(state, attacker, "foe-attack", { attacked: target });
-    const ac = targetAC(state, attacker, target, strike, flanked || surprised || unseenAttacker);
+    // (2026-11-05, Guiding Shot, Assisting Shot: a circumstance bonus to this attacker's roll — as a lower AC to it.)
+    const aid = (target.offGuardTo ?? []).find((entry) => entry.attacker === attacker.id && entry.bonus && (entry.attacks !== "melee" || strike.melee) && entry.uses)?.bonus ?? 0;
+    const ac = targetAC(state, attacker, target, strike, flanked || surprised || unseenAttacker) - aid;
     // Off-guard to this attack: for Sneak Attack and backstabber.
     const offGuard = flanked || surprised || unseenAttacker || isOffGuard(target) || offGuardTo(target, attacker, strike.melee);
     // A one-attack feint or diversion is used up by this attack.

@@ -1479,7 +1479,8 @@ function expandMultiStrikes(env) {
             // (B120: Rampage's "is uncontrollable", Bladestorm's "holding six spirit blades": states the engine doesn't play.)
             // (B200, Power Through: not while Fatigued.)
             if (ability.requires && !(stanceRequirement(ability.requires) && stanceHeld(c, ability.requires)) && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0) && !(ability.requires === "raging" && isRaging(c)) && !(ability.requires === "not-fatigued" && !c.cond.fatigued)) continue;
-            const ranged = !c.strikes[order[0]].melee;
+            // (2026-11-05: within — each enemy within 30 feet — taken as a ranged volley's targets here; fight.js measures them.)
+            const ranged = !c.strikes[order[0]].melee || Boolean(ability.within);
             // Where it Strikes from: here, or (B109, Mauling Rush) the Melee of a creature one Stride away.
             const places = [{ pos: node.pos, first: null }];
             if (ability.strides && !ranged && mobile && !ctx.wavering) {
@@ -1707,7 +1708,7 @@ function expandStrikeActivities(env) {
             // (Focused Assault, B74: a failure deals the Strike's damage too.)
             const expected = best.expectation.damage + best.expectation.hitChance * rider.damage + (activity.failureDamage ? (best.expectation.failChance ?? 0) * (best.expectation.hitDamage ?? 0) : 0) + (activity.failureFlat ? (best.expectation.failChance ?? 0) * c.strikes[best.index].damage.filter((part) => !part.persistent && !part.precision).reduce((sum, part) => sum + (part.bonus ?? 0), 0) : 0);
             // Set-Up Strike: off-guard for an ally's next attack, about a tenth more of its damage.
-            const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * 0.12 / hp : 0;
+            const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * (activity.setUp === "aid" ? 0.06 : 0.12) / hp : 0;
             // (U7: a PC's item used by Striking weighed as a consumable.)
             const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + best.expectation.hitChance * rider.worth * ROUND_TO_KILL + setUpWorth) * consumableWeight(state, c, activity, [target]);
             // (2026-11-04: a forced feat's Strike whose rider the planner can't put a worth on — Kneecap's Speed penalty, no damage — still goes,

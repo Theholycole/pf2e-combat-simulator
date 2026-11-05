@@ -938,6 +938,9 @@ function focusSpellEntry(doc, level, host) {
 
 // (2026-11-03, the class feats no fight played: passives that change a class feature, read by hand where neither the feat module nor PF2e's
 // rules have anything — the builtins they put on the PC.)
+// (2026-11-05: a HAND Strike activity — the feat-abilities strike-activity plan, its rider on top.)
+const strikeRider = ({ onHit = {}, ...rest } = {}) => ({ builtin: "strike-activity", actions: 1, strides: 0, strike: null, ...rest, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null, ...onHit } });
+
 const HAND = {
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
@@ -1284,6 +1287,36 @@ const HAND = {
         const type = melee?.damage?.[0]?.type ?? "untyped";
         return melee ? { builtins: { multiStrikes: [{ name: "Dismounting Strike", actions: 2, strikes: [melee.name.toLowerCase()], strides: 1, countsAs: 2, extraDamage: [`${level >= 14 ? 2 : 1}d${die}[${type}]`], dismount: true }] }, played: "its mount's Stride, a leap off and a Strike with an extra weapon die (counts as two attacks)" } : null;
     },
+    // (2026-11-05, the Strike riders sweep — Strikes whose rider the feat module doesn't read.)
+    // (Twin Feint: two Strikes at one target, off-guard to the second — the PC's one weapon twice, its two weapons not checked.)
+    "twin-feint": () => ({ builtins: { multiStrikes: [{ name: "Twin Feint", actions: 2, strikes: [null, null], sameTarget: true, secondOffGuard: true }] }, played: "two Strikes at one foe, off-guard to the second" }),
+    // (A Strike at each enemy within 30 feet, at one multiple attack penalty — fight.js within.)
+    "implements-assault": () => ({ builtins: { multiStrikes: [{ name: "Implement's Assault", actions: 3, strikes: [null], each: true, within: 30, sameMap: true }] }, played: "a Strike at each enemy within 30 feet (3 actions)" }),
+    "devastating-weaponry": () => ({ builtins: { multiStrikes: [{ name: "Devastating Weaponry", actions: 3, strikes: [null], each: true, within: 30, sameMap: true }] }, played: "a Strike at each enemy within 30 feet (3 actions)" }),
+    // (A 30-foot line of ranged Strikes, raging: taken as two foes in it; Snakebird's Shadow's 15-foot line, two in its reach.)
+    "penetrating-projectile": () => ({ builtins: { multiStrikes: [{ name: "Penetrating Projectile", actions: 2, strikes: ["ranged"], each: true, max: 2, sameMap: true, flourish: true, requires: "raging" }] }, played: "a ranged Strike at up to two foes in a line, raging" }),
+    "snakebirds-shadow": () => ({ builtins: { multiStrikes: [{ name: "Snakebird's Shadow", actions: 2, strikes: [null], each: true, max: 2, sameMap: true, flourish: true }] }, played: "a Strike at up to two foes in a 15-foot line (its stance not checked)" }),
+    // (Rebounding Assault: a thrown Strike and a shot at one penalty, 1d6 precision more if both hit — the two Strikes' damage as rolled.)
+    "rebounding-assault": () => ({ builtins: { multiStrikes: [{ name: "Rebounding Assault", actions: 2, strikes: ["ranged", "ranged"], sameTarget: true, sameMap: true, bothHit: { conditions: [], damage: ["1d6[precision]"] } }] }, played: "two ranged Strikes at one penalty, +1d6 precision if both hit" }),
+    // (Strike activities.)
+    "everstand-strike": () => ({ requires: "You are wielding a shield", builtins: {}, plans: [strikeRider({ press: true, selfAfter: [{ ac: 2, type: "circumstance" }], selfAfterHit: true })], played: "a press Strike, its shield raised if it hits" }),
+    "combat-grab": () => ({ builtins: {}, plans: [strikeRider({ press: true, onHit: { conditions: [{ slug: "grabbed", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } }] } })], played: "a press Strike that grabs on a hit" }),
+    // (+1 to the next ally's attack at the target, +2 after a critical hit — commander.js setUp "aid".)
+    "guiding-shot": () => ({ builtins: {}, plans: [strikeRider({ range: "ranged", flourish: true, setUp: "aid" })], played: "a ranged Strike, +1 to the next ally's attack at its target" }),
+    "assisting-shot": () => ({ builtins: {}, plans: [strikeRider({ range: "ranged", press: true, setUp: "aid" })], played: "a ranged press Strike, +1 to the next ally's attack at its target" }),
+    // (Its weapon die a step bigger: about one more a die.)
+    "dual-handed-assault": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, damagePerWeaponDie: 1 })], played: "a Strike with its weapon die a step bigger" }),
+    "pivot-strike": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, damagePerWeaponDie: 2, afterStrike: "trip" })], played: "a Strike with twice its weapon dice in damage, then a Trip (its Leap and staff not checked)" }),
+    // (One-On-One's Feint taken as a success: the Strike at an off-guard foe, once a round.)
+    "one-on-one": () => ({ builtins: {}, plans: [strikeRider({ offGuard: true, oncePerTurn: true })], played: "a Feint and a Strike, taken as off-guard, once a round (the dueling sword not checked)" }),
+    // (After a missed melee Strike, another at the same penalty.)
+    "follow-up-strike": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, after: { on: ["failure", "criticalFailure"], melee: true }, previousMap: true })], played: "after a missed melee Strike, another at the same penalty" }),
+    // (A bomb's persistent damage on a shot; the bomb it uses, its type and the misfire on a failure aren't played.)
+    "alchemical-shot": (level) => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", onHit: { damage: [`${level >= 17 ? 3 : level >= 11 ? 2 : 1}d6[persistent,fire]`] } })], played: "a ranged Strike with a bomb's persistent damage (the bomb and the misfire not played)" }),
+    // (A hit is a critical hit; off-guard and stunned 1 after.)
+    "final-shot": () => ({ builtins: {}, plans: [strikeRider({ actions: 3, range: "ranged", hitCrits: true, selfAfter: [{ slug: "off-guard" }, { slug: "stunned", value: 1 }] })], played: "a ranged Strike whose hit is a critical hit, then off-guard and stunned 1 (3 actions)" }),
+    // (Mythic proficiency, +10: about +4 over a martial's own.)
+    "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),
     "legendary-rider": () => ({ builtins: { companionActions: { master: 3, companion: 2 } }, played: "quickened for its Command: its own three actions and its mount's two" }),
     "mounted-shield": () => ({ builtins: { mountedShield: true }, requires: "You are wielding a shield", played: "its raised shield's bonus to its mount's AC too" }),
     // (Rearing Display: its mount's Strike — one action of the mount's turn, the Command its rider spent —, a hit followed by a Demoralize
