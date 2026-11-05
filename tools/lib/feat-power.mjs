@@ -1426,6 +1426,14 @@ const HAND = {
     // (Fight or Flight: frightened by a foe in its reach — a melee Strike at it; the Stride away isn't played.)
     // (2026-11-05, Dodging Roll: resistance equal to its level against an area effect's damage with a Reflex save (its level plus Dexterity
     // when its Step leaves the area — not played); the Step isn't.)
+    // (2026-11-05, You're Next: downing a foe — a Demoralize at another, +2, as a reaction; spells.js downsAnswers.)
+    "youre-next": () => {
+        const demoralize = basicActions.demoralize;
+        if (!demoralize?.resolution?.check) return null;
+        const check = demoralize.resolution.check;
+        const plan = { ...structuredClone(demoralize), source: { ...demoralize.source, name: "You're Next" }, trigger: { reaction: true, event: "downs" }, resolution: { ...structuredClone(demoralize.resolution), check: { ...structuredClone(check), bonus: { value: (Number(check.bonus?.value) || 0) + 2, type: "circumstance" } } } };
+        return { builtins: {}, spells: [{ name: "You're Next", plan, castRank: 1, pool: null, kind: "basic" }], played: "downing a foe: a Demoralize at another, +2 (reaction)" };
+    },
     "dodging-roll": (level) => ({ builtins: { resistReaction: { name: "Dodging Roll", value: level, on: null, types: null, areaReflex: true } }, played: "resistance equal to its level against an area Reflex effect's damage (reaction)" }),
     "fight-or-flight": () => ({ builtins: { fightOrFlight: true }, played: "frightened by a foe in its reach: a melee Strike at it (reaction)" }),
     "mage-hunter": () => {

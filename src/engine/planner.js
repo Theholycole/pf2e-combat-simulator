@@ -1320,6 +1320,8 @@ function expandSpells(env) {
         const rider = spell.plan?.trigger?.event === "strike" || Boolean(spell.plan?.trigger?.followUp);
         const riderTarget = rider && (c.riderReady?.index === index || c.riderReady?.also?.includes(index)) && node.used === 0 ? state.byId.get(c.riderReady.targetId) : null;
         if (rider && !(riderTarget && isActive(riderTarget))) continue;
+        // (2026-11-05, You're Next: a reaction to downing a foe — not an action of its own turn.)
+        if (spell.plan?.trigger?.reaction && spell.plan.trigger.event === "downs") continue;
         // Its requirement an enemy nearby in a state (B83, Feed on Fear: "An enemy is under a fear effect or Dying within
         // 15 feet"): frightened, or down and dying.
         // (B133: a requirement it can't check, Bushwhack's unseen creature: not planned.)
