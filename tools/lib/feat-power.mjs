@@ -1765,7 +1765,8 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
 }
 
 const FORCE = process.env.FEAT_FORCE !== "0";
-const FORCED_FIELDS = ["strikeActivities", "multiStrikes", "selfEffects", "selfBuffs", "charges", "skillSweeps"];
+// (2026-11-05: reactionStrikes too — actions.js puts a forced one ahead of Reactive Strike on a move or manipulate trigger.)
+const FORCED_FIELDS = ["strikeActivities", "multiStrikes", "selfEffects", "selfBuffs", "charges", "skillSweeps", "reactionStrikes"];
 
 // Loadouts for a feat's requirement the party's own weapons don't meet: the PC's main weapon changed for others of the same runes.
 // (A ranged main weapon — a ranger's bow — made a melee one: no range, reload or ammunition.)

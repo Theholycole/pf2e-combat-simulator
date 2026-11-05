@@ -2051,7 +2051,11 @@ export function provoke(state, mover, kind, among = null) {
         if (!canAct(mover)) break;
         // (B302–B303: a reaction kept for Reactive Strikes, or another it has, counts — spent on its own reaction first.)
         if (!canReact(enemy, "*") || enemy.cond.fleeing) continue;
-        if (enemy.reactions?.aoo && !own) {
+        // (2026-11-05, forced-use ratings: the rated feat's own reaction Strike ahead of Reactive Strike — a fighter's Hunting Snag rated
+        // 0.00, never used.)
+        const fits = (entry) => entry.triggers.includes(kind) || (kind === "move" && entry.triggers.includes("leave"));
+        const forcedFirst = (enemy.reactionStrikes ?? []).some((entry) => entry.featForced && fits(entry) && canReact(enemy, entry.name));
+        if (enemy.reactions?.aoo && !own && !forcedFirst) {
             const strike = bestMeleeStrike(enemy, mover);
             if (!strike || !canReact(enemy, "Reactive Strike")) continue;
             spendReaction(enemy, "Reactive Strike");
@@ -2064,7 +2068,7 @@ export function provoke(state, mover, kind, among = null) {
             continue;
         }
         // (B123: "attempts to move away", "leaves a square within its reach": a move out of its Melee.)
-        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes(kind) || (kind === "move" && entry.triggers.includes("leave")));
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => fits(entry) && (!forcedFirst || entry.featForced));
         const result = reaction ? reactionStrikeAt(state, enemy, mover, reaction, kind) : null;
         // (B96: "If the attack is a critical hit …, it disrupts that action": a critical hit only.)
         if (disruptedBy(state, reaction, result, mover)) disrupted = true;
