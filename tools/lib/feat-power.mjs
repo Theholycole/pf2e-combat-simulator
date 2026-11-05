@@ -1429,6 +1429,10 @@ const HAND = {
     // (2026-11-05, You're Next: downing a foe — a Demoralize at another, +2, as a reaction; spells.js downsAnswers.)
     // (2026-11-05, Savage Critical: a 19 that hits is a critical hit with its legendary weapons — the fighter's Strikes. Piercing Critical:
     // the same with a firearm or crossbow — the gunslinger's ranged Strikes.)
+    // (2026-11-05, Deliberate Death: dropping to dying from a foe in its reach — a melee Strike at it first, once a fight.)
+    // (Cornered Fury: a larger foe that critically hits it is off-guard to it for a round.)
+    "cornered-fury": () => ({ builtins: { corneredFury: "small" }, played: "a larger foe that critically hits it (a Small ratfolk: a Medium foe) is off-guard to it for a round" }),
+    "deliberate-death": () => ({ builtins: { deathStrike: { name: "Deliberate Death", strike: null, pc: true } }, played: "a melee Strike at the foe that drops it (reaction, once)" }),
     "diamond-fists": (level) => ({ builtins: { diamondFists: level }, played: "its unarmed attacks forceful and deadly d10" }),
     "savage-critical": () => ({ builtins: { savageCritical: true }, played: "a natural 19 that hits is a critical hit" }),
     "piercing-critical": () => ({ builtins: { savageCritical: "ranged" }, played: "a natural 19 that hits with its gun is a critical hit" }),

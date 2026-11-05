@@ -999,6 +999,11 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         const name = String(strike.name ?? "").toLowerCase();
         triggeredSelfEffect(state, attacker, (trigger) => (trigger.kind === "deals-bleed" && bleeds) || (trigger.kind === "own-hit" && (name === trigger.strike || name.startsWith(trigger.strike))));
     }
+    // (2026-11-05, Cornered Fury: a larger foe's critical hit that hurts it leaves that foe off-guard to it for a round.)
+    if (target.corneredFury && degree === CRITICAL_SUCCESS && dealt > 0 && isActive(target) && isActive(attacker) && sizeRank(attacker.size) > (typeof target.corneredFury === "string" ? sizeRank(target.corneredFury) : sizeRank(target.size))) {
+        applyCondition(state, attacker, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" }, target, { attacker: target.id, attacks: "any", uses: null });
+        log(state, `  ${attacker.name} is off-guard to ${target.name} (Cornered Fury)`);
+    }
     // Defensive Quills, Searing Heat: the monster's passive answers a melee hit on it (B43).
     const dealtTypes = dealt > 0 ? instances.map((instance) => instance.type) : [];
     if (isActive(attacker)) hitByAnswers(state, target, attacker, strike, degree, dealtTypes);
@@ -2000,8 +2005,10 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         return;
     }
     // Death Frenzy: a last Strike as it drops.
-    if (target.deathStrike && target.kind !== "pc" && canReact(target, target.deathStrike.name)) {
-        const foe = (source && source.side !== target.side && isActive(source) && sameMelee(source, target) ? source : null) ?? engagedEnemies(state, target)[0] ?? null;
+    // (2026-11-05, Deliberate Death: a PC's, once — only at the creature that downed it, in its reach.)
+    if (target.deathStrike && (target.kind !== "pc" || (target.deathStrike.pc && !target.deathStrikeUsed)) && canReact(target, target.deathStrike.name)) {
+        const foe = (source && source.side !== target.side && isActive(source) && sameMelee(source, target) ? source : null) ?? (target.deathStrike.pc ? null : engagedEnemies(state, target)[0] ?? null);
+        if (foe && target.deathStrike.pc) target.deathStrikeUsed = true;
         const named = strikeNamed(target, target.deathStrike.strike);
         const strike = named >= 0 ? target.strikes[named] : foe ? bestMeleeStrike(target, foe) : null;
         if (foe && strike) {
