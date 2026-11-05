@@ -1671,6 +1671,20 @@ function alliesAreaHeal(plan) {
 // (2026-11-05: "you" as the target of a plan whose every effect is a condition only good for its holder — Heat Wave's and Storm Shroud's
 // concealed — the caster itself, as "self". Before, no target the engine reads: never played. Not other conditions on "you": the module
 // reads Inner Strength's lowered enfeebled, Statue's ended off-guard and the like as the condition itself.)
+// (2026-11-05, the one-off feats: a requirement that is a state of the PC the simulator doesn't track — "Your waking world is active", "You
+// are overflowing", "Your swarm is outside your body", "You are riding your mount" — taken as met, so the feat rates as it is when it can be
+// used; its row says so. Not one about the last action, a target, a creature or what's in reach: those the planner checks or they're
+// unread. FEAT_ASSUME_STATE=0 turns it off.)
+const ASSUMABLE = /^(?:Your|You're|You are|You have)\b/i;
+const NOT_ASSUMABLE = /\b(?:last|previous|most recent) action\b|\btarget\b|\bcreature\b|\benemy\b|\bfoe\b|\bally\b|\badjacent\b|\breach\b|\bwithin \d+ feet\b|\bdoomed\b|\bfatigued\b|\bwounded\b|\bdying\b|\bunconscious\b|\bHit Points\b|\bthis turn\b|\bthis round\b/i;
+function assumeState(text, assumed) {
+    if (process.env.FEAT_ASSUME_STATE === "0") return null;
+    const said = String(text ?? "").replace(/@UUID\[[^\]]*?Item\.([^\]]+)\](?:\{([^}]*)\})?/g, (_all, name, label) => label ?? name).trim();
+    if (!ASSUMABLE.test(said) || NOT_ASSUMABLE.test(said)) return null;
+    assumed.push(said.replace(/\.$/, ""));
+    return true;
+}
+
 function youAsSelf(plan) {
     if (!/^you$/i.test(String(plan?.targeting?.target ?? "")) || plan.targeting.area) return plan;
     const effects = Object.values(plan.resolution?.outcomes ?? {}).flatMap((row) => row?.effects ?? []);
@@ -1723,9 +1737,11 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // Quickening Banner's check — had set them aside, and the feat rated nothing.)
     const attemptWith = (wields, useModule) => {
         const builtins = {};
+        const assumed = [];
         let entries = useModule
-            ? featEntries(plan, featInfo(doc, level), builtins, { ...helpersAt(level), meets: (text) => meetsWielding(text, wields) })
+            ? featEntries(plan, featInfo(doc, level), builtins, { ...helpersAt(level), meets: (text) => meetsWielding(text, wields) ?? assumeState(text, assumed) })
             : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: the feat module's plan set aside` } };
+        if (assumed.length && entries && !entries.gap && entries.played) entries = { ...entries, played: `${entries.played} (requirement assumed: ${assumed[0]})` };
         // (An impulse's save at its class DC.)
         if (impulse && !entries.gap) {
             const dc = dcsOf(host).class ?? 10 + level + 2;
