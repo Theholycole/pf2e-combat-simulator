@@ -1251,6 +1251,16 @@ const HAND = {
     "ferocious-charge": (level) => ({ builtins: { companionFields: { multiStrikes: [{ name: "Ferocious Charge", actions: 2, strikes: ["jaws"], strides: 2, extraDamage: [`${level >= 16 ? 2 : 1}d8[untyped]`] }] } }, played: "its companion's Ferocious Charge (two Strides and a Strike, +1d8)" }),
     "running-kick": () => ({ builtins: { companionFields: { multiStrikes: [{ name: "Running Kick", actions: 2, strikes: ["claw"], strides: 2 }] } }, played: "its companion's Running Kick (two Strides and a Strike)" }),
     "natures-precision": (level) => ({ builtins: { companionFields: { strikeExtras: [{ when: "off-guard", dice: level >= 16 ? 2 : 1, die: 4, precision: true, type: null, agileOrFinesse: true, source: "Nature's Precision" }] } }, played: "its companion's agile Strikes +1d4 precision against an off-guard foe" }),
+    // (Its own Strike and its companion's — fight.js companionStrike —: Pack Movement's Stride first; Tandem Strike out of the actions the
+    // summoner and its eidolon share, two of three — the summoner's turn two actions, the eidolon's one.)
+    "pack-movement": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Pack Movement", actions: 2, strikes: [melee.name.toLowerCase()], strides: 1, flourish: true, companionStrike: true }] }, played: "a Stride and a Strike, its companion's Strike beside it" } : null;
+    },
+    "tandem-strike": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Tandem Strike", actions: 2, strikes: [melee.name.toLowerCase()], companionStrike: true }], companionActions: { master: 2, companion: 1 } }, played: "its Strike and its eidolon's (two of their three actions)" } : null;
+    },
     "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
@@ -1802,7 +1812,7 @@ function youAsSelf(plan) {
 
 // (2026-11-05) The feats that give or grow a companion (HAND's animalCompanion), the text of one that needs it, the stage a PC has by its level.
 const HAND_COMPANION = new Set(Object.entries(HAND).filter(([, read]) => read.toString().includes("animalCompanion")).map(([slug]) => slug));
-const HAND_ON_COMPANION = new Set(Object.entries(HAND).filter(([, read]) => /companionFields|companionActions|tandem/.test(read.toString())).map(([slug]) => slug));
+const HAND_ON_COMPANION = new Set(Object.entries(HAND).filter(([, read]) => /companionFields|companionActions|companionStrike|tandem/.test(read.toString())).map(([slug]) => slug));
 const COMPANION_TEXT = /\byour (?:animal )?companion(?:'s|s)?\b|\byour (?:mount|steed)\b/i;
 const featText = (doc) => `${doc.system?.prerequisites?.value?.map((each) => each.value).join(" ") ?? ""} ${String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ")}`;
 const companionStageAt = (level) => (level >= 16 ? "specialized" : level >= 10 ? "incredible" : level >= 6 ? "mature" : "young");

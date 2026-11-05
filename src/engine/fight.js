@@ -4,6 +4,7 @@ import { createRng } from "./rng.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
 import { engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
+import { reaches as gridReach } from "./grid.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
 import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, finishRegenerating, spellStops, strikeStops, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { featTriggers } from "./triggers.js";
@@ -1292,6 +1293,16 @@ function actOn(state, c, action) {
             if (ability.bothHit && struck && (ability.bothHit.atLeast ? hits >= ability.bothHit.atLeast : made >= 2 && hits === made)) bothHitRider(state, c, struck, rider, ability.bothHit.atLeast ? { said: `${hits} Strike${hits === 1 ? "" : "s"} hit` } : {});
             // (B152, Haunting Assault: "…, then Demoralizes that creature" — its basic action after the Strikes.)
             if (ability.then && made > 0 && target && isActive(target)) bothHitRider(state, c, target, { follow: ability.then }, { said: null });
+            // (2026-11-05, Pack Movement, Tandem Strike: its companion or eidolon beside the same foe Strikes it too — companionStrike.)
+            if (ability.companionStrike && target && isActive(target)) {
+                const partner = state.list.find((other) => (other.companionOf === c.id || other.sharesHpWith === c.id) && isActive(other) && canAct(other));
+                const beside = partner && (state.grid && partner.square && target.square ? gridReach(partner, target) : sameMelee(partner, target));
+                const strike = beside ? (partner.strikes ?? []).find((each) => each.melee) : null;
+                if (strike) {
+                    state.log?.push(`  ${partner.name} Strikes with it (${ability.name})`);
+                    performStrike(state, partner, target, strike);
+                }
+            }
             multiStrikeAfter(state, c, ability);
             break;
         }
