@@ -978,6 +978,7 @@ function spareIndex(c, name) {
 
 // Spends a reaction on it (name: the reaction): one kept for it first, else its reaction.
 export function spendReaction(c, name = null) {
+    if (c.quickVengeance && (name === "Shield Block" || name === c.interceptAttack?.name)) c.vengeful = true;
     const index = name ? spareIndex(c, name) : -1;
     if (index >= 0) (c.spareUsed ??= {})[index] = (c.spareUsed[index] ?? 0) + 1;
     else c.reactionUsed = true;

@@ -495,8 +495,15 @@ function startTurn(state, c) {
     c.turnAttacks = [];
     // (2026-11-03, Paragon's Guard, Buckler Dance: a stance that keeps its shield raised.)
     if (c.shield) c.shield.raised = Boolean(!c.shield.broken && (c.effects ?? []).some((effect) => effect.model?.shieldUp));
+    // (2026-11-05, Quick Vengeance: after its Intercept Attack or Shield Block, one more action this turn — a Stride or Strike, the engine's
+    // quickened's own limit.)
+    const vengeance = Boolean(c.vengeful) && !c.cond.quickened;
+    if (c.vengeful) {
+        c.vengeful = false;
+        state.log?.push(`  ${c.name} is quickened (Quick Vengeance)`);
+    }
     // A complex hazard: its routine's actions.
-    let actions = isHazard(c) ? (c.hazard?.routineActions ?? 1) : 3 + (c.cond.quickened ? 1 : 0);
+    let actions = isHazard(c) ? (c.hazard?.routineActions ?? 1) : 3 + (c.cond.quickened || vengeance ? 1 : 0);
     // (A summoner and its eidolon: three actions between them and Act Together's one more — two each, classes.js.)
     if (c.actionsPerTurn) actions = Math.min(actions, c.actionsPerTurn + (c.cond.quickened ? 1 : 0));
     if (c.cond.stunned > 0) {
