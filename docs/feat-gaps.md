@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1890 in whole fights. **4476 it doesn't.**
-- **3066** are in neither.
+- **The simulator** rates 1896 in whole fights. **4470 it doesn't.**
+- **3063** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1540 | 931 |
+| class | 2282 | 1088 | 1534 | 928 |
 | archetype | 2074 | 1246 | 1425 | 981 |
 | ancestry | 1613 | 1086 | 1142 | 855 |
 | skill | 340 | 261 | 324 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4476 | 3066 |
+| **All** | 6366 | 3725 | 4470 | 3063 |
 
 ## Why the feat module doesn't automate them
 
@@ -46,12 +46,12 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: only grants other feats, features or choices | 87 | 123 | 47 | 16 | 2 |  |  | 275 |
 | a spell the engine doesn't cast | 56 | 57 | 108 | 1 |  | 1 |  | 223 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 52 | 51 | 46 | 21 | 1 |  |  | 171 |
-| no card: a combat passive no reader or hand plan covers yet | 55 | 59 | 29 | 13 | 2 |  | 1 | 159 |
+| no card: a combat passive no reader or hand plan covers yet | 53 | 59 | 29 | 13 | 2 |  | 1 | 157 |
 | a timer with no rules a fight counts | 56 | 28 | 17 | 4 |  | 1 |  | 106 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | a Strike with nothing more the simulator reads | 49 | 34 | 2 |  |  | 1 |  | 86 |
-| no card: a combat action no reader or hand plan covers yet | 29 | 28 | 14 | 4 | 1 |  |  | 76 |
-| a plan the engine can't play | 32 | 22 | 15 | 1 |  |  |  | 70 |
+| no card: a combat action no reader or hand plan covers yet | 28 | 28 | 14 | 4 | 1 |  |  | 75 |
+| a plan the engine can't play | 30 | 22 | 15 | 1 |  |  |  | 68 |
 | no card: companions, familiars and eidolons | 35 | 25 | 1 | 5 |  |  |  | 66 |
 | its requirement | 18 | 35 | 7 |  |  |  |  | 60 |
 | a teleport | 22 | 16 | 21 |  |  |  |  | 59 |
@@ -61,8 +61,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: PF2e's own Effect, from the feat's Use button | 18 | 17 | 7 | 2 |  |  |  | 44 |
 | a passive's roll with no action to use it | 13 | 14 | 9 |  |  |  | 1 | 37 |
 | it grants one of 2 | 6 | 15 | 12 |  |  |  |  | 33 |
-| its text has no Strike of its user's | 14 | 9 | 1 |  |  |  |  | 24 |
 | a spell the feat casts | 14 | 5 | 5 |  |  |  |  | 24 |
+| its text has no Strike of its user's | 13 | 9 | 1 |  |  |  |  | 23 |
 | a reaction to "passive" | 12 | 7 | 4 |  |  |  |  | 23 |
 | a passive's Effect on other creatures | 10 | 7 | 1 | 3 | 1 |  |  | 22 |
 | a passive's Effect posted by hand | 7 | 11 | 3 | 1 |  |  |  | 22 |
@@ -3525,8 +3525,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Blowgun Poisoner | 1 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Martial Performance | 1 | class | passive | rated 0.03 |
 | Raging Thrower | 1 | class | passive | no card: a combat passive no reader or hand plan covers yet |
-| The Hallowed Dead | 1 | class | passive | no card: a combat passive no reader or hand plan covers yet |
-| The Unholy Dead | 1 | class | passive | no card: a combat passive no reader or hand plan covers yet |
+| The Hallowed Dead | 1 | class | passive | rated 0.04 |
+| The Unholy Dead | 1 | class | passive | rated 0.04 |
 | Antagonize | 2 | class | passive | rated -0.07 |
 | Binds That Tie | 2 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Certain Stratagem | 2 | class | passive | rated 0 |
@@ -3955,7 +3955,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Swipe Souvenir | 8 | class | 2 actions | no card: a combat action no reader or hand plan covers yet |
 | Unbelievable Interception | 8 | class | reaction | no card: a combat action no reader or hand plan covers yet |
 | Chain Infusion | 10 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
-| Desperate Surge | 10 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
+| Desperate Surge | 10 | class | 1 action | rated 0.04 |
 | Dream Guise | 10 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
 | Impose Order (Psychic) | 10 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
 | Shield of Reckoning | 10 | class | reaction | rated -0.05 |
@@ -4890,7 +4890,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Finish Their Story! | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sever Space | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 
-### a plan the engine can't play (70)
+### a plan the engine can't play (68)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4938,10 +4938,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Inspiring Resilience | 4 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Song of Glorious Invocation | 4 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
 | Align Qi | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Bone Burst | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Disarming Intercept | 6 | class | free | card | a plan the engine can't play (its targeting or what it does) |
 | Inner Strength | 6 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Reclaim Power | 6 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
 | Shield Wall | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Shove Down | 6 | class | free | card | a plan the engine can't play (its targeting or what it does) |
 | Volcanic Escape | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
@@ -5247,35 +5245,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Mega Bomb | 20 | class | passive | card | a passive's roll with no action to use it |
 | Deathless Servant | 18 | class feature | passive | card | a passive's roll with no action to use it |
 
-### its text has no Strike of its user's (24)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Leech-Clip | 1 | ancestry | 2 actions | card | its text has no Strike of its user's |
-| Powder Punch Stance | 2 | archetype | 1 action | card | its text has no Strike of its user's |
-| Antler Rush | 6 | archetype | 2 actions | card | its text has no Strike of its user's |
-| Targeted Redirection | 6 | archetype | 1 action | card | its text has no Strike of its user's |
-| Cornered Animal | 8 | archetype | 2 actions | card | its text has no Strike of its user's |
-| Springboard | 10 | archetype | 1 action | card | its text has no Strike of its user's |
-| Staggering Blow | 10 | archetype | 2 actions | card | its text has no Strike of its user's |
-| Death Dive | 12 | archetype | 3 actions | card | its text has no Strike of its user's |
-| Bombing Run | 14 | archetype | 2 actions | card | its text has no Strike of its user's |
-| Zombie Horde | 20 | archetype | 3 actions | card | its text has no Strike of its user's |
-| Brandishing Draw | 2 | class | 1 action | card | its text has no Strike of its user's |
-| Flying Kick | 4 | class | 2 actions | card | its text has no Strike of its user's |
-| Retaliating Rescue | 6 | class | 2 actions | card | its text has no Strike of its user's |
-| Stella's Stab and Snag | 6 | class | 2 actions | card | its text has no Strike of its user's |
-| Spell Swipe | 8 | class | 3 actions | card | its text has no Strike of its user's |
-| Steed's Toppling Strike | 12 | class | 1 action | card | its text has no Strike of its user's |
-| Second Sight | 14 | class | 1 action | card | its text has no Strike of its user's |
-| Triggerbrand Blitz | 14 | class | 3 actions | card | its text has no Strike of its user's |
-| Anatomical Quartering | 16 | class | 3 actions | card | its text has no Strike of its user's |
-| Multishot Stance | 16 | class | 1 action | card | its text has no Strike of its user's |
-| Rouse the Forest's Fury | 18 | class | 3 actions | card | its text has no Strike of its user's |
-| Illimitable Finisher | 20 | class | 1 action | card | its text has no Strike of its user's |
-| Time Dilation Cascade | 20 | class | 3 actions | card | its text has no Strike of its user's |
-| Whirlwind Spell | 20 | class | 3 actions | card | its text has no Strike of its user's |
-
 ### a spell the feat casts (24)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5304,6 +5273,34 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Too Much to Swallow | 16 | class | reaction | card | a spell the feat casts |
 | Head of the Night Parade | 20 | class | 3 actions | card | a spell the feat casts |
 | Quaking Stomp | 20 | class | 1 action | card | a spell the feat casts |
+
+### its text has no Strike of its user's (23)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Leech-Clip | 1 | ancestry | 2 actions | card | its text has no Strike of its user's |
+| Powder Punch Stance | 2 | archetype | 1 action | card | its text has no Strike of its user's |
+| Antler Rush | 6 | archetype | 2 actions | card | its text has no Strike of its user's |
+| Targeted Redirection | 6 | archetype | 1 action | card | its text has no Strike of its user's |
+| Cornered Animal | 8 | archetype | 2 actions | card | its text has no Strike of its user's |
+| Springboard | 10 | archetype | 1 action | card | its text has no Strike of its user's |
+| Staggering Blow | 10 | archetype | 2 actions | card | its text has no Strike of its user's |
+| Death Dive | 12 | archetype | 3 actions | card | its text has no Strike of its user's |
+| Bombing Run | 14 | archetype | 2 actions | card | its text has no Strike of its user's |
+| Zombie Horde | 20 | archetype | 3 actions | card | its text has no Strike of its user's |
+| Brandishing Draw | 2 | class | 1 action | card | its text has no Strike of its user's |
+| Flying Kick | 4 | class | 2 actions | card | its text has no Strike of its user's |
+| Retaliating Rescue | 6 | class | 2 actions | card | its text has no Strike of its user's |
+| Stella's Stab and Snag | 6 | class | 2 actions | card | its text has no Strike of its user's |
+| Spell Swipe | 8 | class | 3 actions | card | its text has no Strike of its user's |
+| Steed's Toppling Strike | 12 | class | 1 action | card | its text has no Strike of its user's |
+| Second Sight | 14 | class | 1 action | card | its text has no Strike of its user's |
+| Triggerbrand Blitz | 14 | class | 3 actions | card | its text has no Strike of its user's |
+| Multishot Stance | 16 | class | 1 action | card | its text has no Strike of its user's |
+| Rouse the Forest's Fury | 18 | class | 3 actions | card | its text has no Strike of its user's |
+| Illimitable Finisher | 20 | class | 1 action | card | its text has no Strike of its user's |
+| Time Dilation Cascade | 20 | class | 3 actions | card | its text has no Strike of its user's |
+| Whirlwind Spell | 20 | class | 3 actions | card | its text has no Strike of its user's |
 
 ### a reaction to "passive" (23)
 
