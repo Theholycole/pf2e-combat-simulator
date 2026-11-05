@@ -1506,6 +1506,7 @@ const HAND = {
     // Strikes at different foes at one multiple attack penalty; Reclaim Power's healing, two thralls' worth (its level each) on itself,
     // once a fight, a thrall spent — its conditions not played.)
     "the-unholy-dead": (level) => ({ builtins: { unholyDead: level >= 10 ? 2 : 1 }, played: `+${level >= 10 ? 2 : 1} spirit damage on its thralls' Strikes` }),
+    "the-hallowed-dead": (level) => ({ builtins: { unholyDead: level >= 10 ? 2 : 1 }, played: `+${level >= 10 ? 2 : 1} spirit damage on its thralls' Strikes` }),
     "anatomical-quartering": () => ({ builtins: { multiStrikes: [{ name: "Anatomical Quartering", actions: 3, strikes: [null], each: true, max: 4, sameMap: true }] }, played: "a Strike at each of up to four foes at one multiple attack penalty (3 actions)" }),
     "reclaim-power": (level, host, doc) => {
         const read = inlineHealEntry({ ...doc, system: { ...doc.system, description: { value: `<p>You regain @Damage[${2 * level}[healing]] Hit Points.</p>` } } }, level);
