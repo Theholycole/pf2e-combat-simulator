@@ -52,7 +52,7 @@ export function npcOf(ref) {
 
 // The party's spells: PF2e's by name, compiled once; only those the simulation casts.
 const plans = new Map();
-function spell(name, castRank) {
+export function spell(name, castRank) {
     if (!plans.has(name)) {
         const doc = spellNamed(name);
         let plan = null;

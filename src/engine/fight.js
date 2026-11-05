@@ -1870,6 +1870,8 @@ function summarize(state) {
             dead: c.status === DEAD,
             hp: Math.max(0, c.hp.value),
             // (A deviation as the fight left it, for the day's next fight — deviant.js.)
+            // (Its spell and focus pools as the fight left them, for a day's next fight — tools/lib/e7-power.mjs dayFights.)
+            ...(c.spellPools ? { spellPools: { ...c.spellPools } } : {}),
             ...(c.deviation ? { deviation: { dc: c.deviation.dc, stage: c.deviation.stage, spent: c.deviation.spent, lasting: [...(c.deviation.lasting ?? [])] } } : {})
         })),
         foes: state.list.filter((c) => c.side === "foes").map((c) => ({
