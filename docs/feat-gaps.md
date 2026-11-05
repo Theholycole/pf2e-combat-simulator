@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1695 in whole fights. **4671 it doesn't.**
-- **3124** are in neither.
+- **The simulator** rates 1698 in whole fights. **4668 it doesn't.**
+- **3123** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1663 | 969 |
+| class | 2282 | 1088 | 1661 | 968 |
 | archetype | 2074 | 1246 | 1480 | 997 |
-| ancestry | 1613 | 1086 | 1155 | 858 |
+| ancestry | 1613 | 1086 | 1154 | 858 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4671 | 3124 |
+| **All** | 6366 | 3725 | 4668 | 3123 |
 
 ## Why the feat module doesn't automate them
 
@@ -45,8 +45,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: out of combat (exploration, downtime, skills) | 91 | 81 | 39 | 111 | 2 |  |  | 324 |
 | no card: only grants other feats, features or choices | 87 | 127 | 47 | 16 | 2 |  |  | 279 |
 | a spell the engine doesn't cast | 59 | 57 | 108 | 1 |  | 1 |  | 226 |
-| no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 77 | 70 | 47 | 21 | 1 |  |  | 216 |
-| no card: a combat passive no reader or hand plan covers yet | 63 | 59 | 31 | 13 | 2 |  | 1 | 169 |
+| no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 76 | 70 | 46 | 21 | 1 |  |  | 214 |
+| no card: a combat passive no reader or hand plan covers yet | 62 | 59 | 31 | 13 | 2 |  | 1 | 168 |
 | a timer with no rules a fight counts | 59 | 28 | 17 | 4 |  | 1 |  | 109 |
 | a Strike with nothing more the simulator reads | 64 | 37 | 2 |  |  | 1 |  | 104 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
@@ -3532,7 +3532,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | The Unholy Dead | 1 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Antagonize | 2 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Binds That Tie | 2 | class | passive | no card: a combat passive no reader or hand plan covers yet |
-| Certain Stratagem | 2 | class | passive | no card: a combat passive no reader or hand plan covers yet |
+| Certain Stratagem | 2 | class | passive | rated 0 |
 | Clotting Elixirs | 2 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Dancing Leaf | 2 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Pernicious Poison | 2 | class | passive | no card: a combat passive no reader or hand plan covers yet |
@@ -4535,7 +4535,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Foil Senses | 7 | skill | passive | reminder | the feat module reads nothing for it |
 | Temperature Adjustment | 7 | skill | passive | reminder | the feat module reads nothing for it |
 
-### no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play (216)
+### no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play (214)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4581,7 +4581,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Terrain Advantage | 9 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Water Dancer | 9 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Attuned Electroreceptors | 13 | ancestry | passive | by hand | the feat module reads nothing for it |
-| Black Cat Curse | 13 | ancestry | reaction | by hand | the feat module reads nothing for it |
 | Cobble Dancer | 13 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Crush Their Spirits | 13 | ancestry | passive | by hand | the feat module reads nothing for it |
 | Elucidation | 13 | ancestry | free | by hand | the feat module reads nothing for it |
@@ -4681,7 +4680,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Vibration Sense | 4 | class | passive | by hand | the feat module reads nothing for it |
 | Agile Maneuvers | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Chiardmar Steed | 6 | class | passive | by hand | the feat module reads nothing for it |
-| Correct the Story | 6 | class | reaction | by hand | the feat module reads nothing for it |
 | Knowledge is Power | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Light Step | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Mature Animal Companion (Ranger) | 6 | class | passive | by hand | the feat module reads nothing for it |
