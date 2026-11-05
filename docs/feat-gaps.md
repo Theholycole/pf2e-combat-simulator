@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1768 in whole fights. **4598 it doesn't.**
-- **3099** are in neither.
+- **The simulator** rates 1772 in whole fights. **4594 it doesn't.**
+- **3098** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
 | class | 2282 | 1088 | 1628 | 957 |
-| archetype | 2074 | 1246 | 1444 | 985 |
+| archetype | 2074 | 1246 | 1440 | 984 |
 | ancestry | 1613 | 1086 | 1153 | 857 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4598 | 3099 |
+| **All** | 6366 | 3725 | 4594 | 3098 |
 
 ## Why the feat module doesn't automate them
 
@@ -41,7 +41,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 292 | 216 | 321 | 59 | 15 | 4 |  | 907 |
 | no card: roleplay or nothing to automate | 158 | 202 | 153 | 46 | 9 |  |  | 568 |
-| no card: the feat module's reminder, which a fight doesn't play | 205 | 134 | 101 | 22 | 1 | 1 |  | 464 |
+| no card: the feat module's reminder, which a fight doesn't play | 205 | 133 | 101 | 22 | 1 | 1 |  | 463 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 81 | 39 | 111 | 2 |  |  | 324 |
 | no card: only grants other feats, features or choices | 87 | 123 | 47 | 16 | 2 |  |  | 275 |
 | a spell the engine doesn't cast | 58 | 57 | 108 | 1 |  | 1 |  | 225 |
@@ -52,8 +52,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | no card: a combat action no reader or hand plan covers yet | 30 | 28 | 14 | 4 | 1 |  |  | 77 |
 | a plan the engine can't play | 32 | 25 | 15 | 1 |  |  |  | 73 |
-| no card: companions, familiars and eidolons | 35 | 28 | 1 | 5 |  |  |  | 69 |
-| its requirement | 20 | 36 | 7 |  |  |  |  | 63 |
+| no card: companions, familiars and eidolons | 35 | 27 | 1 | 5 |  |  |  | 68 |
+| its requirement | 20 | 35 | 7 |  |  |  |  | 62 |
 | a teleport | 22 | 16 | 21 |  |  |  |  | 59 |
 | a roll whose results the simulator doesn't read | 26 | 18 | 6 | 8 |  |  |  | 58 |
 | an Effect with nothing a fight counts | 31 | 14 | 12 | 1 |  |  |  | 58 |
@@ -61,7 +61,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: PF2e's own Effect, from the feat's Use button | 19 | 17 | 7 | 2 |  |  |  | 45 |
 | a passive's roll with no action to use it | 19 | 14 | 11 |  |  |  | 1 | 45 |
 | it grants one of 2 | 6 | 15 | 12 |  |  |  |  | 33 |
-| its text has no Strike of its user's | 16 | 10 | 1 |  |  |  |  | 27 |
+| its text has no Strike of its user's | 16 | 9 | 1 |  |  |  |  | 26 |
 | a reaction to "passive" | 14 | 7 | 4 |  |  |  |  | 25 |
 | a spell the feat casts | 14 | 5 | 5 |  |  |  |  | 24 |
 | a passive's Effect on other creatures | 11 | 7 | 1 | 3 | 1 |  |  | 23 |
@@ -2650,13 +2650,13 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Blessed One Dedication | 2 | archetype | passive | rated -0.06 |
 | Campfire Chronicler Dedication | 2 | archetype | passive | rated -0.07 |
 | Cathartic Mage Dedication | 2 | archetype | passive | rated -0.26 |
-| Cavalier Dedication | 2 | archetype | passive | rated 0.16 |
+| Cavalier Dedication | 2 | archetype | passive | rated 0.17 |
 | Celebrity Dedication | 2 | archetype | passive | it grants Upstage |
 | Clawdancer Dedication | 2 | archetype | passive | rated -0.31 |
 | Clockwork Reanimator Dedication | 2 | archetype | passive | no card: only grants other feats, features or choices |
 | Demolitionist Dedication | 2 | archetype | passive | it grants Set Explosives |
 | Draconic Acolyte Dedication | 2 | archetype | passive | it grants one of 3 |
-| Drake Rider Dedication | 2 | archetype | passive | rated 0.16 |
+| Drake Rider Dedication | 2 | archetype | passive | rated 0.17 |
 | Dual-Weapon Warrior Dedication | 2 | archetype | passive | rated -0.02 |
 | Duelist Dedication | 2 | archetype | passive | it grants Quick Draw |
 | Edgewatch Detective Dedication | 2 | archetype | passive | it grants Experienced Tracker |
@@ -2752,7 +2752,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Ice Crafter | 4 | archetype | passive | it grants Magical Crafting |
 | Investigator's Stratagem | 4 | archetype | passive | it grants Devise a Stratagem |
 | Jalmeri Heavenseeker Dedication | 4 | archetype | passive | rated 0.01 |
-| Mammoth Lord Dedication | 4 | archetype | passive | rated 0.07 |
+| Mammoth Lord Dedication | 4 | archetype | passive | rated 0.17 |
 | Mental Forge | 4 | archetype | passive | no card: only grants other feats, features or choices |
 | Minor Deific Power | 4 | archetype | passive | no card: only grants other feats, features or choices |
 | Perfect Weaponry | 4 | archetype | passive | it grants Monastic Weaponry |
@@ -3835,15 +3835,15 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Their Master's Call | 12 | archetype | 1 action | no card: companions, familiars and eidolons |
 | A Miracle of Science! | 14 | archetype | passive | rated 0.2 |
 | Signature Synergy | 14 | archetype | passive | no card: companions, familiars and eidolons |
-| Specialized Mount | 14 | archetype | passive | rated 0.2 |
+| Specialized Mount | 14 | archetype | passive | rated 0.15 |
 | Specialized Spirit Companion | 14 | archetype | passive | rated 0.2 |
 | Gallop Across Shadow | 16 | archetype | passive | no card: companions, familiars and eidolons |
-| Legendary Rider | 20 | archetype | passive | no card: companions, familiars and eidolons |
+| Legendary Rider | 20 | archetype | passive | rated 0.14 |
 | Animal Companion | 1 | class | passive | rated 0.16 |
-| Commander's Companion | 1 | class | passive | rated 0.23 |
+| Commander's Companion | 1 | class | passive | rated 0.19 |
 | Energy Heart | 1 | class | passive | no card: companions, familiars and eidolons |
 | Extend Boost | 1 | class | passive | a spell the engine doesn't cast |
-| Faithful Steed | 1 | class | passive | rated 0.27 |
+| Faithful Steed | 1 | class | passive | rated 0.35 |
 | Heal Companion | 1 | class | passive | rated -0.02 |
 | Meld into Eidolon | 1 | class | 3 actions | no card: companions, familiars and eidolons |
 | No! No! I Created You! | 1 | class | reaction | no card: companions, familiars and eidolons |
@@ -3869,7 +3869,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Blood Frenzy | 6 | class | passive | no card: companions, familiars and eidolons |
 | Eidolon's Wrath | 6 | class | passive | rated 0 |
 | Grown of Oak | 6 | class | passive | rated 0 |
-| Loyal Warhorse | 6 | class | passive | rated 0.13 |
+| Loyal Warhorse | 6 | class | passive | rated 0.15 |
 | Nidarrmar Steed | 6 | class | passive | no card: companions, familiars and eidolons |
 | Energy Resistance | 8 | class | passive | no card: companions, familiars and eidolons |
 | Enlarge Companion | 8 | class | passive | rated 0 |
@@ -3877,7 +3877,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Miniaturize | 8 | class | passive | no card: companions, familiars and eidolons |
 | Spirit Familiar (Witch) | 8 | class | passive | no card: companions, familiars and eidolons |
 | Stitched Familiar | 8 | class | passive | no card: companions, familiars and eidolons |
-| Imposing Destrier | 10 | class | passive | rated 0.2 |
+| Imposing Destrier | 10 | class | passive | rated 0 |
 | Protective Bond | 10 | class | reaction | no card: companions, familiars and eidolons |
 | Transpose | 10 | class | 1 action | no card: companions, familiars and eidolons |
 | Green Tongue | 12 | class | passive | no card: companions, familiars and eidolons |
@@ -4064,7 +4064,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (464)
+### no card: the feat module's reminder, which a fight doesn't play (463)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4197,7 +4197,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Feeding Frenzy | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Hey! Over Here! | 6 | archetype | reaction | card | the feat module reads nothing for it |
 | Inexorable | 6 | archetype | passive | reminder | the feat module reads nothing for it |
-| Mounted Shield | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Multifaceted Will | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Obscured Terrain | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Palatine Enchantment | 6 | archetype | passive | reminder | the feat module reads nothing for it |
@@ -5015,7 +5014,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Ringmaster's Introduction | 20 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Kip Up | 7 | skill | free | card | a plan the engine can't play (its targeting or what it does) |
 
-### its requirement (63)
+### its requirement (62)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5043,7 +5042,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Unbalancing Appearance | 6 | archetype | 1 action | card | its requirement (A creature within your reach is Off-Guard to you, and you are Unnoticed by that creature.) |
 | Unfettering Strike | 6 | archetype | 1 action | card | its requirement (A creature within your reach has an ally Grabbed or Restrained.) |
 | Death from Above | 8 | archetype | 2 actions | card | its requirement (You are standing, climbing, or balancing on a surface at least 10 feet above your target) |
-| Dismounting Strike | 8 | archetype | 1 action | card | its requirement (You are mounted on your horse, and your last action was to Command an Animal to order your ho |
 | Guardian's Embrace | 8 | archetype | 1 action | card | its requirement (You are adjacent to your spirit guide or it is sharing your space) |
 | Piercing Doom | 8 | archetype | 2 actions | card | its requirement (You are Doomed 2 or greater.) |
 | Pressure Change | 8 | archetype | 1 action | card | its requirement (You have a swim Speed, are underwater, and have a creature Grabbed or Restrained) |
@@ -5323,13 +5321,12 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Mega Bomb | 20 | class | passive | card | a passive's roll with no action to use it |
 | Deathless Servant | 18 | class feature | passive | card | a passive's roll with no action to use it |
 
-### its text has no Strike of its user's (27)
+### its text has no Strike of its user's (26)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
 | Leech-Clip | 1 | ancestry | 2 actions | card | its text has no Strike of its user's |
 | Powder Punch Stance | 2 | archetype | 1 action | card | its text has no Strike of its user's |
-| Cavalier's Charge | 4 | archetype | 2 actions | card | its text has no Strike of its user's |
 | Antler Rush | 6 | archetype | 2 actions | card | its text has no Strike of its user's |
 | Targeted Redirection | 6 | archetype | 1 action | card | its text has no Strike of its user's |
 | Cornered Animal | 8 | archetype | 2 actions | card | its text has no Strike of its user's |
