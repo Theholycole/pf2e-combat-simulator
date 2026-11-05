@@ -3,8 +3,8 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1854 in whole fights. **4512 it doesn't.**
-- **3082** are in neither.
+- **The simulator** rates 1858 in whole fights. **4508 it doesn't.**
+- **3080** are in neither.
 
 ## Summary by category
 
@@ -12,12 +12,12 @@ Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats 
 |---|---:|---:|---:|---:|
 | class | 2282 | 1088 | 1572 | 945 |
 | archetype | 2074 | 1246 | 1425 | 981 |
-| ancestry | 1613 | 1086 | 1146 | 857 |
+| ancestry | 1613 | 1086 | 1142 | 855 |
 | skill | 340 | 261 | 324 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4512 | 3082 |
+| **All** | 6366 | 3725 | 4508 | 3080 |
 
 ## Why the feat module doesn't automate them
 
@@ -46,7 +46,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: only grants other feats, features or choices | 87 | 123 | 47 | 16 | 2 |  |  | 275 |
 | a spell the engine doesn't cast | 56 | 57 | 108 | 1 |  | 1 |  | 223 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 57 | 51 | 46 | 21 | 1 |  |  | 176 |
-| no card: a combat passive no reader or hand plan covers yet | 58 | 59 | 31 | 13 | 2 |  | 1 | 164 |
+| no card: a combat passive no reader or hand plan covers yet | 58 | 59 | 29 | 13 | 2 |  | 1 | 162 |
 | a timer with no rules a fight counts | 59 | 28 | 17 | 4 |  | 1 |  | 109 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | a Strike with nothing more the simulator reads | 50 | 34 | 2 |  |  | 1 |  | 87 |
@@ -57,9 +57,9 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a teleport | 22 | 16 | 21 |  |  |  |  | 59 |
 | it grants Additional Lore | 1 | 11 | 39 | 1 |  |  |  | 52 |
 | a roll whose results the simulator doesn't read | 26 | 14 | 5 | 7 |  |  |  | 52 |
-| an Effect with nothing a fight counts | 28 | 13 | 8 | 1 |  |  |  | 50 |
+| an Effect with nothing a fight counts | 28 | 13 | 7 | 1 |  |  |  | 49 |
 | no card: PF2e's own Effect, from the feat's Use button | 19 | 17 | 7 | 2 |  |  |  | 45 |
-| a passive's roll with no action to use it | 13 | 14 | 10 |  |  |  | 1 | 38 |
+| a passive's roll with no action to use it | 13 | 14 | 9 |  |  |  | 1 | 37 |
 | it grants one of 2 | 6 | 15 | 12 |  |  |  |  | 33 |
 | its text has no Strike of its user's | 15 | 9 | 1 |  |  |  |  | 25 |
 | a spell the feat casts | 14 | 5 | 5 |  |  |  |  | 24 |
@@ -3431,7 +3431,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Internal Cohesion | 1 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Internal Compartment | 1 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Koi Secrets | 1 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
-| Remorseless Lash | 1 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
+| Remorseless Lash | 1 | ancestry | passive | rated 0 |
 | Wash Out | 1 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Defiance Unto Death | 5 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Defy the Darkness | 5 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
@@ -3452,7 +3452,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Ragdya's Dance | 9 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Swift Application | 9 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Explosive Expert | 13 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
-| Improved Elemental Bulwark | 13 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
+| Improved Elemental Bulwark | 13 | ancestry | passive | rated 0 |
 | Steadfast Ally | 13 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Stronger Debilitating Venom | 13 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
 | Flock as One | 17 | ancestry | passive | no card: a combat passive no reader or hand plan covers yet |
@@ -5167,7 +5167,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Improvise Strategy | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 | Seasoned Command | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 
-### an Effect with nothing a fight counts (50)
+### an Effect with nothing a fight counts (49)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5175,7 +5175,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Inventive Offensive | 1 | ancestry | 3 actions | card | an Effect with nothing a fight counts |
 | Nanite Surge | 1 | ancestry | reaction | card | an Effect with nothing a fight counts |
 | Watchful Gaze | 1 | ancestry | 1 action | card | an Effect with nothing a fight counts |
-| Elemental Bulwark | 5 | ancestry | reaction | card | an Effect with nothing a fight counts |
 | Favorable Winds | 5 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | Fortify Shield | 5 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | Augment Senses | 13 | ancestry | 1 action | card | an Effect with nothing a fight counts |
@@ -5222,7 +5221,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Resounding Finale | 16 | class | reaction | card | an Effect with nothing a fight counts |
 | Emergency Medical Assistance | 12 | skill | 2 actions | card | an Effect with nothing a fight counts |
 
-### a passive's roll with no action to use it (38)
+### a passive's roll with no action to use it (37)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5231,7 +5230,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Restoring Blood | 5 | ancestry | passive | card | a passive's roll with no action to use it |
 | Nodal Healing | 9 | ancestry | passive | card | a passive's roll with no action to use it |
 | Replenishing Hydration | 9 | ancestry | passive | card | a passive's roll with no action to use it |
-| Sea Swarmer | 9 | ancestry | passive | card | a passive's roll with no action to use it |
 | Solar Rejuvenation | 9 | ancestry | passive | card | a passive's roll with no action to use it |
 | Vivacious Conduit | 9 | ancestry | passive | card | a passive's roll with no action to use it |
 | Slay Giants Unseen | 13 | ancestry | passive | card | a passive's roll with no action to use it |
