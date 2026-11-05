@@ -1180,6 +1180,23 @@ const HAND = {
         return gun ? { builtins: { strikeExtras: [{ when: "critical", firearm: true, dice: 1, die: gun.fatal, noDouble: true, type: null, source: "Fatal Bullet" }] }, played: `one more d${gun.fatal} on a firearm's critical hit (always on)` } : null;
     },
 };
+// (2026-11-05, Cole: "keep working on the real gaps we have": a failed save rerolled — the feat module's reroll, a gap in a fight — read
+// from the feat's Trigger and Effect: "You fail a saving throw against a mental effect" / "You fail, but don't critically fail, a Will save"
+// with a reroll in its effect, as the hand readings' save-reroll (once a fight; a free action's free; the better kept unless it says to
+// use the new result).)
+function saveRerollEntry(doc, builtins) {
+    if (!["reaction", "free"].includes(doc.system?.actionType?.value)) return null;
+    const text = String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/@\w+\[[^\]]*\](?:\{([^}]*)\})?/g, (all, label) => label ?? "").replace(/\s+/g, " ");
+    const said = (/\bTrigger\s+(.+?)(?:\.|$)/i.exec(text)?.[1] ?? "").split(/\s(?:Effect|Frequency|Requirements?)\s/)[0].trim();
+    const fail = /^You fail(?:, but don't critically fail,| or critically fail)? (?:an? )?(?:skill check or )?(Fortitude|Reflex|Will)?(?: or (?:Fortitude|Reflex|Will))?\s*(?:saving throw|save)(?: during a combat)?(?: against (?:an? )?(?:(\w+) effect|(spell)|condition or adverse effect.*))?$/i.exec(said);
+    if (!fail || !/\breroll\b/i.test(text)) return null;
+    const save = fail[1] && !/ or (?:Fortitude|Reflex|Will)/i.test(said) ? fail[1].toLowerCase() : null;
+    const against = fail[3] ? "spell" : fail[2] && !/^(?:magical)$/i.test(fail[2]) ? fail[2].toLowerCase() : null;
+    const keepNew = /\bmust use the (?:second|new) result\b|\buse the (?:second|new) result\b/i.test(text);
+    addBuiltin(builtins, { builtin: "save-reroll", save, ...(against ? { against } : {}), ...(keepNew ? { keep: "new" } : {}), ...(doc.system.actionType.value === "free" ? { free: true } : {}) }, doc.name);
+    return { spells: [], pools: {}, gap: null, played: `a failed ${save ? `${fail[1]} ` : ""}save${against ? ` against ${against === "spell" ? "a spell" : `a ${against} effect`}` : ""} rerolled` };
+}
+
 function handEntry(doc, level, builtins, wields, host = null) {
     const read = HAND[slugOf(doc)]?.(level, host);
     if (!read) return null;
@@ -1604,7 +1621,7 @@ function featByName(name) {
 // (2026-11-05: a feat's Trigger line, as src/engine/triggers.js plays it — { on, melee?, unarmed?, whileDown? } —, or null.)
 export function featTriggerOf(doc) {
     const text = String(doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/@\w+\[[^\]]*\](?:\{([^}]*)\})?/g, (all, label) => label ?? "").replace(/\s+/g, " ");
-    const said = /\bTrigger\s+(.+?)(?:\.|$)/i.exec(text)?.[1] ?? "";
+    const said = (/\bTrigger\s+(.+?)(?:\.|$)/i.exec(text)?.[1] ?? "").split(/\s(?:Effect|Frequency|Requirements?)\s/)[0].trim();
     const whileDown = /\beven while\b/i.test(text);
     if (/^Your turn begins$/i.test(said)) return { on: "turn-start" };
     if (/^(?:A|An) (?:creature(?: or object)?|enemy|foe)(?: adjacent to you| you are aware of| within \d+ feet)? damages you\b/i.test(said)) return { on: "damaged", ...(/adjacent|melee|unarmed|reach/i.test(said) ? { melee: true } : {}) };
@@ -1735,6 +1752,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = rageSaveEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = handEntry(doc, level, builtins, wields, { ...host, strikes: wields.strikes ?? host.strikes }) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = saveRerollEntry(doc, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = zeroHpEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = passiveRulesEntry(doc, level, builtins) ?? entries;
         // (A requirement on what the PC wields the plan doesn't carry — Dueling Dance's "a single one-handed melee weapon and nothing else in
