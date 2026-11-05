@@ -1577,6 +1577,13 @@ export function applyDamage(state, target, instances, { source = null, critical 
             if (shield.hp <= shield.bt) shield.broken = true;
             spendReaction(warden, "Shield Block");
             log(state, `  ${warden.name} Shield Blocks for ${target.name} (Shield Warden, ${blocked} prevented${shield.broken ? ", shield broken" : ""})`);
+            // (2026-11-05, Shield of Grace: the rest split evenly between the ally and itself.)
+            if (warden.shieldOfGrace && total > 1) {
+                const share = Math.floor(total / 2);
+                total -= share;
+                const took = dealDamage(state, warden, share, { source, critical, nonlethal });
+                log(state, `  ${warden.name} takes ${took} of it (Shield of Grace)`);
+            }
         }
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance, source);
