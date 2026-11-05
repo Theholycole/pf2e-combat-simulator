@@ -245,7 +245,7 @@ export function featEntries(plan, info, builtins, helpers = {}) {
                 resolution: { kind: "effect", check: null, sharedDamage: null, applications: [{ kind: "native-spell-effect", uuid }] },
                 nativeEffects: { onUse: [{ kind: "native-spell-effect", uuid, recipient: { actor: "target" } }] }
             };
-            result.spells.push({ ...abilityEntry(name, allyPlan, { pool, actionType, helpers: {}, rechargeGroup: name }), effects: { [uuid]: model } });
+            result.spells.push({ ...abilityEntry(name, allyPlan, { pool, actionType, helpers: {}, rechargeGroup: name }), effects: { [uuid]: model }, oncePerTurn: true });
             usePool();
             return { ...result, played: "an Effect on an ally" };
         }

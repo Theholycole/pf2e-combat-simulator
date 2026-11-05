@@ -3287,6 +3287,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // without the flat check.)
     if (castImmunityKey(spell) && !spell.fromZone) (caster.castImmune ??= new Set()).add(castImmunityKey(spell));
     if ((spell.plan?.resolution?.gmNotes ?? []).some((text) => FINDS_HIDDEN.test(String(text)))) caster.fortuneFinds = true;
+    // (2026-11-05: a feat's buff on one ally — Devoted Guardian's ward —: once a turn, entry.oncePerTurn; the planner checks it.)
+    if (spell.oncePerTurn) (caster.usedThisTurn ??= new Set()).add(`once:${spell.name}`);
     // (A hex Cast: one a turn; its caster's familiar answers it — familiars.js.)
     if (isHex(spell) && !spell.fromZone) {
         (caster.usedThisTurn ??= new Set()).add("hex");
@@ -4202,6 +4204,7 @@ export function canCast(c, spell) {
     if (c.spellLocks?.length && spellLocked(c, spell)) return false;
     // (A witch's hexes: one a turn.)
     if (c.usedThisTurn?.has("hex") && isHex(spell)) return false;
+    if (spell.oncePerTurn && c.usedThisTurn?.has(`once:${spell.name}`)) return false;
     // (S59, Sure Strike: "can't cast it again for 10 minutes" — once a fight.)
     if (c.castImmune?.size && c.castImmune.has(castImmunityKey(spell))) return false;
     return poolReady(c, spell);
