@@ -1370,6 +1370,9 @@ const HAND = {
     // (Antagonize: its Demoralize's frightened stays at least 1 until the foe attacks it.)
     // (The fencer swashbuckler never Demoralizes on its own — its Demoralize given again, forced.)
     // (Communal Healing: a single-target heal spell heals the most hurt other ally by its rank too.)
+    // (2026-11-05, Repel Assault: resistance equal to its level against a foe's attack dealing at least that much, three times a fight (its
+    // Mythic Points); an adjacent ally's attack and the mythic Strike after aren't played.)
+    "repel-assault": (level) => ({ builtins: { resistReaction: { name: "Repel Assault", value: level, attack: true, foe: true, on: null, types: null, minDamage: level }, resistUses: 3 }, played: "resistance equal to its level against a big hit, 3 a fight" }),
     "communal-healing": () => ({ builtins: { communalHealing: true }, played: "each single-target heal heals the most hurt other ally by its rank" }),
     antagonize: () => ({ builtins: { antagonize: true }, spells: basicActions.demoralize ? [{ name: "Demoralize", plan: structuredClone(basicActions.demoralize), castRank: 1, pool: null, kind: "basic" }] : [], played: "Demoralize (forced); frightened from it stays at 1 or more until the foe attacks it" }),
     "goading-feint": () => ({ builtins: { goadingFeint: true }, played: "every Feint goads (–2 to the foe's next attack on the PC, all of them on a critical success) instead of off-guard" }),

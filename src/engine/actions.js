@@ -1688,6 +1688,8 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     const value = resist.value === "rank" ? spell.rank : resist.value;
     const sets = (instance) => !instance.persistent && instance.amount > 0 && (!resist.on || resist.on.includes(instance.type) || (resist.on.includes("physical") && PHYSICAL_TYPES.has(instance.type)));
     if (adjustDamage(target, instances.filter(sets)).total <= 0) return null;
+    // (2026-11-05, Repel Assault: only an attack that would deal at least its level.)
+    if (resist.minDamage && adjustDamage(target, instances).total < resist.minDamage) return null;
     // (2026-11-03, Defensive Roll: only an attack that would drop it to 0 Hit Points.)
     if (resist.lethal && adjustDamage(target, instances).total < target.hp.value + (target.hp.temp ?? 0)) return null;
     if (!resist.free) spendReaction(target, resist.name);
