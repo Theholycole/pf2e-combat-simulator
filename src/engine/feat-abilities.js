@@ -236,9 +236,25 @@ export function featEntries(plan, info, builtins, helpers = {}) {
         if (plan.who === "target") {
             const model = helpers.rulesModel?.(plan.effect) ?? null;
             if (!model || !worthSomething(model)) return gap("its Effect has nothing a fight counts");
-            if ((model.weaknesses ?? []).length || (model.modifiers ?? []).some((modifier) => Number(modifier.value) < 0)) return gap("an Effect on another creature (a foe's penalty)");
             const uuid = `feat-effect:${name}`;
             const time = actionType === "free" || actionType === "reaction" ? actionType : String(actionCount(null, info) || 1);
+            // (A foe's penalty or weakness — Marked for Rebuke, Shadow Spell, Edifying Trace —: on a foe within 30 feet, as an automatic
+            // check's Effect, as the module's hand cards for conditions are.)
+            const hurts = (model.weaknesses ?? []).length || (model.modifiers ?? []).some((modifier) => Number(modifier.value) < 0);
+            const helps = (model.resistances ?? []).length || model.tempHp || model.fastHealing || (model.modifiers ?? []).some((modifier) => Number(modifier.value) > 0);
+            // (Both — Pack of the Beast Lord's companion swarm, resistance and a weakness —: not played.)
+            if (hurts && helps) return gap("an Effect on another creature (both a help and a hindrance)");
+            if (hurts) {
+                const none = () => ({ damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] });
+                const foePlan = {
+                    source: plan.source ?? { name }, traits, activation: { time, traits: [] }, trigger: { event: "use" },
+                    targeting: { target: "1 creature", range: "30 feet", area: null },
+                    resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: none(), success: { ...none(), nativeEffects: [{ kind: "native-spell-effect", uuid }] }, failure: none(), criticalFailure: none() } }
+                };
+                result.spells.push({ ...abilityEntry(name, foePlan, { pool, actionType, helpers: {}, rechargeGroup: name }), effects: { [uuid]: model }, oncePerTurn: true });
+                usePool();
+                return { ...result, played: "an Effect on a foe" };
+            }
             const allyPlan = {
                 source: plan.source ?? { name }, traits, activation: { time, traits: [] }, trigger: { event: "use" },
                 targeting: { target: "1 creature", range: "30 feet", area: null },
