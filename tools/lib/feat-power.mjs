@@ -1502,6 +1502,25 @@ const HAND = {
     // here for Not So Fast!'s Strike at a foe leaving its reach (its Speed penalty and a critical hit's disruption not played).)
     "hampering-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: {} }], played: "a stance (its difficult terrain not played)" }),
     "not-so-fast": () => ({ builtins: { reactionStrikes: [{ name: "Not So Fast!", triggers: ["leave"], strike: null, penalty: 0, disrupts: false, melee: true, requiresEffect: "Hampering Stance", featForced: true }] }, played: "a Strike at a foe leaving its reach, in Hampering Stance (reaction)" }),
+    // (Necromancer, its thralls a count — thralls.js: The Unholy Dead's spirit damage on thrall Strikes; Anatomical Quartering's four
+    // Strikes at different foes at one multiple attack penalty; Reclaim Power's healing, two thralls' worth (its level each) on itself,
+    // once a fight, a thrall spent — its conditions not played.)
+    "the-unholy-dead": (level) => ({ builtins: { unholyDead: level >= 10 ? 2 : 1 }, played: `+${level >= 10 ? 2 : 1} spirit damage on its thralls' Strikes` }),
+    "anatomical-quartering": () => ({ builtins: { multiStrikes: [{ name: "Anatomical Quartering", actions: 3, strikes: [null], each: true, max: 4, sameMap: true }] }, played: "a Strike at each of up to four foes at one multiple attack penalty (3 actions)" }),
+    "reclaim-power": (level, host, doc) => {
+        const read = inlineHealEntry({ ...doc, system: { ...doc.system, description: { value: `<p>You regain @Damage[${2 * level}[healing]] Hit Points.</p>` } } }, level);
+        if (!read?.spells?.length) return null;
+        const pool = `feat:${doc._id}`;
+        const entry = { ...read.spells[0], pool, plan: { ...read.spells[0].plan, targeting: { ...read.spells[0].plan.targeting, target: "self", range: null, thrall: { destroyed: true } } } };
+        return { builtins: {}, spells: [entry], pools: { [pool]: 1 }, played: `regains ${2 * level} HP (two thralls destroyed, once a fight)` };
+    },
+    // (Desperate Surge: a Trip at its spell attack modifier instead of Athletics, once a fight — its Athletics taken as its spell attack, as
+    // nothing else of the necromancer's rolls it; the other maneuvers not played.)
+    "desperate-surge": (level, host, doc) => {
+        const attack = (dcsOf(host).spell ?? 10 + level + 2 + 4) - 10;
+        const pool = `feat:${doc._id}`;
+        return basicActions.trip ? { builtins: { skills: { athletics: attack } }, spells: [{ name: "Desperate Surge", plan: { ...structuredClone(basicActions.trip), source: { ...basicActions.trip.source, name: "Desperate Surge" } }, castRank: 1, pool, kind: "basic", featForced: true }], pools: { [pool]: 1 }, played: `a Trip at its spell attack (+${attack}), once a fight` } : null;
+    },
     "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),
     // (Reach 10 feet: Giant's Lunge while raging, for the rage; Jotun's Battle Stance, its two-handed weapon not checked.)
     "giants-lunge": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, requires: "raging", model: { rounds: 10, reach: 10 } }], played: "reach 10 feet while raging (1 action)" }),
@@ -2349,6 +2368,11 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     if (pc.touchRiders?.length) pc.spells = (pc.spells ?? []).map((entry) => (entry.plan?.source?.slug === "lay-on-hands" ? { ...entry, featForced: true } : entry));
     // (Burning and Resounding Cascade: its Arcane Cascade entered whenever it can be — the rider's use; 0.1 a fight before.)
     if (pc.burningCascade || pc.resoundingCascade) pc.selfEffects = (pc.selfEffects ?? []).map((entry) => (entry.name === "Arcane Cascade" ? { ...entry, featForced: true } : entry));
+    if (pc.unholyDead) {
+        const extra = pc.unholyDead;
+        delete pc.unholyDead;
+        pc.strikes = (pc.strikes ?? []).map((strike) => (strike.thrall ? { ...strike, damage: [...strike.damage, { dice: 0, die: 0, bonus: extra, type: "spirit" }] } : strike));
+    }
     // (2026-11-05, Unstable Concoction: its bombs' initial damage dice a step bigger.)
     if (pc.unstableConcoction) {
         delete pc.unstableConcoction;
