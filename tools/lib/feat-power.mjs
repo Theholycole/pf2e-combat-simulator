@@ -1431,6 +1431,13 @@ const HAND = {
     // the same with a firearm or crossbow — the gunslinger's ranged Strikes.)
     // (2026-11-05, Deliberate Death: dropping to dying from a foe in its reach — a melee Strike at it first, once a fight.)
     // (Cornered Fury: a larger foe that critically hits it is off-guard to it for a round.)
+    // (2026-11-05, Sea Swarmer: a foe in its reach and two allies' off-guard to it. Remorseless Lash: a melee weapon hit keeps a frightened
+    // foe at frightened 1 until its next turn. Elemental Bulwark: resistance 5 (10, Improved) against a foe's cold, electricity or fire, a
+    // reaction — the spell traits not read.)
+    "sea-swarmer": () => ({ builtins: { seaSwarmer: true }, played: "a foe in its reach and two allies' reach is off-guard to it" }),
+    "remorseless-lash": () => ({ builtins: { remorselessLash: true }, played: "a melee weapon hit keeps a frightened foe at frightened 1 until its next turn" }),
+    "elemental-bulwark": () => ({ builtins: { resistReaction: { name: "Elemental Bulwark", value: 5, on: ["cold", "electricity", "fire"], types: ["triggering"], foe: true } }, played: "resistance 5 against a foe's cold, electricity or fire (reaction)" }),
+    "improved-elemental-bulwark": () => ({ builtins: { resistReaction: { name: "Elemental Bulwark", value: 10, on: ["cold", "electricity", "fire"], types: ["triggering"], foe: true } }, played: "Elemental Bulwark's resistance 10 (with it)" }),
     "cornered-fury": () => ({ builtins: { corneredFury: "small" }, played: "a larger foe that critically hits it (a Small ratfolk: a Medium foe) is off-guard to it for a round" }),
     "deliberate-death": () => ({ builtins: { deathStrike: { name: "Deliberate Death", strike: null, pc: true } }, played: "a melee Strike at the foe that drops it (reaction, once)" }),
     "diamond-fists": (level) => ({ builtins: { diamondFists: level }, played: "its unarmed attacks forceful and deadly d10" }),

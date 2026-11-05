@@ -116,7 +116,8 @@ function berserkPenalty(state, c) {
 
 export function targetAC(state, attacker, target, strike, flanked) {
     // Feinted or diverted: off-guard to this attacker alone.
-    const feinted = !isOffGuard(target) && offGuardTo(target, attacker, strike.melee);
+    // (2026-11-05, Sea Swarmer: a foe in its reach and two allies' is off-guard to it.)
+    const feinted = !isOffGuard(target) && (offGuardTo(target, attacker, strike.melee) || (attacker.seaSwarmer && strike.melee && state.list.filter((other) => other !== attacker && other.side === attacker.side && isActive(other) && sameMelee(other, target)).length >= 2));
     // The Outwit hunter's edge: +1 AC against the prey.
     const outwit = target.huntPrey?.edge === "outwit" && target.prey === attacker.id ? 1 : 0;
     // (T4: attached — the pickled punk's +2 while not held itself; the bee borer's target off-guard to it too.)
@@ -998,6 +999,10 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         const bleeds = instances.some((instance) => instance.type === "bleed" && instance.amount > 0);
         const name = String(strike.name ?? "").toLowerCase();
         triggeredSelfEffect(state, attacker, (trigger) => (trigger.kind === "deals-bleed" && bleeds) || (trigger.kind === "own-hit" && (name === trigger.strike || name.startsWith(trigger.strike))));
+    }
+    // (2026-11-05, Remorseless Lash: a melee weapon hit on a frightened foe — its frightened stays at 1 or more until the attacker's next turn.)
+    if (attacker.remorselessLash && degree >= SUCCESS && strike.melee && !strike.unarmed && (target.cond.frightened ?? 0) > 0 && isActive(target)) {
+        target.condFloors = [...(target.condFloors ?? []).filter((held) => !(held.by === attacker.id && held.spell === "Remorseless Lash")), { slug: "frightened", value: 1, by: attacker.id, spell: "Remorseless Lash", lifetime: null, untilRound: state.round + 1, sustained: false }];
     }
     // (2026-11-05, Cornered Fury: a larger foe's critical hit that hurts it leaves that foe off-guard to it for a round.)
     if (target.corneredFury && degree === CRITICAL_SUCCESS && dealt > 0 && isActive(target) && isActive(attacker) && sizeRank(attacker.size) > (typeof target.corneredFury === "string" ? sizeRank(target.corneredFury) : sizeRank(target.size))) {
