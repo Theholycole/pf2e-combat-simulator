@@ -189,8 +189,9 @@ export function addBuiltin(spec, plan, name) {
             // "2d8[precision]", "die" (one more of the Strike's own dice).
             // (The Strikes may come after the abilities: the parts are kept, and resolved again as the fight is prepared.)
             const formulas = plan.damage ?? (plan.extraDice ? [plan.extraDice] : []);
-            // (B241, Imbue Righteousness: only against creatures with that trait — vsTrait.)
-            const strikeParts = formulas.length ? { formulas: [...formulas], strike: plan.strike ?? null, scope: plan.damage ? (plan.melee ? "melee" : "all") : "melee", ...(plan.vsTrait ? { vsTrait: plan.vsTrait } : {}) } : null;
+            // (B241, Imbue Righteousness: only against creatures with that trait — vsTrait. 2026-11-05, Analyze Weakness: only on a sneak
+            // attack, at an off-guard target — offGuardOnly.)
+            const strikeParts = formulas.length ? { formulas: [...formulas], strike: plan.strike ?? null, scope: plan.damage ? (plan.melee ? "melee" : "all") : "melee", ...(plan.vsTrait ? { vsTrait: plan.vsTrait } : {}), ...(plan.offGuardOnly ? { whenOffGuard: true } : {}) } : null;
             const strikeDeltas = strikeParts && spec.strikes?.length ? deltasFor(spec.strikes, strikeParts) : null;
             // (A stance lasts until another ends it.)
             const rounds = plan.stance ? Infinity : plan.model?.rounds ?? 10;
@@ -506,6 +507,8 @@ export function addBuiltin(spec, plan, name) {
                 requires: plan.requires ?? null,
                 // (2026-11-04, Targeting Shot, Incredible Ricochet, Homing Shot: the target's concealment and cover ignored.)
                 ...(plan.unerring ? { unerring: true } : {}),
+                // (2026-11-05, Perfect Shot: maximum damage.)
+                ...(plan.maxDice ? { maxDice: true } : {}),
                 // (2026-11-04, Murderer's Circle: the target off-guard to its next Strike this turn, hit or miss.)
                 ...(plan.offGuardNext ? { offGuardNext: true } : {}),
                 // (2026-11-04, Flesh Wound's ranged Strike: "ranged", "melee" or "any" — the planner's fits; melee when not said.)
@@ -638,7 +641,7 @@ export function deltasFor(strikes, parts) {
         const type = kinds.find((kind) => !["persistent", "precision"].includes(kind));
         return { dice: Number(match[1] ?? 0), die: Number(match[2] ?? 0), bonus: Number(match[3] ?? 0), multiplier: 1, type: type && type !== "untyped" ? type : strike.damage?.[0]?.type, precision: kinds.includes("precision"), persistent: kinds.includes("persistent") };
     };
-    return Object.fromEntries(chosen.map((strike) => [strike.name, parts.formulas.map((formula) => partOf(formula, strike)).filter(Boolean).map((part) => (parts.vsTrait ? { ...part, vsTrait: parts.vsTrait } : part))]));
+    return Object.fromEntries(chosen.map((strike) => [strike.name, parts.formulas.map((formula) => partOf(formula, strike)).filter(Boolean).map((part) => (parts.vsTrait ? { ...part, vsTrait: parts.vsTrait } : part)).map((part) => (parts.whenOffGuard ? { ...part, whenOffGuard: true } : part))]));
 }
 
 // The index of the creature's Strike a text names ("claw" for "Claw", "fangs" for "Fangs").
@@ -734,7 +737,7 @@ export function withExtraDamage(strike, formulas) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard === true ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.damagePerWeaponDie && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length && !charge.fortune && !charge.hitCrits && !charge.ignoreResistances && !charge.unerring) return strike;
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.damagePerWeaponDie && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length && !charge.fortune && !charge.hitCrits && !charge.ignoreResistances && !charge.unerring && !charge.maxDice) return strike;
     // (2026-10-16: Sniper's Bead's, no range penalty out to that many increments — space.js rangePenalty.)
     const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}), ...(charge.fortune ? { fortune: true } : {}), ...(charge.hitCrits ? { hitCrits: true } : {}), ...(charge.ignoreResistances ? { ignoreResistances: true } : {}), ...(charge.unerring ? { unerring: true } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
@@ -769,6 +772,12 @@ export function chargeStrike(strike, charge) {
     if (charge.halfDamage) changed.damage = (changed.damage ?? strike.damage).map((part) => ({ ...part, multiplier: (part.multiplier ?? 1) * 0.5 }));
     // (B156: "rolls damage three times" — that many times its damage, combined.)
     if (charge.damageTimes > 1) changed.damage = (changed.damage ?? strike.damage).map((part) => ({ ...part, multiplier: (part.multiplier ?? 1) * charge.damageTimes }));
+    // (2026-11-05, Perfect Shot: "the Strike deals maximum damage" — each die at its most, a flat amount, doubled on a critical hit.)
+    if (charge.maxDice) {
+        const most = (part) => (part.dice && part.die ? { ...part, bonus: (part.bonus ?? 0) + part.dice * part.die, dice: 0, die: 0 } : part);
+        changed.damage = (changed.damage ?? strike.damage).map(most);
+        if (changed.critDamage ?? strike.critDamage) changed.critDamage = (changed.critDamage ?? strike.critDamage).map(most);
+    }
     // (B153: "deals no damage on a hit" — none, its riders only.)
     if (charge.noDamage) {
         changed.noDamage = true;

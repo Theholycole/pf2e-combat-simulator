@@ -940,6 +940,15 @@ const HAND = {
     // condition for; Tactical Debilitations' no reactions, as its conditions don't.)
     "tactical-debilitations": () => ({ builtins: { debilitation: { lockReactions: true } }, played: "Debilitating Strike's no reactions in place of enfeebled 1" }),
     "vicious-debilitations": () => ({ builtins: { debilitation: { slug: "clumsy", value: 1 } }, played: "Debilitating Strike's clumsy 1 in place of enfeebled 1" }),
+    // (2026-11-05: 2d6 more precision on its next sneak attack this turn, 3d6 at 11th, 4d6 at 17th — a self-effect for its next Strike
+    // whose dice count only at an off-guard target, offGuardOnly. The Recall Knowledge it needs first isn't played: taken as known.)
+    "analyze-weakness": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, offGuardOnly: true, damage: [`${level >= 17 ? 4 : level >= 11 ? 3 : 2}d6[precision]`], model: { rounds: 1 } }], played: "+2d6 precision on its next sneak attack (1 action)" }),
+    // (2026-11-05: raging, straight after a melee Strike that missed, a Strike with backswing — +1, after that miss — and forceful — its
+    // weapon dice in damage as its second attack, taken as that.)
+    "follow-up-assault": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, requires: "raging", after: { on: ["failure", "criticalFailure"], melee: true }, attackBonus: 1, damagePerWeaponDie: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "after a missed melee Strike, raging: a Strike +1 with its weapon dice in damage" }),
+    // (2026-11-05: three actions, a ranged Strike at maximum damage, then its turn ends. Hunted prey and the not-reloaded-since-last-turn
+    // requirement aren't checked.)
+    "perfect-shot": () => ({ requires: "You are wielding a loaded ranged weapon.", builtins: {}, plans: [{ builtin: "strike-activity", actions: 3, strides: 0, strike: null, range: "ranged", maxDice: true, endsTurn: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged Strike at maximum damage, then its turn ends (3 actions)" }),
     // (Its full sneak attack, 4d6 at 17th, on a hit at a creature that isn't off-guard.)
     "impossible-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 17 ? 4 : level >= 11 ? 3 : level >= 5 ? 2 : 1, die: 6, precision: true, type: null, source: "Impossible Striker" }] }, played: "full sneak attack on a creature that isn't off-guard (always on)" }),
     // (No flat check against a concealed target, DC 5 against a hidden one, and not off-guard to hidden creatures — sight.js blindFought.)
@@ -1090,6 +1099,9 @@ const HAND = {
     // (Reflexive Courage: a Reactive Strike's triggers — move, manipulate, a ranged attack — while Courageous Anthem is on it; the auditory
     // effect trigger isn't played.)
     "reflexive-courage": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["move", "manipulate", "ranged"], strike: null, penalty: 0, disrupts: false, melee: true, requiresEffect: "Spell Effect: Courageous Anthem" }], played: "a Reactive Strike while Courageous Anthem is on it" }),
+    // (2026-11-05, Not So Fast!: a melee Strike at a creature leaving a square in its reach — the engine's "move" trigger. Its Speed
+    // penalty isn't played, nor is Hampering Stance checked.)
+    "not-so-fast": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["move"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a reaction Strike at a creature moving out of its reach" }),
     // (Clinch Strike: an unarmed Strike on a creature that escapes its grab — the engine's "escaped" trigger.)
     "clinch-strike": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["escaped"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a reaction Strike on a creature that escapes its grab" }),
     // (Consume Power: resistance its level to acid, electricity, fire or sonic damage it would take — the engine's resist-damage on those
