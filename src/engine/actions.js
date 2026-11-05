@@ -2236,6 +2236,21 @@ export function screenGuards(state, mover, target) {
 
 export function provoke(state, mover, kind, among = null) {
     let disrupted = false;
+    // (2026-11-05, Bone Burst: a necromancer's reaction as a foe beside one of its thralls moves, manipulates or shoots — a thrall destroyed
+    // for its basic Reflex save of piercing. Thralls are a count, not bodies (thralls.js): one is taken to stand beside a foe the
+    // necromancer's thralls fight, any foe within 30 feet of it.)
+    if (["move", "manipulate", "ranged"].includes(kind) && !state.inBoneBurst) for (const c of state.list) {
+        if (!c.boneBurst || c.side === mover.side || !isActive(c) || !canAct(c) || !(c.thralls > 0) || !canReact(c, "Bone Burst") || !isActive(mover) || distanceBetween(c, mover) > 30) continue;
+        const index = (c.spells ?? []).findIndex((entry) => entry.name === "Bone Burst");
+        if (index < 0) continue;
+        spendReaction(c, "Bone Burst");
+        state.stats.reactions++;
+        c.thralls -= 1;
+        log(state, `  ${c.name} uses Bone Burst (a thrall destroyed)`);
+        state.inBoneBurst = true;
+        castSpell(state, c, index, [mover.id]);
+        state.inBoneBurst = false;
+    }
     const own = OWN_KINDS.has(kind);
     // (A concentrate action provokes only the reactions that say so, B51: no Reactive Strike.)
     // (among: on the grid, the foes whose reach a move leaves — grid-fight.js.)

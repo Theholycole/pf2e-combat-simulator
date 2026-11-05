@@ -1521,6 +1521,15 @@ const HAND = {
         const pool = `feat:${doc._id}`;
         return basicActions.trip ? { builtins: { skills: { athletics: attack } }, spells: [{ name: "Desperate Surge", plan: { ...structuredClone(basicActions.trip), source: { ...basicActions.trip.source, name: "Desperate Surge" } }, castRank: 1, pool, kind: "basic", featForced: true }], pools: { [pool]: 1 }, played: `a Trip at its spell attack (+${attack}), once a fight` } : null;
     },
+    // (Bone Burst: its d10s, basic Reflex at its spell DC, at a foe beside a thrall that moves, manipulates or shoots — actions.js provoke.)
+    "bone-burst": (level, host, doc) => {
+        const dice = level >= 18 ? 4 : level >= 12 ? 3 : 2;
+        const html = `<p>Choose a creature within 30 feet. Bone shards fly at it: @Damage[${dice}d10[piercing]] damage, @Check[reflex|basic].</p>`;
+        const read = host ? inlineSaveEntry({ _id: "boneBurst0", name: "Bone Burst", type: "feat", system: { actionType: { value: "action" }, actions: { value: 1 }, traits: { value: ["concentrate", "occult"] }, description: { value: html } } }, level, host) : null;
+        if (!read?.spells?.length) return null;
+        const dc = dcsOf(host).spell ?? 10 + level + 2 + 4;
+        return { builtins: { boneBurst: true }, spells: read.spells.map((entry) => ({ ...entry, name: "Bone Burst", dc, attack: dc - 10, plan: { ...entry.plan, activation: { ...entry.plan.activation, time: "reaction" } } })), pools: read.pools ?? {}, played: `${read.played} — at a foe beside a thrall that moves, manipulates or shoots (reaction, a thrall destroyed)` };
+    },
     "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),
     // (Reach 10 feet: Giant's Lunge while raging, for the rage; Jotun's Battle Stance, its two-handed weapon not checked.)
     "giants-lunge": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, requires: "raging", model: { rounds: 10, reach: 10 } }], played: "reach 10 feet while raging (1 action)" }),
