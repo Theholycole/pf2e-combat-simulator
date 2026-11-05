@@ -1523,6 +1523,9 @@ const HAND = {
     // each at its own multiple attack penalty; its stance and the sparks' fire not played.)
     "blazing-streak": () => ({ builtins: { multiStrikes: [{ name: "Blazing Streak", actions: 3, strikes: [null], each: true, within: 60, max: 4, flourish: true }] }, played: "a Strike at up to four enemies within 60 feet (3 actions)" }),
     "shield-of-reckoning": () => ({ builtins: { shieldOfReckoning: true }, played: "its Shield Block for the ally with its champion's reaction (once a round; its shield raised, forced)" }),
+    // (Arcane Cascade riders — fight.js selfEffect: as the magus enters the stance.)
+    "burning-cascade": () => ({ builtins: { burningCascade: true }, played: "its Arcane Cascade's extra damage on each enemy beside it as it enters the stance" }),
+    "resounding-cascade": () => ({ builtins: { resoundingCascade: true }, played: "its Arcane Cascade's extra damage for allies beside it" }),
     // (Kinetic aura stances — kineticAura.)
     "thermal-nimbus": (level, host, doc) => kineticAura(doc, { model: { resistances: [{ type: "fire", value: level, exceptions: [] }] }, start: `${Math.floor(level / 2)}[fire]`, enter: `${Math.floor(level / 2)}[fire]`, played: `fire resistance ${level} for the PC and its allies, ${Math.floor(level / 2)} fire to foes starting their turn or moving` }),
     "ghosts-in-the-storm": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: 2 }] }, played: "+2 Reflex for the PC and its allies" }),

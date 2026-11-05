@@ -299,7 +299,11 @@ const CLASSES = {
         build(lv, a) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const sword = weaponStrike(lv, { name: "Greatsword", die: 12, type: "slashing", toHit: a.str, damageAttr: a.str, prof, group: "sword", extra: { held: true, hands: 2 } });
-            return { strikes: [sword], fields: { spellstrike: { name: "Spellstrike" }, ...(lv >= 19 ? { doubleSpellstrike: true } : {}) } };
+            // (2026-11-05, Arcane Cascade: its stance — 1 extra damage on its Strikes, 2 with weapon expertise (5th), 3 with mastery (13th).
+            // Its "after a spell or Spellstrike" requirement isn't checked: a magus enters it after its first Spellstrike anyway.)
+            const cascade = prof >= M ? 3 : prof >= E ? 2 : 1;
+            const arcaneCascade = { name: "Arcane Cascade", actions: 1, stance: true, model: { name: "Arcane Cascade", rounds: Infinity, modifiers: [{ on: "damage", type: "untyped", value: cascade }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } };
+            return { strikes: [sword], fields: { spellstrike: { name: "Spellstrike" }, arcaneCascade: cascade, selfEffects: [arcaneCascade], ...(lv >= 19 ? { doubleSpellstrike: true } : {}) } };
         }
     },
     monk: {

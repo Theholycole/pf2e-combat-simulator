@@ -1353,6 +1353,21 @@ function actOn(state, c, action) {
             const effect = applyEffect(state, c, entry.model, c, { applyCondition, key: `self:${entry.name}` });
             // (B308: shut in its shell for the rest of its turn; coming out costs an action at its next.)
             if (entry.shell) c.inShell = true;
+            // (2026-11-05, Burning Cascade: entering Arcane Cascade, its extra damage on each enemy beside it, once a fight each;
+            // Resounding Cascade: the stance's extra damage for the allies beside it as it enters.)
+            if (entry.name === "Arcane Cascade" && c.arcaneCascade) {
+                for (const other of state.list.filter((o) => isActive(o) && o !== c && sameMelee(c, o))) {
+                    if (other.side !== c.side && c.burningCascade && !(c.burnedByCascade ??= new Set()).has(other.id)) {
+                        c.burnedByCascade.add(other.id);
+                        const dealt = applyDamage(state, other, [{ type: "force", amount: c.arcaneCascade, persistent: false, precision: false }], { source: c });
+                        state.log?.push(`  Burning Cascade: ${other.name} takes ${dealt}`);
+                    }
+                    if (other.side === c.side && c.resoundingCascade) {
+                        applyEffect(state, other, { ...entry.model, name: "Resounding Cascade" }, c, { applyCondition, key: `resounding:${c.id}` });
+                        state.log?.push(`  Resounding Cascade: on ${other.name}`);
+                    }
+                }
+            }
             if (entry.model?.shieldUp && c.shield && !c.shield.broken) c.shield.raised = true;
             if (entry.strikes?.length) c.strikes = [...(c.strikes ?? []).filter((strike) => strike.fromEffect !== effect.key), ...entry.strikes.map((strike) => ({ ...strike, fromEffect: effect.key }))];
             break;
