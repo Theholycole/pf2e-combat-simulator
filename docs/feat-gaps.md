@@ -3,7 +3,7 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1799 in whole fights. **4567 it doesn't.**
+- **The simulator** rates 1805 in whole fights. **4561 it doesn't.**
 - **3094** are in neither.
 
 ## Summary by category
@@ -11,13 +11,13 @@ Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
 | class | 2282 | 1088 | 1610 | 955 |
-| archetype | 2074 | 1246 | 1433 | 982 |
-| ancestry | 1613 | 1086 | 1151 | 857 |
+| archetype | 2074 | 1246 | 1429 | 982 |
+| ancestry | 1613 | 1086 | 1149 | 857 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4567 | 3094 |
+| **All** | 6366 | 3725 | 4561 | 3094 |
 
 ## Why the feat module doesn't automate them
 
@@ -51,13 +51,13 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | a Strike with nothing more the simulator reads | 50 | 34 | 2 |  |  | 1 |  | 87 |
 | no card: a combat action no reader or hand plan covers yet | 30 | 28 | 14 | 4 | 1 |  |  | 77 |
-| a plan the engine can't play | 32 | 25 | 15 | 1 |  |  |  | 73 |
+| a plan the engine can't play | 32 | 22 | 15 | 1 |  |  |  | 70 |
 | no card: companions, familiars and eidolons | 35 | 25 | 1 | 5 |  |  |  | 66 |
 | its requirement | 20 | 35 | 7 |  |  |  |  | 62 |
 | a teleport | 22 | 16 | 21 |  |  |  |  | 59 |
-| a roll whose results the simulator doesn't read | 26 | 18 | 6 | 8 |  |  |  | 58 |
-| an Effect with nothing a fight counts | 29 | 13 | 10 | 1 |  |  |  | 53 |
+| a roll whose results the simulator doesn't read | 26 | 17 | 6 | 8 |  |  |  | 57 |
 | it grants Additional Lore | 1 | 11 | 39 | 1 |  |  |  | 52 |
+| an Effect with nothing a fight counts | 29 | 13 | 8 | 1 |  |  |  | 51 |
 | no card: PF2e's own Effect, from the feat's Use button | 19 | 17 | 7 | 2 |  |  |  | 45 |
 | a passive's roll with no action to use it | 19 | 14 | 11 |  |  |  | 1 | 45 |
 | it grants one of 2 | 6 | 15 | 12 |  |  |  |  | 33 |
@@ -4919,7 +4919,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Finish Their Story! | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sever Space | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 
-### a plan the engine can't play (73)
+### a plan the engine can't play (70)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4943,7 +4943,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Patronize the Arts | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Archaeologist's Warning | 6 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
 | Fear No Pain! | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Iomedae's Valor | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Commitment to Valor | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Dismal Harvest | 8 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
 | Gardener's Resolve | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
@@ -4954,8 +4953,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Defy Sorrow | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Gathering Moss | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
 | Tumbling Opportunist | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Call the Hunt | 12 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Cellular Reconstruction | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Propelled Leap | 12 | archetype | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
 | Self Destruct | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Awake With a Roar | 14 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
@@ -5128,7 +5125,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Wandering Thoughts | 16 | class | free | card | a teleport |
 | Cycle of Souls | 18 | class | free | card | a teleport |
 
-### a roll whose results the simulator doesn't read (58)
+### a roll whose results the simulator doesn't read (57)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5143,7 +5140,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Bolera's Interrogation | 6 | archetype | 3 actions | card | a roll whose results the simulator doesn't read |
 | Denounce Tyranny | 6 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
 | Interrogate | 6 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
-| Invented Vulnerability | 6 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
 | Interrupt Charge | 8 | archetype | reaction | card | a roll whose results the simulator doesn't read |
 | Pluck from the Sky | 8 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
 | Public Execution | 8 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
@@ -5191,7 +5187,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Improvise Strategy | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 | Seasoned Command | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 
-### an Effect with nothing a fight counts (53)
+### an Effect with nothing a fight counts (51)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5200,10 +5196,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Nanite Surge | 1 | ancestry | reaction | card | an Effect with nothing a fight counts |
 | Watchful Gaze | 1 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | Elemental Bulwark | 5 | ancestry | reaction | card | an Effect with nothing a fight counts |
-| Envenom Fangs | 5 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | Favorable Winds | 5 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | Fortify Shield | 5 | ancestry | 1 action | card | an Effect with nothing a fight counts |
-| Stretching Reach | 5 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | Augment Senses | 13 | ancestry | 1 action | card | an Effect with nothing a fight counts |
 | In Lightning, Life | 4 | archetype | 1 action | card | an Effect with nothing a fight counts |
 | Inspiring Recitation | 4 | archetype | 1 action | card | an Effect with nothing a fight counts |
