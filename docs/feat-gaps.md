@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2631: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3735 it doesn't.**
-- **The simulator** rates 1623 in whole fights. **4743 it doesn't.**
+- **The simulator** rates 1627 in whole fights. **4739 it doesn't.**
 - **3136** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1093 | 1685 | 974 |
-| archetype | 2074 | 1249 | 1515 | 1002 |
+| class | 2282 | 1093 | 1683 | 974 |
+| archetype | 2074 | 1249 | 1513 | 1002 |
 | ancestry | 1613 | 1088 | 1169 | 860 |
 | skill | 340 | 261 | 327 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3735 | 4743 | 3136 |
+| **All** | 6366 | 3735 | 4739 | 3136 |
 
 ## Why the feat module doesn't automate them
 
@@ -72,12 +72,12 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | its stance's own gap | 8 | 4 |  |  |  |  |  | 12 |
 | a passive's Strike | 4 | 6 | 1 |  |  |  |  | 11 |
 | its requirement, which the PC doesn't meet | 6 | 2 | 3 |  |  |  |  | 11 |
-| an Effect on another creature | 6 | 4 |  |  |  |  |  | 10 |
 | a lasting area | 8 |  | 2 |  |  |  |  | 10 |
 | a choice of ways the simulator doesn't play | 6 | 1 | 2 |  |  |  |  | 9 |
 | a reroll | 3 | 2 | 4 |  |  |  |  | 9 |
 | it grants Pet | 3 | 2 | 3 |  |  |  |  | 8 |
 | a Focus or Mythic Point back | 4 |  | 3 |  |  |  |  | 7 |
+| an Effect on another creature | 4 | 2 |  |  |  |  |  | 6 |
 | it grants Alchemical Crafting | 1 | 2 | 3 |  |  |  |  | 6 |
 | it grants Domain Initiate |  | 4 |  |  |  | 1 |  | 5 |
 | it grants Impressive Performance |  |  | 5 |  |  |  |  | 5 |
@@ -5683,21 +5683,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Creature of Myth | 18 | class | passive | card | a passive's Strike |
 | Full Automation | 20 | class | passive | card | a passive's Strike |
 
-### an Effect on another creature (10)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Selfless Parry | 8 | archetype | passive | card | an Effect on another creature |
-| Shadow Spell | 8 | archetype | 1 action | card | an Effect on another creature (a foe's penalty) |
-| Demanding Challenge | 10 | archetype | passive | card | an Effect on another creature |
-| Marked for Rebuke | 18 | archetype | 1 action | card | an Effect on another creature (a foe's penalty) |
-| Overextending Feint | 1 | class | passive | card | an Effect on another creature |
-| Cursed Effigy | 8 | class | 1 action | card | an Effect on another creature (a foe's penalty) |
-| Edifying Trace | 8 | class | 1 action | card | an Effect on another creature (a foe's penalty) |
-| Heartless Debilitations | 10 | class | passive | card | an Effect on another creature |
-| Shared Warding | 12 | class | passive | card | an Effect on another creature |
-| Pack of the Beast Lord | 18 | class | 3 actions | card | an Effect on another creature (a foe's penalty) |
-
 ### its stance's own gap (10)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5767,6 +5752,17 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Summon Mythic Power | 8 | class | 1 action | card | a Focus or Mythic Point back |
 | Surging Focus | 8 | class | free | card | a Focus or Mythic Point back |
 | Retributive Focus | 18 | class | free | card | a Focus or Mythic Point back |
+
+### an Effect on another creature (6)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Selfless Parry | 8 | archetype | passive | card | an Effect on another creature |
+| Demanding Challenge | 10 | archetype | passive | card | an Effect on another creature |
+| Overextending Feint | 1 | class | passive | card | an Effect on another creature |
+| Heartless Debilitations | 10 | class | passive | card | an Effect on another creature |
+| Shared Warding | 12 | class | passive | card | an Effect on another creature |
+| Pack of the Beast Lord | 18 | class | 3 actions | card | an Effect on another creature (both a help and a hindrance) |
 
 ### its requirement, which the PC doesn't meet (6)
 
