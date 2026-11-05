@@ -1496,6 +1496,8 @@ const HAND = {
     "united-assault": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, united: true })], played: "a flourish Strike, +1 damage for each other creature that hurt the target since its last turn (up to +4)" }),
     // (Overextending Feint, the rogue's Goading Feint — its Feint given again, forced, as the rogue rarely Feints.)
     "overextending-feint": () => ({ builtins: { goadingFeint: true }, spells: basicActions.feint ? [{ name: "Feint", plan: structuredClone(basicActions.feint), castRank: 1, pool: null, kind: "basic" }] : [], played: "Feint (forced), each one goading (–2 to the foe's next attack on the PC, all on a critical success) instead of off-guard" }),
+    // (Temporal Fury: a Strike, a Step, another Strike for two actions and a Mythic Point — the Step not played.)
+    "temporal-fury": () => ({ builtins: { multiStrikes: [{ name: "Temporal Fury", actions: 2, strikes: [null, null] }] }, played: "two Strikes for two actions (a Mythic Point)" }),
     "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),
     // (Reach 10 feet: Giant's Lunge while raging, for the rage; Jotun's Battle Stance, its two-handed weapon not checked.)
     "giants-lunge": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, requires: "raging", model: { rounds: 10, reach: 10 } }], played: "reach 10 feet while raging (1 action)" }),
