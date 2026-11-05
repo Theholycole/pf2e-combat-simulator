@@ -872,6 +872,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         if (attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;
     }
     if (strategic) parts.push({ dice: attacker.stratagemFeature.dice ?? 1, die: 6, bonus: 0, type: strike.damage[0].type, precision: true });
+    // (2026-11-05, Ongoing Strategy: a Strike without its stratagem, with a weapon that could have used one, deals precision damage of its
+    // strategic strike dice's number.)
+    else if (attacker.ongoingStrategy && attacker.stratagemFeature?.strikeBonus?.[strike.name] !== undefined) parts.push({ dice: 0, die: 6, bonus: attacker.stratagemFeature.dice ?? 1, type: strike.damage[0].type, precision: true });
     for (const part of parts) {
         let amount = part.bonus ?? 0;
         for (let die = 0; die < (part.dice ?? 0); die++) amount += state.rng.die(part.die);
