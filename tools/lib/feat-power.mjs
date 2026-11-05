@@ -1246,6 +1246,10 @@ const HAND = {
     "alacritous-action": () => ({ builtins: { companionFields: { plus: { speed: 10 } } }, played: "its eidolon's Speed +10 feet" }),
     "eidolons-retort": () => ({ builtins: { companionFields: { reactions: { aoo: true } } }, played: "its eidolon's Retort (a Reactive Strike)" }),
     "ever-vigilant-senses": () => ({ builtins: { companionFields: { plus: { perception: 2 } } }, played: "its eidolon's +2 Perception" }),
+    // (A companion's activity — its own multi-Strike, used as often as it can, forced.)
+    "vicious-rend": (level) => ({ builtins: { companionFields: { multiStrikes: [{ name: "Vicious Rend", actions: 2, strikes: ["claw", "claw"], sameTarget: true, bothHit: { conditions: [], damage: [`${level >= 16 ? 2 : 1}d6[persistent,bleed]`] } }] } }, played: "its companion's Vicious Rend (two claws, bleed if both hit)" }),
+    "ferocious-charge": (level) => ({ builtins: { companionFields: { multiStrikes: [{ name: "Ferocious Charge", actions: 2, strikes: ["jaws"], strides: 2, extraDamage: [`${level >= 16 ? 2 : 1}d8[untyped]`] }] } }, played: "its companion's Ferocious Charge (two Strides and a Strike, +1d8)" }),
+    "running-kick": () => ({ builtins: { companionFields: { multiStrikes: [{ name: "Running Kick", actions: 2, strikes: ["claw"], strides: 2 }] } }, played: "its companion's Running Kick (two Strides and a Strike)" }),
     "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
@@ -1993,6 +1997,11 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (!companion) continue;
         if (field === "companionFields") {
             const { plus = {}, ...rest } = value;
+            // (Its own activities used as often as they can be, as the PC's are — forced.)
+            if (FORCE) for (const list of FORCED_FIELDS) if (Array.isArray(rest[list])) {
+                rest[list] = rest[list].map((entry) => ({ ...entry, featForced: true }));
+                companion.forceUse = true;
+            }
             joinBuiltins(companion, rest);
             for (const [key, add] of Object.entries(plus)) companion[key] = (Number(companion[key]) || 0) + add;
         }
