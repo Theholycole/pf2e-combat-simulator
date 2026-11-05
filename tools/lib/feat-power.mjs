@@ -2344,6 +2344,9 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             return { ...strike, damage, forceful: true, deadly: strike.deadly ?? { dice: deadlyDice, die: 10 } };
         });
     }
+    // (2026-11-05, a Lay on Hands rider — Amplifying Touch and kin —: its Lay on Hands used whenever it can go, as the rider's feat is rated
+    // by use; cast 0.2 times a fight before.)
+    if (pc.touchRiders?.length) pc.spells = (pc.spells ?? []).map((entry) => (entry.plan?.source?.slug === "lay-on-hands" ? { ...entry, featForced: true } : entry));
     // (2026-11-05, Unstable Concoction: its bombs' initial damage dice a step bigger.)
     if (pc.unstableConcoction) {
         delete pc.unstableConcoction;
