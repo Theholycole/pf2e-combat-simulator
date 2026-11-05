@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2627: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3739 it doesn't.**
-- **The simulator** rates 1599 in whole fights. **4767 it doesn't.**
+- **The simulator** rates 1602 in whole fights. **4764 it doesn't.**
 - **3139** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1095 | 1696 | 976 |
+| class | 2282 | 1095 | 1693 | 976 |
 | archetype | 2074 | 1250 | 1525 | 1003 |
 | ancestry | 1613 | 1089 | 1172 | 860 |
 | skill | 340 | 261 | 327 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3739 | 4767 | 3139 |
+| **All** | 6366 | 3739 | 4764 | 3139 |
 
 ## Why the feat module doesn't automate them
 
@@ -47,7 +47,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a spell the engine doesn't cast | 59 | 57 | 108 | 1 |  | 1 |  | 226 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 70 | 65 | 44 | 21 | 1 |  |  | 201 |
 | no card: a combat passive no reader or hand plan covers yet | 64 | 60 | 33 | 13 | 2 |  | 1 | 173 |
-| a timer with no rules a fight counts | 74 | 42 | 26 | 4 |  | 1 |  | 147 |
+| a timer with no rules a fight counts | 71 | 42 | 26 | 4 |  | 1 |  | 144 |
 | its requirement | 37 | 70 | 13 |  |  |  |  | 120 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | a Strike with nothing more the simulator reads | 59 | 32 | 2 |  |  | 1 |  | 94 |
@@ -4788,7 +4788,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Cloud Jump | 15 | skill | passive | by hand | the feat module reads nothing for it |
 | Legendary Survivalist | 15 | skill | passive | by hand | the feat module reads nothing for it |
 
-### a timer with no rules a fight counts (147)
+### a timer with no rules a fight counts (144)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4895,7 +4895,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Holy Light | 10 | class | 2 actions | card | a timer with no rules a fight counts |
 | Maelstrom Flow | 10 | class | 1 action | card | a timer with no rules a fight counts |
 | Shared Focus | 10 | class | 1 action | card | a timer with no rules a fight counts |
-| Thunderclap Spell | 10 | class | 1 action | card | a timer with no rules a fight counts |
 | Apparition Cloud | 12 | class | reaction | card | a timer with no rules a fight counts |
 | Architect of Flame | 12 | class | 3 actions | card | a timer with no rules a fight counts |
 | Deadeye | 12 | class | 1 action | card | a timer with no rules a fight counts |
@@ -4910,7 +4909,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Decree of Prosperity | 14 | class | 1 action | card | a timer with no rules a fight counts |
 | Define the Canvas | 14 | class | 2 actions | card | a timer with no rules a fight counts |
 | Desperate Finisher | 14 | class | reaction | card | a timer with no rules a fight counts |
-| Dizzying Spell | 14 | class | 1 action | card | a timer with no rules a fight counts |
 | Extend Surge | 14 | class | 1 action | card | a timer with no rules a fight counts |
 | Henge Gate | 14 | class | 2 actions | card | a timer with no rules a fight counts |
 | Ocular Flesh | 14 | class | 1 action | card | a timer with no rules a fight counts |
@@ -4921,7 +4919,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Mystical Flare | 16 | class | 1 action | card | a timer with no rules a fight counts |
 | Noble Sacrifice | 16 | class | reaction | card | a timer with no rules a fight counts |
 | Return Unto Runes | 16 | class | reaction | card | a timer with no rules a fight counts |
-| Scintillating Spell | 16 | class | 1 action | card | a timer with no rules a fight counts |
 | Beasts of Slumbering Steel | 18 | class | 3 actions | card | a timer with no rules a fight counts |
 | Pack of the Beast Lord | 18 | class | 3 actions | card | a timer with no rules a fight counts |
 | Profane Bargain | 18 | class | 3 actions | card | a timer with no rules a fight counts |
