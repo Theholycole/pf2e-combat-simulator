@@ -22,7 +22,7 @@ import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
 import { log } from "./log.js";
-import { dropTriggers, featTriggers } from "./triggers.js";
+import { dropTriggers, featTriggers, foeRollTriggers } from "./triggers.js";
 import { afterAttackFortune, attackFortune } from "./fortune-items.js";
 import { hostility, ownHostility } from "./pacify.js";
 import { wardBlocks } from "./wards.js";
@@ -548,6 +548,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         // (2026-11-01, Defensive Growth, a deviant ability: its flat check and backlash — deviant.js.)
         if (target.acReaction.deviant) deviantUsed(state, target, target.acReaction, { affected: [attacker] });
     }
+    // (2026-11-05: a PC's reaction as a foe is about to attack — Harbinger's Caw's misfortune, its Effect then used by the roll below.)
+    if (!reaction) foeRollTriggers(state, attacker, "foe-attack");
     // (S54, Sure Strike: its next attack roll twice, the better kept.)
     const own = reaction ? null : takeAttackFortune(attacker);
     if (own) attacker.fortuneFinds = false;
@@ -774,6 +776,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         if (degree === CRITICAL_FAILURE && !reaction && attacker.weaponPoisoned && strike.held) attacker.weaponPoisoned = false;
         // Jeer at Failure (B85): a critically failed Strike near a monster with it.
         if (degree === CRITICAL_FAILURE && !reaction) mishapAnswers(state, attacker, target);
+        // (2026-11-05: a PC's reaction to a foe's critical miss, Ill Tide's misfortune on its next roll.)
+        if (degree === CRITICAL_FAILURE && !reaction) foeRollTriggers(state, attacker, "foe-crit-fail");
         return { degree, damage: 0, trigger, ...(imageMiss ? { image: true } : {}) };
     }
     // (Poison Weapon, B72: the poison goes with this hit, below; a critical miss wastes it.)

@@ -22,6 +22,7 @@ import { addFloor, floorOf } from "./floors.js";
 import { counterables, counterChance, counterRank, counterReaches, counterRoll } from "./counteract.js";
 import { applyNoteState, noteState, noteStateWorth, spellLocked } from "./note-states.js";
 import { allyStrike } from "./commander.js";
+import { fearTriggers } from "./triggers.js";
 import { canReact, isBravado, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
 import { effectImmunity, immuneToCondition } from "./immunities.js";
@@ -636,6 +637,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if (flag) target.cond[flag] = true;
     else target.cond[slug] = Math.max(target.cond[slug] ?? 0, Number.isFinite(value) ? value : 1);
     if (slug === "controlled" && !before) takeControl(state, target, source);
+    // (2026-11-05: a reaction to becoming frightened, its own or an ally's: triggers.js fearTriggers.)
+    if (slug === "frightened" && (target.cond.frightened ?? 0) > before) fearTriggers(state, target);
     // Quickened on its own turn (Shrieking Frenzy, Alchemical Amplification): the extra action now (B53).
     if (slug === "quickened" && !before && state.acting === target.id && Number.isFinite(target.actionsLeft)) target.actionsLeft += 1;
     // (Earthbind: grounded, it's down on the ground too — landed until its next turn once the grounding ends.)

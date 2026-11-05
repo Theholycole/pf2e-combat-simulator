@@ -1637,7 +1637,8 @@ function featByName(name) {
 // many feet, as Inspire Courage's emanation reaches them; only a plan whose every effect is a heal and which deals no damage.
 // (2026-11-05: a feat's Trigger line, as src/engine/triggers.js plays it — { on, melee?, unarmed?, whileDown? } —, or null.)
 export function featTriggerOf(doc) {
-    const text = String(doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/@\w+\[[^\]]*\](?:\{([^}]*)\})?/g, (all, label) => label ?? "").replace(/\s+/g, " ");
+    // (A link with no label, "@UUID[…conditionitems.Item.Frightened]": its name, not nothing.)
+    const text = String(doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/@UUID\[[^\]]*?Item\.([A-Za-z][^\]]*)\](?!\{)/g, (_all, name) => (/^[A-Za-z0-9]{16}$/.test(name) ? "" : name)).replace(/@\w+\[[^\]]*\](?:\{([^}]*)\})?/g, (all, label) => label ?? "").replace(/\s+/g, " ");
     const said = (/\bTrigger\s+(.+?)(?:\.|$)/i.exec(text)?.[1] ?? "").split(/\s(?:Effect|Frequency|Requirements?)\s/)[0].trim();
     const whileDown = /\beven while\b/i.test(text);
     if (/^Your turn begins$/i.test(said)) return { on: "turn-start" };
@@ -1654,6 +1655,15 @@ export function featTriggerOf(doc) {
     if (/^You critically (?:succeed|hit) (?:with|on) an? (unarmed )?Strike/i.test(said)) return { on: "crit", ...(/unarmed/i.test(said) ? { unarmed: true } : {}) };
     if (/^A creature reduces you or (?:a|an) (?:living )?ally within \d+ feet to 0 Hit Points/i.test(said)) return { on: "ally-down", ...(whileDown ? { whileDown: true } : {}) };
     if (/^You are reduced to 0 Hit Points by a creature/i.test(said)) return { on: "self-down", whileDown: true };
+    // (2026-11-05, Cole's pick "both, riders first": fear lowered as it comes — its own (Creature Comforts), an ally's (Reassuring Presence,
+    // Comforting Presence, Reminder of the Greater Fear) — or at the start of its turn (Mask of Fear).)
+    if (/^You (?:become|gain the) frightened(?: condition)?$/i.test(said)) return { on: "frightened" };
+    if (/^You start your turn with the frightened condition$/i.test(said)) return { on: "turn-start", withCondition: "frightened" };
+    const allyFear = /^(?:An? )?(adjacent ally|ally within (\d+) feet(?: of you)?|Another creature within (\d+) feet of you)\b[^.]*?\b(?:gains|becomes|would gain) (?:the )?frightened\b/i.exec(said);
+    // (A foe's roll: misfortune as it's about to attack — Harbinger's Caw — or after its critical failure — Ill Tide.)
+    const foeRoll = /^A creature within (\d+) feet(?: of you)? (is about to attempt an attack roll|critically fails an attack roll)\b/i.exec(said);
+    if (foeRoll) return { on: /critically/i.test(foeRoll[2]) ? "foe-crit-fail" : "foe-attack", within: Number(foeRoll[1]) };
+    if (allyFear) return { on: "ally-frightened", toTrigger: true, within: /adjacent/i.test(allyFear[1]) ? 5 : Number(allyFear[2] ?? allyFear[3]) };
     return null;
 }
 
@@ -1690,7 +1700,8 @@ function youAsSelf(plan) {
     const effects = Object.values(plan.resolution?.outcomes ?? {}).flatMap((row) => row?.effects ?? []);
     const automatic = plan.resolution?.check?.roll === "automatic";
     // (2026-11-05, the one-off feats: a hand card's temporary Hit Points on "you" — Feast's, Absorb Strength's — the PC's too.)
-    if (!effects.length || !effects.every((effect) => (effect.kind === "condition" && ALLY_CONDITIONS.has(effect.slug)) || (effect.kind === "temp-hp" && automatic))) return plan;
+    // (And a condition of its own lowered, Creature Comforts' and Mask of Fear's frightened.)
+    if (!effects.length || !effects.every((effect) => (effect.kind === "condition" && (ALLY_CONDITIONS.has(effect.slug) || (automatic && Number(effect.stack?.by) < 0))) || (effect.kind === "temp-hp" && automatic))) return plan;
     return { ...plan, targeting: { ...plan.targeting, target: "self" } };
 }
 

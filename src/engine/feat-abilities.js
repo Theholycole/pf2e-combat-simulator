@@ -240,7 +240,8 @@ export function featEntries(plan, info, builtins, helpers = {}) {
             const time = actionType === "free" || actionType === "reaction" ? actionType : String(actionCount(null, info) || 1);
             // (A foe's penalty or weakness — Marked for Rebuke, Shadow Spell, Edifying Trace —: on a foe within 30 feet, as an automatic
             // check's Effect, as the module's hand cards for conditions are.)
-            const hurts = (model.weaknesses ?? []).length || (model.modifiers ?? []).some((modifier) => Number(modifier.value) < 0);
+            // (And misfortune on its next attack, Harbinger's Caw's and Ill Tide's.)
+            const hurts = (model.weaknesses ?? []).length || (model.modifiers ?? []).some((modifier) => Number(modifier.value) < 0) || model.fortune?.keep === "lower";
             const helps = (model.resistances ?? []).length || model.tempHp || model.fastHealing || (model.modifiers ?? []).some((modifier) => Number(modifier.value) > 0);
             // (Both — Pack of the Beast Lord's companion swarm, resistance and a weakness —: not played.)
             if (hurts && helps) return gap("an Effect on another creature (both a help and a hindrance)");

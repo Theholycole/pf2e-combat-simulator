@@ -11,6 +11,10 @@
 // - "hit": a foe's Strike hits it (Cautious Word, Dazzling Dragonet Disappearance) — critOnly: a critical hit (Tragic Lament).
 // - "strike-hit": its Strike hits (Lethal Edge). "shield-block": it Shield Blocks a foe's attack (Aggressive Block; Flashing Shield —
 //   creature: only that trait's, undead).
+// - "frightened": it becomes frightened (Creature Comforts). "ally-frightened": an ally within its trigger's range does (Reassuring
+//   Presence; toTrigger: the card goes on that ally). withCondition: only while it has that condition (Mask of Fear's turn start).
+// - "foe-attack": a foe within its range is about to attack (Harbinger's Caw). "foe-crit-fail": a foe within its range critically misses
+//   (Ill Tide). Both at that foe.
 // The entry's own targeting picks who: itself, its allies or foes about it for an area (its Melee for 10 feet or less), or the creature
 // of the trigger. A reaction spends its reaction; a pool, its use.
 import { canReact, spendReaction } from "./abilities.js";
@@ -48,10 +52,13 @@ export function featTriggers(state, c, on, ctx = {}) {
         if (trigger.creature && ctx.by && !(ctx.by.traits ?? []).includes(trigger.creature)) continue;
         if (trigger.strike && !ctx.physical) continue;
         if (trigger.type && !(ctx.types ?? []).includes(trigger.type)) continue;
+        if (trigger.withCondition && !(c.cond?.[trigger.withCondition] > 0)) continue;
+        const about = ctx.target ?? ctx.by ?? null;
+        if (trigger.within && about && about !== c && !withinFeet(c, about, trigger.within)) continue;
         if (!poolReady(c, spell)) continue;
         const reaction = spell.plan?.activation?.time === "reaction";
         if (reaction && !canReact(c, spell.name)) continue;
-        const who = whoFor(state, c, spell, ctx.by ?? ctx.target ?? null);
+        const who = trigger.toTrigger && ctx.target ? (isActive(ctx.target) ? [ctx.target] : []) : whoFor(state, c, spell, ctx.by ?? ctx.target ?? null);
         if (!who.length) continue;
         if (reaction) spendReaction(c, spell.name);
         state.inFeatTrigger = true;
@@ -61,6 +68,21 @@ export function featTriggers(state, c, on, ctx = {}) {
             state.inFeatTrigger = false;
         }
     }
+}
+
+// Within that many feet, roughly: 5, side by side; up to 30, not far apart; more, anywhere.
+const withinFeet = (a, b, feet) => (feet <= 5 ? sameMelee(a, b) : feet <= 30 ? a.band !== "far" || b.band !== "far" : true);
+
+// A creature became frightened (spells.js applyCondition): "frightened" for it, "ally-frightened" for its allies.
+export function fearTriggers(state, target) {
+    featTriggers(state, target, "frightened", { target });
+    for (const ally of state.list) if (ally !== target && ally.side === target.side && ally.featTriggers) featTriggers(state, ally, "ally-frightened", { target });
+}
+
+// A foe's roll: each PC on the other side with a reaction for it (a quick check first: most have none).
+export function foeRollTriggers(state, foe, on) {
+    if (!(state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers))) return;
+    for (const pc of state.list) if (pc.featTriggers && pc.side !== foe.side) featTriggers(state, pc, on, { by: foe });
 }
 
 // A creature dropped (fight.js-free: actions.js knockOut calls it): "foe-down" for the one that dropped it, "self-down" for it, and
