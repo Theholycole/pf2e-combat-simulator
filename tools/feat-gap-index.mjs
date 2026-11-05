@@ -50,6 +50,10 @@ const walk = (dir) => {
     }
 };
 for (const dir of ["src", "scripts"]) if (fs.existsSync(path.join(FEAT_ROOT, dir))) walk(path.join(FEAT_ROOT, dir));
+// (And by slug: the assessment feats — Battle Assessment, Combat Reading — the module's src/plans/assessment.js names so.)
+const namedSlugs = new Set();
+const assessments = path.join(FEAT_ROOT, "src", "plans", "assessment.js");
+if (fs.existsSync(assessments)) for (const match of fs.readFileSync(assessments, "utf8").matchAll(/"([a-z-]+)": \{ statistic/g)) namedSlugs.add(match[1]);
 
 const plain = (html) => String(html ?? "").replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/@UUID\[[^\]]*?([^.\]]+)\]/g, "$1").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const dcsFor = (level) => {
@@ -118,7 +122,7 @@ for (const doc of docs) {
     } catch {
         reminder = null;
     }
-    const featModule = plan ? "card" : named.has(doc._id) ? "by hand" : impulseRead(doc, level) ? "kineticist module" : reminder ? "reminder" : error ? "error" : "none";
+    const featModule = plan ? "card" : named.has(doc._id) || namedSlugs.has(doc.system?.slug ?? String(doc.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")) ? "by hand" : impulseRead(doc, level) ? "kineticist module" : reminder ? "reminder" : error ? "error" : "none";
     const pf2e = kinds.filter((kind) => DOING.has(kind));
     const row = rows.get(doc._id) ?? null;
     const simulator = !row ? "not screened" : row.skipped || row.error ? "not rated" : "rated";

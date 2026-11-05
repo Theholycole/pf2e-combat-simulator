@@ -2,22 +2,22 @@
 
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
-- **The feat module** automates 2639: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3727 it doesn't.**
+- **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
 - **The simulator** rates 1695 in whole fights. **4671 it doesn't.**
-- **3126** are in neither.
+- **3124** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1090 | 1663 | 971 |
+| class | 2282 | 1088 | 1663 | 969 |
 | archetype | 2074 | 1246 | 1480 | 997 |
 | ancestry | 1613 | 1086 | 1155 | 858 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3727 | 4671 | 3126 |
+| **All** | 6366 | 3725 | 4671 | 3124 |
 
 ## Why the feat module doesn't automate them
 
@@ -30,7 +30,7 @@ Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats 
 | a combat passive no reader or hand plan covers yet | 73 | 65 | 32 | 13 | 2 |  | 1 | 186 |
 | spellcasting the spell module or PF2e handles | 74 | 87 | 14 | 1 |  | 1 |  | 177 |
 | companions, familiars and eidolons | 52 | 37 | 2 | 5 |  |  |  | 96 |
-| a combat action no reader or hand plan covers yet | 34 | 28 | 14 | 4 | 1 |  |  | 81 |
+| a combat action no reader or hand plan covers yet | 32 | 28 | 14 | 4 | 1 |  |  | 79 |
 | PF2e's own Effect, from the feat's Use button | 39 | 22 | 11 | 2 |  |  |  | 74 |
 
 ## Why the simulator doesn't rate them
@@ -45,13 +45,13 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: out of combat (exploration, downtime, skills) | 91 | 81 | 39 | 111 | 2 |  |  | 324 |
 | no card: only grants other feats, features or choices | 87 | 127 | 47 | 16 | 2 |  |  | 279 |
 | a spell the engine doesn't cast | 59 | 57 | 108 | 1 |  | 1 |  | 226 |
-| no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 75 | 70 | 47 | 21 | 1 |  |  | 214 |
+| no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 77 | 70 | 47 | 21 | 1 |  |  | 216 |
 | no card: a combat passive no reader or hand plan covers yet | 63 | 59 | 31 | 13 | 2 |  | 1 | 169 |
 | a timer with no rules a fight counts | 59 | 28 | 17 | 4 |  | 1 |  | 109 |
 | a Strike with nothing more the simulator reads | 64 | 37 | 2 |  |  | 1 |  | 104 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | no card: companions, familiars and eidolons | 43 | 34 | 1 | 5 |  |  |  | 83 |
-| no card: a combat action no reader or hand plan covers yet | 32 | 28 | 14 | 4 | 1 |  |  | 79 |
+| no card: a combat action no reader or hand plan covers yet | 30 | 28 | 14 | 4 | 1 |  |  | 77 |
 | a plan the engine can't play | 32 | 25 | 15 | 1 |  |  |  | 73 |
 | its requirement | 20 | 36 | 7 |  |  |  |  | 63 |
 | a teleport | 22 | 16 | 21 |  |  |  |  | 59 |
@@ -3898,7 +3898,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Craft Facsimile | 6 | skill | passive | no card: companions, familiars and eidolons |
 | Dashing Pickup | 6 | skill | 1 action | no card: companions, familiars and eidolons |
 
-### a combat action no reader or hand plan covers yet (81)
+### a combat action no reader or hand plan covers yet (79)
 
 | Feat | Lvl | Category | Type | Simulator |
 |---|---:|---|---|---|
@@ -3947,8 +3947,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Blast Lock | 1 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
 | Crossbow Ace | 1 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
 | Relentless Stalker | 2 | class | reaction | no card: a combat action no reader or hand plan covers yet |
-| Battle Assessment | 4 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
-| Combat Reading | 4 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
 | Surface Rush | 4 | class | 2 actions | no card: a combat action no reader or hand plan covers yet |
 | Engraving Maneuver | 6 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
 | Surface Tension | 6 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
@@ -4537,7 +4535,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Foil Senses | 7 | skill | passive | reminder | the feat module reads nothing for it |
 | Temperature Adjustment | 7 | skill | passive | reminder | the feat module reads nothing for it |
 
-### no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play (214)
+### no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play (216)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4670,7 +4668,9 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Rapid Assessment | 2 | class | free | by hand | the feat module reads nothing for it |
 | Spirit Sheath | 2 | class | passive | by hand | the feat module reads nothing for it |
 | Advanced Construct Companion | 4 | class | passive | by hand | the feat module reads nothing for it |
+| Battle Assessment | 4 | class | 1 action | by hand | the feat module reads nothing for it |
 | Bloodletting Claws | 4 | class | passive | by hand | the feat module reads nothing for it |
+| Combat Reading | 4 | class | 1 action | by hand | the feat module reads nothing for it |
 | Forest Passage | 4 | class | passive | by hand | the feat module reads nothing for it |
 | Giant Hunter | 4 | class | passive | by hand | the feat module reads nothing for it |
 | Mature Animal Companion (Druid) | 4 | class | passive | by hand | the feat module reads nothing for it |
