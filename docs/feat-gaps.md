@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1772 in whole fights. **4594 it doesn't.**
-- **3098** are in neither.
+- **The simulator** rates 1775 in whole fights. **4591 it doesn't.**
+- **3096** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
 | class | 2282 | 1088 | 1628 | 957 |
-| archetype | 2074 | 1246 | 1440 | 984 |
+| archetype | 2074 | 1246 | 1437 | 982 |
 | ancestry | 1613 | 1086 | 1153 | 857 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4594 | 3098 |
+| **All** | 6366 | 3725 | 4591 | 3096 |
 
 ## Why the feat module doesn't automate them
 
@@ -52,7 +52,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | no card: a combat action no reader or hand plan covers yet | 30 | 28 | 14 | 4 | 1 |  |  | 77 |
 | a plan the engine can't play | 32 | 25 | 15 | 1 |  |  |  | 73 |
-| no card: companions, familiars and eidolons | 35 | 27 | 1 | 5 |  |  |  | 68 |
+| no card: companions, familiars and eidolons | 35 | 25 | 1 | 5 |  |  |  | 66 |
 | its requirement | 20 | 35 | 7 |  |  |  |  | 62 |
 | a teleport | 22 | 16 | 21 |  |  |  |  | 59 |
 | a roll whose results the simulator doesn't read | 26 | 18 | 6 | 8 |  |  |  | 58 |
@@ -71,8 +71,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | nothing a fight uses | 2 | 1 | 14 |  |  |  |  | 17 |
 | its stance's own gap | 8 | 4 |  |  |  |  |  | 12 |
 | its requirement, which the PC doesn't meet | 6 | 2 | 3 |  |  |  |  | 11 |
-| a choice of ways the simulator doesn't play | 6 | 2 | 2 |  |  |  |  | 10 |
 | a lasting area | 8 |  | 2 |  |  |  |  | 10 |
+| a choice of ways the simulator doesn't play | 6 | 1 | 2 |  |  |  |  | 9 |
 | a reroll | 3 | 2 | 4 |  |  |  |  | 9 |
 | a passive's Strike | 4 | 3 | 1 |  |  |  |  | 8 |
 | it grants Pet | 3 | 2 | 3 |  |  |  |  | 8 |
@@ -3814,7 +3814,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Spirit of the Beast | 4 | archetype | passive | a spell the engine doesn't cast |
 | Spiritual Explorer | 4 | archetype | passive | no card: companions, familiars and eidolons |
 | Winged Leap | 4 | archetype | passive | no card: companions, familiars and eidolons |
-| Defend Mount | 6 | archetype | reaction | no card: companions, familiars and eidolons |
+| Defend Mount | 6 | archetype | reaction | rated 0.01 |
 | Improved Familiar (Familiar Master) | 6 | archetype | passive | no card: companions, familiars and eidolons |
 | It's Alive! | 6 | archetype | passive | no card: companions, familiars and eidolons |
 | Let My Creature Live! | 6 | archetype | passive | rated 0.11 |
@@ -3827,7 +3827,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Future Spell Learning | 8 | archetype | passive | no card: companions, familiars and eidolons |
 | Lightning Rings' Intervention | 8 | archetype | passive | no card: companions, familiars and eidolons |
 | Mutable Familiar | 8 | archetype | passive | no card: companions, familiars and eidolons |
-| Trampling Charge | 10 | archetype | 3 actions | no card: companions, familiars and eidolons |
+| Trampling Charge | 10 | archetype | 3 actions | rated -0.17 |
 | Unbreakable Bond | 10 | archetype | passive | no card: companions, familiars and eidolons |
 | Lightning Rings' Overcharge | 12 | archetype | passive | no card: companions, familiars and eidolons |
 | Pupil's Guard | 12 | archetype | reaction | no card: companions, familiars and eidolons |
@@ -5567,21 +5567,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Wild Winds Gust | 14 | class | 2 actions | card | its stance (Wild Winds Stance), not in the packs |
 | Electric Counter | 16 | class | reaction | reminder | its stance (Wild Winds Stance), not in the packs |
 
-### a choice of ways the simulator doesn't play (10)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Withstand the Storm | 5 | ancestry | reaction | card | a choice of ways the simulator doesn't play |
-| Starshot Arrow | 17 | ancestry | 1 action | card | a choice of ways the simulator doesn't play |
-| Golden Dragon's Bounty | 8 | archetype | 1 action | card | a choice of ways the simulator doesn't play |
-| Rearing Display | 12 | archetype | 1 action | card | a choice of ways the simulator doesn't play |
-| Draining Strike | 2 | class | 1 action | card | a choice of ways the simulator doesn't play |
-| United Assault | 2 | class | 1 action | card | a choice of ways the simulator doesn't play |
-| Chaotic Spell | 8 | class | 1 action | card | a choice of ways the simulator doesn't play |
-| Consecrate Spell | 10 | class | 1 action | card | a choice of ways the simulator doesn't play |
-| Unsheathing the Sword-Light | 10 | class | 2 actions | card | a choice of ways the simulator doesn't play |
-| Dodging Roll | 12 | class | reaction | card | a choice of ways the simulator doesn't play |
-
 ### a lasting area (10)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5596,6 +5581,20 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Garland Spell | 12 | class | 1 action | card | a lasting area |
 | Spell Shroud | 14 | class | 1 action | card | a lasting area |
 | Worldsphere Gravity | 20 | class | 1 action | card | a lasting area |
+
+### a choice of ways the simulator doesn't play (9)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Withstand the Storm | 5 | ancestry | reaction | card | a choice of ways the simulator doesn't play |
+| Starshot Arrow | 17 | ancestry | 1 action | card | a choice of ways the simulator doesn't play |
+| Golden Dragon's Bounty | 8 | archetype | 1 action | card | a choice of ways the simulator doesn't play |
+| Draining Strike | 2 | class | 1 action | card | a choice of ways the simulator doesn't play |
+| United Assault | 2 | class | 1 action | card | a choice of ways the simulator doesn't play |
+| Chaotic Spell | 8 | class | 1 action | card | a choice of ways the simulator doesn't play |
+| Consecrate Spell | 10 | class | 1 action | card | a choice of ways the simulator doesn't play |
+| Unsheathing the Sword-Light | 10 | class | 2 actions | card | a choice of ways the simulator doesn't play |
+| Dodging Roll | 12 | class | reaction | card | a choice of ways the simulator doesn't play |
 
 ### a reroll (9)
 
