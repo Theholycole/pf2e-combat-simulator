@@ -37,6 +37,7 @@ export const itemReaders = ITEM_ROOT ? await (async () => {
 })() : null;
 const { featEntries, featInfo, meetsWielding, pcNeeds, requiredEffectFeat, requiredStances, withResolvedEffects, worthSomething } = await import("../../src/engine/feat-abilities.js");
 const { effectModel } = await import("../../src/engine/effects.js");
+const { zoneSpell } = await import("../../src/engine/zones.js");
 // (2026-11-03: a spell entry a feat gives only when the engine can cast it at all — Hymn of Healing's, Mantis Form's aren't.)
 const { canCast } = await import("../../src/engine/spells.js");
 const castable = (entry) => canCast({ cond: {}, hindrances: [], spellPools: entry.pool ? { [entry.pool]: 99 } : {} }, entry);
@@ -966,6 +967,20 @@ function focusSpellEntry(doc, level, host) {
 const simplePoison = (level, dice) => ({ name: "Poison Weapon", featForced: true, actions: 1, doses: level, damage: `${dice}[poison]`, spell: { name: "simple poison", plan: null, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" } });
 const strikeRider = ({ onHit = {}, ...rest } = {}) => ({ builtin: "strike-activity", actions: 1, strides: 0, strike: null, ...rest, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null, ...onHit } });
 
+// (2026-11-05, the kineticist's kinetic aura: a stance impulse that works in it — a 10-foot emanation about the kineticist that moves with
+// it and lasts the fight (zones.js: the creatures in its Melee). Its effect on the PC and its allies inside (model), the damage a foe
+// takes as it starts its turn there (start) or moves in (enter). One action, once — its stance kept up. What it does only after a move
+// action, its heals on a critical, and the Shock rune aren't played.)
+function kineticAura(doc, { model = null, start = null, enter = null, played }) {
+    const uuid = `feat:${doc._id}:aura`;
+    const zone = { area: { type: "emanation", value: 10 }, lasts: null, ...(start ? { damage: [{ when: "start", formulas: [start] }] } : {}), ...(enter ? { hazard: { formulas: [enter] } } : {}), ...(model ? { effect: { allies: true, uuid, label: doc.name } } : {}) };
+    const effectModel = model ? { name: doc.name, rounds: 100, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...model } : null;
+    const entry = zoneSpell(doc.name, { builtin: "zone", actions: 1, trigger: { event: "use" }, zone }, effectModel ? { effectModel } : {});
+    if (!entry) return null;
+    entry.plan = { ...entry.plan, traits: [...(doc.system?.traits?.value ?? [])] };
+    return { builtins: {}, spells: [{ ...entry, featForced: true }], played: `${played} in its 10-foot kinetic aura (stance, the fight)` };
+}
+
 const HAND = {
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
@@ -1478,6 +1493,12 @@ const HAND = {
     "mounted-shield": () => ({ builtins: { mountedShield: true }, requires: "You are wielding a shield", played: "its raised shield's bonus to its mount's AC too" }),
     // (Rearing Display: its mount's Strike — one action of the mount's turn, the Command its rider spent —, a hit followed by a Demoralize
     // at the rider's Intimidation +1.)
+    // (Kinetic aura stances — kineticAura.)
+    "thermal-nimbus": (level, host, doc) => kineticAura(doc, { model: { resistances: [{ type: "fire", value: level, exceptions: [] }] }, start: `${Math.floor(level / 2)}[fire]`, enter: `${Math.floor(level / 2)}[fire]`, played: `fire resistance ${level} for the PC and its allies, ${Math.floor(level / 2)} fire to foes starting their turn or moving` }),
+    "ghosts-in-the-storm": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: 2 }] }, played: "+2 Reflex for the PC and its allies" }),
+    "sea-glass-guardians": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "ac", type: "status", value: 1 }, { on: "saving-throw", type: "status", value: 1 }] }, played: "+1 AC and saves for the PC and its allies" }),
+    "kindle-inner-flames": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: level >= 12 ? 2 : 1 }] }, played: `+${level >= 12 ? 2 : 1} Reflex for the PC and its allies` }),
+    "ravel-of-thorns": (level, host, doc) => kineticAura(doc, { enter: `${Math.floor((level - 4) / 4) + 2}[piercing]`, played: `${Math.floor((level - 4) / 4) + 2} piercing to foes moving` }),
     "rearing-display": (level, host) => ({ builtins: { companionFields: { multiStrikes: [{ name: "Rearing Display", actions: 1, strikes: ["jaws"], flourish: true, hitRiders: [{ atLeast: 1, conditions: [], damage: [], follow: "demoralize" }] }], skills: { intimidation: (host?.skills?.intimidation ?? level + 2) + 1 } } }, played: "its mount's Strike, a hit followed by a Demoralize" }),
     "defend-mount": () => ({ builtins: { defendMount: true }, played: "a Strike at its mount taken on its own AC instead (reaction)" }),
     // (Trampling Charge: its mount's double Stride through the foes in its way — a 70-foot line here, its Speed twice — each taking its
@@ -1558,7 +1579,7 @@ function saveRerollEntry(doc, builtins) {
 }
 
 function handEntry(doc, level, builtins, wields, host = null) {
-    const read = HAND[slugOf(doc)]?.(level, host);
+    const read = HAND[slugOf(doc)]?.(level, host, doc);
     if (!read) return null;
     // (Its requirement — Reactive Shield's "You are wielding a shield" —: a PC whose loadout can't meet it gets one that can.)
     // (2026-11-04: or what the hand reading says it needs — Homing Shot's bow, a ranged Strike its text doesn't make a requirement.)

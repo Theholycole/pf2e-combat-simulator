@@ -30,6 +30,7 @@ Every PC already has the basic actions, and each rated alone is worth about 0 le
 | Guarded Advance | 1 | Raise a Shield + Step, Step | step, step | +0.020 |  |
 | Predator's Pounce | 1 | Stride + Strike (light or no armor) | stride | +0.015 |  |
 | Mobile Magical Combat | 1 | Stride + Strike (after a spell) | stride | +0.015 |  |
+| Liberating Dive | 2 | Fly + melee Elemental Blast (+ an ally's Escape) | move | +0.015 |  |
 | Antler Rush | 2 | Stride, Stride + Strike, Shove or Disarm | stride | +0.015 |  |
 | Falcon Swoop | 2 | Fly, Fly + Strike | move | +0.015 |  |
 | Fantastic Leap | 2 | High or Long Jump (2) + Strike | move | +0.015 |  |
@@ -59,6 +60,7 @@ Every PC already has the basic actions, and each rated alone is worth about 0 le
 | Clever Gambit | 0 | Step or Stride, as a reaction to a critical hit on a creature it Recalled Knowledge on | stride | +0.004 |  |
 | Coursing Weave | 0 | Stride or Fly, as a reaction to a missed ranged attack | stride | +0.004 | ranged attacks on it are rare |
 | Shark Attack | 2 | Swim, Swim + Strike | move | +0.003 | under water only |
+| Four Winds | 2 | up to 4 allies Stride half their Speed | nothing | +0.000 | four half-Strides bought with two of the kineticist's actions: about even |
 | Practiced Opposition | 1 | Recall Knowledge + Strike (undead) | knowledge | +0.000 |  |
 | Makeshift Strike | 1 | Interact (pick up) + Strike | pickup | +0.000 |  |
 | Magpie Snatch | 2 | Stride, Stride + Interact (pick up) | pickup | +0.000 |  |
