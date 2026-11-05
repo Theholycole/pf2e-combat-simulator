@@ -1189,6 +1189,9 @@ const HAND = {
     "armored-counterattack": () => ({ builtins: { armoredCounterattack: true }, played: "a Strike back after its Intercept Attack, a Taunt on a hit (free)" }),
     // (Shield of Grace, after Shield Warden: the damage left after its Shield Block for an ally split between them.)
     "shield-of-grace": () => ({ builtins: { shieldWarden: true, shieldOfGrace: true }, played: "Shield Warden's block for an ally, the rest split with it" }),
+    // (Aura of Vengeance: allies' reaction Strikes at the champion's foe at −2, not −5 — the champion's Exalt, which the class here
+    // doesn't play, given with it.)
+    "aura-of-vengeance": () => ({ builtins: { championReaction: { exalted: { penalty: 2 } } }, played: "allies' reaction Strikes at −2 with its Retributive Strike (its Exalt with it)" }),
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
@@ -1413,6 +1416,11 @@ const HAND = {
     // (A second reaction each round, for Reactive Strike only — B303's spare reaction.)
     "tactical-reflexes": (_level, host) => (host?.reactions?.aoo ? { builtins: { spareReactions: [{ names: ["reactive strike"], count: 1 }] }, played: "a second reaction each round, for Reactive Strike" } : null),
     // (A second reaction each round, for Shield Block only.)
+    // (2026-11-05, Boundless Reprisals: a reaction at each enemy's turn for its fighter or guardian reactions — played as two more each round.)
+    "boundless-reprisals": (_level, host) => {
+        const names = [...(host?.reactions?.aoo ? ["reactive strike"] : []), ...(host?.reactions?.shieldBlock ? ["shield block"] : []), ...(host?.interceptAttack ? ["intercept attack"] : [])];
+        return names.length ? { builtins: { spareReactions: [{ names, count: 2 }] }, played: `two more reactions each round, for ${names.join(", ")}` } : null;
+    },
     "quick-shield-block": (_level, host) => (host?.reactions?.shieldBlock ? { builtins: { spareReactions: [{ names: ["shield block"], count: 1 }] }, played: "a second reaction each round, for Shield Block" } : null),
     // (A Reactive Strike's hit leaves its target off-guard until the start of the PC's next turn.)
     "disorienting-opening": (_level, host) => (host?.reactions?.aoo ? { builtins: { strikeExtras: [{ when: "hit", reaction: true, condition: { slug: "off-guard", duration: { mode: "fixed", value: 1, unit: "rounds" } }, source: "Disorienting Opening" }] }, played: "off-guard after its Reactive Strike hits (always on)" } : null),
