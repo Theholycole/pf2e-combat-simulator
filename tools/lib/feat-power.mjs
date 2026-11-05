@@ -1224,6 +1224,8 @@ const HAND = {
     // (Diehard: dies at dying 5, not 4.)
     "diehard": () => ({ builtins: { deathAt: 5 }, played: "dies at dying 5" }),
     "bloody-debilitation": () => ({ builtins: { debilitation: { bleed: 3 } }, played: "Debilitating Strike's 3d6 persistent bleed in place of enfeebled 1" }),
+    // (2026-11-05, Heartless Debilitations: frightened 1 — its weakness 5 to bleed and poison isn't taken.)
+    "heartless-debilitations": () => ({ builtins: { debilitation: { slug: "frightened", value: 1 } }, played: "Debilitating Strike's frightened 1 in place of enfeebled 1" }),
     "eldritch-debilitations": () => ({ builtins: { debilitation: { slug: "stupefied", value: 1 } }, played: "Debilitating Strike's stupefied 1 in place of enfeebled 1" }),
     "swift-retribution": () => ({ builtins: { swiftRetribution: true }, played: "an extra action after its champion's reaction" }),
     "critical-debilitation": () => ({ builtins: { debilitation: { critSave: true } }, played: "on a critical hit, Debilitating Strike's Fortitude save: slowed 1, slowed 2 or paralyzed" }),
