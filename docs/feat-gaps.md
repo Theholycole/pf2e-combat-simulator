@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2627: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3739 it doesn't.**
-- **The simulator** rates 1577 in whole fights. **4789 it doesn't.**
+- **The simulator** rates 1599 in whole fights. **4767 it doesn't.**
 - **3139** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1095 | 1703 | 976 |
-| archetype | 2074 | 1250 | 1532 | 1003 |
-| ancestry | 1613 | 1089 | 1180 | 860 |
+| class | 2282 | 1095 | 1696 | 976 |
+| archetype | 2074 | 1250 | 1525 | 1003 |
+| ancestry | 1613 | 1089 | 1172 | 860 |
 | skill | 340 | 261 | 327 | 261 |
 | general | 40 | 36 | 34 | 31 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3739 | 4789 | 3139 |
+| **All** | 6366 | 3739 | 4767 | 3139 |
 
 ## Why the feat module doesn't automate them
 
@@ -53,9 +53,9 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a Strike with nothing more the simulator reads | 59 | 32 | 2 |  |  | 1 |  | 94 |
 | no card: a combat action no reader or hand plan covers yet | 36 | 31 | 14 | 4 | 1 |  |  | 86 |
 | no card: companions, familiars and eidolons | 43 | 34 | 1 | 5 |  |  |  | 83 |
-| a plan the engine can't play | 32 | 25 | 14 | 1 |  |  |  | 72 |
 | a teleport | 22 | 16 | 21 |  |  |  |  | 59 |
 | a roll whose results the simulator doesn't read | 25 | 18 | 6 | 8 |  |  |  | 57 |
+| a plan the engine can't play | 26 | 19 | 10 | 1 |  |  |  | 56 |
 | an Effect with nothing a fight counts | 31 | 12 | 12 | 1 |  |  |  | 56 |
 | it grants Additional Lore | 1 | 11 | 39 | 1 |  |  |  | 52 |
 | a passive's roll with no action to use it | 19 | 15 | 11 |  |  |  | 1 | 46 |
@@ -68,7 +68,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a passive's Effect posted by hand | 7 | 11 | 3 | 1 |  |  |  | 22 |
 | a reaction's Strike | 9 | 5 | 5 |  |  |  |  | 19 |
 | nothing a fight uses | 2 | 1 | 14 |  |  |  |  | 17 |
-| a reroll | 3 | 3 | 8 |  |  |  |  | 14 |
 | its Effect has nothing a fight counts | 3 | 7 | 1 | 2 |  |  |  | 13 |
 | its stance's own gap | 8 | 4 |  |  |  |  |  | 12 |
 | a passive's Strike | 4 | 6 | 1 |  |  |  |  | 11 |
@@ -76,6 +75,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | its requirement, which the PC doesn't meet | 6 | 2 | 3 |  |  |  |  | 11 |
 | a lasting area | 8 |  | 2 |  |  |  |  | 10 |
 | a choice of ways the simulator doesn't play | 6 | 1 | 2 |  |  |  |  | 9 |
+| a reroll | 3 | 2 | 4 |  |  |  |  | 9 |
 | it grants Pet | 3 | 2 | 3 |  |  |  |  | 8 |
 | a Focus or Mythic Point back | 4 |  | 3 |  |  |  |  | 7 |
 | it grants Alchemical Crafting | 1 | 2 | 3 |  |  |  |  | 6 |
@@ -285,7 +285,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | it grants Transform Ammunition |  | 1 |  |  |  |  |  | 1 |
 | it grants Slippery Secrets |  | 1 |  |  |  |  |  | 1 |
 | it grants Restore the Moment | 1 |  |  |  |  |  |  | 1 |
-| it grants Troll Deviant Classification | 1 |  |  |  |  |  |  | 1 |
 | it grants Sidestep Through Time | 1 |  |  |  |  |  |  | 1 |
 | it grants Bless Ally | 1 |  |  |  |  |  |  | 1 |
 | it grants Taunt |  | 1 |  |  |  |  |  | 1 |
@@ -5165,83 +5164,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Finish Their Story! | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sever Space | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 
-### a plan the engine can't play (72)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Bounce Boost | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Play Dead | 1 | ancestry | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Bold Defiance | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
-| Call to Battle | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Gaping Flesh | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Guided by the Stars | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
-| Inscribed Blast | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Quick Root | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Spark of Independence | 5 | ancestry | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
-| Victorious Vigor | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Ferocious Will | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Hop Up | 13 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
-| Blazing Aura | 17 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Cantorian Restoration | 17 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Blood Calls Blood | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Dread Marshal Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Fear No Pain! | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Harness Natural Magic | 6 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Impose Order (Infernal Pactbreaker) | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Iomedae's Valor | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Adamantine Body | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Dismal Harvest | 8 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Gardener's Resolve | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Martyr's Parry | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Statue | 8 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Wake and Tremble | 8 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Gathering Moss | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Tumbling Opportunist | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Bleak Humorist | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Cellular Reconstruction | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Propelled Leap | 12 | archetype | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
-| Self Destruct | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Awake With a Roar | 14 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Even the Odds (Eagle Knight) | 14 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Terrain Shield | 14 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Tempo Shift | 16 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Body Barrier | 18 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Deific Font | 18 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Echoing Violence | 18 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Flying Flame | 1 | class | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
-| Foretell Harm | 1 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Divine Aegis | 2 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Shake it Off | 2 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Calcifying Sand | 4 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Inspiring Resilience | 4 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Song of Glorious Invocation | 4 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Void Siphon (Necromancer) | 4 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Align Qi | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Bone Burst | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Disarming Intercept | 6 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Inner Strength | 6 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Reclaim Power | 6 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Shield Wall | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Shove Down | 6 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Volcanic Escape | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Dark Persona's Presence | 8 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Final Spite | 8 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Mental Static | 8 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Dazzling Block | 10 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Fish From the Falls' Edge | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Geobukseon Retaliation | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Prevailing Position | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Drowning Mist | 12 | class | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
-| Get Used to Disappointment | 12 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Live Off Borrowed Time | 14 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Premonition of Clarity | 14 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Towering Transformation | 14 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Vindictive Thoughts | 16 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Cranial Detonation | 18 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Spirit's Sacrifice | 18 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Ringmaster's Introduction | 20 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Kip Up | 7 | skill | free | card | a plan the engine can't play (its targeting or what it does) |
-
 ### a teleport (59)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5367,6 +5289,67 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Go with the Flow | 7 | skill | reaction | card | a roll whose results the simulator doesn't read |
 | Improvise Strategy | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 | Seasoned Command | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
+
+### a plan the engine can't play (56)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Bounce Boost | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Play Dead | 1 | ancestry | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Bold Defiance | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
+| Call to Battle | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Guided by the Stars | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
+| Quick Root | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Spark of Independence | 5 | ancestry | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
+| Ferocious Will | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Hop Up | 13 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
+| Cantorian Restoration | 17 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Blood Calls Blood | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Dread Marshal Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Fear No Pain! | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Iomedae's Valor | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Dismal Harvest | 8 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Gardener's Resolve | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Martyr's Parry | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Statue | 8 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Wake and Tremble | 8 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Gathering Moss | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Tumbling Opportunist | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Cellular Reconstruction | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Propelled Leap | 12 | archetype | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
+| Self Destruct | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Awake With a Roar | 14 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Even the Odds (Eagle Knight) | 14 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Tempo Shift | 16 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Body Barrier | 18 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Deific Font | 18 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Flying Flame | 1 | class | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
+| Foretell Harm | 1 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Divine Aegis | 2 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Shake it Off | 2 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Inspiring Resilience | 4 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Song of Glorious Invocation | 4 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Align Qi | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Bone Burst | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Disarming Intercept | 6 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Inner Strength | 6 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Reclaim Power | 6 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Shield Wall | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Shove Down | 6 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Volcanic Escape | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Dark Persona's Presence | 8 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Mental Static | 8 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Dazzling Block | 10 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Fish From the Falls' Edge | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Geobukseon Retaliation | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Prevailing Position | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Drowning Mist | 12 | class | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
+| Get Used to Disappointment | 12 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Towering Transformation | 14 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Vindictive Thoughts | 16 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Spirit's Sacrifice | 18 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Ringmaster's Introduction | 20 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Kip Up | 7 | skill | free | card | a plan the engine can't play (its targeting or what it does) |
 
 ### an Effect with nothing a fight counts (56)
 
@@ -5673,25 +5656,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Glider Form | 1 | class | 1 action | card | nothing a fight uses |
 | Wings of Bone and Sinew | 8 | class | 1 action | card | nothing a fight uses |
 
-### a reroll (14)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| All This Will Happen Again | 1 | ancestry | reaction | card | a reroll |
-| Cat's Luck | 1 | ancestry | free | card | a reroll |
-| Chance Death | 1 | ancestry | reaction | card | a reroll |
-| Courteous Comeback | 1 | ancestry | free | card | a reroll |
-| Halfling Luck | 1 | ancestry | free | card | a reroll |
-| Let's Try That Again | 1 | ancestry | reaction | card | a reroll |
-| Mask of Rejection | 5 | ancestry | reaction | card | a reroll |
-| Unbreakable Resolve | 13 | ancestry | reaction | card | a reroll |
-| Clean Take | 6 | archetype | reaction | card | a reroll |
-| Archaeologist's Luck | 8 | archetype | free | card | a reroll |
-| Minor Omen | 8 | archetype | reaction | card | a reroll |
-| Spiritual Guides | 4 | class | reaction | card | a reroll |
-| Just One More Thing | 10 | class | 1 action | card | a reroll |
-| Lessons of Flux | 10 | class | reaction | card | a reroll |
-
 ### its Effect has nothing a fight counts (13)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5802,6 +5766,20 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Consecrate Spell | 10 | class | 1 action | card | a choice of ways the simulator doesn't play |
 | Unsheathing the Sword-Light | 10 | class | 2 actions | card | a choice of ways the simulator doesn't play |
 | Dodging Roll | 12 | class | reaction | card | a choice of ways the simulator doesn't play |
+
+### a reroll (9)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Chance Death | 1 | ancestry | reaction | card | a reroll |
+| Courteous Comeback | 1 | ancestry | free | card | a reroll |
+| Let's Try That Again | 1 | ancestry | reaction | card | a reroll |
+| Mask of Rejection | 5 | ancestry | reaction | card | a reroll |
+| Clean Take | 6 | archetype | reaction | card | a reroll |
+| Archaeologist's Luck | 8 | archetype | free | card | a reroll |
+| Spiritual Guides | 4 | class | reaction | card | a reroll |
+| Just One More Thing | 10 | class | 1 action | card | a reroll |
+| Lessons of Flux | 10 | class | reaction | card | a reroll |
 
 ### a Focus or Mythic Point back (7)
 
@@ -5983,9 +5961,3 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
 | Preserve the Moment | 16 | class | reaction | card | it grants Restore the Moment: a reaction's Strike |
-
-### it grants Troll Deviant Classification (1)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| High-Speed Regeneration | 6 | class | free | card | it grants Troll Deviant Classification: the feat module reads nothing for it |
