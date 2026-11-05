@@ -1320,6 +1320,15 @@ function shouldShieldBlock(defender, total) {
     return total >= defender.hp.value + defender.hp.temp;
 }
 
+// (Shield Warden: as shouldShieldBlock, for the ally the hit is on.)
+function wardenBlocks(warden, ally, total) {
+    const shield = warden.shield;
+    if (!shield || shield.broken || !shield.raised || shield.spell || !warden.reactions?.shieldBlock || !canReact(warden, "Shield Block")) return false;
+    if (total < Math.max(1, shield.hardness)) return false;
+    if (shield.hp - Math.max(0, total - shield.hardness) > shield.bt) return true;
+    return total >= ally.hp.value + ally.hp.temp;
+}
+
 // Whether a monster's guard (B124) takes this damage for the creature: its ward (the boss, master or ward its text names: its highest-level
 // ally) or any ally, beside it (or within 15 feet for Interposition's Stride); a Strike's damage only where it says so. For any ally, only
 // when the ally would drop or is the more hurt of the two.
@@ -1466,6 +1475,18 @@ export function applyDamage(state, target, instances, { source = null, critical 
             shield.raised = false;
         }
         log(state, `  ${target.name} Shield Blocks (${blocked} prevented${shield.spell ? `, ${shield.name} ends` : shield.broken ? ", shield broken" : ""})`);
+    } else if (physical && !intercepted && total > 0) {
+        // (2026-11-05, Shield Warden: an adjacent ally with its shield raised Shield Blocks for it — the ally's shield takes the rest.)
+        const warden = state.list.find((other) => other !== target && other.side === target.side && other.shieldWarden && isActive(other) && canAct(other) && sameMelee(other, target) && wardenBlocks(other, target, total));
+        if (warden) {
+            const shield = warden.shield;
+            const blocked = Math.min(total, shield.hardness);
+            total -= blocked;
+            shield.hp -= total;
+            if (shield.hp <= shield.bt) shield.broken = true;
+            spendReaction(warden, "Shield Block");
+            log(state, `  ${warden.name} Shield Blocks for ${target.name} (${blocked} prevented${shield.broken ? ", shield broken" : ""})`);
+        }
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance, source);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });

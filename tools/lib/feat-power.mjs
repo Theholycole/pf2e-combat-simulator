@@ -1105,6 +1105,8 @@ const HAND = {
     // (2026-11-05, Haft Beatdown: four Strikes for 3 actions, once a fight — the first two at its current multiple attack penalty, the
     // next two one step worse (5, taken as not agile). Haft Striker Stance isn't checked.)
     "haft-beatdown": () => ({ builtins: {}, plans: [{ builtin: "multi-strike", actions: 3, strikes: [null, null, null, null], sameTarget: true, sameMap: true, penalties: [0, 0, 5, 5], countsAs: 4, oncePerFight: true }], played: "four Strikes, two at its penalty and two one step worse (3 actions, once a fight)" }),
+    // (2026-11-05, Shield Warden: its Shield Block for an adjacent ally — actions.js wardenBlocks.)
+    "shield-warden": () => ({ builtins: { shieldWarden: true }, played: "Shield Block for an adjacent ally (reaction)" }),
     // (2026-11-05, Not So Fast!: a melee Strike at a creature leaving a square in its reach — the engine's "move" trigger. Its Speed
     // penalty isn't played, nor is Hampering Stance checked.)
     "not-so-fast": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["move"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a reaction Strike at a creature moving out of its reach" }),
