@@ -53,7 +53,8 @@ const TRAIT_PACKAGES = {
     undead: { traits: ["undead", "unholy"], immunities: ["death-effects", "disease", "paralyzed", "poison", "unconscious", "bleed"] },
     // (2026-10-22, Bind Undead's: mindless undead — immune to mental effects too.)
     mindless: { traits: ["undead", "unholy", "mindless"], immunities: ["death-effects", "disease", "paralyzed", "poison", "unconscious", "bleed", "mental"] },
-    fiend: { traits: ["fiend", "unholy"], immunities: [], weaknesses: ["holy"] },
+    // (2026-11-05: a demon, the Monster Core's commonest fiend — Demonbane Warrior's.)
+    fiend: { traits: ["fiend", "unholy", "demon"], immunities: [], weaknesses: ["holy"] },
     celestial: { traits: ["celestial", "holy"], immunities: [], weaknesses: ["unholy"] },
     construct: { traits: ["construct"], immunities: ["bleed", "death-effects", "disease", "doomed", "drained", "fatigued", "healing", "nonlethal", "paralyzed", "poison", "sickened", "spirit", "unconscious", "vitality", "void"] },
     elemental: { traits: ["elemental"], immunities: ["bleed", "paralyzed", "poison", "sleep"] },

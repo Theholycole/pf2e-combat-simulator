@@ -6,7 +6,7 @@ import fs from "node:fs";
 const { docsOf } = await import("./lib/feat-power.mjs");
 const PACKS = `${process.env.HOME}/.local/share/FoundryVTT/Data/systems/pf2e/packs`;
 const TYPES = ["undead", "fiend", "celestial", "construct", "elemental", "giant", "dragon", "incorporeal", "large"];
-const ALIASES = { unholy: "fiend", holy: "celestial", demon: "fiend", devil: "fiend", daemon: "fiend" };
+const ALIASES = { unholy: "fiend", holy: "celestial", demon: "fiend", devil: "fiend", daemon: "fiend", vampire: "undead" };
 const TEXT = {
     undead: /\b(?:against|to|an?|any|each|the) undead\b|\bundead (?:creatures?|foes?|enem(?:y|ies)|target)\b/i,
     fiend: /\b(?:against|an?|each) fiends?\b|\bfiends?'s?\b/i,
@@ -22,6 +22,7 @@ const TEXT = {
 export function foeTypesOf(doc) {
     const found = new Set();
     const rules = JSON.stringify(doc.system?.rules ?? []);
+    if (/target:mode:undead/.test(rules)) found.add("undead");
     for (const match of rules.matchAll(/target:trait:([a-z-]+)/g)) {
         const type = ALIASES[match[1]] ?? match[1];
         if (TYPES.includes(type)) found.add(type);

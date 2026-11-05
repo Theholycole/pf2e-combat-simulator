@@ -131,7 +131,7 @@ function rankTerm(term, rank) {
 // creature's origin:trait:), the attack's kind and damage, the target's and the bearer's traits and conditions; the rank's terms settled
 // now. Returns the predicate (an array), false when the rank rules it out, or null for one it can't test (a caster's choice, a mark).
 const TRAIT_WORDS = new Set(["fear", "emotion", "mental", "death", "void", "poison", "disease", "curse", "possession", "sleep", "auditory", "visual", "linguistic", "illusion", "incapacitation", "fire", "cold", "electricity", "acid", "sonic", "vitality", "force", "polymorph", "light", "darkness", "olfactory", "divine", "occult", "arcane", "primal", "magical", "healing", "spirit"]);
-const USE_TERM = /^(?:item:trait:|origin:trait:|item:damage:type:|item:damage:category:|target:trait:|target:condition:|self:trait:|self:condition:)[a-z0-9-]+$|^item:(?:melee|ranged|magical|type:spell)$|^item:category:unarmed$/;
+const USE_TERM = /^(?:item:trait:|origin:trait:|item:damage:type:|item:damage:category:|target:trait:|target:condition:|target:mode:|self:trait:|self:condition:)[a-z0-9-]+$|^item:(?:melee|ranged|magical|type:spell)$|^item:category:unarmed$/;
 function useTerm(term, rank) {
     if (typeof term === "string") {
         if (TRAIT_WORDS.has(term)) return `item:trait:${term}`;
@@ -179,7 +179,7 @@ export function predicateTest(predicate, options) {
 const CONDITIONAL_SELECTORS = {
     ac: { on: "ac" }, attack: { on: "attack" }, "attack-roll": { on: "attack" }, "strike-attack-roll": { on: "attack" },
     "melee-strike-attack-roll": { on: "attack", kind: "item:melee" }, "ranged-strike-attack-roll": { on: "attack", kind: "item:ranged" },
-    damage: { on: "damage" }, "strike-damage": { on: "damage" }, "melee-strike-damage": { on: "damage", kind: "item:melee" }, "melee-damage": { on: "damage", kind: "item:melee" }, "ranged-strike-damage": { on: "damage", kind: "item:ranged" }
+    damage: { on: "damage" }, "strike-damage": { on: "damage" }, "weapon-damage": { on: "damage" }, "unarmed-damage": { on: "damage", kind: "item:category:unarmed" }, "melee-strike-damage": { on: "damage", kind: "item:melee" }, "melee-damage": { on: "damage", kind: "item:melee" }, "ranged-strike-damage": { on: "damage", kind: "item:ranged" }
 };
 const SAVE_SELECTORS = { "saving-throw": ["fortitude", "reflex", "will"], fortitude: ["fortitude"], reflex: ["reflex"], will: ["will"] };
 // Rules on what a fight is made of: a conditional one the engine can't test is reported, not dropped unseen.
@@ -326,7 +326,8 @@ function effectModelAt(item, { rank = 1, conditionSlug = () => null, chosen = nu
     const unsupported = new Set();
     // (2026-10-22, Levitate: its effect has only the −2 to attacks; the spell floats the creature up out of reach — model.levitates, space.js.)
     if (/^(?:spell )?effect: levitate$/i.test(String(item?.name ?? "").trim())) model.levitates = true;
-    const toggles = new Map((item?.system?.rules ?? []).filter((rule) => rule?.key === "RollOption" && rule.toggleable && typeof rule.option === "string" && !rule.option.includes("{")).map((rule) => [rule.option, rule.value === true]));
+    // (2026-11-05: a "theatre of the mind" toggle on the target — Undead Slayer's "target:mode:undead" — is the roll's to settle, not off.)
+    const toggles = new Map((item?.system?.rules ?? []).filter((rule) => rule?.key === "RollOption" && rule.toggleable && typeof rule.option === "string" && !rule.option.includes("{") && !(rule.toggleable === "totm" && /^target:/.test(rule.option))).map((rule) => [rule.option, rule.value === true]));
     // (2026-10-22, Guidance's "+1 status bonus" on its own name, "guidance" — the roll it's used for: on.)
     const ownSlug = String(item?.name ?? "").replace(/^(?:Spell )?Effect:\s*/i, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     if (ownSlug && !toggles.has(ownSlug)) toggles.set(ownSlug, true);
@@ -459,7 +460,11 @@ function effectModelAt(item, { rank = 1, conditionSlug = () => null, chosen = nu
                 continue;
             }
         }
-        const value = numericValue(rule.value, rank);
+        let value = numericValue(rule.value, rank);
+        // (2026-11-05, Undead Slayer, Demonbane Warrior: a bonus of the weapon's damage dice — perWeaponDie, read at the roll from its Strike;
+        // 1 where no Strike is known.)
+        const perWeaponDie = value === null && rule.key === "FlatModifier" && /^@weapon\.system\.damage\.dice$/.test(String(rule.value ?? "").trim());
+        if (perWeaponDie) value = 1;
         switch (rule.key) {
             case "FlatModifier": {
                 const selectors = [].concat(rule.selector ?? []);
@@ -478,7 +483,7 @@ function effectModelAt(item, { rank = 1, conditionSlug = () => null, chosen = nu
                     // (AC, attack or damage when the predicate holds at the roll; "melee-strike-damage" and the like, for that kind of attack.)
                     const conditional = CONDITIONAL_SELECTORS[selector];
                     if (conditional && (when || conditional.kind)) {
-                        (model.conditional ??= []).push({ on: conditional.on, type: rule.type ?? "untyped", value, predicate: [...(when ?? []), ...(conditional.kind ? [conditional.kind] : [])] });
+                        (model.conditional ??= []).push({ on: conditional.on, type: rule.type ?? "untyped", value, ...(perWeaponDie ? { perWeaponDie: true } : {}), predicate: [...(when ?? []), ...(conditional.kind ? [conditional.kind] : [])] });
                         continue;
                     }
                     if (when) {
@@ -718,7 +723,8 @@ export function effectBonus(c, on, options = null) {
     const byType = new Map();
     for (const effect of c.effects) {
         const conditional = options && effect.model.conditional ? effect.model.conditional.filter((modifier) => modifier.on === on && predicateTest(modifier.predicate, options)) : null;
-        for (const modifier of conditional?.length ? [...effect.model.modifiers, ...conditional] : effect.model.modifiers) {
+        for (const raw of conditional?.length ? [...effect.model.modifiers, ...conditional] : effect.model.modifiers) {
+            const modifier = raw.perWeaponDie ? { ...raw, value: Number(options?.weaponDice) || raw.value } : raw;
             if (modifier.on !== on) continue;
             if (modifier.type === "status" && modifier.value < 0) continue;
             if (modifier.type === "untyped" || modifier.type === "dice") {
@@ -751,6 +757,10 @@ export function strikeRollOptions(attacker, strike, target, context) {
         if (["bludgeoning", "piercing", "slashing"].includes(part.type)) options.add("item:damage:category:physical");
     }
     for (const trait of target?.traits ?? []) options.add(`target:trait:${trait}`);
+    // (2026-11-05: its mode of being, as PF2e's "target:mode:undead" — Undead Slayer's —: undead, else living unless a construct.)
+    if (target) options.add((target.traits ?? []).includes("undead") ? "target:mode:undead" : (target.traits ?? []).includes("construct") ? "target:mode:construct" : "target:mode:living");
+    // (The Strike's damage dice, for a bonus per weapon die.)
+    options.weaponDice = Number(strike?.damage?.[0]?.dice) || 1;
     for (const [slug, held] of Object.entries(target?.cond ?? {})) if (held) options.add(`target:condition:${slug === "offGuard" ? "off-guard" : slug}`);
     for (const trait of attacker?.traits ?? []) options.add(`origin:trait:${trait}`);
     return options;
