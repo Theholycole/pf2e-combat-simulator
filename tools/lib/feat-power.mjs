@@ -1764,7 +1764,10 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     if (tried.strikes) pc.strikes = tried.strikes;
     // (Stunning Blows: the rider on the PC's Flurry of Blows.)
     if (entries.flurryRider) pc.multiStrikes = (pc.multiStrikes ?? []).map((entry) => (entry.name === "Flurry of Blows" ? { ...entry, bothHit: { conditions: [], damage: [], ...entries.flurryRider } } : entry));
-    return { party: withFeat, ...(loadout || classPC ? { plain: base } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan };
+    // (2026-11-05: its uses counted by the names its actions show in the log too — Explosion's Explode, a dedication's Rage — not its own
+    // name alone, which counted 0.)
+    const useNames = [...new Set([...entries.spells, ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => entry?.name).filter((name) => typeof name === "string" && name.length > 2))];
+    return { party: withFeat, ...(loadout || classPC ? { plain: base } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan, useNames };
 }
 
 const FORCE = process.env.FEAT_FORCE !== "0";
@@ -1867,8 +1870,9 @@ export function stopReason(diffs, step, uses) {
 
 // A sink for a fight's log that counts the lines naming the feat. (Not \b: a name that ends in "!" or "?" — Do You Know Who I Am?,
 // To Me! — has no word boundary after it.)
-function useCounter(name) {
-    const pattern = new RegExp(`(?<![\\w'])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w'])`);
+function useCounter(name, others = []) {
+    const names = [name, ...others.filter((other) => other !== name)];
+    const pattern = new RegExp(`(?<![\\w'])(?:${names.map((each) => each.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\w'])`);
     return { count: 0, push(line) { if (pattern.test(typeof line === "string" ? line : line?.text ?? "")) this.count++; } };
 }
 
@@ -1907,7 +1911,7 @@ export function partyHash(party) {
 
 // One encounter of a feat: its fights in batches until stopReason, against the plain party's on the same seeds.
 function rateEncounter(built, foes, plain, cacheKey, name, { maxFights = FIGHTS, early = true } = {}) {
-    const sink = useCounter(name);
+    const sink = useCounter(name, built.useNames ?? []);
     const scores = [];
     let plainList = [];
     let stop = null;
