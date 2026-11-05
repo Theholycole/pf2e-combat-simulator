@@ -1198,6 +1198,9 @@ const HAND = {
         const hardness = level >= 13 ? 10 : level >= 7 ? 8 : 5;
         return { builtins: { ...(host?.shield ? {} : { shield: { ac: 2, hardness, hp: hardness * 4, bt: hardness * 2, broken: false, raised: false } }), reactions: { shieldBlock: true } }, played: `Shield Block (reaction)${host?.shield ? "" : ", a shield with it"}` };
     },
+    // (Battle Cry: a free Demoralize as the fight begins — champion.js championOpening —, and from 15th, legendary in Intimidation, its
+    // reaction Demoralize on a critical hit.)
+    "battle-cry": (level) => ({ builtins: { battleCry: { reaction: level >= 15 } }, played: `a free Demoralize as the fight begins${level >= 15 ? ", and one on a critical hit (reaction)" : ""}` }),
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
