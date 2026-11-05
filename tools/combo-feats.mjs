@@ -26,6 +26,7 @@ export const COMBOS = [
     { name: "Predator's Pounce", cost: 1, parts: "Stride + Strike (light or no armor)", saved: ["stride"] },
     { name: "Mobile Magical Combat", cost: 1, parts: "Stride + Strike (after a spell)", saved: ["stride"] },
     { name: "Liberating Dive", cost: 2, parts: "Fly + melee Elemental Blast (+ an ally's Escape)", saved: ["move"] },
+    { name: "Imperious Aura", cost: 0, parts: "a kinetic aura stance impulse as a free action as its turn begins", saved: ["strike"], uses: 1, note: "the one action its stance costs, once a fight (the stance's own value is its own feat's)" },
     { name: "Four Winds", cost: 2, parts: "up to 4 allies Stride half their Speed", saved: [], note: "four half-Strides bought with two of the kineticist's actions: about even" },
     { name: "Antler Rush", cost: 2, parts: "Stride, Stride + Strike, Shove or Disarm", saved: ["stride"] },
     { name: "Hurling Charge", cost: 2, parts: "ranged Strike + Stride + Interact (draw)", saved: ["draw"] },

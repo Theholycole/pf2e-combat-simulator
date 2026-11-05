@@ -22,6 +22,7 @@ Every PC already has the basic actions, and each rated alone is worth about 0 le
 | Nightwave Springing Reload | 1 | Leap + Interact (reload) | reload | +0.160 |  |
 | Quick Bomber | 1 | Interact (draw a bomb) + Strike | reload | +0.160 | a bomb each throw: a draw every turn, as a reload |
 | Risky Reload | 1 | Interact (reload) + Strike; a miss misfires | reload | +0.140 | a failed Strike misfires (about half the time): less the cost of clearing it |
+| Imperious Aura | 0 | a kinetic aura stance impulse as a free action as its turn begins | strike | +0.040 | the one action its stance costs, once a fight (the stance's own value is its own feat's) |
 | Hurling Charge | 2 | ranged Strike + Stride + Interact (draw) | draw | +0.040 |  |
 | Quick Draw | 1 | Interact (draw) + Strike | draw | +0.040 |  |
 | Quick Shot | 1 | Interact (draw a bow or crossbow) + Strike | draw | +0.040 |  |
