@@ -817,12 +817,16 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             }
         }
         // Opportune Riposte: a Strike back at a foe in reach that critically fails against it.
-        if (degree === CRITICAL_FAILURE && !reaction && target.opportuneRiposte && canReact(target, "Opportune Riposte") && sameMelee(target, attacker)) {
+        // (2026-11-05: Parry and Riposte's failure too — its finisher and parry requirement taken as met; Inexhaustible Countermoves'
+        // extra reaction for it in each foe's turn; Felicitous Riposte's roll twice, the better kept.)
+        const countermove = target.inexhaustibleCountermoves && target.countermoveTurn !== `${state.round}:${attacker.id}`;
+        if ((degree === CRITICAL_FAILURE || (degree === FAILURE && target.parryAndRiposte)) && !reaction && target.opportuneRiposte && (canReact(target, "Opportune Riposte") || (countermove && canAct(target))) && sameMelee(target, attacker)) {
             const riposte = bestMeleeStrike(target, attacker);
             if (riposte) {
-                spendReaction(target, "Opportune Riposte");
-                log(state, `  ${target.name} uses Opportune Riposte`);
-                performStrike(state, target, attacker, riposte, { reaction: true });
+                if (canReact(target, "Opportune Riposte")) spendReaction(target, "Opportune Riposte");
+                else target.countermoveTurn = `${state.round}:${attacker.id}`;
+                log(state, `  ${target.name} uses Opportune Riposte${degree === FAILURE ? " (Parry and Riposte)" : ""}${target.countermoveTurn === `${state.round}:${attacker.id}` ? " (Inexhaustible Countermoves)" : ""}`);
+                performStrike(state, target, attacker, riposte, { reaction: true, ...(target.felicitousRiposte ? { fortune: true } : {}) });
             }
         }
         // Opportune Bite, Gnawing Retort (B84): a monster's Strike back at a creature in its reach that critically fails a Strike against it;
