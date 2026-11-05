@@ -1517,6 +1517,8 @@ const HAND = {
     "rejuvenating-touch": () => ({ builtins: { touchRiders: [{ name: "Rejuvenating Touch", model: { rounds: 10, tempHp: 10 } }] }, played: "10 temporary Hit Points for an ally its Lay on Hands heals" }),
     "accelerating-touch": () => ({ builtins: { touchRiders: [{ name: "Accelerating Touch", model: { rounds: 1, modifiers: [{ on: "speed", type: "status", value: 10 }] } }] }, played: "+10 feet Speed until its next turn for an ally its Lay on Hands heals" }),
     "leave-an-opening": () => ({ builtins: { leaveAnOpening: true }, played: "its melee critical hit on an off-guard foe sets off an ally's Reactive Strike" }),
+    // (Tangle of Battle: a Grapple at the foe it critically hits, its reaction — the basic action's plan at its trigger, triggers.js "crit".)
+    "tangle-of-battle": () => ({ builtins: {}, spells: [{ name: "Tangle of Battle", plan: { ...structuredClone(basicActions.grapple), activation: { time: "reaction", traits: ["attack"] } }, castRank: 1, pool: null, kind: "basic", featTrigger: { on: "crit" } }], played: "a Grapple at a foe it critically hits (reaction)" }),
     // (Kinetic aura stances — kineticAura.)
     "thermal-nimbus": (level, host, doc) => kineticAura(doc, { model: { resistances: [{ type: "fire", value: level, exceptions: [] }] }, start: `${Math.floor(level / 2)}[fire]`, enter: `${Math.floor(level / 2)}[fire]`, played: `fire resistance ${level} for the PC and its allies, ${Math.floor(level / 2)} fire to foes starting their turn or moving` }),
     "ghosts-in-the-storm": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: 2 }] }, played: "+2 Reflex for the PC and its allies" }),
