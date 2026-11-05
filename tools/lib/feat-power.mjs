@@ -1525,6 +1525,7 @@ const HAND = {
     // Intelligence added (its 10 feet are the target's Melee here too); Directional Bombs' cone, so its allies there aren't splashed.)
     "calculated-splash": (level) => ({ builtins: level < 5 ? { splashBonus: Math.max(0, 4 - (level >= 3 ? 2 : 1)) } : {}, played: level < 5 ? "bomb splash equal to its Intelligence" : "nothing past 5th (Field Discovery does it)" }),
     "expanded-splash": (level) => ({ builtins: { splashBonus: level >= 10 ? 5 : 4 }, played: "its Intelligence added to its bombs' splash" }),
+    "unstable-concoction": () => ({ builtins: { unstableConcoction: true }, played: "its bombs' damage dice a step bigger" }),
     "directional-bombs": () => ({ builtins: { splashFoesOnly: true }, played: "its bombs' splash on its foes only (a cone away from it)" }),
     // (A champion's Lay on Hands riders, on each ally it heals — spells.js touchRiders. Amplifying Touch's spirit damage played as +1 damage;
     // Rejuvenating Touch's temporary Hit Points given once, not each turn.)
@@ -2338,6 +2339,11 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             const damage = had ? strike.damage.map((part, index) => (index === 0 ? { ...part, die: Math.min(12, (part.die ?? 6) + 2) } : part)) : strike.damage;
             return { ...strike, damage, forceful: true, deadly: strike.deadly ?? { dice: deadlyDice, die: 10 } };
         });
+    }
+    // (2026-11-05, Unstable Concoction: its bombs' initial damage dice a step bigger.)
+    if (pc.unstableConcoction) {
+        delete pc.unstableConcoction;
+        pc.strikes = (pc.strikes ?? []).map((strike) => (strike.splashKind === "bomb" ? { ...strike, damage: strike.damage.map((part, index) => (index === 0 && !part.persistent ? { ...part, die: Math.min(12, (part.die ?? 6) + 2) } : part)) } : strike));
     }
     // (Stunning Blows: the rider on the PC's Flurry of Blows.)
     if (entries.flurryRider) pc.multiStrikes = (pc.multiStrikes ?? []).map((entry) => (entry.name === "Flurry of Blows" ? { ...entry, bothHit: { conditions: [], damage: [], ...entries.flurryRider } } : entry));
