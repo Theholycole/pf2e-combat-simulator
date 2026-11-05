@@ -42,6 +42,7 @@ export const canFight = (monster) => !!(monster?.strikes?.length || (monster?.sp
 // log: a sink (an object with push(line)) each fight's log lines go to (2026-11-03: the feat ratings count a feat's uses in the fights they score).
 export function dangerFights(party, foes, from, to, { setup = null, grid = null, log = null } = {}) {
     // (An eidolon shares its summoner's Hit Points: counted once — classes.js.)
+    // (An animal companion — companions.js — has Hit Points of its own: counted, as a hit on it is; its fall isn't a PC's.)
     const partyHp = party.filter((c) => !c.sharesHpWith).reduce((sum, c) => sum + c.hp.max, 0);
     const sum = { n: 0, damage: 0, downs: 0, deaths: 0, wipes: 0, rounds: 0, killed: 0, timeouts: 0, score: 0, scores: [] };
     for (let seed = from; seed < to; seed++) {

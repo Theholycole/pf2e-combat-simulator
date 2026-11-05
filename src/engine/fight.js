@@ -1865,7 +1865,7 @@ function summarize(state) {
             id: c.id,
             name: c.name,
             kind: c.kind,
-            ...(c.sharesHpWith ? { linked: true } : {}),
+            ...(c.sharesHpWith || c.companionOf ? { linked: true } : {}),
             down: c.everDown,
             dead: c.status === DEAD,
             hp: Math.max(0, c.hp.value),

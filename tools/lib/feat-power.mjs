@@ -25,6 +25,7 @@ const ITEM_ROOT = SIBLING(["pf2e-automatic-item-resolution", "PF2e AUTOMATIC ITE
 const { readDocuments, basicActions, PACK_ROOT } = await import("./pack-creatures.mjs");
 const { partyFor, classPartyFor, classesPartyFor } = await import("./deadliness.mjs");
 const { CLASS_SLUGS, classArmor, seatOf } = await import("../../src/engine/classes.js");
+const { withCompanion } = await import("../../src/engine/companions.js");
 const { compileFeat } = await import(new URL("src/compiler/index.js", FEAT_ROOT).href);
 export const itemReaders = ITEM_ROOT ? await (async () => {
     try {
@@ -1178,6 +1179,31 @@ const HAND = {
     "pact-of-infernal-prowess": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, keep: "new", free: true, criticalOnly: true }], played: "a critically failed save rerolled (free, once a fight)" }),
     "lucky-break": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, free: true }], played: "a failed save rerolled, the better kept (free, once a fight)" }),
     "resounding-bravery": () => ({ builtins: { resoundingBravery: true }, played: "+1 to saves and temporary Hit Points on a critically successful Will save (doubled against fear)" }),
+    // (2026-11-05, Cole's pick "Companions in the simulator": an animal companion — companions.js — beside its master, a turn of its own;
+    // a feat that grows it fought against the master with the stage before.)
+    "animal-companion": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "animal-companion-ranger": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "beastmaster-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "animal-trainer-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "cavalier-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "faithful-steed": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "commanders-companion": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "mature-animal-companion-druid": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "mature-animal-companion-ranger": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "mature-beastmaster-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "mature-trained-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "impressive-mount": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "battle-tested-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "incredible-companion-druid": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "incredible-companion-ranger": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "incredible-beastmaster-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "incredible-mount": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "battle-hardened-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "specialized-companion-druid": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "specialized-companion-ranger": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "specialized-beastmaster-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "specialized-companion-animal-trainer": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "peerless-mascot-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
     "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
@@ -1894,8 +1920,17 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     if (entries.flurryRider) pc.multiStrikes = (pc.multiStrikes ?? []).map((entry) => (entry.name === "Flurry of Blows" ? { ...entry, bothHit: { conditions: [], damage: [], ...entries.flurryRider } } : entry));
     // (2026-11-05: its uses counted by the names its actions show in the log too — Explosion's Explode, a dedication's Rage — not its own
     // name alone, which counted 0.)
-    const useNames = [...new Set([...entries.spells, ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => entry?.name).filter((name) => typeof name === "string" && name.length > 2))];
-    return { party: withFeat, ...(loadout || classPC ? { plain: base } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan, useNames };
+    // (2026-11-05: its animal companion, beside it; a stage upgrade's plain party has the stage before.)
+    let fought = withFeat;
+    let plainParty = loadout || classPC ? base : null;
+    if (pc.animalCompanion) {
+        const { stage, base: before = null } = pc.animalCompanion;
+        delete pc.animalCompanion;
+        fought = withCompanion(withFeat, host.id, stage);
+        if (before) plainParty = withCompanion(base, host.id, before);
+    }
+    const useNames = [...new Set([...(fought !== withFeat ? ["Animal Companion"] : []), ...entries.spells, ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => entry?.name).filter((name) => typeof name === "string" && name.length > 2))];
+    return { party: fought, ...(plainParty ? { plain: plainParty } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan, useNames };
 }
 
 const FORCE = process.env.FEAT_FORCE !== "0";
