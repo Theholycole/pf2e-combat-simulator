@@ -884,8 +884,20 @@ function actOn(state, c, action) {
             // (2026-11-06, Expansive Spellstrike: an area spell on the foes about the target — planner.js spellstrikeCaught; none on a critical
             // miss.)
             const caughtIds = action.caughtIds?.filter((id) => isActive(state.byId.get(id))) ?? [target.id];
+            // (2026-11-06, Overwhelming Spellstrike: the same two actions, its spell ignoring resistance to acid, cold, electricity, fire and
+            // sonic up to its level — taken whenever the target resists one of them.)
+            const overwhelming = c.overwhelmingSpellstrike && (target.resistances ?? []).some((entry) => ["acid", "cold", "electricity", "fire", "sonic", "all-damage"].includes(entry.type));
+            const kept = c.spells[action.spellIndex];
+            if (overwhelming) {
+                state.log?.push(`  (Overwhelming Spellstrike)`);
+                c.spells[action.spellIndex] = { ...kept, plan: { ...kept.plan, resolution: { ...kept.plan.resolution, ignoreResistance: [...[kept.plan.resolution?.ignoreResistance ?? []].flat(), { value: c.overwhelmingSpellstrike, types: ["acid", "cold", "electricity", "fire", "sonic"] }] } } };
+            }
+            try {
             if (attackSpell) castSpell(state, c, action.spellIndex, [target.id], undefined, { forcedDegree: result.degree });
             else castSpell(state, c, action.spellIndex, result.degree === 0 ? [target.id] : caughtIds.length ? caughtIds : [target.id], undefined, { disrupted: result.degree === 0 });
+            } finally {
+                if (overwhelming) c.spells[action.spellIndex] = kept;
+            }
             // (2026-11-06, Sustaining Steel: a spell from a slot heals it the spell's rank, double in Arcane Cascade.)
             if (c.sustainingSteel && spell.pool && !(spell.plan?.traits ?? []).includes("cantrip") && !String(spell.pool).endsWith(":focus") && isActive(c)) {
                 const rank = Number(spell.castRank) || 1;
