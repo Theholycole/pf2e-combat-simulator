@@ -1487,6 +1487,7 @@ const HAND = {
     "communal-healing": () => ({ builtins: { communalHealing: true }, played: "each single-target heal heals the most hurt other ally by its rank" }),
     antagonize: () => ({ builtins: { antagonize: true }, spells: basicActions.demoralize ? [{ name: "Demoralize", plan: structuredClone(basicActions.demoralize), castRank: 1, pool: null, kind: "basic" }] : [], played: "Demoralize (forced); frightened from it stays at 1 or more until the foe attacks it" }),
     "resurrectionist": () => ({ builtins: { resurrectionist: true }, played: "a dying ally it heals gets fast healing 5 for 1 minute" }),
+    "finishing-follow-through": () => ({ builtins: { finishingFollowThrough: true }, played: "panache back when a finisher brings its target to 0 HP" }),
     "distracting-feint": () => ({ builtins: { distractingFeint: true }, spells: basicActions.feint ? [{ name: "Feint", plan: structuredClone(basicActions.feint), castRank: 1, pool: null, kind: "basic" }] : [], played: "Feint (forced): a foe off-guard to it also takes –2 to Perception and Reflex saves" }),
     "goading-feint": () => ({ builtins: { goadingFeint: true }, played: "every Feint goads (–2 to the foe's next attack on the PC, all of them on a critical success) instead of off-guard" }),
     "twin-feint": () => ({ builtins: { multiStrikes: [{ name: "Twin Feint", actions: 2, strikes: [null, null], sameTarget: true, secondOffGuard: true }] }, played: "two Strikes at one foe, off-guard to the second" }),

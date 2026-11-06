@@ -1266,6 +1266,11 @@ function actOn(state, c, action) {
                     const dealt = applyDamage(state, target, [{ type: c.strikes[action.strikeIndex].damage[0].type, amount: c.preciseFinisher ? amount : Math.floor(amount / 2), persistent: false, precision: true, context: strikeContext(c, c.strikes[action.strikeIndex]) }], { source: c });
                     state.log?.push(`  ${target.name} takes ${dealt} from the finisher's miss`);
                 }
+                // (2026-11-06, Finishing Follow-Through: panache back when the finisher brings its target to 0 HP.)
+                if (c.finishingFollowThrough && target.hp.value <= 0) {
+                    c.panache = true;
+                    state.log?.push(`  ${c.name} keeps its panache (Finishing Follow-Through)`);
+                }
             }
             // Vicious Swing counts as two attacks; Exacting Strike's miss doesn't count.
             if (result && activity.countsAs > 1) c.attacksThisTurn += (c.hydra?.count === activity.countsAs ? Math.max(1, c.hydra.heads) : activity.countsAs) - 1;
