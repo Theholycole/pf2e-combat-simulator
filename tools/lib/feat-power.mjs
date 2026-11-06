@@ -1626,6 +1626,9 @@ const HAND = {
         const entry = { ...anthem, name: `Courageous Anthem (${doc.name})`, plan: { ...anthem.plan, activation: { ...anthem.plan.activation, time: String(time + 1) } }, allyStrike: doc.name, featForced: true };
         return { builtins: {}, spells: [entry], pools: {}, played: "Courageous Anthem an action more, and an ally's melee Strike as a reaction" };
     },
+    // (2026-11-06, the cleric's Heal spellshapes, an action before each single-target Heal or Harm on an ally — fight.js healShapes.)
+    "defensive-recovery": () => ({ builtins: { healShapes: [{ name: "Defensive Recovery", kind: "defensive" }] }, played: "an action before each single-target Heal on an ally: +2 status to its AC and saves for a round" }),
+    "martyr": () => ({ builtins: { healShapes: [{ name: "Martyr", kind: "martyr" }] }, played: "an action before each single-target Heal on an ally: 1d8 a rank of its own Hit Points to it too" }),
     "underhanded-assault": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "melee", sneakFirst: 2 })], played: "a Sneak (Stealth −2 against its Perception DC), then a melee Strike it's off-guard to (2 actions)" }),
     "frightful-attrition": () => ({ builtins: { frightfulAttrition: true }, played: "a Will save or frightened 1–3 for the foes within 30 feet of each foe it drops (actions.js)" }),
     "sympathetic-vulnerabilities": () => ({ builtins: { sympatheticVulnerabilities: true }, played: "personal antithesis on every foe of the exploited one's kind" }),

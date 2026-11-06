@@ -1024,7 +1024,33 @@ function actOn(state, c, action) {
             }
             // (A follow-up by the Strike's degree, "Enfeebled 2 (or Enfeebled 3 on a critical hit)": that Strike's degree, B68.)
             const byStrike = action.rider && spell?.plan?.resolution?.check?.statistic === "strike" && Number.isFinite(rider?.degree);
+            // (2026-11-06, Defensive Recovery and Martyr: a cleric's spellshape on a single-target Heal or Harm — the action before it, taken
+            // whenever it has one left; +2 status to AC and saves for a round, or its own Hit Points, 1d8 a rank, given to the ally too.)
+            const shapes = action.healShape && !disrupted ? c.healShapes ?? [] : [];
+            const healed = shapes.length ? state.byId.get(action.targetIds?.[0]) : null;
+            const hpBefore = healed?.hp.value ?? 0;
+            if (healed && healed !== c && healed.side === c.side) {
+                state.log?.push(`  ${c.name} uses ${shapes.map((shape) => shape.name).join(" and ")}`);
+            }
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
+            if (healed && healed !== c && healed.side === c.side && isActive(healed)) {
+                for (const shape of shapes) {
+                    if (shape.kind === "defensive" && healed.hp.value > hpBefore) {
+                        applyEffect(state, healed, { name: shape.name, rounds: 1, modifiers: [{ on: "ac", type: "status", value: 2 }, { on: "saving-throw", type: "status", value: 2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `shape:${shape.name}` });
+                        state.log?.push(`  ${healed.name} gains +2 AC and saves (${shape.name})`);
+                    }
+                    if (shape.kind === "martyr") {
+                        let amount = 0;
+                        for (let die = 0; die < (spell.castRank ?? 1); die++) amount += state.rng.die(8);
+                        amount = Math.min(amount, c.hp.value - 1, healed.hp.max - healed.hp.value);
+                        if (amount > 0) {
+                            c.hp.value -= amount;
+                            healed.hp.value += amount;
+                            state.log?.push(`  ${c.name} gives ${amount} of its own Hit Points to ${healed.name} (${shape.name})`);
+                        }
+                    }
+                }
+            }
             if (spell?.draw?.each) c.itemsAtHand?.delete(spell.item);
             // (2026-11-06, Courageous Assault: an ally the anthem reached — one in a Melee with a foe and a reaction left — makes a melee Strike
             // as its reaction.)
@@ -1535,7 +1561,7 @@ function actionCost(c, action) {
     if (action.type === "multiStrike" || action.type === "skillSweep" || action.type === "charge" || action.type === "strikeActivity" || action.type === "selfBuff" || action.type === "selfEffect" || action.type === "safeMove" || action.type === "mythicRemove" || action.type === "mythicRecharge" || action.type === "poisonWeapon" || action.type === "grantAoo" || action.type === "allyAdvance" || action.type === "summon") return action.actions ?? 1;
     // (Quickened Casting, B72: one action fewer.)
     // (S22: Trick Magic Item first, an action more; a stowed item taken out, its retrieve actions.)
-    if (action.type === "cast") return castActions(c, action) + (action.trick ? 1 : 0) + (action.makeThrall ? 1 : 0) + (action.draw ? c.spells[action.spellIndex].draw?.actions ?? 1 : 0);
+    if (action.type === "cast") return castActions(c, action) + (action.trick ? 1 : 0) + (action.makeThrall ? 1 : 0) + (action.healShape ? 1 : 0) + (action.draw ? c.spells[action.spellIndex].draw?.actions ?? 1 : 0);
     return action.type === "task" ? 2 : 1;
 }
 

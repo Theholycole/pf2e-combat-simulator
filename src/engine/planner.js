@@ -1431,9 +1431,19 @@ function expandSpells(env) {
                 const tricks = { ...(trick ? { trick: true } : {}), ...(draw ? { draw: true } : {}), ...(makeThrall ? { makeThrall: true } : {}) };
                 // (Mirror Image on itself: the images, for the next round's danger.)
                 const images = spell.plan?.resolution?.kind === "image-decoys" && set.targets.length === 1 && set.targets[0] === c ? spell.plan.resolution.imageDecoys : undefined;
-                if (info.actions + extra <= remaining) {
+                // (2026-11-06: rated as used often — forced, the spellshaped Heal in place of the plain one whenever it fits.)
+                const shapedFits = c.forceUse && c.healShapes?.length && ["Heal", "Harm"].includes(spell.name) && info.actions <= 2 && set.targets.length === 1 && set.targets[0] !== c && set.targets[0].side === c.side && info.actions + extra + 1 <= remaining;
+                if (info.actions + extra <= remaining && !shapedFits) {
                     const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + extra, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index, images });
                     // Casting is a manipulate action: it provokes Attacks of Opportunity.
+                    if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    children.push(next);
+                }
+                // (2026-11-06, Defensive Recovery and Martyr: the spellshape's action before a single-target Heal or Harm on an ally — worth
+                // 40% more of the healing (Martyr's own Hit Points, 80%), taken whenever an action is left for it.)
+                const shaped = c.healShapes?.length && ["Heal", "Harm"].includes(spell.name) && info.actions <= 2 && set.targets.length === 1 && set.targets[0] !== c && set.targets[0].side === c.side;
+                if (shaped && info.actions + extra + 1 <= remaining) {
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: [set.targets[0].id], actions, healShape: true, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + extra + 1, ctx.profile.aggression * gain * (c.healShapes.some((shape) => shape.kind === "martyr") ? 1.8 : 1.4), { attack: info.attack, damage, cast: [index, "shaped"], images });
                     if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }
