@@ -48,7 +48,7 @@ import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
-import { actionTraits, isHex, battleMedicineOdds, outsideTargets, skillValue, canCast, conditionWorth, describeSpell, exploitValue, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition, traitsAllowed } from "./spells.js";
+import { actionTraits, isHex, battleMedicineOdds, outsideTargets, skillValue, canCast, conditionWorth, describeSpell, exploitValue, exploitCovers, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition, traitsAllowed } from "./spells.js";
 import { canSummon, summonPool } from "./summons.js";
 import { needsThrall, thrallsOf } from "./thralls.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
@@ -2048,7 +2048,7 @@ function expandTactics(env) {
     // Exploit Vulnerability (once a round): the weakness it'd bring on about three rounds of hits.
     if (c.exploit && node.used === 0 && !c.usedThisTurn?.has("exploit")) {
         for (const target of ctx.enemies) {
-            if (target.status !== "active" || c.exploited?.targetId === target.id) continue;
+            if (target.status !== "active" || exploitCovers(c, target)) continue;
             const gain = ctx.ownValue * ROUND_TO_KILL * 3 * 1.2 * exploitValue(c, target) / threatOf;
             children.push(child(node, { type: "exploit", targetId: target.id }, 1, gain));
         }

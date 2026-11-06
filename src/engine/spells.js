@@ -3651,7 +3651,16 @@ export function exploitVulnerability(state, c, target) {
         return;
     }
     const weakest = Math.max(0, ...(target.weaknesses ?? []).map((entry) => entry.value ?? 0));
-    c.exploited = { targetId: target.id, value: degree >= 2 ? Math.max(weakest, c.exploit.antithesis) : c.exploit.antithesis };
+    // (2026-11-06: the kind it's on too — mortal weakness reaches every creature of the exact same kind; Sympathetic Vulnerabilities takes
+    // personal antithesis to them as well, on a non-humanoid.)
+    const mortal = degree >= 2 && weakest > c.exploit.antithesis;
+    c.exploited = { targetId: target.id, kind: target.name, mortal, humanoid: (target.traits ?? []).includes("humanoid"), value: mortal ? weakest : c.exploit.antithesis };
+}
+
+// Whether a creature's Strikes already carry its Exploit Vulnerability against a target (its own target, or one of the same kind).
+export function exploitCovers(c, target) {
+    const on = c.exploited;
+    return Boolean(on && (on.targetId === target.id || (on.kind === target.name && (on.mortal || (c.sympatheticVulnerabilities && !on.humanoid)))));
 }
 
 // The weakness Exploit Vulnerability would most likely give against a target, on average.

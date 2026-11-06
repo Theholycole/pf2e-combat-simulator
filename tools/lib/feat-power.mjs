@@ -1580,6 +1580,8 @@ const HAND = {
     "skeletal-lancers": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, pool: "feat:skeletal-lancers", model: { rounds: 10 }, thrallField: { count: 5, name: "skeletal lancer", aura: { on: "strike", reach: 10, damage: "5[piercing]", basic: false } } }], pools: { "feat:skeletal-lancers": 1 }, played: "5 lancer thralls beside foes: a foe's Strike within 10 feet of one costs it 5 piercing (its focus spell, once a fight; the lancers' own Strikes not played)" }),
     "rapid-recharge": () => ({ builtins: { rapidRecharge: 1 }, played: "its Spellstrike recharged free as a turn begins, once a fight" }),
     "sustaining-steel": () => ({ builtins: { sustainingSteel: true }, played: "a slot spell's Spellstrike heals it the rank (double in Arcane Cascade)" }),
+    // (2026-11-06: Exploit Vulnerability's personal antithesis on every creature of the target's kind — actions.js.)
+    "sympathetic-vulnerabilities": () => ({ builtins: { sympatheticVulnerabilities: true }, played: "personal antithesis on every foe of the exploited one's kind" }),
     "headshot": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", headshot: true })], played: "a 2-action firearm Strike; a critical hit on a foe it already hurt: a Fortitude save or it dies" }),
     "phase-bullet": () => ({ builtins: {}, plans: [strikeRider({ range: "ranged", attackBonus: 4, oncePerFight: true })], played: "a firearm Strike at +4 against an armored foe, ignoring cover (once a fight)" }),
     "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),
