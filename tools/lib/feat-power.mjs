@@ -1613,6 +1613,9 @@ const HAND = {
     "blade-of-law": (level) => ({ builtins: {}, plans: [strikeRider({ actions: 2, requires: "hostile-to-me", extraWeaponDice: 1, countsAs: 2, onHit: { damage: [`${level >= 18 ? 2 : 1}d8[spirit]`] } })], played: "a Strike at a foe that attacked it since its last turn: an extra weapon die and 1d8 spirit (2 actions, two attacks)" }),
     // (2026-11-06, Proud Nail: at its taunted foe that's off-guard for attacking another — an extra weapon die a hit, 2 at 10th, 3 at 18th.)
     "proud-nail": (level) => ({ builtins: {}, plans: [strikeRider({ flourish: true, range: "melee", requires: "taunt-ignored", extraWeaponDice: level >= 18 ? 3 : level >= 10 ? 2 : 1 })], played: "a melee flourish Strike at its taunted foe that ignored the taunt, extra weapon dice" }),
+    // (2026-11-06, Tail Guard: a foe coming beside it where another already is — a melee Strike, no multiple attack penalty; a critical hit
+    // disrupts the move.)
+    "tail-guard": () => ({ builtins: { reactionStrikes: [{ name: "Tail Guard", triggers: ["approach"], flankOnly: true, strike: null, penalty: 0, disrupts: "critical", melee: true, noMap: true }] }, played: "a melee Strike at a foe moving in to flank it (reaction)" }),
     "underhanded-assault": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "melee", sneakFirst: 2 })], played: "a Sneak (Stealth −2 against its Perception DC), then a melee Strike it's off-guard to (2 actions)" }),
     "frightful-attrition": () => ({ builtins: { frightfulAttrition: true }, played: "a Will save or frightened 1–3 for the foes within 30 feet of each foe it drops (actions.js)" }),
     "sympathetic-vulnerabilities": () => ({ builtins: { sympatheticVulnerabilities: true }, played: "personal antithesis on every foe of the exploited one's kind" }),

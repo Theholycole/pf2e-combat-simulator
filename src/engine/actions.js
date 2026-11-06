@@ -1370,6 +1370,8 @@ function approachAnswers(state, mover) {
         if (!canAct(mover) || !isActive(mover)) break;
         if (!canReact(enemy, "*") || enemy.cond.fleeing) continue;
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("approach"));
+        // (2026-11-06, Tail Guard's "enters a square that would flank you": another of the mover's side already beside it.)
+        if (reaction?.flankOnly && !engagedEnemies(state, enemy).some((other) => other !== mover && other.side === mover.side)) continue;
         if (reaction) reactionStrikeAt(state, enemy, mover, reaction, "approach");
     }
 }
