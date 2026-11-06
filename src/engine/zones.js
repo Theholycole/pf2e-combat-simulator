@@ -14,6 +14,7 @@ import { applyCondition, castPlan, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { areaPlacements, inSquares, regroup } from "./grid-fight.js";
 import { emanationSquares } from "./grid.js";
+import { cackles } from "./lasting.js";
 
 let nextZoneId = 1;
 
@@ -189,11 +190,12 @@ export function zoneTurn(state, c, phase) {
             }
             // (A sustained lingering spell: its caster's action, or it ends; its saves "each time you Sustain".)
             if (zone.model.sustained && zone.ownerId === c.id) {
-                if (!(c.actionsLeft > 0)) {
+                const cackled = cackles(state, c, zone.name);
+                if (!cackled && !(c.actionsLeft > 0)) {
                     endZone(state, zone);
                     continue;
                 }
-                c.actionsLeft -= 1;
+                if (!cackled) c.actionsLeft -= 1;
                 log(state, `  ${c.name} Sustains ${zone.name}`);
                 (c.sustainedNow ??= []).push(zone.name);
                 if (zone.model.grows && zone.radius < zone.model.grows.max) zone.radius = Math.min(zone.model.grows.max, zone.radius + zone.model.grows.by);
