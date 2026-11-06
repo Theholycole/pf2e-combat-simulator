@@ -257,6 +257,8 @@ const CLASSES = {
         build(lv, a) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const hammer = weaponStrike(lv, { name: "Warhammer", die: 8, type: "bludgeoning", toHit: a.str, damageAttr: a.str, prof, group: "hammer", extra: { held: true } });
+            // Offensive Boost (9th, 2026-11-06): a weapon innovation's Strikes deal 1d6 more (Ignition, fire).
+            if (lv >= 9) hammer.damage.push({ dice: 1, die: 6, bonus: 0, type: "fire" });
             const crafting = lv + primarySkill(lv) + a.int;
             return { strikes: [hammer], skills: { crafting }, fields: { overdrive: { name: "Overdrive", modifier: crafting, intMod: a.int, level: lv } } };
         }
@@ -375,6 +377,8 @@ const CLASSES = {
             const steps = striking(lv) - 1;
             const optimization = lv >= 15 ? 2 * steps + 2 : lv >= 7 && steps > 0 ? steps + 1 : 0;
             const hammer = weaponStrike(lv, { name: "Warhammer", die: 8, type: "bludgeoning", toHit: a.str, damageAttr: a.str, prof, group: "hammer", extra: { held: true } });
+            // Offensive Boost (9th, 2026-11-06): a weapon innovation's Strikes deal 1d6 more (Ignition, fire).
+            if (lv >= 9) hammer.damage.push({ dice: 1, die: 6, bonus: 0, type: "fire" });
             hammer.damage[0].bonus = a.str + optimization;
             // (2026-11-02, the user's rune list.) Etched on the warhammer: marssyl, rune of impact — 1 bludgeoning splash damage per weapon
             // damage die.
@@ -435,6 +439,9 @@ const CLASSES = {
         build(lv, a) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const sword = weaponStrike(lv, { name: "Longsword", die: 8, type: "slashing", toHit: a.str, damageAttr: a.str, prof, group: "sword", extra: { held: true } });
+            // Implement's Empowerment (2026-11-06): 2 more damage per weapon damage die with a one-handed weapon and the implement in the other hand.
+            sword.empowerment = 2 * sword.damage[0].dice;
+            sword.damage[0].bonus += sword.empowerment;
             return { strikes: [sword], fields: { exploit: { name: "Exploit Vulnerability", modifier: lv + primarySkill(lv) + a.cha, antithesis: 2 + Math.floor(lv / 2) } } };
         }
     },
@@ -496,7 +503,7 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
         const main = c.strikes[0];
         const attr = main.finesse ? Math.max(a.str, a.dex) : a.str;
         const prof = main.bonus - lv - attr - (main.potency ?? 0);
-        const spec = Math.max(0, (main.damage?.[0]?.bonus ?? 0) - a.str);
+        const spec = Math.max(0, (main.damage?.[0]?.bonus ?? 0) - (main.empowerment ?? 0) - a.str);
         const dice = main.damage?.[0]?.dice ?? striking(lv);
         c.strikes = [...c.strikes, { name: "Longbow", bonus: lv + prof + a.dex + (main.potency ?? 0), potency: main.potency ?? 0, melee: false, agile: false, increment: 100, held: true, hands: 2, iwr: { group: "bow", ...(main.iwr?.traits ? { traits: main.iwr.traits } : {}) }, deadly: { dice: lv >= 19 ? 3 : lv >= 12 ? 2 : 1, die: 10 }, damage: [{ dice, die: 8, bonus: spec, type: "piercing" }], backupBow: true }];
     }
