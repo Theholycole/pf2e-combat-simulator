@@ -1587,6 +1587,16 @@ const HAND = {
     // (Storm Retribution: Tempest Surge on an adjacent foe that critically hits it in melee, a focus spell as a reaction — spells.js
     // reactToHit; the 5-foot push isn't played.)
     "storm-retribution": (level, host) => spellAsFocus(level, host, "Tempest Surge", "Storm Retribution", (plan) => ({ ...plan, activation: { ...plan.activation, time: "reaction" }, trigger: { ...plan.trigger, event: "hit-by", reaction: true, critical: true, melee: true }, targeting: { ...plan.targeting, target: "the attacker" } }), { reaction: true }),
+    // (Ki Cutting Sight: 1 action, a focus spell — Perception against the target's Fortitude DC; a success, its next Strike's damage on it
+    // 4d10 slashing more, 1d10 a rank above 3rd — fight.js; Fear's save shape for the planner, its condition never applied.)
+    "ki-cutting-sight": (level, host, doc) => {
+        const rank = Math.max(3, Math.ceil(level / 2));
+        const plan = conditionSavePlan(doc, "fortitude", null, null);
+        if (!plan) return null;
+        const pool = `${host.id}:focus`;
+        const entry = { name: "Ki Cutting Sight", fromFeat: true, featForced: true, kiCut: 4 + rank - 3, plan: { ...plan, castActions: 1, activation: { ...plan.activation, time: "1" } }, castRank: rank, dc: 10, attack: 0, pool, effects: {} };
+        return { builtins: {}, spells: [entry], pools: { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) }, played: `Ki Cutting Sight: on a Perception success against its Fortitude DC, ${4 + rank - 3}d10 slashing on the monk's next hit (a focus spell)` };
+    },
     "force-fang": (level, host) => spellAsFocus(level, host, "Force Barrage", "Force Fang", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, range: "5 feet" } })),
     "spell-swipe": () => ({ builtins: { spellSweeps: [{ name: "Spell Swipe", kind: "swipe" }] }, played: "a 3-action Spellstrike at two adjacent foes, the spell on each it hits (a multi-target or area spell)" }),
     "whirlwind-spell": () => ({ builtins: { spellSweeps: [{ name: "Whirlwind Spell", kind: "whirl" }] }, played: "a 3-action Spellstrike at each foe in reach, the spell on each it hits (a multi-target or area spell)" }),

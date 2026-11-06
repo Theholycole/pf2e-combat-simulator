@@ -880,6 +880,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (cruel >= 2) log(state, `  Flamboyant Cruelty: +${cruel} damage`);
     const instances = rollStrikeDamage(state.rng, strike, { critical, penalty });
     // (2026-11-06, Targeting Strike: its ally's hit at the target — the commander's Intelligence in precision damage, once, before its next turn.)
+    // (2026-11-06, Ki Cutting Sight's mark: the monk's next damaging Strike on it, the spell's slashing dice more.)
+    if (target.kiCutBy?.by === attacker.id) {
+        let amount = 0;
+        for (let die = 0; die < target.kiCutBy.dice; die++) amount += state.rng.die(10);
+        instances.push({ type: "slashing", amount, precision: false, persistent: false });
+        log(state, `  Ki Cutting Sight: +${amount} slashing`);
+        target.kiCutBy = null;
+    }
     if (target.targetedBy && target.targetedBy.by !== attacker.id && target.targetedBy.side === attacker.side && state.round <= target.targetedBy.round + 1) {
         instances.push({ type: strike.damage[0].type, amount: target.targetedBy.amount, precision: true, persistent: false });
         log(state, `  Targeting Strike: +${target.targetedBy.amount} precision`);

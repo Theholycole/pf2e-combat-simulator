@@ -1427,6 +1427,11 @@ function expandSpells(env) {
                 // (2026-11-06, Untamed Form's shapes: rated as used — offered even when the planner reads no gain in a battle form over the
                 // druid's spells; forceEven, tools/lib/feat-power.mjs.)
                 if (gain <= 0 && c.forceUse && spell.forceEven && set.targets.includes(c)) gain = 0.01;
+                // (2026-11-06, Ki Cutting Sight: about half the time, its dice on the monk's next hit — a foe not already marked.)
+                if (spell.kiCut) {
+                    const foe = set.targets.find((target) => target.side !== c.side && target.status === "active" && target.kiCutBy?.by !== c.id);
+                    if (foe) gain += 0.5 * ctx.ownValue * (spell.kiCut * 5.5) / Math.max(1, foe.hp.value);
+                }
                 if (gain <= 0) continue;
                 // (U1: a PC's consumable only when it's worth clearly more than what else the turn holds; healing freely when it's about to
                 // go down, or for a PC who is down.)

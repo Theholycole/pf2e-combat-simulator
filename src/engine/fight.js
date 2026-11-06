@@ -2,7 +2,7 @@
 
 import { createRng } from "./rng.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, degreeOf, flatCheck, rollCheck, SUCCESS } from "./checks.js";
-import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, statusPenalty, strikeUsable } from "./combatant.js";
+import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, saveModifier, statusPenalty, strikeUsable } from "./combatant.js";
 import { distanceBetween, engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { reaches as gridReach } from "./grid.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
@@ -1075,6 +1075,19 @@ function actOn(state, c, action) {
             const hpBefore = healed?.hp.value ?? 0;
             if (healed && healed !== c && healed.side === c.side) {
                 state.log?.push(`  ${c.name} uses ${shapes.map((shape) => shape.name).join(" and ")}`);
+            }
+            // (2026-11-06, Ki Cutting Sight: a Perception check against the target's Fortitude DC; a success marks it — the monk's next
+            // damaging Strike on it deals the spell's slashing dice more (actions.js). Its ki spells' damage isn't played.)
+            if (spell?.kiCut && !disrupted) {
+                const cut = state.byId.get(action.targetIds?.[0]);
+                spendPool(c, spell);
+                if (cut && isActive(cut)) {
+                    const natural = state.rng.d20();
+                    const degree = degreeOf(natural + (Number(c.perception) || 0) - statusPenalty(c, "perception"), 10 + saveModifier(cut, "fortitude"), natural);
+                    state.log?.push(`  ${c.name} casts ${spell.name} at ${cut.name}: ${degree >= SUCCESS ? "the flow is found" : "nothing"}`);
+                    if (degree >= SUCCESS) cut.kiCutBy = { by: c.id, dice: spell.kiCut };
+                }
+                break;
             }
             const drained = (spell?.vampiric || spell?.forcible || spell?.infuseVoid) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
