@@ -2145,6 +2145,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     if (source && target.kind === "pc") source.downedCount++;
     // (You're Next, B79: the reaction of the creature that downed it.)
     if (source && source !== target && source.side !== target.side && isActive(source)) downsAnswers(state, source, target);
+    // (2026-11-06, Commitment to Justice: each of the PC's allies saw who dropped it, until that ally's turn ends.)
+    if (source && source.side !== target.side && target.kind === "pc") for (const ally of state.list) if (ally !== target && ally.side === target.side && isActive(ally)) (ally.downedBy ??= new Set()).add(source.id);
     // (2026-11-06, Frightful Attrition: each of the fallen one's allies within 30 feet a Will save against its class DC — frightened 1, 2,
     // or 3 and fleeing 1 round; incapacitation, so a higher-level one's degree goes up a step; then immune for the fight.)
     if (source?.frightfulAttrition && source !== target && source.side !== target.side) {

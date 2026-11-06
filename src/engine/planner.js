@@ -1687,6 +1687,10 @@ function expandStrikeActivities(env) {
             if (activity.requires === "exploited" && !exploitCovers(c, target)) continue;
             if (activity.requires === "hostile-to-me" && !c.hostileFrom?.has(target.id)) continue;
             // (2026-11-06, Avenge Ally: an ally dying within 30 feet.)
+            // (2026-11-06, Commitment to Justice: at a foe that dropped an ally since its last turn; Blessed Thorn Strike: at one that hurt an
+            // ally — damaged it since the end of that ally's turn.)
+            if (activity.requires === "ally-downed-by" && !c.downedBy?.has(target.id)) continue;
+            if (activity.requires === "ally-harmed-by" && !state.list.some((other) => other !== c && other.side === c.side && other.damagers?.has(target.id))) continue;
             if (activity.requires === "ally-dying" && !state.list.some((other) => other !== c && other.side === c.side && other.kind === "pc" && other.cond?.dying > 0 && other.status !== "dead" && distanceBetween(c, other) <= 30)) continue;
             if (activity.requires === "taunt-ignored" && !(target.tauntedBy === c.id && target.ignoredTaunt === c.id && target.cond.offGuard)) continue;
             // (B206, Scorpion Sting: "Strikes an Off-Guard creature".)

@@ -1613,6 +1613,16 @@ const HAND = {
     "blade-of-law": (level) => ({ builtins: {}, plans: [strikeRider({ actions: 2, requires: "hostile-to-me", extraWeaponDice: 1, countsAs: 2, onHit: { damage: [`${level >= 18 ? 2 : 1}d8[spirit]`] } })], played: "a Strike at a foe that attacked it since its last turn: an extra weapon die and 1d8 spirit (2 actions, two attacks)" }),
     // (2026-11-06, Proud Nail: at its taunted foe that's off-guard for attacking another — an extra weapon die a hit, 2 at 10th, 3 at 18th.)
     "proud-nail": (level) => ({ builtins: {}, plans: [strikeRider({ flourish: true, range: "melee", requires: "taunt-ignored", extraWeaponDice: level >= 18 ? 3 : level >= 10 ? 2 : 1 })], played: "a melee flourish Strike at its taunted foe that ignored the taunt, extra weapon dice" }),
+    // (2026-11-06, Commitment to Justice: at a foe that dropped an ally since its last turn — a flourish Strike with three times its weapon dice
+    // as a circumstance bonus to damage.)
+    "commitment-to-justice": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, requires: "ally-downed-by", damagePerWeaponDie: 3 })], played: "a flourish Strike at a foe that dropped an ally since its last turn, +3 damage per weapon die" }),
+    // (2026-11-06, Blessed Thorn Strike: at a foe that hurt an ally since that ally's turn — a flourish Strike, then a Fortitude save against
+    // its class DC: enfeebled 1, 2 on a critical failure (for a minute: its effect).)
+    "blessed-thorn-strike": (_level, _host, doc) => {
+        const minute = { mode: "fixed", value: 10, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
+        const save = conditionSavePlan(doc, "fortitude", ["enfeebled", 1, minute], ["enfeebled", 2, minute]);
+        return save ? { builtins: {}, plans: [strikeRider({ flourish: true, requires: "ally-harmed-by", onHit: { save } })], played: "a flourish Strike at a foe that hurt an ally, then a Fortitude save: enfeebled 1 (2 on a critical failure)" } : null;
+    },
     // (2026-11-06, Gorilla Pound: in Gorilla Stance (given), a Demoralize and then a slam Strike (its best melee Strike) at the same target, +3
     // damage for each point of its frightened. Its Climb Speed isn't played.)
     "gorilla-pound": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, range: "melee", beforeStrike: "demoralize", frightBonus: 3 })], played: "a Demoralize, then a melee Strike with +3 damage per frightened value (flourish)" }),
