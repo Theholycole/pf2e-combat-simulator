@@ -1207,6 +1207,21 @@ function actOn(state, c, action) {
                 const dealt = applyDamage(state, target, [{ type: fired.damage[0].type, amount, persistent: false, precision: false, context: strikeContext(c, fired) }], { source: c, physical: true });
                 state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
             }
+            // (2026-11-06, Chain Infusion: each hit sends the blast on from the creature it hit to another foe within its range of it, at the
+            // next multiple attack penalty — on until one misses.)
+            if (activity.chainHits) {
+                let from = target;
+                let last = result;
+                const struck = new Set([target.id]);
+                while (last && last.degree >= SUCCESS && isActive(c) && canAct(c)) {
+                    const next = state.list.filter((other) => other.side !== c.side && isActive(other) && !other.thrallOf && !struck.has(other.id) && distanceBetween(from, other) <= (fired.increment ?? 30)).sort((a, b) => distanceBetween(from, a) - distanceBetween(from, b))[0];
+                    if (!next) break;
+                    struck.add(next.id);
+                    state.log?.push(`  ${activity.name}: the blast goes on to ${next.name}`);
+                    last = performStrike(state, c, next, fired);
+                    from = next;
+                }
+            }
             // (2026-11-06, Twin Weakness: any result but a critical failure, its Exploit Vulnerability's damage again from the implement; two
             // attacks for its multiple attack penalty.)
             if (activity.twinWeakness && result && !result.image) {
