@@ -1572,6 +1572,9 @@ const HAND = {
     // (2026-11-06, the monk's stance spells: Wild Winds Stance's 30-foot wind crash Strikes, Clinging Shadows Stance's reach shadow grasp
     // Strikes — PF2e's stance Effect, a focus spell of 1 action. Wild winds' +2 AC against ranged attacks and clinging shadows' Grapple
     // bonus aren't played.)
+    // (Wild Winds Gust: a wind crash Strike at each foe in a 30-foot cone, one multiple attack penalty — in Wild Winds Stance; the 60-foot
+    // line isn't played.)
+    "wild-winds-gust": () => ({ builtins: { multiStrikes: [{ name: "Wild Winds Gust", actions: 2, strikes: ["WindCrash"], each: true, within: 30, sameMap: true, featForced: true }] }, played: "a wind crash Strike at each foe within 30 feet (2 actions, in Wild Winds Stance)" }),
     "wild-winds-initiate": (level, host) => focusStance(level, host, "Wild Winds Stance"),
     "clinging-shadows-initiate": (level, host) => focusStance(level, host, "Clinging Shadows Stance"),
     "hasted-assault": (level, host) => spellAsFocus(level, host, "Haste", "Hasted Assault", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: "self", range: null } })),
@@ -2327,6 +2330,7 @@ function itemMatches(item, filter) {
 }
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
 // (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
+const STANCE_SPELL_FEATS = { "wild winds stance": "Wild Winds Initiate", "clinging shadows stance": "Clinging Shadows Initiate" };
 const BASE_FEATS = { "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
 
 // (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
@@ -2398,7 +2402,8 @@ function partyWithFeatOwn(doc, level, options = {}) {
     // Stance".)
     const stances = requiredStances(requirementText(doc) ?? "") ?? (needed && featByName(needed) ? [needed] : null) ?? (STANCE_PASSIVES[slugOf(doc)] ? [STANCE_PASSIVES[slugOf(doc)]] : null) ?? (BASE_FEATS[slugOf(doc)] ? [BASE_FEATS[slugOf(doc)]] : null);
     if (!stances || options.party) return partyWithFeatAlone(doc, level, options);
-    const stanceDoc = stances.map((name) => featByName(name)).find(Boolean);
+    // (2026-11-06: a stance a spell gives — Wild Winds Stance —: the feat that gives the spell.)
+    const stanceDoc = stances.map((name) => featByName(name) ?? (STANCE_SPELL_FEATS[name.toLowerCase()] ? featByName(STANCE_SPELL_FEATS[name.toLowerCase()]) : null)).find(Boolean);
     if (!stanceDoc) return { skipped: true, reason: `its stance (${stances.join(" or ")}), not in the packs` };
     const withStance = partyWithFeatAlone(stanceDoc, level, options);
     if (withStance.skipped) return { ...withStance, reason: `its stance (${stanceDoc.name}): ${withStance.reason}` };
