@@ -1613,6 +1613,16 @@ const HAND = {
     "blade-of-law": (level) => ({ builtins: {}, plans: [strikeRider({ actions: 2, requires: "hostile-to-me", extraWeaponDice: 1, countsAs: 2, onHit: { damage: [`${level >= 18 ? 2 : 1}d8[spirit]`] } })], played: "a Strike at a foe that attacked it since its last turn: an extra weapon die and 1d8 spirit (2 actions, two attacks)" }),
     // (2026-11-06, Proud Nail: at its taunted foe that's off-guard for attacking another — an extra weapon die a hit, 2 at 10th, 3 at 18th.)
     "proud-nail": (level) => ({ builtins: {}, plans: [strikeRider({ flourish: true, range: "melee", requires: "taunt-ignored", extraWeaponDice: level >= 18 ? 3 : level >= 10 ? 2 : 1 })], played: "a melee flourish Strike at its taunted foe that ignored the taunt, extra weapon dice" }),
+    // (2026-11-06, Talon Sweep: a foe flanking it misses it with a Strike — a Strike back (the spinning talon Strike: its best melee Strike).)
+    "talon-sweep": () => ({ builtins: { reactionStrikes: [{ name: "Talon Sweep", triggers: ["missed"], flankedOnly: true, strike: null, penalty: 0, melee: true }] }, played: "a melee Strike back at a flanking foe that misses it (reaction)" }),
+    // (2026-11-06, Avenge Ally: an ally dying within 30 feet — a Strike rolled twice, the higher; once a fight, its 10 minutes.)
+    "avenge-ally": () => ({ builtins: {}, plans: [strikeRider({ requires: "ally-dying", fortune: true, oncePerFight: true })], played: "with an ally dying within 30 feet, a Strike rolled twice (once a fight)" }),
+    // (2026-11-06, Spiteful Rake: a claw Strike — its best melee Strike, the changeling's claws not on the host — dazzled a round on a hit,
+    // blinded a round on a critical hit (and dazzled after: not played past the round).)
+    "spiteful-rake": () => {
+        const round = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
+        return { builtins: {}, plans: [strikeRider({ actions: 2, range: "melee", onHit: { conditions: [{ slug: "dazzled", duration: round }], critical: [{ slug: "blinded", duration: round }] } })], played: "a 2-action melee Strike: dazzled a round, blinded on a critical hit (its best melee Strike for the claw)" };
+    },
     // (2026-11-06, Tail Guard: a foe coming beside it where another already is — a melee Strike, no multiple attack penalty; a critical hit
     // disrupts the move.)
     "tail-guard": () => ({ builtins: { reactionStrikes: [{ name: "Tail Guard", triggers: ["approach"], flankOnly: true, strike: null, penalty: 0, disrupts: "critical", melee: true, noMap: true }] }, played: "a melee Strike at a foe moving in to flank it (reaction)" }),

@@ -849,7 +849,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         // Opportune Bite, Gnawing Retort (B84): a monster's Strike back at a creature in its reach that critically fails a Strike against it;
         // B90: one that fails or critically fails.
         if (!reaction && isActive(attacker) && isActive(target)) {
-            const answer = (target.reactionStrikes ?? []).find((entry) => (entry.triggers.includes("critical-miss") && degree === CRITICAL_FAILURE) || entry.triggers.includes("missed"));
+            // (2026-11-06, Talon Sweep: only a miss by a foe flanking it — another of the attacker's side beside it too.)
+            const flanking = () => state.list.some((other) => other !== attacker && other.side === attacker.side && isActive(other) && !other.thrallOf && sameMelee(other, target));
+            const answer = (target.reactionStrikes ?? []).find((entry) => ((entry.triggers.includes("critical-miss") && degree === CRITICAL_FAILURE) || entry.triggers.includes("missed")) && (!entry.flankedOnly || flanking()));
             if (answer && canReact(target, answer.name) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, degree === CRITICAL_FAILURE ? "critical-miss" : "missed");
         }
         // (B116, Skitter: a miss on it, answered by moving off.)

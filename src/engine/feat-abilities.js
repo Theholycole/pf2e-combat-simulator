@@ -14,7 +14,7 @@
 import { addBuiltin } from "./abilities.js";
 
 // The requirements a Strike activity's planner checks (planner.js); a feat's own words ("Your nimbus is active") aren't one.
-export const ACTIVITY_REQUIRES = new Set(["berserk", "first-round", "after-cast", "grabbed", "prone", "off-guard", "frightened", "hit-earlier", "ally-adjacent", "free-hand", "champion-triggered", "raging", "first-attack", "not-fatigued", "helpless", "prone-or-immobilized", "hostile-to-me", "exploited", "taunt-ignored"]);
+export const ACTIVITY_REQUIRES = new Set(["berserk", "first-round", "after-cast", "grabbed", "prone", "off-guard", "frightened", "hit-earlier", "ally-adjacent", "free-hand", "champion-triggered", "raging", "first-attack", "not-fatigued", "helpless", "prone-or-immobilized", "hostile-to-me", "exploited", "taunt-ignored", "ally-dying"]);
 // The stance a requirement names, "You are in Tiger Stance", "You're in either claw stance or talon stance": the stances' names, or null when
 // it asks for more ("…and have Grabbed a creature").
 export function requiredStances(text) {

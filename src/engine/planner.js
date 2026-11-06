@@ -37,7 +37,7 @@ function actionEntryOf(c, action) {
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hinderedBy, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
-import { canStepOut, fliesNow, flankChance, isIncorporeal, levitating, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
+import { canStepOut, distanceBetween, fliesNow, flankChance, isIncorporeal, levitating, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { bandAt, canTakeCover, gridFlanked, gridStrides, obstacleNext, pillarLine, pillarsInReach, planStride, shoots, standZ, strideGoes } from "./grid-fight.js";
 import { distanceFeet, footingAt, occupiedBy, reaches as gridReaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
 import { moderate } from "./creature-tables.js";
@@ -1686,6 +1686,8 @@ function expandStrikeActivities(env) {
             // (2026-11-06, Twin Weakness: at the target of its Exploit Vulnerability.)
             if (activity.requires === "exploited" && !exploitCovers(c, target)) continue;
             if (activity.requires === "hostile-to-me" && !c.hostileFrom?.has(target.id)) continue;
+            // (2026-11-06, Avenge Ally: an ally dying within 30 feet.)
+            if (activity.requires === "ally-dying" && !state.list.some((other) => other !== c && other.side === c.side && other.kind === "pc" && other.cond?.dying > 0 && other.status !== "dead" && distanceBetween(c, other) <= 30)) continue;
             if (activity.requires === "taunt-ignored" && !(target.tauntedBy === c.id && target.ignoredTaunt === c.id && target.cond.offGuard)) continue;
             // (B206, Scorpion Sting: "Strikes an Off-Guard creature".)
             if (activity.requires === "off-guard" && !(isOffGuard(target) || target.cond.immobilized)) continue;
