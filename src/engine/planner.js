@@ -1331,6 +1331,8 @@ function expandSpells(env) {
         if (spell.plan?.needs && !needsMet(state, c, spell.plan.needs, { fresh: node.used === 0 })) continue;
         // (B262, Rage-Charged Breath: only while raging.)
         if (spell.plan?.requires === "raging" && !isRaging(c)) continue;
+        // (2026-11-06, Exult in Violence: "You critically hit an enemy this turn".)
+        if (spell.plan?.requires === "crit-this-turn" && !(c.turnAttacks ?? []).some((attack) => attack.crit)) continue;
         // (B259, Inspiring Display: straight after a spell it cast.)
         if (spell.plan?.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, spell.plan.nonCantrip))) continue;
         // (B247, a seed shot only while its breath recharges: one of its Breath Weapons waiting out its recharge.)
