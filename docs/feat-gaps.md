@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-06. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1906 in whole fights. **4460 it doesn't.**
-- **3056** are in neither.
+- **The simulator** rates 1908 in whole fights. **4458 it doesn't.**
+- **3054** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1528 | 924 |
+| class | 2282 | 1088 | 1526 | 922 |
 | archetype | 2074 | 1246 | 1423 | 980 |
 | ancestry | 1613 | 1086 | 1140 | 853 |
 | skill | 340 | 261 | 324 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4460 | 3056 |
+| **All** | 6366 | 3725 | 4458 | 3054 |
 
 ## Why the feat module doesn't automate them
 
@@ -44,7 +44,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: the feat module's reminder, which a fight doesn't play | 188 | 133 | 101 | 21 |  | 1 |  | 444 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 81 | 39 | 111 | 2 |  |  | 324 |
 | no card: only grants other feats, features or choices | 87 | 123 | 47 | 16 | 2 |  |  | 275 |
-| a spell the engine doesn't cast | 52 | 56 | 108 | 1 |  | 1 |  | 218 |
+| a spell the engine doesn't cast | 50 | 56 | 108 | 1 |  | 1 |  | 216 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 52 | 51 | 46 | 21 | 1 |  |  | 171 |
 | no card: a combat passive no reader or hand plan covers yet | 53 | 59 | 29 | 13 | 2 |  | 1 | 157 |
 | a timer with no rules a fight counts | 56 | 28 | 17 | 4 |  | 1 |  | 106 |
@@ -2428,7 +2428,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Sacral Monarch | 14 | class | passive | rated 0.13 |
 | Shadow's Web | 14 | class | passive | rated 0.01 |
 | Shift Spell | 14 | class | 1 action | no card: roleplay or nothing to automate |
-| Skeletal Lancers | 14 | class | passive | a spell the engine doesn't cast |
+| Skeletal Lancers | 14 | class | passive | rated 0.32 |
 | Soothing Ballad | 14 | class | passive | rated 0 |
 | Sunder Enchantment | 14 | class | passive | no card: roleplay or nothing to automate |
 | Warden's Guidance | 14 | class | passive | no card: roleplay or nothing to automate |
@@ -3540,7 +3540,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Only the Worthy | 4 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Shielded Stride | 4 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Unending Subsistence | 4 | class | passive | no card: a combat passive no reader or hand plan covers yet |
-| Bloody Tendrils | 6 | class | passive | a spell the engine doesn't cast |
+| Bloody Tendrils | 6 | class | passive | rated -0.12 |
 | Claim the Field | 6 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Defy Fey | 6 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Fling Into Action | 6 | class | passive | no card: a combat passive no reader or hand plan covers yet |
