@@ -404,10 +404,11 @@ function effectModelAt(item, { rank = 1, conditionSlug = () => null, chosen = nu
         // while it lasts; a die more on its fists, reach, no longer nonlethal — Wooden Fists' alterations on "xxxxxxFISTxxxxxx".)
         if (rule?.key === "Strike" && (rule.fist || rule.damage?.base)) {
             const base = rule.fist ? { damageType: "bludgeoning", dice: 1, die: "d4" } : rule.damage.base;
-            // (2026-11-03, Sky and Heaven Stance's "The only Strikes you can make are skyward slash unarmed attacks": replaceAll — the
+            // (2026-11-06, Wild Winds Stance's wind crash: a Strike with a range (rule.range.max) — a ranged Strike, that far its increment.)
+        // (2026-11-03, Sky and Heaven Stance's "The only Strikes you can make are skyward slash unarmed attacks": replaceAll — the
             // creature's own Strikes put away while it lasts.)
             if (rule.replaceAll) model.strikesOnly = true;
-            (model.grantedStrikes ??= []).push({ slug: rule.fist ? "fist" : String(rule.slug ?? ""), name: rule.fist ? "Fist" : String(rule.label ?? rule.slug ?? "Strike").split(".").pop(), dice: Number(base.dice) || 1, die: Number(String(base.die ?? "d4").replace("d", "")) || 4, type: String(base.damageType ?? "bludgeoning"), traits: rule.fist ? ["agile", "finesse", "nonlethal", "unarmed"] : [...(rule.traits ?? [])], unarmed: Boolean(rule.fist || rule.category === "unarmed"), extra: [] });
+            (model.grantedStrikes ??= []).push({ slug: rule.fist ? "fist" : String(rule.slug ?? ""), name: rule.fist ? "Fist" : String(rule.label ?? rule.slug ?? "Strike").split(".").pop(), dice: Number(base.dice) || 1, die: Number(String(base.die ?? "d4").replace("d", "")) || 4, type: String(base.damageType ?? "bludgeoning"), traits: rule.fist ? ["agile", "finesse", "nonlethal", "unarmed"] : [...(rule.traits ?? [])], unarmed: Boolean(rule.fist || rule.category === "unarmed"), extra: [], ...(Number(rule.range?.max) > 0 ? { range: Number(rule.range.max) } : {}) });
             continue;
         }
         if (rule?.key === "ItemAlteration" && /FIST/.test(String(rule.itemId ?? ""))) {
@@ -865,7 +866,7 @@ function armStrikes(target, effect) {
     const fist = own.filter((strike) => strike.unarmed && strike.melee).sort((a, b) => (Number(b.bonus) || 0) - (Number(a.bonus) || 0))[0] ?? null;
     const granted = (model.grantedStrikes ?? []).map((spec) => {
         const runed = spec.unarmed && fist;
-        return { name: spec.name, bonus: runed ? Number(fist.bonus) || bonus : bonus, ...(runed && fist.potency ? { potency: fist.potency } : {}), melee: true, agile: spec.traits.includes("agile"), finesse: spec.traits.includes("finesse"), unarmed: spec.unarmed, ...(spec.reach ? { reach: spec.reach } : {}), iwr: { traits: spec.traits.filter((trait) => trait === "magical"), ...(spec.unarmed ? { group: "brawling" } : {}) }, damage: [{ dice: runed ? Math.max(spec.dice, Number(fist.damage?.[0]?.dice) || 1) : spec.dice, die: spec.die, bonus: runed ? Number(fist.damage?.[0]?.bonus) || str : str, type: spec.type }, ...spec.extra.map((part) => ({ dice: part.dice, die: part.die, bonus: 0, type: part.type }))], fromEffect: effect.key };
+        return { name: spec.name, bonus: runed ? Number(fist.bonus) || bonus : bonus, ...(runed && fist.potency ? { potency: fist.potency } : {}), melee: !spec.range, ...(spec.range ? { increment: spec.range } : {}), agile: spec.traits.includes("agile"), finesse: spec.traits.includes("finesse"), unarmed: spec.unarmed, ...(spec.reach ? { reach: spec.reach } : {}), iwr: { traits: spec.traits.filter((trait) => trait === "magical"), ...(spec.unarmed ? { group: "brawling" } : {}) }, damage: [{ dice: runed ? Math.max(spec.dice, Number(fist.damage?.[0]?.dice) || 1) : spec.dice, die: spec.die, bonus: runed ? Number(fist.damage?.[0]?.bonus) || str : str, type: spec.type }, ...spec.extra.map((part) => ({ dice: part.dice, die: part.die, bonus: 0, type: part.type }))], fromEffect: effect.key };
     });
     if (model.strikesOnly && granted.length) {
         effect.hiddenStrikes = [...(effect.hiddenStrikes ?? []), ...(target.strikes ?? []).filter((strike) => !strike.fromEffect && !strike.fromForm)];

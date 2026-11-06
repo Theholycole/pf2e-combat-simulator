@@ -1563,6 +1563,11 @@ const HAND = {
     "plant-shape": (level, host) => untamedShape(level, host, "Plant Form", "Plant"),
     "dragon-shape": (level, host) => untamedShape(level, host, "Dragon Form", "Dragon"),
     "monstrosity-shape": (level, host) => untamedShape(level, host, "Monstrosity Form", "Monstrosity"),
+    // (2026-11-06, the monk's stance spells: Wild Winds Stance's 30-foot wind crash Strikes, Clinging Shadows Stance's reach shadow grasp
+    // Strikes — PF2e's stance Effect, a focus spell of 1 action. Wild winds' +2 AC against ranged attacks and clinging shadows' Grapple
+    // bonus aren't played.)
+    "wild-winds-initiate": (level, host) => focusStance(level, host, "Wild Winds Stance"),
+    "clinging-shadows-initiate": (level, host) => focusStance(level, host, "Clinging Shadows Stance"),
     "hasted-assault": (level, host) => spellAsFocus(level, host, "Haste", "Hasted Assault", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: "self", range: null } })),
     "force-fang": (level, host) => spellAsFocus(level, host, "Force Barrage", "Force Fang", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, range: "5 feet" } })),
     "spell-swipe": () => ({ builtins: { spellSweeps: [{ name: "Spell Swipe", kind: "swipe" }] }, played: "a 3-action Spellstrike at two adjacent foes, the spell on each it hits (a multi-target or area spell)" }),
@@ -2320,6 +2325,14 @@ function untamedShape(level, host, spellName, label) {
 }
 // (2026-11-06, the magus's conflux spells the packs' compiler can't read: one a core spell plays the same — Hasted Assault, Haste on
 // itself in 1 action; Force Fang, Force Barrage's one missile a 2 ranks in melee reach —, as a focus spell at the magus's rank.)
+function focusStance(level, host, name) {
+    const effect = pf2eEffectNamed(name);
+    if (!effect) return null;
+    const model = effectModel(effect, { rank: Math.ceil(level / 2), actorLevel: level, conditionSlug });
+    if (!model?.grantedStrikes?.length) return null;
+    const pool = `${host.id}:focus`;
+    return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, pool, model: { ...model, name } }], pools: { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) }, played: `${name}: ${model.grantedStrikes.map((strike) => strike.name).join(", ")} Strikes (a focus spell)` };
+}
 function spellAsFocus(level, host, spellName, name, change) {
     const spell = spellPack.spellNamed(spellName);
     if (!spell) return null;
