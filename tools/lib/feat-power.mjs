@@ -972,7 +972,7 @@ const strikeRider = ({ onHit = {}, ...rest } = {}) => ({ builtin: "strike-activi
 // takes as it starts its turn there (start) or moves in (enter). One action, once — its stance kept up. What it does only after a move
 // action, its heals on a critical, and the Shock rune aren't played.)
 // A save plan on Fear's compiled shape: its statistic, a condition on a failure and on a critical failure (Winter Sleet's prone).
-function conditionSavePlan(doc, statistic, failure, criticalFailure) {
+function conditionSavePlan(doc, statistic, failure, criticalFailure, success = null) {
     const fear = spellPack.spellNamed("Fear");
     let base;
     try {
@@ -981,8 +981,8 @@ function conditionSavePlan(doc, statistic, failure, criticalFailure) {
         base = null;
     }
     if (!base?.resolution?.outcomes?.failure) return null;
-    const row = (condition) => ({ ...structuredClone(base.resolution.outcomes.failure), effects: condition ? [{ kind: "condition", slug: condition[0], name: condition[0], value: condition[1], duration: null, source: doc.name }] : [], rawText: "" });
-    return { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], heightening: null, resolution: { ...base.resolution, check: { ...base.resolution.check, statistic }, outcomes: { criticalSuccess: row(null), success: row(null), failure: row(failure), criticalFailure: row(criticalFailure) } } };
+    const row = (condition) => ({ ...structuredClone(base.resolution.outcomes.failure), effects: condition ? [{ kind: "condition", slug: condition[0], name: condition[0], value: condition[1], duration: condition[2] ?? null, source: doc.name }] : [], rawText: "" });
+    return { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], heightening: null, resolution: { ...base.resolution, check: { ...base.resolution.check, statistic }, outcomes: { criticalSuccess: row(null), success: row(success), failure: row(failure), criticalFailure: row(criticalFailure) } } };
 }
 
 function kineticAura(doc, { model = null, start = null, enter = null, saves = null, castAs = null, played }) {
@@ -999,6 +999,31 @@ function armorImpulse(level, { item, cap, speed }) {
     const dex = level >= 20 ? 4 : level >= 10 ? 3 : 2;
     const gain = item + Math.min(dex, cap) - (2 + Math.min(dex, 3));
     return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, model: { rounds: 100, modifiers: [...(gain ? [{ on: "ac", type: "item", value: gain }] : []), { on: "speed", type: "untyped", value: speed }] } }], played: `its impulse armor for the fight: ${gain >= 0 ? "+" : ""}${gain} AC, ${speed} feet Speed (1 action)` };
+}
+
+// (2026-11-06, thralls as bodies: a necromancer's focus spell cast through one of its thralls — thralls.js; destroyed when it says so;
+// once a fight, its one focus point.)
+const ONE_ROUND = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" };
+function thrallFocus(doc, level, host, entry, { destroyed, actions = 2 } = {}) {
+    if (!entry) return null;
+    const dc = dcsOf(host).spell ?? 10 + level + 2 + 4;
+    const pool = `feat:${doc._id}`;
+    return { ...entry, name: entry.name ?? doc.name, castRank: Math.max(1, Math.ceil(level / 2)), dc: entry.dc ?? dc, attack: entry.attack ?? dc - 10, pool, featForced: true,
+        plan: { ...entry.plan, activation: { ...(entry.plan.activation ?? {}), time: String(actions) }, targeting: { ...entry.plan.targeting, thrall: { destroyed: Boolean(destroyed) } } } };
+}
+function thrallSaveSpell(doc, level, host, statistic, outcomes, played, actions = 2) {
+    const plan = conditionSavePlan(doc, statistic, outcomes.failure, outcomes.criticalFailure, outcomes.success);
+    const entry = plan && thrallFocus(doc, level, host, { name: doc.name, plan, effects: {} }, { destroyed: true, actions });
+    if (!entry || !castable(entry)) return null;
+    return { builtins: {}, spells: [entry], pools: { [entry.pool]: 1 }, played: `${played} (its focus spell, a thrall destroyed, once a fight)` };
+}
+function thrallAllySpell(doc, level, host, { model, rounds, destroyed, played }) {
+    const fake = { _id: doc._id, name: doc.name, type: "feat", system: { slug: `thrall-${slugOf(doc)}`, actionType: { value: "action" }, actions: { value: 2 }, traits: { value: ["concentrate", "manipulate"] }, description: { value: "<p>Choose an ally within 30 feet.</p>" } } };
+    ALLY_BUFFS[fake.system.slug] = () => ({ feet: 30, model, rounds, played });
+    const read = allyEffectEntry(fake, level);
+    const entry = read?.spells?.[0] && thrallFocus(doc, level, host, read.spells[0], { destroyed });
+    if (!entry) return null;
+    return { builtins: {}, spells: [entry], pools: { [entry.pool]: 1 }, played: `${played} (its focus spell${destroyed ? ", a thrall destroyed" : ""}, once a fight)` };
 }
 
 const HAND = {
@@ -1531,6 +1556,21 @@ const HAND = {
         const dc = dcsOf(host).spell ?? 10 + level + 2 + 4;
         return { builtins: { boneBurst: true }, spells: read.spells.map((entry) => ({ ...entry, name: "Bone Burst", dc, attack: dc - 10, plan: { ...entry.plan, activation: { ...entry.plan.activation, time: "reaction" } } })), pools: read.pools ?? {}, played: `${read.played} — at a foe beside a thrall that moves, manipulates or shoots (reaction, a thrall destroyed)` };
     },
+    // (2026-11-06, thralls as bodies: the necromancer's thrall focus spells.)
+    "muscle-barrier": (level, host, doc) => { const rank = Math.max(1, Math.ceil(level / 2)); return thrallAllySpell(doc, level, host, { model: { tempHp: 10 * rank }, rounds: 10, destroyed: true, played: `${10 * rank} temporary HP on an ally` }); },
+    "song-of-the-soul": (level, host, doc) => {
+        const rank = Math.max(1, Math.ceil(level / 2));
+        const read = inlineHealEntry({ _id: doc._id, name: doc.name, type: "feat", system: { actionType: { value: "action" }, actions: { value: 2 }, traits: { value: ["concentrate", "manipulate"] }, description: { value: `<p>A creature within 30 feet regains @Damage[${rank}d8[healing]] Hit Points.</p>` } } }, level);
+        const entry = read?.spells?.[0] && thrallFocus(doc, level, host, read.spells[0], { destroyed: false });
+        return entry ? { builtins: {}, spells: [entry], pools: { [entry.pool]: 1 }, played: `heals an ally ${rank}d8 (its focus spell through a thrall, once a fight; the fast healing near the thrall not played)` } : null;
+    },
+    "calcification": (level, host, doc) => thrallSaveSpell(doc, level, host, "fortitude", { success: ["slowed", 1, ONE_ROUND], failure: ["slowed", 1], criticalFailure: ["slowed", 2] }, "a foe slowed 1 (a round on a success; 2 on a critical failure) by its Fortitude save; its ongoing saves and bludgeoning weakness not played"),
+    "temporary-possession": (level, host, doc) => thrallSaveSpell(doc, level, host, "will", { success: ["stunned", 2], failure: ["stunned", 3], criticalFailure: ["stunned", 4] }, "a foe possessed by its Will save: the actions it controls and the stunned 1 after taken as stunned 2/3/4 (what it makes the foe do not played)", 1),
+    "thrall-charger": (level) => {
+        const rank = Math.max(1, Math.ceil(level / 2));
+        const dice = level >= 11 ? 3 : level >= 3 ? 2 : 1;
+        return { builtins: {}, plans: [strikeRider({ actions: 2, strike: "Thrall", damageBonus: rank, spendThrall: true, onHit: { damage: [`${dice}d6`] } })], played: `Thrall Charge (a cantrip): a thrall Strike with ${dice}d6 more, the thrall destroyed for +${rank} (rated on a necromancer; its Stride not played)` };
+    },
     "headshot": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", headshot: true })], played: "a 2-action firearm Strike; a critical hit on a foe it already hurt: a Fortitude save or it dies" }),
     "phase-bullet": () => ({ builtins: {}, plans: [strikeRider({ range: "ranged", attackBonus: 4, oncePerFight: true })], played: "a firearm Strike at +4 against an armored foe, ignoring cover (once a fight)" }),
     "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),
@@ -1971,7 +2011,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler" };
+const CLASS_OVERRIDE = { "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from

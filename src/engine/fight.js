@@ -25,7 +25,7 @@ import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startD
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
-import { thrallForSpell, thrallStrikes } from "./thralls.js";
+import { spendThrall, thrallForSpell, thrallStrikes } from "./thralls.js";
 import { lastingTurnStart } from "./lasting.js";
 import { noteStatesTurnStart } from "./note-states.js";
 import { floorOf } from "./floors.js";
@@ -803,7 +803,7 @@ function actOn(state, c, action) {
                 c.unloaded?.delete(strike.name);
             }
             // (A necromancer's thrall: Create Thrall's or Command a Thrall's — thralls.js.)
-            if (strike?.thrall) thrallStrikes(state, c);
+            if (strike?.thrall) thrallStrikes(state, c, target);
             performStrike(state, c, target, strike);
             if (strike?.reload) (c.unloaded ??= new Set()).add(strike.name);
             break;
@@ -965,7 +965,7 @@ function actOn(state, c, action) {
             // concentrate trait, the reactions that say so (B51).
             const spell = c.spells[action.spellIndex];
             // (A spell cast through one of its thralls: Create Thrall first when it has none; the thrall spent — thralls.js.)
-            thrallForSpell(state, c, spell, action);
+            thrallForSpell(state, c, spell, action, action.targetId ? state.byId.get(action.targetId) : null);
             // (2026-10-22, under water: speaking — a linguistic action — loses all its air.)
             if (c.air !== undefined && (spell?.plan?.traits ?? []).includes("linguistic")) airLost(state, c, { all: true });
             // (S22: Trick Magic Item first. A failure costs its own action, not the cast's, and the item can't be tried again this turn;
@@ -1095,10 +1095,13 @@ function actOn(state, c, action) {
             // (2026-11-05, United Assault: +1 damage for each other creature that damaged the target since the end of its last turn, up to +4.)
             const united = activity.united ? Math.min(4, [...(target.damagers ?? [])].filter((id) => id !== c.id).length) : 0;
             const charged = activity.rageFinish || united ? { ...activity, damageBonus: (activity.damageBonus ?? 0) + rageLeft + united } : activity;
+            // (2026-11-06, Thrall Charge: its thrall Strike made or Commanded as any thrall Strike, the thrall destroyed after it — thralls.js.)
+            if (fired?.thrall) thrallStrikes(state, c, target);
             // (2026-11-06, Headshot: only on a target it has already damaged.)
             if (activity.headshot) c.headshotOn = c.hurtFoes?.has(target.id) ? target.id : null;
             const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...charged, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : charged));
             c.headshotOn = null;
+            if (activity.spendThrall && fired?.thrall) spendThrall(state, c, target);
             // ("After this Strike, your Rage immediately ends, and you are Fatigued until you rest for at least 10 minutes.")
             if (activity.rageFinish) {
                 c.activeBuffs = (c.activeBuffs ?? []).filter((buff) => !buff.noConcentrate);
@@ -1927,7 +1930,7 @@ function summarize(state) {
             id: c.id,
             name: c.name,
             kind: c.kind,
-            ...(c.sharesHpWith || c.companionOf || c.familiar ? { linked: true } : {}),
+            ...(c.sharesHpWith || c.companionOf || c.familiar || c.thrallOf ? { linked: true } : {}),
             down: c.everDown,
             dead: c.status === DEAD,
             hp: Math.max(0, c.hp.value),

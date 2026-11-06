@@ -19,6 +19,7 @@ import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNext
 import { actionTraits, applyCondition, applyMove, bothHitRider, castPlan, castSpell, rageTriggers, curseOnHit, deathThroes, forbiddingBonus, skillValue, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
+import { destroyBody, thrallBodies, thrallKilled } from "./thralls.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
 import { log } from "./log.js";
@@ -2174,6 +2175,8 @@ function kill(state, target) {
     // (B298: a summon as it dies, Final Spite's horn; the creatures that go with it.)
     if (target.kind !== "pc") summonsOnDeath(state, target);
     summonerFalls(state, target);
+    // (2026-11-06: a necromancer's thrall body destroyed — its count follows, thralls.js.)
+    if (target.thrallOf) thrallKilled(state, target);
 }
 
 export function increaseDying(state, c, amount) {
@@ -2258,16 +2261,19 @@ export function screenGuards(state, mover, target) {
 export function provoke(state, mover, kind, among = null) {
     let disrupted = false;
     // (2026-11-05, Bone Burst: a necromancer's reaction as a foe beside one of its thralls moves, manipulates or shoots — a thrall destroyed
-    // for its basic Reflex save of piercing. Thralls are a count, not bodies (thralls.js): one is taken to stand beside a foe the
-    // necromancer's thralls fight, any foe within 30 feet of it.)
+    // for its basic Reflex save of piercing. 2026-11-06: thralls are bodies (thralls.js): one beside the foe, the necromancer within
+    // 30 feet of it; or, with no bodies (a count only), any foe within 30 feet.)
     if (["move", "manipulate", "ranged"].includes(kind) && !state.inBoneBurst) for (const c of state.list) {
         if (!c.boneBurst || c.side === mover.side || !isActive(c) || !canAct(c) || !(c.thralls > 0) || !canReact(c, "Bone Burst") || !isActive(mover) || distanceBetween(c, mover) > 30) continue;
+        const bodies = thrallBodies(state, c);
+        const beside = bodies.find((body) => sameMelee(body, mover) || distanceBetween(body, mover) <= 5);
+        if (bodies.length && !beside) continue;
         const index = (c.spells ?? []).findIndex((entry) => entry.name === "Bone Burst");
         if (index < 0) continue;
         spendReaction(c, "Bone Burst");
         state.stats.reactions++;
-        c.thralls -= 1;
         log(state, `  ${c.name} uses Bone Burst (a thrall destroyed)`);
+        if (beside) destroyBody(state, beside); else c.thralls -= 1;
         state.inBoneBurst = true;
         castSpell(state, c, index, [mover.id]);
         state.inBoneBurst = false;
