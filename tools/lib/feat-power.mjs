@@ -654,6 +654,13 @@ function spellshapeEntry(doc, host) {
         const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? "")) && spell.plan?.resolution?.sharedDamage?.components?.length).map((spell) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, vampiric: true })).filter(castable);
         return spells.length ? { spells, pools: {}, gap: null, played: `Vampiric Spell copies of ${spells.length} damage spell${spells.length > 1 ? "s" : ""}: temporary Hit Points of half the most damage dealt` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no damage spell of the PC's it shapes` } };
     }
+    // (2026-11-06, Forcible Energy: a copy of each of its 1- or 2-action acid, cold, electricity, fire or sonic damage spells, an action more —
+    // the creature it damaged most gets weakness 5 to that type to the end of the wizard's next turn; fight.js forcible.)
+    if (slugOf(doc) === "forcible-energy") {
+        const energies = ["acid", "cold", "electricity", "fire", "sonic"];
+        const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? ""))).map((spell) => [spell, (spell.plan?.resolution?.sharedDamage?.components ?? []).map((part) => part.type).find((type) => energies.includes(type))]).filter(([, type]) => type).map(([spell, type]) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, forcible: type })).filter(castable);
+        return spells.length ? { spells, pools: {}, gap: null, played: `Forcible Energy copies of ${spells.length} energy spell${spells.length > 1 ? "s" : ""}: weakness 5 on the creature hurt most` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no energy spell of the PC's it shapes` } };
+    }
     const shape = SPELLSHAPES[slugOf(doc)];
     if (!shape) return null;
     const spells = [];
@@ -1520,6 +1527,9 @@ const HAND = {
     "improved-elemental-bulwark": () => ({ builtins: { resistReaction: { name: "Elemental Bulwark", value: 10, on: ["cold", "electricity", "fire"], types: ["triggering"], foe: true } }, played: "Elemental Bulwark's resistance 10 (with it)" }),
     "cornered-fury": () => ({ builtins: { corneredFury: "small" }, played: "a larger foe that critically hits it (a Small ratfolk: a Medium foe) is off-guard to it for a round" }),
     "deliberate-death": () => ({ builtins: { deathStrike: { name: "Deliberate Death", strike: null, pc: true } }, played: "a melee Strike at the foe that drops it (reaction, once)" }),
+    "deadly-strikes": (level) => ({ builtins: { deadlyStrikes: level }, played: "its unarmed attacks deadly d10" }),
+    // (2026-11-06, Persistent Boost: its Offensive Boost's hit (the weapon innovation's Strikes, classes.js) 1d8 persistent fire too.)
+    "persistent-boost": () => ({ builtins: { strikeExtras: [{ when: "hit", dice: 1, die: 8, melee: true, persistent: true, noDouble: true, type: "fire", source: "Persistent Boost" }] }, played: "1d8 persistent fire on its boosted melee hits (always on)" }),
     "diamond-fists": (level) => ({ builtins: { diamondFists: level }, played: "its unarmed attacks forceful and deadly d10" }),
     "savage-critical": () => ({ builtins: { savageCritical: true }, played: "a natural 19 that hits is a critical hit" }),
     "piercing-critical": () => ({ builtins: { savageCritical: "ranged" }, played: "a natural 19 that hits with its gun is a critical hit" }),
@@ -2513,6 +2523,12 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     if (tried.strikes) pc.strikes = tried.strikes;
     // (2026-11-05, Diamond Fists: its unarmed attacks forceful and deadly d10 — a die step bigger for one that had either; the deadly dice
     // by its striking runes, 2 at greater striking, 3 at major.)
+    // (2026-11-06, Deadly Strikes: its unarmed attacks deadly d10 — a smaller deadly die made d10; deadly dice by its striking runes.)
+    if (pc.deadlyStrikes) {
+        const deadlyDice = pc.deadlyStrikes >= 19 ? 3 : pc.deadlyStrikes >= 12 ? 2 : 1;
+        delete pc.deadlyStrikes;
+        pc.strikes = (pc.strikes ?? []).map((strike) => (strike.unarmed ? { ...strike, deadly: { dice: strike.deadly?.dice ?? deadlyDice, die: Math.max(10, strike.deadly?.die ?? 0) } } : strike));
+    }
     if (pc.diamondFists) {
         const deadlyDice = pc.diamondFists >= 19 ? 3 : 2;
         delete pc.diamondFists;

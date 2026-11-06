@@ -1042,10 +1042,18 @@ function actOn(state, c, action) {
             if (healed && healed !== c && healed.side === c.side) {
                 state.log?.push(`  ${c.name} uses ${shapes.map((shape) => shape.name).join(" and ")}`);
             }
-            const drained = spell?.vampiric && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
+            const drained = (spell?.vampiric || spell?.forcible) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
             // (2026-11-06, Vampiric Spell: half the most damage one creature took, as temporary Hit Points — the higher of these and its own.)
-            if (drained && isActive(c)) {
+            // (2026-11-06, Forcible Energy: weakness 5 to the spell's energy on the creature it hurt most, to the end of the caster's next turn.)
+            if (drained && spell.forcible) {
+                const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
+                if (hurt) {
+                    applyEffect(state, hurt, { name: "Forcible Energy", rounds: 2, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [{ type: spell.forcible, value: 5 }], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `forcible:${c.id}` });
+                    state.log?.push(`  ${hurt.name} gains weakness 5 to ${spell.forcible} (Forcible Energy)`);
+                }
+            }
+            if (drained && spell.vampiric && isActive(c)) {
                 const most = Math.max(0, ...state.list.filter((other) => drained.has(other.id)).map((other) => drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)));
                 const gained = Math.floor(most / 2);
                 if (gained > (c.hp.temp ?? 0)) {
