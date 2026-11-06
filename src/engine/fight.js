@@ -854,9 +854,28 @@ function actOn(state, c, action) {
         case "spellstrike": {
             const target = state.byId.get(action.targetId);
             const spell = c.spells[action.spellIndex];
-            state.log?.push(`  ${c.name} uses ${c.spellstrike.name} with ${spell?.name}`);
+            state.log?.push(`  ${c.name} uses ${action.sweepName ?? c.spellstrike.name} with ${spell?.name}`);
             c.spellstrikeCharged = false;
             if (!target || !spell) break;
+            // (2026-11-06, Spell Swipe, Whirlwind Spell: a Strike at each, at the same penalty; the spell on those it hit — planner.js.)
+            if (action.sweep) {
+                const before = c.attacksThisTurn ?? 0;
+                const hit = [];
+                for (const id of action.sweepIds ?? []) {
+                    const foe = state.byId.get(id);
+                    if (!foe || !isActive(foe) || !canAct(c)) continue;
+                    c.attacksThisTurn = before;
+                    const result = performStrike(state, c, foe, c.strikes[action.strikeIndex]);
+                    if (result && result.degree >= SUCCESS && !result.image) hit.push({ foe, degree: result.degree });
+                }
+                c.attacksThisTurn = before + (action.sweep === "swipe" ? 2 : (action.sweepIds ?? []).length);
+                const living = hit.filter((entry) => isActive(entry.foe));
+                if (!living.length) break;
+                const attackSpell = spell.plan?.resolution?.check?.statistic === "spell-attack";
+                if (attackSpell) castSpell(state, c, action.spellIndex, [living[0].foe.id], undefined, { forcedDegree: living[0].degree });
+                else castSpell(state, c, action.spellIndex, action.caughtIds ? living.map((entry) => entry.foe.id) : [living[0].foe.id], undefined, {});
+                break;
+            }
             const result = performStrike(state, c, target, c.strikes[action.strikeIndex]);
             const attackSpell = spell.plan?.resolution?.check?.statistic === "spell-attack";
             // A save spell doesn't add to the penalty by itself; the Spellstrike still counts as two attacks.
@@ -1633,7 +1652,8 @@ function actionCost(c, action) {
     if (action.type === "strike") return 1 + (action.reload ?? 0);
     if (action.type === "reload") return action.actions;
     if (action.type === "slingersReload" || action.type === "rechargeSpellstrike") return 1;
-    if (action.type === "spellstrike" || action.type === "strikeHard") return 2;
+    if (action.type === "spellstrike") return action.sweep ? 3 : 2;
+    if (action.type === "strikeHard") return 2;
     if (action.type === "pincerAttack" || action.type === "bannersInspiration" || action.type === "shiftImmanence" || action.type === "transcend") return 1;
     if (action.type === "disableHazard") return 2;
     if (action.type === "drawItem") return action.actions ?? 1;

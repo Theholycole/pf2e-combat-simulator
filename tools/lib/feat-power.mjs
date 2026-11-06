@@ -1541,6 +1541,8 @@ const HAND = {
     "drilled-reflexes": () => ({ builtins: { drilledCount: 2 }, played: "Drilled Reactions for up to two allies" }),
     "practiced-reflexes": () => ({ builtins: { drilledCount: 4 }, played: "Drilled Reactions for up to four allies" }),
     "targeting-strike": (level) => ({ builtins: { targetingStrike: level >= 17 ? 6 : level >= 10 ? 5 : 4 }, played: "after its Set-Up Strike or Guiding Shot damages, the next ally's hit there deals its Intelligence in precision damage" }),
+    "spell-swipe": () => ({ builtins: { spellSweeps: [{ name: "Spell Swipe", kind: "swipe" }] }, played: "a 3-action Spellstrike at two adjacent foes, the spell on each it hits (a multi-target or area spell)" }),
+    "whirlwind-spell": () => ({ builtins: { spellSweeps: [{ name: "Whirlwind Spell", kind: "whirl" }] }, played: "a 3-action Spellstrike at each foe in reach, the spell on each it hits (a multi-target or area spell)" }),
     "expansive-spellstrike": () => ({ builtins: { expansiveSpellstrike: true }, played: "Spellstrike with a burst, cone or line spell, its area about the target" }),
     "combination-finisher": () => ({ builtins: { combinationFinisher: true }, played: "its finishers' multiple attack penalty −4/−8 (−3/−6 agile)" }),
     "deadly-strikes": (level) => ({ builtins: { deadlyStrikes: level }, played: "its unarmed attacks deadly d10" }),

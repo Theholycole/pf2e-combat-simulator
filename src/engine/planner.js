@@ -1903,6 +1903,49 @@ function expandClassActions(env) {
                     }));
                 }
             }
+            // (2026-11-06, Spell Swipe and Whirlwind Spell: 3 actions — a Spellstrike's melee Strike at two foes beside each other, or at each foe
+            // in reach, all at the same penalty; the spell on each it hits when it can take more than one target or has an area, else on the
+            // first hit. Two attacks for the penalty after Spell Swipe, one each after Whirlwind Spell.)
+            for (const sweep of remaining >= 3 ? c.spellSweeps ?? [] : []) {
+                const reachable = ctx.enemies.filter((foe) => foe.status === "active" && inMelee(node.pos, foe));
+                if (reachable.length < 2) continue;
+                const index = (c.strikes ?? []).findIndex((strike) => strike.melee && strikeUsable(c, strike));
+                if (index < 0) continue;
+                let foes = reachable;
+                if (sweep.kind === "swipe") {
+                    const pairs = reachable.flatMap((a, i) => reachable.slice(i + 1).filter((b) => distanceBetween(a, b) <= 5).map((b) => [a, b]));
+                    if (!pairs.length) continue;
+                    foes = pairs.sort((x, y) => y.reduce((sum, foe) => sum + targetValue(state, foe, c), 0) - x.reduce((sum, foe) => sum + targetValue(state, foe, c), 0))[0];
+                }
+                for (const [spellIndex, spell] of (c.spells ?? []).entries()) {
+                    if (node.casts.includes(spellIndex) || spell.kind === "basic" || spell.kind === "ability" || spell.kind === "item" || spell.trick || !canCast(c, spell)) continue;
+                    const info = describeSpell(spell.plan);
+                    if (!(info.actions === 1 || info.actions === 2) || !(info.check?.statistic === "spell-attack" || info.check?.roll === "save")) continue;
+                    const many = info.check?.roll === "save" && (info.targets > 1 || ["burst", "cone", "line", "emanation"].includes(info.area?.type));
+                    const struck = many ? foes : [foes[0]];
+                    let gain = 0;
+                    const damage = { ...node.damage };
+                    for (const foe of foes) {
+                        const strike = ctx.strikeExpectation(c.strikes[index], index, foe, node.attacks, node.pos, node.prone);
+                        let spellDamage = 0;
+                        let spellWorth = 0;
+                        if (struck.includes(foe)) for (const { target: affected, damage: dealt, worth } of ctx.spellEffect(spellIndex, spell, [foe], node.attacks)) if (affected === foe) {
+                            spellDamage += dealt * (strike?.hit ?? 0.6);
+                            spellWorth += worth * (strike?.hit ?? 0.6);
+                        }
+                        const before = damage[foe.id] ?? 0;
+                        const expected = (strike?.damage ?? 0) + spellDamage;
+                        gain += targetValue(state, foe, c) * (Math.min(1, (before + expected) / remainingHp(foe)) - Math.min(1, before / remainingHp(foe)) + spellWorth * ROUND_TO_KILL);
+                        damage[foe.id] = before + expected;
+                    }
+                    if (gain <= 0) continue;
+                    children.push(child(node, { type: "spellstrike", sweep: sweep.kind, sweepName: sweep.name, targetId: foes[0].id, sweepIds: foes.map((foe) => foe.id), strikeIndex: index, spellIndex, actions: 3, ...(many ? { caughtIds: foes.map((foe) => foe.id) } : {}) }, 3, ctx.profile.aggression * gain, {
+                        attacks: sweep.kind === "swipe" ? 2 : foes.length,
+                        damage,
+                        cast: ["spellstrike", ...(spell.pool ? [spellIndex] : [])]
+                    }));
+                }
+            }
         }
         // Recharge Spellstrike: worth part of the Spellstrike it makes ready.
         if (!c.spellstrikeCharged && !node.casts.includes("recharge-spellstrike") && remaining >= 1) {
