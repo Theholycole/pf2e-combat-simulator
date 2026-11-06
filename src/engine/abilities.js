@@ -545,6 +545,8 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.sneakFirst ? { sneakFirst: plan.sneakFirst } : {}),
                 ...(plan.twinWeakness ? { twinWeakness: true } : {}),
                 ...(plan.chainHits ? { chainHits: true } : {}),
+                ...(plan.beforeStrike ? { beforeStrike: plan.beforeStrike } : {}),
+                ...(plan.frightBonus ? { frightBonus: plan.frightBonus } : {}),
                 ...(plan.taunt ? { taunt: true } : {}),
                 ...(plan.rageFinish ? { rageFinish: true } : {}),
                 // A follow-up's Strike (B68): only straight after a Strike that fits; previousMap, at that Strike's penalty.

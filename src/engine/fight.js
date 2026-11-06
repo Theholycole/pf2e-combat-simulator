@@ -1150,10 +1150,18 @@ function actOn(state, c, action) {
             const offGuardBefore = activity.shatter ? isOffGuard(target) : false;
             // (2026-11-03, Furious Finish: "a circumstance bonus to damage equal to the number of rounds remaining in your Rage (maximum 10)" —
             // a minute's Rage, the rounds since it began taken off.)
+            // (2026-11-06, Gorilla Pound: a Demoralize at the target first — its own basic action —, then the Strike with a circumstance
+            // bonus to damage of three times the target's frightened value.)
+            if (activity.beforeStrike && isActive(target)) {
+                const basic = (c.spells ?? []).findIndex((spell) => spell.kind === "basic" && spell.plan?.source?.slug === activity.beforeStrike);
+                if (basic >= 0) castSpell(state, c, basic, [target.id]);
+                if (!isActive(target) || !canAct(c)) break;
+            }
+            const frightBonus = activity.frightBonus ? activity.frightBonus * (target.cond?.frightened ?? 0) : 0;
             const rageLeft = activity.rageFinish ? Math.max(0, Math.min(10, 10 - (state.round - (c.buffRounds?.get("Rage") ?? state.round)))) : 0;
             // (2026-11-05, United Assault: +1 damage for each other creature that damaged the target since the end of its last turn, up to +4.)
             const united = activity.united ? Math.min(4, [...(target.damagers ?? [])].filter((id) => id !== c.id).length) : 0;
-            const charged = activity.rageFinish || united ? { ...activity, damageBonus: (activity.damageBonus ?? 0) + rageLeft + united } : activity;
+            const charged = activity.rageFinish || united || frightBonus ? { ...activity, damageBonus: (activity.damageBonus ?? 0) + rageLeft + united + frightBonus } : activity;
             // (2026-11-06, Thrall Charge: its thrall Strike made or Commanded as any thrall Strike, the thrall destroyed after it — thralls.js.)
             if (fired?.thrall) thrallStrikes(state, c, target);
             // (2026-11-06, Headshot: only on a target it has already damaged.)

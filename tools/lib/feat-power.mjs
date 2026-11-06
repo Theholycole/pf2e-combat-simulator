@@ -1613,6 +1613,9 @@ const HAND = {
     "blade-of-law": (level) => ({ builtins: {}, plans: [strikeRider({ actions: 2, requires: "hostile-to-me", extraWeaponDice: 1, countsAs: 2, onHit: { damage: [`${level >= 18 ? 2 : 1}d8[spirit]`] } })], played: "a Strike at a foe that attacked it since its last turn: an extra weapon die and 1d8 spirit (2 actions, two attacks)" }),
     // (2026-11-06, Proud Nail: at its taunted foe that's off-guard for attacking another — an extra weapon die a hit, 2 at 10th, 3 at 18th.)
     "proud-nail": (level) => ({ builtins: {}, plans: [strikeRider({ flourish: true, range: "melee", requires: "taunt-ignored", extraWeaponDice: level >= 18 ? 3 : level >= 10 ? 2 : 1 })], played: "a melee flourish Strike at its taunted foe that ignored the taunt, extra weapon dice" }),
+    // (2026-11-06, Gorilla Pound: in Gorilla Stance (given), a Demoralize and then a slam Strike (its best melee Strike) at the same target, +3
+    // damage for each point of its frightened. Its Climb Speed isn't played.)
+    "gorilla-pound": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, range: "melee", beforeStrike: "demoralize", frightBonus: 3 })], played: "a Demoralize, then a melee Strike with +3 damage per frightened value (flourish)" }),
     // (2026-11-06, Amalgamate: two adjacent thralls fused into a Large thrall, reach 10 and Speed 25, its Strikes +level status damage —
     // thralls.js amalgamate; the bonus a self-effect on the "Thrall" Strike while it lasts. Not on its own turn's Create Thrall: one at a time.)
     "amalgamate": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, strike: "Thrall", damage: [`${level}[untyped]`], model: { rounds: 100 }, amalgamate: true }], played: `two thralls fused into a Large amalgamation: its thrall Strikes +${level} damage while it lasts` }),
