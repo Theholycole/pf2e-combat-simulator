@@ -1558,6 +1558,8 @@ function expandMultiStrikes(env) {
             if (order.some((index) => c.strikes[index].melee && !inMelee(pos, target))) continue;
             // Hunted Shot, Twin Takedown: against the hunted prey only. Maul: a creature it holds (B62).
             if (ability.preyOnly && c.prey !== target.id) continue;
+            // (2026-11-06, Double Shot: each Strike at a different foe — not with fewer foes than Strikes; valued as all at this one.)
+            if (ability.distinct && state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone" && !other.thrallOf).length < order.length) continue;
             if (ability.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
             // (B107, Eviscerate: "has not attacked yet this turn".)
             if (ability.requires === "first-attack" && (node.attacks > 0 || (c.attacksThisTurn ?? 0) > 0)) continue;

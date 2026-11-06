@@ -1484,6 +1484,7 @@ function actOn(state, c, action) {
             let made = 0;
             let hits = 0;
             let struck = null;
+            const distinctStruck = [];
             // (B255: a random multi-Strike's dice pick its Strikes.)
             for (const [step, index] of ((ability.random ? rolledStrikes(state, c, ability) : multiStrikeOrder(c, ability)) ?? []).entries()) {
                 if (!canAct(c)) break;
@@ -1491,7 +1492,14 @@ function actOn(state, c, action) {
                 if (ability.ifFirstHits && step > 0 && !firstHit) break;
                 let strike = withExtraDamage(c.strikes[index], ability.extraDamage);
                 if (ability.sameTarget ? !target || !isActive(target) : !target || !isActive(target) || (strike.melee && !sameMelee(c, target))) target = ability.sameTarget ? null : engagedEnemies(state, c)[0] ?? null;
+                // (2026-11-06, Double Shot's "each against a separate target": a foe not yet struck — in reach for a melee Strike —, the most
+                // hurt; none, and the rest isn't made.)
+                if (ability.distinct && step > 0) {
+                    const done = new Set(distinctStruck);
+                    target = state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone" && !other.thrallOf && !done.has(other.id) && (!strike.melee || sameMelee(c, other))).sort((a, b) => a.hp.value / a.hp.max - b.hp.value / b.hp.max)[0] ?? null;
+                }
                 if (!target) break;
+                if (ability.distinct) distinctStruck.push(target.id);
                 if (ability.sameMap) c.attacksThisTurn = attacks;
                 // (B112, Claw Rake: each at its highest attack bonus.)
                 if (ability.noMap) c.attacksThisTurn = 0;
