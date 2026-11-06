@@ -39,7 +39,20 @@ const { featEntries, featInfo, meetsWielding, pcNeeds, requiredEffectFeat, requi
 const { effectModel } = await import("../../src/engine/effects.js");
 const { zoneSpell } = await import("../../src/engine/zones.js");
 // (2026-11-03: a spell entry a feat gives only when the engine can cast it at all — Hymn of Healing's, Mantis Form's aren't.)
-const { canCast } = await import("../../src/engine/spells.js");
+const { canCast, spellReactions } = await import("../../src/engine/spells.js");
+// (2026-11-06: a reaction spell the engine answers with — Perfect Strike's reroll, a counterspell, a guard of an ally —, which spells.js
+// spellReactions wires from the PC's spells as the fight begins; canCast leaves reactions out.)
+const REACTION_FIELDS = ["attackReroll", "saveReroll", "counterspells", "guardSpells", "resistReaction", "loveSacrifice", "retribution", "siphon"];
+const reactionWired = (entry) => {
+    if (entry?.plan?.activation?.time !== "reaction") return false;
+    const probe = { spells: [entry] };
+    try {
+        spellReactions(probe);
+    } catch {
+        return false;
+    }
+    return REACTION_FIELDS.some((field) => probe[field]);
+};
 const castable = (entry) => canCast({ cond: {}, hindrances: [], spellPools: entry.pool ? { [entry.pool]: 99 } : {} }, entry);
 const { addBuiltin } = await import("../../src/engine/abilities.js");
 const { dangerFights, dangerSummary, DANGER_OPTIONS, DEATH_WEIGHT } = await import("../../src/engine/danger-scale.js");
@@ -324,7 +337,7 @@ function innateSpellEntry(doc, level, host) {
         const pool = uses ? (choice ? `innate:${doc._id}:choice` : `innate:${doc._id}:${spell._id}`) : null;
         if (pool) pools[pool] = choice ? 1 : uses;
         const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
-        if (castable(entry)) entries.push(entry);
+        if (castable(entry) || reactionWired(entry)) entries.push(entry);
     }
     if (!entries.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
@@ -2153,7 +2166,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer" };
+const CLASS_OVERRIDE = { "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
