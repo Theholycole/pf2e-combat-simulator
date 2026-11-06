@@ -745,6 +745,15 @@ function endTurn(state, c) {
     }
     // (Biting Snakes, B82: a Strike at it from a monster beside it.)
     if (isActive(c)) turnEndAnswers(state, c);
+    // (2026-11-06, Covering Stance: at the end of its turn, lesser cover (+1 AC) for an adjacent ally — the most hurt — until its next turn.)
+    if (isActive(c) && (c.effects ?? []).some((effect) => effect.model?.coversAlly)) {
+        const ally = state.list.filter((other) => other !== c && other.side === c.side && isActive(other) && !other.thrallOf && other.kind !== "object" && sameMelee(c, other)).sort((a, b) => a.hp.value / a.hp.max - b.hp.value / b.hp.max)[0]
+            ?? state.list.filter((other) => other !== c && other.side === c.side && isActive(other) && !other.thrallOf && other.kind !== "object" && distanceBetween(c, other) <= 5).sort((a, b) => a.hp.value / a.hp.max - b.hp.value / b.hp.max)[0];
+        if (ally) {
+            applyEffect(state, ally, { name: "Covering Stance", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: "covering-stance" });
+            state.log?.push(`  ${c.name} covers ${ally.name} (Covering Stance)`);
+        }
+    }
     // (2026-11-06, Bloody Tendrils: ending its turn beside a tendril.)
     if (isActive(c) && state.list.some((other) => other.thrallAura?.on === "turn-end")) thrallAuraTurnEnd(state, c);
     c.hostileFrom = new Set();

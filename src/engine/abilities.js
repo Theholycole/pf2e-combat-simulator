@@ -206,6 +206,7 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.model?.runeUpgrade ? { runeUpgrade: { ...plan.model.runeUpgrade } } : {}),
                 // (2026-11-03, Paragon's Guard: its shield kept raised — fight.js.)
                 ...(plan.model?.shieldUp ? { shieldUp: true } : {}),
+                ...(plan.model?.coversAlly ? { coversAlly: true } : {}),
                 // (2026-11-05, Giant's Lunge, Jotun's Battle Stance: its melee reach while it lasts — effects.js.)
                 ...(plan.model?.reach ? { reach: plan.model.reach } : {}) };
             // (B137, Cower, Entrench: a stance that ends when it moves.)

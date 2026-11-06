@@ -1185,6 +1185,9 @@ const HAND = {
     // (Resistance of its level to an enemy's acid, bludgeoning, fire or slashing damage — its double against acid or fire isn't played.)
     "deflecting-wave": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: level, on: ["acid", "bludgeoning", "fire", "slashing"], foe: true }], played: `resistance ${level} to an enemy's acid, bludgeoning, fire or slashing damage (reaction)` }),
     // (A stance with its shield always raised — the engine's shieldUp, its shield's bonus without Raise a Shield each turn.)
+    // (2026-11-06, Covering Stance: lesser cover for an adjacent ally at the end of each of its turns — fight.js; its Step after an Intercept
+    // Attack isn't played.)
+    "covering-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { coversAlly: true } }], played: "stance: an adjacent ally gets lesser cover (+1 AC) until its next turn" }),
     "paragons-guard": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its shield always raised" }),
     "buckler-dance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its buckler always raised" }),
     // (Harden Flesh: resistance 3 to physical damage, but adamantine, until its next turn; +1 at 12th level and every 4 after. Its earthen
