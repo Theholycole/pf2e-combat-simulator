@@ -14,7 +14,7 @@
 import { addBuiltin } from "./abilities.js";
 
 // The requirements a Strike activity's planner checks (planner.js); a feat's own words ("Your nimbus is active") aren't one.
-export const ACTIVITY_REQUIRES = new Set(["berserk", "first-round", "after-cast", "grabbed", "prone", "off-guard", "frightened", "hit-earlier", "ally-adjacent", "free-hand", "champion-triggered", "raging", "first-attack", "not-fatigued", "helpless", "prone-or-immobilized"]);
+export const ACTIVITY_REQUIRES = new Set(["berserk", "first-round", "after-cast", "grabbed", "prone", "off-guard", "frightened", "hit-earlier", "ally-adjacent", "free-hand", "champion-triggered", "raging", "first-attack", "not-fatigued", "helpless", "prone-or-immobilized", "hostile-to-me", "exploited", "taunt-ignored", "ally-dying", "ally-downed-by", "ally-harmed-by"]);
 // The stance a requirement names, "You are in Tiger Stance", "You're in either claw stance or talon stance": the stances' names, or null when
 // it asks for more ("…and have Grabbed a creature").
 export function requiredStances(text) {
@@ -67,6 +67,11 @@ export function pcNeeds(text) {
 // adjacent to that creature" (Cleave).
 export function pcReactionTriggers(text) {
     const said = String(text ?? "").replace(/@UUID\[[^\]]*?Item\.([^\]]+)\](?:\{([^}]*)\})?/g, (_all, name, label) => label ?? name).trim().replace(/\.$/, "");
+    // (2026-11-03, the reaction Strikes the class feats left: an attack on an ally in its reach — Protective Strike's designated ally, Crop
+    // Protection's crop: any ally here —, a held creature's Escape — Claw Snag, Cutthroat Grapple —, and Crane Flutter's Strike after a miss.)
+    if (/^A creature (?:moves adjacent to or )?attempts a melee Strike against your designated ally$/i.test(said) || /^An? (?:enemy|creature) within your (?:melee )?reach attacks a member of your crop$/i.test(said)) return ["ally-attacked"];
+    if (/^A creature attempts to Escape (?:while you have them Grabbed or Restrained|from your [\w' -]+)$/i.test(said)) return ["escape"];
+    if (/^You are targeted with an attack by an observed attacker$/i.test(said)) return ["missed"];
     if (/\b(?:ally|allies|companion|eidolon|spotter|crop|flank|Escape|frightened|turn ends|Propelled|saving throw|counteracts)\b/i.test(said) && !/^An? creature within your (?:melee )?reach is hit by a melee attack from one of your allies$/i.test(said)) return null;
     if (/^An? (?:creature|enemy|foe|opponent) within your (?:melee )?reach critically fails (?:a Strike against you|to Strike you)$/i.test(said)) return ["critical-miss"];
     if (/^An? (?:creature|enemy|foe|opponent) within your (?:melee )?reach (?:succeeds at an attack against you|hits you with a (?:melee )?(?:Strike|attack))$/i.test(said)) return ["hit"];
@@ -106,6 +111,7 @@ export function mappedRequirement(text) {
     if (/aren't fatigued or raging|not fatigued/.test(words)) return "not-fatigued";
     if (/^(?:you are |you're )?raging\.?$/.test(words.trim())) return "raging";
     if (/champion's reaction since/.test(words)) return "champion-triggered";
+    if (/attempted a hostile action against you since your previous turn/.test(words)) return "hostile-to-me";
     return null;
 }
 
@@ -127,7 +133,9 @@ export function meetsWielding(text, wields) {
     add(/wielding a (?:loaded )?ranged weapon|wielding a bow\b/, wields.ranged);
     add(/reload 0/, wields.reload0);
     add(/loaded firearm or crossbow|wielding a (?:loaded )?firearm/, wields.firearm);
-    add(/thrown weapon/, wields.thrown);
+    // (Target of Opportunity's "a ranged or thrown weapon in hand": either.)
+    add(/ranged or thrown weapon/, wields.ranged || wields.thrown);
+    add(/(?<!ranged or )thrown weapon/, wields.thrown);
     add(/wielding a shield|shield raised|shield in two hands/, wields.shield);
     add(/medium or heavy armor/, ["medium", "heavy"].includes(wields.armor));
     add(/unarmored or wearing light armor|wearing light armor or (?:no armor|are unarmored)/, ["unarmored", "light"].includes(wields.armor));
@@ -222,8 +230,43 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     // The feat module's own Effect from the feat's rules: a stance, a moment's bonus — on the PC itself.
     if (plan.builtin === "feat-effect") {
         if (plan.timer || !(plan.effect?.rules ?? []).length) return gap("a timer with no rules a fight counts");
-        if (plan.who === "target") return gap("an Effect on another creature");
-        if (actionType === "passive") return gap("a passive's Effect posted by hand");
+        if (actionType === "passive") return gap(plan.who === "target" ? "an Effect on another creature" : "a passive's Effect posted by hand");
+        // (2026-11-05, the one-off feats: the module's Effect on its target — Sovereign's Blade's +2 to its knights, Pack of the Beast Lord's
+        // resistance — as a buff the PC puts on an ally within 30 feet, its Effect the model; a foe's penalty or weakness — Marked for
+        // Rebuke, Shadow Spell — isn't played.)
+        if (plan.who === "target") {
+            const model = helpers.rulesModel?.(plan.effect) ?? null;
+            if (!model || !worthSomething(model)) return gap("its Effect has nothing a fight counts");
+            const uuid = `feat-effect:${name}`;
+            const time = actionType === "free" || actionType === "reaction" ? actionType : String(actionCount(null, info) || 1);
+            // (A foe's penalty or weakness — Marked for Rebuke, Shadow Spell, Edifying Trace —: on a foe within 30 feet, as an automatic
+            // check's Effect, as the module's hand cards for conditions are.)
+            // (And misfortune on its next attack, Harbinger's Caw's and Ill Tide's.)
+            const hurts = (model.weaknesses ?? []).length || (model.modifiers ?? []).some((modifier) => Number(modifier.value) < 0) || model.fortune?.keep === "lower";
+            const helps = (model.resistances ?? []).length || model.tempHp || model.fastHealing || (model.modifiers ?? []).some((modifier) => Number(modifier.value) > 0);
+            // (Both — Pack of the Beast Lord's companion swarm, resistance and a weakness —: not played.)
+            if (hurts && helps) return gap("an Effect on another creature (both a help and a hindrance)");
+            if (hurts) {
+                const none = () => ({ damage: { mode: "none", multiplier: 0, sourceComponentIds: [] }, effects: [] });
+                const foePlan = {
+                    source: plan.source ?? { name }, traits, activation: { time, traits: [] }, trigger: { event: "use" },
+                    targeting: { target: "1 creature", range: "30 feet", area: null },
+                    resolution: { kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, outcomes: { criticalSuccess: none(), success: { ...none(), nativeEffects: [{ kind: "native-spell-effect", uuid }] }, failure: none(), criticalFailure: none() } }
+                };
+                result.spells.push({ ...abilityEntry(name, foePlan, { pool, actionType, helpers: {}, rechargeGroup: name }), effects: { [uuid]: model }, oncePerTurn: true });
+                usePool();
+                return { ...result, played: "an Effect on a foe" };
+            }
+            const allyPlan = {
+                source: plan.source ?? { name }, traits, activation: { time, traits: [] }, trigger: { event: "use" },
+                targeting: { target: "1 creature", range: "30 feet", area: null },
+                resolution: { kind: "effect", check: null, sharedDamage: null, applications: [{ kind: "native-spell-effect", uuid }] },
+                nativeEffects: { onUse: [{ kind: "native-spell-effect", uuid, recipient: { actor: "target" } }] }
+            };
+            result.spells.push({ ...abilityEntry(name, allyPlan, { pool, actionType, helpers: {}, rechargeGroup: name }), effects: { [uuid]: model }, oncePerTurn: true });
+            usePool();
+            return { ...result, played: "an Effect on an ally" };
+        }
         const model = helpers.rulesModel?.(plan.effect) ?? null;
         if (!model || !worthSomething(model)) return gap("its Effect has nothing a fight counts");
         const stance = Boolean(plan.effect.stance) || traits.includes("stance");
@@ -248,7 +291,8 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     }
     if (plan.builtin === "strike-activity") {
         // (A reaction's Strike on a trigger the engine plays: the reaction-strike builtin, as a monster's.)
-        const effectNeeded = actionType === "reaction" && plan.requires ? requiredEffectFeat(String(plan.requires).replace(/^Requirements?:?\s*/i, "")) : null;
+        // (Or its stance — Not So Fast!'s Hampering Stance, Crane Flutter's Crane Stance: partyWithFeat puts the stance on the PC first.)
+        const effectNeeded = actionType === "reaction" && plan.requires ? requiredEffectFeat(String(plan.requires).replace(/^Requirements?:?\s*/i, "")) ?? requiredStances(String(plan.requires).replace(/^Requirements?:?\s*/i, ""))?.[0] ?? null : null;
         // (2026-11-03: or a requirement the PC's loadout meets, or one a fight here always meets — Silence the Profane's deity's weapon.)
         const requirementSaid = String(plan.requires ?? "").replace(/^Requirements?:?\s*/i, "");
         const requirementMet = !plan.requires || Boolean(effectNeeded) || helpers.meets?.(requirementSaid) === true || pcNeeds(requirementSaid)?.length === 0;
@@ -284,7 +328,13 @@ export function featEntries(plan, info, builtins, helpers = {}) {
         }
         if (Array.isArray(plan.strikes) && plan.strikes.length > 1) {
             const sameMap = /\bpenalty (?:doesn't|does not) increase until\b|\bboth (?:attacks|Strikes) (?:count|use) (?:your )?(?:current )?multiple attack penalty\b/i.test(info?.text ?? "");
-            const multi = { builtin: "multi-strike", actions: actionCount(plan, info), strikes: plan.strikes.map((strike) => (strike === "ranged" ? "ranged" : null)), ...(sameMap ? { sameMap: true } : {}), ...(traits.includes("flourish") ? { flourish: true } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(requires ? { requires } : {}), ...(plan.needs?.length ? { needs: plan.needs } : {}) };
+            // (2026-11-06: "You are wielding a ranged weapon" — Double Shot's —: its ranged Strikes, not its best melee one beside a foe.)
+            const rangedOnly = /\bwielding a ranged weapon\b/i.test(requirementSaid);
+            // (2026-11-06, Double Shot's "each against a separate target and with a –2 penalty": a penalty on each, and a second foe for the
+            // second Strike — before, both at full bonus at one foe.)
+            const eachPenalty = Number(/\bwith a [–-](\d) penalty\b/.exec(info?.text ?? "")?.[1]) || 0;
+            const distinct = /\beach (?:against|targeting) a (?:separate|different) (?:target|creature|foe|enemy)\b|\beach must target a different (?:enemy|creature|foe)\b/i.test(info?.text ?? "");
+            const multi = { builtin: "multi-strike", actions: actionCount(plan, info), strikes: plan.strikes.map((strike) => (strike === "ranged" || rangedOnly ? "ranged" : null)), ...(sameMap ? { sameMap: true } : {}), ...(eachPenalty ? { penalty: eachPenalty } : {}), ...(distinct ? { distinct: true } : {}), ...(traits.includes("flourish") ? { flourish: true } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(requires ? { requires } : {}), ...(plan.needs?.length ? { needs: plan.needs } : {}) };
             if (!addBuiltin(builtins, multi, name)) return gap("Strikes the simulator doesn't play");
             return { ...result, played: `${plan.strikes.length} Strikes` };
         }
@@ -319,7 +369,8 @@ export function featEntries(plan, info, builtins, helpers = {}) {
     // find — is a gap too, for the same reason.)
     if (["check", "save"].includes(plan.resolution.kind)) {
         const outcomes = Object.values(plan.resolution.outcomes ?? {});
-        const does = (row) => row && ((row.damage?.mode === "formulas" && row.damage.formulas?.length) || row.effects?.length || row.nativeEffects?.length || row.healing);
+        // (2026-11-05: or a modifier on the target — Bon Mot's -2 to Will and Perception, spells.js modifierModel.)
+        const does = (row) => row && ((row.damage?.mode === "formulas" && row.damage.formulas?.length) || row.effects?.length || row.nativeEffects?.length || row.healing || row.modifiers?.some((modifier) => modifier.recipient !== "self"));
         if (!plan.resolution.sharedDamage && !outcomes.some(does)) return gap("a roll whose results the simulator doesn't read");
     }
     // (An Effect with nothing a fight counts — Disarming Stance's, Duelist's Challenge's, Shooting Stars Stance's: what they do is in rules the
@@ -347,7 +398,7 @@ export function worthSomething(model) {
 }
 
 // Whether a feat's words have its user make a Strike: "Make a melee Strike", "Stride twice, then make a Strike", "Strike twice", "You Strike".
-const USER_STRIKE = /(?:^|[.:;,]\s+|\b(?:then|and|finally|or)\s+)(?:you\s+)?(?:can\s+|may\s+|then\s+)?(?:make|makes)\s+(?:a|an|one|two|three|another|a single|up to (?:two|three))\s+(?:[\w'-]+\s+){0,4}?Strikes?\b|(?:^|[.:;,]\s+|\b(?:then|and|finally)\s+)(?:you\s+)?(?:can\s+)?Strike(?!\s+a target other)(?:\s+(?:twice|three times|an?|the|one|each|it|that|your))?\b/i;
+const USER_STRIKE = /(?:^|[.:;,]\s+|\b(?:then|and|finally|or)\s+)(?:you\s+)?(?:can\s+|may\s+|then\s+)?(?:make|makes|attempt|attempts)\s+(?:a|an|one|two|three|another|a single|up to (?:two|three))\s+(?:[\w'-]+\s+){0,4}?Strikes?\b|(?:^|[.:;,]\s+|\b(?:then|and|finally)\s+)(?:you\s+)?(?:can\s+)?Strike(?!\s+a target other)(?:\s+(?:twice|three times|an?|the|one|each|it|that|your))?\b/i;
 const OTHERS_STRIKE = /\b(?:your|the|an?) (?:eidolon|companion|familiar|mount|ally|minion|follower|animal|summon|construct|underling)s?\b[^.]{0,120}\bStrikes?\b/i;
 export function userStrike(text) {
     const plain = String(text ?? "");

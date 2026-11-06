@@ -16,17 +16,19 @@ import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, isRaging, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNextStrike, takeAttackFortune } from "./effects.js";
-import { actionTraits, applyCondition, applyMove, bothHitRider, castPlan, castSpell, rageTriggers, curseOnHit, deathThroes, forbiddingBonus, skillValue, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { actionTraits, exploitCovers, applyCondition, applyMove, bothHitRider, castPlan, castSpell, rageTriggers, curseOnHit, deathThroes, forbiddingBonus, skillValue, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
+import { destroyBody, thrallAuraStrike, thrallBodies, thrallKilled } from "./thralls.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
 import { log } from "./log.js";
+import { dropTriggers, featTriggers, foeRollTriggers } from "./triggers.js";
 import { afterAttackFortune, attackFortune } from "./fortune-items.js";
 import { hostility, ownHostility } from "./pacify.js";
 import { wardBlocks } from "./wards.js";
 import { imageTakes } from "./images.js";
-import { hiddenDC, hiddenFrom } from "./sight.js";
+import { blindFought, hiddenDC, hiddenFrom } from "./sight.js";
 import { airLost, flewThisTurn, swimCheck } from "./void.js";
 import { lifelinkMaster } from "./familiars.js";
 import { keenCritical, runeCritEffects } from "./runes.js";
@@ -37,9 +39,10 @@ import { canSpendHero, spendHeroPoint } from "./heroes.js";
 
 // (On the grid, against an attacker: what stands between them — a creature, lesser cover; a wall's corner, standard — or the run's cover
 // for the side, the more.)
+// (2026-11-06, Phalanx Formation: a guardian between gives its allies' targets no lesser cover.)
 export function coverFor(state, defender, attacker = null) {
     const set = state.setup.cover?.[defender.side] ?? 0;
-    const base = !state.grid || !attacker?.square || !defender.square ? set : Math.max(set, sightLine(state.grid, attacker, defender, state.list.filter((other) => isActive(other) && other.square)).cover);
+    const base = !state.grid || !attacker?.square || !defender.square ? set : Math.max(set, sightLine(state.grid, attacker, defender, state.list.filter((other) => isActive(other) && other.square && !(other.phalanxFormation && other.side === attacker.side && other !== attacker))).cover);
     // (2026-10-22, Take Cover: standard cover greater; none, standard against an attacker it took cover from — something between, or
     // the undergrowth or rubble it's in: grid-fight.js coverToward.)
     if (!defender.tookCover) return base;
@@ -115,7 +118,8 @@ function berserkPenalty(state, c) {
 
 export function targetAC(state, attacker, target, strike, flanked) {
     // Feinted or diverted: off-guard to this attacker alone.
-    const feinted = !isOffGuard(target) && offGuardTo(target, attacker, strike.melee);
+    // (2026-11-05, Sea Swarmer: a foe in its reach and two allies' is off-guard to it.)
+    const feinted = !isOffGuard(target) && (offGuardTo(target, attacker, strike.melee) || (attacker.seaSwarmer && strike.melee && state.list.filter((other) => other !== attacker && other.side === attacker.side && isActive(other) && sameMelee(other, target)).length >= 2));
     // The Outwit hunter's edge: +1 AC against the prey.
     const outwit = target.huntPrey?.edge === "outwit" && target.prey === attacker.id ? 1 : 0;
     // (T4: attached — the pickled punk's +2 while not held itself; the bee borer's target off-guard to it too.)
@@ -127,7 +131,7 @@ export function targetAC(state, attacker, target, strike, flanked) {
     const mark = markOn(target, attacker);
     const branded = mark?.ac ? Math.max(0, mark.ac - statusPenalty(target, "ac")) : 0;
     // (2026-10-22, Forbidding Ward: its status bonus against the foe it names.)
-    return armorClass(target, { ranged: !strike.melee, coverBonus: strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded + forbiddingBonus(target, attacker);
+    return armorClass(target, { ranged: !strike.melee, coverBonus: strike.unerring ? 0 : strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded + forbiddingBonus(target, attacker);
 }
 
 // Cache of expected hit damage per Strike object (shared by every run of a
@@ -292,7 +296,7 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
     // (C32, Fearsome Brute: double — triple, a master in Intimidation — the target's frightened value to the damage.)
     if (attacker.fearsomeBrute && target.cond?.frightened > 0) parts.push({ dice: 0, die: 0, bonus: attacker.fearsomeBrute * target.cond.frightened, type: strike.damage?.[0]?.type, precision: false, chance: 1 });
     // Exploit Vulnerability: the weakness it found or imposed, once per hit (not doubled).
-    if (attacker.exploited?.targetId === target.id) parts.push({ dice: 0, die: 0, bonus: attacker.exploited.value, type: "untyped", precision: false, noCrit: true, chance: 1 });
+    if (exploitCovers(attacker, target)) parts.push({ dice: 0, die: 0, bonus: attacker.exploited.value, type: "untyped", precision: false, noCrit: true, chance: 1 });
     // Gunslinger deeds (C18): One Shot, One Kill's precision dice on the first hit with a
     // firearm or crossbow; Energy Shot's 1 per weapon die, of the energy the target resists least.
     if (strike.firearm && attacker.firstShotReady) parts.push({ dice: attacker.firstShotReady, die: 6, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
@@ -305,7 +309,8 @@ const bestEnergy = (target) => ENERGIES.reduce((best, type) => (adjustInstance(t
 
 // (2026-11-03, class feats: an extra kept to some Strikes — Brutal Critical's melee ones, an alchemist's additive on its bombs, Fatal
 // Bullet's firearms, Disorienting Opening's Reactive Strikes.)
-const extraFits = (extra, strike, reaction = false) => (!extra.melee || strike.melee) && (!extra.bomb || strike.splashKind === "bomb") && (!extra.firearm || strike.firearm) && (!extra.reaction || reaction);
+// (2026-11-05, Nature's Precision: an agile or finesse unarmed Strike's only — agileOrFinesse.)
+const extraFits = (extra, strike, reaction = false) => (!extra.melee || strike.melee) && (!extra.agileOrFinesse || (strike.unarmed && (strike.agile || strike.finesse))) && (!extra.bomb || strike.splashKind === "bomb") && (!extra.firearm || strike.firearm) && (!extra.reaction || reaction);
 
 // The extra dice of abilities such as Sneak Attack, on average (doubled on a critical hit).
 function expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies) {
@@ -314,7 +319,7 @@ function expectedExtras(attacker, strike, target, critical, offGuardChance, pack
         const chance = extra.when === "off-guard" ? offGuardChance : extraApplies(extra, target, { offGuard: false, packAllies, attacker, critical }) ? 1 : 0;
         // (2026-11-03: a condition it puts on — Brutal Beating's frightened — isn't damage; Brutal Critical's melee Strikes only, its weapon's
         // own die, not doubled.)
-        if (!chance || extra.condition || extra.offGuardToAttacker || !extraFits(extra, strike)) continue;
+        if (!chance || extra.condition || extra.save || extra.offGuardToAttacker || !extraFits(extra, strike)) continue;
         const die = extra.weaponDie ? Number(strike.damage?.[0]?.die) || 6 : extra.die;
         // (2026-11-03, Fearsome Brute: a bonus for each point of the target's frightened.)
         // (Sticky Bomb: persistent damage of its bomb's splash.)
@@ -377,15 +382,27 @@ function computeHitDamage(attacker, strike, target, critical, penalty, offGuardC
 const dodges = (reaction, strike, state = null, c = null) => (!reaction.against || (reaction.against === "melee") === Boolean(strike.melee))
     && (reaction.requires !== "grabbed" || Boolean(state?.list?.some((other) => other.grabbedBy === c?.id && (other.cond.grabbed || other.cond.restrained))));
 
+// (2026-11-05, Foresee Danger, Sense the Strike: "the triggering attack roll targets your Perception (or a skill) DC instead of your AC" —
+// used only when that DC is higher than the AC it faces, the gain as its AC bonus. A skill the PC has no number for: expert, +3.)
+function insteadOfAC(c, ac) {
+    const stat = c.acReaction.dcInstead;
+    const modifier = stat === "perception" ? Number(c.perception) : Number(c.skills?.[stat] ?? (Number(c.level) || 1) + 4 + 3);
+    return 10 + (Number.isFinite(modifier) ? modifier : 0) - ac;
+}
+
 // (M38: harm in a reaction — a Reactive Strike at a creature leaving — doesn't count as refusing its surrender.)
 export function performStrike(state, attacker, target, strike, options = {}) {
     // (An attack ends Take Cover.)
     attacker.tookCover = false;
+    // (2026-11-06, Blade of Law's "has attempted a hostile action against you since your previous turn": who Struck it since its turn ended.)
+    if (attacker.side !== target.side) (target.hostileFrom ??= new Set()).add(attacker.id);
+    // (2026-11-06, Skeletal Lancers: a foe's Strike beside a lancer.)
+    if (state.list.some((other) => other.thrallAura?.on === "strike")) thrallAuraStrike(state, attacker);
     if (!options.reaction) {
         const result = strikeOnce(state, attacker, target, strike, options);
         // (Invisibility: it ends once the attack is done. Weapon Surge, Judgment's success: used up by the Strike.)
         ownHostility(state, attacker);
-        spendNextStrike(attacker);
+        spendNextStrike(attacker, strike);
         spendMark(target, attacker);
         return result;
     }
@@ -396,7 +413,7 @@ export function performStrike(state, attacker, target, strike, options = {}) {
     } finally {
         state.inReaction = before;
         ownHostility(state, attacker);
-        spendNextStrike(attacker);
+        spendNextStrike(attacker, strike);
         spendMark(target, attacker);
     }
 }
@@ -443,6 +460,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             return performStrike(state, attacker, other, strike, { reaction, trigger, fortune });
         }
     }
+    // (2026-11-05, Defend Mount: a Strike at a mount its rider answers — the rider's AC, the rider taking it.)
+    const rider = target.riderId ? state.byId?.get(target.riderId) : null;
+    if (rider?.defendMount && rider.mountId === target.id && isActive(rider) && canAct(rider) && canReact(rider, "Defend Mount")) {
+        spendReaction(rider, "Defend Mount");
+        state.stats.reactions++;
+        log(state, `  ${rider.name} uses Defend Mount: the Strike goes to ${rider.name}`);
+        return performStrike(state, attacker, rider, strike, { reaction, trigger, fortune });
+    }
     const attacksMade = reaction ? 0 : attacker.attacksThisTurn;
     if (!reaction) attacker.attacksThisTurn++;
     // (Gravity Weapon: its first weapon Strike this round — hit or miss.)
@@ -479,6 +504,21 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             if (chance > 0) flanked = state.rng.chance(chance);
         }
     }
+    // (2026-11-06, Back to Back: an ally beside a creature with it, or it beside an ally, isn't off-guard from flanking unless that creature
+    // (or the ally) is flanked too — taken as two or more foes beside it.)
+    if (flanked) {
+        const besideEach = (a, b) => (state.grid && a.square && b.square ? Math.max(Math.abs(a.square[0] - b.square[0]), Math.abs(a.square[1] - b.square[1])) <= 1 : sameMelee(a, b));
+        const flankedToo = (who) => engagedEnemies(state, who).length >= 2;
+        const guards = state.list.filter((other) => other.side === target.side && isActive(other) && (other === target || besideEach(other, target)));
+        if (target.backToBack && guards.some((ally) => ally !== target && !flankedToo(ally))) flanked = false;
+        else if (guards.some((ally) => ally !== target && ally.backToBack && !flankedToo(ally))) flanked = false;
+    }
+    // (2026-11-05, Side by Side: a PC and its animal companion both beside the same foe flank it, wherever they stand — tandemWith.)
+    if (!flanked && strike.melee && attacker.tandemWith && flankableBy(target, attacker)) {
+        const partner = state.byId.get(attacker.tandemWith);
+        const beside = (who) => (state.grid && who.square && target.square ? gridReaches(who, target) : sameMelee(who, target));
+        if (partner && isActive(partner) && canAct(partner) && beside(attacker) && beside(partner)) flanked = true;
+    }
     // (B302: off-guard to it by its own passive — Surprise Attack's first round, Dread Striker's frightened target.)
     const surprised = offGuardFrom(state, attacker, target, { melee: strike.melee });
     // Blinded or dazzled: a flat check to find the target first; a concealed or hidden target too (B41). (L1: the light and the weather.)
@@ -489,8 +529,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const lightDC = sightDC(state, attacker, target);
     // (Brand the Impenitent: its caster ignores the creature's concealment.)
     const brandSees = Boolean(markOn(target, attacker)?.seesConcealed);
-    const seen = (dc) => (brandSees && dc <= 5 ? 0 : dc);
-    const findDC = Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : seen(hiddenDC(state, attacker, target)), target.cond?.outlined && lightDC < 11 ? 0 : seen(lightDC));
+    // (2026-11-04: a Strike that ignores the target's concealment — Targeting Shot's.)
+    const seen = (dc) => ((brandSees || strike.unerring) && dc <= 5 ? 0 : dc);
+    const findDC = blindFought(attacker, Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : seen(hiddenDC(state, attacker, target)), target.cond?.outlined && lightDC < 11 ? 0 : seen(lightDC)));
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
         // Counterattack (B94): a miss from beside it because it's concealed, a Strike back.
@@ -503,10 +544,16 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const modifier = attackModifier(state, attacker, target, strike, attacksMade, { history });
     // (L1, L4: off-guard to an attacker it can't see — darkness without darkvision — or one that started its turn hidden, Hidden Movement.)
     // (2026-11-03, Dread Striker: a frightened creature is off-guard to its attacker — tools/lib/feat-power.mjs HAND.)
-    const unseenAttacker = unseen(state, target, attacker) || hiddenMovementOffGuard(state, attacker, target) || Boolean(attacker.dreadStriker && target.cond?.frightened > 0);
+    // (Blind-Fight: not off-guard to a creature hidden from it.)
+    const unseenAttacker = (!target.blindFight && (unseen(state, target, attacker) || hiddenMovementOffGuard(state, attacker, target))) || Boolean(attacker.dreadStriker && target.cond?.frightened > 0);
     // (H1: a party member aiming at a hydra's head it can sever in one hit.)
     const headAimed = !reaction && aimsAtHead(attacker, target, strike, { expectedHitDamage });
-    const ac = targetAC(state, attacker, target, strike, flanked || surprised || unseenAttacker);
+    // (2026-11-05: a PC's reaction as a foe is about to attack — Harbinger's Caw's misfortune, its Effect then used by the roll below;
+    // attacked: the one it attacks, for "A creature targets you with an attack" — Lucky Escape, Wood Ward's cover, before its AC is read.)
+    if (!reaction) foeRollTriggers(state, attacker, "foe-attack", { attacked: target });
+    // (2026-11-05, Guiding Shot, Assisting Shot: a circumstance bonus to this attacker's roll — as a lower AC to it.)
+    const aid = (target.offGuardTo ?? []).find((entry) => entry.attacker === attacker.id && entry.bonus && (entry.attacks !== "melee" || strike.melee) && entry.uses)?.bonus ?? 0;
+    const ac = targetAC(state, attacker, target, strike, flanked || surprised || unseenAttacker) - aid;
     // Off-guard to this attack: for Sneak Attack and backstabber.
     const offGuard = flanked || surprised || unseenAttacker || isOffGuard(target) || offGuardTo(target, attacker, strike.melee);
     // A one-attack feint or diversion is used up by this attack.
@@ -531,13 +578,15 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         target.pendingAcPenalty = 0;
     }
     let misfortune = false;
+    let deflected = false;
     if (target.misfortuneReaction && !target.misfortuneReaction.spell && canReact(target, target.misfortuneReaction.name)) {
         misfortune = true;
         spendReaction(target, target.misfortuneReaction.name);
         log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
     } else if (foresightReact(state, target, attacker)) misfortune = true;
-    else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && canReact(target, target.acReaction.name) && (!target.reactions?.aoo || target.acReaction.deviant) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.deviant || deviantUsable(target))) {
-        defence = target.acReaction.value;
+    else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && (!target.acReaction.dcInstead || insteadOfAC(target, ac) > 0) && canReact(target, target.acReaction.name) && (!target.reactions?.aoo || target.acReaction.deviant || target.acReaction.featForced) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.deviant || deviantUsable(target))) {
+        defence = target.acReaction.dcInstead ? insteadOfAC(target, ac) : target.acReaction.value;
+        deflected = true;
         spendReaction(target, target.acReaction.name);
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
         // (2026-11-01, Defensive Growth, a deviant ability: its flat check and backlash — deviant.js.)
@@ -568,8 +617,18 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (taunter && isActive(taunter) && taunter.id !== target.id && !reaction) {
         bonus -= 1;
         attacker.cond.offGuard = true;
+        // (2026-11-06, Proud Nail's "off-guard because it didn't target you".)
+        attacker.ignoredTaunt = taunter.id;
         (attacker.timers ??= []).push({ key: "offGuard", value: true, round: attacker.round === state.round ? state.round + 1 : state.round, turnOf: attacker.id, at: "start" });
     }
+    // (2026-11-05, Goading Feint: –2 to its attack on the feinter, the next one or all until the end of the feinter's next turn.)
+    if (attacker.goaded && attacker.goaded.by === target.id) {
+        bonus -= 2;
+        log(state, `  ${attacker.name} is goaded: –2 against ${target.name}`);
+        if (attacker.goaded.uses) attacker.goaded = null;
+    }
+    // (Antagonize: an attack on the swashbuckler ends its frightened floor.)
+    if (attacker.condFloors?.some((entry) => entry.antagonizedBy === target.id)) attacker.condFloors = attacker.condFloors.filter((entry) => entry.antagonizedBy !== target.id);
     // Devise a Stratagem: the d20 rolled in advance, and Intelligence, for the first Strike at that creature.
     const stratagem = attacker.stratagem;
     const strategic = !reaction && stratagem && !stratagem.used && stratagem.targetId === target.id && stratagem.round === state.round && (attacker.stratagemFeature?.strikeBonus?.[strike.name] !== undefined);
@@ -583,24 +642,43 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (Sacred Defender: a natural 20 against it doesn't improve the result. Keen: a natural 19 that hits is a critical hit.)
     if (natural === 20 && target.noNaturalTwenty) degree = degreeOf(natural + modifier + bonus, ac + defence, 10);
     if (keenCritical(strike, natural, degree)) degree = CRITICAL_SUCCESS;
+    // (2026-11-05, Savage Critical, Piercing Critical: a 19 that hits is a critical hit — with its legendary weapons (all its Strikes for the
+    // fighter; its ranged ones for the gunslinger's firearm or crossbow).)
+    if (natural === 19 && degree === SUCCESS && attacker.savageCritical && (attacker.savageCritical !== "ranged" || !strike.melee)) degree = CRITICAL_SUCCESS;
     // (2026-11-03, Overwhelming Blow: "If this Strike hits, you get a critical hit.")
     if (strike.hitCrits && degree === SUCCESS) degree = CRITICAL_SUCCESS;
     // (U11: Gorum's Tear leaves its user off-guard to that creature until its next turn.)
     if (talisman) afterAttackFortune(state, attacker, target, talisman);
+    // (2026-11-05, Correct the Story: a foe's critical hit rerolled, the new result kept — a PC's reaction and a Mythic Point.)
+    if (degree === CRITICAL_SUCCESS && !reaction) {
+        const teller = state.list.find((c) => c.correctTheStory && c.side !== attacker.side && isActive(c) && (c.mythicPoints ?? 0) > 0 && canReact(c, "Correct the Story"));
+        if (teller) {
+            spendReaction(teller, "Correct the Story");
+            teller.mythicPoints--;
+            state.stats.reactions++;
+            natural = state.rng.d20();
+            degree = degreeOf(natural + modifier + bonus, ac + defence, natural);
+            if (keenCritical(strike, natural, degree)) degree = CRITICAL_SUCCESS;
+            log(state, `  ${teller.name} uses Correct the Story: ${attacker.name} rerolls (${natural})`);
+        }
+    }
     // Hammer Block, Stygian Guardian (B94): an ally's +AC once the attack hits, when that turns it aside (its Strike back after, Reactive
     // Defense's).
     if (degree >= SUCCESS && !reaction) {
         for (const guard of state.list) {
             const entry = guard.allyAcReaction;
-            if (!entry || (guard === target && !entry.self) || guard.side !== target.side || !isActive(guard) || !canReact(guard, entry.name) || !canAct(guard) || (entry.ranged && strike.melee)) continue;
+            if (!entry || (guard === target && !entry.self) || guard.side !== target.side || !isActive(guard) || !canReact(guard, entry.name) || !canAct(guard) || (entry.ranged && strike.melee) || (entry.shieldRaised && !(guard.shield?.raised && !guard.shield.broken))) continue;
             if (guard !== target && (entry.within <= 10 ? !sameMelee(guard, target) : entry.within < 60 && target.band === "far" && guard.band !== "far")) continue;
-            const lower = degreeOf(natural + modifier + bonus, ac + defence + entry.value, natural);
+            // (2026-11-05, Forewarn: the attack against its Perception DC instead of the ally's AC — the gain, when there is one.)
+            const value = entry.dcInstead ? 10 + (Number(guard.perception) || 0) - (ac + defence) : entry.value;
+            if (!(value > 0)) continue;
+            const lower = degreeOf(natural + modifier + bonus, ac + defence + value, natural);
             if (lower >= degree) continue;
             degree = lower;
-            defence += entry.value;
+            defence += value;
             spendReaction(guard, entry.name);
             state.stats.reactions++;
-            log(state, `  ${guard.name} uses ${entry.name}: ${target.name} +${entry.value} AC`);
+            log(state, `  ${guard.name} uses ${entry.name}: ${target.name} +${value} AC`);
             if (entry.strike && sameMelee(guard, attacker) && isActive(attacker)) {
                 const index = enemyStrikeIndex(guard, attacker, entry.strike);
                 if (index >= 0) performStrike(state, guard, attacker, guard.strikes[index], { reaction: true, trigger: "ally-guarded" });
@@ -632,6 +710,23 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         }
         if (conceal.concealAfter && isActive(target) && applyCondition(state, target, "concealed", null, { mode: "fixed", value: conceal.concealAfter, unit: "rounds" }, target)) log(state, `  ${target.name} is concealed`);
         if (conceal.deviant) deviantUsed(state, target, conceal, { affected: [attacker] });
+    }
+    // (2026-11-04, Projectile Snatching: a ranged attack it deflects, thrown back at the attacker as part of the reaction.)
+    if (deflected && degree < SUCCESS && target.acReaction?.snatch && !reaction && !strike.melee && isActive(target) && isActive(attacker)) {
+        const own = Math.max(...(target.strikes ?? []).map((each) => Number(each.bonus) || 0));
+        log(state, `  ${target.name} throws the projectile back`);
+        performStrike(state, target, attacker, { ...strike, name: "Snatched projectile", melee: false, bonus: own, ammo: undefined, reload: 0 }, { reaction: true, trigger: "snatch" });
+    }
+    // (2026-11-05, Nimble Strike: with its Nimble Dodge, a melee Strike at the attacker, hit or miss, with no multiple attack penalty.)
+    if (deflected && target.acReaction?.strikeBack && !reaction && isActive(target) && canAct(target) && isActive(attacker) && sameMelee(target, attacker)) {
+        const melee = (target.strikes ?? []).filter((each) => each.melee && strikeUsable(target, each)).sort((x, y) => (Number(y.bonus) || 0) - (Number(x.bonus) || 0))[0];
+        if (melee) {
+            const attacks = target.attacksThisTurn;
+            target.attacksThisTurn = 0;
+            log(state, `  ${target.name} strikes back (${target.acReaction.strikeBack})`);
+            performStrike(state, target, attacker, melee, { reaction: true, trigger: "strike-back" });
+            target.attacksThisTurn = attacks;
+        }
     }
     // Resilient Form and the like: a critical hit on it becomes a normal hit on a flat check.
     const downgrade = target.critDowngrade;
@@ -703,7 +798,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (taken) degree = taken.degree;
     if (!reaction) {
         attacker.turnAttacks ??= [];
-        attacker.turnAttacks.push({ strike: strike.name, targetId: target.id, hit: degree >= SUCCESS });
+        attacker.turnAttacks.push({ strike: strike.name, targetId: target.id, hit: degree >= SUCCESS, crit: degree === CRITICAL_SUCCESS });
         // Its last Strike, hit or miss, for a follow-up's ("last action was a greatclub Strike that missed", B68).
         attacker.lastStrike = { strike: strike.name, melee: !!strike.melee, targetId: target.id, degree, action: attacker.actionCount ?? 0, round: state.round };
     }
@@ -716,7 +811,15 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         // Energy Shot counts its first three Strikes, hit or miss.
         if (strike.firearm && attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;
         // A bomb that misses (not critically) still splashes the target and those around it.
-        if (degree === FAILURE && strike.splashKind === "bomb" && !imageMiss) splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false }), strikeContext(attacker, strike)), { includeTarget: true });
+        // (2026-11-05, Certain Stratagem: a stratagem Strike that misses still deals half its strategic strike dice, of the weapon's type.)
+        if (strategic && attacker.certainStratagem && !imageMiss && isActive(target)) {
+            const half = Math.floor(rollCount(state, `${attacker.stratagemFeature.dice ?? 1}d6`) / 2);
+            if (half > 0) {
+                log(state, `  ${attacker.name} Certain Stratagem: ${half} ${strike.damage[0].type} to ${target.name}`);
+                applyDamage(state, target, [{ type: strike.damage[0].type, amount: half, persistent: false, precision: true }], { source: attacker });
+            }
+        }
+        if (degree === FAILURE && strike.splashKind === "bomb" && !imageMiss) splashAround(state, attacker, target, splashOf(strike, rollStrikeDamage(state.rng, strike, { critical: false }), strikeContext(attacker, strike), attacker.splashBonus ?? 0), { includeTarget: true });
         // (B171, Sidestep, Glide Aside: the attack sent at another of the attacker's side beside it, the attacker rerolling against that one at
         // the same multiple attack penalty.)
         // (B286, Bouncy: when "critical", only a critically failed Strike.)
@@ -731,18 +834,24 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             }
         }
         // Opportune Riposte: a Strike back at a foe in reach that critically fails against it.
-        if (degree === CRITICAL_FAILURE && !reaction && target.opportuneRiposte && canReact(target, "Opportune Riposte") && sameMelee(target, attacker)) {
+        // (2026-11-05: Parry and Riposte's failure too — its finisher and parry requirement taken as met; Inexhaustible Countermoves'
+        // extra reaction for it in each foe's turn; Felicitous Riposte's roll twice, the better kept.)
+        const countermove = target.inexhaustibleCountermoves && target.countermoveTurn !== `${state.round}:${attacker.id}`;
+        if ((degree === CRITICAL_FAILURE || (degree === FAILURE && target.parryAndRiposte)) && !reaction && target.opportuneRiposte && (canReact(target, "Opportune Riposte") || (countermove && canAct(target))) && sameMelee(target, attacker)) {
             const riposte = bestMeleeStrike(target, attacker);
             if (riposte) {
-                spendReaction(target, "Opportune Riposte");
-                log(state, `  ${target.name} uses Opportune Riposte`);
-                performStrike(state, target, attacker, riposte, { reaction: true });
+                if (canReact(target, "Opportune Riposte")) spendReaction(target, "Opportune Riposte");
+                else target.countermoveTurn = `${state.round}:${attacker.id}`;
+                log(state, `  ${target.name} uses Opportune Riposte${degree === FAILURE ? " (Parry and Riposte)" : ""}${target.countermoveTurn === `${state.round}:${attacker.id}` ? " (Inexhaustible Countermoves)" : ""}`);
+                performStrike(state, target, attacker, riposte, { reaction: true, ...(target.felicitousRiposte ? { fortune: true } : {}) });
             }
         }
         // Opportune Bite, Gnawing Retort (B84): a monster's Strike back at a creature in its reach that critically fails a Strike against it;
         // B90: one that fails or critically fails.
         if (!reaction && isActive(attacker) && isActive(target)) {
-            const answer = (target.reactionStrikes ?? []).find((entry) => (entry.triggers.includes("critical-miss") && degree === CRITICAL_FAILURE) || entry.triggers.includes("missed"));
+            // (2026-11-06, Talon Sweep: only a miss by a foe flanking it — another of the attacker's side beside it too.)
+            const flanking = () => state.list.some((other) => other !== attacker && other.side === attacker.side && isActive(other) && !other.thrallOf && sameMelee(other, target));
+            const answer = (target.reactionStrikes ?? []).find((entry) => ((entry.triggers.includes("critical-miss") && degree === CRITICAL_FAILURE) || entry.triggers.includes("missed")) && (!entry.flankedOnly || flanking()));
             if (answer && canReact(target, answer.name) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, degree === CRITICAL_FAILURE ? "critical-miss" : "missed");
         }
         // (B116, Skitter: a miss on it, answered by moving off.)
@@ -752,6 +861,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         if (degree === CRITICAL_FAILURE && !reaction && attacker.weaponPoisoned && strike.held) attacker.weaponPoisoned = false;
         // Jeer at Failure (B85): a critically failed Strike near a monster with it.
         if (degree === CRITICAL_FAILURE && !reaction) mishapAnswers(state, attacker, target);
+        // (2026-11-05: a PC's reaction to a foe's critical miss, Ill Tide's misfortune on its next roll.)
+        if (degree === CRITICAL_FAILURE && !reaction) foeRollTriggers(state, attacker, "foe-crit-fail");
         return { degree, damage: 0, trigger, ...(imageMiss ? { image: true } : {}) };
     }
     // (Poison Weapon, B72: the poison goes with this hit, below; a critical miss wastes it.)
@@ -762,8 +873,26 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const earlier = history.filter((entry) => entry.strike === strike.name).length;
     // (2026-10-15: an effect's conditional damage — unarmed Strikes' extra dice, melee ones', against a trait.)
     const damageOptions = hasConditional(attacker) ? strikeRollOptions(attacker, strike, target, strikeContext(attacker, strike)) : null;
-    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage", damageOptions);
+    // (2026-11-05, Flamboyant Cruelty: a melee weapon Strike at a foe with two or more of clumsy, drained, enfeebled, frightened, sickened
+    // and stupefied — a circumstance bonus to damage of how many it has.)
+    const cruel = attacker.flamboyantCruelty && strike.melee && !strike.unarmed ? ["clumsy", "drained", "enfeebled", "frightened", "sickened", "stupefied"].filter((slug) => (target.cond?.[slug] ?? 0) > 0).length : 0;
+    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage", damageOptions) - (cruel >= 2 ? cruel : 0);
+    if (cruel >= 2) log(state, `  Flamboyant Cruelty: +${cruel} damage`);
     const instances = rollStrikeDamage(state.rng, strike, { critical, penalty });
+    // (2026-11-06, Targeting Strike: its ally's hit at the target — the commander's Intelligence in precision damage, once, before its next turn.)
+    // (2026-11-06, Ki Cutting Sight's mark: the monk's next damaging Strike on it, the spell's slashing dice more.)
+    if (target.kiCutBy?.by === attacker.id) {
+        let amount = 0;
+        for (let die = 0; die < target.kiCutBy.dice; die++) amount += state.rng.die(10);
+        instances.push({ type: "slashing", amount, precision: false, persistent: false });
+        log(state, `  Ki Cutting Sight: +${amount} slashing`);
+        target.kiCutBy = null;
+    }
+    if (target.targetedBy && target.targetedBy.by !== attacker.id && target.targetedBy.side === attacker.side && state.round <= target.targetedBy.round + 1) {
+        instances.push({ type: strike.damage[0].type, amount: target.targetedBy.amount, precision: true, persistent: false });
+        log(state, `  Targeting Strike: +${target.targetedBy.amount} precision`);
+        target.targetedBy = null;
+    }
     if (strike.backstabber && offGuard) {
         instances.push({ type: strike.damage[0].type, amount: critical ? 2 : 1, precision: true, persistent: false });
     }
@@ -776,6 +905,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         if (attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;
     }
     if (strategic) parts.push({ dice: attacker.stratagemFeature.dice ?? 1, die: 6, bonus: 0, type: strike.damage[0].type, precision: true });
+    // (2026-11-05, Ongoing Strategy: a Strike without its stratagem, with a weapon that could have used one, deals precision damage of its
+    // strategic strike dice's number.)
+    else if (attacker.ongoingStrategy && attacker.stratagemFeature?.strikeBonus?.[strike.name] !== undefined) parts.push({ dice: 0, die: 6, bonus: attacker.stratagemFeature.dice ?? 1, type: strike.damage[0].type, precision: true });
     for (const part of parts) {
         let amount = part.bonus ?? 0;
         for (let die = 0; die < (part.dice ?? 0); die++) amount += state.rng.die(part.die);
@@ -801,9 +933,65 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
                 }
                 continue;
             }
+            // (2026-11-06, a save against its class DC after the hit — Sour Bomb's sickened, Hell's Armaments' slowed: outcomes [critical
+            // failure, failure, success, critical success], each a list of [slug, value, rounds]; a speed penalty as ["speed", -10, rounds].)
+            if (extra.save) {
+                if (isActive(target)) {
+                    const natural = state.rng.d20();
+                    let degree = degreeOf(natural + saveModifier(target, extra.save.statistic), extra.save.dc ?? (Math.max(attacker.classDC ?? 0, attacker.spellDC ?? 0) || 10 + (attacker.level ?? 1) + 3), natural);
+                    if (extra.save.incapacitation && (target.level ?? 0) > (attacker.level ?? 0)) degree = Math.min(CRITICAL_SUCCESS, degree + 1);
+                    log(state, `  ${target.name} (${extra.source}) save: ${["critical failure", "failure", "success", "critical success"][degree]}`);
+                    for (const [slug, value, rounds] of extra.save.outcomes[degree] ?? []) {
+                        const duration = rounds ? { mode: "fixed", value: rounds, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } : null;
+                        if (slug === "speed") {
+                            applyEffect(state, target, { name: extra.source, rounds: rounds ?? 1, modifiers: [{ on: "speed", type: "circumstance", value }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, attacker, { applyCondition, key: `speed:${extra.source}` });
+                            continue;
+                        }
+                        if (applyCondition(state, target, slug, value, duration, attacker)) log(state, `  ${target.name} is ${slug}${value ? ` ${value}` : ""} (${extra.source})`);
+                    }
+                }
+                continue;
+            }
             // (2026-11-03, Brutal Beating: a condition on the target.)
             if (extra.condition) {
-                if (isActive(target) && applyCondition(state, target, extra.condition.slug, extra.condition.value ?? null, extra.condition.duration ?? null, attacker)) log(state, `  ${target.name} is ${extra.condition.slug}${extra.condition.value ? ` ${extra.condition.value}` : ""} (${extra.source ?? "a Strike's extra"})`);
+                // (2026-11-04, Vicious Debilitations: the debilitation its feat adds, picked in place of Debilitating Strike's — one a Strike.)
+                // (2026-11-05, Critical Debilitation: on a critical hit only — a Fortitude save against its class DC, slowed 1, slowed 2 or
+                // paralyzed to the end of its next turn; incapacitation, a degree better for a foe above its level. Otherwise Debilitating Strike's own.)
+                if (extra.source === "Debilitating Strike" && attacker.debilitation?.critSave && critical && isActive(target)) {
+                    const natural = state.rng.d20();
+                    let degree = degreeOf(natural + saveModifier(target, "fortitude"), attacker.classDC ?? 10 + (attacker.level ?? 1) + 3, natural);
+                    if ((target.level ?? 0) > (attacker.level ?? 0)) degree = Math.min(CRITICAL_SUCCESS, degree + 1);
+                    const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" };
+                    const [slug, value] = [null, ["slowed", 2], ["slowed", 1], null][degree] ?? [];
+                    const paralyzed = degree === CRITICAL_FAILURE;
+                    if (paralyzed && applyCondition(state, target, "paralyzed", null, until, attacker)) log(state, `  ${target.name} is paralyzed (Critical Debilitation)`);
+                    else if (slug && applyCondition(state, target, slug, value, until, attacker)) log(state, `  ${target.name} is ${slug} ${value} (Critical Debilitation)`);
+                    continue;
+                }
+                const condition = extra.source === "Debilitating Strike" && attacker.debilitation && !attacker.debilitation.critSave ? { ...extra.condition, ...attacker.debilitation } : extra.condition;
+                // (Tactical Debilitations: "The target can't use reactions", until the end of the rogue's next turn.)
+                // (2026-11-05, Bloody Debilitation: 3d6 persistent bleed in place of a condition.)
+                if (condition.bleed) {
+                    if (isActive(target)) {
+                        let amount = 0;
+                        for (let die = 0; die < condition.bleed; die++) amount += state.rng.die(6);
+                        addPersistent(target, { type: "bleed", dice: 0, die: 0, bonus: amount, amount }, attacker);
+                        log(state, `  ${target.name} takes ${amount} persistent bleed (${extra.source})`);
+                    }
+                    continue;
+                }
+                if (condition.lockReactions) {
+                    if (isActive(target)) {
+                        target.reactionLocks = [...(target.reactionLocks ?? []).filter((held) => held.by !== attacker.id || held.spell !== extra.source), { by: attacker.id, spell: extra.source, untilRound: state.round + 1, ownTurn: false, sustained: false }];
+                        log(state, `  ${target.name} can't use reactions (${extra.source})`);
+                    }
+                    continue;
+                }
+                // (2026-11-06, Enduring Debilitation: once a fight — its minute —, the debilitation for a minute instead.)
+                const endures = extra.source === "Debilitating Strike" && attacker.enduringDebilitation && !attacker.enduredDebilitation && isActive(target);
+                if (endures) attacker.enduredDebilitation = true;
+                const lasting = endures ? { mode: "fixed", value: 10, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } : condition.duration ?? null;
+                if (isActive(target) && applyCondition(state, target, condition.slug, condition.value ?? null, lasting, attacker)) log(state, `  ${target.name} is ${condition.slug}${condition.value ? ` ${condition.value}` : ""} (${extra.source ?? "a Strike's extra"}${endures ? ", Enduring Debilitation" : ""})`);
                 continue;
             }
             if (extra.splashPersistent) {
@@ -865,7 +1053,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (T4: attached to a larger creature it hits.)
     if (attacker.attach && isActive(attacker)) attachAfterHit(state, attacker, target, sizeRank);
     // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
-    if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances, strikeContext(attacker, strike)), { includeTarget: false });
+    if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances, strikeContext(attacker, strike), attacker.splashBonus ?? 0), { includeTarget: false });
     // (B255: a table row's conditions and save on the creature hit.)
     for (const { slug, value, duration } of strike.hitConditions ?? []) if (isActive(target) && applyCondition(state, target, slug, value ?? null, duration ?? null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
     if (strike.hitSpell && isActive(target)) castPlan(state, attacker, { name: strike.hitName ?? strike.name, plan: strike.hitSpell, castRank: 1, pool: null, kind: "ability" }, [target.id]);
@@ -878,6 +1066,57 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         const bleeds = instances.some((instance) => instance.type === "bleed" && instance.amount > 0);
         const name = String(strike.name ?? "").toLowerCase();
         triggeredSelfEffect(state, attacker, (trigger) => (trigger.kind === "deals-bleed" && bleeds) || (trigger.kind === "own-hit" && (name === trigger.strike || name.startsWith(trigger.strike))));
+    }
+    // (2026-11-05, Remorseless Lash: a melee weapon hit on a frightened foe — its frightened stays at 1 or more until the attacker's next turn.)
+    if (attacker.remorselessLash && degree >= SUCCESS && strike.melee && !strike.unarmed && (target.cond.frightened ?? 0) > 0 && isActive(target)) {
+        target.condFloors = [...(target.condFloors ?? []).filter((held) => !(held.by === attacker.id && held.spell === "Remorseless Lash")), { slug: "frightened", value: 1, by: attacker.id, spell: "Remorseless Lash", lifetime: null, untilRound: state.round + 1, sustained: false }];
+    }
+    // (2026-11-05, Cornered Fury: a larger foe's critical hit that hurts it leaves that foe off-guard to it for a round.)
+    if (target.corneredFury && degree === CRITICAL_SUCCESS && dealt > 0 && isActive(target) && isActive(attacker) && sizeRank(attacker.size) > (typeof target.corneredFury === "string" ? sizeRank(target.corneredFury) : sizeRank(target.size))) {
+        applyCondition(state, attacker, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" }, target, { attacker: target.id, attacks: "any", uses: null });
+        log(state, `  ${attacker.name} is off-guard to ${target.name} (Cornered Fury)`);
+    }
+    // (2026-11-05, Giant Slayer: its second critical hit this turn on a giant — a Fortitude save against its class DC or it dies.)
+    if (attacker.giantSlayer && degree === CRITICAL_SUCCESS && (target.traits ?? []).includes("giant") && isActive(target)) {
+        const turnKey = `${state.round}:${attacker.id}:${target.id}`;
+        attacker.giantCrits = attacker.giantCrits?.key === turnKey ? { key: turnKey, count: attacker.giantCrits.count + 1 } : { key: turnKey, count: 1 };
+        if (attacker.giantCrits.count === 2 && !(target.immunities ?? []).includes("death-effects")) {
+            const natural = state.rng.d20();
+            const saved = degreeOf(natural + saveModifier(target, "fortitude"), attacker.classDC ?? 10 + (attacker.level ?? 1) + 3, natural);
+            log(state, `  Giant Slayer: ${target.name} ${saved >= SUCCESS ? "survives" : "dies"}`);
+            if (saved < SUCCESS) kill(state, target, attacker);
+        }
+    }
+    // (2026-11-06, Headshot: its critical hit on a target it already hurt this fight — a Fortitude save against its class DC or it dies;
+    // a death and incapacitation effect, so a higher-level target's degree goes up one step.)
+    if (attacker.headshotOn === target.id && degree === CRITICAL_SUCCESS && isActive(target) && !(target.immunities ?? []).includes("death-effects")) {
+        const natural = state.rng.d20();
+        let saved = degreeOf(natural + saveModifier(target, "fortitude"), attacker.classDC ?? 10 + (attacker.level ?? 1) + 3, natural);
+        if ((target.level ?? 0) > (attacker.level ?? 0) && saved < CRITICAL_SUCCESS) saved += 1;
+        log(state, `  Headshot: ${target.name} ${saved >= SUCCESS ? "survives" : "dies"}`);
+        if (saved < SUCCESS) kill(state, target, attacker);
+    }
+    // (2026-11-05, Distracting Shot: its hunted prey off-guard until its next turn after a ranged critical hit or a second ranged hit this
+    // turn; Greater Distracting Shot: after any ranged hit — its longer time on a critical hit not played.)
+    if (attacker.distractingShot && !strike.melee && attacker.prey === target.id && degree >= SUCCESS && isActive(target)) {
+        const turnKey = `${state.round}:${attacker.id}:${target.id}`;
+        attacker.distractingHits = attacker.distractingHits?.key === turnKey ? { key: turnKey, count: attacker.distractingHits.count + 1 } : { key: turnKey, count: 1 };
+        if ((attacker.distractingShot === "greater" || degree === CRITICAL_SUCCESS || attacker.distractingHits.count >= 2) && !target.cond?.["off-guard"]) {
+            applyCondition(state, target, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" }, attacker);
+            log(state, `  ${target.name} is off-guard (Distracting Shot)`);
+        }
+    }
+    // (2026-11-05, Leave an Opening: its melee critical hit on an off-guard foe that hurts it sets off an ally's Reactive Strike, as a
+    // manipulate action would — the first ally in that foe's Melee with one free.)
+    if (attacker.leaveAnOpening && degree === CRITICAL_SUCCESS && strike.melee && offGuard && dealt > 0 && isActive(target)) {
+        const ally = state.list.find((other) => other.side === attacker.side && other !== attacker && isActive(other) && canAct(other) && other.reactions?.aoo && canReact(other, "Reactive Strike") && (sameMelee(other, target) || distanceBetween(other, target) <= Math.max(5, other.reach ?? 5)));
+        const allyStrike = ally && bestMeleeStrike(ally, target);
+        if (allyStrike) {
+            spendReaction(ally, "Reactive Strike");
+            state.stats.reactions++;
+            log(state, `  ${ally.name} Attack of Opportunity (Leave an Opening)`);
+            performStrike(state, ally, target, allyStrike, { reaction: true, trigger: "manipulate" });
+        }
     }
     // Defensive Quills, Searing Heat: the monster's passive answers a melee hit on it (B43).
     const dealtTypes = dealt > 0 ? instances.map((instance) => instance.type) : [];
@@ -914,8 +1153,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         let kinAnswered = false;
         for (const ally of state.list) {
             if (ally === attacker || ally.side !== attacker.side || !isActive(ally) || !isActive(target)) continue;
-            const answer = (ally.reactionStrikes ?? []).find((entry) => entry.triggers.includes("ally-hit") && (!entry.critOnly || degree >= CRITICAL_SUCCESS) && (!entry.kin || (!kinAnswered && kind(ally) === kind(attacker))) && (!entry.allyStrike || String(strike.name ?? "").toLowerCase().includes(entry.allyStrike)));
-            if (answer && canReact(ally, answer.name) && canAct(ally) && !ally.cond.fleeing && sameMelee(ally, target)) {
+            const answer = (ally.reactionStrikes ?? []).find((entry) => entry.triggers.includes("ally-hit") && (!entry.critOnly || degree >= CRITICAL_SUCCESS) && (!entry.kin || (!kinAnswered && kind(ally) === kind(attacker))) && (!entry.allyStrike || String(strike.name ?? "").toLowerCase().includes(entry.allyStrike)) && (!entry.allyRanged || !strike.melee));
+            // (2026-11-04, Target of Opportunity and Exploit Opening: a ranged Strike back, from wherever it stands.)
+            if (answer && canReact(ally, answer.name) && canAct(ally) && !ally.cond.fleeing && (answer.ranged || sameMelee(ally, target))) {
                 reactionStrikeAt(state, ally, target, answer, "ally-hit");
                 if (answer.kin) kinAnswered = true;
             }
@@ -951,6 +1191,12 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         const opened = (target.offGuardTo ?? []).find((held) => held.attacker === attacker.id && held.tempHpOnHit > 0);
         if (opened) attacker.hp.temp = Math.max(attacker.hp.temp ?? 0, opened.tempHpOnHit * (degree === CRITICAL_SUCCESS ? 2 : 1));
     }
+    // (2026-11-05, triggers.js: a feat's free action or reaction on its critical Strike — Echoing Violence.)
+    if (degree === CRITICAL_SUCCESS && attacker.featTriggers && isActive(target) && attacker.side !== target.side) featTriggers(state, attacker, "crit", { target, strike });
+    // (2026-11-05, the one-off feats: "An enemy hits you with a Strike" — Cautious Word, Dazzling Dragonet Disappearance, Tragic Lament's
+    // critical one — and "Your Strike hits" — Lethal Edge.)
+    if (degree >= SUCCESS && target.featTriggers && isActive(target) && attacker.side !== target.side) featTriggers(state, target, "hit", { by: attacker, strike, critical: degree === CRITICAL_SUCCESS });
+    if (degree >= SUCCESS && attacker.featTriggers && isActive(target) && attacker.side !== target.side) featTriggers(state, attacker, "strike-hit", { target, strike });
     // (2026-11-03, Fracture Timeflow: a passive's save after any critical Strike — the spell the attacker carries for it.)
     if (degree === CRITICAL_SUCCESS && isActive(target) && attacker.side !== target.side) for (const rider of attacker.critRiders ?? []) bothHitRider(state, attacker, target, { affliction: rider.affliction }, { said: `${rider.source} on` });
     // Violent Retort (B70): a critical hit on it, answered with a Strike.
@@ -1154,6 +1400,8 @@ function approachAnswers(state, mover) {
         if (!canAct(mover) || !isActive(mover)) break;
         if (!canReact(enemy, "*") || enemy.cond.fleeing) continue;
         const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes("approach"));
+        // (2026-11-06, Tail Guard's "enters a square that would flank you": another of the mover's side already beside it.)
+        if (reaction?.flankOnly && !engagedEnemies(state, enemy).some((other) => other !== mover && other.side === mover.side)) continue;
         if (reaction) reactionStrikeAt(state, enemy, mover, reaction, "approach");
     }
 }
@@ -1231,7 +1479,8 @@ function triggeredSelfEffect(state, c, matches) {
 
 // A Strike's splash: its known amount (the snapshot reads it from the item), or its parts flagged splash.
 // (I2: in the Strike's context, for a swarm's weakness to splash damage.)
-const splashOf = (strike, instances, context = null) => (strike.splashAmount ? [{ type: strike.damage[0]?.type ?? "untyped", amount: strike.splashAmount, persistent: false, precision: false, splash: true }] : instances.filter((instance) => instance.splash)).map((instance) => ({ ...instance, weapon: false, context }));
+// (2026-11-05, Calculated Splash, Expanded Splash: the alchemist's bombs splash more — attacker.splashBonus, its bombs only.)
+const splashOf = (strike, instances, context = null, bonus = 0) => (strike.splashAmount ? [{ type: strike.damage[0]?.type ?? "untyped", amount: strike.splashAmount + (strike.splashKind === "bomb" ? bonus : 0), persistent: false, precision: false, splash: true }] : instances.filter((instance) => instance.splash)).map((instance) => ({ ...instance, weapon: false, context }));
 
 // Splash damage (the instances flagged splash) on the creatures in the target's
 // Melee (within the splash's few feet in range bands), and the target itself after a bomb's miss.
@@ -1240,7 +1489,8 @@ function splashAround(state, attacker, target, splash, { includeTarget }) {
         if (includeTarget && splash.length && isActive(target)) applyDamage(state, target, splash.map((instance) => ({ ...instance })), { source: attacker });
         return;
     }
-    const around = state.list.filter((other) => isActive(other) && other.meleeId === target.meleeId && (includeTarget || other !== target));
+    // (2026-11-05, Directional Bombs: its bombs' splash a cone away from it — on its foes only, attacker.splashFoesOnly.)
+    const around = state.list.filter((other) => isActive(other) && other.meleeId === target.meleeId && (includeTarget || other !== target) && !(attacker.splashFoesOnly && other.side === attacker.side));
     for (const other of around) {
         const dealt = applyDamage(state, other, splash.map((instance) => ({ ...instance })), { source: attacker });
         if (dealt > 0) log(state, `  ${other.name} takes ${dealt} splash (${Math.max(0, other.hp.value)}/${other.hp.max})`);
@@ -1299,6 +1549,15 @@ function shouldShieldBlock(defender, total) {
     return total >= defender.hp.value + defender.hp.temp;
 }
 
+// (Shield Warden: as shouldShieldBlock, for the ally the hit is on.)
+function wardenBlocks(warden, ally, total) {
+    const shield = warden.shield;
+    if (!shield || shield.broken || !shield.raised || shield.spell || !warden.reactions?.shieldBlock || !canReact(warden, "Shield Block")) return false;
+    if (total < Math.max(1, shield.hardness)) return false;
+    if (shield.hp - Math.max(0, total - shield.hardness) > shield.bt) return true;
+    return total >= ally.hp.value + ally.hp.temp;
+}
+
 // Whether a monster's guard (B124) takes this damage for the creature: its ward (the boss, master or ward its text names: its highest-level
 // ally) or any ally, beside it (or within 15 feet for Interposition's Stride); a Strike's damage only where it says so. For any ally, only
 // when the ally would drop or is the more hurt of the two.
@@ -1318,7 +1577,7 @@ function guards(state, c, target, { physical = false, critical = false } = {}) {
 }
 
 // (B193: spell { rank, targeted } — the damage of a spell aimed at it, for Divert Essence.)
-export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null } = {}) {
+export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null, areaReflex = false } = {}) {
     // (2026-10-22, under water: a critical hit costs a round of air.)
     if (critical && target.air !== undefined) airLost(state, target);
     // (2026-10-22, Indestructibility: harmed by nothing till its next turn.)
@@ -1327,6 +1586,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
         log(state, `  ${target.name} is untouched (${untouched.spell})`);
         return 0;
     }
+    // (2026-11-05, triggers.js: a feat's reaction before damage it's about to take — Adamantine Body, Terrain Shield, Void Siphon.)
+    if (target.featTriggers && !intercepted && source && source.side !== target.side && instances.some((instance) => instance.amount > 0)) featTriggers(state, target, "would-damage", { by: source, physical, types: instances.filter((instance) => instance.amount > 0).map((instance) => instance.type) });
     // (Undermine Reality: a quasi-real creature's Strikes deal half damage.)
     // (2026-10-22: and Duplicate Foe's copy, on a success.)
     if (physical && !intercepted && (source?.cond?.quasiReal || source?.halfStrikes)) instances = instances.map((instance) => ({ ...instance, amount: Math.floor(instance.amount / 2) }));
@@ -1351,15 +1612,32 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // Intercept Attack: a guardian next to the ally takes physical damage meant for it,
     // when the ally would drop or is the more hurt of the two.
     if (!intercepted && source && source.side !== target.side && instances.some((instance) => ["bludgeoning", "piercing", "slashing"].includes(instance.type))) {
-        const guardian = state.list.find((c) => c.interceptAttack && c !== target && c.side === target.side && canReact(c, c.interceptAttack.name) && sameMelee(c, target));
+        // (2026-11-05, Guardian's Intercept: once a fight — interceptAttack.once.)
+        const guardian = state.list.find((c) => c.interceptAttack && !(c.interceptAttack.once && c.interceptUsed) && c !== target && c.side === target.side && canReact(c, c.interceptAttack.name) && sameMelee(c, target));
         if (guardian) {
             const total = adjustDamage(target, instances).total;
             const fraction = (c) => Math.max(0, c.hp.value) / Math.max(1, c.hp.max);
             if (total >= target.hp.value + (target.hp.temp ?? 0) || fraction(guardian) > fraction(target) + 0.2) {
                 spendReaction(guardian, guardian.interceptAttack.name);
+                guardian.interceptUsed = true;
                 state.stats.reactions++;
                 log(state, `  ${guardian.name} uses Intercept Attack for ${target.name}`);
-                return applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
+                const dealt = applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
+                // (2026-11-05, Armored Counterattack: a free Strike back at an attacker beside it — taken as a melee one's —, a Taunt on a hit.)
+                if (guardian.armoredCounterattack && isActive(guardian) && canAct(guardian) && isActive(source) && sameMelee(guardian, source)) {
+                    const strike = bestMeleeStrike(guardian, source);
+                    if (strike) {
+                        log(state, `  ${guardian.name} uses Armored Counterattack`);
+                        const result = performStrike(state, guardian, source, strike, { reaction: true });
+                        if (result?.degree >= 2 && isActive(source)) {
+                            for (const other of state.list) if (other.tauntedBy === guardian.id) other.tauntedBy = null;
+                            source.tauntedBy = guardian.id;
+                            (source.timers ??= []).push({ taunt: guardian.id, round: state.round + 1, turnOf: guardian.id, at: "start" });
+                            log(state, `  ${guardian.name} taunts ${source.name}`);
+                        }
+                    }
+                }
+                return dealt;
             }
         }
     }
@@ -1384,7 +1662,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // (2026-10-22, family 3: a curse's damage on a hit — Bloodspray Curse, Implement of Destruction.)
     if (target.curses?.length) instances = curseOnHit(state, target, source, instances, { physical, critical });
     // Liquefy, Chipping Scales (B99): its reaction's resistance against this damage, and what it leaves.
-    const resisting = resistReaction(state, target, instances, { source, physical, spell });
+    const resisting = resistReaction(state, target, instances, { source, physical, spell, areaReflex });
     const adjusted = adjustDamage(target, instances);
     if (resisting?.half) adjusted.total = Math.floor(adjusted.total / 2);
     if (resisting) afterResisting(state, target, resisting, source);
@@ -1414,6 +1692,20 @@ export function applyDamage(state, target, instances, { source = null, critical 
             source.cond.enfeebled = Math.max(source.cond.enfeebled ?? 0, 2);
             (source.timers ??= []).push({ key: "enfeebled", value: 2, round: source.round === state.round ? state.round + 1 : state.round, turnOf: source.id, at: "end" });
             log(state, `  ${source.name} refuses and is enfeebled 2`);
+        }
+        // (2026-11-05, Shield of Reckoning: its Shield Block for the ally with the same reaction, once a round — its raised shield's
+        // Hardness off the damage, the shield taking the rest as a block's.)
+        const shield = champion.shield;
+        if (champion.shieldOfReckoning && physical && champion !== target && shield?.raised && !shield.broken && champion.reckoningRound !== state.round && adjusted.total > 0) {
+            champion.reckoningRound = state.round;
+            const blocked = Math.min(adjusted.total, shield.hardness ?? 0);
+            const through = adjusted.total - blocked;
+            adjusted.total = through;
+            if (through > 0 && Number.isFinite(shield.hp)) {
+                shield.hp = Math.max(0, shield.hp - through);
+                if (shield.hp <= (shield.bt ?? 0)) shield.broken = true;
+            }
+            log(state, `  ${champion.name} Shield Blocks for ${target.name} (Shield of Reckoning): ${blocked} prevented`);
         }
         if (reaction.slug === "retributive-strike") retribution = champion;
         if (reaction.slug === "destructive-vengeance") retribution = { vengeance: champion };
@@ -1445,6 +1737,27 @@ export function applyDamage(state, target, instances, { source = null, critical 
             shield.raised = false;
         }
         log(state, `  ${target.name} Shield Blocks (${blocked} prevented${shield.spell ? `, ${shield.name} ends` : shield.broken ? ", shield broken" : ""})`);
+        // (2026-11-05: "You use the Shield Block reaction" — Aggressive Block, Flashing Shield.)
+        if (target.featTriggers && source && source.side !== target.side) featTriggers(state, target, "shield-block", { by: source });
+    } else if (physical && !intercepted && total > 0) {
+        // (2026-11-05, Shield Warden: an adjacent ally with its shield raised Shield Blocks for it — the ally's shield takes the rest.)
+        const warden = state.list.find((other) => other !== target && other.side === target.side && other.shieldWarden && isActive(other) && canAct(other) && sameMelee(other, target) && wardenBlocks(other, target, total));
+        if (warden) {
+            const shield = warden.shield;
+            const blocked = Math.min(total, shield.hardness);
+            total -= blocked;
+            shield.hp -= total;
+            if (shield.hp <= shield.bt) shield.broken = true;
+            spendReaction(warden, "Shield Block");
+            log(state, `  ${warden.name} Shield Blocks for ${target.name} (Shield Warden, ${blocked} prevented${shield.broken ? ", shield broken" : ""})`);
+            // (2026-11-05, Shield of Grace: the rest split evenly between the ally and itself.)
+            if (warden.shieldOfGrace && total > 1) {
+                const share = Math.floor(total / 2);
+                total -= share;
+                const took = dealDamage(state, warden, share, { source, critical, nonlethal });
+                log(state, `  ${warden.name} takes ${took} of it (Shield of Grace)`);
+            }
+        }
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance, source);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
@@ -1491,6 +1804,9 @@ export function applyDamage(state, target, instances, { source = null, critical 
         if (strike) retributionAfter(state, retribution, source, strike, performStrike(state, retribution, source, strike, { reaction: true }), { applyDamage, applyCondition });
         exaltedStrikes(state, retribution, source, { bestMeleeStrike, performStrike });
     }
+    // (2026-11-05, United Assault: who has damaged it since the end of its last turn.)
+    if (dealt > 0 && source && source.id !== target.id) (target.damagers ??= new Set()).add(source.id);
+    if (dealt > 0 && source && source.id !== target.id) (source.hurtFoes ??= new Set()).add(target.id);
     return dealt;
 }
 
@@ -1498,7 +1814,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
 // attack that deals physical damage"), an enemy's only; its uses. Its resistance (to the types it names, or to all the triggering damage)
 // is on the creature while this damage is adjusted; returns what to put back, or null.
 const PHYSICAL_TYPES = new Set(["bludgeoning", "piercing", "slashing"]);
-function resistReaction(state, target, instances, { source, physical, spell = null }) {
+function resistReaction(state, target, instances, { source, physical, spell = null, areaReflex = false }) {
     const resist = target.resistReaction;
     if (!resist || !isActive(target) || !(resist.free || canReact(target, resist.name)) || !((target.resistUses ?? Infinity) > 0)) return null;
     // (T5, Countered by Earth: Liquefy can't be used until the end of its next turn.)
@@ -1516,6 +1832,10 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     const value = resist.value === "rank" ? spell.rank : resist.value;
     const sets = (instance) => !instance.persistent && instance.amount > 0 && (!resist.on || resist.on.includes(instance.type) || (resist.on.includes("physical") && PHYSICAL_TYPES.has(instance.type)));
     if (adjustDamage(target, instances.filter(sets)).total <= 0) return null;
+    // (2026-11-05, Dodging Roll: only an area effect with a Reflex save.)
+    if (resist.areaReflex && !areaReflex) return null;
+    // (2026-11-05, Repel Assault: only an attack that would deal at least its level.)
+    if (resist.minDamage && adjustDamage(target, instances).total < resist.minDamage) return null;
     // (2026-11-03, Defensive Roll: only an attack that would drop it to 0 Hit Points.)
     if (resist.lethal && adjustDamage(target, instances).total < target.hp.value + (target.hp.temp ?? 0)) return null;
     if (!resist.free) spendReaction(target, resist.name);
@@ -1732,7 +2052,9 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
         const overwhelming = amount >= target.hp.max * state.moraleRules.measures.overwhelmingFraction;
         const massive = amount >= target.hp.max * 2;
         knockOut(state, target, { source, critical, nonlethal, overwhelming, massive, before });
-    }
+        // (2026-11-05, triggers.js: a feat's free action or reaction as a creature drops — Victorious Vigor, Final Spite, Bleak Humorist.)
+        if (source && target.hp.value <= 0 && (state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers))) dropTriggers(state, target, source);
+    } else if (dealt > 0 && target.featTriggers && source && source.side !== target.side) featTriggers(state, target, "damaged", { by: source });
     return dealt;
 }
 
@@ -1816,8 +2138,10 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         return;
     }
     // Death Frenzy: a last Strike as it drops.
-    if (target.deathStrike && target.kind !== "pc" && canReact(target, target.deathStrike.name)) {
-        const foe = (source && source.side !== target.side && isActive(source) && sameMelee(source, target) ? source : null) ?? engagedEnemies(state, target)[0] ?? null;
+    // (2026-11-05, Deliberate Death: a PC's, once — only at the creature that downed it, in its reach.)
+    if (target.deathStrike && (target.kind !== "pc" || (target.deathStrike.pc && !target.deathStrikeUsed)) && canReact(target, target.deathStrike.name)) {
+        const foe = (source && source.side !== target.side && isActive(source) && sameMelee(source, target) ? source : null) ?? (target.deathStrike.pc ? null : engagedEnemies(state, target)[0] ?? null);
+        if (foe && target.deathStrike.pc) target.deathStrikeUsed = true;
         const named = strikeNamed(target, target.deathStrike.strike);
         const strike = named >= 0 ? target.strikes[named] : foe ? bestMeleeStrike(target, foe) : null;
         if (foe && strike) {
@@ -1839,6 +2163,23 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     if (source && target.kind === "pc") source.downedCount++;
     // (You're Next, B79: the reaction of the creature that downed it.)
     if (source && source !== target && source.side !== target.side && isActive(source)) downsAnswers(state, source, target);
+    // (2026-11-06, Commitment to Justice: each of the PC's allies saw who dropped it, until that ally's turn ends.)
+    if (source && source.side !== target.side && target.kind === "pc") for (const ally of state.list) if (ally !== target && ally.side === target.side && isActive(ally)) (ally.downedBy ??= new Set()).add(source.id);
+    // (2026-11-06, Frightful Attrition: each of the fallen one's allies within 30 feet a Will save against its class DC — frightened 1, 2,
+    // or 3 and fleeing 1 round; incapacitation, so a higher-level one's degree goes up a step; then immune for the fight.)
+    if (source?.frightfulAttrition && source !== target && source.side !== target.side) {
+        for (const other of state.list.filter((each) => each !== target && each.side === target.side && isActive(each) && !each.thrallOf && distanceBetween(target, each) <= 30)) {
+            const immune = (source.attritionImmune ??= new Set());
+            if (immune.has(other.id) || (other.immunities ?? []).some((each) => ["fear-effects", "mental", "emotion"].includes(each))) continue;
+            immune.add(other.id);
+            const natural = state.rng.d20();
+            let saved = degreeOf(natural + saveModifier(other, "will"), source.classDC ?? 10 + (source.level ?? 1) + 3, natural);
+            if ((other.level ?? 0) > (source.level ?? 0) && saved < CRITICAL_SUCCESS) saved += 1;
+            const value = [3, 2, 1, 0][saved];
+            if (value && applyCondition(state, other, "frightened", value, null, source)) log(state, `  Frightful Attrition: ${other.name} is frightened ${value}`);
+            if (saved === 0 && applyCondition(state, other, "fleeing", null, { mode: "fixed", value: 1, unit: "rounds" }, source)) log(state, `  ${other.name} is fleeing`);
+        }
+    }
     // (B123, Deadly Cleave: its named Strike downed it — another at a different creature once the action ends, at that Strike's penalty.)
     const cleave = source && source !== target && source.side !== target.side ? (source.reactionStrikes ?? []).find((entry) => entry.triggers.includes("downs")) : null;
     if (cleave && source.lastStrike && String(source.lastStrike.strike ?? "").toLowerCase().includes(String(cleave.strike ?? "")) && source.lastStrike.targetId === target.id) {
@@ -1908,6 +2249,8 @@ function kill(state, target) {
     // (B298: a summon as it dies, Final Spite's horn; the creatures that go with it.)
     if (target.kind !== "pc") summonsOnDeath(state, target);
     summonerFalls(state, target);
+    // (2026-11-06: a necromancer's thrall body destroyed — its count follows, thralls.js.)
+    if (target.thrallOf) thrallKilled(state, target);
 }
 
 export function increaseDying(state, c, amount) {
@@ -1991,6 +2334,24 @@ export function screenGuards(state, mover, target) {
 
 export function provoke(state, mover, kind, among = null) {
     let disrupted = false;
+    // (2026-11-05, Bone Burst: a necromancer's reaction as a foe beside one of its thralls moves, manipulates or shoots — a thrall destroyed
+    // for its basic Reflex save of piercing. 2026-11-06: thralls are bodies (thralls.js): one beside the foe, the necromancer within
+    // 30 feet of it; or, with no bodies (a count only), any foe within 30 feet.)
+    if (["move", "manipulate", "ranged"].includes(kind) && !state.inBoneBurst) for (const c of state.list) {
+        if (!c.boneBurst || c.side === mover.side || !isActive(c) || !canAct(c) || !(c.thralls > 0) || !canReact(c, "Bone Burst") || !isActive(mover) || distanceBetween(c, mover) > 30) continue;
+        const bodies = thrallBodies(state, c);
+        const beside = bodies.find((body) => sameMelee(body, mover) || distanceBetween(body, mover) <= 5);
+        if (bodies.length && !beside) continue;
+        const index = (c.spells ?? []).findIndex((entry) => entry.name === "Bone Burst");
+        if (index < 0) continue;
+        spendReaction(c, "Bone Burst");
+        state.stats.reactions++;
+        log(state, `  ${c.name} uses Bone Burst (a thrall destroyed)`);
+        if (beside) destroyBody(state, beside); else c.thralls -= 1;
+        state.inBoneBurst = true;
+        castSpell(state, c, index, [mover.id]);
+        state.inBoneBurst = false;
+    }
     const own = OWN_KINDS.has(kind);
     // (A concentrate action provokes only the reactions that say so, B51: no Reactive Strike.)
     // (among: on the grid, the foes whose reach a move leaves — grid-fight.js.)
@@ -1998,7 +2359,11 @@ export function provoke(state, mover, kind, among = null) {
         if (!canAct(mover)) break;
         // (B302–B303: a reaction kept for Reactive Strikes, or another it has, counts — spent on its own reaction first.)
         if (!canReact(enemy, "*") || enemy.cond.fleeing) continue;
-        if (enemy.reactions?.aoo && !own) {
+        // (2026-11-05, forced-use ratings: the rated feat's own reaction Strike ahead of Reactive Strike — a fighter's Hunting Snag rated
+        // 0.00, never used.)
+        const fits = (entry) => entry.triggers.includes(kind) || (kind === "move" && entry.triggers.includes("leave"));
+        const forcedFirst = (enemy.reactionStrikes ?? []).some((entry) => entry.featForced && fits(entry) && canReact(enemy, entry.name));
+        if (enemy.reactions?.aoo && !own && !forcedFirst) {
             const strike = bestMeleeStrike(enemy, mover);
             if (!strike || !canReact(enemy, "Reactive Strike")) continue;
             spendReaction(enemy, "Reactive Strike");
@@ -2011,7 +2376,7 @@ export function provoke(state, mover, kind, among = null) {
             continue;
         }
         // (B123: "attempts to move away", "leaves a square within its reach": a move out of its Melee.)
-        const reaction = (enemy.reactionStrikes ?? []).find((entry) => entry.triggers.includes(kind) || (kind === "move" && entry.triggers.includes("leave")));
+        const reaction = (enemy.reactionStrikes ?? []).find((entry) => fits(entry) && (!forcedFirst || entry.featForced));
         const result = reaction ? reactionStrikeAt(state, enemy, mover, reaction, kind) : null;
         // (B96: "If the attack is a critical hit …, it disrupts that action": a critical hit only.)
         if (disruptedBy(state, reaction, result, mover)) disrupted = true;
@@ -2575,6 +2940,9 @@ export function raiseShield(state, c) {
     if (c.shield && !c.shield.broken) {
         c.shield.raised = true;
         log(state, c.shield.spell ? `  ${c.name} casts ${c.shield.name}` : `  ${c.name} Raises a Shield`);
+        // (Mounted Shield: its mount behind it too.)
+        const mount = c.mountedShield && c.mountId ? state.byId?.get(c.mountId) : null;
+        if (mount) mount.borrowedShield = c.shield;
     }
 }
 

@@ -10,6 +10,7 @@
 // runesmith's runes aren't played, only their spells and weapons; the necromancer's thralls are a count, by the spell module's thrall rules).
 import { savePlan } from "./deviant.js";
 import { E, L, M, T, armorPotency, key, pc, potency, preparedSpells, primarySkill, rank, SPELLBOOKS, specialization, spellProf, standardParty, striking } from "./party.js";
+import { familiarFor } from "./companions.js";
 
 // The two traditions the standard party doesn't cast (the wizard's arcane and the cleric's divine are party.js's), best first for each rank.
 export const MORE_SPELLBOOKS = Object.freeze({
@@ -105,17 +106,36 @@ const CLASSES = {
         armor: "medium", armorSteps: [[1, T], [13, E], [19, M]],
         fort: [[1, E], [11, M]], ref: [[1, E], [15, M]], will: [[1, T], [7, E]], perception: [[1, T], [9, E]],
         classDC: [[1, T], [9, E], [17, M]],
-        build(lv, a) {
-            // Bombs from its versatile vials (an alchemist's fire of its level: lesser, moderate at 3rd, greater at 11th, major at 17th), the
-            // field of bomber's splash; Alchemical Weapon Expertise at 7th and Mastery at 15th.
+        build(lv, a, { alchemy = null } = {}) {
+            // (2026-11-04, Cole: "Yes, bombs, elixirs and vial limit".) Player Core 2's alchemist, a bomber: versatile vials, 2 + its
+            // Intelligence a day (2 back for each 10 minutes of exploration, so a full stock each fight); Quick Alchemy (1 action, a vial)
+            // makes a bomb in hand, so each throw is Quick Alchemy then the Strike; Advanced Alchemy's 4 + Intelligence items a day, a
+            // quarter of them each fight (four fights a day), as ready alchemist's fire (still drawn, 1 Interact). Its bombs: alchemist's
+            // fire, frost vial and bottled lightning at its level's type (lesser, moderate at 3rd, greater at 11th, major at 17th), the one
+            // its target minds most; Field Discovery (5th): splash equal to its Intelligence. Alchemical Weapon Expertise at 7th, Mastery
+            // at 15th. With the tools' kit (options.alchemy, tools/lib/alchemy.mjs alchemistKit): the bombs' riders, elixir of life from
+            // Quick Alchemy, and with SIM_ALCHEMY=full every bomb family and save item in its formula book.
             const prof = rank(lv, [[1, T], [7, E], [15, M]]);
             const grade = lv >= 17 ? 4 : lv >= 11 ? 3 : lv >= 3 ? 2 : 1;
-            const bomb = {
-                name: "Alchemist's Fire", bonus: lv + prof + a.dex + (grade - 1), melee: false, increment: 20, thrown: true, held: true, splashKind: "bomb", splashAmount: grade + a.int, iwr: { group: "bomb", traits: ["magical"] },
-                damage: [{ dice: grade, die: 8, bonus: specialization(lv, prof), type: "fire" }, { dice: 0, die: 0, bonus: grade, type: "fire", persistent: true }]
-            };
+            const kit = alchemy?.(lv) ?? null;
+            const bombs = kit?.bombs ?? [
+                { name: "Alchemist's Fire", itemBonus: grade - 1, damage: { dice: grade, die: 8, bonus: 0, type: "fire" }, splash: grade, persistent: { dice: 0, die: 0, bonus: grade, type: "fire" } },
+                { name: "Frost Vial", itemBonus: grade - 1, damage: { dice: grade, die: 6, bonus: 0, type: "cold" }, splash: grade, persistent: null },
+                { name: "Bottled Lightning", itemBonus: grade - 1, damage: { dice: grade, die: 6, bonus: 0, type: "electricity" }, splash: grade, persistent: null }
+            ];
+            const strikes = bombs.map((bomb) => ({
+                name: bomb.name, bonus: lv + prof + a.dex + (bomb.itemBonus ?? 0), melee: false, increment: 20, thrown: true, held: true, splashKind: "bomb",
+                splashAmount: lv >= 5 ? Math.max(bomb.splash ?? 0, a.int) : bomb.splash ?? 0, iwr: { group: "bomb", traits: ["alchemical"] },
+                damage: [{ dice: bomb.damage.dice, die: bomb.damage.die, bonus: (bomb.damage.bonus ?? 0) + specialization(lv, prof), type: bomb.damage.type }, ...(bomb.persistent ? [{ ...bomb.persistent, persistent: true }] : [])],
+                ammo: { pool: `alchemist:${bomb.name}`, reagents: true, startsEmpty: true }, reload: 1
+            }));
             const dagger = weaponStrike(lv, { name: "Dagger", die: 4, type: "piercing", toHit: a.dex, damageAttr: a.str, prof: rank(lv, [[1, T], [7, E], [15, M]]), group: "knife", extra: { agile: true, finesse: true } });
-            return { strikes: [bomb, dagger], skills: { crafting: lv + primarySkill(lv) + a.int } };
+            const ready = Math.floor((4 + a.int) / 4);
+            return {
+                strikes: [...strikes, dagger], skills: { crafting: lv + primarySkill(lv) + a.int },
+                spellPools: { reagents: 2 + a.int, [`alchemist:${strikes[0].name}`]: ready },
+                ...(kit?.spells?.length ? { spells: kit.spells } : {})
+            };
         }
     },
     animist: {
@@ -184,8 +204,8 @@ const CLASSES = {
         build(lv, a) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const spear = weaponStrike(lv, { name: "Noble Branch Spear", die: 8, type: "piercing", toHit: a.str, damageAttr: a.str, prof, group: "spear", extra: { held: true, hands: 2 } });
-            // Noble Branch (a weapon ikon): spirit damage, 2 and 1 more a striking die; Scar of the Survivor (a body ikon): +1 status to Fortitude.
-            const spirit = 2 + (striking(lv) - 1);
+            // Noble Branch (a weapon ikon): 2 spirit damage per weapon damage die (2026-11-06: was 2 and 1 more a die); Scar of the Survivor (a body ikon): +1 status to Fortitude.
+            const spirit = 2 * spear.damage[0].dice;
             const model = (name, fields) => ({ name, rounds: Infinity, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, attackDeltas: {}, strikeDeltas: {}, ...fields });
             return {
                 strikes: [spear],
@@ -237,6 +257,8 @@ const CLASSES = {
         build(lv, a) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const hammer = weaponStrike(lv, { name: "Warhammer", die: 8, type: "bludgeoning", toHit: a.str, damageAttr: a.str, prof, group: "hammer", extra: { held: true } });
+            // Offensive Boost (9th, 2026-11-06): a weapon innovation's Strikes deal 1d6 more (Ignition, fire).
+            if (lv >= 9) hammer.damage.push({ dice: 1, die: 6, bonus: 0, type: "fire" });
             const crafting = lv + primarySkill(lv) + a.int;
             return { strikes: [hammer], skills: { crafting }, fields: { overdrive: { name: "Overdrive", modifier: crafting, intMod: a.int, level: lv } } };
         }
@@ -279,7 +301,11 @@ const CLASSES = {
         build(lv, a) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const sword = weaponStrike(lv, { name: "Greatsword", die: 12, type: "slashing", toHit: a.str, damageAttr: a.str, prof, group: "sword", extra: { held: true, hands: 2 } });
-            return { strikes: [sword], fields: { spellstrike: { name: "Spellstrike" }, ...(lv >= 19 ? { doubleSpellstrike: true } : {}) } };
+            // (2026-11-05, Arcane Cascade: its stance — 1 extra damage on its Strikes, 2 with weapon expertise (5th), 3 with mastery (13th).
+            // Its "after a spell or Spellstrike" requirement isn't checked: a magus enters it after its first Spellstrike anyway.)
+            const cascade = prof >= M ? 3 : prof >= E ? 2 : 1;
+            const arcaneCascade = { name: "Arcane Cascade", actions: 1, stance: true, model: { name: "Arcane Cascade", rounds: Infinity, modifiers: [{ on: "damage", type: "untyped", value: cascade }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } };
+            return { strikes: [sword], fields: { spellstrike: { name: "Spellstrike" }, arcaneCascade: cascade, selfEffects: [arcaneCascade], ...(lv >= 19 ? { doubleSpellstrike: true } : {}) } };
         }
     },
     monk: {
@@ -351,6 +377,8 @@ const CLASSES = {
             const steps = striking(lv) - 1;
             const optimization = lv >= 15 ? 2 * steps + 2 : lv >= 7 && steps > 0 ? steps + 1 : 0;
             const hammer = weaponStrike(lv, { name: "Warhammer", die: 8, type: "bludgeoning", toHit: a.str, damageAttr: a.str, prof, group: "hammer", extra: { held: true } });
+            // Offensive Boost (9th, 2026-11-06): a weapon innovation's Strikes deal 1d6 more (Ignition, fire).
+            if (lv >= 9) hammer.damage.push({ dice: 1, die: 6, bonus: 0, type: "fire" });
             hammer.damage[0].bonus = a.str + optimization;
             // (2026-11-02, the user's rune list.) Etched on the warhammer: marssyl, rune of impact — 1 bludgeoning splash damage per weapon
             // damage die.
@@ -411,6 +439,9 @@ const CLASSES = {
         build(lv, a) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const sword = weaponStrike(lv, { name: "Longsword", die: 8, type: "slashing", toHit: a.str, damageAttr: a.str, prof, group: "sword", extra: { held: true } });
+            // Implement's Empowerment (2026-11-06): 2 more damage per weapon damage die with a one-handed weapon and the implement in the other hand.
+            sword.empowerment = 2 * sword.damage[0].dice;
+            sword.damage[0].bonus += sword.empowerment;
             return { strikes: [sword], fields: { exploit: { name: "Exploit Vulnerability", modifier: lv + primarySkill(lv) + a.cha, antithesis: 2 + Math.floor(lv / 2) } } };
         }
     },
@@ -418,15 +449,28 @@ const CLASSES = {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 0 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [5, E]], ref: [[1, T], [9, E]], will: [[1, E], [17, M]], perception: [[1, T], [11, E]],
-        caster: { tradition: "primal", attr: "int", slots: 3, extra: ["Evil Eye"] }
+        caster: { tradition: "primal", attr: "int", slots: 3, extra: ["Evil Eye"] },
+        // (2026-11-05: its familiar — The Resentment's, whose lesson gives Evil Eye: Familiar of Ongoing Misery —, beside it.)
+        companions: [(c) => familiarFor(c, { hexAbility: "familiar-of-ongoing-misery" })]
     }
+};
+// Class features that make a save's success a critical success: [level, save] (the pf2e system's class items, 2026-11-06; the monk's Path
+// to Perfection on Reflex, Second Path on Will, as its saves above).
+const SAVE_UPGRADES = {
+    alchemist: [[11, "fortitude"], [15, "reflex"]], animist: [[13, "will"]], barbarian: [[7, "fortitude"], [15, "will"]], bard: [[9, "will"]],
+    champion: [[9, "fortitude"], [11, "will"]], commander: [[11, "will"], [15, "reflex"]], druid: [[11, "will"]], exemplar: [[7, "will"], [15, "fortitude"]],
+    guardian: [[9, "fortitude"], [17, "will"]], gunslinger: [[11, "reflex"], [17, "fortitude"]], inventor: [[11, "will"], [17, "fortitude"]],
+    investigator: [[11, "will"], [15, "reflex"]], kineticist: [[7, "fortitude"], [11, "reflex"]], magus: [[9, "will"], [15, "fortitude"]],
+    monk: [[7, "reflex"], [11, "will"]], necromancer: [[3, "will"], [11, "fortitude"]], oracle: [[7, "will"]], psychic: [[11, "will"]],
+    ranger: [[7, "reflex"], [11, "fortitude"]], runesmith: [[11, "fortitude"]], sorcerer: [[17, "will"]], summoner: [[11, "fortitude"], [15, "will"]],
+    swashbuckler: [[7, "reflex"], [17, "will"]], thaumaturge: [[7, "will"], [15, "fortitude"]], witch: [[17, "will"]]
 };
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
     animist: "apparitions", necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes other than atryl, ranshu and marssyl (diacritics, shield and support runes, higher-level runes)", summoner: "evolution feats on the eidolon",
-    bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "hexes and the familiar", oracle: "the curse", druid: "Untamed Form",
-    barbarian: "Rage's -1 AC", alchemist: "vials as a daily limit (bombs aren't counted)", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
+    bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "familiar abilities other than its patron's and Familiar Focus/Lifelink", oracle: "the curse", druid: "Untamed Form",
+    barbarian: "Rage's -1 AC", alchemist: "mutagens, poisons and the research fields other than bomber", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });
 // The standard party's seat each class sits in (the PC it replaces in classParty).
 export const seatOf = (slug) => (["fighter", "rogue", "wizard", "cleric"].includes(slug) ? slug : CLASSES[slug]?.seat ?? null);
@@ -435,7 +479,7 @@ export const classAttributes = (slug, level) => CLASSES[slug]?.attrs(key(level),
 export const classArmor = (slug) => CLASSES[slug]?.armor ?? null;
 
 // A PC of a class at a level (null: a class this doesn't know). options: { spell, basics } as standardParty's.
-export function classPC(slug, level, { spell = () => null, basics = [] } = {}) {
+export function classPC(slug, level, { spell = () => null, basics = [], alchemy = null } = {}) {
     const lv = Math.max(1, Math.min(20, level));
     if (["fighter", "rogue", "wizard", "cleric"].includes(slug)) return standardParty(lv, { spell, basics }).find((c) => c.id === slug);
     const def = CLASSES[slug];
@@ -444,7 +488,7 @@ export function classPC(slug, level, { spell = () => null, basics = [] } = {}) {
     const a = def.attrs(k, lv);
     const armor = ARMOR[def.armor];
     const ac = 10 + lv + rank(lv, def.armorSteps) + armor.item + Math.min(a.dex, armor.cap) + armorPotency(lv);
-    const built = def.build?.(lv, a) ?? {};
+    const built = def.build?.(lv, a, { alchemy }) ?? {};
     const casterStaff = { name: "Staff", bonus: lv + T + a.str, melee: true, agile: false, iwr: { group: "club" }, damage: [{ dice: 1, die: 4, bonus: a.str, type: "bludgeoning" }] };
     const [strike, ...backups] = built.strikes?.length ? built.strikes : [casterStaff];
     const spellAttr = def.caster ? a[def.caster.attr] : 0;
@@ -462,6 +506,22 @@ export function classPC(slug, level, { spell = () => null, basics = [] } = {}) {
     });
     // (Saves pc() reads with Dexterity and Wisdom; Constitution for Fortitude it has.)
     if (built.speed) c.speed = built.speed;
+    // (2026-11-06) The class features that turn a save's success into a critical success (Juggernaut, Evasion's kin, Resolve's kin), from
+    // the pf2e system's class items; the class PCs here had none of them (the runesmith's Forged Endurance aside).
+    const upgrades = (SAVE_UPGRADES[slug] ?? []).filter(([at]) => lv >= at).map(([, save]) => save).filter((save) => !(c.saveDegrees ?? []).some((each) => each.saves.includes(save)));
+    if (upgrades.length) c.saveDegrees = [...(c.saveDegrees ?? []), { saves: upgrades, adjustment: { success: "one-degree-better" } }];
+    // (2026-11-06, Cole's pick "Re-check weak class ratings": the standard party's fighter carries a longbow as well as its greatsword, but
+    // the martial classes built here had only their melee weapon — a flier or a foe across a gap left them nothing to do, and every class in
+    // the fighter's seat rated low for it. A martial with no ranged Strike gets the fighter's backup: a longbow at its weapon proficiency
+    // and Dexterity, its runes, its weapon specialization.)
+    if (built.strikes?.length && !c.strikes.some((each) => !each.melee)) {
+        const main = c.strikes[0];
+        const attr = main.finesse ? Math.max(a.str, a.dex) : a.str;
+        const prof = main.bonus - lv - attr - (main.potency ?? 0);
+        const spec = Math.max(0, (main.damage?.[0]?.bonus ?? 0) - (main.empowerment ?? 0) - a.str);
+        const dice = main.damage?.[0]?.dice ?? striking(lv);
+        c.strikes = [...c.strikes, { name: "Longbow", bonus: lv + prof + a.dex + (main.potency ?? 0), potency: main.potency ?? 0, melee: false, agile: false, increment: 100, held: true, hands: 2, iwr: { group: "bow", ...(main.iwr?.traits ? { traits: main.iwr.traits } : {}) }, deadly: { dice: lv >= 19 ? 3 : lv >= 12 ? 2 : 1, die: 10 }, damage: [{ dice, die: 8, bonus: spec, type: "piercing" }], backupBow: true }];
+    }
     c.classSlug = slug;
     c.abilities = a;
     if (def.caster) {
@@ -489,9 +549,12 @@ export function classPC(slug, level, { spell = () => null, basics = [] } = {}) {
     if (def.psyche) c.spellDamageBonus = { perRank: 1, slotsOnly: false };
     // (A runesmith's runes: abilities of its own, runesmithRunes.)
     if (built.spells?.length) c.spells = [...(c.spells ?? []), ...built.spells];
+    // (An alchemist's versatile vials and ready bombs.)
+    if (built.spellPools) c.spellPools = { ...(c.spellPools ?? {}), ...built.spellPools };
     c.spells = [...(c.spells ?? []), ...basics.map((plan) => ({ name: plan.source?.name ?? plan.name, plan, castRank: 1, pool: null, kind: "basic" }))];
     // (Creatures that come with it — the summoner's eidolon —, for classParty.)
-    if (built.companions?.length) Object.defineProperty(c, "companions", { value: built.companions.map((make) => make(c)), enumerable: false });
+    const makes = [...(built.companions ?? []), ...(def.companions ?? [])];
+    if (makes.length) Object.defineProperty(c, "companions", { value: makes.map((make) => make(c)), enumerable: false });
     return c;
 }
 

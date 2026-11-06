@@ -40,7 +40,7 @@ test("checks and saves used as actions are abilities; their pool by frequency; a
     assert.match(featEntries({ ...save, requirementUnread: "Your waking world is active" }, info("Dream"), {}).gap.name, /requirement/);
 });
 
-test("the module's own Effect from a feat's rules is a self effect (a stance's lasts); a timer, an ally's toggle and an empty one are gaps", () => {
+test("the module's own Effect from a feat's rules is a self effect (a stance's lasts); a timer, a passive's toggle on an ally and an empty one are gaps", () => {
     const rules = [{ key: "FlatModifier", selector: "ac", value: 1, type: "circumstance" }];
     const model = { name: "Guard", rounds: 1, modifiers: [{ on: "ac", value: 1, type: "circumstance" }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 };
     const builtins = {};
@@ -49,7 +49,9 @@ test("the module's own Effect from a feat's rules is a self effect (a stance's l
     assert.equal(builtins.selfEffects[0].stance, true);
     assert.equal(builtins.selfEffects[0].model.rounds, Infinity);
     assert.match(featEntries({ builtin: "feat-effect", timer: true, effect: { name: "T", rules: [] } }, info("Timer"), {}).gap.name, /timer/);
-    assert.match(featEntries({ builtin: "feat-effect", who: "target", effect: { name: "P", rules } }, info("Protect"), {}, { rulesModel: () => model }).gap.name, /another creature/);
+    // (2026-11-05: an action's toggle on an ally now plays, as an Effect on an ally within 30 feet; a passive's is still a gap.)
+    assert.equal(featEntries({ builtin: "feat-effect", who: "target", effect: { name: "P", rules } }, info("Protect"), {}, { rulesModel: () => model }).gap, null);
+    assert.match(featEntries({ builtin: "feat-effect", who: "target", effect: { name: "P", rules } }, info("Protect", "passive"), {}, { rulesModel: () => model }).gap.name, /another creature/);
     assert.match(featEntries({ builtin: "feat-effect", effect: { name: "E", rules } }, info("Empty"), {}, { rulesModel: () => ({ name: "E", rounds: 1, modifiers: [], unsupported: [] }) }).gap.name, /nothing a fight counts/);
     assert.equal(worthSomething({ name: "x", rounds: 2, modifiers: [], unsupported: ["Note"] }), false);
 });

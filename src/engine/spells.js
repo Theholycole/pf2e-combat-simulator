@@ -14,7 +14,7 @@ import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf,
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, MOUTH, armorClass, canAct, canMove, createCombatant, defenceOf, effectBonus, hinderedBy, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
 import { applyEffect, auraRecipients, effectBenefit, effectModel, modifierModel, removeEffect, resistanceKept, takeAttackFortune, weaknessCost } from "./effects.js";
-import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, bewilderFails, fall, footingShaken, foresightReact, leaveField, log, performStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
+import { applyDamage, dealDamage, expectedHitDamage, flightBenefit, followUpStrike, groundDamage, liftKept, liftOffenseLost, semicorporealDamage, increaseDying, killCreature, bewilderFails, fall, footingShaken, foresightReact, leaveField, log, performStrike, bestMeleeStrike, reactionStrikeAt, releaseSwallowed, stride, strikeAddBenefit } from "./actions.js";
 import { startLingering, startZone } from "./zones.js";
 import { dimWorth, lightAuraModel, lightZoneEntries, lightZoneModel, lightZoneOf, senseLightBenefit } from "./light.js";
 import { hostility, noteRounds, ownHostility, pacify, pacifyOf, pacifyWorth } from "./pacify.js";
@@ -22,6 +22,7 @@ import { addFloor, floorOf } from "./floors.js";
 import { counterables, counterChance, counterRank, counterReaches, counterRoll } from "./counteract.js";
 import { applyNoteState, noteState, noteStateWorth, spellLocked } from "./note-states.js";
 import { allyStrike } from "./commander.js";
+import { fearTriggers } from "./triggers.js";
 import { canReact, isBravado, isUndead, levelDC, saveBonusAgainst, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, adjustedSaveOdds, frightenedAfter, offGuardFrom } from "./passives.js";
 import { effectImmunity, immuneToCondition } from "./immunities.js";
@@ -32,7 +33,7 @@ import { distanceBetween, engage, engagedEnemies, fliesNow, leaveMelee, sameMele
 import { harmedAfterGivingUp, moraleOdds } from "./morale.js";
 import { applyWard, wardBlocks, wardWorth } from "./wards.js";
 import { applyImages, imageOdds, imageShare, imageTakes, imagesWorth } from "./images.js";
-import { hiddenDC, hiddenFrom, outlineWorth } from "./sight.js";
+import { blindFought, hiddenDC, hiddenFrom, outlineWorth } from "./sight.js";
 import { lastingRounds } from "./lasting.js";
 import { takeControl } from "./control.js";
 import { noteKnown } from "./readings.js";
@@ -140,6 +141,15 @@ function targetCount(target) {
 // actions: one of PF2e's action variants (resolution.byActions), if the spell has them.
 const described = new WeakMap();
 
+// (2026-11-06, Wronged Monk's Wrath: an action count's area that names only its size — "10" for 2 actions — keeps the base area's shape;
+// the core's overlay replaced the whole area.)
+function actionsPlan(base, actions) {
+    const plan = planWithActions(base, actions);
+    const area = plan?.targeting?.area;
+    if (area && !area.type && base?.targeting?.area?.type) return { ...plan, targeting: { ...plan.targeting, area: { ...base.targeting.area, ...area } } };
+    return plan;
+}
+
 export function describeSpell(plan, actions) {
     if (!plan || typeof plan !== "object") return readSpell(plan);
     let byActions = described.get(plan);
@@ -176,7 +186,7 @@ function readVariants(spell) {
 }
 
 function readSpell(base, actions) {
-    const plan = nativeOf(base).byActions ? planWithActions(base, actions) : base;
+    const plan = nativeOf(base).byActions ? actionsPlan(base, actions) : base;
     const targeting = plan?.targeting ?? {};
     // PF2e spell effects the compiler found for a spell left to PF2e's card (Bless).
     const applications = Array.isArray(nativeOf(plan).applications) ? nativeOf(plan).applications : [];
@@ -312,7 +322,7 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
             if (slug === "fortitude" || slug === "reflex" || slug === "will") {
                 // +1 status to all saves vs. magic and the like, against this spell or ability.
                 // (2026-10-22, Forbidding Ward: its bonus against the foe it names.)
-                const modifier = saveModifier(c, slug) + (c !== caster ? saveBonusAgainst(c, slug, spell) + (Number(spell.countered) || 0) + forbiddingBonus(c, caster) : 0);
+                const modifier = saveModifier(c, slug) + (c !== caster ? saveBonusAgainst(c, slug, spell) + (Number(spell.countered) || 0) + forbiddingBonus(c, caster) : 0) - (c.sympathyFrom?.by === caster.id && isHex(spell) ? c.sympathyFrom.value : 0);
                 if (slug === "reflex" && c !== caster && disarmBonus(spell, c)) return { modifier, dc: 10 + saveModifier(c, slug) - disarmBonus(spell, c) };
                 return { modifier };
             }
@@ -469,7 +479,7 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
     // (Lucky Break: a failure only, not a critical one; its focus spent.)
     const fromSpell = Number.isInteger(reroll?.fromSpell) ? saver.spells?.[reroll.fromSpell] : null;
     const spellReady = !Number.isInteger(reroll?.fromSpell) || Boolean(fromSpell && poolReady(saver, fromSpell));
-    if (reroll && spellReady && (!reroll.failureOnly || result?.degree === "failure") && (!reroll.save || reroll.save === statistic) && (reroll.against !== "spell" || (spell && (!spell.kind || spell.kind === "spell"))) && (!reroll.againstTrait || traits.includes(reroll.againstTrait)) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
+    if (reroll && spellReady && (!reroll.failureOnly || result?.degree === "failure") && (!reroll.criticalOnly || result?.degree === "criticalFailure") && (!reroll.save || reroll.save === statistic) && (reroll.against !== "spell" || (spell && (!spell.kind || spell.kind === "spell"))) && (!reroll.againstTrait || traits.includes(reroll.againstTrait)) && (saver.saveRerollUses ?? 0) > 0 && (reroll.free || canReact(saver)) && (!reroll.mythic || (saver.mythicPoints ?? 0) > 0)) {
         saver.saveRerollUses--;
         if (fromSpell) spendPool(saver, fromSpell);
         if (reroll.mythic) saver.mythicPoints--;
@@ -515,6 +525,9 @@ function persistentInstance(damage) {
 function durationRounds(duration) {
     if (!duration || duration.mode !== "fixed") return Infinity;
     const value = Number.isFinite(Number(duration.value)) ? Number(duration.value) : 1;
+    // (2026-11-05: "until the end of your turn" — 0 rounds to the end of the source's turn — the rest of this turn, about a third of a
+    // round. Before, nothing: Pointed Question's off-guard was worth 0, and the investigator never asked one.)
+    if (duration.unit === "rounds" && value === 0 && duration.expiry === "turn-end") return 1 / 3;
     if (duration.unit === "rounds") return value;
     if (duration.unit === "minutes") return value * 10;
     return Infinity;
@@ -584,13 +597,30 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     // (2026-10-22, Indestructibility: harmed by nothing till its next turn.)
     if (source !== target && !NOT_HARMFUL.has(slug) && defenceOf(target, "indestructible")) return false;
     // Off-guard to one creature's attacks only (Feint, Create a Diversion).
+    // (2026-11-05, Goading Feint: the feinter's success and critical success taken instead — a –2 circumstance penalty to the target's
+    // next attack against the feinter (every one, on a critical success) until the end of the feinter's next turn; no off-guard.)
+    if (slug === "off-guard" && scope?.attacker && source?.goadingFeint && scope.attacker === source.id) {
+        const entry = { by: source.id, uses: scope.uses ?? null };
+        target.goaded = entry;
+        (target.timers ??= []).push({ goaded: entry, round: state.round + 1, turnOf: source.id, at: "end" });
+        return true;
+    }
     if (slug === "off-guard" && scope?.attacker) {
         const entry = { attacker: scope.attacker, attacks: scope.attacks ?? "any", uses: scope.uses ?? null };
         target.offGuardTo = [...(target.offGuardTo ?? []), entry];
         const rounds = durationRounds(duration);
         if (Number.isFinite(rounds)) (target.timers ??= []).push({ offGuardTo: entry, round: state.round + rounds, turnOf: source?.id ?? target.id, at: duration?.expiry === "turn-end" ? "end" : "start" });
+        // (2026-11-06, Distracting Feint: while off-guard to the rogue's Feint, –2 circumstance to its Perception and Reflex saves — as long
+        // as the off-guard, a round when it's one attack's.)
+        if (source?.distractingFeint && source.id === scope.attacker && source.side !== target.side) {
+            applyEffect(state, target, { name: "Distracting Feint", rounds: Number.isFinite(rounds) ? rounds : 1, modifiers: [{ on: "reflex", type: "circumstance", value: -2 }, { on: "perception", type: "circumstance", value: -2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, source, { applyCondition, key: `distracting-feint:${source.id}` });
+            log(state, `  ${target.name} is distracted (–2 to Perception and Reflex)`);
+        }
         return true;
     }
+    // (2026-11-05, Antagonize: frightened from the swashbuckler — its Demoralize — can't drop below 1 until the creature acts against it,
+    // played as attacking it.)
+    if (slug === "frightened" && source?.antagonize && source.side !== target.side && !(target.condFloors ?? []).some((entry) => entry.antagonizedBy === source.id)) target.condFloors = [...(target.condFloors ?? []), { slug: "frightened", value: 1, antagonizedBy: source.id, by: source.id, spell: "Antagonize", lifetime: null, untilRound: Infinity, sustained: false }];
     const flag = FLAGS[slug];
     if (!VALUED.has(slug) && !flag) return false;
     // (I1: a creature immune to the condition.)
@@ -633,6 +663,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if (flag) target.cond[flag] = true;
     else target.cond[slug] = Math.max(target.cond[slug] ?? 0, Number.isFinite(value) ? value : 1);
     if (slug === "controlled" && !before) takeControl(state, target, source);
+    // (2026-11-05: a reaction to becoming frightened, its own or an ally's: triggers.js fearTriggers.)
+    if (slug === "frightened" && (target.cond.frightened ?? 0) > before) fearTriggers(state, target);
     // Quickened on its own turn (Shrieking Frenzy, Alchemical Amplification): the extra action now (B53).
     if (slug === "quickened" && !before && state.acting === target.id && Number.isFinite(target.actionsLeft)) target.actionsLeft += 1;
     // (Earthbind: grounded, it's down on the ground too — landed until its next turn once the grounding ends.)
@@ -757,6 +789,10 @@ export function expireTimers(state, c, phase = "start") {
             }
             if (timer.offGuardTo) {
                 other.offGuardTo = (other.offGuardTo ?? []).filter((entry) => entry !== timer.offGuardTo);
+                return false;
+            }
+            if (timer.goaded) {
+                if (other.goaded === timer.goaded) other.goaded = null;
                 return false;
             }
             if (timer.regenerationOff) {
@@ -989,6 +1025,13 @@ export function applyHeal(state, target, amount) {
         target.hp.value = Math.min(target.hp.max, amount);
         target.band = "near";
         log(state, `  ${target.name} is healed back up (${target.hp.value}/${target.hp.max})`);
+        // (2026-11-06, Resurrectionist: a dying creature its healer brings back gets fast healing 5 for 1 minute — the healer, the creature
+        // acting; ending on unconscious not played.)
+        const healer = state.byId?.get(state.acting);
+        if (healer?.resurrectionist && healer.side === target.side) {
+            applyEffect(state, target, { name: "Resurrectionist", rounds: 10, modifiers: [], tempHp: 0, fastHealing: 5, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, healer, { applyCondition, key: "resurrectionist" });
+            log(state, `  ${target.name} gains fast healing 5 (Resurrectionist)`);
+        }
         return target.hp.value;
     }
     const before = Math.max(0, target.hp.value);
@@ -2687,6 +2730,28 @@ function counterspellOf(plan) {
     return null;
 }
 
+function divineRebuttal(state, caster, spell, targets) {
+    if (spell.plan?.resolution?.check?.roll !== "save" || (spell.kind && spell.kind !== "ability")) return 0;
+    if (spell.kind === "ability" && !(spell.plan?.traits ?? []).some((trait) => ["magical", "arcane", "divine", "occult", "primal"].includes(trait))) return 0;
+    for (const c of state.list) {
+        if (!c.divineRebuttal || c.side === caster.side || !isActive(c) || !canAct(c) || !canReact(c, "Divine Rebuttal") || !sameMelee(c, caster)) continue;
+        if (!targets.some((target) => target !== c && target.side === c.side)) continue;
+        const strike = bestMeleeStrike(c, caster);
+        if (!strike) continue;
+        spendReaction(c, "Divine Rebuttal");
+        state.stats.reactions++;
+        log(state, `  ${c.name} uses Divine Rebuttal`);
+        const result = performStrike(state, c, caster, strike, { reaction: true });
+        if (result && result.degree >= SUCCESS && !result.image) {
+            const bonus = result.degree === CRITICAL_SUCCESS ? 3 : 2;
+            log(state, `  ${c.name}'s allies get +${bonus} to the save`);
+            return bonus;
+        }
+        return 0;
+    }
+    return 0;
+}
+
 // A foe's counterspell as a spell is cast (castPlan): the first of the caster's foes ready with one that's worth it — a harmful spell
 // at its side (one it's aimed at, for Spell Riposte), Nullify only on one of 4th rank or more —, its reaction and slot spent. { stopped }
 // (countered), { spell } (weakened), { targets } (turned back), or null.
@@ -2861,6 +2926,8 @@ function applyChanges(state, caster, spell, changes, context, io) {
     const nonlethal = described.nonlethal;
     // (B193: a spell aimed at its targets, with its rank, for Divert Essence.)
     const isSpell = isSpellCast(spell);
+    // (2026-11-05, Dodging Roll: an area effect with a Reflex save.)
+    const areaReflex = Boolean(described.area) && spell.plan?.resolution?.kind === "save" && spell.plan.resolution.check?.statistic === "reflex";
     const aimed = isSpell ? { rank: Number(spell.castRank ?? spell.plan?.rank) || 1, targeted: !described.area } : null;
     // (I2: its context on its damage — area damage on a swarm, a holy spell on a fiend, a resistance to spells.)
     const damageContext = spellContext(spell, { isSpell, area: Boolean(described.area) });
@@ -2881,7 +2948,7 @@ function applyChanges(state, caster, spell, changes, context, io) {
         switch (change.op) {
             case "damage": {
                 const instances = change.instances.map((instance) => ({ type: instance.type, amount: siphoned ? Math.floor(instance.amount / 2) : instance.amount, persistent: false, precision: instance.category === "precision", splash: instance.category === "splash", context: damageContext, ...(instance.materials?.length ? { materials: instance.materials } : {}) }));
-                const dealt = applyDamage(state, target, instances, { source: caster, nonlethal, spell: aimed });
+                const dealt = applyDamage(state, target, instances, { source: caster, nonlethal, spell: aimed, areaReflex });
                 taken.set(change.target, (taken.get(change.target) ?? 0) + dealt);
                 log(state, `  ${target.name} takes ${dealt} ${change.instances.map((instance) => instance.type).join("/")}`);
                 // (2026-10-14, the vampiric spells: temporary Hit Points for the caster, a share of the damage dealt.)
@@ -2944,6 +3011,16 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     (target.condSources ??= {})[change.slug] = { dc: effectDC(spell), rank: counterRank(caster, spell, isSpellCast(spell)), spell: isSpellCast(spell), name: spell.name, traits: spell.plan?.traits ?? [] };
                     if (change.slug === "agitated") target.agitation = { name: spell.name, parts: agitationParts(spell) };
                     log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${stackedValue(target, change, true)}` : ""}`);
+                    // (2026-11-05, Fight or Flight: frightened by a creature in its reach — a melee Strike at it, a reaction.)
+                    if (change.slug === "frightened" && target.fightOrFlight && caster.side !== target.side && isActive(caster) && canReact(target, "Fight or Flight") && sameMelee(target, caster)) {
+                        const strike = bestMeleeStrike(target, caster);
+                        if (strike) {
+                            spendReaction(target, "Fight or Flight");
+                            state.stats.reactions++;
+                            log(state, `  ${target.name} uses Fight or Flight`);
+                            performStrike(state, target, caster, strike, { reaction: true });
+                        }
+                    }
                     // Retching: a Fortitude save against the DC of what made it sickened.
                     if (change.slug === "sickened") target.sickenedDC = Math.max(target.sickenedDC ?? 0, effectDC(spell) ?? 0) || null;
                     // (U13, Lion Badge: frightened from a Will save — its talisman lowers it.)
@@ -3095,6 +3172,26 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
     // (B304, Consume Flesh: "from any given corpse only once" — each use takes one of the fight's corpses.)
     if ((spell?.plan?.needs ?? []).some((need) => need.corpse || need.any?.some((each) => each.corpse))) caster.corpsesUsed = (caster.corpsesUsed ?? 0) + 1;
     castPlan(state, caster, spell, targetIds, actions, options);
+    // (2026-11-05, Communal Healing: a heal spell that heals a single creature — another living one in reach of it, the caster or an ally,
+    // regains Hit Points equal to its rank; the most hurt ally taken.)
+    if (caster.communalHealing && spell?.plan?.source?.slug === "heal" && (targetIds ?? []).length === 1) {
+        const healed = state.byId.get(targetIds[0]);
+        if (healed && healed.side === caster.side) {
+            const other = state.list.filter((c) => c.side === caster.side && c.id !== healed.id && isActive(c) && c.hp.value < c.hp.max && !c.undead).sort((a, b) => (a.hp.value - a.hp.max) - (b.hp.value - b.hp.max))[0];
+            const rank = spell.castRank ?? 1;
+            if (other) log(state, `  Communal Healing: ${other.name} regains ${applyHeal(state, other, rank)}`);
+        }
+    }
+    // (2026-11-05, a champion's Lay on Hands riders — Amplifying, Resilient, Rejuvenating, Accelerating Touch —: their effect on each ally
+    // it healed, caster.touchRiders [{ name, model }].)
+    if (caster.touchRiders?.length && spell?.plan?.source?.slug === "lay-on-hands") for (const id of targetIds ?? []) {
+        const healed = state.byId.get(id);
+        if (!healed || healed.side !== caster.side || !isActive(healed)) continue;
+        for (const rider of caster.touchRiders) {
+            applyEffect(state, healed, { name: rider.name, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...rider.model }, caster, { applyCondition, key: `touch:${rider.name}` });
+            log(state, `  ${rider.name}: on ${healed.name}`);
+        }
+    }
     // (U10: an item's own counteract — Surging Serum, Panacea — on those it was used on.)
     if (spell?.counteract) for (const id of targetIds ?? []) {
         const target = state.byId.get(id);
@@ -3223,6 +3320,10 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         // (2026-10-22, family 5: the spell wards over its targets — Spell Turning, Spell Immunity, Dispelling Globe, Prismatic Shield.)
         const warded = spellWardAnswer(state, caster, spell, targets);
         if (warded) targets = warded;
+        // (2026-11-06, Divine Rebuttal: a cleric beside the caster Strikes it as its allies are about to save against its magic — a hit,
+        // +2 to the save, +3 on a critical hit.)
+        const rebutted = divineRebuttal(state, caster, spell, targets);
+        if (rebutted) spell = { ...spell, countered: (Number(spell.countered) || 0) + rebutted };
     }
     // (I1: a creature immune to the effect's trait — a mindless one to a mental effect, a construct to a death effect — is unaffected.)
     for (const target of [...targets]) {
@@ -3284,6 +3385,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // without the flat check.)
     if (castImmunityKey(spell) && !spell.fromZone) (caster.castImmune ??= new Set()).add(castImmunityKey(spell));
     if ((spell.plan?.resolution?.gmNotes ?? []).some((text) => FINDS_HIDDEN.test(String(text)))) caster.fortuneFinds = true;
+    // (2026-11-05: a feat's buff on one ally — Devoted Guardian's ward —: once a turn, entry.oncePerTurn; the planner checks it.)
+    if (spell.oncePerTurn) (caster.usedThisTurn ??= new Set()).add(`once:${spell.name}`);
     // (A hex Cast: one a turn; its caster's familiar answers it — familiars.js.)
     if (isHex(spell) && !spell.fromZone) {
         (caster.usedThisTurn ??= new Set()).add("hex");
@@ -3301,7 +3404,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // (A zone's save is the area's: nothing to find.)
     // (S59, a spell attack Sure Strike rolls twice: no flat check for the target being concealed or hidden.)
     const finds = info.attack && forcedDegree === null && caster.fortuneFinds && (caster.effects ?? []).some((effect) => effect.model?.fortune?.on === "attack");
-    const findDC = (target) => (info.area || spell.fromZone || target === caster ? 0 : Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, target.side !== caster.side && !finds ? hiddenDC(state, caster, target) : 0, target.cond?.outlined && sightDC(state, caster, target) < 11 ? 0 : sightDC(state, caster, target)));
+    const findDC = (target) => (info.area || spell.fromZone || target === caster ? 0 : blindFought(caster, Math.max(caster.cond.blinded ? 11 : caster.cond.dazzled ? 5 : 0, target.side !== caster.side && !finds ? hiddenDC(state, caster, target) : 0, target.cond?.outlined && sightDC(state, caster, target) < 11 ? 0 : sightDC(state, caster, target))));
     if (targets.some((target) => findDC(target) > 0)) {
         const found = targets.filter((target) => !findDC(target) || flatCheck(state.rng, findDC(target)) >= SUCCESS);
         if (found.length < targets.length) log(state, `  ${caster.name} fails to find ${targets.length - found.length} target(s)`);
@@ -3393,7 +3496,41 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         const keep = ownFortune(statistic);
         const options = raised(statistic, keep ? { ...given, [keep === "higher" ? "fortune" : "misfortune"]: true } : given);
         const result = betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
-        const final = heroReroll(statistic, options, result) ?? result;
+        let final = heroReroll(statistic, options, result) ?? result;
+        // (2026-11-05, Black Cat Curse: a foe's successful save against the party, rerolled with the worse kept — a PC's reaction within
+        // 30 feet, once a fight.)
+        if (SAVE_SLUGS.has(statistic) && forcedDegree === null && options?.actor?.id && final?.degree && DEGREE_NAMES.indexOf(final.degree) >= 2) {
+            const curser = state.list.find((c) => c.saveCurse && !c.saveCurseUsed && c.side === caster.side && c.side !== options.actor.side && isActive(c) && canReact(c, c.saveCurse.name) && (c.band !== "far" || options.actor.band !== "far"));
+            if (curser) {
+                spendReaction(curser, curser.saveCurse.name);
+                curser.saveCurseUsed = true;
+                state.stats.reactions++;
+                const again = adjusted(statistic, options, rolled(statistic, options));
+                log(state, `  ${curser.name} uses ${curser.saveCurse.name}: ${options.actor.name} rerolls (${final.degree} → ${again?.degree})`);
+                if (again?.degree && DEGREE_NAMES.indexOf(again.degree) < DEGREE_NAMES.indexOf(final.degree)) final = again;
+            }
+        }
+        // (Correct the Story: a foe's critically successful save, rerolled with the new result kept — a reaction and a Mythic Point.)
+        if (SAVE_SLUGS.has(statistic) && forcedDegree === null && options?.actor?.id && final?.degree === "criticalSuccess") {
+            const teller = state.list.find((c) => c.correctTheStory && c.side === caster.side && c.side !== options.actor.side && isActive(c) && (c.mythicPoints ?? 0) > 0 && canReact(c, "Correct the Story"));
+            if (teller) {
+                spendReaction(teller, "Correct the Story");
+                teller.mythicPoints--;
+                state.stats.reactions++;
+                const again = adjusted(statistic, options, rolled(statistic, options));
+                log(state, `  ${teller.name} uses Correct the Story: ${options.actor.name} rerolls (${again?.degree})`);
+                if (again?.degree) final = again;
+            }
+        }
+        // (2026-11-05, Resounding Bravery: a critically successful Will save — +1 status to saves and temporary Hit Points of half its level
+        // for a minute, both doubled against fear.)
+        if (statistic === "will" && final?.degree === "criticalSuccess" && options?.actor?.resoundingBravery && isActive(options.actor)) {
+            const saver = options.actor;
+            const twice = (spell.plan?.traits ?? []).includes("fear") ? 2 : 1;
+            const tempHp = Math.floor((Number(saver.level) || 1) / 2) * twice;
+            log(state, `  ${saver.name} Resounding Bravery: +${twice} status to saves, ${tempHp} temporary Hit Points`);
+            applyEffect(state, saver, { name: "Resounding Bravery", rounds: 10, modifiers: [{ on: "saving-throw", type: "status", value: twice }], tempHp, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, saver, { applyCondition });
+        }
         // (Spellstrike's forced degree is its Strike's, which met the images already.)
         if (info.check?.roll === "attack" && forcedDegree === null && options?.target?.id && final?.degree) {
             const taken = imageTakes(state, caster, options.target, DEGREE_NAMES.indexOf(final.degree), { applyDamage, applyCondition });
@@ -3562,7 +3699,16 @@ export function exploitVulnerability(state, c, target) {
         return;
     }
     const weakest = Math.max(0, ...(target.weaknesses ?? []).map((entry) => entry.value ?? 0));
-    c.exploited = { targetId: target.id, value: degree >= 2 ? Math.max(weakest, c.exploit.antithesis) : c.exploit.antithesis };
+    // (2026-11-06: the kind it's on too — mortal weakness reaches every creature of the exact same kind; Sympathetic Vulnerabilities takes
+    // personal antithesis to them as well, on a non-humanoid.)
+    const mortal = degree >= 2 && weakest > c.exploit.antithesis;
+    c.exploited = { targetId: target.id, kind: target.name, mortal, humanoid: (target.traits ?? []).includes("humanoid"), value: mortal ? weakest : c.exploit.antithesis };
+}
+
+// Whether a creature's Strikes already carry its Exploit Vulnerability against a target (its own target, or one of the same kind).
+export function exploitCovers(c, target) {
+    const on = c.exploited;
+    return Boolean(on && (on.targetId === target.id || (on.kind === target.name && (on.mortal || (c.sympatheticVulnerabilities && !on.humanoid)))));
 }
 
 // The weakness Exploit Vulnerability would most likely give against a target, on average.
@@ -4199,6 +4345,9 @@ export function canCast(c, spell) {
     if (c.spellLocks?.length && spellLocked(c, spell)) return false;
     // (A witch's hexes: one a turn.)
     if (c.usedThisTurn?.has("hex") && isHex(spell)) return false;
+    if (spell.oncePerTurn && c.usedThisTurn?.has(`once:${spell.name}`)) return false;
+    // (2026-11-06, Overdrive Ally's "You are currently in overdrive": a feat's spell only under a buff of its caster's — entry.whileBuff.)
+    if (spell.whileBuff && !(c.activeBuffs ?? []).some((buff) => buff.name === spell.whileBuff)) return false;
     // (S59, Sure Strike: "can't cast it again for 10 minutes" — once a fight.)
     if (c.castImmune?.size && c.castImmune.has(castImmunityKey(spell))) return false;
     return poolReady(c, spell);
@@ -4554,7 +4703,9 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                 } else if (change.op === "condition" && change.scope) {
                     // Feint, Create a Diversion: the attacker's own attacks hit more often (+2): about a
                     // tenth of a hit's damage per attack (one for a single use, three otherwise).
-                    if (change.scope.attacker === caster.id) entry.damage += chance * 0.1 * bestHit(caster, target, change.scope.attacks === "melee") * (change.scope.uses ?? 3);
+                    // (Goading Feint: a –2 to its attacks on the feinter — about a tenth of its own hit, one or two attacks.)
+                    if (change.scope.attacker === caster.id && caster.goadingFeint) entry.damage += chance * 0.1 * bestHit(target, caster, true) * (change.scope.uses ? 1 : 2);
+                    else if (change.scope.attacker === caster.id) entry.damage += chance * 0.1 * bestHit(caster, target, change.scope.attacks === "melee") * (change.scope.uses ?? 3);
                 } else if (change.op === "condition") {
                     // (B303: Bravery's frightened 1 lower — none at all from frightened 1.)
                     const brave = change.slug === "frightened" && target.lessFrightened ? (change.value ?? 1) - target.lessFrightened : null;
@@ -4768,7 +4919,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
 // unattended object or willing creature" — before, the object choice let it go to a foe).
 // (Its targets as the action count it's cast with has them — Blessing of Defiance's.)
 function willingOnly(spell, actions = undefined) {
-    const plan = nativeOf(spell.plan).byActions ? planWithActions(spell.plan, actions) : spell.plan;
+    const plan = nativeOf(spell.plan).byActions ? actionsPlan(spell.plan, actions) : spell.plan;
     const choices = String(plan?.targeting?.target ?? "").split(/\bor\b/i).filter((choice) => !/\bobjects?\b/i.test(choice) || /\bcreatures?\b/i.test(choice.replace(/\bobjects?\b[^,]*/i, "")));
     return choices.length > 0 && choices.every((choice) => /\bwilling\b/i.test(choice));
 }
@@ -4833,6 +4984,12 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     }
     // (Aura of Violent Light: an aura on an ally — each ally in reach, not the caster.)
     if (spell.plan?.resolution?.lingering?.centre === "target") return allies.filter((ally) => ally !== caster && ally.status === ACTIVE && reaches(ally)).map((ally) => ({ targets: [ally] }));
+    // (2026-11-05, companions: "your animal companion" — Magic Hide, Enlarge Companion, Heal Companion —: the caster's own, in reach, and
+    // no one else.)
+    if (/^(?:your animal companion|1 animal companion in your service)$/i.test(String(spell.plan?.targeting?.target ?? "").trim())) {
+        const own = allies.find((ally) => ally.companionOf === caster.id && ally.status === ACTIVE && reaches(ally));
+        return own && (!info.healing || own.hp.value < own.hp.max) ? [{ targets: [own] }] : [];
+    }
     if (!info.area) {
         const sets = [];
         // (A spell for a willing creature — Vapor Form — goes to no enemy. 2026-10-21, found rating spells: only when every choice is
@@ -4849,7 +5006,9 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         if (info.self) return [{ targets: [caster] }];
         // Spell effects: any ally in reach, the caster included.
         if (info.helpful) {
-            const friends = [caster, ...allies].filter((ally) => ally.status === ACTIVE && reaches(ally));
+            // (2026-11-06, "1 ally" — Allegro's —: an ally is another creature, never the caster.)
+            const allyOnly = /^(?:\d+|one|two|three) (?:ally|allies)$/i.test(String(spell.plan?.targeting?.target ?? "").trim());
+            const friends = [...(allyOnly ? [] : [caster]), ...allies].filter((ally) => ally.status === ACTIVE && reaches(ally));
             if (info.targets <= 1) sets.push(...friends.map((ally) => ({ targets: [ally] })));
             else if (friends.length) sets.push({ targets: friends.slice(0, info.targets) });
         }

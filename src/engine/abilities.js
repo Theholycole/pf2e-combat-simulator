@@ -150,7 +150,7 @@ export function addBuiltin(spec, plan, name) {
             else spec.fastHealing = Math.max(spec.fastHealing ?? 0, plan.value);
             return true;
         case "multi-strike":
-            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.needs?.length ? { needs: plan.needs } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.bothHit ? { bothHit: { conditions: [...(plan.bothHit.conditions ?? [])], damage: [...(plan.bothHit.damage ?? [])], ...(plan.bothHit.follow ? { follow: plan.bothHit.follow } : {}), ...(plan.bothHit.strikeDamage ? { strikeDamage: plan.bothHit.strikeDamage } : {}), ...(plan.bothHit.affliction ? { affliction: plan.bothHit.affliction } : {}), ...(plan.bothHit.atLeast ? { atLeast: plan.bothHit.atLeast } : {}), ...(plan.bothHit.perHit ? { perHit: true } : {}) } } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}), ...(plan.ifFirstHits ? { ifFirstHits: true } : {}), ...(plan.penalties?.length ? { penalties: [...plan.penalties] } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(plan.notGrabbed ? { notGrabbed: true } : {}), ...(plan.noGrab ? { noGrab: true } : {}), ...(plan.flourish ? { flourish: true } : {}), ...(plan.critical ? { critical: { conditions: [...(plan.critical.conditions ?? [])], damage: [...(plan.critical.damage ?? [])] } } : {}), ...(plan.extraDamage?.length ? { extraDamage: [...plan.extraDamage] } : {}), ...(plan.missDamage?.length ? { missDamage: [...plan.missDamage] } : {}), ...(plan.then ? { then: plan.then } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}), ...(plan.noMomentum ? { noMomentum: true } : {}), ...(plan.chain ? { chain: true } : {}), ...(plan.recharge ? { recharge: plan.recharge } : {}) }];
+            spec.multiStrikes = [...(spec.multiStrikes ?? []), { name, actions: plan.actions, strikes: [...plan.strikes], ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.sameTarget ? { sameTarget: true } : {}), ...(plan.distinct ? { distinct: true } : {}), ...(plan.oncePerTurn ? { oncePerTurn: true } : {}), ...(plan.each ? { each: true } : {}), ...(Number.isFinite(plan.max) ? { max: plan.max } : {}), ...(plan.grab ? { grab: true } : {}), ...(plan.penalty ? { penalty: plan.penalty } : {}), ...(plan.requires ? { requires: plan.requires } : {}), ...(plan.needs?.length ? { needs: plan.needs } : {}), ...(plan.after?.length ? { after: plan.after.map((entry) => ({ ...entry })) } : {}), ...(plan.bothHit ? { bothHit: { conditions: [...(plan.bothHit.conditions ?? [])], damage: [...(plan.bothHit.damage ?? [])], ...(plan.bothHit.follow ? { follow: plan.bothHit.follow } : {}), ...(plan.bothHit.strikeDamage ? { strikeDamage: plan.bothHit.strikeDamage } : {}), ...(plan.bothHit.affliction ? { affliction: plan.bothHit.affliction } : {}), ...(plan.bothHit.atLeast ? { atLeast: plan.bothHit.atLeast } : {}), ...(plan.bothHit.perHit ? { perHit: true } : {}) } } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.secondOffGuard ? { secondOffGuard: plan.secondOffGuard } : {}), ...(Number.isFinite(plan.countsAs) ? { countsAs: plan.countsAs } : {}), ...(plan.ifFirstHits ? { ifFirstHits: true } : {}), ...(plan.penalties?.length ? { penalties: [...plan.penalties] } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(plan.notGrabbed ? { notGrabbed: true } : {}), ...(plan.noGrab ? { noGrab: true } : {}), ...(plan.flourish ? { flourish: true } : {}), ...(plan.critical ? { critical: { conditions: [...(plan.critical.conditions ?? [])], damage: [...(plan.critical.damage ?? [])] } } : {}), ...(plan.extraDamage?.length ? { extraDamage: [...plan.extraDamage] } : {}), ...(plan.missDamage?.length ? { missDamage: [...plan.missDamage] } : {}), ...(plan.then ? { then: plan.then } : {}), ...(plan.oncePerFight ? { oncePerFight: true } : {}), ...(plan.noMomentum ? { noMomentum: true } : {}), ...(plan.chain ? { chain: true } : {}), ...(plan.recharge ? { recharge: plan.recharge } : {}) }];
             return true;
         // (B255, Chaotic Gizmos: a die rolled twice, each face a Strike it names or nothing — the Strikes the faces give, in its best order.)
         case "random-strikes": {
@@ -189,8 +189,9 @@ export function addBuiltin(spec, plan, name) {
             // "2d8[precision]", "die" (one more of the Strike's own dice).
             // (The Strikes may come after the abilities: the parts are kept, and resolved again as the fight is prepared.)
             const formulas = plan.damage ?? (plan.extraDice ? [plan.extraDice] : []);
-            // (B241, Imbue Righteousness: only against creatures with that trait — vsTrait.)
-            const strikeParts = formulas.length ? { formulas: [...formulas], strike: plan.strike ?? null, scope: plan.damage ? (plan.melee ? "melee" : "all") : "melee", ...(plan.vsTrait ? { vsTrait: plan.vsTrait } : {}) } : null;
+            // (B241, Imbue Righteousness: only against creatures with that trait — vsTrait. 2026-11-05, Analyze Weakness: only on a sneak
+            // attack, at an off-guard target — offGuardOnly.)
+            const strikeParts = formulas.length ? { formulas: [...formulas], strike: plan.strike ?? null, scope: plan.damage ? (plan.melee ? "melee" : "all") : "melee", ...(plan.vsTrait ? { vsTrait: plan.vsTrait } : {}), ...(plan.offGuardOnly ? { whenOffGuard: true } : {}) } : null;
             const strikeDeltas = strikeParts && spec.strikes?.length ? deltasFor(spec.strikes, strikeParts) : null;
             // (A stance lasts until another ends it.)
             const rounds = plan.stance ? Infinity : plan.model?.rounds ?? 10;
@@ -204,9 +205,12 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.model?.grantedStrikes?.length ? { grantedStrikes: plan.model.grantedStrikes.map((entry) => ({ ...entry, traits: [...(entry.traits ?? [])], extra: [...(entry.extra ?? [])] })) } : {}),
                 ...(plan.model?.runeUpgrade ? { runeUpgrade: { ...plan.model.runeUpgrade } } : {}),
                 // (2026-11-03, Paragon's Guard: its shield kept raised — fight.js.)
-                ...(plan.model?.shieldUp ? { shieldUp: true } : {}) };
+                ...(plan.model?.shieldUp ? { shieldUp: true } : {}),
+                ...(plan.model?.coversAlly ? { coversAlly: true } : {}),
+                // (2026-11-05, Giant's Lunge, Jotun's Battle Stance: its melee reach while it lasts — effects.js.)
+                ...(plan.model?.reach ? { reach: plan.model.reach } : {}) };
             // (B137, Cower, Entrench: a stance that ends when it moves.)
-            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model: plan.shell ? { ...model, rounds: 1 } : model, ...(plan.shell ? { shell: true } : plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.belowHalf ? { belowHalf: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}), ...(Number(plan.heal) > 0 ? { heal: Number(plan.heal) } : {}) }];
+            spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model: plan.shell ? { ...model, rounds: 1 } : model, ...(plan.shell ? { shell: true } : plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requires === "panache" ? { needsPanache: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.belowHalf ? { belowHalf: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}), ...(Number(plan.heal) > 0 ? { heal: Number(plan.heal) } : {}), ...(plan.pool ? { pool: plan.pool } : {}), ...(plan.thrallField ? { thrallField: structuredClone(plan.thrallField) } : {}), ...(plan.amalgamate ? { amalgamate: true } : {}) }];
             return true;
         }
         // Golem Antimagic (B56): what others' magic does to it.
@@ -324,7 +328,7 @@ export function addBuiltin(spec, plan, name) {
         // Shell's only against ranged attacks; Reactive Defense's Strike at the attacker after.
         case "ally-ac-reaction":
             // (B182: itself too, a dragon's shield.)
-            spec.allyAcReaction = { name, value: Number(plan.value) || 2, within: plan.within === "reach" ? 10 : Number(plan.within) || 10, ...(plan.ranged ? { ranged: true } : {}), ...(plan.strike ? { strike: plan.strike } : {}), ...(plan.self ? { self: true } : {}) };
+            spec.allyAcReaction = { name, value: Number(plan.value) || 2, within: plan.within === "reach" ? 10 : Number(plan.within) || 10, ...(plan.ranged ? { ranged: true } : {}), ...(plan.strike ? { strike: plan.strike } : {}), ...(plan.self ? { self: true } : {}), ...(plan.dcInstead ? { dcInstead: plan.dcInstead } : {}), ...(plan.shieldRaised ? { shieldRaised: true } : {}) };
             return true;
         case "save-boost":
             // (B226, Light of Diligence: only a critical failure, each ally once a fight.)
@@ -385,7 +389,7 @@ export function addBuiltin(spec, plan, name) {
             // (B93: Halfling Luck's "must use the new result", keep "new"; a free action's.)
             // (B217, a Battlezoo owl's foresight: only against a spell.)
             // (B266, All This Will Happen Again: only against an effect of one trait, a bonus on the new roll.)
-            spec.saveReroll = { name, save: plan.save ?? null, ...(plan.keep ? { keep: plan.keep } : {}), ...(plan.free ? { free: true } : {}), ...(plan.mythic ? { mythic: true } : {}), ...(plan.against === "spell" ? { against: "spell" } : {}), ...(plan.against && plan.against !== "spell" ? { againstTrait: plan.against } : {}), ...(Number(plan.bonus) ? { bonus: Number(plan.bonus) } : {}) };
+            spec.saveReroll = { name, save: plan.save ?? null, ...(plan.keep ? { keep: plan.keep } : {}), ...(plan.free ? { free: true } : {}), ...(plan.mythic ? { mythic: true } : {}), ...(plan.against === "spell" ? { against: "spell" } : {}), ...(plan.against && plan.against !== "spell" ? { againstTrait: plan.against } : {}), ...(Number(plan.bonus) ? { bonus: Number(plan.bonus) } : {}), ...(plan.criticalOnly ? { criticalOnly: true } : {}) };
             // (B108, Reroll: a Mythic Point each time, as many as it has.)
             spec.saveRerollUses = plan.mythic ? Infinity : 1;
             if (plan.mythic) spec.mythicPoints ??= 3;
@@ -504,12 +508,22 @@ export function addBuiltin(spec, plan, name) {
                 damage: plan.damage ?? null,
                 offGuard: !!plan.offGuard,
                 requires: plan.requires ?? null,
+                // (2026-11-04, Targeting Shot, Incredible Ricochet, Homing Shot: the target's concealment and cover ignored.)
+                ...(plan.unerring ? { unerring: true } : {}),
+                // (2026-11-05, Perfect Shot: maximum damage.)
+                ...(plan.maxDice ? { maxDice: true } : {}),
+                // (2026-11-04, Murderer's Circle: the target off-guard to its next Strike this turn, hit or miss.)
+                ...(plan.offGuardNext ? { offGuardNext: true } : {}),
+                // (2026-11-04, Flesh Wound's ranged Strike: "ranged", "melee" or "any" — the planner's fits; melee when not said.)
+                ...(plan.range ? { range: plan.range } : {}),
                 // (2026-11-03: a PC's requirement as needs — feat-abilities.js pcNeeds.)
                 ...(plan.needs?.length ? { needs: plan.needs } : {}),
                 ...(plan.nonCantrip ? { nonCantrip: true } : {}),
                 oncePerFight: !!plan.oncePerFight,
                 ...(plan.countsAs > 1 ? { countsAs: plan.countsAs } : {}),
                 ...(plan.noMap ? { noMap: true } : {}),
+                // (2026-11-05, United Assault: damage for each other creature that hurt the target since its last turn — fight.js.)
+                ...(plan.united ? { united: true } : {}),
                 ...(plan.oncePerTurn ? { oncePerTurn: true } : {}),
                 ...(plan.extraWeaponDice ? { extraWeaponDice: plan.extraWeaponDice } : {}),
                 // (2026-11-03, the feat module's Strike riders: Strangle's, Hell-Lancer Shot's damage of its weapon dice — chargeStrike.)
@@ -528,7 +542,14 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.hitCrits ? { hitCrits: true } : {}),
                 ...(plan.ignoreResistances ? { ignoreResistances: true } : {}),
                 // (Lead by Example: its hit sets up an ally's next attack, as Set-Up Strike's does — commander.js setUp.)
-                ...(plan.setUp ? { setUp: true } : {}),
+                ...(plan.setUp ? { setUp: plan.setUp === "aid" ? "aid" : true } : {}),
+                ...(plan.sneakFirst ? { sneakFirst: plan.sneakFirst } : {}),
+                ...(plan.twinWeakness ? { twinWeakness: true } : {}),
+                ...(plan.chainHits ? { chainHits: true } : {}),
+                ...(plan.beforeStrike ? { beforeStrike: plan.beforeStrike } : {}),
+                ...(plan.sympathy ? { sympathy: true } : {}),
+                ...(plan.drainThrall ? { drainThrall: plan.drainThrall } : {}),
+                ...(plan.frightBonus ? { frightBonus: plan.frightBonus } : {}),
                 ...(plan.taunt ? { taunt: true } : {}),
                 ...(plan.rageFinish ? { rageFinish: true } : {}),
                 // A follow-up's Strike (B68): only straight after a Strike that fits; previousMap, at that Strike's penalty.
@@ -550,6 +571,7 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.targetTraits?.length ? { targetTraits: [...plan.targetTraits] } : {}),
                 // (B139: what it does to itself after the Strike — Punishing Strike's Off-Guard, Defensive Slam's +2 AC — until its next turn.)
                 ...(plan.selfAfter?.length ? { selfAfter: plan.selfAfter.map((entry) => ({ ...entry })) } : {}),
+                ...(plan.selfAfterHit ? { selfAfterHit: true } : {}),
                 // (B199, Uncanny Pounce: as it rolls initiative only.)
                 ...(plan.initiative ? { initiative: true } : {}),
                 // (2026-10-15: its traits — a concentrate one, Hunter's Aim, provokes what concentrate does.)
@@ -632,7 +654,7 @@ export function deltasFor(strikes, parts) {
         const type = kinds.find((kind) => !["persistent", "precision"].includes(kind));
         return { dice: Number(match[1] ?? 0), die: Number(match[2] ?? 0), bonus: Number(match[3] ?? 0), multiplier: 1, type: type && type !== "untyped" ? type : strike.damage?.[0]?.type, precision: kinds.includes("precision"), persistent: kinds.includes("persistent") };
     };
-    return Object.fromEntries(chosen.map((strike) => [strike.name, parts.formulas.map((formula) => partOf(formula, strike)).filter(Boolean).map((part) => (parts.vsTrait ? { ...part, vsTrait: parts.vsTrait } : part))]));
+    return Object.fromEntries(chosen.map((strike) => [strike.name, parts.formulas.map((formula) => partOf(formula, strike)).filter(Boolean).map((part) => (parts.vsTrait ? { ...part, vsTrait: parts.vsTrait } : part)).map((part) => (parts.whenOffGuard ? { ...part, whenOffGuard: true } : part))]));
 }
 
 // The index of the creature's Strike a text names ("claw" for "Claw", "fangs" for "Fangs").
@@ -728,9 +750,9 @@ export function withExtraDamage(strike, formulas) {
 
 export function chargeStrike(strike, charge) {
     const attackBonus = (charge.attackBonus ?? 0) + (charge.offGuard === true ? 2 : 0);
-    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.damagePerWeaponDie && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length && !charge.fortune && !charge.hitCrits && !charge.ignoreResistances) return strike;
+    if (!attackBonus && !charge.damage && !charge.damageBonus && !charge.damagePerWeaponDie && !charge.extraWeaponDice && !charge.finisher && !charge.fatal && !charge.deadly && !charge.halfDamage && !charge.nonlethal && !charge.noDamage && !(charge.damageTimes > 1) && !charge.rangeFree && !charge.instead && !charge.extraDamage?.length && !charge.fortune && !charge.hitCrits && !charge.ignoreResistances && !charge.unerring && !charge.maxDice) return strike;
     // (2026-10-16: Sniper's Bead's, no range penalty out to that many increments — space.js rangePenalty.)
-    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}), ...(charge.fortune ? { fortune: true } : {}), ...(charge.hitCrits ? { hitCrits: true } : {}), ...(charge.ignoreResistances ? { ignoreResistances: true } : {}) };
+    const changed = { ...strike, name: `${strike.name} (${charge.name})`, bonus: strike.bonus + attackBonus, ...(charge.finisher ? { finisher: charge.finisher } : {}), ...(charge.finisher && charge.combination ? { mapSteps: strike.agile ? [3, 6] : [4, 8] } : {}), ...(charge.nonlethal ? { nonlethal: true } : {}), ...(charge.rangeFree ? { rangeFree: charge.rangeFree } : {}), ...(charge.fortune ? { fortune: true } : {}), ...(charge.hitCrits ? { hitCrits: true } : {}), ...(charge.ignoreResistances ? { ignoreResistances: true } : {}), ...(charge.unerring ? { unerring: true } : {}) };
     if (charge.damageBonus) changed.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damageBonus } : part));
     // (A bonus of its weapon dice, or twice that: the dice the Strike has — its striking runes'.)
     if (charge.damagePerWeaponDie) changed.damage = (changed.damage ?? strike.damage).map((part, index) => (index === 0 ? { ...part, bonus: (part.bonus ?? 0) + charge.damagePerWeaponDie * (Number(strike.damage[0]?.dice) || 1) } : part));
@@ -763,6 +785,12 @@ export function chargeStrike(strike, charge) {
     if (charge.halfDamage) changed.damage = (changed.damage ?? strike.damage).map((part) => ({ ...part, multiplier: (part.multiplier ?? 1) * 0.5 }));
     // (B156: "rolls damage three times" — that many times its damage, combined.)
     if (charge.damageTimes > 1) changed.damage = (changed.damage ?? strike.damage).map((part) => ({ ...part, multiplier: (part.multiplier ?? 1) * charge.damageTimes }));
+    // (2026-11-05, Perfect Shot: "the Strike deals maximum damage" — each die at its most, a flat amount, doubled on a critical hit.)
+    if (charge.maxDice) {
+        const most = (part) => (part.dice && part.die ? { ...part, bonus: (part.bonus ?? 0) + part.dice * part.die, dice: 0, die: 0 } : part);
+        changed.damage = (changed.damage ?? strike.damage).map(most);
+        if (changed.critDamage ?? strike.critDamage) changed.critDamage = (changed.critDamage ?? strike.critDamage).map(most);
+    }
     // (B153: "deals no damage on a hit" — none, its riders only.)
     if (charge.noDamage) {
         changed.noDamage = true;
@@ -960,6 +988,9 @@ function spareIndex(c, name) {
 
 // Spends a reaction on it (name: the reaction): one kept for it first, else its reaction.
 export function spendReaction(c, name = null) {
+    if (c.quickVengeance && (name === "Shield Block" || name === c.interceptAttack?.name)) c.vengeful = true;
+    // (Swift Retribution: after its champion's reaction too.)
+    if (c.swiftRetribution && name && c.championReaction && reactionWord(name) === reactionWord(c.championReaction.name)) c.vengeful = true;
     const index = name ? spareIndex(c, name) : -1;
     if (index >= 0) (c.spareUsed ??= {})[index] = (c.spareUsed[index] ?? 0) + 1;
     else c.reactionUsed = true;

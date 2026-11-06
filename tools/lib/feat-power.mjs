@@ -25,6 +25,7 @@ const ITEM_ROOT = SIBLING(["pf2e-automatic-item-resolution", "PF2e AUTOMATIC ITE
 const { readDocuments, basicActions, PACK_ROOT } = await import("./pack-creatures.mjs");
 const { partyFor, classPartyFor, classesPartyFor } = await import("./deadliness.mjs");
 const { CLASS_SLUGS, classArmor, seatOf } = await import("../../src/engine/classes.js");
+const { withCompanion, mountUp, companionStats } = await import("../../src/engine/companions.js");
 const { compileFeat } = await import(new URL("src/compiler/index.js", FEAT_ROOT).href);
 export const itemReaders = ITEM_ROOT ? await (async () => {
     try {
@@ -36,8 +37,22 @@ export const itemReaders = ITEM_ROOT ? await (async () => {
 })() : null;
 const { featEntries, featInfo, meetsWielding, pcNeeds, requiredEffectFeat, requiredStances, withResolvedEffects, worthSomething } = await import("../../src/engine/feat-abilities.js");
 const { effectModel } = await import("../../src/engine/effects.js");
+const { zoneSpell } = await import("../../src/engine/zones.js");
 // (2026-11-03: a spell entry a feat gives only when the engine can cast it at all — Hymn of Healing's, Mantis Form's aren't.)
-const { canCast } = await import("../../src/engine/spells.js");
+const { canCast, spellReactions } = await import("../../src/engine/spells.js");
+// (2026-11-06: a reaction spell the engine answers with — Perfect Strike's reroll, a counterspell, a guard of an ally —, which spells.js
+// spellReactions wires from the PC's spells as the fight begins; canCast leaves reactions out.)
+const REACTION_FIELDS = ["attackReroll", "saveReroll", "counterspells", "guardSpells", "resistReaction", "loveSacrifice", "retribution", "siphon"];
+const reactionWired = (entry) => {
+    if (entry?.plan?.activation?.time !== "reaction") return false;
+    const probe = { spells: [entry] };
+    try {
+        spellReactions(probe);
+    } catch {
+        return false;
+    }
+    return REACTION_FIELDS.some((field) => probe[field]);
+};
 const castable = (entry) => canCast({ cond: {}, hindrances: [], spellPools: entry.pool ? { [entry.pool]: 99 } : {} }, entry);
 const { addBuiltin } = await import("../../src/engine/abilities.js");
 const { dangerFights, dangerSummary, DANGER_OPTIONS, DEATH_WEIGHT } = await import("../../src/engine/danger-scale.js");
@@ -130,7 +145,7 @@ for (const pack of EFFECT_PACKS) {
     }
 }
 for (const { path } of featSources().filter((entry) => entry.source !== "pf2e")) for (const doc of docsOf(path).values()) if (doc.type === "effect") effectsById.set(doc._id, doc);
-const conditionNames = new Map([...docsOf(`${PACK_ROOT}/conditions`).values()].map((doc) => [doc._id, doc.system?.slug ?? doc.name.toLowerCase().replace(/\s+/g, "-")]));
+const conditionNames = new Map([...docsOf(`${PACK_ROOT}/conditions`).values()].flatMap((doc) => [doc._id, doc.name].map((key) => [key, doc.system?.slug ?? doc.name.toLowerCase().replace(/\s+/g, "-")])));
 const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".").pop()) ?? null;
 
 // An effect's document from its UUID, by id ("Compendium.pf2e.feat-effects.Item.<id>") or by name, the feat module's ("…Item.Stance: Disarming
@@ -233,8 +248,24 @@ const planSkill = (plan) => {
 
 const clone = (value) => structuredClone(value);
 // Builtin fields joined onto a combatant: lists added to, objects merged, the rest set.
+function withRider(entry, rider) {
+    const plan = structuredClone(entry.plan);
+    const id = `rider-${(plan.resolution.sharedDamage?.components ?? []).length}`;
+    plan.resolution.sharedDamage = { rollOnce: true, ...(plan.resolution.sharedDamage ?? {}), components: [...(plan.resolution.sharedDamage?.components ?? []), { id, formula: rider.damage, type: null, category: null }] };
+    for (const [degree, multiplier] of [["success", 1], ["criticalSuccess", rider.criticalDouble ? 2 : 1]]) {
+        const row = plan.resolution.outcomes[degree];
+        row.damage = { mode: "shared", multiplier, sourceComponentIds: [...(row.damage?.sourceComponentIds ?? []), id] };
+    }
+    return { ...entry, plan, riders: [...(entry.riders ?? []), rider.source] };
+}
 function joinBuiltins(c, builtins) {
     for (const [field, value] of Object.entries(builtins)) {
+        // (2026-11-04: a rider on a basic action's success — Crushing Grab's damage on a Grapple, Agonizing Rebuke's on a Demoralize: the
+        // PC's own basic entry gets the damage on its success and critical success.)
+        if (field === "basicRiders") {
+            for (const rider of value) c.spells = (c.spells ?? []).map((entry) => (entry.kind === "basic" && rider.slugs.includes(entry.plan?.source?.slug) ? withRider(entry, rider) : entry));
+            continue;
+        }
         if (field === "maxHpBonus") {
             c.hp = { ...c.hp, value: c.hp.value + value, max: c.hp.max + value };
             continue;
@@ -253,9 +284,14 @@ const spellPack = await spellTools();
 const ORDINAL = "(\\d+)(?:st|nd|rd|th)";
 // The spells a feat's text has its user cast innately: [{ spell, castRank, pool uses (0: at will) }]. Its rank: the text's ("5th-rank",
 // "as a 7th-rank innate spell"), else heightened to half the PC's level rounded up where it says so or for a cantrip, else the spell's own.
+const FOCUS_GRANT = /\bYou (?:gain|learn)(?: either)? (?:the|a|an|your choice of the|one) [^.]*?\b(?:focus spells?|(?:composition|hex|link|conflux|grave|order|warden|devotion|ki|qi|domain|bloodline|school|revelation|apparition|eidolon) (?:cantrip|spell)s?)\b/i;
 export function innateSpells(doc, level) {
     const text = String(doc.system?.description?.value ?? "");
-    if (!/\binnate\b/i.test(text)) return [];
+    // (2026-11-04, Cole: "Automate the spellcasting and companion feats not handled by other modules": or a focus spell or cantrip it
+    // teaches — Mantis Form's "You gain the Mantis Form focus spell", Song of Strength's composition cantrip —, heightened to half the
+    // level, a focus spell once a fight, a cantrip at will. Not one on a companion: the simulator's PCs have none.)
+    const focus = FOCUS_GRANT.test(text.replace(/@UUID\[[^\]]*?([^.\]]+)\](?:\{([^}]*)\})?/g, (_all, id, label) => label ?? id).replace(/<[^>]+>/g, " "));
+    if (!/\binnate\b/i.test(text) && !focus) return [];
     const half = Math.max(1, Math.ceil(level / 2));
     const found = [];
     for (const hit of text.matchAll(/@UUID\[Compendium\.pf2e\.spells-srd\.Item\.([^\]]+)\](?:\{([^}]*)\})?/g)) {
@@ -273,6 +309,7 @@ export function innateSpells(doc, level) {
         const castRank = Number(fixed) || (heightened ? half : own);
         if (castRank > half && !fixed) continue;
         const uses = cantrip || /at will/i.test(sentence) ? 0 : /twice per day/i.test(sentence) ? 2 : 1;
+        if (focus && !/\binnate\b/i.test(sentence) && /\b(?:companion|eidolon|familiar|minion|thrall|mount)\b/i.test(String(spell.system?.target?.value ?? ""))) continue;
         found.push({ spell, castRank, uses });
     }
     return found;
@@ -286,7 +323,7 @@ function innateSpellEntry(doc, level, host) {
     const dc = own.spell ?? 10 + level + 2 + (abilities.cha ?? 0);
     const entries = [];
     const pools = {};
-    const choice = /\b(?:chosen|choose(?: one)?) from the following\b|\bone of the following spells\b/i.test(String(doc.system?.description?.value ?? ""));
+    const choice = /\b(?:chosen|choose(?: one)?) from the following\b|\bone of the following spells\b|\b(?:gain|learn) either\b|\byour choice of\b/i.test(String(doc.system?.description?.value ?? ""));
     for (const { spell, castRank, uses } of spells) {
         let plan;
         try {
@@ -300,7 +337,7 @@ function innateSpellEntry(doc, level, host) {
         const pool = uses ? (choice ? `innate:${doc._id}:choice` : `innate:${doc._id}:${spell._id}`) : null;
         if (pool) pools[pool] = choice ? 1 : uses;
         const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
-        if (castable(entry)) entries.push(entry);
+        if (castable(entry) || reactionWired(entry)) entries.push(entry);
     }
     if (!entries.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
     return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
@@ -394,6 +431,26 @@ function reachEntry(doc, host) {
 // (2026-11-03, the class feats no fight played: Stunning Blows.) A Flurry of Blows that hits: a Fortitude save at the monk's class DC or
 // stunned 1 (3 on a critical failure) — the save as a spell compiled from that text, cast by the flurry's rider (spells.js bothHitRider's
 // affliction), not on its own.
+// (2026-11-05, Twin Distraction: Twin Feint's two Strikes both dealing damage — a Will save at the rogue's class DC or stupefied 1 until
+// the end of its next turn; the save cast by the multi-Strike's bothHit rider as Stunning Blows' is. Twin Feint itself comes with it.)
+function twinDistractionEntry(doc, level, host) {
+    if (slugOf(doc) !== "twin-distraction") return null;
+    const stupefied = "@UUID[Compendium.pf2e.conditionitems.Item.Stupefied]";
+    const html = `<p>The target must attempt a @Check[will] save.</p><hr /><p><strong>Critical Success</strong> The creature is unaffected.</p><p><strong>Success</strong> The creature is unaffected.</p><p><strong>Failure</strong> The creature is ${stupefied}{Stupefied 1} until the end of your next turn.</p><p><strong>Critical Failure</strong> The creature is ${stupefied}{Stupefied 1} until the end of your next turn.</p>`;
+    const spell = { ...doc, type: "spell", system: { ...doc.system, description: { value: html }, level: { value: 1 }, heightening: undefined, time: { value: "1" }, area: null, target: { value: "1 creature" }, range: { value: "touch" }, defense: { save: { statistic: "will", basic: false } }, damage: {}, traits: { ...doc.system.traits, value: [...(doc.system.traits?.value ?? [])] } } };
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    if (!plan?.resolution || plan.resolution.kind !== "save") return null;
+    plan = { ...plan, trigger: { ...(plan.trigger ?? {}), event: "strike", attackEffect: "twin distraction" } };
+    const dc = dcsOf(host).class ?? 10 + level + 2;
+    const entry = { name: "Twin Distraction", plan, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool: null, effects: {} };
+    return { spells: [entry], pools: {}, gap: null, played: "Twin Feint (forced); both Strikes hit: a Will save or stupefied 1", twinFeint: { name: "Twin Feint", actions: 2, strikes: [null, null], sameTarget: true, secondOffGuard: true, bothHit: { conditions: [], damage: [], affliction: "twin distraction" } } };
+}
+
 function stunningBlowsEntry(doc, level, host) {
     if (slugOf(doc) !== "stunning-blows") return null;
     const flurry = (host.multiStrikes ?? []).find((entry) => entry.name === "Flurry of Blows");
@@ -503,6 +560,10 @@ const QUICKEN_ALL = {
     "plant-banner": (level) => ({ actions: 1, area: 30, rounds: 100, model: { tempHp: 4 * (1 + Math.floor(level / 4)) }, played: `${4 * (1 + Math.floor(level / 4))} temporary Hit Points` }),
     // (Sheltering Pulse: +1 status bonus to AC in a 15-foot emanation for 3 rounds — played around itself.)
     "sheltering-pulse": () => ({ actions: 2, area: 15, rounds: 3, model: { modifiers: [{ on: "ac", type: "status", value: 1 }] }, once: false, played: "+1 AC to allies near it for 3 rounds" }),
+    // (2026-11-05, the bard's composition focus spells the spell module doesn't cast: Lingering Composition's Courageous Anthem for 3
+    // rounds — its Performance check taken as a success, the free action and the anthem's one —; Fortissimo Composition's anthem at +2.)
+    "lingering-composition": () => ({ actions: 1, area: 60, rounds: 3, model: { modifiers: [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "status", value: 1 }] }, played: "Courageous Anthem for 3 rounds" }),
+    "fortissimo-composition": () => ({ actions: 1, area: 60, rounds: 1, model: { modifiers: [{ on: "attack", type: "status", value: 2 }, { on: "damage", type: "status", value: 2 }] }, played: "Courageous Anthem at +2 for a round" }),
     "orchards-endurance": (level) => ({ actions: 1, area: 10, rounds: 100, model: { resistances: ["bludgeoning", "piercing"].map((type) => ({ type, value: 5 + 2 * Math.max(0, Math.floor((level - 14) / 4)), exceptions: [] })) }, played: "resistance to bludgeoning and piercing" })
 };
 function quickenAllEntry(doc, level) {
@@ -586,12 +647,40 @@ function skillAttackEntry(doc, level, host) {
 // more.) Intimidating Spell: an area damage spell's failure frightened 1, critical failure frightened 2. Burning Spell: a single-target
 // non-cantrip damage spell's persistent fire of its rank. Reverberating Spell: an area non-cantrip damage spell's extra 1d8 sonic (its
 // deafened isn't played).
+const ROUND = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "effect-start", sourceText: "for 1 round" };
 const SPELLSHAPES = {
     "intimidating-spell": { area: true, conditions: { failure: ["frightened", 1], criticalFailure: ["frightened", 2] } },
     "burning-spell": { area: false, nonCantrip: true, extra: (rank) => ({ formula: String(rank), type: "fire", category: "persistent" }) },
-    "reverberating-spell": { area: true, nonCantrip: true, extra: () => ({ formula: "1d8", type: "sonic", category: null }) }
+    "reverberating-spell": { area: true, nonCantrip: true, extra: () => ({ formula: "1d8", type: "sonic", category: null }) },
+    // (2026-11-05, the real gaps: more spellshapes whose rider is a condition on a failed save.) Dizzying Spell: a single-target Will spell's
+    // failure stupefied 2, critical failure stupefied 3, for 1 round. Scintillating Spell: a Reflex spell with no duration (and no darkness):
+    // failure dazzled, critical failure blinded, for 1 round. Thunderclap Spell: an electricity spell with no duration: failure deafened for
+    // 1 round, critical failure deafened and prone.
+    "dizzying-spell": { save: "will", single: true, anyDamage: true, conditions: { failure: ["stupefied", 2, ROUND], criticalFailure: ["stupefied", 3, ROUND] } },
+    "scintillating-spell": { save: "reflex", anyArea: true, anyDamage: true, noTrait: "darkness", conditions: { failure: ["dazzled", null, ROUND], criticalFailure: ["blinded", null, ROUND] } },
+    "thunderclap-spell": { trait: "electricity", anyArea: true, conditions: { failure: ["deafened", null, ROUND], criticalFailure: [["deafened", null, ROUND], ["prone", null, null]] } }
 };
 function spellshapeEntry(doc, host) {
+    // (2026-11-06, Vampiric Spell: a copy of each of its 1- or 2-action damage spells, an action more — temporary Hit Points of half the
+    // most damage one creature took from it, for a minute; fight.js vampiric.)
+    if (slugOf(doc) === "vampiric-spell") {
+        const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? "")) && spell.plan?.resolution?.sharedDamage?.components?.length).map((spell) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, vampiric: true })).filter(castable);
+        return spells.length ? { spells, pools: {}, gap: null, played: `Vampiric Spell copies of ${spells.length} damage spell${spells.length > 1 ? "s" : ""}: temporary Hit Points of half the most damage dealt` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no damage spell of the PC's it shapes` } };
+    }
+    // (2026-11-06, Infuse Void: a copy of each of its damaging grave spells (its necromancer focus spells: Necrotic Bomb, Bone Spear — the
+    // packs' grave trait missing), an action more — each creature it damaged takes void damage of the spell's rank more; fight.js. Its Focus
+    // Point back on a kill isn't played.)
+    if (slugOf(doc) === "infuse-void") {
+        const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? "")) && spell.plan?.resolution?.sharedDamage?.components?.length && ["grave", "necromancer"].some((trait) => (spell.plan?.traits ?? []).includes(trait)) && (spell.plan?.traits ?? []).some((trait) => trait === "focus" || trait === "grave")).map((spell) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, infuseVoid: true })).filter(castable);
+        return spells.length ? { spells, pools: {}, gap: null, played: `Infuse Void copies of ${spells.length} grave spell${spells.length > 1 ? "s" : ""}: void damage of its rank more on each creature hurt` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no grave spell of the PC's it shapes` } };
+    }
+    // (2026-11-06, Forcible Energy: a copy of each of its 1- or 2-action acid, cold, electricity, fire or sonic damage spells, an action more —
+    // the creature it damaged most gets weakness 5 to that type to the end of the wizard's next turn; fight.js forcible.)
+    if (slugOf(doc) === "forcible-energy") {
+        const energies = ["acid", "cold", "electricity", "fire", "sonic"];
+        const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? ""))).map((spell) => [spell, (spell.plan?.resolution?.sharedDamage?.components ?? []).map((part) => part.type).find((type) => energies.includes(type))]).filter(([, type]) => type).map(([spell, type]) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, forcible: type })).filter(castable);
+        return spells.length ? { spells, pools: {}, gap: null, played: `Forcible Energy copies of ${spells.length} energy spell${spells.length > 1 ? "s" : ""}: weakness 5 on the creature hurt most` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no energy spell of the PC's it shapes` } };
+    }
     const shape = SPELLSHAPES[slugOf(doc)];
     if (!shape) return null;
     const spells = [];
@@ -599,8 +688,14 @@ function spellshapeEntry(doc, host) {
         const resolution = spell.plan?.resolution;
         const time = String(spell.plan?.activation?.time ?? "");
         const area = spell.plan?.targeting?.area;
-        if (resolution?.kind !== "save" || !resolution.sharedDamage?.components?.length || !["1", "2"].includes(time) || spell.kind) continue;
-        if (shape.area ? !area : area || !/^1 /.test(String(spell.plan?.targeting?.target ?? ""))) continue;
+        if (resolution?.kind !== "save" || (!shape.anyDamage && !resolution.sharedDamage?.components?.length) || !["1", "2"].includes(time) || spell.kind) continue;
+        const single = /^1 creature\b/.test(String(spell.plan?.targeting?.target ?? "")) && !/plus|additional/.test(String(spell.plan?.targeting?.target ?? ""));
+        if (shape.single ? area || !single : !shape.anyArea && (shape.area ? !area : area || !/^1 /.test(String(spell.plan?.targeting?.target ?? "")))) continue;
+        const traits = spell.plan?.traits ?? [];
+        if (shape.save && resolution.check?.statistic !== shape.save) continue;
+        if (shape.trait && !traits.includes(shape.trait) && !(resolution.sharedDamage?.components ?? []).some((part) => part.type === shape.trait)) continue;
+        if (shape.noTrait && traits.includes(shape.noTrait)) continue;
+        if (shape.save === "reflex" || shape.trait) if (Object.values(resolution.outcomes ?? {}).some((row) => (row?.effects ?? []).some((effect) => effect.duration?.unit === "minutes"))) continue;
         if (shape.nonCantrip && !spell.pool) continue;
         const outcomes = structuredClone(resolution.outcomes ?? {});
         let sharedDamage = resolution.sharedDamage;
@@ -609,7 +704,10 @@ function spellshapeEntry(doc, host) {
             sharedDamage = { ...sharedDamage, components: [...sharedDamage.components, { id: "spellshape", formula: part.formula, type: part.type, category: part.category, applyModifier: false, kinds: ["damage"], materials: [] }] };
             for (const row of Object.values(outcomes)) if (row?.damage?.mode === "shared" && row.damage.multiplier > 0) row.damage.sourceComponentIds = [...(row.damage.sourceComponentIds ?? []), "spellshape"];
         }
-        for (const [degree, [slug, value]] of Object.entries(shape.conditions ?? {})) if (outcomes[degree]) outcomes[degree].effects = [...(outcomes[degree].effects ?? []), { kind: "condition", slug, name: slug, value, duration: null, source: doc.name }];
+        for (const [degree, list] of Object.entries(shape.conditions ?? {})) {
+            if (!outcomes[degree]) continue;
+            for (const [slug, value, duration] of Array.isArray(list[0]) ? list : [list]) outcomes[degree].effects = [...(outcomes[degree].effects ?? []), { kind: "condition", slug, name: slug, value, duration: duration ?? null, source: doc.name }];
+        }
         const plan = { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(time) + 1) }, resolution: { ...resolution, sharedDamage, outcomes } };
         const entry = { ...spell, name: `${spell.name} (${doc.name})`, plan, effects: shape.conditions ? spellPack.effectModels(plan, spell.castRank ?? 1) : spell.effects };
         if (castable(entry)) spells.push(entry);
@@ -698,14 +796,21 @@ function acReactionEntry(doc, builtins) {
     const html = String(doc.system?.description?.value ?? "");
     const trigger = /<strong>\s*Trigger\s*<\/strong>\s*([^<]*)/i.exec(html)?.[1]?.trim().replace(/\.$/, "") ?? "";
     const bonus = /\+(\d) circumstance bonus to (?:your )?AC against (?:the )?(?:triggering|that) (?:attack|Strike)/i.exec(html);
-    if (!bonus) return null;
+    // (2026-11-05: "The triggering attack roll targets your Perception/Survival DC instead of your AC" — Foresee Danger, Sense the Strike.)
+    const instead = /attack(?: roll)? targets your (Perception|[A-Z][a-z]+) DC instead of your AC/.exec(html.replace(/<[^>]+>/g, ""));
+    if (!bonus && !instead) return null;
     // (Dodge Away's "You are the target of a melee attack", Cut From the Air's "… a physical ranged Strike", Inked Panoply's "A creature
     // targets you with an attack, and you can see the attacker".)
-    const targeted = /^(?:An? (?:enemy|creature|foe|opponent)(?: you can see| you're observing| you are observing)? (?:targets you with|attempts) an? (melee |ranged )?(?:weapon )?(?:Strike|attack)(?: against you)?|You are targeted (?:with|by) an? (melee |ranged )?(?:Strike|attack)(?: by an? (?:observed )?(?:attacker|enemy|creature))?|An? creature targets you with an attack,? and you can see the attacker|You(?:'re| are) the target of an? (?:physical )?(melee |ranged )?(?:Strike|attack)|An? (?:enemy|creature|foe) within your reach targets you with an? (melee )?(?:Strike|attack),? and you(?:'re| are) aware of the attack)$/i.exec(trigger);
+    const targeted = /^(?:An? (?:enemy|creature|foe|opponent)(?: you can see| you're observing| you are observing)? (?:targets you with|attempts) an? (melee |ranged )?(?:weapon )?(?:Strike|attack)(?: against you)?|You are targeted (?:with|by) an? (melee |ranged )?(?:Strike|attack)(?: by an? (?:observed )?(?:attacker|enemy|creature))?|An? creature targets you with an attack,? and you can see the attacker|An? creature you can see targets you with an attack against your AC|You(?:'re| are) the target of an? (?:physical )?(melee |ranged )?(?:Strike|attack)|An? (?:enemy|creature|foe) within your reach targets you with an? (melee )?(?:Strike|attack),? and you(?:'re| are) aware of the attack)$/i.exec(trigger);
     const hit = /^An? (?:enemy|creature|foe) hits you with an? (melee |ranged )?(?:Strike|attack)$/i.exec(trigger);
     const read = targeted ?? hit;
     if (!read) return null;
     const kind = (read[1] ?? read[2] ?? read[3] ?? read[4] ?? "").trim();
+    if (instead && !bonus) {
+        if (!targeted) return null;
+        builtins.acReaction = { value: 0, dcInstead: instead[1].toLowerCase(), when: "targeted", name: doc.name, ...(kind ? { against: kind } : {}) };
+        return { spells: [], pools: {}, gap: null, played: `its ${instead[1]} DC in place of its AC as it's targeted (reaction, when higher)` };
+    }
     builtins.acReaction = { value: Number(bonus[1]), when: targeted ? "targeted" : "hit", name: doc.name, ...(kind ? { against: kind } : {}) };
     return { spells: [], pools: {}, gap: null, played: `+${bonus[1]} AC as a reaction ${targeted ? "when targeted" : "against a hit"}${kind ? ` (${kind})` : ""}` };
 }
@@ -767,7 +872,9 @@ function inlineSaveEntry(doc, level, host) {
     // (2026-11-03, Elemental Explosion's "You're raging, and you haven't used this ability since you last Raged": while raging, once a
     // fight — a Rage lasts it.)
     const raging = /^You(?:'re| are) raging\b/i.test(requirementText(doc) ?? "") && (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage");
-    if ((doc.system?.actionType?.value ?? "passive") !== "action" || !(raging || alwaysMet(doc))) return null;
+    // (2026-11-06, Exult in Violence's "You critically hit an enemy this turn": after a critical hit this turn — the planner's check.)
+    const afterCrit = /^You critically hit an enemy this turn/i.test(requirementText(doc) ?? "");
+    if ((doc.system?.actionType?.value ?? "passive") !== "action" || !(raging || afterCrit || alwaysMet(doc))) return null;
     // (2026-11-03, Deep Freeze: an inventor's Unstable Function — a bigger version with its own risk — isn't the action's own.)
     const html = String(doc.system?.description?.value ?? "").split(/Unstable Function/)[0];
     const template = /@Template\[(?:type:)?(\w+)\|distance:(\d+)/.exec(html);
@@ -795,7 +902,7 @@ function inlineSaveEntry(doc, level, host) {
     const castRank = Math.max(1, Math.ceil(level / 2));
     const uses = Number(doc.system?.frequency?.max) || (raging ? 1 : 0);
     const pool = uses ? `feat:${doc._id}` : null;
-    const entry = { name: doc.name, plan: raging ? { ...plan, requires: "raging" } : plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+    const entry = { name: doc.name, plan: raging ? { ...plan, requires: "raging" } : afterCrit ? { ...plan, requires: "crit-this-turn" } : plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
     if (!castable(entry)) return null;
     return { spells: [entry], pools: pool ? { [pool]: uses } : {}, gap: null, played: `inline save: ${template ? `${template[2]}-foot ${template[1]}` : `1 creature, ${reach.range}`}, ${check[1]}${damage ? `, ${damage.formula} ${damage.type}` : ""} (DC ${dc}${uses ? `, ${uses}/fight` : ""})` };
 }
@@ -879,10 +986,10 @@ function focusSpellEntry(doc, level, host) {
         }
         // (2026-11-03: Lay on Hands, whose compiled plan says "unsupported" but which the engine heals with as it does a champion's — spells.js
         // reads its healing from the text. Not other unsupported ones: Heal Companion went to the wizard.)
-        if (!plan?.resolution || plan.resolution.kind === "no-effect" || (plan.resolution.kind === "unsupported" && spell.name !== "Lay on Hands")) continue;
+        if (!plan?.resolution || plan.resolution.kind === "no-effect" || (plan.resolution.kind === "unsupported" && !["Lay on Hands", "Heal Companion"].includes(spell.name))) continue;
         const cantrip = (spell.system?.traits?.value ?? []).includes("cantrip");
         const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan, castRank, dc, attack: dc - 10, pool: cantrip ? null : pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
-        if (castable(entry)) entries.push(entry);
+        if (castable(entry) || reactionWired(entry)) entries.push(entry);
     }
     if (!entries.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
     const pools = entries.some((entry) => entry.pool) ? { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) } : {};
@@ -891,11 +998,114 @@ function focusSpellEntry(doc, level, host) {
 
 // (2026-11-03, the class feats no fight played: passives that change a class feature, read by hand where neither the feat module nor PF2e's
 // rules have anything — the builtins they put on the PC.)
+// (2026-11-05: a HAND Strike activity — the feat-abilities strike-activity plan, its rider on top.)
+const simplePoison = (level, dice) => ({ name: "Poison Weapon", featForced: true, actions: 1, doses: level, damage: `${dice}[poison]`, spell: { name: "simple poison", plan: null, castRank: 1, dc: null, attack: null, pool: null, kind: "ability" } });
+const strikeRider = ({ onHit = {}, ...rest } = {}) => ({ builtin: "strike-activity", actions: 1, strides: 0, strike: null, ...rest, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null, ...onHit } });
+
+// (2026-11-05, the kineticist's kinetic aura: a stance impulse that works in it — a 10-foot emanation about the kineticist that moves with
+// it and lasts the fight (zones.js: the creatures in its Melee). Its effect on the PC and its allies inside (model), the damage a foe
+// takes as it starts its turn there (start) or moves in (enter). One action, once — its stance kept up. What it does only after a move
+// action, its heals on a critical, and the Shock rune aren't played.)
+// A save plan on Fear's compiled shape: its statistic, a condition on a failure and on a critical failure (Winter Sleet's prone).
+function conditionSavePlan(doc, statistic, failure, criticalFailure, success = null) {
+    const fear = spellPack.spellNamed("Fear");
+    let base;
+    try {
+        base = fear && spellPack.compileSpell(fear);
+    } catch {
+        base = null;
+    }
+    if (!base?.resolution?.outcomes?.failure) return null;
+    const row = (condition) => ({ ...structuredClone(base.resolution.outcomes.failure), effects: condition ? [{ kind: "condition", slug: condition[0], name: condition[0], value: condition[1], duration: condition[2] ?? null, source: doc.name }] : [], rawText: "" });
+    return { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], heightening: null, resolution: { ...base.resolution, check: { ...base.resolution.check, statistic }, outcomes: { criticalSuccess: row(null), success: row(success), failure: row(failure), criticalFailure: row(criticalFailure) } } };
+}
+
+function kineticAura(doc, { model = null, start = null, enter = null, saves = null, castAs = null, played }) {
+    const uuid = `feat:${doc._id}:aura`;
+    const zone = { area: { type: "emanation", value: 10 }, lasts: null, ...(start ? { damage: [{ when: "start", formulas: [start] }] } : {}), ...(enter ? { hazard: { formulas: [enter] } } : {}), ...(model ? { effect: { allies: true, uuid, label: doc.name } } : {}), ...(saves ? { saves } : {}), ...(castAs ? { castAs } : {}) };
+    const effectModel = model ? { name: doc.name, rounds: 100, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...model } : null;
+    const entry = zoneSpell(doc.name, { builtin: "zone", actions: 1, trigger: { event: "use" }, zone }, effectModel ? { effectModel } : {});
+    if (!entry) return null;
+    entry.plan = { ...entry.plan, traits: [...(doc.system?.traits?.value ?? [])] };
+    return { builtins: {}, spells: [{ ...entry, featForced: true }], played: `${played} in its 10-foot kinetic aura (stance, the fight)` };
+}
+
+function armorImpulse(level, { item, cap, speed }) {
+    const dex = level >= 20 ? 4 : level >= 10 ? 3 : 2;
+    const gain = item + Math.min(dex, cap) - (2 + Math.min(dex, 3));
+    return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, model: { rounds: 100, modifiers: [...(gain ? [{ on: "ac", type: "item", value: gain }] : []), { on: "speed", type: "untyped", value: speed }] } }], played: `its impulse armor for the fight: ${gain >= 0 ? "+" : ""}${gain} AC, ${speed} feet Speed (1 action)` };
+}
+
+// (2026-11-06, thralls as bodies: a necromancer's focus spell cast through one of its thralls — thralls.js; destroyed when it says so;
+// once a fight, its one focus point.)
+const ONE_ROUND = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" };
+function thrallFocus(doc, level, host, entry, { destroyed, actions = 2 } = {}) {
+    if (!entry) return null;
+    const dc = dcsOf(host).spell ?? 10 + level + 2 + 4;
+    const pool = `feat:${doc._id}`;
+    return { ...entry, name: entry.name ?? doc.name, castRank: Math.max(1, Math.ceil(level / 2)), dc: entry.dc ?? dc, attack: entry.attack ?? dc - 10, pool, featForced: true,
+        plan: { ...entry.plan, activation: { ...(entry.plan.activation ?? {}), time: String(actions) }, targeting: { ...entry.plan.targeting, thrall: { destroyed: Boolean(destroyed) } } } };
+}
+function thrallSaveSpell(doc, level, host, statistic, outcomes, played, actions = 2) {
+    const plan = conditionSavePlan(doc, statistic, outcomes.failure, outcomes.criticalFailure, outcomes.success);
+    const entry = plan && thrallFocus(doc, level, host, { name: doc.name, plan, effects: {} }, { destroyed: true, actions });
+    if (!entry || !castable(entry)) return null;
+    return { builtins: {}, spells: [entry], pools: { [entry.pool]: 1 }, played: `${played} (its focus spell, a thrall destroyed, once a fight)` };
+}
+function thrallAllySpell(doc, level, host, { model, rounds, destroyed, played }) {
+    const fake = { _id: doc._id, name: doc.name, type: "feat", system: { slug: `thrall-${slugOf(doc)}`, actionType: { value: "action" }, actions: { value: 2 }, traits: { value: ["concentrate", "manipulate"] }, description: { value: "<p>Choose an ally within 30 feet.</p>" } } };
+    ALLY_BUFFS[fake.system.slug] = () => ({ feet: 30, model, rounds, played });
+    const read = allyEffectEntry(fake, level);
+    const entry = read?.spells?.[0] && thrallFocus(doc, level, host, read.spells[0], { destroyed });
+    if (!entry) return null;
+    return { builtins: {}, spells: [entry], pools: { [entry.pool]: 1 }, played: `${played} (its focus spell${destroyed ? ", a thrall destroyed" : ""}, once a fight)` };
+}
+
 const HAND = {
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
     // A melee critical hit's extra weapon die (not doubled) and persistent bleed of two of its dice.
     // (A frightened creature off-guard to the PC — actions.js.)
+    // (2026-11-04: a Strike, then its target off-guard to the next one this turn — the Step to its other side not played.)
+    "murderers-circle": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, offGuardNext: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a Strike, then the target off-guard to the next one this turn" }),
+    // (2026-11-04: ranged Strikes that ignore the target's concealment and cover — Targeting Shot at the hunted prey, a press; Incredible
+    // Ricochet, a press (at a creature attacked this turn, not checked here); Homing Shot.)
+    "targeting-shot": () => ({ requires: "You are wielding a bow.", builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", press: true, unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged press Strike ignoring concealment and cover" }),
+    "incredible-ricochet": () => ({ requires: "You are wielding a bow.", builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", press: true, unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged press Strike ignoring concealment and cover" }),
+    "homing-shot": () => ({ requires: "You are wielding a bow.", builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", unerring: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged Strike ignoring concealment and cover" }),
+    // (2026-11-04: a ranged Strike whose failure still deals one weapon die; a press Strike at a prone creature with a circumstance bonus
+    // of its weapon dice — PF2e's rules on Advantageous Assault hold the bonus; grabbed and restrained targets aren't counted here.)
+    "flesh-wound": () => ({ requires: "You are wielding a bow.", builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, range: "ranged", failureDice: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged Strike whose failure deals a weapon die" }),
+    "advantageous-assault": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, press: true, requires: "prone", damagePerWeaponDie: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a press Strike at a prone foe, + its weapon dice in damage" }),
+    // (2026-11-04: Deflect Projectile, and a deflected ranged attack thrown back at the attacker.)
+    "projectile-snatching": () => ({ builtins: { acReaction: { value: 4, when: "targeted", name: "Deflect Projectile", against: "ranged", snatch: true } }, played: "Deflect Projectile, a deflected attack thrown back (reaction)" }),
+    // (2026-11-04, reactions' Strikes: a riposte on a critical miss with the Aldori dueling sword; a ranged Strike when an ally's ranged
+    // Strike hits (–2), or with +2 when an ally — the spotter — critically hits.)
+    "aldori-riposte": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a riposte Strike on a critical miss (reaction)" }),
+    "target-of-opportunity": () => ({ builtins: { reactionStrikes: [{ name: "Target of Opportunity", triggers: ["ally-hit"], allyRanged: true, ranged: true, strike: "", penalty: 2, disrupts: false }] }, played: "a ranged Strike (–2) when an ally's ranged Strike hits (reaction)" }),
+    "exploit-opening": () => ({ builtins: { reactionStrikes: [{ name: "Exploit Opening", triggers: ["ally-hit"], critOnly: true, ranged: true, strike: "", penalty: -2, disrupts: false }] }, played: "a ranged Strike (+2) when an ally critically hits (reaction)" }),
+    // (2026-11-05: Debilitating Strike's debilitation as clumsy 1 — the other new one, weakness 5 to a physical type, the engine has no
+    // condition for; Tactical Debilitations' no reactions, as its conditions don't.)
+    "tactical-debilitations": () => ({ builtins: { debilitation: { lockReactions: true } }, played: "Debilitating Strike's no reactions in place of enfeebled 1" }),
+    // (2026-11-05, Precise Debilitations: off-guard in its place — what helps the rogue's own sneak attack and its allies; its other one,
+    // 2d6 more precision from its attacks, isn't played.)
+    "precise-debilitations": () => ({ builtins: { debilitation: { slug: "off-guard", value: null } }, played: "Debilitating Strike's off-guard in place of enfeebled 1" }),
+    // (2026-11-06, Enduring Debilitation: once a fight, a debilitation lasts a minute — its conditions'; bleed and no-reactions as before.)
+    "enduring-debilitation": () => ({ builtins: { enduringDebilitation: true }, played: "its first debilitation a fight lasts a minute (free action)" }),
+    "vicious-debilitations": () => ({ builtins: { debilitation: { slug: "clumsy", value: 1 } }, played: "Debilitating Strike's clumsy 1 in place of enfeebled 1" }),
+    // (2026-11-05: 2d6 more precision on its next sneak attack this turn, 3d6 at 11th, 4d6 at 17th — a self-effect for its next Strike
+    // whose dice count only at an off-guard target, offGuardOnly. The Recall Knowledge it needs first isn't played: taken as known.)
+    "analyze-weakness": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, offGuardOnly: true, damage: [`${level >= 17 ? 4 : level >= 11 ? 3 : 2}d6[precision]`], model: { rounds: 1 } }], played: "+2d6 precision on its next sneak attack (1 action)" }),
+    // (2026-11-05: raging, straight after a melee Strike that missed, a Strike with backswing — +1, after that miss — and forceful — its
+    // weapon dice in damage as its second attack, taken as that.)
+    "follow-up-assault": () => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 1, strides: 0, strike: null, requires: "raging", after: { on: ["failure", "criticalFailure"], melee: true }, attackBonus: 1, damagePerWeaponDie: 1, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "after a missed melee Strike, raging: a Strike +1 with its weapon dice in damage" }),
+    // (2026-11-05: three actions, a ranged Strike at maximum damage, then its turn ends. Hunted prey and the not-reloaded-since-last-turn
+    // requirement aren't checked.)
+    "perfect-shot": () => ({ requires: "You are wielding a loaded ranged weapon.", builtins: {}, plans: [{ builtin: "strike-activity", actions: 3, strides: 0, strike: null, range: "ranged", maxDice: true, endsTurn: true, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null } }], played: "a ranged Strike at maximum damage, then its turn ends (3 actions)" }),
+    // (Its full sneak attack, 4d6 at 17th, on a hit at a creature that isn't off-guard.)
+    "impossible-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 17 ? 4 : level >= 11 ? 3 : level >= 5 ? 2 : 1, die: 6, precision: true, type: null, source: "Impossible Striker" }] }, played: "full sneak attack on a creature that isn't off-guard (always on)" }),
+    // (No flat check against a concealed target, DC 5 against a hidden one, and not off-guard to hidden creatures — sight.js blindFought.)
+    "blind-fight": () => ({ builtins: { blindFight: true }, played: "concealed and hidden targets easier to hit, not off-guard to hidden foes (always on)" }),
     "dread-striker": () => ({ builtins: { dreadStriker: true }, played: "frightened foes are off-guard to it (always on)" }),
     // (Reactive Strike, as a fighter's.)
     "reactive-striker": () => ({ builtins: { reactions: { aoo: true } }, played: "Reactive Strike" }),
@@ -1002,6 +1212,15 @@ const HAND = {
     // (Resistance of its level to an enemy's acid, bludgeoning, fire or slashing damage — its double against acid or fire isn't played.)
     "deflecting-wave": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: level, on: ["acid", "bludgeoning", "fire", "slashing"], foe: true }], played: `resistance ${level} to an enemy's acid, bludgeoning, fire or slashing damage (reaction)` }),
     // (A stance with its shield always raised — the engine's shieldUp, its shield's bonus without Raise a Shield each turn.)
+    // (2026-11-06, Covering Stance: lesser cover for an adjacent ally at the end of each of its turns — fight.js; its Step after an Intercept
+    // Attack isn't played.)
+    "covering-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { coversAlly: true } }], played: "stance: an adjacent ally gets lesser cover (+1 AC) until its next turn" }),
+    // (2026-11-06, Multishot Stance: Double Shot at −1 in the stance (with Double Shot on both sides; fight.js); ending it on a move isn't
+    // played.)
+    // (2026-11-06, Triple Shot: Double Shot at one foe too, and three ranged Strikes for 3 actions at –4 each, one multiple attack penalty —
+    // with Double Shot on both sides.)
+    "triple-shot": () => ({ builtins: { multiStrikes: [{ name: "Double Shot", actions: 2, strikes: ["ranged", "ranged"], sameMap: true, flourish: true, penalty: 2, featForced: true }, { name: "Triple Shot", actions: 3, strikes: ["ranged", "ranged", "ranged"], sameMap: true, flourish: true, penalty: 4, featForced: true }] }, played: "Double Shot at one foe, or three ranged Strikes at –4 each (3 actions)" }),
+    "multishot-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: {} }], played: "stance: Double Shot's penalty −1 (from −2)" }),
     "paragons-guard": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its shield always raised" }),
     "buckler-dance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its buckler always raised" }),
     // (Harden Flesh: resistance 3 to physical damage, but adamantine, until its next turn; +1 at 12th level and every 4 after. Its earthen
@@ -1042,11 +1261,87 @@ const HAND = {
     // (Reflexive Courage: a Reactive Strike's triggers — move, manipulate, a ranged attack — while Courageous Anthem is on it; the auditory
     // effect trigger isn't played.)
     "reflexive-courage": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["move", "manipulate", "ranged"], strike: null, penalty: 0, disrupts: false, melee: true, requiresEffect: "Spell Effect: Courageous Anthem" }], played: "a Reactive Strike while Courageous Anthem is on it" }),
+    // (2026-11-05, Channel Smite: a melee Strike that, on a hit, deals a 1-action harm at its highest rank — the save failed, a critical
+    // failure on a critical hit: its d8s doubled. The font spell it spends isn't counted, nor a target harm would heal.)
+    "channel-smite": (level) => ({ builtins: {}, plans: [{ builtin: "strike-activity", actions: 2, strides: 0, strike: null, onHit: { conditions: [], critical: null, push: null, damage: [`${Math.ceil(level / 2)}d8[void]`], save: null, size: null } }], played: "a melee Strike with a 1-action harm on the hit (2 actions)" }),
+    // (2026-11-05, Haft Beatdown: four Strikes for 3 actions, once a fight — the first two at its current multiple attack penalty, the
+    // next two one step worse (5, taken as not agile). Haft Striker Stance isn't checked.)
+    "haft-beatdown": () => ({ builtins: {}, plans: [{ builtin: "multi-strike", actions: 3, strikes: [null, null, null, null], sameTarget: true, sameMap: true, penalties: [0, 0, 5, 5], countsAs: 4, oncePerFight: true }], played: "four Strikes, two at its penalty and two one step worse (3 actions, once a fight)" }),
+    // (2026-11-05, Great Cleave: Cleave goes on while each Strike drops its creature — fight.js. Its Cleave is played with it, as the
+    // rating's barbarian doesn't have it; rage not checked.)
+    "great-cleave": () => ({ builtins: { greatCleave: true, reactionStrikes: [{ name: "Cleave", triggers: ["downs"], strike: null, penalty: 0, disrupts: false }] }, played: "Cleave, going on while each Strike drops its creature (reaction)" }),
+    // (2026-11-05, Nimble Strike: Nimble Dodge's +2 AC as it's targeted, and a melee Strike back with no multiple attack penalty.)
+    "nimble-strike": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Nimble Dodge", strikeBack: "Nimble Strike" } }, played: "Nimble Dodge, then a melee Strike at the attacker (reaction)" }),
+    // (2026-11-05, Shield Warden: its Shield Block for an adjacent ally — actions.js wardenBlocks.)
+    "shield-warden": () => ({ builtins: { shieldWarden: true }, played: "Shield Block for an adjacent ally (reaction)" }),
+    // (2026-11-05, Not So Fast!: a melee Strike at a creature leaving a square in its reach — the engine's "move" trigger. Its Speed
+    // penalty isn't played, nor is Hampering Stance checked.)
+    "not-so-fast": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["move"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a reaction Strike at a creature moving out of its reach" }),
     // (Clinch Strike: an unarmed Strike on a creature that escapes its grab — the engine's "escaped" trigger.)
     "clinch-strike": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["escaped"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a reaction Strike on a creature that escapes its grab" }),
     // (Consume Power: resistance its level to acid, electricity, fire or sonic damage it would take — the engine's resist-damage on those
     // types; the energy it holds for an impulse isn't played.)
     "consume-power": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: level, on: ["acid", "electricity", "fire", "sonic"] }], played: "resistance its level to acid, electricity, fire or sonic damage (reaction)" }),
+    // (Call the Hunt: its hunted prey off-guard to everyone's melee attacks while it and an ally reach it, until its next turn — played as
+    // off-guard to all, at a foe in its reach; its sanctification isn't.)
+    "call-the-hunt": () => {
+        const entry = offGuardToMeEntry("Call the Hunt", { range: "touch", traits: [], everyone: true });
+        return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe in its reach off-guard to all until its next turn (1 action)" } : null;
+    },
+    // (Invented Vulnerability: Deception against the target's Will, weakness 5 for a round on a success, 3 + half its level on a critical
+    // one — to the PC's own Strike's damage type, the one it picks. Once a fight at a target; the feat module's plan, its Effect read here.)
+    "invented-vulnerability": (level, host) => {
+        const doc = [...docsOf(`${PACK_ROOT}/feats`).values()].find((each) => each.name === "Invented Vulnerability");
+        const plan = doc && compileFeat(doc, { dcs: dcsOf(host ?? {}), basicActions, itemReaders });
+        if (plan?.resolution?.kind !== "check") return null;
+        const type = (host?.strikes ?? []).find((strike) => strike.melee)?.damage?.[0]?.type ?? "slashing";
+        const weak = (value) => ({ name: "Invented Vulnerability", rounds: 1, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [{ type, value }], immunities: [], conditions: [], unsupported: [], situational: 0 });
+        const uuid = (degree) => `feat:invented-vulnerability:${degree}`;
+        const outcomes = structuredClone(plan.resolution.outcomes);
+        for (const degree of ["criticalSuccess", "success"]) outcomes[degree] = { ...outcomes[degree], nativeEffects: [{ kind: "native-spell-effect", uuid: uuid(degree) }], manualInstructions: [] };
+        const entry = { name: "Invented Vulnerability", plan: { ...plan, resolution: { ...plan.resolution, outcomes } }, castRank: 1, dc: null, attack: null, pool: "feat:invented-vulnerability", kind: "ability", actionType: "action", rechargeGroup: "Invented Vulnerability", feat: true, effects: { [uuid("criticalSuccess")]: weak(3 + Math.floor(level / 2)), [uuid("success")]: weak(5) } };
+        return { builtins: {}, plans: [], spells: [entry], pools: { "feat:invented-vulnerability": 1 }, played: `Deception against Will: weakness 5 to ${type} for a round (1 action, once a fight)` };
+    },
+    // (2026-11-05, the champion's reaction riders on a critical hit: Instrument of Zeal's die and slowed 1, Instrument of Slaughter's bleed.)
+    "instrument-of-zeal": () => ({ builtins: { championReaction: { zeal: true } }, played: "its champion's reaction Strike: a critical hit's extra die and slowed 1" }),
+    "instrument-of-slaughter": () => ({ builtins: { championReaction: { slaughter: true } }, played: "its champion's reaction Strike: a critical hit's persistent bleed" }),
+    // (Body Shield: +2 AC against an attack, a thrall thrown in the way — its resistance on a hit, and the thrall lost, aren't played.)
+    "body-shield": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Body Shield" } }, played: "+2 AC against an attack (reaction)" }),
+    // (Guardian taunts: Group Taunt's three foes at once; Shielding Taunt's raised shield with it — the guardian's Taunt, fight.js.)
+    "group-taunt": () => ({ builtins: { taunt: { name: "Taunt", max: 3 } }, played: "Taunt at up to three foes" }),
+    "shielding-taunt": () => ({ requires: "You are wielding a shield", builtins: { taunt: { name: "Taunt", raise: true } }, played: "Taunt that raises its shield" }),
+    // (Raise a Tome: a book raised as a shield, +2 AC — no Shield Block.)
+    "raise-a-tome": () => ({ builtins: { shield: { ac: 2, hardness: 0, hp: 1, bt: 0, broken: false, raised: false, noBlock: true } }, played: "a book raised for +2 AC" }),
+    "quick-vengeance": () => ({ builtins: { quickVengeance: true }, played: "an extra action after its Intercept Attack or Shield Block" }),
+    "armored-counterattack": () => ({ builtins: { armoredCounterattack: true }, played: "a Strike back after its Intercept Attack, a Taunt on a hit (free)" }),
+    // (Shield of Grace, after Shield Warden: the damage left after its Shield Block for an ally split between them.)
+    "shield-of-grace": () => ({ builtins: { shieldWarden: true, shieldOfGrace: true }, played: "Shield Warden's block for an ally, the rest split with it" }),
+    // (Aura of Vengeance: allies' reaction Strikes at the champion's foe at −2, not −5 — the champion's Exalt, which the class here
+    // doesn't play, given with it.)
+    "aura-of-vengeance": () => ({ builtins: { championReaction: { exalted: { penalty: 2 } } }, played: "allies' reaction Strikes at −2 with its Retributive Strike (its Exalt with it)" }),
+    // (Shield Block, the general feat: the reaction, for a PC with a shield.)
+    // (On the cleric, whose loadout has no shield: a shield given with it, a champion's at its level.)
+    "shield-block": (level, host) => {
+        const hardness = level >= 13 ? 10 : level >= 7 ? 8 : 5;
+        return { builtins: { ...(host?.shield ? {} : { shield: { ac: 2, hardness, hp: hardness * 4, bt: hardness * 2, broken: false, raised: false } }), reactions: { shieldBlock: true } }, played: `Shield Block (reaction)${host?.shield ? "" : ", a shield with it"}` };
+    },
+    // (Battle Cry: a free Demoralize as the fight begins — champion.js championOpening —, and from 15th, legendary in Intimidation, its
+    // reaction Demoralize on a critical hit.)
+    "battle-cry": (level) => ({ builtins: { battleCry: { reaction: level >= 15 } }, played: `a free Demoralize as the fight begins${level >= 15 ? ", and one on a critical hit (reaction)" : ""}` }),
+    // (Diehard: dies at dying 5, not 4.)
+    "diehard": () => ({ builtins: { deathAt: 5 }, played: "dies at dying 5" }),
+    "bloody-debilitation": () => ({ builtins: { debilitation: { bleed: 3 } }, played: "Debilitating Strike's 3d6 persistent bleed in place of enfeebled 1" }),
+    // (2026-11-05, Heartless Debilitations: frightened 1 — its weakness 5 to bleed and poison isn't taken.)
+    // (2026-11-05, Poison Weapon: an Interact, then its next weapon hit deals a simple poison's 1d4 poison — its level in poisons a day;
+    // Improved and Deadly Poison Weapon: 2d4 and 4d4, rated with Poison Weapon, which they need.)
+    "poison-weapon": (level) => ({ builtins: { poisonWeapon: simplePoison(level, "1d4") }, played: "Poison Weapon: an Interact, then 1d4 poison on its next weapon hit" }),
+    "improved-poison-weapon": (level) => ({ builtins: { poisonWeapon: simplePoison(level, "2d4") }, played: "Poison Weapon with 2d4 poison (Poison Weapon with it)" }),
+    "deadly-poison-weapon": (level) => ({ builtins: { poisonWeapon: simplePoison(level, "4d4") }, played: "Poison Weapon with 4d4 poison (Poison Weapon with it)" }),
+    "heartless-debilitations": () => ({ builtins: { debilitation: { slug: "frightened", value: 1 } }, played: "Debilitating Strike's frightened 1 in place of enfeebled 1" }),
+    "eldritch-debilitations": () => ({ builtins: { debilitation: { slug: "stupefied", value: 1 } }, played: "Debilitating Strike's stupefied 1 in place of enfeebled 1" }),
+    "swift-retribution": () => ({ builtins: { swiftRetribution: true }, played: "an extra action after its champion's reaction" }),
+    "critical-debilitation": () => ({ builtins: { debilitation: { critSave: true } }, played: "on a critical hit, Debilitating Strike's Fortitude save: slowed 1, slowed 2 or paralyzed" }),
+    "guardians-intercept": (_level, host) => (host?.interceptAttack ? null : { builtins: { interceptAttack: { name: "Intercept Attack", once: true } }, played: "Intercept Attack, once a fight (reaction)" }),
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
@@ -1055,6 +1350,13 @@ const HAND = {
     // rage ends; a creature that hits it is off-guard to it until the end of its next turn, and its hits on that creature give temporary Hit
     // Points equal to its Constitution modifier — fight.js/actions.js answerHitters.)
     "come-and-get-me": (_level, host) => (host?.selfBuffs ?? []).some((buff) => buff.name === "Rage") ? ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, requires: "raging", model: { rounds: 10, modifiers: [{ on: "ac", type: "circumstance", value: -2 }], weaknesses: [{ type: "all-damage", value: 2 }], answerHitters: { tempHp: Number.isFinite(host.con) ? host.con : 4 } } }], played: "off-guard and +2 damage taken while raging; foes that hit it off-guard to it, temporary Hit Points as it hits them back" }) : null,
+    // (2026-11-04, the gap index: damage on a basic action's success — basicRiders, joinBuiltins.)
+    "crushing-grab": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["grapple"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Crushing Grab" }] }, played: "Strength damage on a successful Grapple (always on)" }),
+    "punishing-shove": (level, host) => ({ builtins: { basicRiders: [{ slugs: ["shove"], damage: `${Math.max(1, host?.abilities?.str ?? 4) + (level >= 15 ? 12 : level >= 7 ? 6 : level >= 3 ? 2 : 0)}[bludgeoning]`, criticalDouble: true, source: "Punishing Shove" }] }, played: "damage on a successful Shove (always on)" }),
+    "brutal-bully": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["disarm", "grapple", "reposition", "shove", "trip"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Brutal Bully" }] }, played: "Strength damage on a successful maneuver (always on; raging not checked)" }),
+    "agonizing-rebuke": (level) => ({ builtins: { basicRiders: [{ slugs: ["demoralize"], damage: `${level >= 15 ? 3 : level >= 7 ? 2 : 1}d4[mental]`, source: "Agonizing Rebuke" }] }, played: "mental damage on a successful Demoralize (always on; once, not each turn)" }),
+    // (2026-11-04, the gap index's batch 2: a larger foe's Trip — the rating's foes are often larger; 2d8 once a master in Athletics, 15th here.)
+    "the-harder-they-fall-kingmaker": (level) => ({ builtins: { basicRiders: [{ slugs: ["trip"], damage: `${level >= 15 ? 2 : 1}d8[bludgeoning]`, criticalDouble: true, source: "The Harder They Fall" }] }, played: "bludgeoning damage on a successful Trip (always on)" }),
     "brutal-beating": () => ({ builtins: { strikeExtras: [{ when: "critical", condition: { slug: "frightened", value: 1 }, source: "Brutal Beating" }] }, played: "frightened 1 on a critical hit (always on)" }),
     // (+2 AC to an ally in reach as an attack hits it — the engine's ally-ac-reaction, B182.)
     "guardians-deflection-fighter": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: "reach" }], played: "+2 AC to an ally in reach as it's hit (reaction)" }),
@@ -1062,6 +1364,516 @@ const HAND = {
     // (A failed Strike at it redirected to another creature in the attacker's reach — the engine's redirect-attack, B191.)
     "sidestep": () => ({ builtins: {}, plans: [{ builtin: "redirect-attack" }], played: "a missed Strike redirected (reaction)" }),
     // (+2 initiative and temporary Hit Points of half its level for allies within 20 feet; played as the initiative.)
+    // (2026-11-05: Scout's Warning, +1 to its allies' initiative as it rolls, a free action; Deflecting Shot, +2 AC to an ally its gun covers
+    // as it's hit.)
+    "scouts-warning": () => ({ builtins: {}, plans: [{ builtin: "initiative-warning", value: 1, free: true }], played: "+1 initiative to its allies (free action)" }),
+    "certain-stratagem": () => ({ builtins: { certainStratagem: true }, played: "half its strategic strike dice on a stratagem Strike's miss (always on)" }),
+    // (2026-11-05: Pact of Infernal Prowess, a critically failed save rerolled, the new result kept, a free action once a fight — its
+    // attack rolls and skill checks not played; Lucky Break, Cat's Luck's better-of-two on a failed Fortitude or Will save too.)
+    "pact-of-infernal-prowess": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, keep: "new", free: true, criticalOnly: true }], played: "a critically failed save rerolled (free, once a fight)" }),
+    "lucky-break": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, free: true }], played: "a failed save rerolled, the better kept (free, once a fight)" }),
+    "resounding-bravery": () => ({ builtins: { resoundingBravery: true }, played: "+1 to saves and temporary Hit Points on a critically successful Will save (doubled against fear)" }),
+    // (2026-11-05, Cole's pick "Companions in the simulator": an animal companion — companions.js — beside its master, a turn of its own;
+    // a feat that grows it fought against the master with the stage before.)
+    "animal-companion": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "animal-companion-ranger": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "beastmaster-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "animal-trainer-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "cavalier-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "faithful-steed": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "commanders-companion": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "mature-animal-companion-druid": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "mature-animal-companion-ranger": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "mature-beastmaster-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "mature-trained-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "impressive-mount": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "battle-tested-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "incredible-companion-druid": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "incredible-companion-ranger": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "incredible-beastmaster-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "incredible-mount": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "battle-hardened-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "specialized-companion-druid": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "specialized-companion-ranger": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "specialized-beastmaster-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "specialized-companion-animal-trainer": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "peerless-mascot-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    // (Companion feats on the companion it has — the party with one on both sides.)
+    "loyal-warhorse": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its animal companion mature (against one young)" }),
+    "imposing-destrier": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "auspicious-mount": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "splendid-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its animal companion incredible (against one mature)" }),
+    "spirit-companion": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its animal companion young (a bear, Commanded each turn)" }),
+    "specialized-mount": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its animal companion specialized (against one incredible)" }),
+    "companions-cry": () => ({ builtins: { companionActions: { master: 1, companion: 3 } }, played: "Commanded with 2 actions every turn: the companion's third action" }),
+    "side-by-side-druid": () => ({ builtins: { tandem: true }, played: "it and its companion flank a foe both are beside" }),
+    "side-by-side-ranger": () => ({ builtins: { tandem: true }, played: "it and its companion flank a foe both are beside" }),
+    "heightened-instincts": () => ({ builtins: { companionFields: { saveDegrees: [{ saves: ["fortitude", "reflex", "will"], adjustment: { success: "one-degree-better" } }] } }, played: "its companion's successful saves critical successes" }),
+    "tenacious-endurance": () => ({ builtins: { companionFields: { ferocityRule: { name: "Tenacious Endurance", hp: 1, wounded: true, free: true, uses: 1 } } }, played: "its companion stays up at 1 HP once (wounded 1)" }),
+    "ferocious-beasts": () => ({ builtins: { companionFields: { ferocityRule: { name: "Orc Ferocity", hp: 1, wounded: true, uses: 1 }, reactions: { ferocity: true } } }, played: "its companion's Orc Ferocity" }),
+    // (A construct, dragon, megafauna or undead companion: played with the bear's numbers at its stage — advanced as mature, paragon as
+    // specialized.)
+    "prototype-companion": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its companion young, the bear's numbers (Commanded each turn)" }),
+    "drake-rider-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its companion young, the bear's numbers (Commanded each turn)" }),
+    "mammoth-lord-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its companion young, the bear's numbers (Commanded each turn)" }),
+    "undead-master-dedication": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its companion young, the bear's numbers (Commanded each turn)" }),
+    "demon-hunting-companion": () => ({ builtins: { animalCompanion: { stage: "young" } }, played: "its companion young, the bear's numbers (Commanded each turn)" }),
+    "advanced-construct-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its companion mature, the bear's numbers (against one young)" }),
+    "let-my-creature-live": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its companion mature, the bear's numbers (against one young)" }),
+    "advanced-reanimated-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its companion mature, the bear's numbers (against one young)" }),
+    "mature-dragon-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its companion mature, the bear's numbers (against one young)" }),
+    "mature-megafauna-companion": () => ({ builtins: { animalCompanion: { stage: "mature", base: "young" } }, played: "its companion mature, the bear's numbers (against one young)" }),
+    "incredible-construct-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its companion incredible, the bear's numbers (against one mature)" }),
+    "behold-my-creation": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its companion incredible, the bear's numbers (against one mature)" }),
+    "incredible-reanimated-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its companion incredible, the bear's numbers (against one mature)" }),
+    "incredible-dragon-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its companion incredible, the bear's numbers (against one mature)" }),
+    "incredible-megafauna-companion": () => ({ builtins: { animalCompanion: { stage: "incredible", base: "mature" } }, played: "its companion incredible, the bear's numbers (against one mature)" }),
+    "paragon-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its companion specialized, the bear's numbers (against one incredible)" }),
+    "a-miracle-of-science": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its companion specialized, the bear's numbers (against one incredible)" }),
+    "paragon-reanimated-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its companion specialized, the bear's numbers (against one incredible)" }),
+    "specialized-megafauna-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its companion specialized, the bear's numbers (against one incredible)" }),
+    "specialized-spirit-companion": () => ({ builtins: { animalCompanion: { stage: "specialized", base: "incredible" } }, played: "its companion specialized, the bear's numbers (against one incredible)" }),
+    // (A summoner's eidolon — classes.js —: its evolutions. plus: added to the eidolon's own number.)
+    "resilient-shell": (level) => ({ builtins: { companionFields: { resistances: [{ type: "physical", value: level >= 17 ? 6 : 5, exceptions: [] }] } }, played: "its eidolon's resistance to physical damage" }),
+    "hulking-size": () => ({ builtins: { companionFields: { reach: 10, size: "large" } }, played: "its eidolon Large, reach 10 feet" }),
+    "towering-size": () => ({ builtins: { companionFields: { reach: 15, size: "huge" } }, played: "its eidolon Huge, reach 15 feet" }),
+    "alacritous-action": () => ({ builtins: { companionFields: { plus: { speed: 10 } } }, played: "its eidolon's Speed +10 feet" }),
+    "eidolons-retort": () => ({ builtins: { companionFields: { reactions: { aoo: true } } }, played: "its eidolon's Retort (a Reactive Strike)" }),
+    "ever-vigilant-senses": () => ({ builtins: { companionFields: { plus: { perception: 2 } } }, played: "its eidolon's +2 Perception" }),
+    // (A companion's activity — its own multi-Strike, used as often as it can, forced.)
+    "vicious-rend": (level) => ({ builtins: { companionFields: { multiStrikes: [{ name: "Vicious Rend", actions: 2, strikes: ["claw", "claw"], sameTarget: true, bothHit: { conditions: [], damage: [`${level >= 16 ? 2 : 1}d6[persistent,bleed]`] } }] } }, played: "its companion's Vicious Rend (two claws, bleed if both hit)" }),
+    "ferocious-charge": (level) => ({ builtins: { companionFields: { multiStrikes: [{ name: "Ferocious Charge", actions: 2, strikes: ["jaws"], strides: 2, extraDamage: [`${level >= 16 ? 2 : 1}d8[untyped]`] }] } }, played: "its companion's Ferocious Charge (two Strides and a Strike, +1d8)" }),
+    "running-kick": () => ({ builtins: { companionFields: { multiStrikes: [{ name: "Running Kick", actions: 2, strikes: ["claw"], strides: 2 }] } }, played: "its companion's Running Kick (two Strides and a Strike)" }),
+    "natures-precision": (level) => ({ builtins: { companionFields: { strikeExtras: [{ when: "off-guard", dice: level >= 16 ? 2 : 1, die: 4, precision: true, type: null, agileOrFinesse: true, source: "Nature's Precision" }] } }, played: "its companion's agile Strikes +1d4 precision against an off-guard foe" }),
+    // (Its own Strike and its companion's — fight.js companionStrike —: Pack Movement's Stride first; Tandem Strike out of the actions the
+    // summoner and its eidolon share, two of three — the summoner's turn two actions, the eidolon's one.)
+    "pack-movement": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Pack Movement", actions: 2, strikes: [melee.name.toLowerCase()], strides: 1, flourish: true, companionStrike: true }] }, played: "a Stride and a Strike, its companion's Strike beside it" } : null;
+    },
+    "tandem-strike": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Tandem Strike", actions: 2, strikes: [melee.name.toLowerCase()], companionStrike: true }], companionActions: { master: 2, companion: 1 } }, played: "its Strike and its eidolon's (two of their three actions)" } : null;
+    },
+    // (Primal Howl's advanced maneuver — the actions pack's —: the companion's 30-foot cone at its master's DC, once a fight.)
+    "primal-howl": (level, host) => {
+        const action = [...docsOf(`${PACK_ROOT}/actions`).values()].find((doc) => doc.name === "Primal Howl");
+        const read = action && host ? inlineSaveEntry(action, level, host) : null;
+        return read ? { builtins: { companionFields: { spells: read.spells.map((entry) => ({ ...entry, name: "Primal Howl" })), spellPools: read.pools } }, played: `its companion's Primal Howl (${read.played.replace(/^inline save: /, "")})` } : null;
+    },
+    "bloodletting-claws": () => ({ builtins: { companionFields: { strikeExtras: [{ when: "critical", dice: 1, die: 6, melee: true, persistent: true, type: "bleed", noDouble: true, source: "Bloodletting Claws" }] } }, played: "its eidolon's critical hits 1d6 persistent bleed" }),
+    // (2026-11-05, mounted combat — companions.js mountUp: the rider's own activities. Their Command is the one its turn already spent:
+    // a 3-action one, Shadowpiercing Charge, two of its own.)
+    "cavaliers-charge": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Cavalier's Charge", actions: 2, strikes: [melee.name.toLowerCase()], strides: 2, flourish: true, penalty: -1 }] }, played: "its mount's two Strides and a Strike at +1" } : null;
+    },
+    "shadowpiercing-charge": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Shadowpiercing Charge", actions: 2, strikes: [melee.name.toLowerCase(), melee.name.toLowerCase()], strides: 2, sameMap: true }] }, played: "its mount's double Stride and two Strikes at one multiple attack penalty (its extra damage in darkness not played)" } : null;
+    },
+    "dismounting-strike": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        const die = melee?.damage?.[0]?.die ?? 8;
+        const type = melee?.damage?.[0]?.type ?? "untyped";
+        return melee ? { builtins: { multiStrikes: [{ name: "Dismounting Strike", actions: 2, strikes: [melee.name.toLowerCase()], strides: 1, countsAs: 2, extraDamage: [`${level >= 14 ? 2 : 1}d${die}[${type}]`], dismount: true }] }, played: "its mount's Stride, a leap off and a Strike with an extra weapon die (counts as two attacks)" } : null;
+    },
+    // (2026-11-05, the Strike riders sweep — Strikes whose rider the feat module doesn't read.)
+    // (Twin Feint: two Strikes at one target, off-guard to the second — the PC's one weapon twice, its two weapons not checked.)
+    // (2026-11-05, Goading Feint: each Feint's success and critical success swapped for a –2 to the foe's attacks on the PC — always taken.)
+    // (Antagonize: its Demoralize's frightened stays at least 1 until the foe attacks it.)
+    // (The fencer swashbuckler never Demoralizes on its own — its Demoralize given again, forced.)
+    // (Communal Healing: a single-target heal spell heals the most hurt other ally by its rank too.)
+    // (2026-11-05, Repel Assault: resistance equal to its level against a foe's attack dealing at least that much, three times a fight (its
+    // Mythic Points); an adjacent ally's attack and the mythic Strike after aren't played.)
+    "repel-assault": (level) => ({ builtins: { resistReaction: { name: "Repel Assault", value: level, attack: true, foe: true, on: null, types: null, minDamage: level }, resistUses: 3 }, played: "resistance equal to its level against a big hit, 3 a fight" }),
+    "communal-healing": () => ({ builtins: { communalHealing: true }, played: "each single-target heal heals the most hurt other ally by its rank" }),
+    antagonize: () => ({ builtins: { antagonize: true }, spells: basicActions.demoralize ? [{ name: "Demoralize", plan: structuredClone(basicActions.demoralize), castRank: 1, pool: null, kind: "basic" }] : [], played: "Demoralize (forced); frightened from it stays at 1 or more until the foe attacks it" }),
+    "resurrectionist": () => ({ builtins: { resurrectionist: true }, played: "a dying ally it heals gets fast healing 5 for 1 minute" }),
+    "finishing-follow-through": () => ({ builtins: { finishingFollowThrough: true }, played: "panache back when a finisher brings its target to 0 HP" }),
+    "distracting-feint": () => ({ builtins: { distractingFeint: true }, spells: basicActions.feint ? [{ name: "Feint", plan: structuredClone(basicActions.feint), castRank: 1, pool: null, kind: "basic", oncePerTurn: true }] : [], played: "Feint (forced): a foe off-guard to it also takes –2 to Perception and Reflex saves" }),
+    "goading-feint": () => ({ builtins: { goadingFeint: true }, played: "every Feint goads (–2 to the foe's next attack on the PC, all of them on a critical success) instead of off-guard" }),
+    "twin-feint": () => ({ builtins: { multiStrikes: [{ name: "Twin Feint", actions: 2, strikes: [null, null], sameTarget: true, secondOffGuard: true }] }, played: "two Strikes at one foe, off-guard to the second" }),
+    // (A Strike at each enemy within 30 feet, at one multiple attack penalty — fight.js within.)
+    "implements-assault": () => ({ builtins: { multiStrikes: [{ name: "Implement's Assault", actions: 3, strikes: [null], each: true, within: 30, sameMap: true }] }, played: "a Strike at each enemy within 30 feet (3 actions)" }),
+    "devastating-weaponry": () => ({ builtins: { multiStrikes: [{ name: "Devastating Weaponry", actions: 3, strikes: [null], each: true, within: 30, sameMap: true }] }, played: "a Strike at each enemy within 30 feet (3 actions)" }),
+    // (A 30-foot line of ranged Strikes, raging: taken as two foes in it; Snakebird's Shadow's 15-foot line, two in its reach.)
+    "penetrating-projectile": () => ({ builtins: { multiStrikes: [{ name: "Penetrating Projectile", actions: 2, strikes: ["ranged"], each: true, max: 2, sameMap: true, flourish: true, requires: "raging" }] }, played: "a ranged Strike at up to two foes in a line, raging" }),
+    "snakebirds-shadow": () => ({ builtins: { multiStrikes: [{ name: "Snakebird's Shadow", actions: 2, strikes: [null], each: true, max: 2, sameMap: true, flourish: true }] }, played: "a Strike at up to two foes in a 15-foot line (its stance not checked)" }),
+    // (Rebounding Assault: a thrown Strike and a shot at one penalty, 1d6 precision more if both hit — the two Strikes' damage as rolled.)
+    "rebounding-assault": () => ({ builtins: { multiStrikes: [{ name: "Rebounding Assault", actions: 2, strikes: ["ranged", "ranged"], sameTarget: true, sameMap: true, bothHit: { conditions: [], damage: ["1d6[precision]"] } }] }, played: "two ranged Strikes at one penalty, +1d6 precision if both hit" }),
+    // (Strike activities.)
+    "everstand-strike": () => ({ requires: "You are wielding a shield", builtins: {}, plans: [strikeRider({ press: true, selfAfter: [{ ac: 2, type: "circumstance" }], selfAfterHit: true })], played: "a press Strike, its shield raised if it hits" }),
+    "combat-grab": () => ({ builtins: {}, plans: [strikeRider({ press: true, onHit: { conditions: [{ slug: "grabbed", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } }] } })], played: "a press Strike that grabs on a hit" }),
+    // (+1 to the next ally's attack at the target, +2 after a critical hit — commander.js setUp "aid".)
+    "guiding-shot": () => ({ builtins: {}, plans: [strikeRider({ range: "ranged", flourish: true, setUp: "aid" })], played: "a ranged Strike, +1 to the next ally's attack at its target" }),
+    "assisting-shot": () => ({ builtins: {}, plans: [strikeRider({ range: "ranged", press: true, setUp: "aid" })], played: "a ranged press Strike, +1 to the next ally's attack at its target" }),
+    // (Its weapon die a step bigger: about one more a die.)
+    "dual-handed-assault": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, damagePerWeaponDie: 1 })], played: "a Strike with its weapon die a step bigger" }),
+    "pivot-strike": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, damagePerWeaponDie: 2, afterStrike: "trip" })], played: "a Strike with twice its weapon dice in damage, then a Trip (its Leap and staff not checked)" }),
+    // (One-On-One's Feint taken as a success: the Strike at an off-guard foe, once a round.)
+    "one-on-one": () => ({ builtins: {}, plans: [strikeRider({ offGuard: true, oncePerTurn: true })], played: "a Feint and a Strike, taken as off-guard, once a round (the dueling sword not checked)" }),
+    // (After a missed melee Strike, another at the same penalty.)
+    "follow-up-strike": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, after: { on: ["failure", "criticalFailure"], melee: true }, previousMap: true })], played: "after a missed melee Strike, another at the same penalty" }),
+    // (A bomb's persistent damage on a shot; the bomb it uses, its type and the misfire on a failure aren't played.)
+    "alchemical-shot": (level) => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", onHit: { damage: [`${level >= 17 ? 3 : level >= 11 ? 2 : 1}d6[persistent,fire]`] } })], played: "a ranged Strike with a bomb's persistent damage (the bomb and the misfire not played)" }),
+    // (A hit is a critical hit; off-guard and stunned 1 after.)
+    "final-shot": () => ({ builtins: {}, plans: [strikeRider({ actions: 3, range: "ranged", hitCrits: true, selfAfter: [{ slug: "off-guard" }, { slug: "stunned", value: 1 }] })], played: "a ranged Strike whose hit is a critical hit, then off-guard and stunned 1 (3 actions)" }),
+    // (Mythic proficiency, +10: about +4 over a martial's own.)
+    // (2026-11-05, Shield Wallop: a flourish Strike — its shield's, or its weapon's when the guardian has none —, stupefied 1 on a hit and 2
+    // on a critical hit until its next turn.)
+    // (Reflexive Shield: its raised shield's bonus to Reflex saves; Shield Block against a Reflex save's damage isn't played.)
+    "reflexive-shield": () => ({ builtins: { reflexiveShield: true }, played: "its raised shield's bonus to Reflex saves (Raise a Shield forced, on the guardian)" }),
+    "shield-wallop": () => {
+        const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
+        return { builtins: {}, plans: [strikeRider({ flourish: true, onHit: { conditions: [{ slug: "stupefied", value: 1, duration: until }], critical: [{ slug: "stupefied", value: 2, duration: until }] } })], played: "a flourish Strike, stupefied 1 (2 on a critical hit) until its next turn" };
+    },
+    // (2026-11-06, Devastating Shield Wallop: Shield Wallop with a Fortitude save after it against its class DC — prone on a failure,
+    // stunned 1 on a critical failure (its prone then not played), the success's off-guard not played; rated against no Shield Wallop.)
+    "devastating-shield-wallop": (_level, _host, doc) => {
+        const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
+        const save = conditionSavePlan(doc, "fortitude", ["prone", null], ["stunned", 1]);
+        return { builtins: {}, plans: [strikeRider({ flourish: true, onHit: { conditions: [{ slug: "stupefied", value: 1, duration: until }], critical: [{ slug: "stupefied", value: 2, duration: until }], ...(save ? { save } : {}) } })], played: "Shield Wallop (stupefied 1, 2 on a critical hit), then a Fortitude save: prone, or stunned 1 on a critical failure" };
+    },
+    // (2026-11-05, Crashing Slam: Slam Down's Trip a critical success when its Strike hits — prone and 1d6 bludgeoning; rated as Slam Down
+    // with it, against no Slam Down.)
+    // (2026-11-05, Vivacious Bravado: with panache, temporary Hit Points equal to its level plus Charisma until its next turn.)
+    // (Mage Hunter: a 2-action Strike, stupefied 1 (2 on a critical hit) until its next turn — "seen the target Cast a Spell" not checked.)
+    // (Fight or Flight: frightened by a foe in its reach — a melee Strike at it; the Stride away isn't played.)
+    // (2026-11-05, Dodging Roll: resistance equal to its level against an area effect's damage with a Reflex save (its level plus Dexterity
+    // when its Step leaves the area — not played); the Step isn't.)
+    // (2026-11-05, You're Next: downing a foe — a Demoralize at another, +2, as a reaction; spells.js downsAnswers.)
+    // (2026-11-05, Savage Critical: a 19 that hits is a critical hit with its legendary weapons — the fighter's Strikes. Piercing Critical:
+    // the same with a firearm or crossbow — the gunslinger's ranged Strikes.)
+    // (2026-11-05, Deliberate Death: dropping to dying from a foe in its reach — a melee Strike at it first, once a fight.)
+    // (Cornered Fury: a larger foe that critically hits it is off-guard to it for a round.)
+    // (2026-11-05, Sea Swarmer: a foe in its reach and two allies' off-guard to it. Remorseless Lash: a melee weapon hit keeps a frightened
+    // foe at frightened 1 until its next turn. Elemental Bulwark: resistance 5 (10, Improved) against a foe's cold, electricity or fire, a
+    // reaction — the spell traits not read.)
+    "sea-swarmer": () => ({ builtins: { seaSwarmer: true }, played: "a foe in its reach and two allies' reach is off-guard to it" }),
+    "remorseless-lash": () => ({ builtins: { remorselessLash: true }, played: "a melee weapon hit keeps a frightened foe at frightened 1 until its next turn" }),
+    "elemental-bulwark": () => ({ builtins: { resistReaction: { name: "Elemental Bulwark", value: 5, on: ["cold", "electricity", "fire"], types: ["triggering"], foe: true } }, played: "resistance 5 against a foe's cold, electricity or fire (reaction)" }),
+    "improved-elemental-bulwark": () => ({ builtins: { resistReaction: { name: "Elemental Bulwark", value: 10, on: ["cold", "electricity", "fire"], types: ["triggering"], foe: true } }, played: "Elemental Bulwark's resistance 10 (with it)" }),
+    "cornered-fury": () => ({ builtins: { corneredFury: "small" }, played: "a larger foe that critically hits it (a Small ratfolk: a Medium foe) is off-guard to it for a round" }),
+    "deliberate-death": () => ({ builtins: { deathStrike: { name: "Deliberate Death", strike: null, pc: true } }, played: "a melee Strike at the foe that drops it (reaction, once)" }),
+    // (2026-11-06, Drilled Reflexes, Practiced Reflexes: Drilled Reactions for two or four allies a round — commander.js.)
+    "drilled-reflexes": () => ({ builtins: { drilledCount: 2 }, played: "Drilled Reactions for up to two allies" }),
+    "practiced-reflexes": () => ({ builtins: { drilledCount: 4 }, played: "Drilled Reactions for up to four allies" }),
+    "targeting-strike": (level) => ({ builtins: { targetingStrike: level >= 17 ? 6 : level >= 10 ? 5 : 4 }, played: "after its Set-Up Strike or Guiding Shot damages, the next ally's hit there deals its Intelligence in precision damage" }),
+    "overwhelming-spellstrike": (level) => ({ builtins: { overwhelmingSpellstrike: level }, played: "Spellstrike's spell ignoring energy resistance up to its level (at a foe that resists)" }),
+    "untamed-form": (level, host) => untamedShape(level, host, "Animal Form", "Animal"),
+    "insect-shape": (level, host) => untamedShape(level, host, "Insect Form", "Insect"),
+    "ferocious-shape": (level, host) => untamedShape(level, host, "Dinosaur Form", "Dinosaur"),
+    "soaring-shape": (level, host) => untamedShape(level, host, "Aerial Form", "Aerial"),
+    "elemental-shape": (level, host) => untamedShape(level, host, "Elemental Form", "Elemental"),
+    "plant-shape": (level, host) => untamedShape(level, host, "Plant Form", "Plant"),
+    "dragon-shape": (level, host) => untamedShape(level, host, "Dragon Form", "Dragon"),
+    "monstrosity-shape": (level, host) => untamedShape(level, host, "Monstrosity Form", "Monstrosity"),
+    // (2026-11-06, the monk's stance spells: Wild Winds Stance's 30-foot wind crash Strikes, Clinging Shadows Stance's reach shadow grasp
+    // Strikes — PF2e's stance Effect, a focus spell of 1 action. Wild winds' +2 AC against ranged attacks and clinging shadows' Grapple
+    // bonus aren't played.)
+    // (Wild Winds Gust: a wind crash Strike at each foe in a 30-foot cone, one multiple attack penalty — in Wild Winds Stance; the 60-foot
+    // line isn't played.)
+    "wild-winds-gust": () => ({ builtins: { multiStrikes: [{ name: "Wild Winds Gust", actions: 2, strikes: ["WindCrash"], each: true, within: 30, sameMap: true, featForced: true }] }, played: "a wind crash Strike at each foe within 30 feet (2 actions, in Wild Winds Stance)" }),
+    "wild-winds-initiate": (level, host) => focusStance(level, host, "Wild Winds Stance"),
+    "clinging-shadows-initiate": (level, host) => focusStance(level, host, "Clinging Shadows Stance"),
+    "hasted-assault": (level, host) => spellAsFocus(level, host, "Haste", "Hasted Assault", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: "self", range: null } })),
+    // (Allegro: the bard's composition cantrip — an ally within 30 feet quickened for 1 round, Haste's quickening for its Strike or Stride.)
+    "allegro": (level, host) => spellAsFocus(level, host, "Haste", "Allegro", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: "1 ally" } }), { cantrip: true, rounds: 1, oncePerTurn: true }),
+    // (Overdrive Ally: in overdrive, an ally within 30 feet's Strikes deal half the inventor's Intelligence modifier more until the end of
+    // its next turn — Heroism's shape, 1 action, on another ally, its Effect that damage. Critical overdrive's full modifier isn't played.)
+    "overdrive-ally": (level, host) => {
+        const bonus = Math.max(1, Math.floor((host.overdrive?.intMod ?? 4) / 2));
+        const made = spellAsFocus(level, host, "Heroism", "Overdrive Ally", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1", traits: ["manipulate"] }, traits: ["manipulate"], targeting: { ...plan.targeting, target: "1 ally", range: "30 feet" } }), { cantrip: true, rounds: 1, whileBuff: "Overdrive", oncePerTurn: true });
+        if (!made) return null;
+        const entry = made.spells[0];
+        entry.effects = Object.fromEntries(Object.keys(entry.effects ?? {}).map((key) => [key, { name: "Overdrive Ally", rounds: 1, modifiers: [{ on: "damage", type: "untyped", value: bonus }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }]));
+        return { ...made, played: `an ally within 30 feet: its Strikes +${bonus} damage until its next turn ends (1 action, in overdrive)` };
+    },
+    // (Storm Retribution: Tempest Surge on an adjacent foe that critically hits it in melee, a focus spell as a reaction — spells.js
+    // reactToHit; the 5-foot push isn't played.)
+    "storm-retribution": (level, host) => spellAsFocus(level, host, "Tempest Surge", "Storm Retribution", (plan) => ({ ...plan, activation: { ...plan.activation, time: "reaction" }, trigger: { ...plan.trigger, event: "hit-by", reaction: true, critical: true, melee: true }, targeting: { ...plan.targeting, target: "the attacker" } }), { reaction: true }),
+    // (Ki Cutting Sight: 1 action, a focus spell — Perception against the target's Fortitude DC; a success, its next Strike's damage on it
+    // 4d10 slashing more, 1d10 a rank above 3rd — fight.js; Fear's save shape for the planner, its condition never applied.)
+    "ki-cutting-sight": (level, host, doc) => {
+        const rank = Math.max(3, Math.ceil(level / 2));
+        const plan = conditionSavePlan(doc, "fortitude", null, null);
+        if (!plan) return null;
+        const pool = `${host.id}:focus`;
+        const entry = { name: "Ki Cutting Sight", fromFeat: true, featForced: true, kiCut: 4 + rank - 3, plan: { ...plan, castActions: 1, activation: { ...plan.activation, time: "1" } }, castRank: rank, dc: 10, attack: 0, pool, effects: {} };
+        return { builtins: {}, spells: [entry], pools: { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) }, played: `Ki Cutting Sight: on a Perception success against its Fortitude DC, ${4 + rank - 3}d10 slashing on the monk's next hit (a focus spell)` };
+    },
+    "force-fang": (level, host) => spellAsFocus(level, host, "Force Barrage", "Force Fang", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, range: "5 feet" } })),
+    "spell-swipe": () => ({ builtins: { spellSweeps: [{ name: "Spell Swipe", kind: "swipe" }] }, played: "a 3-action Spellstrike at two adjacent foes, the spell on each it hits (a multi-target or area spell)" }),
+    "whirlwind-spell": () => ({ builtins: { spellSweeps: [{ name: "Whirlwind Spell", kind: "whirl" }] }, played: "a 3-action Spellstrike at each foe in reach, the spell on each it hits (a multi-target or area spell)" }),
+    "expansive-spellstrike": () => ({ builtins: { expansiveSpellstrike: true }, played: "Spellstrike with a burst, cone or line spell, its area about the target" }),
+    "combination-finisher": () => ({ builtins: { combinationFinisher: true }, played: "its finishers' multiple attack penalty −4/−8 (−3/−6 agile)" }),
+    "deadly-strikes": (level) => ({ builtins: { deadlyStrikes: level }, played: "its unarmed attacks deadly d10" }),
+    // (2026-11-06, Persistent Boost: its Offensive Boost's hit (the weapon innovation's Strikes, classes.js) 1d8 persistent fire too.)
+    "persistent-boost": () => ({ builtins: { strikeExtras: [{ when: "hit", dice: 1, die: 8, melee: true, persistent: true, noDouble: true, type: "fire", source: "Persistent Boost" }] }, played: "1d8 persistent fire on its boosted melee hits (always on)" }),
+    "diamond-fists": (level) => ({ builtins: { diamondFists: level }, played: "its unarmed attacks forceful and deadly d10" }),
+    "savage-critical": () => ({ builtins: { savageCritical: true }, played: "a natural 19 that hits is a critical hit" }),
+    "piercing-critical": () => ({ builtins: { savageCritical: "ranged" }, played: "a natural 19 that hits with its gun is a critical hit" }),
+    "youre-next": () => {
+        const demoralize = basicActions.demoralize;
+        if (!demoralize?.resolution?.check) return null;
+        const check = demoralize.resolution.check;
+        const plan = { ...structuredClone(demoralize), source: { ...demoralize.source, name: "You're Next" }, trigger: { reaction: true, event: "downs" }, resolution: { ...structuredClone(demoralize.resolution), check: { ...structuredClone(check), bonus: { value: (Number(check.bonus?.value) || 0) + 2, type: "circumstance" } } } };
+        return { builtins: {}, spells: [{ name: "You're Next", plan, castRank: 1, pool: null, kind: "basic" }], played: "downing a foe: a Demoralize at another, +2 (reaction)" };
+    },
+    "dodging-roll": (level) => ({ builtins: { resistReaction: { name: "Dodging Roll", value: level, on: null, types: null, areaReflex: true } }, played: "resistance equal to its level against an area Reflex effect's damage (reaction)" }),
+    "fight-or-flight": () => ({ builtins: { fightOrFlight: true }, played: "frightened by a foe in its reach: a melee Strike at it (reaction)" }),
+    "mage-hunter": () => {
+        const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
+        return { builtins: {}, plans: [strikeRider({ actions: 2, onHit: { conditions: [{ slug: "stupefied", value: 1, duration: until }], critical: [{ slug: "stupefied", value: 2, duration: until }] } })], played: "a 2-action Strike, stupefied 1 (2 on a critical hit) until its next turn (whether it saw a spell cast isn't checked)" };
+    },
+    "vivacious-bravado": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, requires: "panache", model: { rounds: 1, tempHp: level + 4 + (level >= 10) + (level >= 15) + (level >= 20) } }], played: "with panache, temporary Hit Points of its level plus Charisma until its next turn" }),
+    "crashing-slam": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, onHit: { conditions: [{ slug: "prone", value: null }], damage: ["1d6[bludgeoning]"] } })], played: "Slam Down (with it) whose hit trips as a critical success: prone and 1d6 bludgeoning" }),
+    "united-assault": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, united: true })], played: "a flourish Strike, +1 damage for each other creature that hurt the target since its last turn (up to +4)" }),
+    // (Overextending Feint, the rogue's Goading Feint — its Feint given again, forced, as the rogue rarely Feints.)
+    "overextending-feint": () => ({ builtins: { goadingFeint: true }, spells: basicActions.feint ? [{ name: "Feint", plan: structuredClone(basicActions.feint), castRank: 1, pool: null, kind: "basic" }] : [], played: "Feint (forced), each one goading (–2 to the foe's next attack on the PC, all on a critical success) instead of off-guard" }),
+    // (Temporal Fury: a Strike, a Step, another Strike for two actions and a Mythic Point — the Step not played.)
+    "temporal-fury": () => ({ builtins: { multiStrikes: [{ name: "Temporal Fury", actions: 2, strikes: [null, null] }] }, played: "two Strikes for two actions (a Mythic Point)" }),
+    // (Hampering Stance: its 5-foot difficult terrain for foes isn't played — on the bands, foes beside it rarely walk off; the stance is
+    // here for Not So Fast!'s Strike at a foe leaving its reach (its Speed penalty and a critical hit's disruption not played).)
+    "hampering-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: {} }], played: "a stance (its difficult terrain not played)" }),
+    "not-so-fast": () => ({ builtins: { reactionStrikes: [{ name: "Not So Fast!", triggers: ["leave"], strike: null, penalty: 0, disrupts: false, melee: true, requiresEffect: "Hampering Stance", featForced: true }] }, played: "a Strike at a foe leaving its reach, in Hampering Stance (reaction)" }),
+    // (Necromancer, its thralls a count — thralls.js: The Unholy Dead's spirit damage on thrall Strikes; Anatomical Quartering's four
+    // Strikes at different foes at one multiple attack penalty; Reclaim Power's healing, two thralls' worth (its level each) on itself,
+    // once a fight, a thrall spent — its conditions not played.)
+    "the-unholy-dead": (level) => ({ builtins: { unholyDead: level >= 10 ? 2 : 1 }, played: `+${level >= 10 ? 2 : 1} spirit damage on its thralls' Strikes` }),
+    "the-hallowed-dead": (level) => ({ builtins: { unholyDead: level >= 10 ? 2 : 1 }, played: `+${level >= 10 ? 2 : 1} spirit damage on its thralls' Strikes` }),
+    "anatomical-quartering": () => ({ builtins: { multiStrikes: [{ name: "Anatomical Quartering", actions: 3, strikes: [null], each: true, max: 4, sameMap: true }] }, played: "a Strike at each of up to four foes at one multiple attack penalty (3 actions)" }),
+    "reclaim-power": (level, host, doc) => {
+        const read = inlineHealEntry({ ...doc, system: { ...doc.system, description: { value: `<p>You regain @Damage[${2 * level}[healing]] Hit Points.</p>` } } }, level);
+        if (!read?.spells?.length) return null;
+        const pool = `feat:${doc._id}`;
+        const entry = { ...read.spells[0], pool, plan: { ...read.spells[0].plan, targeting: { ...read.spells[0].plan.targeting, target: "self", range: null, thrall: { destroyed: true } } } };
+        return { builtins: {}, spells: [entry], pools: { [pool]: 1 }, played: `regains ${2 * level} HP (two thralls destroyed, once a fight)` };
+    },
+    // (Desperate Surge: a Trip at its spell attack modifier instead of Athletics, once a fight — its Athletics taken as its spell attack, as
+    // nothing else of the necromancer's rolls it; the other maneuvers not played.)
+    "desperate-surge": (level, host, doc) => {
+        const attack = (dcsOf(host).spell ?? 10 + level + 2 + 4) - 10;
+        const pool = `feat:${doc._id}`;
+        return basicActions.trip ? { builtins: { skills: { athletics: attack } }, spells: [{ name: "Desperate Surge", plan: { ...structuredClone(basicActions.trip), source: { ...basicActions.trip.source, name: "Desperate Surge" } }, castRank: 1, pool, kind: "basic", featForced: true }], pools: { [pool]: 1 }, played: `a Trip at its spell attack (+${attack}), once a fight` } : null;
+    },
+    // (Bone Burst: its d10s, basic Reflex at its spell DC, at a foe beside a thrall that moves, manipulates or shoots — actions.js provoke.)
+    "bone-burst": (level, host, doc) => {
+        const dice = level >= 18 ? 4 : level >= 12 ? 3 : 2;
+        const html = `<p>Choose a creature within 30 feet. Bone shards fly at it: @Damage[${dice}d10[piercing]] damage, @Check[reflex|basic].</p>`;
+        const read = host ? inlineSaveEntry({ _id: "boneBurst0", name: "Bone Burst", type: "feat", system: { actionType: { value: "action" }, actions: { value: 1 }, traits: { value: ["concentrate", "occult"] }, description: { value: html } } }, level, host) : null;
+        if (!read?.spells?.length) return null;
+        const dc = dcsOf(host).spell ?? 10 + level + 2 + 4;
+        return { builtins: { boneBurst: true }, spells: read.spells.map((entry) => ({ ...entry, name: "Bone Burst", dc, attack: dc - 10, plan: { ...entry.plan, activation: { ...entry.plan.activation, time: "reaction" } } })), pools: read.pools ?? {}, played: `${read.played} — at a foe beside a thrall that moves, manipulates or shoots (reaction, a thrall destroyed)` };
+    },
+    // (2026-11-06, thralls as bodies: the necromancer's thrall focus spells.)
+    "muscle-barrier": (level, host, doc) => { const rank = Math.max(1, Math.ceil(level / 2)); return thrallAllySpell(doc, level, host, { model: { tempHp: 10 * rank }, rounds: 10, destroyed: true, played: `${10 * rank} temporary HP on an ally` }); },
+    "song-of-the-soul": (level, host, doc) => {
+        const rank = Math.max(1, Math.ceil(level / 2));
+        const read = inlineHealEntry({ _id: doc._id, name: doc.name, type: "feat", system: { actionType: { value: "action" }, actions: { value: 2 }, traits: { value: ["concentrate", "manipulate"] }, description: { value: `<p>A creature within 30 feet regains @Damage[${rank}d8[healing]] Hit Points.</p>` } } }, level);
+        const entry = read?.spells?.[0] && thrallFocus(doc, level, host, read.spells[0], { destroyed: false });
+        return entry ? { builtins: {}, spells: [entry], pools: { [entry.pool]: 1 }, played: `heals an ally ${rank}d8 (its focus spell through a thrall, once a fight; the fast healing near the thrall not played)` } : null;
+    },
+    "calcification": (level, host, doc) => thrallSaveSpell(doc, level, host, "fortitude", { success: ["slowed", 1, ONE_ROUND], failure: ["slowed", 1], criticalFailure: ["slowed", 2] }, "a foe slowed 1 (a round on a success; 2 on a critical failure) by its Fortitude save; its ongoing saves and bludgeoning weakness not played"),
+    "temporary-possession": (level, host, doc) => thrallSaveSpell(doc, level, host, "will", { success: ["stunned", 2], failure: ["stunned", 3], criticalFailure: ["stunned", 4] }, "a foe possessed by its Will save: the actions it controls and the stunned 1 after taken as stunned 2/3/4 (what it makes the foe do not played)", 1),
+    "draining-strike": (level) => {
+        const dice = level >= 18 ? 3 : level >= 10 ? 2 : 1;
+        return { builtins: {}, plans: [strikeRider({ countsAs: 2, oncePerTurn: true, drainThrall: dice })], played: `a Strike counting as two attacks; a hit spends a thrall for ${dice}d6 spirit more, the necromancer healed as much (once a turn)` };
+    },
+    "thrall-charger": (level) => {
+        const rank = Math.max(1, Math.ceil(level / 2));
+        const dice = level >= 11 ? 3 : level >= 3 ? 2 : 1;
+        return { builtins: {}, plans: [strikeRider({ actions: 2, strike: "Thrall", damageBonus: rank, spendThrall: true, onHit: { damage: [`${dice}d6`] } })], played: `Thrall Charge (a cantrip): a thrall Strike with ${dice}d6 more, the thrall destroyed for +${rank} (rated on a necromancer; its Stride not played)` };
+    },
+    "bloody-tendrils": (level, host) => {
+        const rank = Math.max(3, Math.ceil(level / 2));
+        const steps = Math.floor((rank - 3) / 3);
+        const dc = dcsOf(host).spell ?? 10 + level + 2 + 4;
+        return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, pool: "feat:bloody-tendrils", model: { rounds: 10 }, thrallField: { count: 3 + steps, name: "bloody tendril", immunities: ["bludgeoning", "piercing", "slashing"], aura: { on: "turn-end", reach: 10, damage: `${1 + steps}d12[bludgeoning]`, basic: true, dc } } }], pools: { "feat:bloody-tendrils": 1 }, played: `${3 + steps} tendril thralls beside foes: a foe ending its turn within 10 feet takes ${1 + steps}d12, basic Reflex DC ${dc} (its focus spell, once a fight)` };
+    },
+    "skeletal-lancers": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, pool: "feat:skeletal-lancers", model: { rounds: 10 }, thrallField: { count: 5, name: "skeletal lancer", aura: { on: "strike", reach: 10, damage: "5[piercing]", basic: false } } }], pools: { "feat:skeletal-lancers": 1 }, played: "5 lancer thralls beside foes: a foe's Strike within 10 feet of one costs it 5 piercing (its focus spell, once a fight; the lancers' own Strikes not played)" }),
+    "rapid-recharge": () => ({ builtins: { rapidRecharge: 1 }, played: "its Spellstrike recharged free as a turn begins, once a fight" }),
+    "sustaining-steel": () => ({ builtins: { sustainingSteel: true }, played: "a slot spell's Spellstrike heals it the rank (double in Arcane Cascade)" }),
+    // (2026-11-06: Exploit Vulnerability's personal antithesis on every creature of the target's kind — actions.js.)
+    // (2026-11-06, Hell's Armaments: a critical hit with its weapon — a Fortitude save against its class DC: −10 feet Speed, slowed 1 or 2
+    // until the end of its next turn; in place of critical specialization, which its host's Strikes keep — not chosen between.)
+    // (2026-11-06, Celestial Armaments: its weapon 1d8 spirit more; a critical hit, a Fortitude save or blinded 1d4 rounds (played as 2). Its
+    // critical specialization the fighter has already; its Mythic Point blessing of allies' weapons isn't played.)
+    // (2026-11-06, Divine Rebuttal: a Strike at an adjacent foe as its allies are about to save against its magic — +2 to the save on a hit,
+    // +3 on a critical (reaction; spells.js). Its favored-weapon requirement taken as met.)
+    "divine-rebuttal": () => ({ builtins: { divineRebuttal: true }, played: "a Strike at an adjacent caster as its allies save against it: +2 (+3) to the save on a hit (reaction)" }),
+    "celestial-armaments": () => ({ builtins: { strikeExtras: [{ when: "hit", dice: 1, die: 8, type: "spirit", source: "Celestial Armaments" }, { when: "critical", save: { statistic: "fortitude", outcomes: [[["blinded", null, 2]], [["blinded", null, 2]], [], []] }, source: "Celestial Armaments" }] }, played: "1d8 spirit on its Strikes; a critical hit, Fortitude or blinded (always on)" }),
+    "hells-armaments": () => {
+        const slow = (value) => [["speed", -10, 1], ...(value ? [["slowed", value, 1]] : [])];
+        return { builtins: { strikeExtras: [{ when: "critical", save: { statistic: "fortitude", outcomes: [slow(2), slow(1), slow(0), []] }, source: "Hell's Armaments" }] }, played: "a Fortitude save on a critical hit: −10 feet Speed, slowed 1 or 2 (always on)" };
+    },
+    // (2026-11-06, Hobbling Criticals: its eidolon's critical hit — a Fortitude save against the summoner's spell DC: −10 feet Speed,
+    // slowed 1, or slowed 2 and −15 feet, for a round.)
+    "hobbling-criticals": (_level, host) => ({ builtins: { companionFields: { strikeExtras: [{ when: "critical", save: { statistic: "fortitude", dc: host?.classDC ?? undefined, outcomes: [[["speed", -15, 1], ["slowed", 2, 1]], [["speed", -10, 1], ["slowed", 1, 1]], [["speed", -10, 1]], []] }, source: "Hobbling Criticals" }] } }, played: "its eidolon's critical hits: a Fortitude save, −10 feet Speed, slowed 1 or 2 (always on)" }),
+    // (2026-11-06, Cackle: a free action that Sustains a spell, once a fight — the hex's Focus Point, lasting.js/zones.js cackles.)
+    "cackle": () => ({ builtins: { cackle: 1 }, played: "one Sustain a fight as a free action (its Focus Point)" }),
+    "twin-weakness": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "melee", requires: "exploited", twinWeakness: true })], played: "a melee Strike at its exploited foe and Exploit Vulnerability's damage again on any result but a critical failure (2 actions, two attacks)" }),
+    // (2026-11-06, Exult in Violence: after a critical hit this turn, a pillar of light — basic Reflex, 4d6/7d6/10d6 spirit — on another foe
+    // within 30 feet; the inline save reader with the planner's "crit-this-turn".)
+    "exult-in-violence": (level, host, doc) => {
+        const html = String(doc.system?.description?.value ?? "").replace(/a different enemy selected at random within 30 feet of the target struck/, "an enemy within 30 feet");
+        const read = host ? inlineSaveEntry({ ...doc, system: { ...doc.system, description: { value: html } } }, level, host) : null;
+        return read ? { builtins: {}, spells: read.spells.map((entry) => ({ ...entry, featForced: true })), pools: read.pools, played: `after a critical hit this turn: ${read.played}` } : null;
+    },
+    // (2026-11-06, Blade of Law: at a foe that Struck it since its last turn — an extra weapon die and 1d8 spirit (2d8 at 18th), two attacks.)
+    "blade-of-law": (level) => ({ builtins: {}, plans: [strikeRider({ actions: 2, requires: "hostile-to-me", extraWeaponDice: 1, countsAs: 2, onHit: { damage: [`${level >= 18 ? 2 : 1}d8[spirit]`] } })], played: "a Strike at a foe that attacked it since its last turn: an extra weapon die and 1d8 spirit (2 actions, two attacks)" }),
+    // (2026-11-06, Proud Nail: at its taunted foe that's off-guard for attacking another — an extra weapon die a hit, 2 at 10th, 3 at 18th.)
+    "proud-nail": (level) => ({ builtins: {}, plans: [strikeRider({ flourish: true, range: "melee", requires: "taunt-ignored", extraWeaponDice: level >= 18 ? 3 : level >= 10 ? 2 : 1 })], played: "a melee flourish Strike at its taunted foe that ignored the taunt, extra weapon dice" }),
+    // (2026-11-06, Commitment to Justice: at a foe that dropped an ally since its last turn — a flourish Strike with three times its weapon dice
+    // as a circumstance bonus to damage.)
+    "commitment-to-justice": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, requires: "ally-downed-by", damagePerWeaponDie: 3 })], played: "a flourish Strike at a foe that dropped an ally since its last turn, +3 damage per weapon die" }),
+    // (2026-11-06, Blessed Thorn Strike: at a foe that hurt an ally since that ally's turn — a flourish Strike, then a Fortitude save against
+    // its class DC: enfeebled 1, 2 on a critical failure (for a minute: its effect).)
+    "blessed-thorn-strike": (_level, _host, doc) => {
+        const minute = { mode: "fixed", value: 10, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
+        const save = conditionSavePlan(doc, "fortitude", ["enfeebled", 1, minute], ["enfeebled", 2, minute]);
+        return save ? { builtins: {}, plans: [strikeRider({ flourish: true, requires: "ally-harmed-by", onHit: { save } })], played: "a flourish Strike at a foe that hurt an ally, then a Fortitude save: enfeebled 1 (2 on a critical failure)" } : null;
+    },
+    // (2026-11-06, Sympathetic Strike: a Strike (its witch armament: its best melee Strike), once a round — a hit, −1 to the target's saves
+    // against its hexes until its next turn, −2 on a critical hit; fight.js, spells.js.)
+    "sympathetic-strike": () => ({ builtins: {}, plans: [strikeRider({ range: "melee", oncePerTurn: true, sympathy: true })], played: "a melee Strike: −1 (−2) to the target's saves against its hexes until its next turn" }),
+    // (2026-11-06, Gorilla Pound: in Gorilla Stance (given), a Demoralize and then a slam Strike (its best melee Strike) at the same target, +3
+    // damage for each point of its frightened. Its Climb Speed isn't played.)
+    "gorilla-pound": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, range: "melee", beforeStrike: "demoralize", frightBonus: 3 })], played: "a Demoralize, then a melee Strike with +3 damage per frightened value (flourish)" }),
+    // (2026-11-06, Amalgamate: two adjacent thralls fused into a Large thrall, reach 10 and Speed 25, its Strikes +level status damage —
+    // thralls.js amalgamate; the bonus a self-effect on the "Thrall" Strike while it lasts. Not on its own turn's Create Thrall: one at a time.)
+    "amalgamate": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, strike: "Thrall", damage: [`${level}[untyped]`], model: { rounds: 100 }, amalgamate: true }], played: `two thralls fused into a Large amalgamation: its thrall Strikes +${level} damage while it lasts` }),
+    // (2026-11-06, Talon Sweep: a foe flanking it misses it with a Strike — a Strike back (the spinning talon Strike: its best melee Strike).)
+    "talon-sweep": () => ({ builtins: { reactionStrikes: [{ name: "Talon Sweep", triggers: ["missed"], flankedOnly: true, strike: null, penalty: 0, melee: true }] }, played: "a melee Strike back at a flanking foe that misses it (reaction)" }),
+    // (2026-11-06, Avenge Ally: an ally dying within 30 feet — a Strike rolled twice, the higher; once a fight, its 10 minutes.)
+    "avenge-ally": () => ({ builtins: {}, plans: [strikeRider({ requires: "ally-dying", fortune: true, oncePerFight: true })], played: "with an ally dying within 30 feet, a Strike rolled twice (once a fight)" }),
+    // (2026-11-06, Spiteful Rake: a claw Strike — its best melee Strike, the changeling's claws not on the host — dazzled a round on a hit,
+    // blinded a round on a critical hit (and dazzled after: not played past the round).)
+    "spiteful-rake": () => {
+        const round = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
+        return { builtins: {}, plans: [strikeRider({ actions: 2, range: "melee", onHit: { conditions: [{ slug: "dazzled", duration: round }], critical: [{ slug: "blinded", duration: round }] } })], played: "a 2-action melee Strike: dazzled a round, blinded on a critical hit (its best melee Strike for the claw)" };
+    },
+    // (2026-11-06, Tail Guard: a foe coming beside it where another already is — a melee Strike, no multiple attack penalty; a critical hit
+    // disrupts the move.)
+    "tail-guard": () => ({ builtins: { reactionStrikes: [{ name: "Tail Guard", triggers: ["approach"], flankOnly: true, strike: null, penalty: 0, disrupts: "critical", melee: true, noMap: true }] }, played: "a melee Strike at a foe moving in to flank it (reaction)" }),
+    "back-to-back": () => ({ builtins: { backToBack: true }, played: "allies beside it, and it beside an ally, not off-guard from flanking unless it (or the ally) is flanked too" }),
+    "phalanx-formation": () => ({ builtins: { phalanxFormation: true }, played: "no lesser cover from it for its allies' targets" }),
+    // (2026-11-06, Courageous Assault: a spellshape — Courageous Anthem an action more, and an ally it reaches Strikes as a reaction, fight.js.)
+    "courageous-assault": (_level, host, doc) => {
+        const anthem = (host?.spells ?? []).find((spell) => spell.name === "Courageous Anthem" && spell.plan);
+        if (!anthem) return null;
+        const time = Number(anthem.plan.activation?.time ?? 1) || 1;
+        const entry = { ...anthem, name: `Courageous Anthem (${doc.name})`, plan: { ...anthem.plan, activation: { ...anthem.plan.activation, time: String(time + 1) } }, allyStrike: doc.name, featForced: true };
+        return { builtins: {}, spells: [entry], pools: {}, played: "Courageous Anthem an action more, and an ally's melee Strike as a reaction" };
+    },
+    // (2026-11-06, the cleric's Heal spellshapes, an action before each single-target Heal or Harm on an ally — fight.js healShapes.)
+    "defensive-recovery": () => ({ builtins: { healShapes: [{ name: "Defensive Recovery", kind: "defensive" }] }, played: "an action before each single-target Heal on an ally: +2 status to its AC and saves for a round" }),
+    "martyr": () => ({ builtins: { healShapes: [{ name: "Martyr", kind: "martyr" }] }, played: "an action before each single-target Heal on an ally: 1d8 a rank of its own Hit Points to it too" }),
+    // (2026-11-06, Chain Infusion: the infusion and a 1-action Elemental Blast; each hit chains a new blast to another foe — fight.js.)
+    "chain-infusion": (_level, host) => (host?.strikes?.some((strike) => strike.name === "Elemental Blast") ? { builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", strike: "elemental blast", chainHits: true })], played: "Chain Infusion and an Elemental Blast, its hits chaining on to other foes (2 actions)" } : null),
+    // (2026-11-06, Shared Assault: rated with Courageous Assault, against neither.)
+    "shared-assault": (level, host, doc) => {
+        const assault = HAND["courageous-assault"](level, host, { ...doc, name: "Courageous Assault" });
+        return assault ? { ...assault, builtins: { sharedAssault: true }, played: `${assault.played}; its critical hit, another ally's Strike (with Courageous Assault)` } : null;
+    },
+    "underhanded-assault": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "melee", sneakFirst: 2 })], played: "a Sneak (Stealth −2 against its Perception DC), then a melee Strike it's off-guard to (2 actions)" }),
+    "frightful-attrition": () => ({ builtins: { frightfulAttrition: true }, played: "a Will save or frightened 1–3 for the foes within 30 feet of each foe it drops (actions.js)" }),
+    "sympathetic-vulnerabilities": () => ({ builtins: { sympatheticVulnerabilities: true }, played: "personal antithesis on every foe of the exploited one's kind" }),
+    "headshot": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", headshot: true })], played: "a 2-action firearm Strike; a critical hit on a foe it already hurt: a Fortitude save or it dies" }),
+    "phase-bullet": () => ({ builtins: {}, plans: [strikeRider({ range: "ranged", attackBonus: 4, oncePerFight: true })], played: "a firearm Strike at +4 against an armored foe, ignoring cover (once a fight)" }),
+    "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),
+    // (Reach 10 feet: Giant's Lunge while raging, for the rage; Jotun's Battle Stance, its two-handed weapon not checked.)
+    "giants-lunge": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, requires: "raging", model: { rounds: 10, reach: 10 } }], played: "reach 10 feet while raging (1 action)" }),
+    "jotuns-battle-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { reach: 10 } }], played: "a stance: reach 10 feet" }),
+    // (Duelist's Form: quickened while in the stance — the engine's quickened, a Strike or Stride.)
+    "duelists-form": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { conditions: [{ slug: "quickened", value: null }] } }], played: "a stance: quickened" }),
+    // (+2 status to its next attack this turn — a next-Strike effect; its weaknesses learned aren't played.)
+    "whispers-of-weakness": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, model: { rounds: 1, modifiers: [{ on: "attack", type: "status", value: 2 }] } }], played: "+2 to its next attack (1 action)" }),
+    // (Its next claw hit's 1d6 bleed, once a fight — the claw not checked.)
+    "hone-claws": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, pool: "feat:hone-claws", damage: ["1d6[persistent,bleed]"], model: { rounds: 10 } }], pools: { "feat:hone-claws": 1 }, played: "1d6 bleed on its next hit (1 action, once a fight)" }),
+    "stretching-reach": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { reach: 10 } }], played: "a stance: reach 10 feet" }),
+    // (Its next fangs hit's 1d6 persistent poison, once a fight — the fangs not checked.)
+    "envenom-fangs": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, nextStrike: true, pool: "feat:envenom-fangs", damage: ["1d6[persistent,poison]"], model: { rounds: 2 } }], pools: { "feat:envenom-fangs": 1 }, played: "1d6 persistent poison on its next hit (1 action, once a fight)" }),
+    "legendary-rider": () => ({ builtins: { companionActions: { master: 3, companion: 2 } }, played: "quickened for its Command: its own three actions and its mount's two" }),
+    "mounted-shield": () => ({ builtins: { mountedShield: true }, requires: "You are wielding a shield", played: "its raised shield's bonus to its mount's AC too" }),
+    // (Rearing Display: its mount's Strike — one action of the mount's turn, the Command its rider spent —, a hit followed by a Demoralize
+    // at the rider's Intimidation +1.)
+    // (The kineticist's armor impulses: its own armor for 10 minutes (the fight), at the kineticist's best armor proficiency — the AC it
+    // gains over its studded leather (+2, Dex cap 3; the class's Dexterity +2, +3 from 10th, +4 at 20th) and the Speed it loses. The shield
+    // Metal Carapace and Hardwood Armor can make and Armor in Earth's armor specialization aren't played.)
+    "metal-carapace": (level) => armorImpulse(level, { item: 3, cap: 2, speed: -5 }),
+    "hardwood-armor": (level) => armorImpulse(level, { item: 3, cap: 2, speed: -5 }),
+    "armor-in-earth": (level) => armorImpulse(level, level >= 3 ? { item: 5, cap: 1, speed: -10 } : { item: 4, cap: 1, speed: -10 }),
+    // (The alchemist's splash: Calculated Splash's Intelligence as the splash before Field Discovery gives it (5th); Expanded Splash's
+    // Intelligence added (its 10 feet are the target's Melee here too); Directional Bombs' cone, so its allies there aren't splashed.)
+    "calculated-splash": (level) => ({ builtins: level < 5 ? { splashBonus: Math.max(0, 4 - (level >= 3 ? 2 : 1)) } : {}, played: level < 5 ? "bomb splash equal to its Intelligence" : "nothing past 5th (Field Discovery does it)" }),
+    "expanded-splash": (level) => ({ builtins: { splashBonus: level >= 10 ? 5 : 4 }, played: "its Intelligence added to its bombs' splash" }),
+    "unstable-concoction": () => ({ builtins: { unstableConcoction: true }, played: "its bombs' damage dice a step bigger" }),
+    "directional-bombs": () => ({ builtins: { splashFoesOnly: true }, played: "its bombs' splash on its foes only (a cone away from it)" }),
+    // (A champion's Lay on Hands riders, on each ally it heals — spells.js touchRiders. Amplifying Touch's spirit damage played as +1 damage;
+    // Rejuvenating Touch's temporary Hit Points renewed at each turn — fight.js tempHpEachTurn.)
+    "amplifying-touch": () => ({ builtins: { touchRiders: [{ name: "Amplifying Touch", model: { rounds: 1, modifiers: [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "untyped", value: 1 }] } }] }, played: "+1 to attacks and 1 more damage until its next turn for an ally its Lay on Hands heals" }),
+    "resilient-touch": () => ({ builtins: { touchRiders: [{ name: "Resilient Touch", model: { rounds: 1, modifiers: [{ on: "saving-throw", type: "status", value: 1 }] } }] }, played: "+1 to saves until its next turn for an ally its Lay on Hands heals" }),
+    "rejuvenating-touch": () => ({ builtins: { touchRiders: [{ name: "Rejuvenating Touch", model: { rounds: 10, tempHp: 10, tempHpEachTurn: 10 } }] }, played: "10 temporary Hit Points, renewed each turn for 10 rounds, for an ally its Lay on Hands heals" }),
+    "accelerating-touch": () => ({ builtins: { touchRiders: [{ name: "Accelerating Touch", model: { rounds: 1, modifiers: [{ on: "speed", type: "status", value: 10 }] } }] }, played: "+10 feet Speed until its next turn for an ally its Lay on Hands heals" }),
+    "leave-an-opening": () => ({ builtins: { leaveAnOpening: true }, played: "its melee critical hit on an off-guard foe sets off an ally's Reactive Strike" }),
+    // (Tangle of Battle: a Grapple at the foe it critically hits, its reaction — the basic action's plan at its trigger, triggers.js "crit".)
+    "tangle-of-battle": () => ({ builtins: {}, spells: [{ name: "Tangle of Battle", plan: { ...structuredClone(basicActions.grapple), activation: { time: "reaction", traits: ["attack"] } }, castRank: 1, pool: null, kind: "basic", featTrigger: { on: "crit" } }], played: "a Grapple at a foe it critically hits (reaction)" }),
+    // (Blazing Streak: two Strides with a Strike at each of up to four creatures along them — at each enemy within 60 feet, four at most,
+    // each at its own multiple attack penalty; its stance and the sparks' fire not played.)
+    "blazing-streak": () => ({ builtins: { multiStrikes: [{ name: "Blazing Streak", actions: 3, strikes: [null], each: true, within: 60, max: 4, flourish: true }] }, played: "a Strike at up to four enemies within 60 feet (3 actions)" }),
+    "shield-of-reckoning": () => ({ builtins: { shieldOfReckoning: true }, played: "its Shield Block for the ally with its champion's reaction (once a round; its shield raised, forced)" }),
+    // (Arcane Cascade riders — fight.js selfEffect: as the magus enters the stance.)
+    "burning-cascade": () => ({ builtins: { burningCascade: true }, played: "its Arcane Cascade's extra damage on each enemy beside it as it enters the stance" }),
+    "resounding-cascade": () => ({ builtins: { resoundingCascade: true }, played: "its Arcane Cascade's extra damage for allies beside it" }),
+    "flamboyant-cruelty": () => ({ builtins: { flamboyantCruelty: true }, played: "+1 damage for each of clumsy, drained, enfeebled, frightened, sickened, stupefied on the foe, when it has two or more" }),
+    "giant-slayer": () => ({ builtins: { giantSlayer: true }, played: "two critical hits on a giant in a turn: a Fortitude save or it dies" }),
+    "distracting-shot": () => ({ builtins: { distractingShot: true }, played: "its prey off-guard until its next turn after a ranged critical hit or two ranged hits in a turn" }),
+    "greater-distracting-shot": () => ({ builtins: { distractingShot: "greater" }, played: "its prey off-guard until its next turn after any ranged hit" }),
+    "ongoing-strategy": () => ({ builtins: { ongoingStrategy: true }, played: "precision damage of its strategic strike dice's number on Strikes without a stratagem" }),
+    // (Opportune Riposte's feats — actions.js.)
+    "parry-and-riposte": () => ({ builtins: { parryAndRiposte: true }, played: "Opportune Riposte on a foe's failed Strike too (its finisher and parry taken as met)" }),
+    "felicitous-riposte": () => ({ builtins: { felicitousRiposte: true }, played: "Opportune Riposte rolled twice, the better kept" }),
+    "inexhaustible-countermoves": () => ({ builtins: { inexhaustibleCountermoves: true }, played: "an extra reaction in each foe's turn for Opportune Riposte" }),
+    // (Kinetic aura stances — kineticAura.)
+    "thermal-nimbus": (level, host, doc) => kineticAura(doc, { model: { resistances: [{ type: "fire", value: level, exceptions: [] }] }, start: `${Math.floor(level / 2)}[fire]`, enter: `${Math.floor(level / 2)}[fire]`, played: `fire resistance ${level} for the PC and its allies, ${Math.floor(level / 2)} fire to foes starting their turn or moving` }),
+    "ghosts-in-the-storm": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: 2 }] }, played: "+2 Reflex for the PC and its allies" }),
+    "sea-glass-guardians": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "ac", type: "status", value: 1 }, { on: "saving-throw", type: "status", value: 1 }] }, played: "+1 AC and saves for the PC and its allies" }),
+    "kindle-inner-flames": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: level >= 12 ? 2 : 1 }] }, played: `+${level >= 12 ? 2 : 1} Reflex for the PC and its allies` }),
+    // (Winter Sleet: a foe that moves onto its ice — comes into the aura — falls prone unless it makes a Reflex save at its impulse DC − 2
+    // (the Acrobatics choice not played); a water impulse's critical not played.)
+    "winter-sleet": (level, host, doc) => {
+        const plan = conditionSavePlan(doc, "reflex", ["prone", null], ["prone", null]);
+        const dc = (dcsOf(host).class ?? 10 + level + 2 + 4) - 2;
+        return plan ? kineticAura(doc, { saves: [{ when: ["enter"], plan }], castAs: { castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10 }, played: `a foe coming in falls prone on a failed Reflex save (DC ${dc})` }) : null;
+    },
+    "ravel-of-thorns": (level, host, doc) => kineticAura(doc, { enter: `${Math.floor((level - 4) / 4) + 2}[piercing]`, played: `${Math.floor((level - 4) / 4) + 2} piercing to foes moving` }),
+    "rearing-display": (level, host) => ({ builtins: { companionFields: { multiStrikes: [{ name: "Rearing Display", actions: 1, strikes: ["jaws"], flourish: true, hitRiders: [{ atLeast: 1, conditions: [], damage: [], follow: "demoralize" }] }], skills: { intimidation: (host?.skills?.intimidation ?? level + 2) + 1 } } }, played: "its mount's Strike, a hit followed by a Demoralize" }),
+    "defend-mount": () => ({ builtins: { defendMount: true }, played: "a Strike at its mount taken on its own AC instead (reaction)" }),
+    // (Trampling Charge: its mount's double Stride through the foes in its way — a 70-foot line here, its Speed twice — each taking its
+    // Jaws' damage, basic Reflex at its Athletics DC; two of the rider's actions, its Command already spent. Off-guard on a critical
+    // failure not played.)
+    "trampling-charge": (level, host) => {
+        const stage = companionStageAt(level);
+        const stats = companionStats(level, stage);
+        const jaws = stats.strikes[0].damage[0];
+        const html = `<p>Your mount tramples each creature in a @Template[line|distance:70]: @Damage[${jaws.dice}d${jaws.die}[${jaws.type}]] damage, @Check[reflex|basic].</p>`;
+        const doc = { _id: "tramplingCharge0", name: "Trampling Charge", type: "feat", system: { actionType: { value: "action" }, actions: { value: 2 }, traits: { value: ["flourish"] }, description: { value: html } } };
+        const read = host ? inlineSaveEntry(doc, level, host) : null;
+        if (!read) return null;
+        const dc = 10 + stats.athletics;
+        // (Its Jaws' flat damage too: the inline reader takes dice alone.)
+        const withBonus = (plan) => JSON.parse(JSON.stringify(plan).replaceAll(`"formula":"${jaws.dice}d${jaws.die}"`, `"formula":"${jaws.dice}d${jaws.die}+${jaws.bonus}"`));
+        return { builtins: {}, spells: read.spells.map((entry) => ({ ...entry, plan: withBonus(entry.plan), dc, attack: dc - 10 })), pools: read.pools, played: `its mount through a 70-foot line, ${jaws.dice}d${jaws.die}+${jaws.bonus} ${jaws.type}, basic Reflex DC ${dc}` };
+    },
+    "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
+    "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
+    "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
+    // (2026-11-06, Shield from Arrows: +4 AC to an adjacent ally against a ranged Strike, its shield raised; the shield taking the hit after a
+    // miss isn't played.)
+    "shield-from-arrows": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 4, within: "reach", ranged: true, shieldRaised: true }], played: "+4 AC to an adjacent ally as a ranged Strike hits it, its shield raised (reaction)" }),
+    "deflecting-shot": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: 60 }], played: "+2 AC to an ally within 60 feet as it's hit (reaction)" }),
     "oracular-warning": () => ({ builtins: {}, plans: [{ builtin: "initiative-warning", value: 2, within: 20, free: true }], played: "+2 initiative to allies within 20 feet" }),
     // (A failed save rerolled, the better kept, once a fight — the engine's save-reroll, B93. Grit and Tenacity's Fortitude or Will played as
     // any save.)
@@ -1077,11 +1889,18 @@ const HAND = {
     // additives on every bomb it throws — the bombs come from its vials as it throws them, so the additive goes in each one; one additive
     // a bomb, but each is rated alone. Off-guard is the debilitation picked: the one the party's Strikes use.)
     "debilitating-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, condition: { slug: "off-guard", duration: { mode: "fixed", value: 1, unit: "rounds" } }, source: "Debilitating Bomb" }] }, played: "its bombs leave a hit foe off-guard until its next turn (always on)" }),
+    // (2026-11-06, Sour Bomb: a bomb's hit — a Fortitude save against its class DC, sickened 1, or sickened 2 and fleeing a round.)
+    "sour-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, save: { statistic: "fortitude", outcomes: [[["sickened", 2], ["fleeing", null, 1]], [["sickened", 1]], [], []] }, source: "Sour Bomb" }] }, played: "a Fortitude save on each bomb hit: sickened 1, or 2 and fleeing (always on)" }),
     // (Persistent damage of the bomb's splash, its type.)
     "sticky-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, splashPersistent: true, source: "Sticky Bomb" }] }, played: "its bombs' splash as persistent damage on a hit (always on)" }),
     // (A second reaction each round, for Reactive Strike only — B303's spare reaction.)
     "tactical-reflexes": (_level, host) => (host?.reactions?.aoo ? { builtins: { spareReactions: [{ names: ["reactive strike"], count: 1 }] }, played: "a second reaction each round, for Reactive Strike" } : null),
     // (A second reaction each round, for Shield Block only.)
+    // (2026-11-05, Boundless Reprisals: a reaction at each enemy's turn for its fighter or guardian reactions — played as two more each round.)
+    "boundless-reprisals": (_level, host) => {
+        const names = [...(host?.reactions?.aoo ? ["reactive strike"] : []), ...(host?.reactions?.shieldBlock ? ["shield block"] : []), ...(host?.interceptAttack ? ["intercept attack"] : [])];
+        return names.length ? { builtins: { spareReactions: [{ names, count: 2 }] }, played: `two more reactions each round, for ${names.join(", ")}` } : null;
+    },
     "quick-shield-block": (_level, host) => (host?.reactions?.shieldBlock ? { builtins: { spareReactions: [{ names: ["shield block"], count: 1 }] }, played: "a second reaction each round, for Shield Block" } : null),
     // (A Reactive Strike's hit leaves its target off-guard until the start of the PC's next turn.)
     "disorienting-opening": (_level, host) => (host?.reactions?.aoo ? { builtins: { strikeExtras: [{ when: "hit", reaction: true, condition: { slug: "off-guard", duration: { mode: "fixed", value: 1, unit: "rounds" } }, source: "Disorienting Opening" }] }, played: "off-guard after its Reactive Strike hits (always on)" } : null),
@@ -1097,11 +1916,29 @@ const HAND = {
         return gun ? { builtins: { strikeExtras: [{ when: "critical", firearm: true, dice: 1, die: gun.fatal, noDouble: true, type: null, source: "Fatal Bullet" }] }, played: `one more d${gun.fatal} on a firearm's critical hit (always on)` } : null;
     },
 };
+// (2026-11-05, Cole: "keep working on the real gaps we have": a failed save rerolled — the feat module's reroll, a gap in a fight — read
+// from the feat's Trigger and Effect: "You fail a saving throw against a mental effect" / "You fail, but don't critically fail, a Will save"
+// with a reroll in its effect, as the hand readings' save-reroll (once a fight; a free action's free; the better kept unless it says to
+// use the new result).)
+function saveRerollEntry(doc, builtins) {
+    if (!["reaction", "free"].includes(doc.system?.actionType?.value)) return null;
+    const text = String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/@\w+\[[^\]]*\](?:\{([^}]*)\})?/g, (all, label) => label ?? "").replace(/\s+/g, " ");
+    const said = (/\bTrigger\s+(.+?)(?:\.|$)/i.exec(text)?.[1] ?? "").split(/\s(?:Effect|Frequency|Requirements?)\s/)[0].trim();
+    const fail = /^You fail(?:, but don't critically fail,| or critically fail)? (?:an? )?(?:skill check or )?(Fortitude|Reflex|Will)?(?: or (?:Fortitude|Reflex|Will))?\s*(?:saving throw|save)(?: during a combat)?(?: against (?:an? )?(?:(\w+) effect|(spell)|condition or adverse effect.*))?$/i.exec(said);
+    if (!fail || !/\breroll\b/i.test(text)) return null;
+    const save = fail[1] && !/ or (?:Fortitude|Reflex|Will)/i.test(said) ? fail[1].toLowerCase() : null;
+    const against = fail[3] ? "spell" : fail[2] && !/^(?:magical)$/i.test(fail[2]) ? fail[2].toLowerCase() : null;
+    const keepNew = /\bmust use the (?:second|new) result\b|\buse the (?:second|new) result\b/i.test(text);
+    addBuiltin(builtins, { builtin: "save-reroll", save, ...(against ? { against } : {}), ...(keepNew ? { keep: "new" } : {}), ...(doc.system.actionType.value === "free" ? { free: true } : {}) }, doc.name);
+    return { spells: [], pools: {}, gap: null, played: `a failed ${save ? `${fail[1]} ` : ""}save${against ? ` against ${against === "spell" ? "a spell" : `a ${against} effect`}` : ""} rerolled` };
+}
+
 function handEntry(doc, level, builtins, wields, host = null) {
-    const read = HAND[slugOf(doc)]?.(level, host);
+    const read = HAND[slugOf(doc)]?.(level, host, doc);
     if (!read) return null;
     // (Its requirement — Reactive Shield's "You are wielding a shield" —: a PC whose loadout can't meet it gets one that can.)
-    const requirement = requirementText(doc);
+    // (2026-11-04: or what the hand reading says it needs — Homing Shot's bow, a ranged Strike its text doesn't make a requirement.)
+    const requirement = [requirementText(doc), read.requires].find((text) => text && wields && meetsWielding(text, wields) === false) ?? requirementText(doc);
     if (requirement && wields && meetsWielding(requirement, wields) === false) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (${requirement})` } };
     for (const plan of read.plans ?? []) addBuiltin(builtins, plan, doc.name);
     for (const [field, value] of Object.entries(read.builtins)) builtins[field] = Array.isArray(value) ? [...(builtins[field] ?? []), ...value] : value && typeof value === "object" ? { ...(builtins[field] ?? {}), ...value } : value;
@@ -1111,10 +1948,11 @@ function handEntry(doc, level, builtins, wields, host = null) {
 // (2026-11-03, Instant Opening's "Choose a target within 30 feet. It's Off-Guard against your attacks until the end of your next turn": Feint's
 // own plan with no roll that matters — each degree the same, off-guard to the PC's attacks (all of them, any number) to the end of its next
 // turn, 30 feet.)
-function offGuardToMeEntry(name, { range = "30 feet", traits = ["visual"] } = {}) {
+// (2026-11-05, everyone: Call the Hunt's off-guard to all melee attacks until its next turn — played as off-guard to all.)
+function offGuardToMeEntry(name, { range = "30 feet", traits = ["visual"], everyone = false } = {}) {
     const feint = basicActions.feint;
     if (!feint) return null;
-    const effects = [{ kind: "condition", slug: "off-guard", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" }, scope: { against: "actor", attacks: "any", uses: null } }];
+    const effects = [everyone ? { kind: "condition", slug: "off-guard", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" } } : { kind: "condition", slug: "off-guard", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" }, scope: { against: "actor", attacks: "any", uses: null } }];
     const outcome = (row) => ({ ...row, effects: effects.map((effect) => structuredClone(effect)) });
     const outcomes = Object.fromEntries(Object.entries(feint.resolution.outcomes).map(([degree, row]) => [degree, outcome(row)]));
     const plan = { ...structuredClone(feint), source: { ...feint.source, name }, traits, activation: { ...feint.activation, traits }, targeting: { ...feint.targeting, range }, resolution: { ...structuredClone(feint.resolution), outcomes } };
@@ -1132,6 +1970,11 @@ const ZERO_HP = {
     // doomed, Ruby Resurrection's Fireball and Desperate Revival's drain aren't played.)
     "ferocity-mimicry": { ferocity: { hp: 1, wounded: true, uses: 1 } },
     unkillable: { ferocity: { hp: 1, wounded: false, uses: 1 } },
+    // (2026-11-05, Iomedae's Valor: 1 Hit Point and temporary ones equal to its level — played as Hit Points; its +1 AC for a round isn't.)
+    // (Cellular Reconstruction: its level in Hit Points as it would die, half its level at each of its next two turns — played as twice its
+    // level at once.)
+    "cellular-reconstruction": { ferocity: { hp: (level) => 2 * level, wounded: false, uses: 1 } },
+    "iomedaes-valor": { ferocity: { hp: (level) => 1 + level, wounded: false, uses: 1 } },
     "cheat-death": { ferocity: { hp: 1, wounded: false, uses: 1 } },
     "sanguine-evasion": { ferocity: { hp: 1, wounded: false, uses: 1 } },
     "desperate-revival": { ferocity: { hp: 1, wounded: false, uses: 1 } },
@@ -1140,6 +1983,8 @@ const ZERO_HP = {
     "its-not-over": { ferocity: { hp: (level) => 10 + level + 2 + (level >= 5) + (level >= 10) + (level >= 20), wounded: false, uses: 1 } },
     // (In Tenacious Stance: and a melee Strike.)
     "cracked-mountain": { ferocity: { hp: 1, wounded: true, uses: 1, strike: true } },
+    // (2026-11-04: 1 Hit Point and its level in temporary Hit Points for a round — counted as Hit Points —, wounded 1 more; once an hour.)
+    "keep-up-the-good-fight": { ferocity: { hp: (level) => 1 + level, wounded: true, uses: 1 } },
     "cant-fall-here": { rescue: { within: 5, hp: 1, uses: 1 } },
     caterwaul: { rescue: { within: 30, hp: 1, uses: 1 } }
 };
@@ -1378,6 +2223,10 @@ function kineticistEntry(doc, level, host) {
     return null;
 }
 
+const HOST_OVERRIDE = { "shield-block": "cleric" };
+// (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
+const CLASS_OVERRIDE = { "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer" };
+
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
 // (else the standard one: an ancestry's PC with its feats so far, tools/lib/ancestry-power.mjs).
@@ -1395,20 +2244,166 @@ export function partyWithFeat(doc, level, options = {}) {
         ?? /You gain the @UUID\[Compendium\.pf2e\.actionspf2e\.Item\.([^\]]+)\](?:\{[^}]*\})? (?:action|reaction|activity|free action)\b/.exec(html)?.[1]
         // (Or named without a link — Bullet Dancer Dedication's "You gain the Bullet Dancer Stance action", when the packs have it.)
         ?? [/You gain the ((?:[A-Z][\w'-]*)(?: (?:[A-Z][\w'-]*|of|the|a))*) (?:action|reaction|activity|free action|feat)\b/.exec(html.replace(/<[^>]+>/g, " "))?.[1]].find((name) => name && featByName(name));
-    const grantedDoc = granted ? featByName(granted) ?? docsOf(`${PACK_ROOT}/feats`).get(granted) ?? null : null;
-    if (!grantedDoc || grantedDoc === doc) return result;
-    const through = partyWithFeat(grantedDoc, level, { ...options, granted: true });
-    return through.skipped ? result : { ...through, played: `${grantedDoc.name}: ${through.played}` };
+    const textDoc = granted ? featByName(granted) ?? docsOf(`${PACK_ROOT}/feats`).get(granted) ?? null : null;
+    // (2026-11-04, Cole: "Make sure the simulator recognizes the feats that grant feats, features or choices": PF2e's GrantItem rules — Wind
+    // Pillow's Powerful Leap, Spellstriker's Spellstrike, Uncanny Dodge's Deny Advantage —, and a GrantItem of a ChoiceSet's pick — Basic
+    // Shooting's — each of its options in turn. The first the fights play is the feat's.)
+    const candidates = [...(textDoc ? [textDoc] : []), ...grantedItems(doc, level)].filter((each, index, all) => each !== doc && all.indexOf(each) === index);
+    if (!candidates.length) return result;
+    const tried = [];
+    for (const grantedDoc of candidates) {
+        const through = partyWithFeat(grantedDoc, level, { ...options, granted: true });
+        if (!through.skipped) return { ...through, granted: grantedDoc.name, played: `${grantedDoc.name}: ${through.played}` };
+        tried.push(`${grantedDoc.name}: ${through.reason}`);
+    }
+    return { ...result, reason: `it grants ${tried.length === 1 ? tried[0] : `one of ${tried.length} (${tried.slice(0, 4).join("; ")}${tried.length > 4 ? "; …" : ""})`}` };
+}
+
+// The items a feat's GrantItem rules give, from the packs the simulator reads (feats, actions, class features), a ChoiceSet's options for
+// one that grants its pick ("{item|flags.system.rulesSelections.basicShooting}"); the ones at or below the level only. Equipment, spells
+// and ancestry features aren't followed.
+const GRANT_PACKS = { "feats-srd": "feats", actionspf2e: "actions", classfeatures: "class-features" };
+function packDoc(uuid) {
+    const hit = /^Compendium\.pf2e\.([\w-]+)\.(?:Item\.)?(.+)$/.exec(String(uuid ?? ""));
+    const pack = hit && GRANT_PACKS[hit[1]];
+    if (!pack) return null;
+    const docs = docsOf(`${PACK_ROOT}/${pack}`);
+    return docs.get(hit[2]) ?? [...docs.values()].find((each) => each.name.toLowerCase() === hit[2].toLowerCase()) ?? null;
+}
+function grantedItems(doc, level) {
+    const rules = doc.system?.rules ?? [];
+    const out = [];
+    for (const rule of rules) {
+        if (rule.key !== "GrantItem" || typeof rule.uuid !== "string") continue;
+        const flag = /^\{item\|flags\.(?:system|pf2e)\.rulesSelections\.([\w-]+)\}$/.exec(rule.uuid)?.[1];
+        if (!flag) {
+            const each = packDoc(rule.uuid);
+            if (each) out.push(each);
+            continue;
+        }
+        const choice = rules.find((other) => other.key === "ChoiceSet" && (other.flag ?? "") === flag);
+        // (A list of options, or a filter of the packs' feats — Basic Shooting's "item:category:class", "item:trait:gunslinger", level ≤ 2.)
+        const options = Array.isArray(choice?.choices) ? choice.choices.map((option) => packDoc(option?.value)).filter(Boolean)
+            : choice?.choices?.filter && (choice.choices.itemType ?? "feat") === "feat" ? [...docsOf(`${PACK_ROOT}/feats`).values()].filter((each) => itemMatches(each, choice.choices.filter)) : [];
+        for (const each of options) if (Number(each.system?.level?.value ?? 0) <= level) out.push(each);
+    }
+    // (The pick a player would make: the option with the best rating the compendium already shows, src/data/feat-ratings.json — Basic
+    // Breakthrough's first option, a weak one, rated it −1.28 —; the unrated after, the lowest level first, then by name, so the pick is the
+    // same each run.)
+    const rated = (each) => storedRating(each._id);
+    return out.sort((a, b) => (rated(b) ?? -Infinity) - (rated(a) ?? -Infinity) || Number(a.system?.level?.value ?? 0) - Number(b.system?.level?.value ?? 0) || a.name.localeCompare(b.name)).slice(0, 24);
+}
+let storedRatings = null;
+function storedRating(id) {
+    if (!storedRatings) {
+        try {
+            const data = JSON.parse(fs.readFileSync(new URL("../../src/data/feat-ratings.json", import.meta.url), "utf8"));
+            storedRatings = Object.assign({}, ...Object.values(data.ratings ?? {}));
+        } catch {
+            storedRatings = {};
+        }
+    }
+    return Number.isFinite(storedRatings[id]) ? storedRatings[id] : null;
+}
+// A ChoiceSet filter on an item: its strings ("item:category:class", "item:trait:x", "item:slug:x", "item:tag:x") and { lte, gte, or, and, not }
+// on "item:level"; anything else fails the item.
+function itemMatches(item, filter) {
+    const traits = item.system?.traits?.value ?? [];
+    const level = Number(item.system?.level?.value ?? 0);
+    const one = (term) => {
+        if (typeof term === "string") {
+            const [, kind, value] = /^item:(category|trait|slug|tag|level):(.+)$/.exec(term) ?? [];
+            if (kind === "category") return item.system?.category === value;
+            if (kind === "trait") return traits.includes(value);
+            if (kind === "slug") return (item.system?.slug ?? slugOf(item)) === value;
+            if (kind === "level") return level === Number(value);
+            return false;
+        }
+        if (term?.lte) return term.lte[0] === "item:level" && level <= Number(term.lte[1]);
+        if (term?.gte) return term.gte[0] === "item:level" && level >= Number(term.gte[1]);
+        if (term?.or) return term.or.some(one);
+        if (term?.and) return term.and.every(one);
+        if (term?.not) return !one(term.not);
+        return false;
+    };
+    return (Array.isArray(filter) ? filter : [filter]).every(one);
 }
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
+// (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
+const STANCE_SPELL_FEATS = { "wild winds stance": "Wild Winds Initiate", "clinging shadows stance": "Clinging Shadows Initiate" };
+const BASE_FEATS = { "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
+
+// (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
+// rank — half the druid's level, rounded up —, a 2-action focus spell; the engine's battle forms (effects.js enterForm) take its best shape.
+// Untamed Form's +2 status to the druid's own attack modifier isn't played: a form's own modifier is higher.)
+function untamedShape(level, host, spellName, label) {
+    const spell = spellPack.spellNamed(spellName);
+    if (!spell) return null;
+    const castRank = Math.max(Number(spell.system?.level?.value) || 1, Math.ceil(level / 2));
+    if (castRank > Math.ceil(level / 2)) return null;
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    const own = dcsOf(host);
+    const dc = own.spell ?? own.class ?? 10 + level + 2;
+    const pool = `${host.id}:focus`;
+    let effects = spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank);
+    // (A spell whose shape is chosen as it's cast — Animal Form's, Dinosaur Form's "effect-choice" —: one Effect with every branch's battle
+    // form, which enterForm picks the best of.)
+    if (plan.resolution?.kind === "effect-choice") {
+        const models = Object.values(effects ?? {}).filter(Boolean);
+        const first = Object.keys(effects ?? {})[0];
+        if (!first) return null;
+        const battleForms = models.flatMap((model) => model.battleForms ?? (model.battleForm ? [model.battleForm] : []));
+        effects = { [first]: { ...models[0], battleForms, battleForm: battleForms[0] ?? null } };
+        plan = { ...plan, resolution: { ...plan.resolution, kind: "effect", selector: undefined, applications: [{ kind: "native-spell-effect", uuid: first, source: "nativeEffects.onUse", terminationId: `${first}:dismiss` }] } };
+    }
+    const entry = { name: `Untamed Form (${label})`, fromFeat: true, featForced: true, forceEven: true, plan, castRank, dc, attack: dc - 10, pool, effects };
+    if (!castable(entry) || !Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) return null;
+    return { builtins: {}, spells: [entry], pools: { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) }, played: `Untamed Form's ${label.toLowerCase()} shapes (${spellName}, rank ${castRank})` };
+}
+// (2026-11-06, the magus's conflux spells the packs' compiler can't read: one a core spell plays the same — Hasted Assault, Haste on
+// itself in 1 action; Force Fang, Force Barrage's one missile a 2 ranks in melee reach —, as a focus spell at the magus's rank.)
+function focusStance(level, host, name) {
+    const effect = pf2eEffectNamed(name);
+    if (!effect) return null;
+    const model = effectModel(effect, { rank: Math.ceil(level / 2), actorLevel: level, conditionSlug });
+    if (!model?.grantedStrikes?.length) return null;
+    const pool = `${host.id}:focus`;
+    return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, pool, model: { ...model, name } }], pools: { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) }, played: `${name}: ${model.grantedStrikes.map((strike) => strike.name).join(", ")} Strikes (a focus spell)` };
+}
+function spellAsFocus(level, host, spellName, name, change, { cantrip = false, rounds = null, oncePerTurn = false, whileBuff = null, reaction = false } = {}) {
+    const spell = spellPack.spellNamed(spellName);
+    if (!spell) return null;
+    const castRank = Math.ceil(level / 2);
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    plan = change(plan);
+    const own = dcsOf(host);
+    const dc = own.spell ?? own.class ?? 10 + level + 2;
+    const pool = cantrip ? null : `${host.id}:focus`;
+    let effects = spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank);
+    if (rounds) effects = Object.fromEntries(Object.entries(effects ?? {}).map(([key, model]) => [key, model ? { ...model, rounds } : model]));
+    const entry = { name, fromFeat: true, featForced: true, plan, castRank, dc, attack: dc - 10, pool, effects, ...(oncePerTurn ? { oncePerTurn: true } : {}), ...(whileBuff ? { whileBuff } : {}) };
+    if (!reaction && !castable({ ...entry, whileBuff: null })) return null;
+    return { builtins: {}, spells: [entry], pools: pool ? { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) } : {}, played: `${name}, as ${spellName} (rank ${castRank}${cantrip ? ", a cantrip" : ""}${rounds ? `, ${rounds} round${rounds === 1 ? "" : "s"}` : ""})` };
+}
 function partyWithFeatOwn(doc, level, options = {}) {
     // (Or the feat whose Effect it needs: Dueling Riposte's "You are benefiting from Dueling Parry".)
     const needed = requiredEffectFeat(requirementText(doc) ?? "");
     // (2026-11-03: or a passive that works only in a stance it names outside a requirement — Inner Fire's "While you're in Stoked Flame
     // Stance".)
-    const stances = requiredStances(requirementText(doc) ?? "") ?? (needed && featByName(needed) ? [needed] : null) ?? (STANCE_PASSIVES[slugOf(doc)] ? [STANCE_PASSIVES[slugOf(doc)]] : null);
+    const stances = requiredStances(requirementText(doc) ?? "") ?? (needed && featByName(needed) ? [needed] : null) ?? (STANCE_PASSIVES[slugOf(doc)] ? [STANCE_PASSIVES[slugOf(doc)]] : null) ?? (BASE_FEATS[slugOf(doc)] ? [BASE_FEATS[slugOf(doc)]] : null);
     if (!stances || options.party) return partyWithFeatAlone(doc, level, options);
-    const stanceDoc = stances.map((name) => featByName(name)).find(Boolean);
+    // (2026-11-06: a stance a spell gives — Wild Winds Stance —: the feat that gives the spell.)
+    const stanceDoc = stances.map((name) => featByName(name) ?? (STANCE_SPELL_FEATS[name.toLowerCase()] ? featByName(STANCE_SPELL_FEATS[name.toLowerCase()]) : null)).find(Boolean);
     if (!stanceDoc) return { skipped: true, reason: `its stance (${stances.join(" or ")}), not in the packs` };
     const withStance = partyWithFeatAlone(stanceDoc, level, options);
     if (withStance.skipped) return { ...withStance, reason: `its stance (${stanceDoc.name}): ${withStance.reason}` };
@@ -1433,8 +2428,93 @@ function featByName(name) {
     return featsByName.get(String(name).toLowerCase()) ?? null;
 }
 
+// (2026-11-04, Cole: "Prioritize the combat passives and actions": Rallying Banner's "each ally within 30 feet", Torrent in the Blood's "each
+// creature in a 30-foot cone" — a heal the feat module rolls for each creature it names, with no area the engine reads.) Its allies within that
+// many feet, as Inspire Courage's emanation reaches them; only a plan whose every effect is a heal and which deals no damage.
+// (2026-11-05: a feat's Trigger line, as src/engine/triggers.js plays it — { on, melee?, unarmed?, whileDown? } —, or null.)
+export function featTriggerOf(doc) {
+    // (A link with no label, "@UUID[…conditionitems.Item.Frightened]": its name, not nothing.)
+    const text = String(doc?.system?.description?.value ?? "").replace(/<[^>]+>/g, " ").replace(/@UUID\[[^\]]*?Item\.([A-Za-z][^\]]*)\](?!\{)/g, (_all, name) => (/^[A-Za-z0-9]{16}$/.test(name) ? "" : name)).replace(/@\w+\[[^\]]*\](?:\{([^}]*)\})?/g, (all, label) => label ?? "").replace(/\s+/g, " ");
+    const said = (/\bTrigger\s+(.+?)(?:\.|$)/i.exec(text)?.[1] ?? "").split(/\s(?:Effect|Frequency|Requirements?)\s/)[0].trim();
+    const whileDown = /\beven while\b/i.test(text);
+    if (/^Your turn begins$/i.test(said)) return { on: "turn-start" };
+    if (/^(?:A|An) (?:creature(?: or object)?|enemy|foe)(?: adjacent to you| you are aware of| you can see| within \d+ feet)? damages you\b/i.test(said)) return { on: "damaged", ...(/adjacent|melee|unarmed|reach/i.test(said) ? { melee: true } : {}) };
+    // (2026-11-05, the one-off feats: a hit on it, its own hit, its Shield Block.)
+    if (/^(?:An? )?(?:adjacent )?(?:enemy|foe|creature)(?: you're aware of| you can see| you're observing)? (?:hits you with an? (?:attack|Strike)|critically succeeds (?:on|at) an? Strike against you)/i.test(said)) return { on: "hit", ...(/adjacent/i.test(said) ? { melee: true } : {}), ...(/critically/i.test(said) ? { critOnly: true } : {}) };
+    if (/^Your Strike (?:with [^,]+ )?hits\b/i.test(said)) return { on: "strike-hit" };
+    if (/^You use the Shield Block reaction\b/i.test(said)) return { on: "shield-block", ...(/adjacent/i.test(said) ? { melee: true } : {}), ...(/\bis undead\b/i.test(said) ? { creature: "undead" } : {}) };
+    const would = /^(?:A Strike|An attack(?: or effect)?|An? (?:creature|enemy|foe)(?:'s)? (?:attack|Strike)) would (?:deal )?damage (?:to )?you$/i.exec(said);
+    if (would) return { on: "would-damage", ...(/effect/i.test(said) ? {} : { strike: true }) };
+    const typed = /^You would take (\w+) damage$/i.exec(said);
+    if (typed) return { on: "would-damage", type: typed[1].toLowerCase() };
+    if (/^You (?:bring|reduce) (?:a|an) (?:foe|enemy|creature) to 0 Hit Points/i.test(said) || /^You successfully reduce one or more .*(?:enemies|foes|creatures) to 0 Hit Points/i.test(said)) return { on: "foe-down" };
+    if (/^You critically (?:succeed|hit) (?:with|on) an? (unarmed )?Strike/i.test(said)) return { on: "crit", ...(/unarmed/i.test(said) ? { unarmed: true } : {}) };
+    if (/^A creature reduces you or (?:a|an) (?:living )?ally within \d+ feet to 0 Hit Points/i.test(said)) return { on: "ally-down", ...(whileDown ? { whileDown: true } : {}) };
+    if (/^You are reduced to 0 Hit Points by a creature/i.test(said)) return { on: "self-down", whileDown: true };
+    // (2026-11-05, Cole's pick "both, riders first": fear lowered as it comes — its own (Creature Comforts), an ally's (Reassuring Presence,
+    // Comforting Presence, Reminder of the Greater Fear) — or at the start of its turn (Mask of Fear).)
+    if (/^You (?:become|gain the) frightened(?: condition)?$/i.test(said)) return { on: "frightened" };
+    if (/^You start your turn with the frightened condition$/i.test(said)) return { on: "turn-start", withCondition: "frightened" };
+    const allyFear = /^(?:An? )?(adjacent ally|ally within (\d+) feet(?: of you)?|Another creature within (\d+) feet of you)\b[^.]*?\b(?:gains|becomes|would gain) (?:the )?frightened\b/i.exec(said);
+    // (A foe's roll: misfortune as it's about to attack — Harbinger's Caw — or after its critical failure — Ill Tide.)
+    const foeRoll = /^A creature within (\d+) feet(?: of you)? (is about to attempt an attack roll|critically fails an attack roll)\b/i.exec(said);
+    if (foeRoll) return { on: /critically/i.test(foeRoll[2]) ? "foe-crit-fail" : "foe-attack", within: Number(foeRoll[1]) };
+    // (Lucky Escape, Wood Ward: an attack on it, before the roll.)
+    if (/^An? (?:creature|enemy|foe)(?: you can see)? targets you with an attack(?:,? even if you aren't aware of it|,? and you can see the attacker)?$/i.test(said)) return { on: "foe-attack", atYou: true };
+    if (allyFear) return { on: "ally-frightened", toTrigger: true, within: /adjacent/i.test(allyFear[1]) ? 5 : Number(allyFear[2] ?? allyFear[3]) };
+    return null;
+}
+
+const ALLY_CONDITIONS = new Set(["quickened", "concealed", "hidden", "invisible"]);
+function alliesAreaHeal(plan) {
+    // (2026-11-05: "you and each ally within 5 feet", "each willing ally", and a condition only good for its allies — Cadence Call's
+    // quickened, Banner Twirl's concealed — as well as a heal. Before, read as one creature and aimed at a foe, never used.)
+    const said = /^(?:you and )?each (?:ally|willing ally|creature|living creature|of your allies)(?: \(including you\))? (?:within (\d+) feet|in an? (\d+)-foot (cone|emanation|burst))$/i.exec(String(plan?.targeting?.target ?? ""));
+    if (!said || plan.targeting.area || plan.resolution?.sharedDamage) return plan;
+    const effects = Object.values(plan.resolution?.outcomes ?? {}).flatMap((row) => row?.effects ?? []);
+    if (!effects.length || !effects.every((effect) => effect.kind === "heal" || (effect.kind === "condition" && ALLY_CONDITIONS.has(effect.slug)))) return plan;
+    return { ...plan, targeting: { ...plan.targeting, allies: true, area: { type: said[3]?.toLowerCase() ?? "emanation", value: Number(said[1] ?? said[2]) } } };
+}
+
+// (2026-11-05: "you" as the target of a plan whose every effect is a condition only good for its holder — Heat Wave's and Storm Shroud's
+// concealed — the caster itself, as "self". Before, no target the engine reads: never played. Not other conditions on "you": the module
+// reads Inner Strength's lowered enfeebled, Statue's ended off-guard and the like as the condition itself.)
+// (2026-11-05, the one-off feats: a requirement that is a state of the PC the simulator doesn't track — "Your waking world is active", "You
+// are overflowing", "Your swarm is outside your body", "You are riding your mount" — taken as met, so the feat rates as it is when it can be
+// used; its row says so. Not one about the last action, a target, a creature or what's in reach: those the planner checks or they're
+// unread. FEAT_ASSUME_STATE=0 turns it off.)
+const ASSUMABLE = /^(?:Your|You're|You are|You have)\b/i;
+const NOT_ASSUMABLE = /\b(?:last|previous|most recent) action\b|\btarget\b|\bcreature\b|\benemy\b|\bfoe\b|\bally\b|\badjacent\b|\breach\b|\bwithin \d+ feet\b|\bdoomed\b|\bfatigued\b|\bwounded\b|\bdying\b|\bunconscious\b|\bHit Points\b|\bthis turn\b|\bthis round\b/i;
+function assumeState(text, assumed) {
+    if (process.env.FEAT_ASSUME_STATE === "0") return null;
+    const said = String(text ?? "").replace(/@UUID\[[^\]]*?Item\.([^\]]+)\](?:\{([^}]*)\})?/g, (_all, name, label) => label ?? name).trim();
+    if (!ASSUMABLE.test(said) || NOT_ASSUMABLE.test(said)) return null;
+    assumed.push(said.replace(/\.$/, ""));
+    return true;
+}
+
+function youAsSelf(plan) {
+    if (!/^you$/i.test(String(plan?.targeting?.target ?? "")) || plan.targeting.area) return plan;
+    const effects = Object.values(plan.resolution?.outcomes ?? {}).flatMap((row) => row?.effects ?? []);
+    const automatic = plan.resolution?.check?.roll === "automatic";
+    // (2026-11-05, the one-off feats: a hand card's temporary Hit Points on "you" — Feast's, Absorb Strength's — the PC's too.)
+    // (And a condition of its own lowered, Creature Comforts' and Mask of Fear's frightened.)
+    if (!effects.length || !effects.every((effect) => (effect.kind === "condition" && (ALLY_CONDITIONS.has(effect.slug) || (automatic && Number(effect.stack?.by) < 0))) || (effect.kind === "temp-hp" && automatic))) return plan;
+    return { ...plan, targeting: { ...plan.targeting, target: "self" } };
+}
+
+// (2026-11-05) The feats that give or grow a companion (HAND's animalCompanion), the text of one that needs it, the stage a PC has by its level.
+const HAND_COMPANION = new Set(Object.entries(HAND).filter(([, read]) => read.toString().includes("animalCompanion")).map(([slug]) => slug));
+const HAND_ON_COMPANION = new Set(Object.entries(HAND).filter(([, read]) => /companionFields|companionActions|companionStrike|tandem/.test(read.toString())).map(([slug]) => slug));
+const MOUNT_SLUGS = new Set(["cavalier-dedication", "faithful-steed", "impressive-mount", "incredible-mount", "loyal-warhorse", "imposing-destrier", "auspicious-mount", "specialized-mount", "drake-rider-dedication", "mature-dragon-companion", "incredible-dragon-companion", "mammoth-lord-dedication", "mature-megafauna-companion", "incredible-megafauna-companion", "specialized-megafauna-companion"]);
+const RIDING_TEXT = /\b(?:riding (?:your|a|the) |you(?:'re| are) (?:mounted|riding)|while (?:you're |you are )?mounted|when you(?:'re| are) mounted|your mount\b|your steed\b)/i;
+const COMPANION_TEXT = /\byour (?:animal )?companion(?:'s|s)?\b|\byour (?:mount|steed)\b/i;
+const featText = (doc) => `${doc.system?.prerequisites?.value?.map((each) => each.value).join(" ") ?? ""} ${String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ")}`;
+const companionStageAt = (level) => (level >= 16 ? "specialized" : level >= 10 ? "incredible" : level >= 6 ? "mature" : "young");
 function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } = {}) {
-    const classTrait = (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait] || CLASS_SLUGS.includes(trait));
+    // (2026-11-05: Shield Block on the cleric — the fighter has it already, so on the fighter it would rate as nothing.)
+    if (!hostId && !start && HOST_OVERRIDE[slugOf(doc)]) hostId = HOST_OVERRIDE[slugOf(doc)];
+    const classTrait = (!start && !hostId && CLASS_OVERRIDE[slugOf(doc)]) || (doc.system?.traits?.value ?? []).find((trait) => HOSTS[trait] || CLASS_SLUGS.includes(trait));
     // (2026-11-02, the user: "Get the simulator working with all classes": a class's feat on its own class — classes.js — the standard party
     // with that class's PC in its seat, rated against the same party without the feat.)
     // (2026-11-03: an archetype's stance for the unarmored — Six Pillars Stance's, Stunt Performer Stance's "You are unarmored" — on the
@@ -1468,7 +2548,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // reader, the plan its cards play — where it reads a save: Aerial Boomerang's line, Rain of Razors' burst, Glacial Prison's slow. The feat
     // module read some of them as timers.)
     const impulse = impulsePlan(doc, level);
-    const plan = withResolvedEffects(impulse ?? compiled.plan, resolveUuid);
+    const plan = youAsSelf(alliesAreaHeal(withResolvedEffects(impulse ?? compiled.plan, resolveUuid)));
     // Its entries with what the PC wields: the party's own, or (a requirement it doesn't meet — Double Slice's two weapons) a loadout that does,
     // the plain party then fought with the same loadout.
     // (2026-11-03: the simulator's own readings — the hand table, Quickening Banner's quickened allies, Instant Opening's off-guard — win over
@@ -1476,14 +2556,25 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // Quickening Banner's check — had set them aside, and the feat rated nothing.)
     const attemptWith = (wields, useModule) => {
         const builtins = {};
+        const assumed = [];
         let entries = useModule
-            ? featEntries(plan, featInfo(doc, level), builtins, { ...helpersAt(level), meets: (text) => meetsWielding(text, wields) })
+            ? featEntries(plan, featInfo(doc, level), builtins, { ...helpersAt(level), meets: (text) => meetsWielding(text, wields) ?? assumeState(text, assumed) })
             : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: the feat module's plan set aside` } };
+        if (assumed.length && entries && !entries.gap && entries.played) entries = { ...entries, played: `${entries.played} (requirement assumed: ${assumed[0]})` };
         // (An impulse's save at its class DC.)
         if (impulse && !entries.gap) {
             const dc = dcsOf(host).class ?? 10 + level + 2;
             entries = { ...entries, spells: entries.spells.map((entry) => ({ ...entry, dc, attack: dc - 10, castRank: Math.max(1, Math.ceil(level / 2)) })) };
         }
+        // (2026-11-05: a reaction or free action played at its trigger — src/engine/triggers.js —, when its Trigger line is one the engine
+        // reads.)
+        if (!entries.gap && entries.spells?.length) {
+            const trigger = featTriggerOf(doc);
+            if (trigger) entries = { ...entries, spells: entries.spells.map((entry) => (["reaction", "free"].includes(entry.plan?.activation?.time) ? { ...entry, featTrigger: trigger } : entry)) };
+        }
+        // (2026-11-05: a plan the engine can't cast at all — Flying Flame's path, no target or area it reads —: a gap, not a 0.00 rating
+        // from fights where it was never used; the readings below may still play it.)
+        if (!process.env.FEAT_KEEP_UNPLAYABLE && !entries.gap && entries.spells?.length && !Object.keys(builtins).length && entries.spells.every((entry) => !castable(entry) && !entry.featTrigger)) entries = { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a plan the engine can't play (its targeting or what it does)` } };
         // (What the feat module leaves, PF2e's own Effect an action links for its user — Dragon Stance's —: as the live snapshot plays it,
         // scripts/snapshot.js readSelfEffects.)
         if (entries.gap) {
@@ -1513,12 +2604,19 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = saveAuraEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) {
+            entries = twinDistractionEntry(doc, level, host) ?? entries;
+            if (entries.twinFeint) builtins.multiStrikes = [...(builtins.multiStrikes ?? []), entries.twinFeint];
+        }
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = critRiderEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
+        // (2026-11-06, Untamed Form: its hand reading — the Animal Form shapes at its rank — over the innate reading of the focus spell.)
+        if (entries.gap && slugOf(doc) === "untamed-form") entries = handEntry(doc, level, builtins, wields, { ...host, strikes: wields.strikes ?? host.strikes }) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = rageSaveEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = handEntry(doc, level, builtins, wields, { ...host, strikes: wields.strikes ?? host.strikes }) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = saveRerollEntry(doc, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = zeroHpEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = passiveRulesEntry(doc, level, builtins) ?? entries;
         // (A requirement on what the PC wields the plan doesn't carry — Dueling Dance's "a single one-handed melee weapon and nothing else in
@@ -1559,6 +2657,11 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     }
     const { entries, builtins } = tried;
     if (entries.gap) return { skipped: true, reason: entries.gap.name.slice(doc.name.length + 2), host: host.id, plan };
+    // (2026-11-05: a feat for a PC with an animal companion — Pack Movement, Heal Companion's spell, Bestial Protection —: the companion on
+    // both sides, at the stage a PC of the level has.)
+    // (Not beside an eidolon: a summoner's feat for "your companion" is for it.)
+    const companionNeeded = !HAND_COMPANION.has(slugOf(doc)) && !base.some((c) => c.sharesHpWith === host.id) && (COMPANION_TEXT.test(featText(doc)) || HAND_ON_COMPANION.has(slugOf(doc))) ? companionStageAt(level) : null;
+    if (companionNeeded) base = withCompanion(base, host.id, companionNeeded);
     const withFeat = clone(base);
     const pc = withFeat.find((c) => c.id === host.id);
     // (2026-11-03: "Spend a Mythic Point" — the PC's three Mythic Points a fight, as a monster's (B72, the user's choice), shared by what
@@ -1568,6 +2671,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // that does not use it": the feat's own actions marked featForced, and the PC forceUse — the planner takes one in every turn it can,
     // ahead of anything else, as the deviants' "all out". FEAT_FORCE=0 rates them as the AI would pick them.)
     const forced = FORCE ? (entry) => ({ ...entry, featForced: true }) : (entry) => entry;
+    if (entries.spells.some((entry) => entry.featTrigger)) pc.featTriggers = true;
     pc.spells = [...(pc.spells ?? []), ...entries.spells.map((entry) => forced(mythic && !entry.pool ? { ...entry, pool: "mythic" } : entry))];
     // (2026-11-03, Cole's pick "share the 3 points": its Strike activities, multi-Strikes and self-effects spend them too — Decree of War,
     // Telling Blow, Godspeed, Divine Invulnerability.)
@@ -1576,17 +2680,114 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     pc.spellPools = { ...(pc.spellPools ?? {}), ...entries.pools, ...(mythic && (entries.spells.some((entry) => !entry.pool) || mythicBuiltins) ? { mythic: 3 } : {}) };
     if (FORCE) {
         for (const field of FORCED_FIELDS) if (Array.isArray(pooledBuiltins[field])) pooledBuiltins[field] = pooledBuiltins[field].map(forced);
+        // (2026-11-05: the feat's +AC reaction used even by a PC with Reactive Strike — actions.js otherwise keeps the reaction for that,
+        // and Timely Dodge, Dodge Away and the like on a fighter rated 0.00, never used.)
+        if (pooledBuiltins.acReaction && typeof pooledBuiltins.acReaction === "object") pooledBuiltins.acReaction = { ...pooledBuiltins.acReaction, featForced: true };
         pc.forceUse = true;
     }
     joinBuiltins(pc, pooledBuiltins);
     if (tried.strikes) pc.strikes = tried.strikes;
+    // (2026-11-05, Diamond Fists: its unarmed attacks forceful and deadly d10 — a die step bigger for one that had either; the deadly dice
+    // by its striking runes, 2 at greater striking, 3 at major.)
+    // (2026-11-06, Deadly Strikes: its unarmed attacks deadly d10 — a smaller deadly die made d10; deadly dice by its striking runes.)
+    if (pc.deadlyStrikes) {
+        const deadlyDice = pc.deadlyStrikes >= 19 ? 3 : pc.deadlyStrikes >= 12 ? 2 : 1;
+        delete pc.deadlyStrikes;
+        pc.strikes = (pc.strikes ?? []).map((strike) => (strike.unarmed ? { ...strike, deadly: { dice: strike.deadly?.dice ?? deadlyDice, die: Math.max(10, strike.deadly?.die ?? 0) } } : strike));
+    }
+    if (pc.diamondFists) {
+        const deadlyDice = pc.diamondFists >= 19 ? 3 : 2;
+        delete pc.diamondFists;
+        pc.strikes = (pc.strikes ?? []).map((strike) => {
+            if (!strike.unarmed) return strike;
+            const had = strike.forceful || strike.deadly;
+            const damage = had ? strike.damage.map((part, index) => (index === 0 ? { ...part, die: Math.min(12, (part.die ?? 6) + 2) } : part)) : strike.damage;
+            return { ...strike, damage, forceful: true, deadly: strike.deadly ?? { dice: deadlyDice, die: 10 } };
+        });
+    }
+    // (2026-11-05, a Lay on Hands rider — Amplifying Touch and kin —: its Lay on Hands used whenever it can go, as the rider's feat is rated
+    // by use; cast 0.2 times a fight before.)
+    if (pc.touchRiders?.length) pc.spells = (pc.spells ?? []).map((entry) => (entry.plan?.source?.slug === "lay-on-hands" ? { ...entry, featForced: true } : entry));
+    // (2026-11-06, Untamed Form's shapes: the feat's own shape forced, not the Animal Form both sides have.)
+    const shapes = (pc.spells ?? []).filter((entry) => /^Untamed Form \(/.test(entry.name ?? "") && entry.forceEven);
+    if (shapes.length > 1) pc.spells = pc.spells.map((entry) => (shapes.slice(0, -1).includes(entry) ? { ...entry, featForced: false, forceEven: false } : entry));
+    // (Targeting Strike: its Set-Up Strike used whenever it can go — the rider's use.)
+    if (pc.targetingStrike) pc.strikeActivities = (pc.strikeActivities ?? []).map((activity) => (activity.setUp || /^(Set-Up Strike|Guiding Shot)$/.test(activity.name) ? { ...activity, featForced: true } : activity));
+    // (2026-11-06, Combination Finisher: its finishers' Strikes at −4/−8, −3/−6 agile — abilities.js chargeStrike mapSteps.)
+    if (pc.combinationFinisher) {
+        delete pc.combinationFinisher;
+        pc.strikeActivities = (pc.strikeActivities ?? []).map((activity) => (activity.finisher ? { ...activity, combination: true } : activity));
+    }
+    // (Burning and Resounding Cascade: its Arcane Cascade entered whenever it can be — the rider's use; 0.1 a fight before.)
+    if (pc.burningCascade || pc.resoundingCascade) pc.selfEffects = (pc.selfEffects ?? []).map((entry) => (entry.name === "Arcane Cascade" ? { ...entry, featForced: true } : entry));
+    if (pc.unholyDead) {
+        const extra = pc.unholyDead;
+        delete pc.unholyDead;
+        pc.strikes = (pc.strikes ?? []).map((strike) => (strike.thrall ? { ...strike, damage: [...strike.damage, { dice: 0, die: 0, bonus: extra, type: "spirit" }] } : strike));
+    }
+    // (2026-11-05, Unstable Concoction: its bombs' initial damage dice a step bigger.)
+    if (pc.unstableConcoction) {
+        delete pc.unstableConcoction;
+        pc.strikes = (pc.strikes ?? []).map((strike) => (strike.splashKind === "bomb" ? { ...strike, damage: strike.damage.map((part, index) => (index === 0 && !part.persistent ? { ...part, die: Math.min(12, (part.die ?? 6) + 2) } : part)) } : strike));
+    }
     // (Stunning Blows: the rider on the PC's Flurry of Blows.)
     if (entries.flurryRider) pc.multiStrikes = (pc.multiStrikes ?? []).map((entry) => (entry.name === "Flurry of Blows" ? { ...entry, bothHit: { conditions: [], damage: [], ...entries.flurryRider } } : entry));
-    return { party: withFeat, ...(loadout || classPC ? { plain: base } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan };
+    // (2026-11-05: its uses counted by the names its actions show in the log too — Explosion's Explode, a dedication's Rage — not its own
+    // name alone, which counted 0.)
+    // (2026-11-05: its animal companion, beside it; a stage upgrade's plain party has the stage before.)
+    let fought = withFeat;
+    let plainParty = loadout || classPC || companionNeeded ? base : null;
+    if (pc.animalCompanion) {
+        const { stage, base: before = null } = pc.animalCompanion;
+        delete pc.animalCompanion;
+        fought = withCompanion(withFeat, host.id, stage);
+        if (before) plainParty = withCompanion(base, host.id, before);
+    }
+    // (What the feat gives the companion — companionFields: Heightened Instincts' saves, Tenacious Endurance —; companionActions: Companion's
+    // Cry's 2-action Command, the master's turn one action, the companion's three; tandem: Side by Side's flanking.)
+    const companion = fought.find((c) => c.companionOf === host.id || c.sharesHpWith === host.id) ?? null;
+    const master = fought.find((c) => c.id === host.id);
+    for (const field of ["companionFields", "companionActions", "tandem"]) {
+        const value = master?.[field];
+        if (value === undefined) continue;
+        delete master[field];
+        if (!companion) continue;
+        if (field === "companionFields") {
+            const { plus = {}, ...rest } = value;
+            // (Its own activities used as often as they can be, as the PC's are — forced.)
+            if (FORCE) for (const list of [...FORCED_FIELDS, "spells"]) if (Array.isArray(rest[list])) {
+                rest[list] = rest[list].map((entry) => ({ ...entry, featForced: true }));
+                companion.forceUse = true;
+            }
+            joinBuiltins(companion, rest);
+            for (const [key, add] of Object.entries(plus)) companion[key] = (Number(companion[key]) || 0) + add;
+        }
+        else if (field === "companionActions") {
+            master.actionsPerTurn = value.master;
+            companion.actionsPerTurn = value.companion;
+        } else {
+            master.tandemWith = companion.id;
+            companion.tandemWith = master.id;
+        }
+    }
+    // (2026-11-05, Cole's pick "Mounted combat": a mount feat's companion ridden — the plain party's too when it has one —, and a feat for a
+    // rider on a mounted PC both sides. companions.js mountUp.)
+    if (MOUNT_SLUGS.has(slugOf(doc)) || RIDING_TEXT.test(featText(doc))) {
+        for (const side of [fought, plainParty]) {
+            const rider = side?.find((c) => c.id === host.id);
+            const mount = side?.find((c) => c.companionOf === host.id);
+            if (rider && mount && !rider.mountId) mountUp(rider, mount);
+        }
+    }
+    const useNames = [...new Set([...(fought !== withFeat || companionNeeded ? ["Animal Companion"] : []), ...(companion?.sharesHpWith ? ["Eidolon"] : []), ...entries.spells, ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => (typeof entry === "string" ? entry : entry?.name)).filter((name) => typeof name === "string" && name.length > 2))];
+    return { party: fought, ...(plainParty ? { plain: plainParty } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan, useNames };
 }
 
 const FORCE = process.env.FEAT_FORCE !== "0";
-const FORCED_FIELDS = ["strikeActivities", "multiStrikes", "selfEffects", "selfBuffs", "charges", "skillSweeps"];
+// (2026-11-05: a benchmark of its own — FEAT_FOE_TRAIT=saves, the rating foes with save abilities, spell-power.js —, in its own run folder.)
+const FOE_TRAIT = process.env.FEAT_FOE_TRAIT || null;
+// (2026-11-05: reactionStrikes too — actions.js puts a forced one ahead of Reactive Strike on a move or manipulate trigger.)
+const FORCED_FIELDS = ["strikeActivities", "multiStrikes", "selfEffects", "selfBuffs", "charges", "skillSweeps", "reactionStrikes"];
 
 // Loadouts for a feat's requirement the party's own weapons don't meet: the PC's main weapon changed for others of the same runes.
 // (A ranged main weapon — a ranger's bow — made a melee one: no range, reload or ammunition.)
@@ -1613,9 +2814,9 @@ export const partyLevelOf = (level) => Math.max(1, Math.min(20, Number(level) ||
 // The scale at a level for an encounter: the plain party's scores on seeds [0, FIGHTS), and against foes a level up and a level down.
 export function scaleTask({ level, encounter: kind }) {
     const party = partyFor(level);
-    const base = dangerSummary(dangerFights(party, powerFoes(kind, level), 0, FIGHTS, { grid: GRID }));
-    const up = dangerSummary(dangerFights(party, powerFoes(kind, level + 1), 0, FIGHTS, { grid: GRID }));
-    const down = dangerSummary(dangerFights(party, powerFoes(kind, level - 1), 0, FIGHTS, { grid: GRID }));
+    const base = dangerSummary(dangerFights(party, powerFoes(kind, level, FOE_TRAIT), 0, FIGHTS, { grid: GRID }));
+    const up = dangerSummary(dangerFights(party, powerFoes(kind, level + 1, FOE_TRAIT), 0, FIGHTS, { grid: GRID }));
+    const down = dangerSummary(dangerFights(party, powerFoes(kind, level - 1, FOE_TRAIT), 0, FIGHTS, { grid: GRID }));
     return { kind: "scale", level, encounter: kind, base: base.score, scores: base.scores, up: up.score, down: down.score, step: Math.max(0.02, (up.score - down.score) / 2), rounds: base.rounds };
 }
 
@@ -1684,8 +2885,9 @@ export function stopReason(diffs, step, uses) {
 
 // A sink for a fight's log that counts the lines naming the feat. (Not \b: a name that ends in "!" or "?" — Do You Know Who I Am?,
 // To Me! — has no word boundary after it.)
-function useCounter(name) {
-    const pattern = new RegExp(`(?<![\\w'])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w'])`);
+function useCounter(name, others = []) {
+    const names = [name, ...others.filter((other) => other !== name)];
+    const pattern = new RegExp(`(?<![\\w'])(?:${names.map((each) => each.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\w'])`);
     return { count: 0, push(line) { if (pattern.test(typeof line === "string" ? line : line?.text ?? "")) this.count++; } };
 }
 
@@ -1724,7 +2926,7 @@ export function partyHash(party) {
 
 // One encounter of a feat: its fights in batches until stopReason, against the plain party's on the same seeds.
 function rateEncounter(built, foes, plain, cacheKey, name, { maxFights = FIGHTS, early = true } = {}) {
-    const sink = useCounter(name);
+    const sink = useCounter(name, built.useNames ?? []);
     const scores = [];
     let plainList = [];
     let stop = null;
@@ -1764,7 +2966,7 @@ export function featTask(task) {
     for (const kind of KINDS) {
         const scaled = scale?.get(`${level}|${kind}`);
         if (!scaled) return { ...head, error: `no scale for level ${level} ${kind}: run the scale phase first` };
-        results[kind] = rateEncounter(built, powerFoes(kind, level), scaled, plainKey(built, level, kind), doc.name);
+        results[kind] = rateEncounter(built, powerFoes(kind, level, FOE_TRAIT), scaled, plainKey(built, level, kind), doc.name);
     }
     const levels = KINDS.reduce((sum, kind) => sum + results[kind].levels, 0) / KINDS.length;
     const se = Math.sqrt(KINDS.reduce((sum, kind) => sum + results[kind].levelsSe ** 2, 0)) / KINDS.length;
@@ -1787,7 +2989,7 @@ export function probeTask({ row, seeds = PROBE }) {
         const stored = row.results?.[kind];
         if (!stored?.scores) return { ...head, changed: true, why: "no fights kept (rated before the probe existed)" };
         const n = Math.min(seeds, stored.scores.length);
-        const foes = powerFoes(kind, level);
+        const foes = powerFoes(kind, level, FOE_TRAIT);
         const now = dangerFights(built.party, foes, 0, n, { grid: GRID }).scores;
         if (now.some((value, index) => value !== stored.scores[index])) return { ...head, changed: true, party, why: `${kind} fights differ` };
         if (Boolean(built.plain) !== Boolean(stored.plainScores)) return { ...head, changed: true, party, why: "its plain party changed" };
@@ -1803,7 +3005,7 @@ export function probeTask({ row, seeds = PROBE }) {
 export function scaleProbeTask({ level, encounter: kind, seeds = PROBE }) {
     const stored = scale?.get(`${level}|${kind}`);
     if (!stored) return { kind: "scale-probe", level, encounter: kind, changed: true };
-    const now = dangerFights(partyFor(level), powerFoes(kind, level), 0, Math.min(seeds, stored.scores.length), { grid: GRID }).scores;
+    const now = dangerFights(partyFor(level), powerFoes(kind, level, FOE_TRAIT), 0, Math.min(seeds, stored.scores.length), { grid: GRID }).scores;
     return { kind: "scale-probe", level, encounter: kind, changed: now.some((value, index) => value !== stored.scores[index]) };
 }
 
@@ -1821,7 +3023,7 @@ export function canaryTask({ row }) {
         const scaled = scale?.get(`${level}|${kind}`);
         const stored = row.results?.[kind];
         const n = Math.min(CANARY, stored?.scores?.length ?? CANARY);
-        const fresh = rateEncounter(built, powerFoes(kind, level), scaled, plainKey(built, level, kind), doc.name, { maxFights: n, early: false });
+        const fresh = rateEncounter(built, powerFoes(kind, level, FOE_TRAIT), scaled, plainKey(built, level, kind), doc.name, { maxFights: n, early: false });
         now.push(fresh.levels);
         if (stored?.scores) {
             const plain = stored.plainScores ?? scaled.scores;
@@ -1840,7 +3042,7 @@ export function partyRating(party, level, names = []) {
     for (const kind of KINDS) {
         const scaled = scale?.get(`${level}|${kind}`);
         if (!scaled) throw new Error(`no scale for level ${level} ${kind}`);
-        const foes = powerFoes(kind, level);
+        const foes = powerFoes(kind, level, FOE_TRAIT);
         const fights = dangerSummary(dangerFights(party, foes, 0, FIGHTS, { grid: GRID }));
         const diffs = fights.scores.map((score, index) => score - scaled.scores[index]);
         const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
@@ -1862,11 +3064,11 @@ export function basicTask(task) {
         for (const kind of KINDS) {
             const plain = scale?.get(`${level}|${kind}`);
             if (!plain) return { ...task, error: `no scale for level ${level} ${kind}` };
-            const fights = dangerSummary(dangerFights(party, powerFoes(kind, level), 0, FIGHTS, { grid: GRID }));
+            const fights = dangerSummary(dangerFights(party, powerFoes(kind, level, FOE_TRAIT), 0, FIGHTS, { grid: GRID }));
             const diffs = plain.scores.map((score, index) => score - fights.scores[index]);
             const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
             const sd = Math.sqrt(diffs.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
-            rows[`${level}|${kind}`] = { delta: mean, levels: -mean / plain.step, levelsSe: sd / Math.sqrt(diffs.length) / plain.step, uses: usesPerFight(partyFor(level), powerFoes(kind, level), task.name) };
+            rows[`${level}|${kind}`] = { delta: mean, levels: -mean / plain.step, levelsSe: sd / Math.sqrt(diffs.length) / plain.step, uses: usesPerFight(partyFor(level), powerFoes(kind, level, FOE_TRAIT), task.name) };
         }
     }
     const values = Object.values(rows);

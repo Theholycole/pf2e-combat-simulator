@@ -34,6 +34,11 @@ export function hiddenDC(state, viewer, target, { roll = true } = {}) {
     return target?.cond?.concealed && !outlined ? 5 : 0;
 }
 
+// Blind-Fight (2026-11-04): no flat check for a concealed target, DC 5 for a hidden one (blinded, everything is hidden to it).
+export function blindFought(viewer, dc) {
+    return viewer?.blindFight && dc > 0 ? (dc >= 11 ? 5 : 0) : dc;
+}
+
 // Hidden from this viewer: hidden, and not seen through (nor seen as concealed).
 export function hiddenFrom(state, viewer, target) {
     return hiddenDC(state, viewer, target) >= 11;

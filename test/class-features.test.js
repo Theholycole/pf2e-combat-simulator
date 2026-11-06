@@ -200,7 +200,7 @@ test("Exploit Vulnerability: the target's highest weakness (or 2 + half level) o
     const plain = expectedHitDamage(c, c.strikes[0], target, false);
     state.rng.d20 = dice(15);
     performAction(state, c, { type: "exploit", targetId: "troll" });
-    assert.deepEqual(c.exploited, { targetId: "troll", value: 10 }, "its weakness to fire is the bigger");
+    assert.deepEqual({ targetId: c.exploited.targetId, value: c.exploited.value, mortal: c.exploited.mortal }, { targetId: "troll", value: 10, mortal: true }, "its weakness to fire is the bigger");
     assert.equal(expectedHitDamage(c, c.strikes[0], target, false) - plain, 10);
     // On a critical hit the weakness still counts once.
     const critical = expectedHitDamage(c, c.strikes[0], target, true);

@@ -210,12 +210,15 @@ export function gripPenalty(c, strike) {
 // Off-guard to one attacker only (Feint, Create a Diversion): the target is
 // off-guard against that creature's attacks (melee ones, for Feint).
 export function offGuardTo(target, attacker, melee) {
-    return (target.offGuardTo ?? []).some((entry) => entry.attacker === attacker?.id && (entry.attacks !== "melee" || melee) && (entry.uses ?? 1) > 0);
+    // (2026-11-05: an entry with a bonus — Guiding Shot's, Assisting Shot's +1 to the next ally's roll — isn't off-guard; actions.js reads it.)
+    return (target.offGuardTo ?? []).some((entry) => entry.attacker === attacker?.id && !entry.bonus && (entry.attacks !== "melee" || melee) && (entry.uses ?? 1) > 0);
 }
 
 export function multipleAttackPenalty(strike, attacksMade) {
     // A hazard's Strike: "No multiple attack penalty".
     if (attacksMade <= 0 || strike.noMap) return 0;
+    // (2026-11-06, Combination Finisher: a finisher's own lower penalties — mapSteps [second, third and later].)
+    if (strike.mapSteps) return strike.mapSteps[attacksMade === 1 ? 0 : 1];
     if (attacksMade === 1) return strike.agile ? 4 : 5;
     return strike.agile ? 8 : 10;
 }
@@ -227,7 +230,9 @@ export function armorClass(defender, { ranged = false, coverBonus = 0, flanked =
     // (Rage's −1 to AC while it lasts — classes.js.)
     for (const buff of defender.activeBuffs ?? []) ac -= buff.acPenalty ?? 0;
     const raised = shieldRaised ?? defender.shield?.raised;
-    const shieldBonus = raised && defender.shield && !defender.shield.broken ? defender.shield.ac : 0;
+    // (2026-11-05, Mounted Shield: its rider's raised shield — borrowedShield, the rider's own shield — covers the mount too.)
+    const borrowed = defender.borrowedShield?.raised && !defender.borrowedShield.broken ? defender.borrowedShield.ac : 0;
+    const shieldBonus = Math.max(raised && defender.shield && !defender.shield.broken ? defender.shield.ac : 0, borrowed);
     // (2026-10-25: the whole field's cover — heavy undergrowth — against ranged attacks; weather.js.)
     const cover = ranged && defender.band !== "engaged" ? Math.max(coverBonus, defender.groundCover ?? 0) : 0;
     ac += Math.max(shieldBonus, cover);
@@ -236,7 +241,9 @@ export function armorClass(defender, { ranged = false, coverBonus = 0, flanked =
 }
 
 export function saveModifier(c, save) {
-    return (c.saves?.[save] ?? 0) - statusPenalty(c, save) + effectBonus(c, save);
+    // (2026-11-05, Reflexive Shield: its raised shield's circumstance bonus to Reflex saves too.)
+    const shield = save === "reflex" && c.reflexiveShield && c.shield?.raised && !c.shield.broken ? c.shield.ac ?? 0 : 0;
+    return (c.saves?.[save] ?? 0) - statusPenalty(c, save) + effectBonus(c, save) + shield;
 }
 
 // The Will modifier used for the morale threshold: no condition penalties.

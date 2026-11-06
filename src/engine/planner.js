@@ -37,7 +37,7 @@ function actionEntryOf(c, action) {
 import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from "./commander.js";
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hinderedBy, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
-import { canStepOut, fliesNow, flankChance, isIncorporeal, levitating, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
+import { canStepOut, distanceBetween, fliesNow, flankChance, isIncorporeal, levitating, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
 import { bandAt, canTakeCover, gridFlanked, gridStrides, obstacleNext, pillarLine, pillarsInReach, planStride, shoots, standZ, strideGoes } from "./grid-fight.js";
 import { distanceFeet, footingAt, occupiedBy, reaches as gridReaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
 import { moderate } from "./creature-tables.js";
@@ -48,7 +48,7 @@ import { canDoTask, taskModifier } from "./objectives.js";
 import { approachPlace, atItem, canCarry, inArea, isMapObjective, strideToward, stridesFor, stridesToItem } from "./map-objectives.js";
 import { alarmOpen, expectedDanger } from "./escalations.js";
 import { bestDisable, isHazard } from "./hazards.js";
-import { actionTraits, isHex, battleMedicineOdds, outsideTargets, skillValue, canCast, conditionWorth, describeSpell, exploitValue, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition, traitsAllowed } from "./spells.js";
+import { actionTraits, isHex, battleMedicineOdds, outsideTargets, skillValue, canCast, conditionWorth, describeSpell, exploitValue, exploitCovers, poolCost, poolReady, retchOdds, spellExpectation, spellVariants, strikeRiderValue, targetSets, trickChance, worstCondition, traitsAllowed } from "./spells.js";
 import { canSummon, summonPool } from "./summons.js";
 import { needsThrall, thrallsOf } from "./thralls.js";
 import { flankableBy, mobileStride, offGuardFrom } from "./passives.js";
@@ -270,7 +270,7 @@ function remainingHp(target) {
 // (On the grid, 2026-10-21: at, where it stands — { square, size, reach } — when that's known: where it began, where a Stride toward a
 // creature took it; reaching, there, by the squares.)
 function rootPos(c) {
-    return { band: c.band, melee: c.meleeId, newWith: null, ...(c.square ? { at: { square: c.square, size: c.size, reach: c.reach, ...(c.z !== undefined ? { z: c.z } : {}) } } : {}) };
+    return { band: c.band, melee: c.meleeId, newWith: null, ...(c.square ? { at: { square: c.square, size: c.size, reach: c.reach, ...(c.mountSpace ? { mountSpace: c.mountSpace } : {}), ...(c.z !== undefined ? { z: c.z } : {}) } } : {}) };
 }
 
 // A position with where it stands on the grid, when that's known.
@@ -1086,7 +1086,18 @@ function spellstrikeSpell(c, spell) {
     if (spell.kind === "basic" || spell.kind === "ability" || spell.kind === "item" || spell.trick || !canCast(c, spell)) return false;
     const info = describeSpell(spell.plan);
     const check = info.check;
-    return (info.actions === 1 || info.actions === 2) && info.targets === 1 && !info.area && (check?.statistic === "spell-attack" || check?.roll === "save");
+    // (2026-11-06, Expansive Spellstrike: a burst, cone or line spell too — its area about the target.)
+    const expands = c.expansiveSpellstrike && ["burst", "cone", "line"].includes(info.area?.type);
+    return (info.actions === 1 || info.actions === 2) && (expands || (info.targets === 1 && !info.area)) && (check?.statistic === "spell-attack" || check?.roll === "save");
+}
+
+// (2026-11-06, Expansive Spellstrike: the foes its area catches about the Strike's target — a burst's radius from the target, half a cone's
+// or line's length; its allies kept out by the corner or angle chosen.)
+export function spellstrikeCaught(state, c, spell, target) {
+    const area = describeSpell(spell.plan).area;
+    if (!c.expansiveSpellstrike || !area) return [target];
+    const reach = area.type === "burst" ? area.value : Math.floor(area.value / 2);
+    return [target, ...state.list.filter((other) => other !== target && other.side !== c.side && isActive(other) && !other.thrallOf && other.kind !== "object" && distanceBetween(target, other) <= reach)];
 }
 
 // Is a reload weapon empty at this point of the plan? Fired since its last reload in the plan, or empty when the turn began.
@@ -1158,6 +1169,10 @@ function expandAll(ctx, node, actionsLeft) {
             for (const next of children) {
                 // (2026-11-03, Cole: a feat's own actions rated as used often — featForced, tools/lib/feat-power.mjs.)
                 if (!deviantEntryOf(c, next.last) && !actionEntryOf(c, next.last)?.featForced) continue;
+                // (2026-11-05: not an Effect spell again on a creature that already holds it — Devoted Guardian's, Bloom of Health's, cast
+                // every turn before.)
+                const forcedEntry = actionEntryOf(c, next.last);
+                if (next.last?.type === "cast" && forcedEntry?.plan?.resolution?.kind === "effect" && forcedEntry.effects && (next.last.targetIds ?? []).length && next.last.targetIds.every((id) => (state.byId.get(id)?.effects ?? []).some((effect) => effect.key in forcedEntry.effects))) continue;
                 next.value += 10 * ctx.ownValue;
                 next.casts = [...next.casts, "forced"];
             }
@@ -1316,6 +1331,8 @@ function expandSpells(env) {
         const rider = spell.plan?.trigger?.event === "strike" || Boolean(spell.plan?.trigger?.followUp);
         const riderTarget = rider && (c.riderReady?.index === index || c.riderReady?.also?.includes(index)) && node.used === 0 ? state.byId.get(c.riderReady.targetId) : null;
         if (rider && !(riderTarget && isActive(riderTarget))) continue;
+        // (2026-11-05, You're Next: a reaction to downing a foe — not an action of its own turn.)
+        if (spell.plan?.trigger?.reaction && spell.plan.trigger.event === "downs") continue;
         // Its requirement an enemy nearby in a state (B83, Feed on Fear: "An enemy is under a fear effect or Dying within
         // 15 feet"): frightened, or down and dying.
         // (B133: a requirement it can't check, Bushwhack's unseen creature: not planned.)
@@ -1325,6 +1342,8 @@ function expandSpells(env) {
         if (spell.plan?.needs && !needsMet(state, c, spell.plan.needs, { fresh: node.used === 0 })) continue;
         // (B262, Rage-Charged Breath: only while raging.)
         if (spell.plan?.requires === "raging" && !isRaging(c)) continue;
+        // (2026-11-06, Exult in Violence: "You critically hit an enemy this turn".)
+        if (spell.plan?.requires === "crit-this-turn" && !(c.turnAttacks ?? []).some((attack) => attack.crit)) continue;
         // (B259, Inspiring Display: straight after a spell it cast.)
         if (spell.plan?.requires === "after-cast" && !(node.used === 0 && castJustNow(state, c, spell.plan.nonCantrip))) continue;
         // (B247, a seed shot only while its breath recharges: one of its Breath Weapons waiting out its recharge.)
@@ -1405,6 +1424,14 @@ function expandSpells(env) {
                     const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
                     gain += 0.6 * ctx.ownValue * ROUND_TO_KILL * (3 * c.panacheStyle.precise + c.panacheStyle.finisherDice * 3.5 * 0.6) / threat;
                 }
+                // (2026-11-06, Untamed Form's shapes: rated as used — offered even when the planner reads no gain in a battle form over the
+                // druid's spells; forceEven, tools/lib/feat-power.mjs.)
+                if (gain <= 0 && c.forceUse && spell.forceEven && set.targets.includes(c)) gain = 0.01;
+                // (2026-11-06, Ki Cutting Sight: about half the time, its dice on the monk's next hit — a foe not already marked.)
+                if (spell.kiCut) {
+                    const foe = set.targets.find((target) => target.side !== c.side && target.status === "active" && target.kiCutBy?.by !== c.id);
+                    if (foe) gain += 0.5 * ctx.ownValue * (spell.kiCut * 5.5) / Math.max(1, foe.hp.value);
+                }
                 if (gain <= 0) continue;
                 // (U1: a PC's consumable only when it's worth clearly more than what else the turn holds; healing freely when it's about to
                 // go down, or for a PC who is down.)
@@ -1423,9 +1450,19 @@ function expandSpells(env) {
                 const tricks = { ...(trick ? { trick: true } : {}), ...(draw ? { draw: true } : {}), ...(makeThrall ? { makeThrall: true } : {}) };
                 // (Mirror Image on itself: the images, for the next round's danger.)
                 const images = spell.plan?.resolution?.kind === "image-decoys" && set.targets.length === 1 && set.targets[0] === c ? spell.plan.resolution.imageDecoys : undefined;
-                if (info.actions + extra <= remaining) {
+                // (2026-11-06: rated as used often — forced, the spellshaped Heal in place of the plain one whenever it fits.)
+                const shapedFits = c.forceUse && c.healShapes?.length && ["Heal", "Harm"].includes(spell.name) && info.actions <= 2 && set.targets.length === 1 && set.targets[0] !== c && set.targets[0].side === c.side && info.actions + extra + 1 <= remaining;
+                if (info.actions + extra <= remaining && !shapedFits) {
                     const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + extra, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index, images });
                     // Casting is a manipulate action: it provokes Attacks of Opportunity.
+                    if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    children.push(next);
+                }
+                // (2026-11-06, Defensive Recovery and Martyr: the spellshape's action before a single-target Heal or Harm on an ally — worth
+                // 40% more of the healing (Martyr's own Hit Points, 80%), taken whenever an action is left for it.)
+                const shaped = c.healShapes?.length && ["Heal", "Harm"].includes(spell.name) && info.actions <= 2 && set.targets.length === 1 && set.targets[0] !== c && set.targets[0].side === c.side;
+                if (shaped && info.actions + extra + 1 <= remaining) {
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: [set.targets[0].id], actions, healShape: true, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + extra + 1, ctx.profile.aggression * gain * (c.healShapes.some((shape) => shape.kind === "martyr") ? 1.8 : 1.4), { attack: info.attack, damage, cast: [index, "shaped"], images });
                     if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }
@@ -1475,7 +1512,8 @@ function expandMultiStrikes(env) {
             // (B120: Rampage's "is uncontrollable", Bladestorm's "holding six spirit blades": states the engine doesn't play.)
             // (B200, Power Through: not while Fatigued.)
             if (ability.requires && !(stanceRequirement(ability.requires) && stanceHeld(c, ability.requires)) && !(ability.requires === "first-attack" && node.attacks === 0 && (c.attacksThisTurn ?? 0) === 0) && !(ability.requires === "raging" && isRaging(c)) && !(ability.requires === "not-fatigued" && !c.cond.fatigued)) continue;
-            const ranged = !c.strikes[order[0]].melee;
+            // (2026-11-05: within — each enemy within 30 feet — taken as a ranged volley's targets here; fight.js measures them.)
+            const ranged = !c.strikes[order[0]].melee || Boolean(ability.within);
             // Where it Strikes from: here, or (B109, Mauling Rush) the Melee of a creature one Stride away.
             const places = [{ pos: node.pos, first: null }];
             if (ability.strides && !ranged && mobile && !ctx.wavering) {
@@ -1520,6 +1558,8 @@ function expandMultiStrikes(env) {
             if (order.some((index) => c.strikes[index].melee && !inMelee(pos, target))) continue;
             // Hunted Shot, Twin Takedown: against the hunted prey only. Maul: a creature it holds (B62).
             if (ability.preyOnly && c.prey !== target.id) continue;
+            // (2026-11-06, Double Shot: each Strike at a different foe — not with fewer foes than Strikes; valued as all at this one.)
+            if (ability.distinct && state.list.filter((other) => other.side !== c.side && isActive(other) && other.band !== "gone" && !other.thrallOf).length < order.length) continue;
             if (ability.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
             // (B107, Eviscerate: "has not attacked yet this turn".)
             if (ability.requires === "first-attack" && (node.attacks > 0 || (c.attacksThisTurn ?? 0) > 0)) continue;
@@ -1664,6 +1704,16 @@ function expandStrikeActivities(env) {
             if (activity.after && !activity.strides && target.id !== c.lastStrike?.targetId) continue;
             if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
             if (activity.requires === "prone" && !target.cond.prone) continue;
+            // (2026-11-06, Twin Weakness: at the target of its Exploit Vulnerability.)
+            if (activity.requires === "exploited" && !exploitCovers(c, target)) continue;
+            if (activity.requires === "hostile-to-me" && !c.hostileFrom?.has(target.id)) continue;
+            // (2026-11-06, Avenge Ally: an ally dying within 30 feet.)
+            // (2026-11-06, Commitment to Justice: at a foe that dropped an ally since its last turn; Blessed Thorn Strike: at one that hurt an
+            // ally — damaged it since the end of that ally's turn.)
+            if (activity.requires === "ally-downed-by" && !c.downedBy?.has(target.id)) continue;
+            if (activity.requires === "ally-harmed-by" && !state.list.some((other) => other !== c && other.side === c.side && other.damagers?.has(target.id))) continue;
+            if (activity.requires === "ally-dying" && !state.list.some((other) => other !== c && other.side === c.side && other.kind === "pc" && other.cond?.dying > 0 && other.status !== "dead" && distanceBetween(c, other) <= 30)) continue;
+            if (activity.requires === "taunt-ignored" && !(target.tauntedBy === c.id && target.ignoredTaunt === c.id && target.cond.offGuard)) continue;
             // (B206, Scorpion Sting: "Strikes an Off-Guard creature".)
             if (activity.requires === "off-guard" && !(isOffGuard(target) || target.cond.immobilized)) continue;
             // (B151, Shatter Defenses: "A Frightened creature is within melee reach".)
@@ -1703,10 +1753,12 @@ function expandStrikeActivities(env) {
             // (Focused Assault, B74: a failure deals the Strike's damage too.)
             const expected = best.expectation.damage + best.expectation.hitChance * rider.damage + (activity.failureDamage ? (best.expectation.failChance ?? 0) * (best.expectation.hitDamage ?? 0) : 0) + (activity.failureFlat ? (best.expectation.failChance ?? 0) * c.strikes[best.index].damage.filter((part) => !part.persistent && !part.precision).reduce((sum, part) => sum + (part.bonus ?? 0), 0) : 0);
             // Set-Up Strike: off-guard for an ally's next attack, about a tenth more of its damage.
-            const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * 0.12 / hp : 0;
+            const setUpWorth = activity.setUp ? best.expectation.hitChance * Math.max(0, ...ctx.allies.filter((ally) => ally !== c).map((ally) => allyStrike(state, ally, target)?.expected ?? 0)) * (activity.setUp === "aid" ? 0.06 : 0.12) / hp : 0;
             // (U7: a PC's item used by Striking weighed as a consumable.)
             const gain = targetValue(state, target, c) * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + best.expectation.hitChance * rider.worth * ROUND_TO_KILL + setUpWorth) * consumableWeight(state, c, activity, [target]);
-            if (gain <= 0) continue;
+            // (2026-11-04: a forced feat's Strike whose rider the planner can't put a worth on — Kneecap's Speed penalty, no damage — still goes,
+            // so its rating is of its use, not of a Strike never taken.)
+            if (gain <= 0 && !(c.forceUse && activity.featForced)) continue;
             // Exacting Strike: a miss doesn't raise the penalty for what follows (worth a little).
             const exacting = activity.exacting ? 0.15 * (1 - best.expectation.hitChance) * gain : 0;
             // (B139: Off-Guard on itself costs, a guard helps, for about a round.)
@@ -1734,7 +1786,7 @@ function expandStrikeActivities(env) {
             perRound = Math.max(perRound, average * 1.3);
         }
         const gain = ctx.ownValue * (ROUND_TO_KILL * 3 * perRound / threat + 0.5 * (buff.tempHp ?? 0) / Math.max(1, c.hp.max));
-        if (gain > 0) children.push(child(node, { type: "selfBuff", index: buffIndex, actions: buff.actions }, buff.actions, gain, { cast: `buff${buffIndex}` }));
+        if (gain > 0 || (c.forceUse && buff.featForced)) children.push(child(node, { type: "selfBuff", index: buffIndex, actions: buff.actions }, buff.actions, Math.max(gain, 0.01), { cast: `buff${buffIndex}` }));
     }
     // An exemplar (C25–C27): Shift Immanence into a better ikon (once a round), and a
     // transcendence while the spark is in its ikon (it casts the spark out).
@@ -1841,17 +1893,65 @@ function expandClassActions(env) {
                     if (!spellstrikeSpell(c, spell) || node.casts.includes(spellIndex)) continue;
                     let spellDamage = 0;
                     let spellWorth = 0;
-                    for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, spell, [target], node.attacks)) {
-                        if (affected !== target) continue;
+                    const caught = spellstrikeCaught(state, c, spell, target);
+                    let othersGain = 0;
+                    for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, spell, caught, node.attacks)) {
+                        if (affected !== target) {
+                            if (caught.includes(affected)) othersGain += targetValue(state, affected, c) * (Math.min(1, damage / Math.max(1, remainingHp(affected))) + worth * ROUND_TO_KILL);
+                            continue;
+                        }
                         spellDamage += damage;
                         spellWorth += worth;
                     }
                     const expected = strikeBest.expectation.damage + spellDamage;
-                    const gain = value * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + spellWorth * ROUND_TO_KILL);
+                    const gain = value * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + spellWorth * ROUND_TO_KILL) + othersGain;
                     if (gain <= 0) continue;
-                    children.push(child(node, { type: "spellstrike", targetId: target.id, strikeIndex: strikeBest.index, spellIndex, actions: 2 }, 2, ctx.profile.aggression * gain, {
+                    children.push(child(node, { type: "spellstrike", targetId: target.id, strikeIndex: strikeBest.index, spellIndex, actions: 2, ...(caught.length > 1 ? { caughtIds: caught.map((each) => each.id) } : {}) }, 2, ctx.profile.aggression * gain, {
                         attacks: 2,
                         damage: { ...node.damage, [target.id]: before + expected },
+                        cast: ["spellstrike", ...(spell.pool ? [spellIndex] : [])]
+                    }));
+                }
+            }
+            // (2026-11-06, Spell Swipe and Whirlwind Spell: 3 actions — a Spellstrike's melee Strike at two foes beside each other, or at each foe
+            // in reach, all at the same penalty; the spell on each it hits when it can take more than one target or has an area, else on the
+            // first hit. Two attacks for the penalty after Spell Swipe, one each after Whirlwind Spell.)
+            for (const sweep of remaining >= 3 ? c.spellSweeps ?? [] : []) {
+                const reachable = ctx.enemies.filter((foe) => foe.status === "active" && inMelee(node.pos, foe));
+                if (reachable.length < 2) continue;
+                const index = (c.strikes ?? []).findIndex((strike) => strike.melee && strikeUsable(c, strike));
+                if (index < 0) continue;
+                let foes = reachable;
+                if (sweep.kind === "swipe") {
+                    const pairs = reachable.flatMap((a, i) => reachable.slice(i + 1).filter((b) => distanceBetween(a, b) <= 5).map((b) => [a, b]));
+                    if (!pairs.length) continue;
+                    foes = pairs.sort((x, y) => y.reduce((sum, foe) => sum + targetValue(state, foe, c), 0) - x.reduce((sum, foe) => sum + targetValue(state, foe, c), 0))[0];
+                }
+                for (const [spellIndex, spell] of (c.spells ?? []).entries()) {
+                    if (node.casts.includes(spellIndex) || spell.kind === "basic" || spell.kind === "ability" || spell.kind === "item" || spell.trick || !canCast(c, spell)) continue;
+                    const info = describeSpell(spell.plan);
+                    if (!(info.actions === 1 || info.actions === 2) || !(info.check?.statistic === "spell-attack" || info.check?.roll === "save")) continue;
+                    const many = info.check?.roll === "save" && (info.targets > 1 || ["burst", "cone", "line", "emanation"].includes(info.area?.type));
+                    const struck = many ? foes : [foes[0]];
+                    let gain = 0;
+                    const damage = { ...node.damage };
+                    for (const foe of foes) {
+                        const strike = ctx.strikeExpectation(c.strikes[index], index, foe, node.attacks, node.pos, node.prone);
+                        let spellDamage = 0;
+                        let spellWorth = 0;
+                        if (struck.includes(foe)) for (const { target: affected, damage: dealt, worth } of ctx.spellEffect(spellIndex, spell, [foe], node.attacks)) if (affected === foe) {
+                            spellDamage += dealt * (strike?.hit ?? 0.6);
+                            spellWorth += worth * (strike?.hit ?? 0.6);
+                        }
+                        const before = damage[foe.id] ?? 0;
+                        const expected = (strike?.damage ?? 0) + spellDamage;
+                        gain += targetValue(state, foe, c) * (Math.min(1, (before + expected) / remainingHp(foe)) - Math.min(1, before / remainingHp(foe)) + spellWorth * ROUND_TO_KILL);
+                        damage[foe.id] = before + expected;
+                    }
+                    if (gain <= 0) continue;
+                    children.push(child(node, { type: "spellstrike", sweep: sweep.kind, sweepName: sweep.name, targetId: foes[0].id, sweepIds: foes.map((foe) => foe.id), strikeIndex: index, spellIndex, actions: 3, ...(many ? { caughtIds: foes.map((foe) => foe.id) } : {}) }, 3, ctx.profile.aggression * gain, {
+                        attacks: sweep.kind === "swipe" ? 2 : foes.length,
+                        damage,
                         cast: ["spellstrike", ...(spell.pool ? [spellIndex] : [])]
                     }));
                 }
@@ -1880,6 +1980,12 @@ function expandClassActions(env) {
         if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
         // (2026-11-03, Tough Cookie: at half its Hit Points or fewer.)
         if (entry.belowHalf && c.hp.value > c.hp.max / 2) continue;
+        // (2026-11-05, Vivacious Bravado: with panache, gained this turn — played as having it.)
+        if (entry.needsPanache && !c.panache) continue;
+        // (2026-11-06, Amalgamate: two thralls to fuse, and no amalgamation yet.)
+        // (With fewer than two, Create Thrall first: an action more.)
+        const makeThrall = entry.amalgamate && (c.thralls ?? 0) < 2;
+        if (entry.amalgamate && (c.amalgam || (makeThrall && remaining < entry.actions + 1))) continue;
         if (entry.trigger) continue;
         // (B308: a shell — only badly hurt, under 40% of its Hit Points, with a foe in its reach; it spends the rest of its turn in it.)
         if (entry.shell && !(c.hp.value < c.hp.max * 0.4 && ctx.enemies.some((enemy) => isActive(enemy) && sameMelee(c, enemy)))) continue;
@@ -1957,8 +2063,10 @@ function expandClassActions(env) {
         }
         const gain = ctx.ownValue * benefit * ROUND_TO_KILL;
 
-        const cost = entry.shell ? remaining : entry.actions;
-        if (gain > 0) children.push(child(node, { type: "selfEffect", index, actions: cost }, cost, gain, { cast: `self${index}` }));
+        const cost = entry.shell ? remaining : entry.actions + (makeThrall ? 1 : 0);
+        // (2026-11-05: the feat's own self-effect, rated as used: offered even when the planner reads no gain in it — Cobra Stance's fang and
+        // +1 Fortitude, never entered.)
+        if (gain > 0 || (c.forceUse && entry.featForced)) children.push(child(node, { type: "selfEffect", index, actions: cost, ...(makeThrall ? { makeThrall: true } : {}) }, cost, Math.max(gain, 0.01), { cast: `self${index}` }));
     }
 }
 
@@ -2035,7 +2143,7 @@ function expandTactics(env) {
     // Exploit Vulnerability (once a round): the weakness it'd bring on about three rounds of hits.
     if (c.exploit && node.used === 0 && !c.usedThisTurn?.has("exploit")) {
         for (const target of ctx.enemies) {
-            if (target.status !== "active" || c.exploited?.targetId === target.id) continue;
+            if (target.status !== "active" || exploitCovers(c, target)) continue;
             const gain = ctx.ownValue * ROUND_TO_KILL * 3 * 1.2 * exploitValue(c, target) / threatOf;
             children.push(child(node, { type: "exploit", targetId: target.id }, 1, gain));
         }
@@ -2055,7 +2163,12 @@ function expandTactics(env) {
     if (c.taunt && !raging && ctx.allies.length) {
         for (const target of ctx.enemies) {
             if (target.status !== "active" || target.tauntedBy === c.id || target.band === "far" || node.casts.includes("taunt")) continue;
-            children.push(child(node, { type: "taunt", targetId: target.id }, 1, targetValue(state, target, c) * 0.2 * ROUND_TO_KILL, { cast: "taunt" }));
+            // (2026-11-05: Shielding Taunt's raised shield with it; a taunt feat — Group Taunt, Shielding Taunt — forced, as a feat's own action.)
+            const tauntFeat = c.forceUse && (c.taunt.raise || c.taunt.max > 1) && !node.casts.includes("forced");
+            const raises = c.taunt.raise && c.shield && !c.shield.broken && !node.shield;
+            const next = child(node, { type: "taunt", targetId: target.id }, 1, tauntFeat ? 10 * ctx.ownValue : targetValue(state, target, c) * 0.2 * ROUND_TO_KILL, { cast: "taunt", ...(raises ? { shield: true } : {}) });
+            if (tauntFeat) next.casts = [...next.casts, "forced"];
+            children.push(next);
         }
     }
     // Overdrive (once a round, until it works): its Strikes' extra damage over about three rounds.
@@ -2160,7 +2273,18 @@ function expandTactics(env) {
     }
     // (Shield, the spell: cast to raise its magic shield, no hand needed.)
     if (c.shield && !c.shield.broken && !node.shield && (!node.carrying || c.shield.spell)) {
-        children.push(child(node, { type: "raiseShield" }, 1, 0, { shield: true }));
+        // (2026-11-05, Shield Warden rated as used: its shield raised for the allies beside it too — what blocking for them brings isn't in
+        // this creature's own exposure, so with forced use the raise counts like a forced action; before, the champion never raised it.)
+        // (Only with an ally beside it where the plan leaves it — in the same melee.)
+        const warden = c.forceUse && c.shieldWarden && c.reactions?.shieldBlock && !c.shield.spell && !node.casts.includes("forced")
+            && state.list.some((other) => other !== c && other.side === c.side && isActive(other) && other.meleeId != null && (other.meleeId === node.pos.melee || (node.pos.melee === undefined && other.meleeId === c.meleeId)));
+        // (2026-11-05, Mounted Shield: raised, forced, while it rides — its mount behind it too.)
+        // (Raise a Tome: its book raised, forced.)
+        // (Reflexive Shield: raised, forced, for its Reflex bonus.)
+        const mountGuard = c.forceUse && ((c.mountedShield && c.mountId) || c.shield.noBlock || c.reflexiveShield || c.shieldOfReckoning) && !c.shield.spell && !node.casts.includes("forced");
+        const next = child(node, { type: "raiseShield" }, 1, warden || mountGuard ? 10 * ctx.ownValue : 0, { shield: true });
+        if (warden || mountGuard) next.casts = [...next.casts, "forced"];
+        children.push(next);
     }
 }
 
@@ -2261,12 +2385,16 @@ function expandOtherActions(env) {
         let worth = 0;
         for (const target of ctx.enemies) {
             if (target.status !== "active") continue;
-            const effect = spellExpectation(state, c, c.poisonWeapon.spell, [target]).find((entry) => entry.target === target);
+            // (A simple poison's damage: its average, on a hit — about two in three.)
+            const simple = c.poisonWeapon.damage ? parseDamage(c.poisonWeapon.damage).reduce((sum, part) => sum + part.constant + part.dice.reduce((each, die) => each + die.count * (die.die + 1) / 2, 0), 0) * 0.65 : null;
+            const effect = simple !== null ? { damage: simple, worth: 0 } : spellExpectation(state, c, c.poisonWeapon.spell, [target]).find((entry) => entry.target === target);
             if (effect) worth = Math.max(worth, targetValue(state, target, c) * ((effect.damage ?? 0) / Math.max(1, remainingHp(target)) + (effect.worth ?? 0) * ROUND_TO_KILL));
         }
-        const next = child(node, { type: "poisonWeapon", actions: 1 }, 1, ctx.profile.aggression * 0.6 * worth, { cast: "poisonWeapon" });
+        // (2026-11-05: rated as used — a feat's Poison Weapon forced, as the feats' actions are.)
+        const forcedPoison = c.forceUse && c.poisonWeapon.featForced;
+        const next = child(node, { type: "poisonWeapon", actions: 1 }, 1, forcedPoison ? 10 * ctx.ownValue : ctx.profile.aggression * 0.6 * worth, { cast: "poisonWeapon" });
         if (inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
-        if (worth > 0) children.push(next);
+        if (worth > 0 || forcedPoison) children.push(next);
     }
     // Retch: a sickened creature's Fortitude save to shake it off. Each point
     // of sickened is about a quarter of a round of its threat over the fight.

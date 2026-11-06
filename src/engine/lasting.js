@@ -11,6 +11,17 @@ export function endEntries(state, c, list, entries, why) {
     for (const entry of entries) state.log?.push(`  ${c.name} is no longer ${what(entry)}${why ? ` (${why})` : ""}`);
 }
 
+// (2026-11-06, Cackle: a free-action hex that Sustains a spell — once a fight, its Focus Point; refocused between fights.)
+export function cackles(state, c, spell) {
+    c.cackledNow = false;
+    if (!(c.cackle > 0) || c.cackleRound === state.round) return false;
+    c.cackle -= 1;
+    c.cackleRound = state.round;
+    c.cackledNow = true;
+    state.log?.push(`  ${c.name} Cackles`);
+    return true;
+}
+
 export function lastingTurnStart(state, c, { canSustain = true } = {}) {
     const sustained = new Set();
     for (const other of state.list) {
@@ -27,8 +38,9 @@ export function lastingTurnStart(state, c, { canSustain = true } = {}) {
     }
     if (!canSustain) return;
     for (const spell of sustained) {
-        if (c.actionsLeft > 0) {
-            c.actionsLeft -= 1;
+        if (cackles(state, c, spell) || c.actionsLeft > 0) {
+            if (!c.cackledNow) c.actionsLeft -= 1;
+            c.cackledNow = false;
             state.log?.push(`  ${c.name} Sustains ${spell}`);
             (c.sustainedNow ??= []).push(spell);
         }

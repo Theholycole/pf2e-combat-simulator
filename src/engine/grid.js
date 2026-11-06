@@ -22,6 +22,8 @@ const edge = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 // The squares across a creature's space.
 export function spaceOf(c) {
+    // (2026-11-05, mounted combat: a rider is in every square of its mount's space — companions.js mount.)
+    if (c?.mountSpace) return c.mountSpace;
     const rank = sizeRank(c?.size);
     return rank <= 2 ? 1 : rank - 1;
 }

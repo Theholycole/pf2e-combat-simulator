@@ -83,7 +83,7 @@ export function setUpGrid(state, spec) {
         const lofty = map.spawns.overlook?.[side]?.length ? state.list.filter((c) => c.side === side && !c.square && c.status !== "pending" && c.kind !== "object" && fightsFromAfar(c)) : [];
         const up = placeSide(map, lofty, map.spawns.overlook?.[side] ?? [], taken);
         for (const c of lofty) if (up[c.id]) c.square = up[c.id];
-        const waiting = frontFirst(state.list.filter((c) => c.side === side && !c.square && c.status !== "pending" && c.kind !== "object"));
+        const waiting = frontFirst(state.list.filter((c) => c.side === side && !c.square && c.status !== "pending" && c.kind !== "object" && !c.familiar && !c.mountId));
         // (2026-11-01, the user: the fighter in front, its Reactive Strike between the foes and the casters — those at the back, actions.js
         // backRow, start two columns behind the front rank when there's a front rank to stand behind.)
         const spawns = map.spawns[side] ?? [];
@@ -93,6 +93,16 @@ export function setUpGrid(state, spec) {
         const split = front.length && front.length < waiting.length && behind.length && !spec.squares;
         const placed = split ? { ...placeSide(map, front, spawns, taken), ...placeSide(map, waiting.filter((c) => backRow(c)), behind, taken) } : placeSide(map, waiting, spawns, taken);
         for (const c of waiting) if (placed[c.id]) c.square = placed[c.id];
+    }
+    // (2026-11-05: a familiar in its master's space — familiars.js keeps it there.)
+    // (A rider on its mount's space.)
+    for (const c of state.list.filter((other) => other.mountId && !other.square)) {
+        const mount = state.list.find((other) => other.id === c.mountId);
+        if (mount?.square) c.square = [...mount.square];
+    }
+    for (const c of state.list.filter((other) => other.familiar && !other.square)) {
+        const master = state.byId?.get(c.familiar.masterId) ?? state.list.find((other) => other.id === c.familiar.masterId);
+        if (master?.square) c.square = [...master.square];
     }
     // (Objects — a hazard's, a door — stand where their side's front is.)
     for (const c of state.list.filter((other) => !other.square && other.kind === "object")) {
@@ -203,7 +213,7 @@ function obstacles(state, c) {
     const blockedBy = new Set();
     const occupied = new Set();
     for (const other of state.list) {
-        if (other === c || !other.square || other.band === "gone" || other.status === "dead" || other.status === "fled") continue;
+        if (other === c || other.id === c.mountId || other.id === c.riderId || !other.square || other.band === "gone" || other.status === "dead" || other.status === "fled") continue;
         for (const square of occupiedBy(other)) {
             occupied.add(square);
             if (other.side !== c.side && isActive(other)) blockedBy.add(square);
@@ -331,7 +341,7 @@ function bestReachPlace(state, c, target, square = c.square, prefer = null) {
     const n = spaceOf(c);
     const tn = spaceOf(target);
     const span = Math.ceil(Math.max(5, c.reach ?? 5) / 5) + 1;
-    const probe = { square: [0, 0], size: c.size, reach: c.reach };
+    const probe = { square: [0, 0], size: c.size, reach: c.reach, ...(c.mountSpace ? { mountSpace: c.mountSpace } : {}) };
     // (2026-10-22, heights: a place's own height — a flier's as high as the target's, flying up to it.)
     const flying = fliesNow(c);
     const heights = Boolean(state.grid.heights?.size || target.z);
@@ -644,6 +654,9 @@ export function moveTo(state, c, place, z = undefined) {
     const height = z ?? (fliesNow(c) && state.grid.heights?.size ? standZ(state.grid, c) : undefined);
     c.square = squareOf(place);
     if (height !== undefined && fliesNow(c)) c.elevation = Math.max(0, height - groundZ(state.grid, c.square[0], c.square[1], spaceOf(c)));
+    // (A rider and its mount move as one — companions.js.)
+    const partner = c.mountId ? state.byId?.get(c.mountId) : c.riderId ? state.byId?.get(c.riderId) : null;
+    if (partner && isActive(partner)) partner.square = [...c.square];
     regroup(state);
 }
 
@@ -664,7 +677,7 @@ export function placeBeside(state, c, target) {
             squares.push(square);
         }
         if (!fits || !reaches(at, target)) continue;
-        const cost = c.square ? distanceFeet(at, { square: c.square, size: c.size }) : 0;
+        const cost = c.square ? distanceFeet(at, { square: c.square, size: c.size, mountSpace: c.mountSpace }) : 0;
         if (!best || cost < best.cost) best = { square: [x, y], cost };
     }
     if (!best) return false;

@@ -3,7 +3,8 @@
 // with the GM Core treasure table's runes. Their numbers are here; their spells come from the caller (a resolver of PF2e spells by
 // name, compiled by the spell module), so the engine stays free of packs.
 //   Fighter: greatsword, full plate; expert-to-legendary weapon, Reactive Strike, Bravery, critical specialization from 5th level.
-//   Rogue (thief): rapier, leather; sneak attack, Surprise Attack, Evasion, critical specialization against off-guard targets.
+//   Rogue (thief): rapier, leather; sneak attack, Surprise Attack, Evasion, critical specialization against off-guard targets, Debilitating
+//   Strike (enfeebled 1) from 9th.
 //   Wizard: arcane prepared spells (three a rank, a curriculum slot more, one 10th-rank slot from 19th level), damage and control.
 //   Cleric (cloistered): divine prepared spells, Divine Font's heals at its highest rank, Battle Medicine.
 // Skills for the combat actions the simulation plays: Athletics, Intimidation, Deception, Acrobatics, Medicine.
@@ -155,7 +156,8 @@ export function standardParty(level, { spell = () => null, basics = [] } = {}) {
             reactions: { aoo: true, shieldBlock: false },
             ...(lv >= 5 ? { critSpec: true } : {}),
             ...(lv >= 3 ? { lessFrightened: 1 } : {}),
-            ...(lv >= 9 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better" } }] } : {})
+            // (2026-11-06: Bravery at 3rd and Tempered Reflexes at 15th beside Battle Hardened, as the pf2e fighter has them.)
+            ...(lv >= 3 ? { saveDegrees: [{ saves: ["will", ...(lv >= 9 ? ["fortitude"] : []), ...(lv >= 15 ? ["reflex"] : [])], adjustment: { success: "one-degree-better" } }] } : {})
         }
     });
 
@@ -175,18 +177,25 @@ export function standardParty(level, { spell = () => null, basics = [] } = {}) {
         ],
         classDC: 10 + lv + rank(lv, [[1, T], [11, E]]) + k,
         extra: {
-            strikeExtras: [{ when: "off-guard", dice: lv >= 17 ? 4 : lv >= 11 ? 3 : lv >= 5 ? 2 : 1, die: 6, precision: true, type: null, source: "Sneak Attack" }],
+            strikeExtras: [
+                { when: "off-guard", dice: lv >= 17 ? 4 : lv >= 11 ? 3 : lv >= 5 ? 2 : 1, die: 6, precision: true, type: null, source: "Sneak Attack" },
+                // (2026-11-04, Cole: "Add it and re-rate" — Debilitating Strike from 9th level: a hit on an off-guard creature leaves it
+                // enfeebled 1 until the end of the rogue's next turn, the debilitation the party's Strikes gain most from.)
+                ...(lv >= 9 ? [{ when: "off-guard", condition: { slug: "enfeebled", value: 1, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } }, source: "Debilitating Strike" }] : [])
+            ],
             makesOffGuard: [{ when: { round: 1, notActed: true }, strikes: "all", spells: true, source: "Surprise Attack" }],
             ...(lv >= 5 ? { critSpec: { offGuard: true } } : {}),
-            ...(lv >= 7 ? { saveDegrees: [{ saves: ["reflex"], adjustment: { success: "one-degree-better" } }] } : {})
+            // (2026-11-06: Rogue Resilience at 9th and Agile Mind at 17th beside Evasive Reflexes.)
+            ...(lv >= 7 ? { saveDegrees: [{ saves: ["reflex", ...(lv >= 9 ? ["fortitude"] : []), ...(lv >= 17 ? ["will"] : [])], adjustment: { success: "one-degree-better" } }] } : {})
         }
     });
 
     // Wizard.
     const wizard = pc({
         id: "wizard", name: "Wizard", level: lv, hpPerLevel: 6, con: casterCon, dex: casterDex, wis: minor,
-        ac: 10 + lv + rank(lv, [[1, T], [13, E], [17, M]]) + casterDex + armorPotency(lv),
-        fort: rank(lv, [[1, T], [9, E]]), ref: rank(lv, [[1, T], [13, E]]), will: rank(lv, [[1, E], [17, M]]),
+        // (2026-11-06: Defensive Robes' expert is its best unarmored rank, and Reflex Expertise comes at 5th — it had master at 17th, Reflex at 13th.)
+        ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + casterDex + armorPotency(lv),
+        fort: rank(lv, [[1, T], [9, E]]), ref: rank(lv, [[1, T], [5, E]]), will: rank(lv, [[1, E], [17, M]]),
         perception: rank(lv, [[1, T], [11, E]]),
         skills: { arcana: lv + primarySkill(lv) + k, athletics: lv + T },
         strike: { name: "Staff", bonus: lv + T, melee: true, agile: false, iwr: { group: "club" }, damage: [{ dice: 1, die: 4, bonus: 0, type: "bludgeoning" }] },
