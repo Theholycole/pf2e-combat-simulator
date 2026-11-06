@@ -503,6 +503,15 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             if (chance > 0) flanked = state.rng.chance(chance);
         }
     }
+    // (2026-11-06, Back to Back: an ally beside a creature with it, or it beside an ally, isn't off-guard from flanking unless that creature
+    // (or the ally) is flanked too — taken as two or more foes beside it.)
+    if (flanked) {
+        const besideEach = (a, b) => (state.grid && a.square && b.square ? Math.max(Math.abs(a.square[0] - b.square[0]), Math.abs(a.square[1] - b.square[1])) <= 1 : sameMelee(a, b));
+        const flankedToo = (who) => engagedEnemies(state, who).length >= 2;
+        const guards = state.list.filter((other) => other.side === target.side && isActive(other) && (other === target || besideEach(other, target)));
+        if (target.backToBack && guards.some((ally) => ally !== target && !flankedToo(ally))) flanked = false;
+        else if (guards.some((ally) => ally !== target && ally.backToBack && !flankedToo(ally))) flanked = false;
+    }
     // (2026-11-05, Side by Side: a PC and its animal companion both beside the same foe flank it, wherever they stand — tandemWith.)
     if (!flanked && strike.melee && attacker.tandemWith && flankableBy(target, attacker)) {
         const partner = state.byId.get(attacker.tandemWith);
