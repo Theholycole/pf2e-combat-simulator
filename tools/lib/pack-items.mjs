@@ -51,7 +51,7 @@ const spells = compiler?.spellIndex ? compiler.spellIndex(docs("spells")) : null
 const equipment = new Map(compiler ? docs("equipment").map((doc) => [`Compendium.pf2e.equipment-srd.Item.${doc._id}`, doc]) : []);
 const EFFECT_PACKS = ["spell-effects", "equipment-effects", "other-effects", "bestiary-effects"];
 const effects = new Map(compiler ? EFFECT_PACKS.flatMap((pack) => docs(pack).map((effect) => [`Compendium.pf2e.${pack}.Item.${effect._id}`, effect])) : []);
-const conditionNames = new Map(docs("conditions").map((condition) => [condition._id, condition.system?.slug ?? condition.name.toLowerCase().replace(/\s+/g, "-")]));
+const conditionNames = new Map(docs("conditions").flatMap((condition) => [condition._id, condition.name].map((key) => [key, condition.system?.slug ?? condition.name.toLowerCase().replace(/\s+/g, "-")])));
 const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".").pop()) ?? null;
 // (PF2e's conditions by id → name, for the item module's check of a GrantItem rule.)
 const CONDITION_NAMES = Object.fromEntries(docs("conditions").map((condition) => [condition._id, condition.name]));

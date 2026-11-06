@@ -44,7 +44,7 @@ const moduleEffects = (() => {
   return out;
 })();
 const effectsById = new Map([...moduleEffects, ...effectItems].map((effect) => [effect._id, effect]));
-const conditionNames = new Map(readDocuments(`${PACK_ROOT}/conditions`).filter((d) => d.collection === "items").map((condition) => [condition._id, condition.system?.slug ?? condition.name.toLowerCase().replace(/\s+/g, "-")]));
+const conditionNames = new Map(readDocuments(`${PACK_ROOT}/conditions`).filter((d) => d.collection === "items").flatMap((condition) => [condition._id, condition.name].map((key) => [key, condition.system?.slug ?? condition.name.toLowerCase().replace(/\s+/g, "-")])));
 const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".").pop()) ?? null;
 
 // The effect models a plan's PF2e spell effects make, at the cast rank.

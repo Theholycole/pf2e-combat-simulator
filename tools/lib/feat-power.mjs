@@ -145,7 +145,7 @@ for (const pack of EFFECT_PACKS) {
     }
 }
 for (const { path } of featSources().filter((entry) => entry.source !== "pf2e")) for (const doc of docsOf(path).values()) if (doc.type === "effect") effectsById.set(doc._id, doc);
-const conditionNames = new Map([...docsOf(`${PACK_ROOT}/conditions`).values()].map((doc) => [doc._id, doc.system?.slug ?? doc.name.toLowerCase().replace(/\s+/g, "-")]));
+const conditionNames = new Map([...docsOf(`${PACK_ROOT}/conditions`).values()].flatMap((doc) => [doc._id, doc.name].map((key) => [key, doc.system?.slug ?? doc.name.toLowerCase().replace(/\s+/g, "-")])));
 const conditionSlug = (uuid) => conditionNames.get(String(uuid ?? "").split(".").pop()) ?? null;
 
 // An effect's document from its UUID, by id ("Compendium.pf2e.feat-effects.Item.<id>") or by name, the feat module's ("…Item.Stance: Disarming
@@ -1563,6 +1563,8 @@ const HAND = {
     "plant-shape": (level, host) => untamedShape(level, host, "Plant Form", "Plant"),
     "dragon-shape": (level, host) => untamedShape(level, host, "Dragon Form", "Dragon"),
     "monstrosity-shape": (level, host) => untamedShape(level, host, "Monstrosity Form", "Monstrosity"),
+    "hasted-assault": (level, host) => spellAsFocus(level, host, "Haste", "Hasted Assault", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: "self", range: null } })),
+    "force-fang": (level, host) => spellAsFocus(level, host, "Force Barrage", "Force Fang", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, range: "5 feet" } })),
     "spell-swipe": () => ({ builtins: { spellSweeps: [{ name: "Spell Swipe", kind: "swipe" }] }, played: "a 3-action Spellstrike at two adjacent foes, the spell on each it hits (a multi-target or area spell)" }),
     "whirlwind-spell": () => ({ builtins: { spellSweeps: [{ name: "Whirlwind Spell", kind: "whirl" }] }, played: "a 3-action Spellstrike at each foe in reach, the spell on each it hits (a multi-target or area spell)" }),
     "expansive-spellstrike": () => ({ builtins: { expansiveSpellstrike: true }, played: "Spellstrike with a burst, cone or line spell, its area about the target" }),
@@ -2315,6 +2317,27 @@ function untamedShape(level, host, spellName, label) {
     const entry = { name: `Untamed Form (${label})`, fromFeat: true, featForced: true, forceEven: true, plan, castRank, dc, attack: dc - 10, pool, effects };
     if (!castable(entry) || !Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) return null;
     return { builtins: {}, spells: [entry], pools: { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) }, played: `Untamed Form's ${label.toLowerCase()} shapes (${spellName}, rank ${castRank})` };
+}
+// (2026-11-06, the magus's conflux spells the packs' compiler can't read: one a core spell plays the same — Hasted Assault, Haste on
+// itself in 1 action; Force Fang, Force Barrage's one missile a 2 ranks in melee reach —, as a focus spell at the magus's rank.)
+function spellAsFocus(level, host, spellName, name, change) {
+    const spell = spellPack.spellNamed(spellName);
+    if (!spell) return null;
+    const castRank = Math.ceil(level / 2);
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    plan = change(plan);
+    const own = dcsOf(host);
+    const dc = own.spell ?? own.class ?? 10 + level + 2;
+    const pool = `${host.id}:focus`;
+    const effects = spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank);
+    const entry = { name, fromFeat: true, featForced: true, plan, castRank, dc, attack: dc - 10, pool, effects };
+    if (!castable(entry)) return null;
+    return { builtins: {}, spells: [entry], pools: { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) }, played: `${name}, as ${spellName} (rank ${castRank})` };
 }
 function partyWithFeatOwn(doc, level, options = {}) {
     // (Or the feat whose Effect it needs: Dueling Riposte's "You are benefiting from Dueling Parry".)
