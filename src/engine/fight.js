@@ -1026,6 +1026,18 @@ function actOn(state, c, action) {
             const byStrike = action.rider && spell?.plan?.resolution?.check?.statistic === "strike" && Number.isFinite(rider?.degree);
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
             if (spell?.draw?.each) c.itemsAtHand?.delete(spell.item);
+            // (2026-11-06, Courageous Assault: an ally the anthem reached — one in a Melee with a foe and a reaction left — makes a melee Strike
+            // as its reaction.)
+            if (spell?.allyStrike && !disrupted) {
+                const ally = state.list.filter((other) => other !== c && other.side === c.side && isActive(other) && canAct(other) && canReact(other) && (other.strikes ?? []).some((strike) => strike.melee && strikeUsable(other, strike)) && engagedEnemies(state, other).some(isActive)).sort((a, b) => (b.strikes?.[0]?.bonus ?? 0) - (a.strikes?.[0]?.bonus ?? 0))[0];
+                const foe = ally ? engagedEnemies(state, ally).filter(isActive).sort((a, b) => a.hp.value - b.hp.value)[0] : null;
+                if (ally && foe) {
+                    spendReaction(ally, spell.name);
+                    state.stats.reactions++;
+                    state.log?.push(`  ${ally.name} Strikes (${spell.allyStrike})`);
+                    performStrike(state, ally, foe, ally.strikes.find((strike) => strike.melee && strikeUsable(ally, strike)), { reaction: true });
+                }
+            }
             // (L5: a coven spell — the coven's one this round, and its helpers' actions.)
             if (spell?.coven) {
                 covenCast(state, c);

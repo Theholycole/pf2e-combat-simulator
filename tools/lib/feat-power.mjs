@@ -1618,6 +1618,14 @@ const HAND = {
     "tail-guard": () => ({ builtins: { reactionStrikes: [{ name: "Tail Guard", triggers: ["approach"], flankOnly: true, strike: null, penalty: 0, disrupts: "critical", melee: true, noMap: true }] }, played: "a melee Strike at a foe moving in to flank it (reaction)" }),
     "back-to-back": () => ({ builtins: { backToBack: true }, played: "allies beside it, and it beside an ally, not off-guard from flanking unless it (or the ally) is flanked too" }),
     "phalanx-formation": () => ({ builtins: { phalanxFormation: true }, played: "no lesser cover from it for its allies' targets" }),
+    // (2026-11-06, Courageous Assault: a spellshape — Courageous Anthem an action more, and an ally it reaches Strikes as a reaction, fight.js.)
+    "courageous-assault": (_level, host, doc) => {
+        const anthem = (host?.spells ?? []).find((spell) => spell.name === "Courageous Anthem" && spell.plan);
+        if (!anthem) return null;
+        const time = Number(anthem.plan.activation?.time ?? 1) || 1;
+        const entry = { ...anthem, name: `Courageous Anthem (${doc.name})`, plan: { ...anthem.plan, activation: { ...anthem.plan.activation, time: String(time + 1) } }, allyStrike: doc.name, featForced: true };
+        return { builtins: {}, spells: [entry], pools: {}, played: "Courageous Anthem an action more, and an ally's melee Strike as a reaction" };
+    },
     "underhanded-assault": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "melee", sneakFirst: 2 })], played: "a Sneak (Stealth −2 against its Perception DC), then a melee Strike it's off-guard to (2 actions)" }),
     "frightful-attrition": () => ({ builtins: { frightfulAttrition: true }, played: "a Will save or frightened 1–3 for the foes within 30 feet of each foe it drops (actions.js)" }),
     "sympathetic-vulnerabilities": () => ({ builtins: { sympatheticVulnerabilities: true }, played: "personal antithesis on every foe of the exploited one's kind" }),
