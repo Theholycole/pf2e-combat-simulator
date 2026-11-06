@@ -607,6 +607,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (taunter && isActive(taunter) && taunter.id !== target.id && !reaction) {
         bonus -= 1;
         attacker.cond.offGuard = true;
+        // (2026-11-06, Proud Nail's "off-guard because it didn't target you".)
+        attacker.ignoredTaunt = taunter.id;
         (attacker.timers ??= []).push({ key: "offGuard", value: true, round: attacker.round === state.round ? state.round + 1 : state.round, turnOf: attacker.id, at: "start" });
     }
     // (2026-11-05, Goading Feint: –2 to its attack on the feinter, the next one or all until the end of the feinter's next turn.)
