@@ -1631,6 +1631,9 @@ const HAND = {
     // (2026-11-06: Exploit Vulnerability's personal antithesis on every creature of the target's kind — actions.js.)
     // (2026-11-06, Hell's Armaments: a critical hit with its weapon — a Fortitude save against its class DC: −10 feet Speed, slowed 1 or 2
     // until the end of its next turn; in place of critical specialization, which its host's Strikes keep — not chosen between.)
+    // (2026-11-06, Celestial Armaments: its weapon 1d8 spirit more; a critical hit, a Fortitude save or blinded 1d4 rounds (played as 2). Its
+    // critical specialization the fighter has already; its Mythic Point blessing of allies' weapons isn't played.)
+    "celestial-armaments": () => ({ builtins: { strikeExtras: [{ when: "hit", dice: 1, die: 8, type: "spirit", source: "Celestial Armaments" }, { when: "critical", save: { statistic: "fortitude", outcomes: [[["blinded", null, 2]], [["blinded", null, 2]], [], []] }, source: "Celestial Armaments" }] }, played: "1d8 spirit on its Strikes; a critical hit, Fortitude or blinded (always on)" }),
     "hells-armaments": () => {
         const slow = (value) => [["speed", -10, 1], ...(value ? [["slowed", value, 1]] : [])];
         return { builtins: { strikeExtras: [{ when: "critical", save: { statistic: "fortitude", outcomes: [slow(2), slow(1), slow(0), []] }, source: "Hell's Armaments" }] }, played: "a Fortitude save on a critical hit: −10 feet Speed, slowed 1 or 2 (always on)" };
