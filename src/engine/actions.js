@@ -1031,6 +1031,15 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             if (saved < SUCCESS) kill(state, target, attacker);
         }
     }
+    // (2026-11-06, Headshot: its critical hit on a target it already hurt this fight — a Fortitude save against its class DC or it dies;
+    // a death and incapacitation effect, so a higher-level target's degree goes up one step.)
+    if (attacker.headshotOn === target.id && degree === CRITICAL_SUCCESS && isActive(target) && !(target.immunities ?? []).includes("death-effects")) {
+        const natural = state.rng.d20();
+        let saved = degreeOf(natural + saveModifier(target, "fortitude"), attacker.classDC ?? 10 + (attacker.level ?? 1) + 3, natural);
+        if ((target.level ?? 0) > (attacker.level ?? 0) && saved < CRITICAL_SUCCESS) saved += 1;
+        log(state, `  Headshot: ${target.name} ${saved >= SUCCESS ? "survives" : "dies"}`);
+        if (saved < SUCCESS) kill(state, target, attacker);
+    }
     // (2026-11-05, Distracting Shot: its hunted prey off-guard until its next turn after a ranged critical hit or a second ranged hit this
     // turn; Greater Distracting Shot: after any ranged hit — its longer time on a critical hit not played.)
     if (attacker.distractingShot && !strike.melee && attacker.prey === target.id && degree >= SUCCESS && isActive(target)) {
@@ -1739,6 +1748,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     // (2026-11-05, United Assault: who has damaged it since the end of its last turn.)
     if (dealt > 0 && source && source.id !== target.id) (target.damagers ??= new Set()).add(source.id);
+    if (dealt > 0 && source && source.id !== target.id) (source.hurtFoes ??= new Set()).add(target.id);
     return dealt;
 }
 

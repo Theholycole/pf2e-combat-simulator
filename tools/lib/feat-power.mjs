@@ -1531,6 +1531,8 @@ const HAND = {
         const dc = dcsOf(host).spell ?? 10 + level + 2 + 4;
         return { builtins: { boneBurst: true }, spells: read.spells.map((entry) => ({ ...entry, name: "Bone Burst", dc, attack: dc - 10, plan: { ...entry.plan, activation: { ...entry.plan.activation, time: "reaction" } } })), pools: read.pools ?? {}, played: `${read.played} — at a foe beside a thrall that moves, manipulates or shoots (reaction, a thrall destroyed)` };
     },
+    "headshot": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", headshot: true })], played: "a 2-action firearm Strike; a critical hit on a foe it already hurt: a Fortitude save or it dies" }),
+    "phase-bullet": () => ({ builtins: {}, plans: [strikeRider({ range: "ranged", attackBonus: 4, oncePerFight: true })], played: "a firearm Strike at +4 against an armored foe, ignoring cover (once a fight)" }),
     "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),
     // (Reach 10 feet: Giant's Lunge while raging, for the rage; Jotun's Battle Stance, its two-handed weapon not checked.)
     "giants-lunge": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, requires: "raging", model: { rounds: 10, reach: 10 } }], played: "reach 10 feet while raging (1 action)" }),

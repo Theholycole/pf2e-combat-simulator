@@ -1095,7 +1095,10 @@ function actOn(state, c, action) {
             // (2026-11-05, United Assault: +1 damage for each other creature that damaged the target since the end of its last turn, up to +4.)
             const united = activity.united ? Math.min(4, [...(target.damagers ?? [])].filter((id) => id !== c.id).length) : 0;
             const charged = activity.rageFinish || united ? { ...activity, damageBonus: (activity.damageBonus ?? 0) + rageLeft + united } : activity;
+            // (2026-11-06, Headshot: only on a target it has already damaged.)
+            if (activity.headshot) c.headshotOn = c.hurtFoes?.has(target.id) ? target.id : null;
             const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...charged, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : charged));
+            c.headshotOn = null;
             // ("After this Strike, your Rage immediately ends, and you are Fatigued until you rest for at least 10 minutes.")
             if (activity.rageFinish) {
                 c.activeBuffs = (c.activeBuffs ?? []).filter((buff) => !buff.noConcentrate);
