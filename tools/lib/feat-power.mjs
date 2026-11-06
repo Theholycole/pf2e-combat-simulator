@@ -1584,6 +1584,9 @@ const HAND = {
         entry.effects = Object.fromEntries(Object.keys(entry.effects ?? {}).map((key) => [key, { name: "Overdrive Ally", rounds: 1, modifiers: [{ on: "damage", type: "untyped", value: bonus }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }]));
         return { ...made, played: `an ally within 30 feet: its Strikes +${bonus} damage until its next turn ends (1 action, in overdrive)` };
     },
+    // (Storm Retribution: Tempest Surge on an adjacent foe that critically hits it in melee, a focus spell as a reaction — spells.js
+    // reactToHit; the 5-foot push isn't played.)
+    "storm-retribution": (level, host) => spellAsFocus(level, host, "Tempest Surge", "Storm Retribution", (plan) => ({ ...plan, activation: { ...plan.activation, time: "reaction" }, trigger: { ...plan.trigger, event: "hit-by", reaction: true, critical: true, melee: true }, targeting: { ...plan.targeting, target: "the attacker" } }), { reaction: true }),
     "force-fang": (level, host) => spellAsFocus(level, host, "Force Barrage", "Force Fang", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, range: "5 feet" } })),
     "spell-swipe": () => ({ builtins: { spellSweeps: [{ name: "Spell Swipe", kind: "swipe" }] }, played: "a 3-action Spellstrike at two adjacent foes, the spell on each it hits (a multi-target or area spell)" }),
     "whirlwind-spell": () => ({ builtins: { spellSweeps: [{ name: "Whirlwind Spell", kind: "whirl" }] }, played: "a 3-action Spellstrike at each foe in reach, the spell on each it hits (a multi-target or area spell)" }),
@@ -2355,7 +2358,7 @@ function focusStance(level, host, name) {
     const pool = `${host.id}:focus`;
     return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, pool, model: { ...model, name } }], pools: { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) }, played: `${name}: ${model.grantedStrikes.map((strike) => strike.name).join(", ")} Strikes (a focus spell)` };
 }
-function spellAsFocus(level, host, spellName, name, change, { cantrip = false, rounds = null, oncePerTurn = false, whileBuff = null } = {}) {
+function spellAsFocus(level, host, spellName, name, change, { cantrip = false, rounds = null, oncePerTurn = false, whileBuff = null, reaction = false } = {}) {
     const spell = spellPack.spellNamed(spellName);
     if (!spell) return null;
     const castRank = Math.ceil(level / 2);
@@ -2372,7 +2375,7 @@ function spellAsFocus(level, host, spellName, name, change, { cantrip = false, r
     let effects = spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank);
     if (rounds) effects = Object.fromEntries(Object.entries(effects ?? {}).map(([key, model]) => [key, model ? { ...model, rounds } : model]));
     const entry = { name, fromFeat: true, featForced: true, plan, castRank, dc, attack: dc - 10, pool, effects, ...(oncePerTurn ? { oncePerTurn: true } : {}), ...(whileBuff ? { whileBuff } : {}) };
-    if (!castable({ ...entry, whileBuff: null })) return null;
+    if (!reaction && !castable({ ...entry, whileBuff: null })) return null;
     return { builtins: {}, spells: [entry], pools: pool ? { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) } : {}, played: `${name}, as ${spellName} (rank ${castRank}${cantrip ? ", a cantrip" : ""}${rounds ? `, ${rounds} round${rounds === 1 ? "" : "s"}` : ""})` };
 }
 function partyWithFeatOwn(doc, level, options = {}) {
