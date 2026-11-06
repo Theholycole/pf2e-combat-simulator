@@ -1217,6 +1217,9 @@ const HAND = {
     "covering-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { coversAlly: true } }], played: "stance: an adjacent ally gets lesser cover (+1 AC) until its next turn" }),
     // (2026-11-06, Multishot Stance: Double Shot at −1 in the stance (with Double Shot on both sides; fight.js); ending it on a move isn't
     // played.)
+    // (2026-11-06, Triple Shot: Double Shot at one foe too, and three ranged Strikes for 3 actions at –4 each, one multiple attack penalty —
+    // with Double Shot on both sides.)
+    "triple-shot": () => ({ builtins: { multiStrikes: [{ name: "Double Shot", actions: 2, strikes: ["ranged", "ranged"], sameMap: true, flourish: true, penalty: 2, featForced: true }, { name: "Triple Shot", actions: 3, strikes: ["ranged", "ranged", "ranged"], sameMap: true, flourish: true, penalty: 4, featForced: true }] }, played: "Double Shot at one foe, or three ranged Strikes at –4 each (3 actions)" }),
     "multishot-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: {} }], played: "stance: Double Shot's penalty −1 (from −2)" }),
     "paragons-guard": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its shield always raised" }),
     "buckler-dance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its buckler always raised" }),
@@ -2324,7 +2327,7 @@ function itemMatches(item, filter) {
 }
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
 // (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
-const BASE_FEATS = { "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
+const BASE_FEATS = { "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
 
 // (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
 // rank — half the druid's level, rounded up —, a 2-action focus spell; the engine's battle forms (effects.js enterForm) take its best shape.
