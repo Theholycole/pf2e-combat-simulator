@@ -1527,6 +1527,7 @@ const HAND = {
     "improved-elemental-bulwark": () => ({ builtins: { resistReaction: { name: "Elemental Bulwark", value: 10, on: ["cold", "electricity", "fire"], types: ["triggering"], foe: true } }, played: "Elemental Bulwark's resistance 10 (with it)" }),
     "cornered-fury": () => ({ builtins: { corneredFury: "small" }, played: "a larger foe that critically hits it (a Small ratfolk: a Medium foe) is off-guard to it for a round" }),
     "deliberate-death": () => ({ builtins: { deathStrike: { name: "Deliberate Death", strike: null, pc: true } }, played: "a melee Strike at the foe that drops it (reaction, once)" }),
+    "combination-finisher": () => ({ builtins: { combinationFinisher: true }, played: "its finishers' multiple attack penalty −4/−8 (−3/−6 agile)" }),
     "deadly-strikes": (level) => ({ builtins: { deadlyStrikes: level }, played: "its unarmed attacks deadly d10" }),
     // (2026-11-06, Persistent Boost: its Offensive Boost's hit (the weapon innovation's Strikes, classes.js) 1d8 persistent fire too.)
     "persistent-boost": () => ({ builtins: { strikeExtras: [{ when: "hit", dice: 1, die: 8, melee: true, persistent: true, noDouble: true, type: "fire", source: "Persistent Boost" }] }, played: "1d8 persistent fire on its boosted melee hits (always on)" }),
@@ -2542,6 +2543,11 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // (2026-11-05, a Lay on Hands rider — Amplifying Touch and kin —: its Lay on Hands used whenever it can go, as the rider's feat is rated
     // by use; cast 0.2 times a fight before.)
     if (pc.touchRiders?.length) pc.spells = (pc.spells ?? []).map((entry) => (entry.plan?.source?.slug === "lay-on-hands" ? { ...entry, featForced: true } : entry));
+    // (2026-11-06, Combination Finisher: its finishers' Strikes at −4/−8, −3/−6 agile — abilities.js chargeStrike mapSteps.)
+    if (pc.combinationFinisher) {
+        delete pc.combinationFinisher;
+        pc.strikeActivities = (pc.strikeActivities ?? []).map((activity) => (activity.finisher ? { ...activity, combination: true } : activity));
+    }
     // (Burning and Resounding Cascade: its Arcane Cascade entered whenever it can be — the rider's use; 0.1 a fight before.)
     if (pc.burningCascade || pc.resoundingCascade) pc.selfEffects = (pc.selfEffects ?? []).map((entry) => (entry.name === "Arcane Cascade" ? { ...entry, featForced: true } : entry));
     if (pc.unholyDead) {

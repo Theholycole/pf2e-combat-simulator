@@ -217,6 +217,8 @@ export function offGuardTo(target, attacker, melee) {
 export function multipleAttackPenalty(strike, attacksMade) {
     // A hazard's Strike: "No multiple attack penalty".
     if (attacksMade <= 0 || strike.noMap) return 0;
+    // (2026-11-06, Combination Finisher: a finisher's own lower penalties — mapSteps [second, third and later].)
+    if (strike.mapSteps) return strike.mapSteps[attacksMade === 1 ? 0 : 1];
     if (attacksMade === 1) return strike.agile ? 4 : 5;
     return strike.agile ? 8 : 10;
 }
