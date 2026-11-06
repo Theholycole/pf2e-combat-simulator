@@ -1,10 +1,10 @@
 # Feats the feat module doesn't automate or the simulator doesn't rate
 
-Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
+Made by `node tools/feat-gap-index.mjs` on 2026-11-06. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1896 in whole fights. **4470 it doesn't.**
-- **3063** are in neither.
+- **The simulator** rates 1898 in whole fights. **4468 it doesn't.**
+- **3061** are in neither.
 
 ## Summary by category
 
@@ -12,12 +12,12 @@ Made by `node tools/feat-gap-index.mjs` on 2026-11-05. It covers all 6366 feats 
 |---|---:|---:|---:|---:|
 | class | 2282 | 1088 | 1534 | 928 |
 | archetype | 2074 | 1246 | 1425 | 981 |
-| ancestry | 1613 | 1086 | 1142 | 855 |
+| ancestry | 1613 | 1086 | 1140 | 853 |
 | skill | 340 | 261 | 324 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4470 | 3063 |
+| **All** | 6366 | 3725 | 4468 | 3061 |
 
 ## Why the feat module doesn't automate them
 
@@ -39,7 +39,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 | Reason | class | archetype | ancestry | skill | general | bonus | class feature | Total |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| no card, and PF2e's rule elements on it change nothing a fight counts | 278 | 216 | 321 | 59 | 14 | 4 |  | 892 |
+| no card, and PF2e's rule elements on it change nothing a fight counts | 278 | 216 | 319 | 59 | 14 | 4 |  | 890 |
 | no card: roleplay or nothing to automate | 158 | 202 | 153 | 46 | 9 |  |  | 568 |
 | no card: the feat module's reminder, which a fight doesn't play | 189 | 133 | 101 | 21 |  | 1 |  | 445 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 81 | 39 | 111 | 2 |  |  | 324 |
@@ -354,7 +354,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Crocodile's Twin | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Crown of Bone | 1 | ancestry | passive | its requirement, which the PC doesn't meet |
 | Crunch | 1 | ancestry | passive | its requirement, which the PC doesn't meet |
-| Demonbane Warrior | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Demonbane Warrior | 1 | ancestry | passive | rated 0 |
 | Divine Dragonblood | 1 | ancestry | passive | rated 0.01 |
 | Dokkaebi Fire | 1 | ancestry | passive | rated -0.26 |
 | Draconic Aspect | 1 | ancestry | passive | rated 0 |
@@ -709,7 +709,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Tranquil Sanctuary | 5 | ancestry | passive | rated -0.09 |
 | Transposable Compliance | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Tree's Ward | 5 | ancestry | passive | a spell the engine doesn't cast |
-| Undead Slayer | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Undead Slayer | 5 | ancestry | passive | rated 0 |
 | Vandal | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Venom Spit | 5 | ancestry | passive | rated 0 |
 | Voice of the Elements | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
