@@ -454,6 +454,17 @@ const CLASSES = {
         companions: [(c) => familiarFor(c, { hexAbility: "familiar-of-ongoing-misery" })]
     }
 };
+// Class features that make a save's success a critical success: [level, save] (the pf2e system's class items, 2026-11-06; the monk's Path
+// to Perfection on Reflex, Second Path on Will, as its saves above).
+const SAVE_UPGRADES = {
+    alchemist: [[11, "fortitude"], [15, "reflex"]], animist: [[13, "will"]], barbarian: [[7, "fortitude"], [15, "will"]], bard: [[9, "will"]],
+    champion: [[9, "fortitude"], [11, "will"]], commander: [[11, "will"], [15, "reflex"]], druid: [[11, "will"]], exemplar: [[7, "will"], [15, "fortitude"]],
+    guardian: [[9, "fortitude"], [17, "will"]], gunslinger: [[11, "reflex"], [17, "fortitude"]], inventor: [[11, "will"], [17, "fortitude"]],
+    investigator: [[11, "will"], [15, "reflex"]], kineticist: [[7, "fortitude"], [11, "reflex"]], magus: [[9, "will"], [15, "fortitude"]],
+    monk: [[7, "reflex"], [11, "will"]], necromancer: [[3, "will"], [11, "fortitude"]], oracle: [[7, "will"]], psychic: [[11, "will"]],
+    ranger: [[7, "reflex"], [11, "fortitude"]], runesmith: [[11, "fortitude"]], sorcerer: [[17, "will"]], summoner: [[11, "fortitude"], [15, "will"]],
+    swashbuckler: [[7, "reflex"], [17, "will"]], thaumaturge: [[7, "will"], [15, "fortitude"]], witch: [[17, "will"]]
+};
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
@@ -495,6 +506,10 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
     });
     // (Saves pc() reads with Dexterity and Wisdom; Constitution for Fortitude it has.)
     if (built.speed) c.speed = built.speed;
+    // (2026-11-06) The class features that turn a save's success into a critical success (Juggernaut, Evasion's kin, Resolve's kin), from
+    // the pf2e system's class items; the class PCs here had none of them (the runesmith's Forged Endurance aside).
+    const upgrades = (SAVE_UPGRADES[slug] ?? []).filter(([at]) => lv >= at).map(([, save]) => save).filter((save) => !(c.saveDegrees ?? []).some((each) => each.saves.includes(save)));
+    if (upgrades.length) c.saveDegrees = [...(c.saveDegrees ?? []), { saves: upgrades, adjustment: { success: "one-degree-better" } }];
     // (2026-11-06, Cole's pick "Re-check weak class ratings": the standard party's fighter carries a longbow as well as its greatsword, but
     // the martial classes built here had only their melee weapon — a flier or a foe across a gap left them nothing to do, and every class in
     // the fighter's seat rated low for it. A martial with no ranged Strike gets the fighter's backup: a longbow at its weapon proficiency
