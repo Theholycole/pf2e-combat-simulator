@@ -25,7 +25,7 @@ import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startD
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
-import { spawnThrallField, spendThrall, thrallAuraTurnEnd, thrallForSpell, thrallStrikes } from "./thralls.js";
+import { spawnThrallField, amalgamate, spendThrall, thrallAuraTurnEnd, thrallForSpell, thrallStrikes } from "./thralls.js";
 import { lastingTurnStart } from "./lasting.js";
 import { noteStatesTurnStart } from "./note-states.js";
 import { floorOf } from "./floors.js";
@@ -1456,6 +1456,7 @@ function actOn(state, c, action) {
             if (entry.shell) c.inShell = true;
             // (2026-11-06, a thrall spell's own thralls — thralls.js.)
             if (entry.thrallField) spawnThrallField(state, c, entry.thrallField);
+            if (entry.amalgamate) amalgamate(state, c, { make: !!action.makeThrall });
             // (2026-11-05, Burning Cascade: entering Arcane Cascade, its extra damage on each enemy beside it, once a fight each;
             // Resounding Cascade: the stance's extra damage for the allies beside it as it enters.)
             if (entry.name === "Arcane Cascade" && c.arcaneCascade) {

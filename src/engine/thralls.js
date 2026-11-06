@@ -45,7 +45,7 @@ function spawnBody(state, c, near, extra = null) {
     }
     if (near && isActive(near)) engage(state, body, near);
     const bodies = thrallBodies(state, c);
-    if (bodies.length > MAX_BODIES) destroyBody(state, bodies[0], "crumbles");
+    if (bodies.length > MAX_BODIES) destroyBody(state, bodies.find((each) => !each.amalgam) ?? bodies[0], "crumbles");
     return body;
 }
 
@@ -57,13 +57,21 @@ export function destroyBody(state, body, words = "is destroyed") {
     removeFromSpace(state, body);
     const master = state.byId.get(body.thrallOf);
     if (master) master.thralls = thrallBodies(state, master).length;
+    if (master && body.amalgam) amalgamGone(master);
     state.log?.push(`  ${body.name} ${words}`);
+}
+
+// (2026-11-06, Amalgamate: its amalgamation gone, the status bonus to its thrall Strikes' damage with it.)
+function amalgamGone(master) {
+    master.amalgam = null;
+    master.effects = (master.effects ?? []).filter((effect) => effect.key !== "self:Amalgamate");
 }
 
 // A thrall killed (Struck, caught in an area): its necromancer's count follows (actions.js kill).
 export function thrallKilled(state, body) {
     const master = body?.thrallOf ? state.byId.get(body.thrallOf) : null;
     if (master) master.thralls = thrallBodies(state, master).length;
+    if (master && body.amalgam) amalgamGone(master);
 }
 
 // One of its thralls spent: the one beside `near` if any, else its oldest.
@@ -73,7 +81,8 @@ export function spendThrall(state, c, near = null) {
         c.thralls = Math.max(0, thrallsOf(c) - 1);
         return null;
     }
-    const body = (near && bodies.find((each) => sameMelee(each, near))) ?? bodies[0];
+    const plain = bodies.filter((each) => !each.amalgam);
+    const body = (near && plain.find((each) => sameMelee(each, near))) ?? plain[0] ?? bodies[0];
     destroyBody(state, body);
     return body;
 }
@@ -90,6 +99,13 @@ function createThralls(state, c, count, near = null) {
 // Before a thrall Strike on `target`: which way the thrall comes to Strike — a thrall beside it Commanded, else Create Thrall beside it.
 export function thrallStrikes(state, c, target = null) {
     if (!c.thrallMaker) return;
+    // (2026-11-06, Amalgamate: its amalgamation Commanded — Speed 25 and reach 10, played as reaching the target.)
+    const amalgam = c.amalgam ? state.byId.get(c.amalgam) : null;
+    if (amalgam && isActive(amalgam) && target) {
+        if (!(sameMelee(amalgam, target) || distanceBetween(amalgam, target) <= 10)) engage(state, amalgam, target);
+        state.log?.push(`  ${c.name} Commands its amalgamation to Strike`);
+        return;
+    }
     const beside = target ? thrallBodies(state, c).find((body) => sameMelee(body, target) || distanceBetween(body, target) <= 5) : null;
     if (beside) {
         state.log?.push(`  ${c.name} Commands a Thrall to Strike`);
@@ -107,6 +123,24 @@ export function thrallForSpell(state, c, spell, action = {}, target = null) {
         state.log?.push(`  ${c.name} casts Create Thrall (${count} thralls)`);
     }
     if (spell.plan.targeting.thrall.destroyed) spendThrall(state, c, target);
+}
+
+// (2026-11-06, Amalgamate: two of its thralls destroyed, fused into one Large thrall with reach 10 beside the nearest foe — the status bonus
+// to damage is the self-effect's, on its "Thrall" Strike, while the amalgamation lasts.)
+export function amalgamate(state, c, { make = false } = {}) {
+    if (make && thrallBodies(state, c).filter((each) => !each.amalgam).length < 2) {
+        const count = createThralls(state, c, 2);
+        state.log?.push(`  ${c.name} casts Create Thrall (${count} thralls)`);
+    }
+    const bodies = thrallBodies(state, c).filter((each) => !each.amalgam);
+    if (bodies.length < 2) return null;
+    for (const body of bodies.slice(0, 2)) destroyBody(state, body, "is fused");
+    const foe = state.list.filter((other) => other.side !== c.side && isActive(other) && other.kind !== "object" && !other.thrallOf).sort((a, b) => distanceBetween(c, a) - distanceBetween(c, b))[0] ?? null;
+    const body = spawnBody(state, c, foe, { name: `${c.name}'s amalgamation`, amalgam: true, size: "large", speed: 25 });
+    c.amalgam = body.id;
+    c.thralls = thrallBodies(state, c).length;
+    state.log?.push(`  ${c.name} fuses two thralls into an amalgamation`);
+    return body;
 }
 
 // (2026-11-06, the thrall spells that make thralls of their own — Bloody Tendrils, Skeletal Lancers: `count` bodies, one beside each foe in

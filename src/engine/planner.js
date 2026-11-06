@@ -1909,6 +1909,10 @@ function expandClassActions(env) {
         if (entry.belowHalf && c.hp.value > c.hp.max / 2) continue;
         // (2026-11-05, Vivacious Bravado: with panache, gained this turn — played as having it.)
         if (entry.needsPanache && !c.panache) continue;
+        // (2026-11-06, Amalgamate: two thralls to fuse, and no amalgamation yet.)
+        // (With fewer than two, Create Thrall first: an action more.)
+        const makeThrall = entry.amalgamate && (c.thralls ?? 0) < 2;
+        if (entry.amalgamate && (c.amalgam || (makeThrall && remaining < entry.actions + 1))) continue;
         if (entry.trigger) continue;
         // (B308: a shell — only badly hurt, under 40% of its Hit Points, with a foe in its reach; it spends the rest of its turn in it.)
         if (entry.shell && !(c.hp.value < c.hp.max * 0.4 && ctx.enemies.some((enemy) => isActive(enemy) && sameMelee(c, enemy)))) continue;
@@ -1986,10 +1990,10 @@ function expandClassActions(env) {
         }
         const gain = ctx.ownValue * benefit * ROUND_TO_KILL;
 
-        const cost = entry.shell ? remaining : entry.actions;
+        const cost = entry.shell ? remaining : entry.actions + (makeThrall ? 1 : 0);
         // (2026-11-05: the feat's own self-effect, rated as used: offered even when the planner reads no gain in it — Cobra Stance's fang and
         // +1 Fortitude, never entered.)
-        if (gain > 0 || (c.forceUse && entry.featForced)) children.push(child(node, { type: "selfEffect", index, actions: cost }, cost, Math.max(gain, 0.01), { cast: `self${index}` }));
+        if (gain > 0 || (c.forceUse && entry.featForced)) children.push(child(node, { type: "selfEffect", index, actions: cost, ...(makeThrall ? { makeThrall: true } : {}) }, cost, Math.max(gain, 0.01), { cast: `self${index}` }));
     }
 }
 
