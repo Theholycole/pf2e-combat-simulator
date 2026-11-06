@@ -601,6 +601,12 @@ export function applyCondition(state, target, slug, value, duration, source, sco
         target.offGuardTo = [...(target.offGuardTo ?? []), entry];
         const rounds = durationRounds(duration);
         if (Number.isFinite(rounds)) (target.timers ??= []).push({ offGuardTo: entry, round: state.round + rounds, turnOf: source?.id ?? target.id, at: duration?.expiry === "turn-end" ? "end" : "start" });
+        // (2026-11-06, Distracting Feint: while off-guard to the rogue's Feint, –2 circumstance to its Perception and Reflex saves — as long
+        // as the off-guard, a round when it's one attack's.)
+        if (source?.distractingFeint && source.id === scope.attacker && source.side !== target.side) {
+            applyEffect(state, target, { name: "Distracting Feint", rounds: Number.isFinite(rounds) ? rounds : 1, modifiers: [{ on: "reflex", type: "circumstance", value: -2 }, { on: "perception", type: "circumstance", value: -2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, source, { applyCondition, key: `distracting-feint:${source.id}` });
+            log(state, `  ${target.name} is distracted (–2 to Perception and Reflex)`);
+        }
         return true;
     }
     // (2026-11-05, Antagonize: frightened from the swashbuckler — its Demoralize — can't drop below 1 until the creature acts against it,
