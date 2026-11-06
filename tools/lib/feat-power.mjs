@@ -1845,6 +1845,9 @@ const HAND = {
     "correct-the-story": () => ({ builtins: { correctTheStory: true, mythicPoints: 3 }, played: "a foe's critical hit or critically successful save rerolled (reaction, a Mythic Point)" }),
     "black-cat-curse": () => ({ builtins: { saveCurse: { name: "Black Cat Curse" } }, played: "a foe's successful save rerolled, the worse kept (reaction, once a fight)" }),
     "forewarn": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 0, within: 30, dcInstead: "perception" }], played: "an ally's AC as its Perception DC against a hit, when higher (reaction)" }),
+    // (2026-11-06, Shield from Arrows: +4 AC to an adjacent ally against a ranged Strike, its shield raised; the shield taking the hit after a
+    // miss isn't played.)
+    "shield-from-arrows": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 4, within: "reach", ranged: true, shieldRaised: true }], played: "+4 AC to an adjacent ally as a ranged Strike hits it, its shield raised (reaction)" }),
     "deflecting-shot": () => ({ builtins: {}, plans: [{ builtin: "ally-ac-reaction", value: 2, within: 60 }], played: "+2 AC to an ally within 60 feet as it's hit (reaction)" }),
     "oracular-warning": () => ({ builtins: {}, plans: [{ builtin: "initiative-warning", value: 2, within: 20, free: true }], played: "+2 initiative to allies within 20 feet" }),
     // (A failed save rerolled, the better kept, once a fight — the engine's save-reroll, B93. Grit and Tenacity's Fortitude or Will played as

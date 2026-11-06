@@ -667,7 +667,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (degree >= SUCCESS && !reaction) {
         for (const guard of state.list) {
             const entry = guard.allyAcReaction;
-            if (!entry || (guard === target && !entry.self) || guard.side !== target.side || !isActive(guard) || !canReact(guard, entry.name) || !canAct(guard) || (entry.ranged && strike.melee)) continue;
+            if (!entry || (guard === target && !entry.self) || guard.side !== target.side || !isActive(guard) || !canReact(guard, entry.name) || !canAct(guard) || (entry.ranged && strike.melee) || (entry.shieldRaised && !(guard.shield?.raised && !guard.shield.broken))) continue;
             if (guard !== target && (entry.within <= 10 ? !sameMelee(guard, target) : entry.within < 60 && target.band === "far" && guard.band !== "far")) continue;
             // (2026-11-05, Forewarn: the attack against its Perception DC instead of the ally's AC — the gain, when there is one.)
             const value = entry.dcInstead ? 10 + (Number(guard.perception) || 0) - (ac + defence) : entry.value;
