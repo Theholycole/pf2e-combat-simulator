@@ -204,8 +204,8 @@ const CLASSES = {
         build(lv, a) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const spear = weaponStrike(lv, { name: "Noble Branch Spear", die: 8, type: "piercing", toHit: a.str, damageAttr: a.str, prof, group: "spear", extra: { held: true, hands: 2 } });
-            // Noble Branch (a weapon ikon): spirit damage, 2 and 1 more a striking die; Scar of the Survivor (a body ikon): +1 status to Fortitude.
-            const spirit = 2 + (striking(lv) - 1);
+            // Noble Branch (a weapon ikon): 2 spirit damage per weapon damage die (2026-11-06: was 2 and 1 more a die); Scar of the Survivor (a body ikon): +1 status to Fortitude.
+            const spirit = 2 * spear.damage[0].dice;
             const model = (name, fields) => ({ name, rounds: Infinity, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, attackDeltas: {}, strikeDeltas: {}, ...fields });
             return {
                 strikes: [spear],
