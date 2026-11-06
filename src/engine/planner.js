@@ -1424,6 +1424,9 @@ function expandSpells(env) {
                     const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
                     gain += 0.6 * ctx.ownValue * ROUND_TO_KILL * (3 * c.panacheStyle.precise + c.panacheStyle.finisherDice * 3.5 * 0.6) / threat;
                 }
+                // (2026-11-06, Untamed Form's shapes: rated as used — offered even when the planner reads no gain in a battle form over the
+                // druid's spells; forceEven, tools/lib/feat-power.mjs.)
+                if (gain <= 0 && c.forceUse && spell.forceEven && set.targets.includes(c)) gain = 0.01;
                 if (gain <= 0) continue;
                 // (U1: a PC's consumable only when it's worth clearly more than what else the turn holds; healing freely when it's about to
                 // go down, or for a PC who is down.)

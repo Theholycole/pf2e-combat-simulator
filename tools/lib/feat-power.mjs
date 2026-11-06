@@ -1555,6 +1555,14 @@ const HAND = {
     "practiced-reflexes": () => ({ builtins: { drilledCount: 4 }, played: "Drilled Reactions for up to four allies" }),
     "targeting-strike": (level) => ({ builtins: { targetingStrike: level >= 17 ? 6 : level >= 10 ? 5 : 4 }, played: "after its Set-Up Strike or Guiding Shot damages, the next ally's hit there deals its Intelligence in precision damage" }),
     "overwhelming-spellstrike": (level) => ({ builtins: { overwhelmingSpellstrike: level }, played: "Spellstrike's spell ignoring energy resistance up to its level (at a foe that resists)" }),
+    "untamed-form": (level, host) => untamedShape(level, host, "Animal Form", "Animal"),
+    "insect-shape": (level, host) => untamedShape(level, host, "Insect Form", "Insect"),
+    "ferocious-shape": (level, host) => untamedShape(level, host, "Dinosaur Form", "Dinosaur"),
+    "soaring-shape": (level, host) => untamedShape(level, host, "Aerial Form", "Aerial"),
+    "elemental-shape": (level, host) => untamedShape(level, host, "Elemental Form", "Elemental"),
+    "plant-shape": (level, host) => untamedShape(level, host, "Plant Form", "Plant"),
+    "dragon-shape": (level, host) => untamedShape(level, host, "Dragon Form", "Dragon"),
+    "monstrosity-shape": (level, host) => untamedShape(level, host, "Monstrosity Form", "Monstrosity"),
     "spell-swipe": () => ({ builtins: { spellSweeps: [{ name: "Spell Swipe", kind: "swipe" }] }, played: "a 3-action Spellstrike at two adjacent foes, the spell on each it hits (a multi-target or area spell)" }),
     "whirlwind-spell": () => ({ builtins: { spellSweeps: [{ name: "Whirlwind Spell", kind: "whirl" }] }, played: "a 3-action Spellstrike at each foe in reach, the spell on each it hits (a multi-target or area spell)" }),
     "expansive-spellstrike": () => ({ builtins: { expansiveSpellstrike: true }, played: "Spellstrike with a burst, cone or line spell, its area about the target" }),
@@ -2274,7 +2282,40 @@ function itemMatches(item, filter) {
 }
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
 // (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
-const BASE_FEATS = { "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot" };
+const BASE_FEATS = { "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
+
+// (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
+// rank — half the druid's level, rounded up —, a 2-action focus spell; the engine's battle forms (effects.js enterForm) take its best shape.
+// Untamed Form's +2 status to the druid's own attack modifier isn't played: a form's own modifier is higher.)
+function untamedShape(level, host, spellName, label) {
+    const spell = spellPack.spellNamed(spellName);
+    if (!spell) return null;
+    const castRank = Math.max(Number(spell.system?.level?.value) || 1, Math.ceil(level / 2));
+    if (castRank > Math.ceil(level / 2)) return null;
+    let plan;
+    try {
+        plan = spellPack.compileSpell(spell);
+    } catch {
+        return null;
+    }
+    const own = dcsOf(host);
+    const dc = own.spell ?? own.class ?? 10 + level + 2;
+    const pool = `${host.id}:focus`;
+    let effects = spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank);
+    // (A spell whose shape is chosen as it's cast — Animal Form's, Dinosaur Form's "effect-choice" —: one Effect with every branch's battle
+    // form, which enterForm picks the best of.)
+    if (plan.resolution?.kind === "effect-choice") {
+        const models = Object.values(effects ?? {}).filter(Boolean);
+        const first = Object.keys(effects ?? {})[0];
+        if (!first) return null;
+        const battleForms = models.flatMap((model) => model.battleForms ?? (model.battleForm ? [model.battleForm] : []));
+        effects = { [first]: { ...models[0], battleForms, battleForm: battleForms[0] ?? null } };
+        plan = { ...plan, resolution: { ...plan.resolution, kind: "effect", selector: undefined, applications: [{ kind: "native-spell-effect", uuid: first, source: "nativeEffects.onUse", terminationId: `${first}:dismiss` }] } };
+    }
+    const entry = { name: `Untamed Form (${label})`, fromFeat: true, featForced: true, forceEven: true, plan, castRank, dc, attack: dc - 10, pool, effects };
+    if (!castable(entry) || !Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) return null;
+    return { builtins: {}, spells: [entry], pools: { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) }, played: `Untamed Form's ${label.toLowerCase()} shapes (${spellName}, rank ${castRank})` };
+}
 function partyWithFeatOwn(doc, level, options = {}) {
     // (Or the feat whose Effect it needs: Dueling Riposte's "You are benefiting from Dueling Parry".)
     const needed = requiredEffectFeat(requirementText(doc) ?? "");
@@ -2489,6 +2530,8 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         }
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = critRiderEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = textSelfEffectEntry(doc, level, builtins, host, wields) ?? entries;
+        // (2026-11-06, Untamed Form: its hand reading — the Animal Form shapes at its rank — over the innate reading of the focus spell.)
+        if (entries.gap && slugOf(doc) === "untamed-form") entries = handEntry(doc, level, builtins, wields, { ...host, strikes: wields.strikes ?? host.strikes }) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = innateSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = focusSpellEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = rageSaveEntry(doc, level, host) ?? entries;
@@ -2585,6 +2628,9 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // (2026-11-05, a Lay on Hands rider — Amplifying Touch and kin —: its Lay on Hands used whenever it can go, as the rider's feat is rated
     // by use; cast 0.2 times a fight before.)
     if (pc.touchRiders?.length) pc.spells = (pc.spells ?? []).map((entry) => (entry.plan?.source?.slug === "lay-on-hands" ? { ...entry, featForced: true } : entry));
+    // (2026-11-06, Untamed Form's shapes: the feat's own shape forced, not the Animal Form both sides have.)
+    const shapes = (pc.spells ?? []).filter((entry) => /^Untamed Form \(/.test(entry.name ?? "") && entry.forceEven);
+    if (shapes.length > 1) pc.spells = pc.spells.map((entry) => (shapes.slice(0, -1).includes(entry) ? { ...entry, featForced: false, forceEven: false } : entry));
     // (Targeting Strike: its Set-Up Strike used whenever it can go — the rider's use.)
     if (pc.targetingStrike) pc.strikeActivities = (pc.strikeActivities ?? []).map((activity) => (activity.setUp || /^(Set-Up Strike|Guiding Shot)$/.test(activity.name) ? { ...activity, featForced: true } : activity));
     // (2026-11-06, Combination Finisher: its finishers' Strikes at −4/−8, −3/−6 agile — abilities.js chargeStrike mapSteps.)
