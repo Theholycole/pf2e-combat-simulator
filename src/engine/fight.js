@@ -1061,7 +1061,18 @@ function actOn(state, c, action) {
                     spendReaction(ally, spell.name);
                     state.stats.reactions++;
                     state.log?.push(`  ${ally.name} Strikes (${spell.allyStrike})`);
-                    performStrike(state, ally, foe, ally.strikes.find((strike) => strike.melee && strikeUsable(ally, strike)), { reaction: true });
+                    const struck = performStrike(state, ally, foe, ally.strikes.find((strike) => strike.melee && strikeUsable(ally, strike)), { reaction: true });
+                    // (2026-11-06, Shared Assault: its critical hit — another ally the anthem reached Strikes as a reaction too, no further.)
+                    if (c.sharedAssault && struck?.degree === CRITICAL_SUCCESS) {
+                        const second = state.list.filter((other) => other !== c && other !== ally && other.side === c.side && isActive(other) && canAct(other) && canReact(other) && (other.strikes ?? []).some((strike) => strike.melee && strikeUsable(other, strike)) && engagedEnemies(state, other).some(isActive))[0];
+                        const at = second ? engagedEnemies(state, second).filter(isActive).sort((a, b) => a.hp.value - b.hp.value)[0] : null;
+                        if (second && at) {
+                            spendReaction(second, "Shared Assault");
+                            state.stats.reactions++;
+                            state.log?.push(`  ${second.name} Strikes (Shared Assault)`);
+                            performStrike(state, second, at, second.strikes.find((strike) => strike.melee && strikeUsable(second, strike)), { reaction: true });
+                        }
+                    }
                 }
             }
             // (L5: a coven spell — the coven's one this round, and its helpers' actions.)

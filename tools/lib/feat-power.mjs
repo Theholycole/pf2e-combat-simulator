@@ -1631,6 +1631,11 @@ const HAND = {
     "martyr": () => ({ builtins: { healShapes: [{ name: "Martyr", kind: "martyr" }] }, played: "an action before each single-target Heal on an ally: 1d8 a rank of its own Hit Points to it too" }),
     // (2026-11-06, Chain Infusion: the infusion and a 1-action Elemental Blast; each hit chains a new blast to another foe — fight.js.)
     "chain-infusion": (_level, host) => (host?.strikes?.some((strike) => strike.name === "Elemental Blast") ? { builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", strike: "elemental blast", chainHits: true })], played: "Chain Infusion and an Elemental Blast, its hits chaining on to other foes (2 actions)" } : null),
+    // (2026-11-06, Shared Assault: rated with Courageous Assault, against neither.)
+    "shared-assault": (level, host, doc) => {
+        const assault = HAND["courageous-assault"](level, host, { ...doc, name: "Courageous Assault" });
+        return assault ? { ...assault, builtins: { sharedAssault: true }, played: `${assault.played}; its critical hit, another ally's Strike (with Courageous Assault)` } : null;
+    },
     "underhanded-assault": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "melee", sneakFirst: 2 })], played: "a Sneak (Stealth −2 against its Perception DC), then a melee Strike it's off-guard to (2 actions)" }),
     "frightful-attrition": () => ({ builtins: { frightfulAttrition: true }, played: "a Will save or frightened 1–3 for the foes within 30 feet of each foe it drops (actions.js)" }),
     "sympathetic-vulnerabilities": () => ({ builtins: { sympatheticVulnerabilities: true }, played: "personal antithesis on every foe of the exploited one's kind" }),
