@@ -1016,6 +1016,13 @@ export function applyHeal(state, target, amount) {
         target.hp.value = Math.min(target.hp.max, amount);
         target.band = "near";
         log(state, `  ${target.name} is healed back up (${target.hp.value}/${target.hp.max})`);
+        // (2026-11-06, Resurrectionist: a dying creature its healer brings back gets fast healing 5 for 1 minute — the healer, the creature
+        // acting; ending on unconscious not played.)
+        const healer = state.byId?.get(state.acting);
+        if (healer?.resurrectionist && healer.side === target.side) {
+            applyEffect(state, target, { name: "Resurrectionist", rounds: 10, modifiers: [], tempHp: 0, fastHealing: 5, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, healer, { applyCondition, key: "resurrectionist" });
+            log(state, `  ${target.name} gains fast healing 5 (Resurrectionist)`);
+        }
         return target.hp.value;
     }
     const before = Math.max(0, target.hp.value);
