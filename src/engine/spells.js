@@ -4982,7 +4982,9 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         if (info.self) return [{ targets: [caster] }];
         // Spell effects: any ally in reach, the caster included.
         if (info.helpful) {
-            const friends = [caster, ...allies].filter((ally) => ally.status === ACTIVE && reaches(ally));
+            // (2026-11-06, "1 ally" — Allegro's —: an ally is another creature, never the caster.)
+            const allyOnly = /^(?:\d+|one|two|three) (?:ally|allies)$/i.test(String(spell.plan?.targeting?.target ?? "").trim());
+            const friends = [...(allyOnly ? [] : [caster]), ...allies].filter((ally) => ally.status === ACTIVE && reaches(ally));
             if (info.targets <= 1) sets.push(...friends.map((ally) => ({ targets: [ally] })));
             else if (friends.length) sets.push({ targets: friends.slice(0, info.targets) });
         }
