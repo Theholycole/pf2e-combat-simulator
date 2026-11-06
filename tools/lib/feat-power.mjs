@@ -654,6 +654,13 @@ function spellshapeEntry(doc, host) {
         const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? "")) && spell.plan?.resolution?.sharedDamage?.components?.length).map((spell) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, vampiric: true })).filter(castable);
         return spells.length ? { spells, pools: {}, gap: null, played: `Vampiric Spell copies of ${spells.length} damage spell${spells.length > 1 ? "s" : ""}: temporary Hit Points of half the most damage dealt` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no damage spell of the PC's it shapes` } };
     }
+    // (2026-11-06, Infuse Void: a copy of each of its damaging grave spells (its necromancer focus spells: Necrotic Bomb, Bone Spear — the
+    // packs' grave trait missing), an action more — each creature it damaged takes void damage of the spell's rank more; fight.js. Its Focus
+    // Point back on a kill isn't played.)
+    if (slugOf(doc) === "infuse-void") {
+        const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? "")) && spell.plan?.resolution?.sharedDamage?.components?.length && ["grave", "necromancer"].some((trait) => (spell.plan?.traits ?? []).includes(trait)) && (spell.plan?.traits ?? []).some((trait) => trait === "focus" || trait === "grave")).map((spell) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, infuseVoid: true })).filter(castable);
+        return spells.length ? { spells, pools: {}, gap: null, played: `Infuse Void copies of ${spells.length} grave spell${spells.length > 1 ? "s" : ""}: void damage of its rank more on each creature hurt` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no grave spell of the PC's it shapes` } };
+    }
     // (2026-11-06, Forcible Energy: a copy of each of its 1- or 2-action acid, cold, electricity, fire or sonic damage spells, an action more —
     // the creature it damaged most gets weakness 5 to that type to the end of the wizard's next turn; fight.js forcible.)
     if (slugOf(doc) === "forcible-energy") {

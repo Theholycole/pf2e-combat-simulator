@@ -1042,10 +1042,17 @@ function actOn(state, c, action) {
             if (healed && healed !== c && healed.side === c.side) {
                 state.log?.push(`  ${c.name} uses ${shapes.map((shape) => shape.name).join(" and ")}`);
             }
-            const drained = (spell?.vampiric || spell?.forcible) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
+            const drained = (spell?.vampiric || spell?.forcible || spell?.infuseVoid) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
             // (2026-11-06, Vampiric Spell: half the most damage one creature took, as temporary Hit Points — the higher of these and its own.)
             // (2026-11-06, Forcible Energy: weakness 5 to the spell's energy on the creature it hurt most, to the end of the caster's next turn.)
+            // (2026-11-06, Infuse Void: void damage of the spell's rank on each creature it damaged.)
+            if (drained && spell.infuseVoid) {
+                for (const other of state.list.filter((each) => drained.has(each.id) && isActive(each) && drained.get(each.id) - Math.max(0, each.hp.value) - (each.hp.temp ?? 0) > 0)) {
+                    const dealt = applyDamage(state, other, [{ type: "void", amount: spell.castRank ?? 1, persistent: false, precision: false }], { source: c });
+                    state.log?.push(`  ${other.name} takes ${dealt} void (Infuse Void)`);
+                }
+            }
             if (drained && spell.forcible) {
                 const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
                 if (hurt) {
