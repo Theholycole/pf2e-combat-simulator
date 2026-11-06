@@ -989,7 +989,7 @@ function focusSpellEntry(doc, level, host) {
         if (!plan?.resolution || plan.resolution.kind === "no-effect" || (plan.resolution.kind === "unsupported" && !["Lay on Hands", "Heal Companion"].includes(spell.name))) continue;
         const cantrip = (spell.system?.traits?.value ?? []).includes("cantrip");
         const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan, castRank, dc, attack: dc - 10, pool: cantrip ? null : pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
-        if (castable(entry)) entries.push(entry);
+        if (castable(entry) || reactionWired(entry)) entries.push(entry);
     }
     if (!entries.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
     const pools = entries.some((entry) => entry.pool) ? { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) } : {};
