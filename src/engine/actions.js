@@ -318,7 +318,7 @@ function expectedExtras(attacker, strike, target, critical, offGuardChance, pack
         const chance = extra.when === "off-guard" ? offGuardChance : extraApplies(extra, target, { offGuard: false, packAllies, attacker, critical }) ? 1 : 0;
         // (2026-11-03: a condition it puts on — Brutal Beating's frightened — isn't damage; Brutal Critical's melee Strikes only, its weapon's
         // own die, not doubled.)
-        if (!chance || extra.condition || extra.offGuardToAttacker || !extraFits(extra, strike)) continue;
+        if (!chance || extra.condition || extra.save || extra.offGuardToAttacker || !extraFits(extra, strike)) continue;
         const die = extra.weaponDie ? Number(strike.damage?.[0]?.die) || 6 : extra.die;
         // (2026-11-03, Fearsome Brute: a bonus for each point of the target's frightened.)
         // (Sticky Bomb: persistent damage of its bomb's splash.)
@@ -900,6 +900,25 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
                     target.offGuardTo = [...(target.offGuardTo ?? []), entry];
                     (target.timers ??= []).push({ offGuardTo: entry, round: state.round + 1, turnOf: attacker.id, at: "end" });
                     log(state, `  ${target.name} is off-guard to ${attacker.name} (${extra.source ?? "a Strike's extra"})`);
+                }
+                continue;
+            }
+            // (2026-11-06, a save against its class DC after the hit — Sour Bomb's sickened, Hell's Armaments' slowed: outcomes [critical
+            // failure, failure, success, critical success], each a list of [slug, value, rounds]; a speed penalty as ["speed", -10, rounds].)
+            if (extra.save) {
+                if (isActive(target)) {
+                    const natural = state.rng.d20();
+                    let degree = degreeOf(natural + saveModifier(target, extra.save.statistic), Math.max(attacker.classDC ?? 0, attacker.spellDC ?? 0) || 10 + (attacker.level ?? 1) + 3, natural);
+                    if (extra.save.incapacitation && (target.level ?? 0) > (attacker.level ?? 0)) degree = Math.min(CRITICAL_SUCCESS, degree + 1);
+                    log(state, `  ${target.name} (${extra.source}) save: ${["critical failure", "failure", "success", "critical success"][degree]}`);
+                    for (const [slug, value, rounds] of extra.save.outcomes[degree] ?? []) {
+                        const duration = rounds ? { mode: "fixed", value: rounds, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } : null;
+                        if (slug === "speed") {
+                            applyEffect(state, target, { name: extra.source, rounds: rounds ?? 1, modifiers: [{ on: "speed", type: "circumstance", value }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, attacker, { applyCondition, key: `speed:${extra.source}` });
+                            continue;
+                        }
+                        if (applyCondition(state, target, slug, value, duration, attacker)) log(state, `  ${target.name} is ${slug}${value ? ` ${value}` : ""} (${extra.source})`);
+                    }
                 }
                 continue;
             }

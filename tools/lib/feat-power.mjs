@@ -1588,6 +1588,12 @@ const HAND = {
     "rapid-recharge": () => ({ builtins: { rapidRecharge: 1 }, played: "its Spellstrike recharged free as a turn begins, once a fight" }),
     "sustaining-steel": () => ({ builtins: { sustainingSteel: true }, played: "a slot spell's Spellstrike heals it the rank (double in Arcane Cascade)" }),
     // (2026-11-06: Exploit Vulnerability's personal antithesis on every creature of the target's kind — actions.js.)
+    // (2026-11-06, Hell's Armaments: a critical hit with its weapon — a Fortitude save against its class DC: −10 feet Speed, slowed 1 or 2
+    // until the end of its next turn; in place of critical specialization, which its host's Strikes keep — not chosen between.)
+    "hells-armaments": () => {
+        const slow = (value) => [["speed", -10, 1], ...(value ? [["slowed", value, 1]] : [])];
+        return { builtins: { strikeExtras: [{ when: "critical", save: { statistic: "fortitude", outcomes: [slow(2), slow(1), slow(0), []] }, source: "Hell's Armaments" }] }, played: "a Fortitude save on a critical hit: −10 feet Speed, slowed 1 or 2 (always on)" };
+    },
     "underhanded-assault": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "melee", sneakFirst: 2 })], played: "a Sneak (Stealth −2 against its Perception DC), then a melee Strike it's off-guard to (2 actions)" }),
     "frightful-attrition": () => ({ builtins: { frightfulAttrition: true }, played: "a Will save or frightened 1–3 for the foes within 30 feet of each foe it drops (actions.js)" }),
     "sympathetic-vulnerabilities": () => ({ builtins: { sympatheticVulnerabilities: true }, played: "personal antithesis on every foe of the exploited one's kind" }),
@@ -1697,6 +1703,8 @@ const HAND = {
     // additives on every bomb it throws — the bombs come from its vials as it throws them, so the additive goes in each one; one additive
     // a bomb, but each is rated alone. Off-guard is the debilitation picked: the one the party's Strikes use.)
     "debilitating-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, condition: { slug: "off-guard", duration: { mode: "fixed", value: 1, unit: "rounds" } }, source: "Debilitating Bomb" }] }, played: "its bombs leave a hit foe off-guard until its next turn (always on)" }),
+    // (2026-11-06, Sour Bomb: a bomb's hit — a Fortitude save against its class DC, sickened 1, or sickened 2 and fleeing a round.)
+    "sour-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, save: { statistic: "fortitude", outcomes: [[["sickened", 2], ["fleeing", null, 1]], [["sickened", 1]], [], []] }, source: "Sour Bomb" }] }, played: "a Fortitude save on each bomb hit: sickened 1, or 2 and fleeing (always on)" }),
     // (Persistent damage of the bomb's splash, its type.)
     "sticky-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, splashPersistent: true, source: "Sticky Bomb" }] }, played: "its bombs' splash as persistent damage on a hit (always on)" }),
     // (A second reaction each round, for Reactive Strike only — B303's spare reaction.)
