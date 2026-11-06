@@ -1247,6 +1247,15 @@ function actOn(state, c, action) {
             const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...charged, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : charged));
             c.headshotOn = null;
             if (activity.spendThrall && fired?.thrall) spendThrall(state, c, target);
+            // (2026-11-06, Draining Strike: a hit spends a thrall for its dice of spirit damage more, the necromancer healed that much — the
+            // thrall nearest the target, else any.)
+            if (activity.drainThrall && result?.degree >= SUCCESS && !result.image && isActive(target) && (c.thralls ?? 0) > 0 && spendThrall(state, c, target)) {
+                let amount = 0;
+                for (let die = 0; die < activity.drainThrall; die++) amount += state.rng.die(6);
+                const dealt = applyDamage(state, target, [{ type: "spirit", amount, persistent: false, precision: false }], { source: c });
+                state.log?.push(`  ${target.name} takes ${dealt} spirit (Draining Strike)`);
+                if (dealt > 0) applyHeal(state, c, dealt);
+            }
             // ("After this Strike, your Rage immediately ends, and you are Fatigued until you rest for at least 10 minutes.")
             if (activity.rageFinish) {
                 c.activeBuffs = (c.activeBuffs ?? []).filter((buff) => !buff.noConcentrate);

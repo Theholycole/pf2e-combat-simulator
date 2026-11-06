@@ -1658,6 +1658,10 @@ const HAND = {
     },
     "calcification": (level, host, doc) => thrallSaveSpell(doc, level, host, "fortitude", { success: ["slowed", 1, ONE_ROUND], failure: ["slowed", 1], criticalFailure: ["slowed", 2] }, "a foe slowed 1 (a round on a success; 2 on a critical failure) by its Fortitude save; its ongoing saves and bludgeoning weakness not played"),
     "temporary-possession": (level, host, doc) => thrallSaveSpell(doc, level, host, "will", { success: ["stunned", 2], failure: ["stunned", 3], criticalFailure: ["stunned", 4] }, "a foe possessed by its Will save: the actions it controls and the stunned 1 after taken as stunned 2/3/4 (what it makes the foe do not played)", 1),
+    "draining-strike": (level) => {
+        const dice = level >= 18 ? 3 : level >= 10 ? 2 : 1;
+        return { builtins: {}, plans: [strikeRider({ countsAs: 2, oncePerTurn: true, drainThrall: dice })], played: `a Strike counting as two attacks; a hit spends a thrall for ${dice}d6 spirit more, the necromancer healed as much (once a turn)` };
+    },
     "thrall-charger": (level) => {
         const rank = Math.max(1, Math.ceil(level / 2));
         const dice = level >= 11 ? 3 : level >= 3 ? 2 : 1;
@@ -2202,7 +2206,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer" };
+const CLASS_OVERRIDE = { "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
