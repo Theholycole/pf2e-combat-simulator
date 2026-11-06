@@ -39,9 +39,10 @@ import { canSpendHero, spendHeroPoint } from "./heroes.js";
 
 // (On the grid, against an attacker: what stands between them — a creature, lesser cover; a wall's corner, standard — or the run's cover
 // for the side, the more.)
+// (2026-11-06, Phalanx Formation: a guardian between gives its allies' targets no lesser cover.)
 export function coverFor(state, defender, attacker = null) {
     const set = state.setup.cover?.[defender.side] ?? 0;
-    const base = !state.grid || !attacker?.square || !defender.square ? set : Math.max(set, sightLine(state.grid, attacker, defender, state.list.filter((other) => isActive(other) && other.square)).cover);
+    const base = !state.grid || !attacker?.square || !defender.square ? set : Math.max(set, sightLine(state.grid, attacker, defender, state.list.filter((other) => isActive(other) && other.square && !(other.phalanxFormation && other.side === attacker.side && other !== attacker))).cover);
     // (2026-10-22, Take Cover: standard cover greater; none, standard against an attacker it took cover from — something between, or
     // the undergrowth or rubble it's in: grid-fight.js coverToward.)
     if (!defender.tookCover) return base;
