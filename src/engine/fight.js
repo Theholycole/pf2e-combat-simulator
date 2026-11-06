@@ -9,7 +9,7 @@ import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, finishRegenerating, spellStops, strikeStops, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { featTriggers } from "./triggers.js";
-import { canReact, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
+import { canReact, hasOwnEffect, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, adjustPart, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
 import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
@@ -1395,7 +1395,10 @@ function actOn(state, c, action) {
                     if (ability.sameMap) c.attacksThisTurn = attacks;
                     // (Hungry Flurry, Double Shot: each at a -2 penalty, B62.)
                     const strike = withExtraDamage(c.strikes[index], ability.extraDamage);
-                    const result = isActive(foe) ? performStrike(state, c, foe, ability.penalty ? { ...strike, bonus: strike.bonus - ability.penalty } : strike) : null;
+                    // (2026-11-06, Multishot Stance: Double Shot's penalty −1, Triple Shot's −2, in the stance.)
+                    const multishot = ability.penalty && /^(Double|Triple) Shot$/.test(ability.name) && hasOwnEffect(c, "Multishot Stance") ? (ability.name === "Double Shot" ? 1 : 2) : null;
+                    const penalty = multishot ?? ability.penalty;
+                    const result = isActive(foe) ? performStrike(state, c, foe, penalty ? { ...strike, bonus: strike.bonus - penalty } : strike) : null;
                     // (B152, Fan of Daggers: what each critical hit brings.)
                     if (ability.critical && result?.degree === CRITICAL_SUCCESS) bothHitRider(state, c, foe, ability.critical, { said: "Critical hit on" });
                     // (B213, Hundred-Handed Whirlwind: damage even on a failed attack, not a critical failure.)

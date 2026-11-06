@@ -1202,6 +1202,9 @@ const HAND = {
     // (2026-11-06, Covering Stance: lesser cover for an adjacent ally at the end of each of its turns — fight.js; its Step after an Intercept
     // Attack isn't played.)
     "covering-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { coversAlly: true } }], played: "stance: an adjacent ally gets lesser cover (+1 AC) until its next turn" }),
+    // (2026-11-06, Multishot Stance: Double Shot at −1 in the stance (with Double Shot on both sides; fight.js); ending it on a move isn't
+    // played.)
+    "multishot-stance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: {} }], played: "stance: Double Shot's penalty −1 (from −2)" }),
     "paragons-guard": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its shield always raised" }),
     "buckler-dance": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { shieldUp: true } }], played: "stance: its buckler always raised" }),
     // (Harden Flesh: resistance 3 to physical damage, but adamantine, until its next turn; +1 at 12th level and every 4 after. Its earthen
@@ -2242,7 +2245,7 @@ function itemMatches(item, filter) {
 }
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
 // (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
-const BASE_FEATS = { "targeting-strike": "Set-Up Strike" };
+const BASE_FEATS = { "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot" };
 function partyWithFeatOwn(doc, level, options = {}) {
     // (Or the feat whose Effect it needs: Dueling Riposte's "You are benefiting from Dueling Parry".)
     const needed = requiredEffectFeat(requirementText(doc) ?? "");

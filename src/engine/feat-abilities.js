@@ -328,7 +328,9 @@ export function featEntries(plan, info, builtins, helpers = {}) {
         }
         if (Array.isArray(plan.strikes) && plan.strikes.length > 1) {
             const sameMap = /\bpenalty (?:doesn't|does not) increase until\b|\bboth (?:attacks|Strikes) (?:count|use) (?:your )?(?:current )?multiple attack penalty\b/i.test(info?.text ?? "");
-            const multi = { builtin: "multi-strike", actions: actionCount(plan, info), strikes: plan.strikes.map((strike) => (strike === "ranged" ? "ranged" : null)), ...(sameMap ? { sameMap: true } : {}), ...(traits.includes("flourish") ? { flourish: true } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(requires ? { requires } : {}), ...(plan.needs?.length ? { needs: plan.needs } : {}) };
+            // (2026-11-06: "You are wielding a ranged weapon" — Double Shot's —: its ranged Strikes, not its best melee one beside a foe.)
+            const rangedOnly = /\bwielding a ranged weapon\b/i.test(requirementSaid);
+            const multi = { builtin: "multi-strike", actions: actionCount(plan, info), strikes: plan.strikes.map((strike) => (strike === "ranged" || rangedOnly ? "ranged" : null)), ...(sameMap ? { sameMap: true } : {}), ...(traits.includes("flourish") ? { flourish: true } : {}), ...(Number(plan.strides) > 0 ? { strides: Number(plan.strides) } : {}), ...(requires ? { requires } : {}), ...(plan.needs?.length ? { needs: plan.needs } : {}) };
             if (!addBuiltin(builtins, multi, name)) return gap("Strikes the simulator doesn't play");
             return { ...result, played: `${plan.strikes.length} Strikes` };
         }
