@@ -648,6 +648,12 @@ const SPELLSHAPES = {
     "thunderclap-spell": { trait: "electricity", anyArea: true, conditions: { failure: ["deafened", null, ROUND], criticalFailure: [["deafened", null, ROUND], ["prone", null, null]] } }
 };
 function spellshapeEntry(doc, host) {
+    // (2026-11-06, Vampiric Spell: a copy of each of its 1- or 2-action damage spells, an action more — temporary Hit Points of half the
+    // most damage one creature took from it, for a minute; fight.js vampiric.)
+    if (slugOf(doc) === "vampiric-spell") {
+        const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? "")) && spell.plan?.resolution?.sharedDamage?.components?.length).map((spell) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, vampiric: true })).filter(castable);
+        return spells.length ? { spells, pools: {}, gap: null, played: `Vampiric Spell copies of ${spells.length} damage spell${spells.length > 1 ? "s" : ""}: temporary Hit Points of half the most damage dealt` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no damage spell of the PC's it shapes` } };
+    }
     const shape = SPELLSHAPES[slugOf(doc)];
     if (!shape) return null;
     const spells = [];

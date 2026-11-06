@@ -1033,7 +1033,17 @@ function actOn(state, c, action) {
             if (healed && healed !== c && healed.side === c.side) {
                 state.log?.push(`  ${c.name} uses ${shapes.map((shape) => shape.name).join(" and ")}`);
             }
+            const drained = spell?.vampiric && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
+            // (2026-11-06, Vampiric Spell: half the most damage one creature took, as temporary Hit Points — the higher of these and its own.)
+            if (drained && isActive(c)) {
+                const most = Math.max(0, ...state.list.filter((other) => drained.has(other.id)).map((other) => drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)));
+                const gained = Math.floor(most / 2);
+                if (gained > (c.hp.temp ?? 0)) {
+                    c.hp.temp = gained;
+                    state.log?.push(`  ${c.name} gains ${gained} temporary Hit Points (Vampiric Spell)`);
+                }
+            }
             if (healed && healed !== c && healed.side === c.side && isActive(healed)) {
                 for (const shape of shapes) {
                     if (shape.kind === "defensive" && healed.hp.value > hpBefore) {
