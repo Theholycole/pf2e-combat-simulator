@@ -1063,6 +1063,8 @@ const HAND = {
     // (2026-11-05, Precise Debilitations: off-guard in its place — what helps the rogue's own sneak attack and its allies; its other one,
     // 2d6 more precision from its attacks, isn't played.)
     "precise-debilitations": () => ({ builtins: { debilitation: { slug: "off-guard", value: null } }, played: "Debilitating Strike's off-guard in place of enfeebled 1" }),
+    // (2026-11-06, Enduring Debilitation: once a fight, a debilitation lasts a minute — its conditions'; bleed and no-reactions as before.)
+    "enduring-debilitation": () => ({ builtins: { enduringDebilitation: true }, played: "its first debilitation a fight lasts a minute (free action)" }),
     "vicious-debilitations": () => ({ builtins: { debilitation: { slug: "clumsy", value: 1 } }, played: "Debilitating Strike's clumsy 1 in place of enfeebled 1" }),
     // (2026-11-05: 2d6 more precision on its next sneak attack this turn, 3d6 at 11th, 4d6 at 17th — a self-effect for its next Strike
     // whose dice count only at an off-guard target, offGuardOnly. The Recall Knowledge it needs first isn't played: taken as known.)

@@ -973,7 +973,11 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
                     }
                     continue;
                 }
-                if (isActive(target) && applyCondition(state, target, condition.slug, condition.value ?? null, condition.duration ?? null, attacker)) log(state, `  ${target.name} is ${condition.slug}${condition.value ? ` ${condition.value}` : ""} (${extra.source ?? "a Strike's extra"})`);
+                // (2026-11-06, Enduring Debilitation: once a fight — its minute —, the debilitation for a minute instead.)
+                const endures = extra.source === "Debilitating Strike" && attacker.enduringDebilitation && !attacker.enduredDebilitation && isActive(target);
+                if (endures) attacker.enduredDebilitation = true;
+                const lasting = endures ? { mode: "fixed", value: 10, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } : condition.duration ?? null;
+                if (isActive(target) && applyCondition(state, target, condition.slug, condition.value ?? null, lasting, attacker)) log(state, `  ${target.name} is ${condition.slug}${condition.value ? ` ${condition.value}` : ""} (${extra.source ?? "a Strike's extra"}${endures ? ", Enduring Debilitation" : ""})`);
                 continue;
             }
             if (extra.splashPersistent) {
