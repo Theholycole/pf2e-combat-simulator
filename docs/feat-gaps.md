@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-06. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1908 in whole fights. **4458 it doesn't.**
-- **3054** are in neither.
+- **The simulator** rates 1910 in whole fights. **4456 it doesn't.**
+- **3053** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1526 | 922 |
+| class | 2282 | 1088 | 1524 | 921 |
 | archetype | 2074 | 1246 | 1423 | 980 |
 | ancestry | 1613 | 1086 | 1140 | 853 |
 | skill | 340 | 261 | 324 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4458 | 3054 |
+| **All** | 6366 | 3725 | 4456 | 3053 |
 
 ## Why the feat module doesn't automate them
 
@@ -40,8 +40,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Reason | class | archetype | ancestry | skill | general | bonus | class feature | Total |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 278 | 216 | 319 | 59 | 14 | 4 |  | 890 |
-| no card: roleplay or nothing to automate | 158 | 202 | 153 | 46 | 9 |  |  | 568 |
-| no card: the feat module's reminder, which a fight doesn't play | 188 | 133 | 101 | 21 |  | 1 |  | 444 |
+| no card: roleplay or nothing to automate | 157 | 202 | 153 | 46 | 9 |  |  | 567 |
+| no card: the feat module's reminder, which a fight doesn't play | 187 | 133 | 101 | 21 |  | 1 |  | 443 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 81 | 39 | 111 | 2 |  |  | 324 |
 | no card: only grants other feats, features or choices | 87 | 123 | 47 | 16 | 2 |  |  | 275 |
 | a spell the engine doesn't cast | 50 | 56 | 108 | 1 |  | 1 |  | 216 |
@@ -2390,7 +2390,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Ode to Ouroboros | 10 | class | passive | a spell the engine doesn't cast |
 | Peerless Warden | 10 | class | passive | no card: roleplay or nothing to automate |
 | Precious Munitions | 10 | class | passive | no card: roleplay or nothing to automate |
-| Rapid Recharge | 10 | class | free | no card: roleplay or nothing to automate |
+| Rapid Recharge | 10 | class | free | rated -0.07 |
 | Signature Spell Expansion | 10 | class | passive | no card: roleplay or nothing to automate |
 | Signature Spell Expansion (Psychic) | 10 | class | passive | no card: roleplay or nothing to automate |
 | Suspect of Opportunity | 10 | class | reaction | no card: roleplay or nothing to automate |
@@ -4062,7 +4062,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (444)
+### no card: the feat module's reminder, which a fight doesn't play (443)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4391,7 +4391,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Overpowering Charge | 10 | class | passive | reminder | the feat module reads nothing for it |
 | Reflexive Riposte | 10 | class | passive | reminder | the feat module reads nothing for it |
 | Shared Avoidance | 10 | class | passive | reminder | the feat module reads nothing for it |
-| Sustaining Steel | 10 | class | free | reminder | the feat module reads nothing for it |
 | Switcheroo | 10 | class | reaction | reminder | the feat module reads nothing for it |
 | Amp Focus | 12 | class | passive | reminder | the feat module reads nothing for it |
 | Blood Component Substitution | 12 | class | passive | reminder | the feat module reads nothing for it |
