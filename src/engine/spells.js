@@ -2708,6 +2708,28 @@ function counterspellOf(plan) {
     return null;
 }
 
+function divineRebuttal(state, caster, spell, targets) {
+    if (spell.plan?.resolution?.check?.roll !== "save" || (spell.kind && spell.kind !== "ability")) return 0;
+    if (spell.kind === "ability" && !(spell.plan?.traits ?? []).some((trait) => ["magical", "arcane", "divine", "occult", "primal"].includes(trait))) return 0;
+    for (const c of state.list) {
+        if (!c.divineRebuttal || c.side === caster.side || !isActive(c) || !canAct(c) || !canReact(c, "Divine Rebuttal") || !sameMelee(c, caster)) continue;
+        if (!targets.some((target) => target !== c && target.side === c.side)) continue;
+        const strike = bestMeleeStrike(c, caster);
+        if (!strike) continue;
+        spendReaction(c, "Divine Rebuttal");
+        state.stats.reactions++;
+        log(state, `  ${c.name} uses Divine Rebuttal`);
+        const result = performStrike(state, c, caster, strike, { reaction: true });
+        if (result && result.degree >= SUCCESS && !result.image) {
+            const bonus = result.degree === CRITICAL_SUCCESS ? 3 : 2;
+            log(state, `  ${c.name}'s allies get +${bonus} to the save`);
+            return bonus;
+        }
+        return 0;
+    }
+    return 0;
+}
+
 // A foe's counterspell as a spell is cast (castPlan): the first of the caster's foes ready with one that's worth it — a harmful spell
 // at its side (one it's aimed at, for Spell Riposte), Nullify only on one of 4th rank or more —, its reaction and slot spent. { stopped }
 // (countered), { spell } (weakened), { targets } (turned back), or null.
@@ -3276,6 +3298,10 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         // (2026-10-22, family 5: the spell wards over its targets — Spell Turning, Spell Immunity, Dispelling Globe, Prismatic Shield.)
         const warded = spellWardAnswer(state, caster, spell, targets);
         if (warded) targets = warded;
+        // (2026-11-06, Divine Rebuttal: a cleric beside the caster Strikes it as its allies are about to save against its magic — a hit,
+        // +2 to the save, +3 on a critical hit.)
+        const rebutted = divineRebuttal(state, caster, spell, targets);
+        if (rebutted) spell = { ...spell, countered: (Number(spell.countered) || 0) + rebutted };
     }
     // (I1: a creature immune to the effect's trait — a mindless one to a mental effect, a construct to a death effect — is unaffected.)
     for (const target of [...targets]) {

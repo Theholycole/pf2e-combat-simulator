@@ -1633,6 +1633,9 @@ const HAND = {
     // until the end of its next turn; in place of critical specialization, which its host's Strikes keep — not chosen between.)
     // (2026-11-06, Celestial Armaments: its weapon 1d8 spirit more; a critical hit, a Fortitude save or blinded 1d4 rounds (played as 2). Its
     // critical specialization the fighter has already; its Mythic Point blessing of allies' weapons isn't played.)
+    // (2026-11-06, Divine Rebuttal: a Strike at an adjacent foe as its allies are about to save against its magic — +2 to the save on a hit,
+    // +3 on a critical (reaction; spells.js). Its favored-weapon requirement taken as met.)
+    "divine-rebuttal": () => ({ builtins: { divineRebuttal: true }, played: "a Strike at an adjacent caster as its allies save against it: +2 (+3) to the save on a hit (reaction)" }),
     "celestial-armaments": () => ({ builtins: { strikeExtras: [{ when: "hit", dice: 1, die: 8, type: "spirit", source: "Celestial Armaments" }, { when: "critical", save: { statistic: "fortitude", outcomes: [[["blinded", null, 2]], [["blinded", null, 2]], [], []] }, source: "Celestial Armaments" }] }, played: "1d8 spirit on its Strikes; a critical hit, Fortitude or blinded (always on)" }),
     "hells-armaments": () => {
         const slow = (value) => [["speed", -10, 1], ...(value ? [["slowed", value, 1]] : [])];
