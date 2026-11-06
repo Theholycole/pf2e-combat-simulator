@@ -1,16 +1,16 @@
 # Class power in combat
 
-Made by `node tools/feat-power.mjs <out> classes` and `classes-report` on 2026-11-05. Each class's PC (src/engine/classes.js) takes the seat of the standard party's PC who fights most like it (the fighter, the rogue, the wizard or the cleric) at every level from 1 to 20, and fights the same encounters on the same dice as the standard party. The number is how much stronger the party is with that class in the seat, in levels of the foes (the feat ratings' scale); 0 is the seat's own class. Averages are over the 20 levels.
+Made by `node tools/feat-power.mjs <out> classes` and `classes-report` on 2026-11-06. Each class's PC (src/engine/classes.js) takes the seat of the standard party's PC who fights most like it (the fighter, the rogue, the wizard or the cleric) at every level from 1 to 20, and fights the same encounters on the same dice as the standard party. The number is how much stronger the party is with that class in the seat, in levels of the foes (the feat ratings' scale); 0 is the seat's own class. Averages are over the 20 levels.
 
 | # | Class | Seat | Average | Lvl 1 | Lvl 3 | Lvl 5 | Lvl 7 | Lvl 9 | Lvl 11 | Lvl 13 | Lvl 15 | Lvl 17 | Lvl 20 | Best level | Worst level |
 |---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 1 | Bard | Wizard | +0.13 ± 0.02 | +0.02 | −0.12 | −0.02 | +0.07 | +0.33 | +0.13 | +0.12 | +0.17 | +0.05 | +0.27 | 10 | 3 |
-| 2 | Witch | Wizard | −0.02 ± 0.01 | +0.08 | −0.13 | +0.13 | +0.17 | +0.14 | −0.14 | +0.03 | +0.15 | −0.29 | −0.38 | 8 | 19 |
-| 3 | Druid | Cleric | −0.03 ± 0.02 | +0.03 | −0.03 | +0.12 | −0.03 | −0.13 | +0.05 | −0.01 | −0.10 | −0.12 | −0.02 | 5 | 9 |
-| 4 | Swashbuckler | Rogue | −0.05 ± 0.02 | −0.15 | −0.13 | +0.02 | −0.10 | −0.05 | −0.07 | −0.03 | −0.07 | +0.00 | +0.05 | 16 | 2 |
-| 5 | Sorcerer | Wizard | −0.05 ± 0.01 | +0.29 | +0.07 | +0.08 | +0.10 | +0.18 | +0.01 | +0.02 | −0.04 | −0.47 | −0.51 | 1 | 19 |
-| 6 | Oracle | Cleric | −0.11 ± 0.02 | −0.06 | −0.03 | +0.08 | +0.08 | −0.03 | −0.08 | −0.10 | −0.18 | −0.25 | −0.18 | 7 | 18 |
-| 7 | Necromancer | Wizard | −0.15 ± 0.02 | +0.13 | −0.25 | +0.00 | +0.02 | +0.05 | −0.41 | −0.17 | −0.25 | −0.26 | −0.11 | 2 | 19 |
+| 2 | Necromancer | Wizard | +0.09 ± 0.02 | +0.18 | −0.20 | +0.03 | +0.08 | +0.23 | −0.13 | +0.04 | +0.08 | +0.06 | +0.31 | 20 | 3 |
+| 3 | Witch | Wizard | −0.02 ± 0.01 | +0.08 | −0.13 | +0.13 | +0.17 | +0.14 | −0.14 | +0.03 | +0.15 | −0.29 | −0.38 | 8 | 19 |
+| 4 | Druid | Cleric | −0.03 ± 0.02 | +0.03 | −0.03 | +0.12 | −0.03 | −0.13 | +0.05 | −0.01 | −0.10 | −0.12 | −0.02 | 5 | 9 |
+| 5 | Swashbuckler | Rogue | −0.05 ± 0.02 | −0.15 | −0.13 | +0.02 | −0.10 | −0.05 | −0.07 | −0.03 | −0.07 | +0.00 | +0.05 | 16 | 2 |
+| 6 | Sorcerer | Wizard | −0.05 ± 0.01 | +0.29 | +0.07 | +0.08 | +0.10 | +0.18 | +0.01 | +0.02 | −0.04 | −0.47 | −0.51 | 1 | 19 |
+| 7 | Oracle | Cleric | −0.11 ± 0.02 | −0.06 | −0.03 | +0.08 | +0.08 | −0.03 | −0.08 | −0.10 | −0.18 | −0.25 | −0.18 | 7 | 18 |
 | 8 | Investigator | Rogue | −0.17 ± 0.02 | −0.15 | −0.10 | +0.01 | −0.10 | −0.26 | −0.17 | −0.13 | −0.26 | −0.33 | −0.13 | 5 | 4 |
 | 9 | Animist | Cleric | −0.17 ± 0.02 | −0.10 | −0.10 | +0.01 | +0.01 | −0.16 | −0.15 | −0.22 | −0.21 | −0.33 | −0.36 | 7 | 20 |
 | 10 | Guardian | Fighter | −0.20 ± 0.02 | −0.08 | −0.22 | −0.13 | −0.28 | −0.22 | −0.04 | −0.07 | −0.32 | −0.04 | −0.16 | 17 | 6 |

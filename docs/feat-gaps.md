@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-06. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 1898 in whole fights. **4468 it doesn't.**
-- **3061** are in neither.
+- **The simulator** rates 1906 in whole fights. **4460 it doesn't.**
+- **3056** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1534 | 928 |
-| archetype | 2074 | 1246 | 1425 | 981 |
+| class | 2282 | 1088 | 1528 | 924 |
+| archetype | 2074 | 1246 | 1423 | 980 |
 | ancestry | 1613 | 1086 | 1140 | 853 |
 | skill | 340 | 261 | 324 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 10 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4468 | 3061 |
+| **All** | 6366 | 3725 | 4460 | 3056 |
 
 ## Why the feat module doesn't automate them
 
@@ -41,15 +41,15 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 278 | 216 | 319 | 59 | 14 | 4 |  | 890 |
 | no card: roleplay or nothing to automate | 158 | 202 | 153 | 46 | 9 |  |  | 568 |
-| no card: the feat module's reminder, which a fight doesn't play | 189 | 133 | 101 | 21 |  | 1 |  | 445 |
+| no card: the feat module's reminder, which a fight doesn't play | 188 | 133 | 101 | 21 |  | 1 |  | 444 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 81 | 39 | 111 | 2 |  |  | 324 |
 | no card: only grants other feats, features or choices | 87 | 123 | 47 | 16 | 2 |  |  | 275 |
-| a spell the engine doesn't cast | 56 | 57 | 108 | 1 |  | 1 |  | 223 |
+| a spell the engine doesn't cast | 52 | 56 | 108 | 1 |  | 1 |  | 218 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 52 | 51 | 46 | 21 | 1 |  |  | 171 |
 | no card: a combat passive no reader or hand plan covers yet | 53 | 59 | 29 | 13 | 2 |  | 1 | 157 |
 | a timer with no rules a fight counts | 56 | 28 | 17 | 4 |  | 1 |  | 106 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
-| a Strike with nothing more the simulator reads | 49 | 34 | 2 |  |  | 1 |  | 86 |
+| a Strike with nothing more the simulator reads | 48 | 33 | 2 |  |  | 1 |  | 84 |
 | no card: a combat action no reader or hand plan covers yet | 28 | 28 | 14 | 4 | 1 |  |  | 75 |
 | a plan the engine can't play | 30 | 22 | 15 | 1 |  |  |  | 68 |
 | no card: companions, familiars and eidolons | 35 | 25 | 1 | 5 |  |  |  | 66 |
@@ -1684,7 +1684,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Overwhelming Breath | 12 | class | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Petrified Skin | 12 | class | passive | rated 0 |
 | Purifying Spell | 12 | class | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Reinforced Skeleton | 12 | class | passive | rated 0.4 |
+| Reinforced Skeleton | 12 | class | passive | rated 0.42 |
 | Sanguine Mastery | 12 | class | passive | rated 0 |
 | Side by Side (Ranger) | 12 | class | passive | rated 0.03 |
 | Supreme Invigorating Elixir | 12 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -2302,7 +2302,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Cantrip Expansion | 2 | class | passive | no card: roleplay or nothing to automate |
 | Collapse Armor | 2 | class | 1 action | no card: roleplay or nothing to automate |
 | Convergent Tides | 2 | class | passive | no card: roleplay or nothing to automate |
-| Deathly Scream | 2 | class | passive | rated -0.01 |
+| Deathly Scream | 2 | class | passive | rated -0.03 |
 | Favored Terrain | 2 | class | passive | no card: roleplay or nothing to automate |
 | Feet That Stride the Sky | 2 | class | passive | no card: roleplay or nothing to automate |
 | Force Fang | 2 | class | passive | a spell the engine doesn't cast |
@@ -2310,13 +2310,13 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Invisible Ink | 2 | class | passive | no card: roleplay or nothing to automate |
 | Leap the Falls | 2 | class | passive | no card: roleplay or nothing to automate |
 | Loremaster's Etude | 2 | class | passive | a spell the engine doesn't cast |
-| Muscle Barrier | 2 | class | passive | a spell the engine doesn't cast |
+| Muscle Barrier | 2 | class | passive | rated 0 |
 | Snare Hopping | 2 | class | passive | a spell the engine doesn't cast |
-| Song of the Soul | 2 | class | passive | a spell the engine doesn't cast |
+| Song of the Soul | 2 | class | passive | rated -0.01 |
 | Advanced Warden | 4 | class | passive | no card: roleplay or nothing to automate |
 | Anthropomorphic Shape | 4 | class | passive | no card: roleplay or nothing to automate |
 | Become Shadow | 4 | class | passive | no card: roleplay or nothing to automate |
-| Bony Barrage | 4 | class | passive | rated -0.01 |
+| Bony Barrage | 4 | class | passive | rated -0.03 |
 | Cheaters Always Prosper | 4 | class | passive | no card: roleplay or nothing to automate |
 | Devrin's Dazzling Diversion | 4 | class | passive | no card: roleplay or nothing to automate |
 | Elemental Summons | 4 | class | passive | no card: roleplay or nothing to automate |
@@ -2359,7 +2359,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Steady Spellcasting | 6 | class | passive | rated 0 |
 | Visual Fidelity | 6 | class | passive | no card: roleplay or nothing to automate |
 | Words, Fly Free | 6 | class | 1 action | no card: roleplay or nothing to automate |
-| Zombie Horde (Necromancer) | 6 | class | passive | rated -0.07 |
+| Zombie Horde (Necromancer) | 6 | class | passive | rated -0.02 |
 | Advanced Deity's Domain | 8 | class | passive | no card: roleplay or nothing to automate |
 | Advanced School Spell | 8 | class | passive | no card: roleplay or nothing to automate |
 | Can't You See? | 8 | class | passive | no card: roleplay or nothing to automate |
@@ -2443,11 +2443,11 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Perfect Distraction | 16 | class | 1 action | no card: roleplay or nothing to automate |
 | Runesight | 16 | class | passive | no card: roleplay or nothing to automate |
 | Strike Rivers, Seize Winds | 16 | class | passive | no card: roleplay or nothing to automate |
-| Temporary Possession | 16 | class | passive | a spell the engine doesn't cast |
+| Temporary Possession | 16 | class | passive | rated 0.28 |
 | Warden's Reload | 16 | class | free | no card: roleplay or nothing to automate |
-| Calcification | 18 | class | passive | a spell the engine doesn't cast |
+| Calcification | 18 | class | passive | rated -0.06 |
 | Deep Lore | 18 | class | passive | no card: roleplay or nothing to automate |
-| Dread Mosquito Storm | 18 | class | passive | rated -0.01 |
+| Dread Mosquito Storm | 18 | class | passive | rated -0.1 |
 | Grandmaster Qi Spells | 18 | class | passive | no card: roleplay or nothing to automate |
 | Implausible Infiltration | 18 | class | 2 actions | no card: roleplay or nothing to automate |
 | Implausible Purchase (Rogue) | 18 | class | passive | no card: roleplay or nothing to automate |
@@ -2713,7 +2713,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Basic Cathartic Spellcasting | 4 | archetype | passive | no card: only grants other feats, features or choices |
 | Basic Cleric Spellcasting | 4 | archetype | passive | no card: only grants other feats, features or choices |
 | Basic Concoction | 4 | archetype | passive | rated 0 |
-| Basic Death Dealing | 4 | archetype | passive | rated 0 |
+| Basic Death Dealing | 4 | archetype | passive | rated 0.02 |
 | Basic Deduction | 4 | archetype | passive | it grants one of 15 |
 | Basic Dogma | 4 | archetype | passive | rated 0 |
 | Basic Druid Spellcasting | 4 | archetype | passive | no card: only grants other feats, features or choices |
@@ -3525,8 +3525,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Blowgun Poisoner | 1 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Martial Performance | 1 | class | passive | rated 0.03 |
 | Raging Thrower | 1 | class | passive | no card: a combat passive no reader or hand plan covers yet |
-| The Hallowed Dead | 1 | class | passive | rated 0.04 |
-| The Unholy Dead | 1 | class | passive | rated 0.04 |
+| The Hallowed Dead | 1 | class | passive | rated 0.02 |
+| The Unholy Dead | 1 | class | passive | rated 0.02 |
 | Antagonize | 2 | class | passive | rated -0.07 |
 | Binds That Tie | 2 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Certain Stratagem | 2 | class | passive | rated 0 |
@@ -3650,7 +3650,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Shield Spell Reinforcement | 4 | archetype | free | no card: spellcasting the spell module or PF2e handles |
 | Snowcaster | 4 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Tender Ministrations | 4 | archetype | 1 action | no card: spellcasting the spell module or PF2e handles |
-| Thrall Charger | 4 | archetype | passive | a spell the engine doesn't cast |
+| Thrall Charger | 4 | archetype | passive | rated 0.08 |
 | Warding Light | 4 | archetype | passive | a spell the engine doesn't cast |
 | Wyldsinger | 4 | archetype | passive | rated -0.11 |
 | Basic Magus Spellcasting | 6 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
@@ -3955,7 +3955,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Swipe Souvenir | 8 | class | 2 actions | no card: a combat action no reader or hand plan covers yet |
 | Unbelievable Interception | 8 | class | reaction | no card: a combat action no reader or hand plan covers yet |
 | Chain Infusion | 10 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
-| Desperate Surge | 10 | class | 1 action | rated 0.04 |
+| Desperate Surge | 10 | class | 1 action | rated -0.04 |
 | Dream Guise | 10 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
 | Impose Order (Psychic) | 10 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
 | Shield of Reckoning | 10 | class | reaction | rated -0.05 |
@@ -4053,7 +4053,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Graceful Poise | 16 | class | 1 action | no card: PF2e's own Effect, from the feat's Use button |
 | Resounding Cascade | 16 | class | passive | rated 0 |
 | Unified Stance | 16 | class | 1 action | no card: PF2e's own Effect, from the feat's Use button |
-| Ectoplasmic Aura | 18 | class | 1 action | rated 0.16 |
+| Ectoplasmic Aura | 18 | class | 1 action | rated 0.01 |
 | Vitality-Manipulating Stance | 20 | class | 1 action | rated -0.05 |
 | Eye of the Arclords | 2 | skill | 1 action | no card: PF2e's own Effect, from the feat's Use button |
 | Sacred Defense | 7 | skill | 1 action | no card: PF2e's own Effect, from the feat's Use button |
@@ -4062,7 +4062,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (445)
+### no card: the feat module's reminder, which a fight doesn't play (444)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4343,7 +4343,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Artokus's Fire | 6 | class | free | reminder | the feat module reads nothing for it |
 | Assured Knowledge | 6 | class | passive | reminder | the feat module reads nothing for it |
 | Blazing Spirit | 6 | class | reaction | card | the feat module reads nothing for it |
-| Collateral Reinforcement | 6 | class | 1 action | card | the feat module reads nothing for it |
 | Counter Element | 6 | class | reaction | kineticist module | the feat module reads nothing for it |
 | Divert Destiny | 6 | class | free | reminder | the feat module reads nothing for it |
 | Energetic Resonance | 6 | class | reaction | reminder | the feat module reads nothing for it |
@@ -4799,7 +4798,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Skeptic's Defense | 7 | skill | reaction | card | a timer with no rules a fight counts |
 | Fear of God | 14 | skill | free | card | a timer with no rules a fight counts |
 
-### a Strike with nothing more the simulator reads (86)
+### a Strike with nothing more the simulator reads (84)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4829,7 +4828,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Claw and Talon Flow | 12 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Drive-By Attack | 12 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Lonely Army | 14 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
-| Phase Bullet | 14 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Simultaneous Strike | 14 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Controlled Bullet | 16 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Deathblow | 16 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
@@ -4876,7 +4874,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Blast Tackle | 14 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Dance of Bloody Ink | 14 | class | 3 actions | card | a Strike with nothing more the simulator reads |
 | Guiding Finish | 14 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Headshot | 14 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Release Me! | 14 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Tangled Forest Rake | 14 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Unerring Runic Attraction | 14 | class | 1 action | card | a Strike with nothing more the simulator reads |
