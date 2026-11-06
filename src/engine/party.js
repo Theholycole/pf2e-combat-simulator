@@ -156,7 +156,8 @@ export function standardParty(level, { spell = () => null, basics = [] } = {}) {
             reactions: { aoo: true, shieldBlock: false },
             ...(lv >= 5 ? { critSpec: true } : {}),
             ...(lv >= 3 ? { lessFrightened: 1 } : {}),
-            ...(lv >= 9 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better" } }] } : {})
+            // (2026-11-06: Bravery at 3rd and Tempered Reflexes at 15th beside Battle Hardened, as the pf2e fighter has them.)
+            ...(lv >= 3 ? { saveDegrees: [{ saves: ["will", ...(lv >= 9 ? ["fortitude"] : []), ...(lv >= 15 ? ["reflex"] : [])], adjustment: { success: "one-degree-better" } }] } : {})
         }
     });
 
@@ -184,15 +185,17 @@ export function standardParty(level, { spell = () => null, basics = [] } = {}) {
             ],
             makesOffGuard: [{ when: { round: 1, notActed: true }, strikes: "all", spells: true, source: "Surprise Attack" }],
             ...(lv >= 5 ? { critSpec: { offGuard: true } } : {}),
-            ...(lv >= 7 ? { saveDegrees: [{ saves: ["reflex"], adjustment: { success: "one-degree-better" } }] } : {})
+            // (2026-11-06: Rogue Resilience at 9th and Agile Mind at 17th beside Evasive Reflexes.)
+            ...(lv >= 7 ? { saveDegrees: [{ saves: ["reflex", ...(lv >= 9 ? ["fortitude"] : []), ...(lv >= 17 ? ["will"] : [])], adjustment: { success: "one-degree-better" } }] } : {})
         }
     });
 
     // Wizard.
     const wizard = pc({
         id: "wizard", name: "Wizard", level: lv, hpPerLevel: 6, con: casterCon, dex: casterDex, wis: minor,
-        ac: 10 + lv + rank(lv, [[1, T], [13, E], [17, M]]) + casterDex + armorPotency(lv),
-        fort: rank(lv, [[1, T], [9, E]]), ref: rank(lv, [[1, T], [13, E]]), will: rank(lv, [[1, E], [17, M]]),
+        // (2026-11-06: Defensive Robes' expert is its best unarmored rank, and Reflex Expertise comes at 5th — it had master at 17th, Reflex at 13th.)
+        ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + casterDex + armorPotency(lv),
+        fort: rank(lv, [[1, T], [9, E]]), ref: rank(lv, [[1, T], [5, E]]), will: rank(lv, [[1, E], [17, M]]),
         perception: rank(lv, [[1, T], [11, E]]),
         skills: { arcana: lv + primarySkill(lv) + k, athletics: lv + T },
         strike: { name: "Staff", bonus: lv + T, melee: true, agile: false, iwr: { group: "club" }, damage: [{ dice: 1, die: 4, bonus: 0, type: "bludgeoning" }] },
