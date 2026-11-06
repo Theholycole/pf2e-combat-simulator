@@ -25,7 +25,7 @@ import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startD
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
-import { spendThrall, thrallForSpell, thrallStrikes } from "./thralls.js";
+import { spawnThrallField, spendThrall, thrallAuraTurnEnd, thrallForSpell, thrallStrikes } from "./thralls.js";
 import { lastingTurnStart } from "./lasting.js";
 import { noteStatesTurnStart } from "./note-states.js";
 import { floorOf } from "./floors.js";
@@ -745,6 +745,8 @@ function endTurn(state, c) {
     }
     // (Biting Snakes, B82: a Strike at it from a monster beside it.)
     if (isActive(c)) turnEndAnswers(state, c);
+    // (2026-11-06, Bloody Tendrils: ending its turn beside a tendril.)
+    if (isActive(c) && state.list.some((other) => other.thrallAura?.on === "turn-end")) thrallAuraTurnEnd(state, c);
     // (T2, T4: Inexorable's slowed and stunned gone; Protean Anatomy's new senses.)
     if (isActive(c) && c.inexorable) inexorableTurnEnd(state, c);
     if (isActive(c) && c.protean) proteanTurnEnd(state, c);
@@ -1362,6 +1364,8 @@ function actOn(state, c, action) {
             const effect = applyEffect(state, c, entry.model, c, { applyCondition, key: `self:${entry.name}` });
             // (B308: shut in its shell for the rest of its turn; coming out costs an action at its next.)
             if (entry.shell) c.inShell = true;
+            // (2026-11-06, a thrall spell's own thralls — thralls.js.)
+            if (entry.thrallField) spawnThrallField(state, c, entry.thrallField);
             // (2026-11-05, Burning Cascade: entering Arcane Cascade, its extra damage on each enemy beside it, once a fight each;
             // Resounding Cascade: the stance's extra damage for the allies beside it as it enters.)
             if (entry.name === "Arcane Cascade" && c.arcaneCascade) {

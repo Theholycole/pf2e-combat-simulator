@@ -1571,6 +1571,13 @@ const HAND = {
         const dice = level >= 11 ? 3 : level >= 3 ? 2 : 1;
         return { builtins: {}, plans: [strikeRider({ actions: 2, strike: "Thrall", damageBonus: rank, spendThrall: true, onHit: { damage: [`${dice}d6`] } })], played: `Thrall Charge (a cantrip): a thrall Strike with ${dice}d6 more, the thrall destroyed for +${rank} (rated on a necromancer; its Stride not played)` };
     },
+    "bloody-tendrils": (level, host) => {
+        const rank = Math.max(3, Math.ceil(level / 2));
+        const steps = Math.floor((rank - 3) / 3);
+        const dc = dcsOf(host).spell ?? 10 + level + 2 + 4;
+        return { builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, pool: "feat:bloody-tendrils", model: { rounds: 10 }, thrallField: { count: 3 + steps, name: "bloody tendril", immunities: ["bludgeoning", "piercing", "slashing"], aura: { on: "turn-end", reach: 10, damage: `${1 + steps}d12[bludgeoning]`, basic: true, dc } } }], pools: { "feat:bloody-tendrils": 1 }, played: `${3 + steps} tendril thralls beside foes: a foe ending its turn within 10 feet takes ${1 + steps}d12, basic Reflex DC ${dc} (its focus spell, once a fight)` };
+    },
+    "skeletal-lancers": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, pool: "feat:skeletal-lancers", model: { rounds: 10 }, thrallField: { count: 5, name: "skeletal lancer", aura: { on: "strike", reach: 10, damage: "5[piercing]", basic: false } } }], pools: { "feat:skeletal-lancers": 1 }, played: "5 lancer thralls beside foes: a foe's Strike within 10 feet of one costs it 5 piercing (its focus spell, once a fight; the lancers' own Strikes not played)" }),
     "headshot": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", headshot: true })], played: "a 2-action firearm Strike; a critical hit on a foe it already hurt: a Fortitude save or it dies" }),
     "phase-bullet": () => ({ builtins: {}, plans: [strikeRider({ range: "ranged", attackBonus: 4, oncePerFight: true })], played: "a firearm Strike at +4 against an armored foe, ignoring cover (once a fight)" }),
     "mythic-strike": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 4 })], played: "a Strike at mythic proficiency, about +4 (a Mythic Point)" }),

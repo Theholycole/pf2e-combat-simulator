@@ -19,7 +19,7 @@ import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNext
 import { actionTraits, applyCondition, applyMove, bothHitRider, castPlan, castSpell, rageTriggers, curseOnHit, deathThroes, forbiddingBonus, skillValue, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
-import { destroyBody, thrallBodies, thrallKilled } from "./thralls.js";
+import { destroyBody, thrallAuraStrike, thrallBodies, thrallKilled } from "./thralls.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
 import { log } from "./log.js";
@@ -393,6 +393,8 @@ function insteadOfAC(c, ac) {
 export function performStrike(state, attacker, target, strike, options = {}) {
     // (An attack ends Take Cover.)
     attacker.tookCover = false;
+    // (2026-11-06, Skeletal Lancers: a foe's Strike beside a lancer.)
+    if (state.list.some((other) => other.thrallAura?.on === "strike")) thrallAuraStrike(state, attacker);
     if (!options.reaction) {
         const result = strikeOnce(state, attacker, target, strike, options);
         // (Invisibility: it ends once the attack is done. Weapon Surge, Judgment's success: used up by the Strike.)

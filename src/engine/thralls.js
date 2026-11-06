@@ -15,6 +15,11 @@
 import { DEAD, createCombatant, isActive } from "./combatant.js";
 import { engage, removeFromSpace, sameMelee, distanceBetween } from "./space.js";
 import { placeArrival } from "./grid-fight.js";
+import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, degreeOf } from "./checks.js";
+import { saveModifier } from "./combatant.js";
+import { applyDamage } from "./actions.js";
+import { rollInstances } from "./spells.js";
+import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
 export const needsThrall = (spell) => Boolean(spell?.plan?.targeting?.thrall);
 export const thrallsOf = (c) => c.thralls ?? 0;
@@ -26,11 +31,12 @@ let made = 0;
 export const thrallBodies = (state, c) => state.list.filter((other) => other.thrallOf === c.id && isActive(other));
 
 // One body, beside `near` (a foe) when given.
-function spawnBody(state, c, near) {
+function spawnBody(state, c, near, extra = null) {
     const id = `${c.id}~thrall${++made}`;
     const body = createCombatant({ id, name: `${c.name}'s thrall`, side: c.side, kind: "npc", level: THRALL_BODY.level, traits: [...THRALL_BODY.traits], immunities: [...THRALL_BODY.immunities],
         hp: { value: THRALL_BODY.hp, max: THRALL_BODY.hp, temp: 0 }, ac: -10, saves: { fortitude: -20, reflex: -20, will: -20 }, perception: -20, speed: THRALL_BODY.speed, strikes: [], reactions: { aoo: false, shieldBlock: false } });
-    Object.assign(body, { thrallOf: c.id, noTurns: true, round: c.round });
+    Object.assign(body, { thrallOf: c.id, noTurns: true, round: c.round }, extra ?? {});
+    if (extra?.immunities) body.immunities = [...THRALL_BODY.immunities, ...extra.immunities];
     state.list.push(body);
     state.byId.set(id, body);
     if (state.grid && c.square) {
@@ -101,4 +107,42 @@ export function thrallForSpell(state, c, spell, action = {}, target = null) {
         state.log?.push(`  ${c.name} casts Create Thrall (${count} thralls)`);
     }
     if (spell.plan.targeting.thrall.destroyed) spendThrall(state, c, target);
+}
+
+// (2026-11-06, the thrall spells that make thralls of their own — Bloody Tendrils, Skeletal Lancers: `count` bodies, one beside each foe in
+// turn from the nearest, each with the spell's `aura` — { reach, on: "turn-end" | "strike", damage, basic (a basic Reflex save at dc) }.)
+export function spawnThrallField(state, c, { count, aura, name, immunities = [] }) {
+    const foes = state.list.filter((other) => other.side !== c.side && isActive(other) && other.kind !== "object").sort((a, b) => distanceBetween(c, a) - distanceBetween(c, b));
+    if (!foes.length) return 0;
+    for (let i = 0; i < count; i++) spawnBody(state, c, foes[i % foes.length], { name: `${c.name}'s ${name}`, thrallAura: { ...aura, by: c.id }, immunities });
+    c.thralls = thrallBodies(state, c).length;
+    state.log?.push(`  ${c.name} makes ${count} ${name}${count === 1 ? "" : "s"}`);
+    return count;
+}
+
+const near = (body, foe, reach) => sameMelee(body, foe) || distanceBetween(body, foe) <= reach;
+function auraHits(state, body, foe) {
+    const aura = body.thrallAura;
+    const maker = state.byId.get(aura.by);
+    let instances = rollInstances(state, parseDamage(aura.damage));
+    if (aura.basic) {
+        const natural = state.rng.d20();
+        const degree = degreeOf(natural + saveModifier(foe, "reflex"), aura.dc, natural);
+        const factor = degree === CRITICAL_SUCCESS ? 0 : degree === FAILURE ? 1 : degree === CRITICAL_FAILURE ? 2 : 0.5;
+        instances = instances.map((instance) => ({ ...instance, amount: Math.floor(instance.amount * factor) }));
+    }
+    state.log?.push(`  ${body.name} lashes ${foe.name}`);
+    if (instances.some((instance) => instance.amount > 0)) applyDamage(state, foe, instances, { source: maker ?? body });
+}
+
+// A foe ending its turn within a tendril's reach (Bloody Tendrils): one lash, whichever tendril.
+export function thrallAuraTurnEnd(state, foe) {
+    const body = state.list.find((other) => other.thrallAura?.on === "turn-end" && isActive(other) && other.side !== foe.side && near(other, foe, other.thrallAura.reach));
+    if (body && isActive(foe)) auraHits(state, body, foe);
+}
+
+// A foe making a Strike within a lancer's reach (Skeletal Lancers): its damage once a Strike.
+export function thrallAuraStrike(state, attacker) {
+    const body = state.list.find((other) => other.thrallAura?.on === "strike" && isActive(other) && other.side !== attacker.side && near(other, attacker, other.thrallAura.reach));
+    if (body && isActive(attacker)) auraHits(state, body, attacker);
 }
