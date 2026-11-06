@@ -141,6 +141,15 @@ function targetCount(target) {
 // actions: one of PF2e's action variants (resolution.byActions), if the spell has them.
 const described = new WeakMap();
 
+// (2026-11-06, Wronged Monk's Wrath: an action count's area that names only its size — "10" for 2 actions — keeps the base area's shape;
+// the core's overlay replaced the whole area.)
+function actionsPlan(base, actions) {
+    const plan = planWithActions(base, actions);
+    const area = plan?.targeting?.area;
+    if (area && !area.type && base?.targeting?.area?.type) return { ...plan, targeting: { ...plan.targeting, area: { ...base.targeting.area, ...area } } };
+    return plan;
+}
+
 export function describeSpell(plan, actions) {
     if (!plan || typeof plan !== "object") return readSpell(plan);
     let byActions = described.get(plan);
@@ -177,7 +186,7 @@ function readVariants(spell) {
 }
 
 function readSpell(base, actions) {
-    const plan = nativeOf(base).byActions ? planWithActions(base, actions) : base;
+    const plan = nativeOf(base).byActions ? actionsPlan(base, actions) : base;
     const targeting = plan?.targeting ?? {};
     // PF2e spell effects the compiler found for a spell left to PF2e's card (Bless).
     const applications = Array.isArray(nativeOf(plan).applications) ? nativeOf(plan).applications : [];
@@ -4910,7 +4919,7 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
 // unattended object or willing creature" — before, the object choice let it go to a foe).
 // (Its targets as the action count it's cast with has them — Blessing of Defiance's.)
 function willingOnly(spell, actions = undefined) {
-    const plan = nativeOf(spell.plan).byActions ? planWithActions(spell.plan, actions) : spell.plan;
+    const plan = nativeOf(spell.plan).byActions ? actionsPlan(spell.plan, actions) : spell.plan;
     const choices = String(plan?.targeting?.target ?? "").split(/\bor\b/i).filter((choice) => !/\bobjects?\b/i.test(choice) || /\bcreatures?\b/i.test(choice.replace(/\bobjects?\b[^,]*/i, "")));
     return choices.length > 0 && choices.every((choice) => /\bwilling\b/i.test(choice));
 }
