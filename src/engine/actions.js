@@ -879,6 +879,12 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage", damageOptions) - (cruel >= 2 ? cruel : 0);
     if (cruel >= 2) log(state, `  Flamboyant Cruelty: +${cruel} damage`);
     const instances = rollStrikeDamage(state.rng, strike, { critical, penalty });
+    // (2026-11-06, Targeting Strike: its ally's hit at the target — the commander's Intelligence in precision damage, once, before its next turn.)
+    if (target.targetedBy && target.targetedBy.by !== attacker.id && target.targetedBy.side === attacker.side && state.round <= target.targetedBy.round + 1) {
+        instances.push({ type: strike.damage[0].type, amount: target.targetedBy.amount, precision: true, persistent: false });
+        log(state, `  Targeting Strike: +${target.targetedBy.amount} precision`);
+        target.targetedBy = null;
+    }
     if (strike.backstabber && offGuard) {
         instances.push({ type: strike.damage[0].type, amount: critical ? 2 : 1, precision: true, persistent: false });
     }

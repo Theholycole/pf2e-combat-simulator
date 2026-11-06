@@ -1306,6 +1306,9 @@ function actOn(state, c, action) {
                 state.log?.push(`  ${c.name} taunts ${target.name}`);
             }
             // Set-Up Strike: its hit leaves the target off-guard to an ally's next attack.
+            // (2026-11-06, Targeting Strike: Set-Up Strike's or Guiding Shot's hit — the next creature but it to attack the target before its
+            // next turn deals its Intelligence modifier in precision damage more; actions.js.)
+            if (c.targetingStrike && (activity.setUp || /^(Set-Up Strike|Guiding Shot)$/.test(activity.name)) && result && result.degree >= SUCCESS && !result.image && isActive(target)) target.targetedBy = { by: c.id, side: c.side, amount: c.targetingStrike, round: state.round };
             if (activity.setUp && result && result.degree >= SUCCESS && isActive(target)) setUp(state, c, target, activity.setUp === "aid" ? (result.degree === CRITICAL_SUCCESS ? 2 : 1) : 0);
             // (B139: Off-Guard or a guard on itself until its next turn starts.)
             // (2026-11-05, Everstand Strike: its Raise a Shield only if the Strike hits — selfAfterHit.)

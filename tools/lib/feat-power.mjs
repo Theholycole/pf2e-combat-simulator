@@ -1527,6 +1527,7 @@ const HAND = {
     "improved-elemental-bulwark": () => ({ builtins: { resistReaction: { name: "Elemental Bulwark", value: 10, on: ["cold", "electricity", "fire"], types: ["triggering"], foe: true } }, played: "Elemental Bulwark's resistance 10 (with it)" }),
     "cornered-fury": () => ({ builtins: { corneredFury: "small" }, played: "a larger foe that critically hits it (a Small ratfolk: a Medium foe) is off-guard to it for a round" }),
     "deliberate-death": () => ({ builtins: { deathStrike: { name: "Deliberate Death", strike: null, pc: true } }, played: "a melee Strike at the foe that drops it (reaction, once)" }),
+    "targeting-strike": (level) => ({ builtins: { targetingStrike: level >= 17 ? 6 : level >= 10 ? 5 : 4 }, played: "after its Set-Up Strike or Guiding Shot damages, the next ally's hit there deals its Intelligence in precision damage" }),
     "combination-finisher": () => ({ builtins: { combinationFinisher: true }, played: "its finishers' multiple attack penalty −4/−8 (−3/−6 agile)" }),
     "deadly-strikes": (level) => ({ builtins: { deadlyStrikes: level }, played: "its unarmed attacks deadly d10" }),
     // (2026-11-06, Persistent Boost: its Offensive Boost's hit (the weapon innovation's Strikes, classes.js) 1d8 persistent fire too.)
@@ -2233,12 +2234,14 @@ function itemMatches(item, filter) {
     return (Array.isArray(filter) ? filter : [filter]).every(one);
 }
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
+// (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
+const BASE_FEATS = { "targeting-strike": "Set-Up Strike" };
 function partyWithFeatOwn(doc, level, options = {}) {
     // (Or the feat whose Effect it needs: Dueling Riposte's "You are benefiting from Dueling Parry".)
     const needed = requiredEffectFeat(requirementText(doc) ?? "");
     // (2026-11-03: or a passive that works only in a stance it names outside a requirement — Inner Fire's "While you're in Stoked Flame
     // Stance".)
-    const stances = requiredStances(requirementText(doc) ?? "") ?? (needed && featByName(needed) ? [needed] : null) ?? (STANCE_PASSIVES[slugOf(doc)] ? [STANCE_PASSIVES[slugOf(doc)]] : null);
+    const stances = requiredStances(requirementText(doc) ?? "") ?? (needed && featByName(needed) ? [needed] : null) ?? (STANCE_PASSIVES[slugOf(doc)] ? [STANCE_PASSIVES[slugOf(doc)]] : null) ?? (BASE_FEATS[slugOf(doc)] ? [BASE_FEATS[slugOf(doc)]] : null);
     if (!stances || options.party) return partyWithFeatAlone(doc, level, options);
     const stanceDoc = stances.map((name) => featByName(name)).find(Boolean);
     if (!stanceDoc) return { skipped: true, reason: `its stance (${stances.join(" or ")}), not in the packs` };
@@ -2543,6 +2546,8 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // (2026-11-05, a Lay on Hands rider — Amplifying Touch and kin —: its Lay on Hands used whenever it can go, as the rider's feat is rated
     // by use; cast 0.2 times a fight before.)
     if (pc.touchRiders?.length) pc.spells = (pc.spells ?? []).map((entry) => (entry.plan?.source?.slug === "lay-on-hands" ? { ...entry, featForced: true } : entry));
+    // (Targeting Strike: its Set-Up Strike used whenever it can go — the rider's use.)
+    if (pc.targetingStrike) pc.strikeActivities = (pc.strikeActivities ?? []).map((activity) => (activity.setUp || /^(Set-Up Strike|Guiding Shot)$/.test(activity.name) ? { ...activity, featForced: true } : activity));
     // (2026-11-06, Combination Finisher: its finishers' Strikes at −4/−8, −3/−6 agile — abilities.js chargeStrike mapSteps.)
     if (pc.combinationFinisher) {
         delete pc.combinationFinisher;
