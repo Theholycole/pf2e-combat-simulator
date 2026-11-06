@@ -1491,7 +1491,7 @@ const HAND = {
     antagonize: () => ({ builtins: { antagonize: true }, spells: basicActions.demoralize ? [{ name: "Demoralize", plan: structuredClone(basicActions.demoralize), castRank: 1, pool: null, kind: "basic" }] : [], played: "Demoralize (forced); frightened from it stays at 1 or more until the foe attacks it" }),
     "resurrectionist": () => ({ builtins: { resurrectionist: true }, played: "a dying ally it heals gets fast healing 5 for 1 minute" }),
     "finishing-follow-through": () => ({ builtins: { finishingFollowThrough: true }, played: "panache back when a finisher brings its target to 0 HP" }),
-    "distracting-feint": () => ({ builtins: { distractingFeint: true }, spells: basicActions.feint ? [{ name: "Feint", plan: structuredClone(basicActions.feint), castRank: 1, pool: null, kind: "basic" }] : [], played: "Feint (forced): a foe off-guard to it also takes –2 to Perception and Reflex saves" }),
+    "distracting-feint": () => ({ builtins: { distractingFeint: true }, spells: basicActions.feint ? [{ name: "Feint", plan: structuredClone(basicActions.feint), castRank: 1, pool: null, kind: "basic", oncePerTurn: true }] : [], played: "Feint (forced): a foe off-guard to it also takes –2 to Perception and Reflex saves" }),
     "goading-feint": () => ({ builtins: { goadingFeint: true }, played: "every Feint goads (–2 to the foe's next attack on the PC, all of them on a critical success) instead of off-guard" }),
     "twin-feint": () => ({ builtins: { multiStrikes: [{ name: "Twin Feint", actions: 2, strikes: [null, null], sameTarget: true, secondOffGuard: true }] }, played: "two Strikes at one foe, off-guard to the second" }),
     // (A Strike at each enemy within 30 feet, at one multiple attack penalty — fight.js within.)
@@ -1584,7 +1584,7 @@ const HAND = {
     // its next turn — Heroism's shape, 1 action, on another ally, its Effect that damage. Critical overdrive's full modifier isn't played.)
     "overdrive-ally": (level, host) => {
         const bonus = Math.max(1, Math.floor((host.overdrive?.intMod ?? 4) / 2));
-        const made = spellAsFocus(level, host, "Heroism", "Overdrive Ally", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1", traits: ["manipulate"] }, traits: ["manipulate"], targeting: { ...plan.targeting, target: "1 ally", range: "30 feet" } }), { cantrip: true, rounds: 1, whileBuff: "Overdrive" });
+        const made = spellAsFocus(level, host, "Heroism", "Overdrive Ally", (plan) => ({ ...plan, castActions: 1, activation: { ...plan.activation, time: "1", traits: ["manipulate"] }, traits: ["manipulate"], targeting: { ...plan.targeting, target: "1 ally", range: "30 feet" } }), { cantrip: true, rounds: 1, whileBuff: "Overdrive", oncePerTurn: true });
         if (!made) return null;
         const entry = made.spells[0];
         entry.effects = Object.fromEntries(Object.keys(entry.effects ?? {}).map((key) => [key, { name: "Overdrive Ally", rounds: 1, modifiers: [{ on: "damage", type: "untyped", value: bonus }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }]));
