@@ -4324,6 +4324,8 @@ export function canCast(c, spell) {
     // (A witch's hexes: one a turn.)
     if (c.usedThisTurn?.has("hex") && isHex(spell)) return false;
     if (spell.oncePerTurn && c.usedThisTurn?.has(`once:${spell.name}`)) return false;
+    // (2026-11-06, Overdrive Ally's "You are currently in overdrive": a feat's spell only under a buff of its caster's — entry.whileBuff.)
+    if (spell.whileBuff && !(c.activeBuffs ?? []).some((buff) => buff.name === spell.whileBuff)) return false;
     // (S59, Sure Strike: "can't cast it again for 10 minutes" — once a fight.)
     if (c.castImmune?.size && c.castImmune.has(castImmunityKey(spell))) return false;
     return poolReady(c, spell);
