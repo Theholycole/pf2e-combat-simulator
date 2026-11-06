@@ -908,7 +908,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             if (extra.save) {
                 if (isActive(target)) {
                     const natural = state.rng.d20();
-                    let degree = degreeOf(natural + saveModifier(target, extra.save.statistic), Math.max(attacker.classDC ?? 0, attacker.spellDC ?? 0) || 10 + (attacker.level ?? 1) + 3, natural);
+                    let degree = degreeOf(natural + saveModifier(target, extra.save.statistic), extra.save.dc ?? (Math.max(attacker.classDC ?? 0, attacker.spellDC ?? 0) || 10 + (attacker.level ?? 1) + 3), natural);
                     if (extra.save.incapacitation && (target.level ?? 0) > (attacker.level ?? 0)) degree = Math.min(CRITICAL_SUCCESS, degree + 1);
                     log(state, `  ${target.name} (${extra.source}) save: ${["critical failure", "failure", "success", "critical success"][degree]}`);
                     for (const [slug, value, rounds] of extra.save.outcomes[degree] ?? []) {

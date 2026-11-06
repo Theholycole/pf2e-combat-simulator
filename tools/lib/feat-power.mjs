@@ -1594,6 +1594,9 @@ const HAND = {
         const slow = (value) => [["speed", -10, 1], ...(value ? [["slowed", value, 1]] : [])];
         return { builtins: { strikeExtras: [{ when: "critical", save: { statistic: "fortitude", outcomes: [slow(2), slow(1), slow(0), []] }, source: "Hell's Armaments" }] }, played: "a Fortitude save on a critical hit: −10 feet Speed, slowed 1 or 2 (always on)" };
     },
+    // (2026-11-06, Hobbling Criticals: its eidolon's critical hit — a Fortitude save against the summoner's spell DC: −10 feet Speed,
+    // slowed 1, or slowed 2 and −15 feet, for a round.)
+    "hobbling-criticals": (_level, host) => ({ builtins: { companionFields: { strikeExtras: [{ when: "critical", save: { statistic: "fortitude", dc: host?.classDC ?? undefined, outcomes: [[["speed", -15, 1], ["slowed", 2, 1]], [["speed", -10, 1], ["slowed", 1, 1]], [["speed", -10, 1]], []] }, source: "Hobbling Criticals" }] } }, played: "its eidolon's critical hits: a Fortitude save, −10 feet Speed, slowed 1 or 2 (always on)" }),
     "underhanded-assault": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "melee", sneakFirst: 2 })], played: "a Sneak (Stealth −2 against its Perception DC), then a melee Strike it's off-guard to (2 actions)" }),
     "frightful-attrition": () => ({ builtins: { frightfulAttrition: true }, played: "a Will save or frightened 1–3 for the foes within 30 feet of each foe it drops (actions.js)" }),
     "sympathetic-vulnerabilities": () => ({ builtins: { sympatheticVulnerabilities: true }, played: "personal antithesis on every foe of the exploited one's kind" }),
