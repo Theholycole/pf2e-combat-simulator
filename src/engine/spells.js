@@ -313,7 +313,7 @@ function simContext(state, caster, spell, targets, attacks = caster.attacksThisT
             if (slug === "fortitude" || slug === "reflex" || slug === "will") {
                 // +1 status to all saves vs. magic and the like, against this spell or ability.
                 // (2026-10-22, Forbidding Ward: its bonus against the foe it names.)
-                const modifier = saveModifier(c, slug) + (c !== caster ? saveBonusAgainst(c, slug, spell) + (Number(spell.countered) || 0) + forbiddingBonus(c, caster) : 0);
+                const modifier = saveModifier(c, slug) + (c !== caster ? saveBonusAgainst(c, slug, spell) + (Number(spell.countered) || 0) + forbiddingBonus(c, caster) : 0) - (c.sympathyFrom?.by === caster.id && isHex(spell) ? c.sympathyFrom.value : 0);
                 if (slug === "reflex" && c !== caster && disarmBonus(spell, c)) return { modifier, dc: 10 + saveModifier(c, slug) - disarmBonus(spell, c) };
                 return { modifier };
             }

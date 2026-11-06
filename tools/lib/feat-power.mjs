@@ -1682,6 +1682,9 @@ const HAND = {
         const save = conditionSavePlan(doc, "fortitude", ["enfeebled", 1, minute], ["enfeebled", 2, minute]);
         return save ? { builtins: {}, plans: [strikeRider({ flourish: true, requires: "ally-harmed-by", onHit: { save } })], played: "a flourish Strike at a foe that hurt an ally, then a Fortitude save: enfeebled 1 (2 on a critical failure)" } : null;
     },
+    // (2026-11-06, Sympathetic Strike: a Strike (its witch armament: its best melee Strike), once a round — a hit, −1 to the target's saves
+    // against its hexes until its next turn, −2 on a critical hit; fight.js, spells.js.)
+    "sympathetic-strike": () => ({ builtins: {}, plans: [strikeRider({ range: "melee", oncePerTurn: true, sympathy: true })], played: "a melee Strike: −1 (−2) to the target's saves against its hexes until its next turn" }),
     // (2026-11-06, Gorilla Pound: in Gorilla Stance (given), a Demoralize and then a slam Strike (its best melee Strike) at the same target, +3
     // damage for each point of its frightened. Its Climb Speed isn't played.)
     "gorilla-pound": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, range: "melee", beforeStrike: "demoralize", frightBonus: 3 })], played: "a Demoralize, then a melee Strike with +3 damage per frightened value (flourish)" }),

@@ -1278,6 +1278,11 @@ function actOn(state, c, action) {
                 state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
             }
             if (result && result.degree >= SUCCESS && isActive(target)) applyStrikeRider(state, c, target, activity, result.degree === 3, fired);
+            // (2026-11-06, Sympathetic Strike: a hit, −1 to the target's saves against its hexes until its next turn — −2 on a critical hit.)
+            if (activity.sympathy && result && result.degree >= SUCCESS && !result.image && isActive(target)) {
+                target.sympathyFrom = { by: c.id, value: result.degree === CRITICAL_SUCCESS ? 2 : 1 };
+                state.log?.push(`  ${target.name} takes −${target.sympathyFrom.value} to saves against ${c.name}'s hexes`);
+            }
             // (C30: Instrument of Zeal's critical hit with Blessed Counterstrike.)
             if (activity.zeal && result?.degree === CRITICAL_SUCCESS && isActive(target)) zealCritical(state, c, target, fired, { applyDamage, applyCondition });
             // (2026-10-16: Big Rock Bullet's failure — not a critical one — still deals its own damage.)
@@ -1759,6 +1764,7 @@ export function takeTurn(state, c) {
     // Petrifying Glance: an enemy's reaction to this turn starting near it (B47). Mind-Numbing Grasp: its holder's passive (B49).
     state.acting = c.id;
     turnStartReactions(state, c);
+    for (const other of state.list) if (other.sympathyFrom?.by === c.id) other.sympathyFrom = null;
     // (B245, Whirling Hands: a Strike at a creature starting its turn in its Melee.)
     turnStartAnswers(state, c);
     grabTurnAnswers(state, c, "start");

@@ -547,6 +547,7 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.twinWeakness ? { twinWeakness: true } : {}),
                 ...(plan.chainHits ? { chainHits: true } : {}),
                 ...(plan.beforeStrike ? { beforeStrike: plan.beforeStrike } : {}),
+                ...(plan.sympathy ? { sympathy: true } : {}),
                 ...(plan.frightBonus ? { frightBonus: plan.frightBonus } : {}),
                 ...(plan.taunt ? { taunt: true } : {}),
                 ...(plan.rageFinish ? { rageFinish: true } : {}),
