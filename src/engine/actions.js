@@ -393,6 +393,8 @@ function insteadOfAC(c, ac) {
 export function performStrike(state, attacker, target, strike, options = {}) {
     // (An attack ends Take Cover.)
     attacker.tookCover = false;
+    // (2026-11-06, Blade of Law's "has attempted a hostile action against you since your previous turn": who Struck it since its turn ended.)
+    if (attacker.side !== target.side) (target.hostileFrom ??= new Set()).add(attacker.id);
     // (2026-11-06, Skeletal Lancers: a foe's Strike beside a lancer.)
     if (state.list.some((other) => other.thrallAura?.on === "strike")) thrallAuraStrike(state, attacker);
     if (!options.reaction) {

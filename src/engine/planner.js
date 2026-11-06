@@ -1675,6 +1675,7 @@ function expandStrikeActivities(env) {
             if (activity.requires === "prone" && !target.cond.prone) continue;
             // (2026-11-06, Twin Weakness: at the target of its Exploit Vulnerability.)
             if (activity.requires === "exploited" && !exploitCovers(c, target)) continue;
+            if (activity.requires === "hostile-to-me" && !c.hostileFrom?.has(target.id)) continue;
             // (B206, Scorpion Sting: "Strikes an Off-Guard creature".)
             if (activity.requires === "off-guard" && !(isOffGuard(target) || target.cond.immobilized)) continue;
             // (B151, Shatter Defenses: "A Frightened creature is within melee reach".)

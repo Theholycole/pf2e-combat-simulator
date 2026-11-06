@@ -747,6 +747,7 @@ function endTurn(state, c) {
     if (isActive(c)) turnEndAnswers(state, c);
     // (2026-11-06, Bloody Tendrils: ending its turn beside a tendril.)
     if (isActive(c) && state.list.some((other) => other.thrallAura?.on === "turn-end")) thrallAuraTurnEnd(state, c);
+    c.hostileFrom = new Set();
     // (T2, T4: Inexorable's slowed and stunned gone; Protean Anatomy's new senses.)
     if (isActive(c) && c.inexorable) inexorableTurnEnd(state, c);
     if (isActive(c) && c.protean) proteanTurnEnd(state, c);
