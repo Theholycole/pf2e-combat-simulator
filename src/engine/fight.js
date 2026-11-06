@@ -853,6 +853,13 @@ function actOn(state, c, action) {
             if (!result) break;
             if (attackSpell) castSpell(state, c, action.spellIndex, [target.id], undefined, { forcedDegree: result.degree });
             else castSpell(state, c, action.spellIndex, [target.id], undefined, { disrupted: result.degree === 0 });
+            // (2026-11-06, Sustaining Steel: a spell from a slot heals it the spell's rank, double in Arcane Cascade.)
+            if (c.sustainingSteel && spell.pool && !(spell.plan?.traits ?? []).includes("cantrip") && !String(spell.pool).endsWith(":focus") && isActive(c)) {
+                const rank = Number(spell.castRank) || 1;
+                const inCascade = (c.effects ?? []).some((effect) => effect.key === "self:Arcane Cascade");
+                const healed = applyHeal(state, c, inCascade ? 2 * rank : rank);
+                if (healed) state.log?.push(`  ${c.name} regains ${healed} HP (Sustaining Steel)`);
+            }
             break;
         }
         case "rechargeSpellstrike":
@@ -1593,6 +1600,12 @@ export function takeTurn(state, c) {
     if (c.sustainedNow?.length) hexSustains(state, c);
     // Shrieking Frenzy: its own free action as its turn begins (B53).
     ownTurnStart(state, c);
+    // (2026-11-06, Rapid Recharge: a free action once a day — a fight — to recharge its Spellstrike, as its turn begins.)
+    if (c.spellstrike && !c.spellstrikeCharged && c.rapidRecharge > 0 && isActive(c) && canAct(c)) {
+        c.rapidRecharge -= 1;
+        c.spellstrikeCharged = true;
+        state.log?.push(`  ${c.name} uses Rapid Recharge`);
+    }
     // (T4: a flesh golem's Berserk; an attached creature's Strike damage, the pickled punk's.)
     berserkTurnStart(state, c);
     // (L3–L5: the ground's difficult terrain; Hidden Movement; a coven's readiness and the actions it lent.)
