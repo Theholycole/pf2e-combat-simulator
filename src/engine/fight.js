@@ -1168,6 +1168,15 @@ function actOn(state, c, action) {
                 const dealt = applyDamage(state, target, [{ type: fired.damage[0].type, amount, persistent: false, precision: false, context: strikeContext(c, fired) }], { source: c, physical: true });
                 state.log?.push(`  ${target.name} takes ${dealt} from the failed ${activity.name}`);
             }
+            // (2026-11-06, Twin Weakness: any result but a critical failure, its Exploit Vulnerability's damage again from the implement; two
+            // attacks for its multiple attack penalty.)
+            if (activity.twinWeakness && result && !result.image) {
+                c.attacksThisTurn = (c.attacksThisTurn ?? 0) + 1;
+                if (result.degree >= FAILURE && isActive(target) && c.exploited) {
+                    const dealt = applyDamage(state, target, [{ type: "untyped", amount: c.exploited.value, persistent: false, precision: false }], { source: c });
+                    state.log?.push(`  ${target.name} takes ${dealt} from ${activity.name}'s implement`);
+                }
+            }
             // (2026-11-03, Certain Strike: a failure deals a hit's damage without any of its dice — its flat parts.)
             if (activity.failureFlat && result?.degree === FAILURE && !result.image && isActive(target)) {
                 const flat = (fired?.damage ?? []).filter((part) => !part.persistent && !part.precision).reduce((sum, part) => sum + (part.bonus ?? 0), 0);
