@@ -1,8 +1,8 @@
 // One simulated fight from a snapshot.
 
 import { createRng } from "./rng.js";
-import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, flatCheck, rollCheck, SUCCESS } from "./checks.js";
-import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, strikeUsable } from "./combatant.js";
+import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, degreeOf, flatCheck, rollCheck, SUCCESS } from "./checks.js";
+import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, statusPenalty, strikeUsable } from "./combatant.js";
 import { distanceBetween, engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { reaches as gridReach } from "./grid.js";
 import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
@@ -1108,6 +1108,15 @@ function actOn(state, c, action) {
             if (fired?.thrall) thrallStrikes(state, c, target);
             // (2026-11-06, Headshot: only on a target it has already damaged.)
             if (activity.headshot) c.headshotOn = c.hurtFoes?.has(target.id) ? target.id : null;
+            // (2026-11-06, Underhanded Assault: a Sneak first, Stealth with its penalty against the target's Perception DC as though hidden —
+            // on a success the Strike at the end, the target off-guard to it as hidden from it; on a failure no Strike.)
+            if (activity.sneakFirst) {
+                const natural = state.rng.d20();
+                const sneak = degreeOf(natural + (c.skills?.stealth ?? c.level ?? 0) - activity.sneakFirst - statusPenalty(c, "skill"), 10 + (target.perception ?? 0), natural);
+                state.log?.push(`  ${c.name} Sneaks up on ${target.name}: ${sneak >= SUCCESS ? "unseen" : "seen"}`);
+                if (sneak < SUCCESS) break;
+                (target.offGuardTo ??= []).push({ attacker: c.id, attacks: "all", uses: 1 });
+            }
             const result = performStrike(state, c, target, chargeStrike(fired, activity.coverFire ? { ...charged, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : charged));
             c.headshotOn = null;
             if (activity.spendThrall && fired?.thrall) spendThrall(state, c, target);

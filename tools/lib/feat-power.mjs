@@ -1588,6 +1588,7 @@ const HAND = {
     "rapid-recharge": () => ({ builtins: { rapidRecharge: 1 }, played: "its Spellstrike recharged free as a turn begins, once a fight" }),
     "sustaining-steel": () => ({ builtins: { sustainingSteel: true }, played: "a slot spell's Spellstrike heals it the rank (double in Arcane Cascade)" }),
     // (2026-11-06: Exploit Vulnerability's personal antithesis on every creature of the target's kind — actions.js.)
+    "underhanded-assault": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "melee", sneakFirst: 2 })], played: "a Sneak (Stealth −2 against its Perception DC), then a melee Strike it's off-guard to (2 actions)" }),
     "frightful-attrition": () => ({ builtins: { frightfulAttrition: true }, played: "a Will save or frightened 1–3 for the foes within 30 feet of each foe it drops (actions.js)" }),
     "sympathetic-vulnerabilities": () => ({ builtins: { sympatheticVulnerabilities: true }, played: "personal antithesis on every foe of the exploited one's kind" }),
     "headshot": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", headshot: true })], played: "a 2-action firearm Strike; a critical hit on a foe it already hurt: a Fortitude save or it dies" }),
