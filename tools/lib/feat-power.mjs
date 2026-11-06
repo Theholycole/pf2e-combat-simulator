@@ -1479,6 +1479,13 @@ const HAND = {
         const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
         return { builtins: {}, plans: [strikeRider({ flourish: true, onHit: { conditions: [{ slug: "stupefied", value: 1, duration: until }], critical: [{ slug: "stupefied", value: 2, duration: until }] } })], played: "a flourish Strike, stupefied 1 (2 on a critical hit) until its next turn" };
     },
+    // (2026-11-06, Devastating Shield Wallop: Shield Wallop with a Fortitude save after it against its class DC — prone on a failure,
+    // stunned 1 on a critical failure (its prone then not played), the success's off-guard not played; rated against no Shield Wallop.)
+    "devastating-shield-wallop": (_level, _host, doc) => {
+        const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start", anchor: "source-turn" };
+        const save = conditionSavePlan(doc, "fortitude", ["prone", null], ["stunned", 1]);
+        return { builtins: {}, plans: [strikeRider({ flourish: true, onHit: { conditions: [{ slug: "stupefied", value: 1, duration: until }], critical: [{ slug: "stupefied", value: 2, duration: until }], ...(save ? { save } : {}) } })], played: "Shield Wallop (stupefied 1, 2 on a critical hit), then a Fortitude save: prone, or stunned 1 on a critical failure" };
+    },
     // (2026-11-05, Crashing Slam: Slam Down's Trip a critical success when its Strike hits — prone and 1d6 bludgeoning; rated as Slam Down
     // with it, against no Slam Down.)
     // (2026-11-05, Vivacious Bravado: with panache, temporary Hit Points equal to its level plus Charisma until its next turn.)
@@ -1581,6 +1588,7 @@ const HAND = {
     "rapid-recharge": () => ({ builtins: { rapidRecharge: 1 }, played: "its Spellstrike recharged free as a turn begins, once a fight" }),
     "sustaining-steel": () => ({ builtins: { sustainingSteel: true }, played: "a slot spell's Spellstrike heals it the rank (double in Arcane Cascade)" }),
     // (2026-11-06: Exploit Vulnerability's personal antithesis on every creature of the target's kind — actions.js.)
+    "frightful-attrition": () => ({ builtins: { frightfulAttrition: true }, played: "a Will save or frightened 1–3 for the foes within 30 feet of each foe it drops (actions.js)" }),
     "sympathetic-vulnerabilities": () => ({ builtins: { sympatheticVulnerabilities: true }, played: "personal antithesis on every foe of the exploited one's kind" }),
     "headshot": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", headshot: true })], played: "a 2-action firearm Strike; a critical hit on a foe it already hurt: a Fortitude save or it dies" }),
     "phase-bullet": () => ({ builtins: {}, plans: [strikeRider({ range: "ranged", attackBonus: 4, oncePerFight: true })], played: "a firearm Strike at +4 against an armored foe, ignoring cover (once a fight)" }),

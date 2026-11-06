@@ -2108,6 +2108,21 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     if (source && target.kind === "pc") source.downedCount++;
     // (You're Next, B79: the reaction of the creature that downed it.)
     if (source && source !== target && source.side !== target.side && isActive(source)) downsAnswers(state, source, target);
+    // (2026-11-06, Frightful Attrition: each of the fallen one's allies within 30 feet a Will save against its class DC — frightened 1, 2,
+    // or 3 and fleeing 1 round; incapacitation, so a higher-level one's degree goes up a step; then immune for the fight.)
+    if (source?.frightfulAttrition && source !== target && source.side !== target.side) {
+        for (const other of state.list.filter((each) => each !== target && each.side === target.side && isActive(each) && !each.thrallOf && distanceBetween(target, each) <= 30)) {
+            const immune = (source.attritionImmune ??= new Set());
+            if (immune.has(other.id) || (other.immunities ?? []).some((each) => ["fear-effects", "mental", "emotion"].includes(each))) continue;
+            immune.add(other.id);
+            const natural = state.rng.d20();
+            let saved = degreeOf(natural + saveModifier(other, "will"), source.classDC ?? 10 + (source.level ?? 1) + 3, natural);
+            if ((other.level ?? 0) > (source.level ?? 0) && saved < CRITICAL_SUCCESS) saved += 1;
+            const value = [3, 2, 1, 0][saved];
+            if (value && applyCondition(state, other, "frightened", value, null, source)) log(state, `  Frightful Attrition: ${other.name} is frightened ${value}`);
+            if (saved === 0 && applyCondition(state, other, "fleeing", null, { mode: "fixed", value: 1, unit: "rounds" }, source)) log(state, `  ${other.name} is fleeing`);
+        }
+    }
     // (B123, Deadly Cleave: its named Strike downed it — another at a different creature once the action ends, at that Strike's penalty.)
     const cleave = source && source !== target && source.side !== target.side ? (source.reactionStrikes ?? []).find((entry) => entry.triggers.includes("downs")) : null;
     if (cleave && source.lastStrike && String(source.lastStrike.strike ?? "").toLowerCase().includes(String(cleave.strike ?? "")) && source.lastStrike.targetId === target.id) {
