@@ -488,6 +488,18 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
     });
     // (Saves pc() reads with Dexterity and Wisdom; Constitution for Fortitude it has.)
     if (built.speed) c.speed = built.speed;
+    // (2026-11-06, Cole's pick "Re-check weak class ratings": the standard party's fighter carries a longbow as well as its greatsword, but
+    // the martial classes built here had only their melee weapon — a flier or a foe across a gap left them nothing to do, and every class in
+    // the fighter's seat rated low for it. A martial with no ranged Strike gets the fighter's backup: a longbow at its weapon proficiency
+    // and Dexterity, its runes, its weapon specialization.)
+    if (built.strikes?.length && !c.strikes.some((each) => !each.melee)) {
+        const main = c.strikes[0];
+        const attr = main.finesse ? Math.max(a.str, a.dex) : a.str;
+        const prof = main.bonus - lv - attr - (main.potency ?? 0);
+        const spec = Math.max(0, (main.damage?.[0]?.bonus ?? 0) - a.str);
+        const dice = main.damage?.[0]?.dice ?? striking(lv);
+        c.strikes = [...c.strikes, { name: "Longbow", bonus: lv + prof + a.dex + (main.potency ?? 0), potency: main.potency ?? 0, melee: false, agile: false, increment: 100, held: true, hands: 2, iwr: { group: "bow", ...(main.iwr?.traits ? { traits: main.iwr.traits } : {}) }, deadly: { dice: lv >= 19 ? 3 : lv >= 12 ? 2 : 1, die: 10 }, damage: [{ dice, die: 8, bonus: spec, type: "piercing" }], backupBow: true }];
+    }
     c.classSlug = slug;
     c.abilities = a;
     if (def.caster) {
