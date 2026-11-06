@@ -20,11 +20,17 @@ import { floorOf } from "./floors.js";
 export const inBanner = (commander, ally) => ally !== commander && distanceBetween(commander, ally) <= (commander.commander?.banner ?? 30);
 
 // Whether an ally can answer a tactic now: its reaction, or the commander's Drilled Reactions this round.
-export const canAnswer = (state, commander, ally) => isActive(ally) && (canReact(ally) || (commander.commander?.drilled && commander.drilledRound !== state.round && ally.status === "active" && !ally.cond.unconscious && !ally.cond.paralyzed));
+// (2026-11-06, Drilled Reflexes, Practiced Reflexes: two or four allies a round instead of one — commander.drilledCount.)
+const drilledLeft = (state, commander) => (commander.commander?.drilled ? (commander.drilledCount ?? 1) - (commander.drilledRound === state.round ? commander.drilledUses ?? 1 : 0) : 0);
+function spendDrilled(state, commander) {
+    commander.drilledUses = commander.drilledRound === state.round ? (commander.drilledUses ?? 1) + 1 : 1;
+    commander.drilledRound = state.round;
+}
+export const canAnswer = (state, commander, ally) => isActive(ally) && (canReact(ally) || (drilledLeft(state, commander) > 0 && ally.status === "active" && !ally.cond.unconscious && !ally.cond.paralyzed));
 
 function useAnswer(state, commander, ally) {
     if (canReact(ally)) ally.reactionUsed = true;
-    else commander.drilledRound = state.round;
+    else spendDrilled(state, commander);
 }
 
 const squad = (state, commander) => state.list.filter((ally) => ally.side === commander.side && inBanner(commander, ally));
@@ -67,7 +73,8 @@ export function strikeHard(state, commander, action) {
 
 // Pincer Attack: the allies who'd answer (in melee with a foe, a reaction to spend) and the foes beside them.
 export function pincerPlan(state, commander) {
-    const responders = squad(state, commander).filter((ally) => ally.meleeId !== null && canAnswer(state, commander, ally));
+    let drilled = drilledLeft(state, commander);
+    const responders = squad(state, commander).filter((ally) => ally.meleeId !== null && canAnswer(state, commander, ally)).filter((ally) => canReact(ally) || drilled-- > 0);
     const melees = new Set(responders.map((ally) => ally.meleeId));
     const foes = state.list.filter((other) => other.side !== commander.side && isActive(other) && other.meleeId !== null && melees.has(other.meleeId));
     return { responders, foes };
@@ -76,13 +83,9 @@ export function pincerPlan(state, commander) {
 export function pincerAttack(state, commander) {
     const { responders, foes } = pincerPlan(state, commander);
     log(state, `  ${commander.name} uses ${commander.commander.pincerAttack}${responders.length ? ` (${responders.map((ally) => ally.name).join(", ")} Step)` : ""}`);
-    let drilledUsed = false;
     for (const ally of responders) {
         if (canReact(ally)) ally.reactionUsed = true;
-        else if (!drilledUsed) {
-            commander.drilledRound = state.round;
-            drilledUsed = true;
-        }
+        else spendDrilled(state, commander);
     }
     const attackers = [commander, ...responders];
     // Until the start of the commander's next turn.

@@ -1537,6 +1537,9 @@ const HAND = {
     "improved-elemental-bulwark": () => ({ builtins: { resistReaction: { name: "Elemental Bulwark", value: 10, on: ["cold", "electricity", "fire"], types: ["triggering"], foe: true } }, played: "Elemental Bulwark's resistance 10 (with it)" }),
     "cornered-fury": () => ({ builtins: { corneredFury: "small" }, played: "a larger foe that critically hits it (a Small ratfolk: a Medium foe) is off-guard to it for a round" }),
     "deliberate-death": () => ({ builtins: { deathStrike: { name: "Deliberate Death", strike: null, pc: true } }, played: "a melee Strike at the foe that drops it (reaction, once)" }),
+    // (2026-11-06, Drilled Reflexes, Practiced Reflexes: Drilled Reactions for two or four allies a round — commander.js.)
+    "drilled-reflexes": () => ({ builtins: { drilledCount: 2 }, played: "Drilled Reactions for up to two allies" }),
+    "practiced-reflexes": () => ({ builtins: { drilledCount: 4 }, played: "Drilled Reactions for up to four allies" }),
     "targeting-strike": (level) => ({ builtins: { targetingStrike: level >= 17 ? 6 : level >= 10 ? 5 : 4 }, played: "after its Set-Up Strike or Guiding Shot damages, the next ally's hit there deals its Intelligence in precision damage" }),
     "combination-finisher": () => ({ builtins: { combinationFinisher: true }, played: "its finishers' multiple attack penalty −4/−8 (−3/−6 agile)" }),
     "deadly-strikes": (level) => ({ builtins: { deadlyStrikes: level }, played: "its unarmed attacks deadly d10" }),
