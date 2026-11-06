@@ -862,8 +862,11 @@ function actOn(state, c, action) {
             // A save spell doesn't add to the penalty by itself; the Spellstrike still counts as two attacks.
             if (!attackSpell) c.attacksThisTurn++;
             if (!result) break;
+            // (2026-11-06, Expansive Spellstrike: an area spell on the foes about the target — planner.js spellstrikeCaught; none on a critical
+            // miss.)
+            const caughtIds = action.caughtIds?.filter((id) => isActive(state.byId.get(id))) ?? [target.id];
             if (attackSpell) castSpell(state, c, action.spellIndex, [target.id], undefined, { forcedDegree: result.degree });
-            else castSpell(state, c, action.spellIndex, [target.id], undefined, { disrupted: result.degree === 0 });
+            else castSpell(state, c, action.spellIndex, result.degree === 0 ? [target.id] : caughtIds.length ? caughtIds : [target.id], undefined, { disrupted: result.degree === 0 });
             // (2026-11-06, Sustaining Steel: a spell from a slot heals it the spell's rank, double in Arcane Cascade.)
             if (c.sustainingSteel && spell.pool && !(spell.plan?.traits ?? []).includes("cantrip") && !String(spell.pool).endsWith(":focus") && isActive(c)) {
                 const rank = Number(spell.castRank) || 1;

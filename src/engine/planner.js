@@ -1086,7 +1086,18 @@ function spellstrikeSpell(c, spell) {
     if (spell.kind === "basic" || spell.kind === "ability" || spell.kind === "item" || spell.trick || !canCast(c, spell)) return false;
     const info = describeSpell(spell.plan);
     const check = info.check;
-    return (info.actions === 1 || info.actions === 2) && info.targets === 1 && !info.area && (check?.statistic === "spell-attack" || check?.roll === "save");
+    // (2026-11-06, Expansive Spellstrike: a burst, cone or line spell too — its area about the target.)
+    const expands = c.expansiveSpellstrike && ["burst", "cone", "line"].includes(info.area?.type);
+    return (info.actions === 1 || info.actions === 2) && (expands || (info.targets === 1 && !info.area)) && (check?.statistic === "spell-attack" || check?.roll === "save");
+}
+
+// (2026-11-06, Expansive Spellstrike: the foes its area catches about the Strike's target — a burst's radius from the target, half a cone's
+// or line's length; its allies kept out by the corner or angle chosen.)
+export function spellstrikeCaught(state, c, spell, target) {
+    const area = describeSpell(spell.plan).area;
+    if (!c.expansiveSpellstrike || !area) return [target];
+    const reach = area.type === "burst" ? area.value : Math.floor(area.value / 2);
+    return [target, ...state.list.filter((other) => other !== target && other.side !== c.side && isActive(other) && !other.thrallOf && other.kind !== "object" && distanceBetween(target, other) <= reach)];
 }
 
 // Is a reload weapon empty at this point of the plan? Fired since its last reload in the plan, or empty when the turn began.
@@ -1872,15 +1883,20 @@ function expandClassActions(env) {
                     if (!spellstrikeSpell(c, spell) || node.casts.includes(spellIndex)) continue;
                     let spellDamage = 0;
                     let spellWorth = 0;
-                    for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, spell, [target], node.attacks)) {
-                        if (affected !== target) continue;
+                    const caught = spellstrikeCaught(state, c, spell, target);
+                    let othersGain = 0;
+                    for (const { target: affected, damage, worth } of ctx.spellEffect(spellIndex, spell, caught, node.attacks)) {
+                        if (affected !== target) {
+                            if (caught.includes(affected)) othersGain += targetValue(state, affected, c) * (Math.min(1, damage / Math.max(1, remainingHp(affected))) + worth * ROUND_TO_KILL);
+                            continue;
+                        }
                         spellDamage += damage;
                         spellWorth += worth;
                     }
                     const expected = strikeBest.expectation.damage + spellDamage;
-                    const gain = value * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + spellWorth * ROUND_TO_KILL);
+                    const gain = value * (Math.min(1, (before + expected) / hp) - Math.min(1, before / hp) + spellWorth * ROUND_TO_KILL) + othersGain;
                     if (gain <= 0) continue;
-                    children.push(child(node, { type: "spellstrike", targetId: target.id, strikeIndex: strikeBest.index, spellIndex, actions: 2 }, 2, ctx.profile.aggression * gain, {
+                    children.push(child(node, { type: "spellstrike", targetId: target.id, strikeIndex: strikeBest.index, spellIndex, actions: 2, ...(caught.length > 1 ? { caughtIds: caught.map((each) => each.id) } : {}) }, 2, ctx.profile.aggression * gain, {
                         attacks: 2,
                         damage: { ...node.damage, [target.id]: before + expected },
                         cast: ["spellstrike", ...(spell.pool ? [spellIndex] : [])]

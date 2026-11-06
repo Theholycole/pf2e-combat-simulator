@@ -1541,6 +1541,7 @@ const HAND = {
     "drilled-reflexes": () => ({ builtins: { drilledCount: 2 }, played: "Drilled Reactions for up to two allies" }),
     "practiced-reflexes": () => ({ builtins: { drilledCount: 4 }, played: "Drilled Reactions for up to four allies" }),
     "targeting-strike": (level) => ({ builtins: { targetingStrike: level >= 17 ? 6 : level >= 10 ? 5 : 4 }, played: "after its Set-Up Strike or Guiding Shot damages, the next ally's hit there deals its Intelligence in precision damage" }),
+    "expansive-spellstrike": () => ({ builtins: { expansiveSpellstrike: true }, played: "Spellstrike with a burst, cone or line spell, its area about the target" }),
     "combination-finisher": () => ({ builtins: { combinationFinisher: true }, played: "its finishers' multiple attack penalty −4/−8 (−3/−6 agile)" }),
     "deadly-strikes": (level) => ({ builtins: { deadlyStrikes: level }, played: "its unarmed attacks deadly d10" }),
     // (2026-11-06, Persistent Boost: its Offensive Boost's hit (the weapon innovation's Strikes, classes.js) 1d8 persistent fire too.)
