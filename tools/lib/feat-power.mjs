@@ -366,7 +366,7 @@ function innateSpellEntry(doc, level, host) {
         const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan: merged.plan, castRank, dc, attack: dc - 10, pool, effects: merged.effects };
         if (plan.resolution.selfForm && !Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) continue;
         // (Its battle form cast even where the planner reads no gain in it, as Untamed Form's is.)
-        if (plan.resolution.selfForm) entry.forceEven = true;
+        if (plan.resolution.selfForm || Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) entry.forceEven = true;
         if (castable(entry) || reactionWired(entry)) entries.push(entry);
     }
     if (!entries.length && !summons.length && !breath) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
