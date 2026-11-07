@@ -1781,9 +1781,15 @@ export function applyDamage(state, target, instances, { source = null, critical 
     if ((physical || (spell && target.shield?.spell)) && shouldShieldBlock(target, total)) {
         const shield = target.shield;
         // The shield prevents up to its Hardness; it and the creature each take the rest.
-        const blocked = Math.min(total, shield.hardness);
+        // (2026-11-07: Everstand Stance's +2 Hardness to block — c.blockHardness; Destructive Block's twice the Hardness off its own damage,
+        // the shield taking twice the damage less its Hardness, when the shield survives that — c.destructiveBlock.)
+        const hardness = (shield.hardness ?? 0) + (shield.spell ? 0 : target.blockHardness ?? 0);
+        const destructive = target.destructiveBlock && !shield.spell && shield.hp - Math.max(0, 2 * total - hardness) > shield.bt && total > hardness;
+        const blocked = Math.min(total, destructive ? 2 * hardness : hardness);
+        const shieldTakes = destructive ? Math.max(0, 2 * total - hardness) : total - blocked;
         total -= blocked;
-        shield.hp -= total;
+        shield.hp -= shieldTakes;
+        if (destructive) log(state, `  ${target.name} uses Destructive Block`);
         if (shield.hp <= shield.bt) shield.broken = true;
         spendReaction(target, "Shield Block");
         // (The spell ends once it blocks, and can't be cast again this fight.)

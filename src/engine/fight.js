@@ -527,6 +527,11 @@ function startTurn(state, c) {
     // (2026-10-22, the sky: an action to Fly — void.js.)
     hoverTurnStart(state, c);
     c.freeSustainLeft = c.freeSustain ?? 0;
+    // (2026-11-07, Unrelenting Terror: the immunity its Demoralize left ends as its turn begins.)
+    if (c.immuneUntilTurn?.length) {
+        for (const { spell, id } of c.immuneUntilTurn) c.immuneTargets?.get(spell)?.delete(id);
+        c.immuneUntilTurn = [];
+    }
     // (2026-11-07, Double Prey: its prey down, the other it hunts already its prey — no action.)
     if (c.prey && c.preyQueue?.length && !isActive(state.byId.get(c.prey) ?? {})) {
         const next = c.preyQueue.map((id) => state.byId.get(id)).find((foe) => foe && isActive(foe));

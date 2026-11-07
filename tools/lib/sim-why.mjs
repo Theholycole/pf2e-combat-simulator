@@ -23,6 +23,7 @@ const COMPANION_KIND = "a kind of companion the simulator doesn't field (megafau
 const DAMAGE_TYPE = "a choice of damage type (or of an element), and the rating foes have no weakness or resistance it would be picked for";
 const SAME_PICK = "more options for an action whose best option the simulator's PC already takes (or that cures conditions the rating foes don't inflict), so a fight plays the same";
 const SUBCLASS = "a change to a class option, feature or action the simulator's class PC doesn't have (each class fights with one build: the champion a paladin with Retributive Strike, for one)";
+const SPELL_NOT_CAST = "a change to a spell the simulator's casters don't prepare (Grease, Mist, Sleep, Light, Vampiric Feast, Black Tentacles and the like)";
 const DOOM = "a reaction to doom or an oracle's curse, which the simulator doesn't play";
 
 export const SIM_WHY = Object.freeze({
@@ -166,5 +167,8 @@ export const SIM_WHY = Object.freeze({
     "Second Wind": SAME_PICK, "Adaptive Stratagem": SAME_PICK,
     "Reach for the Stars": REACH, "Directed Audience": REACH, "Spell Relay": REACH, "Guiding Retort": REACH,
     "Scattered Fire": REACH, "Confounding Image": REACH, "Directed Poison": REACH, "Smoldering Explosion": HIDDEN,
+    "Steal Vitality": SPELL_NOT_CAST, "Siphoning Touch": SPELL_NOT_CAST, "Toppling Tentacles": SPELL_NOT_CAST, "Volatile Grease": SPELL_NOT_CAST,
+    "Barrier Shield": SPELL_NOT_CAST, "Shining Arms": SPELL_NOT_CAST, "Uneasy Rest": SPELL_NOT_CAST, "Forceful Push": SPELL_NOT_CAST, "Drenching Mist": SPELL_NOT_CAST,
+    "Obscured Terrain": SPELL_NOT_CAST, "Summon Ensemble": SPELL_NOT_CAST, "Animate Net": SPELL_NOT_CAST, "Surrounding Flames": SPELL_NOT_CAST,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

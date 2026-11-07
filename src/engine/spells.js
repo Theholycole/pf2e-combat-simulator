@@ -3448,9 +3448,12 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     if (info.recharge) (caster.rechargeUntil ??= new Map()).set(spell.rechargeGroup ?? spell, state.round + rollCount(state, info.recharge));
     const markImmune = (list) => {
         // (2026-11-07, Reincarnated Ridiculer, Unrelenting Terror: its Demoralize leaves no lasting immunity — c.repeatDemoralize.)
-        if (caster.repeatDemoralize && /^demoralize$/i.test(String(spell.plan?.source?.slug ?? spell.name ?? ""))) return;
+        const demoralize = caster.repeatDemoralize && /^demoralize$/i.test(String(spell.plan?.source?.slug ?? spell.name ?? ""));
+        if (demoralize && caster.repeatDemoralize !== "round") return;
         const immune = (caster.immuneTargets ??= new Map()).get(spell) ?? new Set();
         for (const target of list) immune.add(target.id);
+        // (Unrelenting Terror: immune only until its next turn — fight.js clears it then.)
+        if (demoralize) for (const target of list) (caster.immuneUntilTurn ??= []).push({ spell, id: target.id });
         caster.immuneTargets.set(spell, immune);
     };
     if (info.immunity && !info.immunityDegrees) markImmune(targets);

@@ -674,6 +674,9 @@ const QUICKEN_ALL = {
     // rounds — its Performance check taken as a success, the free action and the anthem's one —; Fortissimo Composition's anthem at +2.)
     "lingering-composition": () => ({ actions: 1, area: 60, rounds: 3, model: { modifiers: [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "status", value: 1 }] }, played: "Courageous Anthem for 3 rounds" }),
     "fortissimo-composition": () => ({ actions: 1, area: 60, rounds: 1, model: { modifiers: [{ on: "attack", type: "status", value: 2 }, { on: "damage", type: "status", value: 2 }] }, played: "Courageous Anthem at +2 for a round" }),
+    // (2026-11-07, Hasty Celebration: as it critically hits, +2 circumstance to attack and damage rolls for its allies within 60 feet until
+    // the end of its next turn — its own off-guard then not played; once a fight, once an hour.)
+    "hasty-celebration": () => ({ actions: 0, area: 60, rounds: 1, trigger: { on: "crit" }, model: { modifiers: [{ on: "attack", type: "circumstance", value: 2 }, { on: "damage", type: "circumstance", value: 2 }] }, played: "+2 to attack and damage rolls when it critically hits (reaction; its own off-guard not played)" }),
     "orchards-endurance": (level) => ({ actions: 1, area: 10, rounds: 100, model: { resistances: ["bludgeoning", "piercing"].map((type) => ({ type, value: 5 + 2 * Math.max(0, Math.floor((level - 14) / 4)), exceptions: [] })) }, played: "resistance to bludgeoning and piercing" })
 };
 function quickenAllEntry(doc, level) {
@@ -691,8 +694,10 @@ function quickenAllEntry(doc, level) {
     const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], activation: { ...base.activation, time: String(read.actions) }, targeting: { ...base.targeting, area: { type: "emanation", value: read.area }, actorConstraints: { ...base.targeting.actorConstraints, predicates: [{ kind: "ally-of-caster" }] } }, heightening: null, resolution: { ...base.resolution, applications: [{ kind: "native-spell-effect", uuid, source: "nativeEffects.onUse" }] } };
     const pool = read.once === false ? null : `feat:${doc._id}`;
     const effects = { [uuid]: { name: doc.name, rounds: read.rounds, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...read.model } };
-    const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc: 0, attack: 0, pool, effects };
-    if (!castable(entry)) return null;
+    // (2026-11-07: or at a trigger — Hasty Celebration's critical hit —, a reaction: triggers.js.)
+    if (read.trigger) plan.activation = { ...plan.activation, time: "reaction" };
+    const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc: 0, attack: 0, pool, effects, ...(read.trigger ? { featTrigger: read.trigger } : {}) };
+    if (!castable(entry) && !read.trigger) return null;
     return { spells: [entry], pools: pool ? { [pool]: 1 } : {}, gap: null, played: `${read.played}, the PC and its allies within ${read.area} feet${pool ? " (once a fight)" : ""}` };
 }
 
@@ -1418,7 +1423,7 @@ const HAND = {
     // (2026-11-07: Demoralize again at the same foe — spells.js c.repeatDemoralize; its basic Demoralize forced. Reincarnated Ridiculer's
     // immunity only on a critical failure and Unrelenting Terror's 1 round after a success are played as none.)
     "reincarnated-ridiculer": () => ({ builtins: { repeatDemoralize: true, forceBasic: ["demoralize"] }, played: "Demoralize the same foe again and again (no immunity)" }),
-    "unrelenting-terror": () => ({ builtins: { repeatDemoralize: true, forceBasic: ["demoralize"] }, played: "Demoralize the same foe again each round (immune only 1 round)" }),
+    "unrelenting-terror": () => ({ builtins: { repeatDemoralize: "round", forceBasic: ["demoralize"] }, played: "Demoralize the same foe again each round (immune only 1 round)" }),
     // (Soul Flare: +1 status to AC against a hit, which can make it a miss — its attack half and the DC 5 flat check to keep the
     // armament not played.)
     "soul-flare": () => ({ builtins: { acReaction: { value: 1, when: "hit", name: "Soul Flare" } }, played: "+1 AC against a hit (reaction)" }),
@@ -1436,6 +1441,18 @@ const HAND = {
             return { ...entry, plan, heightening: null };
         }).filter(Boolean);
         return spells.length ? { builtins: {}, spells, played: "Fireball with persistent fire on a failure (a copy beside it)" } : { gap: "no Fireball of the PC's for it to change" };
+    },
+    // (Everstand Stance: +2 Hardness when it Shield Blocks — the stance taken as on all fight; its boss or spikes' die not played, the
+    // champion has none. Destructive Block: twice the Hardness off the damage, the shield taking twice the damage less its Hardness, when
+    // it survives that — actions.js.)
+    "everstand-stance": () => ({ builtins: { blockHardness: 2 }, played: "+2 Hardness to Shield Block (the stance taken as on all fight)" }),
+    "destructive-block": () => ({ builtins: { destructiveBlock: true }, played: "Shield Block prevents twice its Hardness, the shield taking twice the damage" }),
+    // (Desperate Prayer: once a day, a Focus Point at a turn start with none, for a devotion spell that turn — one more Lay on Hands a
+    // fight, the champion's devotion spell.)
+    "desperate-prayer": (_level, host) => {
+        const pool = `${host?.id}:focus`;
+        if (!host?.spellPools?.[pool]) return { gap: "no devotion spell of the PC's to spend it on" };
+        return { builtins: {}, pools: { [pool]: host.spellPools[pool] + 1 }, played: "one more Lay on Hands a fight (its Focus Point at a turn start with none)" };
     },
     "dwarven-doughtiness": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn" }),
     "calm-and-centered": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn (stupefied not played)" }),
@@ -2744,7 +2761,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer" };
+const CLASS_OVERRIDE = { "destructive-block": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
