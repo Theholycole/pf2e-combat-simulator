@@ -1462,6 +1462,8 @@ const HAND = {
     "watchful-gaze": () => noFlankHand("Watchful Gaze"),
     "augment-senses": () => noFlankHand("Augment Senses"),
     "instinctual-creation": () => ({ builtins: { thrallsAtStart: 2 }, played: "two thralls as it rolls initiative" }),
+    // (Sacred Defense: once an hour, a DC 30 Religion check for 5 temporary Hit Points, 10 on a critical success — played as 5, once a fight.)
+    "sacred-defense": () => ({ builtins: { selfEffects: [{ name: "Sacred Defense", actions: 1, featForced: true, pool: "sacred-defense", model: { name: "Sacred Defense", rounds: 10, tempHp: 5, modifiers: [], fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, pools: { "sacred-defense": 1 }, played: "5 temporary Hit Points (1 action, once a fight; its DC 30 check played as a success)" }),
     "after-you": () => ({ builtins: { goesLast: true, panacheAtStart: "After You" }, played: "goes last with panache" }),
     "dwarven-doughtiness": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn" }),
     "calm-and-centered": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn (stupefied not played)" }),
@@ -1607,6 +1609,9 @@ const HAND = {
     // (Fire damage of its level back at an adjacent creature whose melee attack hits it, once a fight — resist-damage's retort, no resistance.)
     "fiery-retort": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 0, retort: `${level}[fire]`, melee: true, foe: true, uses: 1 }], played: `${level} fire back at a melee attacker (reaction, once a fight)` }),
     // (1d4 spirit on its weapon for the rest of its turn after a slot spell — a free action, the engine's after-cast self effect.)
+    // (2026-11-07, Oni Rampage: below half its Hit Points from a foe beside it, Haste for 1 minute — played as quickened once it is below
+    // half, once a fight, free.)
+    "oni-rampage": () => ({ builtins: {}, pools: { "oni-rampage": 1 }, plans: [{ builtin: "self-effect", actions: 0, belowHalf: true, pool: "oni-rampage", model: { rounds: 10, conditions: [{ slug: "quickened", value: null }] } }], played: "quickened for 1 minute once below half its Hit Points (once a fight)" }),
     "divine-weapon": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 0, requires: "after-cast", nonCantrip: true, damage: ["1d4[spirit]"], model: { rounds: 1 } }], played: "+1d4 spirit on its Strikes after a slot spell (free)" }),
     // (1d6 force on its Strikes for the rest of its turn after a non-cantrip spell — free, the engine's after-cast self effect; the spell's own
     // damage type isn't played.)
@@ -2418,6 +2423,8 @@ function offGuardToMeEntry(name, { range = "30 feet", traits = ["visual"], every
 const ZERO_HP = {
     "orc-ferocity": { ferocity: { hp: 1, wounded: true, uses: 1 } },
     // (Its Strike as it uses Orc Ferocity — which it needs, so with it.)
+    // (2026-11-07, Undying Ferocity: Orc Ferocity with temporary Hit Points equal to its level — the feat needs Orc Ferocity, so with it.)
+    "undying-ferocity": { ferocity: { hp: 1, wounded: true, uses: 1, tempHp: (level) => level } },
     "rampaging-ferocity": { ferocity: { hp: 1, wounded: true, uses: 1, strike: true, free: true } },
     "the-cycle-continues": { ferocity: { hp: (level) => `6d8+${Math.floor(level / 2)}`, wounded: false, uses: 1, free: true } },
     // (2026-11-03, the class feats no fight played: the reactions that keep their PC up at 0 Hit Points, once a fight — Cheat Death's
@@ -2504,9 +2511,9 @@ function waterEntry(doc, builtins, host = null) {
 function zeroHpEntry(doc, level, host, builtins) {
     const known = ZERO_HP[slugOf(doc)];
     if (known?.ferocity) {
-        const { hp, strike, ...rest } = known.ferocity;
+        const { hp, strike, tempHp, ...rest } = known.ferocity;
         const melee = (host.strikes ?? []).find((each) => each.melee);
-        builtins.ferocityRule = { name: doc.name, pc: true, hp: typeof hp === "function" ? hp(level) : hp, ...rest, ...(strike && melee ? { strike: melee.name } : {}) };
+        builtins.ferocityRule = { name: doc.name, pc: true, hp: typeof hp === "function" ? hp(level) : hp, ...(tempHp ? { tempHp: typeof tempHp === "function" ? tempHp(level) : tempHp } : {}), ...rest, ...(strike && melee ? { strike: melee.name } : {}) };
         if (rest.mythic) builtins.mythicPoints = 3;
         builtins.reactions = { ...(builtins.reactions ?? {}), ferocity: true };
         return { spells: [], pools: {}, gap: null, played: "staying up at 0 Hit Points" };
@@ -2878,7 +2885,7 @@ function itemMatches(item, filter) {
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
 // (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
 const STANCE_SPELL_FEATS = { "wild winds stance": "Wild Winds Initiate", "clinging shadows stance": "Clinging Shadows Initiate" };
-const BASE_FEATS = { "tetraelemental-assault": "Elemental Assault", "breath-unleashed": "Kobold Breath", "tempest-gaze": "Storming Gaze", "deadly-mutation": "Ostilli Host Dedication", "spraying-mutation": "Ostilli Host Dedication", "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
+const BASE_FEATS = { "undying-ferocity": "Orc Ferocity", "tetraelemental-assault": "Elemental Assault", "breath-unleashed": "Kobold Breath", "tempest-gaze": "Storming Gaze", "deadly-mutation": "Ostilli Host Dedication", "spraying-mutation": "Ostilli Host Dedication", "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
 
 // (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
 // rank — half the druid's level, rounded up —, a 2-action focus spell; the engine's battle forms (effects.js enterForm) take its best shape.

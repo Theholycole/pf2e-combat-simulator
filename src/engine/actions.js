@@ -2158,6 +2158,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         const hp = rule.hp === "half" ? Math.floor(target.hp.max / 2) : typeof rule.hp === "string" ? rollCount(state, rule.hp) : Number(rule.hp) || 1;
         target.hp.value = Math.max(1, Math.min(target.hp.max, hp));
         if (rule.wounded) target.cond.wounded = (target.cond.wounded ?? 0) + 1;
+        // (Undying Ferocity: temporary Hit Points as it stays up.)
+        if (rule.tempHp > 0) target.hp.temp = Math.max(target.hp.temp ?? 0, rule.tempHp);
         if (!rule.free) spendReaction(target, rule.name);
         if (rule.mythic) target.mythicPoints--;
         target.ferocityUsed = (target.ferocityUsed ?? 0) + 1;
