@@ -3521,6 +3521,16 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     const roll = (statistic, given) => {
         // (2026-10-22, Foresight: its creature's save twice, the better kept — its caster's reaction.)
         if (SAVE_SLUGS.has(statistic) && given?.actor?.id && forcedDegree === null && foresightReact(state, given.actor, caster)) given = { ...given, fortune: true };
+        // (2026-11-07, Fling Into Action, Vindictive Thoughts: a foe's effect's save at mythic proficiency — a Mythic Point, its bonus over
+        // the PC's own rank; a reaction's, its reaction.)
+        const mythicSave = given?.actor?.mythicSave;
+        if (mythicSave && SAVE_SLUGS.has(statistic) && forcedDegree === null && Number.isFinite(given.modifier) && caster.side !== given.actor.side && isActive(given.actor) && (given.actor.mythicPoints ?? 0) > 0
+            && (!mythicSave.save || mythicSave.save === statistic) && (!mythicSave.spell || !spell.kind || spell.kind === "spell") && (mythicSave.free || canReact(given.actor))) {
+            given.actor.mythicPoints--;
+            if (!mythicSave.free) given.actor.reactionUsed = true;
+            log(state, `  ${given.actor.name} uses ${mythicSave.name}: its ${statistic} save at mythic proficiency (+${mythicSave.bonus})`);
+            given = { ...given, modifier: given.modifier + mythicSave.bonus };
+        }
         const keep = ownFortune(statistic);
         const options = raised(statistic, keep ? { ...given, [keep === "higher" ? "fortune" : "misfortune"]: true } : given);
         const result = betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });

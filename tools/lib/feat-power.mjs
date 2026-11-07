@@ -1167,6 +1167,36 @@ const HAND = {
     // broken after: the party champion's heavy armor, -3 AC for the rest of the fight.)
     "sacrifice-armor": (level) => ({ builtins: { resistReaction: { name: "Sacrifice Armor", value: 2 * Math.max(1, level - 1), on: ["physical"], types: null, attack: true, foe: true, acAfter: 3 }, resistUses: 1 }, played: `${2 * Math.max(1, level - 1)} less damage from a physical Strike, once, its armor broken after (-3 AC; reaction)` }),
     "objection": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "linguistic" }], played: "a failed save against a linguistic effect rerolled, the better kept (reaction, once a fight)" }),
+    // (2026-11-07, mythic: Abjure Harm — an enemy's critical Strike a regular hit, a Mythic Point each time (3 a day; its reaction). Its
+    // resistance to physical damage till its next turn and its mythic Demoralize aren't played.)
+    "abjure-harm": () => ({ builtins: { critDowngrade: { name: "Abjure Harm", dc: null, mythic: true }, mythicPoints: 3 }, played: "an enemy's critical hit a regular hit (reaction, a Mythic Point each)" }),
+    // (Finish Their Story!: a Strike at mythic proficiency (+2 over legendary), counting as two attacks; a hit on a foe of 17th level or
+    // more — every benchmark foe at 20th — two weapon dice more (three on a 17th-level one); a Mythic Point each.)
+    "finish-their-story": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 2, extraWeaponDice: 2, countsAs: 2, mythic: true })], played: "a Strike at mythic proficiency, two weapon dice more, counting as two attacks (a Mythic Point each)" }),
+    // (Prescient Parry: its AC at mythic proficiency plus its weapon's item bonus against one Strike — mythic over its armor's master or
+    // legendary, +4 to 15th level and +2 after, and the weapon's potency — a Mythic Point each, played when it turns a hit into a miss;
+    // its Strike back on a miss isn't played.)
+    "prescient-parry": (level) => { const value = (level >= 17 ? 2 : 4) + (level >= 16 ? 3 : level >= 10 ? 2 : 1); return { builtins: { acReaction: { name: "Prescient Parry", value, when: "hit", mythic: true }, mythicPoints: 3 }, played: `+${value} AC against a Strike that would hit (reaction, a Mythic Point each)` }; },
+    // (Divide and Conquer: two Strikes at mythic proficiency (+2 over legendary), each at a different foe, the multiple attack penalty
+    // rising after both; a Mythic Point each (three a day). Its Step and its both-hit rider by damage type aren't played.)
+    "divide-and-conquer": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Divide and Conquer", actions: 2, strikes: [melee.name.toLowerCase(), melee.name.toLowerCase()], sameMap: true, distinct: true, penalty: -2, pool: "mythic" }] }, pools: { mythic: 3 }, played: "two Strikes at mythic proficiency at two foes, one multiple attack penalty (a Mythic Point each)" } : null;
+    },
+    // (Fling Into Action: a Reflex save at mythic proficiency — +10 over its level, against the fighter's expert +4 (master +6 from 15th) —
+    // a Mythic Point each; the fling after isn't played. Vindictive Thoughts: a save against a spell, the same against its expert Will
+    // (master from 17th), its reaction; its mental damage to the caster isn't played.)
+    "fling-into-action": (level) => ({ builtins: { mythicSave: { name: "Fling Into Action", save: "reflex", free: true, bonus: level >= 15 ? 4 : 6 }, mythicPoints: 3 }, played: "a Reflex save at mythic proficiency (a Mythic Point each)" }),
+    "vindictive-thoughts": (level) => ({ builtins: { mythicSave: { name: "Vindictive Thoughts", save: null, spell: true, bonus: level >= 17 ? 4 : 6 }, mythicPoints: 3 }, played: "a save against a spell at mythic proficiency (reaction, a Mythic Point each)" }),
+    // (Throw and Catch: a ranged Strike at mythic proficiency (+2 over legendary), then a melee one, the penalty rising after both — played
+    // as two melee Strikes; a Mythic Point each.)
+    "throw-and-catch": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Throw and Catch", actions: 3, strikes: [melee.name.toLowerCase(), melee.name.toLowerCase()], sameMap: true, penalties: [-2, 0], pool: "mythic" }] }, pools: { mythic: 3 }, played: "a Strike at mythic proficiency and another, one multiple attack penalty (3 actions, a Mythic Point each)" } : null;
+    },
+    // (Army of One: a Strike at each enemy in its nimbus's bright light — 30 feet — the penalty rising after all; a Mythic Point each. Its
+    // nimbus taken as active.)
+    "army-of-one": () => ({ builtins: { multiStrikes: [{ name: "Army of One", actions: 3, strikes: [null], each: true, within: 30, sameMap: true, pool: "mythic" }] }, pools: { mythic: 3 }, played: "a Strike at each enemy within 30 feet, one multiple attack penalty (3 actions, a Mythic Point each)" }),
     "interstitial-escape": (level) => ({ builtins: { resistReaction: { name: "Interstitial Escape", value: 5 + level, on: null, types: null, attack: true, foe: true }, resistUses: 1 }, played: `resistance ${5 + level} to a Strike's damage (once a fight, reaction)` }),
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
@@ -2095,6 +2125,11 @@ const ZERO_HP = {
     caterwaul: { rescue: { within: 30, hp: 1, uses: 1 } },
     // (2026-11-07: 1 Hit Point and temporary ones equal to its level plus its key attribute — played as Hit Points; the entity's +1 to
     // attacks and damage, and its control, aren't.)
+    // (2026-11-07, mythic: Divert Destiny — free, a Mythic Point each time (3 a day), 10 + its level, its wounded and dying gone.)
+    "divert-destiny": { ferocity: { hp: (level) => 10 + level, wounded: false, free: true, mythic: true } },
+    // (Call From Death's Door: an ally whose dying would increase loses it, healed twice the PC's level — played as an ally kept up at
+    // 0 Hit Points with that many; its Mythic Points, as three uses.)
+    "call-from-deaths-door": { rescue: { within: 60, hp: (level) => 2 * level, uses: 3 } },
     "entitys-resurgence": { ferocity: { hp: (level) => 1 + level + 4, wounded: false, uses: 1 } }
 };
 const slugOf = (doc) => doc.system?.slug ?? doc.name.toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -2104,11 +2139,12 @@ function zeroHpEntry(doc, level, host, builtins) {
         const { hp, strike, ...rest } = known.ferocity;
         const melee = (host.strikes ?? []).find((each) => each.melee);
         builtins.ferocityRule = { name: doc.name, pc: true, hp: typeof hp === "function" ? hp(level) : hp, ...rest, ...(strike && melee ? { strike: melee.name } : {}) };
+        if (rest.mythic) builtins.mythicPoints = 3;
         builtins.reactions = { ...(builtins.reactions ?? {}), ferocity: true };
         return { spells: [], pools: {}, gap: null, played: "staying up at 0 Hit Points" };
     }
     if (known?.rescue) {
-        builtins.rescue = { name: doc.name, ...known.rescue };
+        builtins.rescue = { name: doc.name, ...known.rescue, ...(typeof known.rescue.hp === "function" ? { hp: known.rescue.hp(level) } : {}) };
         return { spells: [], pools: {}, gap: null, played: "keeping an ally up at 0 Hit Points" };
     }
     const text = String(doc.system?.description?.value ?? "");

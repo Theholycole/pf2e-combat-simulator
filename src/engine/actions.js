@@ -687,12 +687,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         }
     }
     // Retract Body: +AC once the attack hits, when that turns it aside.
-    if (degree >= SUCCESS && !target.acReaction?.spellOnly && target.acReaction?.when === "hit" && canReact(target, target.acReaction.name) && dodges(target.acReaction, strike, state, target)) {
+    // (2026-11-07, Prescient Parry: a Mythic Point each time.)
+    if (degree >= SUCCESS && !target.acReaction?.spellOnly && target.acReaction?.when === "hit" && canReact(target, target.acReaction.name) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.mythic || (target.mythicPoints ?? 0) > 0)) {
         const lower = degreeOf(natural + modifier, ac + target.acReaction.value, natural);
         if (lower < degree) {
             defence = target.acReaction.value;
             degree = lower;
             spendReaction(target, target.acReaction.name);
+            if (target.acReaction.mythic) target.mythicPoints--;
             log(state, `  ${target.name} uses ${target.acReaction.name}`);
         }
     }
@@ -730,9 +732,11 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     }
     // Resilient Form and the like: a critical hit on it becomes a normal hit on a flat check.
     const downgrade = target.critDowngrade;
-    if (degree === CRITICAL_SUCCESS && downgrade && (Number.isFinite(downgrade.uses) ? downgrade.uses > 0 : canReact(target, downgrade.name))) {
+    // (2026-11-07, Abjure Harm: a Mythic Point each time, its reaction.)
+    if (degree === CRITICAL_SUCCESS && downgrade && (Number.isFinite(downgrade.uses) ? downgrade.uses > 0 : canReact(target, downgrade.name)) && (!downgrade.mythic || (target.mythicPoints ?? 0) > 0)) {
         if (Number.isFinite(downgrade.uses)) downgrade.uses--;
         else spendReaction(target, downgrade.name);
+        if (downgrade.mythic) target.mythicPoints--;
         // (No check, B59: Collapse, Twist Fate; Collapse leaves it immobilized and off-guard until it re-forms.)
         // (B86, Unbidden Thoughts: the attacker's choice, a normal hit or the critical hit and Frightened 2. It keeps the critical hit
         // unless a normal hit's damage is expected to finish the target anyway.)

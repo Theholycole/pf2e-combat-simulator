@@ -1212,6 +1212,8 @@ function actOn(state, c, action) {
                 break;
             }
             if (activity.oncePerFight) (c.activitiesUsed ??= new Set()).add(action.index);
+            // (2026-11-07, a mythic Strike — Finish Their Story!: a Mythic Point spent.)
+            if (activity.mythic) c.mythicPoints = Math.max(0, (c.mythicPoints ?? 0) - 1);
             if (activity.flourish) c.usedThisTurn?.add("flourish");
             if (activity.oncePerTurn) (c.usedThisTurn ??= new Set()).add(activity.name);
             if (!target || !isActive(target)) break;

@@ -1660,7 +1660,7 @@ function expandStrikeActivities(env) {
     // Strike activities (Wrestle, Intimidating Strike, Rhinoceros Charge): the Strike,
     // plus what a hit adds times the chance to hit; with Strides, only from outside the target's Melee.
     for (const [activityIndex, activity] of (c.strikeActivities ?? []).entries()) {
-        if (restrained || noAttacks || activity.actions > remaining || (activity.oncePerFight && c.activitiesUsed?.has(activityIndex))) continue;
+        if (restrained || noAttacks || activity.actions > remaining || (activity.oncePerFight && c.activitiesUsed?.has(activityIndex)) || (activity.mythic && !((c.mythicPoints ?? 0) > 0))) continue;
         if (activity.flourish && flourishUsed(c, node)) continue;
         // (2026-11-01, Lightspeed Assault: another Stride and Strike only after its last Strike this turn hit; one at a time.)
         if (activity.deviant?.oncePerTurn && (node.casts.includes(`sa${activityIndex}`) || (c.usedThisTurn?.has(`deviant:${activity.name}`) && !(node.used === 0 && c.lastStrike?.round === state.round && c.lastStrike.degree >= SUCCESS)))) continue;

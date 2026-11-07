@@ -520,6 +520,7 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.needs?.length ? { needs: plan.needs } : {}),
                 ...(plan.nonCantrip ? { nonCantrip: true } : {}),
                 oncePerFight: !!plan.oncePerFight,
+                ...(plan.mythic ? { mythic: true } : {}),
                 ...(plan.countsAs > 1 ? { countsAs: plan.countsAs } : {}),
                 ...(plan.noMap ? { noMap: true } : {}),
                 // (2026-11-05, United Assault: damage for each other creature that hurt the target since its last turn — fight.js.)
@@ -586,6 +587,7 @@ export function addBuiltin(spec, plan, name) {
                 onHit: plan.onHit?.rulesDamage?.length ? { ...plan.onHit, damage: [...(plan.onHit.damage ?? []), ...plan.onHit.rulesDamage] } : plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];
+            if (plan.mythic) spec.mythicPoints ??= 3;
             return true;
         default:
             return false;
