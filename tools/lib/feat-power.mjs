@@ -2199,6 +2199,35 @@ const ZERO_HP = {
     "entitys-resurgence": { ferocity: { hp: (level) => 1 + level + 4, wounded: false, uses: 1 } }
 };
 const slugOf = (doc) => doc.system?.slug ?? doc.name.toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+// (2026-11-07, Cole's pick "Water and flying fights": a passive that gives a swim Speed or water breathing — PF2e's BaseSpeed swim, a
+// swim-speed FlatModifier, ActorTraits amphibious or aquatic, or its text's "You gain a swim Speed of N feet" / "breathe underwater" —:
+// played under water (spell-power.js's underwater foes; void.js). On land it changes nothing.)
+function waterEntry(doc, builtins) {
+    if ((doc.system?.actionType?.value ?? "passive") !== "passive") return null;
+    const rules = doc.system?.rules ?? [];
+    let swim = 0;
+    let fly = 0;
+    let breathes = false;
+    for (const rule of rules) {
+        if (rule?.predicate?.length) continue;
+        if (rule?.key === "BaseSpeed" && rule.selector === "swim" && Number(rule.value) > 0) swim = Math.max(swim, Number(rule.value));
+        if (rule?.key === "FlatModifier" && [].concat(rule.selector).includes("swim-speed") && Number(rule.value) > 0) swim = Math.max(swim, Number(rule.value));
+        // (A permanent fly Speed: aloft, against the flying foes' benchmark — FEAT_FOE_TRAIT=flying.)
+        if (rule?.key === "BaseSpeed" && rule.selector === "fly" && (Number(rule.value) > 0 || /speed/.test(String(rule.value)))) fly = Math.max(fly, Number(rule.value) || 25);
+        if (rule?.key === "ActorTraits" && (rule.add ?? []).some((trait) => trait === "amphibious" || trait === "aquatic")) breathes = true;
+    }
+    const text = String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ");
+    if (!swim) swim = Number(/You gain a swim Speed of (\d+) feet/i.exec(text)?.[1]) || 0;
+    if (!breathes) breathes = /\bbreathe (?:under ?water|in water)\b|\bthe amphibious trait\b/i.test(text);
+    if (!swim && !breathes && !fly) return null;
+    if (fly) {
+        builtins.flies = true;
+        builtins.flySpeed = fly;
+    }
+    if (swim) builtins.swimSpeed = Math.max(Number(builtins.swimSpeed) || 0, swim);
+    if (breathes) builtins.traits = [...(builtins.traits ?? []), "amphibious"];
+    return { spells: [], pools: {}, gap: null, played: [fly ? `a ${fly}-foot fly Speed (against fliers)` : null, swim ? `a ${swim}-foot swim Speed (under water)` : null, breathes ? "breathes water (under water)" : null].filter(Boolean).join(", ") };
+}
 function zeroHpEntry(doc, level, host, builtins) {
     const known = ZERO_HP[slugOf(doc)];
     if (known?.ferocity) {
@@ -2845,6 +2874,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = handEntry(doc, level, builtins, wields, { ...host, strikes: wields.strikes ?? host.strikes }) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = saveRerollEntry(doc, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = zeroHpEntry(doc, level, host, builtins) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = waterEntry(doc, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = passiveRulesEntry(doc, level, builtins) ?? entries;
         // (A requirement on what the PC wields the plan doesn't carry — Dueling Dance's "a single one-handed melee weapon and nothing else in
         // your hands", a stance's —: the feat's own text, so the PC that can't use it gets the loadout that can, both sides.)

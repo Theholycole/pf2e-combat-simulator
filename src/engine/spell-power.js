@@ -91,7 +91,10 @@ const TRAIT_PACKAGES = {
     // feats for foes larger than the PC — Large, reach 10 feet.)
     giant: { traits: ["giant", "humanoid"], immunities: [], size: "large", reach: 10 },
     dragon: { traits: ["dragon"], immunities: [], size: "large", reach: 10 },
-    large: { size: "large", reach: 10 }
+    large: { size: "large", reach: 10 },
+    // (2026-11-07, Cole's pick "Water and flying fights": a fight under clear water — void.js's aquatic rules — against aquatic foes that
+    // swim at 30 feet, so the swim, water-breathing and aquatic feats have a fight where they matter.)
+    underwater: { aquatic: true, environment: { levels: { underwater: { level: "clear" } } } }
 };
 const TRAIT_ALIASES = { unholy: "fiend", holy: "celestial" };
 export const POWER_TRAITS = Object.freeze(Object.keys(TRAIT_PACKAGES));
@@ -122,6 +125,10 @@ export function powerFoes(kind, level, trait = null) {
         if (pack?.permanent) foe.permanent = [...(foe.permanent ?? []), ...pack.permanent.map((entry) => ({ ...entry }))];
         if (pack?.strikeType) foe.strikes = (foe.strikes ?? []).map((strike) => ({ ...strike, damage: (strike.damage ?? []).map((part) => ({ ...part, type: pack.strikeType })) }));
         if (pack?.flies) foe.flies = true;
+        if (pack?.aquatic) {
+            foe.traits = [...new Set([...(foe.traits ?? []), "aquatic"])];
+            foe.swimSpeed = 30;
+        }
         if (pack?.size) foe.size = pack.size;
         if (pack?.reach) foe.reach = pack.reach;
         if (pack?.biter && (foe.strikes ?? []).length) foe.strikes = [{ ...foe.strikes[0], name: "Jaws" }, { ...foe.strikes[0], name: "Claw", agile: true, damage: foe.strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: Math.max(4, part.die - 2), type: "slashing" } : part)) }];
