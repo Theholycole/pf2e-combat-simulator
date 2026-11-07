@@ -112,9 +112,8 @@ function outcomeCache(snapshot) {
 }
 
 function spreadPick(state, c) {
-    // (The PCs it could Strike this turn: beside it, or a Stride away — only melee foes.)
-    const melee = (c.strikes ?? []).some((strike) => strike.melee);
-    const engaged = state.list.filter((other) => other.side === "party" && isActive(other) && !other.familiar && other.kind !== "object" && !other.summonedBy && (sameMelee(c, other) || (melee && stridesToEngage(c, other) <= 1)));
+    // (The PCs beside it. A Stride away too made the foes too easy — a level-1 extreme fight won 95% of the time.)
+    const engaged = state.list.filter((other) => other.side === "party" && isActive(other) && !other.familiar && other.kind !== "object" && !other.summonedBy && sameMelee(c, other));
     if (engaged.length < 2) return null;
     let h = 2166136261;
     for (const ch of `${state.seed}:${state.round}:${c.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
