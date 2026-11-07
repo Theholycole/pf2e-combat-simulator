@@ -695,6 +695,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if ((slug === "grabbed" || slug === "restrained") && source && source !== target) target.grabbedBy = source.id;
     // (B197, Deadly Mandibles: a creature it just grabbed, its reaction Strike at it once the action ends.)
     if ((slug === "grabbed" || slug === "restrained") && !before && source && source !== target && (source.reactionStrikes ?? []).some((entry) => entry.triggers.includes("grabs")) && !(state.afterAction ?? []).some((entry) => entry.kind === "grab-strike" && entry.targetId === target.id)) (state.afterAction ??= []).push({ kind: "grab-strike", sourceId: source.id, targetId: target.id });
+    // (2026-11-07, Ankle Bite: a PC that's just been grabbed — its reaction Strike at the grabber once the action ends.)
+    if ((slug === "grabbed" || slug === "restrained") && !before && source && source !== target && source.side !== target.side && (target.reactionStrikes ?? []).some((entry) => entry.triggers.includes("grabbed"))) (state.afterAction ??= []).push({ kind: "grabbed-strike", sourceId: target.id, targetId: source.id });
     // Fast Swallow (B70): a creature it just grabbed, swallowed as its reaction once the action ends.
     if ((slug === "grabbed" || slug === "restrained") && !before && source?.fastSwallow && source !== target && !(state.afterAction ?? []).some((entry) => entry.targetId === target.id)) (state.afterAction ??= []).push({ kind: "fast-swallow", sourceId: source.id, targetId: target.id });
     if (Number.isFinite(rounds)) {

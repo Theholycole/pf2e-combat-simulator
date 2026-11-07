@@ -1255,6 +1255,9 @@ const HAND = {
     // (2026-11-04, reactions' Strikes: a riposte on a critical miss with the Aldori dueling sword; a ranged Strike when an ally's ranged
     // Strike hits (–2), or with +2 when an ally — the spotter — critically hits.)
     "aldori-riposte": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a riposte Strike on a critical miss (reaction)" }),
+    // (2026-11-07, Ankle Bite: a jaws Strike at a foe that grabs it — its best melee Strike when it has no jaws —, no multiple attack
+    // penalty, free of the grab on a critical hit.)
+    "ankle-bite": () => ({ builtins: { reactionStrikes: [{ name: "Ankle Bite", triggers: ["grabbed"], strike: "jaws", penalty: 0, disrupts: false, noMap: true, critFree: true }] }, played: "a Strike at a foe that grabs it, free of the grab on a critical hit (reaction)" }),
     "target-of-opportunity": () => ({ builtins: { reactionStrikes: [{ name: "Target of Opportunity", triggers: ["ally-hit"], allyRanged: true, ranged: true, strike: "", penalty: 2, disrupts: false }] }, played: "a ranged Strike (–2) when an ally's ranged Strike hits (reaction)" }),
     "exploit-opening": () => ({ builtins: { reactionStrikes: [{ name: "Exploit Opening", triggers: ["ally-hit"], critOnly: true, ranged: true, strike: "", penalty: -2, disrupts: false }] }, played: "a ranged Strike (+2) when an ally critically hits (reaction)" }),
     // (2026-11-05: Debilitating Strike's debilitation as clumsy 1 — the other new one, weakness 5 to a physical type, the engine has no

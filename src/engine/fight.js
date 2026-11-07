@@ -2015,6 +2015,25 @@ function afterAction(state) {
             performStrike(state, c, target, c.strikes[index]);
             continue;
         }
+        if (entry.kind === "grabbed-strike") {
+            const rule = c?.reactionStrikes?.find((each) => each.triggers.includes("grabbed"));
+            if (!rule || !isActive(c) || !isActive(target) || !canReact(c, rule.name) || c.grabbedBy !== target.id) continue;
+            const named = strikeNamed(c, rule.strike);
+            const index = named >= 0 ? named : (c.strikes ?? []).findIndex((each) => each.melee);
+            if (index < 0) continue;
+            spendReaction(c, rule.name);
+            state.stats.reactions++;
+            state.log?.push(`  ${c.name} uses ${rule.name}`);
+            const attacks = c.attacksThisTurn;
+            const result = performStrike(state, c, target, c.strikes[index], { reaction: true });
+            if (rule.noMap) c.attacksThisTurn = attacks;
+            if (rule.critFree && result?.degree === 3 && c.grabbedBy === target.id) {
+                c.cond.grabbed = false;
+                c.grabbedBy = null;
+                state.log?.push(`  ${c.name} is no longer grabbed`);
+            }
+            continue;
+        }
         if (entry.kind !== "fast-swallow" || !c || !target || !isActive(c) || !isActive(target) || !canReact(c, c.fastSwallow.name) || target.grabbedBy !== c.id || target.swallowedBy) continue;
         const index = (c.spells ?? []).findIndex((spell) => describeSpell(spell.plan).swallow);
         if (index < 0) continue;

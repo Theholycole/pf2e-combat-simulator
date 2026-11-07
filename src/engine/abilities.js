@@ -310,7 +310,7 @@ export function addBuiltin(spec, plan, name) {
                 // (B228: its AC lower against the triggering Strike; only after another of its kind's Strike of that name.)
                 ...(Number(plan.selfAcPenalty) > 0 ? { selfAcPenalty: Number(plan.selfAcPenalty) } : {}), ...(plan.kin ? { kin: true } : {}), ...(plan.allyStrike ? { allyStrike: plan.allyStrike } : {}),
                 // (B123: Quick Capture's grab on a hit; Deadly Cleave's same multiple attack penalty.)
-                ...(plan.grab ? { grab: true } : {}), ...(plan.sameMap ? { sameMap: true } : {}),
+                ...(plan.grab ? { grab: true } : {}), ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.critFree ? { critFree: true } : {}),
                 // (B129: Vengeful Sting's +2 damage on a hit.)
                 ...(Number(plan.damageBonus) ? { damageBonus: Number(plan.damageBonus) } : {}),
                 // (B207, Repartee Riposte: conditions on a hit, others on a critical hit.)
