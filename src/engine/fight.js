@@ -295,6 +295,11 @@ function initiativeDeeds(state) {
         // An exemplar's free Shift Immanence (C25).
         if (c.exemplar) sparkAtInitiative(state, c);
         if (c.energyShots) c.energyShotsLeft = c.energyShots;
+        // (2026-11-07, After You: panache as the fight begins.)
+        if (c.panacheAtStart) {
+            c.panache = true;
+            state.log?.push(`  ${c.name} gains panache (${c.panacheAtStart})`);
+        }
         // (2026-11-07, All This Has Happened Before: a feat's reaction as initiative is rolled — triggers.js.)
         if (c.featTriggers) featTriggers(state, c, "initiative");
     }

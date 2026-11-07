@@ -1783,7 +1783,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
         // The shield prevents up to its Hardness; it and the creature each take the rest.
         // (2026-11-07: Everstand Stance's +2 Hardness to block — c.blockHardness; Destructive Block's twice the Hardness off its own damage,
         // the shield taking twice the damage less its Hardness, when the shield survives that — c.destructiveBlock.)
-        const hardness = (shield.hardness ?? 0) + (shield.spell ? 0 : target.blockHardness ?? 0);
+        // (Fortify Shield: an effect's Hardness more, until its next turn — model.blockHardness.)
+        const hardness = (shield.hardness ?? 0) + (shield.spell ? 0 : (target.blockHardness ?? 0) + (target.effects ?? []).reduce((sum, effect) => sum + (Number(effect.model?.blockHardness) || 0), 0));
         const destructive = target.destructiveBlock && !shield.spell && shield.hp - Math.max(0, 2 * total - hardness) > shield.bt && total > hardness;
         const blocked = Math.min(total, destructive ? 2 * hardness : hardness);
         const shieldTakes = destructive ? Math.max(0, 2 * total - hardness) : total - blocked;

@@ -1446,6 +1446,8 @@ const HAND = {
     // champion has none. Destructive Block: twice the Hardness off the damage, the shield taking twice the damage less its Hardness, when
     // it survives that — actions.js.)
     "everstand-stance": () => ({ builtins: { blockHardness: 2 }, played: "+2 Hardness to Shield Block (the stance taken as on all fight)" }),
+    // (Fortify Shield: once a day, Raise a Shield with its level more Hardness to block until its next turn — once a fight.)
+    "fortify-shield": (level) => ({ builtins: { selfEffects: [{ name: "Fortify Shield", actions: 1, featForced: true, pool: "fortify-shield", model: { name: "Fortify Shield", rounds: 1, conditions: [], shieldUp: true, blockHardness: level } }] }, pools: { "fortify-shield": 1 }, played: `Raises its shield with +${level} Hardness to block (once a fight)` }),
     "destructive-block": () => ({ builtins: { destructiveBlock: true }, played: "Shield Block prevents twice its Hardness, the shield taking twice the damage" }),
     // (Desperate Prayer: once a day, a Focus Point at a turn start with none, for a devotion spell that turn — one more Lay on Hands a
     // fight, the champion's devotion spell.)
@@ -1454,6 +1456,10 @@ const HAND = {
         if (!host?.spellPools?.[pool]) return { gap: "no devotion spell of the PC's to spend it on" };
         return { builtins: {}, pools: { [pool]: host.spellPools[pool] + 1 }, played: "one more Lay on Hands a fight (its Focus Point at a turn start with none)" };
     },
+    // (After You: it goes last, with panache.)
+    "watchful-gaze": () => noFlankHand("Watchful Gaze"),
+    "augment-senses": () => noFlankHand("Augment Senses"),
+    "after-you": () => ({ builtins: { goesLast: true, panacheAtStart: "After You" }, played: "goes last with panache" }),
     "dwarven-doughtiness": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn" }),
     "calm-and-centered": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn (stupefied not played)" }),
     "sever-space": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, flourish: true, melee: true, strides: 3 })], played: "a melee Strike at a foe up to 80 feet away (flourish, 2 actions)" }),
@@ -2761,7 +2767,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "destructive-block": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer" };
+const CLASS_OVERRIDE = { "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
@@ -3388,6 +3394,11 @@ const FORCE = process.env.FEAT_FORCE !== "0";
 // (2026-11-05: a benchmark of its own — FEAT_FOE_TRAIT=saves, the rating foes with save abilities, spell-power.js —, in its own run folder.)
 const FOE_TRAIT = process.env.FEAT_FOE_TRAIT || null;
 // (2026-11-05: reactionStrikes too — actions.js puts a forced one ahead of Reactive Strike on a move or manipulate trigger.)
+// (2026-11-07: 1 action, can't be flanked until the start of its next turn — Watchful Gaze, Augment Senses.)
+function noFlankHand(name) {
+    return { builtins: { selfEffects: [{ name, actions: 1, featForced: true, model: { name, rounds: 1, conditions: [], noFlank: true } }] }, played: "can't be flanked until its next turn (1 action)" };
+}
+
 const FORCED_FIELDS = ["strikeActivities", "multiStrikes", "selfEffects", "selfBuffs", "charges", "skillSweeps", "reactionStrikes"];
 
 // Loadouts for a feat's requirement the party's own weapons don't meet: the PC's main weapon changed for others of the same runes.
