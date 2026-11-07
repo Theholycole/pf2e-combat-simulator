@@ -71,6 +71,14 @@ Each basic action left out of every PC, at levels 1, 5, 10, 15 and 20: what the 
 
 | Action | Rating (levels) | Uses a fight (level 10 boss) |
 |---|---:|---:|
+| Demoralize | +0.01 ± 0.01 | 0.6 |
+| Trip | +0.00 ± 0.00 | 0.0 |
+| Feint | +0.00 ± 0.00 | 0.0 |
+| Disarm | +0.00 ± 0.00 | 0.0 |
+| Escape | +0.00 ± 0.00 | 0.0 |
+| Reposition | +0.00 ± 0.00 | 0.0 |
+| Shove | −0.00 ± 0.00 | 0.0 |
+| Grapple | −0.01 ± 0.00 | 0.2 |
 
 ## Every rated feat and action
 
