@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 2210: in whole fights, or 107 combo feats from the basic actions they fold in (docs/combo-feats.md). **4156 it doesn't.**
-- **2910** are in neither.
+- **The simulator** rates 2220: in whole fights, or 108 combo feats from the basic actions they fold in (docs/combo-feats.md). **4146 it doesn't.**
+- **2908** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1369 | 862 |
-| archetype | 2074 | 1246 | 1354 | 947 |
-| ancestry | 1613 | 1086 | 1064 | 802 |
+| class | 2282 | 1088 | 1366 | 861 |
+| archetype | 2074 | 1246 | 1349 | 946 |
+| ancestry | 1613 | 1086 | 1062 | 802 |
 | skill | 340 | 261 | 325 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 9 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4156 | 2910 |
+| **All** | 6366 | 3725 | 4146 | 2908 |
 
 ## Why the feat module doesn't automate them
 
@@ -41,14 +41,14 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 255 | 214 | 317 | 59 | 14 | 4 |  | 863 |
 | no card: roleplay or nothing to automate | 157 | 201 | 150 | 46 | 9 |  |  | 563 |
-| no card: the feat module's reminder, which a fight doesn't play | 171 | 127 | 92 | 21 |  | 1 |  | 412 |
+| no card: the feat module's reminder, which a fight doesn't play | 170 | 126 | 92 | 21 |  | 1 |  | 410 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 80 | 38 | 111 | 2 |  |  | 322 |
 | no card: only grants other feats, features or choices | 86 | 123 | 47 | 16 | 2 |  |  | 274 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 51 | 49 | 44 | 21 | 1 |  |  | 166 |
 | no card: a combat passive no reader or hand plan covers yet | 49 | 58 | 29 | 13 | 2 |  | 1 | 152 |
 | a spell the engine doesn't cast | 25 | 32 | 63 | 1 |  |  |  | 121 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
-| a timer with no rules a fight counts | 52 | 26 | 17 | 4 |  | 1 |  | 100 |
+| a timer with no rules a fight counts | 52 | 25 | 17 | 4 |  | 1 |  | 99 |
 | a plan the engine can't play | 30 | 34 | 25 | 2 |  |  |  | 91 |
 | no card: a combat action no reader or hand plan covers yet | 24 | 27 | 13 | 4 | 1 |  |  | 69 |
 | no card: companions, familiars and eidolons | 34 | 25 | 1 | 5 |  |  |  | 65 |
@@ -60,9 +60,9 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: PF2e's own Effect, from the feat's Use button | 18 | 17 | 7 | 2 |  |  |  | 44 |
 | a passive's roll with no action to use it | 13 | 14 | 9 |  |  |  | 1 | 37 |
 | it grants one of 2 | 6 | 14 | 12 |  |  |  |  | 32 |
-| a spell the feat casts | 13 | 5 | 5 |  |  |  |  | 23 |
 | a passive's Effect posted by hand | 7 | 11 | 3 | 1 |  |  |  | 22 |
-| its Effect has nothing a fight counts | 4 | 11 | 4 | 2 |  |  |  | 21 |
+| a spell the feat casts | 13 | 4 | 4 |  |  |  |  | 21 |
+| its Effect has nothing a fight counts | 4 | 11 | 3 | 2 |  |  |  | 20 |
 | a passive's Effect on other creatures | 8 | 7 | 1 | 3 | 1 |  |  | 20 |
 | a teleport | 4 | 7 | 7 |  |  |  |  | 18 |
 | a reaction to "passive" | 8 | 5 | 4 |  |  |  |  | 17 |
@@ -84,7 +84,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | it grants Cast a Spell | 2 | 3 |  |  |  |  |  | 5 |
 | it grants Intimidating Glare |  |  | 5 |  |  |  |  | 5 |
 | it grants Terrain Stalker |  | 2 | 2 |  |  |  |  | 4 |
-| error | 2 | 2 |  |  |  |  |  | 4 |
 | an Effect on another creature | 2 | 2 |  |  |  |  |  | 4 |
 | it grants Verdant Core Deviant Classification | 4 |  |  |  |  |  |  | 4 |
 | a reaction to "strike" |  |  | 3 |  |  |  |  | 3 |
@@ -2771,7 +2770,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Beast Gunner Dedication | 6 | archetype | passive | rated -0.56 |
 | Cloaking Pulse | 6 | archetype | passive | it grants Drape Ambient Magic |
 | Daywalker (Vampire) | 6 | archetype | passive | no card: only grants other feats, features or choices |
-| Deflecting Pulse | 6 | archetype | passive | error |
+| Deflecting Pulse | 6 | archetype | passive | rated -0.16 |
 | Domain Spirit | 6 | archetype | passive | no card: only grants other feats, features or choices |
 | Eldritch Archer Dedication | 6 | archetype | passive | rated -0.56 |
 | Explosion | 6 | archetype | passive | rated 0.23 |
@@ -4024,7 +4023,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Apparition's Enhancement | 4 | class | free | no card: PF2e's own Effect, from the feat's Use button |
 | Exploding Bullet | 4 | class | 1 action | no card: PF2e's own Effect, from the feat's Use button |
 | Godspeed | 4 | class | 1 action | rated -0.01 |
-| Masquerade of Seasons Stance | 4 | class | 1 action | error |
+| Masquerade of Seasons Stance | 4 | class | 1 action | rated -0.06 |
 | Prayer-Touched Weapon | 4 | class | free | no card: PF2e's own Effect, from the feat's Use button |
 | Psi Strikes | 4 | class | free | no card: PF2e's own Effect, from the feat's Use button |
 | Diverting Vortex | 6 | class | 1 action | no card: PF2e's own Effect, from the feat's Use button |
@@ -4053,7 +4052,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (412)
+### no card: the feat module's reminder, which a fight doesn't play (410)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4215,7 +4214,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Dispute Terms | 10 | archetype | free | reminder | the feat module reads nothing for it |
 | Everyone Duck! | 10 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Expand Spiral | 10 | archetype | passive | reminder | the feat module reads nothing for it |
-| Fading | 10 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Ghostsong | 10 | archetype | passive | reminder | the feat module reads nothing for it |
 | Know It All (Eldritch Researcher) | 10 | archetype | passive | reminder | the feat module reads nothing for it |
 | Lasting Protection | 10 | archetype | passive | reminder | the feat module reads nothing for it |
@@ -4383,7 +4381,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Perfected Evaluations | 12 | class | passive | reminder | the feat module reads nothing for it |
 | Primal Focus | 12 | class | passive | reminder | the feat module reads nothing for it |
 | Rapid Spark | 12 | class | free | reminder | the feat module reads nothing for it |
-| Reflexive Stance | 12 | class | free | reminder | the feat module reads nothing for it |
 | Roll with it (Kingmaker) | 12 | class | reaction | reminder | the feat module reads nothing for it |
 | Summoner's Call | 12 | class | reaction | reminder | the feat module reads nothing for it |
 | Warden's Focus | 12 | class | passive | reminder | the feat module reads nothing for it |
@@ -4641,7 +4638,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Cloud Jump | 15 | skill | passive | by hand | the feat module reads nothing for it |
 | Legendary Survivalist | 15 | skill | passive | by hand | the feat module reads nothing for it |
 
-### a timer with no rules a fight counts (100)
+### a timer with no rules a fight counts (99)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4673,7 +4670,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Verduran Ambush | 6 | archetype | 3 actions | card | a timer with no rules a fight counts |
 | Dualistic Synergy | 8 | archetype | 1 action | card | a timer with no rules a fight counts |
 | Ghost Flight | 8 | archetype | 2 actions | card | a timer with no rules a fight counts |
-| Superimpose Time Duplicates | 8 | archetype | 1 action | card | a timer with no rules a fight counts |
 | A Hush Falls Over the World | 10 | archetype | 1 action | card | a timer with no rules a fight counts |
 | Command Attention | 10 | archetype | 1 action | card | a timer with no rules a fight counts |
 | Klingegeist | 10 | archetype | 2 actions | card | a timer with no rules a fight counts |
@@ -5095,34 +5091,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Mega Bomb | 20 | class | passive | card | a passive's roll with no action to use it |
 | Deathless Servant | 18 | class feature | passive | card | a passive's roll with no action to use it |
 
-### a spell the feat casts (23)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Reveal Hidden Self | 5 | ancestry | 3 actions | card | a spell the feat casts |
-| Build the First Walls | 9 | ancestry | 3 actions | card | a spell the feat casts |
-| Submerged Stillness | 9 | ancestry | 2 actions | card | a spell the feat casts |
-| Heroic Presence | 17 | ancestry | 1 action | card | a spell the feat casts |
-| True Gaze | 17 | ancestry | 1 action | card | a spell the feat casts |
-| Semblance of Life | 4 | archetype | free | card | a spell the feat casts |
-| Fey's Trickery | 8 | archetype | 2 actions | card | a spell the feat casts |
-| Terrain Form | 10 | archetype | 1 action | card | a spell the feat casts |
-| Emergency Regeneration | 16 | archetype | reaction | card | a spell the feat casts |
-| Burn Identity | 18 | archetype | 2 actions | card | a spell the feat casts |
-| Whisper on the Wind | 1 | class | 1 action | card | a spell the feat casts |
-| Plate in Treasure | 4 | class | 1 action | card | a spell the feat casts |
-| Return to the Sea | 4 | class | 2 actions | card | a spell the feat casts |
-| Animal Rage | 8 | class | 1 action | card | a spell the feat casts |
-| Epiphany at the Crossroads | 12 | class | free | card | a spell the feat casts |
-| Rattle the Earth | 12 | class | 2 actions | card | a spell the feat casts |
-| Rock Rampart | 12 | class | 3 actions | card | a spell the feat casts |
-| Barrier of Boreal Frost | 14 | class | 3 actions | card | a spell the feat casts |
-| Reactive Transformation | 14 | class | reaction | card | a spell the feat casts |
-| Dragon Transformation | 16 | class | 1 action | card | a spell the feat casts |
-| Too Much to Swallow | 16 | class | reaction | card | a spell the feat casts |
-| Head of the Night Parade | 20 | class | 3 actions | card | a spell the feat casts |
-| Quaking Stomp | 20 | class | 1 action | card | a spell the feat casts |
-
 ### a passive's Effect posted by hand (22)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5150,11 +5118,36 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Great Shield Mastery | 20 | class | passive | card | a passive's Effect posted by hand |
 | Sure Foot | 4 | skill | passive | card | a passive's Effect posted by hand |
 
-### its Effect has nothing a fight counts (21)
+### a spell the feat casts (21)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
-| Cringe | 1 | ancestry | reaction | card | its Effect has nothing a fight counts |
+| Reveal Hidden Self | 5 | ancestry | 3 actions | card | a spell the feat casts |
+| Build the First Walls | 9 | ancestry | 3 actions | card | a spell the feat casts |
+| Heroic Presence | 17 | ancestry | 1 action | card | a spell the feat casts |
+| True Gaze | 17 | ancestry | 1 action | card | a spell the feat casts |
+| Semblance of Life | 4 | archetype | free | card | a spell the feat casts |
+| Terrain Form | 10 | archetype | 1 action | card | a spell the feat casts |
+| Emergency Regeneration | 16 | archetype | reaction | card | a spell the feat casts |
+| Burn Identity | 18 | archetype | 2 actions | card | a spell the feat casts |
+| Whisper on the Wind | 1 | class | 1 action | card | a spell the feat casts |
+| Plate in Treasure | 4 | class | 1 action | card | a spell the feat casts |
+| Return to the Sea | 4 | class | 2 actions | card | a spell the feat casts |
+| Animal Rage | 8 | class | 1 action | card | a spell the feat casts |
+| Epiphany at the Crossroads | 12 | class | free | card | a spell the feat casts |
+| Rattle the Earth | 12 | class | 2 actions | card | a spell the feat casts |
+| Rock Rampart | 12 | class | 3 actions | card | a spell the feat casts |
+| Barrier of Boreal Frost | 14 | class | 3 actions | card | a spell the feat casts |
+| Reactive Transformation | 14 | class | reaction | card | a spell the feat casts |
+| Dragon Transformation | 16 | class | 1 action | card | a spell the feat casts |
+| Too Much to Swallow | 16 | class | reaction | card | a spell the feat casts |
+| Head of the Night Parade | 20 | class | 3 actions | card | a spell the feat casts |
+| Quaking Stomp | 20 | class | 1 action | card | a spell the feat casts |
+
+### its Effect has nothing a fight counts (20)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
 | Hunter's Defense | 1 | ancestry | reaction | card | its Effect has nothing a fight counts |
 | Fierce Competitor | 9 | ancestry | 2 actions | card | its Effect has nothing a fight counts |
 | Sharpened Senses | 13 | ancestry | free | card | its Effect has nothing a fight counts |
@@ -5457,13 +5450,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 |---|---:|---|---|---|---|
 | Borrowed Ability | 2 | class | 1 action | card | it grants Leech Deviant Classification: the feat module reads nothing for it |
 | Feed the Void | 10 | class | 2 actions | card | it grants Leech Deviant Classification: the feat module reads nothing for it |
-
-### error (2)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Elementalist Dedication | 2 | archetype | passive | card | task: Cannot read properties of undefined (reading 'map') |
-| Pirouette | 6 | class | reaction | reminder | task: Cannot read properties of undefined (reading 'map') |
 
 ### a reaction to "damaged" (1)
 

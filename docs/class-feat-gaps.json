@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1552,
+ "rated": 1555,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -5972,26 +5972,6 @@
    "text": "You topple your foes with your legs and attack them while they're down. You [[/act trip]] a creature within reach without needing a free hand. If you succeed, you can make a melee Strike against that creature. Your multiple attack penalty d"
   },
   {
-   "id": "EoKgJXfNfHwsy2sk",
-   "name": "Superimpose Time Duplicates",
-   "level": 8,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 1,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a timer with no rules a fight counts",
-   "detail": "a timer with no rules a fight counts",
-   "text": "Frequency once per hour You call alternate versions of yourself, either from a different timeline or perhaps yourself from a different point in your current timeline, to aid you in combat. Until the start of your next turn, these alternate "
-  },
-  {
    "id": "ossGwqEvC6ifPwgT",
    "name": "Swap Reflections",
    "level": 8,
@@ -6457,27 +6437,6 @@
    "reason": null,
    "detail": null,
    "text": "Trigger You fail, but don't critically fail, an attempt to Disable a Device on a trap. You intentionally set off the trap, but you take special precautions to protect yourself and your allies from the trap's effects. For the next 2 rounds, "
-  },
-  {
-   "id": "orTWiRwIQEc9FGJQ",
-   "name": "Fading",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "teleportation"
-   ],
-   "rarity": "rare",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Frequency once per Crimson Shroud Trigger You are targeted with a Strike by someone you can detect. Requirements Your Crimson Shroud is active. You partially fade from reality. The attacker must attempt a @Check[flat|dc:11]; on a failure, t"
   },
   {
    "id": "DUpcEx0yMHGSU6o5",
@@ -48707,29 +48666,6 @@
    "reason": "it grants Slippery Secrets: the feat module reads nothing for it",
    "detail": "it grants Slippery Secrets: the feat module reads nothing for it",
    "text": "You are able to escape inquisitions involving divine magic, allowing you to blend in well in Mzali but also to avoid unwanted attention in other oppressive theocracies. You gain the Slippery Secrets skill feat, and its benefits also apply a"
-  },
-  {
-   "id": "XY2uS7pMKRLVNQKG",
-   "name": "Fey's Trickery",
-   "level": 8,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "archetype",
-    "illusion",
-    "primal",
-    "subtle"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the feat casts",
-   "detail": "a spell the feat casts",
-   "text": "Frequency once per hour You connect with the fey trickster within yourself to momentarily vanish from sight. This has the effects of Invisibility."
   },
   {
    "id": "gPiYj2vgWm0CNoGW",
