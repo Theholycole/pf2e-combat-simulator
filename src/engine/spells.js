@@ -653,8 +653,11 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if (negate && (target.negateConditionUses ?? 0) > 0 && source && source.side !== target.side && !NOT_HARMFUL.has(slug) && (!negate.conditions || negate.conditions.includes(slug)) && isActive(target) && canReact(target)) {
         target.negateConditionUses--;
         target.reactionUsed = true;
+        // (2026-11-07, Polymorphic Escape: a flat check first; on a failure the reaction is spent and the condition lands.)
+        const flatFailed = negate.flat && flatCheck(state.rng, negate.flat) < SUCCESS;
+        if (flatFailed) log(state, `  ${target.name} uses ${negate.name}: the flat check fails`);
         // (B226, Fearless Rush: the value lower, then a Stride toward the creature that frightened it.)
-        if (negate.reduceBy) {
+        else if (negate.reduceBy) {
             const lower = (Number.isFinite(value) ? value : 1) - negate.reduceBy;
             log(state, `  ${target.name} uses ${negate.name}: ${slug} ${Math.max(0, lower)}`);
             if (negate.stride && isActive(source) && !sameMelee(target, source) && canMove(target)) stride(state, target, { kind: "engage", targetId: source.id });

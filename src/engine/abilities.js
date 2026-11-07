@@ -400,7 +400,9 @@ export function addBuiltin(spec, plan, name) {
             spec.negateCondition = { name, ...(plan.conditions?.length ? { conditions: [...plan.conditions] } : {}),
                 // (B226, Fearless Rush: the condition 1 lower, then a Stride toward the foe — every time, its reaction allowing.)
                 ...(Number(plan.reduceBy) > 0 ? { reduceBy: Number(plan.reduceBy) } : {}), ...(plan.stride ? { stride: plan.stride } : {}) };
-            spec.negateConditionUses = Number(plan.reduceBy) > 0 ? Infinity : 1;
+            spec.negateConditionUses = Number(plan.uses) > 0 ? Number(plan.uses) : Number(plan.reduceBy) > 0 || plan.uses === Infinity ? Infinity : 1;
+            // (2026-11-07, Polymorphic Escape: a flat check first, its reaction spent either way.)
+            if (Number(plan.flat) > 0) spec.negateCondition.flat = Number(plan.flat);
             return true;
         // Quickened Casting (B72): its next spell (of that rank or lower) one action fewer, once a fight.
         case "quickened-casting":

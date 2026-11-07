@@ -106,6 +106,7 @@ export function createCombatant(spec) {
         // (2026-11-07: and Hardening Necrosis's resistance's, Fading's flat check's — before, spent in one fight, gone in the rest.)
         ...(spec.critResistance ? { critResistance: { ...spec.critResistance } } : {}),
         ...(spec.concealReaction ? { concealReaction: { ...spec.concealReaction } } : {}),
+        ...(Number(spec.acReaction?.uses) > 0 ? { acReactionUses: Number(spec.acReaction.uses) } : {}),
         // A magus starts a fight with Spellstrike charged.
         ...(spec.spellstrike ? { spellstrikeCharged: spec.spellstrikeCharged ?? true } : {}),
         timers: []

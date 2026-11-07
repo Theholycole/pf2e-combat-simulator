@@ -8,6 +8,7 @@
 //   In levels: the scale's own step there — the same party against those foes a level up and a level down (the "scale" phase) —, so +0.5
 //   means having the feat is like fighting foes half a level lower.
 //   A basic action (Demoralize, Trip …): the other way round, every PC without it.
+import { SIM_WHY } from "./sim-why.mjs";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 
@@ -1400,6 +1401,18 @@ const HAND = {
     "snap-falling-fruit": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Snap Falling Fruit", against: "ranged" } }, played: "+2 AC against a ranged attack (reaction)" }),
     "redirecting-draft": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Redirecting Draft", against: "ranged" } }, played: "+2 AC against a ranged attack (reaction)" }),
     // (+2 to a save against an emotion effect — the engine's saveBonusReaction; the temporary Hit Points and free Demoralize aren't played.)
+    // (2026-11-07, the simulator phase — Cole: "focus on building the feats first then implementing them into the simulator": the PC
+    // reactions the feat module only reminds about, on the engine's reaction fields.) Deflecting Jewel: +2 AC against a ranged attack,
+    // once a fight (once an hour). Instinctive Obfuscation: an attack on it misses on the attacker's failed DC 10 flat check, once a fight
+    // (once an hour). Polymorphic Escape: grabbed, immobilized, prone or restrained ignored on a DC 16 flat check (its Step not played).
+    // Shed Tail: grabbed ended, once a fight (its tail grows back in a day; the Stride not played). Leshy Superstition: +1 to a save against
+    // a spell or magical effect. Know Oneself: a critically failed save against an emotion effect a failure, once a fight (once a day).
+    "deflecting-jewel": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Deflecting Jewel", against: "ranged", uses: 1 } }, played: "+2 AC against a ranged attack (reaction, once a fight)" }),
+    "instinctive-obfuscation": () => ({ builtins: { concealReaction: { name: "Instinctive Obfuscation", dc: 10, ranged: false, uses: 1 } }, played: "an attack on it misses on a failed DC 10 flat check (reaction, once a fight)" }),
+    "polymorphic-escape": () => ({ builtins: {}, plans: [{ builtin: "negate-condition", conditions: ["grabbed", "immobilized", "prone", "restrained"], flat: 16, uses: Infinity }], played: "grabbed, immobilized, prone or restrained ignored on a DC 16 flat check (reaction)" }),
+    "shed-tail": () => ({ builtins: {}, plans: [{ builtin: "negate-condition", conditions: ["grabbed"], uses: 1 }], played: "grabbed ended (reaction, once a fight)" }),
+    "leshy-superstition": () => ({ builtins: { saveBonusReaction: { name: "Leshy Superstition", value: 1, against: "magical" } }, played: "+1 to a save against a spell or magical effect (reaction)" }),
+    "know-oneself": () => ({ builtins: {}, plans: [{ builtin: "save-boost", criticalOnly: true, against: ["emotion"], uses: 1 }], played: "a critically failed save against an emotion effect a failure (reaction, once a fight)" }),
     "stoic-as-hell": () => ({ builtins: { saveBonusReaction: { name: "Stoic as Hell", value: 2, against: "emotion" } }, played: "+2 to a save against an emotion effect (reaction)" }),
     // (Electricity and sonic equal to its weapon dice on its melee Strikes until the end of its next turn; the Grapple damage isn't played.)
     "heavens-thunder": (level) => {
@@ -2221,6 +2234,11 @@ const ZERO_HP = {
     "cracked-mountain": { ferocity: { hp: 1, wounded: true, uses: 1, strike: true } },
     // (2026-11-04: 1 Hit Point and its level in temporary Hit Points for a round — counted as Hit Points —, wounded 1 more; once an hour.)
     "keep-up-the-good-fight": { ferocity: { hp: (level) => 1 + level, wounded: true, uses: 1 } },
+    // (2026-11-07, Noble Bloom: an ally within 30 feet kept at 1 Hit Point, once a fight (once a day) — both wounded 1 more, not played.
+    // Willing Death: the damage that would drop an ally within 30 feet 1 + its level lower, taken itself — played as the ally kept at 1
+    // Hit Point, once a fight (once a day); its own damage from it isn't.)
+    "noble-bloom": { rescue: { within: 30, hp: 1, uses: 1 } },
+    "willing-death": { rescue: { within: 30, hp: 1, uses: 1 } },
     "cant-fall-here": { rescue: { within: 5, hp: 1, uses: 1 } },
     caterwaul: { rescue: { within: 30, hp: 1, uses: 1 } },
     // (2026-11-07: 1 Hit Point and temporary ones equal to its level plus its key attribute — played as Hit Points; the entity's +1 to
@@ -2304,14 +2322,17 @@ function selfEffectEntry(doc, level, builtins, wields) {
     if (!uuid || !["action", "free"].includes(type)) return null;
     // (Its requirement, Mountain Stance's "You are unarmored": what the PC wears and wields meets it, or it isn't played.)
     const requirement = requirementText(doc);
-    if (requirement && meetsWielding(requirement, wields) !== true) return meetsWielding(requirement, wields) === false ? { unmet: requirement } : null;
-    if (type === "free" && /<strong>\s*(?:Trigger|Requirements?)\s*<\/strong>/i.test(doc.system?.description?.value ?? "")) return null;
+    // (2026-11-07, the simulator phase: Energy Ward's, Psi Strikes' and Prayer-Touched Weapon's "Your most recent action was to cast a
+    // (non-cantrip) spell": the self-effect's after-cast need, as the hand entries Divine Weapon's and Bespell Strikes' are.)
+    const afterCast = requirement && /^your (?:most recent|previous|last) action was to cast a (?:non-cantrip )?(?:[\w-]+ )?spell(?: that dealt energy damage)?\.?$|^your most recent action was to cast a spell or to unleash your psyche\.?$/i.test(requirement.replace(/@uuid\[[^\]]*\]\{([^}]*)\}/gi, "$1")) ? { requires: "after-cast", ...(/non-cantrip/i.test(requirement) ? { nonCantrip: true } : {}) } : null;
+    if (requirement && !afterCast && meetsWielding(requirement, wields) !== true) return meetsWielding(requirement, wields) === false ? { unmet: requirement } : null;
+    if (type === "free" && !afterCast && /<strong>\s*(?:Trigger|Requirements?)\s*<\/strong>/i.test(doc.system?.description?.value ?? "")) return null;
     const effect = effectDoc(uuid);
     if (!effect) return null;
     const model = effectModel(effect, { rank: level, actorLevel: level, conditionSlug });
     if (!(model.modifiers.length || model.tempHp || model.fastHealing || model.resistances.length || model.conditions.length || model.strikeParts || model.grantedStrikes?.length)) return null;
     const stance = (doc.system?.traits?.value ?? []).includes("stance");
-    addBuiltin(builtins, { builtin: "self-effect", actions: type === "free" ? 0 : Number(doc.system?.actions?.value) || 1, stance, model }, doc.name);
+    addBuiltin(builtins, { builtin: "self-effect", actions: type === "free" ? 0 : Number(doc.system?.actions?.value) || 1, stance, model, ...(afterCast ?? {}) }, doc.name);
     return { spells: [], pools: {}, gap: null, played: stance ? "PF2e's stance Effect" : "PF2e's self Effect" };
 }
 
@@ -2522,6 +2543,8 @@ const CLASS_OVERRIDE = { "perfect-strike": "monk", "reflexive-shield": "guardian
 export function partyWithFeat(doc, level, options = {}) {
     const result = partyWithFeatOwn(doc, level, options);
     if (!result.skipped || options.granted) return result;
+    // (2026-11-07: a trigger no benchmark fight has — tools/lib/sim-why.mjs.)
+    if (SIM_WHY[doc.name]) return { ...result, reason: `never in a benchmark fight: ${SIM_WHY[doc.name]}` };
     // (2026-11-03, the class feats no fight played: Bastion Dedication's "You gain the Reactive Shield fighter feat", Dual-Weapon Warrior
     // Dedication's Double Slice — a feat that only grants another: played as that feat.)
     // (2026-11-03: or an action from the actions pack — Stone Brawler Dedication's "You gain the Stonestrike Stance action", Stalwart

@@ -380,7 +380,8 @@ function computeHitDamage(attacker, strike, target, critical, penalty, offGuardC
 // An AC reaction for only melee or only ranged attacks ("An adjacent enemy targets the swarm with a Strike", "targeted by a
 // physical ranged Strike"; B45).
 // (B289, Meat Shield: only while it holds a creature — requires "grabbed".)
-const dodges = (reaction, strike, state = null, c = null) => (!reaction.against || (reaction.against === "melee") === Boolean(strike.melee))
+// (2026-11-07, Deflecting Jewel: its uses a fight — c.acReactionUses, combatant.js —, when it has them.)
+const dodges = (reaction, strike, state = null, c = null) => (!(c && reaction === c.acReaction && (c.acReactionUses ?? Infinity) <= 0)) && (!reaction.against || (reaction.against === "melee") === Boolean(strike.melee))
     && (reaction.requires !== "grabbed" || Boolean(state?.list?.some((other) => other.grabbedBy === c?.id && (other.cond.grabbed || other.cond.restrained))));
 
 // (2026-11-05, Foresee Danger, Sense the Strike: "the triggering attack roll targets your Perception (or a skill) DC instead of your AC" —
@@ -589,6 +590,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         defence = target.acReaction.dcInstead ? insteadOfAC(target, ac) : target.acReaction.value;
         deflected = true;
         spendReaction(target, target.acReaction.name);
+        if (Number.isFinite(target.acReactionUses)) target.acReactionUses--;
         // (2026-11-07, Arc of Destruction, Not This Time: a Mythic Point each.)
         if (target.acReaction.mythic) target.mythicPoints--;
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
@@ -697,6 +699,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             defence = target.acReaction.value;
             degree = lower;
             spendReaction(target, target.acReaction.name);
+        if (Number.isFinite(target.acReactionUses)) target.acReactionUses--;
             if (target.acReaction.mythic) target.mythicPoints--;
             log(state, `  ${target.name} uses ${target.acReaction.name}`);
         }
