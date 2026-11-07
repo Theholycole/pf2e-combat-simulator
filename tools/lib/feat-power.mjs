@@ -312,7 +312,7 @@ const ORDINAL = "(\\d+)(?:st|nd|rd|th)";
 // The spells a feat's text has its user cast innately: [{ spell, castRank, pool uses (0: at will) }]. Its rank: the text's ("5th-rank",
 // "as a 7th-rank innate spell"), else heightened to half the PC's level rounded up where it says so or for a cantrip, else the spell's own.
 const FOCUS_GRANT = /\bYou (?:gain|learn)(?: either)? (?:the|a|an|your choice of the|one) [^.]*?\b(?:focus spells?|(?:composition|hex|link|conflux|grave|order|warden|devotion|ki|qi|domain|bloodline|school|revelation|apparition|eidolon) (?:cantrip|spell)s?)\b/i;
-const SPELL_EFFECT_FEATS = new Set(["animal-rage", "quaking-stomp", "heroic-presence", "dragon-transformation", "head-of-the-night-parade", "plate-in-treasure", "rattle-the-earth"]);
+const SPELL_EFFECT_FEATS = new Set(["qi-spells", "animal-rage", "quaking-stomp", "heroic-presence", "dragon-transformation", "head-of-the-night-parade", "plate-in-treasure", "rattle-the-earth"]);
 export function innateSpells(doc, level) {
     const text = String(doc.system?.description?.value ?? "");
     // (2026-11-04, Cole: "Automate the spellcasting and companion feats not handled by other modules": or a focus spell or cantrip it
@@ -322,7 +322,8 @@ export function innateSpells(doc, level) {
     // (2026-11-07: or a spell whose effects it has — Quaking Stomp's "the effects of the Earthquake spell", Animal Rage's 3rd-rank Animal
     // Form, Head of the Night Parade's "cast 8th-rank Mad Monkeys" —, played as that spell cast; once a fight unless it says at will.)
     // Only these: others with such a sentence were read by hand as outside a fight (sim-why.mjs — Many Faces' disguise).
-    const effectsOf = SPELL_EFFECT_FEATS.has(slugOf(doc)) && /\b(?:effects? of|cast)\b[^.]{0,40}@UUID\[Compendium\.pf2e\.spells-srd/i.test(text);
+    // (Qi Spells' "You gain Inner Upheaval, Qi Rush, or another …": its choice of qi spell, once a fight.)
+    const effectsOf = SPELL_EFFECT_FEATS.has(slugOf(doc)) && /\b(?:effects? of|cast|You gain)\b[^.]{0,40}@UUID\[Compendium\.pf2e\.spells-srd/i.test(text);
     if (!/\binnate\b/i.test(text) && !focus && !effectsOf) return [];
     const half = Math.max(1, Math.ceil(level / 2));
     const found = [];
@@ -1593,6 +1594,26 @@ const HAND = {
     "even-the-odds": () => ({ builtins: { evenTheOdds: true }, played: "panache as its turn begins while two foes are beside it (once a fight)" }),
     // Patronize the Arts: an ally's critical hit, temporary Hit Points half its level + Charisma — once each ally (actions.js).
     "patronize-the-arts": (level) => ({ builtins: { patronize: Math.ceil(level / 2) + (level >= 10 ? 4 : 3) }, played: `an ally's critical hit gives it ${Math.ceil(level / 2) + (level >= 10 ? 4 : 3)} temporary Hit Points (reaction, once each ally)` }),
+    // Align Qi: a monk-trait spell heals it level + Wisdom (4), once a fight (fight.js).
+    "align-qi": (level) => ({ builtins: { alignQi: level + 4 }, played: `${level + 4} HP after a spell with the monk trait (reaction, once a fight)` }),
+    // Belay That!: an ally's critically failed Strike — its next Strike at that one's multiple attack penalty (reaction; actions.js).
+    "belay-that": () => ({ builtins: { belayThat: true }, played: "an ally's next Strike after a critical miss at that Strike's multiple attack penalty (reaction)" }),
+    // Roll the Bones of Fate: played as its "Good" — the next attack roll twice, the higher kept (1 action, once a fight); the other results not played.
+    "roll-the-bones-of-fate": () => ({ builtins: { selfEffects: [{ name: "Roll the Bones of Fate", actions: 1, featForced: true, pool: "roll-the-bones", model: { name: "Roll the Bones of Fate", rounds: 10, fortune: { on: "attack", keep: "higher" }, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, pools: { "roll-the-bones": 1 }, played: "its next attack rolled twice, the higher kept (1 action, once a fight; played as the Good result)" }),
+    // Warp Likeness: after a melee hit, Fortitude against its DC — clumsy 1 / and sickened 1 / clumsy for a minute and sickened 2; once a
+    // fight, played free on the hit (its action not spent).
+    "warp-likeness": () => ({ builtins: { strikeExtras: [{ when: "hit", melee: true, onceKey: "warp-likeness", save: { statistic: "fortitude", outcomes: [[["clumsy", 1, 10], ["sickened", 2, null]], [["clumsy", 1, 1], ["sickened", 1, null]], [["clumsy", 1, 1]], []] }, source: "Warp Likeness" }] }, played: "a melee hit's Fortitude save: clumsy 1, sickened 1 or 2 (once a fight; its own action not spent)" }),
+    // Bonekeeper's Bane: a foe starting its turn beside it, a Will save or -1 to attacks (fight.js).
+    "bonekeepers-bane": (level, host) => ({ builtins: { bonekeeperBane: Math.max(dcsOf(host).class ?? 0, dcsOf(host).spell ?? 0) || 10 + level + 2 + 4 }, played: "a foe starting its turn beside it: Will save or -1 status to its attacks (once each foe)" }),
+    // Roll with It: half the damage of a hit that would drop it (its flat check's minimum damage), prone after; once a fight. Its move and
+    // stunned not played.
+    "roll-with-it": () => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: "half", attack: true, foe: true, lethal: true, uses: 1 }], played: "half the damage of a melee hit that would drop it (reaction, once a fight; its stunned and move not played)" }),
+    // Hematocritical: its critical hit gives its next attack a roll twice (fortune) — the spell attack it names played as any attack.
+    "hematocritical": () => ({ builtins: { strikeExtras: [{ when: "critical", selfModel: { name: "Hematocritical", rounds: 1, fortune: { on: "attack", keep: "higher" } }, source: "Hematocritical" }] }, played: "after its critical hit, its next attack rolled twice (fortune)" }),
+    // Pride in Arms: an ally's kill — 4 temporary Hit Points to it (reaction; triggers.js).
+    "pride-in-arms": () => ({ builtins: { prideInArms: 4 }, played: "an ally that drops a foe gains 4 temporary Hit Points (reaction)" }),
+    // Infiltrator's Blitz: three Strides, a Strike with each (3 actions, once a fight — fatigued after, not played).
+    "infiltrators-blitz": () => ({ builtins: { multiStrikes: [{ name: "Infiltrator's Blitz", actions: 3, strikes: [null, null, null], strides: 1, pool: "infiltrators-blitz" }] }, pools: { "infiltrators-blitz": 1 }, played: "three Strikes with Strides (3 actions, once a fight; fatigued after not played)" }),
     "boasters-challenge": (level) => { const bonus = level >= 15 ? 6 : level >= 7 ? 4 : 2; return { builtins: { selfEffects: [{ name: "Boaster's Challenge", actions: 1, featForced: true, pool: "boasters-challenge", model: { name: "Boaster's Challenge", rounds: 2, modifiers: [{ on: "damage", type: "status", value: bonus }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, pools: { "boasters-challenge": 1 }, played: `+${bonus} status to its Strikes' damage to the end of its next turn (1 action, once a fight; its check played as a success)` }; },
     "nimble-form": () => ({ builtins: { nimbleForm: true }, played: "its eidolon's agile attacks at -3/-6 for the multiple attack penalty" }),
     "predictable": () => ({ builtins: { selfEffects: [{ name: "Predictable!", actions: 1, featForced: true, model: { name: "Predictable!", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 1 }, { on: "saving-throw", type: "circumstance", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, played: "+1 AC and saves until its next turn (1 action; its Perception check played as a success)" }),
@@ -2941,7 +2962,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle", "bleed-out": "sorcerer", "dark-personas-presence": "psychic", "coven-spell": "witch", "feed-on-pain": "psychic", "blood-pool": "necromancer", "even-the-odds": "swashbuckler", "just-as-planned": "investigator" };
+const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle", "bleed-out": "sorcerer", "dark-personas-presence": "psychic", "coven-spell": "witch", "feed-on-pain": "psychic", "blood-pool": "necromancer", "even-the-odds": "swashbuckler", "just-as-planned": "investigator", "align-qi": "monk", "roll-the-bones-of-fate": "oracle" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
@@ -3049,7 +3070,7 @@ function itemMatches(item, filter) {
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
 // (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
 const STANCE_SPELL_FEATS = { "wild winds stance": "Wild Winds Initiate", "clinging shadows stance": "Clinging Shadows Initiate" };
-const BASE_FEATS = { "echoing-fury": "Temporal Fury", "undying-ferocity": "Orc Ferocity", "tetraelemental-assault": "Elemental Assault", "breath-unleashed": "Kobold Breath", "tempest-gaze": "Storming Gaze", "deadly-mutation": "Ostilli Host Dedication", "spraying-mutation": "Ostilli Host Dedication", "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
+const BASE_FEATS = { "align-qi": "Qi Spells", "echoing-fury": "Temporal Fury", "undying-ferocity": "Orc Ferocity", "tetraelemental-assault": "Elemental Assault", "breath-unleashed": "Kobold Breath", "tempest-gaze": "Storming Gaze", "deadly-mutation": "Ostilli Host Dedication", "spraying-mutation": "Ostilli Host Dedication", "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
 
 // (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
 // rank — half the druid's level, rounded up —, a 2-action focus spell; the engine's battle forms (effects.js enterForm) take its best shape.

@@ -571,6 +571,18 @@ function startTurn(state, c) {
         c.panache = true;
         state.log?.push(`  ${c.name} gains panache (Even the Odds)`);
     }
+    // (2026-11-07, Bonekeeper's Bane: a foe starting its turn beside one — a Will save against its class or spell DC, once a fight each foe;
+    // on a failure -1 status to its attacks while beside it (played for the fight).)
+    if (c.status === ACTIVE) {
+        for (const keeper of state.list) {
+            if (!keeper.bonekeeperBane || keeper.side === c.side || !isActive(keeper) || !sameMelee(c, keeper) || (keeper.baneTried ??= new Set()).has(c.id)) continue;
+            keeper.baneTried.add(c.id);
+            const natural = state.rng.d20();
+            const failed = natural + saveModifier(c, "will") < keeper.bonekeeperBane && natural !== 20;
+            state.log?.push(`  ${c.name} Will save against Bonekeeper's Bane: ${failed ? "failure" : "success"}`);
+            if (failed) applyEffect(state, c, { name: "Bonekeeper's Bane", rounds: 10, modifiers: [{ on: "attack", type: "status", value: -1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, keeper, { applyCondition, key: "bonekeepers-bane" });
+        }
+    }
     if (c.foretold) {
         const { amount, by } = c.foretold;
         c.foretold = null;
@@ -1164,6 +1176,14 @@ function actOn(state, c, action) {
             }
             const drained = (spell?.vampiric || spell?.forcible || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
+            // (2026-11-07, Align Qi: a spell with the monk trait — its level + Wisdom in Hit Points, once a fight (an hour; reaction).)
+            if (c.alignQi && !c.alignedQi && spell && (spell.plan?.traits ?? []).includes("monk") && isActive(c) && canReact(c, "Align Qi") && c.hp.value < c.hp.max) {
+                spendReaction(c, "Align Qi");
+                c.alignedQi = true;
+                const healed = Math.min(c.alignQi, c.hp.max - c.hp.value);
+                c.hp.value += healed;
+                state.log?.push(`  ${c.name} uses Align Qi: regains ${healed} HP`);
+            }
             // (2026-11-07, Shining Runes: a spell of more than one action — concealed from its foes until its next turn starts.)
             if (c.shiningRunes && spell && (!spell.kind || spell.castsSpell) && castActions(c, action) >= 2 && isActive(c) && !c.cond.concealed && applyCondition(state, c, "concealed", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start" }, c)) state.log?.push(`  ${c.name} is concealed (Shining Runes)`);
             // (2026-11-06, Vampiric Spell: half the most damage one creature took, as temporary Hit Points — the higher of these and its own.)

@@ -83,7 +83,7 @@ export function fearTriggers(state, target) {
 
 // A foe's roll: each PC on the other side with a reaction for it (a quick check first: most have none).
 export function foeRollTriggers(state, foe, on, more = {}) {
-    if (!(state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers || other.bloodPool))) return;
+    if (!(state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers || other.bloodPool || other.prideInArms))) return;
     for (const pc of state.list) if (pc.featTriggers && pc.side !== foe.side) featTriggers(state, pc, on, { by: foe, ...more });
 }
 
@@ -91,6 +91,14 @@ export function foeRollTriggers(state, foe, on, more = {}) {
 // "ally-down" for its allies within 30 feet (about: not far apart).
 export function dropTriggers(state, target, source) {
     if (!source || source.side === target.side) return;
+    // (2026-11-07, Pride in Arms: an ally drops a foe — temporary Hit Points of its Constitution modifier, about 4 (reaction).)
+    for (const proud of state.list) {
+        if (!proud.prideInArms || proud === source || proud.side !== source.side || proud.status !== ACTIVE || !canReact(proud, "Pride in Arms") || source.status !== ACTIVE) continue;
+        spendReaction(proud, "Pride in Arms");
+        source.hp.temp = Math.max(source.hp.temp ?? 0, proud.prideInArms);
+        state.log?.push(`  ${proud.name} uses Pride in Arms: ${source.name} gains ${proud.prideInArms} temporary Hit Points`);
+        break;
+    }
     // (2026-11-07, Blood Pool: a creature with blood dying within 30 feet — its pool absorbed by the most hurt ally standing, Hit Points equal
     // to the necromancer's level (its reaction; the ally's walk over taken as made).)
     if (!["undead", "construct", "elemental"].some((trait) => (target.traits ?? []).includes(trait))) {

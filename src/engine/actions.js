@@ -320,7 +320,7 @@ function expectedExtras(attacker, strike, target, critical, offGuardChance, pack
         const chance = extra.when === "off-guard" ? offGuardChance : extraApplies(extra, target, { offGuard: false, packAllies, attacker, critical }) ? 1 : 0;
         // (2026-11-03: a condition it puts on — Brutal Beating's frightened — isn't damage; Brutal Critical's melee Strikes only, its weapon's
         // own die, not doubled.)
-        if (!chance || extra.condition || extra.save || extra.offGuardToAttacker || !extraFits(extra, strike)) continue;
+        if (!chance || extra.condition || extra.save || extra.offGuardToAttacker || extra.selfModel || !extraFits(extra, strike)) continue;
         const die = extra.weaponDie ? Number(strike.damage?.[0]?.die) || 6 : extra.die;
         // (2026-11-03, Fearsome Brute: a bonus for each point of the target's frightened.)
         // (Sticky Bomb: persistent damage of its bomb's splash.)
@@ -470,7 +470,10 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         log(state, `  ${rider.name} uses Defend Mount: the Strike goes to ${rider.name}`);
         return performStrike(state, attacker, rider, strike, { reaction, trigger, fortune });
     }
-    const attacksMade = reaction ? 0 : attacker.attacksThisTurn;
+    // (2026-11-07, Belay That!: the Strike after an ally's critically failed one at that one's multiple attack penalty — counted as normal.)
+    const belayed = !reaction && attacker.belayed === state.round && attacker.attacksThisTurn > 0;
+    if (belayed) attacker.belayed = null;
+    const attacksMade = reaction ? 0 : attacker.attacksThisTurn - (belayed ? 1 : 0);
     if (!reaction) attacker.attacksThisTurn++;
     // (Gravity Weapon: its first weapon Strike this round — hit or miss.)
     attacker.firstWeaponStrike = !strike.unarmed && attacker.weaponStrikeRound !== state.round;
@@ -820,6 +823,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (degree < SUCCESS) for (const effect of spent) removeEffect(attacker, effect);
     if (degree < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label}`);
+        if (degree === CRITICAL_FAILURE && !reaction && attacker.side !== target.side && attacker.attacksThisTurn > 1) {
+            const advisor = state.list.find((other) => other.belayThat && other !== attacker && other.side === attacker.side && isActive(other) && canReact(other, "Belay That!") && (other.band !== "far" || attacker.band !== "far"));
+            if (advisor) {
+                spendReaction(advisor, "Belay That!");
+                attacker.belayed = state.round;
+                log(state, `  ${advisor.name} uses Belay That!`);
+            }
+        }
         // Energy Shot counts its first three Strikes, hit or miss.
         if (strike.firearm && attacker.energyShotsLeft > 0) attacker.energyShotsLeft--;
         // A bomb that misses (not critically) still splashes the target and those around it.
@@ -955,6 +966,12 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
                 const spent = (attacker.extrasSpent ??= new Map()).get(extra.onceKey);
                 if (spent && spent !== thisStrike) continue;
                 attacker.extrasSpent.set(extra.onceKey, thisStrike);
+            }
+            // (2026-11-07, Hematocritical: an effect on the attacker itself — selfModel —, its fortune on its next attack.)
+            if (extra.selfModel) {
+                applyEffect(state, attacker, { modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...extra.selfModel }, attacker, { applyCondition, key: `self:${extra.source}` });
+                log(state, `  ${attacker.name} gains ${extra.source}`);
+                continue;
             }
             // (2026-11-03, Unbalancing Blow: the target off-guard to the attacker's attacks until the end of its next turn.)
             if (extra.offGuardToAttacker) {
@@ -2184,7 +2201,7 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
         const massive = amount >= target.hp.max * 2;
         knockOut(state, target, { source, critical, nonlethal, overwhelming, massive, before });
         // (2026-11-05, triggers.js: a feat's free action or reaction as a creature drops — Victorious Vigor, Final Spite, Bleak Humorist.)
-        if (source && target.hp.value <= 0 && (state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers || other.bloodPool))) dropTriggers(state, target, source);
+        if (source && target.hp.value <= 0 && (state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers || other.bloodPool || other.prideInArms))) dropTriggers(state, target, source);
     } else if (dealt > 0 && target.featTriggers && source && source.side !== target.side) featTriggers(state, target, "damaged", { by: source });
     return dealt;
 }
