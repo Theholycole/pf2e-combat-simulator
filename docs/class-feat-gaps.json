@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1555,
+ "rated": 1557,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -10999,28 +10999,6 @@
    "reason": "a Strike with nothing more the simulator reads",
    "detail": "a Strike with nothing more the simulator reads",
    "text": "Requirements You're wielding a two-handed crossbow or a firearm that has the kickback or scatter trait. You throw yourself at an enemy, bracing your weapon against it and pulling it close before releasing a destructive shot. Attempt to Grap"
-  },
-  {
-   "id": "A7uJCDT9odsuwlqW",
-   "name": "Triggerbrand Blitz",
-   "level": 14,
-   "owner": "gunslinger",
-   "classes": [
-    "gunslinger"
-   ],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 3,
-   "traits": [
-    "gunslinger"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "its text has no Strike of its user's",
-   "detail": "its text has no Strike of its user's",
-   "text": "Frequency once per minute Requirements You're wielding a combination weapon. You dance through your foes, stabbing and shooting. You Stride, making up to three Strikes with your combination weapon at any point during your movement, each aga"
   },
   {
    "id": "mDczSj3GolIbkhGJ",
@@ -49803,26 +49781,6 @@
    "reason": null,
    "detail": null,
    "text": "You use Emerald Bough techniques to create a small extradimensional space called a hideaway that lasts as long as you are conscious. The hideaway functions as a Bag of Holding (Type I), but has no Bulk and takes no hands; it holds one objec"
-  },
-  {
-   "id": "BV9k3nmVrWDLv8z6",
-   "name": "Emphatic Emissary",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger You roll initiative. You can tell when diplomacy has failed and a meeting is close to unraveling or falling to blows. You gain a +2 circumstance bonus on your initiative roll. During your first turn in combat, you can use your Disar"
   },
   {
    "id": "Nkt6q2fxoiCRNKsK",

@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1555 are rated; 2801 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1557 are rated; 2799 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -9,14 +9,14 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Bucket | No plan | Plan, not played | Total |
 |---|---:|---:|---:|
 | Archetype dedications (grant class features) | 76 | 81 | 157 |
-| Combat actions and reactions | 187 | 352 | 539 |
+| Combat actions and reactions | 187 | 351 | 538 |
 | Passives that change a class feature | 156 | 40 | 196 |
 | Other combat passives | 286 | 83 | 369 |
 | Spellcasting (slots, focus, spellshapes) | 231 | 40 | 271 |
 | Companions, familiars and eidolons | 125 | 47 | 172 |
 | Out of combat (exploration, downtime, skills) | 282 | 55 | 337 |
-| Nothing a fight would use | 625 | 135 | 760 |
-| **All** | 1968 | 833 | 2801 |
+| Nothing a fight would use | 624 | 135 | 759 |
+| **All** | 1967 | 832 | 2799 |
 
 ## By class
 
@@ -33,7 +33,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | exemplar |  | 2 | 21 | 2 |  |  | 3 | 4 | 32 |
 | fighter |  | 19 |  | 5 |  |  | 1 | 9 | 34 |
 | guardian |  | 8 | 2 | 5 |  |  | 2 | 4 | 21 |
-| gunslinger |  | 18 | 3 | 11 |  | 1 | 4 | 12 | 49 |
+| gunslinger |  | 17 | 3 | 11 |  | 1 | 4 | 12 | 48 |
 | inventor |  | 4 | 6 | 1 |  | 3 | 4 | 10 | 28 |
 | investigator |  | 4 | 4 | 11 |  | 1 | 16 | 11 | 47 |
 | kineticist |  | 27 | 4 | 1 | 1 | 1 | 6 | 19 | 59 |
@@ -51,7 +51,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | thaumaturge |  | 7 | 8 | 2 | 1 | 1 | 5 | 10 | 34 |
 | witch |  | 1 | 2 | 2 | 4 | 16 | 7 | 3 | 35 |
 | wizard |  | 2 |  | 1 | 14 | 4 | 10 | 6 | 37 |
-| archetype | 146 | 249 | 43 | 196 | 95 | 64 | 147 | 437 | 1377 |
+| archetype | 146 | 249 | 43 | 196 | 95 | 64 | 147 | 436 | 1376 |
 | other | 11 | 38 | 2 | 37 | 16 | 13 | 25 | 33 | 175 |
 
 ## Why the simulator doesn't play the ones with a plan
@@ -68,7 +68,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | an Effect with nothing a fight counts | 37 |
 | a passive's roll with no action to use it | 27 |
 | it grants one of 2 | 20 |
-| its text has no Strike of its user's | 19 |
+| its text has no Strike of its user's | 18 |
 | a passive's Effect posted by hand | 18 |
 | a spell the feat casts | 17 |
 | its Effect has nothing a fight counts | 15 |
@@ -400,7 +400,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Warshard Warrior Dedication | 12 | other | passive | plan | it grants Call Warshard Weapon: the feat module reads nothing for it |
 | Wildspell Dedication | 12 | other | passive | plan | a spell the engine doesn't cast (Spellsurge) |
 
-## Combat actions and reactions (539)
+## Combat actions and reactions (538)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -758,7 +758,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Blood in the Air | 12 | gunslinger | 1 action | plan | its requirement (An enemy you've damaged with a ranged weapon during the last minute is Concealed or Hidden from you.) |
 | Ricochet Shot | 12 | gunslinger | 1 action | plan | a Strike with nothing more the simulator reads |
 | Blast Tackle | 14 | gunslinger | 2 actions | plan | a Strike with nothing more the simulator reads |
-| Triggerbrand Blitz | 14 | gunslinger | 3 actions | plan | its text has no Strike of its user's |
 | Instant Return | 16 | gunslinger | reaction | plan | a reaction's Strike |
 | Wukong Extension | 2 | inventor | 1 action | plan | a Strike with nothing more the simulator reads |
 | Clockwork Celerity | 6 | inventor | free | plan | a free's Strike |
@@ -2314,7 +2313,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reprepare Spell | 18 | wizard | passive | no plan |  |
 | Spell Mastery | 20 | wizard | passive | no plan |  |
 
-## Nothing a fight would use (760)
+## Nothing a fight would use (759)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -2583,7 +2582,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Communal Tale | 10 | archetype | passive | no plan |  |
 | Deathguard | 10 | archetype | passive | no plan |  |
 | Emerald Boughs Hideaway | 10 | archetype | passive | no plan |  |
-| Emphatic Emissary | 10 | archetype | reaction | no plan |  |
 | Exemplar Expertise | 10 | archetype | passive | no plan |  |
 | Expand Spiral | 10 | archetype | passive | no plan |  |
 | Expert Captivator Spellcasting | 10 | archetype | passive | no plan |  |
