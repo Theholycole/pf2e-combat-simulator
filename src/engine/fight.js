@@ -1880,7 +1880,8 @@ export function takeTurn(state, c) {
 function playActions(state, c) {
     let guard = 0;
     // (2026-11-07, Kip Up: "You stand up. This movement doesn't trigger reactions." — a free action, as its turn's actions start.)
-    if (c.kipUp && c.cond.prone && canAct(c)) {
+    // (Call to Battle, Hop Up: only once it has been knocked out — kipUpRevived.)
+    if (c.kipUp && c.cond.prone && canAct(c) && (!c.kipUpRevived || c.everDown)) {
         c.cond.prone = false;
         state.log?.push(`  ${c.name} uses ${c.kipUp}: Stands (free, no reactions)`);
     }

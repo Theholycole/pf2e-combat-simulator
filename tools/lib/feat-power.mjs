@@ -1126,6 +1126,10 @@ const HAND = {
     "accidental-shot": () => ({ requires: "You are wielding a ranged weapon.", builtins: { fortuneItems: [{ name: "Accidental Shot", selector: "attack-roll", pool: "accidental-shot", ranged: true, ignoreCircumstance: true }] }, pools: { "accidental-shot": 1 }, played: "a ranged Strike rolled twice, ignoring circumstance penalties (once a fight)" }),
     // (Rolling a save twice, the higher kept: as a failed save rerolled, the better kept — the same odds.)
     // (Kip Up: a free Stand that triggers no reactions, as its turn starts while prone.)
+    // (2026-11-07, Call to Battle, Hop Up: it Stands as it wakes, with no reactions — played as a free Stand at its turn's start once it
+    // has been knocked out.)
+    "call-to-battle": () => ({ builtins: { kipUp: "Call to Battle", kipUpRevived: true }, played: "stands as it wakes from unconscious, with no reactions" }),
+    "hop-up": () => ({ builtins: { kipUp: "Hop Up", kipUpRevived: true }, played: "stands as it wakes from unconscious, with no reactions" }),
     "kip-up": () => ({ builtins: { kipUp: "Kip Up" }, played: "stands from prone free, with no reactions" }),
     "feline-dance": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: "reflex" }], played: "a failed Reflex save rerolled, the better kept (reaction, once a fight)" }),
     "mistaken-identity": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "mental" }], played: "a failed save against a mental effect rerolled, the better kept (reaction, once a fight)" }),
@@ -1531,6 +1535,9 @@ const HAND = {
     "brutal-bully": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["disarm", "grapple", "reposition", "shove", "trip"], force: ["trip"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Brutal Bully" }] }, played: "Strength damage on a successful maneuver (always on; raging not checked)" }),
     // (2026-11-07, Legendary Laugh: 3d8 mental on a successful Demoralize, 6d8 on a critical success; its 60-foot range isn't played.)
     "legendary-laugh": () => ({ builtins: { basicRiders: [{ slugs: ["demoralize"], damage: "3d8[mental]", criticalDouble: true, source: "Legendary Laugh" }] }, played: "3d8 mental on a successful Demoralize (6d8 on a critical success)" }),
+    // (2026-11-07, Mask of Pain: 2d6 mental on a successful Demoralize, 4d6 when legendary in Intimidation — from 15th; its warmask taken
+    // as worn.)
+    "mask-of-pain": (level) => ({ builtins: { basicRiders: [{ slugs: ["demoralize"], damage: `${level >= 15 ? 4 : 2}d6[mental]`, source: "Mask of Pain" }] }, played: "mental damage on a successful Demoralize (its warmask taken as worn)" }),
     "agonizing-rebuke": (level) => ({ builtins: { basicRiders: [{ slugs: ["demoralize"], damage: `${level >= 15 ? 3 : level >= 7 ? 2 : 1}d4[mental]`, source: "Agonizing Rebuke" }] }, played: "mental damage on a successful Demoralize (always on; once, not each turn)" }),
     // (2026-11-04, the gap index's batch 2: a larger foe's Trip — the rating's foes are often larger; 2d8 once a master in Athletics, 15th here.)
     "the-harder-they-fall-kingmaker": (level) => ({ builtins: { basicRiders: [{ slugs: ["trip"], damage: `${level >= 15 ? 2 : 1}d8[bludgeoning]`, criticalDouble: true, source: "The Harder They Fall" }] }, played: "bludgeoning damage on a successful Trip (always on)" }),
@@ -1680,6 +1687,12 @@ const HAND = {
     // (Rebounding Assault: a thrown Strike and a shot at one penalty, 1d6 precision more if both hit — the two Strikes' damage as rolled.)
     "rebounding-assault": () => ({ builtins: { multiStrikes: [{ name: "Rebounding Assault", actions: 2, strikes: ["ranged", "ranged"], sameTarget: true, sameMap: true, bothHit: { conditions: [], damage: ["1d6[precision]"] } }] }, played: "two ranged Strikes at one penalty, +1d6 precision if both hit" }),
     // (Strike activities.)
+    // (2026-11-07: Discerning Strike's 1d6 precision on a hit — its Recall Knowledge taken as made, once a fight for its day's immunity;
+    // Spiritual Strike's 2d6 force (3d6 at major striking), two attacks — its familiar beside it not checked; Aerial Piledriver's 1d6 a
+    // weapon die on a grabbed foe — its fall and prone not played.)
+    "discerning-strike": () => ({ builtins: {}, plans: [strikeRider({ oncePerFight: true, onHit: { damage: ["1d6[precision]"] } })], played: "a Strike with 1d6 precision on a hit (once a fight; its Recall Knowledge taken as made)" }),
+    "spiritual-strike": (level) => ({ builtins: {}, plans: [strikeRider({ actions: 2, countsAs: 2, onHit: { damage: [`${level >= 19 ? 3 : 2}d6[force]`] } })], played: "a Strike with extra force damage, counting as two attacks (2 actions; its familiar beside it not checked)" }),
+    "aerial-piledriver": (level) => ({ builtins: {}, plans: [strikeRider({ actions: 2, requires: "grabbed", onHit: { damage: [`${level >= 19 ? 4 : level >= 12 ? 3 : level >= 4 ? 2 : 1}d6[bludgeoning]`] } })], played: "a Strike on a grabbed foe with 1d6 more a weapon die (2 actions; the fall not played)" }),
     "everstand-strike": () => ({ requires: "You are wielding a shield", builtins: {}, plans: [strikeRider({ press: true, selfAfter: [{ ac: 2, type: "circumstance" }], selfAfterHit: true })], played: "a press Strike, its shield raised if it hits" }),
     "combat-grab": () => ({ builtins: {}, plans: [strikeRider({ press: true, onHit: { conditions: [{ slug: "grabbed", value: null, duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } }] } })], played: "a press Strike that grabs on a hit" }),
     // (+1 to the next ally's attack at the target, +2 after a critical hit — commander.js setUp "aid".)
@@ -2174,6 +2187,10 @@ const ZERO_HP = {
     // (2026-11-07, Deathless Servant: twice its level in Hit Points instead, wounded 1 more, once a day — its AC and damage while wounded
     // not played. Fight Through Oblivion: immune to damage till its next turn, then 4d8+30 back if it Strikes and damages a foe — played as
     // staying up with that many, wounded 1 more, up to three times.)
+    // (Revivification Protocol, Kashrishi Revivification: 1 Hit Point back at its recovery check, wounded as normal, once a day — played
+    // as staying up at 1, a turn sooner than the feat stands it.)
+    "revivification-protocol": { ferocity: { hp: 1, wounded: true, uses: 1, free: true } },
+    "kashrishi-revivification": { ferocity: { hp: 1, wounded: true, uses: 1, free: true } },
     "deathless-servant": { ferocity: { hp: (level) => 2 * level, wounded: true, uses: 1 } },
     "fight-through-oblivion": { ferocity: { hp: "4d8+30", wounded: true, uses: 3, free: true } },
     "entitys-resurgence": { ferocity: { hp: (level) => 1 + level + 4, wounded: false, uses: 1 } }
