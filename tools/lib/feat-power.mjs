@@ -2980,10 +2980,19 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             if (rider && mount && !rider.mountId) mountUp(rider, mount);
         }
     }
+    // (2026-11-07, a basic action's rider — Legendary Laugh, Brutal Bully —: the basic action forced both sides, so the rating is the
+    // rider's, not that of Demoralizing or Shoving every turn; its uses that action's.)
+    const riderSlugs = FORCE ? (builtins.basicRiders ?? []).flatMap((rider) => rider.slugs) : [];
+    const riderNames = [];
+    if (riderSlugs.length) {
+        const ridden = (entry) => entry.kind === "basic" && riderSlugs.includes(entry.plan?.source?.slug);
+        riderNames.push(...(fought.find((c) => c.id === host.id)?.spells ?? []).filter(ridden).map((entry) => entry.name));
+        plainParty = (plainParty ?? base).map((c) => (c.id === host.id ? { ...c, forceUse: true, spells: (c.spells ?? []).map((entry) => (ridden(entry) ? { ...entry, featForced: true } : entry)) } : c));
+    }
     // (Its summons' reserves: waiting off the field beside the party until summoned — linked, so one's fall isn't a PC's.)
     const summoner = fought.find((c) => c.id === host.id && c.summons?.length);
     if (summoner) fought.push(...summonReserves(summoner).map((reserve) => ({ ...reserve, linked: true })));
-    const useNames = [...new Set([...(fought !== withFeat || companionNeeded ? ["Animal Companion"] : []), ...(companion?.sharesHpWith ? ["Eidolon"] : []), ...entries.spells, ...(entries.summons ?? []).map((entry) => entry.name), ...(entries.breathOfLife ? ["Breath of Life"] : []), ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => (typeof entry === "string" ? entry : entry?.name)).filter((name) => typeof name === "string" && name.length > 2))];
+    const useNames = [...new Set([...(fought !== withFeat || companionNeeded ? ["Animal Companion"] : []), ...(companion?.sharesHpWith ? ["Eidolon"] : []), ...entries.spells, ...(entries.summons ?? []).map((entry) => entry.name), ...(entries.breathOfLife ? ["Breath of Life"] : []), ...riderNames, ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => (typeof entry === "string" ? entry : entry?.name)).filter((name) => typeof name === "string" && name.length > 2))];
     return { party: fought, ...(plainParty ? { plain: plainParty } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan, useNames };
 }
 
