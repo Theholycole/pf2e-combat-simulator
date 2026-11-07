@@ -1119,6 +1119,19 @@ function thrallAllySpell(doc, level, host, { model, rounds, destroyed, played })
 }
 
 const HAND = {
+    // (2026-11-07, fortune: Wish for Luck's "roll the check twice and take the higher result", once a day — played on an attack roll, as
+    // Gorum's Tear's talisman (free, once a fight, when rolling twice is worth it); Accidental Shot's ranged Strike rolled twice, the same.)
+    "wish-for-luck": () => ({ builtins: { fortuneItems: [{ name: "Wish for Luck", selector: "attack-roll", pool: "wish-for-luck" }] }, pools: { "wish-for-luck": 1 }, played: "an attack rolled twice, the higher kept (free, once a fight)" }),
+    "accidental-shot": () => ({ requires: "You are wielding a ranged weapon.", builtins: { fortuneItems: [{ name: "Accidental Shot", selector: "attack-roll", pool: "accidental-shot", ranged: true, ignoreCircumstance: true }] }, pools: { "accidental-shot": 1 }, played: "a ranged Strike rolled twice, ignoring circumstance penalties (once a fight)" }),
+    // (Rolling a save twice, the higher kept: as a failed save rerolled, the better kept — the same odds.)
+    "feline-dance": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: "reflex" }], played: "a failed Reflex save rerolled, the better kept (reaction, once a fight)" }),
+    "mistaken-identity": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "mental" }], played: "a failed save against a mental effect rerolled, the better kept (reaction, once a fight)" }),
+    "guided-by-the-stars": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, free: true }], played: "a failed save rerolled, the better kept (free, once a fight)" }),
+    "mask-of-rejection": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "spell", keep: "new", bonus: 2 }], played: "a failed save against a spell rerolled at +2, the new result kept (reaction, once a fight)" }),
+    "fear-no-pain": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", ally: true, within: 30, against: ["mental"], uses: 1, bonus: 2 }], played: "an ally's failed save against a mental effect rerolled at +2 (reaction, once a fight)" }),
+    "such-a-disgrace": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", ally: true, within: 30, save: "will", against: ["mental"], bonus: 1, perAlly: true }], played: "an ally's failed Will save against a mental effect rerolled at +1, each ally once (reaction)" }),
+    "youre-an-embarrassment": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", ally: true, within: 30, save: "will", against: ["incapacitation"], bonus: 1, perAlly: true }], played: "an ally's failed Will save against an incapacitation effect rerolled at +1, each ally once (reaction)" }),
+    "focus-ally": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", ally: true, within: 5, against: ["incapacitation"], keep: "new", failureOnly: true }], played: "an adjacent ally's failed save against an incapacitation effect rerolled, the new result kept (reaction)" }),
     // (2026-11-07, Cole: "keep building remaining feats" — the PC reactions the feat module only reminds about, on the engine's own
     // reaction fields.) A critical hit on it a normal hit: Stone Bones' and Iivlar's Deflection's on a DC 17 flat check (any critical
     // hit, not only a physical one's); Collapse's always, once a fight (once per 10 minutes), the skeleton collapsed — off-guard and

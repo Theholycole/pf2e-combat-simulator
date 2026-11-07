@@ -461,14 +461,17 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
     // (B125: an ally's failed save rerolled, keeping the better — against the effects it names, or its kind of save.)
     // (B220, Second Chance: a free action once a round, not a reaction.)
     const rerolls = state.list.find((c) => c.allySaveReroll && (c !== saver || c.allySaveReroll.self) && c.side === saver.side && isActive(c) && (c.allySaveReroll.free ? (!c.allySaveReroll.perRound || c.allySaveRerollRound !== state.round) : canReact(c)) && (c.allySaveRerollsUsed ?? 0) < c.allySaveReroll.uses
-        && (c === saver || near(c, c.allySaveReroll.within)) && (!c.allySaveReroll.save || c.allySaveReroll.save === statistic) && (!c.allySaveReroll.against || c.allySaveReroll.against.some((trait) => traits.includes(trait))));
+        && (c === saver || near(c, c.allySaveReroll.within)) && (!c.allySaveReroll.save || c.allySaveReroll.save === statistic) && (!c.allySaveReroll.against || c.allySaveReroll.against.some((trait) => traits.includes(trait)))
+        // (2026-11-07, Such a Disgrace!'s "temporarily immune ... for 10 minutes": each ally once; Focus Ally's "fails, but doesn't critically fail".)
+        && !(c.allySaveReroll.perAlly && c.allySaveRerollGiven?.has(saver.id)) && (!c.allySaveReroll.failureOnly || result.degree === "failure"));
     if (rerolls) {
         if (rerolls.allySaveReroll.free) rerolls.allySaveRerollRound = state.round;
         else rerolls.reactionUsed = true;
         rerolls.allySaveRerollsUsed = (rerolls.allySaveRerollsUsed ?? 0) + 1;
+        if (rerolls.allySaveReroll.perAlly) (rerolls.allySaveRerollGiven ??= new Set()).add(saver.id);
         state.stats.reactions++;
         const natural = state.rng.d20();
-        const total = natural + options.modifier;
+        const total = natural + options.modifier + (rerolls.allySaveReroll.bonus ?? 0);
         const rolled = DEGREE_NAMES[degreeOf(total, options.dc, natural)];
         // (B181: a critical failure on the reroll a failure.)
         const degree = rerolls.allySaveReroll.floor === "failure" && rolled === "criticalFailure" ? "failure" : rolled;
