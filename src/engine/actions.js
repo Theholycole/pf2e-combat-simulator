@@ -1594,6 +1594,22 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // (Vindicator's Judgment: its weakness to its caster's Strikes, once a hit.)
     const judged = physical && !intercepted ? markOn(target, source)?.weakness : 0;
     if (judged > 0) instances = [...instances, { type: "untyped", amount: judged, persistent: false, precision: false }];
+    // (2026-11-07, Protector Tree, Spiritual Guardian: what shelters the creature takes a foe's damage first — the tree a Strike's, the
+    // guardian any, its first 10 —, down to its last Hit Point; the rest on the creature.)
+    const shelter = !intercepted && source && source.side !== target.side ? (target.shelters ?? []).find((held) => held.hp > 0 && (held.any || physical)) : null;
+    if (shelter) {
+        let take = Math.min(shelter.hp, shelter.perHit, instances.reduce((sum, instance) => sum + Math.max(0, instance.amount), 0));
+        if (take > 0) {
+            shelter.hp -= take;
+            log(state, `  ${shelter.spell} takes ${take} damage for ${target.name}${shelter.hp <= 0 ? " and is destroyed" : ""}`);
+            instances = instances.map((instance) => {
+                const off = Math.min(Math.max(0, instance.amount), take);
+                take -= off;
+                return { ...instance, amount: instance.amount - off };
+            });
+            if (shelter.hp <= 0) target.shelters = target.shelters.filter((held) => held !== shelter);
+        }
+    }
     // M38: the party harming a foe that gave up and is leaving refuses its surrender.
     if (!intercepted) {
         harmedAfterGivingUp(state, target, source);

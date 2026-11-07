@@ -79,7 +79,9 @@ const FLAGS = {
     // (2026-10-22, Undermine Reality: its Strikes deal half damage — actions.js —, saves against its spells and abilities a degree better.)
     "quasi-real": "quasiReal",
     // (2026-10-22, Steal Voice: no spells but subtle ones, nothing auditory — canCast.)
-    voiceless: "voiceless"
+    voiceless: "voiceless",
+    // (2026-11-07, Protector Tree, Spiritual Guardian: something beside it takes its damage first — c.shelters, actions.js applyDamage.)
+    sheltered: "sheltered"
 };
 export const MODELLED_CONDITIONS = new Set([...VALUED, ...Object.keys(FLAGS), "persistent-damage"]);
 
@@ -1389,6 +1391,17 @@ export function planRetaliation(spell) {
 }
 
 // Agitate's damage at the spell's cast rank (readings.js withAgitation): its dice, more each step it's heightened.
+
+// (2026-11-07, Protector Tree, Spiritual Guardian.) What shelters the creature at the rank cast: the reading's shelter { hp, step:
+// { interval, hp }, perHit, any } — its Hit Points, the most it takes of each hit (Spiritual Guardian's first 10), and whether it takes
+// any damage (the guardian's) or a Strike's only (the tree's).
+export function shelterOf(spell) {
+    const shelter = spell?.plan?.resolution?.shelter ?? {};
+    const base = Number(spell?.plan?.rank) || 1;
+    const steps = Math.floor(Math.max(0, (Number(spell?.castRank) || base) - base) / (Number(shelter.step?.interval) || 1));
+    return { hp: (Number(shelter.hp) || 0) + steps * (Number(shelter.step?.hp) || 0), perHit: Number(shelter.perHit) || Infinity, any: Boolean(shelter.any) };
+}
+
 function agitationParts(spell) {
     const agitation = spell?.plan?.agitation;
     if (!agitation) return [];
@@ -3010,6 +3023,10 @@ function applyChanges(state, caster, spell, changes, context, io) {
                     // (What a counteract checks against: the spell's or ability's DC and rank.)
                     (target.condSources ??= {})[change.slug] = { dc: effectDC(spell), rank: counterRank(caster, spell, isSpellCast(spell)), spell: isSpellCast(spell), name: spell.name, traits: spell.plan?.traits ?? [] };
                     if (change.slug === "agitated") target.agitation = { name: spell.name, parts: agitationParts(spell) };
+                    if (change.slug === "sheltered") {
+                        const { rounds, sustained } = lastingRounds(spell.plan?.lifecycle?.durationSpec ?? change.duration ?? null);
+                        target.shelters = [...(target.shelters ?? []).filter((held) => held.spell !== spell.name), { by: caster.id, spell: spell.name, ...shelterOf(spell), untilRound: Number.isFinite(rounds) ? state.round + rounds : Infinity, sustained: sustained && rounds > 1 }];
+                    }
                     log(state, `  ${target.name} is ${change.slug}${change.scope ? ` to ${state.byId.get(change.scope.attacker)?.name ?? "one creature"}` : ""}${Number.isFinite(change.value) ? ` ${stackedValue(target, change, true)}` : ""}`);
                     // (2026-11-05, Fight or Flight: frightened by a creature in its reach — a melee Strike at it, a reaction.)
                     if (change.slug === "frightened" && target.fightOrFlight && caster.side !== target.side && isActive(caster) && canReact(target, "Fight or Flight") && sameMelee(target, caster)) {
@@ -4762,6 +4779,17 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                     if (change.slug === "agitated" && !held) {
                         const parts = agitationParts(spell);
                         entry.damage += chance * 0.5 * Math.min(3, durationRounds(change.duration)) * parts.reduce((sum, part) => sum + adjustInstance(target, part.type, part.dice * (part.die + 1) / 2), 0);
+                        continue;
+                    }
+                    // (Sheltered: the Strike damage its tree takes first — the best hit of the foes about it, about one a round for three
+                    // rounds, up to the tree's Hit Points.)
+                    if (change.slug === "sheltered") {
+                        if (target.side === caster.side && !(target.shelters ?? []).some((held) => held.hp > 0)) {
+                            const foes = state.list.filter((other) => other.side !== target.side && isActive(other));
+                            const hit = foes.reduce((best, foe) => Math.max(best, bestHit(foe, target, false)), 0);
+                            const shelter = shelterOf(spell);
+                            entry.heal += chance * Math.min(shelter.hp, 0.6 * 3 * Math.min(shelter.perHit, hit));
+                        }
                         continue;
                     }
                     // (Semi-corporeal: what its foes' weapons add against it with ghost touch's benefit — actions.js semicorporealDamage.)
