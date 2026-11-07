@@ -165,5 +165,6 @@ export const SIM_WHY = Object.freeze({
     "Shared Avoidance": SUBCLASS, "Shared Clarity": SUBCLASS, "Heal Mount": SUBCLASS, "Demon's Hair": SUBCLASS,
     "Second Wind": SAME_PICK, "Adaptive Stratagem": SAME_PICK,
     "Reach for the Stars": REACH, "Directed Audience": REACH, "Spell Relay": REACH, "Guiding Retort": REACH,
+    "Scattered Fire": REACH, "Confounding Image": REACH, "Directed Poison": REACH, "Smoldering Explosion": HIDDEN,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

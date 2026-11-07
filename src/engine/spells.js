@@ -3447,6 +3447,8 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // The ways of one ability (a dragon's two breath weapons) share it: their rechargeGroup, the ability's name.
     if (info.recharge) (caster.rechargeUntil ??= new Map()).set(spell.rechargeGroup ?? spell, state.round + rollCount(state, info.recharge));
     const markImmune = (list) => {
+        // (2026-11-07, Reincarnated Ridiculer, Unrelenting Terror: its Demoralize leaves no lasting immunity — c.repeatDemoralize.)
+        if (caster.repeatDemoralize && /^demoralize$/i.test(String(spell.plan?.source?.slug ?? spell.name ?? ""))) return;
         const immune = (caster.immuneTargets ??= new Map()).get(spell) ?? new Set();
         for (const target of list) immune.add(target.id);
         caster.immuneTargets.set(spell, immune);

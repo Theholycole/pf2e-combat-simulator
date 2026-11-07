@@ -283,6 +283,16 @@ function joinBuiltins(c, builtins) {
             for (const rider of value) c.spells = (c.spells ?? []).map((entry) => (entry.kind === "basic" && rider.slugs.includes(entry.plan?.source?.slug) ? { ...withRider(entry, rider), ...(c.forceUse && (rider.force ?? rider.slugs).includes(entry.plan?.source?.slug) ? { featForced: true } : {}) } : entry));
             continue;
         }
+        // (2026-11-07: a changed copy that takes its base's place — Tetraelemental Assault's Elemental Assault.)
+        if (field === "dropSelfEffects") {
+            c.selfEffects = (c.selfEffects ?? []).filter((entry) => !value.includes(entry.name));
+            continue;
+        }
+        // (2026-11-07: a basic action the feat changes — Reincarnated Ridiculer's Demoralize —, forced as the feat's own are.)
+        if (field === "forceBasic") {
+            c.spells = (c.spells ?? []).map((entry) => (entry.kind === "basic" && value.includes(entry.plan?.source?.slug) && c.forceUse ? { ...entry, featForced: true } : entry));
+            continue;
+        }
         if (field === "maxHpBonus") {
             c.hp = { ...c.hp, value: c.hp.value + value, max: c.hp.max + value };
             continue;
@@ -1403,7 +1413,29 @@ const HAND = {
     "tetraelemental-assault": (_level, host) => {
         const own = (host?.selfEffects ?? []).filter((entry) => entry.name === "Elemental Assault");
         if (!own.length) return { gap: "no Elemental Assault of the PC's for it to change" };
-        return { builtins: { selfEffects: own.map((entry) => ({ ...structuredClone(entry), name: "Elemental Assault (tetraelemental)", model: { ...structuredClone(entry.model), name: "Elemental Assault (tetraelemental)", rounds: 4 } })) }, played: "Elemental Assault's extra die for 4 rounds" };
+        return { builtins: { dropSelfEffects: ["Elemental Assault"], selfEffects: own.map((entry) => ({ ...structuredClone(entry), name: "Elemental Assault (tetraelemental)", model: { ...structuredClone(entry.model), name: "Elemental Assault (tetraelemental)", rounds: 4 } })) }, played: "Elemental Assault's extra die for 4 rounds" };
+    },
+    // (2026-11-07: Demoralize again at the same foe — spells.js c.repeatDemoralize; its basic Demoralize forced. Reincarnated Ridiculer's
+    // immunity only on a critical failure and Unrelenting Terror's 1 round after a success are played as none.)
+    "reincarnated-ridiculer": () => ({ builtins: { repeatDemoralize: true, forceBasic: ["demoralize"] }, played: "Demoralize the same foe again and again (no immunity)" }),
+    "unrelenting-terror": () => ({ builtins: { repeatDemoralize: true, forceBasic: ["demoralize"] }, played: "Demoralize the same foe again each round (immune only 1 round)" }),
+    // (Soul Flare: +1 status to AC against a hit, which can make it a miss — its attack half and the DC 5 flat check to keep the
+    // armament not played.)
+    "soul-flare": () => ({ builtins: { acReaction: { value: 1, when: "hit", name: "Soul Flare" } }, played: "+1 AC against a hit (reaction)" }),
+    // (Lingering Flames: the wizard's Fireball as 5d6 (1d6 more a rank above 3rd) and 2 persistent fire on a failure (2 more a rank),
+    // doubled on a critical failure — a copy at the rank it's cast.)
+    "lingering-flames": (_level, host, doc) => {
+        const spells = baseCopies(host, "Fireball", "lingering", (plan) => plan).map((entry) => {
+            const rank = Number(entry.castRank) || 3;
+            const plan = structuredClone(entry.plan);
+            const shared = plan.resolution?.sharedDamage;
+            if (!shared?.components?.length) return null;
+            shared.components = [{ ...shared.components[0], formula: `${5 + rank - 3}d6` }, { id: "lingering", formula: String(2 + 2 * (rank - 3)), type: "fire", category: "persistent", applyModifier: false, kinds: ["damage"], materials: [] }];
+            shared.heightening = null;
+            for (const degree of ["failure", "criticalFailure"]) plan.resolution.outcomes[degree].damage = { ...plan.resolution.outcomes[degree].damage, sourceComponentIds: ["0", "lingering"] };
+            return { ...entry, plan, heightening: null };
+        }).filter(Boolean);
+        return spells.length ? { builtins: {}, spells, played: "Fireball with persistent fire on a failure (a copy beside it)" } : { gap: "no Fireball of the PC's for it to change" };
     },
     "dwarven-doughtiness": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn" }),
     "calm-and-centered": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn (stupefied not played)" }),
@@ -2710,7 +2742,7 @@ function kineticistEntry(doc, level, host) {
     return null;
 }
 
-const HOST_OVERRIDE = { "shield-block": "cleric" };
+const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
 const CLASS_OVERRIDE = { "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer" };
 
@@ -3314,7 +3346,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     }
     // (2026-11-07, a basic action's rider — Legendary Laugh, Brutal Bully —: the basic action forced both sides, so the rating is the
     // rider's, not that of Demoralizing or Shoving every turn; its uses that action's.)
-    const riderSlugs = FORCE ? (builtins.basicRiders ?? []).flatMap((rider) => rider.force ?? rider.slugs) : [];
+    const riderSlugs = FORCE ? [...(builtins.basicRiders ?? []).flatMap((rider) => rider.force ?? rider.slugs), ...(builtins.forceBasic ?? [])] : [];
     const riderNames = [];
     if (riderSlugs.length) {
         const ridden = (entry) => entry.kind === "basic" && riderSlugs.includes(entry.plan?.source?.slug);
