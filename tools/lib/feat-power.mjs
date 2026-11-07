@@ -1124,6 +1124,8 @@ const HAND = {
     "wish-for-luck": () => ({ builtins: { fortuneItems: [{ name: "Wish for Luck", selector: "attack-roll", pool: "wish-for-luck" }] }, pools: { "wish-for-luck": 1 }, played: "an attack rolled twice, the higher kept (free, once a fight)" }),
     "accidental-shot": () => ({ requires: "You are wielding a ranged weapon.", builtins: { fortuneItems: [{ name: "Accidental Shot", selector: "attack-roll", pool: "accidental-shot", ranged: true, ignoreCircumstance: true }] }, pools: { "accidental-shot": 1 }, played: "a ranged Strike rolled twice, ignoring circumstance penalties (once a fight)" }),
     // (Rolling a save twice, the higher kept: as a failed save rerolled, the better kept — the same odds.)
+    // (Kip Up: a free Stand that triggers no reactions, as its turn starts while prone.)
+    "kip-up": () => ({ builtins: { kipUp: "Kip Up" }, played: "stands from prone free, with no reactions" }),
     "feline-dance": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: "reflex" }], played: "a failed Reflex save rerolled, the better kept (reaction, once a fight)" }),
     "mistaken-identity": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "mental" }], played: "a failed save against a mental effect rerolled, the better kept (reaction, once a fight)" }),
     "guided-by-the-stars": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, free: true }], played: "a failed save rerolled, the better kept (free, once a fight)" }),

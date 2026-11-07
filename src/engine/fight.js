@@ -1877,6 +1877,11 @@ export function takeTurn(state, c) {
 // Its turn's actions, as the planner picks them; false when the fight ended in them.
 function playActions(state, c) {
     let guard = 0;
+    // (2026-11-07, Kip Up: "You stand up. This movement doesn't trigger reactions." — a free action, as its turn's actions start.)
+    if (c.kipUp && c.cond.prone && canAct(c)) {
+        c.cond.prone = false;
+        state.log?.push(`  ${c.name} uses ${c.kipUp}: Stands (free, no reactions)`);
+    }
     while (c.actionsLeft > 0 && canAct(c) && !c.cond.fleeing && guard++ < 8) {
         const action = chooseAction(state, c);
         if (!action) break;
