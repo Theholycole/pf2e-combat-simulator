@@ -1517,6 +1517,16 @@ const HAND = {
         const entry = plan && { name: "Volcanic Escape", plan: { ...plan, activation: { ...(plan.activation ?? {}), time: "reaction", traits: [] } }, castRank: Math.ceil(level / 2), dc, attack: dc - 10, pool: null, kind: "ability", effects: {}, featTrigger: { on: "damaged", melee: true } };
         return entry ? { builtins: {}, spells: [entry], played: `${dice}d6 fire, basic Reflex DC ${dc}, at a foe beside it that damages it (reaction)` } : null;
     },
+    // (2026-11-07, Reflective Defense: a foe's attack at it, before the roll — a Reflex save against its class DC or dazzled to the end of
+    // its next turn (reaction, once a fight — once per 10 minutes).)
+    "reflective-defense": (level, host, doc) => {
+        const until = { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" };
+        const plan = conditionSavePlan(doc, "reflex", ["dazzled", null, until], ["dazzled", null, until]);
+        const dc = dcsOf(host).class ?? 10 + level + 2 + 4;
+        if (!plan) return null;
+        const entry = { name: "Reflective Defense", plan: { ...plan, activation: { ...(plan.activation ?? {}), time: "reaction", traits: ["light"] } }, castRank: 1, dc, attack: dc - 10, pool: "feat:reflective-defense", kind: "ability", effects: {}, featTrigger: { on: "foe-attack", atYou: true } };
+        return { builtins: {}, spells: [entry], pools: { "feat:reflective-defense": 1 }, played: `a foe attacking it dazzled on a failed Reflex save (DC ${dc}; reaction, once a fight)` };
+    },
     "mega-bomb": (level, host, doc) => {
         const plan = damageSavePlan(doc, "reflex", [null, "2d8[fire]", "4d8[fire]", "8d8[fire]"]);
         if (!plan) return null;
