@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1538,
+ "rated": 1539,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -9582,28 +9582,6 @@
    "reason": null,
    "detail": null,
    "text": "You refuse to let foes past your guard. As long as you are in this stance, when you critically hit with an Reactive Strike triggered by a move action, you disrupt that move action."
-  },
-  {
-   "id": "bYijGvCvCmJnW6aA",
-   "name": "Sacrifice Armor",
-   "level": 8,
-   "owner": "champion",
-   "classes": [
-    "champion"
-   ],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "champion"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "its Effect has nothing a fight counts",
-   "detail": "its Effect has nothing a fight counts",
-   "text": "Trigger You are hit by a Strike that deals physical damage. With divine awareness, you twist your body to lessen the impact of an attack. Reduce the damage you take by an amount equal to twice your armor's level. Your armor becomes Broken, "
   },
   {
    "id": "APfPNpUQlKlCAJkS",

@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1538 are rated; 2818 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1539 are rated; 2817 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -9,14 +9,14 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Bucket | No plan | Plan, not played | Total |
 |---|---:|---:|---:|
 | Archetype dedications (grant class features) | 76 | 81 | 157 |
-| Combat actions and reactions | 192 | 361 | 553 |
+| Combat actions and reactions | 192 | 360 | 552 |
 | Passives that change a class feature | 156 | 40 | 196 |
 | Other combat passives | 287 | 84 | 371 |
 | Spellcasting (slots, focus, spellshapes) | 231 | 40 | 271 |
 | Companions, familiars and eidolons | 125 | 47 | 172 |
 | Out of combat (exploration, downtime, skills) | 282 | 55 | 337 |
 | Nothing a fight would use | 625 | 136 | 761 |
-| **All** | 1974 | 844 | 2818 |
+| **All** | 1974 | 843 | 2817 |
 
 ## By class
 
@@ -26,7 +26,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | animist |  | 4 | 4 |  | 12 | 3 | 5 | 2 | 30 |
 | barbarian |  | 19 | 13 | 4 |  |  |  | 9 | 45 |
 | bard |  | 10 | 7 |  | 15 | 1 | 14 | 13 | 60 |
-| champion |  | 7 | 8 | 16 | 3 | 6 | 6 | 14 | 60 |
+| champion |  | 6 | 8 | 16 | 3 | 6 | 6 | 14 | 59 |
 | cleric |  | 5 | 1 | 13 | 16 | 1 | 8 | 19 | 63 |
 | commander |  | 7 | 1 | 3 |  |  | 5 | 7 | 23 |
 | druid |  | 5 | 4 | 4 | 18 | 5 | 7 | 19 | 62 |
@@ -71,7 +71,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | its text has no Strike of its user's | 19 |
 | a spell the feat casts | 18 |
 | a passive's Effect posted by hand | 18 |
-| its Effect has nothing a fight counts | 17 |
+| its Effect has nothing a fight counts | 16 |
 | a passive's Effect on other creatures | 15 |
 | a reaction to "passive" | 13 |
 | it grants Additional Lore: the feat module reads nothing for it | 12 |
@@ -400,7 +400,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Warshard Warrior Dedication | 12 | other | passive | plan | it grants Call Warshard Weapon: the feat module reads nothing for it |
 | Wildspell Dedication | 12 | other | passive | plan | a spell the engine doesn't cast (Spellsurge) |
 
-## Combat actions and reactions (553)
+## Combat actions and reactions (552)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -697,7 +697,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Everstand Stance | 1 | champion | 1 action | no plan |  |
 | Knock Sense | 4 | champion | 1 action | plan | a Strike with nothing more the simulator reads |
 | Impassable Wall Stance | 8 | champion | 1 action | no plan |  |
-| Sacrifice Armor | 8 | champion | reaction | plan | its Effect has nothing a fight counts |
 | Miraculous Intervention | 12 | champion | reaction | plan | a roll whose results the simulator doesn't read |
 | Everdistant Defense | 20 | champion | reaction | no plan |  |
 | Rapid Response | 2 | cleric | reaction | no plan |  |
