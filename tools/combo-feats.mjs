@@ -20,6 +20,19 @@ export const USES = { strike: 4, reload: 4, draw: 1, stride: 1.25, move: 1.25, s
 // Each combo feat: its cost, the basic actions it folds in, the saved ones (their kinds), and a cap on uses (frequency, requirement).
 export const COMBOS = [
     // (2026-11-07, Cole: "keep building remaining feats" — more of them from the gap index's movement and Strike buckets.)
+    { name: "Winged Mantle", cost: 1, parts: "Stand + Interact (pick up or draw a weapon), no reactions", saved: ["draw"], uses: 0.3, note: "when wounded, after being down" },
+    { name: "Covered Reload", cost: 1, parts: "Take Cover or Hide + Interact (reload)", saved: ["cover"], uses: 4, note: "each turn with a reload weapon, where it can take cover" },
+    { name: "Maneuvering Spell", cost: 0, parts: "Step, Leap or Stand (free, as it casts a 2-action spell)", saved: ["step"], uses: 2 },
+    { name: "Ten Paces", cost: 0, parts: "Interact (draw a firearm or crossbow) as initiative is rolled", saved: ["draw"], uses: 1, note: "its +2 initiative not counted" },
+    { name: "Predator's Growl", cost: 0, parts: "Demoralize (reaction, after Seeking a hidden foe)", saved: ["maneuver"], uses: 0.3 },
+    { name: "Tangled Forest Rake", cost: 1, parts: "lashing branch Strike + Reposition 10 feet (no check)", saved: ["maneuver"], note: "in Tangled Forest Stance" },
+    { name: "Scout's Pounce", cost: 2, parts: "Stride + Strike, Strike", saved: ["strike"], uses: 0.5, note: "hidden from all foes and 10 feet from them; its off-guard target not counted" },
+    { name: "Bombing Run", cost: 2, parts: "Fly + Interact (draw a bomb) + Strike", saved: ["draw"], uses: 1, note: "with a fly Speed" },
+    { name: "Instructive Strike", cost: 1, parts: "Strike + Recall Knowledge", saved: ["knowledge"] },
+    { name: "Combat Assessment", cost: 1, parts: "melee Strike + Recall Knowledge", saved: ["knowledge"] },
+    { name: "Magus's Analysis", cost: 1, parts: "Recall Knowledge + recharge Spellstrike", saved: ["knowledge"] },
+    { name: "Shamble", cost: 2, parts: "Stride, Stride, ignoring difficult terrain", saved: [], note: "about even with two Strides" },
+    { name: "Green Dash", cost: 1, parts: "Stride +15 feet", saved: [], note: "about even with a Stride" },
     { name: "Swamp Stealth", cost: 1, parts: "Take Cover + Hide", saved: ["stealth"], uses: 0.25, note: "in a swamp, beside cover" },
     { name: "Forest Stealth", cost: 1, parts: "Take Cover + Hide", saved: ["stealth"], uses: 0.4, note: "in a forest or jungle, beside cover" },
     { name: "Fleeting Shadow", cost: 2, parts: "Hide + Sneak, Sneak", saved: ["stealth"] },
