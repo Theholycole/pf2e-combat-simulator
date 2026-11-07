@@ -1308,6 +1308,12 @@ const HAND = {
     },
     // (Army of One: a Strike at each enemy in its nimbus's bright light — 30 feet — the penalty rising after all; a Mythic Point each. Its
     // nimbus taken as active.)
+    // (2026-11-07, Time Dilation Cascade: six Strikes, the multiple attack penalty as normal — its combined damage against resistances not
+    // played.)
+    "time-dilation-cascade": (_level, host) => {
+        const strike = (host?.strikes ?? [])[0];
+        return strike ? { builtins: { multiStrikes: [{ name: "Time Dilation Cascade", actions: 3, strikes: Array(6).fill(strike.name.toLowerCase()), flourish: true, featForced: true }] }, played: "six Strikes, multiple attack penalty as normal (3 actions, flourish)" } : null;
+    },
     "army-of-one": () => ({ builtins: { multiStrikes: [{ name: "Army of One", actions: 3, strikes: [null], each: true, within: 30, sameMap: true, pool: "mythic" }] }, pools: { mythic: 3 }, played: "a Strike at each enemy within 30 feet, one multiple attack penalty (3 actions, a Mythic Point each)" }),
     "terrifying-mien": () => ({ builtins: { frightenedResist: { name: "Terrifying Mien", per: 4 } }, played: "resistance to a frightened foe's Strikes, four times its frightened value" }),
     // (Prescience: initiative at mythic proficiency — +10 over its level against the fighter's expert Perception +4 (master +6 from 7th) —
