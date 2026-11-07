@@ -30,6 +30,8 @@ function actionEntryOf(c, action) {
             return c.charges?.[action.ability] ?? null;
         case "skillSweep":
             return c.skillSweeps?.[action.index] ?? null;
+        case "summon":
+            return c.summons?.[action.index] ?? null;
         default:
             return null;
     }
@@ -2194,7 +2196,9 @@ function expandTactics(env) {
         const span = Math.max(1, Math.min(3, entry.lasts ?? 3));
         const share = entry.initiative === "minion" ? 2 / 3 : 1;
         const gain = ctx.ownValue * ROUND_TO_KILL * span * (many * each * share - (entry.sustained ? threatOf / 3 : 0)) / threatOf;
-        if (gain > 0) children.push(child(node, { type: "summon", index, actions: entry.actions }, entry.actions, gain, { cast: `summon${index}` }));
+        // (2026-11-07: a feat's own summon, forced as its other actions are — tools/lib/feat-power.mjs featForced.)
+        const forcedSummon = c.forceUse && entry.featForced && !node.casts.includes("forced");
+        if (gain > 0 || forcedSummon) children.push(child(node, { type: "summon", index, actions: entry.actions }, entry.actions, Math.max(gain, 0.01) + (forcedSummon ? 10 * ctx.ownValue : 0), { cast: forcedSummon ? [`summon${index}`, "forced"] : `summon${index}` }));
     }
     // Hunt Prey: a new prey when the current one is gone or a better target is in reach.
     if (c.huntPrey && node.used === 0 && !raging) {
