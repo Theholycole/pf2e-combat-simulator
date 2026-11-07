@@ -7,6 +7,17 @@ const row = (extra = {}) => ({ damage: { mode: "none", multiplier: 0, sourceComp
 const condition = (slug, value) => ({ kind: "condition", slug, value, duration: null });
 
 const READINGS = {
+    // (2026-11-07, Cole: "keep building feats" — spells feats grant that the packs' compiler leaves unsupported, read here as the spell
+    // module's own condition notes and outline would give them.)
+    // Invisibility: invisible on its target for 10 minutes, ended by the target's hostile action (not from the 4th rank).
+    invisibility: (plan) => ({ kind: "condition-note", check: null, sharedDamage: null, outcomes: plan.resolution?.outcomes, applications: [],
+        conditionNote: { recipient: "target", condition: { slug: "invisible", value: null }, text: "Illusions bend light around the target, rendering it Invisible. If the target uses a hostile action, the spell ends after that hostile action is completed.", heightened: [{ rank: 4, text: "The spell doesn't end if the target uses a hostile action." }] } }),
+    // Blur: concealed on its target for the minute.
+    blur: (plan) => ({ kind: "condition-note", check: null, sharedDamage: null, outcomes: plan.resolution?.outcomes, applications: [],
+        conditionNote: { recipient: "target", condition: { slug: "concealed", value: null }, text: "The target's form appears blurry. It becomes Concealed." } }),
+    // Faerie Fire: every creature in its 10-foot burst outlined for 5 minutes (withOutline).
+    "faerie-fire": (plan) => ({ kind: "outline", check: null, sharedDamage: null, outcomes: plan.resolution?.outcomes, applications: [],
+        outline: { area: plan.targeting?.area ?? { type: "burst", value: 10 }, duration: { value: 5, unit: "minutes" } } }),
     // Evil Eye: sickened 1 on a failed Will save (2 on a critical failure); it can't go below 1 while the spell lasts (sustained).
     "evil-eye": () => {
         const floor = { slug: "sickened", value: 1, lifetime: "spell", liftedBy: null, situational: null };

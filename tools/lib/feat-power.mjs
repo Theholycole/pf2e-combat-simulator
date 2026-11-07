@@ -333,6 +333,7 @@ function innateSpellEntry(doc, level, host) {
         } catch {
             continue;
         }
+        plan = selfFormPlan(plan);
         if (!plan?.resolution || ["unsupported", "no-effect"].includes(plan.resolution.kind)) continue;
         // (2026-11-07, Summon Elemental's, Summon Animal's: a summon spell as the engine's summons — summons.js, the foes' own —: its best
         // creature of the traits it allows at the rank, made as reserves beside the party; a use a day, or its cantrip's once a fight.)
@@ -348,7 +349,13 @@ function innateSpellEntry(doc, level, host) {
         // the fight casts the one it wants. Before, each listed spell came with its own use.)
         const pool = uses ? (choice ? `innate:${doc._id}:choice` : `innate:${doc._id}:${spell._id}`) : null;
         if (pool) pools[pool] = choice ? 1 : uses;
-        const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+        // (2026-11-07, Animal Form's, Dragon Form's shapes from a feat: every shape's battle form, the best taken — formChoice.)
+        const merged = formChoice(plan, spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank));
+        if (!merged) continue;
+        const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan: merged.plan, castRank, dc, attack: dc - 10, pool, effects: merged.effects };
+        if (plan.resolution.selfForm && !Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) continue;
+        // (Its battle form cast even where the planner reads no gain in it, as Untamed Form's is.)
+        if (plan.resolution.selfForm) entry.forceEven = true;
         if (castable(entry) || reactionWired(entry)) entries.push(entry);
     }
     if (!entries.length && !summons.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
@@ -2348,6 +2355,29 @@ const BASE_FEATS = { "targeting-strike": "Set-Up Strike", "multishot-stance": "D
 // (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
 // rank — half the druid's level, rounded up —, a 2-action focus spell; the engine's battle forms (effects.js enterForm) take its best shape.
 // Untamed Form's +2 status to the druid's own attack modifier isn't played: a form's own modifier is higher.)
+// (A spell whose shape is chosen as it's cast — Animal Form's, Dinosaur Form's "effect-choice" —: one Effect with every branch's battle
+// form, which enterForm picks the best of. Any other plan as it is; null when a choice has no Effect.)
+function formChoice(plan, effects) {
+    if (plan.resolution?.kind !== "effect-choice") return { plan, effects };
+    const models = Object.values(effects ?? {}).filter(Boolean);
+    const first = Object.keys(effects ?? {})[0];
+    if (!first) return null;
+    const battleForms = models.flatMap((model) => model.battleForms ?? (model.battleForm ? [model.battleForm] : []));
+    if (!battleForms.length) return { plan, effects };
+    return {
+        effects: { [first]: { ...models[0], battleForms, battleForm: battleForms[0] } },
+        plan: { ...plan, resolution: { ...plan.resolution, kind: "effect", selector: undefined, applications: [{ kind: "native-spell-effect", uuid: first, source: "nativeEffects.onUse", terminationId: `${first}:dismiss` }] } },
+    };
+}
+// (2026-11-07, Dragon Form's, Monstrosity Form's: a battle form spell the packs' compiler leaves "unsupported" — no save, its one Effect
+// unscoped —: that Effect on the caster as it's cast, kept only where it is a battle form — formChoice's check after.)
+function selfFormPlan(plan) {
+    if (plan?.resolution?.kind !== "unsupported" || plan.resolution.check) return plan;
+    const links = [...(plan.nativeEffects?.onUse ?? []), ...(plan.nativeEffects?.unscoped ?? [])].filter((link) => link?.kind === "native-spell-effect");
+    if (links.length !== 1) return plan;
+    const uuid = links[0].uuid;
+    return { ...plan, nativeEffects: { ...plan.nativeEffects, onUse: [{ ...links[0], scope: "on-use" }], unscoped: [] }, resolution: { ...plan.resolution, kind: "effect", selfForm: true, applications: [{ kind: "native-spell-effect", uuid, source: "nativeEffects.onUse", terminationId: `${uuid}:dismiss` }] } };
+}
 function untamedShape(level, host, spellName, label) {
     const spell = spellPack.spellNamed(spellName);
     if (!spell) return null;
@@ -2355,24 +2385,17 @@ function untamedShape(level, host, spellName, label) {
     if (castRank > Math.ceil(level / 2)) return null;
     let plan;
     try {
-        plan = spellPack.compileSpell(spell);
+        plan = selfFormPlan(spellPack.compileSpell(spell));
     } catch {
         return null;
     }
     const own = dcsOf(host);
     const dc = own.spell ?? own.class ?? 10 + level + 2;
     const pool = `${host.id}:focus`;
-    let effects = spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank);
-    // (A spell whose shape is chosen as it's cast — Animal Form's, Dinosaur Form's "effect-choice" —: one Effect with every branch's battle
-    // form, which enterForm picks the best of.)
-    if (plan.resolution?.kind === "effect-choice") {
-        const models = Object.values(effects ?? {}).filter(Boolean);
-        const first = Object.keys(effects ?? {})[0];
-        if (!first) return null;
-        const battleForms = models.flatMap((model) => model.battleForms ?? (model.battleForm ? [model.battleForm] : []));
-        effects = { [first]: { ...models[0], battleForms, battleForm: battleForms[0] ?? null } };
-        plan = { ...plan, resolution: { ...plan.resolution, kind: "effect", selector: undefined, applications: [{ kind: "native-spell-effect", uuid: first, source: "nativeEffects.onUse", terminationId: `${first}:dismiss` }] } };
-    }
+    const merged = formChoice(plan, spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank));
+    if (!merged) return null;
+    ({ plan } = merged);
+    const { effects } = merged;
     const entry = { name: `Untamed Form (${label})`, fromFeat: true, featForced: true, forceEven: true, plan, castRank, dc, attack: dc - 10, pool, effects };
     if (!castable(entry) || !Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) return null;
     return { builtins: {}, spells: [entry], pools: { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) }, played: `Untamed Form's ${label.toLowerCase()} shapes (${spellName}, rank ${castRank})` };
