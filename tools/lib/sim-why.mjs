@@ -20,6 +20,9 @@ const HIDDEN = "a benefit against hidden, undetected or concealed creatures (or 
 const FOLLOWER = "a follower, student or spotter (an NPC ally the simulator's party doesn't have)";
 const REACH = "a matter of 5 or 10 feet of reach, range or movement, which the simulator's distance bands (engaged, near, far) don't measure";
 const COMPANION_KIND = "a kind of companion the simulator doesn't field (megafauna, a second companion, a construct, an undead horde or spirits, a ridden or shrunken eidolon, winged companions)";
+const DAMAGE_TYPE = "a choice of damage type (or of an element), and the rating foes have no weakness or resistance it would be picked for";
+const SAME_PICK = "more options for an action whose best option the simulator's PC already takes (or that cures conditions the rating foes don't inflict), so a fight plays the same";
+const SUBCLASS = "a change to a class option, feature or action the simulator's class PC doesn't have (each class fights with one build: the champion a paladin with Retributive Strike, for one)";
 const DOOM = "a reaction to doom or an oracle's curse, which the simulator doesn't play";
 
 export const SIM_WHY = Object.freeze({
@@ -152,5 +155,15 @@ export const SIM_WHY = Object.freeze({
     "Divine Presence": REACH, "Get Behind Me!": REACH, "Swift Elusion": REACH, "Guiding Riposte": REACH, "Improved Knockback": REACH,
     "Flinging Shove": REACH, "Liberating Stride": REACH, "Slingshot Maneuver": REACH, "Rescuer's Press": REACH, "Divine Wall": REACH,
     "Space-Time Shift": REACH, "Planar Traveler": REACH, "Awakened Stride": REACH, "Rapid Response": REACH, "Quick Spring": REACH, "Twirl Through": REACH,
+    "Elemental Evolution": DAMAGE_TYPE, "Versatile Mutation": DAMAGE_TYPE, "Elemental Fist": DAMAGE_TYPE, "Emblazon Energy": DAMAGE_TYPE,
+    "Greater Debilitating Bomb": SAME_PICK, "True Debilitating Bomb": SAME_PICK, "Perfect Debilitation": SAME_PICK, "Greater Mercy": SAME_PICK,
+    "Greater Merciful Elixir": SAME_PICK, "Advanced First Aid": SAME_PICK,
+    "Lasting Doubt": SUBCLASS, "Brilliant Flash": SUBCLASS, "Greater Cruelty": SUBCLASS,
+    "Raging Thrower": SUBCLASS, "Leap and Fire": SUBCLASS, "Shared Prey": SUBCLASS, "Masterful Companion": SUBCLASS, "Manifold Edge": SUBCLASS,
+    "Elegant Buckler": SUBCLASS, "Return Fire": SUBCLASS, "Focused Shot": SUBCLASS, "Pinning Fire": SUBCLASS, "Crack Retort": SUBCLASS,
+    "Unstable Redundancies": SUBCLASS, "Modular Dynamo": SUBCLASS, "Esoteric Reflexes": SUBCLASS, "Greater Interpose": SUBCLASS,
+    "Shared Avoidance": SUBCLASS, "Shared Clarity": SUBCLASS, "Heal Mount": SUBCLASS, "Demon's Hair": SUBCLASS,
+    "Second Wind": SAME_PICK, "Adaptive Stratagem": SAME_PICK,
+    "Reach for the Stars": REACH, "Directed Audience": REACH, "Spell Relay": REACH, "Guiding Retort": REACH,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

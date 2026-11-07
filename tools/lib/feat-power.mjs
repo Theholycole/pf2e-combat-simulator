@@ -1173,6 +1173,35 @@ function thrallAllySpell(doc, level, host, { model, rounds, destroyed, played })
 // (2026-11-07) A marshal stance: a stance self-effect whose aura gives its modifiers to it and the allies its 10 feet reach.
 const marshalStance = (name, modifiers, played) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { aura: [{ radius: 10, affects: "allies", includesSelf: true, model: { name, modifiers, tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [] } }] } }], played });
 
+// (2026-11-07: a free Sustain is worth something only to a PC with a sustained spell or summon — else a gap that says so.)
+const sustains = (host) => (host?.spells ?? []).some((entry) => /"(?:sustained":true|mode":"sustained")/.test(JSON.stringify(entry.plan ?? {}))) || (host?.summons ?? []).some((entry) => entry.sustained);
+const freeSustainHand = (host) => (sustains(host) ? { builtins: { freeSustain: 1 }, played: "one Sustain free each turn" } : { gap: "nothing the PC Sustains (no sustained spell or summon in its build)" });
+// (2026-11-07, the simulator phase: a feat that changes another's action — Breath Unleashed's Kobold Breath —, played on a party that has
+// that one (BASE_FEATS) as a changed copy of its entry beside it, its own pool when the change has a frequency.)
+function baseCopies(host, base, label, change) {
+    const out = [];
+    for (const entry of host?.spells ?? []) {
+        if (!String(entry.name ?? "").startsWith(base) || /\(/.test(entry.name)) continue;
+        const plan = change(structuredClone(entry.plan));
+        if (!plan) continue;
+        const copy = { ...entry, name: `${entry.name} (${label})`, plan };
+        if (castable(copy)) out.push(copy);
+    }
+    return out;
+}
+const sharedFormulas = (plan, edit) => {
+    const shared = plan?.resolution?.sharedDamage;
+    if (!shared?.components?.length) return null;
+    shared.components = shared.components.map((part) => ({ ...part, formula: edit(String(part.formula)) }));
+    return plan;
+};
+const withDie = (plan, die) => sharedFormulas(plan, (formula) => formula.replace(/(\d+)d\d+/g, `$1d${die}`));
+function baseHand(doc, host, base, label, change, { once = false, played }) {
+    const spells = baseCopies(host, base, label, change);
+    if (!spells.length) return { gap: `no ${base} of the PC's for it to change` };
+    const pool = once ? `feat:${doc._id}` : null;
+    return { builtins: {}, spells: pool ? spells.map((entry) => ({ ...entry, pool })) : spells, pools: pool ? { [pool]: 1 } : {}, played };
+}
 const HAND = {
     // (2026-11-07, fortune: Wish for Luck's "roll the check twice and take the higher result", once a day — played on an attack roll, as
     // Gorum's Tear's talisman (free, once a fight, when rolling twice is worth it); Accidental Shot's ranged Strike rolled twice, the same.)
@@ -1334,10 +1363,48 @@ const HAND = {
     "triple-threat": () => ({ builtins: { extraPrey: 2 }, played: "three prey at once (the next taken when one falls; sharing the edge not played)" }),
     // (2026-11-07: a Sustain for free as the turn begins — lasting.js and summons.js c.freeSustain; any sustained spell or summon of the
     // PC's, the class spell or impulse the feat names taken as that.)
-    "effortless-concentration": () => ({ builtins: { freeSustain: 1 }, played: "one Sustain free each turn" }),
-    "effortless-impulse": () => ({ builtins: { freeSustain: 1 }, played: "one Sustain free each turn" }),
-    "aura-expertise": () => ({ builtins: { freeSustain: 1 }, played: "one Sustain free each turn" }),
-    "effortless-captivation": () => ({ builtins: { freeSustain: 1 }, played: "one Sustain free each turn" }),
+    "effortless-concentration": (_level, host) => freeSustainHand(host),
+    "effortless-impulse": (_level, host) => freeSustainHand(host),
+    "aura-expertise": (_level, host) => freeSustainHand(host),
+    "effortless-captivation": (_level, host) => freeSustainHand(host),
+    // (2026-11-07, Big Debut: as initiative is rolled, a Will save at its class or spell DC for each enemy (that sees it — all, here),
+    // stunned 1 on a failure, 2 on a critical failure; the PC goes last; once a fight (once a day). Its free Interact not played.)
+    "big-debut": (level, host, doc) => {
+        const plan = conditionSavePlan(doc, "will", ["stunned", 1], ["stunned", 2]);
+        if (!plan) return null;
+        const dcs = dcsOf(host);
+        const dc = Math.max(dcs.class ?? 0, dcs.spell ?? 0) || 10 + level + 2;
+        const pool = `feat:${doc._id}`;
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "free" }, targeting: { ...plan.targeting, target: null, range: null, area: { type: "emanation", value: 60, foes: true }, actorConstraints: { sourceText: "each enemy", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } } }, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool, featTrigger: { on: "initiative" }, effects: spellPack.effectModels(plan, 1) };
+        return { builtins: { goesLast: true }, spells: [entry], pools: { [pool]: 1 }, played: `each enemy a Will save (DC ${dc}) or stunned 1 (2 on a critical failure) as initiative is rolled; the PC goes last (once a fight)` };
+    },
+    // (2026-11-07: changed copies of another feat's action, beside it — baseHand. Breath Unleashed: Kobold Breath's dice d8s, its cone 30
+    // feet (a line 60), then not again for an hour — once a fight. Tempest Gaze: Storming Gaze's cone 30 feet and twice the dice (half of
+    // them sonic — played as electricity), once a fight. Deadly Mutation: Spit Ambient Magic's dice d8s (its bleed on a critical failure
+    // not played). Spraying Mutation: Spit Ambient Magic at all creatures in a 15-foot cone.)
+    "breath-unleashed": (_level, host, doc) => baseHand(doc, host, "Kobold Breath", "unleashed", (plan) => {
+        if (!withDie(plan, 8)) return null;
+        const area = plan.targeting?.area;
+        if (area) plan.targeting.area = { ...area, value: area.type === "line" ? 60 : 30 };
+        return plan;
+    }, { once: true, played: "Kobold Breath with d8s and a 30-foot cone, once a fight" }),
+    "tempest-gaze": (_level, host, doc) => baseHand(doc, host, "Storming Gaze", "tempest", (plan) => {
+        if (!sharedFormulas(plan, (formula) => formula.replace(/(\d+)d(\d+)/g, (_all, count, die) => `${2 * Number(count)}d${die}`))) return null;
+        plan.resolution.sharedDamage.components = plan.resolution.sharedDamage.components.map((part) => ({ ...part, type: "electricity" }));
+        if (plan.targeting?.area) plan.targeting.area = { ...plan.targeting.area, value: 30 };
+        return plan;
+    }, { once: true, played: "Storming Gaze in a 30-foot cone with twice the dice, once a fight" }),
+    "deadly-mutation": (_level, host, doc) => baseHand(doc, host, "Spit Ambient Magic", "deadly", (plan) => withDie(plan, 8), { played: "Spit Ambient Magic with d8s" }),
+    "spraying-mutation": (_level, host, doc) => baseHand(doc, host, "Spit Ambient Magic", "spraying", (plan) => {
+        plan.targeting = { ...plan.targeting, target: null, range: null, area: { type: "cone", value: 15 }, actorConstraints: { sourceText: null, supportsActorTargets: true, complete: true, predicates: [] } };
+        return plan;
+    }, { played: "Spit Ambient Magic at all creatures in a 15-foot cone" }),
+    // (Tetraelemental Assault: Elemental Assault's 1d6 on its Strikes for 4 rounds — an element each turn without an action.)
+    "tetraelemental-assault": (_level, host) => {
+        const own = (host?.selfEffects ?? []).filter((entry) => entry.name === "Elemental Assault");
+        if (!own.length) return { gap: "no Elemental Assault of the PC's for it to change" };
+        return { builtins: { selfEffects: own.map((entry) => ({ ...structuredClone(entry), name: "Elemental Assault (tetraelemental)", model: { ...structuredClone(entry.model), name: "Elemental Assault (tetraelemental)", rounds: 4 } })) }, played: "Elemental Assault's extra die for 4 rounds" };
+    },
     "dwarven-doughtiness": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn" }),
     "calm-and-centered": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn (stupefied not played)" }),
     "sever-space": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, flourish: true, melee: true, strides: 3 })], played: "a melee Strike at a foe up to 80 feet away (flourish, 2 actions)" }),
@@ -2263,6 +2330,8 @@ function saveRerollEntry(doc, builtins) {
 function handEntry(doc, level, builtins, wields, host = null) {
     const read = HAND[slugOf(doc)]?.(level, host, doc);
     if (!read) return null;
+    // (2026-11-07: a hand reading that says why it plays nothing for this PC.)
+    if (read.gap) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: ${read.gap}` } };
     // (Its requirement — Reactive Shield's "You are wielding a shield" —: a PC whose loadout can't meet it gets one that can.)
     // (2026-11-04: or what the hand reading says it needs — Homing Shot's bow, a ranged Strike its text doesn't make a requirement.)
     const requirement = [requirementText(doc), read.requires].find((text) => text && wields && meetsWielding(text, wields) === false) ?? requirementText(doc);
@@ -2751,7 +2820,7 @@ function itemMatches(item, filter) {
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
 // (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
 const STANCE_SPELL_FEATS = { "wild winds stance": "Wild Winds Initiate", "clinging shadows stance": "Clinging Shadows Initiate" };
-const BASE_FEATS = { "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
+const BASE_FEATS = { "tetraelemental-assault": "Elemental Assault", "breath-unleashed": "Kobold Breath", "tempest-gaze": "Storming Gaze", "deadly-mutation": "Ostilli Host Dedication", "spraying-mutation": "Ostilli Host Dedication", "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
 
 // (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
 // rank — half the druid's level, rounded up —, a 2-action focus spell; the engine's battle forms (effects.js enterForm) take its best shape.
@@ -2841,7 +2910,12 @@ function partyWithFeatOwn(doc, level, options = {}) {
     // (2026-11-06: a stance a spell gives — Wild Winds Stance —: the feat that gives the spell.)
     const stanceDoc = stances.map((name) => featByName(name) ?? (STANCE_SPELL_FEATS[name.toLowerCase()] ? featByName(STANCE_SPELL_FEATS[name.toLowerCase()]) : null)).find(Boolean);
     if (!stanceDoc) return { skipped: true, reason: `its stance (${stances.join(" or ")}), not in the packs` };
-    const withStance = partyWithFeatAlone(stanceDoc, level, options);
+    // (2026-11-07: a base feat played through what it grants — Ostilli Host Dedication's Spit Ambient Magic.)
+    let withStance = partyWithFeatAlone(stanceDoc, level, options);
+    if (withStance.skipped && BASE_FEATS[slugOf(doc)]) {
+        const through = partyWithFeat(stanceDoc, level, options);
+        if (!through.skipped) withStance = through;
+    }
     if (withStance.skipped) return { ...withStance, reason: `its stance (${stanceDoc.name}): ${withStance.reason}` };
     const result = partyWithFeatAlone(doc, level, { hostId: withStance.host, party: withStance.party });
     if (result.skipped) return result;

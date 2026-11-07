@@ -270,6 +270,8 @@ function rollInitiative(state, snapshot) {
         const modifier = roll.value + Math.max(c.initiativeBonus ?? 0, warned.get(c.id) ?? 0) + effectBonus(c, "initiative");
         // (U11, Eye of Apprehension: Perception for initiative rolled twice, the higher kept.)
         const twice = roll.stat === "perception" && c.fortuneItems?.length && initiativeFortune(state, c);
+        // (2026-11-07, Big Debut: "You don't roll initiative. Instead, you voluntarily go last" — c.goesLast.)
+        if (c.goesLast) return { c, total: -1000, modifier };
         return { c, total: (twice ? Math.max(state.rng.d20(), state.rng.d20()) : state.rng.d20()) + modifier, modifier };
     });
     rolled.sort((a, b) => (b.total - a.total) || ((a.c.side === "foes" ? 0 : 1) - (b.c.side === "foes" ? 0 : 1)) || (b.modifier - a.modifier));
