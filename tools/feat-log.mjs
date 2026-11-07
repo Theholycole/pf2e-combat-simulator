@@ -22,8 +22,10 @@ for (const ref of fp.featRefs()) {
     let shown = 0;
     let matched = 0;
     for (let seed = 0; seed < 8; seed++) {
-        const lines = [];
-        simulate({ combatants: [...structuredClone(out.party), ...foes] }, {}, seed, { log: { push(line) { lines.push(typeof line === "string" ? line : line?.text ?? ""); } } });
+        // (A real array: a Strike reserves its line and fills it in by index once it hits — a push-only log lost every hit.)
+        const log = [];
+        simulate({ combatants: [...structuredClone(out.party), ...foes] }, {}, seed, { log });
+        const lines = log.map((line) => (typeof line === "string" ? line : line?.text ?? ""));
         lines.forEach((text, index) => {
             if (!re.test(text)) return;
             matched++;
