@@ -117,8 +117,8 @@ function spreadPick(state, c) {
     if (engaged.length < 2) return null;
     let h = 2166136261;
     for (const ch of `${state.seed}:${state.round}:${c.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
-    if (h % 3 !== 0) return null;
-    return engaged[Math.floor(h / 3) % engaged.length].id;
+    if (h % 4 !== 0) return null;
+    return engaged[Math.floor(h / 4) % engaged.length].id;
 }
 
 function createState(snapshot, options, seed, withLog) {
@@ -544,7 +544,7 @@ function startTurn(state, c) {
     hoverTurnStart(state, c);
     c.freeSustainLeft = c.freeSustain ?? 0;
     // (2026-11-07: a GM spreads its foes' attacks — a foe beside a PC sometimes goes after that PC, not only the one it rates best: one
-    // turn in three, one of the PCs engaged with it, at random. Drawn from its own hash of the fight's seed, the round and the foe, so the
+    // turn in four, one of the PCs engaged with it, at random. Drawn from its own hash of the fight's seed, the round and the foe, so the
     // fight's dice stay as they were. Before, foes never Struck the champion — 0 of ~400 Strikes in 16 fights —, and its Shield Block
     // feats never fired.)
     c.spreadTarget = c.side !== "party" && !c.summonedBy ? spreadPick(state, c) : null;
