@@ -112,5 +112,14 @@ export const SIM_WHY = Object.freeze({
     "Blood Rising": FOE_SPELL, "Charred Remains": TERRAIN, "Wooden Palisade": TERRAIN,
     "Commitment to Valor": FOE_TYPE, "Defy Sorrow": FOE_TYPE, "Metabolize Element": FOE_SPELL, "Vomit Stomach": FOE_TYPE, "Propelled Leap": FOE_TYPE,
     "Quick Root": FOE_TYPE, "Heat Wave": FOE_TYPE,
+    "Form Lock": FOE_TYPE, "Reveal True Name": SOCIAL, "Command Elemental": CREATURE, "Miraculous Intervention": CREATURE, "Silent Sting": SOCIAL,
+    "Redirect Elements": FOE_SPELL, "Plum Deluge": GEAR, "Battlefront Sabotage": SCENE, "Improvise Admixture": BETWEEN, "Skin Split": FOE_TYPE,
+    "Ostentatious Reload": GEAR, "Bring Into the Fold": SOCIAL, "Dispelling Spellstrike": FOE_SPELL, "Swift Intervention": SCENE, "Chromotherapy": BETWEEN,
+    "Banish Falsehoods of Flesh": FOE_TYPE, "No! No! I Created You!": FOE_TYPE, "Soul Thief": BETWEEN,
+    "Convincing Illusion": FOE_TYPE, "Spellbinding Speech": SOCIAL, "Disruptive Stare": FOE_SPELL, "Reverberate": FOE_TYPE, "Plant Evidence": SOCIAL,
+    "Grand Dance": TERRAIN, "Distracting Flattery": SOCIAL, "Anchoring Arrow": CREATURE, "Protective Bond": FOE_TYPE, "Resuscitate": SCENE,
+    "Collapse Wall": SCENE, "Rain-Scribe Mobility": TERRAIN, "Keep up Appearances": SOCIAL, "Go with the Flow": SOCIAL, "Interrogate": SOCIAL,
+    "Scatter Swarm": CREATURE, "Riptide Mount": SCENE, "Sabotage": GEAR, "Unwind Death": SCENE, "Command Undead": CREATURE,
+    "Miraculous Intervention": CREATURE, "Desperate Resuscitation": SCENE, "Swap Reflections": SCENE,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });
