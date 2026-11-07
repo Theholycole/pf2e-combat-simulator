@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 2195: in whole fights, or 106 combo feats from the basic actions they fold in (docs/combo-feats.md). **4171 it doesn't.**
-- **2911** are in neither.
+- **The simulator** rates 2205: in whole fights, or 106 combo feats from the basic actions they fold in (docs/combo-feats.md). **4161 it doesn't.**
+- **2910** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1382 | 863 |
+| class | 2282 | 1088 | 1372 | 862 |
 | archetype | 2074 | 1246 | 1355 | 947 |
 | ancestry | 1613 | 1086 | 1065 | 802 |
 | skill | 340 | 261 | 325 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 9 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4171 | 2911 |
+| **All** | 6366 | 3725 | 4161 | 2910 |
 
 ## Why the feat module doesn't automate them
 
@@ -41,19 +41,19 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 255 | 214 | 317 | 59 | 14 | 4 |  | 863 |
 | no card: roleplay or nothing to automate | 157 | 201 | 150 | 46 | 9 |  |  | 563 |
-| no card: the feat module's reminder, which a fight doesn't play | 174 | 128 | 93 | 21 |  | 1 |  | 417 |
+| no card: the feat module's reminder, which a fight doesn't play | 172 | 128 | 93 | 21 |  | 1 |  | 415 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 80 | 38 | 111 | 2 |  |  | 322 |
 | no card: only grants other feats, features or choices | 86 | 123 | 47 | 16 | 2 |  |  | 274 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 51 | 49 | 44 | 21 | 1 |  |  | 166 |
-| no card: a combat passive no reader or hand plan covers yet | 50 | 58 | 29 | 13 | 2 |  | 1 | 153 |
+| no card: a combat passive no reader or hand plan covers yet | 49 | 58 | 29 | 13 | 2 |  | 1 | 152 |
 | a spell the engine doesn't cast | 25 | 32 | 63 | 1 |  |  |  | 121 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
-| a timer with no rules a fight counts | 53 | 26 | 17 | 4 |  | 1 |  | 101 |
-| a plan the engine can't play | 32 | 34 | 25 | 2 |  |  |  | 93 |
+| a timer with no rules a fight counts | 52 | 26 | 17 | 4 |  | 1 |  | 100 |
+| a plan the engine can't play | 30 | 34 | 25 | 2 |  |  |  | 91 |
 | no card: a combat action no reader or hand plan covers yet | 24 | 27 | 13 | 4 | 1 |  |  | 69 |
 | no card: companions, familiars and eidolons | 34 | 25 | 1 | 5 |  |  |  | 65 |
-| a Strike with nothing more the simulator reads | 33 | 19 | 1 |  |  | 1 |  | 54 |
 | it grants Additional Lore | 1 | 11 | 39 | 1 |  |  |  | 52 |
+| a Strike with nothing more the simulator reads | 30 | 19 | 1 |  |  | 1 |  | 51 |
 | a roll whose results the simulator doesn't read | 25 | 14 | 5 | 7 |  |  |  | 51 |
 | its requirement | 14 | 27 | 4 |  |  |  |  | 45 |
 | an Effect with nothing a fight counts | 24 | 13 | 7 | 1 |  |  |  | 45 |
@@ -68,7 +68,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a reaction to "passive" | 8 | 5 | 4 |  |  |  |  | 17 |
 | nothing a fight uses | 2 | 1 | 12 |  |  |  |  | 15 |
 | its text has no Strike of its user's | 6 | 6 | 1 |  |  |  |  | 13 |
-| a reaction's Strike | 5 | 3 | 4 |  |  |  |  | 12 |
+| a reaction's Strike | 4 | 3 | 4 |  |  |  |  | 11 |
 | its requirement, which the PC doesn't meet | 5 | 2 | 3 |  |  |  |  | 10 |
 | a lasting area | 7 |  | 2 |  |  |  |  | 9 |
 | it grants Pet | 3 | 2 | 3 |  |  |  |  | 8 |
@@ -3534,7 +3534,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Bloody Tendrils | 6 | class | passive | rated -0.12 |
 | Claim the Field | 6 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Defy Fey | 6 | class | passive | no card: a combat passive no reader or hand plan covers yet |
-| Fling Into Action | 6 | class | passive | no card: a combat passive no reader or hand plan covers yet |
+| Fling Into Action | 6 | class | passive | rated 0 |
 | Fortified Elixirs | 6 | class | passive | no card: a combat passive no reader or hand plan covers yet |
 | Fungal Exhalation | 6 | class | passive | rated 0.02 |
 | Precise Finisher | 6 | class | passive | rated 0.02 |
@@ -4053,7 +4053,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (417)
+### no card: the feat module's reminder, which a fight doesn't play (415)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4318,7 +4318,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Artokus's Fire | 6 | class | free | reminder | the feat module reads nothing for it |
 | Assured Knowledge | 6 | class | passive | reminder | the feat module reads nothing for it |
 | Counter Element | 6 | class | reaction | kineticist module | the feat module reads nothing for it |
-| Divert Destiny | 6 | class | free | reminder | the feat module reads nothing for it |
 | Energetic Resonance | 6 | class | reaction | reminder | the feat module reads nothing for it |
 | Fearsome Familiar | 6 | class | 3 actions | kineticist module | the feat module reads nothing for it |
 | Instinctive Support | 6 | class | free | reminder | the feat module reads nothing for it |
@@ -4413,7 +4412,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Triumphant Inspiration | 14 | class | free | reminder | the feat module reads nothing for it |
 | True Debilitating Bomb | 14 | class | passive | reminder | the feat module reads nothing for it |
 | Unstable Redundancies | 14 | class | free | reminder | the feat module reads nothing for it |
-| Abjure Harm | 16 | class | reaction | reminder | the feat module reads nothing for it |
 | Cloud Step | 16 | class | passive | reminder | the feat module reads nothing for it |
 | Deadly Grace | 16 | class | passive | reminder | the feat module reads nothing for it |
 | Echoing Fury | 16 | class | passive | reminder | the feat module reads nothing for it |
@@ -4646,7 +4644,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Cloud Jump | 15 | skill | passive | by hand | the feat module reads nothing for it |
 | Legendary Survivalist | 15 | skill | passive | by hand | the feat module reads nothing for it |
 
-### a timer with no rules a fight counts (101)
+### a timer with no rules a fight counts (100)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4737,7 +4735,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Ocular Flesh | 14 | class | 1 action | card | a timer with no rules a fight counts |
 | You Can't Hide From Us | 14 | class | 1 action | card | a timer with no rules a fight counts |
 | Cognitive Loophole | 16 | class | reaction | card | a timer with no rules a fight counts |
-| Divide and Conquer | 16 | class | 2 actions | card | a timer with no rules a fight counts |
 | My Kingdom, My Blood | 16 | class | 3 actions | card | a timer with no rules a fight counts |
 | Beasts of Slumbering Steel | 18 | class | 3 actions | card | a timer with no rules a fight counts |
 | Profane Bargain | 18 | class | 3 actions | card | a timer with no rules a fight counts |
@@ -4752,7 +4749,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Skeptic's Defense | 7 | skill | reaction | card | a timer with no rules a fight counts |
 | Fear of God | 14 | skill | free | card | a timer with no rules a fight counts |
 
-### a plan the engine can't play (93)
+### a plan the engine can't play (91)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4829,7 +4826,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Volcanic Escape | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Dark Persona's Presence | 8 | class | free | card | a plan the engine can't play (its targeting or what it does) |
 | Mental Static | 8 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Call From Death's Door | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Corpse-Killer's Defiance | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Dazzling Block | 10 | class | free | card | a plan the engine can't play (its targeting or what it does) |
 | Fish From the Falls' Edge | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
@@ -4841,7 +4837,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Blood Pool | 14 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Towering Transformation | 14 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Noble Sacrifice | 16 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Vindictive Thoughts | 16 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Blaze of Revelation | 18 | class | free | card | a plan the engine can't play (its targeting or what it does) |
 | Spirit's Sacrifice | 18 | class | free | card | a plan the engine can't play (its targeting or what it does) |
 | Astonishing Explosion | 20 | class | free | card | a plan the engine can't play (its targeting or what it does) |
@@ -4850,7 +4845,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Say That Again! | 6 | skill | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Too Angry to Die | 12 | skill | reaction | card | a plan the engine can't play (its targeting or what it does) |
 
-### a Strike with nothing more the simulator reads (54)
+### a Strike with nothing more the simulator reads (51)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4904,9 +4899,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Leaping Hedgehog Strike | 16 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sever Magic | 16 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Virulent Strike | 16 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Army of One | 18 | class | 3 actions | card | a Strike with nothing more the simulator reads |
-| Throw and Catch | 18 | class | 3 actions | card | a Strike with nothing more the simulator reads |
-| Finish Their Story! | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sever Space | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 
 ### a roll whose results the simulator doesn't read (51)
@@ -5297,7 +5289,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Rouse the Forest's Fury | 18 | class | 3 actions | card | its text has no Strike of its user's |
 | Time Dilation Cascade | 20 | class | 3 actions | card | its text has no Strike of its user's |
 
-### a reaction's Strike (12)
+### a reaction's Strike (11)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5311,7 +5303,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Unrivaled Retort | 6 | class | reaction | card | a reaction's Strike |
 | Defend Our Union | 16 | class | reaction | card | a reaction's Strike |
 | Instant Return | 16 | class | reaction | card | a reaction's Strike |
-| Prescient Parry | 16 | class | reaction | card | a reaction's Strike |
 | Pack Performance | 18 | class | reaction | card | a reaction's Strike |
 
 ### a lasting area (9)

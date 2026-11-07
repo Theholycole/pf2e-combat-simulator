@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1539,
+ "rated": 1549,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -13362,26 +13362,6 @@
    "text": "Trigger You're the target of a physical attack. You grow a shield of woven flowers and branches, then Raise that Shield to defend yourself from the triggering attack. If you would take damage from the attack, you immediately Shield Block. T"
   },
   {
-   "id": "rljiwL00XW1RcnyL",
-   "name": "Divert Destiny",
-   "level": 6,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "free",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger An attack or effect would reduce you to 0 Hit Points or kill you outright. You defy the fate before you, calling on wells of mythic vitality to sustain your life and allow you to persevere. You expend 1 Mythic Point and survive the "
-  },
-  {
    "id": "kUb7FtYlJPNy4tYv",
    "name": "Unrivaled Retort",
    "level": 6,
@@ -13460,26 +13440,6 @@
    "reason": null,
    "detail": null,
    "text": "Trigger An enemy you're observing attempts to Strike an ally you can also observe. You move with unbelievable alacrity to intercept an enemy's attack. Spend a Mythic Point; stride twice directly toward the triggering enemy. If you end withi"
-  },
-  {
-   "id": "24giyNqSjqrEnhN9",
-   "name": "Call From Death's Door",
-   "level": 10,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a plan the engine can't play",
-   "detail": "a plan the engine can't play (its targeting or what it does)",
-   "text": "Trigger The Dying condition of an ally you're observing would increase. Even death halts in the face of your power. Spend a Mythic Point; the triggering ally loses the dying condition, their Wounded condition doesn't increase, and they heal"
   },
   {
    "id": "F8rtjsojGLaRuU5l",
@@ -13651,26 +13611,6 @@
    "text": "Trigger You fail a saving throw against an effect that would alter your memory or cause you to become controlled by another creature. Awareness of your past perils protects you from those who would manipulate your thoughts. Attempt to count"
   },
   {
-   "id": "oYdfO7j3vnNG7SYN",
-   "name": "Abjure Harm",
-   "level": 16,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger You would take damage from an enemy's critical Strike. You're nigh invincible, and it's clear that your foe is so far beneath you that they have no hope of winning. Spend 1 Mythic Point. The triggering Strike becomes a regular hit i"
-  },
-  {
    "id": "KX79TV93yznyhhMJ",
    "name": "Bring Into the Fold",
    "level": 16,
@@ -13713,26 +13653,6 @@
    "reason": "its requirement",
    "detail": "its requirement (You are adjacent to a climbable surface at least 10 feet tall.)",
    "text": "Requirements You are adjacent to a climbable surface at least 10 feet tall. Seemingly to defy gravity, you use a nearby vertical surface to propel yourself upward and then strike downward like the driving rain. Stride up to half your Speed "
-  },
-  {
-   "id": "C10L7NG6dgsCqKG8",
-   "name": "Divide and Conquer",
-   "level": 16,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a timer with no rules a fight counts",
-   "detail": "a timer with no rules a fight counts",
-   "text": "Requirements You are wielding a melee warshard weapon. When you face multiple foes, you wield your warshard weapon with vigor. Spend 1 Mythic Point, then Step to a space where you threaten at least two opponents with your warshard weapon. A"
   },
   {
    "id": "XrvIHz2bkgdpJ8rI",
@@ -13839,27 +13759,6 @@
    "text": "Trigger One of your designated knights is within 15 feet of you and would take damage from an enemy's Strike. As your knights devote their lives and swords to you, so too do you return their devotion with your own fierce protection. Spend a"
   },
   {
-   "id": "WYMbOaEvuAS5zCjH",
-   "name": "Prescient Parry",
-   "level": 16,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "manipulate",
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a reaction's Strike",
-   "detail": "a reaction's Strike",
-   "text": "Requirements You are wielding your warshard weapon. Trigger You are targeted by a melee or ranged Strike with a weapon. Spend a Mythic Point. Your warshard weapon intervenes at the last second, rising to deflect the incoming blow. For this "
-  },
-  {
    "id": "vqgklLExo3HAVAm9",
    "name": "Preserve the Moment",
    "level": 16,
@@ -13881,28 +13780,6 @@
    "text": "Frequency once per day Trigger Your turn ends. Sometimes, your actions are so successful and impressive that it's worth going back to them. Note the actions you took during the turn that just ended (excepting the reaction you used to trigge"
   },
   {
-   "id": "pDkIUYQh5GGW50r3",
-   "name": "Vindictive Thoughts",
-   "level": 16,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "arcane",
-    "mental",
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a plan the engine can't play",
-   "detail": "a plan the engine can't play (its targeting or what it does)",
-   "text": "Trigger You attempt a saving throw against a spell. Those who seek to do you personal harm with magic must suffer the same misfortune. Before you attempt your saving throw, spend a Mythic Point. You make this saving throw at mythic proficie"
-  },
-  {
    "id": "fns6SMiYrUeL6cnx",
    "name": "Virulent Strike",
    "level": 16,
@@ -13922,28 +13799,6 @@
    "reason": "a Strike with nothing more the simulator reads",
    "detail": "a Strike with nothing more the simulator reads",
    "text": "Those afflicted by certain maladies are closer to death in your presence. Make a Strike against a creature. If your attack hits, the target must attempt a new saving throw against the highest-level disease or poison that is currently affect"
-  },
-  {
-   "id": "0UhZ3UtSXx9qyoiZ",
-   "name": "Army of One",
-   "level": 18,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 3,
-   "traits": [
-    "concentrate",
-    "flourish",
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "Requirements Your nimbus is active. Even alone, you're a force to be reckoned with—an army of one, so long as you have your celestial armaments. Spend 1 Mythic Point. If you're not currently wielding your celestial armament, it immediately "
   },
   {
    "id": "BndS11cLoHSIZc49",
@@ -14007,46 +13862,6 @@
    "reason": "its requirement",
    "detail": "its requirement (A creature has been the target of your Ultimatum of Liberation for at least 1 minute)",
    "text": "Requirements A creature has been the target of your Ultimatum of Liberation for at least 1 minute You have given a despot enough time to think, and now is the time for them to forfeit their control or die. Spend a Mythic Point and make a St"
-  },
-  {
-   "id": "nbwHIS38AgSDquNu",
-   "name": "Throw and Catch",
-   "level": 18,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 3,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "Requirements You are wielding a melee warshard weapon. You hurl your warshard weapon at an opponent, even though the weapon isn't designed to be thrown. Spend a Mythic Point. Your weapon gains the thrown trait with a range increment of 40 f"
-  },
-  {
-   "id": "PAsFP9jcVcHkBoRd",
-   "name": "Finish Their Story!",
-   "level": 20,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "Though your tale is immortal, your foes aren't afforded such an advantage and mainly serve only to further your legend. When the time is right, you can shepherd a weaker opponent off this mortal coil. Spend a Mythic Point and make a Strike "
   },
   {
    "id": "N8mhYbr5xBI8jydb",
@@ -26265,26 +26080,6 @@
    "reason": "it grants Set Free: its Effect has nothing a fight counts",
    "detail": "it grants Set Free: its Effect has nothing a fight counts",
    "text": "You've been ensnared by an azata's infectious enthusiasm for life, love, and freedom that manifests as a pearlescent afterimage in your graceful movements, a spring in your soft steps, an ever-present melody in your euphonic voice, and eddi"
-  },
-  {
-   "id": "2eratRTKDhSYvrIZ",
-   "name": "Fling Into Action",
-   "level": 6,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You release mythic power to turn disaster into opportunity and hurl yourself into an advantageous position. When you attempt a Reflex save, you can spend a Mythic Point to attempt the save at mythic proficiency. If the check is successful, "
   },
   {
    "id": "Lx7JtAhIn3aJ6WbP",
