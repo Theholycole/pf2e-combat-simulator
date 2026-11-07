@@ -1536,6 +1536,26 @@ const HAND = {
     },
     // (2026-11-07, Boaster's Challenge: its skill check against the foe's Will played as a success — +2 status to its Strikes' damage to the
     // end of its next turn (+4 from master proficiency, about 7th level; +6 legendary, 15th) —, at any foe; once a fight, the +4 Will DC after.)
+    // (2026-11-07, Bleed Out: a ranged spell attack (Ray of Frost's compiled shape) for persistent bleed of its last spell's rank — taken as a
+    // rank under its best; double on a critical hit. Its requirement, a blood magic spell just cast, not checked: three a fight, about its
+    // non-cantrip casts.)
+    "bleed-out": (level, host, doc) => {
+        let base = null;
+        try {
+            base = spellPack.compileSpell(spellPack.spellNamed("Ray of Frost"));
+        } catch {
+            base = null;
+        }
+        if (!base?.resolution?.outcomes) return null;
+        const rank = Math.max(1, Math.ceil(level / 2) - 1);
+        const row = (from, formula) => ({ ...structuredClone(from), effects: [], damage: formula ? { mode: "formulas", formulas: [{ formula }], rollScope: "target" } : { mode: "none", multiplier: 0, sourceComponentIds: [] } });
+        const o = base.resolution.outcomes;
+        const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], heightening: null, activation: { ...base.activation, time: "1" }, targeting: { ...base.targeting, range: "60 feet" },
+            resolution: { ...base.resolution, sharedDamage: null, outcomes: { criticalSuccess: row(o.criticalSuccess, `${2 * rank}[persistent,bleed]`), success: row(o.success, `${rank}[persistent,bleed]`), failure: row(o.failure, null), criticalFailure: row(o.criticalFailure, null) } } };
+        const dc = dcsOf(host).spell ?? 10 + level + 2 + 4;
+        const entry = { name: "Bleed Out", plan, castRank: 1, dc, attack: dc - 10, pool: "feat:bleed-out", kind: "ability", effects: {} };
+        return castable(entry) ? { builtins: {}, spells: [entry], pools: { "feat:bleed-out": 3 }, played: `a spell attack for ${rank} persistent bleed (1 action, three a fight; its blood magic requirement not checked)` } : null;
+    },
     "boasters-challenge": (level) => { const bonus = level >= 15 ? 6 : level >= 7 ? 4 : 2; return { builtins: { selfEffects: [{ name: "Boaster's Challenge", actions: 1, featForced: true, pool: "boasters-challenge", model: { name: "Boaster's Challenge", rounds: 2, modifiers: [{ on: "damage", type: "status", value: bonus }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, pools: { "boasters-challenge": 1 }, played: `+${bonus} status to its Strikes' damage to the end of its next turn (1 action, once a fight; its check played as a success)` }; },
     "nimble-form": () => ({ builtins: { nimbleForm: true }, played: "its eidolon's agile attacks at -3/-6 for the multiple attack penalty" }),
     "predictable": () => ({ builtins: { selfEffects: [{ name: "Predictable!", actions: 1, featForced: true, model: { name: "Predictable!", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 1 }, { on: "saving-throw", type: "circumstance", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, played: "+1 AC and saves until its next turn (1 action; its Perception check played as a success)" }),
@@ -2884,7 +2904,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle" };
+const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle", "bleed-out": "sorcerer" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
