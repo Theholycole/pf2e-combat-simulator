@@ -1464,6 +1464,11 @@ const HAND = {
         if (!host?.spellPools?.[pool]) return { gap: "no devotion spell of the PC's to spend it on" };
         return { builtins: {}, pools: { [pool]: host.spellPools[pool] + 1 }, played: "one more Lay on Hands a fight (its Focus Point at a turn start with none)" };
     },
+    // (2026-11-07: a Focus Point back once a fight — one more focus spell a fight; an action's cost to regain it not counted.)
+    "well-of-potential": (_level, host) => focusBackHand(host, "one more focus spell a fight (1 action to regain it, not counted)"),
+    "energized-font": (_level, host) => focusBackHand(host, "one more focus spell a fight (1 action to regain it, not counted)"),
+    "retributive-focus": (_level, host) => focusBackHand(host, "one more focus spell a fight (as a foe sets off its reaction)"),
+    "mythic-refocus": (_level, host) => focusBackHand(host, "its focus pool refilled once a fight (a Mythic Point; its action not counted)", true),
     // (After You: it goes last, with panache.)
     "watchful-gaze": () => noFlankHand("Watchful Gaze"),
     "augment-senses": () => noFlankHand("Augment Senses"),
@@ -2783,7 +2788,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer" };
+const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
@@ -3410,6 +3415,12 @@ const FORCE = process.env.FEAT_FORCE !== "0";
 // (2026-11-05: a benchmark of its own — FEAT_FOE_TRAIT=saves, the rating foes with save abilities, spell-power.js —, in its own run folder.)
 const FOE_TRAIT = process.env.FEAT_FOE_TRAIT || null;
 // (2026-11-05: reactionStrikes too — actions.js puts a forced one ahead of Reactive Strike on a move or manipulate trigger.)
+function focusBackHand(host, played, refill = false) {
+    const pool = `${host?.id}:focus`;
+    if (!host?.spellPools?.[pool]) return { gap: "no focus spell of the PC's to spend it on" };
+    return { builtins: {}, pools: { [pool]: host.spellPools[pool] + (refill ? host.spellPools[pool] : 1) }, played };
+}
+
 // (2026-11-07: 1 action, can't be flanked until the start of its next turn — Watchful Gaze, Augment Senses.)
 function noFlankHand(name) {
     return { builtins: { selfEffects: [{ name, actions: 1, featForced: true, model: { name, rounds: 1, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, noFlank: true } }] }, played: "can't be flanked until its next turn (1 action)" };
