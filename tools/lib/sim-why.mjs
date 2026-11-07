@@ -826,5 +826,7 @@ export const SIM_WHY = Object.freeze({
     "Withstand the Storm": DAMAGE_TYPE,
     "Battle Prayer": CREATURE,
     "Surprising Leap": REACH,
+    "Blazing Mutagen": SUBCLASS,
+    "Healing Bomb": GEAR,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

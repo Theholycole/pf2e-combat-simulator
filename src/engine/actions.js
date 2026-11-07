@@ -944,10 +944,17 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // Sneak Attack, Pack Attack and the like (monsters).
     if (attacker.strikeExtras?.length) {
         const packAllies = engagedEnemies(state, target).filter((other) => other !== attacker).length;
+        // (2026-11-07, Astonishing Explosion: an extra once a fight — onceKey —, all its parts on the one Strike that first uses it.)
+        const thisStrike = {};
         for (const extra of attacker.strikeExtras) {
             if (!extraApplies(extra, target, { offGuard, packAllies, attacker, critical })) continue;
             // (Brutal Critical: melee Strikes only, its weapon's own die, not doubled — an extra die like deadly's; its bleed persistent.)
             if (!extraFits(extra, strike, reaction)) continue;
+            if (extra.onceKey) {
+                const spent = (attacker.extrasSpent ??= new Map()).get(extra.onceKey);
+                if (spent && spent !== thisStrike) continue;
+                attacker.extrasSpent.set(extra.onceKey, thisStrike);
+            }
             // (2026-11-03, Unbalancing Blow: the target off-guard to the attacker's attacks until the end of its next turn.)
             if (extra.offGuardToAttacker) {
                 if (isActive(target)) {

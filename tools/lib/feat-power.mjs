@@ -2371,6 +2371,10 @@ const HAND = {
     "debilitating-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, condition: { slug: "off-guard", duration: { mode: "fixed", value: 1, unit: "rounds" } }, source: "Debilitating Bomb" }] }, played: "its bombs leave a hit foe off-guard until its next turn (always on)" }),
     // (2026-11-06, Sour Bomb: a bomb's hit — a Fortitude save against its class DC, sickened 1, or sickened 2 and fleeing a round.)
     "sour-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, save: { statistic: "fortitude", outcomes: [[["sickened", 2], ["fleeing", null, 1]], [["sickened", 1]], [], []] }, source: "Sour Bomb" }] }, played: "a Fortitude save on each bomb hit: sickened 1, or 2 and fleeing (always on)" }),
+    // (2026-11-07, Astonishing Explosion: once a minute — once a fight —, a bomb's hit fascinates for a round, a critical hit stuns 1 too.)
+    "astonishing-explosion": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, onceKey: "astonishing-explosion", condition: { slug: "fascinated", duration: { mode: "fixed", value: 1, unit: "rounds" } }, source: "Astonishing Explosion" }, { when: "critical", bomb: true, onceKey: "astonishing-explosion", condition: { slug: "stunned", value: 1 }, source: "Astonishing Explosion" }] }, played: "a bomb's hit fascinates a round, a critical hit stuns 1 too (once a fight)" }),
+    // (Artokus's Fire: 1d4 more persistent fire on its alchemist's fire bombs' hits.)
+    "artokuss-fire": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, dice: 1, die: 4, persistent: true, type: "fire", source: "Artokus's Fire" }] }, played: "1d4 more persistent fire on a bomb's hit (always on; its harder flat check not played)" }),
     // (Persistent damage of the bomb's splash, its type.)
     "sticky-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, splashPersistent: true, source: "Sticky Bomb" }] }, played: "its bombs' splash as persistent damage on a hit (always on)" }),
     // (A second reaction each round, for Reactive Strike only — B303's spare reaction.)
