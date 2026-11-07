@@ -312,13 +312,18 @@ const ORDINAL = "(\\d+)(?:st|nd|rd|th)";
 // The spells a feat's text has its user cast innately: [{ spell, castRank, pool uses (0: at will) }]. Its rank: the text's ("5th-rank",
 // "as a 7th-rank innate spell"), else heightened to half the PC's level rounded up where it says so or for a cantrip, else the spell's own.
 const FOCUS_GRANT = /\bYou (?:gain|learn)(?: either)? (?:the|a|an|your choice of the|one) [^.]*?\b(?:focus spells?|(?:composition|hex|link|conflux|grave|order|warden|devotion|ki|qi|domain|bloodline|school|revelation|apparition|eidolon) (?:cantrip|spell)s?)\b/i;
+const SPELL_EFFECT_FEATS = new Set(["animal-rage", "quaking-stomp", "heroic-presence", "dragon-transformation", "head-of-the-night-parade", "plate-in-treasure", "rattle-the-earth"]);
 export function innateSpells(doc, level) {
     const text = String(doc.system?.description?.value ?? "");
     // (2026-11-04, Cole: "Automate the spellcasting and companion feats not handled by other modules": or a focus spell or cantrip it
     // teaches — Mantis Form's "You gain the Mantis Form focus spell", Song of Strength's composition cantrip —, heightened to half the
     // level, a focus spell once a fight, a cantrip at will. Not one on a companion: the simulator's PCs have none.)
     const focus = FOCUS_GRANT.test(text.replace(/@UUID\[[^\]]*?([^.\]]+)\](?:\{([^}]*)\})?/g, (_all, id, label) => label ?? id).replace(/<[^>]+>/g, " "));
-    if (!/\binnate\b/i.test(text) && !focus) return [];
+    // (2026-11-07: or a spell whose effects it has — Quaking Stomp's "the effects of the Earthquake spell", Animal Rage's 3rd-rank Animal
+    // Form, Head of the Night Parade's "cast 8th-rank Mad Monkeys" —, played as that spell cast; once a fight unless it says at will.)
+    // Only these: others with such a sentence were read by hand as outside a fight (sim-why.mjs — Many Faces' disguise).
+    const effectsOf = SPELL_EFFECT_FEATS.has(slugOf(doc)) && /\b(?:effects? of|cast)\b[^.]{0,40}@UUID\[Compendium\.pf2e\.spells-srd/i.test(text);
+    if (!/\binnate\b/i.test(text) && !focus && !effectsOf) return [];
     const half = Math.max(1, Math.ceil(level / 2));
     const found = [];
     for (const hit of text.matchAll(/@UUID\[Compendium\.pf2e\.spells-srd\.Item\.([^\]]+)\](?:\{([^}]*)\})?/g)) {
