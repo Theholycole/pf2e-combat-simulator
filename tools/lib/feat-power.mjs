@@ -2088,6 +2088,8 @@ const HAND = {
     "expansive-spellstrike": () => ({ builtins: { expansiveSpellstrike: true }, played: "Spellstrike with a burst, cone or line spell, its area about the target" }),
     "combination-finisher": () => ({ builtins: { combinationFinisher: true }, played: "its finishers' multiple attack penalty −4/−8 (−3/−6 agile)" }),
     "deadly-strikes": (level) => ({ builtins: { deadlyStrikes: level }, played: "its unarmed attacks deadly d10" }),
+    // (2026-11-07, Deadly Grace: an agile or finesse melee weapon's deadly dice doubled; one without deadly gains deadly d8.)
+    "deadly-grace": (level) => ({ builtins: { deadlyGrace: level }, played: "its agile or finesse melee weapon's deadly dice doubled (deadly d8 on one without)" }),
     // (2026-11-06, Persistent Boost: its Offensive Boost's hit (the weapon innovation's Strikes, classes.js) 1d8 persistent fire too.)
     "persistent-boost": () => ({ builtins: { strikeExtras: [{ when: "hit", dice: 1, die: 8, melee: true, persistent: true, noDouble: true, type: "fire", source: "Persistent Boost" }] }, played: "1d8 persistent fire on its boosted melee hits (always on)" }),
     "diamond-fists": (level) => ({ builtins: { diamondFists: level }, played: "its unarmed attacks forceful and deadly d10" }),
@@ -2247,6 +2249,8 @@ const HAND = {
         return { builtins: {}, spells: [entry], pools: {}, played: "Courageous Anthem an action more, and an ally's melee Strike as a reaction" };
     },
     // (2026-11-06, the cleric's Heal spellshapes, an action before each single-target Heal or Harm on an ally — fight.js healShapes.)
+    // (2026-11-07, Fast Channel: Heal's 3-action version — its 30-foot emanation — for 2 actions; planner.js fastFits.)
+    "fast-channel": () => ({ builtins: { fastChannel: true }, played: "Heal's 3-action version for 2 actions" }),
     "defensive-recovery": () => ({ builtins: { healShapes: [{ name: "Defensive Recovery", kind: "defensive" }] }, played: "an action before each single-target Heal on an ally: +2 status to its AC and saves for a round" }),
     "martyr": () => ({ builtins: { healShapes: [{ name: "Martyr", kind: "martyr" }] }, played: "an action before each single-target Heal on an ally: 1d8 a rank of its own Hit Points to it too" }),
     // (2026-11-06, Chain Infusion: the infusion and a 1-action Elemental Blast; each hit chains a new blast to another foe — fight.js.)
@@ -3323,6 +3327,11 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // (2026-11-05, Diamond Fists: its unarmed attacks forceful and deadly d10 — a die step bigger for one that had either; the deadly dice
     // by its striking runes, 2 at greater striking, 3 at major.)
     // (2026-11-06, Deadly Strikes: its unarmed attacks deadly d10 — a smaller deadly die made d10; deadly dice by its striking runes.)
+    if (pc.deadlyGrace) {
+        const deadlyDice = pc.deadlyGrace >= 19 ? 3 : pc.deadlyGrace >= 12 ? 2 : 1;
+        delete pc.deadlyGrace;
+        pc.strikes = (pc.strikes ?? []).map((strike) => (strike.melee && (strike.agile || strike.finesse) ? { ...strike, deadly: strike.deadly ? { ...strike.deadly, dice: 2 * strike.deadly.dice } : { dice: deadlyDice, die: 8 } } : strike));
+    }
     if (pc.deadlyStrikes) {
         const deadlyDice = pc.deadlyStrikes >= 19 ? 3 : pc.deadlyStrikes >= 12 ? 2 : 1;
         delete pc.deadlyStrikes;

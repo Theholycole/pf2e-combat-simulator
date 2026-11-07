@@ -262,6 +262,9 @@ function targetValue(state, target, attacker) {
     const waking = attacker.side !== target.side && calmedUntilHostility(target) && state.list.some((other) => other.side === target.side && other !== target && isActive(other) && !pacifiedAll(other));
     // (2026-11-07: the PC this foe goes after this turn — fight.js spreadTarget —, worth as much as the best.)
     // (The others a tenth too made the foes too easy: a level-1 extreme fight won 95% of the time — test/rules.test.js.)
+    // (2026-11-07, the feat ratings' holder — drawsFire —: the others a tenth, its turn at the holder kept — Oni Rampage's fighter, 0 of
+    // 140 Strikes at it with the others whole. Only in the ratings' fights, so the rules test's plain party is as it was.)
+    if (attacker.spreadTarget && attacker.spreadTarget !== target.id && state.byId.get(attacker.spreadTarget)?.drawsFire) threat *= 0.1;
     if (attacker.spreadTarget === target.id) threat = Math.max(threat, 2 * Math.max(0, ...state.list.filter((other) => other.side === target.side && isActive(other)).map((other) => state.threat.get(other.id) ?? 0)));
     return (threat + objectiveBonus(state, target, attacker)) * (waking ? 0.2 : 1);
 }
@@ -1371,9 +1374,11 @@ function expandSpells(env) {
         for (const actions of spellVariants(spell)) {
             const info = describeSpell(spell.plan, actions);
             const quickFits = quickens && info.actions >= 2 && info.actions - 1 + extra <= remaining;
-            const drawOnly = draw > 0 && draw <= remaining && info.actions + extra > remaining && !quickFits && node.used === 0;
+            // (2026-11-07, Fast Channel: Heal's or Harm's 3-action version for 2 actions.)
+            const fastFits = c.fastChannel && info.actions === 3 && ["Heal", "Harm"].includes(spell.name) && info.actions - 1 + extra <= remaining;
+            const drawOnly = draw > 0 && draw <= remaining && info.actions + extra > remaining && !quickFits && !fastFits && node.used === 0;
             if (pacifiedAll(c) && !(info.helpful || info.healing || info.self || spell.drinker)) continue;
-            if (!info.actions || (info.actions + extra > remaining && !quickFits && !drawOnly) || (restrained && (info.manipulate || info.attack || extra)) || (noAttacks && info.attack)) continue;
+            if (!info.actions || (info.actions + extra > remaining && !quickFits && !fastFits && !drawOnly) || (restrained && (info.manipulate || info.attack || extra)) || (noAttacks && info.attack)) continue;
             // (2026-11-03, Cole's pick "Raise the planner's value" for area actions: on the grid, an area about or from the caster where the
             // plan's Stride has taken it — Elemental Explosion after closing in —, not where it stood when the turn began.)
             const at = state.grid && !rider && info.area && node.pos.at?.square && c.square && (node.pos.at.square[0] !== c.square[0] || node.pos.at.square[1] !== c.square[1]) ? { ...c, square: node.pos.at.square } : c;
@@ -1470,6 +1475,16 @@ function expandSpells(env) {
                 const shaped = c.healShapes?.length && ["Heal", "Harm"].includes(spell.name) && info.actions <= 2 && set.targets.length === 1 && set.targets[0] !== c && set.targets[0].side === c.side;
                 if (shaped && info.actions + extra + 1 <= remaining) {
                     const next = child(node, { type: "cast", spellIndex: index, targetIds: [set.targets[0].id], actions, healShape: true, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + extra + 1, ctx.profile.aggression * gain * (c.healShapes.some((shape) => shape.kind === "martyr") ? 1.8 : 1.4), { attack: info.attack, damage, cast: [index, "shaped"], images });
+                    if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    children.push(next);
+                }
+                if (fastFits) {
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, fastChannel: true, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions - 1 + extra, ctx.profile.aggression * gain * 1.05, { attack: info.attack, damage, cast: [index, "fast"] });
+                    // (Rated as used often: forced whenever two or more of those it heals are hurt.)
+                    if (c.forceUse && !node.casts.includes("forced") && set.targets.filter((target) => target.side === c.side && target.hp.value < target.hp.max).length >= 2) {
+                        next.value += 10 * ctx.ownValue;
+                        next.casts = [...next.casts, "forced"];
+                    }
                     if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }

@@ -828,5 +828,7 @@ export const SIM_WHY = Object.freeze({
     "Surprising Leap": REACH,
     "Blazing Mutagen": SUBCLASS,
     "Healing Bomb": GEAR,
+    "Mythic Weapon Specialization": SUBCLASS,
+    "Choking Smoke": SPELL_NOT_CAST,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

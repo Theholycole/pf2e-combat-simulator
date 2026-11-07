@@ -1766,7 +1766,7 @@ export function performAction(state, c, action) {
 
 // A cast's own actions (Quickened Casting, B72: one fewer).
 function castActions(c, action) {
-    return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened ? 1 : 0));
+    return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened || action.fastChannel ? 1 : 0));
 }
 
 function actionCost(c, action) {
