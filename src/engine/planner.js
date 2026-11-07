@@ -2204,7 +2204,16 @@ function expandTactics(env) {
     }
     // Hunt Prey: a new prey when the current one is gone or a better target is in reach.
     if (c.huntPrey && node.used === 0 && !raging) {
-        const current = c.prey ? state.byId.get(c.prey) : null;
+        let current = c.prey ? state.byId.get(c.prey) : null;
+        // (2026-11-07: Double Prey's other prey, already hunted — fight.js preyQueue.)
+        if (current && !isActive(current) && c.preyQueue?.length) {
+            const next = c.preyQueue.map((id) => state.byId.get(id)).find((foe) => foe && isActive(foe));
+            if (next) {
+                c.prey = next.id;
+                c.preyQueue = c.preyQueue.filter((id) => id !== next.id);
+                current = next;
+            }
+        }
         if (!current || !isActive(current)) {
             const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
             // (B308: a mark's extra damage on each hit, about 1.1 hits a round.)

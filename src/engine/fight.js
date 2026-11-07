@@ -774,7 +774,8 @@ function endTurn(state, c) {
     terrainTurn(state, c, "end");
     // (A floor — Lift Nature's Caul's frightened 1 while stupefied — holds it.)
     if (c.cond.frightened > floorOf(c, "frightened")) {
-        c.cond.frightened--;
+        // (2026-11-07: Dwarven Doughtiness' and Calm and Centered's "reduce your Frightened condition by 2" — c.frightenedDecay.)
+        c.cond.frightened = Math.max(floorOf(c, "frightened"), c.cond.frightened - (c.frightenedDecay ?? 1));
         // (Consume Fear, B76: a monster's reaction to a creature near it no longer frightened.)
         if (c.cond.frightened === 0) conditionLostAnswers(state, c, "frightened");
     }
@@ -1650,6 +1651,9 @@ function actOn(state, c, action) {
             const target = state.byId.get(action.targetId);
             if (target && isActive(target)) {
                 c.prey = target.id;
+                // (2026-11-07, Double Prey and Triple Threat: one or two more creatures its prey too — the next taken, for no action, once the
+                // first is down; planner.js.)
+                if (c.extraPrey) c.preyQueue = state.list.filter((foe) => foe.side !== c.side && foe.id !== target.id && isActive(foe)).slice(0, c.extraPrey).map((foe) => foe.id);
                 // (C31: Smite by its name.)
                 state.log?.push(c.huntPrey?.name ? `  ${c.name} uses ${c.huntPrey.name} on ${target.name}` : `  ${c.name} hunts ${target.name} as its prey`);
             }

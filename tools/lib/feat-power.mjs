@@ -623,9 +623,12 @@ function widenEntry(doc, host) {
 // (2026-11-03, the class feats no fight played: Terrifying Howl, Dazzling Display — Demoralize each enemy within 30 feet, one action.) As a
 // Will save of each enemy in a 30-foot emanation against the PC's Intimidation DC (the same odds turned around), on Fear's compiled shape: a
 // failure frightened 1, a critical failure frightened 2; once a fight (each foe is then immune for a minute).
+const DEMORALIZE_TWO = new Set(["menacing-prowess", "crush-their-spirits"]);
 const DEMORALIZE_ALL = new Set(["terrifying-howl", "dazzling-display", "terrifying-transformation", "deimatic-display", "reach-for-the-sky"]);
 function demoralizeAllEntry(doc, level, host) {
-    if (!DEMORALIZE_ALL.has(slugOf(doc))) return null;
+    // (2026-11-07: Menacing Prowess' and Crush Their Spirits' "you can target up to 2 creatures within 30 feet": two foes, not each.)
+    const two = DEMORALIZE_TWO.has(slugOf(doc));
+    if (!DEMORALIZE_ALL.has(slugOf(doc)) && !two) return null;
     const fear = spellPack.spellNamed("Fear");
     let base;
     try {
@@ -635,13 +638,14 @@ function demoralizeAllEntry(doc, level, host) {
     }
     if (!base?.resolution?.outcomes?.failure) return null;
     const row = (value) => ({ ...structuredClone(base.resolution.outcomes.failure), effects: value ? [{ kind: "condition", slug: "frightened", name: "Frightened", value, duration: null, source: doc.name }] : [], rawText: "" });
-    const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...new Set([...(doc.system?.traits?.value ?? []), "emotion", "fear", "mental"])], activation: { ...base.activation, time: String(doc.system?.actions?.value ?? 1) }, targeting: { ...base.targeting, target: null, range: null, area: { type: "emanation", value: 30, foes: true }, actorConstraints: { sourceText: "each enemy", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } }, heightening: null, resolution: { ...base.resolution, outcomes: { criticalSuccess: row(0), success: row(0), failure: row(1), criticalFailure: row(2) } } };
+    const plan = { ...base, source: { ...base.source, name: doc.name }, traits: [...new Set([...(doc.system?.traits?.value ?? []), "emotion", "fear", "mental"])], activation: { ...base.activation, time: String(doc.system?.actions?.value ?? 1) }, targeting: two ? { ...base.targeting, target: "up to 2 creatures", range: "30 feet", area: null, actorConstraints: { sourceText: "up to 2 creatures", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } } : { ...base.targeting, target: null, range: null, area: { type: "emanation", value: 30, foes: true }, actorConstraints: { sourceText: "each enemy", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } }, heightening: null, resolution: { ...base.resolution, outcomes: { criticalSuccess: row(0), success: row(0), failure: row(1), criticalFailure: row(2) } } };
+    if (two) plan.activation = { ...plan.activation, time: "1" };
     const intimidation = Number(host?.skills?.intimidation);
     const dc = 10 + (Number.isFinite(intimidation) ? intimidation : level + 2);
     const pool = `feat:${doc._id}`;
     const entry = { name: doc.name, plan, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool, effects: spellPack.effectModels(plan, 1) };
     if (!castable(entry)) return null;
-    return { spells: [entry], pools: { [pool]: 1 }, gap: null, played: `Demoralize each enemy within 30 feet (Intimidation DC ${dc}, once a fight)` };
+    return { spells: [entry], pools: { [pool]: 1 }, gap: null, played: two ? `Demoralize two foes within 30 feet at once (Intimidation DC ${dc}, once a fight: each is then immune to it)` : `Demoralize each enemy within 30 feet (Intimidation DC ${dc}, once a fight)` };
 }
 
 // (2026-11-03, the class feats no fight played: quickened for the PC and its allies around it — Song of Grace and Speed, 1 minute;
@@ -1324,6 +1328,12 @@ const HAND = {
     // feet and back, Wukong Extension's 30-foot reach, Sword-Light Wave's ranged Strike within 60 feet with a melee weapon — played as a
     // melee Strike after moving that far, the closest the engine has; their spirit damage and return trips aren't. Bat Around: a melee
     // Strike, then a Shove — played as a push on a hit.)
+    // (2026-11-07: frightened that wears off by 2 at the end of each turn — fight.js c.frightenedDecay.)
+    // (2026-11-07: more creatures hunted at once — fight.js preyQueue: the next prey once the first is down, without the action.)
+    "double-prey": () => ({ builtins: { extraPrey: 1 }, played: "two prey at once (the second taken when the first falls)" }),
+    "triple-threat": () => ({ builtins: { extraPrey: 2 }, played: "three prey at once (the next taken when one falls; sharing the edge not played)" }),
+    "dwarven-doughtiness": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn" }),
+    "calm-and-centered": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn (stupefied not played)" }),
     "sever-space": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, flourish: true, melee: true, strides: 3 })], played: "a melee Strike at a foe up to 80 feet away (flourish, 2 actions)" }),
     "aerial-flash": () => ({ builtins: {}, plans: [strikeRider({ actions: 3, melee: true, strides: 2 })], played: "a melee Strike at a foe up to 60 feet away (3 actions)" }),
     "wukong-extension": () => ({ builtins: {}, plans: [strikeRider({ actions: 1, melee: true, strides: 1 })], played: "a melee Strike at a foe up to 30 feet away" }),
@@ -1739,6 +1749,11 @@ const HAND = {
     "towering-size": () => ({ builtins: { companionFields: { reach: 15, size: "huge" } }, played: "its eidolon Huge, reach 15 feet" }),
     "alacritous-action": () => ({ builtins: { companionFields: { plus: { speed: 10 } } }, played: "its eidolon's Speed +10 feet" }),
     "eidolons-retort": () => ({ builtins: { companionFields: { reactions: { aoo: true } } }, played: "its eidolon's Retort (a Reactive Strike)" }),
+    // (2026-11-07: Energy Heart's resistance — fire, the type a PC picks most —, Energy Resistance's at its level; its changed damage
+    // type not played. Airborne Form: aloft, against the flying foes' benchmark.)
+    "energy-heart": (level) => ({ builtins: { companionFields: { resistances: [{ type: "fire", value: Math.max(1, Math.floor(level / 2)), exceptions: [] }] } }, played: "its eidolon's resistance to fire (its Strike's damage type not played)" }),
+    "energy-resistance": (level) => ({ builtins: { companionFields: { resistances: [{ type: "fire", value: level, exceptions: [] }] } }, played: "its eidolon's resistance to fire at its level" }),
+    "airborne-form": () => ({ builtins: { companionFields: { flies: true, flySpeed: 25 } }, played: "its eidolon flies (against fliers)" }),
     "ever-vigilant-senses": () => ({ builtins: { companionFields: { plus: { perception: 2 } } }, played: "its eidolon's +2 Perception" }),
     // (A companion's activity — its own multi-Strike, used as often as it can, forced.)
     "vicious-rend": (level) => ({ builtins: { companionFields: { multiStrikes: [{ name: "Vicious Rend", actions: 2, strikes: ["claw", "claw"], sameTarget: true, bothHit: { conditions: [], damage: [`${level >= 16 ? 2 : 1}d6[persistent,bleed]`] } }] } }, played: "its companion's Vicious Rend (two claws, bleed if both hit)" }),
@@ -2432,6 +2447,35 @@ export function upgradedStrikes(doc, strikes) {
     });
     return changed ? out : null;
 }
+// (2026-11-07, the simulator phase: a passive's extra dice on a critical hit — Bloody Blows' bleed, Accursed Claws' persistent mental,
+// Feeding Frenzy's, Soul Bleed's —: on the PC's Strikes its selector names — all of them, its unarmed ones, the one of that slug —, as
+// the strike's critExtra (damage.js adds them to a critical hit, not doubled). A selector no Strike of the PC's matches: a requirement,
+// so the claws, jaws or fist loadout below is tried.)
+const critDiceRules = (doc) => (doc.system?.rules ?? []).filter((rule) => rule?.key === "DamageDice" && rule.critical === true && rule.dieSize && !rule.override && typeof rule.selector === "string" && /-damage$/.test(rule.selector));
+const strikeSlug = (strike) => String(strike.name ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+function critDiceStrikes(doc, strikes, level) {
+    const rules = critDiceRules(doc);
+    if (!rules.length) return null;
+    let changed = false;
+    const out = strikes.map((strike) => {
+        let extra = [...(strike.critExtra ?? [])];
+        for (const rule of rules) {
+            const selector = rule.selector.replace(/-damage$/, "");
+            const fits = ["strike", "melee-strike", "ranged-strike"].includes(selector) ? (selector === "melee-strike" ? strike.melee : selector === "ranged-strike" ? !strike.melee : true)
+                : selector === "unarmed" ? Boolean(strike.unarmed) : strikeSlug(strike) === selector;
+            if (!fits) continue;
+            const predicate = [].concat(rule.predicate ?? []).filter((term) => JSON.stringify(term) !== '{"not":"nonlethal"}');
+            if (predicate.length && strikeMeets(strike, predicate) !== true) continue;
+            const dice = Number(rule.diceNumber) || Number(inlineFormula(String(rule.diceNumber), level)?.formula) || 1;
+            const type = rule.damageType ?? strike.damage?.[0]?.type ?? "bludgeoning";
+            extra.push({ dice, die: Number(String(rule.dieSize).replace("d", "")) || 6, bonus: 0, type, persistent: rule.category === "persistent" || type === "bleed" });
+        }
+        if (extra.length === (strike.critExtra ?? []).length) return strike;
+        changed = true;
+        return { ...strike, critExtra: extra };
+    });
+    return changed ? out : null;
+}
 // The passive's own rules as an always-on Effect, or null when they hold nothing a fight counts.
 // (2026-11-02, the same pick: a passive's resistance that waits on the PC's own choice or feature — Warding Jewel's "has-sarangay-head-gem",
 // Draconic Resistance's damage type —, which a PC with the feat has: on, its type a ChoiceSet's pick (the one the foes deal most, as
@@ -3011,6 +3055,15 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = zeroHpEntry(doc, level, host, builtins) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = waterEntry(doc, builtins, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = passiveRulesEntry(doc, level, builtins) ?? entries;
+        // (2026-11-07: its extra dice on a critical hit, on the Strikes they name, whatever else reads the feat — Spectral Dagger's Strike
+        // with them; alone, the feat's reading; no Strike they name, a requirement the loadouts below may meet.)
+        if (critDiceRules(doc).length && !/doesn't meet/.test(entries.gap?.name ?? "")) {
+            const critStrikes = critDiceStrikes(doc, strikes ?? wields.strikes ?? [], level);
+            if (critStrikes) {
+                strikes = critStrikes;
+                if (entries.gap) entries = { spells: [], pools: {}, gap: null, played: "PF2e rules: extra dice on a critical hit" };
+            } else if (entries.gap) entries = { ...entries, gap: { kind: "feat, not simulated", name: `${doc.name}: its requirement, which the PC doesn't meet (a ${critDiceRules(doc)[0].selector.replace(/-damage$/, "")} Strike)` } };
+        }
         // (A requirement on what the PC wields the plan doesn't carry — Dueling Dance's "a single one-handed melee weapon and nothing else in
         // your hands", a stance's —: the feat's own text, so the PC that can't use it gets the loadout that can, both sides.)
         const required = requirementText(doc);
@@ -3204,6 +3257,7 @@ const FORCED_FIELDS = ["strikeActivities", "multiStrikes", "selfEffects", "selfB
 // Loadouts for a feat's requirement the party's own weapons don't meet: the PC's main weapon changed for others of the same runes.
 // (A ranged main weapon — a ranger's bow — made a melee one: no range, reload or ammunition.)
 const oneHanded = (strike, name, die, extra = {}) => ({ ...strike, name, hands: 1, versatile: undefined, melee: true, held: true, increment: undefined, range: undefined, reload: undefined, volley: undefined, ammo: undefined, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, die } : part)), ...extra });
+const natural = (strike, name, die, type, extra = {}) => ({ ...oneHanded(strike, name, die, extra), hands: 0, unarmed: true, deadly: undefined, iwr: { group: "brawling", traits: strike.iwr?.traits ?? [] }, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, die, type } : part)) });
 const LOADOUTS = {
     "two weapons (longsword and shortsword)": { hosts: ["fighter", "rogue"], wields: { twoHanded: false, oneHanded: true, twoWeapons: true, freeHand: false, finesse: true, damage: ["slashing", "piercing"], ranged: false, firearm: false, twoHandedRanged: false, reload0: false }, strikes: (strikes) => [oneHanded(strikes[0], "Longsword", 8, { versatile: ["piercing"] }), oneHanded(strikes[0], "Shortsword", 6, { agile: true, finesse: true, damage: strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: 6, type: "piercing" } : part)) }), ...strikes.slice(1)] },
     "a one-handed weapon and a free hand": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: true, freeHand: true, ranged: false, firearm: false, twoHandedRanged: false, reload0: false }, strikes: (strikes) => [oneHanded(strikes[0], "Longsword", 8, { versatile: ["piercing"] }), ...strikes.slice(1)] },
@@ -3216,6 +3270,11 @@ const LOADOUTS = {
     // (2026-11-03: an archetype's "You're wielding a loaded firearm" — Reach for the Sky, Black Powder Blaze —: an arquebus, 1d8 piercing,
     // reload 1, range 150 feet, its greatsword kept for melee.)
     "a loaded arquebus": { hosts: ["fighter"], wields: { ranged: true, firearm: true, reload0: false, twoHanded: false, twoHandedRanged: true, freeHand: false, damage: ["piercing", "slashing"] }, strikes: (strikes) => [{ ...strikes[0], name: "Arquebus", melee: false, hands: 2, held: true, firearm: true, reload: 1, increment: 150, versatile: undefined, agile: false, iwr: { group: "firearm" }, damage: strikes[0].damage.map((part, index) => (index === 0 ? { ...part, die: 8, type: "piercing" } : part)) }, ...strikes] },
+    // (2026-11-07: a heritage's or ancestry's unarmed attack a crit rider names — Accursed Claws' claw, Feeding Frenzy's jaws, Bloody
+    // Blows' and Accursed Touch's fist —: the fighter fighting with it in place of its greatsword, at the same runes, both sides.)
+    "claws": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: false, freeHand: true, unarmed: true, ranged: false, firearm: false, twoHandedRanged: false, reload0: false }, strikes: (strikes) => [natural(strikes[0], "Claw", 6, "slashing", { agile: true, finesse: true }), ...strikes.filter((strike) => !strike.melee)] },
+    "jaws": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: false, freeHand: true, unarmed: true, ranged: false, firearm: false, twoHandedRanged: false, reload0: false }, strikes: (strikes) => [natural(strikes[0], "Jaws", 8, "piercing"), ...strikes.filter((strike) => !strike.melee)] },
+    "fist": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: false, freeHand: true, unarmed: true, ranged: false, firearm: false, twoHandedRanged: false, reload0: false }, strikes: (strikes) => [natural(strikes[0], "Fist", 4, "bludgeoning", { agile: true, finesse: true }), ...strikes.filter((strike) => !strike.melee)] },
     "a bow in hand": { hosts: ["fighter", "rogue"], wields: { ranged: true, reload0: true, twoHanded: false, freeHand: false }, strikes: (strikes) => [...strikes.filter((strike) => !strike.melee), ...strikes.filter((strike) => strike.melee)] }
 };
 

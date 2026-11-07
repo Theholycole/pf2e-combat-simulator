@@ -15,6 +15,9 @@ const BETWEEN = "something between fights (Refocus, treating a disease or poison
 const SOCIAL = "a social or skill benefit outside a fight's actions";
 const CREATURE = "against a kind of creature the rating foes aren't (devils, holy or unholy foes, undead)";
 const TERRAIN = "terrain or climate, and the simulator's field is open and mild";
+const DEATH = "a rescue from death itself (dying 4, a death effect) or from staying unconscious, and a benchmark fight scores a PC as down once it falls to 0 Hit Points";
+const HIDDEN = "a benefit against hidden, undetected or concealed creatures (or for Hiding), and the rating foes and PCs fight in the open, seen";
+const FOLLOWER = "a follower, student or spotter (an NPC ally the simulator's party doesn't have)";
 const DOOM = "a reaction to doom or an oracle's curse, which the simulator doesn't play";
 
 export const SIM_WHY = Object.freeze({
@@ -125,5 +128,14 @@ export const SIM_WHY = Object.freeze({
     "Bullet and a Broadside": SCENE, "Revealing Stab": TERRAIN, "Deathblow": GEAR, "Cut them Down, Burn them Out": CREATURE, "Grave Threat": CREATURE,
     "Ricochet Shot": TERRAIN, "Unerring Runic Attraction": TERRAIN, "Incorporeal Shot": TERRAIN, "Trick Shot": TERRAIN, "Virulent Strike": FOE_TYPE,
     "Knock Sense": FOE_TYPE, "Cauterize": FOE_TYPE, "Mug": GEAR, "Lonely Army": SCENE, "Chain Reaction": SCENE, "Returning Throw": GEAR, "Dizzying Spin Dance": GEAR,
+    "Once and Future": DEATH, "Mystic Life Force": DEATH, "Reach for Immortality": DEATH, "Undying Beast": DEATH, "Clinging to Life": DEATH,
+    "Mist Escape": DEATH, "Bounce Back": DEATH, "Immortal Ruin": DEATH,
+    "Sense the Unseen": HIDDEN, "Starlit Eyes": HIDDEN, "Instinctive Strike": HIDDEN, "Unseen Shot": HIDDEN, "Alarming Disappearance": HIDDEN,
+    "Eagle Eyes": HIDDEN, "Stealthy Companion": HIDDEN,
+    "Avowed Insight": INFO, "You Seem Somewhat Familiar": INFO, "Theoretical Acumen": INFO,
+    "Experienced Follower": FOLLOWER, "Coordinated Tactics": FOLLOWER, "Concentrated Assault": FOLLOWER, "Vantage Shot": FOLLOWER,
+    "Lesson of Unified Elusion": FOLLOWER, "Repeat Lesson": FOLLOWER, "Lesson of the Hurricane's Might": FOLLOWER, "Shared Mind, Shared Heart": FOLLOWER,
+    "Tenacious Net": GEAR, "Hook 'Em": GEAR, "Ever Dreaming": SCENE, "Defy the Darkness": SCENE, "Beastkin Resilience": FOE_TYPE,
+    "Avoid Fate's Gaze": FOE_SPELL,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });
