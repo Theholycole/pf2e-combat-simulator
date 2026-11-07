@@ -2314,6 +2314,15 @@ const HAND = {
     "kindle-inner-flames": (level, host, doc) => kineticAura(doc, { model: { modifiers: [{ on: "reflex", type: "status", value: level >= 12 ? 2 : 1 }] }, played: `+${level >= 12 ? 2 : 1} Reflex for the PC and its allies` }),
     // (Winter Sleet: a foe that moves onto its ice — comes into the aura — falls prone unless it makes a Reflex save at its impulse DC − 2
     // (the Acrobatics choice not played); a water impulse's critical not played.)
+    // (2026-11-07, Corpse Stench: a 10-foot aura, a foe starting its turn in it sickened 1 on a failed Fortitude save — played through the
+    // kinetic aura's zone, entered with an action; its critical failure's slowed 1 and a success's 1-minute immunity not played.)
+    "corpse-stench": (level, host, doc) => {
+        const plan = conditionSavePlan(doc, "fortitude", ["sickened", 1], ["sickened", 1]);
+        const dc = Math.max(dcsOf(host).class ?? 0, dcsOf(host).spell ?? 0) || 10 + level + 2 + 4;
+        if (!plan) return null;
+        const out = kineticAura(doc, { saves: [{ when: ["start"], plan }], castAs: { castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10 }, played: `a foe starting its turn in it sickened 1 on a failed Fortitude save (DC ${dc})` });
+        return out ? { ...out, played: out.played.replace("in its 10-foot kinetic aura (stance, the fight)", "in a 10-foot aura (1 action to start, the fight)") } : null;
+    },
     "winter-sleet": (level, host, doc) => {
         const plan = conditionSavePlan(doc, "reflex", ["prone", null], ["prone", null]);
         const dc = (dcsOf(host).class ?? 10 + level + 2 + 4) - 2;
