@@ -15,6 +15,10 @@ const READINGS = {
     // Blur: concealed on its target for the minute.
     blur: (plan) => ({ kind: "condition-note", check: null, sharedDamage: null, outcomes: plan.resolution?.outcomes, applications: [],
         conditionNote: { recipient: "target", condition: { slug: "concealed", value: null }, text: "The target's form appears blurry. It becomes Concealed." } }),
+    // Mask of Terror: a ward — a creature's hostile action at the target, a Will save first: frightened 2 on a failure, and the action
+    // wasted on a critical failure; a turn's immunity after (wards.js terror). Up to 5 targets from the 8th rank not played.
+    "mask-of-terror": (plan) => ({ kind: "attack-ward", check: null, sharedDamage: null, outcomes: plan.resolution?.outcomes, applications: [],
+        attackWard: { save: "will", durationSeconds: 60, endsOnHostile: false, rows: { criticalSuccess: "unaffected", success: "unaffected", failure: "frightened-2", criticalFailure: "frightened-2-wasted" } } }),
     // Faerie Fire: every creature in its 10-foot burst outlined for 5 minutes (withOutline).
     "faerie-fire": (plan) => ({ kind: "outline", check: null, sharedDamage: null, outcomes: plan.resolution?.outcomes, applications: [],
         outline: { area: plan.targeting?.area ?? { type: "burst", value: 10 }, duration: { value: 5, unit: "minutes" } } }),
@@ -108,9 +112,12 @@ function withRecurringSaves(plan) {
 // saves its rows' words give; the plan unchanged otherwise.
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
-    const resolved = reading && resolvesNothing(plan) ? { ...plan, simulatorReading: true, resolution: reading(plan) } : plan;
+    const resolved = reading && (resolvesNothing(plan) || READ_OVER.has(plan?.source?.slug)) ? { ...plan, simulatorReading: true, resolution: reading(plan) } : plan;
     return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withRevive(withTransposition(withDuplicate(withBinding(withDefences(withHinders(withControls(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved)))))))))))))))))))))))))))))))));
 }
+
+// (Readings over a compiled family the engine has no player for: Mask of Terror's "repeat-save".)
+const READ_OVER = new Set(["mask-of-terror"]);
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
 // (sight.js). Faerie Fire's outline ("outline": its burst, its time) as an automatic check outlining every creature in it; Revealing Light's

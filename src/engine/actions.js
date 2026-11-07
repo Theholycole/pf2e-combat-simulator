@@ -16,7 +16,7 @@ import { harmedAfterGivingUp, isShaken } from "./morale.js";
 import { canReact, chargeStrike, extraApplies, hasOwnEffect, isRaging, isUndead, reactionMark, regenerating, restoreReaction, sizeRank, spendReaction, strikeNamed } from "./abilities.js";
 import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, offGuardFrom } from "./passives.js";
 import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNextStrike, takeAttackFortune } from "./effects.js";
-import { actionTraits, exploitCovers, applyCondition, applyMove, bothHitRider, castPlan, castSpell, rageTriggers, curseOnHit, deathThroes, forbiddingBonus, skillValue, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
+import { actionTraits, exploitCovers, applyCondition, applyMove, bothHitRider, castPlan, castSpell, rageTriggers, curseOnHit, deathThroes, forbiddingBonus, applyHeal, skillValue, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { destroyBody, thrallAuraStrike, thrallBodies, thrallKilled } from "./thralls.js";
@@ -2256,6 +2256,20 @@ function kill(state, target) {
 export function increaseDying(state, c, amount) {
     const threshold = deathThreshold(c);
     if (c.cond.dying + amount >= threshold) {
+        // (2026-11-07, Breath of Life from a feat — Miraculous Medic, Arise, Ye Worthy!: "Trigger A living creature within 60 feet of you would
+        // die. Effect … the creature … isn't dying and regains 4d8 + your spellcasting modifier Hit Points": an ally's reaction, before a
+        // hero point. Its range not held: the fallen are off the map.)
+        const breather = state.list.find((other) => other !== c && other.side === c.side && other.breathOfLife && (other.breathUses ?? 0) < other.breathOfLife.uses && canReact(other, "Breath of Life"));
+        if (breather) {
+            spendReaction(breather, "Breath of Life");
+            breather.breathUses = (breather.breathUses ?? 0) + 1;
+            log(state, `  ${breather.name} casts Breath of Life (${breather.breathOfLife.from})`);
+            let amount = breather.breathOfLife.bonus ?? 0;
+            for (let index = 0; index < 4; index++) amount += state.rng.die(8);
+            c.cond.dying = 0;
+            applyHeal(state, c, Math.max(1, amount));
+            return;
+        }
         if (state.options.heroPoints && c.heroPoints > 0) {
             state.stats.heroPointsSpent += c.heroPoints;
             c.heroPoints = 0;

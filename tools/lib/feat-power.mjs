@@ -324,6 +324,7 @@ function innateSpellEntry(doc, level, host) {
     const dc = own.spell ?? 10 + level + 2 + (abilities.cha ?? 0);
     const entries = [];
     const summons = [];
+    let breath = null;
     const pools = {};
     const choice = /\b(?:chosen|choose(?: one)?) from the following\b|\bone of the following spells\b|\b(?:gain|learn) either\b|\byour choice of\b/i.test(String(doc.system?.description?.value ?? ""));
     for (const { spell, castRank, uses } of spells) {
@@ -333,8 +334,15 @@ function innateSpellEntry(doc, level, host) {
         } catch {
             continue;
         }
+        // (2026-11-07, Breath of Life: the ally's reaction as it would die — actions.js increaseDying; its 4d8 plus the Charisma it casts
+        // with.)
+        if (spell.name === "Breath of Life") {
+            breath = { uses: uses || 1, bonus: abilities.cha ?? 0, from: doc.name };
+            continue;
+        }
         plan = selfFormPlan(plan);
-        if (!plan?.resolution || ["unsupported", "no-effect"].includes(plan.resolution.kind)) continue;
+        // (2026-11-07: an "unsupported" plan too where the engine plays its native check — Tangle Vine's spell attack; castable below.)
+        if (!plan?.resolution || plan.resolution.kind === "no-effect") continue;
         // (2026-11-07, Summon Elemental's, Summon Animal's: a summon spell as the engine's summons — summons.js, the foes' own —: its best
         // creature of the traits it allows at the rank, made as reserves beside the party; a use a day, or its cantrip's once a fight.)
         if (plan.resolution.kind === "summon") {
@@ -358,8 +366,8 @@ function innateSpellEntry(doc, level, host) {
         if (plan.resolution.selfForm) entry.forceEven = true;
         if (castable(entry) || reactionWired(entry)) entries.push(entry);
     }
-    if (!entries.length && !summons.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
-    return { spells: entries, pools, ...(summons.length ? { summons } : {}), gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
+    if (!entries.length && !summons.length && !breath) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
+    return { spells: entries, pools, ...(summons.length ? { summons } : {}), ...(breath ? { breathOfLife: breath } : {}), gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
 // (2026-11-03, the class feats no fight played: an action that puts its PF2e Effect on one ally — Steel Yourself!'s temporary Hit Points and
@@ -2721,6 +2729,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         pc.forceUse = true;
     }
     joinBuiltins(pc, pooledBuiltins);
+    if (entries.breathOfLife) pc.breathOfLife = entries.breathOfLife;
     if (entries.summons?.length) pc.summons = [...(pc.summons ?? []), ...entries.summons.map((entry) => ({ ...entry, reserveIds: [], ...(FORCE ? { featForced: true } : {}) }))];
     if (tried.strikes) pc.strikes = tried.strikes;
     // (2026-11-05, Diamond Fists: its unarmed attacks forceful and deadly d10 — a die step bigger for one that had either; the deadly dice
@@ -2818,7 +2827,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // (Its summons' reserves: waiting off the field beside the party until summoned — linked, so one's fall isn't a PC's.)
     const summoner = fought.find((c) => c.id === host.id && c.summons?.length);
     if (summoner) fought.push(...summonReserves(summoner).map((reserve) => ({ ...reserve, linked: true })));
-    const useNames = [...new Set([...(fought !== withFeat || companionNeeded ? ["Animal Companion"] : []), ...(companion?.sharesHpWith ? ["Eidolon"] : []), ...entries.spells, ...(entries.summons ?? []).map((entry) => entry.name), ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => (typeof entry === "string" ? entry : entry?.name)).filter((name) => typeof name === "string" && name.length > 2))];
+    const useNames = [...new Set([...(fought !== withFeat || companionNeeded ? ["Animal Companion"] : []), ...(companion?.sharesHpWith ? ["Eidolon"] : []), ...entries.spells, ...(entries.summons ?? []).map((entry) => entry.name), ...(entries.breathOfLife ? ["Breath of Life"] : []), ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => (typeof entry === "string" ? entry : entry?.name)).filter((name) => typeof name === "string" && name.length > 2))];
     return { party: fought, ...(plainParty ? { plain: plainParty } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan, useNames };
 }
 
