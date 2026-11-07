@@ -831,5 +831,8 @@ export const SIM_WHY = Object.freeze({
     "Mythic Weapon Specialization": SUBCLASS,
     "Choking Smoke": SPELL_NOT_CAST,
     "Diverting Vortex": FOE_TYPE,
+    "Expert Combat Eidolon": SUBCLASS,
+    "Master of Many Styles": SAME_PICK,
+    "Defensive Stratagem": SAME_PICK,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

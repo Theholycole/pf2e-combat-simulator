@@ -1474,6 +1474,9 @@ const HAND = {
     // (2026-11-07, Darting Monkey: its hits keep a flanking foe from making it off-guard — played as never flanked, as Watchful Gaze.)
     "darting-monkey": () => ({ builtins: { noFlank: true }, played: "flanking foes it hits don't make it off-guard (played as never flanked)" }),
     // (Resilient Chassis: once a day — once a fight — 4 temporary Hit Points, 4 more each 4 levels from 8th, as the damage comes: that much less of it.)
+    // (2026-11-07, Tempest-Sun Shielding: a spell slot spent to cut a hit's damage by four times its rank — a slot 2 ranks under its best,
+    // twice a fight; its ally's damage not played.)
+    "tempest-sun-shielding": (level) => { const rank = Math.max(1, Math.ceil(level / 2) - 2); return { builtins: {}, plans: [{ builtin: "resist-damage", value: 4 * rank, uses: 2 }], played: `${4 * rank} less of a hit's damage (reaction, twice a fight; the rank-${rank} slot it spends not taken from its spells)` }; },
     "resilient-chassis": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 4 * Math.floor(level / 4), uses: 1 }], played: `${4 * Math.floor(level / 4)} temporary Hit Points against a hit (reaction, once a fight)` }),
     // (Defensive Needles: a foe's unarmed hit on it from beside it, ceil(level/4) piercing back; its grab's damage the same — once each turn of the grab.)
     "defensive-needles": (level) => ({ builtins: { retaliationsAtStart: [{ name: "Defensive Needles", label: "Defensive Needles", parts: [{ dice: 0, die: 0, bonus: Math.ceil(level / 4), type: "piercing" }], adjacentMelee: false, touch: false }] }, played: `${Math.ceil(level / 4)} piercing to a foe that hits it with an unarmed attack` }),
@@ -2821,7 +2824,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard" };
+const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
