@@ -946,6 +946,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         const packAllies = engagedEnemies(state, target).filter((other) => other !== attacker).length;
         // (2026-11-07, Astonishing Explosion: an extra once a fight — onceKey —, all its parts on the one Strike that first uses it.)
         const thisStrike = {};
+        attacker.lateConditions = [];
         for (const extra of attacker.strikeExtras) {
             if (!extraApplies(extra, target, { offGuard, packAllies, attacker, critical })) continue;
             // (Brutal Critical: melee Strikes only, its weapon's own die, not doubled — an extra die like deadly's; its bleed persistent.)
@@ -1023,6 +1024,11 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
                 const endures = extra.source === "Debilitating Strike" && attacker.enduringDebilitation && !attacker.enduredDebilitation && isActive(target);
                 if (endures) attacker.enduredDebilitation = true;
                 const lasting = endures ? { mode: "fixed", value: 10, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } : condition.duration ?? null;
+                // (2026-11-07, Astonishing Explosion: fascinated after the Strike's damage — the hit that fascinates isn't the hostility that ends it.)
+                if (condition.slug === "fascinated") {
+                    (attacker.lateConditions ??= []).push({ target, slug: condition.slug, value: condition.value ?? null, lasting, source: extra.source });
+                    continue;
+                }
                 if (isActive(target) && applyCondition(state, target, condition.slug, condition.value ?? null, lasting, attacker)) log(state, `  ${target.name} is ${condition.slug}${condition.value ? ` ${condition.value}` : ""} (${extra.source ?? "a Strike's extra"}${endures ? ", Enduring Debilitation" : ""})`);
                 continue;
             }
@@ -1034,6 +1040,12 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             let amount = (extra.bonus ?? 0) + (extra.perFrightened ?? 0) * (target.cond?.frightened ?? 0);
             for (let roll = 0; roll < extra.dice; roll++) amount += state.rng.die(die);
             if (extra.persistent) {
+                // (2026-11-07, Artokus's Fire: its dice on the bomb's own persistent fire — "1d4+2 persistent fire" —, not a second burn the higher of which counts.)
+                const own = extra.addToStrike ? instances.find((instance) => instance.persistent && instance.type === (extra.type ?? "bleed")) : null;
+                if (own) {
+                    own.amount += amount;
+                    continue;
+                }
                 addPersistent(target, { type: extra.type ?? "bleed", dice: extra.dice, die, bonus: 0, amount: extra.dice * (die + 1) / 2 }, attacker);
                 continue;
             }
@@ -1098,6 +1110,10 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (attacker.attach && isActive(attacker)) attachAfterHit(state, attacker, target, sizeRank);
     // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
     if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances, strikeContext(attacker, strike), attacker.splashBonus ?? 0), { includeTarget: false });
+    // (2026-11-07: a Strike's fascination — Astonishing Explosion's — after its damage and splash.)
+    if (attacker.lateConditions?.length) {
+        for (const late of attacker.lateConditions.splice(0)) if (isActive(late.target) && applyCondition(state, late.target, late.slug, late.value, late.lasting, attacker)) log(state, `  ${late.target.name} is ${late.slug}${late.value ? ` ${late.value}` : ""} (${late.source ?? "a Strike's extra"})`);
+    }
     // (B255: a table row's conditions and save on the creature hit.)
     for (const { slug, value, duration } of strike.hitConditions ?? []) if (isActive(target) && applyCondition(state, target, slug, value ?? null, duration ?? null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
     if (strike.hitSpell && isActive(target)) castPlan(state, attacker, { name: strike.hitName ?? strike.name, plan: strike.hitSpell, castRank: 1, pool: null, kind: "ability" }, [target.id]);

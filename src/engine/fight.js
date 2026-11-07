@@ -112,11 +112,19 @@ function outcomeCache(snapshot) {
 }
 
 function spreadPick(state, c) {
+    const turnHash = () => {
+        let h = 2166136261;
+        for (const ch of `${state.seed}:${state.round}:${c.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+        return h;
+    };
+    // (2026-11-07, the feat ratings: the PC holding the rated feat — drawsFire, on both sides of the comparison — the one a foe goes after
+    // one turn in three, beside it or a Stride away; before, foes chased the wizard and cleric and a fighter's defensive feat never counted.)
+    const holder = state.list.find((other) => other.side === "party" && other.drawsFire && isActive(other));
+    if (holder) return turnHash() % 3 === 0 ? holder.id : null;
     // (The PCs beside it. A Stride away too made the foes too easy — a level-1 extreme fight won 95% of the time.)
     const engaged = state.list.filter((other) => other.side === "party" && isActive(other) && !other.familiar && other.kind !== "object" && !other.summonedBy && sameMelee(c, other));
     if (engaged.length < 2) return null;
-    let h = 2166136261;
-    for (const ch of `${state.seed}:${state.round}:${c.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+    const h = turnHash();
     if (h % 3 !== 0) return null;
     return engaged[Math.floor(h / 3) % engaged.length].id;
 }
@@ -307,6 +315,8 @@ function initiativeDeeds(state) {
         if (c.energyShots) c.energyShotsLeft = c.energyShots;
         // (2026-11-07, After You: panache as the fight begins.)
         if (c.thrallsAtStart > 0) thrallsAtStart(state, c, c.thrallsAtStart);
+        // (2026-11-07, Defensive Needles: a body's own retaliation, the whole fight — effects.js model.retaliation's shape.)
+        for (const entry of c.retaliationsAtStart ?? []) c.retaliations = [...(c.retaliations ?? []).filter((held) => held.name !== entry.name), { ...structuredClone(entry), until: Infinity }];
         if (c.panacheAtStart) {
             c.panache = true;
             state.log?.push(`  ${c.name} gains panache (${c.panacheAtStart})`);

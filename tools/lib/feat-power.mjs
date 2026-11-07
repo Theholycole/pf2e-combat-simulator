@@ -1471,6 +1471,14 @@ const HAND = {
     "mythic-refocus": (_level, host) => focusBackHand(host, "its focus pool refilled once a fight (a Mythic Point; its action not counted)", true),
     // (After You: it goes last, with panache.)
     "watchful-gaze": () => noFlankHand("Watchful Gaze"),
+    // (2026-11-07, Darting Monkey: its hits keep a flanking foe from making it off-guard — played as never flanked, as Watchful Gaze.)
+    "darting-monkey": () => ({ builtins: { noFlank: true }, played: "flanking foes it hits don't make it off-guard (played as never flanked)" }),
+    // (Resilient Chassis: once a day — once a fight — 4 temporary Hit Points, 4 more each 4 levels from 8th, as the damage comes: that much less of it.)
+    "resilient-chassis": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 4 * Math.floor(level / 4), uses: 1 }], played: `${4 * Math.floor(level / 4)} temporary Hit Points against a hit (reaction, once a fight)` }),
+    // (Defensive Needles: a foe's unarmed hit on it from beside it, ceil(level/4) piercing back; its grab's damage the same — once each turn of the grab.)
+    "defensive-needles": (level) => ({ builtins: { retaliationsAtStart: [{ name: "Defensive Needles", label: "Defensive Needles", parts: [{ dice: 0, die: 0, bonus: Math.ceil(level / 4), type: "piercing" }], adjacentMelee: false, touch: false }] }, played: `${Math.ceil(level / 4)} piercing to a foe that hits it with an unarmed attack` }),
+    // (Sickening Bite: its jaws' critical hit sickens 1 — its best melee Strike when it has no jaws; satiation not played.)
+    "sickening-bite": () => ({ builtins: { strikeExtras: [{ when: "critical", melee: true, condition: { slug: "sickened", value: 1 }, source: "Sickening Bite" }] }, played: "its melee critical hits sicken 1" }),
     "augment-senses": () => noFlankHand("Augment Senses"),
     "instinctual-creation": () => ({ builtins: { thrallsAtStart: 2 }, played: "two thralls as it rolls initiative" }),
     // (Sacred Defense: once an hour, a DC 30 Religion check for 5 temporary Hit Points, 10 on a critical success — played as 5, once a fight.)
@@ -2374,7 +2382,7 @@ const HAND = {
     // (2026-11-07, Astonishing Explosion: once a minute — once a fight —, a bomb's hit fascinates for a round, a critical hit stuns 1 too.)
     "astonishing-explosion": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, onceKey: "astonishing-explosion", condition: { slug: "fascinated", duration: { mode: "fixed", value: 1, unit: "rounds" } }, source: "Astonishing Explosion" }, { when: "critical", bomb: true, onceKey: "astonishing-explosion", condition: { slug: "stunned", value: 1 }, source: "Astonishing Explosion" }] }, played: "a bomb's hit fascinates a round, a critical hit stuns 1 too (once a fight)" }),
     // (Artokus's Fire: 1d4 more persistent fire on its alchemist's fire bombs' hits.)
-    "artokuss-fire": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, dice: 1, die: 4, persistent: true, type: "fire", source: "Artokus's Fire" }] }, played: "1d4 more persistent fire on a bomb's hit (always on; its harder flat check not played)" }),
+    "artokuss-fire": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, dice: 1, die: 4, persistent: true, addToStrike: true, type: "fire", source: "Artokus's Fire" }] }, played: "1d4 more persistent fire on a bomb's hit (always on; its harder flat check not played)" }),
     // (Persistent damage of the bomb's splash, its type.)
     "sticky-bomb": () => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, splashPersistent: true, source: "Sticky Bomb" }] }, played: "its bombs' splash as persistent damage on a hit (always on)" }),
     // (A second reaction each round, for Reactive Strike only — B303's spare reaction.)
@@ -3420,6 +3428,13 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         riderNames.push(...(fought.find((c) => c.id === host.id)?.spells ?? []).filter(ridden).map((entry) => entry.name));
         plainParty = (plainParty ?? base).map((c) => (c.id === host.id ? { ...c, forceUse: true, spells: (c.spells ?? []).map((entry) => (ridden(entry) ? { ...entry, featForced: true } : entry)) } : c));
     }
+    // (2026-11-07, the feat's holder a foe's target one turn in three — fight.js spreadPick —, with the feat and without it; FEAT_DRAW_FIRE=0
+    // leaves the foes' targets as they were.)
+    if (DRAW_FIRE) {
+        const holder = fought.find((c) => c.id === host.id);
+        if (holder) holder.drawsFire = true;
+        plainParty = (plainParty ?? base).map((c) => (c.id === host.id ? { ...c, drawsFire: true } : c));
+    }
     // (Its summons' reserves: waiting off the field beside the party until summoned — linked, so one's fall isn't a PC's.)
     const summoner = fought.find((c) => c.id === host.id && c.summons?.length);
     if (summoner) fought.push(...summonReserves(summoner).map((reserve) => ({ ...reserve, linked: true })));
@@ -3428,6 +3443,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
 }
 
 const FORCE = process.env.FEAT_FORCE !== "0";
+const DRAW_FIRE = process.env.FEAT_DRAW_FIRE !== "0";
 // (2026-11-05: a benchmark of its own — FEAT_FOE_TRAIT=saves, the rating foes with save abilities, spell-power.js —, in its own run folder.)
 const FOE_TRAIT = process.env.FEAT_FOE_TRAIT || null;
 // (2026-11-05: reactionStrikes too — actions.js puts a forced one ahead of Reactive Strike on a move or manipulate trigger.)

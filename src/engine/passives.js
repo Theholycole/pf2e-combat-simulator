@@ -56,7 +56,7 @@ function denyLevel(c) {
 export function flankableBy(target, attacker) {
     if (target.flanking?.flankable === false) return false;
     // (2026-11-07, Watchful Gaze, Augment Senses: an effect that keeps it from being flanked while it lasts.)
-    if ((target.effects ?? []).some((effect) => effect.model?.noFlank)) return false;
+    if (target.noFlank || (target.effects ?? []).some((effect) => effect.model?.noFlank)) return false;
     // (2026-10-22, Foresight: not off-guard when flanked.)
     if ((target.defences ?? []).some((entry) => entry.kind === "foresight")) return false;
     const level = denyLevel(target);
