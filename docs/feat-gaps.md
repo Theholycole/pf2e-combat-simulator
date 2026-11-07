@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 2065 in whole fights. **4301 it doesn't.**
-- **2927** are in neither.
+- **The simulator** rates 2078 in whole fights. **4288 it doesn't.**
+- **2922** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1432 | 866 |
-| archetype | 2074 | 1246 | 1399 | 950 |
-| ancestry | 1613 | 1086 | 1100 | 812 |
+| class | 2282 | 1088 | 1431 | 866 |
+| archetype | 2074 | 1246 | 1396 | 949 |
+| ancestry | 1613 | 1086 | 1091 | 808 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 9 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4301 | 2927 |
+| **All** | 6366 | 3725 | 4288 | 2922 |
 
 ## Why the feat module doesn't automate them
 
@@ -41,12 +41,12 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 256 | 214 | 318 | 59 | 14 | 4 |  | 865 |
 | no card: roleplay or nothing to automate | 157 | 202 | 153 | 46 | 9 |  |  | 567 |
-| no card: the feat module's reminder, which a fight doesn't play | 181 | 131 | 98 | 21 |  | 1 |  | 432 |
+| no card: the feat module's reminder, which a fight doesn't play | 180 | 129 | 93 | 21 |  | 1 |  | 424 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 80 | 39 | 111 | 2 |  |  | 323 |
 | no card: only grants other feats, features or choices | 86 | 123 | 47 | 16 | 2 |  |  | 274 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 51 | 50 | 45 | 21 | 1 |  |  | 168 |
 | no card: a combat passive no reader or hand plan covers yet | 50 | 58 | 29 | 13 | 2 |  | 1 | 153 |
-| a spell the engine doesn't cast | 25 | 33 | 67 | 1 |  |  |  | 126 |
+| a spell the engine doesn't cast | 25 | 32 | 63 | 1 |  |  |  | 121 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | a plan the engine can't play | 33 | 39 | 27 | 3 |  |  |  | 102 |
 | a timer with no rules a fight counts | 53 | 26 | 17 | 4 |  | 1 |  | 101 |
@@ -688,7 +688,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Speak with Kindred | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Speaker in Training | 5 | ancestry | passive | rated -0.13 |
 | Spirit Soother | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Stem the Tide | 5 | ancestry | passive | a spell the engine doesn't cast |
+| Stem the Tide | 5 | ancestry | passive | rated 0 |
 | Strong of Wing | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Strong Tail | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Supernatural Charm | 5 | ancestry | passive | rated -0.15 |
@@ -699,7 +699,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Thrown Voice | 5 | ancestry | passive | a spell the engine doesn't cast |
 | Tranquil Sanctuary | 5 | ancestry | passive | rated -0.15 |
 | Transposable Compliance | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Tree's Ward | 5 | ancestry | passive | a spell the engine doesn't cast |
+| Tree's Ward | 5 | ancestry | passive | rated 0 |
 | Undead Slayer | 5 | ancestry | passive | rated 0 |
 | Vandal | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Venom Spit | 5 | ancestry | passive | rated 0 |
@@ -865,7 +865,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Enlarged Chassis | 13 | ancestry | passive | rated 0.03 |
 | Fiendish Strikes | 13 | ancestry | passive | rated 0 |
 | Flames of Vision | 13 | ancestry | passive | rated -0.31 |
-| Flower Chimera | 13 | ancestry | passive | a spell the engine doesn't cast |
+| Flower Chimera | 13 | ancestry | passive | rated 0.05 |
 | Generation Digger | 13 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Genie Weapon Expertise | 13 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Ghoran Weapon Expertise | 13 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -943,7 +943,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Ascendant Blood | 17 | ancestry | passive | a spell the engine doesn't cast |
 | Axial Recall | 17 | ancestry | passive | a spell the engine doesn't cast |
 | Bend Space | 17 | ancestry | passive | a spell the engine doesn't cast |
-| Boneyard Acquaintance | 17 | ancestry | passive | a spell the engine doesn't cast |
+| Boneyard Acquaintance | 17 | ancestry | passive | rated 0.15 |
 | Boneyard's Call | 17 | ancestry | passive | a spell the engine doesn't cast |
 | Breath of Calamity | 17 | ancestry | passive | rated -0.07 |
 | Ceremony of Sun's Gift | 17 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -2236,7 +2236,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Hidden Hoard | 16 | archetype | passive | no card: roleplay or nothing to automate |
 | Master Captivator Spellcasting | 16 | archetype | passive | no card: roleplay or nothing to automate |
 | Performance Weapon Expert | 16 | archetype | passive | no card: roleplay or nothing to automate |
-| Rivethun Adept | 16 | archetype | passive | a spell the engine doesn't cast |
+| Rivethun Adept | 16 | archetype | passive | rated 0.05 |
 | Shared Dream | 16 | archetype | passive | a spell the engine doesn't cast |
 | The Bitter Scholar's Promotion | 16 | archetype | passive | no card: roleplay or nothing to automate |
 | The Immortal Attains the Summit | 16 | archetype | passive | no card: roleplay or nothing to automate |
@@ -4053,11 +4053,10 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (432)
+### no card: the feat module's reminder, which a fight doesn't play (424)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
-| Collapse | 1 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Dwarven Doughtiness | 1 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Elemental Embellish | 1 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Everyday Form | 1 | ancestry | passive | reminder | the feat module reads nothing for it |
@@ -4067,7 +4066,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Pyrophilic Recovery | 1 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Squawk! | 1 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Teakettle Form | 1 | ancestry | passive | reminder | the feat module reads nothing for it |
-| Unexpected Shift | 1 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Vigorous Health | 1 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Willing Death | 1 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Ally's Shelter | 5 | ancestry | reaction | reminder | the feat module reads nothing for it |
@@ -4113,7 +4111,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Fortified Mind | 9 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Fox Arson | 9 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Heir of the Saoc | 9 | ancestry | passive | reminder | the feat module reads nothing for it |
-| Iivlar's Deflection | 9 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Kneel for No God | 9 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Luck of the Clowder | 9 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Many Faces | 9 | ancestry | passive | reminder | the feat module reads nothing for it |
@@ -4123,7 +4120,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Rolling White Bottle Form | 9 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Skittering Scuttle | 9 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Slip Into Shadow | 9 | ancestry | passive | reminder | the feat module reads nothing for it |
-| Stone Bones | 9 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Telekinetic Slip | 9 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Tetraelemental Assault | 9 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Thorned Seedpod | 9 | ancestry | passive | reminder | the feat module reads nothing for it |
@@ -4145,7 +4141,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Spell Devourer | 13 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Stubborn Persistence | 13 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Tempest Gaze | 13 | ancestry | passive | reminder | the feat module reads nothing for it |
-| Unbound Freedom | 13 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Awakened Stride | 17 | ancestry | passive | reminder | the feat module reads nothing for it |
 | First to Strike, First to Fall | 17 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Landscape Form | 17 | ancestry | passive | reminder | the feat module reads nothing for it |
@@ -4181,7 +4176,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Disk Rider | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Drenching Mist | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Feeding Frenzy | 6 | archetype | passive | reminder | the feat module reads nothing for it |
-| Inexorable | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Multifaceted Will | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Obscured Terrain | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Palatine Enchantment | 6 | archetype | passive | reminder | the feat module reads nothing for it |
@@ -4226,7 +4220,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Expand Spiral | 10 | archetype | passive | reminder | the feat module reads nothing for it |
 | Fading | 10 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Ghostsong | 10 | archetype | passive | reminder | the feat module reads nothing for it |
-| Interstitial Escape | 10 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Know It All (Eldritch Researcher) | 10 | archetype | passive | reminder | the feat module reads nothing for it |
 | Lasting Protection | 10 | archetype | passive | reminder | the feat module reads nothing for it |
 | Preserve the Horde | 10 | archetype | free | reminder | the feat module reads nothing for it |
@@ -4305,7 +4298,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Known Weaknesses | 1 | class | passive | reminder | the feat module reads nothing for it |
 | Long-Distance Taunt | 1 | class | passive | reminder | the feat module reads nothing for it |
 | Relinquish Control | 1 | class | free | reminder | the feat module reads nothing for it |
-| Timber Sentinel | 1 | class | 2 actions | kineticist module | the feat module reads nothing for it |
 | Defensive Swap | 2 | class | reaction | reminder | the feat module reads nothing for it |
 | Directed Audience | 2 | class | passive | reminder | the feat module reads nothing for it |
 | Elemental Evolution | 2 | class | passive | reminder | the feat module reads nothing for it |

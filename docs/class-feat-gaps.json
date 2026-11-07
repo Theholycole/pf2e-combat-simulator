@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1529,
+ "rated": 1533,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -6688,29 +6688,6 @@
    "reason": null,
    "detail": null,
    "text": "Frequency once per hour Requirements Your previous action was a ranged weapon Strike that missed a foe within 60 feet. Somehow your stray bullet causes an unintended reaction that creates a problem for your enemy: perhaps a ricochet knocks "
-  },
-  {
-   "id": "tgSDzfcsNly0EYRl",
-   "name": "Interstitial Escape",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "concentrate",
-    "magical",
-    "teleportation"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Frequency once per hour Trigger You would be hit by a melee or ranged Strike, and you are not Off-Guard. To evade your foe, you shift yourself to another location, teleporting from your current square to another unoccupied square within 30 "
   },
   {
    "id": "23QgyEYjoslBvkra",
@@ -21517,26 +21494,6 @@
    "reason": "it grants Inevitable Return: the feat module reads nothing for it",
    "detail": "it grants Inevitable Return: the feat module reads nothing for it",
    "text": "You gain the necromancer's Inevitable Return reaction, allowing you to create thralls from the corpses of your enemies."
-  },
-  {
-   "id": "QkZbgdTGt8ectKGI",
-   "name": "Inexorable",
-   "level": 6,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You imbue yourself with the resilience of the cave worm. When you gain the Paralyzed, Slowed, or Stunned condition, roll a @Check[flat|dc:15]. On a success you ignore the condition. When using Worm Form you are immune to penalties to your S"
   },
   {
    "id": "LgpATqbuTIfB4o6G",
@@ -53269,26 +53226,6 @@
    "text": "Requirements You are holding healer's tools or are wearing them and have a hand free. You resuscitate the dead. Attempt a @Check[medicine|dc:40|showDC:all] check to revive a dead creature who has been dead for no more than 3 rounds and whos"
   },
   {
-   "id": "PVx3D9ndoytRAPca",
-   "name": "Rivethun Adept",
-   "level": 16,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Speak with Stones, Spiritual Guardian)",
-   "text": "Your ability to wield spirit magic has increased. You can cast Speak with Stones and Spiritual Guardian as a 5th-rank divine innate spells. You can cast each of these spells once per day. If you're legendary in Religion, spiritual guardian "
-  },
-  {
    "id": "ZXLbIgL3NNplgnuB",
    "name": "Shared Dream",
    "level": 16,
@@ -57195,32 +57132,6 @@
    "reason": "a timer with no rules a fight counts",
    "detail": "a timer with no rules a fight counts",
    "text": "Disks of rock fly to points that you designate to make a new path. You can set them horizontally to make a path across the ground or atop a liquid, or anchor them into a vertical surface to make steps. The path can be up to 20 feet (4 squar"
-  },
-  {
-   "id": "aHlcMMNQ85VLK7QT",
-   "name": "Timber Sentinel",
-   "level": 1,
-   "owner": "kineticist",
-   "classes": [
-    "kineticist"
-   ],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "impulse",
-    "kineticist",
-    "plant",
-    "primal",
-    "wood"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "A slim, symmetrical tree travels from the Plane of Wood. You conjure a tree within 30 feet, as a Protector Tree spell of a rank equal to half your level rounded up. If you use this impulse again, any previous one ends, and an ordinary tree "
   },
   {
    "id": "apKvJtD1Qpvt3O9f",
