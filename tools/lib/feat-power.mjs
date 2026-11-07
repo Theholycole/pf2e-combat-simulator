@@ -107,13 +107,26 @@ const collectionOf = (path) => {
     const pf2e = /\/systems\/pf2e\/packs\/(\w+)$/.exec(path);
     return pf2e ? PF2E_COLLECTIONS[pf2e[1]] ?? null : null;
 };
+// (2026-11-07, Cole: "building the feats first then implementing them into the simulator": the feat module's own rule batches — the rules
+// its scripts/rules.js puts on the item as it prepares in Foundry, src/rules/ — on the item here too, so a fight has what a table has. Its
+// Notes only show text, so they're left off.)
+const { rulesFor: moduleRulesFor } = await import(new URL("src/rules/index.js", FEAT_ROOT).href);
+function withModuleRules(doc) {
+    let added;
+    try {
+        added = moduleRulesFor(doc).filter((rule) => rule?.key !== "Note");
+    } catch {
+        added = [];
+    }
+    return added.length ? { ...doc, system: { ...doc.system, rules: [...(doc.system?.rules ?? []), ...added] }, moduleRules: added.length } : doc;
+}
 const docsCache = new Map();
 export function docsOf(path) {
     if (!docsCache.has(path)) {
         let docs = [];
         try {
             const collection = collectionOf(path);
-            docs = readDocuments(path).filter((doc) => doc.collection === "items").map((doc) => (collection && !doc.sourceId ? { ...doc, sourceId: `Compendium.${collection}.Item.${doc._id}` } : doc));
+            docs = readDocuments(path).filter((doc) => doc.collection === "items").map((doc) => (collection && !doc.sourceId ? { ...doc, sourceId: `Compendium.${collection}.Item.${doc._id}` } : doc)).map(withModuleRules);
         } catch {
             docs = [];
         }
@@ -1078,6 +1091,15 @@ function conditionSavePlan(doc, statistic, failure, criticalFailure, success = n
     return { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], heightening: null, resolution: { ...base.resolution, check: { ...base.resolution.check, statistic }, outcomes: { criticalSuccess: row(null), success: row(success), failure: row(failure), criticalFailure: row(criticalFailure) } } };
 }
 
+// (2026-11-07) A save plan whose degrees deal damage of their own, Lethal Finisher's 6 / 6d6 / 12d6 / 18d6 precision: Fear's shape, each row
+// its formula (null: none).
+function damageSavePlan(doc, statistic, [criticalSuccess, success, failure, criticalFailure]) {
+    const base = conditionSavePlan(doc, statistic, null, null);
+    if (!base) return null;
+    const row = (formula) => ({ ...base.resolution.outcomes.failure, effects: [], damage: formula ? { mode: "formulas", formulas: [{ formula }], rollScope: "target" } : { mode: "none", multiplier: 0, sourceComponentIds: [] } });
+    return { ...base, resolution: { ...base.resolution, outcomes: { criticalSuccess: row(criticalSuccess), success: row(success), failure: row(failure), criticalFailure: row(criticalFailure) } } };
+}
+
 function kineticAura(doc, { model = null, start = null, enter = null, saves = null, castAs = null, played }) {
     const uuid = `feat:${doc._id}:aura`;
     const zone = { area: { type: "emanation", value: 10 }, lasts: null, ...(start ? { damage: [{ when: "start", formulas: [start] }] } : {}), ...(enter ? { hazard: { formulas: [enter] } } : {}), ...(model ? { effect: { allies: true, uuid, label: doc.name } } : {}), ...(saves ? { saves } : {}), ...(castAs ? { castAs } : {}) };
@@ -1257,6 +1279,25 @@ const HAND = {
     "aldori-riposte": () => ({ builtins: {}, plans: [{ builtin: "reaction-strike", triggers: ["critical-miss"], strike: null, penalty: 0, disrupts: false, melee: true }], played: "a riposte Strike on a critical miss (reaction)" }),
     // (2026-11-07, Ankle Bite: a jaws Strike at a foe that grabs it — its best melee Strike when it has no jaws —, no multiple attack
     // penalty, free of the grab on a critical hit.)
+    // (2026-11-07, the simulator's side of the feats built first — Cole: "building the feats first then implementing them into the simulator".)
+    // Lethal Finisher: a finisher Strike without its precise dice; on a hit, Fortitude for 6 / 6d6 / 12d6 / 18d6 precision (a critical hit's
+    // one degree worse not played).
+    "lethal-finisher": (level, host, doc) => {
+        const save = host?.panacheStyle && damageSavePlan(doc, "fortitude", ["6[precision]", "6d6[precision]", "12d6[precision]", "18d6[precision]"]);
+        return save ? { builtins: {}, plans: [strikeRider({ finisher: "lethal", onHit: { save } })], played: "a finisher Strike; on a hit Fortitude for 6 to 18d6 precision instead of its finisher dice" } : null;
+    },
+    // Instant Return: a foe's ranged attack that misses it, shot back (reaction; its unloaded weapon and the foe's ammunition taken as fitting).
+    "instant-return": () => ({ builtins: { reactionStrikes: [{ name: "Instant Return", triggers: ["ranged-missed"], strike: "", penalty: 0, disrupts: false }] }, played: "a ranged Strike back at a foe whose ranged attack misses it (reaction)" }),
+    // Release Me!: a melee Strike at the creature grabbing it (flourish; the Escape after it not played).
+    "release-me": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, melee: true, requires: "grabbed-by" })], played: "a melee Strike at the creature that grabs it (flourish; the Escape after not played)" }),
+    // Momentum Strike, Sleek Reposition: a melee Strike that moves its target on a hit, 5 feet (10 on a critical hit) — Momentum Strike's
+    // second creature hit by the pushed one not played; Sleek Reposition's Reposition played as a push (press).
+    "momentum-strike": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, flourish: true, melee: true, onHit: { push: 5, criticalPush: 10 } })], played: "a melee Strike that pushes its target 5 feet (10 on a critical hit; flourish, 2 actions)" }),
+    "sleek-reposition": () => ({ builtins: {}, plans: [strikeRider({ press: true, melee: true, onHit: { push: 5, criticalPush: 10 } })], played: "a press melee Strike that moves its target 5 feet on a hit (10 on a critical hit)" }),
+    // Lastwall Warden: Shield Block for an adjacent ally, as Shield Warden (its Step toward an ally an undead attacks not played).
+    "lastwall-warden": () => ({ builtins: { shieldWarden: true }, played: "Shield Block for an adjacent ally (reaction)" }),
+    // Evasiveness: master in Reflex saves, +2 over expert (the archetype's host taken as expert).
+    "evasiveness": () => ({ builtins: { passiveEffects: [{ name: "Evasiveness", rounds: Infinity, modifiers: [{ on: "reflex", type: "untyped", value: 2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }] }, played: "master in Reflex saves (+2 over expert, always on)" }),
     "ankle-bite": () => ({ builtins: { reactionStrikes: [{ name: "Ankle Bite", triggers: ["grabbed"], strike: "jaws", penalty: 0, disrupts: false, noMap: true, critFree: true }] }, played: "a Strike at a foe that grabs it, free of the grab on a critical hit (reaction)" }),
     "target-of-opportunity": () => ({ builtins: { reactionStrikes: [{ name: "Target of Opportunity", triggers: ["ally-hit"], allyRanged: true, ranged: true, strike: "", penalty: 2, disrupts: false }] }, played: "a ranged Strike (–2) when an ally's ranged Strike hits (reaction)" }),
     "exploit-opening": () => ({ builtins: { reactionStrikes: [{ name: "Exploit Opening", triggers: ["ally-hit"], critOnly: true, ranged: true, strike: "", penalty: -2, disrupts: false }] }, played: "a ranged Strike (+2) when an ally critically hits (reaction)" }),

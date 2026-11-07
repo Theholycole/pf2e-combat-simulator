@@ -289,7 +289,8 @@ export function featureParts(attacker, strike, target, { offGuard = 0, firstPrey
     if (attacker.huntPrey?.edge === "precision" && attacker.prey === target.id && (firstPreyHit || attacker.huntPrey.every)) parts.push({ dice: attacker.huntPrey.precisionDice ?? 1, die: attacker.huntPrey.die ?? 8, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
     // Panache: Precise Strike's damage on agile or finesse melee Strikes; a finisher's dice instead.
     const precise = attacker.panacheStyle && strike.melee && (strike.agile || strike.finesse);
-    if (precise && strike.finisher) parts.push({ dice: attacker.panacheStyle.finisherDice, die: 6, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 });
+    // (2026-11-07, Lethal Finisher: "you forego your Precise Strike damage from the finisher" — its save's damage instead.)
+    if (precise && strike.finisher) { if (strike.finisher !== "lethal") parts.push({ dice: attacker.panacheStyle.finisherDice, die: 6, bonus: 0, type: strike.damage[0]?.type, precision: true, chance: 1 }); }
     else if (precise && attacker.panache) parts.push({ dice: 0, die: 0, bonus: attacker.panacheStyle.precise, type: strike.damage[0]?.type, precision: true, chance: 1 });
     // (C31, Oath of the Slayer: spirit damage against its sworn kind, doubled after one set off its reaction, through its next turn.)
     if (attacker.oath && (target.traits ?? []).includes(attacker.oath.trait)) parts.push({ dice: 0, die: 0, bonus: attacker.oath.value * ((attacker.oathDoubled ?? -Infinity) >= (attacker.round ?? 0) ? 2 : 1), type: "spirit", precision: false, chance: 1 });
@@ -863,6 +864,11 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             if (answer && canReact(target, answer.name) && canAct(target) && !target.cond.fleeing && sameMelee(target, attacker)) reactionStrikeAt(state, target, attacker, answer, degree === CRITICAL_FAILURE ? "critical-miss" : "missed");
         }
         // (B116, Skitter: a miss on it, answered by moving off.)
+        // (2026-11-07, Instant Return: a foe's ranged attack that misses it, shot back — a ranged Strike at the attacker, at any distance.)
+        if (!reaction && !strike.melee && isActive(attacker) && isActive(target)) {
+            const back = (target.reactionStrikes ?? []).find((entry) => entry.triggers.includes("ranged-missed"));
+            if (back && canReact(target, back.name) && canAct(target)) reactionStrikeAt(state, target, attacker, { ...back, ranged: true }, "missed");
+        }
         if (!reaction && isActive(attacker) && isActive(target)) withdrawAnswer(state, target, attacker, { melee: !!strike.melee });
         // (B246, Robe Tangle: a plan of its own on a miss.)
         if (!reaction && isActive(attacker) && isActive(target)) reactToMiss(state, target, attacker, strike, degree);

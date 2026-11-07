@@ -1706,6 +1706,8 @@ function expandStrikeActivities(env) {
             if (activity.after && !activity.strides && target.id !== c.lastStrike?.targetId) continue;
             if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
             if (activity.requires === "prone" && !target.cond.prone) continue;
+            // (2026-11-07, Release Me!: at the creature that has it grabbed or restrained.)
+            if (activity.requires === "grabbed-by" && !(c.grabbedBy === target.id && (c.cond.grabbed || c.cond.restrained))) continue;
             // (2026-11-06, Twin Weakness: at the target of its Exploit Vulnerability.)
             if (activity.requires === "exploited" && !exploitCovers(c, target)) continue;
             if (activity.requires === "hostile-to-me" && !c.hostileFrom?.has(target.id)) continue;
