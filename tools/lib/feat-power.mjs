@@ -2089,6 +2089,11 @@ const HAND = {
     "combination-finisher": () => ({ builtins: { combinationFinisher: true }, played: "its finishers' multiple attack penalty −4/−8 (−3/−6 agile)" }),
     "deadly-strikes": (level) => ({ builtins: { deadlyStrikes: level }, played: "its unarmed attacks deadly d10" }),
     // (2026-11-07, Deadly Grace: an agile or finesse melee weapon's deadly dice doubled; one without deadly gains deadly d8.)
+    // (2026-11-07, First to Strike, First to Fall: a hit on a foe that hasn't acted yet leaves it off-guard to the end of the PC's next turn;
+    // the quickened on its fall not played.)
+    "first-to-strike-first-to-fall": () => ({ builtins: { strikeExtras: [{ when: "unacted", condition: { slug: "off-guard", duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } }, source: "First to Strike, First to Fall" }] }, played: "a hit on a foe that hasn't acted yet: off-guard to the end of its next turn" }),
+    // (Shining Runes: concealed until its next turn after a spell of 2 or more actions.)
+    "shining-runes": () => ({ builtins: { shiningRunes: true }, played: "concealed until its next turn after a spell of 2 or more actions" }),
     "deadly-grace": (level) => ({ builtins: { deadlyGrace: level }, played: "its agile or finesse melee weapon's deadly dice doubled (deadly d8 on one without)" }),
     // (2026-11-06, Persistent Boost: its Offensive Boost's hit (the weapon innovation's Strikes, classes.js) 1d8 persistent fire too.)
     "persistent-boost": () => ({ builtins: { strikeExtras: [{ when: "hit", dice: 1, die: 8, melee: true, persistent: true, noDouble: true, type: "fire", source: "Persistent Boost" }] }, played: "1d8 persistent fire on its boosted melee hits (always on)" }),
@@ -2816,7 +2821,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer" };
+const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from

@@ -830,5 +830,6 @@ export const SIM_WHY = Object.freeze({
     "Healing Bomb": GEAR,
     "Mythic Weapon Specialization": SUBCLASS,
     "Choking Smoke": SPELL_NOT_CAST,
+    "Diverting Vortex": FOE_TYPE,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

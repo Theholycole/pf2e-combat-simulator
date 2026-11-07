@@ -897,6 +897,9 @@ export function extraApplies(extra, target, { offGuard, packAllies, attacker = n
         // (2026-11-03: Sly Striker's "against a creature that isn't off-guard"; Brutal Critical's, on a critical hit — actions.js.)
         case "not-off-guard":
             return !offGuard;
+        // (2026-11-07, First to Strike, First to Fall: a creature that hasn't yet acted in the fight.)
+        case "unacted":
+            return target.lastTurnRound == null;
         case "critical":
             return Boolean(critical);
         // (2026-11-03: any hit — an alchemist's additive, Disorienting Opening's.)

@@ -1152,6 +1152,8 @@ function actOn(state, c, action) {
             }
             const drained = (spell?.vampiric || spell?.forcible || spell?.infuseVoid) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
+            // (2026-11-07, Shining Runes: a spell of more than one action — concealed from its foes until its next turn starts.)
+            if (c.shiningRunes && spell && (!spell.kind || spell.castsSpell) && castActions(c, action) >= 2 && isActive(c) && !c.cond.concealed && applyCondition(state, c, "concealed", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start" }, c)) state.log?.push(`  ${c.name} is concealed (Shining Runes)`);
             // (2026-11-06, Vampiric Spell: half the most damage one creature took, as temporary Hit Points — the higher of these and its own.)
             // (2026-11-06, Forcible Energy: weakness 5 to the spell's energy on the creature it hurt most, to the end of the caster's next turn.)
             // (2026-11-06, Infuse Void: void damage of the spell's rank on each creature it damaged.)
