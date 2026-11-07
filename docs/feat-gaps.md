@@ -3,7 +3,7 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 2078 in whole fights. **4288 it doesn't.**
+- **The simulator** rates 2079 in whole fights. **4287 it doesn't.**
 - **2922** are in neither.
 
 ## Summary by category
@@ -12,12 +12,12 @@ Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats 
 |---|---:|---:|---:|---:|
 | class | 2282 | 1088 | 1431 | 866 |
 | archetype | 2074 | 1246 | 1396 | 949 |
-| ancestry | 1613 | 1086 | 1091 | 808 |
+| ancestry | 1613 | 1086 | 1090 | 808 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 9 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4288 | 2922 |
+| **All** | 6366 | 3725 | 4287 | 2922 |
 
 ## Why the feat module doesn't automate them
 
@@ -48,8 +48,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: a combat passive no reader or hand plan covers yet | 50 | 58 | 29 | 13 | 2 |  | 1 | 153 |
 | a spell the engine doesn't cast | 25 | 32 | 63 | 1 |  |  |  | 121 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
-| a plan the engine can't play | 33 | 39 | 27 | 3 |  |  |  | 102 |
 | a timer with no rules a fight counts | 53 | 26 | 17 | 4 |  | 1 |  | 101 |
+| a plan the engine can't play | 33 | 39 | 26 | 3 |  |  |  | 101 |
 | a Strike with nothing more the simulator reads | 46 | 33 | 2 |  |  | 1 |  | 82 |
 | no card: a combat action no reader or hand plan covers yet | 25 | 28 | 14 | 4 | 1 |  |  | 72 |
 | no card: companions, familiars and eidolons | 35 | 25 | 1 | 5 |  |  |  | 66 |
@@ -4655,113 +4655,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Cloud Jump | 15 | skill | passive | by hand | the feat module reads nothing for it |
 | Legendary Survivalist | 15 | skill | passive | by hand | the feat module reads nothing for it |
 
-### a plan the engine can't play (102)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Avenge in Glory | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Bounce Boost | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Life-Giving Magic | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Maiden's Mending | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Play Dead | 1 | ancestry | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Reflective Defense | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Savor the Hunt | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Spray Ink | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Sudden Mindfulness | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| All This Has Happened Before | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Bold Defiance | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
-| Call to Battle | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Guided by the Stars | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
-| Healer's Halo | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Heat Wave | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Quick Root | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Rekindled Light | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Spark of Independence | 5 | ancestry | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
-| Vomit Stomach | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Ferocious Will | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Hardening Necrosis | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Mask of Pain | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Pollinate | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Quick Recovery | 9 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
-| Hop Up | 13 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
-| Squirm Free | 13 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Cantorian Restoration | 17 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Blood Calls Blood | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Devrin's Cunning Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Disengaging Twist | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Dread Marshal Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Heroic Defiance | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Inspiring Marshal Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Patronize the Arts | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Reactive Tangle | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Strategist Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Such a Disgrace! | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| You're an Embarrassment! | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Archaeologist's Warning | 6 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Fear No Pain! | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Repulse the Wicked | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Armored Rebuff | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Commitment to Valor | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Dismal Harvest | 8 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Drive Back | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Gardener's Resolve | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Martyr's Parry | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Metabolize Element | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Opportunistic Grapple | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Statue | 8 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Wake and Tremble | 8 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Defy Sorrow | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Ensnaring Wrappings | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Fluttering Distraction | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Gathering Moss | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Mockingbird's Disarm | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Shattering Strike (Weapon Improviser) | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Topple Foe | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Tumbling Opportunist | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Propelled Leap | 12 | archetype | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
-| Self Destruct | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Awake With a Roar | 14 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Even the Odds (Eagle Knight) | 14 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Tempo Shift | 16 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Body Barrier | 18 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Deific Font | 18 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Flying Flame | 1 | class | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
-| Foretell Harm | 1 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Divine Aegis | 2 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Emotional Push | 2 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Fiery Rebirth | 4 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Inspiring Resilience | 4 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Song of Glorious Invocation | 4 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Align Qi | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Disarming Intercept | 6 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Shield Wall | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Shove Down | 6 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Toppling Transformation | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Volcanic Escape | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Dark Persona's Presence | 8 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Mental Static | 8 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Call From Death's Door | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Corpse-Killer's Defiance | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Dazzling Block | 10 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Fish From the Falls' Edge | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Geobukseon Retaliation | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Prevailing Position | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Apparition Cloud | 12 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Drowning Mist | 12 | class | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
-| Get Used to Disappointment | 12 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Blood Pool | 14 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Towering Transformation | 14 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Noble Sacrifice | 16 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Vindictive Thoughts | 16 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Blaze of Revelation | 18 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Spirit's Sacrifice | 18 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Astonishing Explosion | 20 | class | free | card | a plan the engine can't play (its targeting or what it does) |
-| Hidden Paragon | 20 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Ringmaster's Introduction | 20 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Say That Again! | 6 | skill | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Kip Up | 7 | skill | free | card | a plan the engine can't play (its targeting or what it does) |
-| Too Angry to Die | 12 | skill | reaction | card | a plan the engine can't play (its targeting or what it does) |
-
 ### a timer with no rules a fight counts (101)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -4867,6 +4760,112 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Sanctify Water | 2 | skill | 1 action | card | a timer with no rules a fight counts |
 | Skeptic's Defense | 7 | skill | reaction | card | a timer with no rules a fight counts |
 | Fear of God | 14 | skill | free | card | a timer with no rules a fight counts |
+
+### a plan the engine can't play (101)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Avenge in Glory | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Bounce Boost | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Life-Giving Magic | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Maiden's Mending | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Play Dead | 1 | ancestry | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Reflective Defense | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Savor the Hunt | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Spray Ink | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Sudden Mindfulness | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| All This Has Happened Before | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Bold Defiance | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
+| Call to Battle | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Guided by the Stars | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
+| Healer's Halo | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Heat Wave | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Quick Root | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Rekindled Light | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Spark of Independence | 5 | ancestry | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
+| Vomit Stomach | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Ferocious Will | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Mask of Pain | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Pollinate | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Quick Recovery | 9 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
+| Hop Up | 13 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
+| Squirm Free | 13 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Cantorian Restoration | 17 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Blood Calls Blood | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Devrin's Cunning Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Disengaging Twist | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Dread Marshal Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Heroic Defiance | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Inspiring Marshal Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Patronize the Arts | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Reactive Tangle | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Strategist Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Such a Disgrace! | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| You're an Embarrassment! | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Archaeologist's Warning | 6 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Fear No Pain! | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Repulse the Wicked | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Armored Rebuff | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Commitment to Valor | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Dismal Harvest | 8 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Drive Back | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Gardener's Resolve | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Martyr's Parry | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Metabolize Element | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Opportunistic Grapple | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Statue | 8 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Wake and Tremble | 8 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Defy Sorrow | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Ensnaring Wrappings | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Fluttering Distraction | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Gathering Moss | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Mockingbird's Disarm | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Shattering Strike (Weapon Improviser) | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Topple Foe | 10 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Tumbling Opportunist | 10 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Propelled Leap | 12 | archetype | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
+| Self Destruct | 12 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Awake With a Roar | 14 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Even the Odds (Eagle Knight) | 14 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Tempo Shift | 16 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
+| Body Barrier | 18 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Deific Font | 18 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Flying Flame | 1 | class | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
+| Foretell Harm | 1 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Divine Aegis | 2 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Emotional Push | 2 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Fiery Rebirth | 4 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Inspiring Resilience | 4 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Song of Glorious Invocation | 4 | class | 1 action | card | a plan the engine can't play (its targeting or what it does) |
+| Align Qi | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Disarming Intercept | 6 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Shield Wall | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Shove Down | 6 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Toppling Transformation | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Volcanic Escape | 6 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Dark Persona's Presence | 8 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Mental Static | 8 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Call From Death's Door | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Corpse-Killer's Defiance | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Dazzling Block | 10 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Fish From the Falls' Edge | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Geobukseon Retaliation | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Prevailing Position | 10 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Apparition Cloud | 12 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Drowning Mist | 12 | class | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
+| Get Used to Disappointment | 12 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Blood Pool | 14 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Towering Transformation | 14 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Noble Sacrifice | 16 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Vindictive Thoughts | 16 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Blaze of Revelation | 18 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Spirit's Sacrifice | 18 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Astonishing Explosion | 20 | class | free | card | a plan the engine can't play (its targeting or what it does) |
+| Hidden Paragon | 20 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Ringmaster's Introduction | 20 | class | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Say That Again! | 6 | skill | reaction | card | a plan the engine can't play (its targeting or what it does) |
+| Kip Up | 7 | skill | free | card | a plan the engine can't play (its targeting or what it does) |
+| Too Angry to Die | 12 | skill | reaction | card | a plan the engine can't play (its targeting or what it does) |
 
 ### a Strike with nothing more the simulator reads (82)
 
