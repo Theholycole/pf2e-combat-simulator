@@ -1320,6 +1320,15 @@ const HAND = {
     "release-me": () => ({ builtins: {}, plans: [strikeRider({ flourish: true, melee: true, requires: "grabbed-by" })], played: "a melee Strike at the creature that grabs it (flourish; the Escape after not played)" }),
     // Momentum Strike, Sleek Reposition: a melee Strike that moves its target on a hit, 5 feet (10 on a critical hit) — Momentum Strike's
     // second creature hit by the pushed one not played; Sleek Reposition's Reposition played as a push (press).
+    // (2026-11-07, the simulator phase: Strikes at a distance — Sever Space's 80-foot reach (then adjacent), Aerial Flash's teleport within 60
+    // feet and back, Wukong Extension's 30-foot reach, Sword-Light Wave's ranged Strike within 60 feet with a melee weapon — played as a
+    // melee Strike after moving that far, the closest the engine has; their spirit damage and return trips aren't. Bat Around: a melee
+    // Strike, then a Shove — played as a push on a hit.)
+    "sever-space": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, flourish: true, melee: true, strides: 3 })], played: "a melee Strike at a foe up to 80 feet away (flourish, 2 actions)" }),
+    "aerial-flash": () => ({ builtins: {}, plans: [strikeRider({ actions: 3, melee: true, strides: 2 })], played: "a melee Strike at a foe up to 60 feet away (3 actions)" }),
+    "wukong-extension": () => ({ builtins: {}, plans: [strikeRider({ actions: 1, melee: true, strides: 1 })], played: "a melee Strike at a foe up to 30 feet away" }),
+    "sword-light-wave": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, melee: true, strides: 2 })], played: "a Strike at a foe up to 60 feet away with its melee weapon (2 actions)" }),
+    "bat-around": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, melee: true, onHit: { push: 5, criticalPush: 10 } })], played: "a melee Strike, then a Shove (a push on a hit; 2 actions)" }),
     "momentum-strike": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, flourish: true, melee: true, onHit: { push: 5, criticalPush: 10 } })], played: "a melee Strike that pushes its target 5 feet (10 on a critical hit; flourish, 2 actions)" }),
     "sleek-reposition": () => ({ builtins: {}, plans: [strikeRider({ press: true, melee: true, onHit: { push: 5, criticalPush: 10 } })], played: "a press melee Strike that moves its target 5 feet on a hit (10 on a critical hit)" }),
     // Lastwall Warden: Shield Block for an adjacent ally, as Shield Warden (its Step toward an ally an undead attacks not played).

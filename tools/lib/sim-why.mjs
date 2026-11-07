@@ -121,5 +121,9 @@ export const SIM_WHY = Object.freeze({
     "Collapse Wall": SCENE, "Rain-Scribe Mobility": TERRAIN, "Keep up Appearances": SOCIAL, "Go with the Flow": SOCIAL, "Interrogate": SOCIAL,
     "Scatter Swarm": CREATURE, "Riptide Mount": SCENE, "Sabotage": GEAR, "Unwind Death": SCENE, "Command Undead": CREATURE,
     "Miraculous Intervention": CREATURE, "Desperate Resuscitation": SCENE, "Swap Reflections": SCENE,
+    "Dispelling Slice": FOE_SPELL, "Sunder Spell": FOE_SPELL, "Sever Magic": FOE_SPELL, "Silence Heresy": FOE_SPELL, "Drive-By Attack": SCENE,
+    "Bullet and a Broadside": SCENE, "Revealing Stab": TERRAIN, "Deathblow": GEAR, "Cut them Down, Burn them Out": CREATURE, "Grave Threat": CREATURE,
+    "Ricochet Shot": TERRAIN, "Unerring Runic Attraction": TERRAIN, "Incorporeal Shot": TERRAIN, "Trick Shot": TERRAIN, "Virulent Strike": FOE_TYPE,
+    "Knock Sense": FOE_TYPE, "Cauterize": FOE_TYPE, "Mug": GEAR, "Lonely Army": SCENE, "Chain Reaction": SCENE, "Returning Throw": GEAR, "Dizzying Spin Dance": GEAR,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });
