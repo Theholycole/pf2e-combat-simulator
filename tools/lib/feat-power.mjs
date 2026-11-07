@@ -1212,6 +1212,14 @@ const HAND = {
     // (Cringe: a critical hit on it, its level + 2 less damage after the doubling — played as resistance that much to the Strike —, each
     // attacker once; reaction.)
     "cringe": (level) => ({ builtins: { critResistance: { name: "Cringe", value: level + 2, perAttacker: true } }, played: `${level + 2} less damage from a critical hit on it, each attacker once (reaction)` }),
+    // (2026-11-07, Triggerbrand Blitz: a Stride and three Strikes at three foes, the penalty rising after all three; once a minute — once a
+    // fight —; fatigued the rest of the fight after. Its combination weapon played as the gunslinger's own.)
+    "triggerbrand-blitz": (level, host) => {
+        const strike = (host?.strikes ?? []).find((each) => each.melee) ?? host?.strikes?.[0];
+        return strike ? { builtins: { multiStrikes: [{ name: "Triggerbrand Blitz", actions: 3, strikes: Array(3).fill(strike.name.toLowerCase()), strides: 1, distinct: true, sameMap: true, oncePerFight: true, after: [{ slug: "fatigued", until: "save" }] }] }, played: "a Stride and three Strikes at three foes, one multiple attack penalty, then fatigued (3 actions, once a fight)" } : null;
+    },
+    // (Emphatic Emissary: +2 circumstance to its initiative roll; its first-turn Disarming Smile on every foe that hasn't acted isn't played.)
+    "emphatic-emissary": () => ({ builtins: { initiativeBonus: 2 }, played: "+2 to initiative" }),
     "interstitial-escape": (level) => ({ builtins: { resistReaction: { name: "Interstitial Escape", value: 5 + level, on: null, types: null, attack: true, foe: true }, resistUses: 1 }, played: `resistance ${5 + level} to a Strike's damage (once a fight, reaction)` }),
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
@@ -1511,6 +1519,8 @@ const HAND = {
     "crushing-grab": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["grapple"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Crushing Grab" }] }, played: "Strength damage on a successful Grapple (always on)" }),
     "punishing-shove": (level, host) => ({ builtins: { basicRiders: [{ slugs: ["shove"], damage: `${Math.max(1, host?.abilities?.str ?? 4) + (level >= 15 ? 12 : level >= 7 ? 6 : level >= 3 ? 2 : 0)}[bludgeoning]`, criticalDouble: true, source: "Punishing Shove" }] }, played: "damage on a successful Shove (always on)" }),
     "brutal-bully": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["disarm", "grapple", "reposition", "shove", "trip"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Brutal Bully" }] }, played: "Strength damage on a successful maneuver (always on; raging not checked)" }),
+    // (2026-11-07, Legendary Laugh: 3d8 mental on a successful Demoralize, 6d8 on a critical success; its 60-foot range isn't played.)
+    "legendary-laugh": () => ({ builtins: { basicRiders: [{ slugs: ["demoralize"], damage: "3d8[mental]", criticalDouble: true, source: "Legendary Laugh" }] }, played: "3d8 mental on a successful Demoralize (6d8 on a critical success)" }),
     "agonizing-rebuke": (level) => ({ builtins: { basicRiders: [{ slugs: ["demoralize"], damage: `${level >= 15 ? 3 : level >= 7 ? 2 : 1}d4[mental]`, source: "Agonizing Rebuke" }] }, played: "mental damage on a successful Demoralize (always on; once, not each turn)" }),
     // (2026-11-04, the gap index's batch 2: a larger foe's Trip — the rating's foes are often larger; 2d8 once a master in Athletics, 15th here.)
     "the-harder-they-fall-kingmaker": (level) => ({ builtins: { basicRiders: [{ slugs: ["trip"], damage: `${level >= 15 ? 2 : 1}d8[bludgeoning]`, criticalDouble: true, source: "The Harder They Fall" }] }, played: "bludgeoning damage on a successful Trip (always on)" }),

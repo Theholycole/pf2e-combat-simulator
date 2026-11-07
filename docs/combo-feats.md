@@ -37,6 +37,9 @@ Every PC already has the basic actions, and each rated alone is worth about 0 le
 | Quick Shot | 1 | Interact (draw a bow or crossbow) + Strike | draw | +0.040 |  |
 | Brandishing Draw | 1 | Interact (draw) + Strike or finisher | draw | +0.040 |  |
 | Reflexive Stance | 0 | a stance action, free, as initiative is rolled | strike | +0.040 | its first turn's stance action becomes a Strike |
+| Opening Stance | 0 | a stance action, free, as initiative is rolled | strike | +0.040 | its first turn's stance action becomes a Strike |
+| Quick Shape | 0 | Change Shape, free, as initiative is rolled | strike | +0.040 | beastkin; its first turn's Change Shape becomes a Strike |
+| Rapid Manifestation | 0 | Manifest Soulforged Armament, free, as initiative is rolled | strike | +0.040 | its first turn's manifest action becomes a Strike |
 | Leaping Hedgehog Strike | 2 | Leap + Tumble Through (prone on a success) + a Strike (at mythic proficiency, a Mythic Point, if prone) | stride, maneuver | +0.028 | mythic |
 | Marathon Dash | 1 | Stride + allies within 10 feet Stride as a reaction | stride, stride | +0.024 |  |
 | Scout's Pounce | 2 | Stride + Strike, Strike | strike | +0.020 | hidden from all foes and 10 feet from them; its off-guard target not counted |
@@ -88,11 +91,13 @@ Every PC already has the basic actions, and each rated alone is worth about 0 le
 | Elf Step | 1 | Step, Step | step | +0.010 |  |
 | Wing Step | 1 | Step, Step | step | +0.010 |  |
 | Guiding Finish | 1 | Strike + Reposition 10 feet on a hit (press) | maneuver | +0.010 |  |
+| Unnerving Prowess | 0 | Demoralize (free, after a critical hit or a first-turn hit with an Aldori dueling sword) | maneuver | +0.010 | an Aldori dueling sword |
 | Warp Path | 1 | teleport 30 feet + melee Strike | stride | +0.007 | while veiled |
 | Sudden Leap | 2 | Leap, High or Long Jump + Strike | move | +0.007 | saves an action only with a High or Long Jump |
 | Flying Kick | 2 | Leap, High or Long Jump + Strike | move | +0.007 | saves an action only with a High or Long Jump |
 | Feral Scramble | 2 | Climb + claw Strike + Athletics | move | +0.006 | in hybrid or animal shape |
 | Furious Sprint | 2 | Stride ×5 (×8 for 3 actions) | move | +0.006 | only long dashes; most fights don't need them |
+| Tikling Bird Twirl | 0 | Step, Stride or Swim (reaction, after a melee critical hit) | stride | +0.006 | about one melee critical hit every other fight |
 | Tactical Entry | 0 | Stride, free, before anyone acts (Stealth initiative) | stride | +0.006 | only when it rolled Stealth for initiative |
 | No Escape | 0 | Stride after a retreating foe (reaction) | stride | +0.006 | foes seldom retreat |
 | Reactive Pursuit | 0 | Stride after a retreating foe (reaction) | stride | +0.006 | foes seldom retreat |
