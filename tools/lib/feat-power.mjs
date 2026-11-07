@@ -2218,7 +2218,7 @@ function waterEntry(doc, builtins) {
     }
     const text = String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, " ");
     if (!swim) swim = Number(/You gain a swim Speed of (\d+) feet/i.exec(text)?.[1]) || 0;
-    if (!breathes) breathes = /\bbreathe (?:under ?water|in water)\b|\bthe amphibious trait\b/i.test(text);
+    if (!breathes) breathes = /\bYou (?:can )?breathe (?:under ?water|in water)\b|\bYou (?:gain|have) the amphibious trait\b/.test(text);
     if (!swim && !breathes && !fly) return null;
     if (fly) {
         builtins.flies = true;
