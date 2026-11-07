@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1572,
+ "rated": 1575,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -4434,26 +4434,6 @@
    "text": "Trigger You are the target of a melee attack and the attacker has not rolled yet. Requirements You are aware of the attacker, the attacker is an intelligent humanoid creature, and you have not attempted to harm the attacker. With a wide and"
   },
   {
-   "id": "OjvE7gaQgWiBqOhY",
-   "name": "Discerning Strike",
-   "level": 6,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 1,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "its requirement",
-   "detail": "its requirement (You have successfully identified the target with @UUID[Compendium.pf2e.actionspf2e.Item.Recall Knowledge] during this combat)",
-   "text": "Requirements You have successfully identified the target with Recall Knowledge during this combat. Identifying a creature is the first step in finding its weaknesses. Attempt a Strike against the target; if successful, you deal an additiona"
-  },
-  {
    "id": "c3PN2NvV4ailHRKm",
    "name": "Ensnaring Disarm",
    "level": 6,
@@ -6142,27 +6122,6 @@
    "reason": "a timer with no rules a fight counts",
    "detail": "a timer with no rules a fight counts",
    "text": "Requirements Your waking world is active. Sound is absorbed in your waking world, covering everything in a shroud of quiet until the start of your next turn. Creatures in your waking world become hidden to imprecise hearing or Concealed to "
-  },
-  {
-   "id": "UEqntGzFrFA7ncUO",
-   "name": "Aerial Piledriver",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "archetype",
-    "attack"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "Requirements You have a creature Grabbed or Restrained. Heaving both yourself and your opponent into the air, you bring them crashing to the ground. Make an unarmed melee Strike against the creature you have grabbed or restrained. This Stri"
   },
   {
    "id": "FtnFytJxa2ix1r5z",
@@ -33723,27 +33682,6 @@
    "reason": null,
    "detail": null,
    "text": "You've mastered the use of electrical energy to power your clockwork creations. Whenever your construct companion takes electricity damage, it gains temporary Hit Points equal to either half the electricity damage it took or your level, whi"
-  },
-  {
-   "id": "9DWxzEavOeymc6Ql",
-   "name": "Spiritual Strike",
-   "level": 6,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "archetype",
-    "flourish"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "companion",
-   "featModule": "plan",
-   "reason": "its requirement",
-   "detail": "its requirement (You are wielding a weapon with at least one fundamental rune and your familiar is adjacent to you or in your space.)",
-   "text": "Requirements You are wielding a weapon with at least one fundamental rune and your familiar is adjacent to you or in your space. Your spirit guide enhances your attacks with occult power. Make a Strike with a weapon that has at least one fu"
   },
   {
    "id": "tOtrtDR7ftHhPFm4",

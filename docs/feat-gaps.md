@@ -3,7 +3,7 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 2247: in whole fights, or 113 combo feats from the basic actions they fold in (docs/combo-feats.md). **4119 it doesn't.**
+- **The simulator** rates 2256: in whole fights, or 113 combo feats from the basic actions they fold in (docs/combo-feats.md). **4110 it doesn't.**
 - **2901** are in neither.
 
 ## Summary by category
@@ -11,13 +11,13 @@ Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
 | class | 2282 | 1088 | 1355 | 859 |
-| archetype | 2074 | 1246 | 1340 | 943 |
-| ancestry | 1613 | 1086 | 1056 | 800 |
+| archetype | 2074 | 1246 | 1337 | 943 |
+| ancestry | 1613 | 1086 | 1050 | 800 |
 | skill | 340 | 261 | 325 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 9 | 6 |
 | class feature | 3 | 2 | 2 | 2 |
-| **All** | 6366 | 3725 | 4119 | 2901 |
+| **All** | 6366 | 3725 | 4110 | 2901 |
 
 ## Why the feat module doesn't automate them
 
@@ -41,7 +41,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 255 | 214 | 317 | 59 | 14 | 4 |  | 863 |
 | no card: roleplay or nothing to automate | 157 | 201 | 150 | 46 | 9 |  |  | 563 |
-| no card: the feat module's reminder, which a fight doesn't play | 165 | 125 | 92 | 21 |  | 1 |  | 404 |
+| no card: the feat module's reminder, which a fight doesn't play | 165 | 125 | 90 | 21 |  | 1 |  | 402 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 80 | 38 | 111 | 2 |  |  | 322 |
 | no card: only grants other feats, features or choices | 86 | 123 | 47 | 16 | 2 |  |  | 274 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 50 | 46 | 41 | 21 | 1 |  |  | 159 |
@@ -49,15 +49,15 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a spell the engine doesn't cast | 24 | 29 | 61 | 1 |  |  |  | 115 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | a timer with no rules a fight counts | 52 | 25 | 17 | 4 |  | 1 |  | 99 |
-| a plan the engine can't play | 30 | 34 | 25 | 2 |  |  |  | 91 |
+| a plan the engine can't play | 30 | 34 | 22 | 2 |  |  |  | 88 |
 | no card: a combat action no reader or hand plan covers yet | 23 | 27 | 13 | 4 | 1 |  |  | 68 |
 | no card: companions, familiars and eidolons | 34 | 25 | 1 | 5 |  |  |  | 65 |
 | it grants Additional Lore | 1 | 11 | 39 | 1 |  |  |  | 52 |
-| a Strike with nothing more the simulator reads | 29 | 19 | 1 |  |  | 1 |  | 50 |
+| a Strike with nothing more the simulator reads | 29 | 18 | 1 |  |  | 1 |  | 49 |
 | a roll whose results the simulator doesn't read | 25 | 12 | 4 | 7 |  |  |  | 48 |
-| its requirement | 14 | 27 | 4 |  |  |  |  | 45 |
 | an Effect with nothing a fight counts | 24 | 13 | 7 | 1 |  |  |  | 45 |
 | no card: PF2e's own Effect, from the feat's Use button | 18 | 17 | 7 | 2 |  |  |  | 44 |
+| its requirement | 14 | 25 | 4 |  |  |  |  | 43 |
 | a passive's roll with no action to use it | 13 | 14 | 9 |  |  |  |  | 36 |
 | it grants one of 2 | 6 | 14 | 12 |  |  |  |  | 32 |
 | a passive's Effect posted by hand | 7 | 11 | 3 | 1 |  |  |  | 22 |
@@ -68,8 +68,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a reaction to "passive" | 7 | 5 | 4 |  |  |  |  | 16 |
 | nothing a fight uses | 2 | 1 | 12 |  |  |  |  | 15 |
 | its text has no Strike of its user's | 5 | 6 | 1 |  |  |  |  | 12 |
-| a reaction's Strike | 3 | 3 | 4 |  |  |  |  | 10 |
 | its requirement, which the PC doesn't meet | 5 | 2 | 3 |  |  |  |  | 10 |
+| a reaction's Strike | 3 | 3 | 3 |  |  |  |  | 9 |
 | a lasting area | 7 |  | 2 |  |  |  |  | 9 |
 | it grants Pet | 3 | 2 | 3 |  |  |  |  | 8 |
 | a reroll | 3 | 2 | 3 |  |  |  |  | 8 |
@@ -4052,7 +4052,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (404)
+### no card: the feat module's reminder, which a fight doesn't play (402)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4133,10 +4133,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Crafter's Instinct | 13 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Finest Trick | 13 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Instinctive Obfuscation | 13 | ancestry | reaction | reminder | the feat module reads nothing for it |
-| Kashrishi Revivification | 13 | ancestry | free | reminder | the feat module reads nothing for it |
 | Larger than Life | 13 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Mist Strider | 13 | ancestry | passive | reminder | the feat module reads nothing for it |
-| Revivification Protocol | 13 | ancestry | free | reminder | the feat module reads nothing for it |
 | Spell Devourer | 13 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Stubborn Persistence | 13 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Tempest Gaze | 13 | ancestry | passive | reminder | the feat module reads nothing for it |
@@ -4729,7 +4727,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Skeptic's Defense | 7 | skill | reaction | card | a timer with no rules a fight counts |
 | Fear of God | 14 | skill | free | card | a timer with no rules a fight counts |
 
-### a plan the engine can't play (91)
+### a plan the engine can't play (88)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4744,7 +4742,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Sudden Mindfulness | 1 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | All This Has Happened Before | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Bold Defiance | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
-| Call to Battle | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Healer's Halo | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Heat Wave | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Quick Root | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
@@ -4752,10 +4749,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Spark of Independence | 5 | ancestry | 2 actions | card | a plan the engine can't play (its targeting or what it does) |
 | Vomit Stomach | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Ferocious Will | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Mask of Pain | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Pollinate | 9 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Quick Recovery | 9 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
-| Hop Up | 13 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
 | Squirm Free | 13 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Cantorian Restoration | 17 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Blood Calls Blood | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
@@ -4825,7 +4820,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Say That Again! | 6 | skill | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Too Angry to Die | 12 | skill | reaction | card | a plan the engine can't play (its targeting or what it does) |
 
-### a Strike with nothing more the simulator reads (50)
+### a Strike with nothing more the simulator reads (49)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4833,7 +4828,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Elbow Breaker | 4 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Feverish Enzymes | 6 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sword-Light Wave | 6 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
-| Aerial Piledriver | 10 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Dizzying Spin Dance | 10 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
 | Aerial Flash | 12 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
 | Chain Reaction | 12 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
@@ -4933,56 +4927,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Improvise Strategy | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 | Seasoned Command | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 
-### its requirement (45)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Warp Likeness | 5 | ancestry | 1 action | card | its requirement (You hit a creature with a melee Strike on your last action) |
-| Defensive Instincts | 9 | ancestry | 1 action | card | its requirement (you are adjacent to at least two enemies Your body tenses up when surrounded, putting you on  |
-| Energize Bite | 9 | ancestry | free | card | its requirement (Your most recent action was to use Breath of the Dragon) |
-| Release the Light | 17 | ancestry | 2 actions | card | its requirement (You're below 20 Hit Points) |
-| Attunement Shift | 4 | archetype | free | card | its requirement (Your previous action was to cast a spell with the air, cold, earth, fire, plant, or water tra |
-| Lassoing Lash | 4 | archetype | 1 action | card | its requirement (The target can't be more than one size larger than you) |
-| Log Roll | 4 | archetype | 1 action | card | its requirement (You and an adjacent creature are both on a narrow surface or uneven ground and the other crea |
-| Bear Hug (Werecreature) | 6 | archetype | 2 actions | card | its requirement (You're in bear or hybrid shape, and your last action was a successful claw Strike.) |
-| Betraying Shank | 6 | archetype | 1 action | card | its requirement (You are within melee reach of a target, but it is not in combat with you.) |
-| Commitment to Liberty | 6 | archetype | 2 actions | card | its requirement (A creature has an ally Grabbed or Restrained.) |
-| Disarming Smile | 6 | archetype | reaction | card | its requirement (You are aware of the attacker, the attacker is an intelligent humanoid creature, and you have |
-| Discerning Strike | 6 | archetype | 1 action | card | its requirement (You have successfully identified the target with @UUID[Compendium.pf2e.actionspf2e.Item.Recal |
-| Hindquarter Kick | 6 | archetype | 1 action | card | its requirement (You are in claw stance and have Grabbed a creature.) |
-| Opportune Trickster | 6 | archetype | reaction | card | its requirement (You're adjacent to both your ally and the creature) |
-| Spiritual Strike | 6 | archetype | 2 actions | card | its requirement (You are wielding a weapon with at least one fundamental rune and your familiar is adjacent to |
-| Startling Appearance (Vigilante) | 6 | archetype | 1 action | card | its requirement (You are completely unnoticed by the target creature.) |
-| Unbalancing Appearance | 6 | archetype | 1 action | card | its requirement (A creature within your reach is Off-Guard to you, and you are Unnoticed by that creature.) |
-| Unfettering Strike | 6 | archetype | 1 action | card | its requirement (A creature within your reach has an ally Grabbed or Restrained.) |
-| Guardian's Embrace | 8 | archetype | 1 action | card | its requirement (You are adjacent to your spirit guide or it is sharing your space) |
-| Piercing Doom | 8 | archetype | 2 actions | card | its requirement (You are Doomed 2 or greater.) |
-| Pressure Change | 8 | archetype | 1 action | card | its requirement (You have a swim Speed, are underwater, and have a creature Grabbed or Restrained) |
-| Riptide (Undersea Privateer) | 8 | archetype | 1 action | card | its requirement (You're in Anchor Stance, and your target is within 5 feet of the edge of a water vehicle or a |
-| Invigorating Breath | 10 | archetype | 1 action | card | its requirement (You are adjacent to your spirit guide or it is sharing your space) |
-| Slay | 12 | archetype | 2 actions | card | its requirement (Your target is Doomed 2 or greater.) |
-| Thunderous Landing | 12 | archetype | 1 action | card | its requirement (You currently have a fly Speed and are airborne) |
-| Devastating Manifestation | 14 | archetype | 2 actions | card | its requirement (At least one of your soulforged armaments is not manifested.) |
-| Execution | 14 | archetype | 2 actions | card | its requirement (You have condemned a foe with Harsh Judgment.) |
-| Stunning Surprise | 14 | archetype | 2 actions | card | its requirement (You must be undetected by the target creature) |
-| Following Smite | 16 | archetype | 1 action | card | its requirement (Your last action was a Strike made with a weapon or unarmed attack empowered by @UUID[Compend |
-| Sonic Strafe | 16 | archetype | 2 actions | card | its requirement (You currently have a fly Speed) |
-| Five Breaths, One Death | 18 | archetype | 3 actions | card | its requirement (You're in an elemental stance, and the target is under the effects of Induce Imbalance.) |
-| Brutal Crush | 4 | class | 1 action | card | its requirement (Your last action dealt bludgeoning damage using an unarmed Strike granted by a morph or polym |
-| Galloping Launch | 4 | class | 1 action | card | its requirement (You're mounted, and your mount moved closer to your prey this round.) |
-| Rip and Tear | 4 | class | 1 action | card | its requirement (Your last action dealt piercing or slashing damage using an unarmed Strike granted by a morph |
-| Violent Unleash | 4 | class | 1 action | card | its requirement (Your previous action was to Unleash your Psyche) |
-| Culvert's Collapse | 6 | class | 1 action | card | its requirement (You are in Flood Stance and were damaged by an enemy since your previous turn.) |
-| Intensified Element Stance | 6 | class | 1 action | card | its requirement (You were the recipient of elemental medicine (see @UUID[Compendium.pf2e.feats-srd.Item.Prepar |
-| Seize an Advantage | 6 | class | 1 action | card | its requirement (Your last action this turn was to attempt a Dirty Trick against a foe.) |
-| Halyard Strike | 10 | class | 2 actions | card | its requirement (A rope is within your reach, or you have a rope or grappling weapon in your hand.) |
-| Blood in the Air | 12 | class | 1 action | card | its requirement (An enemy you've damaged with a ranged weapon during the last minute is Concealed or Hidden fr |
-| Explosive Death Drop | 14 | class | 1 action | card | its requirement (You are in @UUID[Compendium.pf2e.feats-srd.Item.Rain of Embers Stance] and have a target Grab |
-| Death from Above (Eternal Legend) | 16 | class | 2 actions | card | its requirement (You are adjacent to a climbable surface at least 10 feet tall.) |
-| Demand Surrender | 18 | class | 2 actions | card | its requirement (You and your allies currently outnumber enemies on the battlefield, and you or an ally has ei |
-| Liberty or Death | 18 | class | 2 actions | card | its requirement (A creature has been the target of your Ultimatum of Liberation for at least 1 minute) |
-| Mercenary Reversal | 18 | class | 2 actions | card | its requirement (You and your allies are currently outnumbered by enemies on the battlefield) |
-
 ### an Effect with nothing a fight counts (45)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5032,6 +4976,54 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Whirling Blade Stance | 14 | class | 1 action | card | an Effect with nothing a fight counts |
 | Resounding Finale | 16 | class | reaction | card | an Effect with nothing a fight counts |
 | Emergency Medical Assistance | 12 | skill | 2 actions | card | an Effect with nothing a fight counts |
+
+### its requirement (43)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Warp Likeness | 5 | ancestry | 1 action | card | its requirement (You hit a creature with a melee Strike on your last action) |
+| Defensive Instincts | 9 | ancestry | 1 action | card | its requirement (you are adjacent to at least two enemies Your body tenses up when surrounded, putting you on  |
+| Energize Bite | 9 | ancestry | free | card | its requirement (Your most recent action was to use Breath of the Dragon) |
+| Release the Light | 17 | ancestry | 2 actions | card | its requirement (You're below 20 Hit Points) |
+| Attunement Shift | 4 | archetype | free | card | its requirement (Your previous action was to cast a spell with the air, cold, earth, fire, plant, or water tra |
+| Lassoing Lash | 4 | archetype | 1 action | card | its requirement (The target can't be more than one size larger than you) |
+| Log Roll | 4 | archetype | 1 action | card | its requirement (You and an adjacent creature are both on a narrow surface or uneven ground and the other crea |
+| Bear Hug (Werecreature) | 6 | archetype | 2 actions | card | its requirement (You're in bear or hybrid shape, and your last action was a successful claw Strike.) |
+| Betraying Shank | 6 | archetype | 1 action | card | its requirement (You are within melee reach of a target, but it is not in combat with you.) |
+| Commitment to Liberty | 6 | archetype | 2 actions | card | its requirement (A creature has an ally Grabbed or Restrained.) |
+| Disarming Smile | 6 | archetype | reaction | card | its requirement (You are aware of the attacker, the attacker is an intelligent humanoid creature, and you have |
+| Hindquarter Kick | 6 | archetype | 1 action | card | its requirement (You are in claw stance and have Grabbed a creature.) |
+| Opportune Trickster | 6 | archetype | reaction | card | its requirement (You're adjacent to both your ally and the creature) |
+| Startling Appearance (Vigilante) | 6 | archetype | 1 action | card | its requirement (You are completely unnoticed by the target creature.) |
+| Unbalancing Appearance | 6 | archetype | 1 action | card | its requirement (A creature within your reach is Off-Guard to you, and you are Unnoticed by that creature.) |
+| Unfettering Strike | 6 | archetype | 1 action | card | its requirement (A creature within your reach has an ally Grabbed or Restrained.) |
+| Guardian's Embrace | 8 | archetype | 1 action | card | its requirement (You are adjacent to your spirit guide or it is sharing your space) |
+| Piercing Doom | 8 | archetype | 2 actions | card | its requirement (You are Doomed 2 or greater.) |
+| Pressure Change | 8 | archetype | 1 action | card | its requirement (You have a swim Speed, are underwater, and have a creature Grabbed or Restrained) |
+| Riptide (Undersea Privateer) | 8 | archetype | 1 action | card | its requirement (You're in Anchor Stance, and your target is within 5 feet of the edge of a water vehicle or a |
+| Invigorating Breath | 10 | archetype | 1 action | card | its requirement (You are adjacent to your spirit guide or it is sharing your space) |
+| Slay | 12 | archetype | 2 actions | card | its requirement (Your target is Doomed 2 or greater.) |
+| Thunderous Landing | 12 | archetype | 1 action | card | its requirement (You currently have a fly Speed and are airborne) |
+| Devastating Manifestation | 14 | archetype | 2 actions | card | its requirement (At least one of your soulforged armaments is not manifested.) |
+| Execution | 14 | archetype | 2 actions | card | its requirement (You have condemned a foe with Harsh Judgment.) |
+| Stunning Surprise | 14 | archetype | 2 actions | card | its requirement (You must be undetected by the target creature) |
+| Following Smite | 16 | archetype | 1 action | card | its requirement (Your last action was a Strike made with a weapon or unarmed attack empowered by @UUID[Compend |
+| Sonic Strafe | 16 | archetype | 2 actions | card | its requirement (You currently have a fly Speed) |
+| Five Breaths, One Death | 18 | archetype | 3 actions | card | its requirement (You're in an elemental stance, and the target is under the effects of Induce Imbalance.) |
+| Brutal Crush | 4 | class | 1 action | card | its requirement (Your last action dealt bludgeoning damage using an unarmed Strike granted by a morph or polym |
+| Galloping Launch | 4 | class | 1 action | card | its requirement (You're mounted, and your mount moved closer to your prey this round.) |
+| Rip and Tear | 4 | class | 1 action | card | its requirement (Your last action dealt piercing or slashing damage using an unarmed Strike granted by a morph |
+| Violent Unleash | 4 | class | 1 action | card | its requirement (Your previous action was to Unleash your Psyche) |
+| Culvert's Collapse | 6 | class | 1 action | card | its requirement (You are in Flood Stance and were damaged by an enemy since your previous turn.) |
+| Intensified Element Stance | 6 | class | 1 action | card | its requirement (You were the recipient of elemental medicine (see @UUID[Compendium.pf2e.feats-srd.Item.Prepar |
+| Seize an Advantage | 6 | class | 1 action | card | its requirement (Your last action this turn was to attempt a Dirty Trick against a foe.) |
+| Halyard Strike | 10 | class | 2 actions | card | its requirement (A rope is within your reach, or you have a rope or grappling weapon in your hand.) |
+| Blood in the Air | 12 | class | 1 action | card | its requirement (An enemy you've damaged with a ranged weapon during the last minute is Concealed or Hidden fr |
+| Explosive Death Drop | 14 | class | 1 action | card | its requirement (You are in @UUID[Compendium.pf2e.feats-srd.Item.Rain of Embers Stance] and have a target Grab |
+| Death from Above (Eternal Legend) | 16 | class | 2 actions | card | its requirement (You are adjacent to a climbable surface at least 10 feet tall.) |
+| Demand Surrender | 18 | class | 2 actions | card | its requirement (You and your allies currently outnumber enemies on the battlefield, and you or an ally has ei |
+| Liberty or Death | 18 | class | 2 actions | card | its requirement (A creature has been the target of your Ultimatum of Liberation for at least 1 minute) |
+| Mercenary Reversal | 18 | class | 2 actions | card | its requirement (You and your allies are currently outnumbered by enemies on the battlefield) |
 
 ### a passive's roll with no action to use it (36)
 
@@ -5258,11 +5250,10 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Rouse the Forest's Fury | 18 | class | 3 actions | card | its text has no Strike of its user's |
 | Time Dilation Cascade | 20 | class | 3 actions | card | its text has no Strike of its user's |
 
-### a reaction's Strike (10)
+### a reaction's Strike (9)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
-| Ankle Bite | 5 | ancestry | reaction | card | a reaction's Strike |
 | Demonblood Frenzy | 5 | ancestry | reaction | card | a reaction's Strike |
 | Jealous Grip | 5 | ancestry | reaction | card | a reaction's Strike |
 | Moray Ambush | 17 | ancestry | reaction | card | a reaction's Strike |

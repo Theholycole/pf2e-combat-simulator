@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1572 are rated; 2784 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1575 are rated; 2781 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -9,14 +9,14 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Bucket | No plan | Plan, not played | Total |
 |---|---:|---:|---:|
 | Archetype dedications (grant class features) | 76 | 81 | 157 |
-| Combat actions and reactions | 185 | 349 | 534 |
+| Combat actions and reactions | 185 | 347 | 532 |
 | Passives that change a class feature | 156 | 40 | 196 |
 | Other combat passives | 281 | 82 | 363 |
 | Spellcasting (slots, focus, spellshapes) | 231 | 38 | 269 |
-| Companions, familiars and eidolons | 125 | 46 | 171 |
+| Companions, familiars and eidolons | 125 | 45 | 170 |
 | Out of combat (exploration, downtime, skills) | 282 | 55 | 337 |
 | Nothing a fight would use | 624 | 133 | 757 |
-| **All** | 1960 | 824 | 2784 |
+| **All** | 1960 | 821 | 2781 |
 
 ## By class
 
@@ -51,7 +51,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | thaumaturge |  | 7 | 8 | 2 | 1 | 1 | 5 | 10 | 34 |
 | witch |  | 1 | 2 | 2 | 4 | 16 | 7 | 3 | 35 |
 | wizard |  | 2 |  | 1 | 14 | 4 | 10 | 6 | 37 |
-| archetype | 146 | 248 | 43 | 195 | 93 | 63 | 147 | 435 | 1370 |
+| archetype | 146 | 246 | 43 | 195 | 93 | 62 | 147 | 435 | 1367 |
 | other | 11 | 35 | 2 | 35 | 16 | 13 | 25 | 33 | 170 |
 
 ## Why the simulator doesn't play the ones with a plan
@@ -59,10 +59,10 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reason | Count |
 |---|---:|
 | a timer with no rules a fight counts | 77 |
-| a Strike with nothing more the simulator reads | 76 |
+| a Strike with nothing more the simulator reads | 75 |
 | a plan the engine can't play | 67 |
 | a spell the engine doesn't cast | 53 |
-| its requirement | 45 |
+| its requirement | 43 |
 | a teleport | 38 |
 | a roll whose results the simulator doesn't read | 38 |
 | an Effect with nothing a fight counts | 37 |
@@ -400,7 +400,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Warshard Warrior Dedication | 12 | other | passive | plan | it grants Call Warshard Weapon: the feat module reads nothing for it |
 | Wildspell Dedication | 12 | other | passive | plan | a spell the engine doesn't cast (Spellsurge) |
 
-## Combat actions and reactions (534)
+## Combat actions and reactions (532)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -456,7 +456,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Boaster's Challenge | 6 | archetype | 1 action | plan | a roll whose results the simulator doesn't read |
 | Commitment to Liberty | 6 | archetype | 2 actions | plan | its requirement (A creature has an ally Grabbed or Restrained.) |
 | Disarming Smile | 6 | archetype | reaction | plan | its requirement (You are aware of the attacker, the attacker is an intelligent humanoid creature, and you have not attem |
-| Discerning Strike | 6 | archetype | 1 action | plan | its requirement (You have successfully identified the target with @UUID[Compendium.pf2e.actionspf2e.Item.Recall Knowledg |
 | Ensnaring Disarm | 6 | archetype | free | no plan |  |
 | Feeling Your Oats | 6 | archetype | 1 action | no plan |  |
 | Feverish Enzymes | 6 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
@@ -538,7 +537,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Wake and Tremble | 8 | archetype | free | plan | a plan the engine can't play (its targeting or what it does) |
 | Work Yourself Up | 8 | archetype | 2 actions | no plan |  |
 | A Hush Falls Over the World | 10 | archetype | 1 action | plan | a timer with no rules a fight counts |
-| Aerial Piledriver | 10 | archetype | 2 actions | plan | a Strike with nothing more the simulator reads |
 | Battlefront Sabotage | 10 | archetype | 2 actions | plan | a roll whose results the simulator doesn't read |
 | Big Debut | 10 | archetype | free | no plan |  |
 | Black Powder Flash | 10 | archetype | 2 actions | plan | its stance (Powder Punch Stance): its text has no Strike of its user's |
@@ -1782,7 +1780,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reclaim Spell | 20 | wizard | passive | no plan |  |
 | Worldsphere Gravity | 20 | wizard | 1 action | plan | a lasting area |
 
-## Companions, familiars and eidolons (171)
+## Companions, familiars and eidolons (170)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -1815,7 +1813,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Fulu Familiar | 6 | archetype | passive | plan | it grants Create Familiar Fulu: nothing a fight uses |
 | Improved Familiar (Familiar Master) | 6 | archetype | passive | no plan |  |
 | It's Alive! | 6 | archetype | passive | no plan |  |
-| Spiritual Strike | 6 | archetype | 2 actions | plan | its requirement (You are wielding a weapon with at least one fundamental rune and your familiar is adjacent to you or in |
 | Swift Guardian | 6 | archetype | free | no plan |  |
 | Swift Support | 6 | archetype | passive | plan | a passive's Effect on other creatures |
 | Tempest Cloud's Speed | 6 | archetype | passive | no plan |  |
