@@ -1570,6 +1570,29 @@ const HAND = {
     "ubiquitous-overdrive": () => ({ builtins: { ubiquitousOverdrive: true }, played: "its Overdrive's damage bonus for its allies within 30 feet too" }),
     // (2026-11-07, Esoteric Warden: +1 AC and saves after a successful Exploit Vulnerability, +2 on a critical success, until its next turn.)
     "esoteric-warden": () => ({ builtins: { esotericWarden: true }, played: "+1 AC and saves until its next turn after a successful Exploit Vulnerability (+2 on a critical success)" }),
+    // (2026-11-07, the last feats — Cole: "Build every one".)
+    // Coven Spell: an ally's damaging spell, +its rank to each creature it hurt (reaction; fight.js).
+    "coven-spell": () => ({ builtins: { covenSpell: true }, played: "an ally's damaging spell +its rank damage on each creature hurt (reaction)" }),
+    // Quicksoul: Toxic Touch — its Tumble Through taken as made —, an unarmed Strike: 1d6 persistent poison and sickened 1 on a hit (2d6 and
+    // sickened 2 on a critical hit), once a fight.
+    "quicksoul": () => ({ builtins: {}, plans: [strikeRider({ oncePerFight: true, melee: true, onHit: { damage: ["1d6[persistent,poison]"], conditions: [{ slug: "sickened", value: 1, duration: null }], critical: [{ slug: "sickened", value: 2, duration: null }] } })], played: "Toxic Touch: a Strike, 1d6 persistent poison and sickened 1 on a hit (once a fight; its Tumble Through taken as made)" }),
+    // Body of Air: Vapor Form as an attack comes — resistance 8 (+1 a level from 15th) to it, played as against that hit, once a fight; its
+    // own Strikes lost in the vapor not played.
+    "body-of-air": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 8 + Math.max(0, level - 14), uses: 1 }], played: `resistance ${8 + Math.max(0, level - 14)} against a hit (reaction, once a fight; the vapor's other effects not played)` }),
+    // Reactive Dismissal: its eidolon's damage cut by twice its level, once a fight; the eidolon's absence after not played.
+    "reactive-dismissal": (level) => ({ builtins: { companionFields: { resistReaction: { name: "Reactive Dismissal", value: 2 * level, on: null, types: null }, resistUses: 1 } }, played: `its eidolon takes ${2 * level} less of a hit (reaction, once a fight; its unmanifesting after not played)` }),
+    // Just as Planned: a Devise a Stratagem roll twice, once a fight (fight.js).
+    "just-as-planned": () => ({ builtins: { justAsPlanned: true }, played: "a Devise a Stratagem d20 rolled twice, once a fight" }),
+    // Feed on Pain: half the mental damage it deals as temporary Hit Points, once a fight (actions.js applyDamage).
+    "feed-on-pain": () => ({ builtins: { feedOnPain: true }, played: "temporary Hit Points of half its mental damage (reaction, once a fight)" }),
+    // Blood Pool: a foe's death heals the most hurt ally its level (reaction; triggers.js).
+    "blood-pool": (level) => ({ builtins: { bloodPool: level }, played: `a foe's death heals the most hurt ally ${level} HP (reaction)` }),
+    // Ambersoul: a melee slashing or piercing hit on it, the attacker -1 to attacks for its turn (actions.js).
+    "ambersoul": () => ({ builtins: { ambersoul: true }, played: "a foe's slashing or piercing melee hit on it: that foe -1 to attacks" }),
+    // Even the Odds: panache when flanked as its turn begins, once a fight (fight.js).
+    "even-the-odds": () => ({ builtins: { evenTheOdds: true }, played: "panache as its turn begins while two foes are beside it (once a fight)" }),
+    // Patronize the Arts: an ally's critical hit, temporary Hit Points half its level + Charisma — once each ally (actions.js).
+    "patronize-the-arts": (level) => ({ builtins: { patronize: Math.ceil(level / 2) + (level >= 10 ? 4 : 3) }, played: `an ally's critical hit gives it ${Math.ceil(level / 2) + (level >= 10 ? 4 : 3)} temporary Hit Points (reaction, once each ally)` }),
     "boasters-challenge": (level) => { const bonus = level >= 15 ? 6 : level >= 7 ? 4 : 2; return { builtins: { selfEffects: [{ name: "Boaster's Challenge", actions: 1, featForced: true, pool: "boasters-challenge", model: { name: "Boaster's Challenge", rounds: 2, modifiers: [{ on: "damage", type: "status", value: bonus }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, pools: { "boasters-challenge": 1 }, played: `+${bonus} status to its Strikes' damage to the end of its next turn (1 action, once a fight; its check played as a success)` }; },
     "nimble-form": () => ({ builtins: { nimbleForm: true }, played: "its eidolon's agile attacks at -3/-6 for the multiple attack penalty" }),
     "predictable": () => ({ builtins: { selfEffects: [{ name: "Predictable!", actions: 1, featForced: true, model: { name: "Predictable!", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 1 }, { on: "saving-throw", type: "circumstance", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, played: "+1 AC and saves until its next turn (1 action; its Perception check played as a success)" }),
@@ -2918,7 +2941,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle", "bleed-out": "sorcerer", "dark-personas-presence": "psychic" };
+const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle", "bleed-out": "sorcerer", "dark-personas-presence": "psychic", "coven-spell": "witch", "feed-on-pain": "psychic", "blood-pool": "necromancer", "even-the-odds": "swashbuckler", "just-as-planned": "investigator" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from

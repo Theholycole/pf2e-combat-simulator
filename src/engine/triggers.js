@@ -83,7 +83,7 @@ export function fearTriggers(state, target) {
 
 // A foe's roll: each PC on the other side with a reaction for it (a quick check first: most have none).
 export function foeRollTriggers(state, foe, on, more = {}) {
-    if (!(state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers))) return;
+    if (!(state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers || other.bloodPool))) return;
     for (const pc of state.list) if (pc.featTriggers && pc.side !== foe.side) featTriggers(state, pc, on, { by: foe, ...more });
 }
 
@@ -91,6 +91,19 @@ export function foeRollTriggers(state, foe, on, more = {}) {
 // "ally-down" for its allies within 30 feet (about: not far apart).
 export function dropTriggers(state, target, source) {
     if (!source || source.side === target.side) return;
+    // (2026-11-07, Blood Pool: a creature with blood dying within 30 feet — its pool absorbed by the most hurt ally standing, Hit Points equal
+    // to the necromancer's level (its reaction; the ally's walk over taken as made).)
+    if (!["undead", "construct", "elemental"].some((trait) => (target.traits ?? []).includes(trait))) {
+        for (const pool of state.list) {
+            if (!pool.bloodPool || pool.side === target.side || pool.status !== ACTIVE || !canReact(pool, "Blood Pool")) continue;
+            const ally = state.list.filter((other) => other.side === pool.side && other.status === ACTIVE && other.kind !== "object" && other.hp.value < other.hp.max).sort((a, b) => a.hp.value / a.hp.max - b.hp.value / b.hp.max)[0];
+            if (!ally) continue;
+            spendReaction(pool, "Blood Pool");
+            const healed = Math.min(pool.bloodPool, ally.hp.max - ally.hp.value);
+            ally.hp.value += healed;
+            state.log?.push(`  ${pool.name} uses Blood Pool: ${ally.name} regains ${healed} HP`);
+        }
+    }
     featTriggers(state, source, "foe-down", { target });
     featTriggers(state, target, "self-down", { by: source });
     for (const ally of state.list) if (ally.side === target.side && ally.featTriggers && (ally === target || ally.band !== "far" || target.band !== "far")) featTriggers(state, ally, "ally-down", { by: source });

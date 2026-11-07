@@ -1110,6 +1110,23 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (attacker.attach && isActive(attacker)) attachAfterHit(state, attacker, target, sizeRank);
     // A bomb's or a scatter weapon's splash on the creatures around the target, allies too.
     if (strike.splashKind) splashAround(state, attacker, target, splashOf(strike, instances, strikeContext(attacker, strike), attacker.splashBonus ?? 0), { includeTarget: false });
+    // (2026-11-07, Ambersoul: a melee Strike's slashing or piercing damage on it — the attacker -1 circumstance to attacks for the rest of its turn
+    // (played until the holder's next turn).)
+    if (target.ambersoul && dealt > 0 && strike.melee && isActive(attacker) && instances.some((instance) => ["slashing", "piercing"].includes(instance.type) && instance.amount > 0)) {
+        applyEffect(state, attacker, { name: "Ambersoul", rounds: 1, modifiers: [{ on: "attack", type: "circumstance", value: -1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, target, { applyCondition, key: "ambersoul" });
+        log(state, `  ${attacker.name}'s weapon is coated in sap: -1 to attacks (Ambersoul)`);
+    }
+    // (2026-11-07, Patronize the Arts: an ally's critical hit — temporary Hit Points of half the patron's level plus its Charisma, once each ally.)
+    if (critical && attacker.side !== target.side) {
+        for (const patron of state.list) {
+            if (!patron.patronize || patron === attacker || patron.side !== attacker.side || !isActive(patron) || (patron.patronized ??= new Set()).has(attacker.id) || !canReact(patron, "Patronize the Arts")) continue;
+            spendReaction(patron, "Patronize the Arts");
+            patron.patronized.add(attacker.id);
+            attacker.hp.temp = Math.max(attacker.hp.temp ?? 0, patron.patronize);
+            log(state, `  ${patron.name} uses Patronize the Arts: ${attacker.name} gains ${patron.patronize} temporary Hit Points`);
+            break;
+        }
+    }
     // (2026-11-07: a Strike's fascination — Astonishing Explosion's — after its damage and splash.)
     if (attacker.lateConditions?.length) {
         for (const late of attacker.lateConditions.splice(0)) if (isActive(late.target) && applyCondition(state, late.target, late.slug, late.value, late.lasting, attacker)) log(state, `  ${late.target.name} is ${late.slug}${late.value ? ` ${late.value}` : ""} (${late.source ?? "a Strike's extra"})`);
@@ -1694,13 +1711,19 @@ export function applyDamage(state, target, instances, { source = null, critical 
         if (guardian) {
             const total = adjustDamage(target, instances).total;
             const fraction = (c) => Math.max(0, c.hp.value) / Math.max(1, c.hp.max);
-            if (total >= target.hp.value + (target.hp.temp ?? 0) || fraction(guardian) > fraction(target) + 0.2) {
+            // (2026-11-07, Stand for the Fallen: only damage that would drop the ally — lethalOnly —, with resistance to all of it equal to
+            // its level — resist.)
+            const lethal = total >= target.hp.value + (target.hp.temp ?? 0);
+            if (lethal || (!guardian.interceptAttack.lethalOnly && fraction(guardian) > fraction(target) + 0.2)) {
                 spendReaction(guardian, guardian.interceptAttack.name);
                 guardian.interceptUsed = true;
                 if (guardian.interceptAttack.mythic) guardian.mythicPoints--;
                 state.stats.reactions++;
                 log(state, `  ${guardian.name} uses ${guardian.interceptAttack.near ? guardian.interceptAttack.name : "Intercept Attack"} for ${target.name}`);
+                const held = guardian.resistances;
+                if (guardian.interceptAttack.resist) guardian.resistances = [...(held ?? []), { type: "all-damage", value: guardian.interceptAttack.resist, exceptions: [] }];
                 const dealt = applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
+                guardian.resistances = held;
                 // (2026-11-05, Armored Counterattack: a free Strike back at an attacker beside it — taken as a melee one's —, a Taunt on a hit.)
                 if (guardian.armoredCounterattack && isActive(guardian) && canAct(guardian) && isActive(source) && sameMelee(guardian, source)) {
                     const strike = bestMeleeStrike(guardian, source);
@@ -1892,6 +1915,17 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // (2026-11-05, United Assault: who has damaged it since the end of its last turn.)
     if (dealt > 0 && source && source.id !== target.id) (target.damagers ??= new Set()).add(source.id);
     if (dealt > 0 && source && source.id !== target.id) (source.hurtFoes ??= new Set()).add(target.id);
+    // (2026-11-07, Feed on Pain: its mental damage — temporary Hit Points of half of it, once a fight (once an hour).)
+    if (dealt > 0 && source?.feedOnPain && !source.fedOnPain && source.side !== target.side && isActive(source) && canReact(source, "Feed on Pain")) {
+        const mental = instances.filter((instance) => instance.type === "mental").reduce((sum, instance) => sum + Math.max(0, instance.amount), 0);
+        const gained = Math.floor(Math.min(mental, dealt) / 2);
+        if (gained > 0) {
+            spendReaction(source, "Feed on Pain");
+            source.fedOnPain = true;
+            source.hp.temp = Math.max(source.hp.temp ?? 0, gained);
+            log(state, `  ${source.name} gains ${gained} temporary Hit Points (Feed on Pain)`);
+        }
+    }
     return dealt;
 }
 
@@ -2150,7 +2184,7 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
         const massive = amount >= target.hp.max * 2;
         knockOut(state, target, { source, critical, nonlethal, overwhelming, massive, before });
         // (2026-11-05, triggers.js: a feat's free action or reaction as a creature drops — Victorious Vigor, Final Spite, Bleak Humorist.)
-        if (source && target.hp.value <= 0 && (state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers))) dropTriggers(state, target, source);
+        if (source && target.hp.value <= 0 && (state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers || other.bloodPool))) dropTriggers(state, target, source);
     } else if (dealt > 0 && target.featTriggers && source && source.side !== target.side) featTriggers(state, target, "damaged", { by: source });
     return dealt;
 }

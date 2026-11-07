@@ -565,6 +565,12 @@ function startTurn(state, c) {
     // fight's dice stay as they were. Before, foes never Struck the champion — 0 of ~400 Strikes in 16 fights —, and its Shield Block
     // feats never fired.)
     c.spreadTarget = c.side !== "party" && !c.summonedBy ? spreadPick(state, c) : null;
+    // (2026-11-07, Even the Odds: flanked as its turn begins — two foes beside it — panache, once a fight (once per 10 minutes).)
+    if (c.evenTheOdds && !c.evenUsed && !c.panache && c.status === ACTIVE && state.list.filter((other) => other.side !== c.side && isActive(other) && sameMelee(c, other)).length >= 2) {
+        c.evenUsed = true;
+        c.panache = true;
+        state.log?.push(`  ${c.name} gains panache (Even the Odds)`);
+    }
     if (c.foretold) {
         const { amount, by } = c.foretold;
         c.foretold = null;
@@ -1156,7 +1162,7 @@ function actOn(state, c, action) {
                 }
                 break;
             }
-            const drained = (spell?.vampiric || spell?.forcible || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round)) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
+            const drained = (spell?.vampiric || spell?.forcible || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
             // (2026-11-07, Shining Runes: a spell of more than one action — concealed from its foes until its next turn starts.)
             if (c.shiningRunes && spell && (!spell.kind || spell.castsSpell) && castActions(c, action) >= 2 && isActive(c) && !c.cond.concealed && applyCondition(state, c, "concealed", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start" }, c)) state.log?.push(`  ${c.name} is concealed (Shining Runes)`);
@@ -1176,6 +1182,17 @@ function actOn(state, c, action) {
                     c.foretoldRound = state.round;
                     hurt.foretold = { amount: 2 * (spell.castRank ?? 1), by: c.id };
                     state.log?.push(`  ${c.name} foretells harm to ${hurt.name} (Foretell Harm)`);
+                }
+            }
+            // (2026-11-07, Coven Spell: an ally's damaging spell — the witch's reaction, a status bonus to its damage equal to its rank on each
+            // creature it hurt (its spellshape option not played).)
+            if (drained && (!spell.kind || spell.castsSpell)) {
+                const witch = state.list.find((other) => other.covenSpell && other !== c && other.side === c.side && isActive(other) && canReact(other, "Coven Spell") && (other.band !== "far" || c.band !== "far"));
+                const hurt = witch ? state.list.filter((other) => drained.has(other.id) && isActive(other) && drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0) > 0) : [];
+                if (hurt.length) {
+                    spendReaction(witch, "Coven Spell");
+                    state.log?.push(`  ${witch.name} uses Coven Spell`);
+                    for (const other of hurt) applyDamage(state, other, [{ type: "untyped", amount: spell.castRank ?? 1, persistent: false, precision: false }], { source: c });
                 }
             }
             if (drained && spell.forcible) {
@@ -1688,6 +1705,12 @@ function actOn(state, c, action) {
         }
         case "stratagem":
             c.stratagem = { targetId: action.targetId, natural: state.rng.d20(), round: state.round, used: false };
+            // (2026-11-07, Just as Planned: once a fight (an hour), the d20 rolled twice, the higher kept — taken on its first stratagem below 11.)
+            if (c.justAsPlanned && !c.justPlannedUsed && c.stratagem.natural < 11) {
+                c.justPlannedUsed = true;
+                c.stratagem.natural = Math.max(c.stratagem.natural, state.rng.d20());
+                state.log?.push(`  ${c.name} uses Just as Planned (${c.stratagem.natural})`);
+            }
             state.log?.push(`  ${c.name} uses ${c.stratagemFeature.name} on ${state.byId.get(action.targetId)?.name} (rolls ${c.stratagem.natural})`);
             break;
         case "taunt": {
