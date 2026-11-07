@@ -524,6 +524,16 @@ function startTurn(state, c) {
     c.actionsLeft = Math.min(actions, isHazard(c) ? 9 : MAX_ACTIONS_PER_TURN);
     // (2026-10-22, the sky: an action to Fly — void.js.)
     hoverTurnStart(state, c);
+    c.freeSustainLeft = c.freeSustain ?? 0;
+    // (2026-11-07, Double Prey: its prey down, the other it hunts already its prey — no action.)
+    if (c.prey && c.preyQueue?.length && !isActive(state.byId.get(c.prey) ?? {})) {
+        const next = c.preyQueue.map((id) => state.byId.get(id)).find((foe) => foe && isActive(foe));
+        if (next) {
+            c.prey = next.id;
+            c.preyQueue = c.preyQueue.filter((id) => id !== next.id);
+            state.log?.push(`  ${c.name}'s other prey, ${next.name}, is now its prey`);
+        }
+    }
     // (B298: a minion's two actions; its summons' time, and a sustained one's action.)
     summonTurnStart(state, c);
     // (Calm, the charm spells, a condition floor: those that ran out end; a sustained one, an action.)
@@ -776,6 +786,7 @@ function endTurn(state, c) {
     if (c.cond.frightened > floorOf(c, "frightened")) {
         // (2026-11-07: Dwarven Doughtiness' and Calm and Centered's "reduce your Frightened condition by 2" — c.frightenedDecay.)
         c.cond.frightened = Math.max(floorOf(c, "frightened"), c.cond.frightened - (c.frightenedDecay ?? 1));
+        if ((c.frightenedDecay ?? 1) > 1) state.log?.push(`  ${c.name}'s frightened drops to ${c.cond.frightened}`);
         // (Consume Fear, B76: a monster's reaction to a creature near it no longer frightened.)
         if (c.cond.frightened === 0) conditionLostAnswers(state, c, "frightened");
     }
@@ -1653,7 +1664,10 @@ function actOn(state, c, action) {
                 c.prey = target.id;
                 // (2026-11-07, Double Prey and Triple Threat: one or two more creatures its prey too — the next taken, for no action, once the
                 // first is down; planner.js.)
-                if (c.extraPrey) c.preyQueue = state.list.filter((foe) => foe.side !== c.side && foe.id !== target.id && isActive(foe)).slice(0, c.extraPrey).map((foe) => foe.id);
+                if (c.extraPrey) {
+                    c.preyQueue = state.list.filter((foe) => foe.side !== c.side && foe.id !== target.id && isActive(foe)).slice(0, c.extraPrey).map((foe) => foe.id);
+                    if (c.preyQueue.length) state.log?.push(`  ${c.name} also hunts ${c.preyQueue.map((id) => state.byId.get(id).name).join(" and ")}`);
+                }
                 // (C31: Smite by its name.)
                 state.log?.push(c.huntPrey?.name ? `  ${c.name} uses ${c.huntPrey.name} on ${target.name}` : `  ${c.name} hunts ${target.name} as its prey`);
             }

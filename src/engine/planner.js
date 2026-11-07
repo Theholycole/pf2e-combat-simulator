@@ -2204,17 +2204,9 @@ function expandTactics(env) {
     }
     // Hunt Prey: a new prey when the current one is gone or a better target is in reach.
     if (c.huntPrey && node.used === 0 && !raging) {
-        let current = c.prey ? state.byId.get(c.prey) : null;
-        // (2026-11-07: Double Prey's other prey, already hunted — fight.js preyQueue.)
-        if (current && !isActive(current) && c.preyQueue?.length) {
-            const next = c.preyQueue.map((id) => state.byId.get(id)).find((foe) => foe && isActive(foe));
-            if (next) {
-                c.prey = next.id;
-                c.preyQueue = c.preyQueue.filter((id) => id !== next.id);
-                current = next;
-            }
-        }
-        if (!current || !isActive(current)) {
+        const current = c.prey ? state.byId.get(c.prey) : null;
+        // (2026-11-07: Double Prey's other prey, already hunted — fight.js preyQueue, taken as its turn starts.)
+        if ((!current || !isActive(current)) && !(c.preyQueue ?? []).some((id) => isActive(state.byId.get(id) ?? {}))) {
             const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
             // (B308: a mark's extra damage on each hit, about 1.1 hits a round.)
             const markDamage = c.huntPrey.edge === "parts" ? 1.1 * c.huntPrey.parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0) : 0;

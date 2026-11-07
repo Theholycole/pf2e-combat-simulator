@@ -17,7 +17,7 @@ for (const ref of fp.featRefs()) {
     const out = fp.partyWithFeat(doc, level);
     console.log(`== ${ref.name} (level ${level}): ${out.skipped ? `SKIPPED ${out.reason}` : `played: ${out.played}`}`);
     if (out.skipped) continue;
-    const re = new RegExp(pattern ?? ref.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ \(.*\)$/, ""), "i");
+    const re = new RegExp(pattern || ref.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ \(.*\)$/, ""), "i");
     const foes = powerFoes(process.env.K || "boss", level, process.env.T || null);
     let shown = 0;
     let matched = 0;

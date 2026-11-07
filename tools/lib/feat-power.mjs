@@ -1332,6 +1332,12 @@ const HAND = {
     // (2026-11-07: more creatures hunted at once — fight.js preyQueue: the next prey once the first is down, without the action.)
     "double-prey": () => ({ builtins: { extraPrey: 1 }, played: "two prey at once (the second taken when the first falls)" }),
     "triple-threat": () => ({ builtins: { extraPrey: 2 }, played: "three prey at once (the next taken when one falls; sharing the edge not played)" }),
+    // (2026-11-07: a Sustain for free as the turn begins — lasting.js and summons.js c.freeSustain; any sustained spell or summon of the
+    // PC's, the class spell or impulse the feat names taken as that.)
+    "effortless-concentration": () => ({ builtins: { freeSustain: 1 }, played: "one Sustain free each turn" }),
+    "effortless-impulse": () => ({ builtins: { freeSustain: 1 }, played: "one Sustain free each turn" }),
+    "aura-expertise": () => ({ builtins: { freeSustain: 1 }, played: "one Sustain free each turn" }),
+    "effortless-captivation": () => ({ builtins: { freeSustain: 1 }, played: "one Sustain free each turn" }),
     "dwarven-doughtiness": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn" }),
     "calm-and-centered": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn (stupefied not played)" }),
     "sever-space": () => ({ builtins: {}, plans: [strikeRider({ actions: 2, flourish: true, melee: true, strides: 3 })], played: "a melee Strike at a foe up to 80 feet away (flourish, 2 actions)" }),

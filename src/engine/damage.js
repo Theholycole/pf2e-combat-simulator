@@ -259,7 +259,7 @@ function build(strike, critical, penalty, roll) {
         if (strike.deadly) result.push({ type: weaponType, amount: roll(strike.deadly.dice, strike.deadly.die), persistent: false, precision: false, weapon: true });
         if (strike.fatal) result.push({ type: weaponType, amount: roll(1, strike.fatal), persistent: false, precision: false, weapon: true });
         // (2026-11-07: a feat's extra dice on a critical hit — Bloody Blows' bleed —, not doubled.)
-        for (const part of strike.critExtra ?? []) result.push({ type: part.type, amount: roll(part.dice, part.die) + (part.bonus ?? 0), persistent: !!part.persistent, precision: false, dice: part.dice, die: part.die, bonus: part.bonus ?? 0, multiplier: 1 });
+        for (const part of strike.critExtra ?? []) result.push({ critExtra: true, type: part.type, amount: roll(part.dice, part.die) + (part.bonus ?? 0), persistent: !!part.persistent, precision: false, dice: part.dice, die: part.die, bonus: part.bonus ?? 0, multiplier: 1 });
     }
     return result;
 }
