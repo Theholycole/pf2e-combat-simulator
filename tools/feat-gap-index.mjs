@@ -138,10 +138,24 @@ for (const doc of docs) {
     });
 }
 
+// (2026-11-07, batches 30-: feats the text sorter took for combat that aren't: what each is, read by hand.)
+const OOC = "out of combat (exploration, downtime, skills)", CASTING = "spellcasting the spell module or PF2e handles", NOTHING = "roleplay or nothing to automate", NOTED = "PF2e's own Note shows it on its roll";
+const WHY_BY_ID = {
+    uhU0KajD09h5bw4e: OOC, SXaQi6cZ58mvz9rV: OOC, f6k9lIrIS4SfnCnG: OOC, mnH68QcFRtkMbNE0: OOC, OuEIsBtQD1Fgx6Gz: OOC, vqxKsnFhzWv7AykV: OOC, BQzExsEZrwGsJD66: OOC, u6tLp3zTBweq7CxO: OOC,
+    kQbv3yCW1yhaKSJU: CASTING, hqasqwjrTzOFkDY3: CASTING, gMPnLWLlHoNU9Lqv: CASTING,
+    TXXrkkFfNSWgHrn5: NOTHING, "45F4nNN8gxoBdSnk": NOTHING,
+    Wx12NUjqTOjFrEoW: NOTED, QZ00D2xdJnbWFzml: NOTED, OWhTAowdMvBZnCrT: NOTED
+};
+const NO_CREATURE = new Set(["XLoRtMn48f2KKvsu", "G6aNxXTIJYIGeicK", "5lqVFVTA98M6E80o", "Ar6W97iun6yYI8Df", "LNyTKhIZlM17026W", "xT593tHyPkumPuzz", "MbvPuMVy2VhftJgd", "969mPoiYANzV2261", "jSZJWYHZU3hnGRcp", "1re3J4hWW7raXIRB", "dUnT3HWMFD3d2eBJ"]);
 // Why the feat module leaves a feat, in order: PF2e already does it; it only grants other things; then what it does.
 const moduleWhy = (row) => {
     if (row.featModule !== "none" && row.featModule !== "error") return null;
     if (row.featModule === "error") return "compile error";
+    // (2026-10-31 Cole's rule: a feat that only combines basic actions leaves the automation queue — tools/combo-feats.mjs.)
+    if (COMBO_VALUE.has(row.name)) return "only basic actions combined (no automation, Cole's rule)";
+    // (2026-11-07, batch 30: actions on objects, locks, traps or slopes, or on a variant rule's Stamina — nothing on a fight's creatures.)
+    if (NO_CREATURE.has(row.id)) return "objects, locks, traps, slopes or variant rules";
+    if (WHY_BY_ID[row.id]) return WHY_BY_ID[row.id];
     if (row.pf2eRules.length) return "PF2e's own rule elements already do it";
     // (Its own Effect PF2e puts on from the feat's Use button — docs/feats.md D9 leaves it to PF2e.)
     if (row.selfEffect) return "PF2e's own Effect, from the feat's Use button";

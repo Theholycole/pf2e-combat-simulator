@@ -105,6 +105,8 @@ export const COMBOS = [
     { name: "Nightwave Springing Reload", cost: 1, parts: "Leap + Interact (reload)", saved: ["reload"] },
     { name: "Crossbow Ace", cost: 1, parts: "Create a Diversion or Take Cover + Interact (reload)", saved: ["cover"] },
     { name: "Infiltrator's Reload", cost: 1, parts: "Interact (reload) + Hide, Sneak or Take Cover", saved: ["cover"] },
+    { name: "Surface Rush", cost: 2, parts: "Stride + Swim, Swim (or Swim + Stride, Stride)", saved: ["stride"] },
+    { name: "Swipe Souvenir", cost: 2, parts: "Escape + Steal", saved: [], note: "the Steal is rarely worth an action in a fight" },
     { name: "Quick Draw", cost: 1, parts: "Interact (draw) + Strike", saved: ["draw"] },
     { name: "Quick Shot", cost: 1, parts: "Interact (draw a bow or crossbow) + Strike", saved: ["draw"] },
     { name: "Brandishing Draw", cost: 1, parts: "Interact (draw) + Strike or finisher", saved: ["draw"] },
