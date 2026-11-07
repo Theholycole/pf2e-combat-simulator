@@ -139,7 +139,7 @@ for (const doc of docs) {
 }
 
 // (2026-11-07, batches 30-: feats the text sorter took for combat that aren't: what each is, read by hand.)
-const OOC = "out of combat (exploration, downtime, skills)", CASTING = "spellcasting the spell module or PF2e handles", NOTHING = "roleplay or nothing to automate", NOTED = "PF2e's own Note shows it on its roll";
+const OOC = "out of combat (exploration, downtime, skills)", CASTING = "spellcasting the spell module or PF2e handles", NOTHING = "roleplay or nothing to automate", NOTED = "PF2e's own Note shows it on its roll", GRANT = "only grants other feats, features or choices";
 const WHY_BY_ID = {
     uhU0KajD09h5bw4e: OOC, SXaQi6cZ58mvz9rV: OOC, f6k9lIrIS4SfnCnG: OOC, mnH68QcFRtkMbNE0: OOC, OuEIsBtQD1Fgx6Gz: OOC, vqxKsnFhzWv7AykV: OOC, BQzExsEZrwGsJD66: OOC, u6tLp3zTBweq7CxO: OOC,
     kQbv3yCW1yhaKSJU: CASTING, hqasqwjrTzOFkDY3: CASTING, gMPnLWLlHoNU9Lqv: CASTING,
@@ -154,6 +154,16 @@ const WHY_BY_ID = {
     pCx2vSnIYIdnSKnr: CASTING, SVfD887ocfUFikVA: CASTING, DFtbxytrOrmkQRfm: CASTING, dJ1ZviNMpt4ID7lc: CASTING, xblAUCASehLA9fbc: CASTING,
     RR0p9E6GWt0CRA1q: OOC, NIzuFBqmHURIy2oI: OOC, Sq9muixjFptJO8Ae: NOTHING, "8NnIrUijGD2Chl55": NOTHING, NIaNTFlPwi2ng1rZ: NOTHING,
     NgUB5toKxBd8RJmm: NOTED, lwzspz4dktZLgqlY: NOTED,
+    // (Companions, batch 31.)
+    zBLrZE5aCkpaTK2N: GRANT, f2Pl5dWEL9ZvEyI1: GRANT, cxWEBBu8oyKTrqbi: GRANT, "9umJBQEcV1Fax4bd": GRANT, "8zHsIubGREIrGfAA": GRANT, RJjQ3Jh5ErQgOfGJ: GRANT,
+    "9C6a6FXuPqWjXy8K": GRANT, "2VKV7jLRTxWyVjGa": GRANT, FWQSyjjYg8h0KpHq: GRANT, AiDelwfA0uVT2lN3: GRANT, xXHoyccK5ZG2AJKg: GRANT, wijzB1FDUT7SC86a: GRANT,
+    DCItdIWcdQkaIL5g: GRANT, aM36jhU3VTeUzPpr: GRANT, FCivW0HZhm7PoxrC: GRANT, TO7YGGr38shgxV6l: GRANT, "7275FFz5qWQO3j0s": GRANT, "06wbX1YStavp4Fq4": GRANT, DrZqTPcqSsmw55kb: GRANT, YtL4Q55dAM1GzdDh: GRANT,
+    l64p70oQ6a3AtMq9: CASTING, YY7wmYQ9ccAO8fut: CASTING, eNeSl5UNaqDwyNkp: CASTING, Tr2SnOE2WqFIIWIK: CASTING, u5cPwhuCd3xTAlWl: CASTING, EGtuOZ3E9y0qZ1oJ: CASTING, yg1ZTjHuSiQJFO0i: CASTING,
+    GmSY4YVyzgAZ4I78: CASTING, OJxEF5FONTtEdbpP: CASTING, FhxkU6OftQeecpQW: CASTING, YYTZFBT2WZMU14om: CASTING, y8VecqdECqyH1h6o: CASTING, WfbmFsRxbVyzMmCz: CASTING, DxcjEcxTbjlOA2C0: CASTING,
+    wa9ZGBTlFuwOjPpH: CASTING, jdrdkxqautAtszCX: CASTING, drcZf55HVsTnnTcF: CASTING, GTKzA1rfUtQwxvgz: CASTING, "2bCbfQ0KCSSYpg2q": CASTING, JGfJPx6xkx11zHlW: CASTING, GsrwoQ7DIjERXuPf: CASTING,
+    IYt6pMqiTocTrixA: CASTING, nLlbcEZ5w4bsgMye: CASTING,
+    "9j90iE61ZToFR8cu": OOC, xLD9EmkEmT8hgwv7: OOC, MXWUkpPJsLPrqmJO: OOC, ADgFB8hjUgcXS4bF: OOC, pfBVx5xBfwKd1iVL: OOC,
+    vwBD55BRDOatp4ZV: NOTHING, rAbfuZ1mc3lUYH41: NOTHING, oUCQymKo4eWxgteP: NOTHING, BiPUUNGoJIj1mqjO: NOTHING,
 };
 const NO_CREATURE = new Set(["XLoRtMn48f2KKvsu", "G6aNxXTIJYIGeicK", "5lqVFVTA98M6E80o", "Ar6W97iun6yYI8Df", "LNyTKhIZlM17026W", "xT593tHyPkumPuzz", "MbvPuMVy2VhftJgd", "969mPoiYANzV2261", "jSZJWYHZU3hnGRcp", "1re3J4hWW7raXIRB", "dUnT3HWMFD3d2eBJ"]);
 // Why the feat module leaves a feat, in order: PF2e already does it; it only grants other things; then what it does.

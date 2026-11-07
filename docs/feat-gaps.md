@@ -2,33 +2,32 @@
 
 Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
-- **The feat module** automates 2836: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3530 it doesn't.**
+- **The feat module** automates 2879: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3487 it doesn't.**
 - **The simulator** rates 2274: in whole fights, or 115 combo feats from the basic actions they fold in (docs/combo-feats.md). **4092 it doesn't.**
-- **2715** are in neither.
+- **2683** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1005 | 1351 | 796 |
-| archetype | 2074 | 1177 | 1334 | 873 |
-| ancestry | 1613 | 1056 | 1039 | 760 |
-| skill | 340 | 251 | 325 | 251 |
+| class | 2282 | 982 | 1351 | 777 |
+| archetype | 2074 | 1161 | 1334 | 864 |
+| ancestry | 1613 | 1055 | 1039 | 759 |
+| skill | 340 | 248 | 325 | 248 |
 | general | 40 | 34 | 32 | 28 |
 | bonus | 14 | 6 | 9 | 6 |
 | class feature | 3 | 1 | 2 | 1 |
-| **All** | 6366 | 3530 | 4092 | 2715 |
+| **All** | 6366 | 3487 | 4092 | 2683 |
 
 ## Why the feat module doesn't automate them
 
 | Reason | class | archetype | ancestry | skill | general | bonus | class feature | Total |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | PF2e's own rule elements already do it | 375 | 406 | 710 | 59 | 20 | 4 |  | 1574 |
-| roleplay or nothing to automate | 213 | 239 | 162 | 49 | 9 |  |  | 672 |
-| only grants other feats, features or choices | 137 | 263 | 95 | 20 | 2 | 1 | 1 | 519 |
-| out of combat (exploration, downtime, skills) | 95 | 112 | 48 | 113 | 2 |  |  | 370 |
-| spellcasting the spell module or PF2e handles | 81 | 95 | 15 | 1 |  | 1 |  | 193 |
-| companions, familiars and eidolons | 51 | 37 | 2 | 5 |  |  |  | 95 |
+| roleplay or nothing to automate | 214 | 240 | 163 | 50 | 9 |  |  | 676 |
+| only grants other feats, features or choices | 147 | 273 | 95 | 20 | 2 | 1 | 1 | 539 |
+| out of combat (exploration, downtime, skills) | 96 | 115 | 48 | 114 | 2 |  |  | 375 |
+| spellcasting the spell module or PF2e handles | 97 | 102 | 15 | 1 |  | 1 |  | 216 |
 | PF2e's own Effect, from the feat's Use button | 39 | 22 | 11 | 2 |  |  |  | 74 |
 | only basic actions combined (no automation, Cole's rule) | 5 | 2 | 6 |  |  |  |  | 13 |
 | objects, locks, traps, slopes or variant rules | 3 | 1 | 5 | 1 | 1 |  |  | 11 |
@@ -41,16 +40,15 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Reason | class | archetype | ancestry | skill | general | bonus | class feature | Total |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 254 | 211 | 306 | 59 | 14 | 4 |  | 848 |
-| no card: roleplay or nothing to automate | 158 | 205 | 152 | 49 | 9 |  |  | 573 |
-| no card: the feat module's reminder, which a fight doesn't play | 183 | 151 | 98 | 24 |  | 1 |  | 457 |
-| no card: out of combat (exploration, downtime, skills) | 93 | 90 | 43 | 113 | 2 |  |  | 341 |
-| no card: only grants other feats, features or choices | 86 | 123 | 47 | 16 | 2 |  |  | 274 |
-| no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 89 | 87 | 62 | 28 | 3 |  | 1 | 270 |
+| no card: roleplay or nothing to automate | 159 | 206 | 152 | 50 | 9 |  |  | 576 |
+| no card: the feat module's reminder, which a fight doesn't play | 193 | 157 | 99 | 27 |  | 1 |  | 477 |
+| no card: out of combat (exploration, downtime, skills) | 94 | 93 | 43 | 114 | 2 |  |  | 346 |
+| no card: only grants other feats, features or choices | 92 | 131 | 47 | 16 | 2 |  |  | 288 |
+| no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 98 | 90 | 62 | 28 | 3 |  | 1 | 282 |
+| no card: spellcasting the spell module or PF2e handles | 66 | 51 | 2 |  |  | 1 |  | 120 |
 | a spell the engine doesn't cast | 24 | 29 | 61 | 1 |  |  |  | 115 |
-| no card: spellcasting the spell module or PF2e handles | 59 | 47 | 2 |  |  | 1 |  | 109 |
 | a timer with no rules a fight counts | 52 | 25 | 17 | 4 |  | 1 |  | 99 |
 | a plan the engine can't play | 30 | 34 | 22 | 2 |  |  |  | 88 |
-| no card: companions, familiars and eidolons | 34 | 25 | 1 | 5 |  |  |  | 65 |
 | it grants Additional Lore | 1 | 11 | 39 | 1 |  |  |  | 52 |
 | a Strike with nothing more the simulator reads | 29 | 18 | 1 |  |  | 1 |  | 49 |
 | a roll whose results the simulator doesn't read | 25 | 12 | 4 | 7 |  |  |  | 48 |
@@ -1857,7 +1855,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Legendary Leader | 15 | skill | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Legendary Tattoo Artist | 15 | skill | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 
-### roleplay or nothing to automate (672)
+### roleplay or nothing to automate (676)
 
 | Feat | Lvl | Category | Type | Simulator |
 |---|---:|---|---|---|
@@ -1979,6 +1977,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Sense for Trouble | 9 | ancestry | passive | no card: roleplay or nothing to automate |
 | Shory Aeromancer | 9 | ancestry | passive | rated 0 |
 | Smoke Sight | 9 | ancestry | passive | no card: roleplay or nothing to automate |
+| Solidarity | 9 | ancestry | 1 action | rated 0.03 |
 | Tongue Tether | 9 | ancestry | passive | no card: roleplay or nothing to automate |
 | Two Truths | 9 | ancestry | 1 action | no card: roleplay or nothing to automate |
 | Witness of Earth | 9 | ancestry | passive | no card: roleplay or nothing to automate |
@@ -2044,6 +2043,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | One with the Land | 4 | archetype | passive | no card: roleplay or nothing to automate |
 | Quick Juggler | 4 | archetype | passive | no card: roleplay or nothing to automate |
 | Repeating Hand Crossbow Training | 4 | archetype | passive | no card: roleplay or nothing to automate |
+| Ride-By Recovery | 4 | archetype | reaction | no card: roleplay or nothing to automate |
 | Shadow Spells | 4 | archetype | passive | no card: roleplay or nothing to automate |
 | Shared Attunement | 4 | archetype | passive | no card: roleplay or nothing to automate |
 | Shorthanded | 4 | archetype | passive | no card: roleplay or nothing to automate |
@@ -2395,6 +2395,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Elaborate Scroll Esoterica | 12 | class | passive | no card: roleplay or nothing to automate |
 | Extend Elixir | 12 | class | passive | no card: roleplay or nothing to automate |
 | Greater Revelation | 12 | class | passive | no card: roleplay or nothing to automate |
+| Green Tongue | 12 | class | passive | no card: roleplay or nothing to automate |
 | Magic Sense (Magus) | 12 | class | passive | no card: roleplay or nothing to automate |
 | Obscured Emergence | 12 | class | passive | no card: roleplay or nothing to automate |
 | Preparation | 12 | class | 1 action | no card: roleplay or nothing to automate |
@@ -2503,6 +2504,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Fancy Moves | 4 | skill | passive | no card: roleplay or nothing to automate |
 | Final Rest | 4 | skill | passive | no card: roleplay or nothing to automate |
 | Hideous Ululation | 4 | skill | passive | no card: roleplay or nothing to automate |
+| Minion Guise | 4 | skill | passive | no card: roleplay or nothing to automate |
 | Power Slide | 4 | skill | 1 action | no card: roleplay or nothing to automate |
 | Steel Skin | 4 | skill | passive | no card: roleplay or nothing to automate |
 | Resourceful Ritualist | 6 | skill | passive | no card: roleplay or nothing to automate |
@@ -2534,7 +2536,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Legendary Thief | 15 | skill | passive | no card: roleplay or nothing to automate |
 | Terrain Ghost | 18 | skill | passive | no card: roleplay or nothing to automate |
 
-### only grants other feats, features or choices (519)
+### only grants other feats, features or choices (539)
 
 | Feat | Lvl | Category | Type | Simulator |
 |---|---:|---|---|---|
@@ -2698,6 +2700,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Witch Dedication | 2 | archetype | passive | rated -0.26 |
 | World Rouser Dedication | 2 | archetype | passive | it grants Rouse the World |
 | Worm Caller Dedication | 2 | archetype | passive | rated 0 |
+| Additional Companion | 4 | archetype | passive | no card: only grants other feats, features or choices |
 | Base Kinesis | 4 | archetype | passive | it grants Base Kinesis |
 | Basic Arcana | 4 | archetype | passive | rated -0.04 |
 | Basic Bard Spellcasting | 4 | archetype | passive | no card: only grants other feats, features or choices |
@@ -2742,6 +2745,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Firebrand Braggart Dedication | 4 | archetype | 1 action | no card: only grants other feats, features or choices |
 | Headless Haunt | 4 | archetype | passive | it grants Remove Head |
 | Ice Crafter | 4 | archetype | passive | it grants Magical Crafting |
+| Initial Eidolon Ability | 4 | archetype | passive | no card: only grants other feats, features or choices |
 | Investigator's Stratagem | 4 | archetype | passive | it grants Devise a Stratagem |
 | Jalmeri Heavenseeker Dedication | 4 | archetype | passive | rated -0.3 |
 | Mammoth Lord Dedication | 4 | archetype | passive | rated 0.17 |
@@ -2760,6 +2764,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Spell Runes | 4 | archetype | passive | no card: only grants other feats, features or choices |
 | Spell-Woven Shot | 4 | archetype | passive | it grants Spell-Woven Shot |
 | Spellstriker | 4 | archetype | passive | rated 0 |
+| Spirit Companion | 4 | archetype | passive | rated 0.07 |
 | Spirit Spells | 4 | archetype | passive | no card: only grants other feats, features or choices |
 | Spiritual Awakening | 4 | archetype | passive | rated -0.33 |
 | Spot Translate | 4 | archetype | reaction | no card: only grants other feats, features or choices |
@@ -2771,6 +2776,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Underbrush Trailblazer | 4 | archetype | passive | it grants Terrain Stalker |
 | Venture-Gossip Dedication | 4 | archetype | passive | no card: only grants other feats, features or choices |
 | Wayfinder Resonance Tinkerer | 4 | archetype | passive | no card: only grants other feats, features or choices |
+| Winged Leap | 4 | archetype | passive | no card: only grants other feats, features or choices |
 | Beast Gunner Dedication | 6 | archetype | passive | rated -0.56 |
 | Cloaking Pulse | 6 | archetype | passive | it grants Drape Ambient Magic |
 | Daywalker (Vampire) | 6 | archetype | passive | no card: only grants other feats, features or choices |
@@ -2787,6 +2793,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Halcyon Speaker Dedication | 6 | archetype | passive | no card: only grants other feats, features or choices |
 | Hero-God's Bond | 6 | archetype | passive | no card: only grants other feats, features or choices |
 | Implement Initiate | 6 | archetype | passive | no card: only grants other feats, features or choices |
+| Improved Familiar (Familiar Master) | 6 | archetype | passive | no card: only grants other feats, features or choices |
 | Inevitable Thralls | 6 | archetype | passive | it grants Inevitable Return |
 | Keen Recollection | 6 | archetype | passive | it grants Keen Recollection |
 | Liberty's Promise | 6 | archetype | passive | it grants Domain Initiate |
@@ -2798,6 +2805,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Soul Arsenal | 6 | archetype | passive | no card: only grants other feats, features or choices |
 | Swashbuckler's Riposte | 6 | archetype | passive | rated 0.01 |
 | Talon's Mark | 6 | archetype | passive | no card: only grants other feats, features or choices |
+| Tempest Cloud's Speed | 6 | archetype | passive | no card: only grants other feats, features or choices |
 | Three Clear Breaths | 6 | archetype | passive | rated 0 |
 | Time Mage Dedication | 6 | archetype | passive | a spell the engine doesn't cast |
 | Tracing Studies | 6 | archetype | passive | it grants Trace Rune |
@@ -2815,6 +2823,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Golden League Xun Dedication | 8 | archetype | passive | no card: only grants other feats, features or choices |
 | Jumping Jenny Display | 8 | archetype | passive | it grants Jumping Jenny |
 | Levered Swing | 8 | archetype | 1 action | no card: only grants other feats, features or choices |
+| Lightning Rings' Intervention | 8 | archetype | passive | no card: only grants other feats, features or choices |
 | Magic Ammunition | 8 | archetype | passive | it grants Transform Ammunition |
 | Magical Knowledge | 8 | archetype | passive | no card: only grants other feats, features or choices |
 | Ouroboric Pact | 8 | archetype | passive | it grants Entreat Pact |
@@ -2862,6 +2871,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Greater Sun Blessing | 12 | archetype | passive | no card: only grants other feats, features or choices |
 | Illusory Identity | 12 | archetype | passive | no card: only grants other feats, features or choices |
 | Lich Dedication | 12 | archetype | passive | no card: only grants other feats, features or choices |
+| Lightning Rings' Overcharge | 12 | archetype | passive | no card: only grants other feats, features or choices |
 | Mortal Herald Dedication | 12 | archetype | passive | rated -0.03 |
 | Perfect Pitch | 12 | archetype | passive | it grants Pitch-Perfect Projection |
 | Read the Land | 12 | archetype | passive | no card: only grants other feats, features or choices |
@@ -2875,6 +2885,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Dual Onslaught | 14 | archetype | passive | no card: only grants other feats, features or choices |
 | Pact of the Fey Paths | 14 | archetype | passive | it grants Fey Jump |
 | Reset the Past | 14 | archetype | free | no card: only grants other feats, features or choices |
+| Signature Synergy | 14 | archetype | passive | no card: only grants other feats, features or choices |
+| Specialized Mount | 14 | archetype | passive | rated 0.15 |
 | Unstable Patronage | 14 | archetype | passive | no card: only grants other feats, features or choices |
 | Faith in the Fallen | 16 | archetype | passive | rated 0.06 |
 | Fulminating Synergy | 16 | archetype | passive | no card: only grants other feats, features or choices |
@@ -2898,12 +2910,16 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Protective Spirit Mask | 20 | archetype | passive | no card: only grants other feats, features or choices |
 | Dedication to the Five | 0 | bonus | passive | it grants Domain Initiate |
 | Advanced Weaponry | 1 | class | passive | no card: only grants other feats, features or choices |
+| Animal Companion | 1 | class | passive | rated 0.16 |
+| Commander's Companion | 1 | class | passive | rated 0.15 |
 | Deceptive Tactics | 1 | class | passive | it grants Lengthy Diversion |
 | Deity's Domain | 1 | class | passive | no card: only grants other feats, features or choices |
 | Dual Studies | 1 | class | passive | no card: only grants other feats, features or choices |
+| Faithful Steed | 1 | class | passive | rated 0.34 |
 | Familiar | 1 | class | passive | it grants Pet |
 | Leshy Familiar | 1 | class | passive | it grants Pet |
 | Plummeting Roll | 1 | class | passive | it grants one of 2 |
+| Prototype Companion | 1 | class | passive | rated 0.28 |
 | Spirit Familiar (Animist) | 1 | class | passive | it grants Pet |
 | Syncretism | 1 | class | passive | no card: only grants other feats, features or choices |
 | Ancestral Weaponry | 2 | class | passive | no card: only grants other feats, features or choices |
@@ -2934,12 +2950,14 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Dual-Form Weapon | 4 | class | passive | no card: only grants other feats, features or choices |
 | Echo of the Fallen | 4 | class | passive | rated 0 |
 | Hydra's Bond | 4 | class | passive | no card: only grants other feats, features or choices |
+| Improved Familiar (Witch) | 4 | class | passive | no card: only grants other feats, features or choices |
 | Incriminating Spell | 4 | class | 1 action | no card: only grants other feats, features or choices |
 | Mercy | 4 | class | passive | no card: only grants other feats, features or choices |
 | Occult Evolution | 4 | class | passive | no card: only grants other feats, features or choices |
 | Order Magic | 4 | class | passive | no card: only grants other feats, features or choices |
 | Rites of Convocation | 4 | class | passive | no card: only grants other feats, features or choices |
 | Safe Elements | 4 | class | passive | it grants Pacifying Infusion |
+| Skilled Partner | 4 | class | passive | no card: only grants other feats, features or choices |
 | Divine Emissary | 6 | class | passive | no card: only grants other feats, features or choices |
 | Greater Lesson | 6 | class | passive | no card: only grants other feats, features or choices |
 | Predictive Purchase (Investigator) | 6 | class | passive | it grants one of 2 |
@@ -2956,8 +2974,10 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Perpetual Breadth | 8 | class | passive | no card: only grants other feats, features or choices |
 | Predictive Purchase (Rogue) | 8 | class | passive | it grants one of 2 |
 | Second Blessing | 8 | class | passive | rated 0 |
+| Spirit Familiar (Witch) | 8 | class | passive | no card: only grants other feats, features or choices |
 | Stages of Fate | 8 | class | 2 actions | no card: only grants other feats, features or choices |
 | Standby Spell | 8 | class | passive | no card: only grants other feats, features or choices |
+| Stitched Familiar | 8 | class | passive | no card: only grants other feats, features or choices |
 | Whodunnit? | 8 | class | passive | no card: only grants other feats, features or choices |
 | Aura Shaping | 10 | class | passive | no card: only grants other feats, features or choices |
 | Cascading Ray | 10 | class | 1 action | no card: only grants other feats, features or choices |
@@ -3000,6 +3020,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | I've Been Here Before | 14 | class | passive | no card: only grants other feats, features or choices |
 | Lightless Sight | 14 | class | passive | it grants Weaponsight |
 | Manipulate Realm | 14 | class | passive | it grants one of 3 |
+| Patron's Presence | 14 | class | passive | no card: only grants other feats, features or choices |
 | Plot the Future | 14 | class | passive | no card: only grants other feats, features or choices |
 | Transmute Weapon | 14 | class | passive | no card: only grants other feats, features or choices |
 | Verdant Metamorphosis | 14 | class | passive | it grants Verdant Rest |
@@ -3020,6 +3041,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Legend of Combat | 18 | class | 1 action | it grants Speed of Arms |
 | Magical Master | 18 | class | passive | no card: only grants other feats, features or choices |
 | Master Spellcasting | 18 | class | passive | no card: only grants other feats, features or choices |
+| Patron's Claim | 18 | class | passive | no card: only grants other feats, features or choices |
 | Sanctified Relic | 18 | class | passive | no card: only grants other feats, features or choices |
 | Trickster's Ace | 18 | class | reaction | no card: only grants other feats, features or choices |
 | Assume Godhood | 20 | class | passive | it grants Intercession Spell |
@@ -3058,7 +3080,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Play to the Crowd (Dandy) | 12 | skill | passive | it grants Reactive Falsehood |
 | Recollect Studies | 12 | skill | 1 action | no card: only grants other feats, features or choices |
 
-### out of combat (exploration, downtime, skills) (370)
+### out of combat (exploration, downtime, skills) (375)
 
 | Feat | Lvl | Category | Type | Simulator |
 |---|---:|---|---|---|
@@ -3137,6 +3159,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Safe House | 4 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
 | Sense Alignment | 4 | archetype | 3 actions | no card: out of combat (exploration, downtime, skills) |
 | Special Sentinel Technique | 4 | archetype | passive | rated 0 |
+| Spiritual Explorer | 4 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
 | Surprise Snare | 4 | archetype | 3 actions | no card: out of combat (exploration, downtime, skills) |
 | Tactile Magic Feedback | 4 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
 | The Taste of Magic | 4 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
@@ -3157,6 +3180,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Crude Communication | 8 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
 | Deceptive Deduction | 8 | archetype | reaction | no card: out of combat (exploration, downtime, skills) |
 | Environmental Adaptability | 8 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
+| Familiar Ritualist | 8 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
 | Great Boaster | 8 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
 | Haunting Memories | 8 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
 | Innate Magical Intuition | 8 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
@@ -3164,6 +3188,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Know Your Enemy | 8 | archetype | 1 action | its stance's own gap |
 | Magpie Manor Recovery | 8 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
 | Malleable Mental Forge | 8 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
+| Mutable Familiar | 8 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
 | Persistent Creation | 8 | archetype | passive | a spell the engine doesn't cast |
 | Positive Luminance | 8 | archetype | passive | rated 0 |
 | Scholar's Hunch | 8 | archetype | passive | no card: out of combat (exploration, downtime, skills) |
@@ -3238,6 +3263,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Solid Lead | 2 | class | passive | no card: out of combat (exploration, downtime, skills) |
 | We've Met Before | 2 | class | 1 action | no card: out of combat (exploration, downtime, skills) |
 | Acclimated Mount | 4 | class | passive | no card: out of combat (exploration, downtime, skills) |
+| Call Wizardly Tools | 4 | class | 1 action | no card: out of combat (exploration, downtime, skills) |
 | Elaborate Flourish | 4 | class | 1 action | no card: out of combat (exploration, downtime, skills) |
 | Heaven-Earth Encompassing Sleeves | 4 | class | passive | no card: out of combat (exploration, downtime, skills) |
 | Ongoing Investigation | 4 | class | passive | no card: out of combat (exploration, downtime, skills) |
@@ -3394,6 +3420,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Phonetic Training | 4 | skill | passive | no card: out of combat (exploration, downtime, skills) |
 | Text Decoder | 4 | skill | passive | no card: out of combat (exploration, downtime, skills) |
 | Cadre | 6 | skill | passive | no card: out of combat (exploration, downtime, skills) |
+| Craft Facsimile | 6 | skill | passive | no card: out of combat (exploration, downtime, skills) |
 | Megafauna Veterinarian | 6 | skill | passive | no card: out of combat (exploration, downtime, skills) |
 | Uzunjati Storytelling | 6 | skill | 1 action | no card: out of combat (exploration, downtime, skills) |
 | Adventurous Outfitter | 7 | skill | passive | no card: out of combat (exploration, downtime, skills) |
@@ -3433,7 +3460,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Unified Theory | 15 | skill | passive | no card: out of combat (exploration, downtime, skills) |
 | Preternatural Polish | 16 | skill | passive | no card: out of combat (exploration, downtime, skills) |
 
-### spellcasting the spell module or PF2e handles (193)
+### spellcasting the spell module or PF2e handles (216)
 
 | Feat | Lvl | Category | Type | Simulator |
 |---|---:|---|---|---|
@@ -3453,15 +3480,19 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Eyes of the Sea | 17 | ancestry | passive | rated 0 |
 | This is What it's Like to Die | 17 | ancestry | passive | rated -0.06 |
 | First Frost | 2 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
+| Basic Animist Spellcasting | 4 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Basic Hedge Mage Spellcasting | 4 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Basic Necromancer Spellcasting | 4 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Basic Pactbreaker Spellcasting | 4 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Basic Prophet Spellcasting | 4 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Basic Rivethun Spellcasting | 4 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
+| Basic Summoner Spellcasting | 4 | archetype | passive | it grants Cast a Spell |
 | Corpse Tender's Font | 4 | archetype | passive | rated -0.08 |
 | Crystal Ward Spells | 4 | archetype | passive | a spell the engine doesn't cast |
 | Dragon Arcana | 4 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
+| Familiar Conduit | 4 | archetype | 1 action | no card: spellcasting the spell module or PF2e handles |
 | Hallowed Initiate | 4 | archetype | passive | rated -0.33 |
+| Heal Animal | 4 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Immortal Lightness | 4 | archetype | passive | rated -0.15 |
 | Mage's Field Dressing | 4 | archetype | 1 action | no card: spellcasting the spell module or PF2e handles |
 | Magic Warrior Aspect | 4 | archetype | passive | a spell the engine doesn't cast |
@@ -3473,6 +3504,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Pin the Spears in the Lamb | 4 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Shield Spell Reinforcement | 4 | archetype | free | no card: spellcasting the spell module or PF2e handles |
 | Snowcaster | 4 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
+| Spirit of the Beast | 4 | archetype | passive | rated -0.08 |
 | Tender Ministrations | 4 | archetype | 1 action | no card: spellcasting the spell module or PF2e handles |
 | Thrall Charger | 4 | archetype | passive | rated 0.08 |
 | Warding Light | 4 | archetype | passive | rated 0 |
@@ -3500,6 +3532,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Creed Magic | 8 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Divine Healing | 8 | archetype | passive | rated 0.06 |
 | Dream Magic | 8 | archetype | passive | rated -0.01 |
+| Familiar Form | 8 | archetype | passive | a spell the engine doesn't cast |
+| Future Spell Learning | 8 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Glimpse the Netherworld | 8 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Lion's Magic | 8 | archetype | passive | rated -0.06 |
 | Mantis Form | 8 | archetype | passive | a spell the engine doesn't cast |
@@ -3549,14 +3583,23 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Vigilant Mask | 20 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Locate Lawbreakers | 0 | bonus | passive | no card: spellcasting the spell module or PF2e handles |
 | Backup Runic Enhancement | 1 | class | passive | rated 0.08 |
+| Extend Boost | 1 | class | passive | a spell the engine doesn't cast |
+| Heal Companion | 1 | class | passive | rated -0.02 |
 | Lingering Composition | 1 | class | passive | rated 0.01 |
 | Splinter Faith | 1 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Unbound Torrent | 1 | class | passive | no card: spellcasting the spell module or PF2e handles |
+| Unfetter Eidolon | 1 | class | passive | a spell the engine doesn't cast |
 | Embodiment of the Balance | 2 | class | passive | no card: spellcasting the spell module or PF2e handles |
+| Magic Hide | 2 | class | passive | rated -0.11 |
+| Magical Understudy | 2 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Minor Magic | 2 | class | passive | it grants Cast a Spell |
+| Reinforce Eidolon | 2 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Song of Strength | 2 | class | passive | rated 0 |
 | Uplifting Overture | 2 | class | passive | rated 0 |
 | Divine Evolution | 4 | class | passive | no card: spellcasting the spell module or PF2e handles |
+| Lifelink Surge | 4 | class | passive | rated -0.17 |
+| Linked Focus | 4 | class | passive | no card: spellcasting the spell module or PF2e handles |
+| Natural Conduit | 4 | class | 1 action | no card: spellcasting the spell module or PF2e handles |
 | Primal Evolution | 4 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Rallying Anthem | 4 | class | passive | rated 0.05 |
 | Steady Spellcasting (Magus) | 4 | class | passive | no card: spellcasting the spell module or PF2e handles |
@@ -3566,11 +3609,14 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Conjurer of Corpses | 6 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Detonating Spell | 6 | class | 1 action | no card: spellcasting the spell module or PF2e handles |
 | Dirge of Doom | 6 | class | passive | rated 0.05 |
+| Eidolon's Wrath | 6 | class | passive | rated 0 |
 | Fungal Exhalation | 6 | class | passive | rated 0.02 |
 | Gifted Power | 6 | class | passive | no card: spellcasting the spell module or PF2e handles |
+| Grown of Oak | 6 | class | passive | rated 0 |
 | Shielded Tome | 6 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Song of Marching | 6 | class | passive | a spell the engine doesn't cast |
 | Spell Crash | 6 | class | 2 actions | no card: spellcasting the spell module or PF2e handles |
+| Enlarge Companion | 8 | class | passive | rated -0.03 |
 | Fortissimo Composition | 8 | class | passive | rated 0.1 |
 | Helt's Spelldance | 8 | class | 3 actions | no card: spellcasting the spell module or PF2e handles |
 | Knockback Spell | 8 | class | 1 action | no card: spellcasting the spell module or PF2e handles |
@@ -3593,7 +3639,10 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Mysterious Repertoire | 14 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Mythic Heightening | 14 | class | 1 action | no card: spellcasting the spell module or PF2e handles |
 | Reliable Magic | 14 | class | passive | no card: spellcasting the spell module or PF2e handles |
+| Rites of Transfiguration | 14 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Sepulchral Sublimation | 14 | class | 1 action | no card: spellcasting the spell module or PF2e handles |
+| Share Eidolon Magic | 14 | class | passive | no card: spellcasting the spell module or PF2e handles |
+| Superior Bond | 14 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Unholy Resurrection | 14 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Beckoning Dirge | 16 | class | free | no card: spellcasting the spell module or PF2e handles |
 | Daunting Spell | 16 | class | passive | no card: spellcasting the spell module or PF2e handles |
@@ -3614,6 +3663,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Mana Detonation | 18 | class | passive | rated 0 |
 | Qi Center | 18 | class | free | no card: spellcasting the spell module or PF2e handles |
 | Reanimate Foe | 18 | class | passive | a spell the engine doesn't cast |
+| Soul Vessel Mount | 18 | class | passive | a spell the engine doesn't cast |
 | Archwizard's Might | 20 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Bloodline Perfection | 20 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Hierophant's Power | 20 | class | passive | no card: spellcasting the spell module or PF2e handles |
@@ -3630,106 +3680,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Spellshape Channel | 20 | class | free | no card: spellcasting the spell module or PF2e handles |
 | True Channel Spell | 20 | class | passive | no card: spellcasting the spell module or PF2e handles |
 | Arcane Sense | 1 | skill | passive | a spell the engine doesn't cast |
-
-### companions, familiars and eidolons (95)
-
-| Feat | Lvl | Category | Type | Simulator |
-|---|---:|---|---|---|
-| Riptide Mount | 5 | ancestry | 1 action | no card: companions, familiars and eidolons |
-| Solidarity | 9 | ancestry | 1 action | rated 0.03 |
-| Additional Companion | 4 | archetype | passive | no card: companions, familiars and eidolons |
-| Basic Animist Spellcasting | 4 | archetype | passive | no card: companions, familiars and eidolons |
-| Basic Summoner Spellcasting | 4 | archetype | passive | it grants Cast a Spell |
-| Familiar Conduit | 4 | archetype | 1 action | no card: companions, familiars and eidolons |
-| Heal Animal | 4 | archetype | passive | no card: companions, familiars and eidolons |
-| Initial Eidolon Ability | 4 | archetype | passive | no card: companions, familiars and eidolons |
-| Reckless Riding Lunge | 4 | archetype | 1 action | no card: companions, familiars and eidolons |
-| Ride-By Recovery | 4 | archetype | reaction | no card: companions, familiars and eidolons |
-| Spirit Companion | 4 | archetype | passive | rated 0.07 |
-| Spirit of the Beast | 4 | archetype | passive | rated -0.08 |
-| Spiritual Explorer | 4 | archetype | passive | no card: companions, familiars and eidolons |
-| Winged Leap | 4 | archetype | passive | no card: companions, familiars and eidolons |
-| Defend Mount | 6 | archetype | reaction | rated 0.02 |
-| Improved Familiar (Familiar Master) | 6 | archetype | passive | no card: companions, familiars and eidolons |
-| It's Alive! | 6 | archetype | passive | no card: companions, familiars and eidolons |
-| Let My Creature Live! | 6 | archetype | passive | rated 0.1 |
-| Tempest Cloud's Speed | 6 | archetype | passive | no card: companions, familiars and eidolons |
-| Vaulting Gallop | 6 | archetype | 2 actions | no card: companions, familiars and eidolons |
-| War Rider Stance | 6 | archetype | 1 action | no card: companions, familiars and eidolons |
-| Behold My Creation! | 8 | archetype | passive | rated 0.07 |
-| Familiar Form | 8 | archetype | passive | a spell the engine doesn't cast |
-| Familiar Ritualist | 8 | archetype | passive | no card: companions, familiars and eidolons |
-| Future Spell Learning | 8 | archetype | passive | no card: companions, familiars and eidolons |
-| Lightning Rings' Intervention | 8 | archetype | passive | no card: companions, familiars and eidolons |
-| Mutable Familiar | 8 | archetype | passive | no card: companions, familiars and eidolons |
-| Trampling Charge | 10 | archetype | 3 actions | rated -0.08 |
-| Unbreakable Bond | 10 | archetype | passive | no card: companions, familiars and eidolons |
-| Lightning Rings' Overcharge | 12 | archetype | passive | no card: companions, familiars and eidolons |
-| Pupil's Guard | 12 | archetype | reaction | no card: companions, familiars and eidolons |
-| Strafing Breath | 12 | archetype | 3 actions | no card: companions, familiars and eidolons |
-| Their Master's Call | 12 | archetype | 1 action | no card: companions, familiars and eidolons |
-| A Miracle of Science! | 14 | archetype | passive | rated 0.15 |
-| Signature Synergy | 14 | archetype | passive | no card: companions, familiars and eidolons |
-| Specialized Mount | 14 | archetype | passive | rated 0.15 |
-| Specialized Spirit Companion | 14 | archetype | passive | rated 0.15 |
-| Gallop Across Shadow | 16 | archetype | passive | no card: companions, familiars and eidolons |
-| Legendary Rider | 20 | archetype | passive | rated 0.1 |
-| Animal Companion | 1 | class | passive | rated 0.16 |
-| Commander's Companion | 1 | class | passive | rated 0.15 |
-| Energy Heart | 1 | class | passive | no card: companions, familiars and eidolons |
-| Extend Boost | 1 | class | passive | a spell the engine doesn't cast |
-| Faithful Steed | 1 | class | passive | rated 0.34 |
-| Heal Companion | 1 | class | passive | rated -0.02 |
-| Meld into Eidolon | 1 | class | 3 actions | no card: companions, familiars and eidolons |
-| No! No! I Created You! | 1 | class | reaction | no card: companions, familiars and eidolons |
-| Prototype Companion | 1 | class | passive | rated 0.28 |
-| Unfetter Eidolon | 1 | class | passive | a spell the engine doesn't cast |
-| Collapse Construct | 2 | class | 1 action | no card: companions, familiars and eidolons |
-| Magic Hide | 2 | class | passive | rated -0.11 |
-| Magical Understudy | 2 | class | passive | no card: companions, familiars and eidolons |
-| Reinforce Eidolon | 2 | class | passive | no card: companions, familiars and eidolons |
-| Scatter Swarm | 2 | class | 1 action | no card: companions, familiars and eidolons |
-| Steed Form | 2 | class | passive | no card: companions, familiars and eidolons |
-| Call Wizardly Tools | 4 | class | 1 action | no card: companions, familiars and eidolons |
-| Companion's Cry | 4 | class | passive | rated -0.13 |
-| Improved Familiar (Witch) | 4 | class | passive | no card: companions, familiars and eidolons |
-| Lifelink Surge | 4 | class | passive | rated -0.17 |
-| Linked Focus | 4 | class | passive | no card: companions, familiars and eidolons |
-| Natural Conduit | 4 | class | 1 action | no card: companions, familiars and eidolons |
-| Reactive Dismissal | 4 | class | reaction | no card: companions, familiars and eidolons |
-| Shrink Down | 4 | class | 1 action | no card: companions, familiars and eidolons |
-| Skilled Partner | 4 | class | passive | no card: companions, familiars and eidolons |
-| Battle-Tested Companion | 6 | class | passive | rated 0.27 |
-| Blood Frenzy | 6 | class | passive | no card: companions, familiars and eidolons |
-| Eidolon's Wrath | 6 | class | passive | rated 0 |
-| Grown of Oak | 6 | class | passive | rated 0 |
-| Loyal Warhorse | 6 | class | passive | rated 0.28 |
-| Nidarrmar Steed | 6 | class | passive | no card: companions, familiars and eidolons |
-| Energy Resistance | 8 | class | passive | no card: companions, familiars and eidolons |
-| Enlarge Companion | 8 | class | passive | rated -0.03 |
-| Faithful Stride | 8 | class | 2 actions | no card: companions, familiars and eidolons |
-| Miniaturize | 8 | class | passive | no card: companions, familiars and eidolons |
-| Spirit Familiar (Witch) | 8 | class | passive | no card: companions, familiars and eidolons |
-| Stitched Familiar | 8 | class | passive | no card: companions, familiars and eidolons |
-| Imposing Destrier | 10 | class | passive | rated 0.02 |
-| Protective Bond | 10 | class | reaction | no card: companions, familiars and eidolons |
-| Transpose | 10 | class | 1 action | no card: companions, familiars and eidolons |
-| Green Tongue | 12 | class | passive | no card: companions, familiars and eidolons |
-| Patron's Presence | 14 | class | passive | no card: companions, familiars and eidolons |
-| Rites of Transfiguration | 14 | class | passive | no card: companions, familiars and eidolons |
-| Share Eidolon Magic | 14 | class | passive | no card: companions, familiars and eidolons |
-| Stealthy Companion | 14 | class | passive | no card: companions, familiars and eidolons |
-| Superior Bond | 14 | class | passive | no card: companions, familiars and eidolons |
-| To War! | 16 | class | 3 actions | no card: companions, familiars and eidolons |
-| Patron's Claim | 18 | class | passive | no card: companions, familiars and eidolons |
-| Soul Vessel Mount | 18 | class | passive | a spell the engine doesn't cast |
-| Demon's Hair | 20 | class | passive | no card: companions, familiars and eidolons |
-| Twin Eidolon | 20 | class | passive | no card: companions, familiars and eidolons |
-| Minion Guise | 4 | skill | passive | no card: companions, familiars and eidolons |
-| Mounting Leap | 4 | skill | 1 action | no card: companions, familiars and eidolons |
-| Quick Mount | 4 | skill | 1 action | no card: companions, familiars and eidolons |
-| Craft Facsimile | 6 | skill | passive | no card: companions, familiars and eidolons |
-| Dashing Pickup | 6 | skill | 1 action | no card: companions, familiars and eidolons |
 
 ### PF2e's own Effect, from the feat's Use button (74)
 
@@ -3862,7 +3812,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (457)
+### no card: the feat module's reminder, which a fight doesn't play (477)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -3899,6 +3849,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Powerful Guts | 5 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Ragdya's Revelry | 5 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Recognize Ambush | 5 | ancestry | free | reminder | the feat module reads nothing for it |
+| Riptide Mount | 5 | ancestry | 1 action | card | the feat module reads nothing for it |
 | Shed Tail | 5 | ancestry | reaction | reminder | the feat module reads nothing for it |
 | Shifting Faces | 5 | ancestry | passive | reminder | the feat module reads nothing for it |
 | Skin Split | 5 | ancestry | 2 actions | card | the feat module reads nothing for it |
@@ -3977,6 +3928,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Heaven's Step Offense | 4 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Play to the Crowd | 4 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Reach Beyond | 4 | archetype | 1 action | card | the feat module reads nothing for it |
+| Reckless Riding Lunge | 4 | archetype | 1 action | card | the feat module reads nothing for it |
 | Reflexive Catch | 4 | archetype | reaction | card | the feat module reads nothing for it |
 | Shining Arms | 4 | archetype | passive | reminder | the feat module reads nothing for it |
 | Soul Flare | 4 | archetype | reaction | reminder | the feat module reads nothing for it |
@@ -4009,7 +3961,9 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Uneasy Rest | 6 | archetype | passive | reminder | the feat module reads nothing for it |
 | Urgent Upwelling | 6 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Vacate Vision | 6 | archetype | reaction | reminder | the feat module reads nothing for it |
+| Vaulting Gallop | 6 | archetype | 2 actions | card | the feat module reads nothing for it |
 | Volatile Grease | 6 | archetype | passive | reminder | the feat module reads nothing for it |
+| War Rider Stance | 6 | archetype | 1 action | card | the feat module reads nothing for it |
 | Wisteria-and-Peony Reunion | 6 | archetype | free | reminder | the feat module reads nothing for it |
 | Wounded Party | 6 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Accursed Touch | 8 | archetype | passive | reminder | the feat module reads nothing for it |
@@ -4073,12 +4027,15 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Interfering Surge | 12 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Janatimo's Lessons | 12 | archetype | passive | reminder | the feat module reads nothing for it |
 | Know Thy Doom | 12 | archetype | reaction | reminder | the feat module reads nothing for it |
+| Pupil's Guard | 12 | archetype | reaction | card | the feat module reads nothing for it |
 | Redirect Elements | 12 | archetype | reaction | card | the feat module reads nothing for it |
 | Shoulder Catastrophe | 12 | archetype | reaction | reminder | the feat module reads nothing for it |
 | Smooth Hover | 12 | archetype | free | reminder | the feat module reads nothing for it |
 | Space-Time Shift | 12 | archetype | free | reminder | the feat module reads nothing for it |
 | Steal Magic's Breath | 12 | archetype | reaction | card | the feat module reads nothing for it |
+| Strafing Breath | 12 | archetype | 3 actions | card | the feat module reads nothing for it |
 | Sympathetic Portrayal | 12 | archetype | passive | reminder | the feat module reads nothing for it |
+| Their Master's Call | 12 | archetype | 1 action | card | the feat module reads nothing for it |
 | Thorn in Hell's Side | 12 | archetype | passive | reminder | the feat module reads nothing for it |
 | Undying Beast | 12 | archetype | passive | reminder | the feat module reads nothing for it |
 | Wailing Dead | 12 | archetype | 2 actions | card | the feat module reads nothing for it |
@@ -4132,7 +4089,10 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Healing Hands | 1 | class | passive | reminder | the feat module reads nothing for it |
 | Known Weaknesses | 1 | class | passive | reminder | the feat module reads nothing for it |
 | Long-Distance Taunt | 1 | class | passive | reminder | the feat module reads nothing for it |
+| Meld into Eidolon | 1 | class | 3 actions | card | the feat module reads nothing for it |
+| No! No! I Created You! | 1 | class | reaction | card | the feat module reads nothing for it |
 | Relinquish Control | 1 | class | free | reminder | the feat module reads nothing for it |
+| Collapse Construct | 2 | class | 1 action | card | the feat module reads nothing for it |
 | Defensive Swap | 2 | class | reaction | reminder | the feat module reads nothing for it |
 | Directed Audience | 2 | class | passive | reminder | the feat module reads nothing for it |
 | Elemental Evolution | 2 | class | passive | reminder | the feat module reads nothing for it |
@@ -4142,6 +4102,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Rapid Response | 2 | class | reaction | reminder | the feat module reads nothing for it |
 | Relentless Stalker | 2 | class | reaction | card | the feat module reads nothing for it |
 | Sap Life | 2 | class | passive | reminder | the feat module reads nothing for it |
+| Scatter Swarm | 2 | class | 1 action | card | the feat module reads nothing for it |
 | Second Wind | 2 | class | passive | reminder | the feat module reads nothing for it |
 | Born to the Trees | 4 | class | 2 actions | kineticist module | the feat module reads nothing for it |
 | Chemical Purification | 4 | class | free | reminder | the feat module reads nothing for it |
@@ -4150,7 +4111,9 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Instant Backup | 4 | class | reaction | reminder | the feat module reads nothing for it |
 | Observational Analysis | 4 | class | passive | reminder | the feat module reads nothing for it |
 | Portents of the Haruspex | 4 | class | reaction | reminder | the feat module reads nothing for it |
+| Reactive Dismissal | 4 | class | reaction | card | the feat module reads nothing for it |
 | Shielded Recovery | 4 | class | passive | reminder | the feat module reads nothing for it |
+| Shrink Down | 4 | class | 1 action | card | the feat module reads nothing for it |
 | Additional Recollection | 6 | class | free | reminder | the feat module reads nothing for it |
 | Artokus's Fire | 6 | class | free | reminder | the feat module reads nothing for it |
 | Assured Knowledge | 6 | class | passive | reminder | the feat module reads nothing for it |
@@ -4177,6 +4140,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Defensive Stratagem | 8 | class | passive | reminder | the feat module reads nothing for it |
 | Drawn In Vital Ink | 8 | class | free | card | the feat module reads nothing for it |
 | Emblazon Energy | 8 | class | passive | reminder | the feat module reads nothing for it |
+| Faithful Stride | 8 | class | 2 actions | card | the feat module reads nothing for it |
 | Friendly Toss | 8 | class | 2 actions | card | the feat module reads nothing for it |
 | Grand Dance | 8 | class | 2 actions | card | the feat module reads nothing for it |
 | Greater Cruelty | 8 | class | passive | reminder | the feat module reads nothing for it |
@@ -4201,8 +4165,10 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Improved Command Undead | 10 | class | passive | reminder | the feat module reads nothing for it |
 | Mirror Shield | 10 | class | reaction | reminder | the feat module reads nothing for it |
 | Overpowering Charge | 10 | class | passive | reminder | the feat module reads nothing for it |
+| Protective Bond | 10 | class | reaction | card | the feat module reads nothing for it |
 | Shared Avoidance | 10 | class | passive | reminder | the feat module reads nothing for it |
 | Switcheroo | 10 | class | reaction | reminder | the feat module reads nothing for it |
+| Transpose | 10 | class | 1 action | card | the feat module reads nothing for it |
 | Amp Focus | 12 | class | passive | reminder | the feat module reads nothing for it |
 | Blood Component Substitution | 12 | class | passive | reminder | the feat module reads nothing for it |
 | Bloodline Focus | 12 | class | passive | reminder | the feat module reads nothing for it |
@@ -4270,6 +4236,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Steal Death | 16 | class | reaction | reminder | the feat module reads nothing for it |
 | Steal Spell | 16 | class | passive | reminder | the feat module reads nothing for it |
 | Swift Elusion | 16 | class | reaction | reminder | the feat module reads nothing for it |
+| To War! | 16 | class | 3 actions | card | the feat module reads nothing for it |
 | All in My Head | 18 | class | reaction | reminder | the feat module reads nothing for it |
 | All in Your Head | 18 | class | reaction | reminder | the feat module reads nothing for it |
 | Deduce Habits | 18 | class | passive | reminder | the feat module reads nothing for it |
@@ -4315,16 +4282,19 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Canopy Predator | 4 | skill | passive | reminder | the feat module reads nothing for it |
 | Cushion Landing | 4 | skill | reaction | reminder | the feat module reads nothing for it |
 | Diabolic Certitude | 4 | skill | free | reminder | the feat module reads nothing for it |
+| Mounting Leap | 4 | skill | 1 action | card | the feat module reads nothing for it |
+| Quick Mount | 4 | skill | 1 action | card | the feat module reads nothing for it |
 | Rope Runner | 4 | skill | passive | reminder | the feat module reads nothing for it |
 | That's Not Natural! | 4 | skill | reaction | card | the feat module reads nothing for it |
 | Cutting Flattery | 5 | skill | passive | reminder | the feat module reads nothing for it |
+| Dashing Pickup | 6 | skill | 1 action | card | the feat module reads nothing for it |
 | Emerald Boughs Accustomation | 6 | skill | passive | reminder | the feat module reads nothing for it |
 | Advanced First Aid | 7 | skill | passive | reminder | the feat module reads nothing for it |
 | Foil Senses | 7 | skill | passive | reminder | the feat module reads nothing for it |
 | Temperature Adjustment | 7 | skill | passive | reminder | the feat module reads nothing for it |
 | That Was a Close One, Huh? | 7 | skill | 1 action | card | the feat module reads nothing for it |
 
-### no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play (270)
+### no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play (282)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4419,6 +4389,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Crowd Mastery | 6 | archetype | passive | by hand | the feat module reads nothing for it |
 | Crushing Step | 6 | archetype | passive | by hand | the feat module reads nothing for it |
 | Frightful Condemnation | 6 | archetype | free | by hand | the feat module reads nothing for it |
+| It's Alive! | 6 | archetype | passive | by hand | the feat module reads nothing for it |
 | Leverage Anguish | 6 | archetype | reaction | by hand | the feat module reads nothing for it |
 | No Hard Feelings | 6 | archetype | passive | by hand | the feat module reads nothing for it |
 | Poisoned Sticks and Stones | 6 | archetype | passive | by hand | the feat module reads nothing for it |
@@ -4442,6 +4413,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Menacing Prowess | 10 | archetype | passive | by hand | the feat module reads nothing for it |
 | Stalwart Standard | 10 | archetype | passive | by hand | the feat module reads nothing for it |
 | Sweeping Fan Redirection | 10 | archetype | passive | by hand | the feat module reads nothing for it |
+| Unbreakable Bond | 10 | archetype | passive | by hand | the feat module reads nothing for it |
 | Unobstructed Shot | 10 | archetype | passive | by hand | the feat module reads nothing for it |
 | Widen the Gap | 10 | archetype | passive | by hand | the feat module reads nothing for it |
 | Wing Rider | 10 | archetype | passive | by hand | the feat module reads nothing for it |
@@ -4467,6 +4439,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Tactical Cadence | 14 | archetype | passive | by hand | the feat module reads nothing for it |
 | Unseen Shot | 14 | archetype | passive | by hand | the feat module reads nothing for it |
 | Winter's Kiss | 14 | archetype | passive | by hand | the feat module reads nothing for it |
+| Gallop Across Shadow | 16 | archetype | passive | by hand | the feat module reads nothing for it |
 | Greater Snow Step | 16 | archetype | passive | by hand | the feat module reads nothing for it |
 | Lead the Pack | 16 | archetype | passive | by hand | the feat module reads nothing for it |
 | Rallying Charge (Knight Vigilant) | 16 | archetype | passive | by hand | the feat module reads nothing for it |
@@ -4477,6 +4450,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Uncanny Vitae | 18 | archetype | passive | by hand | the feat module reads nothing for it |
 | Pack Takedown | 20 | archetype | passive | by hand | the feat module reads nothing for it |
 | Tower Shield Mastery | 20 | archetype | passive | by hand | the feat module reads nothing for it |
+| Energy Heart | 1 | class | passive | by hand | the feat module reads nothing for it |
 | Expanded Senses | 1 | class | passive | by hand | the feat module reads nothing for it |
 | Monster Hunter | 1 | class | passive | by hand | the feat module reads nothing for it |
 | Raging Thrower | 1 | class | passive | by hand | the feat module reads nothing for it |
@@ -4490,6 +4464,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Pernicious Poison | 2 | class | passive | by hand | the feat module reads nothing for it |
 | Rapid Assessment | 2 | class | free | by hand | the feat module reads nothing for it |
 | Spirit Sheath | 2 | class | passive | by hand | the feat module reads nothing for it |
+| Steed Form | 2 | class | passive | by hand | the feat module reads nothing for it |
 | Battle Assessment | 4 | class | 1 action | by hand | the feat module reads nothing for it |
 | Combat Reading | 4 | class | 1 action | by hand | the feat module reads nothing for it |
 | Forest Passage | 4 | class | passive | by hand | the feat module reads nothing for it |
@@ -4505,12 +4480,14 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Strategic Assessment | 4 | class | passive | by hand | the feat module reads nothing for it |
 | Vibration Sense | 4 | class | passive | by hand | the feat module reads nothing for it |
 | Agile Maneuvers | 6 | class | passive | by hand | the feat module reads nothing for it |
+| Blood Frenzy | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Chiardmar Steed | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Claim the Field | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Defy Fey | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Fortified Elixirs | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Knowledge is Power | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Light Step | 6 | class | passive | by hand | the feat module reads nothing for it |
+| Nidarrmar Steed | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Runic Reprisal | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Sly Disarm | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Snap Shot | 6 | class | passive | by hand | the feat module reads nothing for it |
@@ -4518,9 +4495,11 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Sticky Poison | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Water Step | 6 | class | passive | by hand | the feat module reads nothing for it |
 | Ears of the Forest | 8 | class | passive | by hand | the feat module reads nothing for it |
+| Energy Resistance | 8 | class | passive | by hand | the feat module reads nothing for it |
 | Greater Mercy | 8 | class | passive | by hand | the feat module reads nothing for it |
 | Instinctive Strike | 8 | class | passive | by hand | the feat module reads nothing for it |
 | Knowledge is Power (Wizard) | 8 | class | passive | by hand | the feat module reads nothing for it |
+| Miniaturize | 8 | class | passive | by hand | the feat module reads nothing for it |
 | Murksight | 8 | class | passive | by hand | the feat module reads nothing for it |
 | Spirit Walk | 8 | class | passive | by hand | the feat module reads nothing for it |
 | Syu Tak-nwa's Hexed Locks | 8 | class | passive | by hand | the feat module reads nothing for it |
@@ -4551,6 +4530,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Internal Dialogue | 14 | class | reaction | by hand | the feat module reads nothing for it |
 | Sense the Unseen | 14 | class | reaction | by hand | the feat module reads nothing for it |
 | Steadfast Grip | 14 | class | passive | by hand | the feat module reads nothing for it |
+| Stealthy Companion | 14 | class | passive | by hand | the feat module reads nothing for it |
 | Swift Banishment | 14 | class | reaction | by hand | the feat module reads nothing for it |
 | Night Terror | 16 | class | passive | by hand | the feat module reads nothing for it |
 | Ricochet Master | 16 | class | passive | by hand | the feat module reads nothing for it |
@@ -4561,10 +4541,12 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Powerful Sneak | 18 | class | passive | by hand | the feat module reads nothing for it |
 | Rebellious Existence | 18 | class | passive | by hand | the feat module reads nothing for it |
 | Banishing Blow | 20 | class | passive | by hand | the feat module reads nothing for it |
+| Demon's Hair | 20 | class | passive | by hand | the feat module reads nothing for it |
 | Extradimensional Stash | 20 | class | passive | by hand | the feat module reads nothing for it |
 | Immortal Ruin | 20 | class | passive | by hand | the feat module reads nothing for it |
 | Once and Future | 20 | class | passive | by hand | the feat module reads nothing for it |
 | Reach for Immortality | 20 | class | passive | by hand | the feat module reads nothing for it |
+| Twin Eidolon | 20 | class | passive | by hand | the feat module reads nothing for it |
 | Ultimate Skirmisher | 20 | class | passive | by hand | the feat module reads nothing for it |
 | Mystic Life Force | 20 | class feature | passive | by hand | the feat module reads nothing for it |
 | Feather Step | 1 | general | passive | by hand | the feat module reads nothing for it |
