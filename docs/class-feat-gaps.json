@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1549,
+ "rated": 1552,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -5736,26 +5736,6 @@
    "reason": "a teleport",
    "detail": "a teleport",
    "text": "Requirements You could see your hunted prey when you rolled initiative at the beginning of the encounter, and this is your first action on your first turn of the encounter. You're always ready to get the jump on your target. You Step up to "
-  },
-  {
-   "id": "f58Vhv4R4J6a7ie9",
-   "name": "Reactive Resilience",
-   "level": 8,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Frequency once per day Trigger You take damage. Requirements You are Channeling Draconic Essence. Your power blunts blades and weakens spells like the hardiest of dragon scales. You gain resistance to the triggering damage equal to your lev"
   },
   {
    "id": "ypIzURz2VBJCOran",
@@ -13299,26 +13279,6 @@
    "reason": "a plan the engine can't play",
    "detail": "a plan the engine can't play (its targeting or what it does)",
    "text": "Trigger You regain Hit Points while you are Unconscious. When you escape death, you return to life with retributive fire that burns those who harmed you. You expend 1 Mythic Point, return to consciousness, Stand, and regain additional Hit P"
-  },
-  {
-   "id": "Tf9RmqKU148OyQbz",
-   "name": "Prescience",
-   "level": 4,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "free",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger You're about to roll initiative. Mythic power floods through your mind, filling you with visions of possible futures, events that might or might not happen, and warnings of things that might be. Spend a Mythic Point and roll your in"
   },
   {
    "id": "lQrUHfzXwCFR04Vr",
@@ -26425,26 +26385,6 @@
    "reason": "a spell the engine doesn't cast",
    "detail": "a spell the engine doesn't cast (Translocate)",
    "text": "You can teleport across the battlefield, disappearing and appearing in a burst of hellfire and brimstone, a flash of lightning, a cloud of caustic gas, or other environmental hazard common within your planned realm. You can cast Translocate"
-  },
-  {
-   "id": "Egx5NWOVhoaij7a3",
-   "name": "Terrifying Mien",
-   "level": 16,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "plan",
-   "reason": "its Effect has nothing a fight counts",
-   "detail": "its Effect has nothing a fight counts",
-   "text": "Whether they have heard of your legend or seen your prowess on the field of battle, those already quaking in their boots grow weak when forced to stand against you. You gain resistance against bludgeoning, piercing, and slashing damage agai"
   },
   {
    "id": "SOXivCy3ko3jDewI",

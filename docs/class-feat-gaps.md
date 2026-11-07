@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1549 are rated; 2807 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1552 are rated; 2804 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -9,14 +9,14 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Bucket | No plan | Plan, not played | Total |
 |---|---:|---:|---:|
 | Archetype dedications (grant class features) | 76 | 81 | 157 |
-| Combat actions and reactions | 190 | 353 | 543 |
+| Combat actions and reactions | 188 | 353 | 541 |
 | Passives that change a class feature | 156 | 40 | 196 |
-| Other combat passives | 286 | 84 | 370 |
+| Other combat passives | 286 | 83 | 369 |
 | Spellcasting (slots, focus, spellshapes) | 231 | 40 | 271 |
 | Companions, familiars and eidolons | 125 | 47 | 172 |
 | Out of combat (exploration, downtime, skills) | 282 | 55 | 337 |
 | Nothing a fight would use | 625 | 136 | 761 |
-| **All** | 1971 | 836 | 2807 |
+| **All** | 1969 | 835 | 2804 |
 
 ## By class
 
@@ -51,8 +51,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | thaumaturge |  | 7 | 8 | 2 | 1 | 1 | 5 | 10 | 34 |
 | witch |  | 1 | 2 | 2 | 4 | 16 | 7 | 3 | 35 |
 | wizard |  | 2 |  | 1 | 14 | 4 | 10 | 6 | 37 |
-| archetype | 146 | 252 | 43 | 196 | 95 | 64 | 147 | 438 | 1381 |
-| other | 11 | 39 | 2 | 38 | 16 | 13 | 25 | 33 | 177 |
+| archetype | 146 | 251 | 43 | 196 | 95 | 64 | 147 | 438 | 1380 |
+| other | 11 | 38 | 2 | 37 | 16 | 13 | 25 | 33 | 175 |
 
 ## Why the simulator doesn't play the ones with a plan
 
@@ -71,7 +71,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | its text has no Strike of its user's | 19 |
 | a spell the feat casts | 18 |
 | a passive's Effect posted by hand | 18 |
-| its Effect has nothing a fight counts | 16 |
+| its Effect has nothing a fight counts | 15 |
 | a passive's Effect on other creatures | 15 |
 | a reaction to "passive" | 13 |
 | it grants Additional Lore: the feat module reads nothing for it | 12 |
@@ -400,7 +400,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Warshard Warrior Dedication | 12 | other | passive | plan | it grants Call Warshard Weapon: the feat module reads nothing for it |
 | Wildspell Dedication | 12 | other | passive | plan | a spell the engine doesn't cast (Spellsurge) |
 
-## Combat actions and reactions (543)
+## Combat actions and reactions (541)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -519,7 +519,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Pluck from the Sky | 8 | archetype | 2 actions | plan | a roll whose results the simulator doesn't read |
 | Pressure Change | 8 | archetype | 1 action | plan | its requirement (You have a swim Speed, are underwater, and have a creature Grabbed or Restrained) |
 | Quick Positioning | 8 | archetype | free | plan | a teleport |
-| Reactive Resilience | 8 | archetype | reaction | no plan |  |
 | Riptide (Undersea Privateer) | 8 | archetype | 1 action | plan | its requirement (You're in Anchor Stance, and your target is within 5 feet of the edge of a water vehicle or already in  |
 | Rule of Three | 8 | archetype | reaction | no plan |  |
 | Shamble | 8 | archetype | 2 actions | plan | a teleport |
@@ -855,7 +854,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Sprout Fruit | 2 | other | 1 action | plan | it grants Verdant Core Deviant Classification: the feat module reads nothing for it |
 | Vine Lash | 2 | other | 1 action | plan | it grants Verdant Core Deviant Classification: the feat module reads nothing for it |
 | Fiery Rebirth | 4 | other | free | plan | a plan the engine can't play (its targeting or what it does) |
-| Prescience | 4 | other | free | no plan |  |
 | Surface Rush | 4 | other | 2 actions | no plan |  |
 | Defensive Growth | 6 | other | reaction | plan | it grants Verdant Core Deviant Classification: the feat module reads nothing for it |
 | Unrivaled Retort | 6 | other | reaction | plan | a reaction's Strike |
@@ -1149,7 +1147,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Syu Tak-nwa's Hexed Locks | 8 | witch | passive | no plan |  |
 | Hex Master | 20 | witch | passive | no plan |  |
 
-## Other combat passives (370)
+## Other combat passives (369)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -1477,7 +1475,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Marshall Fiendish Forces | 16 | other | passive | no plan |  |
 | Momentary Respite | 16 | other | passive | plan | a passive's roll with no action to use it |
 | Realm Strider | 16 | other | passive | plan | a spell the engine doesn't cast (Translocate) |
-| Terrifying Mien | 16 | other | passive | plan | its Effect has nothing a fight counts |
 | Vigorous Victor | 16 | other | passive | no plan |  |
 | Walk on the Wind | 16 | other | passive | no plan |  |
 | Mythic Weapon Specialization | 18 | other | passive | no plan |  |
