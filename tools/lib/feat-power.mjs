@@ -367,6 +367,12 @@ function innateSpellEntry(doc, level, host) {
         if (plan.resolution.selfForm && !Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) continue;
         // (Its battle form cast even where the planner reads no gain in it, as Untamed Form's is.)
         if (plan.resolution.selfForm || Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) entry.forceEven = true;
+        // (2026-11-07: a family the engine has no player for — Murderous Vine's "grab-attack", Black Tentacles' "tentacle-area" in PF2e 8.6's
+        // packs —: PF2e's own check, as an "unsupported" plan plays it, where it has one.)
+        if (!castable(entry) && plan.resolution.native?.check && plan.resolution.kind !== "unsupported") {
+            const fallback = { ...entry, plan: { ...entry.plan, resolution: { ...entry.plan.resolution, kind: "unsupported" } } };
+            if (castable(fallback)) Object.assign(entry, fallback);
+        }
         if (castable(entry) || reactionWired(entry)) entries.push(entry);
     }
     if (!entries.length && !summons.length && !breath) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
