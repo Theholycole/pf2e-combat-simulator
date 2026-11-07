@@ -371,7 +371,11 @@ function innateSpellEntry(doc, level, host) {
         // packs —: PF2e's own check, as an "unsupported" plan plays it, where it has one.)
         if (!castable(entry) && plan.resolution.native?.check && plan.resolution.kind !== "unsupported") {
             const fallback = { ...entry, plan: { ...entry.plan, resolution: { ...entry.plan.resolution, kind: "unsupported" } } };
-            if (castable(fallback)) Object.assign(entry, fallback);
+            // (A new entry: canCast's answer for this one is cached per spell object.)
+            if (castable(fallback)) {
+                entries.push(fallback);
+                continue;
+            }
         }
         if (castable(entry) || reactionWired(entry)) entries.push(entry);
     }
