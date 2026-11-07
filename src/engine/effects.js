@@ -1021,7 +1021,7 @@ export function auraRecipients(state, bearer, grant) {
 export function applyEffect(state, target, model, source, { applyCondition, key = model.name, counter = null, formDC = null } = {}) {
     for (const existing of (target.effects ?? []).filter((effect) => effect.key === key)) removeEffect(target, existing);
     // (A resistance of a chosen type: the choice that keeps most off it from its foes now, else the first.)
-    // (2026-11-07: a "choice" with no choices to pick from — Masquerade of Seasons Stance's — isn't a resistance.)
+    // (2026-11-07: a "choice" with no choices to pick from — never made now (abilities.js self-effect kept its choices) — dropped, not a crash.)
     if ((model.resistances ?? []).some((entry) => entry.type === "choice" && !entry.choices?.length)) model = { ...model, resistances: model.resistances.filter((entry) => entry.type !== "choice" || entry.choices?.length) };
     const choice = (model.resistances ?? []).find((entry) => entry.type === "choice");
     if (choice) {
