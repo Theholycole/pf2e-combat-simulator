@@ -5,6 +5,7 @@ import { createFightState } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
 import { performStrike, increaseDying, applyDamage } from "../src/engine/actions.js";
 import { adjustDamage } from "../src/engine/damage.js";
+import { applyCondition } from "../src/engine/spells.js";
 import { deathThreshold } from "../src/engine/combatant.js";
 import { ignoredResistances, keenCritical } from "../src/engine/runes.js";
 
@@ -151,4 +152,22 @@ test("Spiritual Guardian (2026-11-07, from a feat): its guardian takes the first
     applyDamage(state, pc, [{ type: "fire", amount: 14, persistent: false, precision: false }], { source: foe });
     assert.equal(pc.hp.value, before - 4);
     assert.equal(pc.shelters[0].hp, 40);
+});
+
+test("Inexorable (2026-11-07): a DC 15 flat check as it would be stunned, slowed or paralyzed — no condition on a success", () => {
+    const [fighter] = martialParty(6);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, conditionFlat: { name: "Inexorable", dc: 15, slugs: ["paralyzed", "slowed", "stunned"] } }, { ...moderateCreature(6, "foe", "Foe"), engagement: 1 }] }, {}, 1);
+    state.log = [];
+    const pc = state.byId.get(fighter.id);
+    const foe = state.byId.get("foe");
+    let kept = 0;
+    for (let i = 0; i < 200; i++) {
+        pc.cond.slowed = 0;
+        applyCondition(state, pc, "slowed", 1, null, foe);
+        if (!pc.cond.slowed) kept++;
+    }
+    assert.ok(kept > 40 && kept < 90, `about 30% shrugged off (${kept}/200)`);
+    pc.cond.frightened = 0;
+    applyCondition(state, pc, "frightened", 1, null, foe);
+    assert.equal(pc.cond.frightened, 1);
 });

@@ -1130,6 +1130,10 @@ const HAND = {
     // dazzled after not played). Interstitial Escape: resistance 5 + its level against a Strike's damage, once a fight (once an hour) —
     // its teleport not played, and its "not off-guard" not checked.
     "unexpected-shift": (level) => ({ builtins: { resistReaction: { name: "Unexpected Shift", value: level, on: null, types: null, foe: true, flat: 16 } }, played: `resistance ${level} to a foe's damage on a DC 16 flat check (reaction)` }),
+    // As it would gain a condition, a flat check, and on a success it doesn't: Inexorable's paralyzed, slowed and stunned (DC 15; its Worm
+    // Form parts not played), Unbound Freedom's controlled (DC 17) — spells.js applyCondition.
+    inexorable: () => ({ builtins: { conditionFlat: { name: "Inexorable", dc: 15, slugs: ["paralyzed", "slowed", "stunned"] } }, played: "a DC 15 flat check to ignore paralyzed, slowed or stunned (always on)" }),
+    "unbound-freedom": () => ({ builtins: { conditionFlat: { name: "Unbound Freedom", dc: 17, slugs: ["controlled"] } }, played: "a DC 17 flat check to ignore controlled (always on)" }),
     "interstitial-escape": (level) => ({ builtins: { resistReaction: { name: "Interstitial Escape", value: 5 + level, on: null, types: null, attack: true, foe: true }, resistUses: 1 }, played: `resistance ${5 + level} to a Strike's damage (once a fight, reaction)` }),
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),

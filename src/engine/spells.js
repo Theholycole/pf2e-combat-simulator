@@ -598,6 +598,14 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     }
     // (2026-10-22, Indestructibility: harmed by nothing till its next turn.)
     if (source !== target && !NOT_HARMFUL.has(slug) && defenceOf(target, "indestructible")) return false;
+    // (2026-11-07, Inexorable, Unbound Freedom: a flat check as it would gain one of these conditions, and on a success it doesn't —
+    // c.conditionFlat { name, dc, slugs }.)
+    const shrug = target.conditionFlat;
+    if (shrug && source !== target && shrug.slugs.includes(slug) && !(Number(target.cond?.[slug]) > 0) && state.rng) {
+        const flat = state.rng.d20();
+        log(state, `  ${target.name}'s ${shrug.name} (flat ${flat} vs DC ${shrug.dc})${flat >= shrug.dc ? `: no ${slug}` : ""}`);
+        if (flat >= shrug.dc) return false;
+    }
     // Off-guard to one creature's attacks only (Feint, Create a Diversion).
     // (2026-11-05, Goading Feint: the feinter's success and critical success taken instead — a –2 circumstance penalty to the target's
     // next attack against the feinter (every one, on a critical success) until the end of the feinter's next turn; no off-guard.)
