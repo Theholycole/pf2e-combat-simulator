@@ -170,6 +170,7 @@ export function comboReport(rows) {
     const plains = new Map(rows.filter((row) => row.kind === "plain" && !row.error).map((row) => [row.key, row]));
     const signed = (value) => (Math.round(value * 100) === 0 ? "0.00" : `${value > 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}`);
     const rated = [];
+    const chains = [];
     const skipped = [];
     for (const row of rows.filter((each) => each.kind === "pair")) {
         const [a, b] = (row.keys ?? []).map((key) => singles.get(key));
@@ -178,6 +179,13 @@ export function comboReport(rows) {
             continue;
         }
         const plain = plains.get(plainKey(row)) ?? { levels: 0, se: 0 };
+        // (2026-11-07) A chain (the second builds on the first): the second "alone" is played with what it needs — Monstrosity Shape in
+        // Untamed Form — so it already holds the first, and both − A − B only counts the first again. A chain gets its own table: the
+        // first alone, the two together, and what the second adds on top.
+        if (row.why.some((why) => / builds on /.test(why))) {
+            chains.push({ a: row.a, b: row.b, host: row.host, level: row.level, aAlone: a.levels - plain.levels, both: row.levels - plain.levels, adds: row.levels - a.levels, se: Math.sqrt(row.se ** 2 + a.se ** 2) });
+            continue;
+        }
         const synergy = row.levels - a.levels - b.levels + plain.levels;
         const se = Math.sqrt(row.se ** 2 + a.se ** 2 + b.se ** 2 + plain.se ** 2);
         const verdict = Math.abs(synergy) < Math.max(0.03, 2 * se) ? "no clear combo" : synergy > 0 ? "combo" : "get in each other's way";
@@ -197,8 +205,16 @@ export function comboReport(rows) {
         "|---:|---|---|---:|---:|---:|---:|---|---|",
         ...rated.map(line),
         "",
+        "## Feat chains",
+        "",
+        "The second feat builds on the first (its prerequisite, or a form or stance it's used in), so the second is never played without the first: what the chain is worth, and what the second adds on top of the first.",
+        "",
+        "| # | First, then second | PC, level | First alone | Both | Second adds |",
+        "|---:|---|---|---:|---:|---:|",
+        ...chains.sort((x, y) => y.adds - x.adds).map((row, index) => `| ${index + 1} | ${row.a} → ${row.b} | ${row.host}, ${row.level} | ${signed(row.aAlone)} | ${signed(row.both)} | ${signed(row.adds)} ± ${row.se.toFixed(2)} |`),
+        "",
         `Not tested: ${skipped.length} pairs (${[...new Set(skipped.map((row) => row.reason))].slice(0, 6).join("; ")}).`,
         ""
     ].join("\n");
-    return { markdown, json: { version: 1, generated: now, rated, skipped } };
+    return { markdown, json: { version: 1, generated: now, rated, chains, skipped } };
 }
