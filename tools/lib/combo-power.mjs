@@ -9,6 +9,11 @@
 //   The test, at the higher of their levels on that PC: A alone, B alone, and both, each against the plain party. The combo's synergy is
 //   both − A − B: above 0, they're worth more together than apart.
 const lib = await import("./feat-power.mjs");
+const { partyFor, classPartyFor } = await import("./deadliness.mjs");
+// (2026-11-07) A class PC outside the standard party (the inventor, the magus, ...) plays in its class's party, the one its feat ratings
+// use; its pair and singles are measured against the plain scale, so the report adds back that party's own rating (a "plain" row).
+const classHost = (host, level) => !partyFor(level).some((c) => c.id === host);
+const startOf = (host, level) => (classHost(host, level) ? classPartyFor(host, level) : null);
 
 export const CONDITIONS = Object.freeze(["frightened", "off-guard", "prone", "grabbed", "restrained", "immobilized", "clumsy", "enfeebled", "stupefied", "slowed", "stunned", "dazzled", "blinded", "sickened", "drained", "persistent", "bleed"]);
 const WORD = { "off-guard": "(?:off-guard|flat-footed)", persistent: "persistent (?:\\w+ )?damage", bleed: "persistent bleed|bleed damage" };
@@ -119,23 +124,25 @@ export function comboCandidates(rows, { max = 150, perFeat = 3, topPerHost = 8 }
 // task: { kind: "single", ref, level, host } | { kind: "pair", a, b, level, host, why }.
 export function comboTask(task) {
     const docOf = (ref) => lib.docsOf(ref.path).get(ref.id);
+    if (task.kind === "plain") return { kind: "plain", key: plainKey(task), level: task.level, host: task.host, ...lib.partyRating(classPartyFor(task.host, task.level), task.level, []) };
     if (task.kind === "single") {
         const doc = docOf(task.ref);
         const head = { kind: "single", key: singleKey(task), name: task.ref.name, ref: task.ref.ref, level: task.level, host: task.host };
-        const built = lib.partyWithFeat(doc, task.level, { hostId: task.host });
+        const built = lib.partyWithFeat(doc, task.level, { hostId: task.host, party: startOf(task.host, task.level) });
         if (built.skipped || built.loadout) return { ...head, skipped: true, reason: built.reason ?? "a loadout" };
         return { ...head, ...lib.partyRating(built.party, task.level, [doc.name]) };
     }
     const docA = docOf(task.a);
     const docB = docOf(task.b);
     const head = { kind: "pair", a: task.a.name, b: task.b.name, keys: [singleKey({ ref: task.a, level: task.level, host: task.host }), singleKey({ ref: task.b, level: task.level, host: task.host })], level: task.level, host: task.host, why: task.why };
-    const one = lib.partyWithFeat(docA, task.level, { hostId: task.host });
+    const one = lib.partyWithFeat(docA, task.level, { hostId: task.host, party: startOf(task.host, task.level) });
     if (one.skipped || one.loadout) return { ...head, skipped: true, reason: one.reason ?? "a loadout" };
     const both = lib.partyWithFeat(docB, task.level, { hostId: task.host, party: one.party });
     if (both.skipped || both.loadout) return { ...head, skipped: true, reason: both.reason ?? "a loadout" };
     return { ...head, ...lib.partyRating(both.party, task.level, [docA.name, docB.name]) };
 }
 export const singleKey = (task) => `${task.ref.ref}|${task.level}|${task.host}`;
+export const plainKey = (task) => `plain|${task.level}|${task.host}`;
 
 // The tasks for candidate pairs: each pair, and each feat alone at the pair's level on its PC (once).
 export function comboTasks(pairs, scalePath) {
@@ -146,6 +153,7 @@ export function comboTasks(pairs, scalePath) {
             const single = { kind: "single", ref: row.ref, level: pair.level, host: pair.host, scalePath };
             singles.set(singleKey(single), single);
         }
+        if (classHost(pair.host, pair.level)) singles.set(plainKey(pair), { kind: "plain", level: pair.level, host: pair.host, scalePath });
         tasks.push({ kind: "pair", a: pair.a.ref, b: pair.b.ref, level: pair.level, host: pair.host, why: pair.why, scalePath });
     }
     return [...singles.values(), ...tasks];
@@ -159,19 +167,29 @@ export function runComboTask(task) {
 // The combos' table: synergy = both − A − B, with its margin. { markdown, json }.
 export function comboReport(rows) {
     const singles = new Map(rows.filter((row) => row.kind === "single" && !row.skipped && !row.error).map((row) => [row.key, row]));
+    const plains = new Map(rows.filter((row) => row.kind === "plain" && !row.error).map((row) => [row.key, row]));
     const signed = (value) => (Math.round(value * 100) === 0 ? "0.00" : `${value > 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}`);
     const rated = [];
+    const chains = [];
     const skipped = [];
     for (const row of rows.filter((each) => each.kind === "pair")) {
-        const [a, b] = row.keys.map((key) => singles.get(key));
+        const [a, b] = (row.keys ?? []).map((key) => singles.get(key));
         if (row.skipped || row.error || !a || !b) {
             skipped.push({ a: row.a, b: row.b, reason: row.reason ?? row.error ?? "a feat alone didn't play" });
             continue;
         }
-        const synergy = row.levels - a.levels - b.levels;
-        const se = Math.sqrt(row.se ** 2 + a.se ** 2 + b.se ** 2);
+        const plain = plains.get(plainKey(row)) ?? { levels: 0, se: 0 };
+        // (2026-11-07) A chain (the second builds on the first): the second "alone" is played with what it needs — Monstrosity Shape in
+        // Untamed Form — so it already holds the first, and both − A − B only counts the first again. A chain gets its own table: the
+        // first alone, the two together, and what the second adds on top.
+        if (row.why.some((why) => / builds on /.test(why))) {
+            chains.push({ a: row.a, b: row.b, host: row.host, level: row.level, aAlone: a.levels - plain.levels, both: row.levels - plain.levels, adds: row.levels - a.levels, se: Math.sqrt(row.se ** 2 + a.se ** 2) });
+            continue;
+        }
+        const synergy = row.levels - a.levels - b.levels + plain.levels;
+        const se = Math.sqrt(row.se ** 2 + a.se ** 2 + b.se ** 2 + plain.se ** 2);
         const verdict = Math.abs(synergy) < Math.max(0.03, 2 * se) ? "no clear combo" : synergy > 0 ? "combo" : "get in each other's way";
-        rated.push({ a: row.a, b: row.b, host: row.host, level: row.level, why: row.why, both: row.levels, aAlone: a.levels, bAlone: b.levels, synergy, se, verdict, uses: row.uses });
+        rated.push({ a: row.a, b: row.b, host: row.host, level: row.level, why: row.why, both: row.levels - plain.levels, aAlone: a.levels - plain.levels, bAlone: b.levels - plain.levels, synergy, se, verdict, uses: row.uses });
     }
     rated.sort((x, y) => y.synergy - x.synergy);
     const line = (row, index) => `| ${index + 1} | ${row.a} + ${row.b} | ${row.host}, ${row.level} | ${signed(row.both)} | ${signed(row.aAlone)} | ${signed(row.bAlone)} | ${signed(row.synergy)} ± ${row.se.toFixed(2)} | ${row.verdict} | ${row.why.join("; ")} |`;
@@ -187,8 +205,16 @@ export function comboReport(rows) {
         "|---:|---|---|---:|---:|---:|---:|---|---|",
         ...rated.map(line),
         "",
+        "## Feat chains",
+        "",
+        "The second feat builds on the first (its prerequisite, or a form or stance it's used in), so the second is never played without the first: what the chain is worth, and what the second adds on top of the first.",
+        "",
+        "| # | First, then second | PC, level | First alone | Both | Second adds |",
+        "|---:|---|---|---:|---:|---:|",
+        ...chains.sort((x, y) => y.adds - x.adds).map((row, index) => `| ${index + 1} | ${row.a} → ${row.b} | ${row.host}, ${row.level} | ${signed(row.aAlone)} | ${signed(row.both)} | ${signed(row.adds)} ± ${row.se.toFixed(2)} |`),
+        "",
         `Not tested: ${skipped.length} pairs (${[...new Set(skipped.map((row) => row.reason))].slice(0, 6).join("; ")}).`,
         ""
     ].join("\n");
-    return { markdown, json: { version: 1, generated: now, rated, skipped } };
+    return { markdown, json: { version: 1, generated: now, rated, chains, skipped } };
 }

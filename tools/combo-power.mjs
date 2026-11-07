@@ -25,8 +25,8 @@ if (!isMainThread) {
     } else if (phase === "run") {
         const pairs = JSON.parse(fs.readFileSync(`${out}/combo-pairs.json`, "utf8"));
         const resume = process.argv.includes("--resume");
-        const key = (task) => (task.kind === "single" ? lib.singleKey(task) : `${task.a.ref ?? task.a}+${task.b.ref ?? task.b}|${task.level}`);
-        const doneKeys = new Set(resume ? read("combos.jsonl").map((row) => (row.kind === "single" ? row.key : `${row.keys?.[0]?.split("|")[0]}+${row.keys?.[1]?.split("|")[0]}|${row.level}`)) : []);
+        const key = (task) => (task.kind === "plain" ? lib.plainKey(task) : task.kind === "single" ? lib.singleKey(task) : `${task.a.ref ?? task.a}+${task.b.ref ?? task.b}|${task.level}`);
+        const doneKeys = new Set(resume ? read("combos.jsonl").filter((row) => !row.error).map((row) => (row.kind === "single" || row.kind === "plain" ? row.key : `${row.keys?.[0]?.split("|")[0]}+${row.keys?.[1]?.split("|")[0]}|${row.level}`)) : []);
         const tasks = lib.comboTasks(pairs, fs.realpathSync(out) + "/scale.jsonl").filter((task) => !doneKeys.has(key(task)));
         console.log(`${tasks.length} tasks`);
         await runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/combos.jsonl`, append: resume });

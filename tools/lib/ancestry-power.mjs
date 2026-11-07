@@ -125,11 +125,13 @@ export function ancestryTask(task) {
 // The ancestry feat slots a PC has by a level: 1st, 5th, 9th, 13th and 17th.
 export const ANCESTRY_FEAT_SLOTS = Object.freeze([1, 5, 9, 13, 17]);
 let featRatings = null;
-// The feat ratings' rated ancestry feats ({ name, level, levels }), best first: <out>/ratings.json, next to the scale.
+// The feat ratings' rated ancestry feats ({ name, level, levels }), best first: <out>/ratings.json, next to the scale. Only feats
+// better than none beyond the noise (rating at least its standard error): a +0.01 within the noise, rated on the fighter, put a
+// Strike or Rage feat on the wizard (Human's Multitalented, Dwarf's Clan's Edge) and cost it far more than the noise it won.
 function ratedAncestryFeats(scalePath) {
     if (!featRatings) {
         const path = scalePath.replace(/scale\.jsonl$/, "ratings.json");
-        featRatings = JSON.parse(fs.readFileSync(path, "utf8")).rated.filter((row) => row.category === "Ancestry" && row.levels > 0).sort((a, b) => b.levels - a.levels);
+        featRatings = JSON.parse(fs.readFileSync(path, "utf8")).rated.filter((row) => row.category === "Ancestry" && row.levels > 0 && row.levels >= (row.se ?? 0)).sort((a, b) => b.levels - a.levels);
     }
     return featRatings;
 }
