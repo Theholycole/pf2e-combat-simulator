@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 2079 in whole fights. **4287 it doesn't.**
-- **2922** are in neither.
+- **The simulator** rates 2153: in whole fights, or 74 combo feats from the basic actions they fold in (docs/combo-feats.md). **4213 it doesn't.**
+- **2919** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1431 | 866 |
-| archetype | 2074 | 1246 | 1396 | 949 |
-| ancestry | 1613 | 1086 | 1090 | 808 |
+| class | 2282 | 1088 | 1397 | 865 |
+| archetype | 2074 | 1246 | 1372 | 948 |
+| ancestry | 1613 | 1086 | 1074 | 807 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 9 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4287 | 2922 |
+| **All** | 6366 | 3725 | 4213 | 2919 |
 
 ## Why the feat module doesn't automate them
 
@@ -41,7 +41,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 256 | 214 | 318 | 59 | 14 | 4 |  | 865 |
 | no card: roleplay or nothing to automate | 157 | 202 | 153 | 46 | 9 |  |  | 567 |
-| no card: the feat module's reminder, which a fight doesn't play | 180 | 129 | 93 | 21 |  | 1 |  | 424 |
+| no card: the feat module's reminder, which a fight doesn't play | 177 | 129 | 93 | 21 |  | 1 |  | 421 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 80 | 39 | 111 | 2 |  |  | 323 |
 | no card: only grants other feats, features or choices | 86 | 123 | 47 | 16 | 2 |  |  | 274 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 51 | 50 | 45 | 21 | 1 |  |  | 168 |
@@ -50,31 +50,31 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | a timer with no rules a fight counts | 53 | 26 | 17 | 4 |  | 1 |  | 101 |
 | a plan the engine can't play | 33 | 39 | 26 | 3 |  |  |  | 101 |
-| a Strike with nothing more the simulator reads | 46 | 33 | 2 |  |  | 1 |  | 82 |
-| no card: a combat action no reader or hand plan covers yet | 25 | 28 | 14 | 4 | 1 |  |  | 72 |
+| no card: a combat action no reader or hand plan covers yet | 24 | 27 | 13 | 4 | 1 |  |  | 69 |
 | no card: companions, familiars and eidolons | 35 | 25 | 1 | 5 |  |  |  | 66 |
-| a teleport | 22 | 16 | 21 |  |  |  |  | 59 |
+| a Strike with nothing more the simulator reads | 37 | 22 | 1 |  |  | 1 |  | 61 |
 | it grants Additional Lore | 1 | 11 | 39 | 1 |  |  |  | 52 |
 | a roll whose results the simulator doesn't read | 26 | 14 | 5 | 7 |  |  |  | 52 |
-| its requirement | 14 | 31 | 4 |  |  |  |  | 49 |
+| its requirement | 14 | 28 | 4 |  |  |  |  | 46 |
 | an Effect with nothing a fight counts | 24 | 13 | 7 | 1 |  |  |  | 45 |
 | no card: PF2e's own Effect, from the feat's Use button | 18 | 17 | 7 | 2 |  |  |  | 44 |
 | a passive's roll with no action to use it | 13 | 14 | 9 |  |  |  | 1 | 37 |
 | it grants one of 2 | 6 | 14 | 12 |  |  |  |  | 32 |
 | its Effect has nothing a fight counts | 6 | 11 | 5 | 2 |  |  |  | 24 |
 | a spell the feat casts | 13 | 5 | 5 |  |  |  |  | 23 |
+| a teleport | 6 | 9 | 7 |  |  |  |  | 22 |
 | a passive's Effect posted by hand | 7 | 11 | 3 | 1 |  |  |  | 22 |
-| its text has no Strike of its user's | 10 | 9 | 1 |  |  |  |  | 20 |
 | a passive's Effect on other creatures | 8 | 7 | 1 | 3 | 1 |  |  | 20 |
 | a reaction to "passive" | 8 | 5 | 4 |  |  |  |  | 17 |
+| its text has no Strike of its user's | 7 | 8 | 1 |  |  |  |  | 16 |
 | nothing a fight uses | 2 | 1 | 12 |  |  |  |  | 15 |
 | a reaction's Strike | 5 | 3 | 4 |  |  |  |  | 12 |
-| its requirement, which the PC doesn't meet | 6 | 2 | 3 |  |  |  |  | 11 |
-| its stance's own gap | 4 | 5 |  |  |  |  |  | 9 |
+| its requirement, which the PC doesn't meet | 5 | 2 | 3 |  |  |  |  | 10 |
 | a lasting area | 7 |  | 2 |  |  |  |  | 9 |
 | a reroll | 3 | 2 | 4 |  |  |  |  | 9 |
 | it grants Pet | 3 | 2 | 3 |  |  |  |  | 8 |
 | a Focus or Mythic Point back | 4 |  | 3 |  |  |  |  | 7 |
+| its stance's own gap | 3 | 4 |  |  |  |  |  | 7 |
 | a passive's Strike | 2 | 3 | 1 |  |  |  |  | 6 |
 | it grants Alchemical Crafting | 1 | 2 | 3 |  |  |  |  | 6 |
 | a choice of ways the simulator doesn't play | 3 | 1 | 2 |  |  |  |  | 6 |
@@ -3894,7 +3894,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Dig Quickly | 1 | ancestry | 2 actions | no card: a combat action no reader or hand plan covers yet |
 | Perfect Dive | 1 | ancestry | 1 action | no card: a combat action no reader or hand plan covers yet |
 | Gnaw | 5 | ancestry | 3 actions | no card: a combat action no reader or hand plan covers yet |
-| Hopping Stride | 5 | ancestry | 1 action | no card: a combat action no reader or hand plan covers yet |
+| Hopping Stride | 5 | ancestry | 1 action | rated 0 |
 | Ratfolk Roll | 5 | ancestry | 2 actions | no card: a combat action no reader or hand plan covers yet |
 | Skin Split | 5 | ancestry | 2 actions | no card: a combat action no reader or hand plan covers yet |
 | Tunnel Roll | 5 | ancestry | 2 actions | no card: a combat action no reader or hand plan covers yet |
@@ -3909,7 +3909,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Reflexive Catch | 4 | archetype | reaction | no card: a combat action no reader or hand plan covers yet |
 | Ensnaring Disarm | 6 | archetype | free | no card: a combat action no reader or hand plan covers yet |
 | Feeling Your Oats | 6 | archetype | 1 action | no card: a combat action no reader or hand plan covers yet |
-| Infiltrator's Reload | 6 | archetype | 1 action | no card: a combat action no reader or hand plan covers yet |
+| Infiltrator's Reload | 6 | archetype | 1 action | rated 0.01 |
 | Sundown Street Posturing | 6 | archetype | 1 action | no card: a combat action no reader or hand plan covers yet |
 | Swift Intervention | 6 | archetype | reaction | no card: a combat action no reader or hand plan covers yet |
 | Lesson of Sympathetic Vulnerability | 8 | archetype | 1 action | no card: a combat action no reader or hand plan covers yet |
@@ -3933,7 +3933,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | No Need to Fear | 18 | archetype | reaction | no card: a combat action no reader or hand plan covers yet |
 | Timeline-Splitting Spell | 18 | archetype | 3 actions | no card: a combat action no reader or hand plan covers yet |
 | Blast Lock | 1 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
-| Crossbow Ace | 1 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
+| Crossbow Ace | 1 | class | 1 action | rated 0.01 |
 | Relentless Stalker | 2 | class | reaction | no card: a combat action no reader or hand plan covers yet |
 | Surface Rush | 4 | class | 2 actions | no card: a combat action no reader or hand plan covers yet |
 | Engraving Maneuver | 6 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
@@ -4053,7 +4053,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (424)
+### no card: the feat module's reminder, which a fight doesn't play (421)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4291,7 +4291,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Elegant Buckler | 1 | class | passive | reminder | the feat module reads nothing for it |
 | Eternal Torch | 1 | class | 1 action | kineticist module | the feat module reads nothing for it |
 | Focused Fascination | 1 | class | passive | reminder | the feat module reads nothing for it |
-| Four Winds | 1 | class | 2 actions | kineticist module | the feat module reads nothing for it |
 | Fresh Produce | 1 | class | 1 action | kineticist module | the feat module reads nothing for it |
 | Harming Hands | 1 | class | passive | reminder | the feat module reads nothing for it |
 | Healing Hands | 1 | class | passive | reminder | the feat module reads nothing for it |
@@ -4410,7 +4409,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Guiding Riposte | 14 | class | passive | reminder | the feat module reads nothing for it |
 | Impossible Riposte | 14 | class | passive | reminder | the feat module reads nothing for it |
 | Instinctual Creation | 14 | class | free | reminder | the feat module reads nothing for it |
-| Liberating Dive | 14 | class | 2 actions | kineticist module | the feat module reads nothing for it |
 | Revelation's Focus | 14 | class | passive | reminder | the feat module reads nothing for it |
 | Shared Prey | 14 | class | passive | reminder | the feat module reads nothing for it |
 | Shining Runes | 14 | class | passive | reminder | the feat module reads nothing for it |
@@ -4425,7 +4423,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Echoing Fury | 16 | class | passive | reminder | the feat module reads nothing for it |
 | Effortless Concentration | 16 | class | free | reminder | the feat module reads nothing for it |
 | Electric Counter | 16 | class | reaction | reminder | the feat module reads nothing for it |
-| Imperious Aura | 16 | class | free | kineticist module | the feat module reads nothing for it |
 | Improved Reflexive Shield | 16 | class | passive | reminder | the feat module reads nothing for it |
 | Improved Twin Riposte (Ranger) | 16 | class | passive | reminder | the feat module reads nothing for it |
 | Lose Your Chains | 16 | class | reaction | reminder | the feat module reads nothing for it |
@@ -4867,31 +4864,19 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Kip Up | 7 | skill | free | card | a plan the engine can't play (its targeting or what it does) |
 | Too Angry to Die | 12 | skill | reaction | card | a plan the engine can't play (its targeting or what it does) |
 
-### a Strike with nothing more the simulator reads (82)
+### a Strike with nothing more the simulator reads (61)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
-| Pounding Leap | 5 | ancestry | 2 actions | card | a Strike with nothing more the simulator reads |
 | Returning Throw | 9 | ancestry | 2 actions | card | a Strike with nothing more the simulator reads |
 | Elbow Breaker | 4 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
-| For the Fallen! | 4 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
-| Hurling Charge | 4 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
-| Quick Shot | 4 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
-| Battlefield Agility | 6 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Feverish Enzymes | 6 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
-| Practiced Opposition | 6 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
-| Reloading Trick | 6 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
-| Shark Attack | 6 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sword-Light Wave | 6 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
-| Warp Path | 6 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
-| Makeshift Strike | 8 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
-| Skyseeker | 8 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Stay Here! | 8 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Tumbling Strike | 8 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
 | Twirling Strike | 8 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Aerial Piledriver | 10 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Dizzying Spin Dance | 10 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
-| Feral Scramble | 10 | archetype | 2 actions | card | a Strike with nothing more the simulator reads |
 | Aerial Flash | 12 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
 | Chain Reaction | 12 | archetype | 3 actions | card | a Strike with nothing more the simulator reads |
 | Claw and Talon Flow | 12 | archetype | 1 action | card | a Strike with nothing more the simulator reads |
@@ -4909,13 +4894,9 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Silence Heresy | 0 | bonus | 2 actions | card | a Strike with nothing more the simulator reads |
 | Combat Assessment | 1 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Engraving Strike | 1 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Quick Bomber | 1 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Remote Detonation | 1 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Bullet and a Broadside | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Lunge | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Pattern Flight | 2 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-| Quick Draw | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Risky Reload | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Sleek Reposition | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Wukong Extension | 2 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Instructive Strike | 4 | class | 1 action | card | a Strike with nothing more the simulator reads |
@@ -4926,16 +4907,11 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Lock Down | 6 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Revealing Stab | 6 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Scatter Blast | 6 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-| Skirmish Strike | 6 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Slice and Swipe | 6 | class | 1 action | card | a Strike with nothing more the simulator reads |
-| Spear Dancer | 6 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Distracting Toss | 8 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-| Positioning Assault | 8 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Smoke Curtain | 8 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-| Sudden Leap | 8 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Momentum Strike | 10 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Trick Shot | 10 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-| Fantastic Leap | 12 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Ricochet Shot | 12 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Sunder Spell | 12 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Blast Tackle | 14 | class | 2 actions | card | a Strike with nothing more the simulator reads |
@@ -4953,70 +4929,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Throw and Catch | 18 | class | 3 actions | card | a Strike with nothing more the simulator reads |
 | Finish Their Story! | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Sever Space | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
-
-### a teleport (59)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Bushwhack | 1 | ancestry | 1 action | card | a teleport |
-| Goblin Scuttle | 1 | ancestry | reaction | card | a teleport |
-| Scamper | 1 | ancestry | 1 action | card | a teleport |
-| Light Paws | 5 | ancestry | 2 actions | card | a teleport |
-| Magpie Snatch | 5 | ancestry | 2 actions | card | a teleport |
-| Rabid Sprint | 5 | ancestry | 2 actions | card | a teleport |
-| Wild Stride | 5 | ancestry | 2 actions | card | a teleport |
-| Elf Step | 9 | ancestry | 1 action | card | a teleport |
-| Shadow Tempo | 9 | ancestry | reaction | card | a teleport |
-| Silent Step | 9 | ancestry | 1 action | card | a teleport |
-| Stone Passage | 9 | ancestry | 2 actions | card | a teleport |
-| Water Strider | 9 | ancestry | 2 actions | card | a teleport |
-| Wing Step | 9 | ancestry | 1 action | card | a teleport |
-| Incredible Sprint | 13 | ancestry | 2 actions | card | a teleport |
-| Plane Hop | 13 | ancestry | 2 actions | card | a teleport |
-| Shift the Little Ones | 13 | ancestry | 1 action | card | a teleport |
-| Synchronous Slither | 13 | ancestry | reaction | card | a teleport |
-| Trample (Centaur) | 13 | ancestry | 3 actions | card | a teleport |
-| Coursing Weave | 17 | ancestry | reaction | card | a teleport |
-| Elude Trouble | 17 | ancestry | reaction | card | a teleport |
-| Trample (Sarangay) | 17 | ancestry | 3 actions | card | a teleport |
-| Doctor's Visitation | 4 | archetype | 1 action | card | a teleport |
-| Lesson of the Circling Gale | 4 | archetype | 1 action | card | a teleport |
-| Swift Leap | 4 | archetype | 1 action | card | a teleport |
-| Keep Pace | 6 | archetype | reaction | card | a teleport |
-| Dart Between | 8 | archetype | 2 actions | card | a teleport |
-| Quick Positioning | 8 | archetype | free | card | a teleport |
-| Shamble | 8 | archetype | 2 actions | card | a teleport |
-| Tight Follower | 8 | archetype | reaction | card | a teleport |
-| Lead the Way | 10 | archetype | 2 actions | card | a teleport |
-| Pass Through | 10 | archetype | 3 actions | card | a teleport |
-| Seize Advantage | 10 | archetype | reaction | card | a teleport |
-| Cartwheel Dodge | 12 | archetype | reaction | card | a teleport |
-| Guarded Advance (Knight Vigilant) | 12 | archetype | 1 action | card | a teleport |
-| Maneuvering Spell | 12 | archetype | free | card | a teleport |
-| Sunless Slide | 12 | archetype | 2 actions | card | a teleport |
-| Dragon's Journey | 14 | archetype | 1 action | card | a teleport |
-| Tap into Blood | 1 | class | 1 action | card | a teleport |
-| Bashing Charge | 2 | class | 2 actions | card | a teleport |
-| Clever Gambit | 2 | class | reaction | card | a teleport |
-| Exploit Blunder | 2 | class | reaction | card | a teleport |
-| No Escape | 2 | class | reaction | card | a teleport |
-| Artist's Attendance | 4 | class | 2 actions | card | a teleport |
-| Black Powder Boost | 4 | class | 1 action | card | a teleport |
-| Dastardly Dash | 4 | class | 1 action | card | a teleport |
-| Ghostly Stride | 4 | class | 1 action | card | a teleport |
-| Reactive Pursuit | 4 | class | reaction | card | a teleport |
-| Running Recharge | 4 | class | 1 action | card | a teleport |
-| Running Reload | 4 | class | 1 action | card | a teleport |
-| Guarded Advance | 6 | class | 1 action | card | a teleport |
-| Nightwave Springing Reload | 6 | class | 1 action | card | a teleport |
-| Tactical Entry | 8 | class | free | card | a teleport |
-| Wall Run | 8 | class | 1 action | card | a teleport |
-| Zealous Rush | 8 | class | reaction | card | a teleport |
-| Determined Dash | 10 | class | 2 actions | card | a teleport |
-| Furious Sprint | 10 | class | 2 actions | card | a teleport |
-| Winding Flow | 10 | class | 1 action | card | a teleport |
-| Wandering Thoughts | 16 | class | free | card | a teleport |
-| Cycle of Souls | 18 | class | free | card | a teleport |
 
 ### a roll whose results the simulator doesn't read (52)
 
@@ -5075,7 +4987,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Improvise Strategy | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 | Seasoned Command | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 
-### its requirement (49)
+### its requirement (46)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5097,12 +5009,10 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Startling Appearance (Vigilante) | 6 | archetype | 1 action | card | its requirement (You are completely unnoticed by the target creature.) |
 | Unbalancing Appearance | 6 | archetype | 1 action | card | its requirement (A creature within your reach is Off-Guard to you, and you are Unnoticed by that creature.) |
 | Unfettering Strike | 6 | archetype | 1 action | card | its requirement (A creature within your reach has an ally Grabbed or Restrained.) |
-| Death from Above | 8 | archetype | 2 actions | card | its requirement (You are standing, climbing, or balancing on a surface at least 10 feet above your target) |
 | Guardian's Embrace | 8 | archetype | 1 action | card | its requirement (You are adjacent to your spirit guide or it is sharing your space) |
 | Piercing Doom | 8 | archetype | 2 actions | card | its requirement (You are Doomed 2 or greater.) |
 | Pressure Change | 8 | archetype | 1 action | card | its requirement (You have a swim Speed, are underwater, and have a creature Grabbed or Restrained) |
 | Riptide (Undersea Privateer) | 8 | archetype | 1 action | card | its requirement (You're in Anchor Stance, and your target is within 5 feet of the edge of a water vehicle or a |
-| Falcon Swoop | 10 | archetype | 2 actions | card | its requirement (You currently have a fly Speed.) |
 | Invigorating Breath | 10 | archetype | 1 action | card | its requirement (You are adjacent to your spirit guide or it is sharing your space) |
 | Scout's Pounce | 10 | archetype | 2 actions | card | its requirement (You are Hidden from or Undetected by all of your opponents, and you aren't within 10 feet of  |
 | Slay | 12 | archetype | 2 actions | card | its requirement (Your target is Doomed 2 or greater.) |
@@ -5111,7 +5021,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Execution | 14 | archetype | 2 actions | card | its requirement (You have condemned a foe with Harsh Judgment.) |
 | Stunning Surprise | 14 | archetype | 2 actions | card | its requirement (You must be undetected by the target creature) |
 | Following Smite | 16 | archetype | 1 action | card | its requirement (Your last action was a Strike made with a weapon or unarmed attack empowered by @UUID[Compend |
-| Mobile Magical Combat | 16 | archetype | 1 action | card | its requirement (You're wielding a melee weapon and have Cast a Spell requiring at least 1 action this turn.) |
 | Sonic Strafe | 16 | archetype | 2 actions | card | its requirement (You currently have a fly Speed) |
 | Five Breaths, One Death | 18 | archetype | 3 actions | card | its requirement (You're in an elemental stance, and the target is under the effects of Induce Imbalance.) |
 | Brutal Crush | 4 | class | 1 action | card | its requirement (Your last action dealt bludgeoning damage using an unarmed Strike granted by a morph or polym |
@@ -5278,6 +5187,33 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Head of the Night Parade | 20 | class | 3 actions | card | a spell the feat casts |
 | Quaking Stomp | 20 | class | 1 action | card | a spell the feat casts |
 
+### a teleport (22)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Bushwhack | 1 | ancestry | 1 action | card | a teleport |
+| Stone Passage | 9 | ancestry | 2 actions | card | a teleport |
+| Water Strider | 9 | ancestry | 2 actions | card | a teleport |
+| Plane Hop | 13 | ancestry | 2 actions | card | a teleport |
+| Synchronous Slither | 13 | ancestry | reaction | card | a teleport |
+| Trample (Centaur) | 13 | ancestry | 3 actions | card | a teleport |
+| Trample (Sarangay) | 17 | ancestry | 3 actions | card | a teleport |
+| Lesson of the Circling Gale | 4 | archetype | 1 action | card | a teleport |
+| Dart Between | 8 | archetype | 2 actions | card | a teleport |
+| Shamble | 8 | archetype | 2 actions | card | a teleport |
+| Tight Follower | 8 | archetype | reaction | card | a teleport |
+| Lead the Way | 10 | archetype | 2 actions | card | a teleport |
+| Pass Through | 10 | archetype | 3 actions | card | a teleport |
+| Cartwheel Dodge | 12 | archetype | reaction | card | a teleport |
+| Maneuvering Spell | 12 | archetype | free | card | a teleport |
+| Dragon's Journey | 14 | archetype | 1 action | card | a teleport |
+| Tap into Blood | 1 | class | 1 action | card | a teleport |
+| Exploit Blunder | 2 | class | reaction | card | a teleport |
+| Artist's Attendance | 4 | class | 2 actions | card | a teleport |
+| Black Powder Boost | 4 | class | 1 action | card | a teleport |
+| Wandering Thoughts | 16 | class | free | card | a teleport |
+| Cycle of Souls | 18 | class | free | card | a teleport |
+
 ### a passive's Effect posted by hand (22)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5304,31 +5240,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Castigating Weapon | 10 | class | passive | card | a passive's Effect posted by hand |
 | Great Shield Mastery | 20 | class | passive | card | a passive's Effect posted by hand |
 | Sure Foot | 4 | skill | passive | card | a passive's Effect posted by hand |
-
-### its text has no Strike of its user's (20)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Leech-Clip | 1 | ancestry | 2 actions | card | its text has no Strike of its user's |
-| Powder Punch Stance | 2 | archetype | 1 action | card | its text has no Strike of its user's |
-| Antler Rush | 6 | archetype | 2 actions | card | its text has no Strike of its user's |
-| Targeted Redirection | 6 | archetype | 1 action | card | its text has no Strike of its user's |
-| Cornered Animal | 8 | archetype | 2 actions | card | its text has no Strike of its user's |
-| Springboard | 10 | archetype | 1 action | card | its text has no Strike of its user's |
-| Staggering Blow | 10 | archetype | 2 actions | card | its text has no Strike of its user's |
-| Death Dive | 12 | archetype | 3 actions | card | its text has no Strike of its user's |
-| Bombing Run | 14 | archetype | 2 actions | card | its text has no Strike of its user's |
-| Zombie Horde | 20 | archetype | 3 actions | card | its text has no Strike of its user's |
-| Brandishing Draw | 2 | class | 1 action | card | its text has no Strike of its user's |
-| Flying Kick | 4 | class | 2 actions | card | its text has no Strike of its user's |
-| Retaliating Rescue | 6 | class | 2 actions | card | its text has no Strike of its user's |
-| Stella's Stab and Snag | 6 | class | 2 actions | card | its text has no Strike of its user's |
-| Steed's Toppling Strike | 12 | class | 1 action | card | its text has no Strike of its user's |
-| Second Sight | 14 | class | 1 action | card | its text has no Strike of its user's |
-| Triggerbrand Blitz | 14 | class | 3 actions | card | its text has no Strike of its user's |
-| Rouse the Forest's Fury | 18 | class | 3 actions | card | its text has no Strike of its user's |
-| Illimitable Finisher | 20 | class | 1 action | card | its text has no Strike of its user's |
-| Time Dilation Cascade | 20 | class | 3 actions | card | its text has no Strike of its user's |
 
 ### a passive's Effect on other creatures (20)
 
@@ -5376,6 +5287,27 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Unstoppable Force | 18 | class | passive | card | a reaction to "passive" |
 | Heart of the Kaiju | 20 | class | passive | card | a reaction to "passive" |
 | Ricochet Legend | 20 | class | passive | card | a reaction to "passive" |
+
+### its text has no Strike of its user's (16)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Leech-Clip | 1 | ancestry | 2 actions | card | its text has no Strike of its user's |
+| Powder Punch Stance | 2 | archetype | 1 action | card | its text has no Strike of its user's |
+| Targeted Redirection | 6 | archetype | 1 action | card | its text has no Strike of its user's |
+| Cornered Animal | 8 | archetype | 2 actions | card | its text has no Strike of its user's |
+| Springboard | 10 | archetype | 1 action | card | its text has no Strike of its user's |
+| Staggering Blow | 10 | archetype | 2 actions | card | its text has no Strike of its user's |
+| Death Dive | 12 | archetype | 3 actions | card | its text has no Strike of its user's |
+| Bombing Run | 14 | archetype | 2 actions | card | its text has no Strike of its user's |
+| Zombie Horde | 20 | archetype | 3 actions | card | its text has no Strike of its user's |
+| Stella's Stab and Snag | 6 | class | 2 actions | card | its text has no Strike of its user's |
+| Steed's Toppling Strike | 12 | class | 1 action | card | its text has no Strike of its user's |
+| Second Sight | 14 | class | 1 action | card | its text has no Strike of its user's |
+| Triggerbrand Blitz | 14 | class | 3 actions | card | its text has no Strike of its user's |
+| Rouse the Forest's Fury | 18 | class | 3 actions | card | its text has no Strike of its user's |
+| Illimitable Finisher | 20 | class | 1 action | card | its text has no Strike of its user's |
+| Time Dilation Cascade | 20 | class | 3 actions | card | its text has no Strike of its user's |
 
 ### nothing a fight uses (15)
 
@@ -5465,28 +5397,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Ambushing Knockdown | 8 | class | passive | card | a passive's Strike |
 | Creature of Myth | 18 | class | passive | card | a passive's Strike |
 
-### its requirement, which the PC doesn't meet (6)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Lobbed Attack | 8 | archetype | 1 action | card | its requirement, which the PC doesn't meet (You are Juggling a thrown weapon.) |
-| Reach for the Sky | 12 | archetype | 2 actions | card | its requirement, which the PC doesn't meet (You're wielding a loaded firearm.) |
-| Rebounding Toss | 2 | class | 2 actions | card | its requirement, which the PC doesn't meet (You are wielding a thrown weapon.) |
-| Paired Shots | 4 | class | 2 actions | card | its requirement, which the PC doesn't meet (You're wielding two weapons, each of which can be either a loaded  |
-| Twin Shot Knockdown | 10 | class | 2 actions | card | its requirement, which the PC doesn't meet (You're wielding a loaded crossbow or loaded firearm in each hand.) |
-| Predator's Pounce | 12 | class | 1 action | card | its requirement, which the PC doesn't meet (You are unarmored or wearing light armor) |
-
-### its stance's own gap (6)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Black Powder Flash | 10 | archetype | 2 actions | card | its stance (Powder Punch Stance): its text has no Strike of its user's |
-| Bullet Dancer Reload | 10 | archetype | 1 action | card | its stance (Bullet Dancer Stance): the feat module reads nothing for it |
-| Induce Imbalance | 14 | archetype | 2 actions | card | its stance (an elemental stance), not in the packs |
-| Protective Cycle | 16 | archetype | reaction | card | its stance (an elemental stance), not in the packs |
-| Peafowl Strut | 10 | class | 1 action | card | its stance (Peafowl Stance): an Effect with nothing a fight counts |
-| Focused Shot | 12 | class | 1 action | card | its stance (Monastic Archer Stance): the feat module reads nothing for it |
-
 ### a choice of ways the simulator doesn't play (6)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5498,6 +5408,16 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Consecrate Spell | 10 | class | 1 action | card | a choice of ways the simulator doesn't play |
 | Unsheathing the Sword-Light | 10 | class | 2 actions | card | a choice of ways the simulator doesn't play |
 
+### its requirement, which the PC doesn't meet (5)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Lobbed Attack | 8 | archetype | 1 action | card | its requirement, which the PC doesn't meet (You are Juggling a thrown weapon.) |
+| Reach for the Sky | 12 | archetype | 2 actions | card | its requirement, which the PC doesn't meet (You're wielding a loaded firearm.) |
+| Rebounding Toss | 2 | class | 2 actions | card | its requirement, which the PC doesn't meet (You are wielding a thrown weapon.) |
+| Paired Shots | 4 | class | 2 actions | card | its requirement, which the PC doesn't meet (You're wielding two weapons, each of which can be either a loaded  |
+| Twin Shot Knockdown | 10 | class | 2 actions | card | its requirement, which the PC doesn't meet (You're wielding a loaded crossbow or loaded firearm in each hand.) |
+
 ### a spell the engine doesn't cast (5)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5507,6 +5427,15 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Writing On the Wall | 4 | class | passive | reminder | a spell the engine doesn't cast (Embed Message) |
 | Realm Strider | 16 | class | passive | card | a spell the engine doesn't cast (Translocate) |
 | Avatar's Audience | 20 | class | passive | reminder | a spell the engine doesn't cast (Commune, Interplanar Teleport) |
+
+### its stance's own gap (4)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Black Powder Flash | 10 | archetype | 2 actions | card | its stance (Powder Punch Stance): its text has no Strike of its user's |
+| Induce Imbalance | 14 | archetype | 2 actions | card | its stance (an elemental stance), not in the packs |
+| Protective Cycle | 16 | archetype | reaction | card | its stance (an elemental stance), not in the packs |
+| Focused Shot | 12 | class | 1 action | card | its stance (Monastic Archer Stance): the feat module reads nothing for it |
 
 ### an Effect on another creature (4)
 

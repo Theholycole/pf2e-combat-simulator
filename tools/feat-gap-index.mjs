@@ -12,6 +12,9 @@ import path from "node:path";
 const { readDocuments, basicActions, PACK_ROOT } = await import("./lib/pack-creatures.mjs");
 const { itemReaders } = await import("./lib/feat-power.mjs");
 const { CLASS_SLUGS } = await import("../src/engine/classes.js");
+// (2026-11-07: a combo feat — only basic actions — is rated from its actions, not in fights: tools/combo-feats.mjs, docs/combo-feats.md.)
+const { COMBOS, comboValue } = await import("./combo-feats.mjs");
+const COMBO_VALUE = new Map(COMBOS.map((entry) => [entry.name, comboValue(entry)]));
 const FEAT_ROOT = path.resolve(process.env.FEAT_MODULE ?? new URL("../../pf2e-automatic-feat-resolution", import.meta.url).pathname);
 const { compileFeat } = await import(path.join(FEAT_ROOT, "src/compiler/index.js"));
 const { turnTrigger } = await import(path.join(FEAT_ROOT, "src/compiler/turn-reminders.js"));
@@ -125,12 +128,13 @@ for (const doc of docs) {
     const featModule = plan ? "card" : named.has(doc._id) || namedSlugs.has(doc.system?.slug ?? String(doc.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")) ? "by hand" : impulseRead(doc, level) ? "kineticist module" : reminder ? "reminder" : error ? "error" : "none";
     const pf2e = kinds.filter((kind) => DOING.has(kind));
     const row = rows.get(doc._id) ?? null;
-    const simulator = !row ? "not screened" : row.skipped || row.error ? "not rated" : "rated";
+    const combo = (!row || row.skipped || row.error) && COMBO_VALUE.has(doc.name);
+    const simulator = combo ? "rated" : !row ? "not screened" : row.skipped || row.error ? "not rated" : "rated";
     all.push({
         id: doc._id, name: doc.name, level: Number(doc.system?.level?.value ?? 0), category: categoryOf(doc), actionType: doc.system?.actionType?.value ?? "passive", actions: doc.system?.actions?.value ?? null,
         rarity: doc.system?.traits?.rarity ?? "common", selfEffect: Boolean(doc.system?.selfEffect), traits: doc.system?.traits?.value ?? [], featModule, pf2eRules: pf2e, grants: kinds.some((kind) => GRANTS.has(kind)), what: whatOf(doc, text, kinds),
         simulator, simReason: simulator === "rated" ? null : simulator === "not screened" ? "not in the feat screen" : reasonOf(row.error ? `error: ${row.error}` : row.reason), simDetail: row?.reason ?? row?.error ?? null,
-        rating: simulator === "rated" ? Number(row.levels.toFixed(2)) : null, text: text.slice(0, 200)
+        rating: combo ? Number(COMBO_VALUE.get(doc.name).toFixed(2)) : simulator === "rated" ? Number(row.levels.toFixed(2)) : null, ...(combo ? { valued: "from its actions (combo-feats.md)" } : {}), text: text.slice(0, 200)
     });
 }
 
@@ -170,7 +174,7 @@ const lines = [];
 lines.push("# Feats the feat module doesn't automate or the simulator doesn't rate", "");
 lines.push(`Made by \`node tools/feat-gap-index.mjs\` on ${new Date().toISOString().slice(0, 10)}. It covers all ${all.length} feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).`, "");
 lines.push(`- **The feat module** automates ${all.length - notModule.length}: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **${notModule.length} it doesn't.**`);
-lines.push(`- **The simulator** rates ${all.length - notSim.length} in whole fights. **${notSim.length} it doesn't.**`);
+lines.push(`- **The simulator** rates ${all.length - notSim.length}: in whole fights, or ${all.filter((row) => row.valued).length} combo feats from the basic actions they fold in (docs/combo-feats.md). **${notSim.length} it doesn't.**`);
 lines.push(`- **${neither.length}** are in neither.`, "");
 lines.push("## Summary by category", "", "| Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |", "|---|---:|---:|---:|---:|");
 for (const category of categories) {
