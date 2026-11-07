@@ -25,7 +25,7 @@ import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startD
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
-import { spawnThrallField, amalgamate, spendThrall, thrallAuraTurnEnd, thrallForSpell, thrallStrikes } from "./thralls.js";
+import { spawnThrallField, thrallsAtStart, amalgamate, spendThrall, thrallAuraTurnEnd, thrallForSpell, thrallStrikes } from "./thralls.js";
 import { lastingTurnStart } from "./lasting.js";
 import { noteStatesTurnStart } from "./note-states.js";
 import { floorOf } from "./floors.js";
@@ -112,7 +112,9 @@ function outcomeCache(snapshot) {
 }
 
 function spreadPick(state, c) {
-    const engaged = engagedEnemies(state, c).filter((other) => other.side === "party" && isActive(other) && !other.familiar && other.kind !== "object");
+    // (The PCs it could Strike this turn: beside it, or a Stride away — only melee foes.)
+    const melee = (c.strikes ?? []).some((strike) => strike.melee);
+    const engaged = state.list.filter((other) => other.side === "party" && isActive(other) && !other.familiar && other.kind !== "object" && !other.summonedBy && (sameMelee(c, other) || (melee && stridesToEngage(c, other) <= 1)));
     if (engaged.length < 2) return null;
     let h = 2166136261;
     for (const ch of `${state.seed}:${state.round}:${c.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
@@ -305,6 +307,7 @@ function initiativeDeeds(state) {
         if (c.exemplar) sparkAtInitiative(state, c);
         if (c.energyShots) c.energyShotsLeft = c.energyShots;
         // (2026-11-07, After You: panache as the fight begins.)
+        if (c.thrallsAtStart > 0) thrallsAtStart(state, c, c.thrallsAtStart);
         if (c.panacheAtStart) {
             c.panache = true;
             state.log?.push(`  ${c.name} gains panache (${c.panacheAtStart})`);

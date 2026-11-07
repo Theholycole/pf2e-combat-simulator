@@ -1461,6 +1461,7 @@ const HAND = {
     // (After You: it goes last, with panache.)
     "watchful-gaze": () => noFlankHand("Watchful Gaze"),
     "augment-senses": () => noFlankHand("Augment Senses"),
+    "instinctual-creation": () => ({ builtins: { thrallsAtStart: 2 }, played: "two thralls as it rolls initiative" }),
     "after-you": () => ({ builtins: { goesLast: true, panacheAtStart: "After You" }, played: "goes last with panache" }),
     "dwarven-doughtiness": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn" }),
     "calm-and-centered": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn (stupefied not played)" }),

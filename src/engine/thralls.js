@@ -87,6 +87,12 @@ export function spendThrall(state, c, near = null) {
     return body;
 }
 
+// (2026-11-07, Instinctual Creation: thralls made as it rolls initiative.)
+export function thrallsAtStart(state, c, count) {
+    const made = createThralls(state, c, count);
+    state.log?.push(`  ${c.name} creates ${made} thrall${made === 1 ? "" : "s"} as it rolls initiative`);
+}
+
 function createThralls(state, c, count, near = null) {
     const extra = c.thrallMaker?.proliferation && c.thrallProliferatedRound !== state.round ? c.thrallMaker.proliferation : 0;
     if (extra) c.thrallProliferatedRound = state.round;

@@ -261,7 +261,11 @@ function targetValue(state, target, attacker) {
     // (Calm: a foe any hostility would wake is left alone while its side has others standing — attacking it ends the Calm.)
     const waking = attacker.side !== target.side && calmedUntilHostility(target) && state.list.some((other) => other.side === target.side && other !== target && isActive(other) && !pacifiedAll(other));
     // (2026-11-07: the PC this foe goes after this turn — fight.js spreadTarget —, worth as much as the best.)
-    if (attacker.spreadTarget === target.id) threat = Math.max(threat, 2 * Math.max(0, ...state.list.filter((other) => other.side === target.side && isActive(other)).map((other) => state.threat.get(other.id) ?? 0)));
+    // (The others then a tenth: it goes after that one unless it can't reach it.)
+    if (attacker.spreadTarget && attacker.side !== target.side && state.byId.get(attacker.spreadTarget) && isActive(state.byId.get(attacker.spreadTarget))) {
+        if (attacker.spreadTarget === target.id) threat = Math.max(threat, 2 * Math.max(0, ...state.list.filter((other) => other.side === target.side && isActive(other)).map((other) => state.threat.get(other.id) ?? 0)));
+        else threat *= 0.1;
+    }
     return (threat + objectiveBonus(state, target, attacker)) * (waking ? 0.2 : 1);
 }
 
