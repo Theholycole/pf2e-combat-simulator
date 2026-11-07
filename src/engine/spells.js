@@ -3785,6 +3785,15 @@ export function overdrive(state, c) {
     const type = degree === 1 ? "fire" : null;
     const strikeDeltas = Object.fromEntries((c.strikes ?? []).map((strike) => [strike.name, [{ dice: 0, die: 0, bonus, multiplier: 1, type: type ?? strike.damage[0]?.type, precision: false, persistent: false }]]));
     c.activeBuffs.push({ name: c.overdrive.name, strikeDeltas });
+    // (2026-11-07, Ubiquitous Overdrive: its allies within 30 feet — not far apart — the same bonus, its expert-and-up extra damage not theirs.)
+    if (c.ubiquitousOverdrive && degree >= 2) {
+        for (const ally of state.list) {
+            if (ally === c || ally.side !== c.side || !isActive(ally) || !(ally.band !== "far" || c.band !== "far") || ally.kind === "object") continue;
+            const deltas = Object.fromEntries((ally.strikes ?? []).map((strike) => [strike.name, [{ dice: 0, die: 0, bonus, multiplier: 1, type: strike.damage?.[0]?.type, precision: false, persistent: false }]]));
+            ally.activeBuffs = [...(ally.activeBuffs ?? []).filter((buff) => buff.name !== "Ubiquitous Overdrive"), { name: "Ubiquitous Overdrive", strikeDeltas: deltas }];
+        }
+        log(state, `  ${c.name}'s allies gain its overdrive (Ubiquitous Overdrive)`);
+    }
     if (degree >= 2) c.overdriveDone = true;
 }
 
