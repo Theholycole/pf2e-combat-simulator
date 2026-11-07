@@ -19,6 +19,14 @@ const READINGS = {
     // wasted on a critical failure; a turn's immunity after (wards.js terror). Up to 5 targets from the 8th rank not played.
     "mask-of-terror": (plan) => ({ kind: "attack-ward", check: null, sharedDamage: null, outcomes: plan.resolution?.outcomes, applications: [],
         attackWard: { save: "will", durationSeconds: 60, endsOnHostile: false, rows: { criticalSuccess: "unaffected", success: "unaffected", failure: "frightened-2", criticalFailure: "frightened-2-wasted" } } }),
+    // Protector Tree: a tree beside its ally (AC 10, 10 Hit Points, 10 more a rank) that takes a Strike's damage on it first, the rest
+    // on the ally, for the minute — sheltered (spells.js shelterHp, actions.js applyDamage). The ally it stands beside only.
+    "protector-tree": (plan) => ({ kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, shelter: { hp: 10, step: { interval: 1, hp: 10 } },
+        outcomes: { criticalSuccess: row(), success: row({ effects: [{ kind: "condition", slug: "sheltered", value: null, duration: { mode: "fixed", value: 1, unit: "minutes" } }] }), failure: row(), criticalFailure: row() } }),
+    // Spiritual Guardian: its guardian (50 Hit Points, 20 more each 2 ranks) protecting an ally, the first 10 of each damage to it —
+    // sustained. Its other mode, a 3d8 melee spell attack each Sustain, isn't played.
+    "spiritual-guardian": (plan) => ({ kind: "check", check: { roll: "automatic", statistic: "automatic" }, sharedDamage: null, shelter: { hp: 50, step: { interval: 2, hp: 20 }, perHit: 10, any: true },
+        outcomes: { criticalSuccess: row(), success: row({ effects: [{ kind: "condition", slug: "sheltered", value: null, duration: { mode: "fixed", value: 1, unit: "minutes" } }] }), failure: row(), criticalFailure: row() } }),
     // Faerie Fire: every creature in its 10-foot burst outlined for 5 minutes (withOutline).
     "faerie-fire": (plan) => ({ kind: "outline", check: null, sharedDamage: null, outcomes: plan.resolution?.outcomes, applications: [],
         outline: { area: plan.targeting?.area ?? { type: "burst", value: 10 }, duration: { value: 5, unit: "minutes" } } }),
@@ -112,12 +120,15 @@ function withRecurringSaves(plan) {
 // saves its rows' words give; the plan unchanged otherwise.
 export function withReading(plan) {
     const reading = READINGS[plan?.source?.slug];
-    const resolved = reading && (resolvesNothing(plan) || READ_OVER.has(plan?.source?.slug)) ? { ...plan, simulatorReading: true, resolution: reading(plan) } : plan;
+    let resolved = reading && (resolvesNothing(plan) || READ_OVER.has(plan?.source?.slug)) ? { ...plan, simulatorReading: true, resolution: reading(plan) } : plan;
+    // (Protector Tree's tree grows beside an ally: that ally its target.)
+    if (resolved !== plan && READ_TARGET[plan.source.slug]) resolved = { ...resolved, targeting: { ...(resolved.targeting ?? {}), target: READ_TARGET[plan.source.slug] } };
     return withSuppression(withNoteReadings(withRowFlags(withRecurringSaves(withRevive(withTransposition(withDuplicate(withBinding(withDefences(withHinders(withControls(withCurses(withMarks(withQuasiReal(withAfflictionStages(withAfflictionRows(withAgitation(withSemicorporeal(withDimming(withGrounding(withOutline(withConcealedTo(withLightAura(withRetaliationSelf(withFormAura(withAllyAura(withEffectNote(withCloudEffect(withoutRoundVariants(withAfflictionCounteract(withStones(withAllyVariants(withArea(resolved)))))))))))))))))))))))))))))))));
 }
 
 // (Readings over a compiled family the engine has no player for: Mask of Terror's "repeat-save".)
-const READ_OVER = new Set(["mask-of-terror"]);
+const READ_OVER = new Set(["mask-of-terror", "protector-tree", "spiritual-guardian"]);
+const READ_TARGET = { "protector-tree": "1 willing creature", "spiritual-guardian": "1 willing creature" };
 
 // Faerie Fire and Revealing Light (2026-10-21, invisibility tracked): outlined — not concealed, an invisible creature concealed instead
 // (sight.js). Faerie Fire's outline ("outline": its burst, its time) as an automatic check outlining every creature in it; Revealing Light's

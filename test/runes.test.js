@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 
 import { createFightState } from "../src/engine/fight.js";
 import { moderateCreature, martialParty } from "../src/engine/benchmarks.js";
-import { performStrike, increaseDying } from "../src/engine/actions.js";
+import { performStrike, increaseDying, applyDamage } from "../src/engine/actions.js";
 import { adjustDamage } from "../src/engine/damage.js";
+import { applyCondition } from "../src/engine/spells.js";
 import { deathThreshold } from "../src/engine/combatant.js";
 import { ignoredResistances, keenCritical } from "../src/engine/runes.js";
 
@@ -120,4 +121,53 @@ test("Breath of Life (2026-11-07, from a feat): an ally's reaction as a PC would
     medic.reactionUsed = false;
     increaseDying(state, pc, 1);
     assert.equal(pc.status, "dead");
+});
+
+test("Protector Tree (2026-11-07, from a feat): its tree takes a foe's Strike damage on the sheltered ally first, the rest on the ally", () => {
+    const [fighter] = martialParty(8);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(8, "foe", "Foe"), engagement: 1 }] }, {}, 1);
+    state.log = [];
+    const pc = state.byId.get(fighter.id);
+    const foe = state.byId.get("foe");
+    pc.shelters = [{ by: pc.id, spell: "Protector Tree", hp: 30, perHit: Infinity, any: false, untilRound: 10, sustained: false }];
+    const before = pc.hp.value;
+    applyDamage(state, pc, [{ type: "slashing", amount: 20, persistent: false, precision: false }], { source: foe, physical: true });
+    assert.equal(pc.hp.value, before, "all 20 on the tree");
+    assert.equal(pc.shelters[0].hp, 10);
+    applyDamage(state, pc, [{ type: "slashing", amount: 25, persistent: false, precision: false }], { source: foe, physical: true });
+    assert.equal(pc.hp.value, before - 15, "10 on the tree, 15 on the ally");
+    assert.equal(pc.shelters.length, 0, "the tree destroyed");
+    applyDamage(state, pc, [{ type: "fire", amount: 5, persistent: false, precision: false }], { source: foe });
+    assert.equal(pc.hp.value, before - 20);
+});
+
+test("Spiritual Guardian (2026-11-07, from a feat): its guardian takes the first 10 of any foe's damage on the ally", () => {
+    const [fighter] = martialParty(10);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...moderateCreature(10, "foe", "Foe"), engagement: 1 }] }, {}, 1);
+    state.log = [];
+    const pc = state.byId.get(fighter.id);
+    const foe = state.byId.get("foe");
+    pc.shelters = [{ by: pc.id, spell: "Spiritual Guardian", hp: 50, perHit: 10, any: true, untilRound: 10, sustained: true }];
+    const before = pc.hp.value;
+    applyDamage(state, pc, [{ type: "fire", amount: 14, persistent: false, precision: false }], { source: foe });
+    assert.equal(pc.hp.value, before - 4);
+    assert.equal(pc.shelters[0].hp, 40);
+});
+
+test("Inexorable (2026-11-07): a DC 15 flat check as it would be stunned, slowed or paralyzed — no condition on a success", () => {
+    const [fighter] = martialParty(6);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1, conditionFlat: { name: "Inexorable", dc: 15, slugs: ["paralyzed", "slowed", "stunned"] } }, { ...moderateCreature(6, "foe", "Foe"), engagement: 1 }] }, {}, 1);
+    state.log = [];
+    const pc = state.byId.get(fighter.id);
+    const foe = state.byId.get("foe");
+    let kept = 0;
+    for (let i = 0; i < 200; i++) {
+        pc.cond.slowed = 0;
+        applyCondition(state, pc, "slowed", 1, null, foe);
+        if (!pc.cond.slowed) kept++;
+    }
+    assert.ok(kept > 40 && kept < 90, `about 30% shrugged off (${kept}/200)`);
+    pc.cond.frightened = 0;
+    applyCondition(state, pc, "frightened", 1, null, foe);
+    assert.equal(pc.cond.frightened, 1);
 });
