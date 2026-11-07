@@ -1861,6 +1861,11 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     if (fromSpell) spendPool(target, fromSpell);
     state.stats.reactions++;
     if (Number.isFinite(target.resistUses)) target.resistUses--;
+    // (2026-11-07, Sacrifice Armor: its armor broken after — a broken heavy armor's -3 status penalty to AC, the fight's rest.)
+    if (resist.acAfter) {
+        target.ac -= resist.acAfter;
+        log(state, `  ${target.name}'s armor is broken: -${resist.acAfter} AC`);
+    }
     // (2026-11-07, Unexpected Shift: the resistance only on a flat check's success — the reaction spent either way.)
     if (Number.isFinite(resist.flat)) {
         const flat = state.rng.d20();

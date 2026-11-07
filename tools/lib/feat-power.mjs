@@ -1163,6 +1163,10 @@ const HAND = {
     // Hardening Necrosis: resistance 6 (8 at 13th, 10 at 17th) against a critical hit, once a fight (once an hour), slowed 1 for a round
     // after (any critical hit's damage, not only a physical one's).
     "hardening-necrosis": (level) => ({ builtins: { critResistance: { name: "Hardening Necrosis", value: level >= 17 ? 10 : level >= 13 ? 8 : 6, uses: 1, slowedAfter: 1 } }, played: "resistance against a critical hit, then slowed 1 (once a fight, reaction)" }),
+    // (Sacrifice Armor: twice its armor's level off a Strike's physical damage — its armor's level, the PC's less one — once, its armor
+    // broken after: the party champion's heavy armor, -3 AC for the rest of the fight.)
+    "sacrifice-armor": (level) => ({ builtins: { resistReaction: { name: "Sacrifice Armor", value: 2 * Math.max(1, level - 1), on: ["physical"], types: null, attack: true, foe: true, acAfter: 3 }, resistUses: 1 }, played: `${2 * Math.max(1, level - 1)} less damage from a physical Strike, once, its armor broken after (-3 AC; reaction)` }),
+    "objection": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "linguistic" }], played: "a failed save against a linguistic effect rerolled, the better kept (reaction, once a fight)" }),
     "interstitial-escape": (level) => ({ builtins: { resistReaction: { name: "Interstitial Escape", value: 5 + level, on: null, types: null, attack: true, foe: true }, resistUses: 1 }, played: `resistance ${5 + level} to a Strike's damage (once a fight, reaction)` }),
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),

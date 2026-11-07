@@ -57,6 +57,7 @@ Every PC already has the basic actions, and each rated alone is worth about 0 le
 | Pounding Leap | 2 | Strike + High or Long Jump (2) | move | +0.015 |  |
 | Winding Flow | 1 | two of Stand, Step, Stride | stride | +0.015 |  |
 | Doctor's Visitation | 1 | Stride + Battle Medicine | stride | +0.015 |  |
+| Tumbling Strike | 1 | Tumble Through + a melee Strike (flourish) | stride | +0.015 | off-guard on a critical success |
 | Zealous Rush | 0 | Stride, as a reaction to a self spell | stride | +0.015 |  |
 | Elude Trouble | 0 | Stride, as a reaction to a missed melee attack | stride | +0.015 |  |
 | Embrace the Pain | 0 | Grapple or Disarm (reaction, as a foe's melee attack damages it) | maneuver | +0.013 |  |
@@ -84,6 +85,7 @@ Every PC already has the basic actions, and each rated alone is worth about 0 le
 | Guarded Advance (Knight Vigilant) | 1 | Step + Raise a Shield | step | +0.010 |  |
 | Elf Step | 1 | Step, Step | step | +0.010 |  |
 | Wing Step | 1 | Step, Step | step | +0.010 |  |
+| Guiding Finish | 1 | Strike + Reposition 10 feet on a hit (press) | maneuver | +0.010 |  |
 | Warp Path | 1 | teleport 30 feet + melee Strike | stride | +0.007 | while veiled |
 | Sudden Leap | 2 | Leap, High or Long Jump + Strike | move | +0.007 | saves an action only with a High or Long Jump |
 | Flying Kick | 2 | Leap, High or Long Jump + Strike | move | +0.007 | saves an action only with a High or Long Jump |
@@ -122,6 +124,8 @@ Every PC already has the basic actions, and each rated alone is worth about 0 le
 | Practiced Opposition | 1 | Recall Knowledge + Strike (undead) | knowledge | +0.000 |  |
 | Makeshift Strike | 1 | Interact (pick up) + Strike | pickup | +0.000 |  |
 | Magpie Snatch | 2 | Stride, Stride + Interact (pick up) | pickup | +0.000 |  |
+| Stay Here! | 2 | Trip + a melee Strike on a success (flourish; its multiple attack penalty after both) | nothing | +0.000 | two actions for two actions: only the multiple attack penalty and the free hand |
+| Twirling Strike | 2 | Tumble Through (Performance) + a melee Strike on a success | nothing | +0.000 | two actions for two actions |
 | Bashing Charge | 2 | Stride, Stride (Force Open on the way) | nothing | +0.000 |  |
 | Hopping Stride | 1 | Stride (Speed − 10, over difficult terrain) | nothing | +0.000 |  |
 | Shift the Little Ones | 1 | Stride (allies Step aside) | nothing | +0.000 |  |
