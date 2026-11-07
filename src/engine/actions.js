@@ -2031,7 +2031,8 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
     target.hp.value -= remaining;
     if (source) {
         source.damageDealt += dealt;
-        if (state.damageBy) {
+        // (2026-11-07: not the hits a summoned creature takes — a feat's Summon Elemental soaking them was scored as the party's harm.)
+        if (state.damageBy && !target.summonedBy) {
             state.damageBy[source.side] += dealt;
             if (foesInduced(source, target)) state.damageBy.foesInduced += dealt;
         }

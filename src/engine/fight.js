@@ -740,7 +740,9 @@ function endTurn(state, c) {
         // (2026-10-16: with its materials — persistent fire treated as silver.)
         const amount = entry.materials?.length ? adjustPart(c, { type: entry.type, amount: rollPersistent(state.rng, entry), materials: entry.materials }) : adjustInstance(c, entry.type, rollPersistent(state.rng, entry));
         state.log?.push(`  ${c.name} takes ${amount} persistent ${entry.type}`);
-        creditPersistent(state, entry, dealDamage(state, c, amount));
+        // (2026-11-07: a summoned creature's ticks not the party's harm, as its hits aren't — actions.js.)
+        const dealt = dealDamage(state, c, amount);
+        if (!c.summonedBy) creditPersistent(state, entry, dealt);
         if (flatCheck(state.rng, 15) >= SUCCESS) c.persistent.splice(c.persistent.indexOf(entry), 1);
     }
     // (Biting Snakes, B82: a Strike at it from a monster beside it.)
