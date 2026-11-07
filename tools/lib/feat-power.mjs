@@ -41,6 +41,7 @@ const { effectModel } = await import("../../src/engine/effects.js");
 const { zoneSpell } = await import("../../src/engine/zones.js");
 // (2026-11-03: a spell entry a feat gives only when the engine can cast it at all — Hymn of Healing's, Mantis Form's aren't.)
 const { canCast, spellReactions } = await import("../../src/engine/spells.js");
+const { castableReading } = await import("../../src/engine/power-readings.js");
 // (2026-11-06: a reaction spell the engine answers with — Perfect Strike's reroll, a counterspell, a guard of an ally —, which spells.js
 // spellReactions wires from the PC's spells as the fight begins; canCast leaves reactions out.)
 const REACTION_FIELDS = ["attackReroll", "saveReroll", "counterspells", "guardSpells", "resistReaction", "loveSacrifice", "retribution", "siphon"];
@@ -340,6 +341,7 @@ function innateSpellEntry(doc, level, host) {
             breath = { uses: uses || 1, bonus: abilities.cha ?? 0, from: doc.name };
             continue;
         }
+        const compiled = plan;
         plan = selfFormPlan(plan);
         // (2026-11-07: an "unsupported" plan too where the engine plays its native check — Tangle Vine's spell attack; castable below.)
         if (!plan?.resolution || plan.resolution.kind === "no-effect") continue;
@@ -364,7 +366,12 @@ function innateSpellEntry(doc, level, host) {
         const merged = formChoice(plan, spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank));
         if (!merged) continue;
         const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan: merged.plan, castRank, dc, attack: dc - 10, pool, effects: merged.effects };
-        if (plan.resolution.selfForm && !Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) continue;
+        // (2026-11-07, Bless's, Tangle Vine's: a self-form reading that gives no battle form is the spell as compiled — "unsupported", its
+        // PF2e check or Effect as the engine plays them.)
+        if (plan.resolution.selfForm && !Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) {
+            plan = compiled;
+            Object.assign(entry, { plan, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) });
+        }
         // (Its battle form cast even where the planner reads no gain in it, as Untamed Form's is.)
         if (plan.resolution.selfForm || Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) entry.forceEven = true;
         // (2026-11-07: a family the engine has no player for — Murderous Vine's "grab-attack", Black Tentacles' "tentacle-area" in PF2e 8.6's
@@ -377,7 +384,17 @@ function innateSpellEntry(doc, level, host) {
                 continue;
             }
         }
-        if (castable(entry) || reactionWired(entry)) entries.push(entry);
+        if (castable(entry) || reactionWired(entry)) {
+            entries.push(entry);
+            continue;
+        }
+        // (2026-11-07, Guidance's effect sequence, Sun's Fury's, Shielding Formation's and Tangling Creepers' effect notes: as the spell
+        // ratings cast a spell written another way — power-readings.js castableReading —, its PF2e effect on its recipient.)
+        const read = castableReading(plan, spell, castRank);
+        if (read?.resolution && read !== plan) {
+            const other = { ...entry, plan: read, effects: spellPack.withTextConditions(spellPack.effectModels(read, castRank), spell, castRank) };
+            if (castable(other)) entries.push(other);
+        }
     }
     if (!entries.length && !summons.length && !breath) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
     return { spells: entries, pools, ...(summons.length ? { summons } : {}), ...(breath ? { breathOfLife: breath } : {}), gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
@@ -2393,7 +2410,7 @@ function formChoice(plan, effects) {
 // (2026-11-07, Dragon Form's, Monstrosity Form's: a battle form spell the packs' compiler leaves "unsupported" — no save, its one Effect
 // unscoped —: that Effect on the caster as it's cast, kept only where it is a battle form — formChoice's check after.)
 function selfFormPlan(plan) {
-    if (plan?.resolution?.kind !== "unsupported" || plan.resolution.check) return plan;
+    if (plan?.resolution?.kind !== "unsupported" || plan.resolution.check || plan.resolution.native?.check) return plan;
     const links = [...(plan.nativeEffects?.onUse ?? []), ...(plan.nativeEffects?.unscoped ?? [])].filter((link) => link?.kind === "native-spell-effect");
     if (links.length !== 1) return plan;
     const uuid = links[0].uuid;
