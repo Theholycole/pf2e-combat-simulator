@@ -36,6 +36,7 @@ Every PC already has the basic actions, and each rated alone is worth about 0 le
 | Quick Draw | 1 | Interact (draw) + Strike | draw | +0.040 |  |
 | Quick Shot | 1 | Interact (draw a bow or crossbow) + Strike | draw | +0.040 |  |
 | Brandishing Draw | 1 | Interact (draw) + Strike or finisher | draw | +0.040 |  |
+| Leaping Hedgehog Strike | 2 | Leap + Tumble Through (prone on a success) + a Strike (at mythic proficiency, a Mythic Point, if prone) | stride, maneuver | +0.028 | mythic |
 | Marathon Dash | 1 | Stride + allies within 10 feet Stride as a reaction | stride, stride | +0.024 |  |
 | Scout's Pounce | 2 | Stride + Strike, Strike | strike | +0.020 | hidden from all foes and 10 feet from them; its off-guard target not counted |
 | Peafowl Strut | 1 | Step, Step + Strike (Peafowl Stance) | step, step | +0.020 |  |

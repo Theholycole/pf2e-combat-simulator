@@ -1197,6 +1197,16 @@ const HAND = {
     // (Army of One: a Strike at each enemy in its nimbus's bright light — 30 feet — the penalty rising after all; a Mythic Point each. Its
     // nimbus taken as active.)
     "army-of-one": () => ({ builtins: { multiStrikes: [{ name: "Army of One", actions: 3, strikes: [null], each: true, within: 30, sameMap: true, pool: "mythic" }] }, pools: { mythic: 3 }, played: "a Strike at each enemy within 30 feet, one multiple attack penalty (3 actions, a Mythic Point each)" }),
+    "terrifying-mien": () => ({ builtins: { frightenedResist: { name: "Terrifying Mien", per: 4 } }, played: "resistance to a frightened foe's Strikes, four times its frightened value" }),
+    // (Prescience: initiative at mythic proficiency — +10 over its level against the fighter's expert Perception +4 (master +6 from 7th) —
+    // its Mythic Point spent; the +1 to AC and saves till its first turn ends isn't played.)
+    "prescience": (level) => ({ builtins: { initiativeBonus: level >= 7 ? 4 : 6 }, played: `+${level >= 7 ? 4 : 6} to initiative (mythic proficiency, a Mythic Point)` }),
+    // (Reactive Resilience: resistance to the triggering damage equal to its level, once a fight; its Channel Draconic Essence taken as
+    // active, and its end after not played.)
+    "reactive-resilience": (level) => ({ builtins: { resistReaction: { name: "Reactive Resilience", value: level, on: null, types: ["triggering"], foe: true }, resistUses: 1 }, played: `resistance ${level} to one foe's damage (once a fight, reaction)` }),
+    // (Stonewall: an enemy's effect that hits it — petrified to the end of that turn, none of its damage — played as a foe's hit of at
+    // least its level taking no damage, its reaction each round; the petrified till the turn ends isn't played.)
+    "stonewall": (level) => ({ builtins: { resistReaction: { name: "Stonewall", value: 9999, on: null, types: null, foe: true, minDamage: level } }, played: "a foe's hit of at least its level dealing it nothing (petrified till the turn ends; reaction)" }),
     "interstitial-escape": (level) => ({ builtins: { resistReaction: { name: "Interstitial Escape", value: 5 + level, on: null, types: null, attack: true, foe: true }, resistUses: 1 }, played: `resistance ${5 + level} to a Strike's damage (once a fight, reaction)` }),
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),

@@ -1037,6 +1037,13 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         target.resistances = [...(before ?? []), { type: "all-damage", value: target.critResistance.value, exceptions: [] }];
         log(state, `  ${target.name} uses ${target.critResistance.name}: resistance ${target.critResistance.value} against the attack`);
     }
+    // (2026-11-07, Terrifying Mien: resistance to a frightened creature's Strikes' bludgeoning, piercing and slashing, four times its
+    // frightened value; the frightened that doesn't drop after isn't played.)
+    if (target.frightenedResist && (attacker.cond.frightened ?? 0) > 0) {
+        const value = target.frightenedResist.per * attacker.cond.frightened;
+        target.resistances = [...(target.resistances ?? []), ...["bludgeoning", "piercing", "slashing"].map((type) => ({ type, value, exceptions: [] }))];
+        log(state, `  ${target.name}'s ${target.frightenedResist.name}: resistance ${value} against the frightened ${attacker.name}`);
+    }
     // Logged before the damage so consequences (Shield Block, going down) follow it.
     const line = state.log ? state.log.push("") - 1 : -1;
     // (H1: a hit aimed at one of a hydra's heads — on the head, not its body.)

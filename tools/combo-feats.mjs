@@ -121,6 +121,7 @@ export const COMBOS = [
     { name: "Twirling Strike", cost: 2, parts: "Tumble Through (Performance) + a melee Strike on a success", saved: [], note: "two actions for two actions" },
     { name: "Tumbling Strike", cost: 1, parts: "Tumble Through + a melee Strike (flourish)", saved: ["stride"], uses: 1.25, note: "off-guard on a critical success" },
     { name: "Guiding Finish", cost: 1, parts: "Strike + Reposition 10 feet on a hit (press)", saved: ["maneuver"], uses: 1 },
+    { name: "Leaping Hedgehog Strike", cost: 2, parts: "Leap + Tumble Through (prone on a success) + a Strike (at mythic proficiency, a Mythic Point, if prone)", saved: ["stride", "maneuver"], uses: 1.25, note: "mythic" },
     { name: "Dastardly Dash", cost: 1, parts: "Stride (half) + Trip or Dirty Trick (flourish)", saved: ["maneuver"], uses: 1.25 },
     { name: "Tactical Entry", cost: 0, parts: "Stride, free, before anyone acts (Stealth initiative)", saved: ["stride"], uses: 0.5, note: "only when it rolled Stealth for initiative" },
     { name: "Zealous Rush", cost: 0, parts: "Stride, as a reaction to a self spell", saved: ["stride"] },
