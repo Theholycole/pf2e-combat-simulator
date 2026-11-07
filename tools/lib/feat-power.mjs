@@ -2237,6 +2237,9 @@ const ZERO_HP = {
     // (2026-11-07, Noble Bloom: an ally within 30 feet kept at 1 Hit Point, once a fight (once a day) — both wounded 1 more, not played.
     // Willing Death: the damage that would drop an ally within 30 feet 1 + its level lower, taken itself — played as the ally kept at 1
     // Hit Point, once a fight (once a day); its own damage from it isn't.)
+    // (Submit to Shadow: as it would die, conscious with 6d8 Hit Points back, once a fight (once a day) — played as staying up with 27
+    // at 0 Hit Points; its frightened 2 on the foes that see it isn't.)
+    "submit-to-shadow": { ferocity: { hp: 27, wounded: false, uses: 1, free: true } },
     "noble-bloom": { rescue: { within: 30, hp: 1, uses: 1 } },
     "willing-death": { rescue: { within: 30, hp: 1, uses: 1 } },
     "cant-fall-here": { rescue: { within: 5, hp: 1, uses: 1 } },

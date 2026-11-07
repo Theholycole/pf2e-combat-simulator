@@ -7,6 +7,14 @@ const FOE_TYPE = "a reaction to a kind of damage or effect the rating foes don't
 const SCENE = "a moment a fight on the simulator's open field never has (falling, spectators, traps, water, mounts in the air)";
 const SKILL = "a reaction to a skill check made outside a fight's actions";
 const GEAR = "a reaction to a misfire or gear the simulator doesn't play";
+const INFO = "only knowledge about a foe (Recall Knowledge, identifying an effect), which the simulator's PCs already have";
+const UTILITY = "a utility outside a fight's actions (light, objects, climbing, leaping, scouting, skill checks)";
+const DRAWN = "drawing a weapon at initiative, and the simulator's PCs start with theirs drawn";
+const INCORPOREAL = "a weapon against incorporeal foes, and the rating foes aren't";
+const BETWEEN = "something between fights (Refocus, treating a disease or poison, downtime, disguises)";
+const SOCIAL = "a social or skill benefit outside a fight's actions";
+const CREATURE = "against a kind of creature the rating foes aren't (devils, holy or unholy foes, undead)";
+const TERRAIN = "terrain or climate, and the simulator's field is open and mild";
 const DOOM = "a reaction to doom or an oracle's curse, which the simulator doesn't play";
 
 export const SIM_WHY = Object.freeze({
@@ -20,5 +28,72 @@ export const SIM_WHY = Object.freeze({
     "Everyone Duck!": SCENE, "Riptide": SCENE, "Guided Hover": SCENE,
     "Squawk!": SKILL, "Internal Dialogue": SKILL, "Watch and Learn": SKILL, "Read the Dust": SKILL, "Ward Casting": SKILL,
     "Instant Backup": GEAR,
+    "Rapid Assessment": INFO, "Greenwatch Veteran": INFO, "Flash of Omniscience": INFO, "Battle Assessment": INFO, "Combat Reading": INFO,
+    "Additional Recollection": INFO, "Diabolic Certitude": INFO, "Spy's Countermeasures": INFO, "Elucidation": INFO,
+    "Eternal Torch": UTILITY, "Purify Element": UTILITY, "Igneogenesis": UTILITY, "Born to the Trees": UTILITY, "Malleable Movement": UTILITY,
+    "Smooth Hover": UTILITY, "Saoc Astrology": UTILITY, "A Little Bird Told Me...": UTILITY, "Memory of Skill": UTILITY, "Show-Off": UTILITY,
+    "Elven Persistence": UTILITY, "Rebel's Map": UTILITY,
+    "Recognize Ambush": DRAWN, "Ghost Strike": INCORPOREAL,
+    "Surprise Strike": GEAR, "Sweeping Fan Redirection": GEAR, "Genie Weapon Flourish": GEAR,
+    "Combat Climber": SCENE, "Climate Adaptation": TERRAIN, "Ultimate Skirmisher": TERRAIN,
+    "Fortified Mind": FOE_TYPE, "System Override": FOE_TYPE, "Sealed Poppet": FOE_TYPE,
+    "Hell's Bane": CREATURE, "Divine Castigation": CREATURE,
+    "Statue Form": BETWEEN, "Warden's Focus": BETWEEN, "Revelation's Focus": BETWEEN, "Link Focus": BETWEEN, "Robust Recovery": BETWEEN,
+    "Phantom Resemblance": BETWEEN, "Spirit Sheath": BETWEEN,
+    "Dubious Knowledge": INFO, "Know-It-All": INFO,
+    "Cutting Flattery": SOCIAL, "Clue Them All In": SOCIAL, "Ivy District Influencer": SOCIAL, "Springing Leaper": UTILITY, "Stage Fighting": SOCIAL,
+    "Light Step": TERRAIN, "Bamboo and Silt Repose": TERRAIN, "Skilled Swimmer": TERRAIN, "Water Step": TERRAIN, "Murksight": TERRAIN, "Nimble Crawl": TERRAIN,
+    "Concealing Currents": SCENE,
+    "Bestiary Secrets": INFO, "Magic Sense": INFO, "Magic Finder": INFO,
+    "Medical Researcher": BETWEEN, "Ward Medic": BETWEEN, "Snare Genius": BETWEEN, "Many Faces": BETWEEN, "Translocational Adept": BETWEEN,
+    "Perfect Truths": SOCIAL,
+    "Ghoran Weapon Practice": GEAR, "Azarketi Weapon Aptitude": GEAR,
+    "Slayer's Blessing": CREATURE, "Improved Command Undead": CREATURE, "Metallic Envisionment": CREATURE,
+    "Stubborn Persistence": FOE_TYPE, "Defiance Unto Death": FOE_TYPE, "Shrink Spell": FOE_SPELL,
+    "Concealing Legerdemain": SOCIAL, "Aldori Swordlord": SOCIAL, "Deduce Habits": SOCIAL, "Emerald Boughs Accustomation": SOCIAL,
+    "Reflective Pocket": BETWEEN, "Wild Lights": UTILITY, "Rapid Mantel": UTILITY,
+    "Spirit Walk": INFO, "Know It All (Eldritch Researcher)": INFO, "To the Ends of the Earth": INFO,
+    "Insulated Poppet": FOE_TYPE, "Beastkin Resilience": FOE_TYPE, "Pyrophilic Recovery": FOE_TYPE, "Vigorous Health": FOE_TYPE,
+    "Cleansing Subroutine": FOE_TYPE, "Powerful Guts": FOE_TYPE, "Steadfast Grip": FOE_TYPE,
+    "Wandering Oasis": TERRAIN, "Steady on Stone": TERRAIN, "Terrain Advantage": TERRAIN,
+    "Blessed Blood (Nephilim)": CREATURE, "Devoted Focus": BETWEEN, "Improvised Pummel": GEAR, "Double Poison": GEAR, "Crowd Mastery": SCENE,
+    "Foil Senses": UTILITY, "Clever Counterspell": FOE_SPELL, "Landscape Form": BETWEEN, "Avoid Fate's Gaze": FOE_SPELL, "Finest Trick": BETWEEN,
+    "Strategic Assessment": INFO, "Among Humanity": BETWEEN, "The Truth As I See It": SOCIAL, "Cat Fall": SCENE, "Rose Warden Dedication": SOCIAL,
+    "Ears of the Forest": INFO, "Cobble Dancer": TERRAIN, "Water Sprint": TERRAIN, "Heir of the Saoc": UTILITY, "Greater Snow Step": TERRAIN,
+    "Posse": BETWEEN, "Jungle Runner": TERRAIN, "Conrasu Weapon Understanding": GEAR, "Vishkanya Weapon Arts": GEAR, "Hunter's Fangs": GEAR,
+    "Improvisational Defender": GEAR, "No Hard Feelings": SOCIAL, "Withstand Death": CREATURE, "Uncanny Vitae": CREATURE,
+    "Pact of the Death Hunter": CREATURE, "Necromancer's Visage": CREATURE, "Necromantic Bulwark": FOE_TYPE, "Hybrid Form": BETWEEN,
+    "Only the Worthy": UTILITY, "Vulpine Scamper": BETWEEN, "Predict Weather": UTILITY, "Aquatic Passage": TERRAIN, "Trailblazing Stride": TERRAIN,
+    "Sympathetic Portrayal": SOCIAL, "Bonded Focus": BETWEEN, "Larger than Life": BETWEEN, "Defy Fey": CREATURE, "Magic Rider": UTILITY,
+    "Unlimited Ghost Flight": UTILITY, "Burrowing Form": TERRAIN, "Concentrated Assault": SCENE,
+    "Shattering Blows": GEAR, "Primal Focus": BETWEEN, "Ultimate Mercy": SCENE, "Rebellious Existence": FOE_TYPE, "Wing Rider": SCENE, "Ride": SCENE,
+    "Natural Ambassador": SOCIAL, "Vigorous Victor": FOE_TYPE, "Mobile Thralls": TERRAIN, "Magic Hands": BETWEEN, "Grave Focus": BETWEEN,
+    "Cloud Gazer": TERRAIN, "Cloud Jump": UTILITY, "Explosive Expert": GEAR, "Legendary Survivalist": TERRAIN, "Fortunate Relief": FOE_TYPE,
+    "Packed with Flavor": BETWEEN, "Poisoned Sticks and Stones": GEAR, "Amphibious Form": TERRAIN, "Teakettle Form": BETWEEN, "Disk Rider": UTILITY,
+    "Bless Tonic": BETWEEN, "Inspirational Focus": BETWEEN, "Ears That Hear the Truth": SOCIAL, "Seven-Part Link": BETWEEN, "Storm Born": TERRAIN,
+    "Fortified Elixirs": FOE_TYPE, "Tricksterbane Oath": CREATURE, "Elemental Embellish": SOCIAL, "Cynical": SOCIAL, "Thorough Research": INFO,
+    "Demolitionist": GEAR, "Reverse Curse": FOE_TYPE, "Wall Jump": UTILITY, "Night Terror": SCENE, "Tree Climber (Goblin)": TERRAIN,
+    "Giant Hunter": CREATURE, "Pinpoint Poisoner": GEAR, "Unmistakable Lore": INFO, "Embodied Dragoon Subjectivity": UTILITY, "Conflux Focus": BETWEEN,
+    "Monster Hunter": INFO, "Beacon Mark": UTILITY, "Gallop Across Shadow": SCENE, "School Spell Redirection": FOE_SPELL, "Quick Jump": UTILITY,
+    "Fishblooded": TERRAIN, "Knowledge is Power": INFO, "Vibration Sense": TERRAIN, "Wall Jump": UTILITY,
+    "Mist Strider": TERRAIN, "Sticky Poison": GEAR, "Read the Wind": INFO, "Rolling Landing": SCENE, "Unyielding Disguise": BETWEEN,
+    "Assured Knowledge": INFO, "Continual Recovery": BETWEEN, "Feather Step": TERRAIN, "Interposing Crowd": SCENE, "Pernicious Poison": GEAR,
+    "Water Dancer": TERRAIN, "Consume Spell": FOE_SPELL, "Larcenous Hand": UTILITY, "Tracing Sigil": UTILITY, "Bless Toxin": BETWEEN,
+    "Reverse Engineering": BETWEEN, "Water Walker": TERRAIN, "Meditative Focus": BETWEEN, "Extradimensional Stash": BETWEEN, "Everyday Form": BETWEEN,
+    "Repelling Enforcer": FOE_SPELL, "Perfected Evaluations": INFO, "Underground Network": SOCIAL, "Improved Command Corpse": CREATURE,
+    "Subtle Theft": SOCIAL, "Known Weaknesses": INFO, "Slip Into Shadow": TERRAIN, "Amp Focus": BETWEEN, "Marsh Runner": TERRAIN,
+    "Agile Hand": UTILITY, "Winglets": UTILITY, "Nonlethal Takedown": SOCIAL, "Crushing Step": TERRAIN, "Angel of Vindication": CREATURE,
+    "Shore Step": TERRAIN, "Evade Doom": DOOM, "Forest Passage": TERRAIN, "Canopy Predator": TERRAIN, "Garuda's Squall": GEAR,
+    "Bless Toxin": BETWEEN, "Banishing Blow": CREATURE, "Gigavolt": TERRAIN, "I Knew the Heroes": INFO, "Undead Companion": BETWEEN,
+    "Healing Flesh": BETWEEN, "Fly Swat": CREATURE, "Signature Crafting": BETWEEN, "Fiend-Trampling Stature": CREATURE, "Performer's Treatment": BETWEEN,
+    "Favored Prey": CREATURE, "Tomb-Watcher's Glare": CREATURE, "Hex Focus": BETWEEN, "Snow Step": TERRAIN, "Festering Wounds": BETWEEN,
+    "Spell Devourer": FOE_SPELL, "Axe Thrower": GEAR, "Symphony of Agony": SOCIAL, "Inspire Imitation": SOCIAL, "Shifting Faces": BETWEEN,
+    "Energy Fortification": BETWEEN, "Ricochet Master": TERRAIN, "Slayer's Presence": CREATURE, "Unrivaled Analysis": INFO, "Cloud Step": TERRAIN,
+    "Expanded Senses": TERRAIN, "Inoculation Subroutine": FOE_TYPE, "Experienced Professional": BETWEEN, "Smoke Through Bamboo": TERRAIN,
+    "Immobile Form": BETWEEN, "World-Wise Vigilance": SOCIAL, "Roadkill": SCENE, "Internal Compartment": BETWEEN, "Vanara Weapon Trickery": GEAR,
+    "Domain Focus": BETWEEN, "Blood Component Substitution": SOCIAL, "Predispose Settlement": BETWEEN, "Cleansing Transformation": FOE_TYPE,
+    "Rope Runner": TERRAIN, "Perfect Form Control": BETWEEN, "Shielded Recovery": BETWEEN, "Steal Spell": FOE_SPELL, "Eye for Weakness": INFO,
+    "Tattoo Artist": BETWEEN, "Improved Hijack Undead": CREATURE, "Butterfly's Kiss": SOCIAL, "Bloodline Focus": BETWEEN, "Temperature Adjustment": BETWEEN,
+    "Kneel for No God": FOE_SPELL, "Emblazon Antimagic": FOE_SPELL, "Knowledge is Power (Wizard)": INFO,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });
