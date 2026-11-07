@@ -1134,6 +1134,20 @@ const HAND = {
     // Form parts not played), Unbound Freedom's controlled (DC 17) — spells.js applyCondition.
     inexorable: () => ({ builtins: { conditionFlat: { name: "Inexorable", dc: 15, slugs: ["paralyzed", "slowed", "stunned"] } }, played: "a DC 15 flat check to ignore paralyzed, slowed or stunned (always on)" }),
     "unbound-freedom": () => ({ builtins: { conditionFlat: { name: "Unbound Freedom", dc: 17, slugs: ["controlled"] } }, played: "a DC 17 flat check to ignore controlled (always on)" }),
+    // (2026-11-07, Strikes whose rider the feat module didn't read: a save at the class DC as the Strike hits — conditionSavePlan.)
+    // Coiling Serpents: a ranged Strike, Reflex or immobilized till it Escapes (played as 2 rounds — the engine's Escape is a grab's).
+    // Blinding of the Needle: Fortitude or blinded for a round (its Interact to clear it not played).
+    "coiling-serpents": (level, host, doc) => {
+        const save = conditionSavePlan(doc, "reflex", ["immobilized", null, { mode: "fixed", value: 2, unit: "rounds" }], ["immobilized", null, { mode: "fixed", value: 2, unit: "rounds" }]);
+        return save && { builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", onHit: { save } })], played: "a ranged Strike; on a hit Reflex or immobilized (2 actions)" };
+    },
+    "blinding-of-the-needle": (level, host, doc) => {
+        const save = conditionSavePlan(doc, "fortitude", ["blinded", null, { mode: "fixed", value: 1, unit: "rounds" }], ["blinded", null, { mode: "fixed", value: 1, unit: "rounds" }]);
+        return save && { builtins: {}, plans: [strikeRider({ actions: 2, onHit: { save } })], played: "a Strike; on a hit Fortitude or blinded for a round (2 actions)" };
+    },
+    // Hardening Necrosis: resistance 6 (8 at 13th, 10 at 17th) against a critical hit, once a fight (once an hour), slowed 1 for a round
+    // after (any critical hit's damage, not only a physical one's).
+    "hardening-necrosis": (level) => ({ builtins: { critResistance: { name: "Hardening Necrosis", value: level >= 17 ? 10 : level >= 13 ? 8 : 6, uses: 1, slowedAfter: 1 } }, played: "resistance against a critical hit, then slowed 1 (once a fight, reaction)" }),
     "interstitial-escape": (level) => ({ builtins: { resistReaction: { name: "Interstitial Escape", value: 5 + level, on: null, types: null, attack: true, foe: true }, resistUses: 1 }, played: `resistance ${5 + level} to a Strike's damage (once a fight, reaction)` }),
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
@@ -2059,7 +2073,10 @@ const ZERO_HP = {
     // (2026-11-04: 1 Hit Point and its level in temporary Hit Points for a round — counted as Hit Points —, wounded 1 more; once an hour.)
     "keep-up-the-good-fight": { ferocity: { hp: (level) => 1 + level, wounded: true, uses: 1 } },
     "cant-fall-here": { rescue: { within: 5, hp: 1, uses: 1 } },
-    caterwaul: { rescue: { within: 30, hp: 1, uses: 1 } }
+    caterwaul: { rescue: { within: 30, hp: 1, uses: 1 } },
+    // (2026-11-07: 1 Hit Point and temporary ones equal to its level plus its key attribute — played as Hit Points; the entity's +1 to
+    // attacks and damage, and its control, aren't.)
+    "entitys-resurgence": { ferocity: { hp: (level) => 1 + level + 4, wounded: false, uses: 1 } }
 };
 const slugOf = (doc) => doc.system?.slug ?? doc.name.toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 function zeroHpEntry(doc, level, host, builtins) {

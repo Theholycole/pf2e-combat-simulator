@@ -1025,8 +1025,11 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     for (const instance of instances) instance.context = context;
     // Wished Away, Withhold Death (B60): its reaction to the critical hit, resistance to all damage against this attack.
     const before = target.resistances;
-    if (critical && target.critResistance && canReact(target, target.critResistance.name)) {
+    // (2026-11-07, Hardening Necrosis: its uses — once a fight — and slowed 1 for a round after.)
+    if (critical && target.critResistance && (target.critResistance.uses ?? Infinity) > 0 && canReact(target, target.critResistance.name)) {
         spendReaction(target, target.critResistance.name);
+        if (Number.isFinite(target.critResistance.uses)) target.critResistance.uses--;
+        if (target.critResistance.slowedAfter && applyCondition(state, target, "slowed", target.critResistance.slowedAfter, { mode: "fixed", value: 1, unit: "rounds" }, target)) log(state, `  ${target.name} is slowed ${target.critResistance.slowedAfter}`);
         target.resistances = [...(before ?? []), { type: "all-damage", value: target.critResistance.value, exceptions: [] }];
         log(state, `  ${target.name} uses ${target.critResistance.name}: resistance ${target.critResistance.value} against the attack`);
     }
