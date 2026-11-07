@@ -144,7 +144,16 @@ const WHY_BY_ID = {
     uhU0KajD09h5bw4e: OOC, SXaQi6cZ58mvz9rV: OOC, f6k9lIrIS4SfnCnG: OOC, mnH68QcFRtkMbNE0: OOC, OuEIsBtQD1Fgx6Gz: OOC, vqxKsnFhzWv7AykV: OOC, BQzExsEZrwGsJD66: OOC, u6tLp3zTBweq7CxO: OOC,
     kQbv3yCW1yhaKSJU: CASTING, hqasqwjrTzOFkDY3: CASTING, gMPnLWLlHoNU9Lqv: CASTING,
     TXXrkkFfNSWgHrn5: NOTHING, "45F4nNN8gxoBdSnk": NOTHING,
-    Wx12NUjqTOjFrEoW: NOTED, QZ00D2xdJnbWFzml: NOTED, OWhTAowdMvBZnCrT: NOTED
+    Wx12NUjqTOjFrEoW: NOTED, QZ00D2xdJnbWFzml: NOTED, OWhTAowdMvBZnCrT: NOTED, Z7M3ImHWqUyGu6cN: NOTED,
+    ZiSmhTsnQMLqsmyw: NOTHING, VQInlv7phdWErkvE: NOTHING, ivSf8wSIUkK8gwej: NOTHING, FNW66GfWXaiBSexb: NOTHING,
+    BBL0DR1wgNNpxYlx: OOC, "7Hx0i4VchvwrIOV5": OOC, M9WIUEPY6IoRtgWN: OOC, db0RHtFGhCfMx8vT: OOC, lWDM4XNj1MQzTVm2: OOC, ADoFKzCh5z4dXg3f: OOC, OslV3jav9PGFMB1A: OOC,
+    "6y2rSSlCXUpk8DMY": CASTING, LHjPTV5vP3MOsPPJ: CASTING, RrtqD8WmoUumauJD: CASTING,
+    Y4gYfrxjSir2Enui: CASTING, wT6No3nyea1djz1d: CASTING, FwWbCQ34i2EN5or1: CASTING, "1fVKWWYjlVtOECku": CASTING, eR0sifECG27CC4do: CASTING,
+    daVIABU0UzyMnoiA: NOTHING, "4BbfHsGPRHPHfIGY": OOC, sk5HspGGnLW8b6bX: OOC,
+    qeLpqH2cMSmIrILV: NOTED, iRztLGEK5OfjZTPg: NOTED, mTkbgFOHJUBl0Qwg: NOTED,
+    pCx2vSnIYIdnSKnr: CASTING, SVfD887ocfUFikVA: CASTING, DFtbxytrOrmkQRfm: CASTING, dJ1ZviNMpt4ID7lc: CASTING, xblAUCASehLA9fbc: CASTING,
+    RR0p9E6GWt0CRA1q: OOC, NIzuFBqmHURIy2oI: OOC, Sq9muixjFptJO8Ae: NOTHING, "8NnIrUijGD2Chl55": NOTHING, NIaNTFlPwi2ng1rZ: NOTHING,
+    NgUB5toKxBd8RJmm: NOTED, lwzspz4dktZLgqlY: NOTED,
 };
 const NO_CREATURE = new Set(["XLoRtMn48f2KKvsu", "G6aNxXTIJYIGeicK", "5lqVFVTA98M6E80o", "Ar6W97iun6yYI8Df", "LNyTKhIZlM17026W", "xT593tHyPkumPuzz", "MbvPuMVy2VhftJgd", "969mPoiYANzV2261", "jSZJWYHZU3hnGRcp", "1re3J4hWW7raXIRB", "dUnT3HWMFD3d2eBJ"]);
 // Why the feat module leaves a feat, in order: PF2e already does it; it only grants other things; then what it does.
