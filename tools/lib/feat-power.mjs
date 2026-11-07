@@ -1501,6 +1501,22 @@ const HAND = {
     // (2026-11-07, Mega Bomb: a bomb thrown as a 2-action 30-foot burst within 60 feet, basic Reflex against its class DC, each creature
     // taking the bomb's damage as its primary target — a major alchemist's fire's 4d8 (its persistent fire and splash not played); three a
     // fight, its versatile vials.)
+    // (2026-11-07, Flying Flame: a 30-foot line of fire, basic Reflex against its class DC — at will, an impulse.)
+    "flying-flame": (level, host, doc) => {
+        const dice = Math.floor((level - 1) / 2) + 1;
+        const plan = damageSavePlan(doc, "reflex", [null, `${Math.max(1, Math.floor(dice / 2))}d6[fire]`, `${dice}d6[fire]`, `${2 * dice}d6[fire]`]);
+        const dc = dcsOf(host).class ?? 10 + level + 2 + 4;
+        const entry = plan && { name: "Flying Flame", plan: { ...plan, activation: { ...(plan.activation ?? {}), time: "2", traits: ["concentrate", "manipulate"] }, targeting: { target: null, range: null, area: { type: "line", value: 30, foes: true } } }, castRank: Math.ceil(level / 2), dc, attack: dc - 10, pool: null, kind: "ability", effects: {} };
+        return entry && castable(entry) ? { builtins: {}, spells: [entry], played: `a 30-foot line of ${dice}d6 fire, basic Reflex DC ${dc} (2 actions)` } : null;
+    },
+    // (Volcanic Escape: a foe that damages it — taken as in its aura, beside it — takes fire, basic Reflex (reaction; its Leap not played).)
+    "volcanic-escape": (level, host, doc) => {
+        const dice = Math.floor((level - 6) / 4) + 1;
+        const plan = damageSavePlan(doc, "reflex", [null, `${Math.max(1, Math.floor(dice / 2))}d6[fire]`, `${dice}d6[fire]`, `${2 * dice}d6[fire]`]);
+        const dc = dcsOf(host).class ?? 10 + level + 2 + 4;
+        const entry = plan && { name: "Volcanic Escape", plan: { ...plan, activation: { ...(plan.activation ?? {}), time: "reaction", traits: [] } }, castRank: Math.ceil(level / 2), dc, attack: dc - 10, pool: null, kind: "ability", effects: {}, featTrigger: { on: "damaged", melee: true } };
+        return entry ? { builtins: {}, spells: [entry], played: `${dice}d6 fire, basic Reflex DC ${dc}, at a foe beside it that damages it (reaction)` } : null;
+    },
     "mega-bomb": (level, host, doc) => {
         const plan = damageSavePlan(doc, "reflex", [null, "2d8[fire]", "4d8[fire]", "8d8[fire]"]);
         if (!plan) return null;
