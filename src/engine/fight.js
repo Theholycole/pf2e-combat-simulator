@@ -111,6 +111,15 @@ function outcomeCache(snapshot) {
     return cache;
 }
 
+function spreadPick(state, c) {
+    const engaged = engagedEnemies(state, c).filter((other) => other.side === "party" && isActive(other) && !other.familiar && other.kind !== "object");
+    if (engaged.length < 2) return null;
+    let h = 2166136261;
+    for (const ch of `${state.seed}:${state.round}:${c.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+    if (h % 3 !== 0) return null;
+    return engaged[Math.floor(h / 3) % engaged.length].id;
+}
+
 function createState(snapshot, options, seed, withLog) {
     const list = snapshot.combatants.map(createCombatant);
     for (const c of list) keepPermanent(c);
@@ -532,6 +541,11 @@ function startTurn(state, c) {
     // (2026-10-22, the sky: an action to Fly — void.js.)
     hoverTurnStart(state, c);
     c.freeSustainLeft = c.freeSustain ?? 0;
+    // (2026-11-07: a GM spreads its foes' attacks — a foe beside a PC sometimes goes after that PC, not only the one it rates best: one
+    // turn in three, one of the PCs engaged with it, at random. Drawn from its own hash of the fight's seed, the round and the foe, so the
+    // fight's dice stay as they were. Before, foes never Struck the champion — 0 of ~400 Strikes in 16 fights —, and its Shield Block
+    // feats never fired.)
+    c.spreadTarget = c.side !== "party" && !c.summonedBy ? spreadPick(state, c) : null;
     // (2026-11-07, Unrelenting Terror: the immunity its Demoralize left ends as its turn begins.)
     if (c.immuneUntilTurn?.length) {
         for (const { spell, id } of c.immuneUntilTurn) c.immuneTargets?.get(spell)?.delete(id);
