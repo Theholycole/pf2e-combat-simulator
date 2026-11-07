@@ -46,6 +46,8 @@ export function pcNeeds(text) {
         [/^Your current Hit Points are (?:at )?half your maximum or (?:less|lower)$/i, () => ({ hpBelowHalf: true })],
         [/^You have (?:one or more hands|a hand|one hand) free$/i, () => ({ freeHand: true })],
         [/^An? (?:enemy|creature|foe) has you Grabbed or Restrained$/i, () => ({ any: [{ self: ["grabbed"] }, { self: ["restrained"] }] })],
+        // (2026-11-07, Oil Fire's, Arcane Slam's, Spinning Release's "You have a foe Grabbed": a creature it holds, and that one its target.)
+        [/^You have (?:a|an) (?:foe|creature|enemy|target) Grabbed(?: or Restrained)?(?: with your lash)?$/i, () => [{ grabbing: {} }, { target: { conditions: ["grabbed", "restrained"], within: 5 } }]],
         [/^You(?:'re| are) (?:Prone|prone)$/, () => ({ self: ["prone"] })],
         [/^An? (?:creature|enemy|foe) within your (?:melee )?reach is (Prone|Frightened|Off-Guard)(?: or swimming)?$/i, (m) => ({ target: { conditions: [m[1].toLowerCase().replace("off-guard", "offGuard")], within: 5 } })],
         [/^An? (Frightened|Prone) (?:creature|enemy|foe) is (?:with)?in your (?:melee )?reach$/i, (m) => ({ target: { conditions: [m[1].toLowerCase()], within: 5 } })],
@@ -53,7 +55,7 @@ export function pcNeeds(text) {
     ];
     for (const [pattern, need] of clauses) {
         const m = pattern.exec(said);
-        if (m) return [need(m)];
+        if (m) return [need(m)].flat();
     }
     // (What a fight on the simulator's lit, open field always meets — the PC's own staff or favored weapon is the one it holds —: no need.)
     if (/^(?:You(?:'re| are) wielding your (?:staff|deity's favored weapon|order's favored weapon)|You aren't unholy|You aren't in dim light or darkness|You(?:'re| are) in bright light|You(?:'re| are) aware of the hostile effect, and you aren't Off-Guard against it|You aren't Encumbered|You(?:'re| are) not Encumbered|You(?:'re| are) aware of the attack(?:,| and) (?:aren't|are not|not) Off-Guard(?: against it)?(?:, and either have a hand free or are wielding a melee weapon)?)$/i.test(said)) return [];

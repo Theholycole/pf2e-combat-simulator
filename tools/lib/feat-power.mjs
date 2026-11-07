@@ -350,6 +350,9 @@ function innateSpellEntry(doc, level, host) {
             // (Summon Fire Elemental's "only fire elementals": the element its name gives, too.)
             const element = /\bSummon (Air|Earth|Fire|Metal|Water|Wood) Elemental\b/i.exec(doc.name)?.[1]?.toLowerCase();
             if (summon && element) summon.creature.pick.all = [element];
+            // (Devil Allies' "you can summon only creatures that have the devil trait": that trait too.)
+            const only = /\bsummon only creatures (?:that have|with) the (\w+) trait\b/i.exec(String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, ""))?.[1]?.toLowerCase();
+            if (summon && only && summon.creature?.pick) summon.creature.pick.all = [...new Set([...(summon.creature.pick.all ?? []), only])];
             if (summon) summons.push(summon);
             continue;
         }
@@ -2730,6 +2733,12 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     }
     joinBuiltins(pc, pooledBuiltins);
     if (entries.breathOfLife) pc.breathOfLife = entries.breathOfLife;
+    // (2026-11-07, Oil Fire's, Dazing Blow's "You have a foe Grabbed": a Grapple to set it up, forced as the feat is — before, the PC
+    // never grabbed and the feat went unused. Not counted as the feat's use.)
+    const grabNeeded = (entry) => (entry?.plan?.needs ?? entry?.needs ?? []).some((need) => need?.grabbing) || entry?.plan?.requires === "grabbed" || entry?.requires === "grabbed";
+    if (basicActions.grapple && [...entries.spells, ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].some(grabNeeded)) {
+        pc.spells = [...(pc.spells ?? []), { name: "Grapple (to set up the feat)", plan: structuredClone(basicActions.grapple), castRank: 1, pool: null, kind: "basic", ...(FORCE ? { featForced: true } : {}) }];
+    }
     if (entries.summons?.length) pc.summons = [...(pc.summons ?? []), ...entries.summons.map((entry) => ({ ...entry, reserveIds: [], ...(FORCE ? { featForced: true } : {}) }))];
     if (tried.strikes) pc.strikes = tried.strikes;
     // (2026-11-05, Diamond Fists: its unarmed attacks forceful and deadly d10 — a die step bigger for one that had either; the deadly dice
