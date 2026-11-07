@@ -5086,7 +5086,8 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     const sets = [];
     // (Not those the spell can't affect — Wails of the Damned's "each living enemy": not the caster's allies, nor undead — so they don't
     // take the area's room or show among its targets.)
-    const affected = (other) => !outsideTargets(caster, other, spell);
+    // (2026-11-07, Flying Flame's path it chooses: an area for foes only — foes — leaves its allies out of any shape, not only an emanation.)
+    const affected = (other) => !outsideTargets(caster, other, spell) && !(info.area.foes && other.side === caster.side);
     // (On the grid, 2026-10-21: whoever its template catches where it can go — grid-fight.js.)
     if (state.grid && caster.square) return gridAreaSets(state, caster, info.area, info.range, { affected: (other) => affected(other) && notImmune(other), healing: Boolean(info.healing), helpful: Boolean(info.helpful) || Boolean(lightZoneOf(spell)), foesOnly: Boolean(info.area.foes) });
     const members = (id) => [...(state.melees.get(id) ?? [])].map((memberId) => state.byId.get(memberId)).filter((other) => other && isActive(other) && notImmune(other) && affected(other));
