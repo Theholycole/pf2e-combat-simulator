@@ -1498,6 +1498,7 @@ const HAND = {
     // (2026-11-07, Predictable!: its Sense Motive played as a success — +1 circumstance to AC and saves until its next turn; against all foes.)
     // (2026-11-07, Archaeologist's Warning: +1 circumstance to its allies' initiative when it rolls Perception, Society or Thievery — a free action.)
     "archaeologists-warning": () => ({ builtins: { initiativeWarning: { name: "Archaeologist's Warning", value: 1, free: true, skills: ["society", "thievery"] } }, played: "+1 to its allies' initiative (free action)" }),
+    "nimble-form": () => ({ builtins: { nimbleForm: true }, played: "its eidolon's agile attacks at -3/-6 for the multiple attack penalty" }),
     "predictable": () => ({ builtins: { selfEffects: [{ name: "Predictable!", actions: 1, featForced: true, model: { name: "Predictable!", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 1 }, { on: "saving-throw", type: "circumstance", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, played: "+1 AC and saves until its next turn (1 action; its Perception check played as a success)" }),
     // (Scouring Spark: while its divine spark is channeled — a Mythic Point, a minute —, 3d6 fire on a foe touching or hitting it in melee.)
     "scouring-spark": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, pool: "mythic", model: { rounds: 10, retaliation: { parts: [{ dice: 3, die: 6, bonus: 0, type: "fire" }], adjacentMelee: true, touch: true } } }], pools: { mythic: 3 }, played: "3d6 fire on a foe that touches or hits it in melee while its spark is channeled (1 action, a Mythic Point, a minute; its immunities and fire on its fists not played)" }),
@@ -3439,6 +3440,11 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             master.tandemWith = companion.id;
             companion.tandemWith = master.id;
         }
+    }
+    // (2026-11-07, Nimble Form: its eidolon's agile unarmed attacks at -3 and -6 for the multiple attack penalty.)
+    if (master?.nimbleForm) {
+        delete master.nimbleForm;
+        if (companion) companion.strikes = (companion.strikes ?? []).map((strike) => (strike.agile ? { ...strike, mapSteps: [3, 6] } : strike));
     }
     // (2026-11-05, Cole's pick "Mounted combat": a mount feat's companion ridden — the plain party's too when it has one —, and a feat for a
     // rider on a mounted PC both sides. companions.js mountUp.)
