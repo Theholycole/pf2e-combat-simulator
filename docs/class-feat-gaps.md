@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1575 are rated; 2781 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1580 are rated; 2776 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -15,8 +15,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Spellcasting (slots, focus, spellshapes) | 231 | 38 | 269 |
 | Companions, familiars and eidolons | 125 | 45 | 170 |
 | Out of combat (exploration, downtime, skills) | 282 | 55 | 337 |
-| Nothing a fight would use | 624 | 133 | 757 |
-| **All** | 1960 | 821 | 2781 |
+| Nothing a fight would use | 620 | 132 | 752 |
+| **All** | 1956 | 820 | 2776 |
 
 ## By class
 
@@ -29,7 +29,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | champion |  | 6 | 8 | 16 | 3 | 6 | 6 | 13 | 58 |
 | cleric |  | 5 | 1 | 13 | 16 | 1 | 8 | 19 | 63 |
 | commander |  | 7 | 1 | 3 |  |  | 5 | 7 | 23 |
-| druid |  | 5 | 4 | 4 | 18 | 5 | 7 | 19 | 62 |
+| druid |  | 5 | 4 | 4 | 18 | 5 | 7 | 18 | 61 |
 | exemplar |  | 2 | 21 | 2 |  |  | 3 | 4 | 32 |
 | fighter |  | 19 |  | 5 |  |  | 1 | 9 | 34 |
 | guardian |  | 8 | 2 | 5 |  |  | 2 | 4 | 21 |
@@ -51,8 +51,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | thaumaturge |  | 7 | 8 | 2 | 1 | 1 | 5 | 10 | 34 |
 | witch |  | 1 | 2 | 2 | 4 | 16 | 7 | 3 | 35 |
 | wizard |  | 2 |  | 1 | 14 | 4 | 10 | 6 | 37 |
-| archetype | 146 | 246 | 43 | 195 | 93 | 62 | 147 | 435 | 1367 |
-| other | 11 | 35 | 2 | 35 | 16 | 13 | 25 | 33 | 170 |
+| archetype | 146 | 246 | 43 | 195 | 93 | 62 | 147 | 432 | 1364 |
+| other | 11 | 35 | 2 | 35 | 16 | 13 | 25 | 32 | 169 |
 
 ## Why the simulator doesn't play the ones with a plan
 
@@ -234,7 +234,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | it grants Verdant Rest: the feat module reads nothing for it | 1 |
 | it grants Legendary Negotiation: the feat module reads nothing for it | 1 |
 | it grants Weaponsight: an Effect with nothing a fight counts | 1 |
-| it grants Water Transfer: a teleport | 1 |
 | it grants Intercession Spell: the feat module reads nothing for it | 1 |
 | it grants Incredible Investiture: the feat module reads nothing for it | 1 |
 
@@ -2297,7 +2296,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reprepare Spell | 18 | wizard | passive | no plan |  |
 | Spell Mastery | 20 | wizard | passive | no plan |  |
 
-## Nothing a fight would use (757)
+## Nothing a fight would use (752)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -2356,7 +2355,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Inspiring Recitation | 4 | archetype | 1 action | plan | an Effect with nothing a fight counts |
 | Into The Storm | 4 | archetype | passive | no plan |  |
 | Just the Tool | 4 | archetype | 1 action | no plan |  |
-| Like a Fish in Water | 4 | archetype | passive | no plan |  |
 | Lion's Might | 4 | archetype | passive | no plan |  |
 | Marine Combat Training | 4 | archetype | passive | no plan |  |
 | Mental Forge | 4 | archetype | passive | no plan |  |
@@ -2389,7 +2387,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Take the Wheel | 4 | archetype | 1 action | no plan |  |
 | Terrain Scout | 4 | archetype | passive | plan | it grants Terrain Stalker: the feat module reads nothing for it |
 | The World Whispers | 4 | archetype | 1 action | no plan |  |
-| Trained Swimmer | 4 | archetype | passive | no plan |  |
 | Triangulate | 4 | archetype | passive | no plan |  |
 | Tunnel Wall | 4 | archetype | 1 action | plan | an Effect with nothing a fight counts |
 | Underbrush Trailblazer | 4 | archetype | passive | plan | it grants Terrain Stalker: the feat module reads nothing for it |
@@ -2555,7 +2552,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Armored Rest | 10 | archetype | passive | no plan |  |
 | Assured Ritualist | 10 | archetype | passive | no plan |  |
 | Attunement to Stone | 10 | archetype | passive | no plan |  |
-| Azure Fins | 10 | archetype | passive | no plan |  |
 | Bear Empathy | 10 | archetype | passive | no plan |  |
 | Beastmaster Bond | 10 | archetype | passive | no plan |  |
 | Blade of the Heart | 10 | archetype | 1 action | no plan |  |
@@ -2822,7 +2818,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Order Explorer | 2 | druid | passive | no plan |  |
 | Elemental Summons | 4 | druid | passive | no plan |  |
 | Forest Passage | 4 | druid | passive | no plan |  |
-| Natural Swimmer | 4 | druid | passive | no plan |  |
 | Misty Transformation | 6 | druid | reaction | plan | a lasting area |
 | Toppling Transformation | 6 | druid | reaction | plan | a plan the engine can't play (its targeting or what it does) |
 | Can't You See? | 8 | druid | passive | no plan |  |
@@ -2962,7 +2957,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Internal Dialogue | 14 | other | reaction | no plan |  |
 | Lightless Sight | 14 | other | passive | plan | it grants Weaponsight: an Effect with nothing a fight counts |
 | Manipulate Realm | 14 | other | passive | plan | it grants one of 3 (Drain Realm: a plan the engine can't play (its targeting or what it does); Spread Realm: the feat mo |
-| Sink and Swim | 14 | other | passive | plan | it grants Water Transfer: a teleport |
 | Spell Network | 14 | other | free | no plan |  |
 | Night Terror | 16 | other | passive | no plan |  |
 | Rapid Switch | 16 | other | free | no plan |  |

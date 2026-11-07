@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 2256: in whole fights, or 113 combo feats from the basic actions they fold in (docs/combo-feats.md). **4110 it doesn't.**
-- **2901** are in neither.
+- **The simulator** rates 2272: in whole fights, or 113 combo feats from the basic actions they fold in (docs/combo-feats.md). **4094 it doesn't.**
+- **2885** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1355 | 859 |
-| archetype | 2074 | 1246 | 1337 | 943 |
-| ancestry | 1613 | 1086 | 1050 | 800 |
+| class | 2282 | 1088 | 1353 | 857 |
+| archetype | 2074 | 1246 | 1334 | 940 |
+| ancestry | 1613 | 1086 | 1039 | 789 |
 | skill | 340 | 261 | 325 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 9 | 6 |
 | class feature | 3 | 2 | 2 | 2 |
-| **All** | 6366 | 3725 | 4110 | 2901 |
+| **All** | 6366 | 3725 | 4094 | 2885 |
 
 ## Why the feat module doesn't automate them
 
@@ -39,7 +39,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 | Reason | class | archetype | ancestry | skill | general | bonus | class feature | Total |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| no card, and PF2e's rule elements on it change nothing a fight counts | 255 | 214 | 317 | 59 | 14 | 4 |  | 863 |
+| no card, and PF2e's rule elements on it change nothing a fight counts | 254 | 211 | 306 | 59 | 14 | 4 |  | 848 |
 | no card: roleplay or nothing to automate | 157 | 201 | 150 | 46 | 9 |  |  | 563 |
 | no card: the feat module's reminder, which a fight doesn't play | 165 | 125 | 90 | 21 |  | 1 |  | 402 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 80 | 38 | 111 | 2 |  |  | 322 |
@@ -165,7 +165,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | it grants Call Warshard Weapon | 1 |  |  |  |  |  |  | 1 |
 | it grants Bond with Spirit |  | 1 |  |  |  |  |  | 1 |
 | it grants Witch's Charge |  | 1 |  |  |  |  |  | 1 |
-| it grants Water Transfer | 1 |  |  |  |  |  |  | 1 |
 | it grants Greater Field Discovery |  | 1 |  |  |  |  |  | 1 |
 | it grants Charming Liar |  |  | 1 |  |  |  |  | 1 |
 | it grants one of 10 |  | 1 |  |  |  |  |  | 1 |
@@ -293,7 +292,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Animal Elocutionist | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Animal Senses | 1 | ancestry | passive | rated 0 |
 | Aquatic Elf Warrior | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Aqueous Dragonblood | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Aqueous Dragonblood | 1 | ancestry | passive | rated 0 |
 | Arcane Communication | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Arcane Dragonblood | 1 | ancestry | passive | it grants Arcane Sense |
 | Arcane Eye | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -505,7 +504,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Scholar's Inheritance | 1 | ancestry | passive | it grants Alchemical Crafting |
 | Scorched on the Crackling Mountain | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Scuttle Up | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Sea Legs | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Sea Legs | 1 | ancestry | passive | rated 0 |
 | Seasong | 1 | ancestry | passive | it grants Virtuosic Performer |
 | Seedpod | 1 | ancestry | passive | rated 0 |
 | Sensitive Nose | 1 | ancestry | passive | rated 0 |
@@ -577,7 +576,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Warren Navigator | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Watchful Halfling | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Water Nagaji | 1 | ancestry | passive | rated 0 |
-| Waterweave Tripkee | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Waterweave Tripkee | 1 | ancestry | passive | rated 0 |
 | Wayang Lore | 1 | ancestry | passive | it grants Additional Lore |
 | Wayang Weapon Familiarity | 1 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Weight of Experience | 1 | ancestry | passive | it grants Assurance |
@@ -632,7 +631,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Fey Influence | 5 | ancestry | passive | rated -0.46 |
 | Fierce Grasp | 5 | ancestry | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Fighting Horn | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Finned Ridges | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Finned Ridges | 5 | ancestry | passive | rated 0 |
 | Fluid Contortionist | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Friend of the Family | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Friendform | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -663,7 +662,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Oni's Mask | 5 | ancestry | passive | rated 0 |
 | Past Life | 5 | ancestry | passive | it grants Additional Lore |
 | Planar Resilience | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Practiced Paddler | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Practiced Paddler | 5 | ancestry | passive | rated 0 |
 | Precious Alloys | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Prodigious Climber | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Protective Claws | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -691,8 +690,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Strong of Wing | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Strong Tail | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Supernatural Charm | 5 | ancestry | passive | rated -0.15 |
-| Swift Swimmer | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Swimming Poppet | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Swift Swimmer | 5 | ancestry | passive | rated 0 |
+| Swimming Poppet | 5 | ancestry | passive | rated 0 |
 | Tengu Feather Fan | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | The Moon Weaver's Art | 5 | ancestry | passive | a spell the engine doesn't cast |
 | Thrown Voice | 5 | ancestry | passive | a spell the engine doesn't cast |
@@ -704,7 +703,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Venom Spit | 5 | ancestry | passive | rated 0 |
 | Voice of the Elements | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Warding Jewel | 5 | ancestry | passive | rated 0.04 |
-| Wavetouched Paragon | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Wavetouched Paragon | 5 | ancestry | passive | rated 0 |
 | Wildborn Adept | 5 | ancestry | passive | rated 0 |
 | Zip! Zoom! | 5 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Abjure the False Kin | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -771,7 +770,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Hefting Shadow | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Hero's Wings | 9 | ancestry | passive | rated 0 |
 | Heroes' Call | 9 | ancestry | passive | rated -0.03 |
-| Home in the Deep | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Home in the Deep | 9 | ancestry | passive | rated 0 |
 | Horn and Bone Incantation | 9 | ancestry | passive | rated 0 |
 | Hypnotic Gaze | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Incredible Improvisation | 9 | ancestry | free | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -814,7 +813,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Scarlet Strands | 9 | ancestry | passive | rated -0.11 |
 | Secrets of the Past | 9 | ancestry | passive | a spell the engine doesn't cast |
 | Sense Thoughts | 9 | ancestry | passive | rated 0 |
-| Serpentine Swimmer | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Serpentine Swimmer | 9 | ancestry | passive | rated 0 |
 | Shaitan Magic | 9 | ancestry | passive | rated -0.02 |
 | Siphon Torment | 9 | ancestry | passive | a spell the engine doesn't cast |
 | Skeletal Resistance | 9 | ancestry | passive | rated 0 |
@@ -825,7 +824,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Squad Tactics | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Stonewalker | 9 | ancestry | passive | a spell the engine doesn't cast |
 | Strand Strider | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Strong Swimmer | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Strong Swimmer | 9 | ancestry | passive | rated 0 |
 | Studious Adept | 9 | ancestry | passive | rated 0 |
 | Towering Growth | 9 | ancestry | passive | rated -0.06 |
 | Tree Climber (Elf) | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -1163,7 +1162,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Guerrilla Weaponry | 4 | archetype | passive | it grants Guerrilla Assault |
 | Gusting Spell | 4 | archetype | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Investigate Haunting | 4 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Like a Fish in Water | 4 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Like a Fish in Water | 4 | archetype | passive | rated 0 |
 | Listener's Boon | 4 | archetype | passive | it grants Domain Initiate |
 | Manipulative Charm | 4 | archetype | passive | rated -0.36 |
 | Marine Combat Training | 4 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -1197,7 +1196,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Tactical Excellence | 4 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | The Dead Tell Tales | 4 | archetype | passive | rated 0 |
 | Tools of the Trade | 4 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Trained Swimmer | 4 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Trained Swimmer | 4 | archetype | passive | rated 0 |
 | Triangulate | 4 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Unholy Pact | 4 | archetype | passive | rated 0 |
 | Viking Weapon Familiarity | 4 | archetype | passive | rated -0.01 |
@@ -1305,7 +1304,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Accursed Clay Fist | 10 | archetype | passive | rated 0 |
 | Angel of Death | 10 | archetype | passive | rated 0 |
 | Attunement to Stone | 10 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Azure Fins | 10 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Azure Fins | 10 | archetype | passive | rated 0 |
 | Battle Scars | 10 | archetype | passive | rated 0 |
 | Channel Rot | 10 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Close Formation | 10 | archetype | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -1534,7 +1533,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Lingering Chill | 4 | class | passive | rated -0.24 |
 | Magical Trickster | 4 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Melodious Spell | 4 | class | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Natural Swimmer | 4 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
+| Natural Swimmer | 4 | class | passive | rated 0 |
 | Overwhelming Harm | 4 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Poison Weapon | 4 | class | 1 action | rated -0.07 |
 | Raging Athlete | 4 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
@@ -1703,7 +1702,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Secondary Detonation Array | 14 | class | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Shatter Space | 14 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Showstopper | 14 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
-| Sink and Swim | 14 | class | passive | it grants Water Transfer |
+| Sink and Swim | 14 | class | passive | rated 0 |
 | Soaring Armor | 14 | class | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Sow Spell | 14 | class | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Vigorous Anthem | 14 | class | 1 action | no card, and PF2e's rule elements on it change nothing a fight counts |

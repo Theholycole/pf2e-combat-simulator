@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1575,
+ "rated": 1580,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -45198,26 +45198,6 @@
    "text": "You temporarily change your weapon's shape to assist you in the field. You morph your weapon into a single simple tool, such as a shovel or crowbar, to help with a mundane task. You can't replicate entire toolkits with this ability. You can"
   },
   {
-   "id": "P38Tl1cM5D0EKdKV",
-   "name": "Like a Fish in Water",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Water feels like a second skin to you, and you glide through it as quickly as a fish. You gain a swim Speed of 15 feet, and you can hold your breath for twice as long. If you already have a swim Speed, it increases by 5 feet."
-  },
-  {
    "id": "Q6EkzXkbMuuk8f7c",
    "name": "Lion's Might",
    "level": 4,
@@ -45861,26 +45841,6 @@
    "reason": null,
    "detail": null,
    "text": "Requirements Your waking world is active. Your waking world tells you about the unseen creatures it holds. You [[/act seek]] in your waking world. If you succeed or critically succeed against a creature that was undetected by you, you Point"
-  },
-  {
-   "id": "w7qyBwVzAAL1ORDd",
-   "name": "Trained Swimmer",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Thanks to tireless practice, water has become a natural environment for you. You gain a swim Speed of 15 feet. If you already have a permanent swim Speed, swimming up or down isn't difficult terrain."
   },
   {
    "id": "xtRcWpprFBiXeCOB",
@@ -49226,26 +49186,6 @@
    "reason": null,
    "detail": null,
    "text": "You become attuned to the stone around you. When in contact with a stone surface, you gain tremorsense (imprecise) 5 feet along that surface, and you can activate your ka stone to cast One with Stone."
-  },
-  {
-   "id": "VhkHlkvAbhepZYFB",
-   "name": "Azure Fins",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "other",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "When submerged in water or another liquid, you form small fin-like arms along your body, granting you far greater maneuverability while swimming. You gain a swim Speed equal to your land Speed. Furthermore, while swimming on the surface of "
   },
   {
    "id": "4w73cxvqhGRiozsK",
@@ -54771,28 +54711,6 @@
    "text": "You can always find a path, almost as if foliage parted before you. You ignore any difficult terrain caused by plants and fungi, such as bushes, vines, and undergrowth."
   },
   {
-   "id": "epBOnfEDOd4V9mQ0",
-   "name": "Natural Swimmer",
-   "level": 4,
-   "owner": "druid",
-   "classes": [
-    "druid"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "druid"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "other",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Water flows around you, letting you cut through the waves as if born to it. You gain a swim Speed of 15 feet. If you already have a permanent swim Speed, swimming up or down isn't difficult terrain."
-  },
-  {
    "id": "EOYxsteDMSSZovfV",
    "name": "Misty Transformation",
    "level": 6,
@@ -57935,28 +57853,6 @@
    "reason": "it grants one of 3",
    "detail": "it grants one of 3 (Drain Realm: a plan the engine can't play (its targeting or what it does); Spread Realm: the feat module reads nothing for it; Unleash Realm: damage still naming the character's data)",
    "text": "Thanks to your continued belief in your ultimate transformation, you have learned greater control over your manifested realm. If you spend a Mythic Point when you Manifest your Realm, you can use the Drain Realm, Spread Realm, and Unleash R"
-  },
-  {
-   "id": "I1xq9TDYRHNtqzGz",
-   "name": "Sink and Swim",
-   "level": 14,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "aftermath",
-    "primal",
-    "water"
-   ],
-   "rarity": "rare",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "it grants Water Transfer: a teleport",
-   "detail": "it grants Water Transfer: a teleport",
-   "text": "Your body looks like it's made of flowing water, clear and pristine, providing a natural grace to all your movements. You gain a swim Speed equal to your land Speed. If you already had a swim Speed, it's increased by 10 feet. You gain the W"
   },
   {
    "id": "kRti2i47YqG4zVp7",
