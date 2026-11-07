@@ -834,5 +834,10 @@ export const SIM_WHY = Object.freeze({
     "Expert Combat Eidolon": SUBCLASS,
     "Master of Many Styles": SAME_PICK,
     "Defensive Stratagem": SAME_PICK,
+    "Immortal Techniques": SAME_PICK,
+    "Waterfowl Stance": REACH,
+    "Air Shroud": FOE_TYPE,
+    "Starshot Arrow": DAMAGE_TYPE,
+    "Reckless Abandon": SCENE,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });
