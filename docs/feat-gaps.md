@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 2234: in whole fights, or 113 combo feats from the basic actions they fold in (docs/combo-feats.md). **4132 it doesn't.**
-- **2907** are in neither.
+- **The simulator** rates 2247: in whole fights, or 113 combo feats from the basic actions they fold in (docs/combo-feats.md). **4119 it doesn't.**
+- **2901** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1359 | 860 |
-| archetype | 2074 | 1246 | 1346 | 946 |
-| ancestry | 1613 | 1086 | 1059 | 802 |
+| class | 2282 | 1088 | 1355 | 859 |
+| archetype | 2074 | 1246 | 1340 | 943 |
+| ancestry | 1613 | 1086 | 1056 | 800 |
 | skill | 340 | 261 | 325 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 9 | 6 |
 | class feature | 3 | 2 | 2 | 2 |
-| **All** | 6366 | 3725 | 4132 | 2907 |
+| **All** | 6366 | 3725 | 4119 | 2901 |
 
 ## Why the feat module doesn't automate them
 
@@ -41,20 +41,20 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 255 | 214 | 317 | 59 | 14 | 4 |  | 863 |
 | no card: roleplay or nothing to automate | 157 | 201 | 150 | 46 | 9 |  |  | 563 |
-| no card: the feat module's reminder, which a fight doesn't play | 168 | 126 | 92 | 21 |  | 1 |  | 408 |
+| no card: the feat module's reminder, which a fight doesn't play | 165 | 125 | 92 | 21 |  | 1 |  | 404 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 80 | 38 | 111 | 2 |  |  | 322 |
 | no card: only grants other feats, features or choices | 86 | 123 | 47 | 16 | 2 |  |  | 274 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 50 | 46 | 41 | 21 | 1 |  |  | 159 |
 | no card: a combat passive no reader or hand plan covers yet | 49 | 58 | 29 | 13 | 2 |  | 1 | 152 |
-| a spell the engine doesn't cast | 25 | 32 | 63 | 1 |  |  |  | 121 |
+| a spell the engine doesn't cast | 24 | 29 | 61 | 1 |  |  |  | 115 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | a timer with no rules a fight counts | 52 | 25 | 17 | 4 |  | 1 |  | 99 |
 | a plan the engine can't play | 30 | 34 | 25 | 2 |  |  |  | 91 |
 | no card: a combat action no reader or hand plan covers yet | 23 | 27 | 13 | 4 | 1 |  |  | 68 |
 | no card: companions, familiars and eidolons | 34 | 25 | 1 | 5 |  |  |  | 65 |
 | it grants Additional Lore | 1 | 11 | 39 | 1 |  |  |  | 52 |
-| a roll whose results the simulator doesn't read | 25 | 14 | 5 | 7 |  |  |  | 51 |
 | a Strike with nothing more the simulator reads | 29 | 19 | 1 |  |  | 1 |  | 50 |
+| a roll whose results the simulator doesn't read | 25 | 12 | 4 | 7 |  |  |  | 48 |
 | its requirement | 14 | 27 | 4 |  |  |  |  | 45 |
 | an Effect with nothing a fight counts | 24 | 13 | 7 | 1 |  |  |  | 45 |
 | no card: PF2e's own Effect, from the feat's Use button | 18 | 17 | 7 | 2 |  |  |  | 44 |
@@ -713,7 +713,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Aggravating Scratch | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Analyze Information | 9 | ancestry | passive | a spell the engine doesn't cast |
 | Ancestral Form | 9 | ancestry | passive | rated -0.49 |
-| Ancestral Healer | 9 | ancestry | passive | a spell the engine doesn't cast |
+| Ancestral Healer | 9 | ancestry | passive | rated 0 |
 | Ancillary Motes | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | Animal Summoner | 9 | ancestry | passive | rated -0.34 |
 | Arcane Camouflage | 9 | ancestry | passive | rated -0.21 |
@@ -834,7 +834,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Velstrac Magic | 9 | ancestry | passive | rated -0.11 |
 | Web Hunter | 9 | ancestry | passive | rated 0 |
 | Wheedle and Jig | 9 | ancestry | passive | rated -0.14 |
-| Whispers in the Night | 9 | ancestry | passive | a spell the engine doesn't cast |
+| Whispers in the Night | 9 | ancestry | passive | rated 0 |
 | Wind God's Fan | 9 | ancestry | passive | no card, and PF2e's rule elements on it change nothing a fight counts |
 | World-Protector's Hospitality | 9 | ancestry | passive | a spell the engine doesn't cast |
 | Adamantine Mantra | 13 | ancestry | passive | rated -0.17 |
@@ -2315,7 +2315,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Ghostly Resonance | 4 | class | passive | no card: roleplay or nothing to automate |
 | Harmonize Self | 4 | class | passive | rated 0 |
 | Inured to Alchemy | 4 | class | passive | no card: roleplay or nothing to automate |
-| Light of Revelation | 4 | class | passive | a spell the engine doesn't cast |
+| Light of Revelation | 4 | class | passive | rated 0 |
 | Striker's Scroll | 4 | class | passive | no card: roleplay or nothing to automate |
 | Sun Blade | 4 | class | passive | rated -0.19 |
 | Supernatural Senses | 4 | class | passive | no card: roleplay or nothing to automate |
@@ -3644,7 +3644,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Warding Light | 4 | archetype | passive | rated 0 |
 | Wyldsinger | 4 | archetype | passive | rated -0.1 |
 | Basic Magus Spellcasting | 6 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
-| Beastmaster's Trance | 6 | archetype | passive | a spell the engine doesn't cast |
+| Beastmaster's Trance | 6 | archetype | passive | rated 0 |
 | Cascade Bearer's Flexibility | 6 | archetype | free | no card: spellcasting the spell module or PF2e handles |
 | Heightened Captivation | 6 | archetype | 1 action | no card: spellcasting the spell module or PF2e handles |
 | Humble Spell | 6 | archetype | 1 action | no card: spellcasting the spell module or PF2e handles |
@@ -3678,7 +3678,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Halcyon Spellcasting Initiate | 10 | archetype | passive | no card: spellcasting the spell module or PF2e handles |
 | Proscribe Devilry | 10 | archetype | passive | rated 0 |
 | Recover Spell | 10 | archetype | 1 action | no card: spellcasting the spell module or PF2e handles |
-| Shadow Magic | 10 | archetype | passive | a spell the engine doesn't cast |
+| Shadow Magic | 10 | archetype | passive | rated 0 |
 | Spellmaster's Ward | 10 | archetype | passive | a spell the engine doesn't cast |
 | Strident Command | 10 | archetype | passive | rated -0.2 |
 | Vindicator's Judgment | 10 | archetype | passive | rated -0.02 |
@@ -3799,7 +3799,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Reckless Riding Lunge | 4 | archetype | 1 action | no card: companions, familiars and eidolons |
 | Ride-By Recovery | 4 | archetype | reaction | no card: companions, familiars and eidolons |
 | Spirit Companion | 4 | archetype | passive | rated 0.07 |
-| Spirit of the Beast | 4 | archetype | passive | a spell the engine doesn't cast |
+| Spirit of the Beast | 4 | archetype | passive | rated -0.08 |
 | Spiritual Explorer | 4 | archetype | passive | no card: companions, familiars and eidolons |
 | Winged Leap | 4 | archetype | passive | no card: companions, familiars and eidolons |
 | Defend Mount | 6 | archetype | reaction | rated 0.02 |
@@ -4052,7 +4052,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (408)
+### no card: the feat module's reminder, which a fight doesn't play (404)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4247,7 +4247,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Thorn in Hell's Side | 12 | archetype | passive | reminder | the feat module reads nothing for it |
 | Undying Beast | 12 | archetype | passive | reminder | the feat module reads nothing for it |
 | Wailing Dead | 12 | archetype | 2 actions | card | the feat module reads nothing for it |
-| Aldori's Retort | 14 | archetype | passive | reminder | the feat module reads nothing for it |
 | Death Rattle | 14 | archetype | 1 action | card | the feat module reads nothing for it |
 | Effortless Captivation | 14 | archetype | free | reminder | the feat module reads nothing for it |
 | Guided Hover | 14 | archetype | reaction | reminder | the feat module reads nothing for it |
@@ -4352,7 +4351,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Improved Command Undead | 10 | class | passive | reminder | the feat module reads nothing for it |
 | Mirror Shield | 10 | class | reaction | reminder | the feat module reads nothing for it |
 | Overpowering Charge | 10 | class | passive | reminder | the feat module reads nothing for it |
-| Reflexive Riposte | 10 | class | passive | reminder | the feat module reads nothing for it |
 | Shared Avoidance | 10 | class | passive | reminder | the feat module reads nothing for it |
 | Switcheroo | 10 | class | reaction | reminder | the feat module reads nothing for it |
 | Amp Focus | 12 | class | passive | reminder | the feat module reads nothing for it |
@@ -4367,7 +4365,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Double Prey | 12 | class | passive | reminder | the feat module reads nothing for it |
 | Effortless Impulse | 12 | class | free | reminder | the feat module reads nothing for it |
 | Emblazon Antimagic | 12 | class | passive | reminder | the feat module reads nothing for it |
-| Endless Return | 12 | class | passive | reminder | the feat module reads nothing for it |
 | Flinging Shove | 12 | class | passive | reminder | the feat module reads nothing for it |
 | Fortunate Relief | 12 | class | passive | reminder | the feat module reads nothing for it |
 | Grave Focus | 12 | class | passive | reminder | the feat module reads nothing for it |
@@ -4411,7 +4408,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Effortless Concentration | 16 | class | free | reminder | the feat module reads nothing for it |
 | Electric Counter | 16 | class | reaction | reminder | the feat module reads nothing for it |
 | Improved Reflexive Shield | 16 | class | passive | reminder | the feat module reads nothing for it |
-| Improved Twin Riposte (Ranger) | 16 | class | passive | reminder | the feat module reads nothing for it |
 | Lose Your Chains | 16 | class | reaction | reminder | the feat module reads nothing for it |
 | Master of Many Styles | 16 | class | free | reminder | the feat module reads nothing for it |
 | Rebounding Smite | 16 | class | reaction | reminder | the feat module reads nothing for it |
@@ -4829,62 +4825,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Say That Again! | 6 | skill | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Too Angry to Die | 12 | skill | reaction | card | a plan the engine can't play (its targeting or what it does) |
 
-### a roll whose results the simulator doesn't read (51)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Empathetic Plea | 1 | ancestry | reaction | card | a roll whose results the simulator doesn't read |
-| Keep up Appearances | 1 | ancestry | reaction | card | a roll whose results the simulator doesn't read |
-| Anchoring Arrow | 13 | ancestry | 2 actions | card | a roll whose results the simulator doesn't read |
-| Disruptive Stare | 13 | ancestry | reaction | card | a roll whose results the simulator doesn't read |
-| Luring Chomp | 13 | ancestry | 1 action | card | a roll whose results the simulator doesn't read |
-| Gunpowder Gauntlet | 4 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
-| Boaster's Challenge | 6 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
-| Denounce Tyranny | 6 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
-| Interrogate | 6 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
-| Pluck from the Sky | 8 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
-| Public Execution | 8 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
-| Statement Strut | 8 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
-| Swap Reflections | 8 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
-| Battlefront Sabotage | 10 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
-| Reel 'Em In | 10 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
-| Curse of the Saumen Kar | 14 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
-| Declare Anathema | 16 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
-| Resuscitate | 16 | archetype | 3 actions | card | a roll whose results the simulator doesn't read |
-| Unwind Death | 16 | archetype | 3 actions | card | a roll whose results the simulator doesn't read |
-| Plant Evidence | 1 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Bleed Out | 2 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Improvise Admixture | 2 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Barreling Charge | 4 | class | 2 actions | card | a roll whose results the simulator doesn't read |
-| Command Elemental | 4 | class | 2 actions | card | a roll whose results the simulator doesn't read |
-| Command Undead | 4 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Divert Streamflow | 4 | class | reaction | card | a roll whose results the simulator doesn't read |
-| Ostentatious Reload | 4 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Predictable! | 4 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Sabotage | 4 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Convincing Illusion | 6 | class | reaction | card | a roll whose results the simulator doesn't read |
-| Watch Your Back | 6 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Spellbinding Speech | 8 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Roll the Bones of Fate | 10 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Standard-Bearer's Sacrifice | 10 | class | reaction | card | a roll whose results the simulator doesn't read |
-| Felling Shot | 12 | class | 2 actions | card | a roll whose results the simulator doesn't read |
-| Miraculous Intervention | 12 | class | reaction | card | a roll whose results the simulator doesn't read |
-| Reactive Interference | 12 | class | reaction | card | a roll whose results the simulator doesn't read |
-| Reverberate | 12 | class | reaction | card | a roll whose results the simulator doesn't read |
-| Desperate Resuscitation | 14 | class | 3 actions | card | a roll whose results the simulator doesn't read |
-| Bring Into the Fold | 16 | class | 2 actions | card | a roll whose results the simulator doesn't read |
-| By Your Name | 16 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Lethal Finisher | 18 | class | 1 action | card | a roll whose results the simulator doesn't read |
-| Dance of Intercession | 20 | class | 3 actions | card | a roll whose results the simulator doesn't read |
-| Soul Thief | 20 | class | 3 actions | card | a roll whose results the simulator doesn't read |
-| No Cause for Alarm | 1 | skill | 3 actions | card | a roll whose results the simulator doesn't read |
-| Reveal True Name | 1 | skill | 2 actions | card | a roll whose results the simulator doesn't read |
-| Distracting Flattery | 4 | skill | reaction | card | a roll whose results the simulator doesn't read |
-| Commitment to Protection | 6 | skill | 1 action | card | a roll whose results the simulator doesn't read |
-| Go with the Flow | 7 | skill | reaction | card | a roll whose results the simulator doesn't read |
-| Improvise Strategy | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
-| Seasoned Command | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
-
 ### a Strike with nothing more the simulator reads (50)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -4939,6 +4879,59 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Sever Magic | 16 | class | 2 actions | card | a Strike with nothing more the simulator reads |
 | Virulent Strike | 16 | class | 1 action | card | a Strike with nothing more the simulator reads |
 | Sever Space | 20 | class | 2 actions | card | a Strike with nothing more the simulator reads |
+
+### a roll whose results the simulator doesn't read (48)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Keep up Appearances | 1 | ancestry | reaction | card | a roll whose results the simulator doesn't read |
+| Anchoring Arrow | 13 | ancestry | 2 actions | card | a roll whose results the simulator doesn't read |
+| Disruptive Stare | 13 | ancestry | reaction | card | a roll whose results the simulator doesn't read |
+| Luring Chomp | 13 | ancestry | 1 action | card | a roll whose results the simulator doesn't read |
+| Boaster's Challenge | 6 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
+| Denounce Tyranny | 6 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
+| Interrogate | 6 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
+| Pluck from the Sky | 8 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
+| Public Execution | 8 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
+| Statement Strut | 8 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
+| Swap Reflections | 8 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
+| Battlefront Sabotage | 10 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
+| Reel 'Em In | 10 | archetype | 1 action | card | a roll whose results the simulator doesn't read |
+| Curse of the Saumen Kar | 14 | archetype | 2 actions | card | a roll whose results the simulator doesn't read |
+| Resuscitate | 16 | archetype | 3 actions | card | a roll whose results the simulator doesn't read |
+| Unwind Death | 16 | archetype | 3 actions | card | a roll whose results the simulator doesn't read |
+| Plant Evidence | 1 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Bleed Out | 2 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Improvise Admixture | 2 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Barreling Charge | 4 | class | 2 actions | card | a roll whose results the simulator doesn't read |
+| Command Elemental | 4 | class | 2 actions | card | a roll whose results the simulator doesn't read |
+| Command Undead | 4 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Divert Streamflow | 4 | class | reaction | card | a roll whose results the simulator doesn't read |
+| Ostentatious Reload | 4 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Predictable! | 4 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Sabotage | 4 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Convincing Illusion | 6 | class | reaction | card | a roll whose results the simulator doesn't read |
+| Watch Your Back | 6 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Spellbinding Speech | 8 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Roll the Bones of Fate | 10 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Standard-Bearer's Sacrifice | 10 | class | reaction | card | a roll whose results the simulator doesn't read |
+| Felling Shot | 12 | class | 2 actions | card | a roll whose results the simulator doesn't read |
+| Miraculous Intervention | 12 | class | reaction | card | a roll whose results the simulator doesn't read |
+| Reactive Interference | 12 | class | reaction | card | a roll whose results the simulator doesn't read |
+| Reverberate | 12 | class | reaction | card | a roll whose results the simulator doesn't read |
+| Desperate Resuscitation | 14 | class | 3 actions | card | a roll whose results the simulator doesn't read |
+| Bring Into the Fold | 16 | class | 2 actions | card | a roll whose results the simulator doesn't read |
+| By Your Name | 16 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Lethal Finisher | 18 | class | 1 action | card | a roll whose results the simulator doesn't read |
+| Dance of Intercession | 20 | class | 3 actions | card | a roll whose results the simulator doesn't read |
+| Soul Thief | 20 | class | 3 actions | card | a roll whose results the simulator doesn't read |
+| No Cause for Alarm | 1 | skill | 3 actions | card | a roll whose results the simulator doesn't read |
+| Reveal True Name | 1 | skill | 2 actions | card | a roll whose results the simulator doesn't read |
+| Distracting Flattery | 4 | skill | reaction | card | a roll whose results the simulator doesn't read |
+| Commitment to Protection | 6 | skill | 1 action | card | a roll whose results the simulator doesn't read |
+| Go with the Flow | 7 | skill | reaction | card | a roll whose results the simulator doesn't read |
+| Improvise Strategy | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
+| Seasoned Command | 7 | skill | 1 action | card | a roll whose results the simulator doesn't read |
 
 ### its requirement (45)
 
