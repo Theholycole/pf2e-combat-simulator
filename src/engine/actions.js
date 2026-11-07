@@ -882,6 +882,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (Poison Weapon, B72: the poison goes with this hit, below; a critical miss wastes it.)
     // A hazard's or an object's immunity to critical hits: a hit's damage.
     const critical = degree === CRITICAL_SUCCESS && !target.immunities?.includes("critical-hits");
+    // (2026-11-07, Shared Stratagem: a stratagem Strike that hits leaves its target off-guard to one ally's next attack — the ally nearest it.)
+    if (strategic && attacker.sharedStratagem && isActive(target)) {
+        const ally = state.list.filter((other) => other !== attacker && other.side === attacker.side && isActive(other) && !other.thrallOf).sort((a, b) => distanceBetween(a, target) - distanceBetween(b, target))[0];
+        if (ally) {
+            target.offGuardTo = [...(target.offGuardTo ?? []), { attacker: ally.id, attacks: "all", uses: 1 }];
+            log(state, `  ${target.name} is off-guard to ${ally.name}'s next attack (Shared Stratagem)`);
+        }
+    }
     // A hit on its own turn, for Strike, Breathe, Rend's "last action was a successful Strike" (C26).
     if (!reaction) attacker.lastHit = { strike: strike.name, targetId: target.id, action: attacker.actionCount ?? 0, round: state.round };
     const earlier = history.filter((entry) => entry.strike === strike.name).length;

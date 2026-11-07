@@ -1595,6 +1595,8 @@ const HAND = {
     // (2026-11-05: Scout's Warning, +1 to its allies' initiative as it rolls, a free action; Deflecting Shot, +2 AC to an ally its gun covers
     // as it's hit.)
     "scouts-warning": () => ({ builtins: {}, plans: [{ builtin: "initiative-warning", value: 1, free: true }], played: "+1 initiative to its allies (free action)" }),
+    // (2026-11-07) Shared Stratagem: a stratagem Strike's hit leaves its target off-guard to the nearest ally's next attack.
+    "shared-stratagem": () => ({ builtins: { sharedStratagem: true }, played: "a stratagem Strike's hit leaves its target off-guard to an ally's next attack (always on)" }),
     "certain-stratagem": () => ({ builtins: { certainStratagem: true }, played: "half its strategic strike dice on a stratagem Strike's miss (always on)" }),
     // (2026-11-05: Pact of Infernal Prowess, a critically failed save rerolled, the new result kept, a free action once a fight — its
     // attack rolls and skill checks not played; Lucky Break, Cat's Luck's better-of-two on a failed Fortitude or Will save too.)
