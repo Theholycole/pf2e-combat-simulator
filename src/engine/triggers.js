@@ -83,7 +83,7 @@ export function fearTriggers(state, target) {
 
 // A foe's roll: each PC on the other side with a reaction for it (a quick check first: most have none).
 export function foeRollTriggers(state, foe, on, more = {}) {
-    if (!(state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers || other.bloodPool || other.prideInArms))) return;
+    if (!(state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers || other.bloodPool || other.prideInArms || other.noNoNo || other.portents))) return;
     for (const pc of state.list) if (pc.featTriggers && pc.side !== foe.side) featTriggers(state, pc, on, { by: foe, ...more });
 }
 
@@ -111,6 +111,23 @@ export function dropTriggers(state, target, source) {
             ally.hp.value += healed;
             state.log?.push(`  ${pool.name} uses Blood Pool: ${ally.name} regains ${healed} HP`);
         }
+    }
+    // (2026-11-07, No!!!: a non-minion ally drops — its psyche unleashed till the end of its next turn (reaction).)
+    if (!(target.traits ?? []).includes("minion")) for (const psychic of state.list) {
+        if (!psychic.noNoNo || psychic === target || psychic.side !== target.side || psychic.status !== ACTIVE || !canReact(psychic, "No!!!")) continue;
+        spendReaction(psychic, "No!!!");
+        psychic.shockedUnleash = state.round + 1;
+        state.log?.push(`  ${psychic.name} uses No!!!: its psyche unleashed`);
+    }
+    // (2026-11-07, Portents of the Haruspex: a creature within 30 feet drops — a d12 damage type; the next foe it or an ally deals that type to
+    // before the end of its next turn has weakness of its level to it (reaction).)
+    for (const witch of state.list) {
+        if (!witch.portents || witch.status !== ACTIVE || !canReact(witch, "Portents of the Haruspex") || (witch.band === "far" && target.band === "far")) continue;
+        spendReaction(witch, "Portents of the Haruspex");
+        const type = ["acid", "bludgeoning", "bludgeoning", "cold", "electricity", "fire", "mental", "piercing", "piercing", "poison", "slashing", "slashing"][state.rng.die(12) - 1];
+        witch.portent = { type, untilRound: state.round + 1 };
+        state.anyPortent = true;
+        state.log?.push(`  ${witch.name} uses Portents of the Haruspex: ${type}`);
     }
     featTriggers(state, source, "foe-down", { target });
     featTriggers(state, target, "self-down", { by: source });

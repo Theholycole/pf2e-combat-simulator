@@ -542,6 +542,26 @@ function startTurn(state, c) {
         state.log?.push(`  ${c.name} is quickened (${c.unstableQuicken})`);
         if (state.rng.d20() < 17) c.unstableSpent = true;
     }
+    // (2026-11-07, Ringmaster's Introduction: an ally's first turn of the fight — the bard's reaction, quickened for it.)
+    if (!c.cond.quickened && !vengeance && c.lastTurnRound == null && c.side === "party") {
+        const ringmaster = state.list.find((other) => other.ringmaster && other !== c && other.side === c.side && isActive(other) && canReact(other, "Ringmaster's Introduction"));
+        if (ringmaster) {
+            spendReaction(ringmaster, "Ringmaster's Introduction");
+            vengeance = true;
+            state.log?.push(`  ${ringmaster.name} uses Ringmaster's Introduction: ${c.name} is quickened`);
+        }
+    }
+    // (2026-11-07, Get Used to Disappointment: a foe that missed it on its last turn — a free Demoralize at it (bravado), once each foe.)
+    if (c.disappointment && c.status === ACTIVE && c.missedBy?.size) {
+        const foe = [...c.missedBy].map((id) => state.byId.get(id)).find((other) => other && isActive(other) && !(c.disappointed ??= new Set()).has(other.id));
+        c.missedBy.clear();
+        if (foe) {
+            c.disappointed.add(foe.id);
+            state.log?.push(`  ${c.name} uses Get Used to Disappointment`);
+            const spell = (c.spells ?? []).find((entry) => entry.kind === "basic" && entry.plan?.source?.slug === "demoralize");
+            if (spell) castPlan(state, c, spell, [foe.id]);
+        }
+    }
     if (c.vengeful) {
         c.vengeful = false;
         state.log?.push(`  ${c.name} is quickened (${c.swiftRetribution ? "Swift Retribution" : "Quick Vengeance"})`);
@@ -778,6 +798,18 @@ function staysInside(state, c) {
 }
 
 function endTurn(state, c) {
+    // (2026-11-07, Desperate Finisher: its last action done, one more press — a melee Strike at its multiple attack penalty (reaction); no
+    // reactions until its next turn. Played when a foe stands beside it and the Strike isn't hopeless — its third attack or less.)
+    if (c.desperateFinisher && c.status === ACTIVE && canAct(c) && (c.attacksThisTurn ?? 0) >= 1 && (c.attacksThisTurn ?? 0) <= 2 && canReact(c, "Desperate Finisher")) {
+        const strike = (c.strikes ?? []).find((entry) => entry.melee && strikeUsable(c, entry));
+        const foe = strike && state.list.find((other) => other.side !== c.side && isActive(other) && sameMelee(c, other));
+        if (foe) {
+            spendReaction(c, "Desperate Finisher");
+            state.log?.push(`  ${c.name} uses Desperate Finisher`);
+            performStrike(state, c, foe, strike);
+            c.reactionLocks = [...(c.reactionLocks ?? []), { by: c.id, spell: "Desperate Finisher", untilRound: state.round + 1, ownTurn: true, sustained: false }];
+        }
+    }
     c.damagers = null;
     // (2026-10-22, Sky and Underwater: its breath; in the sky, whoever can't fly falls — void.js.)
     // (2026-10-25: or air the weather makes it hold — weather.js.)
@@ -1176,6 +1208,13 @@ function actOn(state, c, action) {
             }
             const drained = (spell?.vampiric || spell?.forcible || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
+            // (2026-11-07, Maiden's Mending: a non-cantrip spell — temporary Hit Points of half its level, once a fight (a minute; reaction).)
+            if (c.maidensMending && !c.mended && spell && (!spell.kind || spell.castsSpell) && !(spell.plan?.traits ?? []).includes("cantrip") && isActive(c) && canReact(c, "Maiden's Mending")) {
+                spendReaction(c, "Maiden's Mending");
+                c.mended = true;
+                c.hp.temp = Math.max(c.hp.temp ?? 0, c.maidensMending);
+                state.log?.push(`  ${c.name} gains ${c.maidensMending} temporary Hit Points (Maiden's Mending)`);
+            }
             // (2026-11-07, Align Qi: a spell with the monk trait — its level + Wisdom in Hit Points, once a fight (an hour; reaction).)
             if (c.alignQi && !c.alignedQi && spell && (spell.plan?.traits ?? []).includes("monk") && isActive(c) && canReact(c, "Align Qi") && c.hp.value < c.hp.max) {
                 spendReaction(c, "Align Qi");
@@ -1909,6 +1948,15 @@ export function takeTurn(state, c) {
     startTurn(state, c);
     state.log?.push(`${c.name} (${c.hp.value}/${c.hp.max} HP, ${c.insideObject ? "inside the floor" : c.band})`);
     if (insideTurnStart(state, c)) {
+        if (!checkEnd(state)) endTurn(state, c);
+        return;
+    }
+    // (2026-11-07, Escape Timeline: once a fight (a day), as its turn begins below a third of its Hit Points — out of time until its next
+    // turn, harmed by nothing (as Indestructibility), its turn ending at once.)
+    if (c.escapeTimeline && !c.escapedTimeline && c.status === ACTIVE && c.hp.value < c.hp.max / 3) {
+        c.escapedTimeline = true;
+        c.defences = [...(c.defences ?? []), { by: c.id, spell: "Escape Timeline", kind: "indestructible", untilRound: state.round + 1, sustained: false, ownTurn: true }];
+        state.log?.push(`  ${c.name} uses Escape Timeline`);
         if (!checkEnd(state)) endTurn(state, c);
         return;
     }

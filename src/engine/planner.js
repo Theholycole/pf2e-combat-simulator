@@ -1438,7 +1438,8 @@ function expandSpells(env) {
                 // druid's spells; forceEven, tools/lib/feat-power.mjs.)
                 if (gain <= 0 && c.forceUse && spell.forceEven && set.targets.includes(c)) gain = 0.01;
                 // (2026-11-07, Corpse Stench: a feat's aura whose save comes at the start of a foe's turn in it — read as no gain now; a foe in it.)
-                if (gain <= 0 && c.forceUse && spell.featForced && spell.zone && set.targets.some((target) => target.side !== c.side)) gain = 0.01;
+                // (Into the Labyrinth: a hindrance the planner reads no gain in either — any feat's own forced action aimed at a foe.)
+                if (gain <= 0 && c.forceUse && spell.featForced && set.targets.some((target) => target.side !== c.side)) gain = 0.01;
                 // (2026-11-06, Ki Cutting Sight: about half the time, its dice on the monk's next hit — a foe not already marked.)
                 if (spell.kiCut) {
                     const foe = set.targets.find((target) => target.side !== c.side && target.status === "active" && target.kiCutBy?.by !== c.id);

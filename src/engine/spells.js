@@ -463,7 +463,8 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
     const rerolls = state.list.find((c) => c.allySaveReroll && (c !== saver || c.allySaveReroll.self) && c.side === saver.side && isActive(c) && (c.allySaveReroll.free ? (!c.allySaveReroll.perRound || c.allySaveRerollRound !== state.round) : canReact(c)) && (c.allySaveRerollsUsed ?? 0) < c.allySaveReroll.uses
         && (c === saver || near(c, c.allySaveReroll.within)) && (!c.allySaveReroll.save || c.allySaveReroll.save === statistic) && (!c.allySaveReroll.against || c.allySaveReroll.against.some((trait) => traits.includes(trait)))
         // (2026-11-07, Such a Disgrace!'s "temporarily immune ... for 10 minutes": each ally once; Focus Ally's "fails, but doesn't critically fail".)
-        && !(c.allySaveReroll.perAlly && c.allySaveRerollGiven?.has(saver.id)) && (!c.allySaveReroll.failureOnly || result.degree === "failure"));
+        && !(c.allySaveReroll.perAlly && c.allySaveRerollGiven?.has(saver.id)) && (!c.allySaveReroll.failureOnly || result.degree === "failure")
+        && (!c.allySaveReroll.companion || saver.companionOf === c.id));
     if (rerolls) {
         if (rerolls.allySaveReroll.free) rerolls.allySaveRerollRound = state.round;
         else rerolls.reactionUsed = true;
@@ -476,6 +477,8 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
         // (B181: a critical failure on the reroll a failure.)
         const degree = rerolls.allySaveReroll.floor === "failure" && rolled === "criticalFailure" ? "failure" : rolled;
         log(state, `  ${rerolls.name} uses ${rerolls.allySaveReroll.name}: ${saver.name} rerolls, ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
+        // (2026-11-07, Storied Companion: its companion's reroll, at mythic proficiency (+2 taken), and temporary Hit Points of twice its level.)
+        if (rerolls.allySaveReroll.tempHp) saver.hp.temp = Math.max(saver.hp.temp ?? 0, rerolls.allySaveReroll.tempHp);
         // (B220, Second Chance: the new result, whatever it is.)
         if (rerolls.allySaveReroll.keep === "new" || DEGREE_NAMES.indexOf(degree) > DEGREE_NAMES.indexOf(result.degree)) return { natural, total, dc: options.dc, degree };
         return result;
@@ -594,6 +597,20 @@ function stackedValue(target, change, after = false) {
 }
 
 export function applyCondition(state, target, slug, value, duration, source, scope = null) {
+    // (2026-11-07, Savor the Hunt: it frightens a creature — temporary Hit Points of half its level rounded up (reaction, once).)
+    if (slug === "frightened" && source?.savorTheHunt && !source.savored && source.side !== target.side && !(target.cond?.frightened > 0) && isActive(source) && canReact(source, "Savor the Hunt")) {
+        source.savored = true;
+        spendReaction(source, "Savor the Hunt");
+        source.hp.temp = Math.max(source.hp.temp ?? 0, source.savorTheHunt);
+        log(state, `  ${source.name} uses Savor the Hunt: ${source.savorTheHunt} temporary Hit Points`);
+    }
+    // (2026-11-07, Thousand-Year Grudge: once a fight, a Demoralize's frightened becomes sickened of that value (reaction).)
+    if (slug === "frightened" && source?.thousandYearGrudge && !source.grudgeSpent && source.side !== target.side && /^demoralize$/i.test(String(state.castingNow?.plan?.source?.slug ?? "")) && canReact(source, "Thousand-Year Grudge")) {
+        source.grudgeSpent = true;
+        spendReaction(source, "Thousand-Year Grudge");
+        log(state, `  ${source.name} uses Thousand-Year Grudge`);
+        slug = "sickened";
+    }
     // M38: a hostile condition from the party on a foe that gave up and is leaving refuses its surrender.
     if (source && source.side !== target.side) {
         harmedAfterGivingUp(state, target, source);
@@ -618,6 +635,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
         (target.timers ??= []).push({ goaded: entry, round: state.round + 1, turnOf: source.id, at: "end" });
         return true;
     }
+    // (2026-11-07, Deny Support: a Feint's success — the target can't flank until the feinter's next turn, about a round.)
+    if (slug === "off-guard" && source?.denySupport && source.side !== target.side && /^feint$/i.test(String(state.castingNow?.plan?.source?.slug ?? ""))) target.noFlankRound = state.round + 1;
     if (slug === "off-guard" && scope?.attacker) {
         const entry = { attacker: scope.attacker, attacks: scope.attacks ?? "any", uses: scope.uses ?? null };
         target.offGuardTo = [...(target.offGuardTo ?? []), entry];
@@ -3188,7 +3207,9 @@ export function withCasterDamage(caster, spell, changes) {
     const bonus = caster?.spellDamageBonus;
     if (!bonus || spell.kind || !Array.isArray(changes)) return changes;
     if (bonus.slotsOnly && (!spell.pool || (spell.plan?.traits ?? []).includes("cantrip") || /:focus$/.test(spell.pool))) return changes;
-    const extra = Math.max(0, Math.round((bonus.perRank ?? 1) * (Number(spell.castRank) || 1)));
+    // (2026-11-07, No!!!: an ally's drop unleashes its psyche till the end of its next turn — its Unleash Psyche's damage once more.)
+    const shocked = caster.shockedUnleash != null && caster.shockedUnleash >= (caster.lastTurnRound ?? 0) ? 1 : 0;
+    const extra = Math.max(0, Math.round(((bonus.perRank ?? 1) + shocked) * (Number(spell.castRank) || 1)));
     if (!extra) return changes;
     const seen = new Set();
     return changes.map((change) => {
@@ -3275,7 +3296,18 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
 
 // Resolves a spell or ability (one of the creature's, or a rider's plan) at the targets.
 // Spellstrike (C20): forcedDegree is the Strike's result for a spell attack; disrupted, a spell lost to a critically missed Strike.
-export function castPlan(state, caster, spell, targetIds, actions, { forcedDegree = null, disrupted = false, evenDown = false } = {}) {
+export function castPlan(state, caster, spell, targetIds, actions, options = {}) {
+    // (2026-11-07: the spell being cast, for a condition's rider on one — Thousand-Year Grudge's Demoralize.)
+    const outer = state.castingNow;
+    state.castingNow = spell;
+    try {
+        return castPlanInner(state, caster, spell, targetIds, actions, options);
+    } finally {
+        state.castingNow = outer;
+    }
+}
+
+function castPlanInner(state, caster, spell, targetIds, actions, { forcedDegree = null, disrupted = false, evenDown = false } = {}) {
     // A random effect table (B255): the die picks the way, played as the ability (a face with nothing to play does nothing; "roll twice"
     // rolls twice more, without that face). The ways share the ability's recharge.
     if (spell.randomWays?.length) {

@@ -387,7 +387,7 @@ export function addBuiltin(spec, plan, name) {
             // it says so.)
             if (plan.ally) {
                 // (B181: the new result kept, a critical failure on it a failure.)
-                spec.allySaveReroll = { name, within: Number(plan.within) || 60, save: plan.save ?? null, against: plan.against ?? null, uses: Number(plan.uses) || Infinity, ...(plan.self ? { self: true } : {}), ...(plan.floor ? { floor: plan.floor } : {}), ...(plan.keep === "new" ? { keep: "new" } : {}), ...(plan.free ? { free: true } : {}), ...(plan.perRound ? { perRound: true } : {}), ...(Number(plan.bonus) ? { bonus: Number(plan.bonus) } : {}), ...(plan.perAlly ? { perAlly: true } : {}), ...(plan.failureOnly ? { failureOnly: true } : {}) };
+                spec.allySaveReroll = { name, within: Number(plan.within) || 60, save: plan.save ?? null, against: plan.against ?? null, uses: Number(plan.uses) || Infinity, ...(plan.self ? { self: true } : {}), ...(plan.floor ? { floor: plan.floor } : {}), ...(plan.keep === "new" ? { keep: "new" } : {}), ...(plan.free ? { free: true } : {}), ...(plan.perRound ? { perRound: true } : {}), ...(Number(plan.bonus) ? { bonus: Number(plan.bonus) } : {}), ...(plan.perAlly ? { perAlly: true } : {}), ...(plan.failureOnly ? { failureOnly: true } : {}), ...(plan.companion ? { companion: true } : {}), ...(Number(plan.tempHp) ? { tempHp: Number(plan.tempHp) } : {}) };
                 return true;
             }
             // (B93: Halfling Luck's "must use the new result", keep "new"; a free action's.)

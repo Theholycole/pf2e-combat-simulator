@@ -312,7 +312,7 @@ const ORDINAL = "(\\d+)(?:st|nd|rd|th)";
 // The spells a feat's text has its user cast innately: [{ spell, castRank, pool uses (0: at will) }]. Its rank: the text's ("5th-rank",
 // "as a 7th-rank innate spell"), else heightened to half the PC's level rounded up where it says so or for a cantrip, else the spell's own.
 const FOCUS_GRANT = /\bYou (?:gain|learn)(?: either)? (?:the|a|an|your choice of the|one) [^.]*?\b(?:focus spells?|(?:composition|hex|link|conflux|grave|order|warden|devotion|ki|qi|domain|bloodline|school|revelation|apparition|eidolon) (?:cantrip|spell)s?)\b/i;
-const SPELL_EFFECT_FEATS = new Set(["qi-spells", "animal-rage", "quaking-stomp", "heroic-presence", "dragon-transformation", "head-of-the-night-parade", "plate-in-treasure", "rattle-the-earth"]);
+const SPELL_EFFECT_FEATS = new Set(["qi-spells", "animal-rage", "quaking-stomp", "heroic-presence", "dragon-transformation", "plate-in-treasure"]);
 export function innateSpells(doc, level) {
     const text = String(doc.system?.description?.value ?? "");
     // (2026-11-04, Cole: "Automate the spellcasting and companion feats not handled by other modules": or a focus spell or cantrip it
@@ -1141,6 +1141,20 @@ function conditionSavePlan(doc, statistic, failure, criticalFailure, success = n
     return { ...base, source: { ...base.source, name: doc.name }, traits: [...(doc.system?.traits?.value ?? [])], heightening: null, resolution: { ...base.resolution, check: { ...base.resolution.check, statistic }, outcomes: { criticalSuccess: row(null), success: row(success), failure: row(failure), criticalFailure: row(criticalFailure) } } };
 }
 
+// (2026-11-07) A save plan whose degrees stop reactions (note-states.js "can't use reactions"), with conditions beside on a row:
+// rows { success, failure, criticalFailure } of { lock: "turn" | "round", conditions: [[slug, value]] }.
+function lockSavePlan(doc, statistic, rows) {
+    const base = conditionSavePlan(doc, statistic, null, null);
+    if (!base) return null;
+    const out = structuredClone(base.resolution.outcomes);
+    for (const [degree, row] of Object.entries(rows)) {
+        if (!row) continue;
+        const duration = { mode: "fixed", value: 1, unit: "rounds" };
+        out[degree] = { ...out[degree], effects: (row.conditions ?? []).map(([slug, value]) => ({ kind: "condition", slug, name: slug, value: value ?? null, duration, source: doc.name })), noteEffects: row.lock ? [{ label: "GM note", text: row.lock === "turn" ? "It can't use reactions until the start of its next turn." : "It can't use reactions for 1 round.", duration }] : [] };
+    }
+    return { ...base, resolution: { ...base.resolution, outcomes: out } };
+}
+
 // (2026-11-07) A save plan whose degrees deal damage of their own, Lethal Finisher's 6 / 6d6 / 12d6 / 18d6 precision: Fear's shape, each row
 // its formula (null: none).
 function damageSavePlan(doc, statistic, [criticalSuccess, success, failure, criticalFailure]) {
@@ -1615,6 +1629,130 @@ const HAND = {
     // Infiltrator's Blitz: three Strides, a Strike with each (3 actions, once a fight — fatigued after, not played).
     "infiltrators-blitz": () => ({ builtins: { multiStrikes: [{ name: "Infiltrator's Blitz", actions: 3, strikes: [null, null, null], strides: 1, pool: "infiltrators-blitz" }] }, pools: { "infiltrators-blitz": 1 }, played: "three Strikes with Strides (3 actions, once a fight; fatigued after not played)" }),
     "deific-font": () => ({ builtins: { deificFont: true }, played: "one more 4th-rank spell a fight, drained 1 for it" }),
+    "devrins-cunning-stance": () => ({ builtins: { strikeExtras: [{ when: "off-guard", condition: { lockReactions: true }, source: "Devrin's Cunning Stance" }] }, played: "its hits on an off-guard foe stop its reactions (the stance taken as entered; allies' part not played)" }),
+    "fake-out": () => ({ builtins: { fakeOut: true }, played: "an ally's attack Aided by its attack roll against DC 15 (reaction)" }),
+    "bestial-protection": () => ({ builtins: { bestialProtection: true }, played: "a smaller creature beside its companion that attacks it is frightened 1" }),
+    "thousand-year-grudge": () => ({ builtins: { thousandYearGrudge: true, forceBasic: ["demoralize"] }, played: "a Demoralize's frightened made sickened (reaction, once)" }),
+    "deny-support": () => ({ builtins: { denySupport: true, forceBasic: ["feint"] }, played: "a foe it Feints can't flank for about a round" }),
+    "statement-strut": (level, host, doc) => {
+        const plan = lockSavePlan(doc, "will", { failure: { lock: "round" }, criticalFailure: { lock: "round" } });
+        if (!plan) return null;
+        const dcs = dcsOf(host);
+        const dc = Math.max(dcs.class ?? 0, dcs.spell ?? 0) || 10 + level + 2;
+        const pool = `feat:${doc._id}`;
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: null, range: null, area: { type: "emanation", value: 30, foes: true }, actorConstraints: { sourceText: "all enemies", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } } }, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool, kind: "ability", effects: {} };
+        return { builtins: {}, spells: [entry], pools: { [pool]: 1 }, played: `enemies within 30 feet a Will save (DC ${dc}) or no reactions for a round (its Stride not played; once a fight)` };
+    },
+    "bloom-cabaret-entrance": (level, host, doc) => {
+        const plan = lockSavePlan(doc, "will", { failure: { lock: "round" }, criticalFailure: { lock: "round" } });
+        if (!plan) return null;
+        const dcs = dcsOf(host);
+        const dc = Math.max(dcs.class ?? 0, dcs.spell ?? 0) || 10 + level + 2;
+        const pool = `feat:${doc._id}`;
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "free" }, targeting: { ...plan.targeting, target: null, range: null, area: { type: "emanation", value: 60, foes: true }, actorConstraints: { sourceText: "each enemy", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } } }, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool, featTrigger: { on: "initiative" }, kind: "ability", effects: {} };
+        return { builtins: { goesLast: true }, spells: [entry], pools: { [pool]: 1 }, played: `goes last; each enemy a Will save (DC ${dc}) or no reactions for a round (once a fight; its +2 to a skill check not played)` };
+    },
+    "hot-foot": (level, host, doc) => {
+        const plan = lockSavePlan(doc, "reflex", { failure: { lock: "turn" }, criticalFailure: { lock: "turn", conditions: [["off-guard", null]] } });
+        if (!plan) return null;
+        const attack = Math.max(...(host?.strikes ?? []).filter((entry) => !entry.melee).map((entry) => entry.attack ?? entry.bonus ?? 0), level + 4);
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: "1 creature", range: 30, area: null } }, castRank: Math.max(1, Math.ceil(level / 2)), dc: attack + 10, attack, pool: null, kind: "ability", effects: {} };
+        return { builtins: {}, spells: [entry], played: "a shot at the ground: no reactions till its turn, off-guard too on a critical (played as a Reflex save against its attack + 10)" };
+    },
+    "mercenary-reversal": (level, host, doc) => {
+        const plan = conditionSavePlan(doc, "will", ["controlled", null, null], ["controlled", null, null], ["stunned", 1]);
+        if (!plan) return null;
+        const dc = dcsOf(host).class ?? 10 + level + 2 + 4;
+        const entry = { name: doc.name, plan: { ...plan, traits: [...new Set([...(plan.traits ?? []), "incapacitation"])], activation: { ...plan.activation, time: "2" }, targeting: { ...plan.targeting, target: "1 creature", range: 30, area: null } }, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool: null, kind: "ability", effects: spellPack.effectModels(plan, 1) };
+        return { builtins: {}, spells: [entry], played: `a foe's Will save (DC ${dc}, incapacitation): stunned 1, or it fights on the party's side (2 actions; outnumbered taken as met)` };
+    },
+    "savor-the-hunt": (level) => ({ builtins: { savorTheHunt: Math.ceil(level / 2), forceBasic: ["demoralize"] }, played: "temporary Hit Points of half its level as it frightens a creature (reaction, once)" }),
+    "desperate-finisher": () => ({ builtins: { desperateFinisher: true }, played: "one more melee Strike as its turn ends (reaction; no reactions after)" }),
+    "divine-disharmony": (level, host, doc) => {
+        const plan = conditionSavePlan(doc, "will", ["off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }], ["off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }]);
+        if (!plan) return null;
+        const skill = Math.max(host?.skills?.intimidation ?? 0, host?.skills?.deception ?? 0) || level + 4;
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: "1 creature", range: 60, area: null } }, castRank: Math.max(1, Math.ceil(level / 2)), dc: skill + 10, attack: skill, pool: null, kind: "ability", effects: spellPack.effectModels(plan, 1) };
+        return { builtins: {}, spells: [entry], played: "a foe off-guard for a round (an Intimidation or Deception check against its Will, played as its Will save)" };
+    },
+    // Into the Labyrinth: Quandary as a labyrinth — out of the fight until it finds its way out (played as Maze of Locked Doors' two doors,
+    // spells.js "mazed"; no save), once a fight.
+    "into-the-labyrinth": (level, host, doc) => {
+        const base = conditionSavePlan(doc, "will", null, null);
+        if (!base) return null;
+        const duration = { mode: "fixed", value: 10, unit: "rounds" };
+        const row = { ...base.resolution.outcomes.failure, effects: [{ kind: "condition", slug: "hinder:mazed:2", name: "mazed", value: null, duration, source: doc.name }] };
+        const plan = { ...base, hinder: true, resolution: { ...base.resolution, outcomes: { criticalSuccess: row, success: row, failure: row, criticalFailure: row } } };
+        const dc = dcsOf(host).spell ?? 10 + level + 2 + 4;
+        const pool = `feat:${doc._id}`;
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "2" }, targeting: { ...plan.targeting, target: "1 creature", range: 60, area: null } }, castRank: 8, dc, attack: dc - 10, pool, kind: "ability", effects: {} };
+        return { builtins: {}, spells: [{ ...entry, featForced: true }], pools: { [pool]: 1 }, played: "a foe out of the fight in a labyrinth till it gets through (as Maze of Locked Doors' two doors; once a fight)" };
+    },
+    "masterminds-eye": (level, host, doc) => {
+        const plan = conditionSavePlan(doc, "will", ["off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }], ["off-guard", null, { mode: "fixed", value: 10, unit: "rounds" }]);
+        if (!plan) return null;
+        const skill = Math.max(...Object.values(host?.skills ?? {}).map(Number).filter(Number.isFinite), level + 4);
+        const entry = { name: `Recall Knowledge (${doc.name})`, plan: { ...plan, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: "1 creature", range: 60, area: null } }, castRank: Math.max(1, Math.ceil(level / 2)), dc: skill + 10, attack: skill, pool: null, kind: "ability", effects: spellPack.effectModels(plan, 1) };
+        return { builtins: {}, spells: [entry], played: "Recall Knowledge: a foe off-guard till its next turn, a minute on a critical (its check against the foe's DC played as the foe's Will save)" };
+    },
+    // Rattle the Earth: Earthquake's effects in a 60-foot cone from the kineticist, it unaffected (overflow: once a fight, its aura's
+    // return not played). Its shallower fissures and collapse DC not played.
+    "rattle-the-earth": (level, host, doc) => {
+        const quake = spellPack.spellNamed("Earthquake");
+        let compiled;
+        try {
+            compiled = quake && selfFormPlan(spellPack.compileSpell(quake));
+        } catch {
+            compiled = null;
+        }
+        let merged = compiled && formChoice(compiled, spellPack.withTextConditions(spellPack.effectModels(compiled, 8), quake, 8));
+        if (!merged) return null;
+        // (As Quaking Stomp's innate Earthquake plays: PF2e's own check, an "unsupported" plan — feat-power.mjs innateSpellEntry.)
+        if (merged.plan.resolution?.native?.check) merged = { ...merged, plan: { ...merged.plan, resolution: { ...merged.plan.resolution, kind: "unsupported" } } };
+        const dc = dcsOf(host).class ?? 10 + level + 2 + 4;
+        const pool = `feat:${doc._id}`;
+        const plan = merged.plan;
+        const entry = { name: doc.name, plan: { ...plan, source: { ...plan.source, name: doc.name }, activation: { ...(plan.activation ?? {}), time: "2" }, targeting: { ...plan.targeting, area: { ...plan.targeting.area, foes: true } } }, castRank: 8, dc, attack: dc - 10, pool, kind: "ability", effects: merged.effects };
+        return castable(entry) ? { builtins: {}, spells: [{ ...entry, featForced: true }], pools: { [pool]: 1 }, played: `Earthquake's effects in a 60-foot cone, DC ${dc} (2 actions; overflow, once a fight)` } : { gap: `Earthquake's effects as the engine plays none (${plan.resolution?.kind})` };
+    },
+    "no": () => ({ builtins: { noNoNo: true }, played: "an ally dropping unleashes its psyche till the end of its next turn (reaction)" }),
+    "portents-of-the-haruspex": () => ({ builtins: { portents: true }, played: "a creature dropping nearby: a d12 damage type, a foe's next damage of it with weakness of its level (reaction)" }),
+    "denier-of-destruction": (level) => ({ builtins: { denier: { rank: Math.ceil(level / 2), uses: 3 } }, played: "an ally's damage less a 1-action Heal's dice (reaction, a Heal slot each, three a fight)" }),
+    "storied-companion": (level) => ({ builtins: {}, plans: [{ builtin: "save-reroll", ally: true, companion: true, uses: 2, bonus: 2, tempHp: 2 * level }], played: "its companion's failed save rerolled at mythic proficiency, temporary Hit Points twice its level (reaction, a Mythic Point each)" }),
+    "balm-bomb": (level) => ({ builtins: { strikeExtras: [{ when: "hit", bomb: true, healAlly: level >= 15 ? { dice: 8, bonus: 21 } : level >= 13 ? { dice: 7, bonus: 18 } : { dice: 5, bonus: 12 }, source: "Balm Bomb" }] }, played: "a bomb's hit: an ally beside the target drinks a healing elixir (its second vial taken as spent)" }),
+    "blast-tackle": () => ({ builtins: { multiStrikes: [{ name: "Blast Tackle", actions: 2, strikes: [null], extraDamage: ["3d6[precision]"] }] }, requires: "firearm", played: "a Strike with 3d6 precision more (2 actions; its Grapple first taken as made)" }),
+    "graceful-poise": () => ({ builtins: { multiStrikes: [{ name: "Double Slice (Graceful Poise)", actions: 2, strikes: [null, null], sameMap: true, countsAs: 1 }] }, played: "Double Slice counting as one attack (its stance taken as entered)" }),
+    "kodama-call": (level, host, doc) => {
+        const plan = conditionSavePlan(doc, "reflex", ["off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }], ["off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }]);
+        if (!plan) return null;
+        const dc = dcsOf(host).spell ?? 10 + level + 2 + 2;
+        const pool = `feat:${doc._id}`;
+        const entry = { name: "Helpful Wood Spirits (Kodama Call)", plan: { ...plan, activation: { ...plan.activation, time: "2" }, targeting: { ...plan.targeting, target: null, range: 30, area: { type: "burst", value: 5, foes: true } } }, castRank: 2, dc, attack: dc - 10, pool, kind: "ability", effects: spellPack.effectModels(plan, 2) };
+        return { builtins: {}, spells: [entry], pools: { [pool]: 2 }, played: `Helpful Wood Spirits' Distract: foes in a 5-foot burst a Reflex save (DC ${dc}) or off-guard for a round (twice a fight; its Sustain not played)` };
+    },
+    "head-of-the-night-parade": (level, host, doc) => {
+        const plan = conditionSavePlan(doc, "fortitude", ["deafened", null, { mode: "fixed", value: 1, unit: "rounds" }], ["deafened", null, { mode: "fixed", value: 10, unit: "rounds" }]);
+        if (!plan) return null;
+        const dc = dcsOf(host).spell ?? 10 + level + 2 + 6;
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "3" }, targeting: { ...plan.targeting, target: null, range: 120, area: { type: "burst", value: 30, foes: true } } }, castRank: 8, dc, attack: dc - 10, pool: null, kind: "ability", effects: spellPack.effectModels(plan, 8) };
+        return { builtins: {}, spells: [entry], played: `three Mad Monkeys' Raucous Din: foes about a Fortitude save (DC ${dc}) or deafened (3 actions; their other mischief and Sustains not played)` };
+    },
+    "drowning-mist": (level, host, doc) => {
+        const plan = conditionSavePlan(doc, "fortitude", ["sickened", 1], ["sickened", 2]);
+        const dc = dcsOf(host).class ?? 10 + level + 2 + 4;
+        if (!plan) return null;
+        return kineticAura(doc, { saves: [{ when: ["start"], plan }], castAs: { castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10 }, played: `a foe holding its breath there a Fortitude save each round (DC ${dc}) or sickened 1 (2 on a critical failure); its difficult terrain not played` });
+    },
+    "maidens-mending": (level) => ({ builtins: { maidensMending: Math.max(1, Math.floor(level / 2)) }, played: "temporary Hit Points of half its level after a non-cantrip spell (reaction, once)" }),
+    "escape-timeline": () => ({ builtins: { escapeTimeline: true }, played: "at a turn start below a third of its Hit Points, out of time until its next turn (once)" }),
+    "get-used-to-disappointment": () => ({ builtins: { disappointment: true, forceBasic: ["demoralize"] }, played: "a free Demoralize at a foe that missed it last turn (once each foe)" }),
+    "ringmasters-introduction": () => ({ builtins: { ringmaster: true }, played: "an ally's first turn quickened (reaction)" }),
+    "shoulder-catastrophe": () => ({ builtins: { shoulderCatastrophe: true }, played: "a foe's critical Strike on an ally beside it: normal damage to both instead (reaction)" }),
+    "sword-of-sealing": (level, host, doc) => {
+        const save = conditionSavePlan(doc, "fortitude", ["immobilized", null, { mode: "fixed", value: 2, unit: "rounds" }], ["immobilized", null, { mode: "fixed", value: 2, unit: "rounds" }]);
+        return save && { builtins: {}, plans: [strikeRider({ melee: true, onHit: { save } })], played: "a melee Strike; on a hit Fortitude or immobilized (played as 2 rounds)" };
+    },
+    "explosive-maneuver": () => ({ builtins: { multiStrikes: [{ name: "Explosive Maneuver", actions: 2, strikes: [null], hitRiders: [{ atLeast: 1, conditions: [], damage: [], follow: "trip" }] }] }, played: "after a Strike that hits, a Trip at the same penalty (2 actions with the Strike)" }),
     "boasters-challenge": (level) => { const bonus = level >= 15 ? 6 : level >= 7 ? 4 : 2; return { builtins: { selfEffects: [{ name: "Boaster's Challenge", actions: 1, featForced: true, pool: "boasters-challenge", model: { name: "Boaster's Challenge", rounds: 2, modifiers: [{ on: "damage", type: "status", value: bonus }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, pools: { "boasters-challenge": 1 }, played: `+${bonus} status to its Strikes' damage to the end of its next turn (1 action, once a fight; its check played as a success)` }; },
     "nimble-form": () => ({ builtins: { nimbleForm: true }, played: "its eidolon's agile attacks at -3/-6 for the multiple attack penalty" }),
     "predictable": () => ({ builtins: { selfEffects: [{ name: "Predictable!", actions: 1, featForced: true, model: { name: "Predictable!", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 1 }, { on: "saving-throw", type: "circumstance", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, played: "+1 AC and saves until its next turn (1 action; its Perception check played as a success)" }),
@@ -2963,7 +3101,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle", "bleed-out": "sorcerer", "dark-personas-presence": "psychic", "coven-spell": "witch", "feed-on-pain": "psychic", "blood-pool": "necromancer", "even-the-odds": "swashbuckler", "just-as-planned": "investigator", "align-qi": "monk", "roll-the-bones-of-fate": "oracle", "deific-font": "cleric" };
+const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle", "bleed-out": "sorcerer", "dark-personas-presence": "psychic", "coven-spell": "witch", "feed-on-pain": "psychic", "blood-pool": "necromancer", "even-the-odds": "swashbuckler", "just-as-planned": "investigator", "align-qi": "monk", "roll-the-bones-of-fate": "oracle", "deific-font": "cleric", "maidens-mending": "bard", "get-used-to-disappointment": "swashbuckler", "ringmasters-introduction": "bard", "explosive-maneuver": "inventor", "fake-out": "gunslinger", "deny-support": "rogue", "thousand-year-grudge": "swashbuckler", "savor-the-hunt": "swashbuckler", "hot-foot": "gunslinger", "mercenary-reversal": "commander", "desperate-finisher": "fighter", "divine-disharmony": "thaumaturge", "no": "psychic", "portents-of-the-haruspex": "witch", "denier-of-destruction": "cleric", "balm-bomb": "alchemist", "blast-tackle": "gunslinger", "graceful-poise": "fighter", "head-of-the-night-parade": "bard" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
