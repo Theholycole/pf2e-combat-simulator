@@ -1858,6 +1858,12 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     if (fromSpell) spendPool(target, fromSpell);
     state.stats.reactions++;
     if (Number.isFinite(target.resistUses)) target.resistUses--;
+    // (2026-11-07, Unexpected Shift: the resistance only on a flat check's success — the reaction spent either way.)
+    if (Number.isFinite(resist.flat)) {
+        const flat = state.rng.d20();
+        log(state, `  ${target.name} uses ${resist.name} (flat ${flat} vs DC ${resist.flat})`);
+        if (flat < resist.flat) return null;
+    }
     const before = target.resistances;
     const plain = adjustDamage(target, instances).total;
     // (B213: half the damage, applied after its resistances.)

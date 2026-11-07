@@ -243,7 +243,7 @@ function readSpell(base, actions) {
         // (Sanctuary: a ward on an ally.)
         // (Mirror Image: images on the caster.)
         // (2026-10-22, family 5: a defence the simulator keeps itself — readings.js withDefences.)
-        helpful: !plan?.binding && (kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care" || kind === "attack-ward" || kind === "image-decoys" || Boolean(plan?.defence)),
+        helpful: !plan?.binding && (kind === "effect" || applications.length > 0 || Boolean(helpsWith) || kind === "affliction-care" || kind === "attack-ward" || kind === "image-decoys" || Boolean(plan?.defence) || Boolean(plan?.resolution?.shelter)),
         // No target, range or area: the caster itself (the battle forms).
         self: targeting.target === "self" || (kind === "effect" && !area && !targeting.target && !targeting.range) || (applications.length > 0 && !area && applications.every((application) => application.recipients === "self")) || conditionNote?.recipient === "source" || (kind === "affliction-care" && plan.resolution.recipient === "self") || kind === "image-decoys" || ["prismatic", "indestructible", "turning", "globe"].includes(plan?.defence?.kind)
     };
@@ -4788,7 +4788,8 @@ export function spellExpectation(state, caster, spell, targets, attacks = caster
                             const foes = state.list.filter((other) => other.side !== target.side && isActive(other));
                             const hit = foes.reduce((best, foe) => Math.max(best, bestHit(foe, target, false)), 0);
                             const shelter = shelterOf(spell);
-                            entry.heal += chance * Math.min(shelter.hp, 0.6 * 3 * Math.min(shelter.perHit, hit));
+                            // (As images.js imagesWorth: the damage it keeps off, a share of the ally's Hit Points.)
+                            if (target.hp.max > 0) entry.benefit += chance * Math.min(shelter.hp, 0.6 * 3 * Math.min(shelter.perHit, hit)) / target.hp.max;
                         }
                         continue;
                     }

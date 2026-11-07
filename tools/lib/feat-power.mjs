@@ -1119,6 +1119,18 @@ function thrallAllySpell(doc, level, host, { model, rounds, destroyed, played })
 }
 
 const HAND = {
+    // (2026-11-07, Cole: "keep building remaining feats" — the PC reactions the feat module only reminds about, on the engine's own
+    // reaction fields.) A critical hit on it a normal hit: Stone Bones' and Iivlar's Deflection's on a DC 17 flat check (any critical
+    // hit, not only a physical one's); Collapse's always, once a fight (once per 10 minutes), the skeleton collapsed — off-guard and
+    // immobilized till it Stands.
+    "stone-bones": () => ({ builtins: { critDowngrade: { name: "Stone Bones", dc: 17 } }, played: "a critical hit on it a normal hit on a DC 17 flat check (reaction)" }),
+    "iivlars-deflection": () => ({ builtins: { critDowngrade: { name: "Iivlar's Deflection", dc: 17 } }, played: "a critical hit on it a normal hit on a DC 17 flat check (reaction)" }),
+    "collapse": () => ({ builtins: { critDowngrade: { name: "Collapse", dc: null, uses: 1, collapse: true } }, played: "a critical hit on it a normal hit, then collapsed till it Stands (once a fight)" }),
+    // Unexpected Shift: resistance to all damage equal to its level against a foe's damage, on a DC 16 flat check (its +2 to saves and
+    // dazzled after not played). Interstitial Escape: resistance 5 + its level against a Strike's damage, once a fight (once an hour) —
+    // its teleport not played, and its "not off-guard" not checked.
+    "unexpected-shift": (level) => ({ builtins: { resistReaction: { name: "Unexpected Shift", value: level, on: null, types: null, foe: true, flat: 16 } }, played: `resistance ${level} to a foe's damage on a DC 16 flat check (reaction)` }),
+    "interstitial-escape": (level) => ({ builtins: { resistReaction: { name: "Interstitial Escape", value: 5 + level, on: null, types: null, attack: true, foe: true }, resistUses: 1 }, played: `resistance ${5 + level} to a Strike's damage (once a fight, reaction)` }),
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
     // A melee critical hit's extra weapon die (not doubled) and persistent bleed of two of its dice.
