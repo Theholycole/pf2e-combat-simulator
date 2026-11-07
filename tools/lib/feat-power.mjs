@@ -1423,6 +1423,8 @@ const HAND = {
     // (2026-11-07: Demoralize again at the same foe — spells.js c.repeatDemoralize; its basic Demoralize forced. Reincarnated Ridiculer's
     // immunity only on a critical failure and Unrelenting Terror's 1 round after a success are played as none.)
     "reincarnated-ridiculer": () => ({ builtins: { repeatDemoralize: true, forceBasic: ["demoralize"] }, played: "Demoralize the same foe again and again (no immunity)" }),
+    // (Fear of God: once a fight, the foe it Demoralized loses its immunity to its Demoralize — the frightened that adds up not played.)
+    "fear-of-god": () => ({ builtins: { repeatDemoralize: true, forceBasic: ["demoralize"] }, played: "Demoralize the same foe again and again (its frightened adding up not played)" }),
     "unrelenting-terror": () => ({ builtins: { repeatDemoralize: "round", forceBasic: ["demoralize"] }, played: "Demoralize the same foe again each round (immune only 1 round)" }),
     // (Soul Flare: +1 status to AC against a hit, which can make it a miss — its attack half and the DC 5 flat check to keep the
     // armament not played.)
@@ -1447,7 +1449,7 @@ const HAND = {
     // it survives that — actions.js.)
     "everstand-stance": () => ({ builtins: { blockHardness: 2 }, played: "+2 Hardness to Shield Block (the stance taken as on all fight)" }),
     // (Fortify Shield: once a day, Raise a Shield with its level more Hardness to block until its next turn — once a fight.)
-    "fortify-shield": (level) => ({ builtins: { selfEffects: [{ name: "Fortify Shield", actions: 1, featForced: true, pool: "fortify-shield", model: { name: "Fortify Shield", rounds: 1, conditions: [], shieldUp: true, blockHardness: level } }] }, pools: { "fortify-shield": 1 }, played: `Raises its shield with +${level} Hardness to block (once a fight)` }),
+    "fortify-shield": (level) => ({ builtins: { selfEffects: [{ name: "Fortify Shield", actions: 1, featForced: true, pool: "fortify-shield", model: { name: "Fortify Shield", rounds: 1, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, shieldUp: true, blockHardness: level } }] }, pools: { "fortify-shield": 1 }, played: `Raises its shield with +${level} Hardness to block (once a fight)` }),
     "destructive-block": () => ({ builtins: { destructiveBlock: true }, played: "Shield Block prevents twice its Hardness, the shield taking twice the damage" }),
     // (Desperate Prayer: once a day, a Focus Point at a turn start with none, for a devotion spell that turn — one more Lay on Hands a
     // fight, the champion's devotion spell.)
@@ -3396,7 +3398,7 @@ const FOE_TRAIT = process.env.FEAT_FOE_TRAIT || null;
 // (2026-11-05: reactionStrikes too — actions.js puts a forced one ahead of Reactive Strike on a move or manipulate trigger.)
 // (2026-11-07: 1 action, can't be flanked until the start of its next turn — Watchful Gaze, Augment Senses.)
 function noFlankHand(name) {
-    return { builtins: { selfEffects: [{ name, actions: 1, featForced: true, model: { name, rounds: 1, conditions: [], noFlank: true } }] }, played: "can't be flanked until its next turn (1 action)" };
+    return { builtins: { selfEffects: [{ name, actions: 1, featForced: true, model: { name, rounds: 1, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, noFlank: true } }] }, played: "can't be flanked until its next turn (1 action)" };
 }
 
 const FORCED_FIELDS = ["strikeActivities", "multiStrikes", "selfEffects", "selfBuffs", "charges", "skillSweeps", "reactionStrikes"];
