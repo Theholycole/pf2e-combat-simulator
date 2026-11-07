@@ -702,8 +702,10 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const conceal = target.concealReaction;
     // (2026-11-01, Eerie Flicker, a deviant ability: not once its deviations are spent; its flat check and backlash after — deviant.js —,
     // concealed for a round after, and its terrify awakening's frightened 1 on an attacker that fails.)
-    if (degree >= SUCCESS && conceal && (!conceal.ranged || !strike.melee) && canReact(target, conceal.name) && (!conceal.deviant || deviantUsable(target)) && !(conceal.concealAfter && target.cond.concealed)) {
+    // (2026-11-07, Fading: once a fight — conceal.uses.)
+    if (degree >= SUCCESS && conceal && (!conceal.ranged || !strike.melee) && canReact(target, conceal.name) && (!conceal.deviant || deviantUsable(target)) && !(conceal.concealAfter && target.cond.concealed) && (conceal.uses ?? Infinity) > 0) {
         spendReaction(target, conceal.name);
+        if (Number.isFinite(conceal.uses)) conceal.uses--;
         const flat = state.rng.d20();
         log(state, `  ${target.name} uses ${conceal.name} (${attacker.name}'s flat ${flat} vs DC ${conceal.dc})`);
         if (flat < conceal.dc) {

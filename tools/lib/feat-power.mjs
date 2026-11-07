@@ -1207,6 +1207,8 @@ const HAND = {
     // (Stonewall: an enemy's effect that hits it — petrified to the end of that turn, none of its damage — played as a foe's hit of at
     // least its level taking no damage, its reaction each round; the petrified till the turn ends isn't played.)
     "stonewall": (level) => ({ builtins: { resistReaction: { name: "Stonewall", value: 9999, on: null, types: null, foe: true, minDamage: level } }, played: "a foe's hit of at least its level dealing it nothing (petrified till the turn ends; reaction)" }),
+    // (Fading: a Strike at it a DC 11 flat check, a miss on a failure — once a Crimson Shroud, taken as once a fight; played on a hit.)
+    "fading": () => ({ builtins: { concealReaction: { name: "Fading", dc: 11, ranged: false, uses: 1 } }, played: "a Strike that hits it misses on a failed DC 11 flat check (once a fight, reaction)" }),
     "interstitial-escape": (level) => ({ builtins: { resistReaction: { name: "Interstitial Escape", value: 5 + level, on: null, types: null, attack: true, foe: true }, resistUses: 1 }, played: `resistance ${5 + level} to a Strike's damage (once a fight, reaction)` }),
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
