@@ -565,6 +565,12 @@ function startTurn(state, c) {
     // fight's dice stay as they were. Before, foes never Struck the champion — 0 of ~400 Strikes in 16 fights —, and its Shield Block
     // feats never fired.)
     c.spreadTarget = c.side !== "party" && !c.summonedBy ? spreadPick(state, c) : null;
+    if (c.foretold) {
+        const { amount, by } = c.foretold;
+        c.foretold = null;
+        const dealt = applyDamage(state, c, [{ type: "untyped", amount, persistent: false, precision: false }], { source: state.byId.get(by) ?? null });
+        state.log?.push(`  ${c.name} takes ${dealt} (Foretell Harm)`);
+    }
     // (2026-11-07, Unrelenting Terror: the immunity its Demoralize left ends as its turn begins.)
     if (c.immuneUntilTurn?.length) {
         for (const { spell, id } of c.immuneUntilTurn) c.immuneTargets?.get(spell)?.delete(id);
@@ -1150,7 +1156,7 @@ function actOn(state, c, action) {
                 }
                 break;
             }
-            const drained = (spell?.vampiric || spell?.forcible || spell?.infuseVoid) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
+            const drained = (spell?.vampiric || spell?.forcible || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round)) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
             // (2026-11-07, Shining Runes: a spell of more than one action — concealed from its foes until its next turn starts.)
             if (c.shiningRunes && spell && (!spell.kind || spell.castsSpell) && castActions(c, action) >= 2 && isActive(c) && !c.cond.concealed && applyCondition(state, c, "concealed", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start" }, c)) state.log?.push(`  ${c.name} is concealed (Shining Runes)`);
@@ -1161,6 +1167,15 @@ function actOn(state, c, action) {
                 for (const other of state.list.filter((each) => drained.has(each.id) && isActive(each) && drained.get(each.id) - Math.max(0, each.hp.value) - (each.hp.temp ?? 0) > 0)) {
                     const dealt = applyDamage(state, other, [{ type: "void", amount: spell.castRank ?? 1, persistent: false, precision: false }], { source: c });
                     state.log?.push(`  ${other.name} takes ${dealt} void (Infuse Void)`);
+                }
+            }
+            // (2026-11-07, Foretell Harm: once a round, the creature its non-cantrip spell hurt most takes twice the spell's rank at its next turn's start.)
+            if (drained && c.foretellHarm && (!spell.kind || spell.castsSpell) && !(spell.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) {
+                const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
+                if (hurt) {
+                    c.foretoldRound = state.round;
+                    hurt.foretold = { amount: 2 * (spell.castRank ?? 1), by: c.id };
+                    state.log?.push(`  ${c.name} foretells harm to ${hurt.name} (Foretell Harm)`);
                 }
             }
             if (drained && spell.forcible) {

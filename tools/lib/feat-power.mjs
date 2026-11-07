@@ -1471,6 +1471,8 @@ const HAND = {
     "mythic-refocus": (_level, host) => focusBackHand(host, "its focus pool refilled once a fight (a Mythic Point; its action not counted)", true),
     // (After You: it goes last, with panache.)
     "watchful-gaze": () => noFlankHand("Watchful Gaze"),
+    // (2026-11-07, Watch Your Back (Golden Legionnaire): an ally not off-guard from flanking until its next turn — played on itself.)
+    "watch-your-back-golden-legionnaire": () => ({ ...noFlankHand("Watch Your Back"), played: "can't be flanked until its next turn (1 action; on itself, not an ally)" }),
     // (2026-11-07, Darting Monkey: its hits keep a flanking foe from making it off-guard — played as never flanked, as Watchful Gaze.)
     "darting-monkey": () => ({ builtins: { noFlank: true }, played: "flanking foes it hits don't make it off-guard (played as never flanked)" }),
     // (Resilient Chassis: once a day — once a fight — 4 temporary Hit Points, 4 more each 4 levels from 8th, as the damage comes: that much less of it.)
@@ -2096,6 +2098,8 @@ const HAND = {
     // the quickened on its fall not played.)
     "first-to-strike-first-to-fall": () => ({ builtins: { strikeExtras: [{ when: "unacted", condition: { slug: "off-guard", duration: { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" } }, source: "First to Strike, First to Fall" }] }, played: "a hit on a foe that hasn't acted yet: off-guard to the end of its next turn" }),
     // (Shining Runes: concealed until its next turn after a spell of 2 or more actions.)
+    // (2026-11-07, Foretell Harm: once a round, a non-cantrip spell's hardest-hit creature takes twice its rank at its next turn's start.)
+    "foretell-harm": () => ({ builtins: { foretellHarm: true }, played: "twice a damaging spell's rank to its target at that target's next turn (once a round)" }),
     "shining-runes": () => ({ builtins: { shiningRunes: true }, played: "concealed until its next turn after a spell of 2 or more actions" }),
     "deadly-grace": (level) => ({ builtins: { deadlyGrace: level }, played: "its agile or finesse melee weapon's deadly dice doubled (deadly d8 on one without)" }),
     // (2026-11-06, Persistent Boost: its Offensive Boost's hit (the weapon innovation's Strikes, classes.js) 1d8 persistent fire too.)
@@ -2829,7 +2833,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard" };
+const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
