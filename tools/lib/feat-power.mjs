@@ -1395,6 +1395,16 @@ const HAND = {
     "effortless-captivation": (_level, host) => freeSustainHand(host),
     // (2026-11-07, Big Debut: as initiative is rolled, a Will save at its class or spell DC for each enemy (that sees it — all, here),
     // stunned 1 on a failure, 2 on a critical failure; the PC goes last; once a fight (once a day). Its free Interact not played.)
+    // (2026-11-07, Dark Persona's Presence: as it Unleashes its Psyche — played as a free action once a fight —, each foe within 30 feet a
+    // Will save against its spell DC: frightened 1 / 2 / 3 (its floor of frightened 1 in the aura not played).)
+    "dark-personas-presence": (level, host, doc) => {
+        const plan = conditionSavePlan(doc, "will", ["frightened", 2], ["frightened", 3], ["frightened", 1]);
+        if (!plan) return null;
+        const dc = dcsOf(host).spell ?? 10 + level + 2 + 4;
+        const pool = `feat:${doc._id}`;
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "free" }, targeting: { ...plan.targeting, target: null, range: null, area: { type: "emanation", value: 30, foes: true }, actorConstraints: { sourceText: "each enemy", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } } }, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool, kind: "ability", effects: {} };
+        return { builtins: {}, spells: [entry], pools: { [pool]: 1 }, played: `each foe within 30 feet a Will save (DC ${dc}): frightened 1, 2 or 3 (free, once a fight — its Unleash Psyche)` };
+    },
     "big-debut": (level, host, doc) => {
         const plan = conditionSavePlan(doc, "will", ["stunned", 1], ["stunned", 2]);
         if (!plan) return null;
@@ -2908,7 +2918,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle", "bleed-out": "sorcerer" };
+const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle", "bleed-out": "sorcerer", "dark-personas-presence": "psychic" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
