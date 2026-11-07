@@ -1614,6 +1614,7 @@ const HAND = {
     "pride-in-arms": () => ({ builtins: { prideInArms: 4 }, played: "an ally that drops a foe gains 4 temporary Hit Points (reaction)" }),
     // Infiltrator's Blitz: three Strides, a Strike with each (3 actions, once a fight — fatigued after, not played).
     "infiltrators-blitz": () => ({ builtins: { multiStrikes: [{ name: "Infiltrator's Blitz", actions: 3, strikes: [null, null, null], strides: 1, pool: "infiltrators-blitz" }] }, pools: { "infiltrators-blitz": 1 }, played: "three Strikes with Strides (3 actions, once a fight; fatigued after not played)" }),
+    "deific-font": () => ({ builtins: { deificFont: true }, played: "one more 4th-rank spell a fight, drained 1 for it" }),
     "boasters-challenge": (level) => { const bonus = level >= 15 ? 6 : level >= 7 ? 4 : 2; return { builtins: { selfEffects: [{ name: "Boaster's Challenge", actions: 1, featForced: true, pool: "boasters-challenge", model: { name: "Boaster's Challenge", rounds: 2, modifiers: [{ on: "damage", type: "status", value: bonus }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, pools: { "boasters-challenge": 1 }, played: `+${bonus} status to its Strikes' damage to the end of its next turn (1 action, once a fight; its check played as a success)` }; },
     "nimble-form": () => ({ builtins: { nimbleForm: true }, played: "its eidolon's agile attacks at -3/-6 for the multiple attack penalty" }),
     "predictable": () => ({ builtins: { selfEffects: [{ name: "Predictable!", actions: 1, featForced: true, model: { name: "Predictable!", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 1 }, { on: "saving-throw", type: "circumstance", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, played: "+1 AC and saves until its next turn (1 action; its Perception check played as a success)" }),
@@ -2962,7 +2963,7 @@ function kineticistEntry(doc, level, host) {
 
 const HOST_OVERRIDE = { "shield-block": "cleric", "lingering-flames": "wizard" };
 // (2026-11-05, a fighter-and-guardian feat for a shield — Reflexive Shield: on the guardian, whose loadout has one; the fighter's hasn't.)
-const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle", "bleed-out": "sorcerer", "dark-personas-presence": "psychic", "coven-spell": "witch", "feed-on-pain": "psychic", "blood-pool": "necromancer", "even-the-odds": "swashbuckler", "just-as-planned": "investigator", "align-qi": "monk", "roll-the-bones-of-fate": "oracle" };
+const CLASS_OVERRIDE = { "well-of-potential": "champion", "energized-font": "champion", "mythic-refocus": "champion", "destructive-block": "champion", "fortify-shield": "champion", "everstand-stance": "champion", "perfect-strike": "monk", "reflexive-shield": "guardian", "fight-or-flight": "swashbuckler", "thrall-charger": "necromancer", "draining-strike": "necromancer", "shining-runes": "wizard", "tempest-sun-shielding": "wizard", "foretell-harm": "oracle", "bleed-out": "sorcerer", "dark-personas-presence": "psychic", "coven-spell": "witch", "feed-on-pain": "psychic", "blood-pool": "necromancer", "even-the-odds": "swashbuckler", "just-as-planned": "investigator", "align-qi": "monk", "roll-the-bones-of-fate": "oracle", "deific-font": "cleric" };
 
 // The party with the feat on its PC, or { skipped, reason }.
 // options: { hostId, party } — the PC to give it to (else its class's, or the fighter, or the PC best at its skill) and the party to start from
@@ -3473,6 +3474,16 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // (2026-11-05, Diamond Fists: its unarmed attacks forceful and deadly d10 — a die step bigger for one that had either; the deadly dice
     // by its striking runes, 2 at greater striking, 3 at major.)
     // (2026-11-06, Deadly Strikes: its unarmed attacks deadly d10 — a smaller deadly die made d10; deadly dice by its striking runes.)
+    // (2026-11-07, Deific Font: once a fight, a spell of 4th rank or lower cast without its slot — one 4th-rank slot more —, drained 1 for it
+    // (its level in Hit Points off the top).)
+    if (pc.deificFont) {
+        delete pc.deificFont;
+        const slot = Object.keys(pc.spellPools ?? {}).find((pool) => /:4:\d+$/.test(pool));
+        if (slot) {
+            pc.spellPools = { ...pc.spellPools, [slot]: pc.spellPools[slot] + 1 };
+            pc.hp = { ...pc.hp, max: pc.hp.max - level, value: Math.min(pc.hp.value, pc.hp.max - level) };
+        }
+    }
     if (pc.deadlyGrace) {
         const deadlyDice = pc.deadlyGrace >= 19 ? 3 : pc.deadlyGrace >= 12 ? 2 : 1;
         delete pc.deadlyGrace;
