@@ -266,7 +266,7 @@ function joinBuiltins(c, builtins) {
         // PC's own basic entry gets the damage on its success and critical success.)
         if (field === "basicRiders") {
             // (2026-11-07: that basic action forced as the feat's own are — before, Agonizing Rebuke's fighter never Demoralized, 0 uses.)
-            for (const rider of value) c.spells = (c.spells ?? []).map((entry) => (entry.kind === "basic" && rider.slugs.includes(entry.plan?.source?.slug) ? { ...withRider(entry, rider), ...(c.forceUse ? { featForced: true } : {}) } : entry));
+            for (const rider of value) c.spells = (c.spells ?? []).map((entry) => (entry.kind === "basic" && rider.slugs.includes(entry.plan?.source?.slug) ? { ...withRider(entry, rider), ...(c.forceUse && (rider.force ?? rider.slugs).includes(entry.plan?.source?.slug) ? { featForced: true } : {}) } : entry));
             continue;
         }
         if (field === "maxHpBonus") {
@@ -1519,7 +1519,7 @@ const HAND = {
     // (2026-11-04, the gap index: damage on a basic action's success — basicRiders, joinBuiltins.)
     "crushing-grab": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["grapple"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Crushing Grab" }] }, played: "Strength damage on a successful Grapple (always on)" }),
     "punishing-shove": (level, host) => ({ builtins: { basicRiders: [{ slugs: ["shove"], damage: `${Math.max(1, host?.abilities?.str ?? 4) + (level >= 15 ? 12 : level >= 7 ? 6 : level >= 3 ? 2 : 0)}[bludgeoning]`, criticalDouble: true, source: "Punishing Shove" }] }, played: "damage on a successful Shove (always on)" }),
-    "brutal-bully": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["disarm", "grapple", "reposition", "shove", "trip"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Brutal Bully" }] }, played: "Strength damage on a successful maneuver (always on; raging not checked)" }),
+    "brutal-bully": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["disarm", "grapple", "reposition", "shove", "trip"], force: ["trip"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Brutal Bully" }] }, played: "Strength damage on a successful maneuver (always on; raging not checked)" }),
     // (2026-11-07, Legendary Laugh: 3d8 mental on a successful Demoralize, 6d8 on a critical success; its 60-foot range isn't played.)
     "legendary-laugh": () => ({ builtins: { basicRiders: [{ slugs: ["demoralize"], damage: "3d8[mental]", criticalDouble: true, source: "Legendary Laugh" }] }, played: "3d8 mental on a successful Demoralize (6d8 on a critical success)" }),
     "agonizing-rebuke": (level) => ({ builtins: { basicRiders: [{ slugs: ["demoralize"], damage: `${level >= 15 ? 3 : level >= 7 ? 2 : 1}d4[mental]`, source: "Agonizing Rebuke" }] }, played: "mental damage on a successful Demoralize (always on; once, not each turn)" }),
@@ -2982,7 +2982,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     }
     // (2026-11-07, a basic action's rider — Legendary Laugh, Brutal Bully —: the basic action forced both sides, so the rating is the
     // rider's, not that of Demoralizing or Shoving every turn; its uses that action's.)
-    const riderSlugs = FORCE ? (builtins.basicRiders ?? []).flatMap((rider) => rider.slugs) : [];
+    const riderSlugs = FORCE ? (builtins.basicRiders ?? []).flatMap((rider) => rider.force ?? rider.slugs) : [];
     const riderNames = [];
     if (riderSlugs.length) {
         const ridden = (entry) => entry.kind === "basic" && riderSlugs.includes(entry.plan?.source?.slug);
