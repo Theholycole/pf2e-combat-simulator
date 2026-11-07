@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1508,
+ "rated": 1529,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -17281,29 +17281,6 @@
    "text": "You can shape the area of your composition spells. Whenever you cast a composition spell whose area is an emanation, you can change the spell's area to a cone 10 feet larger, to a maximum of twice the original area. For example, you could m"
   },
   {
-   "id": "VToVEOxiyy53AcEp",
-   "name": "Loremaster's Etude",
-   "level": 2,
-   "owner": "bard",
-   "classes": [
-    "bard"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "bard",
-    "fortune"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "feature-upgrade",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Loremaster's Etude)",
-   "text": "You magically unlock memories, making them easier to recall. You learn the Loremaster's Etude composition spell."
-  },
-  {
    "id": "cvo3DIL0BIRrDkQ6",
    "name": "Ode to Ouroboros",
    "level": 10,
@@ -17391,50 +17368,6 @@
    "reason": "a spell the engine doesn't cast",
    "detail": "a spell the engine doesn't cast (Fatal Aria)",
    "text": "Your songs overwhelm the target with unbearable emotion, potentially striking them dead on the spot. You learn the Fatal Aria composition spell."
-  },
-  {
-   "id": "UOxDJt8Y7SiCR4xq",
-   "name": "Pied Piping",
-   "level": 20,
-   "owner": "bard",
-   "classes": [
-    "bard"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "bard"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "feature-upgrade",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Pied Piping)",
-   "text": "You learn the Pied Piping composition spell, which enables you to control the actions of weak-minded individuals."
-  },
-  {
-   "id": "4E4121lbfWgxui4y",
-   "name": "Song of the Fallen",
-   "level": 20,
-   "owner": "bard",
-   "classes": [
-    "bard"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "bard"
-   ],
-   "rarity": "uncommon",
-   "remaster": false,
-   "bucket": "feature-upgrade",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Song of the Fallen)",
-   "text": "The moving power of your songs can stir the spirits of the dead to rise once more and fight alongside you. You learn the Song of the Fallen composition spell. Increase the number of Focus Points in your focus pool by 1."
   },
   {
    "id": "sfxLo9kz2WkCQiy4",
@@ -17723,28 +17656,6 @@
    "reason": null,
    "detail": null,
    "text": "You have delved deeper into the teaching of a new order, gaining access to a coveted order spell. Choose an order you have selected with Order Explorer. You gain the initial order spell from that order. Special You can take this feat multip"
-  },
-  {
-   "id": "I00uuseTfPypVgLQ",
-   "name": "Primal Summons",
-   "level": 12,
-   "owner": "druid",
-   "classes": [
-    "druid"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "druid"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "feature-upgrade",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Primal Summons)",
-   "text": "Whenever you summon an ally, you can empower it with the elemental power of air, earth, fire, or water. You gain the Primal Summons order spell."
   },
   {
    "id": "xAIUuSw5A85XEStY",
@@ -18788,28 +18699,6 @@
    "reason": null,
    "detail": null,
    "text": "You can attach a scroll to your weapon or Handwraps of Mighty Blows to blend its spell into an attack, carefully folding it around a part of the weapon or sealing it to the weapon's surface. Attaching a scroll requires using the Affix a Tal"
-  },
-  {
-   "id": "ZlL18xGsa76isqkX",
-   "name": "Runic Impression",
-   "level": 8,
-   "owner": "magus",
-   "classes": [
-    "magus"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "magus"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "feature-upgrade",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Runic Impression)",
-   "text": "You can temporarily replicate the effects of a property rune for your weapon or unarmed attacks. You learn the Runic Impression conflux spell."
   },
   {
    "id": "5qpSxlxzfDgFIeZ2",
@@ -22920,26 +22809,6 @@
    "text": "When you use Spiritual Strike, hit targets become Off-Guard until the end of your current turn. In addition, the additional force damage dealt by the Strike increases by 2d6."
   },
   {
-   "id": "DFtbxytrOrmkQRfm",
-   "name": "Steal the Sky",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "combat-passive",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Steal the Sky)",
-   "text": "You can take away the air that keeps a flying foe aloft. You gain the Steal the Sky ki spell. Increase the number of Focus Points in your focus pool by 1."
-  },
-  {
    "id": "Ce9z0Bc6wHkR5lDh",
    "name": "Stonebane",
    "level": 10,
@@ -24712,31 +24581,6 @@
    "reason": null,
    "detail": null,
    "text": "Shield in hand, you offer your ally its full protection you do yourself. While the companion shield is in effect, if your shield is raised, the ally with the companion shield gets the same bonus to AC your shield grants, and you can trigger"
-  },
-  {
-   "id": "pCx2vSnIYIdnSKnr",
-   "name": "Spectral Advance",
-   "level": 10,
-   "owner": "champion",
-   "classes": [
-    "champion"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "champion",
-    "concentrate",
-    "divine",
-    "teleportation"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Spectral Advance)",
-   "text": "You gain the Spectral Advance devotion spell, which lets you move to an enemy, bypassing hindrances."
   },
   {
    "id": "jNeIaFUFSGUXoSON",
@@ -28807,26 +28651,6 @@
    "text": "Your gentle magic eases even the most skittish of souls, a gift that almost guarantees you popularity among parents and farmers alike. If your next action is to Cast a non-cantrip Spell that targets a single creature, you can reduce the tar"
   },
   {
-   "id": "J1MURfqf0kbxrKG9",
-   "name": "Warding Light",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "spellcasting",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Light, Peaceful Rest)",
-   "text": "You gain a tattoo that serves as a special ward to defend you against Walkena's forces. The tattoo allows you to cast the Light cantrip as a divine innate spell at will. The cantrip is heightened to a spell rank equal to half your level rou"
-  },
-  {
    "id": "UyMQ1X8KLSZvm7AT",
    "name": "Wayfinder Resonance Tinkerer",
    "level": 4,
@@ -29281,26 +29105,6 @@
    "text": "You gain the Mantis Form focus spell. If you don't already have one, you gain a focus pool of 1 Focus Point."
   },
   {
-   "id": "CXC2aNz4ir4VFtn2",
-   "name": "Shielding Formation",
-   "level": 8,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "spellcasting",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Shielding Formation)",
-   "text": "You have mastered unique magical techniques designed to protect your allies from harm. You gain the Shielding Formation focus spell."
-  },
-  {
    "id": "oxYTPsA90H0Sx6XO",
    "name": "Simple Mastery",
    "level": 8,
@@ -29569,26 +29373,6 @@
    "reason": null,
    "detail": null,
    "text": "Trigger You or an ally within 30 feet takes damage. You transform unrealized spell energy into a protective shield. If you're a spontaneous spellcaster, expend a spell slot; if you're a prepared spellcaster, expend a spell prepared in a spe"
-  },
-  {
-   "id": "Z9hrpFRKfLGMJXFp",
-   "name": "Vindicator's Judgment",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "spellcasting",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Vindicator's Judgment)",
-   "text": "You can pronounce judgment on your foes, making them magically susceptible to your attacks. You gain the Vindicator's Judgment focus spell."
   },
   {
    "id": "NM5a1tF0OW5mVYdR",
@@ -30535,28 +30319,6 @@
    "reason": "a timer with no rules a fight counts",
    "detail": "a timer with no rules a fight counts",
    "text": "You bestow the mystical vision granted to you by your muse upon your allies. If your next action is to cast a non-cantrip spell that affects one or more of your allies, all affected allies gain your spiritsense for 1 minute."
-  },
-  {
-   "id": "mZcI1NKtQhteAQLn",
-   "name": "Silver's Refrain",
-   "level": 12,
-   "owner": "bard",
-   "classes": [
-    "bard"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "bard"
-   ],
-   "rarity": "rare",
-   "remaster": false,
-   "bucket": "spellcasting",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Silver's Refrain)",
-   "text": "You learn the Silver's Refrain composition cantrip, which aids you when fighting devils."
   },
   {
    "id": "4SKech3n0F38HrR5",
@@ -36731,28 +36493,6 @@
    "text": "A second energy dwells in your eidolon. Choose an additional damage type from the list in Energy Heart. Your eidolon's unarmed attack that deals energy damage gains the versatile trait for the second energy damage type, and your eidolon gai"
   },
   {
-   "id": "YYTZFBT2WZMU14om",
-   "name": "Lifelink Surge",
-   "level": 4,
-   "owner": "summoner",
-   "classes": [
-    "summoner"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "summoner"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "companion",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Lifelink Surge)",
-   "text": "You can tap into your shared connection to heal your eidolon. You gain the Lifelink Surge link spell."
-  },
-  {
    "id": "3EtlXNK4vc44R3Gm",
    "name": "Reactive Dismissal",
    "level": 4,
@@ -39517,26 +39257,6 @@
    "reason": "a spell the engine doesn't cast",
    "detail": "a spell the engine doesn't cast (Read Aura, Sigil)",
    "text": "As long as you meditate before a gemstone worth at least 10 gp as part of your daily preparations, you are capable of seeing magic as flowing runes that reveal information about magic objects, and you can scribe a personal rune that represe"
-  },
-  {
-   "id": "vqLt1qjdrflTmdsw",
-   "name": "Sun's Fury",
-   "level": 6,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "out-of-combat",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Sun's Fury)",
-   "text": "The Old Sun Gods have granted you a gift in your fight against Walkena. You gain the Sun's Fury focus spell. If you don't already have one, you gain a focus pool of 1 Focus Point, which you can regain using the Refocus activity to pray to t"
   },
   {
    "id": "pfJXDXtkCTtLT6CL",
@@ -46346,46 +46066,6 @@
    "text": "You've trained with the weapons of the Bright Lions. You gain access to Lion Scythes and Sun Slings. Whenever you gain a class feature that grants you expert or greater proficiency in certain weapons, you also gain that proficiency rank wit"
   },
   {
-   "id": "chmQgMamyaZX90Tc",
-   "name": "Magical Edification",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Guidance, Message, Sigil)",
-   "text": "You've learned those tidbits of magic that are most conducive to furthering your acquisition and transmission of knowledge. You gain Guidance, Message, and Sigil as innate occult cantrips."
-  },
-  {
-   "id": "AuIE19F9rY3YvXf6",
-   "name": "Magical Scholastics",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Detect Magic, Guidance, Read Aura)",
-   "text": "While study is key to your success, a bit of magic can be a helpful aid in discovering the secrets of the past. You can cast Detect Magic, Guidance, and Read Aura as occult innate cantrips."
-  },
-  {
    "id": "hNuEmaUjFGOjrhGv",
    "name": "Marine Combat Training",
    "level": 4,
@@ -50867,26 +50547,6 @@
    "text": "You've continued to expand your compendium of tools to compile knowledge. You can cast Translate, Mindlink, and Secret Page as innate occult spells, each once per day. When you cast secret page , it is automatically heightened to the same s"
   },
   {
-   "id": "ErKwliHplziJY2BW",
-   "name": "Greater Magical Scholastics",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Augury, Locate, Veil of Privacy)",
-   "text": "You broaden your magical studies, allowing you to find the right path, detect hidden objects, and conceal those objects from unscrupulous rivals. You can cast Augury, Locate, and Veil of Privacy as occult innate spells, each once per day. Y"
-  },
-  {
    "id": "C0lm4rtptGdRbLem",
    "name": "Holy Flower",
    "level": 10,
@@ -52919,26 +52579,6 @@
    "text": "You've spent time training in your armor alongside other agents from the Swords. Your proficiency rank for light, medium, and heavy armor increases to expert for whichever of those you already had the trained proficiency rank in."
   },
   {
-   "id": "kC92uxCvrxDkrCpO",
-   "name": "Borrow Memories",
-   "level": 14,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Mind Probe)",
-   "text": "Knowing how someone thinks makes it much easier to know where they'll be, or even replace them altogether. You can cast Mind Probe as an innate occult spell once per day, using your class DC or spell DC, whichever is higher. If you cast min"
-  },
-  {
    "id": "NKCeu18Y8VoZyfsX",
    "name": "Commandeer Hellmouth",
    "level": 14,
@@ -53142,26 +52782,6 @@
    "reason": null,
    "detail": null,
    "text": "Frequency Once per day Requirements You are standing at the bottom of an open grave adjacent to up to four willing target creatures or objects roughly the size of a creature. The maggots inhabiting your body impart you with the knowledge to"
-  },
-  {
-   "id": "aOYnK0xe9DKFtx7d",
-   "name": "Innocent Butterfly",
-   "level": 14,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Aura of the Unremarkable)",
-   "text": "You know how to alter the perceptions of others. You can cast Aura of the Unremarkable once per day as an innate arcane spell. The spell uses your class DC or spell DC, whichever is higher."
   },
   {
    "id": "VaKsW4wjZ9g7UZGh",
@@ -55089,30 +54709,6 @@
    "reason": "a spell the engine doesn't cast",
    "detail": "a spell the engine doesn't cast (Light of Revelation)",
    "text": "You've learned to call upon light to reveal what is hidden. You gain the Light of Revelation devotion spell. Increase the number of Focus Points in your focus pool by 1."
-  },
-  {
-   "id": "wbS8f7R7KqHkwOzM",
-   "name": "Sacral Lord",
-   "level": 4,
-   "owner": "champion",
-   "classes": [
-    "champion",
-    "oracle"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "champion",
-    "oracle"
-   ],
-   "rarity": "rare",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Detect Magic, Guidance, Sigil)",
-   "text": "By right of ritual or sheer stubbornness, you have claimed rulership of the land. Claim a defined territory, such as a small section of forest or river, or a district of a larger city. Within its borders, you can cast Detect Magic, Guidance"
   },
   {
    "id": "YAr465ZVQ4blqDzT",
@@ -58692,28 +58288,6 @@
    "text": "You create a fleshy eyeball that is the size of a marble. You can take a single action, which has the concentrate trait, to look through any of your eyeballs until the start of your next turn. An eyeball can be manipulated like a marble, su"
   },
   {
-   "id": "kpIQnOMFUwfOPzYv",
-   "name": "Recurring Nightmare",
-   "level": 14,
-   "owner": "necromancer",
-   "classes": [
-    "necromancer"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "necromancer"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Recurring Nightmare)",
-   "text": "You summon a lingering spirit that just won't stay dead. You learn the Recurring Nightmare grave spell."
-  },
-  {
    "id": "sCUVKFGfaZzx6kz1",
    "name": "Flesh Tsunami",
    "level": 16,
@@ -58781,28 +58355,6 @@
    "reason": null,
    "detail": null,
    "text": "Frequency once per day You keep a reserve cache of thralls ready in case of an emergency. You create up to 20 thralls within 120 feet."
-  },
-  {
-   "id": "tCi9hIvIWMXV2ziz",
-   "name": "Living Graveyard",
-   "level": 20,
-   "owner": "necromancer",
-   "classes": [
-    "necromancer"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "necromancer"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Living Graveyard)",
-   "text": "You conjure forth a massive, animated graveyard. You learn the Living Graveyard grave spell."
   },
   {
    "id": "HB0jvWCdim1p91q1",
