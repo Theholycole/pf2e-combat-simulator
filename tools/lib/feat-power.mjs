@@ -265,7 +265,8 @@ function joinBuiltins(c, builtins) {
         // (2026-11-04: a rider on a basic action's success — Crushing Grab's damage on a Grapple, Agonizing Rebuke's on a Demoralize: the
         // PC's own basic entry gets the damage on its success and critical success.)
         if (field === "basicRiders") {
-            for (const rider of value) c.spells = (c.spells ?? []).map((entry) => (entry.kind === "basic" && rider.slugs.includes(entry.plan?.source?.slug) ? withRider(entry, rider) : entry));
+            // (2026-11-07: that basic action forced as the feat's own are — before, Agonizing Rebuke's fighter never Demoralized, 0 uses.)
+            for (const rider of value) c.spells = (c.spells ?? []).map((entry) => (entry.kind === "basic" && rider.slugs.includes(entry.plan?.source?.slug) ? { ...withRider(entry, rider), ...(c.forceUse ? { featForced: true } : {}) } : entry));
             continue;
         }
         if (field === "maxHpBonus") {
