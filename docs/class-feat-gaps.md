@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1557 are rated; 2799 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1562 are rated; 2794 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -9,14 +9,14 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Bucket | No plan | Plan, not played | Total |
 |---|---:|---:|---:|
 | Archetype dedications (grant class features) | 76 | 81 | 157 |
-| Combat actions and reactions | 187 | 351 | 538 |
+| Combat actions and reactions | 185 | 350 | 535 |
 | Passives that change a class feature | 156 | 40 | 196 |
-| Other combat passives | 286 | 83 | 369 |
+| Other combat passives | 285 | 82 | 367 |
 | Spellcasting (slots, focus, spellshapes) | 231 | 40 | 271 |
 | Companions, familiars and eidolons | 125 | 47 | 172 |
 | Out of combat (exploration, downtime, skills) | 282 | 55 | 337 |
 | Nothing a fight would use | 624 | 135 | 759 |
-| **All** | 1967 | 832 | 2799 |
+| **All** | 1964 | 830 | 2794 |
 
 ## By class
 
@@ -52,7 +52,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | witch |  | 1 | 2 | 2 | 4 | 16 | 7 | 3 | 35 |
 | wizard |  | 2 |  | 1 | 14 | 4 | 10 | 6 | 37 |
 | archetype | 146 | 249 | 43 | 196 | 95 | 64 | 147 | 436 | 1376 |
-| other | 11 | 38 | 2 | 37 | 16 | 13 | 25 | 33 | 175 |
+| other | 11 | 35 | 2 | 35 | 16 | 13 | 25 | 33 | 170 |
 
 ## Why the simulator doesn't play the ones with a plan
 
@@ -73,12 +73,12 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | a spell the feat casts | 17 |
 | its Effect has nothing a fight counts | 15 |
 | a passive's Effect on other creatures | 15 |
-| a reaction to "passive" | 13 |
 | it grants Additional Lore: the feat module reads nothing for it | 12 |
+| a reaction to "passive" | 12 |
 | its stance | 9 |
 | its requirement, which the PC doesn't meet | 8 |
-| a reaction's Strike | 7 |
 | a lasting area | 7 |
+| a reaction's Strike | 6 |
 | it grants Cast a Spell: the feat module reads nothing for it | 5 |
 | a passive's Strike | 5 |
 | a reroll | 5 |
@@ -400,7 +400,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Warshard Warrior Dedication | 12 | other | passive | plan | it grants Call Warshard Weapon: the feat module reads nothing for it |
 | Wildspell Dedication | 12 | other | passive | plan | a spell the engine doesn't cast (Spellsurge) |
 
-## Combat actions and reactions (538)
+## Combat actions and reactions (535)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -853,10 +853,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Fiery Rebirth | 4 | other | free | plan | a plan the engine can't play (its targeting or what it does) |
 | Surface Rush | 4 | other | 2 actions | no plan |  |
 | Defensive Growth | 6 | other | reaction | plan | it grants Verdant Core Deviant Classification: the feat module reads nothing for it |
-| Unrivaled Retort | 6 | other | reaction | plan | a reaction's Strike |
-| Arc of Destruction | 8 | other | reaction | no plan |  |
 | Stages of Fate | 8 | other | 2 actions | no plan |  |
-| Unbelievable Interception | 8 | other | reaction | no plan |  |
 | Feed the Void | 10 | other | 2 actions | plan | it grants Leech Deviant Classification: the feat module reads nothing for it |
 | Lightspeed Assault | 10 | other | 1 action | plan | it grants Flicker Deviant Classification: the feat module reads nothing for it |
 | Burning Surge | 14 | other | reaction | no plan |  |
@@ -1144,7 +1141,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Syu Tak-nwa's Hexed Locks | 8 | witch | passive | no plan |  |
 | Hex Master | 20 | witch | passive | no plan |  |
 
-## Other combat passives (369)
+## Other combat passives (367)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -1475,12 +1472,10 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Vigorous Victor | 16 | other | passive | no plan |  |
 | Walk on the Wind | 16 | other | passive | no plan |  |
 | Mythic Weapon Specialization | 18 | other | passive | no plan |  |
-| Not This Time | 18 | other | passive | plan | a reaction to "passive" |
 | Rebellious Existence | 18 | other | passive | no plan |  |
 | Unstoppable Force | 18 | other | passive | plan | a reaction to "passive" |
 | Craft Runewell | 20 | other | passive | plan | it grants Enter Runewell: the feat module reads nothing for it |
 | Eternal Hero | 20 | other | passive | no plan |  |
-| Fight Through Oblivion | 20 | other | passive | no plan |  |
 | I am the Weapon | 20 | other | passive | no plan |  |
 | Immortal Ruin | 20 | other | passive | no plan |  |
 | Once and Future | 20 | other | passive | no plan |  |

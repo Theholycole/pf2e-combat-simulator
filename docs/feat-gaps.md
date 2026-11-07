@@ -3,21 +3,21 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 2228: in whole fights, or 113 combo feats from the basic actions they fold in (docs/combo-feats.md). **4138 it doesn't.**
-- **2908** are in neither.
+- **The simulator** rates 2234: in whole fights, or 113 combo feats from the basic actions they fold in (docs/combo-feats.md). **4132 it doesn't.**
+- **2907** are in neither.
 
 ## Summary by category
 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
-| class | 2282 | 1088 | 1364 | 861 |
+| class | 2282 | 1088 | 1359 | 860 |
 | archetype | 2074 | 1246 | 1346 | 946 |
 | ancestry | 1613 | 1086 | 1059 | 802 |
 | skill | 340 | 261 | 325 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 9 | 6 |
-| class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4138 | 2908 |
+| class feature | 3 | 2 | 2 | 2 |
+| **All** | 6366 | 3725 | 4132 | 2907 |
 
 ## Why the feat module doesn't automate them
 
@@ -41,7 +41,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | no card, and PF2e's rule elements on it change nothing a fight counts | 255 | 214 | 317 | 59 | 14 | 4 |  | 863 |
 | no card: roleplay or nothing to automate | 157 | 201 | 150 | 46 | 9 |  |  | 563 |
-| no card: the feat module's reminder, which a fight doesn't play | 170 | 126 | 92 | 21 |  | 1 |  | 410 |
+| no card: the feat module's reminder, which a fight doesn't play | 168 | 126 | 92 | 21 |  | 1 |  | 408 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 80 | 38 | 111 | 2 |  |  | 322 |
 | no card: only grants other feats, features or choices | 86 | 123 | 47 | 16 | 2 |  |  | 274 |
 | no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 50 | 46 | 41 | 21 | 1 |  |  | 159 |
@@ -50,7 +50,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | a timer with no rules a fight counts | 52 | 25 | 17 | 4 |  | 1 |  | 99 |
 | a plan the engine can't play | 30 | 34 | 25 | 2 |  |  |  | 91 |
-| no card: a combat action no reader or hand plan covers yet | 24 | 27 | 13 | 4 | 1 |  |  | 69 |
+| no card: a combat action no reader or hand plan covers yet | 23 | 27 | 13 | 4 | 1 |  |  | 68 |
 | no card: companions, familiars and eidolons | 34 | 25 | 1 | 5 |  |  |  | 65 |
 | it grants Additional Lore | 1 | 11 | 39 | 1 |  |  |  | 52 |
 | a roll whose results the simulator doesn't read | 25 | 14 | 5 | 7 |  |  |  | 51 |
@@ -58,17 +58,17 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | its requirement | 14 | 27 | 4 |  |  |  |  | 45 |
 | an Effect with nothing a fight counts | 24 | 13 | 7 | 1 |  |  |  | 45 |
 | no card: PF2e's own Effect, from the feat's Use button | 18 | 17 | 7 | 2 |  |  |  | 44 |
-| a passive's roll with no action to use it | 13 | 14 | 9 |  |  |  | 1 | 37 |
+| a passive's roll with no action to use it | 13 | 14 | 9 |  |  |  |  | 36 |
 | it grants one of 2 | 6 | 14 | 12 |  |  |  |  | 32 |
 | a passive's Effect posted by hand | 7 | 11 | 3 | 1 |  |  |  | 22 |
 | a spell the feat casts | 13 | 4 | 4 |  |  |  |  | 21 |
 | its Effect has nothing a fight counts | 4 | 11 | 3 | 2 |  |  |  | 20 |
 | a passive's Effect on other creatures | 8 | 7 | 1 | 3 | 1 |  |  | 20 |
 | a teleport | 4 | 7 | 7 |  |  |  |  | 18 |
-| a reaction to "passive" | 8 | 5 | 4 |  |  |  |  | 17 |
+| a reaction to "passive" | 7 | 5 | 4 |  |  |  |  | 16 |
 | nothing a fight uses | 2 | 1 | 12 |  |  |  |  | 15 |
 | its text has no Strike of its user's | 5 | 6 | 1 |  |  |  |  | 12 |
-| a reaction's Strike | 4 | 3 | 4 |  |  |  |  | 11 |
+| a reaction's Strike | 3 | 3 | 4 |  |  |  |  | 10 |
 | its requirement, which the PC doesn't meet | 5 | 2 | 3 |  |  |  |  | 10 |
 | a lasting area | 7 |  | 2 |  |  |  |  | 9 |
 | it grants Pet | 3 | 2 | 3 |  |  |  |  | 8 |
@@ -3943,7 +3943,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Grand Dance | 8 | class | 2 actions | no card: a combat action no reader or hand plan covers yet |
 | Sidestep | 8 | class | reaction | rated 0 |
 | Swipe Souvenir | 8 | class | 2 actions | no card: a combat action no reader or hand plan covers yet |
-| Unbelievable Interception | 8 | class | reaction | no card: a combat action no reader or hand plan covers yet |
+| Unbelievable Interception | 8 | class | reaction | rated 0.12 |
 | Chain Infusion | 10 | class | 1 action | rated -0.16 |
 | Desperate Surge | 10 | class | 1 action | rated -0.03 |
 | Dream Guise | 10 | class | 1 action | no card: a combat action no reader or hand plan covers yet |
@@ -4052,7 +4052,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 
 (The feat module's gaps above are mostly the simulator's too; these are the ones the feat module plays and the simulator doesn't.)
 
-### no card: the feat module's reminder, which a fight doesn't play (410)
+### no card: the feat module's reminder, which a fight doesn't play (408)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4326,7 +4326,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Stumbling Feint | 6 | class | passive | reminder | the feat module reads nothing for it |
 | Thorough Research | 6 | class | passive | reminder | the feat module reads nothing for it |
 | Accompany | 8 | class | reaction | reminder | the feat module reads nothing for it |
-| Arc of Destruction | 8 | class | reaction | reminder | the feat module reads nothing for it |
 | Boost Summons | 8 | class | passive | reminder | the feat module reads nothing for it |
 | Clue Them All In | 8 | class | passive | reminder | the feat module reads nothing for it |
 | Crosscurrent Counter | 8 | class | reaction | reminder | the feat module reads nothing for it |
@@ -4434,7 +4433,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Swift River | 18 | class | free | reminder | the feat module reads nothing for it |
 | Ultimate Mercy | 18 | class | passive | reminder | the feat module reads nothing for it |
 | Avatar's Protection | 20 | class | reaction | reminder | the feat module reads nothing for it |
-| Fight Through Oblivion | 20 | class | passive | reminder | the feat module reads nothing for it |
 | Mimic Protections | 20 | class | passive | reminder | the feat module reads nothing for it |
 | Reactive Distraction | 20 | class | reaction | reminder | the feat module reads nothing for it |
 | Reflecting Riposte | 20 | class | reaction | reminder | the feat module reads nothing for it |
@@ -5042,7 +5040,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Resounding Finale | 16 | class | reaction | card | an Effect with nothing a fight counts |
 | Emergency Medical Assistance | 12 | skill | 2 actions | card | an Effect with nothing a fight counts |
 
-### a passive's roll with no action to use it (37)
+### a passive's roll with no action to use it (36)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5082,7 +5080,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Momentary Respite | 16 | class | passive | card | a passive's roll with no action to use it |
 | Immortal Techniques | 20 | class | passive | card | a passive's roll with no action to use it |
 | Mega Bomb | 20 | class | passive | card | a passive's roll with no action to use it |
-| Deathless Servant | 18 | class feature | passive | card | a passive's roll with no action to use it |
 
 ### a passive's Effect posted by hand (22)
 
@@ -5210,7 +5207,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Wandering Thoughts | 16 | class | free | card | a teleport |
 | Cycle of Souls | 18 | class | free | card | a teleport |
 
-### a reaction to "passive" (17)
+### a reaction to "passive" (16)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5227,7 +5224,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Numbing Spice Exhalation | 4 | class | passive | card | a reaction to "passive" |
 | Gigaton Strike | 8 | class | passive | card | a reaction to "passive" |
 | One-Millimeter Punch | 16 | class | passive | card | a reaction to "passive" |
-| Not This Time | 18 | class | passive | card | a reaction to "passive" |
 | Unstoppable Force | 18 | class | passive | card | a reaction to "passive" |
 | Heart of the Kaiju | 20 | class | passive | card | a reaction to "passive" |
 | Ricochet Legend | 20 | class | passive | card | a reaction to "passive" |
@@ -5269,7 +5265,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Rouse the Forest's Fury | 18 | class | 3 actions | card | its text has no Strike of its user's |
 | Time Dilation Cascade | 20 | class | 3 actions | card | its text has no Strike of its user's |
 
-### a reaction's Strike (11)
+### a reaction's Strike (10)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -5280,7 +5276,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Tag Team | 10 | archetype | reaction | card | a reaction's Strike |
 | Sailfish Strike | 14 | archetype | reaction | card | a reaction's Strike |
 | Opportune Throw | 16 | archetype | reaction | card | a reaction's Strike |
-| Unrivaled Retort | 6 | class | reaction | card | a reaction's Strike |
 | Defend Our Union | 16 | class | reaction | card | a reaction's Strike |
 | Instant Return | 16 | class | reaction | card | a reaction's Strike |
 | Pack Performance | 18 | class | reaction | card | a reaction's Strike |

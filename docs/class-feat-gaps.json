@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1557,
+ "rated": 1562,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -13259,46 +13259,6 @@
    "text": "Trigger You're the target of a physical attack. You grow a shield of woven flowers and branches, then Raise that Shield to defend yourself from the triggering attack. If you would take damage from the attack, you immediately Shield Block. T"
   },
   {
-   "id": "kUb7FtYlJPNy4tYv",
-   "name": "Unrivaled Retort",
-   "level": 6,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a reaction's Strike",
-   "detail": "a reaction's Strike",
-   "text": "Trigger You are about to attempt a Fortitude or Reflex save against an area effect and are wielding a ranged weapon. You defy the death and destruction around you while using it to fuel your mythic power, spurring you on to acts of incredib"
-  },
-  {
-   "id": "5fu0H5ZpBxSOwtCL",
-   "name": "Arc of Destruction",
-   "level": 8,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger An enemy you're observing targets you with a ranged weapon Strike. You redirect an incoming weapon or projectile and send your enemy's own attack roaring back at them, increasing its accuracy with a surge of mythic power. Spend a My"
-  },
-  {
    "id": "zJsu5JQGGOpyT6Xk",
    "name": "Stages of Fate",
    "level": 8,
@@ -13317,26 +13277,6 @@
    "reason": null,
    "detail": null,
    "text": "At one time, the hero-gods could not tell their own prophecies. Ongalte, hero-god of deicide, defied this rule and cemented why it should be upheld. Those that can reach into the web of fates and pluck out a string are forbidden from speaki"
-  },
-  {
-   "id": "Bgnr0hw52Efr8Ew8",
-   "name": "Unbelievable Interception",
-   "level": 8,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger An enemy you're observing attempts to Strike an ally you can also observe. You move with unbelievable alacrity to intercept an enemy's attack. Spend a Mythic Point; stride twice directly toward the triggering enemy. If you end withi"
   },
   {
    "id": "F8rtjsojGLaRuU5l",
@@ -26386,27 +26326,6 @@
    "text": "When you fully embrace your Calling, your blows hit with incredible force that can fell even the mightiest of creatures. When you make a Strike with mythic proficiency, your additional damage from weapon specialization increases to 12."
   },
   {
-   "id": "mdc30s4CuxR7HL3k",
-   "name": "Not This Time",
-   "level": 18,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "mythic",
-    "occult"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "plan",
-   "reason": "a reaction to \"passive\"",
-   "detail": "a reaction to \"passive\"",
-   "text": "Trigger A creature targets you with a single-target spell or ability that you defend against with a saving throw or your AC. You reflexively attempt to cycle a creature's timeline briefly to a reality where it's less able to succeed. Spend "
-  },
-  {
    "id": "RhQshUC35MeiNg3h",
    "name": "Rebellious Existence",
    "level": 18,
@@ -26485,26 +26404,6 @@
    "reason": null,
    "detail": null,
    "text": "You might be protected by divine intervention or the necessity of cosmic balance. You might be watched over by agents of destiny or fate. You could even be simply someone whose luck and skill have always worked together to ensure your trium"
-  },
-  {
-   "id": "fwdnRUW6TVwjiAoq",
-   "name": "Fight Through Oblivion",
-   "level": 20,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Mortal wounds that would kill other warriors are no more than the flutter of butterfly wings to you. When you are reduced to 0 Hit Points, you aren't knocked Unconscious and you don't gain the Dying condition. Until the start of your next t"
   },
   {
    "id": "meZTsonAlueXihQU",
