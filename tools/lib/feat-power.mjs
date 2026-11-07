@@ -3001,7 +3001,7 @@ export function featTriggerOf(doc) {
     if (/^You(?:'re| are)? (?:about to )?roll initiative$/i.test(said)) return { on: "initiative" };
     if (/^(?:A|An) (?:creature(?: or object)?|enemy|foe)(?: adjacent to you| you are aware of| you can see| within \d+ feet)? damages you\b/i.test(said)) return { on: "damaged", ...(/adjacent|melee|unarmed|reach/i.test(said) ? { melee: true } : {}) };
     // (2026-11-05, the one-off feats: a hit on it, its own hit, its Shield Block.)
-    if (/^(?:An? )?(?:adjacent )?(?:enemy|foe|creature)(?: you're aware of| you can see| you're observing)? (?:hits you with an? (?:attack|Strike)|critically succeeds (?:on|at) an? Strike against you)/i.test(said)) return { on: "hit", ...(/adjacent/i.test(said) ? { melee: true } : {}), ...(/critically/i.test(said) ? { critOnly: true } : {}) };
+    if (/^(?:An? )?(?:adjacent )?(?:enemy|foe|creature)(?: you're aware of| you can see| you're observing)? (?:hits you with an? (?:melee |ranged )?(?:weapon or unarmed )?(?:attack|Strike)|critically succeeds (?:on|at) an? Strike against you)/i.test(said)) return { on: "hit", ...(/adjacent|melee/i.test(said) ? { melee: true } : {}), ...(/critically/i.test(said) ? { critOnly: true } : {}) };
     if (/^Your Strike (?:with [^,]+ )?hits\b/i.test(said)) return { on: "strike-hit" };
     if (/^You use the Shield Block reaction\b/i.test(said)) return { on: "shield-block", ...(/adjacent/i.test(said) ? { melee: true } : {}), ...(/\bis undead\b/i.test(said) ? { creature: "undead" } : {}) };
     const would = /^(?:A Strike|An attack(?: or effect)?|An? (?:creature|enemy|foe)(?:'s)? (?:attack|Strike)) would (?:deal )?damage (?:to )?you$/i.exec(said);
@@ -3363,6 +3363,13 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     }
     // (2026-11-07, a basic action's rider — Legendary Laugh, Brutal Bully —: the basic action forced both sides, so the rating is the
     // rider's, not that of Demoralizing or Shoving every turn; its uses that action's.)
+    // (2026-11-07: a feat that changes Shield Block — Everstand Stance, Destructive Block —: the shield raised whenever it can be, both
+    // sides, so the rating is the block's change, not that of raising it.)
+    if (FORCE && (builtins.blockHardness || builtins.destructiveBlock)) {
+        const raiser = fought.find((c) => c.id === host.id);
+        if (raiser) Object.assign(raiser, { raiseForced: true, forceUse: true });
+        plainParty = (plainParty ?? base).map((c) => (c.id === host.id ? { ...c, raiseForced: true, forceUse: true } : c));
+    }
     const riderSlugs = FORCE ? [...(builtins.basicRiders ?? []).flatMap((rider) => rider.force ?? rider.slugs), ...(builtins.forceBasic ?? [])] : [];
     const riderNames = [];
     if (riderSlugs.length) {

@@ -170,5 +170,7 @@ export const SIM_WHY = Object.freeze({
     "Steal Vitality": SPELL_NOT_CAST, "Siphoning Touch": SPELL_NOT_CAST, "Toppling Tentacles": SPELL_NOT_CAST, "Volatile Grease": SPELL_NOT_CAST,
     "Barrier Shield": SPELL_NOT_CAST, "Shining Arms": SPELL_NOT_CAST, "Uneasy Rest": SPELL_NOT_CAST, "Forceful Push": SPELL_NOT_CAST, "Drenching Mist": SPELL_NOT_CAST,
     "Obscured Terrain": SPELL_NOT_CAST, "Summon Ensemble": SPELL_NOT_CAST, "Animate Net": SPELL_NOT_CAST, "Surrounding Flames": SPELL_NOT_CAST,
+    "Fish From the Falls' Edge": DEATH, "Spirit's Sacrifice": DEATH, "Rekindled Light": COMPANION_KIND, "Dismal Harvest": COMPANION_KIND,
+    "Tempo Shift": "a reaction to Delaying, which the simulator's PCs don't do",
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });
