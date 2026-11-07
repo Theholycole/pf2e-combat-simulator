@@ -3751,6 +3751,13 @@ export function exploitVulnerability(state, c, target) {
     // personal antithesis to them as well, on a non-humanoid.)
     const mortal = degree >= 2 && weakest > c.exploit.antithesis;
     c.exploited = { targetId: target.id, kind: target.name, mortal, humanoid: (target.traits ?? []).includes("humanoid"), value: mortal ? weakest : c.exploit.antithesis };
+    // (2026-11-07, Esoteric Warden: on a success +1 status to AC and saves — +2 on a critical success —, played until its next turn
+    // against all foes, not the one creature's next attack only.)
+    if (c.esotericWarden && degree >= 2) {
+        const value = degree === 3 ? 2 : 1;
+        applyEffect(state, c, { name: "Esoteric Warden", rounds: 1, modifiers: [{ on: "ac", type: "status", value }, { on: "saving-throw", type: "status", value }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: "esoteric-warden" });
+        log(state, `  ${c.name} gains +${value} AC and saves (Esoteric Warden)`);
+    }
 }
 
 // Whether a creature's Strikes already carry its Exploit Vulnerability against a target (its own target, or one of the same kind).

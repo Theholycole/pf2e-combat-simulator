@@ -840,5 +840,6 @@ export const SIM_WHY = Object.freeze({
     "Starshot Arrow": DAMAGE_TYPE,
     "Reckless Abandon": SCENE,
     "Gigaton Strike": REACH,
+    "Ubiquitous Weakness": DAMAGE_TYPE,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });
