@@ -110,5 +110,7 @@ export const SIM_WHY = Object.freeze({
     "Stone Forge of the First": TERRAIN, "Afterimage": SOCIAL, "Shared Sight": TERRAIN, "Shared Tide": TERRAIN, "Collapse Construct": BETWEEN,
     "Cognitive Loophole": FOE_SPELL, "Klingegeist": UTILITY, "Maelstrom Flow": GEAR, "Magitaxis": FOE_SPELL, "Ghost Flight": UTILITY,
     "Blood Rising": FOE_SPELL, "Charred Remains": TERRAIN, "Wooden Palisade": TERRAIN,
+    "Commitment to Valor": FOE_TYPE, "Defy Sorrow": FOE_TYPE, "Metabolize Element": FOE_SPELL, "Vomit Stomach": FOE_TYPE, "Propelled Leap": FOE_TYPE,
+    "Quick Root": FOE_TYPE, "Heat Wave": FOE_TYPE,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

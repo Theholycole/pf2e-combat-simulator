@@ -210,7 +210,9 @@ export function addBuiltin(spec, plan, name) {
                 // (2026-11-05, Giant's Lunge, Jotun's Battle Stance: its melee reach while it lasts — effects.js.)
                 ...(plan.model?.reach ? { reach: plan.model.reach } : {}),
                 // (2026-11-07, Cloak of Poison: a touch's retaliation while it lasts, as Fiery Body's — effects.js applyEffect.)
-                ...(plan.model?.retaliation ? { retaliation: structuredClone(plan.model.retaliation) } : {}) };
+                ...(plan.model?.retaliation ? { retaliation: structuredClone(plan.model.retaliation) } : {}),
+                // (2026-11-07, the marshal stances: an aura's effect on the allies it reaches as it's entered — effects.js applyEffect.)
+                ...(plan.model?.aura?.length ? { aura: structuredClone(plan.model.aura) } : {}) };
             // (B137, Cower, Entrench: a stance that ends when it moves.)
             spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model: plan.shell ? { ...model, rounds: 1 } : model, ...(plan.shell ? { shell: true } : plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requires === "panache" ? { needsPanache: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.belowHalf ? { belowHalf: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}), ...(Number(plan.heal) > 0 ? { heal: Number(plan.heal) } : {}), ...(plan.pool ? { pool: plan.pool } : {}), ...(plan.thrallField ? { thrallField: structuredClone(plan.thrallField) } : {}), ...(plan.amalgamate ? { amalgamate: true } : {}) }];
             return true;

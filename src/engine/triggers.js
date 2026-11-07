@@ -2,7 +2,8 @@
 // compiles what it does (a save, a check, an effect), and the feat ratings read when it goes from the feat's own Trigger line
 // (tools/lib/feat-power.mjs featTriggerOf) — entry.featTrigger { on, melee?, unarmed?, whileDown? } on the PC's spell entry, and
 // c.featTriggers on the PC. The events:
-// - "turn-start": its turn begins (Blazing Aura, High-Speed Regeneration, Harness Natural Magic).
+// - "turn-start": its turn begins (Blazing Aura, High-Speed Regeneration, Harness Natural Magic). "initiative": as initiative is
+//   rolled (All This Has Happened Before).
 // - "damaged": a foe damages it (Impose Order, Gaping Flesh, Calcifying Sand, Inscribed Blast) — melee: by a melee attack or from beside it.
 // - "foe-down": it drops a foe (Victorious Vigor, Cranial Detonation).
 // - "would-damage": before damage from a foe lands (Adamantine Body, Terrain Shield) — strike: only a Strike's; type: only that type's.

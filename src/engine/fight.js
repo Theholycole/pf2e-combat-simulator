@@ -293,6 +293,8 @@ function initiativeDeeds(state) {
         // An exemplar's free Shift Immanence (C25).
         if (c.exemplar) sparkAtInitiative(state, c);
         if (c.energyShots) c.energyShotsLeft = c.energyShots;
+        // (2026-11-07, All This Has Happened Before: a feat's reaction as initiative is rolled — triggers.js.)
+        if (c.featTriggers) featTriggers(state, c, "initiative");
     }
 }
 

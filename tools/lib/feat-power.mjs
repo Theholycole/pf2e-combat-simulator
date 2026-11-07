@@ -1166,6 +1166,9 @@ function thrallAllySpell(doc, level, host, { model, rounds, destroyed, played })
     return { builtins: {}, spells: [entry], pools: { [entry.pool]: 1 }, played: `${played} (its focus spell${destroyed ? ", a thrall destroyed" : ""}, once a fight)` };
 }
 
+// (2026-11-07) A marshal stance: a stance self-effect whose aura gives its modifiers to it and the allies its 10 feet reach.
+const marshalStance = (name, modifiers, played) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: true, model: { aura: [{ radius: 10, affects: "allies", includesSelf: true, model: { name, modifiers, tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [] } }] } }], played });
+
 const HAND = {
     // (2026-11-07, fortune: Wish for Luck's "roll the check twice and take the higher result", once a day — played on an attack roll, as
     // Gorum's Tear's talisman (free, once a fight, when rolling twice is worth it); Accidental Shot's ranged Strike rolled twice, the same.)
@@ -1600,6 +1603,13 @@ const HAND = {
     // beside it off-guard to its attacks that long; once an hour, once a fight.)
     // (2026-11-07, the simulator phase: Dalang's Ally's and Umbra Ally's shadow flanking for it against every enemy in its reach till its
     // next turn — as Superimpose Time Duplicates, one foe beside it off-guard to its attacks; Umbra Ally once an hour, once a fight.)
+    // (2026-11-07, the marshal stances — Marshal Dedication's 10-foot aura —: the stance's check is an easy DC of its level, taken as made; its
+    // bonus on it and the allies in its Melee as it's entered. Inspiring: +1 status to attacks (its saves against mental effects not played).
+    // Dread: +1 status to damage, the weapon's dice instead with a striking rune (its frightened 1 on a critical hit not played). Strategist:
+    // +1 status to Reflex saves (its Recall Knowledge off-guard not played).)
+    "inspiring-marshal-stance": () => marshalStance("Inspiring Marshal Stance", [{ on: "attack", type: "status", value: 1 }], "+1 status to attacks for it and the allies beside it (stance)"),
+    "dread-marshal-stance": (level) => { const dice = level >= 19 ? 4 : level >= 12 ? 3 : level >= 4 ? 2 : 1; return marshalStance("Dread Marshal Stance", [{ on: "damage", type: "status", value: dice }], `+${dice} status to damage for it and the allies beside it (stance)`); },
+    "strategist-stance": () => marshalStance("Strategist Stance", [{ on: "reflex", type: "status", value: 1 }], "+1 status to Reflex saves for it and the allies beside it (stance)"),
     "dalangs-ally": () => {
         const entry = offGuardToMeEntry("Dalang's Ally", { range: "touch", traits: [] });
         return entry ? { builtins: {}, plans: [], spells: [entry], pools: {}, played: "a foe beside it off-guard to its attacks till its next turn (1 action)" } : null;
@@ -2805,6 +2815,8 @@ export function featTriggerOf(doc) {
     const said = (/\bTrigger\s+(.+?)(?:\.|$)/i.exec(text)?.[1] ?? "").split(/\s(?:Effect|Frequency|Requirements?)\s/)[0].trim();
     const whileDown = /\beven while\b/i.test(text);
     if (/^Your turn begins$/i.test(said)) return { on: "turn-start" };
+    // (2026-11-07, All This Has Happened Before: as initiative is rolled.)
+    if (/^You(?:'re| are)? (?:about to )?roll initiative$/i.test(said)) return { on: "initiative" };
     if (/^(?:A|An) (?:creature(?: or object)?|enemy|foe)(?: adjacent to you| you are aware of| you can see| within \d+ feet)? damages you\b/i.test(said)) return { on: "damaged", ...(/adjacent|melee|unarmed|reach/i.test(said) ? { melee: true } : {}) };
     // (2026-11-05, the one-off feats: a hit on it, its own hit, its Shield Block.)
     if (/^(?:An? )?(?:adjacent )?(?:enemy|foe|creature)(?: you're aware of| you can see| you're observing)? (?:hits you with an? (?:attack|Strike)|critically succeeds (?:on|at) an? Strike against you)/i.test(said)) return { on: "hit", ...(/adjacent/i.test(said) ? { melee: true } : {}), ...(/critically/i.test(said) ? { critOnly: true } : {}) };
@@ -2812,7 +2824,8 @@ export function featTriggerOf(doc) {
     if (/^You use the Shield Block reaction\b/i.test(said)) return { on: "shield-block", ...(/adjacent/i.test(said) ? { melee: true } : {}), ...(/\bis undead\b/i.test(said) ? { creature: "undead" } : {}) };
     const would = /^(?:A Strike|An attack(?: or effect)?|An? (?:creature|enemy|foe)(?:'s)? (?:attack|Strike)) would (?:deal )?damage (?:to )?you$/i.exec(said);
     if (would) return { on: "would-damage", ...(/effect/i.test(said) ? {} : { strike: true }) };
-    const typed = /^You would take (\w+) damage$/i.exec(said);
+    // (2026-11-07, Pollinate's "You take bludgeoning damage": as it would.)
+    const typed = /^You (?:would )?take (\w+) damage$/i.exec(said);
     if (typed) return { on: "would-damage", type: typed[1].toLowerCase() };
     if (/^You (?:bring|reduce) (?:a|an) (?:foe|enemy|creature) to 0 Hit Points/i.test(said) || /^You successfully reduce one or more .*(?:enemies|foes|creatures) to 0 Hit Points/i.test(said)) return { on: "foe-down" };
     if (/^You critically (?:succeed|hit) (?:with|on) an? (unarmed )?Strike/i.test(said)) return { on: "crit", ...(/unarmed/i.test(said) ? { unarmed: true } : {}) };
@@ -2822,6 +2835,7 @@ export function featTriggerOf(doc) {
     // Comforting Presence, Reminder of the Greater Fear) — or at the start of its turn (Mask of Fear).)
     if (/^You (?:become|gain the) frightened(?: condition)?$/i.test(said)) return { on: "frightened" };
     if (/^You start your turn with the frightened condition$/i.test(said)) return { on: "turn-start", withCondition: "frightened" };
+    if (/^Your turn begins, and you have the wounded condition$/i.test(said)) return { on: "turn-start", withCondition: "wounded" };
     const allyFear = /^(?:An? )?(adjacent ally|ally within (\d+) feet(?: of you)?|Another creature within (\d+) feet of you)\b[^.]*?\b(?:gains|becomes|would gain) (?:the )?frightened\b/i.exec(said);
     // (A foe's roll: misfortune as it's about to attack — Harbinger's Caw — or after its critical failure — Ill Tide.)
     const foeRoll = /^A creature within (\d+) feet(?: of you)? (is about to attempt an attack roll|critically fails an attack roll)\b/i.exec(said);
