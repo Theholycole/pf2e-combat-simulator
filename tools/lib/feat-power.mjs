@@ -1177,6 +1177,10 @@ const HAND = {
     // (Prescient Parry: its AC at mythic proficiency plus its weapon's item bonus against one Strike — mythic over its armor's master or
     // legendary, +4 to 15th level and +2 after, and the weapon's potency — a Mythic Point each, played when it turns a hit into a miss;
     // its Strike back on a miss isn't played.)
+    // (2026-11-07, Arc of Destruction: +4 AC against a ranged Strike, a miss thrown back at the attacker; Not This Time: +2 AC as a
+    // single-target attack comes — its save and failure riders not played. A Mythic Point each.)
+    "arc-of-destruction": () => ({ builtins: { acReaction: { value: 4, when: "targeted", name: "Arc of Destruction", against: "ranged", snatch: true, mythic: true }, mythicPoints: 3 }, played: "+4 AC against a ranged Strike, a miss thrown back (reaction, a Mythic Point each)" }),
+    "not-this-time": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Not This Time", mythic: true }, mythicPoints: 3 }, played: "+2 AC as a Strike targets it (reaction, a Mythic Point each; the save riders not played)" }),
     "prescient-parry": (level) => { const value = (level >= 17 ? 2 : 4) + (level >= 16 ? 3 : level >= 10 ? 2 : 1); return { builtins: { acReaction: { name: "Prescient Parry", value, when: "hit", mythic: true }, mythicPoints: 3 }, played: `+${value} AC against a Strike that would hit (reaction, a Mythic Point each)` }; },
     // (Divide and Conquer: two Strikes at mythic proficiency (+2 over legendary), each at a different foe, the multiple attack penalty
     // rising after both; a Mythic Point each (three a day). Its Step and its both-hit rider by damage type aren't played.)
@@ -1188,6 +1192,11 @@ const HAND = {
     // a Mythic Point each; the fling after isn't played. Vindictive Thoughts: a save against a spell, the same against its expert Will
     // (master from 17th), its reaction; its mental damage to the caster isn't played.)
     "fling-into-action": (level) => ({ builtins: { mythicSave: { name: "Fling Into Action", save: "reflex", free: true, bonus: level >= 15 ? 4 : 6 }, mythicPoints: 3 }, played: "a Reflex save at mythic proficiency (a Mythic Point each)" }),
+    // (2026-11-07, Unrivaled Retort: a Fortitude or Reflex save against an area at mythic proficiency — its ranged Strike back not played.)
+    "unrivaled-retort": (level) => ({ builtins: { mythicSave: { name: "Unrivaled Retort", saves: ["fortitude", "reflex"], area: true, bonus: level >= 15 ? 4 : 6 }, mythicPoints: 3 }, played: "a Fortitude or Reflex save against an area at mythic proficiency (reaction, a Mythic Point each; the Strike back not played)" }),
+    // (2026-11-07, Unbelievable Interception: two Strides and the ally's Strike taken — its damage on the PC, as Intercept Attack when the
+    // ally would drop or is the more hurt —, a Mythic Point each; the original roll against its AC and the Strike back not played.)
+    "unbelievable-interception": () => ({ builtins: { interceptAttack: { name: "Unbelievable Interception", near: true, mythic: true }, mythicPoints: 3 }, played: "an ally's Strike damage taken after two Strides (reaction, a Mythic Point each)" }),
     "vindictive-thoughts": (level) => ({ builtins: { mythicSave: { name: "Vindictive Thoughts", save: null, spell: true, bonus: level >= 17 ? 4 : 6 }, mythicPoints: 3 }, played: "a save against a spell at mythic proficiency (reaction, a Mythic Point each)" }),
     // (Throw and Catch: a ranged Strike at mythic proficiency (+2 over legendary), then a melee one, the penalty rising after both — played
     // as two melee Strikes; a Mythic Point each.)
@@ -2162,6 +2171,11 @@ const ZERO_HP = {
     // (Call From Death's Door: an ally whose dying would increase loses it, healed twice the PC's level — played as an ally kept up at
     // 0 Hit Points with that many; its Mythic Points, as three uses.)
     "call-from-deaths-door": { rescue: { within: 60, hp: (level) => 2 * level, uses: 3 } },
+    // (2026-11-07, Deathless Servant: twice its level in Hit Points instead, wounded 1 more, once a day — its AC and damage while wounded
+    // not played. Fight Through Oblivion: immune to damage till its next turn, then 4d8+30 back if it Strikes and damages a foe — played as
+    // staying up with that many, wounded 1 more, up to three times.)
+    "deathless-servant": { ferocity: { hp: (level) => 2 * level, wounded: true, uses: 1 } },
+    "fight-through-oblivion": { ferocity: { hp: "4d8+30", wounded: true, uses: 3, free: true } },
     "entitys-resurgence": { ferocity: { hp: (level) => 1 + level + 4, wounded: false, uses: 1 } }
 };
 const slugOf = (doc) => doc.system?.slug ?? doc.name.toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");

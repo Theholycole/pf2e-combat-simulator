@@ -3525,7 +3525,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
         // the PC's own rank; a reaction's, its reaction.)
         const mythicSave = given?.actor?.mythicSave;
         if (mythicSave && SAVE_SLUGS.has(statistic) && forcedDegree === null && Number.isFinite(given.modifier) && caster.side !== given.actor.side && isActive(given.actor) && (given.actor.mythicPoints ?? 0) > 0
-            && (!mythicSave.save || mythicSave.save === statistic) && (!mythicSave.spell || !spell.kind || spell.kind === "spell") && (mythicSave.free || canReact(given.actor))) {
+            && (!mythicSave.save || mythicSave.save === statistic) && (!mythicSave.saves || mythicSave.saves.includes(statistic)) && (!mythicSave.area || Boolean(info.area)) && (!mythicSave.spell || !spell.kind || spell.kind === "spell") && (mythicSave.free || canReact(given.actor))) {
             given.actor.mythicPoints--;
             if (!mythicSave.free) given.actor.reactionUsed = true;
             log(state, `  ${given.actor.name} uses ${mythicSave.name}: its ${statistic} save at mythic proficiency (+${mythicSave.bonus})`);
