@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1533,
+ "rated": 1562,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -4242,27 +4242,6 @@
    "text": "You find the most strategic options for you and your allies. When you use this action, attempt a @Check[society|dc:@self.level|roller:self] or @Check[warfare-lore|dc:@self.level|roller:self] check. The DC is usually a standard-difficulty DC"
   },
   {
-   "id": "ACVze8hUm9L5Slrg",
-   "name": "Such a Disgrace!",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "fortune"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a plan the engine can't play",
-   "detail": "a plan the engine can't play (its targeting or what it does)",
-   "text": "Trigger An ally within 30 feet fails a Will saving throw against a mental effect. You expect the same level of urbane sophistication from your allies as you possess, so whenever one of them succumbs to egregious behavior from a mental effec"
-  },
-  {
    "id": "VP2CWUTZ9Edg82uz",
    "name": "Swift Leap",
    "level": 4,
@@ -4305,27 +4284,6 @@
    "reason": null,
    "detail": null,
    "text": "Trigger You hit a creature with a melee attack roll. The Sapphire Butterfly is not one for violence when simply intimidating a foe will do. From that vigilante's techniques, you've learned how to pull a deadly blow at the last moment, threa"
-  },
-  {
-   "id": "13bMIkqXpKt9pxAm",
-   "name": "You're an Embarrassment!",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "fortune"
-   ],
-   "rarity": "uncommon",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a plan the engine can't play",
-   "detail": "a plan the engine can't play (its targeting or what it does)",
-   "text": "Trigger An ally within 30 feet fails a Will saving throw against an incapacitation effect. Some Firebrands can't stand it when their allies are ruining their moment, and you're no different. Your loud and forceful condemnation of an ally su"
   },
   {
    "id": "L9pd3yyjVK0rgiDc",
@@ -5455,27 +5413,6 @@
    "text": "Trigger An enemy within your reach Strikes an ally adjacent to you. Requirements You have your shield raised. You push the enemy back and attempt to intercede between the foe and your ally. You attempt to Shove the triggering enemy with you"
   },
   {
-   "id": "7gYTO86pkFmm6zBn",
-   "name": "Feline Dance",
-   "level": 8,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "fortune"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a roll twice",
-   "detail": "a roll twice",
-   "text": "Access catfolk ancestry Frequency once per hour Trigger You attempt a basic Reflex save. Requirements You're in either claw stance or talon stance. You fluidly move between stances in the process of dodging. Roll the save twice and take the"
-  },
-  {
    "id": "FFn6obt0uPkGsLvA",
    "name": "Fine Print",
    "level": 8,
@@ -5801,26 +5738,6 @@
    "text": "Requirements You could see your hunted prey when you rolled initiative at the beginning of the encounter, and this is your first action on your first turn of the encounter. You're always ready to get the jump on your target. You Step up to "
   },
   {
-   "id": "f58Vhv4R4J6a7ie9",
-   "name": "Reactive Resilience",
-   "level": 8,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Frequency once per day Trigger You take damage. Requirements You are Channeling Draconic Essence. Your power blunts blades and weakens spells like the hardiest of dragon scales. You gain resistance to the triggering damage equal to your lev"
-  },
-  {
    "id": "ypIzURz2VBJCOran",
    "name": "Riptide (Undersea Privateer)",
    "level": 8,
@@ -6053,26 +5970,6 @@
    "reason": "a Strike with nothing more the simulator reads",
    "detail": "a Strike with nothing more the simulator reads",
    "text": "You topple your foes with your legs and attack them while they're down. You [[/act trip]] a creature within reach without needing a free hand. If you succeed, you can make a melee Strike against that creature. Your multiple attack penalty d"
-  },
-  {
-   "id": "EoKgJXfNfHwsy2sk",
-   "name": "Superimpose Time Duplicates",
-   "level": 8,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 1,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a timer with no rules a fight counts",
-   "detail": "a timer with no rules a fight counts",
-   "text": "Frequency once per hour You call alternate versions of yourself, either from a different timeline or perhaps yourself from a different point in your current timeline, to aid you in combat. Until the start of your next turn, these alternate "
   },
   {
    "id": "ossGwqEvC6ifPwgT",
@@ -6540,27 +6437,6 @@
    "reason": null,
    "detail": null,
    "text": "Trigger You fail, but don't critically fail, an attempt to Disable a Device on a trap. You intentionally set off the trap, but you take special precautions to protect yourself and your allies from the trap's effects. For the next 2 rounds, "
-  },
-  {
-   "id": "orTWiRwIQEc9FGJQ",
-   "name": "Fading",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "teleportation"
-   ],
-   "rarity": "rare",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Frequency once per Crimson Shroud Trigger You are targeted with a Strike by someone you can detect. Requirements Your Crimson Shroud is active. You partially fade from reality. The attacker must attempt a @Check[flat|dc:11]; on a failure, t"
   },
   {
    "id": "DUpcEx0yMHGSU6o5",
@@ -8303,27 +8179,6 @@
    "text": "Frequency once per day Trigger You're reduced to 0 hit points from damage that's neither acid nor fire. You have battled against foes whose bodies naturally regenerate, and while yours doesn't do so all the time, it can happen in a pinch. Y"
   },
   {
-   "id": "zodscjgydZRUSOLO",
-   "name": "Focus Ally",
-   "level": 16,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "fortune"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger An adjacent ally fails, but doesn't critically fail, a saving throw against an effect with the incapacitation trait. You're so focused on your allies that you can help them to recenter when something would take them out of the fight"
-  },
-  {
    "id": "uyZ3gY7gtKCLiywR",
    "name": "Following Smite",
    "level": 16,
@@ -9666,28 +9521,6 @@
    "reason": null,
    "detail": null,
    "text": "You refuse to let foes past your guard. As long as you are in this stance, when you critically hit with an Reactive Strike triggered by a move action, you disrupt that move action."
-  },
-  {
-   "id": "bYijGvCvCmJnW6aA",
-   "name": "Sacrifice Armor",
-   "level": 8,
-   "owner": "champion",
-   "classes": [
-    "champion"
-   ],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "champion"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "its Effect has nothing a fight counts",
-   "detail": "its Effect has nothing a fight counts",
-   "text": "Trigger You are hit by a Strike that deals physical damage. With divine awareness, you twist your body to lessen the impact of an attack. Reduce the damage you take by an amount equal to twice your armor's level. Your armor becomes Broken, "
   },
   {
    "id": "APfPNpUQlKlCAJkS",
@@ -11166,28 +10999,6 @@
    "reason": "a Strike with nothing more the simulator reads",
    "detail": "a Strike with nothing more the simulator reads",
    "text": "Requirements You're wielding a two-handed crossbow or a firearm that has the kickback or scatter trait. You throw yourself at an enemy, bracing your weapon against it and pulling it close before releasing a destructive shot. Attempt to Grap"
-  },
-  {
-   "id": "A7uJCDT9odsuwlqW",
-   "name": "Triggerbrand Blitz",
-   "level": 14,
-   "owner": "gunslinger",
-   "classes": [
-    "gunslinger"
-   ],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 3,
-   "traits": [
-    "gunslinger"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "its text has no Strike of its user's",
-   "detail": "its text has no Strike of its user's",
-   "text": "Frequency once per minute Requirements You're wielding a combination weapon. You dance through your foes, stabbing and shooting. You Stride, making up to three Strikes with your combination weapon at any point during your movement, each aga"
   },
   {
    "id": "mDczSj3GolIbkhGJ",
@@ -13407,26 +13218,6 @@
    "text": "Trigger You regain Hit Points while you are Unconscious. When you escape death, you return to life with retributive fire that burns those who harmed you. You expend 1 Mythic Point, return to consciousness, Stand, and regain additional Hit P"
   },
   {
-   "id": "Tf9RmqKU148OyQbz",
-   "name": "Prescience",
-   "level": 4,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "free",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger You're about to roll initiative. Mythic power floods through your mind, filling you with visions of possible futures, events that might or might not happen, and warnings of things that might be. Spend a Mythic Point and roll your in"
-  },
-  {
    "id": "lQrUHfzXwCFR04Vr",
    "name": "Surface Rush",
    "level": 4,
@@ -13468,66 +13259,6 @@
    "text": "Trigger You're the target of a physical attack. You grow a shield of woven flowers and branches, then Raise that Shield to defend yourself from the triggering attack. If you would take damage from the attack, you immediately Shield Block. T"
   },
   {
-   "id": "rljiwL00XW1RcnyL",
-   "name": "Divert Destiny",
-   "level": 6,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "free",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger An attack or effect would reduce you to 0 Hit Points or kill you outright. You defy the fate before you, calling on wells of mythic vitality to sustain your life and allow you to persevere. You expend 1 Mythic Point and survive the "
-  },
-  {
-   "id": "kUb7FtYlJPNy4tYv",
-   "name": "Unrivaled Retort",
-   "level": 6,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a reaction's Strike",
-   "detail": "a reaction's Strike",
-   "text": "Trigger You are about to attempt a Fortitude or Reflex save against an area effect and are wielding a ranged weapon. You defy the death and destruction around you while using it to fuel your mythic power, spurring you on to acts of incredib"
-  },
-  {
-   "id": "5fu0H5ZpBxSOwtCL",
-   "name": "Arc of Destruction",
-   "level": 8,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger An enemy you're observing targets you with a ranged weapon Strike. You redirect an incoming weapon or projectile and send your enemy's own attack roaring back at them, increasing its accuracy with a surge of mythic power. Spend a My"
-  },
-  {
    "id": "zJsu5JQGGOpyT6Xk",
    "name": "Stages of Fate",
    "level": 8,
@@ -13546,46 +13277,6 @@
    "reason": null,
    "detail": null,
    "text": "At one time, the hero-gods could not tell their own prophecies. Ongalte, hero-god of deicide, defied this rule and cemented why it should be upheld. Those that can reach into the web of fates and pluck out a string are forbidden from speaki"
-  },
-  {
-   "id": "Bgnr0hw52Efr8Ew8",
-   "name": "Unbelievable Interception",
-   "level": 8,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger An enemy you're observing attempts to Strike an ally you can also observe. You move with unbelievable alacrity to intercept an enemy's attack. Spend a Mythic Point; stride twice directly toward the triggering enemy. If you end withi"
-  },
-  {
-   "id": "24giyNqSjqrEnhN9",
-   "name": "Call From Death's Door",
-   "level": 10,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a plan the engine can't play",
-   "detail": "a plan the engine can't play (its targeting or what it does)",
-   "text": "Trigger The Dying condition of an ally you're observing would increase. Even death halts in the face of your power. Spend a Mythic Point; the triggering ally loses the dying condition, their Wounded condition doesn't increase, and they heal"
   },
   {
    "id": "F8rtjsojGLaRuU5l",
@@ -13757,26 +13448,6 @@
    "text": "Trigger You fail a saving throw against an effect that would alter your memory or cause you to become controlled by another creature. Awareness of your past perils protects you from those who would manipulate your thoughts. Attempt to count"
   },
   {
-   "id": "oYdfO7j3vnNG7SYN",
-   "name": "Abjure Harm",
-   "level": 16,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger You would take damage from an enemy's critical Strike. You're nigh invincible, and it's clear that your foe is so far beneath you that they have no hope of winning. Spend 1 Mythic Point. The triggering Strike becomes a regular hit i"
-  },
-  {
    "id": "KX79TV93yznyhhMJ",
    "name": "Bring Into the Fold",
    "level": 16,
@@ -13819,26 +13490,6 @@
    "reason": "its requirement",
    "detail": "its requirement (You are adjacent to a climbable surface at least 10 feet tall.)",
    "text": "Requirements You are adjacent to a climbable surface at least 10 feet tall. Seemingly to defy gravity, you use a nearby vertical surface to propel yourself upward and then strike downward like the driving rain. Stride up to half your Speed "
-  },
-  {
-   "id": "C10L7NG6dgsCqKG8",
-   "name": "Divide and Conquer",
-   "level": 16,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a timer with no rules a fight counts",
-   "detail": "a timer with no rules a fight counts",
-   "text": "Requirements You are wielding a melee warshard weapon. When you face multiple foes, you wield your warshard weapon with vigor. Spend 1 Mythic Point, then Step to a space where you threaten at least two opponents with your warshard weapon. A"
   },
   {
    "id": "XrvIHz2bkgdpJ8rI",
@@ -13945,27 +13596,6 @@
    "text": "Trigger One of your designated knights is within 15 feet of you and would take damage from an enemy's Strike. As your knights devote their lives and swords to you, so too do you return their devotion with your own fierce protection. Spend a"
   },
   {
-   "id": "WYMbOaEvuAS5zCjH",
-   "name": "Prescient Parry",
-   "level": 16,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "manipulate",
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a reaction's Strike",
-   "detail": "a reaction's Strike",
-   "text": "Requirements You are wielding your warshard weapon. Trigger You are targeted by a melee or ranged Strike with a weapon. Spend a Mythic Point. Your warshard weapon intervenes at the last second, rising to deflect the incoming blow. For this "
-  },
-  {
    "id": "vqgklLExo3HAVAm9",
    "name": "Preserve the Moment",
    "level": 16,
@@ -13987,28 +13617,6 @@
    "text": "Frequency once per day Trigger Your turn ends. Sometimes, your actions are so successful and impressive that it's worth going back to them. Note the actions you took during the turn that just ended (excepting the reaction you used to trigge"
   },
   {
-   "id": "pDkIUYQh5GGW50r3",
-   "name": "Vindictive Thoughts",
-   "level": 16,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "arcane",
-    "mental",
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a plan the engine can't play",
-   "detail": "a plan the engine can't play (its targeting or what it does)",
-   "text": "Trigger You attempt a saving throw against a spell. Those who seek to do you personal harm with magic must suffer the same misfortune. Before you attempt your saving throw, spend a Mythic Point. You make this saving throw at mythic proficie"
-  },
-  {
    "id": "fns6SMiYrUeL6cnx",
    "name": "Virulent Strike",
    "level": 16,
@@ -14028,28 +13636,6 @@
    "reason": "a Strike with nothing more the simulator reads",
    "detail": "a Strike with nothing more the simulator reads",
    "text": "Those afflicted by certain maladies are closer to death in your presence. Make a Strike against a creature. If your attack hits, the target must attempt a new saving throw against the highest-level disease or poison that is currently affect"
-  },
-  {
-   "id": "0UhZ3UtSXx9qyoiZ",
-   "name": "Army of One",
-   "level": 18,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 3,
-   "traits": [
-    "concentrate",
-    "flourish",
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "Requirements Your nimbus is active. Even alone, you're a force to be reckoned with—an army of one, so long as you have your celestial armaments. Spend 1 Mythic Point. If you're not currently wielding your celestial armament, it immediately "
   },
   {
    "id": "BndS11cLoHSIZc49",
@@ -14113,46 +13699,6 @@
    "reason": "its requirement",
    "detail": "its requirement (A creature has been the target of your Ultimatum of Liberation for at least 1 minute)",
    "text": "Requirements A creature has been the target of your Ultimatum of Liberation for at least 1 minute You have given a despot enough time to think, and now is the time for them to forfeit their control or die. Spend a Mythic Point and make a St"
-  },
-  {
-   "id": "nbwHIS38AgSDquNu",
-   "name": "Throw and Catch",
-   "level": 18,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 3,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "Requirements You are wielding a melee warshard weapon. You hurl your warshard weapon at an opponent, even though the weapon isn't designed to be thrown. Spend a Mythic Point. Your weapon gains the thrown trait with a range increment of 40 f"
-  },
-  {
-   "id": "PAsFP9jcVcHkBoRd",
-   "name": "Finish Their Story!",
-   "level": 20,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "Though your tale is immortal, your foes aren't afforded such an advantage and mainly serve only to further your legend. When the time is right, you can shepherd a weaker opponent off this mortal coil. Spend a Mythic Point and make a Strike "
   },
   {
    "id": "N8mhYbr5xBI8jydb",
@@ -26373,26 +25919,6 @@
    "text": "You've been ensnared by an azata's infectious enthusiasm for life, love, and freedom that manifests as a pearlescent afterimage in your graceful movements, a spring in your soft steps, an ever-present melody in your euphonic voice, and eddi"
   },
   {
-   "id": "2eratRTKDhSYvrIZ",
-   "name": "Fling Into Action",
-   "level": 6,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You release mythic power to turn disaster into opportunity and hurl yourself into an advantageous position. When you attempt a Reflex save, you can spend a Mythic Point to attempt the save at mythic proficiency. If the check is successful, "
-  },
-  {
    "id": "Lx7JtAhIn3aJ6WbP",
    "name": "Mythic Allies",
    "level": 8,
@@ -26738,26 +26264,6 @@
    "text": "You can teleport across the battlefield, disappearing and appearing in a burst of hellfire and brimstone, a flash of lightning, a cloud of caustic gas, or other environmental hazard common within your planned realm. You can cast Translocate"
   },
   {
-   "id": "Egx5NWOVhoaij7a3",
-   "name": "Terrifying Mien",
-   "level": 16,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "plan",
-   "reason": "its Effect has nothing a fight counts",
-   "detail": "its Effect has nothing a fight counts",
-   "text": "Whether they have heard of your legend or seen your prowess on the field of battle, those already quaking in their boots grow weak when forced to stand against you. You gain resistance against bludgeoning, piercing, and slashing damage agai"
-  },
-  {
    "id": "SOXivCy3ko3jDewI",
    "name": "Vigorous Victor",
    "level": 16,
@@ -26818,27 +26324,6 @@
    "reason": null,
    "detail": null,
    "text": "When you fully embrace your Calling, your blows hit with incredible force that can fell even the mightiest of creatures. When you make a Strike with mythic proficiency, your additional damage from weapon specialization increases to 12."
-  },
-  {
-   "id": "mdc30s4CuxR7HL3k",
-   "name": "Not This Time",
-   "level": 18,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "mythic",
-    "occult"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "plan",
-   "reason": "a reaction to \"passive\"",
-   "detail": "a reaction to \"passive\"",
-   "text": "Trigger A creature targets you with a single-target spell or ability that you defend against with a saving throw or your AC. You reflexively attempt to cycle a creature's timeline briefly to a reality where it's less able to succeed. Spend "
   },
   {
    "id": "RhQshUC35MeiNg3h",
@@ -26919,26 +26404,6 @@
    "reason": null,
    "detail": null,
    "text": "You might be protected by divine intervention or the necessity of cosmic balance. You might be watched over by agents of destiny or fate. You could even be simply someone whose luck and skill have always worked together to ensure your trium"
-  },
-  {
-   "id": "fwdnRUW6TVwjiAoq",
-   "name": "Fight Through Oblivion",
-   "level": 20,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "mythic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Mortal wounds that would kill other warriors are no more than the flutter of butterfly wings to you. When you are reduced to 0 Hit Points, you aren't knocked Unconscious and you don't gain the Dying condition. Until the start of your next t"
   },
   {
    "id": "meZTsonAlueXihQU",
@@ -47880,29 +47345,6 @@
    "text": "You're particularly adept at crafting fireworks, allowing you to create more fireworks than you otherwise could. Your number of versatile vials per day increases to 5."
   },
   {
-   "id": "twx7XDGabYJz92mD",
-   "name": "Fear No Pain!",
-   "level": 6,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "auditory",
-    "fortune",
-    "linguistic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a plan the engine can't play",
-   "detail": "a plan the engine can't play (its targeting or what it does)",
-   "text": "Frequency once per day Trigger An ally within 30 feet fails a save against a mental effect. You have learned to endure pain without complaint and are capable of steeling your allies with similar resolve. When you give them a shout of encour"
-  },
-  {
    "id": "moXYfz806x6uXIW9",
    "name": "Field Artillery",
    "level": 6,
@@ -49103,29 +48545,6 @@
    "text": "You are able to escape inquisitions involving divine magic, allowing you to blend in well in Mzali but also to avoid unwanted attention in other oppressive theocracies. You gain the Slippery Secrets skill feat, and its benefits also apply a"
   },
   {
-   "id": "XY2uS7pMKRLVNQKG",
-   "name": "Fey's Trickery",
-   "level": 8,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "archetype",
-    "illusion",
-    "primal",
-    "subtle"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the feat casts",
-   "detail": "a spell the feat casts",
-   "text": "Frequency once per hour You connect with the fey trickster within yourself to momentarily vanish from sight. This has the effects of Invisibility."
-  },
-  {
    "id": "gPiYj2vgWm0CNoGW",
    "name": "Flickering Stories",
    "level": 8,
@@ -50261,26 +49680,6 @@
    "reason": null,
    "detail": null,
    "text": "You use Emerald Bough techniques to create a small extradimensional space called a hideaway that lasts as long as you are conscious. The hideaway functions as a Bag of Holding (Type I), but has no Bulk and takes no hands; it holds one objec"
-  },
-  {
-   "id": "BV9k3nmVrWDLv8z6",
-   "name": "Emphatic Emissary",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger You roll initiative. You can tell when diplomacy has failed and a meeting is close to unraveling or falling to blows. You gain a +2 circumstance bonus on your initiative roll. During your first turn in combat, you can use your Disar"
   },
   {
    "id": "Nkt6q2fxoiCRNKsK",

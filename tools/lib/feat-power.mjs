@@ -265,7 +265,8 @@ function joinBuiltins(c, builtins) {
         // (2026-11-04: a rider on a basic action's success — Crushing Grab's damage on a Grapple, Agonizing Rebuke's on a Demoralize: the
         // PC's own basic entry gets the damage on its success and critical success.)
         if (field === "basicRiders") {
-            for (const rider of value) c.spells = (c.spells ?? []).map((entry) => (entry.kind === "basic" && rider.slugs.includes(entry.plan?.source?.slug) ? withRider(entry, rider) : entry));
+            // (2026-11-07: that basic action forced as the feat's own are — before, Agonizing Rebuke's fighter never Demoralized, 0 uses.)
+            for (const rider of value) c.spells = (c.spells ?? []).map((entry) => (entry.kind === "basic" && rider.slugs.includes(entry.plan?.source?.slug) ? { ...withRider(entry, rider), ...(c.forceUse && (rider.force ?? rider.slugs).includes(entry.plan?.source?.slug) ? { featForced: true } : {}) } : entry));
             continue;
         }
         if (field === "maxHpBonus") {
@@ -1119,6 +1120,21 @@ function thrallAllySpell(doc, level, host, { model, rounds, destroyed, played })
 }
 
 const HAND = {
+    // (2026-11-07, fortune: Wish for Luck's "roll the check twice and take the higher result", once a day — played on an attack roll, as
+    // Gorum's Tear's talisman (free, once a fight, when rolling twice is worth it); Accidental Shot's ranged Strike rolled twice, the same.)
+    "wish-for-luck": () => ({ builtins: { fortuneItems: [{ name: "Wish for Luck", selector: "attack-roll", pool: "wish-for-luck" }] }, pools: { "wish-for-luck": 1 }, played: "an attack rolled twice, the higher kept (free, once a fight)" }),
+    "accidental-shot": () => ({ requires: "You are wielding a ranged weapon.", builtins: { fortuneItems: [{ name: "Accidental Shot", selector: "attack-roll", pool: "accidental-shot", ranged: true, ignoreCircumstance: true }] }, pools: { "accidental-shot": 1 }, played: "a ranged Strike rolled twice, ignoring circumstance penalties (once a fight)" }),
+    // (Rolling a save twice, the higher kept: as a failed save rerolled, the better kept — the same odds.)
+    // (Kip Up: a free Stand that triggers no reactions, as its turn starts while prone.)
+    "kip-up": () => ({ builtins: { kipUp: "Kip Up" }, played: "stands from prone free, with no reactions" }),
+    "feline-dance": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: "reflex" }], played: "a failed Reflex save rerolled, the better kept (reaction, once a fight)" }),
+    "mistaken-identity": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "mental" }], played: "a failed save against a mental effect rerolled, the better kept (reaction, once a fight)" }),
+    "guided-by-the-stars": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, free: true }], played: "a failed save rerolled, the better kept (free, once a fight)" }),
+    "mask-of-rejection": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "spell", keep: "new", bonus: 2 }], played: "a failed save against a spell rerolled at +2, the new result kept (reaction, once a fight)" }),
+    "fear-no-pain": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", ally: true, within: 30, against: ["mental"], uses: 1, bonus: 2 }], played: "an ally's failed save against a mental effect rerolled at +2 (reaction, once a fight)" }),
+    "such-a-disgrace": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", ally: true, within: 30, save: "will", against: ["mental"], bonus: 1, perAlly: true }], played: "an ally's failed Will save against a mental effect rerolled at +1, each ally once (reaction)" }),
+    "youre-an-embarrassment": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", ally: true, within: 30, save: "will", against: ["incapacitation"], bonus: 1, perAlly: true }], played: "an ally's failed Will save against an incapacitation effect rerolled at +1, each ally once (reaction)" }),
+    "focus-ally": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", ally: true, within: 5, against: ["incapacitation"], keep: "new", failureOnly: true }], played: "an adjacent ally's failed save against an incapacitation effect rerolled, the new result kept (reaction)" }),
     // (2026-11-07, Cole: "keep building remaining feats" — the PC reactions the feat module only reminds about, on the engine's own
     // reaction fields.) A critical hit on it a normal hit: Stone Bones' and Iivlar's Deflection's on a DC 17 flat check (any critical
     // hit, not only a physical one's); Collapse's always, once a fight (once per 10 minutes), the skeleton collapsed — off-guard and
@@ -1134,6 +1150,86 @@ const HAND = {
     // Form parts not played), Unbound Freedom's controlled (DC 17) — spells.js applyCondition.
     inexorable: () => ({ builtins: { conditionFlat: { name: "Inexorable", dc: 15, slugs: ["paralyzed", "slowed", "stunned"] } }, played: "a DC 15 flat check to ignore paralyzed, slowed or stunned (always on)" }),
     "unbound-freedom": () => ({ builtins: { conditionFlat: { name: "Unbound Freedom", dc: 17, slugs: ["controlled"] } }, played: "a DC 17 flat check to ignore controlled (always on)" }),
+    // (2026-11-07, Strikes whose rider the feat module didn't read: a save at the class DC as the Strike hits — conditionSavePlan.)
+    // Coiling Serpents: a ranged Strike, Reflex or immobilized till it Escapes (played as 2 rounds — the engine's Escape is a grab's).
+    // Blinding of the Needle: Fortitude or blinded for a round (its Interact to clear it not played).
+    "coiling-serpents": (level, host, doc) => {
+        const save = conditionSavePlan(doc, "reflex", ["immobilized", null, { mode: "fixed", value: 2, unit: "rounds" }], ["immobilized", null, { mode: "fixed", value: 2, unit: "rounds" }]);
+        return save && { builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", onHit: { save } })], played: "a ranged Strike; on a hit Reflex or immobilized (2 actions)" };
+    },
+    "blinding-of-the-needle": (level, host, doc) => {
+        const save = conditionSavePlan(doc, "fortitude", ["blinded", null, { mode: "fixed", value: 1, unit: "rounds" }], ["blinded", null, { mode: "fixed", value: 1, unit: "rounds" }]);
+        return save && { builtins: {}, plans: [strikeRider({ actions: 2, onHit: { save } })], played: "a Strike; on a hit Fortitude or blinded for a round (2 actions)" };
+    },
+    // Hardening Necrosis: resistance 6 (8 at 13th, 10 at 17th) against a critical hit, once a fight (once an hour), slowed 1 for a round
+    // after (any critical hit's damage, not only a physical one's).
+    "hardening-necrosis": (level) => ({ builtins: { critResistance: { name: "Hardening Necrosis", value: level >= 17 ? 10 : level >= 13 ? 8 : 6, uses: 1, slowedAfter: 1 } }, played: "resistance against a critical hit, then slowed 1 (once a fight, reaction)" }),
+    // (Sacrifice Armor: twice its armor's level off a Strike's physical damage — its armor's level, the PC's less one — once, its armor
+    // broken after: the party champion's heavy armor, -3 AC for the rest of the fight.)
+    "sacrifice-armor": (level) => ({ builtins: { resistReaction: { name: "Sacrifice Armor", value: 2 * Math.max(1, level - 1), on: ["physical"], types: null, attack: true, foe: true, acAfter: 3 }, resistUses: 1 }, played: `${2 * Math.max(1, level - 1)} less damage from a physical Strike, once, its armor broken after (-3 AC; reaction)` }),
+    "objection": () => ({ builtins: {}, plans: [{ builtin: "save-reroll", save: null, against: "linguistic" }], played: "a failed save against a linguistic effect rerolled, the better kept (reaction, once a fight)" }),
+    // (2026-11-07, mythic: Abjure Harm — an enemy's critical Strike a regular hit, a Mythic Point each time (3 a day; its reaction). Its
+    // resistance to physical damage till its next turn and its mythic Demoralize aren't played.)
+    "abjure-harm": () => ({ builtins: { critDowngrade: { name: "Abjure Harm", dc: null, mythic: true }, mythicPoints: 3 }, played: "an enemy's critical hit a regular hit (reaction, a Mythic Point each)" }),
+    // (Finish Their Story!: a Strike at mythic proficiency (+2 over legendary), counting as two attacks; a hit on a foe of 17th level or
+    // more — every benchmark foe at 20th — two weapon dice more (three on a 17th-level one); a Mythic Point each.)
+    "finish-their-story": () => ({ builtins: {}, plans: [strikeRider({ attackBonus: 2, extraWeaponDice: 2, countsAs: 2, mythic: true })], played: "a Strike at mythic proficiency, two weapon dice more, counting as two attacks (a Mythic Point each)" }),
+    // (Prescient Parry: its AC at mythic proficiency plus its weapon's item bonus against one Strike — mythic over its armor's master or
+    // legendary, +4 to 15th level and +2 after, and the weapon's potency — a Mythic Point each, played when it turns a hit into a miss;
+    // its Strike back on a miss isn't played.)
+    // (2026-11-07, Arc of Destruction: +4 AC against a ranged Strike, a miss thrown back at the attacker; Not This Time: +2 AC as a
+    // single-target attack comes — its save and failure riders not played. A Mythic Point each.)
+    "arc-of-destruction": () => ({ builtins: { acReaction: { value: 4, when: "targeted", name: "Arc of Destruction", against: "ranged", snatch: true, mythic: true }, mythicPoints: 3 }, played: "+4 AC against a ranged Strike, a miss thrown back (reaction, a Mythic Point each)" }),
+    "not-this-time": () => ({ builtins: { acReaction: { value: 2, when: "targeted", name: "Not This Time", mythic: true }, mythicPoints: 3 }, played: "+2 AC as a Strike targets it (reaction, a Mythic Point each; the save riders not played)" }),
+    "prescient-parry": (level) => { const value = (level >= 17 ? 2 : 4) + (level >= 16 ? 3 : level >= 10 ? 2 : 1); return { builtins: { acReaction: { name: "Prescient Parry", value, when: "hit", mythic: true }, mythicPoints: 3 }, played: `+${value} AC against a Strike that would hit (reaction, a Mythic Point each)` }; },
+    // (Divide and Conquer: two Strikes at mythic proficiency (+2 over legendary), each at a different foe, the multiple attack penalty
+    // rising after both; a Mythic Point each (three a day). Its Step and its both-hit rider by damage type aren't played.)
+    "divide-and-conquer": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Divide and Conquer", actions: 2, strikes: [melee.name.toLowerCase(), melee.name.toLowerCase()], sameMap: true, distinct: true, penalty: -2, pool: "mythic" }] }, pools: { mythic: 3 }, played: "two Strikes at mythic proficiency at two foes, one multiple attack penalty (a Mythic Point each)" } : null;
+    },
+    // (Fling Into Action: a Reflex save at mythic proficiency — +10 over its level, against the fighter's expert +4 (master +6 from 15th) —
+    // a Mythic Point each; the fling after isn't played. Vindictive Thoughts: a save against a spell, the same against its expert Will
+    // (master from 17th), its reaction; its mental damage to the caster isn't played.)
+    "fling-into-action": (level) => ({ builtins: { mythicSave: { name: "Fling Into Action", save: "reflex", free: true, bonus: level >= 15 ? 4 : 6 }, mythicPoints: 3 }, played: "a Reflex save at mythic proficiency (a Mythic Point each)" }),
+    // (2026-11-07, Unrivaled Retort: a Fortitude or Reflex save against an area at mythic proficiency — its ranged Strike back not played.)
+    "unrivaled-retort": (level) => ({ builtins: { mythicSave: { name: "Unrivaled Retort", saves: ["fortitude", "reflex"], area: true, bonus: level >= 15 ? 4 : 6 }, mythicPoints: 3 }, played: "a Fortitude or Reflex save against an area at mythic proficiency (reaction, a Mythic Point each; the Strike back not played)" }),
+    // (2026-11-07, Unbelievable Interception: two Strides and the ally's Strike taken — its damage on the PC, as Intercept Attack when the
+    // ally would drop or is the more hurt —, a Mythic Point each; the original roll against its AC and the Strike back not played.)
+    "unbelievable-interception": () => ({ builtins: { interceptAttack: { name: "Unbelievable Interception", near: true, mythic: true }, mythicPoints: 3 }, played: "an ally's Strike damage taken after two Strides (reaction, a Mythic Point each)" }),
+    "vindictive-thoughts": (level) => ({ builtins: { mythicSave: { name: "Vindictive Thoughts", save: null, spell: true, bonus: level >= 17 ? 4 : 6 }, mythicPoints: 3 }, played: "a save against a spell at mythic proficiency (reaction, a Mythic Point each)" }),
+    // (Throw and Catch: a ranged Strike at mythic proficiency (+2 over legendary), then a melee one, the penalty rising after both — played
+    // as two melee Strikes; a Mythic Point each.)
+    "throw-and-catch": (level, host) => {
+        const melee = (host?.strikes ?? []).find((strike) => strike.melee);
+        return melee ? { builtins: { multiStrikes: [{ name: "Throw and Catch", actions: 3, strikes: [melee.name.toLowerCase(), melee.name.toLowerCase()], sameMap: true, penalties: [-2, 0], pool: "mythic" }] }, pools: { mythic: 3 }, played: "a Strike at mythic proficiency and another, one multiple attack penalty (3 actions, a Mythic Point each)" } : null;
+    },
+    // (Army of One: a Strike at each enemy in its nimbus's bright light — 30 feet — the penalty rising after all; a Mythic Point each. Its
+    // nimbus taken as active.)
+    "army-of-one": () => ({ builtins: { multiStrikes: [{ name: "Army of One", actions: 3, strikes: [null], each: true, within: 30, sameMap: true, pool: "mythic" }] }, pools: { mythic: 3 }, played: "a Strike at each enemy within 30 feet, one multiple attack penalty (3 actions, a Mythic Point each)" }),
+    "terrifying-mien": () => ({ builtins: { frightenedResist: { name: "Terrifying Mien", per: 4 } }, played: "resistance to a frightened foe's Strikes, four times its frightened value" }),
+    // (Prescience: initiative at mythic proficiency — +10 over its level against the fighter's expert Perception +4 (master +6 from 7th) —
+    // its Mythic Point spent; the +1 to AC and saves till its first turn ends isn't played.)
+    "prescience": (level) => ({ builtins: { initiativeBonus: level >= 7 ? 4 : 6 }, played: `+${level >= 7 ? 4 : 6} to initiative (mythic proficiency, a Mythic Point)` }),
+    // (Reactive Resilience: resistance to the triggering damage equal to its level, once a fight; its Channel Draconic Essence taken as
+    // active, and its end after not played.)
+    "reactive-resilience": (level) => ({ builtins: { resistReaction: { name: "Reactive Resilience", value: level, on: null, types: ["triggering"], foe: true }, resistUses: 1 }, played: `resistance ${level} to one foe's damage (once a fight, reaction)` }),
+    // (Stonewall: an enemy's effect that hits it — petrified to the end of that turn, none of its damage — played as a foe's hit of at
+    // least its level taking no damage, its reaction each round; the petrified till the turn ends isn't played.)
+    "stonewall": (level) => ({ builtins: { resistReaction: { name: "Stonewall", value: 9999, on: null, types: null, foe: true, minDamage: level } }, played: "a foe's hit of at least its level dealing it nothing (petrified till the turn ends; reaction)" }),
+    // (Fading: a Strike at it a DC 11 flat check, a miss on a failure — once a Crimson Shroud, taken as once a fight; played on a hit.)
+    "fading": () => ({ builtins: { concealReaction: { name: "Fading", dc: 11, ranged: false, uses: 1 } }, played: "a Strike that hits it misses on a failed DC 11 flat check (once a fight, reaction)" }),
+    // (Cringe: a critical hit on it, its level + 2 less damage after the doubling — played as resistance that much to the Strike —, each
+    // attacker once; reaction.)
+    "cringe": (level) => ({ builtins: { critResistance: { name: "Cringe", value: level + 2, perAttacker: true } }, played: `${level + 2} less damage from a critical hit on it, each attacker once (reaction)` }),
+    // (2026-11-07, Triggerbrand Blitz: a Stride and three Strikes at three foes, the penalty rising after all three; once a minute — once a
+    // fight —; fatigued the rest of the fight after. Its combination weapon played as the gunslinger's own.)
+    "triggerbrand-blitz": (level, host) => {
+        const strike = (host?.strikes ?? []).find((each) => each.melee) ?? host?.strikes?.[0];
+        return strike ? { builtins: { multiStrikes: [{ name: "Triggerbrand Blitz", actions: 3, strikes: Array(3).fill(strike.name.toLowerCase()), strides: 1, distinct: true, sameMap: true, oncePerFight: true, after: [{ slug: "fatigued", until: "save" }] }] }, played: "a Stride and three Strikes at three foes, one multiple attack penalty, then fatigued (3 actions, once a fight)" } : null;
+    },
+    // (Emphatic Emissary: +2 circumstance to its initiative roll; its first-turn Disarming Smile on every foe that hasn't acted isn't played.)
+    "emphatic-emissary": () => ({ builtins: { initiativeBonus: 2 }, played: "+2 to initiative" }),
     "interstitial-escape": (level) => ({ builtins: { resistReaction: { name: "Interstitial Escape", value: 5 + level, on: null, types: null, attack: true, foe: true }, resistUses: 1 }, played: `resistance ${5 + level} to a Strike's damage (once a fight, reaction)` }),
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
@@ -1415,6 +1511,12 @@ const HAND = {
     "swift-retribution": () => ({ builtins: { swiftRetribution: true }, played: "an extra action after its champion's reaction" }),
     "critical-debilitation": () => ({ builtins: { debilitation: { critSave: true } }, played: "on a critical hit, Debilitating Strike's Fortitude save: slowed 1, slowed 2 or paralyzed" }),
     "guardians-intercept": (_level, host) => (host?.interceptAttack ? null : { builtins: { interceptAttack: { name: "Intercept Attack", once: true } }, played: "Intercept Attack, once a fight (reaction)" }),
+    // (2026-11-07, Superimpose Time Duplicates: flanking for it against every enemy in its reach till its next turn — played as one foe
+    // beside it off-guard to its attacks that long; once an hour, once a fight.)
+    "superimpose-time-duplicates": () => {
+        const entry = offGuardToMeEntry("Superimpose Time Duplicates", { range: "touch", traits: [] });
+        return entry ? { builtins: {}, plans: [], spells: [{ ...entry, pool: "superimpose-time-duplicates" }], pools: { "superimpose-time-duplicates": 1 }, played: "a foe beside it off-guard to its attacks till its next turn (1 action, once a fight)" } : null;
+    },
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;
@@ -1426,7 +1528,9 @@ const HAND = {
     // (2026-11-04, the gap index: damage on a basic action's success — basicRiders, joinBuiltins.)
     "crushing-grab": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["grapple"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Crushing Grab" }] }, played: "Strength damage on a successful Grapple (always on)" }),
     "punishing-shove": (level, host) => ({ builtins: { basicRiders: [{ slugs: ["shove"], damage: `${Math.max(1, host?.abilities?.str ?? 4) + (level >= 15 ? 12 : level >= 7 ? 6 : level >= 3 ? 2 : 0)}[bludgeoning]`, criticalDouble: true, source: "Punishing Shove" }] }, played: "damage on a successful Shove (always on)" }),
-    "brutal-bully": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["disarm", "grapple", "reposition", "shove", "trip"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Brutal Bully" }] }, played: "Strength damage on a successful maneuver (always on; raging not checked)" }),
+    "brutal-bully": (_level, host) => ({ builtins: { basicRiders: [{ slugs: ["disarm", "grapple", "reposition", "shove", "trip"], force: ["trip"], damage: `${Math.max(1, host?.abilities?.str ?? 4)}[bludgeoning]`, source: "Brutal Bully" }] }, played: "Strength damage on a successful maneuver (always on; raging not checked)" }),
+    // (2026-11-07, Legendary Laugh: 3d8 mental on a successful Demoralize, 6d8 on a critical success; its 60-foot range isn't played.)
+    "legendary-laugh": () => ({ builtins: { basicRiders: [{ slugs: ["demoralize"], damage: "3d8[mental]", criticalDouble: true, source: "Legendary Laugh" }] }, played: "3d8 mental on a successful Demoralize (6d8 on a critical success)" }),
     "agonizing-rebuke": (level) => ({ builtins: { basicRiders: [{ slugs: ["demoralize"], damage: `${level >= 15 ? 3 : level >= 7 ? 2 : 1}d4[mental]`, source: "Agonizing Rebuke" }] }, played: "mental damage on a successful Demoralize (always on; once, not each turn)" }),
     // (2026-11-04, the gap index's batch 2: a larger foe's Trip — the rating's foes are often larger; 2d8 once a master in Athletics, 15th here.)
     "the-harder-they-fall-kingmaker": (level) => ({ builtins: { basicRiders: [{ slugs: ["trip"], damage: `${level >= 15 ? 2 : 1}d8[bludgeoning]`, criticalDouble: true, source: "The Harder They Fall" }] }, played: "bludgeoning damage on a successful Trip (always on)" }),
@@ -2059,7 +2163,20 @@ const ZERO_HP = {
     // (2026-11-04: 1 Hit Point and its level in temporary Hit Points for a round — counted as Hit Points —, wounded 1 more; once an hour.)
     "keep-up-the-good-fight": { ferocity: { hp: (level) => 1 + level, wounded: true, uses: 1 } },
     "cant-fall-here": { rescue: { within: 5, hp: 1, uses: 1 } },
-    caterwaul: { rescue: { within: 30, hp: 1, uses: 1 } }
+    caterwaul: { rescue: { within: 30, hp: 1, uses: 1 } },
+    // (2026-11-07: 1 Hit Point and temporary ones equal to its level plus its key attribute — played as Hit Points; the entity's +1 to
+    // attacks and damage, and its control, aren't.)
+    // (2026-11-07, mythic: Divert Destiny — free, a Mythic Point each time (3 a day), 10 + its level, its wounded and dying gone.)
+    "divert-destiny": { ferocity: { hp: (level) => 10 + level, wounded: false, free: true, mythic: true } },
+    // (Call From Death's Door: an ally whose dying would increase loses it, healed twice the PC's level — played as an ally kept up at
+    // 0 Hit Points with that many; its Mythic Points, as three uses.)
+    "call-from-deaths-door": { rescue: { within: 60, hp: (level) => 2 * level, uses: 3 } },
+    // (2026-11-07, Deathless Servant: twice its level in Hit Points instead, wounded 1 more, once a day — its AC and damage while wounded
+    // not played. Fight Through Oblivion: immune to damage till its next turn, then 4d8+30 back if it Strikes and damages a foe — played as
+    // staying up with that many, wounded 1 more, up to three times.)
+    "deathless-servant": { ferocity: { hp: (level) => 2 * level, wounded: true, uses: 1 } },
+    "fight-through-oblivion": { ferocity: { hp: "4d8+30", wounded: true, uses: 3, free: true } },
+    "entitys-resurgence": { ferocity: { hp: (level) => 1 + level + 4, wounded: false, uses: 1 } }
 };
 const slugOf = (doc) => doc.system?.slug ?? doc.name.toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 function zeroHpEntry(doc, level, host, builtins) {
@@ -2068,11 +2185,12 @@ function zeroHpEntry(doc, level, host, builtins) {
         const { hp, strike, ...rest } = known.ferocity;
         const melee = (host.strikes ?? []).find((each) => each.melee);
         builtins.ferocityRule = { name: doc.name, pc: true, hp: typeof hp === "function" ? hp(level) : hp, ...rest, ...(strike && melee ? { strike: melee.name } : {}) };
+        if (rest.mythic) builtins.mythicPoints = 3;
         builtins.reactions = { ...(builtins.reactions ?? {}), ferocity: true };
         return { spells: [], pools: {}, gap: null, played: "staying up at 0 Hit Points" };
     }
     if (known?.rescue) {
-        builtins.rescue = { name: doc.name, ...known.rescue };
+        builtins.rescue = { name: doc.name, ...known.rescue, ...(typeof known.rescue.hp === "function" ? { hp: known.rescue.hp(level) } : {}) };
         return { spells: [], pools: {}, gap: null, played: "keeping an ally up at 0 Hit Points" };
     }
     const text = String(doc.system?.description?.value ?? "");
@@ -2876,10 +2994,19 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             if (rider && mount && !rider.mountId) mountUp(rider, mount);
         }
     }
+    // (2026-11-07, a basic action's rider — Legendary Laugh, Brutal Bully —: the basic action forced both sides, so the rating is the
+    // rider's, not that of Demoralizing or Shoving every turn; its uses that action's.)
+    const riderSlugs = FORCE ? (builtins.basicRiders ?? []).flatMap((rider) => rider.force ?? rider.slugs) : [];
+    const riderNames = [];
+    if (riderSlugs.length) {
+        const ridden = (entry) => entry.kind === "basic" && riderSlugs.includes(entry.plan?.source?.slug);
+        riderNames.push(...(fought.find((c) => c.id === host.id)?.spells ?? []).filter(ridden).map((entry) => entry.name));
+        plainParty = (plainParty ?? base).map((c) => (c.id === host.id ? { ...c, forceUse: true, spells: (c.spells ?? []).map((entry) => (ridden(entry) ? { ...entry, featForced: true } : entry)) } : c));
+    }
     // (Its summons' reserves: waiting off the field beside the party until summoned — linked, so one's fall isn't a PC's.)
     const summoner = fought.find((c) => c.id === host.id && c.summons?.length);
     if (summoner) fought.push(...summonReserves(summoner).map((reserve) => ({ ...reserve, linked: true })));
-    const useNames = [...new Set([...(fought !== withFeat || companionNeeded ? ["Animal Companion"] : []), ...(companion?.sharesHpWith ? ["Eidolon"] : []), ...entries.spells, ...(entries.summons ?? []).map((entry) => entry.name), ...(entries.breathOfLife ? ["Breath of Life"] : []), ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => (typeof entry === "string" ? entry : entry?.name)).filter((name) => typeof name === "string" && name.length > 2))];
+    const useNames = [...new Set([...(fought !== withFeat || companionNeeded ? ["Animal Companion"] : []), ...(companion?.sharesHpWith ? ["Eidolon"] : []), ...entries.spells, ...(entries.summons ?? []).map((entry) => entry.name), ...(entries.breathOfLife ? ["Breath of Life"] : []), ...riderNames, ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => (typeof entry === "string" ? entry : entry?.name)).filter((name) => typeof name === "string" && name.length > 2))];
     return { party: fought, ...(plainParty ? { plain: plainParty } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan, useNames };
 }
 

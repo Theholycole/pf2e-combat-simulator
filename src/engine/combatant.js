@@ -103,6 +103,9 @@ export function createCombatant(spec) {
         ...((spec.strikes ?? []).some((strike) => strike.ammo?.startsEmpty) ? { unloaded: new Set(spec.strikes.filter((strike) => strike.ammo?.startsEmpty).map((strike) => strike.name)) } : {}),
         // A free critical-hit defence's uses are the fight's own.
         ...(spec.critDowngrade ? { critDowngrade: { ...spec.critDowngrade } } : {}),
+        // (2026-11-07: and Hardening Necrosis's resistance's, Fading's flat check's — before, spent in one fight, gone in the rest.)
+        ...(spec.critResistance ? { critResistance: { ...spec.critResistance } } : {}),
+        ...(spec.concealReaction ? { concealReaction: { ...spec.concealReaction } } : {}),
         // A magus starts a fight with Spellstrike charged.
         ...(spec.spellstrike ? { spellstrikeCharged: spec.spellstrikeCharged ?? true } : {}),
         timers: []

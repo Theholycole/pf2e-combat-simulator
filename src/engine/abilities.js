@@ -197,7 +197,7 @@ export function addBuiltin(spec, plan, name) {
             const rounds = plan.stance ? Infinity : plan.model?.rounds ?? 10;
             // (B248: regeneration on itself, played as fast healing.)
             // (B286, Conductive Shell: damage on each creature that hits it in melee while it lasts — hitBack.)
-            const model = { name, rounds, ...(plan.model?.hitBack ? { hitBack: plan.model.hitBack, ...(plan.model.hitBackAny ? { hitBackAny: true } : {}) } : {}), modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: Number(plan.model?.fastHealing) || 0, resistances: (plan.model?.resistances ?? []).map((entry) => ({ type: entry.type, value: Number(entry.value) || 0, exceptions: [...(entry.exceptions ?? [])] })), weaknesses: [], immunities: [], conditions: (plan.model?.conditions ?? []).map((entry) => ({ ...entry })), unsupported: [], situational: 0, ...(plan.model?.endsWithTempHp ? { endsWithTempHp: true } : {}), ...(plan.nextStrike ? { nextStrike: true } : {}), ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}),
+            const model = { name, rounds, ...(plan.model?.hitBack ? { hitBack: plan.model.hitBack, ...(plan.model.hitBackAny ? { hitBackAny: true } : {}) } : {}), modifiers: [...(plan.model?.modifiers ?? [])], tempHp: plan.model?.tempHp ?? 0, fastHealing: Number(plan.model?.fastHealing) || 0, resistances: (plan.model?.resistances ?? []).map((entry) => ({ type: entry.type, value: Number(entry.value) || 0, exceptions: [...(entry.exceptions ?? [])], ...(Array.isArray(entry.choices) ? { choices: [...entry.choices] } : {}) })), weaknesses: [], immunities: [], conditions: (plan.model?.conditions ?? []).map((entry) => ({ ...entry })), unsupported: [], situational: 0, ...(plan.model?.endsWithTempHp ? { endsWithTempHp: true } : {}), ...(plan.nextStrike ? { nextStrike: true } : {}), ...(strikeParts ? { strikeParts } : {}), ...(strikeDeltas ? { strikeDeltas } : {}), ...(plan.noConcentrate ? { noConcentrate: true } : {}),
                 // (2026-11-03, a monk's stance: the unarmed Strike its PF2e Effect grants, a rune upgrade an Effect gives.)
                 ...(plan.model?.strikesOnly ? { strikesOnly: true } : {}),
                 ...(plan.model?.answerHitters ? { answerHitters: { ...plan.model.answerHitters } } : {}),
@@ -383,7 +383,7 @@ export function addBuiltin(spec, plan, name) {
             // it says so.)
             if (plan.ally) {
                 // (B181: the new result kept, a critical failure on it a failure.)
-                spec.allySaveReroll = { name, within: Number(plan.within) || 60, save: plan.save ?? null, against: plan.against ?? null, uses: Number(plan.uses) || Infinity, ...(plan.self ? { self: true } : {}), ...(plan.floor ? { floor: plan.floor } : {}), ...(plan.keep === "new" ? { keep: "new" } : {}), ...(plan.free ? { free: true } : {}), ...(plan.perRound ? { perRound: true } : {}) };
+                spec.allySaveReroll = { name, within: Number(plan.within) || 60, save: plan.save ?? null, against: plan.against ?? null, uses: Number(plan.uses) || Infinity, ...(plan.self ? { self: true } : {}), ...(plan.floor ? { floor: plan.floor } : {}), ...(plan.keep === "new" ? { keep: "new" } : {}), ...(plan.free ? { free: true } : {}), ...(plan.perRound ? { perRound: true } : {}), ...(Number(plan.bonus) ? { bonus: Number(plan.bonus) } : {}), ...(plan.perAlly ? { perAlly: true } : {}), ...(plan.failureOnly ? { failureOnly: true } : {}) };
                 return true;
             }
             // (B93: Halfling Luck's "must use the new result", keep "new"; a free action's.)
@@ -520,6 +520,7 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.needs?.length ? { needs: plan.needs } : {}),
                 ...(plan.nonCantrip ? { nonCantrip: true } : {}),
                 oncePerFight: !!plan.oncePerFight,
+                ...(plan.mythic ? { mythic: true } : {}),
                 ...(plan.countsAs > 1 ? { countsAs: plan.countsAs } : {}),
                 ...(plan.noMap ? { noMap: true } : {}),
                 // (2026-11-05, United Assault: damage for each other creature that hurt the target since its last turn — fight.js.)
@@ -586,6 +587,7 @@ export function addBuiltin(spec, plan, name) {
                 onHit: plan.onHit?.rulesDamage?.length ? { ...plan.onHit, damage: [...(plan.onHit.damage ?? []), ...plan.onHit.rulesDamage] } : plan.onHit,
                 riderSpell: plan.onHit?.save ? { name, plan: plan.onHit.save, castRank: 1, pool: null, kind: "ability" } : null
             }];
+            if (plan.mythic) spec.mythicPoints ??= 3;
             return true;
         default:
             return false;

@@ -584,10 +584,12 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         spendReaction(target, target.misfortuneReaction.name);
         log(state, `  ${target.name} uses ${target.misfortuneReaction.name}`);
     } else if (foresightReact(state, target, attacker)) misfortune = true;
-    else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && (!target.acReaction.dcInstead || insteadOfAC(target, ac) > 0) && canReact(target, target.acReaction.name) && (!target.reactions?.aoo || target.acReaction.deviant || target.acReaction.featForced) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.deviant || deviantUsable(target))) {
+    else if (!target.acReaction?.spellOnly && target.acReaction?.when === "targeted" && (!target.acReaction.dcInstead || insteadOfAC(target, ac) > 0) && canReact(target, target.acReaction.name) && (!target.reactions?.aoo || target.acReaction.deviant || target.acReaction.featForced) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.deviant || deviantUsable(target)) && (!target.acReaction.mythic || (target.mythicPoints ?? 0) > 0)) {
         defence = target.acReaction.dcInstead ? insteadOfAC(target, ac) : target.acReaction.value;
         deflected = true;
         spendReaction(target, target.acReaction.name);
+        // (2026-11-07, Arc of Destruction, Not This Time: a Mythic Point each.)
+        if (target.acReaction.mythic) target.mythicPoints--;
         log(state, `  ${target.name} uses ${target.acReaction.name}`);
         // (2026-11-01, Defensive Growth, a deviant ability: its flat check and backlash — deviant.js.)
         if (target.acReaction.deviant) deviantUsed(state, target, target.acReaction, { affected: [attacker] });
@@ -687,12 +689,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
         }
     }
     // Retract Body: +AC once the attack hits, when that turns it aside.
-    if (degree >= SUCCESS && !target.acReaction?.spellOnly && target.acReaction?.when === "hit" && canReact(target, target.acReaction.name) && dodges(target.acReaction, strike, state, target)) {
+    // (2026-11-07, Prescient Parry: a Mythic Point each time.)
+    if (degree >= SUCCESS && !target.acReaction?.spellOnly && target.acReaction?.when === "hit" && canReact(target, target.acReaction.name) && dodges(target.acReaction, strike, state, target) && (!target.acReaction.mythic || (target.mythicPoints ?? 0) > 0)) {
         const lower = degreeOf(natural + modifier, ac + target.acReaction.value, natural);
         if (lower < degree) {
             defence = target.acReaction.value;
             degree = lower;
             spendReaction(target, target.acReaction.name);
+            if (target.acReaction.mythic) target.mythicPoints--;
             log(state, `  ${target.name} uses ${target.acReaction.name}`);
         }
     }
@@ -700,8 +704,10 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const conceal = target.concealReaction;
     // (2026-11-01, Eerie Flicker, a deviant ability: not once its deviations are spent; its flat check and backlash after — deviant.js —,
     // concealed for a round after, and its terrify awakening's frightened 1 on an attacker that fails.)
-    if (degree >= SUCCESS && conceal && (!conceal.ranged || !strike.melee) && canReact(target, conceal.name) && (!conceal.deviant || deviantUsable(target)) && !(conceal.concealAfter && target.cond.concealed)) {
+    // (2026-11-07, Fading: once a fight — conceal.uses.)
+    if (degree >= SUCCESS && conceal && (!conceal.ranged || !strike.melee) && canReact(target, conceal.name) && (!conceal.deviant || deviantUsable(target)) && !(conceal.concealAfter && target.cond.concealed) && (conceal.uses ?? Infinity) > 0) {
         spendReaction(target, conceal.name);
+        if (Number.isFinite(conceal.uses)) conceal.uses--;
         const flat = state.rng.d20();
         log(state, `  ${target.name} uses ${conceal.name} (${attacker.name}'s flat ${flat} vs DC ${conceal.dc})`);
         if (flat < conceal.dc) {
@@ -730,9 +736,11 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     }
     // Resilient Form and the like: a critical hit on it becomes a normal hit on a flat check.
     const downgrade = target.critDowngrade;
-    if (degree === CRITICAL_SUCCESS && downgrade && (Number.isFinite(downgrade.uses) ? downgrade.uses > 0 : canReact(target, downgrade.name))) {
+    // (2026-11-07, Abjure Harm: a Mythic Point each time, its reaction.)
+    if (degree === CRITICAL_SUCCESS && downgrade && (Number.isFinite(downgrade.uses) ? downgrade.uses > 0 : canReact(target, downgrade.name)) && (!downgrade.mythic || (target.mythicPoints ?? 0) > 0)) {
         if (Number.isFinite(downgrade.uses)) downgrade.uses--;
         else spendReaction(target, downgrade.name);
+        if (downgrade.mythic) target.mythicPoints--;
         // (No check, B59: Collapse, Twist Fate; Collapse leaves it immobilized and off-guard until it re-forms.)
         // (B86, Unbidden Thoughts: the attacker's choice, a normal hit or the critical hit and Frightened 2. It keeps the critical hit
         // unless a normal hit's damage is expected to finish the target anyway.)
@@ -1025,10 +1033,22 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     for (const instance of instances) instance.context = context;
     // Wished Away, Withhold Death (B60): its reaction to the critical hit, resistance to all damage against this attack.
     const before = target.resistances;
-    if (critical && target.critResistance && canReact(target, target.critResistance.name)) {
+    // (2026-11-07, Hardening Necrosis: its uses — once a fight — and slowed 1 for a round after.)
+    // (2026-11-07, Cringe: each attacker once — then immune for a day.)
+    if (critical && target.critResistance && (target.critResistance.uses ?? Infinity) > 0 && canReact(target, target.critResistance.name) && !(target.critResistance.perAttacker && target.critResistanceGiven?.has(attacker.id))) {
         spendReaction(target, target.critResistance.name);
+        if (Number.isFinite(target.critResistance.uses)) target.critResistance.uses--;
+        if (target.critResistance.perAttacker) (target.critResistanceGiven ??= new Set()).add(attacker.id);
+        if (target.critResistance.slowedAfter && applyCondition(state, target, "slowed", target.critResistance.slowedAfter, { mode: "fixed", value: 1, unit: "rounds" }, target)) log(state, `  ${target.name} is slowed ${target.critResistance.slowedAfter}`);
         target.resistances = [...(before ?? []), { type: "all-damage", value: target.critResistance.value, exceptions: [] }];
         log(state, `  ${target.name} uses ${target.critResistance.name}: resistance ${target.critResistance.value} against the attack`);
+    }
+    // (2026-11-07, Terrifying Mien: resistance to a frightened creature's Strikes' bludgeoning, piercing and slashing, four times its
+    // frightened value; the frightened that doesn't drop after isn't played.)
+    if (target.frightenedResist && (attacker.cond.frightened ?? 0) > 0) {
+        const value = target.frightenedResist.per * attacker.cond.frightened;
+        target.resistances = [...(target.resistances ?? []), ...["bludgeoning", "piercing", "slashing"].map((type) => ({ type, value, exceptions: [] }))];
+        log(state, `  ${target.name}'s ${target.frightenedResist.name}: resistance ${value} against the frightened ${attacker.name}`);
     }
     // Logged before the damage so consequences (Shield Block, going down) follow it.
     const line = state.log ? state.log.push("") - 1 : -1;
@@ -1629,15 +1649,17 @@ export function applyDamage(state, target, instances, { source = null, critical 
     // when the ally would drop or is the more hurt of the two.
     if (!intercepted && source && source.side !== target.side && instances.some((instance) => ["bludgeoning", "piercing", "slashing"].includes(instance.type))) {
         // (2026-11-05, Guardian's Intercept: once a fight — interceptAttack.once.)
-        const guardian = state.list.find((c) => c.interceptAttack && !(c.interceptAttack.once && c.interceptUsed) && c !== target && c.side === target.side && canReact(c, c.interceptAttack.name) && sameMelee(c, target));
+        // (2026-11-07, Unbelievable Interception: two Strides first — from anywhere but far —, a Mythic Point each.)
+        const guardian = state.list.find((c) => c.interceptAttack && !(c.interceptAttack.once && c.interceptUsed) && !(c.interceptAttack.mythic && !((c.mythicPoints ?? 0) > 0)) && c !== target && c.side === target.side && canReact(c, c.interceptAttack.name) && (sameMelee(c, target) || (c.interceptAttack.near && isActive(c) && canAct(c) && c.band !== "far" && target.band !== "far")));
         if (guardian) {
             const total = adjustDamage(target, instances).total;
             const fraction = (c) => Math.max(0, c.hp.value) / Math.max(1, c.hp.max);
             if (total >= target.hp.value + (target.hp.temp ?? 0) || fraction(guardian) > fraction(target) + 0.2) {
                 spendReaction(guardian, guardian.interceptAttack.name);
                 guardian.interceptUsed = true;
+                if (guardian.interceptAttack.mythic) guardian.mythicPoints--;
                 state.stats.reactions++;
-                log(state, `  ${guardian.name} uses Intercept Attack for ${target.name}`);
+                log(state, `  ${guardian.name} uses ${guardian.interceptAttack.near ? guardian.interceptAttack.name : "Intercept Attack"} for ${target.name}`);
                 const dealt = applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
                 // (2026-11-05, Armored Counterattack: a free Strike back at an attacker beside it — taken as a melee one's —, a Taunt on a hit.)
                 if (guardian.armoredCounterattack && isActive(guardian) && canAct(guardian) && isActive(source) && sameMelee(guardian, source)) {
@@ -1858,6 +1880,11 @@ function resistReaction(state, target, instances, { source, physical, spell = nu
     if (fromSpell) spendPool(target, fromSpell);
     state.stats.reactions++;
     if (Number.isFinite(target.resistUses)) target.resistUses--;
+    // (2026-11-07, Sacrifice Armor: its armor broken after — a broken heavy armor's -3 status penalty to AC, the fight's rest.)
+    if (resist.acAfter) {
+        target.ac -= resist.acAfter;
+        log(state, `  ${target.name}'s armor is broken: -${resist.acAfter} AC`);
+    }
     // (2026-11-07, Unexpected Shift: the resistance only on a flat check's success — the reaction spent either way.)
     if (Number.isFinite(resist.flat)) {
         const flat = state.rng.d20();

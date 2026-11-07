@@ -36,7 +36,7 @@ function expected(modifier, ac, damage, twice) {
 // Before an attack roll (not a reaction's, nor one already rolled twice): the attack-roll talisman it uses, or null. modifier: the attack's,
 // circumstance: the circumstance penalties it would ignore, ac, damage: [hit, critical] expected.
 export function attackFortune(state, attacker, target, strike, { modifier, circumstance = 0, ac, damage }) {
-    const entry = (attacker.fortuneItems ?? []).find((item) => item.selector === "attack-roll" && ready(attacker, item) && (!item.weapon || !strike.unarmed));
+    const entry = (attacker.fortuneItems ?? []).find((item) => item.selector === "attack-roll" && ready(attacker, item) && (!item.weapon || !strike.unarmed) && (!item.ranged || !strike.melee));
     if (!entry) return null;
     const freed = entry.ignoreCircumstance ? circumstance : 0;
     const gain = expected(modifier + freed, ac, damage, true) - expected(modifier, ac, damage, false);
