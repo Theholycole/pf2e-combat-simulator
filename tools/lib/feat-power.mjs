@@ -1475,6 +1475,9 @@ const HAND = {
     "instinctual-creation": () => ({ builtins: { thrallsAtStart: 2 }, played: "two thralls as it rolls initiative" }),
     // (Sacred Defense: once an hour, a DC 30 Religion check for 5 temporary Hit Points, 10 on a critical success — played as 5, once a fight.)
     "sacred-defense": () => ({ builtins: { selfEffects: [{ name: "Sacred Defense", actions: 1, featForced: true, pool: "sacred-defense", model: { name: "Sacred Defense", rounds: 10, tempHp: 5, modifiers: [], fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, pools: { "sacred-defense": 1 }, played: "5 temporary Hit Points (1 action, once a fight; its DC 30 check played as a success)" }),
+    "clockwork-celerity": () => ({ builtins: { unstableQuicken: "Clockwork Celerity" }, played: "quickened at its turn's start until a DC 17 flat check fails (unstable)" }),
+    // (Defensive Instincts: beside two foes or more, +1 circumstance AC until its next turn.)
+    "defensive-instincts": () => ({ builtins: { selfEffects: [{ name: "Defensive Instincts", actions: 1, featForced: true, minEngaged: 2, model: { name: "Defensive Instincts", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, played: "+1 AC until its next turn while beside two foes (1 action)" }),
     "after-you": () => ({ builtins: { goesLast: true, panacheAtStart: "After You" }, played: "goes last with panache" }),
     "dwarven-doughtiness": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn" }),
     "calm-and-centered": () => ({ builtins: { frightenedDecay: 2 }, played: "frightened down by 2 at the end of each turn (stupefied not played)" }),

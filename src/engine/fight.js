@@ -524,7 +524,14 @@ function startTurn(state, c) {
     if (c.shield) c.shield.raised = Boolean(!c.shield.broken && (c.effects ?? []).some((effect) => effect.model?.shieldUp));
     // (2026-11-05, Quick Vengeance: after its Intercept Attack or Shield Block, one more action this turn — a Stride or Strike, the engine's
     // quickened's own limit.)
-    const vengeance = Boolean(c.vengeful) && !c.cond.quickened;
+    let vengeance = Boolean(c.vengeful) && !c.cond.quickened;
+    // (2026-11-07, Clockwork Celerity: quickened at its turn's start, an unstable action — a DC 17 flat check after each use keeps it
+    // usable.)
+    if (c.unstableQuicken && !c.cond.quickened && !vengeance && !c.unstableSpent) {
+        vengeance = true;
+        state.log?.push(`  ${c.name} is quickened (${c.unstableQuicken})`);
+        if (state.rng.d20() < 17) c.unstableSpent = true;
+    }
     if (c.vengeful) {
         c.vengeful = false;
         state.log?.push(`  ${c.name} is quickened (${c.swiftRetribution ? "Swift Retribution" : "Quick Vengeance"})`);

@@ -1987,6 +1987,8 @@ function expandClassActions(env) {
         if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
         // (2026-11-03, Tough Cookie: at half its Hit Points or fewer.)
         if (entry.belowHalf && c.hp.value > c.hp.max / 2) continue;
+        // (2026-11-07, Defensive Instincts: only beside at least two foes.)
+        if (entry.minEngaged && ctx.enemies.filter((enemy) => isActive(enemy) && sameMelee(c, enemy)).length < entry.minEngaged) continue;
         // (2026-11-05, Vivacious Bravado: with panache, gained this turn — played as having it.)
         if (entry.needsPanache && !c.panache) continue;
         // (2026-11-06, Amalgamate: two thralls to fuse, and no amalgamation yet.)
