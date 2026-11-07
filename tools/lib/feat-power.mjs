@@ -1209,6 +1209,9 @@ const HAND = {
     "stonewall": (level) => ({ builtins: { resistReaction: { name: "Stonewall", value: 9999, on: null, types: null, foe: true, minDamage: level } }, played: "a foe's hit of at least its level dealing it nothing (petrified till the turn ends; reaction)" }),
     // (Fading: a Strike at it a DC 11 flat check, a miss on a failure — once a Crimson Shroud, taken as once a fight; played on a hit.)
     "fading": () => ({ builtins: { concealReaction: { name: "Fading", dc: 11, ranged: false, uses: 1 } }, played: "a Strike that hits it misses on a failed DC 11 flat check (once a fight, reaction)" }),
+    // (Cringe: a critical hit on it, its level + 2 less damage after the doubling — played as resistance that much to the Strike —, each
+    // attacker once; reaction.)
+    "cringe": (level) => ({ builtins: { critResistance: { name: "Cringe", value: level + 2, perAttacker: true } }, played: `${level + 2} less damage from a critical hit on it, each attacker once (reaction)` }),
     "interstitial-escape": (level) => ({ builtins: { resistReaction: { name: "Interstitial Escape", value: 5 + level, on: null, types: null, attack: true, foe: true }, resistUses: 1 }, played: `resistance ${5 + level} to a Strike's damage (once a fight, reaction)` }),
     // A precision die on a hit at a creature that isn't off-guard, two from 14th when its sneak attack is 3d6 or more.
     "sly-striker": (level) => ({ builtins: { strikeExtras: [{ when: "not-off-guard", dice: level >= 14 ? 2 : 1, die: 6, precision: true, type: null, source: "Sly Striker" }] }, played: "precision damage on a hit (always on)" }),
@@ -1490,6 +1493,12 @@ const HAND = {
     "swift-retribution": () => ({ builtins: { swiftRetribution: true }, played: "an extra action after its champion's reaction" }),
     "critical-debilitation": () => ({ builtins: { debilitation: { critSave: true } }, played: "on a critical hit, Debilitating Strike's Fortitude save: slowed 1, slowed 2 or paralyzed" }),
     "guardians-intercept": (_level, host) => (host?.interceptAttack ? null : { builtins: { interceptAttack: { name: "Intercept Attack", once: true } }, played: "Intercept Attack, once a fight (reaction)" }),
+    // (2026-11-07, Superimpose Time Duplicates: flanking for it against every enemy in its reach till its next turn — played as one foe
+    // beside it off-guard to its attacks that long; once an hour, once a fight.)
+    "superimpose-time-duplicates": () => {
+        const entry = offGuardToMeEntry("Superimpose Time Duplicates", { range: "touch", traits: [] });
+        return entry ? { builtins: {}, plans: [], spells: [{ ...entry, pool: "superimpose-time-duplicates" }], pools: { "superimpose-time-duplicates": 1 }, played: "a foe beside it off-guard to its attacks till its next turn (1 action, once a fight)" } : null;
+    },
     "instant-opening": () => {
         const entry = offGuardToMeEntry("Instant Opening");
         return entry ? { builtins: {}, plans: [], spells: [entry], played: "a foe within 30 feet off-guard to its attacks to the end of its next turn (1 action)" } : null;

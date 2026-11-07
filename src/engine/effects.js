@@ -1021,6 +1021,8 @@ export function auraRecipients(state, bearer, grant) {
 export function applyEffect(state, target, model, source, { applyCondition, key = model.name, counter = null, formDC = null } = {}) {
     for (const existing of (target.effects ?? []).filter((effect) => effect.key === key)) removeEffect(target, existing);
     // (A resistance of a chosen type: the choice that keeps most off it from its foes now, else the first.)
+    // (2026-11-07: a "choice" with no choices to pick from — Masquerade of Seasons Stance's — isn't a resistance.)
+    if ((model.resistances ?? []).some((entry) => entry.type === "choice" && !entry.choices?.length)) model = { ...model, resistances: model.resistances.filter((entry) => entry.type !== "choice" || entry.choices?.length) };
     const choice = (model.resistances ?? []).find((entry) => entry.type === "choice");
     if (choice) {
         const kept = (type) => resistanceKept(state ?? { list: [] }, { ...model, resistances: [{ ...choice, type }] }, target, 1);
@@ -1079,7 +1081,8 @@ export function resistanceKept(state, model, target, rounds) {
     const foes = (state.list ?? []).filter((other) => other.side !== target.side && other.status === "active");
     const side = Math.max(1, (state.list ?? []).filter((other) => other.side === target.side && other.status === "active").length);
     // (A chosen type — Resist Energy's —: the best of its choices here.)
-    const choice = model.resistances.find((entry) => entry.type === "choice");
+    const choice = model.resistances.find((entry) => entry.type === "choice" && entry.choices?.length);
+    if (model.resistances.some((entry) => entry.type === "choice" && !entry.choices?.length)) model = { ...model, resistances: model.resistances.filter((entry) => entry.type !== "choice" || entry.choices?.length) };
     if (choice) return Math.max(0, ...choice.choices.map((type) => resistanceKept(state, { ...model, resistances: [...model.resistances.filter((entry) => entry !== choice), { ...choice, type }] }, target, rounds)));
     // (A custom one on physical damage — Shadow Form's, against non-magical — as physical: at its best, the foes' Strikes qualify.)
     const physical = (entry) => entry.type === "physical" || (entry.type === "custom" && JSON.stringify(entry.definition ?? []).includes("damage:category:physical"));
