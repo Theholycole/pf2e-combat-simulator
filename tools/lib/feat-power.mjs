@@ -1498,6 +1498,16 @@ const HAND = {
     // (2026-11-07, Predictable!: its Sense Motive played as a success — +1 circumstance to AC and saves until its next turn; against all foes.)
     // (2026-11-07, Archaeologist's Warning: +1 circumstance to its allies' initiative when it rolls Perception, Society or Thievery — a free action.)
     "archaeologists-warning": () => ({ builtins: { initiativeWarning: { name: "Archaeologist's Warning", value: 1, free: true, skills: ["society", "thievery"] } }, played: "+1 to its allies' initiative (free action)" }),
+    // (2026-11-07, Mega Bomb: a bomb thrown as a 2-action 30-foot burst within 60 feet, basic Reflex against its class DC, each creature
+    // taking the bomb's damage as its primary target — a major alchemist's fire's 4d8 (its persistent fire and splash not played); three a
+    // fight, its versatile vials.)
+    "mega-bomb": (level, host, doc) => {
+        const plan = damageSavePlan(doc, "reflex", [null, "2d8[fire]", "4d8[fire]", "8d8[fire]"]);
+        if (!plan) return null;
+        const dc = dcsOf(host).class ?? 10 + level + 2 + 4;
+        const entry = { name: "Mega Bomb", plan: { ...plan, activation: { ...(plan.activation ?? {}), time: "2", traits: ["manipulate"] }, targeting: { target: null, range: "60 feet", area: { type: "burst", value: 30 } } }, castRank: Math.ceil(level / 2), dc, attack: dc - 10, pool: "feat:mega-bomb", kind: "ability", effects: {} };
+        return castable(entry) ? { builtins: {}, spells: [entry], pools: { "feat:mega-bomb": 3 }, played: `a 30-foot burst of 4d8 fire, basic Reflex DC ${dc} (2 actions, three a fight)` } : null;
+    },
     "nimble-form": () => ({ builtins: { nimbleForm: true }, played: "its eidolon's agile attacks at -3/-6 for the multiple attack penalty" }),
     "predictable": () => ({ builtins: { selfEffects: [{ name: "Predictable!", actions: 1, featForced: true, model: { name: "Predictable!", rounds: 1, modifiers: [{ on: "ac", type: "circumstance", value: 1 }, { on: "saving-throw", type: "circumstance", value: 1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, played: "+1 AC and saves until its next turn (1 action; its Perception check played as a success)" }),
     // (Scouring Spark: while its divine spark is channeled — a Mythic Point, a minute —, 3d6 fire on a foe touching or hitting it in melee.)
