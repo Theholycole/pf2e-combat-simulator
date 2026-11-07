@@ -22,7 +22,8 @@ const FEAT_ROOT = process.env.FEAT_MODULE ? new URL(`file://${process.env.FEAT_M
 if (!FEAT_ROOT) throw new Error("The feat module's repository wasn't found beside the simulator's (pf2e-automatic-feat-resolution); set FEAT_MODULE to its folder.");
 const ITEM_ROOT = SIBLING(["pf2e-automatic-item-resolution", "PF2e AUTOMATIC ITEM RESOLUTION"]);
 
-const { readDocuments, basicActions, PACK_ROOT } = await import("./pack-creatures.mjs");
+const { readDocuments, basicActions, PACK_ROOT, summonReserves } = await import("./pack-creatures.mjs");
+const { spellSummonEntry } = await import("../../src/engine/summons.js");
 const { partyFor, classPartyFor, classesPartyFor } = await import("./deadliness.mjs");
 const { CLASS_SLUGS, classArmor, seatOf } = await import("../../src/engine/classes.js");
 const { withCompanion, mountUp, companionStats } = await import("../../src/engine/companions.js");
@@ -322,6 +323,8 @@ function innateSpellEntry(doc, level, host) {
     const abilities = host.abilities ?? ABILITIES[host.id]?.(key(level), level >= 10 ? 2 : 1) ?? {};
     const dc = own.spell ?? 10 + level + 2 + (abilities.cha ?? 0);
     const entries = [];
+    const summons = [];
+    let breath = null;
     const pools = {};
     const choice = /\b(?:chosen|choose(?: one)?) from the following\b|\bone of the following spells\b|\b(?:gain|learn) either\b|\byour choice of\b/i.test(String(doc.system?.description?.value ?? ""));
     for (const { spell, castRank, uses } of spells) {
@@ -331,16 +334,53 @@ function innateSpellEntry(doc, level, host) {
         } catch {
             continue;
         }
-        if (!plan?.resolution || ["unsupported", "no-effect"].includes(plan.resolution.kind)) continue;
+        // (2026-11-07, Breath of Life: the ally's reaction as it would die — actions.js increaseDying; its 4d8 plus the Charisma it casts
+        // with.)
+        if (spell.name === "Breath of Life") {
+            breath = { uses: uses || 1, bonus: abilities.cha ?? 0, from: doc.name };
+            continue;
+        }
+        plan = selfFormPlan(plan);
+        // (2026-11-07: an "unsupported" plan too where the engine plays its native check — Tangle Vine's spell attack; castable below.)
+        if (!plan?.resolution || plan.resolution.kind === "no-effect") continue;
+        // (2026-11-07, Summon Elemental's, Summon Animal's: a summon spell as the engine's summons — summons.js, the foes' own —: its best
+        // creature of the traits it allows at the rank, made as reserves beside the party; a use a day, or its cantrip's once a fight.)
+        if (plan.resolution.kind === "summon") {
+            const summon = spellSummonEntry({ name: `${spell.name} (${doc.name})`, plan, castRank, pool: null }, uses || 1);
+            // (Summon Fire Elemental's "only fire elementals": the element its name gives, too.)
+            const element = /\bSummon (Air|Earth|Fire|Metal|Water|Wood) Elemental\b/i.exec(doc.name)?.[1]?.toLowerCase();
+            if (summon && element) summon.creature.pick.all = [element];
+            // (Devil Allies' "you can summon only creatures that have the devil trait": that trait too.)
+            const only = /\bsummon only creatures (?:that have|with) the (\w+) trait\b/i.exec(String(doc.system?.description?.value ?? "").replace(/<[^>]+>/g, ""))?.[1]?.toLowerCase();
+            if (summon && only && summon.creature?.pick) summon.creature.pick.all = [...new Set([...(summon.creature.pick.all ?? []), only])];
+            if (summon) summons.push(summon);
+            continue;
+        }
         // (2026-11-03, Avenging Runelord Dedication's "This spell must be chosen from the following list": one of them, so one use shared —
         // the fight casts the one it wants. Before, each listed spell came with its own use.)
         const pool = uses ? (choice ? `innate:${doc._id}:choice` : `innate:${doc._id}:${spell._id}`) : null;
         if (pool) pools[pool] = choice ? 1 : uses;
-        const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan, castRank, dc, attack: dc - 10, pool, effects: spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank) };
+        // (2026-11-07, Animal Form's, Dragon Form's shapes from a feat: every shape's battle form, the best taken — formChoice.)
+        const merged = formChoice(plan, spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank));
+        if (!merged) continue;
+        const entry = { name: `${spell.name} (${doc.name})`, fromFeat: true, plan: merged.plan, castRank, dc, attack: dc - 10, pool, effects: merged.effects };
+        if (plan.resolution.selfForm && !Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) continue;
+        // (Its battle form cast even where the planner reads no gain in it, as Untamed Form's is.)
+        if (plan.resolution.selfForm || Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) entry.forceEven = true;
+        // (2026-11-07: a family the engine has no player for — Murderous Vine's "grab-attack", Black Tentacles' "tentacle-area" in PF2e 8.6's
+        // packs —: PF2e's own check, as an "unsupported" plan plays it, where it has one.)
+        if (!castable(entry) && plan.resolution.native?.check && plan.resolution.kind !== "unsupported") {
+            const fallback = { ...entry, plan: { ...entry.plan, resolution: { ...entry.plan.resolution, kind: "unsupported" } } };
+            // (A new entry: canCast's answer for this one is cached per spell object.)
+            if (castable(fallback)) {
+                entries.push(fallback);
+                continue;
+            }
+        }
         if (castable(entry) || reactionWired(entry)) entries.push(entry);
     }
-    if (!entries.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
-    return { spells: entries, pools, gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
+    if (!entries.length && !summons.length && !breath) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: a spell the engine doesn't cast (${spells.map((each) => (each.spell ?? each).name).join(", ")})` } };
+    return { spells: entries, pools, ...(summons.length ? { summons } : {}), ...(breath ? { breathOfLife: breath } : {}), gap: null, played: `innate spell${entries.length > 1 ? "s" : ""}: ${spells.map(({ spell, castRank }) => `${spell.name} (rank ${castRank})`).join(", ")}` };
 }
 
 // (2026-11-03, the class feats no fight played: an action that puts its PF2e Effect on one ally — Steel Yourself!'s temporary Hit Points and
@@ -2336,6 +2376,29 @@ const BASE_FEATS = { "targeting-strike": "Set-Up Strike", "multishot-stance": "D
 // (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
 // rank — half the druid's level, rounded up —, a 2-action focus spell; the engine's battle forms (effects.js enterForm) take its best shape.
 // Untamed Form's +2 status to the druid's own attack modifier isn't played: a form's own modifier is higher.)
+// (A spell whose shape is chosen as it's cast — Animal Form's, Dinosaur Form's "effect-choice" —: one Effect with every branch's battle
+// form, which enterForm picks the best of. Any other plan as it is; null when a choice has no Effect.)
+function formChoice(plan, effects) {
+    if (plan.resolution?.kind !== "effect-choice") return { plan, effects };
+    const models = Object.values(effects ?? {}).filter(Boolean);
+    const first = Object.keys(effects ?? {})[0];
+    if (!first) return null;
+    const battleForms = models.flatMap((model) => model.battleForms ?? (model.battleForm ? [model.battleForm] : []));
+    if (!battleForms.length) return { plan, effects };
+    return {
+        effects: { [first]: { ...models[0], battleForms, battleForm: battleForms[0] } },
+        plan: { ...plan, resolution: { ...plan.resolution, kind: "effect", selector: undefined, applications: [{ kind: "native-spell-effect", uuid: first, source: "nativeEffects.onUse", terminationId: `${first}:dismiss` }] } },
+    };
+}
+// (2026-11-07, Dragon Form's, Monstrosity Form's: a battle form spell the packs' compiler leaves "unsupported" — no save, its one Effect
+// unscoped —: that Effect on the caster as it's cast, kept only where it is a battle form — formChoice's check after.)
+function selfFormPlan(plan) {
+    if (plan?.resolution?.kind !== "unsupported" || plan.resolution.check) return plan;
+    const links = [...(plan.nativeEffects?.onUse ?? []), ...(plan.nativeEffects?.unscoped ?? [])].filter((link) => link?.kind === "native-spell-effect");
+    if (links.length !== 1) return plan;
+    const uuid = links[0].uuid;
+    return { ...plan, nativeEffects: { ...plan.nativeEffects, onUse: [{ ...links[0], scope: "on-use" }], unscoped: [] }, resolution: { ...plan.resolution, kind: "effect", selfForm: true, applications: [{ kind: "native-spell-effect", uuid, source: "nativeEffects.onUse", terminationId: `${uuid}:dismiss` }] } };
+}
 function untamedShape(level, host, spellName, label) {
     const spell = spellPack.spellNamed(spellName);
     if (!spell) return null;
@@ -2343,24 +2406,17 @@ function untamedShape(level, host, spellName, label) {
     if (castRank > Math.ceil(level / 2)) return null;
     let plan;
     try {
-        plan = spellPack.compileSpell(spell);
+        plan = selfFormPlan(spellPack.compileSpell(spell));
     } catch {
         return null;
     }
     const own = dcsOf(host);
     const dc = own.spell ?? own.class ?? 10 + level + 2;
     const pool = `${host.id}:focus`;
-    let effects = spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank);
-    // (A spell whose shape is chosen as it's cast — Animal Form's, Dinosaur Form's "effect-choice" —: one Effect with every branch's battle
-    // form, which enterForm picks the best of.)
-    if (plan.resolution?.kind === "effect-choice") {
-        const models = Object.values(effects ?? {}).filter(Boolean);
-        const first = Object.keys(effects ?? {})[0];
-        if (!first) return null;
-        const battleForms = models.flatMap((model) => model.battleForms ?? (model.battleForm ? [model.battleForm] : []));
-        effects = { [first]: { ...models[0], battleForms, battleForm: battleForms[0] ?? null } };
-        plan = { ...plan, resolution: { ...plan.resolution, kind: "effect", selector: undefined, applications: [{ kind: "native-spell-effect", uuid: first, source: "nativeEffects.onUse", terminationId: `${first}:dismiss` }] } };
-    }
+    const merged = formChoice(plan, spellPack.withTextConditions(spellPack.effectModels(plan, castRank), spell, castRank));
+    if (!merged) return null;
+    ({ plan } = merged);
+    const { effects } = merged;
     const entry = { name: `Untamed Form (${label})`, fromFeat: true, featForced: true, forceEven: true, plan, castRank, dc, attack: dc - 10, pool, effects };
     if (!castable(entry) || !Object.values(entry.effects ?? {}).some((model) => model?.battleForm || model?.battleForms?.length)) return null;
     return { builtins: {}, spells: [entry], pools: { [pool]: Math.min(3, (host.spellPools?.[pool] ?? 0) + 1) }, played: `Untamed Form's ${label.toLowerCase()} shapes (${spellName}, rank ${castRank})` };
@@ -2686,6 +2742,14 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         pc.forceUse = true;
     }
     joinBuiltins(pc, pooledBuiltins);
+    if (entries.breathOfLife) pc.breathOfLife = entries.breathOfLife;
+    // (2026-11-07, Oil Fire's, Dazing Blow's "You have a foe Grabbed": a Grapple to set it up, forced as the feat is — before, the PC
+    // never grabbed and the feat went unused. Not counted as the feat's use.)
+    const grabNeeded = (entry) => (entry?.plan?.needs ?? entry?.needs ?? []).some((need) => need?.grabbing) || entry?.plan?.requires === "grabbed" || entry?.requires === "grabbed";
+    if (basicActions.grapple && [...entries.spells, ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].some(grabNeeded)) {
+        pc.spells = [...(pc.spells ?? []), { name: "Grapple (to set up the feat)", plan: structuredClone(basicActions.grapple), castRank: 1, pool: null, kind: "basic", ...(FORCE ? { featForced: true } : {}) }];
+    }
+    if (entries.summons?.length) pc.summons = [...(pc.summons ?? []), ...entries.summons.map((entry) => ({ ...entry, reserveIds: [], ...(FORCE ? { featForced: true } : {}) }))];
     if (tried.strikes) pc.strikes = tried.strikes;
     // (2026-11-05, Diamond Fists: its unarmed attacks forceful and deadly d10 — a die step bigger for one that had either; the deadly dice
     // by its striking runes, 2 at greater striking, 3 at major.)
@@ -2779,7 +2843,10 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
             if (rider && mount && !rider.mountId) mountUp(rider, mount);
         }
     }
-    const useNames = [...new Set([...(fought !== withFeat || companionNeeded ? ["Animal Companion"] : []), ...(companion?.sharesHpWith ? ["Eidolon"] : []), ...entries.spells, ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => (typeof entry === "string" ? entry : entry?.name)).filter((name) => typeof name === "string" && name.length > 2))];
+    // (Its summons' reserves: waiting off the field beside the party until summoned — linked, so one's fall isn't a PC's.)
+    const summoner = fought.find((c) => c.id === host.id && c.summons?.length);
+    if (summoner) fought.push(...summonReserves(summoner).map((reserve) => ({ ...reserve, linked: true })));
+    const useNames = [...new Set([...(fought !== withFeat || companionNeeded ? ["Animal Companion"] : []), ...(companion?.sharesHpWith ? ["Eidolon"] : []), ...entries.spells, ...(entries.summons ?? []).map((entry) => entry.name), ...(entries.breathOfLife ? ["Breath of Life"] : []), ...FORCED_FIELDS.flatMap((field) => (Array.isArray(builtins[field]) ? builtins[field] : []))].map((entry) => (typeof entry === "string" ? entry : entry?.name)).filter((name) => typeof name === "string" && name.length > 2))];
     return { party: fought, ...(plainParty ? { plain: plainParty } : {}), ...(loadout ? { loadout } : {}), host: host.id, played: entries.played, situational: Boolean(entries.situational), plan, useNames };
 }
 

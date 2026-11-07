@@ -99,3 +99,25 @@ test("Diehard: a PC dies at dying 5 (its sheet's), less its doomed", () => {
     increaseDying(state, pc, 1);
     assert.equal(pc.status, "dead");
 });
+
+test("Breath of Life (2026-11-07, from a feat): an ally's reaction as a PC would die — back up, healed; once, then it dies", () => {
+    const [fighter, rogue] = martialParty(14);
+    const state = createFightState({ combatants: [{ ...fighter, engagement: 1 }, { ...rogue, engagement: 1, breathOfLife: { uses: 1, bonus: 4, from: "Miraculous Medic" } }, { ...moderateCreature(14, "foe", "Foe"), engagement: 1 }] }, {}, 1);
+    state.log = [];
+    state.options.heroPoints = false;
+    const pc = state.byId.get(fighter.id);
+    const medic = state.byId.get(rogue.id);
+    pc.status = "down";
+    pc.hp.value = 0;
+    pc.cond.dying = 3;
+    increaseDying(state, pc, 1);
+    assert.equal(pc.status, "active");
+    assert.ok(pc.hp.value >= 8 && pc.hp.value <= 36);
+    assert.equal(pc.cond.dying, 0);
+    assert.equal(medic.reactionUsed, true);
+    pc.status = "down";
+    pc.cond.dying = 3;
+    medic.reactionUsed = false;
+    increaseDying(state, pc, 1);
+    assert.equal(pc.status, "dead");
+});

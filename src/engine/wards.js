@@ -8,7 +8,7 @@ import { saveModifier } from "./combatant.js";
 
 export function applyWard(state, target, caster, spell, ward, dc) {
     const rounds = Number(ward.durationSeconds) > 0 ? Math.max(1, Math.round(Number(ward.durationSeconds) / 6)) : 10;
-    target.ward = { by: caster.id, spell: spell.name, dc: Number(dc) || 10, save: ward.save ?? "will", untilRound: state.round + rounds, endsOnHostile: ward.endsOnHostile !== false, passed: {}, failed: {}, barred: [] };
+    target.ward = { by: caster.id, spell: spell.name, dc: Number(dc) || 10, save: ward.save ?? "will", untilRound: state.round + rounds, endsOnHostile: ward.endsOnHostile !== false, passed: {}, failed: {}, barred: [], ...(terrorOf(ward) ? { terror: terrorOf(ward), immune: {} } : {}) };
     state.log?.push(`  ${target.name} is warded by ${spell.name}`);
 }
 
@@ -22,10 +22,31 @@ function wardOn(state, target) {
     return ward;
 }
 
+// (2026-11-07, Mask of Terror — readings.js: "When any creature attempts a hostile action against the target, the creature must attempt a
+// Will save. It is then temporarily immune until the end of its next turn. Failure frightened 2 before using its action. Critical Failure
+// … and its action fails and is wasted": rows "frightened-N" and "frightened-N-wasted"; its frightened value, or null for Sanctuary's.)
+function terrorOf(ward) {
+    const hit = /^frightened-(\d+)/.exec(String(ward?.rows?.failure ?? ""));
+    return hit ? Number(hit[1]) : null;
+}
+function terrorBlocks(state, ward, attacker, target) {
+    if ((ward.immune[attacker.id] ?? -Infinity) >= state.round) return false;
+    ward.immune[attacker.id] = state.round + 1;
+    const { total, degree } = rollCheck(state.rng, saveModifier(attacker, ward.save), ward.dc);
+    state.log?.push(`  ${attacker.name} saves against ${ward.spell} on ${target.name}: ${total} vs ${ward.dc} → ${["critical failure", "failure", "success", "critical success"][degree]}`);
+    if (degree >= SUCCESS) return false;
+    if ((attacker.cond.frightened ?? 0) < ward.terror) {
+        attacker.cond.frightened = ward.terror;
+        state.log?.push(`  ${attacker.name} is frightened ${ward.terror}`);
+    }
+    return degree === CRITICAL_FAILURE;
+}
+
 // Whether the attack is stopped before it's made (its action wasted); rolls the attacker's save when this turn needs one.
 export function wardBlocks(state, attacker, target) {
     const ward = wardOn(state, target);
     if (!ward || !attacker || attacker === target || attacker.side === target.side) return false;
+    if (ward.terror) return terrorBlocks(state, ward, attacker, target);
     if (ward.barred.includes(attacker.id) || ward.failed[attacker.id] === state.round) {
         state.log?.push(`  ${attacker.name} can't attack ${target.name} (${ward.spell})`);
         return true;
@@ -51,6 +72,7 @@ export function wardBlocks(state, attacker, target) {
 export function wardChance(state, attacker, target) {
     const ward = wardOn(state, target);
     if (!ward || attacker === target || attacker.side === target.side) return 1;
+    if (ward.terror) return (ward.immune[attacker.id] ?? -Infinity) >= state.round ? 1 : 1 - degreeDistribution(saveModifier(attacker, ward.save), ward.dc)[CRITICAL_FAILURE];
     if (ward.barred.includes(attacker.id) || ward.failed[attacker.id] === state.round) return 0;
     if (ward.passed[attacker.id] === state.round) return 1;
     const odds = degreeDistribution(saveModifier(attacker, ward.save), ward.dc);
@@ -62,13 +84,15 @@ export function wardChance(state, attacker, target) {
 export function wardWorth(state, target, caster, ward, dc) {
     const foes = state.list.filter((other) => other.side !== target.side && other.status === "active");
     if (!foes.length) return 0;
+    const terror = terrorOf(ward);
+    // (Mask of Terror's: a critical failure's wasted action, and a failure's frightened — about half an action's worth a round.)
     const stopped = foes.reduce((sum, foe) => {
         const odds = degreeDistribution(saveModifier(foe, ward.save ?? "will"), Number(dc) || 10);
-        return sum + odds[0] + odds[1];
+        return sum + (terror ? odds[0] + 0.15 * terror * (odds[0] + odds[1]) : odds[0] + odds[1]);
     }, 0) / foes.length;
     const rounds = Math.min(3, Number(ward.durationSeconds) > 0 ? Math.round(Number(ward.durationSeconds) / 6) : 3);
     const attacker = (target.strikes ?? []).length > 0 && (target.spells ?? []).every((spell) => !spell.plan?.resolution?.healing);
-    return 0.4 * stopped * rounds * (attacker ? 0.2 : 1);
+    return 0.4 * stopped * rounds * (attacker && ward.endsOnHostile !== false ? 0.2 : 1);
 }
 
 // The warded creature's own hostile action ends its ward.
