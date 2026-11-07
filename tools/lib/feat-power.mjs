@@ -2122,6 +2122,11 @@ const HAND = {
     // (Overextending Feint, the rogue's Goading Feint — its Feint given again, forced, as the rogue rarely Feints.)
     "overextending-feint": () => ({ builtins: { goadingFeint: true }, spells: basicActions.feint ? [{ name: "Feint", plan: structuredClone(basicActions.feint), castRank: 1, pool: null, kind: "basic" }] : [], played: "Feint (forced), each one goading (–2 to the foe's next attack on the PC, all on a critical success) instead of off-guard" }),
     // (Temporal Fury: a Strike, a Step, another Strike for two actions and a Mythic Point — the Step not played.)
+    // (2026-11-07, Echoing Fury: Temporal Fury's second Strike at the same foe a weapon die more — half a d12 on each, the two at one foe;
+    // its longer Step and combined damage not played. Temporal Fury on both sides.)
+    "echoing-fury": () => ({ builtins: { multiStrikes: [{ name: "Echoing Fury", actions: 2, strikes: [null, null], pool: "mythic", extraDamage: ["1d6[untyped]"] }] }, pools: { mythic: 3 }, played: "Temporal Fury's second Strike a weapon die more (a Mythic Point)" }),
+    // (In Lightning, Life: 2d4 temporary Hit Points, once a fight — on itself.)
+    "in-lightning-life": () => ({ builtins: { selfEffects: [{ name: "In Lightning, Life", actions: 1, featForced: true, pool: "in-lightning-life", model: { name: "In Lightning, Life", rounds: 10, tempHp: 5, modifiers: [], fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 } }] }, pools: { "in-lightning-life": 1 }, played: "2d4 temporary Hit Points (1 action, once a fight; on itself)" }),
     "temporal-fury": () => ({ builtins: { multiStrikes: [{ name: "Temporal Fury", actions: 2, strikes: [null, null] }] }, played: "two Strikes for two actions (a Mythic Point)" }),
     // (Hampering Stance: its 5-foot difficult terrain for foes isn't played — on the bands, foes beside it rarely walk off; the stance is
     // here for Not So Fast!'s Strike at a foe leaving its reach (its Speed penalty and a critical hit's disruption not played).)
@@ -2932,7 +2937,7 @@ function itemMatches(item, filter) {
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
 // (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
 const STANCE_SPELL_FEATS = { "wild winds stance": "Wild Winds Initiate", "clinging shadows stance": "Clinging Shadows Initiate" };
-const BASE_FEATS = { "undying-ferocity": "Orc Ferocity", "tetraelemental-assault": "Elemental Assault", "breath-unleashed": "Kobold Breath", "tempest-gaze": "Storming Gaze", "deadly-mutation": "Ostilli Host Dedication", "spraying-mutation": "Ostilli Host Dedication", "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
+const BASE_FEATS = { "echoing-fury": "Temporal Fury", "undying-ferocity": "Orc Ferocity", "tetraelemental-assault": "Elemental Assault", "breath-unleashed": "Kobold Breath", "tempest-gaze": "Storming Gaze", "deadly-mutation": "Ostilli Host Dedication", "spraying-mutation": "Ostilli Host Dedication", "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
 
 // (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
 // rank — half the druid's level, rounded up —, a 2-action focus spell; the engine's battle forms (effects.js enterForm) take its best shape.
