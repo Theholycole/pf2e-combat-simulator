@@ -483,6 +483,30 @@ function dedicationCantripEntry(doc, level, host) {
     return { spells: [entry], pools: {}, gap: null, played: `cantrip: ${spell.name} (rank ${castRank}, DC ${dc})` };
 }
 
+// (2026-11-07, the simulator phase: Healing Hands', Harming Hands' "When you cast Heal, you roll d10s instead of d8s" — a passive's DamageDice
+// override of one spell's die (predicate item:slug:heal): copies of the PC's casts of that spell with the bigger die, the planner's pick.)
+function spellDieEntry(doc, host) {
+    const rules = (doc.system?.rules ?? []).filter((rule) => rule?.key === "DamageDice" && rule.override?.dieSize && [].concat(rule.selector ?? []).some((selector) => /^spell-(?:damage|healing)$/.test(selector)));
+    const spells = [];
+    for (const rule of rules) {
+        const slug = [].concat(rule.predicate ?? []).map((term) => /^item:slug:([\w-]+)$/.exec(String(term))?.[1]).find(Boolean);
+        const die = /^d(\d+)$/.exec(rule.override.dieSize)?.[1];
+        if (!slug || !die) continue;
+        const swap = (formula) => String(formula).replace(/(\d+)d\d+/g, `$1d${die}`);
+        for (const spell of host.spells ?? []) {
+            const shared = spell.plan?.resolution?.sharedDamage;
+            if (spell.kind || String(spell.name ?? "").toLowerCase().replace(/ \(.*$/, "").replace(/[^a-z0-9]+/g, "-") !== slug || !shared?.components?.length) continue;
+            const heightening = shared.heightening?.damage ? { ...shared.heightening, damage: Object.fromEntries(Object.entries(shared.heightening.damage).map(([key, formula]) => [key, swap(formula)])) } : shared.heightening;
+            const plan = { ...spell.plan, resolution: { ...spell.plan.resolution, sharedDamage: { ...shared, components: shared.components.map((part) => ({ ...part, formula: swap(part.formula) })), heightening } } };
+            const entry = { ...spell, name: `${spell.name} (${doc.name})`, plan, effects: spell.effects };
+            if (castable(entry)) spells.push(entry);
+        }
+    }
+    if (!rules.length) return null;
+    if (!spells.length) return { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no spell of the PC's whose die it changes` } };
+    return { spells, pools: {}, gap: null, played: `${spells.length} cast${spells.length > 1 ? "s" : ""} of ${spells[0].name.replace(/ \(.*$/, "")} with d${/^d(\d+)$/.exec(rules[0].override.dieSize)[1]}s` };
+}
+
 // (Reach Spell: each 1- or 2-action spell with a range — touch counted as none — 30 feet farther, an action more.)
 function reachEntry(doc, host) {
     if (slugOf(doc) !== "reach-spell") return null;
@@ -1574,6 +1598,20 @@ const HAND = {
     "guardians-intercept": (_level, host) => (host?.interceptAttack ? null : { builtins: { interceptAttack: { name: "Intercept Attack", once: true } }, played: "Intercept Attack, once a fight (reaction)" }),
     // (2026-11-07, Superimpose Time Duplicates: flanking for it against every enemy in its reach till its next turn — played as one foe
     // beside it off-guard to its attacks that long; once an hour, once a fight.)
+    // (2026-11-07, the simulator phase: Dalang's Ally's and Umbra Ally's shadow flanking for it against every enemy in its reach till its
+    // next turn — as Superimpose Time Duplicates, one foe beside it off-guard to its attacks; Umbra Ally once an hour, once a fight.)
+    "dalangs-ally": () => {
+        const entry = offGuardToMeEntry("Dalang's Ally", { range: "touch", traits: [] });
+        return entry ? { builtins: {}, plans: [], spells: [entry], pools: {}, played: "a foe beside it off-guard to its attacks till its next turn (1 action)" } : null;
+    },
+    "umbra-ally": () => {
+        const entry = offGuardToMeEntry("Umbra Ally", { range: "touch", traits: [] });
+        return entry ? { builtins: {}, plans: [], spells: [{ ...entry, pool: "umbra-ally" }], pools: { "umbra-ally": 1 }, played: "a foe beside it off-guard to its attacks till its next turn (1 action, once a fight)" } : null;
+    },
+    // (Cloak of Poison, Look but Don't Touch: for a minute, 3d6 poison on a creature that touches it or hits it with an unarmed attack or a
+    // non-reach melee weapon — a self-effect's retaliation, as Fiery Body's; once a fight (once a day).)
+    "cloak-of-poison": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 2, stance: false, pool: "feat:cloak-of-poison", model: { rounds: 10, retaliation: { parts: [{ dice: 3, die: 6, bonus: 0, type: "poison" }], adjacentMelee: true, touch: true } } }], pools: { "feat:cloak-of-poison": 1 }, played: "3d6 poison on a foe that touches or hits it in melee for a minute (2 actions, once a fight)" }),
+    "look-but-dont-touch": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 2, stance: false, pool: "feat:look-but-dont-touch", model: { rounds: 10, retaliation: { parts: [{ dice: 3, die: 6, bonus: 0, type: "poison" }], adjacentMelee: true, touch: true } } }], pools: { "feat:look-but-dont-touch": 1 }, played: "3d6 poison on a foe that touches or hits it in melee for a minute (2 actions, once a fight)" }),
     "superimpose-time-duplicates": () => {
         const entry = offGuardToMeEntry("Superimpose Time Duplicates", { range: "touch", traits: [] });
         return entry ? { builtins: {}, plans: [], spells: [{ ...entry, pool: "superimpose-time-duplicates" }], pools: { "superimpose-time-duplicates": 1 }, played: "a foe beside it off-guard to its attacks till its next turn (1 action, once a fight)" } : null;
@@ -2932,6 +2970,7 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = skillAttackEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = saveAuraEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = reachEntry(doc, host) ?? entries;
+        if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = spellDieEntry(doc, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) entries = stunningBlowsEntry(doc, level, host) ?? entries;
         if (entries.gap && !/doesn't meet/.test(entries.gap.name)) {
             entries = twinDistractionEntry(doc, level, host) ?? entries;
