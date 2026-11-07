@@ -3,7 +3,7 @@
 Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats in PF2e's feats pack (Teams+ and other module packs aren't in this copy, so they aren't here).
 
 - **The feat module** automates 2641: a card it compiles, a feat named in its hand plans, rules or scripts, or a reminder at its trigger. **3725 it doesn't.**
-- **The simulator** rates 2181: in whole fights, or 102 combo feats from the basic actions they fold in (docs/combo-feats.md). **4185 it doesn't.**
+- **The simulator** rates 2189: in whole fights, or 102 combo feats from the basic actions they fold in (docs/combo-feats.md). **4177 it doesn't.**
 - **2911** are in neither.
 
 ## Summary by category
@@ -11,13 +11,13 @@ Made by `node tools/feat-gap-index.mjs` on 2026-11-07. It covers all 6366 feats 
 | Category | Feats | Not automated by the feat module | Not rated by the simulator | Neither |
 |---|---:|---:|---:|---:|
 | class | 2282 | 1088 | 1384 | 863 |
-| archetype | 2074 | 1246 | 1363 | 947 |
-| ancestry | 1613 | 1086 | 1068 | 802 |
+| archetype | 2074 | 1246 | 1358 | 947 |
+| ancestry | 1613 | 1086 | 1065 | 802 |
 | skill | 340 | 261 | 326 | 261 |
 | general | 40 | 36 | 32 | 30 |
 | bonus | 14 | 6 | 9 | 6 |
 | class feature | 3 | 2 | 3 | 2 |
-| **All** | 6366 | 3725 | 4185 | 2911 |
+| **All** | 6366 | 3725 | 4177 | 2911 |
 
 ## Why the feat module doesn't automate them
 
@@ -44,12 +44,12 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: the feat module's reminder, which a fight doesn't play | 174 | 128 | 93 | 21 |  | 1 |  | 417 |
 | no card: out of combat (exploration, downtime, skills) | 91 | 80 | 38 | 111 | 2 |  |  | 322 |
 | no card: only grants other feats, features or choices | 86 | 123 | 47 | 16 | 2 |  |  | 274 |
-| no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 51 | 50 | 44 | 21 | 1 |  |  | 167 |
+| no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play | 51 | 49 | 44 | 21 | 1 |  |  | 166 |
 | no card: a combat passive no reader or hand plan covers yet | 50 | 58 | 29 | 13 | 2 |  | 1 | 153 |
 | a spell the engine doesn't cast | 25 | 32 | 63 | 1 |  |  |  | 121 |
 | no card: spellcasting the spell module or PF2e handles | 56 | 44 | 2 |  |  | 1 |  | 103 |
 | a timer with no rules a fight counts | 53 | 26 | 17 | 4 |  | 1 |  | 101 |
-| a plan the engine can't play | 32 | 37 | 26 | 3 |  |  |  | 98 |
+| a plan the engine can't play | 32 | 34 | 25 | 3 |  |  |  | 94 |
 | no card: a combat action no reader or hand plan covers yet | 24 | 27 | 13 | 4 | 1 |  |  | 69 |
 | no card: companions, familiars and eidolons | 34 | 25 | 1 | 5 |  |  |  | 65 |
 | a Strike with nothing more the simulator reads | 34 | 22 | 1 |  |  | 1 |  | 58 |
@@ -60,7 +60,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | no card: PF2e's own Effect, from the feat's Use button | 18 | 17 | 7 | 2 |  |  |  | 44 |
 | a passive's roll with no action to use it | 13 | 14 | 9 |  |  |  | 1 | 37 |
 | it grants one of 2 | 6 | 14 | 12 |  |  |  |  | 32 |
-| its Effect has nothing a fight counts | 6 | 11 | 5 | 2 |  |  |  | 24 |
+| its Effect has nothing a fight counts | 6 | 11 | 4 | 2 |  |  |  | 23 |
 | a spell the feat casts | 13 | 5 | 5 |  |  |  |  | 23 |
 | a passive's Effect posted by hand | 7 | 11 | 3 | 1 |  |  |  | 22 |
 | a passive's Effect on other creatures | 8 | 7 | 1 | 3 | 1 |  |  | 20 |
@@ -71,8 +71,8 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a reaction's Strike | 5 | 3 | 4 |  |  |  |  | 12 |
 | its requirement, which the PC doesn't meet | 5 | 2 | 3 |  |  |  |  | 10 |
 | a lasting area | 7 |  | 2 |  |  |  |  | 9 |
-| a reroll | 3 | 2 | 4 |  |  |  |  | 9 |
 | it grants Pet | 3 | 2 | 3 |  |  |  |  | 8 |
+| a reroll | 3 | 2 | 3 |  |  |  |  | 8 |
 | a Focus or Mythic Point back | 4 |  | 3 |  |  |  |  | 7 |
 | its stance's own gap | 3 | 4 |  |  |  |  |  | 7 |
 | a passive's Strike | 2 | 3 | 1 |  |  |  |  | 6 |
@@ -107,7 +107,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | a free's Strike | 1 |  |  | 1 |  |  |  | 2 |
 | it grants one of 6 |  | 1 | 1 |  |  |  |  | 2 |
 | it grants Untrained Improvisation |  |  | 2 |  |  |  |  | 2 |
-| a roll twice |  | 2 |  |  |  |  |  | 2 |
 | it grants Dragon Deviant Classification | 2 |  |  |  |  |  |  | 2 |
 | it grants Hobnobber |  |  | 2 |  |  |  |  | 2 |
 | it grants Wraith Deviant Classification | 2 |  |  |  |  |  |  | 2 |
@@ -149,6 +148,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | it grants Break the Sun's Legs | 1 |  |  |  |  |  |  | 1 |
 | it grants Inspired Stratagem | 1 |  |  |  |  |  |  | 1 |
 | it grants Rage |  | 1 |  |  |  |  |  | 1 |
+| a roll twice |  | 1 |  |  |  |  |  | 1 |
 | it grants Create Familiar Fulu |  | 1 |  |  |  |  |  | 1 |
 | it grants Legendary Negotiation | 1 |  |  |  |  |  |  | 1 |
 | it grants On the Case |  | 1 |  |  |  |  |  | 1 |
@@ -4475,7 +4475,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Foil Senses | 7 | skill | passive | reminder | the feat module reads nothing for it |
 | Temperature Adjustment | 7 | skill | passive | reminder | the feat module reads nothing for it |
 
-### no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play (167)
+### no card: the feat module's hand-written handling (a script, rule batch or list), which a fight doesn't play (166)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4569,7 +4569,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Absorb Spell | 14 | archetype | reaction | by hand | the feat module reads nothing for it |
 | Precise Hooks | 14 | archetype | passive | by hand | the feat module reads nothing for it |
 | Winter's Kiss | 14 | archetype | passive | by hand | the feat module reads nothing for it |
-| Focus Ally | 16 | archetype | reaction | by hand | the feat module reads nothing for it |
 | Greater Snow Step | 16 | archetype | passive | by hand | the feat module reads nothing for it |
 | Lead the Pack | 16 | archetype | passive | by hand | the feat module reads nothing for it |
 | Tower Shield Mastery | 20 | archetype | passive | by hand | the feat module reads nothing for it |
@@ -4753,7 +4752,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Skeptic's Defense | 7 | skill | reaction | card | a timer with no rules a fight counts |
 | Fear of God | 14 | skill | free | card | a timer with no rules a fight counts |
 
-### a plan the engine can't play (98)
+### a plan the engine can't play (94)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
@@ -4769,7 +4768,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | All This Has Happened Before | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Bold Defiance | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
 | Call to Battle | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| Guided by the Stars | 5 | ancestry | free | card | a plan the engine can't play (its targeting or what it does) |
 | Healer's Halo | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Heat Wave | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Quick Root | 5 | ancestry | reaction | card | a plan the engine can't play (its targeting or what it does) |
@@ -4792,10 +4790,7 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Patronize the Arts | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Reactive Tangle | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Strategist Stance | 4 | archetype | 1 action | card | a plan the engine can't play (its targeting or what it does) |
-| Such a Disgrace! | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
-| You're an Embarrassment! | 4 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Archaeologist's Warning | 6 | archetype | free | card | a plan the engine can't play (its targeting or what it does) |
-| Fear No Pain! | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Repulse the Wicked | 6 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Armored Rebuff | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
 | Commitment to Valor | 8 | archetype | reaction | card | a plan the engine can't play (its targeting or what it does) |
@@ -5117,13 +5112,12 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Mega Bomb | 20 | class | passive | card | a passive's roll with no action to use it |
 | Deathless Servant | 18 | class feature | passive | card | a passive's roll with no action to use it |
 
-### its Effect has nothing a fight counts (24)
+### its Effect has nothing a fight counts (23)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
 | Cringe | 1 | ancestry | reaction | card | its Effect has nothing a fight counts |
 | Hunter's Defense | 1 | ancestry | reaction | card | its Effect has nothing a fight counts |
-| Mistaken Identity | 5 | ancestry | reaction | card | its Effect has nothing a fight counts |
 | Fierce Competitor | 9 | ancestry | 2 actions | card | its Effect has nothing a fight counts |
 | Sharpened Senses | 13 | ancestry | free | card | its Effect has nothing a fight counts |
 | Starstone Aspirant Dedication | 2 | archetype | passive | card | its Effect has nothing a fight counts |
@@ -5340,14 +5334,13 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Spell Shroud | 14 | class | 1 action | card | a lasting area |
 | Worldsphere Gravity | 20 | class | 1 action | card | a lasting area |
 
-### a reroll (9)
+### a reroll (8)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
 | Chance Death | 1 | ancestry | reaction | card | a reroll |
 | Courteous Comeback | 1 | ancestry | free | card | a reroll |
 | Let's Try That Again | 1 | ancestry | reaction | card | a reroll |
-| Mask of Rejection | 5 | ancestry | reaction | card | a reroll |
 | Clean Take | 6 | archetype | reaction | card | a reroll |
 | Archaeologist's Luck | 8 | archetype | free | card | a reroll |
 | Spiritual Guides | 4 | class | reaction | card | a reroll |
@@ -5471,13 +5464,6 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Clockwork Celerity | 6 | class | free | card | a free's Strike |
 | Myth Hunter | 1 | skill | free | card | a free's Strike |
 
-### a roll twice (2)
-
-| Feat | Lvl | Category | Type | Feat module | Detail |
-|---|---:|---|---|---|---|
-| Feline Dance | 8 | archetype | reaction | card | a roll twice |
-| Hematocritical | 10 | archetype | free | card | a roll twice |
-
 ### it grants Wraith Deviant Classification (2)
 
 | Feat | Lvl | Category | Type | Feat module | Detail |
@@ -5504,6 +5490,12 @@ The simulator's own reason, from the feat screen. "The feat module reads nothing
 | Feat | Lvl | Category | Type | Feat module | Detail |
 |---|---:|---|---|---|---|
 | Resilient Chassis | 5 | ancestry | reaction | card | a reaction to "damaged" |
+
+### a roll twice (1)
+
+| Feat | Lvl | Category | Type | Feat module | Detail |
+|---|---:|---|---|---|---|
+| Hematocritical | 10 | archetype | free | card | a roll twice |
 
 ### it grants Hunt Prey (1)
 

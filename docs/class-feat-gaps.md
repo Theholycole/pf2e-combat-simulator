@@ -1,6 +1,6 @@
 # Class feats neither the feat module nor the simulator plays
 
-Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1533 are rated; 2823 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
+Made by `node tools/class-feat-index.mjs` on 2026-11-07 from the feat screen's rows: PF2e's class-category feats (class and archetype feats). 1538 are rated; 2818 aren't. **No plan** means the feat module compiles nothing for it and PF2e's own rules give the simulator nothing a fight counts; **plan** means the feat module has a card for it the simulator doesn't play (the reason column). Teams+ and other module packs aren't in this copy, so they aren't here.
 
 Buckets go by the feat's text: dedications first, then what a fight would use, then the rest. A feat that is only a combination of basic actions is still listed; it's discarded when it comes up.
 
@@ -9,14 +9,14 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Bucket | No plan | Plan, not played | Total |
 |---|---:|---:|---:|
 | Archetype dedications (grant class features) | 76 | 81 | 157 |
-| Combat actions and reactions | 193 | 364 | 557 |
+| Combat actions and reactions | 192 | 361 | 553 |
 | Passives that change a class feature | 156 | 40 | 196 |
 | Other combat passives | 287 | 84 | 371 |
 | Spellcasting (slots, focus, spellshapes) | 231 | 40 | 271 |
 | Companions, familiars and eidolons | 125 | 47 | 172 |
 | Out of combat (exploration, downtime, skills) | 282 | 55 | 337 |
-| Nothing a fight would use | 625 | 137 | 762 |
-| **All** | 1975 | 848 | 2823 |
+| Nothing a fight would use | 625 | 136 | 761 |
+| **All** | 1974 | 844 | 2818 |
 
 ## By class
 
@@ -51,7 +51,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | thaumaturge |  | 7 | 8 | 2 | 1 | 1 | 5 | 10 | 34 |
 | witch |  | 1 | 2 | 2 | 4 | 16 | 7 | 3 | 35 |
 | wizard |  | 2 |  | 1 | 14 | 4 | 10 | 6 | 37 |
-| archetype | 146 | 256 | 43 | 196 | 95 | 64 | 147 | 439 | 1386 |
+| archetype | 146 | 252 | 43 | 196 | 95 | 64 | 147 | 438 | 1381 |
 | other | 11 | 48 | 2 | 39 | 16 | 13 | 25 | 33 | 187 |
 
 ## Why the simulator doesn't play the ones with a plan
@@ -60,7 +60,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 |---|---:|
 | a Strike with nothing more the simulator reads | 79 |
 | a timer with no rules a fight counts | 79 |
-| a plan the engine can't play | 72 |
+| a plan the engine can't play | 69 |
 | a spell the engine doesn't cast | 57 |
 | its requirement | 45 |
 | a roll whose results the simulator doesn't read | 40 |
@@ -97,7 +97,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | it grants Hunt Prey: nothing a fight uses | 2 |
 | it grants Underwater Marauder: the feat module reads nothing for it | 2 |
 | it grants Snare Crafting: the feat module reads nothing for it | 2 |
-| a roll twice | 2 |
 | it grants Dragon Deviant Classification: the feat module reads nothing for it | 2 |
 | it grants Wraith Deviant Classification: the feat module reads nothing for it | 2 |
 | it grants Blight Soul Deviant Classification: the feat module reads nothing for it | 2 |
@@ -150,6 +149,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | it grants Sidestep Through Time: a plan the engine can't play | 1 |
 | it grants Call Warshard Weapon: the feat module reads nothing for it | 1 |
 | it grants Once Bitten: the feat module reads nothing for it | 1 |
+| a roll twice | 1 |
 | it grants Absorb into the Aegis: the feat module reads nothing for it | 1 |
 | a target the simulator can't tell | 1 |
 | a free's Strike | 1 |
@@ -400,7 +400,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Warshard Warrior Dedication | 12 | other | passive | plan | it grants Call Warshard Weapon: the feat module reads nothing for it |
 | Wildspell Dedication | 12 | other | passive | plan | a spell the engine doesn't cast (Spellsurge) |
 
-## Combat actions and reactions (557)
+## Combat actions and reactions (553)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -447,10 +447,8 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Soul Flare | 4 | archetype | reaction | no plan |  |
 | Spot Translate | 4 | archetype | reaction | no plan |  |
 | Strategist Stance | 4 | archetype | 1 action | plan | a plan the engine can't play (its targeting or what it does) |
-| Such a Disgrace! | 4 | archetype | reaction | plan | a plan the engine can't play (its targeting or what it does) |
 | Swift Leap | 4 | archetype | 1 action | plan | a teleport |
 | Tut-Tut | 4 | archetype | free | no plan |  |
-| You're an Embarrassment! | 4 | archetype | reaction | plan | a plan the engine can't play (its targeting or what it does) |
 | Antler Rush | 6 | archetype | 2 actions | plan | its text has no Strike of its user's |
 | Battlefield Agility | 6 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Bear Hug (Werecreature) | 6 | archetype | 2 actions | plan | its requirement (You're in bear or hybrid shape, and your last action was a successful claw Strike.) |
@@ -505,7 +503,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Death from Above | 8 | archetype | 2 actions | plan | its requirement (You are standing, climbing, or balancing on a surface at least 10 feet above your target) |
 | Dismal Harvest | 8 | archetype | free | plan | a plan the engine can't play (its targeting or what it does) |
 | Drive Back | 8 | archetype | reaction | plan | a plan the engine can't play (its targeting or what it does) |
-| Feline Dance | 8 | archetype | reaction | plan | a roll twice |
 | Fine Print | 8 | archetype | free | plan | an Effect with nothing a fight counts |
 | Gardener's Resolve | 8 | archetype | reaction | plan | a plan the engine can't play (its targeting or what it does) |
 | Ghost Flight | 8 | archetype | 2 actions | plan | a timer with no rules a fight counts |
@@ -641,7 +638,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Declare Anathema | 16 | archetype | 2 actions | plan | a roll whose results the simulator doesn't read |
 | Deflecting Cloud | 16 | archetype | reaction | no plan |  |
 | Emergency Regeneration | 16 | archetype | reaction | plan | a spell the feat casts |
-| Focus Ally | 16 | archetype | reaction | no plan |  |
 | Following Smite | 16 | archetype | 1 action | plan | its requirement (Your last action was a Strike made with a weapon or unarmed attack empowered by @UUID[Compendium.pf2e.f |
 | Grave Threat | 16 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
 | Incorporeal Shot | 16 | archetype | 1 action | plan | a Strike with nothing more the simulator reads |
@@ -2334,7 +2330,7 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Reprepare Spell | 18 | wizard | passive | no plan |  |
 | Spell Mastery | 20 | wizard | passive | no plan |  |
 
-## Nothing a fight would use (762)
+## Nothing a fight would use (761)
 
 | Feat | Lvl | Class | Type | Feat module | Simulator's reason |
 |---|---:|---|---|---|---|
@@ -2488,7 +2484,6 @@ Buckets go by the feat's text: dedications first, then what a fight would use, t
 | Expanded Elemental Magic | 6 | archetype | passive | no plan |  |
 | Expeditious Advance | 6 | archetype | passive | no plan |  |
 | Expert Fireworks Crafter | 6 | archetype | passive | no plan |  |
-| Fear No Pain! | 6 | archetype | reaction | plan | a plan the engine can't play (its targeting or what it does) |
 | Field Artillery | 6 | archetype | passive | no plan |  |
 | Fleeting Shadow | 6 | archetype | 2 actions | no plan |  |
 | Flexible Ritualist | 6 | archetype | passive | no plan |  |

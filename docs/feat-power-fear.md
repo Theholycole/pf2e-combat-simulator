@@ -1,11 +1,11 @@
 # Feat and action power in combat
 
-Made by `node tools/feat-power.mjs` on 2026-11-07: 8 feats and actions rated, 0 not simulated.
+Made by `node tools/feat-power.mjs` on 2026-11-07: 14 feats and actions rated, 0 not simulated.
 
 ## How it's measured
 
 - The feat module compiles each feat with the numbers of the standard party's PC who'd take it (fighter, rogue, wizard or cleric; a class outside the party goes to the one who fights most like it), at the feat's level.
-- The party fights a moderate boss (one creature 2 levels up) and a moderate group (four creatures 2 levels down), 200 fights each (at most; a feat's fights stop once its answer is clear: on average 139 an encounter here, all fights 9, no effect 4, about zero 3 encounters), with the feat and without it, on the same dice, on a 5-foot square grid (an open field, the sides 30 feet apart, each side's melee fighters in front and its casters two squares behind; moving out of a foe's reach provokes its Reactive Strike). Fights go to the end (no morale, no retreat).
+- The party fights a moderate boss (one creature 2 levels up) and a moderate group (four creatures 2 levels down), 200 fights each (at most; a feat's fights stop once its answer is clear: on average 118 an encounter here, all fights 13, no effect 11, about zero 3, precise 1 encounters), with the feat and without it, on the same dice, on a 5-foot square grid (an open field, the sides 30 feet apart, each side's melee fighters in front and its casters two squares behind; moving out of a foe's reach provokes its Reactive Strike). Fights go to the end (no morale, no retreat).
 - A fight's score is the danger scale's: the party's Hit Points lost as a share, +0.25 a PC down, +1 a PC killed, +1 a wipe.
 - **Rating** is the change in levels of the foes: the score the feat saves, divided by how much the score moves when the foes are a level stronger. +0.25 means having the feat is like fighting foes a quarter of a level lower. The ± is one standard error.
 - **Uses a fight** is how often the PC used it in the fights that rated it. A feat the AI never picks rates near zero even if it's good at the table.
@@ -13,7 +13,7 @@ Made by `node tools/feat-power.mjs` on 2026-11-07: 8 feats and actions rated, 0 
 
 ## Summary
 
-- no clear effect: 6
+- no clear effect: 12
 - minor: 1
 - hurts: 1
 
@@ -23,12 +23,18 @@ Made by `node tools/feat-power.mjs` on 2026-11-07: 8 feats and actions rated, 0 
 |---:|---|---:|---|---|---|---:|---:|---:|---:|---|---|
 | 1 | Reminder of the Greater Fear | 8 | Class | — | check | +0.09 ± 0.03 | +0.12 | +0.06 | 1.0 | minor |  |
 | 2 | Comforting Presence | 10 | Skill | — | check | +0.05 ± 0.03 | +0.02 | +0.08 | 0.9 | no clear effect |  |
-| 3 | Creature Comforts | 4 | Class | barbarian | check | +0.03 ± 0.03 | +0.02 | +0.04 | 1.6 | no clear effect |  |
-| 4 | Reassuring Presence | 1 | Ancestry | — | check | +0.00 ± 0.02 | +0.00 | +0.01 | 0.6 | no clear effect |  |
-| 5 | Fight or Flight | 6 | Class | gunslinger | frightened by a foe in its reach: a melee Strike at it (reaction) | +0.00 ± 0.00 | +0.00 | +0.01 | 0.0 | no clear effect | the AI never used it |
-| 6 | Resounding Bravery | 8 | Class | fighter | +1 to saves and temporary Hit Points on a critically successful Will save (doubled against fear) | +0.00 ± 0.00 | +0.00 | +0.00 | 0.2 | no clear effect |  |
-| 7 | Mask of Fear | 13 | Ancestry | — | check | +0.00 ± 0.00 | +0.00 | +0.00 | 0.1 | no clear effect |  |
-| 8 | Tactical Retreat | 0 | Action | — | check | −0.36 ± 0.06 | −0.23 | −0.49 | 1.0 | hurts |  |
+| 3 | Fear No Pain! | 6 | Class | — | an ally's failed save against a mental effect rerolled at +2 (reaction, once a fight) | +0.04 ± 0.05 | +0.01 | +0.07 | 0.9 | no clear effect |  |
+| 4 | Creature Comforts | 4 | Class | barbarian | check | +0.03 ± 0.03 | +0.02 | +0.04 | 1.6 | no clear effect |  |
+| 5 | Such a Disgrace! | 4 | Class | — | an ally's failed Will save against a mental effect rerolled at +1, each ally once (reaction) | +0.03 ± 0.03 | +0.01 | +0.05 | 1.0 | no clear effect |  |
+| 6 | Mistaken Identity | 5 | Ancestry | — | a failed save against a mental effect rerolled, the better kept (reaction, once a fight) | +0.01 ± 0.01 | +0.00 | +0.02 | 0.1 | no clear effect |  |
+| 7 | Reassuring Presence | 1 | Ancestry | — | check | +0.00 ± 0.02 | +0.00 | +0.01 | 0.6 | no clear effect |  |
+| 8 | Fight or Flight | 6 | Class | gunslinger | frightened by a foe in its reach: a melee Strike at it (reaction) | +0.00 ± 0.00 | +0.00 | +0.01 | 0.0 | no clear effect | the AI never used it |
+| 9 | Resounding Bravery | 8 | Class | fighter | +1 to saves and temporary Hit Points on a critically successful Will save (doubled against fear) | +0.00 ± 0.00 | +0.00 | +0.00 | 0.2 | no clear effect |  |
+| 10 | Mask of Fear | 13 | Ancestry | — | check | +0.00 ± 0.00 | +0.00 | +0.00 | 0.1 | no clear effect |  |
+| 11 | You're an Embarrassment! | 4 | Class | — | an ally's failed Will save against an incapacitation effect rerolled at +1, each ally once (reaction) | +0.00 ± 0.00 | +0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 12 | Mask of Rejection | 5 | Ancestry | — | a failed save against a spell rerolled at +2, the new result kept (reaction, once a fight) | +0.00 ± 0.00 | +0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 13 | Focus Ally | 16 | Class | — | an adjacent ally's failed save against an incapacitation effect rerolled, the new result kept (reaction) | +0.00 ± 0.00 | +0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 14 | Tactical Retreat | 0 | Action | — | check | −0.36 ± 0.06 | −0.23 | −0.49 | 1.0 | hurts |  |
 
 ## Basic actions
 
@@ -43,12 +49,18 @@ Each basic action left out of every PC, at levels 1, 5, 10, 15 and 20: what the 
 |---:|---|---:|---|---|---|---:|---:|---:|---:|---|---|
 | 1 | Reminder of the Greater Fear | 8 | Class | — | check | +0.09 ± 0.03 | +0.12 | +0.06 | 1.0 | minor |  |
 | 2 | Comforting Presence | 10 | Skill | — | check | +0.05 ± 0.03 | +0.02 | +0.08 | 0.9 | no clear effect |  |
-| 3 | Creature Comforts | 4 | Class | barbarian | check | +0.03 ± 0.03 | +0.02 | +0.04 | 1.6 | no clear effect |  |
-| 4 | Reassuring Presence | 1 | Ancestry | — | check | +0.00 ± 0.02 | +0.00 | +0.01 | 0.6 | no clear effect |  |
-| 5 | Fight or Flight | 6 | Class | gunslinger | frightened by a foe in its reach: a melee Strike at it (reaction) | +0.00 ± 0.00 | +0.00 | +0.01 | 0.0 | no clear effect | the AI never used it |
-| 6 | Resounding Bravery | 8 | Class | fighter | +1 to saves and temporary Hit Points on a critically successful Will save (doubled against fear) | +0.00 ± 0.00 | +0.00 | +0.00 | 0.2 | no clear effect |  |
-| 7 | Mask of Fear | 13 | Ancestry | — | check | +0.00 ± 0.00 | +0.00 | +0.00 | 0.1 | no clear effect |  |
-| 8 | Tactical Retreat | 0 | Action | — | check | −0.36 ± 0.06 | −0.23 | −0.49 | 1.0 | hurts |  |
+| 3 | Fear No Pain! | 6 | Class | — | an ally's failed save against a mental effect rerolled at +2 (reaction, once a fight) | +0.04 ± 0.05 | +0.01 | +0.07 | 0.9 | no clear effect |  |
+| 4 | Creature Comforts | 4 | Class | barbarian | check | +0.03 ± 0.03 | +0.02 | +0.04 | 1.6 | no clear effect |  |
+| 5 | Such a Disgrace! | 4 | Class | — | an ally's failed Will save against a mental effect rerolled at +1, each ally once (reaction) | +0.03 ± 0.03 | +0.01 | +0.05 | 1.0 | no clear effect |  |
+| 6 | Mistaken Identity | 5 | Ancestry | — | a failed save against a mental effect rerolled, the better kept (reaction, once a fight) | +0.01 ± 0.01 | +0.00 | +0.02 | 0.1 | no clear effect |  |
+| 7 | Reassuring Presence | 1 | Ancestry | — | check | +0.00 ± 0.02 | +0.00 | +0.01 | 0.6 | no clear effect |  |
+| 8 | Fight or Flight | 6 | Class | gunslinger | frightened by a foe in its reach: a melee Strike at it (reaction) | +0.00 ± 0.00 | +0.00 | +0.01 | 0.0 | no clear effect | the AI never used it |
+| 9 | Resounding Bravery | 8 | Class | fighter | +1 to saves and temporary Hit Points on a critically successful Will save (doubled against fear) | +0.00 ± 0.00 | +0.00 | +0.00 | 0.2 | no clear effect |  |
+| 10 | Mask of Fear | 13 | Ancestry | — | check | +0.00 ± 0.00 | +0.00 | +0.00 | 0.1 | no clear effect |  |
+| 11 | You're an Embarrassment! | 4 | Class | — | an ally's failed Will save against an incapacitation effect rerolled at +1, each ally once (reaction) | +0.00 ± 0.00 | +0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 12 | Mask of Rejection | 5 | Ancestry | — | a failed save against a spell rerolled at +2, the new result kept (reaction, once a fight) | +0.00 ± 0.00 | +0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 13 | Focus Ally | 16 | Class | — | an adjacent ally's failed save against an incapacitation effect rerolled, the new result kept (reaction) | +0.00 ± 0.00 | +0.00 | +0.00 | 0.0 | no clear effect | the AI never used it |
+| 14 | Tactical Retreat | 0 | Action | — | check | −0.36 ± 0.06 | −0.23 | −0.49 | 1.0 | hurts |  |
 
 ## Not simulated, by reason
 

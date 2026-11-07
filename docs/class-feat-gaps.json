@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1533,
+ "rated": 1538,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -4242,27 +4242,6 @@
    "text": "You find the most strategic options for you and your allies. When you use this action, attempt a @Check[society|dc:@self.level|roller:self] or @Check[warfare-lore|dc:@self.level|roller:self] check. The DC is usually a standard-difficulty DC"
   },
   {
-   "id": "ACVze8hUm9L5Slrg",
-   "name": "Such a Disgrace!",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "fortune"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a plan the engine can't play",
-   "detail": "a plan the engine can't play (its targeting or what it does)",
-   "text": "Trigger An ally within 30 feet fails a Will saving throw against a mental effect. You expect the same level of urbane sophistication from your allies as you possess, so whenever one of them succumbs to egregious behavior from a mental effec"
-  },
-  {
    "id": "VP2CWUTZ9Edg82uz",
    "name": "Swift Leap",
    "level": 4,
@@ -4305,27 +4284,6 @@
    "reason": null,
    "detail": null,
    "text": "Trigger You hit a creature with a melee attack roll. The Sapphire Butterfly is not one for violence when simply intimidating a foe will do. From that vigilante's techniques, you've learned how to pull a deadly blow at the last moment, threa"
-  },
-  {
-   "id": "13bMIkqXpKt9pxAm",
-   "name": "You're an Embarrassment!",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "fortune"
-   ],
-   "rarity": "uncommon",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a plan the engine can't play",
-   "detail": "a plan the engine can't play (its targeting or what it does)",
-   "text": "Trigger An ally within 30 feet fails a Will saving throw against an incapacitation effect. Some Firebrands can't stand it when their allies are ruining their moment, and you're no different. Your loud and forceful condemnation of an ally su"
   },
   {
    "id": "L9pd3yyjVK0rgiDc",
@@ -5453,27 +5411,6 @@
    "reason": "a plan the engine can't play",
    "detail": "a plan the engine can't play (its targeting or what it does)",
    "text": "Trigger An enemy within your reach Strikes an ally adjacent to you. Requirements You have your shield raised. You push the enemy back and attempt to intercede between the foe and your ally. You attempt to Shove the triggering enemy with you"
-  },
-  {
-   "id": "7gYTO86pkFmm6zBn",
-   "name": "Feline Dance",
-   "level": 8,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "fortune"
-   ],
-   "rarity": "uncommon",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a roll twice",
-   "detail": "a roll twice",
-   "text": "Access catfolk ancestry Frequency once per hour Trigger You attempt a basic Reflex save. Requirements You're in either claw stance or talon stance. You fluidly move between stances in the process of dodging. Roll the save twice and take the"
   },
   {
    "id": "FFn6obt0uPkGsLvA",
@@ -8301,27 +8238,6 @@
    "reason": "a spell the feat casts",
    "detail": "a spell the feat casts",
    "text": "Frequency once per day Trigger You're reduced to 0 hit points from damage that's neither acid nor fire. You have battled against foes whose bodies naturally regenerate, and while yours doesn't do so all the time, it can happen in a pinch. Y"
-  },
-  {
-   "id": "zodscjgydZRUSOLO",
-   "name": "Focus Ally",
-   "level": 16,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "fortune"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Trigger An adjacent ally fails, but doesn't critically fail, a saving throw against an effect with the incapacitation trait. You're so focused on your allies that you can help them to recenter when something would take them out of the fight"
   },
   {
    "id": "uyZ3gY7gtKCLiywR",
@@ -47878,29 +47794,6 @@
    "reason": null,
    "detail": null,
    "text": "You're particularly adept at crafting fireworks, allowing you to create more fireworks than you otherwise could. Your number of versatile vials per day increases to 5."
-  },
-  {
-   "id": "twx7XDGabYJz92mD",
-   "name": "Fear No Pain!",
-   "level": 6,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "reaction",
-   "actions": null,
-   "traits": [
-    "archetype",
-    "auditory",
-    "fortune",
-    "linguistic"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a plan the engine can't play",
-   "detail": "a plan the engine can't play (its targeting or what it does)",
-   "text": "Frequency once per day Trigger An ally within 30 feet fails a save against a mental effect. You have learned to endure pain without complaint and are capable of steeling your allies with similar resolve. When you give them a shout of encour"
   },
   {
    "id": "moXYfz806x6uXIW9",
