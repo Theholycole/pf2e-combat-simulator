@@ -385,7 +385,9 @@ function liveRoller(state) {
             let total = instance.constant;
             for (const term of instance.dice) {
                 let rolled = 0;
-                for (let i = 0; i < term.count; i++) rolled += state.rng.die(term.die);
+                // (2026-11-07, Impose Order (Psychic): this turn each die its average rounded up.)
+                const even = Boolean(state.castingBy?.orderActive);
+                for (let i = 0; i < term.count; i++) rolled += even ? Math.ceil((term.die + 1) / 2) : state.rng.die(term.die);
                 total += term.factor * rolled;
             }
             return Math.max(0, Math.floor(total));
@@ -457,6 +459,8 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
             if (total > result.total) result = { natural, total, dc: options.dc, degree: DEGREE_NAMES[degreeOf(total, options.dc, natural)] };
         }
     }
+    // (2026-11-07, Second Thoughts: who critically succeeded at a save — fight.js reads it after a spell.)
+    if (SAVES.has(statistic) && saver?.id && result?.degree === "criticalSuccess") (state.critSaves ??= new Set()).add(saver.id);
     if (!SAVES.has(statistic) || !saver?.id || !["failure", "criticalFailure"].includes(result?.degree) || !isActive(saver)) return result;
     // (B125: an ally's failed save rerolled, keeping the better — against the effects it names, or its kind of save.)
     // (B220, Second Chance: a free action once a round, not a reaction.)
@@ -550,6 +554,18 @@ const NOT_HARMFUL = new Set(["off-guard", "quickened", "concealed", "hidden", "i
 export function bothHitRider(state, attacker, target, rider, { said = "Both Strikes hit" } = {}) {
     if (!isActive(target)) return;
     if (said) log(state, `  ${said} ${target.name}`);
+    // (2026-11-07, Wrath of the First Ghoul: a 10th-rank Power Word Kill on the creature hit — level 16 or lower dies, 17 with 50 HP or fewer
+    // dies (else drops to 0), higher takes 50.)
+    if (rider.powerWordKill && isActive(target) && !(target.immunities ?? []).some((entry) => ["death-effects", "mental"].includes(entry?.type ?? entry))) {
+        const level = target.level ?? 0;
+        if (level <= 16 || (level === 17 && target.hp.value <= 50)) {
+            log(state, `  ${target.name} dies (${rider.powerWordKill})`);
+            applyDamage(state, target, [{ type: "untyped", amount: target.hp.value + (target.hp.temp ?? 0) + 1 }], { source: attacker });
+        } else {
+            const dealt = applyDamage(state, target, [{ type: "untyped", amount: level === 17 ? target.hp.value + (target.hp.temp ?? 0) : 50 }], { source: attacker });
+            log(state, `  ${target.name} takes ${dealt} (${rider.powerWordKill})`);
+        }
+    }
     // (C34, Infernal Interference: no reactions until the attacker's next turn begins.)
     if (rider.noReactions) {
         target.reactionLocks = [...(target.reactionLocks ?? []).filter((held) => held.by !== attacker.id), { by: attacker.id, spell: "no reactions", untilRound: state.round + 1, ownTurn: false, sustained: false }];
@@ -597,6 +613,12 @@ function stackedValue(target, change, after = false) {
 }
 
 export function applyCondition(state, target, slug, value, duration, source, scope = null) {
+    // (2026-11-07, Watch Your Back: a –2 status penalty to Will saves against fear effects for a minute — tools/lib/feat-power.mjs's own slug.)
+    if (slug === "watch-your-back") {
+        target.saveBonuses = [...(target.saveBonuses ?? []).filter((bonus) => bonus.from !== "Watch Your Back"), { saves: ["will"], type: "status", value: -2, predicate: ["fear"], from: "Watch Your Back" }];
+        log(state, `  ${target.name} takes –2 to Will saves against fear (Watch Your Back)`);
+        return true;
+    }
     // (2026-11-07, Savor the Hunt: it frightens a creature — temporary Hit Points of half its level rounded up (reaction, once).)
     if (slug === "frightened" && source?.savorTheHunt && !source.savored && source.side !== target.side && !(target.cond?.frightened > 0) && isActive(source) && canReact(source, "Savor the Hunt")) {
         source.savored = true;
@@ -1051,6 +1073,9 @@ function revivable(spell, target) {
 
 export function applyHeal(state, target, amount) {
     if (amount <= 0 || target.status === "dead" || target.status === "fled" || target.status === "surrendered") return 0;
+    // (2026-11-07, Channeler's Stance: a vitality spell's healing a status bonus of its rank — its apparition spells' damage not played.)
+    const channel = state.castingBy?.channelerStance && (state.castingNow?.plan?.traits ?? []).includes("vitality") ? Number(state.castingNow.castRank) || 1 : 0;
+    if (channel) amount += channel;
     if (target.status === DOWN) {
         if (target.kind !== "pc") return 0;
         // Losing dying: wounded goes up by 1, and the creature wakes (still prone).
@@ -1638,7 +1663,8 @@ function applyControl(state, caster, spell, target, change) {
     }
     if (change.slug === "contained") {
         const base = Number(change.value) || 40;
-        target.contained = { hp: base + Math.max(0, rank - 4) * (base >= 40 ? 15 : 5), hardness: 10, untilRound: state.round + 10, by: caster.id, spell: spell.name };
+        // (2026-11-07, Curse of the Saumen Kar: its ice dome's Hardness 20, lasting till destroyed — spell.containment.)
+        target.contained = { hp: spell.containment?.hp ?? base + Math.max(0, rank - 4) * (base >= 40 ? 15 : 5), hardness: spell.containment?.hardness ?? 10, untilRound: state.round + (spell.containment?.rounds ?? 10), by: caster.id, spell: spell.name };
         if (target.meleeId !== null && target.meleeId !== undefined) leaveMelee(state, target, target.band === "far" ? "far" : "near");
         log(state, `  ${target.name} is contained (${target.contained.hp} HP field)`);
         return;
@@ -3203,13 +3229,20 @@ function applyChanges(state, caster, spell, changes, context, io) {
 // Casts spell spellIndex at the targets (ids). Spends its pool.
 // (2026-11-02, classes.js: a sorcerer's Sorcerous Potency — its spell's rank more damage on each creature a slot spell damages — and the like:
 // caster.spellDamageBonus { perRank, slotsOnly }.)
-export function withCasterDamage(caster, spell, changes) {
+export function withCasterDamage(caster, spell, changes, state = null) {
     const bonus = caster?.spellDamageBonus;
     if (!bonus || spell.kind || !Array.isArray(changes)) return changes;
     if (bonus.slotsOnly && (!spell.pool || (spell.plan?.traits ?? []).includes("cantrip") || /:focus$/.test(spell.pool))) return changes;
+    // (2026-11-07, Strain Mind: once a fight with its focus spent, a psi cantrip amped — about a die a rank more — for 4 Hit Points a rank.)
+    const strained = caster.strainMind && !caster.strained && (spell.plan?.traits ?? []).includes("cantrip") && changes.some((change) => change.op === "damage") && Object.entries(caster.spellPools ?? {}).every(([key, left]) => !/:focus$/.test(key) || left <= 0);
+    if (strained && state) {
+        caster.strained = true;
+        caster.hp.value = Math.max(1, caster.hp.value - 4 * (Number(spell.castRank) || 1));
+        log(state, `  ${caster.name} uses Strain Mind: ${spell.name} amped for ${4 * (Number(spell.castRank) || 1)} Hit Points`);
+    }
     // (2026-11-07, No!!!: an ally's drop unleashes its psyche till the end of its next turn — its Unleash Psyche's damage once more.)
     const shocked = caster.shockedUnleash != null && caster.shockedUnleash >= (caster.lastTurnRound ?? 0) ? 1 : 0;
-    const extra = Math.max(0, Math.round(((bonus.perRank ?? 1) + shocked) * (Number(spell.castRank) || 1)));
+    const extra = Math.max(0, Math.round(((bonus.perRank ?? 1) + shocked + (strained ? 5 : 0)) * (Number(spell.castRank) || 1)));
     if (!extra) return changes;
     const seen = new Set();
     return changes.map((change) => {
@@ -3299,11 +3332,34 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
 export function castPlan(state, caster, spell, targetIds, actions, options = {}) {
     // (2026-11-07: the spell being cast, for a condition's rider on one — Thousand-Year Grudge's Demoralize.)
     const outer = state.castingNow;
+    const outerBy = state.castingBy;
     state.castingNow = spell;
+    state.castingBy = caster;
+    // (2026-11-07, Timeline-Splitting Spell: once a fight, a non-cantrip slot spell with a save cast in two timelines — a second use of its
+    // slot spent where it has one, the better result kept (its third action not played).)
+    const outerSplit = state.splitting;
+    if (caster.timelineSplit && !caster.timelineSplitUsed && spell.pool && !spell.kind && !(spell.plan?.traits ?? []).includes("cantrip") && spell.plan?.resolution?.kind === "save" && caster.side !== undefined) {
+        caster.timelineSplitUsed = true;
+        if ((caster.spellPools?.[spell.pool] ?? 0) > 0) caster.spellPools[spell.pool] -= 1;
+        state.splitting = caster;
+        log(state, `  ${caster.name} uses Timeline-Splitting Spell`);
+    }
     try {
-        return castPlanInner(state, caster, spell, targetIds, actions, options);
+        const result = castPlanInner(state, caster, spell, targetIds, actions, options);
+        // (2026-11-07, Tree of Duality's Cleansing Pollen: each living ally about the tree — taken as about the kineticist — regains its d4s.)
+        if (spell.allyHeal) {
+            for (const ally of state.list) {
+                if (ally.side !== caster.side || ally.status !== ACTIVE || ally.kind === "object" || isUndead(ally) || ally.hp.value >= ally.hp.max || (ally !== caster && !sameMelee(ally, caster) && (ally.band === "far") !== (caster.band === "far"))) continue;
+                const healed = Math.min(ally.hp.max - ally.hp.value, rollCount(state, spell.allyHeal));
+                ally.hp.value += healed;
+                log(state, `  ${ally.name} regains ${healed} HP (${spell.name})`);
+            }
+        }
+        return result;
     } finally {
         state.castingNow = outer;
+        state.castingBy = outerBy;
+        state.splitting = outerSplit;
     }
 }
 
@@ -3573,10 +3629,21 @@ function castPlanInner(state, caster, spell, targetIds, actions, { forcedDegree 
             log(state, `  ${given.actor.name} uses ${mythicSave.name}: its ${statistic} save at mythic proficiency (+${mythicSave.bonus})`);
             given = { ...given, modifier: given.modifier + mythicSave.bonus };
         }
+        // (2026-11-07, Timeline-Splitting Spell: two castings, the better timeline kept — a foe's save rolled twice, the worse for it.)
+        if (state.splitting === caster && SAVE_SLUGS.has(statistic) && given?.actor && given.actor.side !== caster.side && forcedDegree === null) given = { ...given, misfortune: true };
         const keep = ownFortune(statistic);
         const options = raised(statistic, keep ? { ...given, [keep === "higher" ? "fortune" : "misfortune"]: true } : given);
         const result = betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
         let final = heroReroll(statistic, options, result) ?? result;
+        // (2026-11-07, Impose Order: its own skill check about to critically fail — 10 + its proficiency bonus instead (taken as its level + 4),
+        // once a fight (fortune; reaction).)
+        if (!SAVE_SLUGS.has(statistic) && caster.imposeOrder && !caster.orderImposed && options?.actor === caster && final?.degree === "criticalFailure" && Number.isFinite(options?.dc) && canReact(caster, "Impose Order")) {
+            caster.orderImposed = true;
+            spendReaction(caster, "Impose Order");
+            const total = 10 + (caster.level ?? 1) + 4;
+            final = { natural: null, total, dc: options.dc, degree: DEGREE_NAMES[degreeOf(total, options.dc, null)] };
+            log(state, `  ${caster.name} uses Impose Order: ${total}, ${final.degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
+        }
         // (2026-11-05, Black Cat Curse: a foe's successful save against the party, rerolled with the worse kept — a PC's reaction within
         // 30 feet, once a fight.)
         if (SAVE_SLUGS.has(statistic) && forcedDegree === null && options?.actor?.id && final?.degree && DEGREE_NAMES.indexOf(final.degree) >= 2) {
@@ -3700,7 +3767,7 @@ function castPlanInner(state, caster, spell, targetIds, actions, { forcedDegree 
     }
     if (info.immunity && info.immunityDegrees) markImmune(targets.filter((target) => !result.degrees[target.id] || info.immunityDegrees.includes(result.degrees[target.id])));
     // (2026-10-27: an immunity to one part of it — trigger.partImmunity, part-immunity.js: that condition left out of an immune target's row.)
-    result.changes = withCasterDamage(caster, spell, partImmune(state, caster, spell.plan, spell.name, result).kept);
+    result.changes = withCasterDamage(caster, spell, partImmune(state, caster, spell.plan, spell.name, result).kept, state);
     applyChanges(state, caster, spell, result.changes, context, io);
     // (S56, Acid Splash: a hit's splash damage on the others within 5 feet of the target — its Melee — not doubled on a critical hit.)
     if (spell.plan?.resolution?.splash) splashAround(state, caster, spell, targets, result);

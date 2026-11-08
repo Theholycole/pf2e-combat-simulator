@@ -841,5 +841,10 @@ export const SIM_WHY = Object.freeze({
     "Reckless Abandon": SCENE,
     "Gigaton Strike": REACH,
     "Ubiquitous Weakness": DAMAGE_TYPE,
+    "Ghoran's Wrath": TERRAIN,
+    "All in My Head": DEATH,
+    "Plate in Treasure": UTILITY,
+    "Collateral Thrash": SUBCLASS,
+    "Ragdya's Dance": REACH,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

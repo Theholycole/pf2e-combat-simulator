@@ -131,7 +131,12 @@ export function targetAC(state, attacker, target, strike, flanked) {
     const mark = markOn(target, attacker);
     const branded = mark?.ac ? Math.max(0, mark.ac - statusPenalty(target, "ac")) : 0;
     // (2026-10-22, Forbidding Ward: its status bonus against the foe it names.)
-    return armorClass(target, { ranged: !strike.melee, coverBonus: strike.unerring ? 0 : strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded + forbiddingBonus(target, attacker);
+    // (2026-11-07, Selfless Parry: beside an ally under its Dueling Parry, +1 circumstance to AC.)
+    const parried = target.side === "party" && state.list.some((other) => other.selflessParry && other !== target && other.side === target.side && isActive(other) && sameMelee(other, target) && (hasOwnEffect(other, "Parry") || hasOwnEffect(other, "Dueling Parry"))) ? 1 : 0;
+    // (2026-11-07, Blanket Defense: beside a guardian that used it this round or last (till its next turn), its raised shield's bonus.)
+    const blanket = target.side === "party" ? state.list.find((other) => other.blanketRound != null && other.blanketRound >= state.round - 1 && other !== target && other.side === target.side && isActive(other) && sameMelee(other, target) && other.shield?.raised) : null;
+    const covered = blanket && !target.shield?.raised ? Number(blanket.shield.ac ?? blanket.shield.bonus ?? 2) || 2 : 0;
+    return covered + armorClass(target, { ranged: !strike.melee, coverBonus: strike.unerring ? 0 : strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded + forbiddingBonus(target, attacker) + parried;
 }
 
 // Cache of expected hit damage per Strike object (shared by every run of a
@@ -934,6 +939,14 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage", damageOptions) - (cruel >= 2 ? cruel : 0);
     if (cruel >= 2) log(state, `  Flamboyant Cruelty: +${cruel} damage`);
     const instances = rollStrikeDamage(state.rng, strike, { critical, penalty });
+    // (2026-11-07, Lingering Bomb: a bomb with persistent damage deals none on its direct hit — splash and its persistent damage still —, and
+    // leaves a flame in the target's space: that much again as the creature starts its turn there (taken as while it stays engaged), a minute.)
+    if (attacker.lingeringBomb && strike.splashKind === "bomb" && instances.some((instance) => instance.persistent)) {
+        const flame = instances.filter((instance) => instance.persistent).reduce((sum, instance) => sum + instance.amount, 0);
+        for (const instance of instances) if (!instance.persistent) instance.amount = 0;
+        target.lingeringFlame = { amount: flame, type: instances.find((instance) => instance.persistent).type, untilRound: state.round + 10, by: attacker.id };
+        log(state, `  ${attacker.name}'s Lingering Bomb leaves a flame under ${target.name}`);
+    }
     // (2026-11-06, Targeting Strike: its ally's hit at the target — the commander's Intelligence in precision damage, once, before its next turn.)
     // (2026-11-06, Ki Cutting Sight's mark: the monk's next damaging Strike on it, the spell's slashing dice more.)
     if (target.kiCutBy?.by === attacker.id) {
@@ -1746,6 +1759,31 @@ export function applyDamage(state, target, instances, { source = null, critical 
             state.stats.reactions++;
             log(state, `  ${master.name} uses Lifelink for ${target.name}`);
             return applyDamage(state, master, instances, { source, critical, nonlethal, physical, intercepted: true });
+        }
+    }
+    // (2026-11-07, Strix Vengeance: a foe's critical hit on it — its Strikes at that foe 1d6 to 3d6 precision more till the end of its next
+    // turn (reaction, once a fight).)
+    if (critical && source && source.side !== target.side && target.strixVengeance && !target.strixSpent && isActive(target) && canReact(target, "Strix Vengeance")) {
+        target.strixSpent = true;
+        spendReaction(target, "Strix Vengeance");
+        target.vengeanceOn = { id: source.id, untilRound: state.round + 1 };
+        log(state, `  ${target.name} uses Strix Vengeance at ${source.name}`);
+    }
+    // (2026-11-07, My Kingdom, My Blood: an ally in its aura takes damage — it takes half instead (reaction), none of its own resistances.)
+    if (!intercepted && source && source.side !== target.side && target.kind !== "object") {
+        const total = instances.reduce((sum, instance) => sum + Math.max(0, instance.amount), 0);
+        const ruler = total >= 8 && state.list.find((other) => other.kingdomActive && other !== target && other.side === target.side && other.status === ACTIVE && canReact(other, "My Kingdom, My Blood") && other.hp.value > total);
+        if (ruler) {
+            spendReaction(ruler, "My Kingdom, My Blood");
+            const half = Math.floor(total / 2);
+            log(state, `  ${ruler.name} uses My Kingdom, My Blood: takes ${half} of ${target.name}'s damage`);
+            ruler.hp.value -= half;
+            let cut = half;
+            for (const instance of instances) {
+                const less = Math.min(cut, Math.max(0, instance.amount));
+                instance.amount -= less;
+                cut -= less;
+            }
         }
     }
     // (2026-11-07, Portents of the Haruspex: the foretold type's first damage to a foe of the witch's side — weakness of the witch's level.)
@@ -2601,6 +2639,17 @@ export function provoke(state, mover, kind, among = null) {
             spendReaction(enemy, "Reactive Strike");
             state.stats.reactions++;
             log(state, `  ${enemy.name} Attack of Opportunity`);
+            // (2026-11-07, Reactive Interference: a PC beside the foe disrupts its reaction — at once for a foe of its level or lower, else an
+            // attack roll against its AC (reaction).)
+            const interferer = state.list.find((other) => other.reactiveInterference && other.side !== enemy.side && isActive(other) && sameMelee(other, enemy) && canReact(other, "Reactive Interference"));
+            if (interferer) {
+                spendReaction(interferer, "Reactive Interference");
+                const own = bestMeleeStrike(interferer, enemy) ?? (interferer.strikes ?? [])[0];
+                const natural = state.rng.d20();
+                const stops = (enemy.level ?? 0) <= (interferer.level ?? 0) || (own && degreeOf(natural + attackModifier(state, interferer, enemy, own, 0, { history: [] }), armorClass(enemy, { ranged: !own.melee }), natural) >= SUCCESS);
+                log(state, `  ${interferer.name} uses Reactive Interference${stops ? `: ${enemy.name}'s reaction is disrupted` : " (fails)"}`);
+                if (stops) continue;
+            }
             // (B176, Call to Arms: an ally that uses the Reactive Strike it gave is immune to it afterward.)
             if (enemy.grantedAoo?.usedOnce) (state.byId.get(enemy.grantedAoo.by).grantAooImmune ??= new Set()).add(enemy.id);
             const result = performStrike(state, enemy, mover, strike, { reaction: true, trigger: kind });

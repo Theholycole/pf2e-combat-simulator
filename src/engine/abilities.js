@@ -900,6 +900,9 @@ export function extraApplies(extra, target, { offGuard, packAllies, attacker = n
         // (2026-11-07, First to Strike, First to Fall: a creature that hasn't yet acted in the fight.)
         case "unacted":
             return target.lastTurnRound == null;
+        // (2026-11-07, Strix Vengeance: the foe that critically hit it, till the end of its next turn.)
+        case "vengeance":
+            return Boolean(attacker?.vengeanceOn) && attacker.vengeanceOn.id === target.id && attacker.vengeanceOn.untilRound >= (attacker.lastTurnRound ?? 0);
         case "critical":
             return Boolean(critical);
         // (2026-11-03: any hit — an alchemist's additive, Disorienting Opening's.)
