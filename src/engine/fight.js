@@ -1462,6 +1462,12 @@ function actOn(state, c, action) {
                         applyEffect(state, healed, { name: shape.name, rounds: 1, modifiers, tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `shape:${shape.name}` });
                         state.log?.push(`  ${healed.name} gains ${shape.kind === "infusion" ? "1d6 more Strike damage" : "+1 to attacks and damage"} (${shape.name})`);
                     }
+                    if (shape.kind === "cleansing" && (c.mythicPoints ?? 0) > 0 && healed.hp.value > hpBefore) {
+                        c.mythicPoints--;
+                        const amount = Math.min(Number(c.level) || 1, healed.hp.max - healed.hp.value);
+                        healed.hp.value += amount;
+                        state.log?.push(`  ${healed.name} regains ${amount} HP more (${shape.name})`);
+                    }
                     if (shape.kind === "echoing") {
                         const second = state.list.filter((other) => other !== healed && other.side === c.side && isActive(other) && other.kind !== "object" && other.hp.value < other.hp.max && (other.band === "far") === (c.band === "far")).sort((a, b) => (a.hp.value / a.hp.max) - (b.hp.value / b.hp.max))[0];
                         if (second) {

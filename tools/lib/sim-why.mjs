@@ -945,5 +945,11 @@ export const SIM_WHY = Object.freeze({
     "Four Winds": REACH,
     "Tikling Bird Twirl": REACH,
     "Natural Conduit": REACH,
+    "Cast Down": SUBCLASS,
+    "Ebb and Flow": SUBCLASS,
+    "Mythic Casting": SUBCLASS,
+    "Contagious Spell": SUBCLASS,
+    "Bullet Dancer Reload": SUBCLASS,
+    "Recover Spell": FOE_SPELL,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });
