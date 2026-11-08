@@ -620,6 +620,11 @@ function startTurn(state, c) {
     }
     // A complex hazard: its routine's actions.
     let actions = isHazard(c) ? (c.hazard?.routineActions ?? 1) : 3 + (c.cond.quickened || vengeance ? 1 : 0);
+    // (2026-11-08, Recover Spell: an action of this turn spent recovering a disrupted spell.)
+    if (c.lostActions) {
+        actions = Math.max(0, actions - c.lostActions);
+        c.lostActions = 0;
+    }
     // (2026-11-07, Blanket Defense: 3 actions — its shield raised, and allies beside it get its bonus till its next turn (played when two or
     // more allies stand beside it with a foe at them, the turn begins).)
     if (c.blanketDefense && c.status === ACTIVE && actions >= 3 && c.shield && !c.shield.broken) {
@@ -1311,8 +1316,22 @@ function actOn(state, c, action) {
             const drained = (spell?.vampiric || spell?.forcible || spell?.detonating || spell?.energyAblation || spell?.splitShot || spell?.detonationArray || spell?.touchFocus || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             state.critSaves = null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
+            // (2026-11-08, Recover Spell: a disrupted spell's slot regained, to be cast again next turn — played as the slot given back, an
+            // action of its next turn spent on it.)
+            if (disrupted && c.recoverSpell && spell?.pool && !spell.kind && isActive(c)) {
+                c.spellPools[spell.pool] = (c.spellPools[spell.pool] ?? 0) + 1;
+                c.lostActions = (c.lostActions ?? 0) + 1;
+                state.log?.push(`  ${c.name} will Recover Spell (${spell.name})`);
+            }
             // (2026-11-07, Second Thoughts: its single-target mental spell critically saved against — cast again at another foe, no slot
             // (reaction; its "until the end of your next turn" taken as at once).)
+            // (2026-11-08, Foreseen Failure: once a day, a slot spell every target critically saved against — the slot's gone, but the
+            // actions come back: played as that many actions more next turn.)
+            if (c.foreseenFailure && !c.foreseenUsed && spell?.pool && !disrupted && (!spell.kind || spell.castsSpell) && action.targetIds?.length && action.targetIds.every((id) => state.critSaves?.has(id)) && isActive(c)) {
+                c.foreseenUsed = true;
+                c.lostActions = (c.lostActions ?? 0) - (Number(action.actions) || Number(spell.plan?.activation?.time) || 2);
+                state.log?.push(`  ${c.name} uses Foreseen Failure`);
+            }
             if (c.secondThoughts && spell && !disrupted && (!spell.kind || spell.castsSpell) && (spell.plan?.traits ?? []).includes("mental") && action.targetIds?.length === 1 && state.critSaves?.has(action.targetIds[0]) && isActive(c) && canReact(c, "Second Thoughts")) {
                 const other = state.list.find((foe) => foe.side !== c.side && isActive(foe) && foe.id !== action.targetIds[0]);
                 if (other) {

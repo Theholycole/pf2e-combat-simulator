@@ -205,7 +205,7 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.model?.grantedStrikes?.length ? { grantedStrikes: plan.model.grantedStrikes.map((entry) => ({ ...entry, traits: [...(entry.traits ?? [])], extra: [...(entry.extra ?? [])] })) } : {}),
                 ...(plan.model?.runeUpgrade ? { runeUpgrade: { ...plan.model.runeUpgrade } } : {}),
                 // (2026-11-03, Paragon's Guard: its shield kept raised — fight.js.)
-                ...(plan.model?.shieldUp ? { shieldUp: true } : {}),
+                ...(plan.model?.shieldUp ? { shieldUp: true } : {}), ...(plan.model?.rangedFlat ? { rangedFlat: plan.model.rangedFlat } : {}),
                 ...(plan.model?.coversAlly ? { coversAlly: true } : {}),
                 // (2026-11-05, Giant's Lunge, Jotun's Battle Stance: its melee reach while it lasts — effects.js.)
                 ...(plan.model?.reach ? { reach: plan.model.reach } : {}),

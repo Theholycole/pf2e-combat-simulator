@@ -541,7 +541,9 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     const brandSees = Boolean(markOn(target, attacker)?.seesConcealed);
     // (2026-11-04: a Strike that ignores the target's concealment — Targeting Shot's.)
     const seen = (dc) => ((brandSees || strike.unerring) && dc <= 5 ? 0 : dc);
-    const findDC = blindFought(attacker, Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : seen(hiddenDC(state, attacker, target)), target.cond?.outlined && lightDC < 11 ? 0 : seen(lightDC)));
+    // (2026-11-08, Spirits' Interference: a ranged attack at it — a DC 5 flat check, while its effect lasts.)
+    const spirits = !strike.melee && (target.effects ?? []).some((effect) => effect.model?.rangedFlat) ? 5 : 0;
+    const findDC = Math.max(spirits, blindFought(attacker, Math.max(attacker.cond.blinded ? 11 : attacker.cond.dazzled ? 5 : 0, finds ? 0 : seen(hiddenDC(state, attacker, target)), target.cond?.outlined && lightDC < 11 ? 0 : seen(lightDC))));
     if (findDC && flatCheck(state.rng, findDC) < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: fails the DC ${findDC} flat check`);
         // Counterattack (B94): a miss from beside it because it's concealed, a Strike back.

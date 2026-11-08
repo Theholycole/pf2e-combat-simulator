@@ -950,6 +950,7 @@ export const SIM_WHY = Object.freeze({
     "Mythic Casting": SUBCLASS,
     "Contagious Spell": SUBCLASS,
     "Bullet Dancer Reload": SUBCLASS,
-    "Recover Spell": FOE_SPELL,
+    "Rapid Manifestation": SUBCLASS,
+    "Mage's Field Dressing": SPELL_NOT_CAST,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

@@ -1714,6 +1714,32 @@ const HAND = {
     },
     "savor-the-hunt": (level) => ({ builtins: { savorTheHunt: Math.ceil(level / 2), forceBasic: ["demoralize"] }, played: "temporary Hit Points of half its level as it frightens a creature (reaction, once)" }),
     "desperate-finisher": () => ({ builtins: { desperateFinisher: true }, played: "one more melee Strike as its turn ends (reaction; no reactions after)" }),
+    // (2026-11-08, Shadowplay: after a melee Strike — a Tumble Through with +2 (played as the foe's Reflex save against its Acrobatics DC):
+    // its shadow flanks the foe, off-guard till its next turn; once a round.)
+    "shadowplay": (level, host, doc) => {
+        const round = { mode: "fixed", value: 1, unit: "rounds" };
+        const plan = conditionSavePlan(doc, "reflex", ["off-guard", null, round], ["off-guard", null, round]);
+        if (!plan) return null;
+        const skill = (host?.skills?.acrobatics ?? level + 4) + 2;
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: "1 creature", range: "touch", area: null } }, castRank: Math.max(1, Math.ceil(level / 2)), dc: skill + 10, attack: skill, pool: null, kind: "ability", oncePerTurn: true, effects: spellPack.effectModels(plan, 1) };
+        return { builtins: {}, spells: [entry], played: "a foe beside it off-guard till its next turn (a Tumble Through at +2, played as the foe's Reflex save; its last-action-a-Strike need not checked)" };
+    },
+    // (2026-11-08, March of Law: once a round, a Stride to a foe that attacked it — each enemy beside it frightened 2 (no save; its "attacked
+    // you since your last turn" need taken as met).)
+    "march-of-law": (level, host, doc) => {
+        const two = ["frightened", 2, null];
+        const base = conditionSavePlan(doc, "will", two, two, two);
+        if (!base) return null;
+        const scared = base.resolution.outcomes.failure;
+        const plan = { ...base, resolution: { ...base.resolution, outcomes: { criticalSuccess: scared, success: scared, failure: scared, criticalFailure: scared } } };
+        const dc = dcsOf(host).class ?? 10 + level + 2 + 4;
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: null, range: null, area: { type: "emanation", value: 5, foes: true }, actorConstraints: { sourceText: "each enemy", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } } }, castRank: Math.max(1, Math.ceil(level / 2)), dc, attack: dc - 10, pool: null, kind: "ability", oncePerTurn: true, featForced: true, effects: spellPack.effectModels(plan, 1) };
+        return { builtins: {}, spells: [entry], played: "each enemy beside it frightened 2, once a round (the Stride to it not played)" };
+    },
+    // (2026-11-08, The Bigger They Are: a Tumble Through a larger foe — its weakness to its precision damage of half its level till its turn
+    // ends; played as +half its level damage on its Strikes this turn (the Tumble Through taken as succeeding; only against a larger foe
+    // not checked).)
+    "the-bigger-they-are": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, model: { rounds: 1, modifiers: [{ on: "damage", type: "untyped", value: Math.floor(level / 2) }] } }], played: `+${Math.floor(level / 2)} damage on its Strikes this turn (1 action; the Tumble Through taken as succeeding)` }),
     "divine-disharmony": (level, host, doc) => {
         const plan = conditionSavePlan(doc, "will", ["off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }], ["off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }]);
         if (!plan) return null;
@@ -1855,6 +1881,9 @@ const HAND = {
     "tandem-onslaught": () => ({ builtins: { freeSustain: 1 }, played: "its battle aura Sustained free each round (taken as its hit each round)" }),
     "reactive-interference": () => ({ builtins: { reactiveInterference: true }, played: "a foe beside it about to make a Reactive Strike disrupted (its level or lower; else an attack roll against its AC; reaction)" }),
     // (2026-11-08, the last action and reaction feats.)
+    "recover-spell": () => ({ builtins: { recoverSpell: true }, played: "a disrupted spell's slot back, an action of its next turn spent recasting it" }),
+    "foreseen-failure": () => ({ builtins: { foreseenFailure: true }, played: "once a fight, a slot spell every target critically saves against: its actions back (as that many more next turn)" }),
+    "spirits-interference": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, requires: "raging", model: { rounds: 10, rangedFlat: 5 } }], played: "while raging, a DC 5 flat check for each ranged attack at it (1 action)" }),
     "watch-this": () => ({ builtins: { watchThis: true }, played: "an ally's miss: its next turn's first weapon Strike deals twice its damage dice more (reaction; at whichever foe it Strikes)" }),
     "reflexive-stance": () => ({ builtins: { stanceAtStart: "Reflexive Stance" }, played: "its stance (Tiger Stance) entered free as initiative is rolled" }),
     "opening-stance": () => ({ builtins: { stanceAtStart: "Opening Stance" }, played: "its stance (Paragon's Guard) entered free as initiative is rolled" }),
