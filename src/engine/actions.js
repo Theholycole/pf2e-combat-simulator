@@ -316,7 +316,7 @@ const bestEnergy = (target) => ENERGIES.reduce((best, type) => (adjustInstance(t
 // (2026-11-03, class feats: an extra kept to some Strikes — Brutal Critical's melee ones, an alchemist's additive on its bombs, Fatal
 // Bullet's firearms, Disorienting Opening's Reactive Strikes.)
 // (2026-11-05, Nature's Precision: an agile or finesse unarmed Strike's only — agileOrFinesse.)
-const extraFits = (extra, strike, reaction = false) => (!extra.melee || strike.melee) && (!extra.agileOrFinesse || (strike.unarmed && (strike.agile || strike.finesse))) && (!extra.bomb || strike.splashKind === "bomb") && (!extra.firearm || strike.firearm) && (!extra.reaction || reaction);
+const extraFits = (extra, strike, reaction = false) => (!extra.melee || strike.melee) && (!extra.agileOrFinesse || (strike.unarmed && (strike.agile || strike.finesse))) && (!extra.bomb || strike.splashKind === "bomb") && (!extra.firearm || strike.firearm) && (!extra.reaction || reaction) && (!extra.strikeName || String(strike.name ?? "").toLowerCase() === extra.strikeName);
 
 // The extra dice of abilities such as Sneak Attack, on average (doubled on a critical hit).
 function expectedExtras(attacker, strike, target, critical, offGuardChance, packAllies) {

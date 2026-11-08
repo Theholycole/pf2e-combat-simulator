@@ -1558,8 +1558,9 @@ const HAND = {
     "resilient-chassis": (level) => ({ builtins: {}, plans: [{ builtin: "resist-damage", value: 4 * Math.floor(level / 4), uses: 1 }], played: `${4 * Math.floor(level / 4)} temporary Hit Points against a hit (reaction, once a fight)` }),
     // (Defensive Needles: a foe's unarmed hit on it from beside it, ceil(level/4) piercing back; its grab's damage the same — once each turn of the grab.)
     "defensive-needles": (level) => ({ builtins: { retaliationsAtStart: [{ name: "Defensive Needles", label: "Defensive Needles", parts: [{ dice: 0, die: 0, bonus: Math.ceil(level / 4), type: "piercing" }], adjacentMelee: false, touch: false }] }, played: `${Math.ceil(level / 4)} piercing to a foe that hits it with an unarmed attack` }),
-    // (Sickening Bite: its jaws' critical hit sickens 1 — its best melee Strike when it has no jaws; satiation not played.)
-    "sickening-bite": () => ({ builtins: { strikeExtras: [{ when: "critical", melee: true, condition: { slug: "sickened", value: 1 }, source: "Sickening Bite" }] }, played: "its melee critical hits sicken 1" }),
+    // (Sickening Bite: its jaws' critical hit sickens 1; satiation not played.)
+    // (2026-11-08: its jaws only — a fighter fighting with jaws, the loadout; before, a greatsword's critical hit sickened too.)
+    "sickening-bite": () => ({ requires: "You have a jaws unarmed attack.", builtins: { strikeExtras: [{ when: "critical", melee: true, strikeName: "jaws", condition: { slug: "sickened", value: 1 }, source: "Sickening Bite" }] }, played: "its jaws' critical hits sicken 1" }),
     "augment-senses": () => noFlankHand("Augment Senses"),
     "instinctual-creation": () => ({ builtins: { thrallsAtStart: 2 }, played: "two thralls as it rolls initiative" }),
     // (Sacred Defense: once an hour, a DC 30 Religion check for 5 temporary Hit Points, 10 on a critical success — played as 5, once a fight.)
@@ -3987,8 +3988,9 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // rider's, not that of Demoralizing or Shoving every turn; its uses that action's.)
     // (2026-11-07: a feat that changes Shield Block — Everstand Stance, Destructive Block —: the shield raised whenever it can be, both
     // sides, so the rating is the block's change, not that of raising it.)
-    if (FORCE && (builtins.blockHardness || builtins.destructiveBlock)) {
-        const raiser = fought.find((c) => c.id === host.id);
+    // (2026-11-08: or a feat Shield Block sets off — Disarming Block's free Disarm —; before, the guardian never raised its shield.)
+    const raiser = fought.find((c) => c.id === host.id);
+    if (FORCE && (builtins.blockHardness || builtins.destructiveBlock || (raiser?.spells ?? []).some((spell) => spell.name === doc.name && spell.featTrigger?.on === "shield-block"))) {
         if (raiser) Object.assign(raiser, { raiseForced: true, forceUse: true });
         plainParty = (plainParty ?? base).map((c) => (c.id === host.id ? { ...c, raiseForced: true, forceUse: true } : c));
     }
@@ -4050,7 +4052,7 @@ const LOADOUTS = {
     // (2026-11-07: a heritage's or ancestry's unarmed attack a crit rider names — Accursed Claws' claw, Feeding Frenzy's jaws, Bloody
     // Blows' and Accursed Touch's fist —: the fighter fighting with it in place of its greatsword, at the same runes, both sides.)
     "claws": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: false, freeHand: true, unarmed: true, ranged: false, firearm: false, twoHandedRanged: false, reload0: false }, strikes: (strikes) => [natural(strikes[0], "Claw", 6, "slashing", { agile: true, finesse: true }), ...strikes.filter((strike) => !strike.melee)] },
-    "jaws": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: false, freeHand: true, unarmed: true, ranged: false, firearm: false, twoHandedRanged: false, reload0: false }, strikes: (strikes) => [natural(strikes[0], "Jaws", 8, "piercing"), ...strikes.filter((strike) => !strike.melee)] },
+    "jaws": { hosts: ["fighter"], wields: { jaws: true, twoHanded: false, oneHanded: false, freeHand: true, unarmed: true, ranged: false, firearm: false, twoHandedRanged: false, reload0: false }, strikes: (strikes) => [natural(strikes[0], "Jaws", 8, "piercing"), ...strikes.filter((strike) => !strike.melee)] },
     "fist": { hosts: ["fighter"], wields: { twoHanded: false, oneHanded: false, freeHand: true, unarmed: true, ranged: false, firearm: false, twoHandedRanged: false, reload0: false }, strikes: (strikes) => [natural(strikes[0], "Fist", 4, "bludgeoning", { agile: true, finesse: true }), ...strikes.filter((strike) => !strike.melee)] },
     "a bow in hand": { hosts: ["fighter", "rogue"], wields: { ranged: true, reload0: true, twoHanded: false, freeHand: false }, strikes: (strikes) => [...strikes.filter((strike) => !strike.melee), ...strikes.filter((strike) => strike.melee)] }
 };

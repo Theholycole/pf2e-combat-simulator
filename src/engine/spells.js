@@ -5241,6 +5241,9 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         // A burst into the caster's own Melee catches the caster too; a cone or line from it doesn't.
         const friends = group.filter((other) => other.side === caster.side && (other !== caster || info.area.type === "burst"));
         sets.push({ targets: [...foes, ...friends].slice(0, capacity) });
+        // (2026-11-08: a cone or line aimed past its own side — angled off the allies in that Melee, so it holds fewer of the foes.)
+        const outside = friends.filter((other) => other !== caster);
+        if (outside.length && ["cone", "line"].includes(info.area.type)) sets.push({ targets: foes.slice(0, Math.max(1, Math.ceil(capacity / 2))) });
     }
     // Enemies standing apart in a band: spread out, so the area holds half as many.
     for (const band of ["near", "far"]) {

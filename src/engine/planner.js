@@ -1405,7 +1405,9 @@ function expandSpells(env) {
                     const value = target.status === "active" ? targetValue(state, target, c) : Math.max(1, state.meanThreat?.[target.side] ?? 1);
                     // Playing for morale (M23): a break takes it out like a kill, beyond the damage already counted.
                     const out = Math.min(1, Math.min(1, (before + expected) / hp) + breaks);
-                    gain += sign * value * (out - Math.min(1, before / hp) + worth * ROUND_TO_KILL);
+                    // (2026-11-08: harm to its own side counted twice — a party drops an area on its allies only when the foes caught are worth
+                    // it many times over; before, Breathe Fire, Mega Bomb and Quaking Stomp's Earthquake caught the whole party for one foe.)
+                    gain += sign * (ally ? 2 : 1) * value * (out - Math.min(1, before / hp) + worth * ROUND_TO_KILL);
                     if (heal > 0 && target.hp.max > 0) {
                         // Topping up a barely hurt ally is worth little; saving one near 0 HP, a lot.
                         const urgency = target.status !== "active" ? 3 : 2.5 * (1 - hpFraction(target)) ** 1.5;
@@ -1447,6 +1449,11 @@ function expandSpells(env) {
                 if (spell.kiCut) {
                     const foe = set.targets.find((target) => target.side !== c.side && target.status === "active" && target.kiCutBy?.by !== c.id);
                     if (foe) gain += 0.5 * ctx.ownValue * (spell.kiCut * 5.5) / Math.max(1, foe.hp.value);
+                }
+                // (2026-11-08, Foretell Harm: a non-cantrip spell that hurts a foe also foretells twice its rank at that foe's next turn — once a round.)
+                if (c.foretellHarm && c.foretoldRound !== state.round && (!spell.kind || spell.castsSpell) && !(spell.plan?.traits ?? []).includes("cantrip")) {
+                    const struck = set.targets.find((target) => target.side !== c.side && (damage[target.id] ?? 0) > (node.damage[target.id] ?? 0));
+                    if (struck) gain += targetValue(state, struck, c) * Math.min(1, (2 * (spell.castRank ?? 1)) / Math.max(1, remainingHp(struck)));
                 }
                 if (gain <= 0) continue;
                 // (U1: a PC's consumable only when it's worth clearly more than what else the turn holds; healing freely when it's about to

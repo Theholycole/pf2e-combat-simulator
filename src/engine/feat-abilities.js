@@ -165,6 +165,8 @@ export function meetsWielding(text, wields) {
     // (Extravagant Parry's "You're wielding one or more one-handed weapons", Spell Parry's "You have one or more hands free".)
     add(/one or more one-handed weapons/, wields.oneHanded);
     add(/one or more hands free/, wields.freeHand);
+    // (2026-11-08, Sickening Bite's jaws: a PC with that unarmed attack — the jaws loadout, tools/lib/feat-power.mjs.)
+    add(/^you have a jaws unarmed attack\.?$/, wields.jaws);
     if (!checks.length) return null;
     // (Only when the whole requirement is about this: "…, and your target is within reach of that hand" is more than a free hand.)
     if (/,? and (?:your|the) target|and you (?:are|have)\b(?! (?:no|nothing))/.test(words)) return checks.every(Boolean) ? null : false;
