@@ -1417,6 +1417,21 @@ function actOn(state, c, action) {
                         applyEffect(state, healed, { name: shape.name, rounds: 1, modifiers: [{ on: "ac", type: "status", value: 2 }, { on: "saving-throw", type: "status", value: 2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `shape:${shape.name}` });
                         state.log?.push(`  ${healed.name} gains +2 AC and saves (${shape.name})`);
                     }
+                    if ((shape.kind === "infusion" || shape.kind === "heroic") && healed.hp.value > hpBefore) {
+                        const modifiers = shape.kind === "infusion" ? [{ on: "damage", type: "untyped", value: 3 }] : [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "status", value: 1 }];
+                        applyEffect(state, healed, { name: shape.name, rounds: 1, modifiers, tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `shape:${shape.name}` });
+                        state.log?.push(`  ${healed.name} gains ${shape.kind === "infusion" ? "1d6 more Strike damage" : "+1 to attacks and damage"} (${shape.name})`);
+                    }
+                    if (shape.kind === "echoing") {
+                        const second = state.list.filter((other) => other !== healed && other.side === c.side && isActive(other) && other.kind !== "object" && other.hp.value < other.hp.max && (other.band === "far") === (c.band === "far")).sort((a, b) => (a.hp.value / a.hp.max) - (b.hp.value / b.hp.max))[0];
+                        if (second) {
+                            let amount = 0;
+                            for (let die = 0; die < (spell.castRank ?? 1); die++) amount += state.rng.die(8);
+                            amount = Math.min(amount, second.hp.max - second.hp.value);
+                            second.hp.value += amount;
+                            state.log?.push(`  ${second.name} regains ${amount} HP (${shape.name})`);
+                        }
+                    }
                     if (shape.kind === "martyr") {
                         let amount = 0;
                         for (let die = 0; die < (spell.castRank ?? 1); die++) amount += state.rng.die(8);

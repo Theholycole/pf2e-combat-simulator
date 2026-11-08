@@ -2715,6 +2715,12 @@ const HAND = {
     // (2026-11-07, Fast Channel: Heal's 3-action version — its 30-foot emanation — for 2 actions; planner.js fastFits.)
     "fast-channel": () => ({ builtins: { fastChannel: true }, played: "Heal's 3-action version for 2 actions" }),
     "defensive-recovery": () => ({ builtins: { healShapes: [{ name: "Defensive Recovery", kind: "defensive" }] }, played: "an action before each single-target Heal on an ally: +2 status to its AC and saves for a round" }),
+    // (2026-11-08: Divine Infusion — the healed ally's Strikes 1d6 more (taken as +3) till the end of its next turn; Heroic Recovery — +1
+    // status to its attacks and damage (and +5 feet, not played) till then; Echoing Channel — another hurt ally not far off gets the 1-action
+    // Heal too, a d8 a rank.)
+    "divine-infusion": () => ({ builtins: { healShapes: [{ name: "Divine Infusion", kind: "infusion" }] }, played: "an action before each single-target Heal on an ally: its Strikes 1d6 more (as +3) till the end of its next turn" }),
+    "heroic-recovery": () => ({ builtins: { healShapes: [{ name: "Heroic Recovery", kind: "heroic" }] }, played: "an action before each single-target Heal on an ally: +1 status to its attacks and damage till the end of its next turn" }),
+    "echoing-channel": () => ({ builtins: { healShapes: [{ name: "Echoing Channel", kind: "echoing" }] }, played: "an action before each single-target 2-action Heal on an ally: a second hurt ally gets the 1-action Heal, a d8 a rank" }),
     "martyr": () => ({ builtins: { healShapes: [{ name: "Martyr", kind: "martyr" }] }, played: "an action before each single-target Heal on an ally: 1d8 a rank of its own Hit Points to it too" }),
     // (2026-11-06, Chain Infusion: the infusion and a 1-action Elemental Blast; each hit chains a new blast to another foe — fight.js.)
     "chain-infusion": (_level, host) => (host?.strikes?.some((strike) => strike.name === "Elemental Blast") ? { builtins: {}, plans: [strikeRider({ actions: 2, range: "ranged", strike: "elemental blast", chainHits: true })], played: "Chain Infusion and an Elemental Blast, its hits chaining on to other foes (2 actions)" } : null),
