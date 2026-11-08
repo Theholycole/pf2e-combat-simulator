@@ -794,6 +794,14 @@ const FLAG_SHAPES = {
     // slot: a copy of each such damage spell, an action more, from a pool of one of its own.)
     "bloodline-conduit": { fits: (spell) => spell.pool && (spell.castRank ?? 1) <= 5, flag: () => ({ pool: "feat:conduit" }), pools: { "feat:conduit": 1 }, played: "once a fight, a spell of 5th rank or lower cast without its slot" },
     "ley-line-conduit": { fits: (spell) => spell.pool && (spell.castRank ?? 1) <= 5, flag: () => ({ pool: "feat:conduit" }), pools: { "feat:conduit": 1 }, played: "once a fight, a spell of 5th rank or lower cast without its slot" },
+    "mystery-conduit": { fits: (spell) => spell.pool && (spell.castRank ?? 1) <= 5, flag: () => ({ pool: "feat:conduit" }), pools: { "feat:conduit": 1 }, played: "once a fight, a spell of 5th rank or lower cast without its slot" },
+    // (Secondary Detonation Array: an area damage spell's circle — at the start of its next turn, a d6 of force a rank (basic Reflex) on the
+    // two foes it hurt most, taken as standing in the 5-foot burst.)
+    "secondary-detonation-array": { fits: (spell) => Boolean(spell.plan?.targeting?.area), flag: (spell) => ({ detonationArray: damageTypesOf(spell)[0] ?? "force" }), played: "a circle that bursts at the start of its next turn: a d6 a rank (basic Reflex) on the two foes it hurt most" },
+    "unlimited-potential": { fits: (spell) => spell.pool && (spell.castRank ?? 1) <= 5, flag: () => ({ pool: "feat:conduit" }), pools: { "feat:conduit": 1 }, played: "once a fight, a spell of 5th rank or lower cast without its slot" },
+    // (Touch Focus: a spell attack at one target, as touch — +2 to the attack, and the target knocked prone if it hits (fight.js touchFocus);
+    // its free action taken as costing nothing — an action's not added.)
+    "touch-focus": { fits: (spell) => spell.plan?.resolution?.check?.statistic === "spell-attack" && singleTarget(spell), plan: (plan) => plan, flag: (spell) => ({ attack: (spell.attack ?? 0) + 2, touchFocus: true }), played: "+2 to the spell attack, and the target knocked prone when it's hurt" },
     "overwhelming-breath": { fits: (spell) => (spell.plan?.traits ?? []).includes("monk"), plan: (plan, host) => { const more = oneMore(plan); return { ...more, resolution: { ...more.resolution, ignoreResistance: [...[more.resolution?.ignoreResistance ?? []].flat(), { value: Number(host.level) || 1, types: ["bludgeoning", "piercing", "slashing"] }] } }; }, played: "physical resistance ignored up to its level" },
     // (Split Shot: a single-target attack spell with no duration at a second foe too — half its damage, if the one roll beats that foe's AC
     // (taken as: its AC no higher than the first target's); fight.js splitShot.)

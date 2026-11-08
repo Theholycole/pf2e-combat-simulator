@@ -588,6 +588,20 @@ function startTurn(state, c) {
         applyEffect(state, c, { name: "Meddling Futures", rounds: 1, modifiers: [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "status", value: 2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { key: "meddling-futures" });
         state.log?.push(`  ${c.name} uses Meddling Futures: the Warrior`);
     }
+    // (2026-11-08, Secondary Detonation Array: its circle bursts — a d6 a rank, basic Reflex against its spell DC.)
+    if (c.detonationArray) {
+        const array = c.detonationArray;
+        c.detonationArray = null;
+        for (const other of array.ids.map((id) => state.byId.get(id)).filter((o) => o && isActive(o))) {
+            const natural = state.rng.d20();
+            const degree = degreeOf(natural + saveModifier(other, "reflex"), array.dc, natural);
+            let amount = 0;
+            for (let die = 0; die < array.dice; die++) amount += state.rng.die(6);
+            amount = degree === CRITICAL_SUCCESS ? 0 : degree === SUCCESS ? Math.floor(amount / 2) : degree === FAILURE ? amount : amount * 2;
+            const dealt = amount > 0 ? applyDamage(state, other, [{ type: array.type, amount, persistent: false, precision: false }], { source: c }) : 0;
+            state.log?.push(`  Secondary Detonation Array: ${other.name} takes ${dealt}`);
+        }
+    }
     // (2026-11-07, Get Used to Disappointment: a foe that missed it on its last turn — a free Demoralize at it (bravado), once each foe.)
     if (c.disappointment && c.status === ACTIVE && c.missedBy?.size) {
         const foe = [...c.missedBy].map((id) => state.byId.get(id)).find((other) => other && isActive(other) && !(c.disappointed ??= new Set()).has(other.id));
@@ -1293,7 +1307,7 @@ function actOn(state, c, action) {
                 }
                 break;
             }
-            const drained = (spell?.vampiric || spell?.forcible || spell?.detonating || spell?.energyAblation || spell?.splitShot || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
+            const drained = (spell?.vampiric || spell?.forcible || spell?.detonating || spell?.energyAblation || spell?.splitShot || spell?.detonationArray || spell?.touchFocus || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             state.critSaves = null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
             // (2026-11-07, Second Thoughts: its single-target mental spell critically saved against — cast again at another foe, no slot
@@ -1383,6 +1397,16 @@ function actOn(state, c, action) {
                     const dealt = applyDamage(state, other, [{ type: spell.detonating, amount: spell.castRank ?? 1, persistent: false, precision: false }], { source: c });
                     state.log?.push(`  Detonating Spell: ${other.name} takes ${dealt}`);
                 }
+            }
+            // (2026-11-08, Secondary Detonation Array: the circle — the two foes the spell hurt most, at the start of its next turn.)
+            if (drained && spell.detonationArray) {
+                const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([other]) => other.id);
+                if (hurt.length) c.detonationArray = { ids: hurt, dice: spell.castRank ?? 1, type: spell.detonationArray, dc: spell.dc ?? 10 };
+            }
+            // (2026-11-08, Touch Focus: the target it hurt is knocked prone.)
+            if (drained && spell.touchFocus) {
+                const hurt = state.list.find((other) => action.targetIds?.includes(other.id) && drained.has(other.id) && isActive(other) && drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0) > 0);
+                if (hurt && applyCondition(state, hurt, "prone", null, null, c)) state.log?.push(`  ${hurt.name} is knocked prone (Touch Focus)`);
             }
             // (2026-11-08, Split Shot: the first target hit — a second foe with no higher AC takes half what it lost.)
             if (drained && spell.splitShot) {
