@@ -55,6 +55,10 @@ export function featTriggers(state, c, on, ctx = {}) {
         if (trigger.type && !(ctx.types ?? []).includes(trigger.type)) continue;
         if (trigger.withCondition && !(c.cond?.[trigger.withCondition] > 0)) continue;
         if (trigger.atYou && ctx.attacked !== c) continue;
+        // (2026-11-08: Unnerving Prowess's first turn of an encounter; Rippling Spin's stance, a self Effect it's in.)
+        if (trigger.round1 && state.round !== 1) continue;
+        if (trigger.notRound1 && state.round === 1) continue;
+        if (trigger.inEffect && !(c.effects ?? []).some((effect) => effect.key === `self:${trigger.inEffect}` || effect.model?.name === trigger.inEffect)) continue;
         const about = ctx.target ?? ctx.by ?? null;
         if (trigger.within && about && about !== c && !withinFeet(c, about, trigger.within)) continue;
         if (!poolReady(c, spell)) continue;

@@ -847,6 +847,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (degree < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label}`);
         if (target.disappointment && attacker.side !== target.side) (target.missedBy ??= new Set()).add(attacker.id);
+        // (2026-11-08, Knight's Retaliation: a foe critically fails a Strike against it — triggers.js "crit-missed".)
+        if (degree === CRITICAL_FAILURE && target.featTriggers && attacker.side !== target.side && isActive(target) && isActive(attacker)) featTriggers(state, target, "crit-missed", { by: attacker, strike });
         if (degree === CRITICAL_FAILURE && !reaction && attacker.side !== target.side && attacker.attacksThisTurn > 1) {
             const advisor = state.list.find((other) => other.belayThat && other !== attacker && other.side === attacker.side && isActive(other) && canReact(other, "Belay That!") && (other.band !== "far" || attacker.band !== "far"));
             if (advisor) {

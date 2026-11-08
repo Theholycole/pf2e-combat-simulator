@@ -333,6 +333,21 @@ function initiativeDeeds(state) {
                 if (result?.degree >= SUCCESS && isActive(foe) && applyCondition(state, foe, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" }, c)) state.log?.push(`  ${foe.name} is off-guard (Hair Trigger)`);
             }
         }
+        // (2026-11-08, Reflexive Stance: a stance it knows, entered free as initiative is rolled — its best one: the first it has.)
+        if (c.stanceAtStart) {
+            const entry = (c.selfEffects ?? []).find((self) => self.stance && !self.afterCast && !self.whileRaging && !self.needsPanache && !self.requiresEffect);
+            if (entry) {
+                applyEffect(state, c, entry.model, c, { applyCondition, key: `self:${entry.name}` });
+                state.log?.push(`  ${c.name} uses ${c.stanceAtStart}: ${entry.name}`);
+            }
+        }
+        // (2026-11-08, Scurry!: a Stride into cover as initiative is rolled — +2 circumstance AC till it leaves it, played as till the end of
+        // its first turn.)
+        if (c.coverAtStart) {
+            const effect = applyEffect(state, c, { name: c.coverAtStart, rounds: Infinity, modifiers: [{ on: "ac", type: "circumstance", value: 2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { key: "cover-at-start" });
+            (c.timers ??= []).push({ effect, round: state.round, turnOf: c.id, at: "end" });
+            state.log?.push(`  ${c.name} uses ${c.coverAtStart} (cover: +2 AC until the end of its first turn)`);
+        }
         if (c.panacheAtStart) {
             c.panache = true;
             state.log?.push(`  ${c.name} gains panache (${c.panacheAtStart})`);
