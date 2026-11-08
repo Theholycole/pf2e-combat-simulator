@@ -934,5 +934,16 @@ export const SIM_WHY = Object.freeze({
     "Into the Future": SAME_PICK,
     "Intensify Investiture": GEAR,
     "Duo Dragon Kick": COMPANION_KIND,
+    "Nonlethal Spell": SAME_PICK,
+    "Fortune's Favor": SAME_PICK,
+    "Liberating Dive": SAME_PICK,
+    "Cryptic Spell": HIDDEN,
+    "Inhale, Exhale!": SUBCLASS,
+    "Imperious Aura": SUBCLASS,
+    "Quick Shape": SUBCLASS,
+    "Shield Spell Reinforcement": SUBCLASS,
+    "Four Winds": REACH,
+    "Tikling Bird Twirl": REACH,
+    "Natural Conduit": REACH,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

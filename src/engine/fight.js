@@ -338,6 +338,7 @@ function initiativeDeeds(state) {
             const entry = (c.selfEffects ?? []).find((self) => self.stance && !self.afterCast && !self.whileRaging && !self.needsPanache && !self.requiresEffect);
             if (entry) {
                 applyEffect(state, c, entry.model, c, { applyCondition, key: `self:${entry.name}` });
+                if (entry.model?.shieldUp && c.shield && !c.shield.broken) c.shield.raised = true;
                 state.log?.push(`  ${c.name} uses ${c.stanceAtStart}: ${entry.name}`);
             }
         }
@@ -1402,6 +1403,21 @@ function actOn(state, c, action) {
             if (drained && spell.detonationArray) {
                 const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([other]) => other.id);
                 if (hurt.length) c.detonationArray = { ids: hurt, dice: spell.castRank ?? 1, type: spell.detonationArray, dc: spell.dc ?? 10 };
+            }
+            // (2026-11-08, Echoing Spell: every other cast of its copies gives the slot back; Painful Spell: its own nonlethal mental damage.)
+            if (spell?.echoing && !disrupted && spell.pool) {
+                c.echoed = !c.echoed;
+                if (!c.echoed) {
+                    c.spellPools[spell.pool] = (c.spellPools[spell.pool] ?? 0) + 1;
+                    state.log?.push(`  ${c.name} casts the echo (Echoing Spell): no slot`);
+                }
+            }
+            if (spell?.painful && !disrupted && isActive(c)) {
+                let amount = 0;
+                for (let die = 0; die < spell.painful; die++) amount += state.rng.die(4);
+                amount = Math.min(amount, Math.max(0, c.hp.value - 1));
+                c.hp.value -= amount;
+                state.log?.push(`  ${c.name} takes ${amount} mental (Painful Spell)`);
             }
             // (2026-11-08, Touch Focus: the target it hurt is knocked prone.)
             if (drained && spell.touchFocus) {

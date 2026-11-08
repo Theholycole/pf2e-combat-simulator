@@ -787,6 +787,13 @@ const ENERGIES = ["acid", "cold", "electricity", "fire", "sonic"];
 const damageTypesOf = (spell) => (spell.plan?.resolution?.sharedDamage?.components ?? []).map((part) => part.type);
 const singleTarget = (spell) => !spell.plan?.targeting?.area && /^1 creature\b/.test(String(spell.plan?.targeting?.target ?? "")) && !/plus|additional/.test(String(spell.plan?.targeting?.target ?? ""));
 const oneMore = (plan) => ({ ...plan, activation: { ...plan.activation, time: String(Number(plan.activation.time) + 1) } });
+function withExtraDamage(plan, formula, type) {
+    const resolution = plan.resolution;
+    const outcomes = structuredClone(resolution.outcomes ?? {});
+    const sharedDamage = { ...resolution.sharedDamage, components: [...resolution.sharedDamage.components, { id: "spellshape", formula, type, category: null, applyModifier: false, kinds: ["damage"], materials: [] }] };
+    for (const row of Object.values(outcomes)) if (row?.damage?.mode === "shared" && row.damage.multiplier > 0) row.damage.sourceComponentIds = [...(row.damage.sourceComponentIds ?? []), "spellshape"];
+    return { ...plan, resolution: { ...resolution, sharedDamage, outcomes } };
+}
 const FLAG_SHAPES = {
     "overwhelming-energy": { fits: (spell) => damageTypesOf(spell).some((type) => ENERGIES.includes(type)), plan: (plan, host) => { const more = oneMore(plan); return { ...more, resolution: { ...more.resolution, ignoreResistance: [...[more.resolution?.ignoreResistance ?? []].flat(), { value: Number(host.level) || 1, types: ENERGIES }] } }; }, played: "the target's acid, cold, electricity, fire or sonic resistance ignored up to its level" },
     "detonating-spell": { fits: singleTarget, flag: (spell) => ({ detonating: damageTypesOf(spell)[0] ?? "untyped" }), played: "splash of the spell's rank on the foes beside a target it damages (allies beside it kept out)" },
@@ -802,6 +809,11 @@ const FLAG_SHAPES = {
     // (Touch Focus: a spell attack at one target, as touch — +2 to the attack, and the target knocked prone if it hits (fight.js touchFocus);
     // its free action taken as costing nothing — an action's not added.)
     "touch-focus": { fits: (spell) => spell.plan?.resolution?.check?.statistic === "spell-attack" && singleTarget(spell), plan: (plan) => plan, flag: (spell) => ({ attack: (spell.attack ?? 0) + 2, touchFocus: true }), played: "+2 to the spell attack, and the target knocked prone when it's hurt" },
+    // (Echoing Spell: a spell of 4th rank or lower with no duration cast a second time without its slot — every other cast of the copies
+    // gives its slot back, fight.js echoing.)
+    "echoing-spell": { fits: (spell) => spell.pool && (spell.castRank ?? 1) <= 4, flag: () => ({ echoing: true }), played: "a spell of 4th rank or lower cast twice for its slot (every other cast free)" },
+    // (Painful Spell: a non-cantrip damage spell 1d4 mental a rank more (nonlethal) — and as much nonlethal mental to the caster, fight.js.)
+    "painful-spell": { fits: (spell) => Boolean(spell.pool), plan: (plan, _host, spell) => withExtraDamage(oneMore(plan), `${spell.castRank ?? 1}d4`, "mental"), flag: (spell) => ({ painful: spell.castRank ?? 1 }), played: "1d4 mental a rank more, and as much to itself" },
     "overwhelming-breath": { fits: (spell) => (spell.plan?.traits ?? []).includes("monk"), plan: (plan, host) => { const more = oneMore(plan); return { ...more, resolution: { ...more.resolution, ignoreResistance: [...[more.resolution?.ignoreResistance ?? []].flat(), { value: Number(host.level) || 1, types: ["bludgeoning", "piercing", "slashing"] }] } }; }, played: "physical resistance ignored up to its level" },
     // (Split Shot: a single-target attack spell with no duration at a second foe too — half its damage, if the one roll beats that foe's AC
     // (taken as: its AC no higher than the first target's); fight.js splitShot.)
@@ -833,7 +845,7 @@ function spellshapeEntry(doc, host) {
     // spell, an action more (fight.js after the cast; Overwhelming Energy the spell's own ignoreResistance, damage.js).)
     const flagged = FLAG_SHAPES[slugOf(doc)];
     if (flagged) {
-        const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? "")) && spell.plan?.resolution?.sharedDamage?.components?.length && flagged.fits(spell)).map((spell) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: flagged.plan ? flagged.plan(spell.plan, host) : { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, ...(flagged.flag ? flagged.flag(spell, host) : {}) })).filter(castable);
+        const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? "")) && spell.plan?.resolution?.sharedDamage?.components?.length && flagged.fits(spell)).map((spell) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: flagged.plan ? flagged.plan(spell.plan, host, spell) : { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, ...(flagged.flag ? flagged.flag(spell, host) : {}) })).filter(castable);
         return spells.length ? { spells, pools: flagged.pools ?? {}, gap: null, played: `${doc.name} copies of ${spells.length} damage spell${spells.length > 1 ? "s" : ""}: ${flagged.played}` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no damage spell of the PC's it shapes` } };
     }
     const shape = SPELLSHAPES[slugOf(doc)];
@@ -1845,6 +1857,7 @@ const HAND = {
     // (2026-11-08, the last action and reaction feats.)
     "watch-this": () => ({ builtins: { watchThis: true }, played: "an ally's miss: its next turn's first weapon Strike deals twice its damage dice more (reaction; at whichever foe it Strikes)" }),
     "reflexive-stance": () => ({ builtins: { stanceAtStart: "Reflexive Stance" }, played: "its stance (Tiger Stance) entered free as initiative is rolled" }),
+    "opening-stance": () => ({ builtins: { stanceAtStart: "Opening Stance" }, played: "its stance (Paragon's Guard) entered free as initiative is rolled" }),
     "scurry": () => ({ builtins: { coverAtStart: "Scurry!" }, played: "a Stride into cover as initiative is rolled: +2 AC until the end of its first turn" }),
     "unnerving-prowess": () => ({ builtins: {}, spells: basicActions.demoralize ? [
         { name: "Unnerving Prowess", plan: { ...structuredClone(basicActions.demoralize), activation: { time: "free", traits: [] } }, castRank: 1, pool: null, kind: "basic", featTrigger: { on: "crit", notRound1: true } },
@@ -3401,7 +3414,7 @@ function itemMatches(item, filter) {
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
 // (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
 const STANCE_SPELL_FEATS = { "wild winds stance": "Wild Winds Initiate", "clinging shadows stance": "Clinging Shadows Initiate" };
-const BASE_FEATS = { "selfless-parry": "Dueling Parry", "overwhelming-breath": "Qi Spells", "reflexive-stance": "Tiger Stance", "rippling-spin": "Reflective Ripple Stance", "align-qi": "Qi Spells", "echoing-fury": "Temporal Fury", "undying-ferocity": "Orc Ferocity", "tetraelemental-assault": "Elemental Assault", "breath-unleashed": "Kobold Breath", "tempest-gaze": "Storming Gaze", "deadly-mutation": "Ostilli Host Dedication", "spraying-mutation": "Ostilli Host Dedication", "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
+const BASE_FEATS = { "selfless-parry": "Dueling Parry", "opening-stance": "Paragon's Guard", "overwhelming-breath": "Qi Spells", "reflexive-stance": "Tiger Stance", "rippling-spin": "Reflective Ripple Stance", "align-qi": "Qi Spells", "echoing-fury": "Temporal Fury", "undying-ferocity": "Orc Ferocity", "tetraelemental-assault": "Elemental Assault", "breath-unleashed": "Kobold Breath", "tempest-gaze": "Storming Gaze", "deadly-mutation": "Ostilli Host Dedication", "spraying-mutation": "Ostilli Host Dedication", "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
 
 // (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
 // rank — half the druid's level, rounded up —, a 2-action focus spell; the engine's battle forms (effects.js enterForm) take its best shape.
