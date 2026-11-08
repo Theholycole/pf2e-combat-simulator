@@ -790,6 +790,14 @@ const oneMore = (plan) => ({ ...plan, activation: { ...plan.activation, time: St
 const FLAG_SHAPES = {
     "overwhelming-energy": { fits: (spell) => damageTypesOf(spell).some((type) => ENERGIES.includes(type)), plan: (plan, host) => { const more = oneMore(plan); return { ...more, resolution: { ...more.resolution, ignoreResistance: [...[more.resolution?.ignoreResistance ?? []].flat(), { value: Number(host.level) || 1, types: ENERGIES }] } }; }, played: "the target's acid, cold, electricity, fire or sonic resistance ignored up to its level" },
     "detonating-spell": { fits: singleTarget, flag: (spell) => ({ detonating: damageTypesOf(spell)[0] ?? "untyped" }), played: "splash of the spell's rank on the foes beside a target it damages (allies beside it kept out)" },
+    // (Bloodline Conduit, Ley Line Conduit: once a minute — once a fight —, a spell of 5th rank or lower with no duration cast without its
+    // slot: a copy of each such damage spell, an action more, from a pool of one of its own.)
+    "bloodline-conduit": { fits: (spell) => spell.pool && (spell.castRank ?? 1) <= 5, flag: () => ({ pool: "feat:conduit" }), pools: { "feat:conduit": 1 }, played: "once a fight, a spell of 5th rank or lower cast without its slot" },
+    "ley-line-conduit": { fits: (spell) => spell.pool && (spell.castRank ?? 1) <= 5, flag: () => ({ pool: "feat:conduit" }), pools: { "feat:conduit": 1 }, played: "once a fight, a spell of 5th rank or lower cast without its slot" },
+    "overwhelming-breath": { fits: (spell) => (spell.plan?.traits ?? []).includes("monk"), plan: (plan, host) => { const more = oneMore(plan); return { ...more, resolution: { ...more.resolution, ignoreResistance: [...[more.resolution?.ignoreResistance ?? []].flat(), { value: Number(host.level) || 1, types: ["bludgeoning", "piercing", "slashing"] }] } }; }, played: "physical resistance ignored up to its level" },
+    // (Split Shot: a single-target attack spell with no duration at a second foe too — half its damage, if the one roll beats that foe's AC
+    // (taken as: its AC no higher than the first target's); fight.js splitShot.)
+    "split-shot": { fits: (spell) => spell.plan?.resolution?.check?.statistic === "spell-attack" && singleTarget(spell), flag: () => ({ splitShot: true }), played: "a second foe takes half the damage when the roll beats its AC too" },
     "energy-ablation": { fits: (spell) => damageTypesOf(spell).some((type) => [...ENERGIES, "force", "vitality", "void"].includes(type)), flag: () => ({ energyAblation: true }), played: "resistance of the spell's rank to the foes' main energy damage (fire if none) till the end of its next turn" }
 };
 function spellshapeEntry(doc, host) {
@@ -818,7 +826,7 @@ function spellshapeEntry(doc, host) {
     const flagged = FLAG_SHAPES[slugOf(doc)];
     if (flagged) {
         const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? "")) && spell.plan?.resolution?.sharedDamage?.components?.length && flagged.fits(spell)).map((spell) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: flagged.plan ? flagged.plan(spell.plan, host) : { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, ...(flagged.flag ? flagged.flag(spell, host) : {}) })).filter(castable);
-        return spells.length ? { spells, pools: {}, gap: null, played: `${doc.name} copies of ${spells.length} damage spell${spells.length > 1 ? "s" : ""}: ${flagged.played}` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no damage spell of the PC's it shapes` } };
+        return spells.length ? { spells, pools: flagged.pools ?? {}, gap: null, played: `${doc.name} copies of ${spells.length} damage spell${spells.length > 1 ? "s" : ""}: ${flagged.played}` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no damage spell of the PC's it shapes` } };
     }
     const shape = SPELLSHAPES[slugOf(doc)];
     if (!shape) return null;
@@ -1783,6 +1791,27 @@ const HAND = {
         const entry = { name: "Mad Monkeys (Monkey Spirits)", plan: { ...plan, activation: { ...plan.activation, time: "3" }, targeting: { ...plan.targeting, target: null, range: 60, area: { type: "burst", value: 10, foes: true } } }, castRank: 5, dc, attack: dc - 10, pool, kind: "ability", effects: spellPack.effectModels(plan, 5) };
         return { builtins: {}, spells: [entry], pools: { [pool]: 1 }, played: `Mad Monkeys' Raucous Din: foes in a 10-foot burst a Fortitude save (DC ${dc}) or deafened (3 actions, once a fight; Sustains not played)` };
     },
+    // (2026-11-08, Vigorous Anthem: Courageous Anthem an action more — it and the allies it reaches gain 3 + its Charisma modifier temporary Hit
+    // Points for a minute (Charisma +4, +5 from 10th level).)
+    "vigorous-anthem": (level, host, doc) => {
+        const anthem = (host?.spells ?? []).find((spell) => spell.name === "Courageous Anthem" && spell.plan);
+        if (!anthem) return null;
+        const time = Number(anthem.plan.activation?.time ?? 1) || 1;
+        const temp = 3 + (level >= 10 ? 5 : 4);
+        return { builtins: {}, spells: [{ ...anthem, name: `Courageous Anthem (${doc.name})`, plan: { ...anthem.plan, activation: { ...anthem.plan.activation, time: String(time + 1) } }, anthemTempHp: temp, featForced: true }], pools: {}, played: `Courageous Anthem an action more: ${temp} temporary Hit Points for it and the allies it reaches` };
+    },
+    // (2026-11-08, Heraldic Proclamation: once a day, an action before a non-cantrip spell — allies within 30 feet regain double its rank in
+    // Hit Points, enemies within 30 feet take double its rank in spirit damage (basic Will); played as an action of its own, once a fight,
+    // at its top rank.)
+    "heraldic-proclamation": (level, host, doc) => {
+        const rank = Math.max(1, Math.ceil(level / 2));
+        const plan = damageSavePlan(doc, "will", [null, `${rank}[spirit]`, `${2 * rank}[spirit]`, `${4 * rank}[spirit]`]);
+        if (!plan) return null;
+        const dc = dcsOf(host).spell ?? dcsOf(host).class ?? 10 + level + 2 + 4;
+        const pool = "feat:heraldic-proclamation";
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "1" }, targeting: { ...plan.targeting, target: null, range: null, area: { type: "emanation", value: 30, foes: true }, actorConstraints: { sourceText: "each enemy", supportsActorTargets: true, complete: true, predicates: [{ kind: "enemy-of-caster" }] } } }, castRank: rank, dc, attack: dc - 10, pool, kind: "ability", effects: {}, allyHeal: String(2 * rank), featForced: true };
+        return { builtins: {}, spells: [entry], pools: { [pool]: 1 }, played: `once a fight, an action: enemies within 30 feet ${2 * rank} spirit (basic Will), allies ${2 * rank} HP (the spell after it cast as usual)` };
+    },
     "tree-of-duality": (level, host, doc) => {
         const row = { mode: "fixed", value: 1, unit: "rounds" };
         const base = conditionSavePlan(doc, "will", null, null);
@@ -1806,6 +1835,7 @@ const HAND = {
     "tandem-onslaught": () => ({ builtins: { freeSustain: 1 }, played: "its battle aura Sustained free each round (taken as its hit each round)" }),
     "reactive-interference": () => ({ builtins: { reactiveInterference: true }, played: "a foe beside it about to make a Reactive Strike disrupted (its level or lower; else an attack roll against its AC; reaction)" }),
     // (2026-11-08, the last action and reaction feats.)
+    "watch-this": () => ({ builtins: { watchThis: true }, played: "an ally's miss: its next turn's first weapon Strike deals twice its damage dice more (reaction; at whichever foe it Strikes)" }),
     "reflexive-stance": () => ({ builtins: { stanceAtStart: "Reflexive Stance" }, played: "its stance (Tiger Stance) entered free as initiative is rolled" }),
     "scurry": () => ({ builtins: { coverAtStart: "Scurry!" }, played: "a Stride into cover as initiative is rolled: +2 AC until the end of its first turn" }),
     "unnerving-prowess": () => ({ builtins: {}, spells: basicActions.demoralize ? [
@@ -3357,7 +3387,7 @@ function itemMatches(item, filter) {
 const STANCE_PASSIVES = { "inner-fire-monk": "Stoked Flame Stance" };
 // (2026-11-06: a passive on another feat's action — Targeting Strike's Set-Up Strike —: that feat on both sides, as a stance is.)
 const STANCE_SPELL_FEATS = { "wild winds stance": "Wild Winds Initiate", "clinging shadows stance": "Clinging Shadows Initiate" };
-const BASE_FEATS = { "selfless-parry": "Dueling Parry", "reflexive-stance": "Tiger Stance", "rippling-spin": "Reflective Ripple Stance", "align-qi": "Qi Spells", "echoing-fury": "Temporal Fury", "undying-ferocity": "Orc Ferocity", "tetraelemental-assault": "Elemental Assault", "breath-unleashed": "Kobold Breath", "tempest-gaze": "Storming Gaze", "deadly-mutation": "Ostilli Host Dedication", "spraying-mutation": "Ostilli Host Dedication", "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
+const BASE_FEATS = { "selfless-parry": "Dueling Parry", "overwhelming-breath": "Qi Spells", "reflexive-stance": "Tiger Stance", "rippling-spin": "Reflective Ripple Stance", "align-qi": "Qi Spells", "echoing-fury": "Temporal Fury", "undying-ferocity": "Orc Ferocity", "tetraelemental-assault": "Elemental Assault", "breath-unleashed": "Kobold Breath", "tempest-gaze": "Storming Gaze", "deadly-mutation": "Ostilli Host Dedication", "spraying-mutation": "Ostilli Host Dedication", "targeting-strike": "Set-Up Strike", "multishot-stance": "Double Shot", "triple-shot": "Double Shot", "insect-shape": "Untamed Form", "ferocious-shape": "Untamed Form", "soaring-shape": "Untamed Form", "elemental-shape": "Untamed Form", "plant-shape": "Untamed Form", "dragon-shape": "Untamed Form", "monstrosity-shape": "Untamed Form" };
 
 // (2026-11-06, the druid's Untamed Form and the feats that add shapes to it: the polymorph spell of the shape, heightened to Untamed Form's
 // rank — half the druid's level, rounded up —, a 2-action focus spell; the engine's battle forms (effects.js enterForm) take its best shape.

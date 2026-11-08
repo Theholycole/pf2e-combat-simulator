@@ -847,6 +847,16 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (degree < SUCCESS) {
         log(state, `  ${attacker.name} ${strike.name} → ${target.name}: ${natural + modifier + bonus} vs AC ${ac + defence}, ${label}`);
         if (target.disappointment && attacker.side !== target.side) (target.missedBy ??= new Set()).add(attacker.id);
+        // (2026-11-08, Watch This!: an ally's miss — its next turn's first weapon Strike deals twice its damage dice more (reaction).)
+        if (attacker.side !== target.side && !reaction) {
+            const watcher = state.list.find((other) => other.watchThis && other !== attacker && other.side === attacker.side && isActive(other) && canReact(other, "Watch This!") && !(other.effects ?? []).some((effect) => effect.key === "watch-this"));
+            if (watcher) {
+                spendReaction(watcher, "Watch This!");
+                const effect = applyEffect(state, watcher, { name: "Watch This!", rounds: Infinity, modifiers: [], diceDamage: { perDie: 2 }, tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, watcher, { key: "watch-this" });
+                (watcher.timers ??= []).push({ effect, round: state.round, turnOf: watcher.id, at: "end" });
+                log(state, `  ${watcher.name} uses Watch This!`);
+            }
+        }
         // (2026-11-08, Knight's Retaliation: a foe critically fails a Strike against it — triggers.js "crit-missed".)
         if (degree === CRITICAL_FAILURE && target.featTriggers && attacker.side !== target.side && isActive(target) && isActive(attacker)) featTriggers(state, target, "crit-missed", { by: attacker, strike });
         if (degree === CRITICAL_FAILURE && !reaction && attacker.side !== target.side && attacker.attacksThisTurn > 1) {

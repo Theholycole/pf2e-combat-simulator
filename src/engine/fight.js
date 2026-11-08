@@ -1293,7 +1293,7 @@ function actOn(state, c, action) {
                 }
                 break;
             }
-            const drained = (spell?.vampiric || spell?.forcible || spell?.detonating || spell?.energyAblation || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
+            const drained = (spell?.vampiric || spell?.forcible || spell?.detonating || spell?.energyAblation || spell?.splitShot || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             state.critSaves = null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
             // (2026-11-07, Second Thoughts: its single-target mental spell critically saved against — cast again at another foe, no slot
@@ -1384,6 +1384,17 @@ function actOn(state, c, action) {
                     state.log?.push(`  Detonating Spell: ${other.name} takes ${dealt}`);
                 }
             }
+            // (2026-11-08, Split Shot: the first target hit — a second foe with no higher AC takes half what it lost.)
+            if (drained && spell.splitShot) {
+                const hurt = state.list.find((other) => action.targetIds?.includes(other.id) && drained.has(other.id));
+                const lost = hurt ? drained.get(hurt.id) - Math.max(0, hurt.hp.value) - (hurt.hp.temp ?? 0) : 0;
+                const second = lost > 0 ? state.list.filter((other) => other !== hurt && other.side === hurt.side && isActive(other) && other.kind !== "object" && (other.ac ?? 99) <= (hurt.ac ?? 0)).sort((a, b) => a.hp.value - b.hp.value)[0] : null;
+                if (second) {
+                    const type = spell.plan?.resolution?.sharedDamage?.components?.[0]?.type ?? "untyped";
+                    const dealt = applyDamage(state, second, [{ type, amount: Math.floor(lost / 2), persistent: false, precision: false }], { source: c });
+                    state.log?.push(`  Split Shot: ${second.name} takes ${dealt}`);
+                }
+            }
             // (2026-11-08, Energy Ablation: resistance of the spell's rank till the end of its next turn — to the foes' main energy type.)
             if (spell?.energyAblation && !disrupted && isActive(c)) {
                 const counts = new Map();
@@ -1421,6 +1432,11 @@ function actOn(state, c, action) {
             if (spell?.draw?.each) c.itemsAtHand?.delete(spell.item);
             // (2026-11-06, Courageous Assault: an ally the anthem reached — one in a Melee with a foe and a reaction left — makes a melee Strike
             // as its reaction.)
+            // (2026-11-08, Vigorous Anthem: the composer and each ally the anthem reached — not far apart — gain its temporary Hit Points.)
+            if (spell?.anthemTempHp && !disrupted) for (const ally of state.list.filter((other) => other.side === c.side && isActive(other) && other.kind !== "object" && (other === c || (other.band === "far") === (c.band === "far") || sameMelee(other, c)))) {
+                if ((ally.hp.temp ?? 0) < spell.anthemTempHp) ally.hp.temp = spell.anthemTempHp;
+            }
+            if (spell?.anthemTempHp && !disrupted) state.log?.push(`  Vigorous Anthem: ${spell.anthemTempHp} temporary Hit Points`);
             if (spell?.allyStrike && !disrupted) {
                 const ally = state.list.filter((other) => other !== c && other.side === c.side && isActive(other) && canAct(other) && canReact(other) && (other.strikes ?? []).some((strike) => strike.melee && strikeUsable(other, strike)) && engagedEnemies(state, other).some(isActive)).sort((a, b) => (b.strikes?.[0]?.bonus ?? 0) - (a.strikes?.[0]?.bonus ?? 0))[0];
                 const foe = ally ? engagedEnemies(state, ally).filter(isActive).sort((a, b) => a.hp.value - b.hp.value)[0] : null;
