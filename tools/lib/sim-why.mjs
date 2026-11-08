@@ -952,5 +952,6 @@ export const SIM_WHY = Object.freeze({
     "Bullet Dancer Reload": SUBCLASS,
     "Rapid Manifestation": SUBCLASS,
     "Mage's Field Dressing": SPELL_NOT_CAST,
+    "Aegis of Arnisant": FOE_SPELL,
     "Know Thy Doom": DOOM, "Scapegoat Parallel Self": DOOM
 });

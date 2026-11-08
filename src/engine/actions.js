@@ -136,7 +136,7 @@ export function targetAC(state, attacker, target, strike, flanked) {
     // (2026-11-07, Blanket Defense: beside a guardian that used it this round or last (till its next turn), its raised shield's bonus.)
     const blanket = target.side === "party" ? state.list.find((other) => other.blanketRound != null && other.blanketRound >= state.round - 1 && other !== target && other.side === target.side && isActive(other) && sameMelee(other, target) && other.shield?.raised) : null;
     const covered = blanket && !target.shield?.raised ? Number(blanket.shield.ac ?? blanket.shield.bonus ?? 2) || 2 : 0;
-    return covered + armorClass(target, { ranged: !strike.melee, coverBonus: strike.unerring ? 0 : strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded + forbiddingBonus(target, attacker) + parried;
+    return covered + armorClass(target, { ranged: !strike.melee, coverBonus: strike.unerring ? 0 : strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded + forbiddingBonus(target, attacker) + parried + (target.fierceGrasp && attacker.grabbedBy === target.id && (attacker.cond?.grabbed || attacker.cond?.restrained) ? 1 : 0);
 }
 
 // Cache of expected hit damage per Strike object (shared by every run of a

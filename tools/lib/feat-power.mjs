@@ -1740,6 +1740,17 @@ const HAND = {
     // ends; played as +half its level damage on its Strikes this turn (the Tumble Through taken as succeeding; only against a larger foe
     // not checked).)
     "the-bigger-they-are": (level) => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, model: { rounds: 1, modifiers: [{ on: "damage", type: "untyped", value: Math.floor(level / 2) }] } }], played: `+${Math.floor(level / 2)} damage on its Strikes this turn (1 action; the Tumble Through taken as succeeding)` }),
+    // (2026-11-08, Connect the Dots: a Perception check against the foe's Will DC (played as its Will save) — on a critical success an ally's
+    // Strikes get its Pursue a Lead bonus till its next turn, played as the foe off-guard for a round (the plain success's one Strike and
+    // the critical failure's stupefied not played).)
+    "connect-the-dots": (level, host, doc) => {
+        const round = { mode: "fixed", value: 1, unit: "rounds" };
+        const plan = conditionSavePlan(doc, "will", null, ["off-guard", null, round]);
+        if (!plan) return null;
+        const skill = host?.perception ?? level + 4;
+        const entry = { name: doc.name, plan: { ...plan, activation: { ...plan.activation, time: "2" }, targeting: { ...plan.targeting, target: "1 creature", range: 60, area: null } }, castRank: Math.max(1, Math.ceil(level / 2)), dc: skill + 10, attack: skill, pool: null, kind: "ability", featForced: true, effects: spellPack.effectModels(plan, 1) };
+        return { builtins: {}, spells: [entry], played: "2 actions: on a critical success, the foe off-guard for a round (an ally's Pursue a Lead bonus; a Perception check played as the foe's Will save)" };
+    },
     "divine-disharmony": (level, host, doc) => {
         const plan = conditionSavePlan(doc, "will", ["off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }], ["off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }]);
         if (!plan) return null;
@@ -1884,6 +1895,7 @@ const HAND = {
     "recover-spell": () => ({ builtins: { recoverSpell: true }, played: "a disrupted spell's slot back, an action of its next turn spent recasting it" }),
     "foreseen-failure": () => ({ builtins: { foreseenFailure: true }, played: "once a fight, a slot spell every target critically saves against: its actions back (as that many more next turn)" }),
     "spirits-interference": () => ({ builtins: {}, plans: [{ builtin: "self-effect", actions: 1, stance: false, requires: "raging", model: { rounds: 10, rangedFlat: 5 } }], played: "while raging, a DC 5 flat check for each ranged attack at it (1 action)" }),
+    "fierce-grasp": () => ({ builtins: { fierceGrasp: true, forceBasic: ["grapple"] }, played: "+1 AC against a foe it has grabbed (Grapple forced; its action and the Escape penalty not played)" }),
     "watch-this": () => ({ builtins: { watchThis: true }, played: "an ally's miss: its next turn's first weapon Strike deals twice its damage dice more (reaction; at whichever foe it Strikes)" }),
     "reflexive-stance": () => ({ builtins: { stanceAtStart: "Reflexive Stance" }, played: "its stance (Tiger Stance) entered free as initiative is rolled" }),
     "opening-stance": () => ({ builtins: { stanceAtStart: "Opening Stance" }, played: "its stance (Paragon's Guard) entered free as initiative is rolled" }),
