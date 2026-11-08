@@ -779,7 +779,18 @@ const SPELLSHAPES = {
     // 1 round, critical failure deafened and prone.
     "dizzying-spell": { save: "will", single: true, anyDamage: true, conditions: { failure: ["stupefied", 2, ROUND], criticalFailure: ["stupefied", 3, ROUND] } },
     "scintillating-spell": { save: "reflex", anyArea: true, anyDamage: true, noTrait: "darkness", conditions: { failure: ["dazzled", null, ROUND], criticalFailure: ["blinded", null, ROUND] } },
+    // (2026-11-08: Portentous Spell — a creature that fails its save is fascinated with it till its next turn (the reaction penalty not played).)
+    "portentous-spell": { anyArea: true, anyDamage: true, conditions: { failure: ["fascinated", null, ROUND], criticalFailure: ["fascinated", null, ROUND] } },
     "thunderclap-spell": { trait: "electricity", anyArea: true, conditions: { failure: ["deafened", null, ROUND], criticalFailure: [["deafened", null, ROUND], ["prone", null, null]] } }
+};
+const ENERGIES = ["acid", "cold", "electricity", "fire", "sonic"];
+const damageTypesOf = (spell) => (spell.plan?.resolution?.sharedDamage?.components ?? []).map((part) => part.type);
+const singleTarget = (spell) => !spell.plan?.targeting?.area && /^1 creature\b/.test(String(spell.plan?.targeting?.target ?? "")) && !/plus|additional/.test(String(spell.plan?.targeting?.target ?? ""));
+const oneMore = (plan) => ({ ...plan, activation: { ...plan.activation, time: String(Number(plan.activation.time) + 1) } });
+const FLAG_SHAPES = {
+    "overwhelming-energy": { fits: (spell) => damageTypesOf(spell).some((type) => ENERGIES.includes(type)), plan: (plan, host) => { const more = oneMore(plan); return { ...more, resolution: { ...more.resolution, ignoreResistance: [...[more.resolution?.ignoreResistance ?? []].flat(), { value: Number(host.level) || 1, types: ENERGIES }] } }; }, played: "the target's acid, cold, electricity, fire or sonic resistance ignored up to its level" },
+    "detonating-spell": { fits: singleTarget, flag: (spell) => ({ detonating: damageTypesOf(spell)[0] ?? "untyped" }), played: "splash of the spell's rank on the foes beside a target it damages (allies beside it kept out)" },
+    "energy-ablation": { fits: (spell) => damageTypesOf(spell).some((type) => [...ENERGIES, "force", "vitality", "void"].includes(type)), flag: () => ({ energyAblation: true }), played: "resistance of the spell's rank to the foes' main energy damage (fire if none) till the end of its next turn" }
 };
 function spellshapeEntry(doc, host) {
     // (2026-11-06, Vampiric Spell: a copy of each of its 1- or 2-action damage spells, an action more — temporary Hit Points of half the
@@ -801,6 +812,13 @@ function spellshapeEntry(doc, host) {
         const energies = ["acid", "cold", "electricity", "fire", "sonic"];
         const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? ""))).map((spell) => [spell, (spell.plan?.resolution?.sharedDamage?.components ?? []).map((part) => part.type).find((type) => energies.includes(type))]).filter(([, type]) => type).map(([spell, type]) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, forcible: type })).filter(castable);
         return spells.length ? { spells, pools: {}, gap: null, played: `Forcible Energy copies of ${spells.length} energy spell${spells.length > 1 ? "s" : ""}: weakness 5 on the creature hurt most` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no energy spell of the PC's it shapes` } };
+    }
+    // (2026-11-08, the last action feats: spellshapes that change what a damage spell does — a flag on a copy of each 1- or 2-action damage
+    // spell, an action more (fight.js after the cast; Overwhelming Energy the spell's own ignoreResistance, damage.js).)
+    const flagged = FLAG_SHAPES[slugOf(doc)];
+    if (flagged) {
+        const spells = (host.spells ?? []).filter((spell) => !spell.kind && ["1", "2"].includes(String(spell.plan?.activation?.time ?? "")) && spell.plan?.resolution?.sharedDamage?.components?.length && flagged.fits(spell)).map((spell) => ({ ...spell, name: `${spell.name} (${doc.name})`, plan: flagged.plan ? flagged.plan(spell.plan, host) : { ...spell.plan, activation: { ...spell.plan.activation, time: String(Number(spell.plan.activation.time) + 1) } }, ...(flagged.flag ? flagged.flag(spell, host) : {}) })).filter(castable);
+        return spells.length ? { spells, pools: {}, gap: null, played: `${doc.name} copies of ${spells.length} damage spell${spells.length > 1 ? "s" : ""}: ${flagged.played}` } : { spells: [], pools: {}, gap: { kind: "feat, not simulated", name: `${doc.name}: no damage spell of the PC's it shapes` } };
     }
     const shape = SPELLSHAPES[slugOf(doc)];
     if (!shape) return null;

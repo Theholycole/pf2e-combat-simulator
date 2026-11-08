@@ -1293,7 +1293,7 @@ function actOn(state, c, action) {
                 }
                 break;
             }
-            const drained = (spell?.vampiric || spell?.forcible || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
+            const drained = (spell?.vampiric || spell?.forcible || spell?.detonating || spell?.energyAblation || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             state.critSaves = null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
             // (2026-11-07, Second Thoughts: its single-target mental spell critically saved against — cast again at another foe, no slot
@@ -1375,6 +1375,22 @@ function actOn(state, c, action) {
                     applyEffect(state, hurt, { name: "Forcible Energy", rounds: 2, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [{ type: spell.forcible, value: 5 }], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `forcible:${c.id}` });
                     state.log?.push(`  ${hurt.name} gains weakness 5 to ${spell.forcible} (Forcible Energy)`);
                 }
+            }
+            // (2026-11-08, Detonating Spell: the single target it damaged — splash of the spell's rank on the other foes beside it.)
+            if (drained && spell.detonating) {
+                const hurt = state.list.find((other) => action.targetIds?.includes(other.id) && drained.has(other.id) && drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0) > 0);
+                if (hurt) for (const other of state.list.filter((o) => o !== hurt && o.side === hurt.side && isActive(o) && sameMelee(o, hurt))) {
+                    const dealt = applyDamage(state, other, [{ type: spell.detonating, amount: spell.castRank ?? 1, persistent: false, precision: false }], { source: c });
+                    state.log?.push(`  Detonating Spell: ${other.name} takes ${dealt}`);
+                }
+            }
+            // (2026-11-08, Energy Ablation: resistance of the spell's rank till the end of its next turn — to the foes' main energy type.)
+            if (spell?.energyAblation && !disrupted && isActive(c)) {
+                const counts = new Map();
+                for (const foe of state.list.filter((o) => o.side !== c.side && isActive(o))) for (const strike of foe.strikes ?? []) for (const part of strike.damage ?? []) if (["acid", "cold", "electricity", "fire", "sonic", "force", "vitality", "void"].includes(part.type)) counts.set(part.type, (counts.get(part.type) ?? 0) + 1);
+                const type = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "fire";
+                applyEffect(state, c, { name: "Energy Ablation", rounds: 2, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [{ type, value: spell.castRank ?? 1, exceptions: [] }], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `ablation:${c.id}` });
+                state.log?.push(`  ${c.name} gains resistance ${spell.castRank ?? 1} to ${type} (Energy Ablation)`);
             }
             if (drained && spell.vampiric && isActive(c)) {
                 const most = Math.max(0, ...state.list.filter((other) => drained.has(other.id)).map((other) => drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)));
