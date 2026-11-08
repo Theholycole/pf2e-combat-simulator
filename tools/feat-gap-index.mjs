@@ -138,10 +138,43 @@ for (const doc of docs) {
     });
 }
 
+// (2026-11-07, batches 30-: feats the text sorter took for combat that aren't: what each is, read by hand.)
+const OOC = "out of combat (exploration, downtime, skills)", CASTING = "spellcasting the spell module or PF2e handles", NOTHING = "roleplay or nothing to automate", NOTED = "PF2e's own Note shows it on its roll", GRANT = "only grants other feats, features or choices";
+const WHY_BY_ID = {
+    uhU0KajD09h5bw4e: OOC, SXaQi6cZ58mvz9rV: OOC, f6k9lIrIS4SfnCnG: OOC, mnH68QcFRtkMbNE0: OOC, OuEIsBtQD1Fgx6Gz: OOC, vqxKsnFhzWv7AykV: OOC, BQzExsEZrwGsJD66: OOC, u6tLp3zTBweq7CxO: OOC,
+    kQbv3yCW1yhaKSJU: CASTING, hqasqwjrTzOFkDY3: CASTING, gMPnLWLlHoNU9Lqv: CASTING,
+    TXXrkkFfNSWgHrn5: NOTHING, "45F4nNN8gxoBdSnk": NOTHING,
+    Wx12NUjqTOjFrEoW: NOTED, QZ00D2xdJnbWFzml: NOTED, OWhTAowdMvBZnCrT: NOTED, Z7M3ImHWqUyGu6cN: NOTED,
+    ZiSmhTsnQMLqsmyw: NOTHING, VQInlv7phdWErkvE: NOTHING, ivSf8wSIUkK8gwej: NOTHING, FNW66GfWXaiBSexb: NOTHING,
+    BBL0DR1wgNNpxYlx: OOC, "7Hx0i4VchvwrIOV5": OOC, M9WIUEPY6IoRtgWN: OOC, db0RHtFGhCfMx8vT: OOC, lWDM4XNj1MQzTVm2: OOC, ADoFKzCh5z4dXg3f: OOC, OslV3jav9PGFMB1A: OOC,
+    "6y2rSSlCXUpk8DMY": CASTING, LHjPTV5vP3MOsPPJ: CASTING, RrtqD8WmoUumauJD: CASTING,
+    Y4gYfrxjSir2Enui: CASTING, wT6No3nyea1djz1d: CASTING, FwWbCQ34i2EN5or1: CASTING, "1fVKWWYjlVtOECku": CASTING, eR0sifECG27CC4do: CASTING,
+    daVIABU0UzyMnoiA: NOTHING, "4BbfHsGPRHPHfIGY": OOC, sk5HspGGnLW8b6bX: OOC,
+    qeLpqH2cMSmIrILV: NOTED, iRztLGEK5OfjZTPg: NOTED, mTkbgFOHJUBl0Qwg: NOTED,
+    pCx2vSnIYIdnSKnr: CASTING, SVfD887ocfUFikVA: CASTING, DFtbxytrOrmkQRfm: CASTING, dJ1ZviNMpt4ID7lc: CASTING, xblAUCASehLA9fbc: CASTING,
+    RR0p9E6GWt0CRA1q: OOC, NIzuFBqmHURIy2oI: OOC, Sq9muixjFptJO8Ae: NOTHING, "8NnIrUijGD2Chl55": NOTHING, NIaNTFlPwi2ng1rZ: NOTHING,
+    NgUB5toKxBd8RJmm: NOTED, lwzspz4dktZLgqlY: NOTED,
+    // (Companions, batch 31.)
+    zBLrZE5aCkpaTK2N: GRANT, f2Pl5dWEL9ZvEyI1: GRANT, cxWEBBu8oyKTrqbi: GRANT, "9umJBQEcV1Fax4bd": GRANT, "8zHsIubGREIrGfAA": GRANT, RJjQ3Jh5ErQgOfGJ: GRANT,
+    "9C6a6FXuPqWjXy8K": GRANT, "2VKV7jLRTxWyVjGa": GRANT, FWQSyjjYg8h0KpHq: GRANT, AiDelwfA0uVT2lN3: GRANT, xXHoyccK5ZG2AJKg: GRANT, wijzB1FDUT7SC86a: GRANT,
+    DCItdIWcdQkaIL5g: GRANT, aM36jhU3VTeUzPpr: GRANT, FCivW0HZhm7PoxrC: GRANT, TO7YGGr38shgxV6l: GRANT, "7275FFz5qWQO3j0s": GRANT, "06wbX1YStavp4Fq4": GRANT, DrZqTPcqSsmw55kb: GRANT, YtL4Q55dAM1GzdDh: GRANT,
+    l64p70oQ6a3AtMq9: CASTING, YY7wmYQ9ccAO8fut: CASTING, eNeSl5UNaqDwyNkp: CASTING, Tr2SnOE2WqFIIWIK: CASTING, u5cPwhuCd3xTAlWl: CASTING, EGtuOZ3E9y0qZ1oJ: CASTING, yg1ZTjHuSiQJFO0i: CASTING,
+    GmSY4YVyzgAZ4I78: CASTING, OJxEF5FONTtEdbpP: CASTING, FhxkU6OftQeecpQW: CASTING, YYTZFBT2WZMU14om: CASTING, y8VecqdECqyH1h6o: CASTING, WfbmFsRxbVyzMmCz: CASTING, DxcjEcxTbjlOA2C0: CASTING,
+    wa9ZGBTlFuwOjPpH: CASTING, jdrdkxqautAtszCX: CASTING, drcZf55HVsTnnTcF: CASTING, GTKzA1rfUtQwxvgz: CASTING, "2bCbfQ0KCSSYpg2q": CASTING, JGfJPx6xkx11zHlW: CASTING, GsrwoQ7DIjERXuPf: CASTING,
+    IYt6pMqiTocTrixA: CASTING, nLlbcEZ5w4bsgMye: CASTING,
+    "9j90iE61ZToFR8cu": OOC, xLD9EmkEmT8hgwv7: OOC, MXWUkpPJsLPrqmJO: OOC, ADgFB8hjUgcXS4bF: OOC, pfBVx5xBfwKd1iVL: OOC,
+    vwBD55BRDOatp4ZV: NOTHING, rAbfuZ1mc3lUYH41: NOTHING, oUCQymKo4eWxgteP: NOTHING, BiPUUNGoJIj1mqjO: NOTHING,
+};
+const NO_CREATURE = new Set(["XLoRtMn48f2KKvsu", "G6aNxXTIJYIGeicK", "5lqVFVTA98M6E80o", "Ar6W97iun6yYI8Df", "LNyTKhIZlM17026W", "xT593tHyPkumPuzz", "MbvPuMVy2VhftJgd", "969mPoiYANzV2261", "jSZJWYHZU3hnGRcp", "1re3J4hWW7raXIRB", "dUnT3HWMFD3d2eBJ"]);
 // Why the feat module leaves a feat, in order: PF2e already does it; it only grants other things; then what it does.
 const moduleWhy = (row) => {
     if (row.featModule !== "none" && row.featModule !== "error") return null;
     if (row.featModule === "error") return "compile error";
+    // (2026-10-31 Cole's rule: a feat that only combines basic actions leaves the automation queue — tools/combo-feats.mjs.)
+    if (COMBO_VALUE.has(row.name)) return "only basic actions combined (no automation, Cole's rule)";
+    // (2026-11-07, batch 30: actions on objects, locks, traps or slopes, or on a variant rule's Stamina — nothing on a fight's creatures.)
+    if (NO_CREATURE.has(row.id)) return "objects, locks, traps, slopes or variant rules";
+    if (WHY_BY_ID[row.id]) return WHY_BY_ID[row.id];
     if (row.pf2eRules.length) return "PF2e's own rule elements already do it";
     // (Its own Effect PF2e puts on from the feat's Use button — docs/feats.md D9 leaves it to PF2e.)
     if (row.selfEffect) return "PF2e's own Effect, from the feat's Use button";

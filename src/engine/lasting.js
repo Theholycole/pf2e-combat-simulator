@@ -38,8 +38,11 @@ export function lastingTurnStart(state, c, { canSustain = true } = {}) {
     }
     if (!canSustain) return;
     for (const spell of sustained) {
-        if (cackles(state, c, spell) || c.actionsLeft > 0) {
-            if (!c.cackledNow) c.actionsLeft -= 1;
+        // (2026-11-07, Effortless Concentration: one Sustain a turn for free as the turn begins — c.freeSustainLeft, fight.js.)
+        const free = (c.freeSustainLeft ?? 0) > 0;
+        if (free || cackles(state, c, spell) || c.actionsLeft > 0) {
+            if (free) c.freeSustainLeft -= 1;
+            else if (!c.cackledNow) c.actionsLeft -= 1;
             c.cackledNow = false;
             state.log?.push(`  ${c.name} Sustains ${spell}`);
             (c.sustainedNow ??= []).push(spell);

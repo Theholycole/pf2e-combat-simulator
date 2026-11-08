@@ -385,7 +385,9 @@ function liveRoller(state) {
             let total = instance.constant;
             for (const term of instance.dice) {
                 let rolled = 0;
-                for (let i = 0; i < term.count; i++) rolled += state.rng.die(term.die);
+                // (2026-11-07, Impose Order (Psychic): this turn each die its average rounded up.)
+                const even = Boolean(state.castingBy?.orderActive);
+                for (let i = 0; i < term.count; i++) rolled += even ? Math.ceil((term.die + 1) / 2) : state.rng.die(term.die);
                 total += term.factor * rolled;
             }
             return Math.max(0, Math.floor(total));
@@ -457,13 +459,16 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
             if (total > result.total) result = { natural, total, dc: options.dc, degree: DEGREE_NAMES[degreeOf(total, options.dc, natural)] };
         }
     }
+    // (2026-11-07, Second Thoughts: who critically succeeded at a save — fight.js reads it after a spell.)
+    if (SAVES.has(statistic) && saver?.id && result?.degree === "criticalSuccess") (state.critSaves ??= new Set()).add(saver.id);
     if (!SAVES.has(statistic) || !saver?.id || !["failure", "criticalFailure"].includes(result?.degree) || !isActive(saver)) return result;
     // (B125: an ally's failed save rerolled, keeping the better — against the effects it names, or its kind of save.)
     // (B220, Second Chance: a free action once a round, not a reaction.)
     const rerolls = state.list.find((c) => c.allySaveReroll && (c !== saver || c.allySaveReroll.self) && c.side === saver.side && isActive(c) && (c.allySaveReroll.free ? (!c.allySaveReroll.perRound || c.allySaveRerollRound !== state.round) : canReact(c)) && (c.allySaveRerollsUsed ?? 0) < c.allySaveReroll.uses
         && (c === saver || near(c, c.allySaveReroll.within)) && (!c.allySaveReroll.save || c.allySaveReroll.save === statistic) && (!c.allySaveReroll.against || c.allySaveReroll.against.some((trait) => traits.includes(trait)))
         // (2026-11-07, Such a Disgrace!'s "temporarily immune ... for 10 minutes": each ally once; Focus Ally's "fails, but doesn't critically fail".)
-        && !(c.allySaveReroll.perAlly && c.allySaveRerollGiven?.has(saver.id)) && (!c.allySaveReroll.failureOnly || result.degree === "failure"));
+        && !(c.allySaveReroll.perAlly && c.allySaveRerollGiven?.has(saver.id)) && (!c.allySaveReroll.failureOnly || result.degree === "failure")
+        && (!c.allySaveReroll.companion || saver.companionOf === c.id));
     if (rerolls) {
         if (rerolls.allySaveReroll.free) rerolls.allySaveRerollRound = state.round;
         else rerolls.reactionUsed = true;
@@ -476,6 +481,8 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
         // (B181: a critical failure on the reroll a failure.)
         const degree = rerolls.allySaveReroll.floor === "failure" && rolled === "criticalFailure" ? "failure" : rolled;
         log(state, `  ${rerolls.name} uses ${rerolls.allySaveReroll.name}: ${saver.name} rerolls, ${degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
+        // (2026-11-07, Storied Companion: its companion's reroll, at mythic proficiency (+2 taken), and temporary Hit Points of twice its level.)
+        if (rerolls.allySaveReroll.tempHp) saver.hp.temp = Math.max(saver.hp.temp ?? 0, rerolls.allySaveReroll.tempHp);
         // (B220, Second Chance: the new result, whatever it is.)
         if (rerolls.allySaveReroll.keep === "new" || DEGREE_NAMES.indexOf(degree) > DEGREE_NAMES.indexOf(result.degree)) return { natural, total, dc: options.dc, degree };
         return result;
@@ -547,6 +554,18 @@ const NOT_HARMFUL = new Set(["off-guard", "quickened", "concealed", "hidden", "i
 export function bothHitRider(state, attacker, target, rider, { said = "Both Strikes hit" } = {}) {
     if (!isActive(target)) return;
     if (said) log(state, `  ${said} ${target.name}`);
+    // (2026-11-07, Wrath of the First Ghoul: a 10th-rank Power Word Kill on the creature hit — level 16 or lower dies, 17 with 50 HP or fewer
+    // dies (else drops to 0), higher takes 50.)
+    if (rider.powerWordKill && isActive(target) && !(target.immunities ?? []).some((entry) => ["death-effects", "mental"].includes(entry?.type ?? entry))) {
+        const level = target.level ?? 0;
+        if (level <= 16 || (level === 17 && target.hp.value <= 50)) {
+            log(state, `  ${target.name} dies (${rider.powerWordKill})`);
+            applyDamage(state, target, [{ type: "untyped", amount: target.hp.value + (target.hp.temp ?? 0) + 1 }], { source: attacker });
+        } else {
+            const dealt = applyDamage(state, target, [{ type: "untyped", amount: level === 17 ? target.hp.value + (target.hp.temp ?? 0) : 50 }], { source: attacker });
+            log(state, `  ${target.name} takes ${dealt} (${rider.powerWordKill})`);
+        }
+    }
     // (C34, Infernal Interference: no reactions until the attacker's next turn begins.)
     if (rider.noReactions) {
         target.reactionLocks = [...(target.reactionLocks ?? []).filter((held) => held.by !== attacker.id), { by: attacker.id, spell: "no reactions", untilRound: state.round + 1, ownTurn: false, sustained: false }];
@@ -594,6 +613,26 @@ function stackedValue(target, change, after = false) {
 }
 
 export function applyCondition(state, target, slug, value, duration, source, scope = null) {
+    // (2026-11-07, Watch Your Back: a –2 status penalty to Will saves against fear effects for a minute — tools/lib/feat-power.mjs's own slug.)
+    if (slug === "watch-your-back") {
+        target.saveBonuses = [...(target.saveBonuses ?? []).filter((bonus) => bonus.from !== "Watch Your Back"), { saves: ["will"], type: "status", value: -2, predicate: ["fear"], from: "Watch Your Back" }];
+        log(state, `  ${target.name} takes –2 to Will saves against fear (Watch Your Back)`);
+        return true;
+    }
+    // (2026-11-07, Savor the Hunt: it frightens a creature — temporary Hit Points of half its level rounded up (reaction, once).)
+    if (slug === "frightened" && source?.savorTheHunt && !source.savored && source.side !== target.side && !(target.cond?.frightened > 0) && isActive(source) && canReact(source, "Savor the Hunt")) {
+        source.savored = true;
+        spendReaction(source, "Savor the Hunt");
+        source.hp.temp = Math.max(source.hp.temp ?? 0, source.savorTheHunt);
+        log(state, `  ${source.name} uses Savor the Hunt: ${source.savorTheHunt} temporary Hit Points`);
+    }
+    // (2026-11-07, Thousand-Year Grudge: once a fight, a Demoralize's frightened becomes sickened of that value (reaction).)
+    if (slug === "frightened" && source?.thousandYearGrudge && !source.grudgeSpent && source.side !== target.side && /^demoralize$/i.test(String(state.castingNow?.plan?.source?.slug ?? "")) && canReact(source, "Thousand-Year Grudge")) {
+        source.grudgeSpent = true;
+        spendReaction(source, "Thousand-Year Grudge");
+        log(state, `  ${source.name} uses Thousand-Year Grudge`);
+        slug = "sickened";
+    }
     // M38: a hostile condition from the party on a foe that gave up and is leaving refuses its surrender.
     if (source && source.side !== target.side) {
         harmedAfterGivingUp(state, target, source);
@@ -618,6 +657,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
         (target.timers ??= []).push({ goaded: entry, round: state.round + 1, turnOf: source.id, at: "end" });
         return true;
     }
+    // (2026-11-07, Deny Support: a Feint's success — the target can't flank until the feinter's next turn, about a round.)
+    if (slug === "off-guard" && source?.denySupport && source.side !== target.side && /^feint$/i.test(String(state.castingNow?.plan?.source?.slug ?? ""))) target.noFlankRound = state.round + 1;
     if (slug === "off-guard" && scope?.attacker) {
         const entry = { attacker: scope.attacker, attacks: scope.attacks ?? "any", uses: scope.uses ?? null };
         target.offGuardTo = [...(target.offGuardTo ?? []), entry];
@@ -653,8 +694,11 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if (negate && (target.negateConditionUses ?? 0) > 0 && source && source.side !== target.side && !NOT_HARMFUL.has(slug) && (!negate.conditions || negate.conditions.includes(slug)) && isActive(target) && canReact(target)) {
         target.negateConditionUses--;
         target.reactionUsed = true;
+        // (2026-11-07, Polymorphic Escape: a flat check first; on a failure the reaction is spent and the condition lands.)
+        const flatFailed = negate.flat && flatCheck(state.rng, negate.flat) < SUCCESS;
+        if (flatFailed) log(state, `  ${target.name} uses ${negate.name}: the flat check fails`);
         // (B226, Fearless Rush: the value lower, then a Stride toward the creature that frightened it.)
-        if (negate.reduceBy) {
+        else if (negate.reduceBy) {
             const lower = (Number.isFinite(value) ? value : 1) - negate.reduceBy;
             log(state, `  ${target.name} uses ${negate.name}: ${slug} ${Math.max(0, lower)}`);
             if (negate.stride && isActive(source) && !sameMelee(target, source) && canMove(target)) stride(state, target, { kind: "engage", targetId: source.id });
@@ -695,6 +739,8 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if ((slug === "grabbed" || slug === "restrained") && source && source !== target) target.grabbedBy = source.id;
     // (B197, Deadly Mandibles: a creature it just grabbed, its reaction Strike at it once the action ends.)
     if ((slug === "grabbed" || slug === "restrained") && !before && source && source !== target && (source.reactionStrikes ?? []).some((entry) => entry.triggers.includes("grabs")) && !(state.afterAction ?? []).some((entry) => entry.kind === "grab-strike" && entry.targetId === target.id)) (state.afterAction ??= []).push({ kind: "grab-strike", sourceId: source.id, targetId: target.id });
+    // (2026-11-07, Ankle Bite: a PC that's just been grabbed — its reaction Strike at the grabber once the action ends.)
+    if ((slug === "grabbed" || slug === "restrained") && !before && source && source !== target && source.side !== target.side && (target.reactionStrikes ?? []).some((entry) => entry.triggers.includes("grabbed"))) (state.afterAction ??= []).push({ kind: "grabbed-strike", sourceId: target.id, targetId: source.id });
     // Fast Swallow (B70): a creature it just grabbed, swallowed as its reaction once the action ends.
     if ((slug === "grabbed" || slug === "restrained") && !before && source?.fastSwallow && source !== target && !(state.afterAction ?? []).some((entry) => entry.targetId === target.id)) (state.afterAction ??= []).push({ kind: "fast-swallow", sourceId: source.id, targetId: target.id });
     if (Number.isFinite(rounds)) {
@@ -1027,6 +1073,9 @@ function revivable(spell, target) {
 
 export function applyHeal(state, target, amount) {
     if (amount <= 0 || target.status === "dead" || target.status === "fled" || target.status === "surrendered") return 0;
+    // (2026-11-07, Channeler's Stance: a vitality spell's healing a status bonus of its rank — its apparition spells' damage not played.)
+    const channel = state.castingBy?.channelerStance && (state.castingNow?.plan?.traits ?? []).includes("vitality") ? Number(state.castingNow.castRank) || 1 : 0;
+    if (channel) amount += channel;
     if (target.status === DOWN) {
         if (target.kind !== "pc") return 0;
         // Losing dying: wounded goes up by 1, and the creature wakes (still prone).
@@ -1614,7 +1663,8 @@ function applyControl(state, caster, spell, target, change) {
     }
     if (change.slug === "contained") {
         const base = Number(change.value) || 40;
-        target.contained = { hp: base + Math.max(0, rank - 4) * (base >= 40 ? 15 : 5), hardness: 10, untilRound: state.round + 10, by: caster.id, spell: spell.name };
+        // (2026-11-07, Curse of the Saumen Kar: its ice dome's Hardness 20, lasting till destroyed — spell.containment.)
+        target.contained = { hp: spell.containment?.hp ?? base + Math.max(0, rank - 4) * (base >= 40 ? 15 : 5), hardness: spell.containment?.hardness ?? 10, untilRound: state.round + (spell.containment?.rounds ?? 10), by: caster.id, spell: spell.name };
         if (target.meleeId !== null && target.meleeId !== undefined) leaveMelee(state, target, target.band === "far" ? "far" : "near");
         log(state, `  ${target.name} is contained (${target.contained.hp} HP field)`);
         return;
@@ -3179,11 +3229,20 @@ function applyChanges(state, caster, spell, changes, context, io) {
 // Casts spell spellIndex at the targets (ids). Spends its pool.
 // (2026-11-02, classes.js: a sorcerer's Sorcerous Potency — its spell's rank more damage on each creature a slot spell damages — and the like:
 // caster.spellDamageBonus { perRank, slotsOnly }.)
-export function withCasterDamage(caster, spell, changes) {
+export function withCasterDamage(caster, spell, changes, state = null) {
     const bonus = caster?.spellDamageBonus;
     if (!bonus || spell.kind || !Array.isArray(changes)) return changes;
     if (bonus.slotsOnly && (!spell.pool || (spell.plan?.traits ?? []).includes("cantrip") || /:focus$/.test(spell.pool))) return changes;
-    const extra = Math.max(0, Math.round((bonus.perRank ?? 1) * (Number(spell.castRank) || 1)));
+    // (2026-11-07, Strain Mind: once a fight with its focus spent, a psi cantrip amped — about a die a rank more — for 4 Hit Points a rank.)
+    const strained = caster.strainMind && !caster.strained && (spell.plan?.traits ?? []).includes("cantrip") && changes.some((change) => change.op === "damage") && Object.entries(caster.spellPools ?? {}).every(([key, left]) => !/:focus$/.test(key) || left <= 0);
+    if (strained && state) {
+        caster.strained = true;
+        caster.hp.value = Math.max(1, caster.hp.value - 4 * (Number(spell.castRank) || 1));
+        log(state, `  ${caster.name} uses Strain Mind: ${spell.name} amped for ${4 * (Number(spell.castRank) || 1)} Hit Points`);
+    }
+    // (2026-11-07, No!!!: an ally's drop unleashes its psyche till the end of its next turn — its Unleash Psyche's damage once more.)
+    const shocked = caster.shockedUnleash != null && caster.shockedUnleash >= (caster.lastTurnRound ?? 0) ? 1 : 0;
+    const extra = Math.max(0, Math.round(((bonus.perRank ?? 1) + shocked + (strained ? 5 : 0)) * (Number(spell.castRank) || 1)));
     if (!extra) return changes;
     const seen = new Set();
     return changes.map((change) => {
@@ -3270,7 +3329,41 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
 
 // Resolves a spell or ability (one of the creature's, or a rider's plan) at the targets.
 // Spellstrike (C20): forcedDegree is the Strike's result for a spell attack; disrupted, a spell lost to a critically missed Strike.
-export function castPlan(state, caster, spell, targetIds, actions, { forcedDegree = null, disrupted = false, evenDown = false } = {}) {
+export function castPlan(state, caster, spell, targetIds, actions, options = {}) {
+    // (2026-11-07: the spell being cast, for a condition's rider on one — Thousand-Year Grudge's Demoralize.)
+    const outer = state.castingNow;
+    const outerBy = state.castingBy;
+    state.castingNow = spell;
+    state.castingBy = caster;
+    // (2026-11-07, Timeline-Splitting Spell: once a fight, a non-cantrip slot spell with a save cast in two timelines — a second use of its
+    // slot spent where it has one, the better result kept (its third action not played).)
+    const outerSplit = state.splitting;
+    if (caster.timelineSplit && !caster.timelineSplitUsed && spell.pool && !spell.kind && !(spell.plan?.traits ?? []).includes("cantrip") && spell.plan?.resolution?.kind === "save" && caster.side !== undefined) {
+        caster.timelineSplitUsed = true;
+        if ((caster.spellPools?.[spell.pool] ?? 0) > 0) caster.spellPools[spell.pool] -= 1;
+        state.splitting = caster;
+        log(state, `  ${caster.name} uses Timeline-Splitting Spell`);
+    }
+    try {
+        const result = castPlanInner(state, caster, spell, targetIds, actions, options);
+        // (2026-11-07, Tree of Duality's Cleansing Pollen: each living ally about the tree — taken as about the kineticist — regains its d4s.)
+        if (spell.allyHeal) {
+            for (const ally of state.list) {
+                if (ally.side !== caster.side || ally.status !== ACTIVE || ally.kind === "object" || isUndead(ally) || ally.hp.value >= ally.hp.max || (ally !== caster && !sameMelee(ally, caster) && (ally.band === "far") !== (caster.band === "far"))) continue;
+                const healed = Math.min(ally.hp.max - ally.hp.value, rollCount(state, spell.allyHeal));
+                ally.hp.value += healed;
+                log(state, `  ${ally.name} regains ${healed} HP (${spell.name})`);
+            }
+        }
+        return result;
+    } finally {
+        state.castingNow = outer;
+        state.castingBy = outerBy;
+        state.splitting = outerSplit;
+    }
+}
+
+function castPlanInner(state, caster, spell, targetIds, actions, { forcedDegree = null, disrupted = false, evenDown = false } = {}) {
     // A random effect table (B255): the die picks the way, played as the ability (a face with nothing to play does nothing; "roll twice"
     // rolls twice more, without that face). The ways share the ability's recharge.
     if (spell.randomWays?.length) {
@@ -3442,8 +3535,13 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     // The ways of one ability (a dragon's two breath weapons) share it: their rechargeGroup, the ability's name.
     if (info.recharge) (caster.rechargeUntil ??= new Map()).set(spell.rechargeGroup ?? spell, state.round + rollCount(state, info.recharge));
     const markImmune = (list) => {
+        // (2026-11-07, Reincarnated Ridiculer, Unrelenting Terror: its Demoralize leaves no lasting immunity — c.repeatDemoralize.)
+        const demoralize = caster.repeatDemoralize && /^demoralize$/i.test(String(spell.plan?.source?.slug ?? spell.name ?? ""));
+        if (demoralize && caster.repeatDemoralize !== "round") return;
         const immune = (caster.immuneTargets ??= new Map()).get(spell) ?? new Set();
         for (const target of list) immune.add(target.id);
+        // (Unrelenting Terror: immune only until its next turn — fight.js clears it then.)
+        if (demoralize) for (const target of list) (caster.immuneUntilTurn ??= []).push({ spell, id: target.id });
         caster.immuneTargets.set(spell, immune);
     };
     if (info.immunity && !info.immunityDegrees) markImmune(targets);
@@ -3531,10 +3629,21 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
             log(state, `  ${given.actor.name} uses ${mythicSave.name}: its ${statistic} save at mythic proficiency (+${mythicSave.bonus})`);
             given = { ...given, modifier: given.modifier + mythicSave.bonus };
         }
+        // (2026-11-07, Timeline-Splitting Spell: two castings, the better timeline kept — a foe's save rolled twice, the worse for it.)
+        if (state.splitting === caster && SAVE_SLUGS.has(statistic) && given?.actor && given.actor.side !== caster.side && forcedDegree === null) given = { ...given, misfortune: true };
         const keep = ownFortune(statistic);
         const options = raised(statistic, keep ? { ...given, [keep === "higher" ? "fortune" : "misfortune"]: true } : given);
         const result = betterSave(state, statistic, options, adjusted(statistic, options, misfortune(statistic, options) ?? rolled(statistic, options)), spell, { area: Boolean(info.area) });
         let final = heroReroll(statistic, options, result) ?? result;
+        // (2026-11-07, Impose Order: its own skill check about to critically fail — 10 + its proficiency bonus instead (taken as its level + 4),
+        // once a fight (fortune; reaction).)
+        if (!SAVE_SLUGS.has(statistic) && caster.imposeOrder && !caster.orderImposed && options?.actor === caster && final?.degree === "criticalFailure" && Number.isFinite(options?.dc) && canReact(caster, "Impose Order")) {
+            caster.orderImposed = true;
+            spendReaction(caster, "Impose Order");
+            const total = 10 + (caster.level ?? 1) + 4;
+            final = { natural: null, total, dc: options.dc, degree: DEGREE_NAMES[degreeOf(total, options.dc, null)] };
+            log(state, `  ${caster.name} uses Impose Order: ${total}, ${final.degree.replace(/([A-Z])/g, " $1").toLowerCase()}`);
+        }
         // (2026-11-05, Black Cat Curse: a foe's successful save against the party, rerolled with the worse kept — a PC's reaction within
         // 30 feet, once a fight.)
         if (SAVE_SLUGS.has(statistic) && forcedDegree === null && options?.actor?.id && final?.degree && DEGREE_NAMES.indexOf(final.degree) >= 2) {
@@ -3658,7 +3767,7 @@ export function castPlan(state, caster, spell, targetIds, actions, { forcedDegre
     }
     if (info.immunity && info.immunityDegrees) markImmune(targets.filter((target) => !result.degrees[target.id] || info.immunityDegrees.includes(result.degrees[target.id])));
     // (2026-10-27: an immunity to one part of it — trigger.partImmunity, part-immunity.js: that condition left out of an immune target's row.)
-    result.changes = withCasterDamage(caster, spell, partImmune(state, caster, spell.plan, spell.name, result).kept);
+    result.changes = withCasterDamage(caster, spell, partImmune(state, caster, spell.plan, spell.name, result).kept, state);
     applyChanges(state, caster, spell, result.changes, context, io);
     // (S56, Acid Splash: a hit's splash damage on the others within 5 feet of the target — its Melee — not doubled on a critical hit.)
     if (spell.plan?.resolution?.splash) splashAround(state, caster, spell, targets, result);
@@ -3741,6 +3850,13 @@ export function exploitVulnerability(state, c, target) {
     // personal antithesis to them as well, on a non-humanoid.)
     const mortal = degree >= 2 && weakest > c.exploit.antithesis;
     c.exploited = { targetId: target.id, kind: target.name, mortal, humanoid: (target.traits ?? []).includes("humanoid"), value: mortal ? weakest : c.exploit.antithesis };
+    // (2026-11-07, Esoteric Warden: on a success +1 status to AC and saves — +2 on a critical success —, played until its next turn
+    // against all foes, not the one creature's next attack only.)
+    if (c.esotericWarden && degree >= 2) {
+        const value = degree === 3 ? 2 : 1;
+        applyEffect(state, c, { name: "Esoteric Warden", rounds: 1, modifiers: [{ on: "ac", type: "status", value }, { on: "saving-throw", type: "status", value }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: "esoteric-warden" });
+        log(state, `  ${c.name} gains +${value} AC and saves (Esoteric Warden)`);
+    }
 }
 
 // Whether a creature's Strikes already carry its Exploit Vulnerability against a target (its own target, or one of the same kind).
@@ -3775,6 +3891,15 @@ export function overdrive(state, c) {
     const type = degree === 1 ? "fire" : null;
     const strikeDeltas = Object.fromEntries((c.strikes ?? []).map((strike) => [strike.name, [{ dice: 0, die: 0, bonus, multiplier: 1, type: type ?? strike.damage[0]?.type, precision: false, persistent: false }]]));
     c.activeBuffs.push({ name: c.overdrive.name, strikeDeltas });
+    // (2026-11-07, Ubiquitous Overdrive: its allies within 30 feet — not far apart — the same bonus, its expert-and-up extra damage not theirs.)
+    if (c.ubiquitousOverdrive && degree >= 2) {
+        for (const ally of state.list) {
+            if (ally === c || ally.side !== c.side || !isActive(ally) || !(ally.band !== "far" || c.band !== "far") || ally.kind === "object") continue;
+            const deltas = Object.fromEntries((ally.strikes ?? []).map((strike) => [strike.name, [{ dice: 0, die: 0, bonus, multiplier: 1, type: strike.damage?.[0]?.type, precision: false, persistent: false }]]));
+            ally.activeBuffs = [...(ally.activeBuffs ?? []).filter((buff) => buff.name !== "Ubiquitous Overdrive"), { name: "Ubiquitous Overdrive", strikeDeltas: deltas }];
+        }
+        log(state, `  ${c.name}'s allies gain its overdrive (Ubiquitous Overdrive)`);
+    }
     if (degree >= 2) c.overdriveDone = true;
 }
 
@@ -5076,7 +5201,8 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
     const sets = [];
     // (Not those the spell can't affect — Wails of the Damned's "each living enemy": not the caster's allies, nor undead — so they don't
     // take the area's room or show among its targets.)
-    const affected = (other) => !outsideTargets(caster, other, spell);
+    // (2026-11-07, Flying Flame's path it chooses: an area for foes only — foes — leaves its allies out of any shape, not only an emanation.)
+    const affected = (other) => !outsideTargets(caster, other, spell) && !(info.area.foes && other.side === caster.side);
     // (On the grid, 2026-10-21: whoever its template catches where it can go — grid-fight.js.)
     if (state.grid && caster.square) return gridAreaSets(state, caster, info.area, info.range, { affected: (other) => affected(other) && notImmune(other), healing: Boolean(info.healing), helpful: Boolean(info.helpful) || Boolean(lightZoneOf(spell)), foesOnly: Boolean(info.area.foes) });
     const members = (id) => [...(state.melees.get(id) ?? [])].map((memberId) => state.byId.get(memberId)).filter((other) => other && isActive(other) && notImmune(other) && affected(other));

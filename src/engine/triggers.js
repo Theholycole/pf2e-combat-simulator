@@ -2,7 +2,8 @@
 // compiles what it does (a save, a check, an effect), and the feat ratings read when it goes from the feat's own Trigger line
 // (tools/lib/feat-power.mjs featTriggerOf) — entry.featTrigger { on, melee?, unarmed?, whileDown? } on the PC's spell entry, and
 // c.featTriggers on the PC. The events:
-// - "turn-start": its turn begins (Blazing Aura, High-Speed Regeneration, Harness Natural Magic).
+// - "turn-start": its turn begins (Blazing Aura, High-Speed Regeneration, Harness Natural Magic). "initiative": as initiative is
+//   rolled (All This Has Happened Before).
 // - "damaged": a foe damages it (Impose Order, Gaping Flesh, Calcifying Sand, Inscribed Blast) — melee: by a melee attack or from beside it.
 // - "foe-down": it drops a foe (Victorious Vigor, Cranial Detonation).
 // - "would-damage": before damage from a foe lands (Adamantine Body, Terrain Shield) — strike: only a Strike's; type: only that type's.
@@ -54,6 +55,10 @@ export function featTriggers(state, c, on, ctx = {}) {
         if (trigger.type && !(ctx.types ?? []).includes(trigger.type)) continue;
         if (trigger.withCondition && !(c.cond?.[trigger.withCondition] > 0)) continue;
         if (trigger.atYou && ctx.attacked !== c) continue;
+        // (2026-11-08: Unnerving Prowess's first turn of an encounter; Rippling Spin's stance, a self Effect it's in.)
+        if (trigger.round1 && state.round !== 1) continue;
+        if (trigger.notRound1 && state.round === 1) continue;
+        if (trigger.inEffect && !(c.effects ?? []).some((effect) => effect.key === `self:${trigger.inEffect}` || effect.model?.name === trigger.inEffect)) continue;
         const about = ctx.target ?? ctx.by ?? null;
         if (trigger.within && about && about !== c && !withinFeet(c, about, trigger.within)) continue;
         if (!poolReady(c, spell)) continue;
@@ -82,7 +87,7 @@ export function fearTriggers(state, target) {
 
 // A foe's roll: each PC on the other side with a reaction for it (a quick check first: most have none).
 export function foeRollTriggers(state, foe, on, more = {}) {
-    if (!(state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers))) return;
+    if (!(state.anyFeatTriggers ??= state.list.some((other) => other.featTriggers || other.bloodPool || other.prideInArms || other.noNoNo || other.portents))) return;
     for (const pc of state.list) if (pc.featTriggers && pc.side !== foe.side) featTriggers(state, pc, on, { by: foe, ...more });
 }
 
@@ -90,6 +95,44 @@ export function foeRollTriggers(state, foe, on, more = {}) {
 // "ally-down" for its allies within 30 feet (about: not far apart).
 export function dropTriggers(state, target, source) {
     if (!source || source.side === target.side) return;
+    // (2026-11-07, Pride in Arms: an ally drops a foe — temporary Hit Points of its Constitution modifier, about 4 (reaction).)
+    for (const proud of state.list) {
+        if (!proud.prideInArms || proud === source || proud.side !== source.side || proud.status !== ACTIVE || !canReact(proud, "Pride in Arms") || source.status !== ACTIVE) continue;
+        spendReaction(proud, "Pride in Arms");
+        source.hp.temp = Math.max(source.hp.temp ?? 0, proud.prideInArms);
+        state.log?.push(`  ${proud.name} uses Pride in Arms: ${source.name} gains ${proud.prideInArms} temporary Hit Points`);
+        break;
+    }
+    // (2026-11-07, Blood Pool: a creature with blood dying within 30 feet — its pool absorbed by the most hurt ally standing, Hit Points equal
+    // to the necromancer's level (its reaction; the ally's walk over taken as made).)
+    if (!["undead", "construct", "elemental"].some((trait) => (target.traits ?? []).includes(trait))) {
+        for (const pool of state.list) {
+            if (!pool.bloodPool || pool.side === target.side || pool.status !== ACTIVE || !canReact(pool, "Blood Pool")) continue;
+            const ally = state.list.filter((other) => other.side === pool.side && other.status === ACTIVE && other.kind !== "object" && other.hp.value < other.hp.max).sort((a, b) => a.hp.value / a.hp.max - b.hp.value / b.hp.max)[0];
+            if (!ally) continue;
+            spendReaction(pool, "Blood Pool");
+            const healed = Math.min(pool.bloodPool, ally.hp.max - ally.hp.value);
+            ally.hp.value += healed;
+            state.log?.push(`  ${pool.name} uses Blood Pool: ${ally.name} regains ${healed} HP`);
+        }
+    }
+    // (2026-11-07, No!!!: a non-minion ally drops — its psyche unleashed till the end of its next turn (reaction).)
+    if (!(target.traits ?? []).includes("minion")) for (const psychic of state.list) {
+        if (!psychic.noNoNo || psychic === target || psychic.side !== target.side || psychic.status !== ACTIVE || !canReact(psychic, "No!!!")) continue;
+        spendReaction(psychic, "No!!!");
+        psychic.shockedUnleash = state.round + 1;
+        state.log?.push(`  ${psychic.name} uses No!!!: its psyche unleashed`);
+    }
+    // (2026-11-07, Portents of the Haruspex: a creature within 30 feet drops — a d12 damage type; the next foe it or an ally deals that type to
+    // before the end of its next turn has weakness of its level to it (reaction).)
+    for (const witch of state.list) {
+        if (!witch.portents || witch.status !== ACTIVE || !canReact(witch, "Portents of the Haruspex") || (witch.band === "far" && target.band === "far")) continue;
+        spendReaction(witch, "Portents of the Haruspex");
+        const type = ["acid", "bludgeoning", "bludgeoning", "cold", "electricity", "fire", "mental", "piercing", "piercing", "poison", "slashing", "slashing"][state.rng.die(12) - 1];
+        witch.portent = { type, untilRound: state.round + 1 };
+        state.anyPortent = true;
+        state.log?.push(`  ${witch.name} uses Portents of the Haruspex: ${type}`);
+    }
     featTriggers(state, source, "foe-down", { target });
     featTriggers(state, target, "self-down", { by: source });
     for (const ally of state.list) if (ally.side === target.side && ally.featTriggers && (ally === target || ally.band !== "far" || target.band !== "far")) featTriggers(state, ally, "ally-down", { by: source });

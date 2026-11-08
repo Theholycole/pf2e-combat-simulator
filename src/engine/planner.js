@@ -260,6 +260,12 @@ function targetValue(state, target, attacker) {
     if (attacker.side === "party" && target.morale?.leader) threat += state.leaderDownWorth?.get(target.id) ?? 0;
     // (Calm: a foe any hostility would wake is left alone while its side has others standing — attacking it ends the Calm.)
     const waking = attacker.side !== target.side && calmedUntilHostility(target) && state.list.some((other) => other.side === target.side && other !== target && isActive(other) && !pacifiedAll(other));
+    // (2026-11-07: the PC this foe goes after this turn — fight.js spreadTarget —, worth as much as the best.)
+    // (The others a tenth too made the foes too easy: a level-1 extreme fight won 95% of the time — test/rules.test.js.)
+    // (2026-11-07, the feat ratings' holder — drawsFire —: the others a tenth, its turn at the holder kept — Oni Rampage's fighter, 0 of
+    // 140 Strikes at it with the others whole. Only in the ratings' fights, so the rules test's plain party is as it was.)
+    if (attacker.spreadTarget && attacker.spreadTarget !== target.id && state.byId.get(attacker.spreadTarget)?.drawsFire) threat *= 0.1;
+    if (attacker.spreadTarget === target.id) threat = Math.max(threat, 2 * Math.max(0, ...state.list.filter((other) => other.side === target.side && isActive(other)).map((other) => state.threat.get(other.id) ?? 0)));
     return (threat + objectiveBonus(state, target, attacker)) * (waking ? 0.2 : 1);
 }
 
@@ -1368,9 +1374,11 @@ function expandSpells(env) {
         for (const actions of spellVariants(spell)) {
             const info = describeSpell(spell.plan, actions);
             const quickFits = quickens && info.actions >= 2 && info.actions - 1 + extra <= remaining;
-            const drawOnly = draw > 0 && draw <= remaining && info.actions + extra > remaining && !quickFits && node.used === 0;
+            // (2026-11-07, Fast Channel: Heal's or Harm's 3-action version for 2 actions.)
+            const fastFits = c.fastChannel && info.actions === 3 && ["Heal", "Harm"].includes(spell.name) && info.actions - 1 + extra <= remaining;
+            const drawOnly = draw > 0 && draw <= remaining && info.actions + extra > remaining && !quickFits && !fastFits && node.used === 0;
             if (pacifiedAll(c) && !(info.helpful || info.healing || info.self || spell.drinker)) continue;
-            if (!info.actions || (info.actions + extra > remaining && !quickFits && !drawOnly) || (restrained && (info.manipulate || info.attack || extra)) || (noAttacks && info.attack)) continue;
+            if (!info.actions || (info.actions + extra > remaining && !quickFits && !fastFits && !drawOnly) || (restrained && (info.manipulate || info.attack || extra)) || (noAttacks && info.attack)) continue;
             // (2026-11-03, Cole's pick "Raise the planner's value" for area actions: on the grid, an area about or from the caster where the
             // plan's Stride has taken it — Elemental Explosion after closing in —, not where it stood when the turn began.)
             const at = state.grid && !rider && info.area && node.pos.at?.square && c.square && (node.pos.at.square[0] !== c.square[0] || node.pos.at.square[1] !== c.square[1]) ? { ...c, square: node.pos.at.square } : c;
@@ -1429,6 +1437,12 @@ function expandSpells(env) {
                 // (2026-11-06, Untamed Form's shapes: rated as used — offered even when the planner reads no gain in a battle form over the
                 // druid's spells; forceEven, tools/lib/feat-power.mjs.)
                 if (gain <= 0 && c.forceUse && spell.forceEven && set.targets.includes(c)) gain = 0.01;
+                // (2026-11-07, Corpse Stench: a feat's aura whose save comes at the start of a foe's turn in it — read as no gain now; a foe in it.)
+                // (Into the Labyrinth: a hindrance the planner reads no gain in either — a feat's own forced action aimed at a foe, one with
+                // limited uses (its pool). 2026-11-08: not an unlimited one — the final rating pass found unlimited ones (Spirit's Absolution,
+                // the level-18 impulses, innate Darkness) cast 25–36 times a fight for nothing, or into the party.)
+                if (gain <= 0 && c.forceUse && spell.featForced && spell.pool && set.targets.some((target) => target.side !== c.side)) gain = 0.01;
+                else if (gain <= 0 && c.forceUse && spell.featForced && spell.zone && set.targets.some((target) => target.side !== c.side)) gain = 0.01;
                 // (2026-11-06, Ki Cutting Sight: about half the time, its dice on the monk's next hit — a foe not already marked.)
                 if (spell.kiCut) {
                     const foe = set.targets.find((target) => target.side !== c.side && target.status === "active" && target.kiCutBy?.by !== c.id);
@@ -1453,7 +1467,7 @@ function expandSpells(env) {
                 // (Mirror Image on itself: the images, for the next round's danger.)
                 const images = spell.plan?.resolution?.kind === "image-decoys" && set.targets.length === 1 && set.targets[0] === c ? spell.plan.resolution.imageDecoys : undefined;
                 // (2026-11-06: rated as used often — forced, the spellshaped Heal in place of the plain one whenever it fits.)
-                const shapedFits = c.forceUse && c.healShapes?.length && ["Heal", "Harm"].includes(spell.name) && info.actions <= 2 && set.targets.length === 1 && set.targets[0] !== c && set.targets[0].side === c.side && info.actions + extra + 1 <= remaining;
+                const shapedFits = c.forceUse && c.healShapes?.length && !(c.healShapes.every((shape) => shape.kind === "cleansing") && set.targets[0] && set.targets[0].hp.max - set.targets[0].hp.value < set.targets[0].hp.max / 2) && ["Heal", "Harm"].includes(spell.name) && info.actions <= 2 && set.targets.length === 1 && set.targets[0] !== c && set.targets[0].side === c.side && info.actions + extra + 1 <= remaining;
                 if (info.actions + extra <= remaining && !shapedFits) {
                     const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + extra, ctx.profile.aggression * gain, { attack: info.attack, damage, cast: index, images });
                     // Casting is a manipulate action: it provokes Attacks of Opportunity.
@@ -1462,9 +1476,19 @@ function expandSpells(env) {
                 }
                 // (2026-11-06, Defensive Recovery and Martyr: the spellshape's action before a single-target Heal or Harm on an ally — worth
                 // 40% more of the healing (Martyr's own Hit Points, 80%), taken whenever an action is left for it.)
-                const shaped = c.healShapes?.length && ["Heal", "Harm"].includes(spell.name) && info.actions <= 2 && set.targets.length === 1 && set.targets[0] !== c && set.targets[0].side === c.side;
+                const shaped = c.healShapes?.length && !(c.healShapes.every((shape) => shape.kind === "cleansing") && set.targets[0] && set.targets[0].hp.max - set.targets[0].hp.value < set.targets[0].hp.max / 2) && ["Heal", "Harm"].includes(spell.name) && info.actions <= 2 && set.targets.length === 1 && set.targets[0] !== c && set.targets[0].side === c.side;
                 if (shaped && info.actions + extra + 1 <= remaining) {
                     const next = child(node, { type: "cast", spellIndex: index, targetIds: [set.targets[0].id], actions, healShape: true, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions + extra + 1, ctx.profile.aggression * gain * (c.healShapes.some((shape) => shape.kind === "martyr") ? 1.8 : 1.4), { attack: info.attack, damage, cast: [index, "shaped"], images });
+                    if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
+                    children.push(next);
+                }
+                if (fastFits) {
+                    const next = child(node, { type: "cast", spellIndex: index, targetIds: set.targets.map((target) => target.id), actions, fastChannel: true, ...tricks, ...(rider ? { rider: true } : {}) }, info.actions - 1 + extra, ctx.profile.aggression * gain * 1.05, { attack: info.attack, damage, cast: [index, "fast"] });
+                    // (Rated as used often: forced whenever two or more of those it heals are hurt.)
+                    if (c.forceUse && !node.casts.includes("forced") && set.targets.filter((target) => target.side === c.side && target.hp.value < target.hp.max).length >= 2) {
+                        next.value += 10 * ctx.ownValue;
+                        next.casts = [...next.casts, "forced"];
+                    }
                     if (info.manipulate && inAnyMelee) next.value -= ctx.aooLoss(node.pos, next);
                     children.push(next);
                 }
@@ -1706,6 +1730,8 @@ function expandStrikeActivities(env) {
             if (activity.after && !activity.strides && target.id !== c.lastStrike?.targetId) continue;
             if (activity.requires === "grabbed" && !(target.grabbedBy === c.id && (target.cond.grabbed || target.cond.restrained))) continue;
             if (activity.requires === "prone" && !target.cond.prone) continue;
+            // (2026-11-07, Release Me!: at the creature that has it grabbed or restrained.)
+            if (activity.requires === "grabbed-by" && !(c.grabbedBy === target.id && (c.cond.grabbed || c.cond.restrained))) continue;
             // (2026-11-06, Twin Weakness: at the target of its Exploit Vulnerability.)
             if (activity.requires === "exploited" && !exploitCovers(c, target)) continue;
             if (activity.requires === "hostile-to-me" && !c.hostileFrom?.has(target.id)) continue;
@@ -1982,6 +2008,8 @@ function expandClassActions(env) {
         if (entry.whenHurt && c.hp.value >= c.hp.max) continue;
         // (2026-11-03, Tough Cookie: at half its Hit Points or fewer.)
         if (entry.belowHalf && c.hp.value > c.hp.max / 2) continue;
+        // (2026-11-07, Defensive Instincts: only beside at least two foes.)
+        if (entry.minEngaged && ctx.enemies.filter((enemy) => isActive(enemy) && sameMelee(c, enemy)).length < entry.minEngaged) continue;
         // (2026-11-05, Vivacious Bravado: with panache, gained this turn — played as having it.)
         if (entry.needsPanache && !c.panache) continue;
         // (2026-11-06, Amalgamate: two thralls to fuse, and no amalgamation yet.)
@@ -2203,7 +2231,8 @@ function expandTactics(env) {
     // Hunt Prey: a new prey when the current one is gone or a better target is in reach.
     if (c.huntPrey && node.used === 0 && !raging) {
         const current = c.prey ? state.byId.get(c.prey) : null;
-        if (!current || !isActive(current)) {
+        // (2026-11-07: Double Prey's other prey, already hunted — fight.js preyQueue, taken as its turn starts.)
+        if ((!current || !isActive(current)) && !(c.preyQueue ?? []).some((id) => isActive(state.byId.get(id) ?? {}))) {
             const threat = Math.max(1, state.threat?.get(c.id) ?? 1);
             // (B308: a mark's extra damage on each hit, about 1.1 hits a round.)
             const markDamage = c.huntPrey.edge === "parts" ? 1.1 * c.huntPrey.parts.reduce((sum, part) => sum + (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0), 0) : 0;
@@ -2285,7 +2314,8 @@ function expandTactics(env) {
         // (2026-11-05, Mounted Shield: raised, forced, while it rides — its mount behind it too.)
         // (Raise a Tome: its book raised, forced.)
         // (Reflexive Shield: raised, forced, for its Reflex bonus.)
-        const mountGuard = c.forceUse && ((c.mountedShield && c.mountId) || c.shield.noBlock || c.reflexiveShield || c.shieldOfReckoning) && !c.shield.spell && !node.casts.includes("forced");
+        // (2026-11-07: a Shield Block feat — Everstand Stance, Destructive Block —: raised, forced, both sides — c.raiseForced.)
+        const mountGuard = c.forceUse && ((c.mountedShield && c.mountId) || c.shield.noBlock || c.reflexiveShield || c.shieldOfReckoning || c.raiseForced) && !c.shield.spell && !node.casts.includes("forced");
         const next = child(node, { type: "raiseShield" }, 1, warden || mountGuard ? 10 * ctx.ownValue : 0, { shield: true });
         if (warden || mountGuard) next.casts = [...next.casts, "forced"];
         children.push(next);

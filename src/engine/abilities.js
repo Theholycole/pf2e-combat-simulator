@@ -205,10 +205,14 @@ export function addBuiltin(spec, plan, name) {
                 ...(plan.model?.grantedStrikes?.length ? { grantedStrikes: plan.model.grantedStrikes.map((entry) => ({ ...entry, traits: [...(entry.traits ?? [])], extra: [...(entry.extra ?? [])] })) } : {}),
                 ...(plan.model?.runeUpgrade ? { runeUpgrade: { ...plan.model.runeUpgrade } } : {}),
                 // (2026-11-03, Paragon's Guard: its shield kept raised — fight.js.)
-                ...(plan.model?.shieldUp ? { shieldUp: true } : {}),
+                ...(plan.model?.shieldUp ? { shieldUp: true } : {}), ...(plan.model?.rangedFlat ? { rangedFlat: plan.model.rangedFlat } : {}),
                 ...(plan.model?.coversAlly ? { coversAlly: true } : {}),
                 // (2026-11-05, Giant's Lunge, Jotun's Battle Stance: its melee reach while it lasts — effects.js.)
-                ...(plan.model?.reach ? { reach: plan.model.reach } : {}) };
+                ...(plan.model?.reach ? { reach: plan.model.reach } : {}),
+                // (2026-11-07, Cloak of Poison: a touch's retaliation while it lasts, as Fiery Body's — effects.js applyEffect.)
+                ...(plan.model?.retaliation ? { retaliation: structuredClone(plan.model.retaliation) } : {}),
+                // (2026-11-07, the marshal stances: an aura's effect on the allies it reaches as it's entered — effects.js applyEffect.)
+                ...(plan.model?.aura?.length ? { aura: structuredClone(plan.model.aura) } : {}) };
             // (B137, Cower, Entrench: a stance that ends when it moves.)
             spec.selfEffects = [...(spec.selfEffects ?? []), { name, actions: plan.actions ?? 1, model: plan.shell ? { ...model, rounds: 1 } : model, ...(plan.shell ? { shell: true } : plan.stance ? { stance: true } : {}), ...(plan.endsOnMove ? { endsOnMove: true } : {}), ...(plan.requires === "after-cast" ? { afterCast: plan.nonCantrip ? "non-cantrip" : true } : {}), ...(plan.requires === "raging" ? { whileRaging: true } : {}), ...(plan.requires === "panache" ? { needsPanache: true } : {}), ...(plan.requiresEffect ? { requiresEffect: plan.requiresEffect } : {}), ...(plan.whenHurt ? { whenHurt: true } : {}), ...(plan.belowHalf ? { belowHalf: true } : {}), ...(plan.trigger ? { trigger: { ...plan.trigger } } : {}), ...(Number(plan.heal) > 0 ? { heal: Number(plan.heal) } : {}), ...(plan.pool ? { pool: plan.pool } : {}), ...(plan.thrallField ? { thrallField: structuredClone(plan.thrallField) } : {}), ...(plan.amalgamate ? { amalgamate: true } : {}) }];
             return true;
@@ -310,7 +314,7 @@ export function addBuiltin(spec, plan, name) {
                 // (B228: its AC lower against the triggering Strike; only after another of its kind's Strike of that name.)
                 ...(Number(plan.selfAcPenalty) > 0 ? { selfAcPenalty: Number(plan.selfAcPenalty) } : {}), ...(plan.kin ? { kin: true } : {}), ...(plan.allyStrike ? { allyStrike: plan.allyStrike } : {}),
                 // (B123: Quick Capture's grab on a hit; Deadly Cleave's same multiple attack penalty.)
-                ...(plan.grab ? { grab: true } : {}), ...(plan.sameMap ? { sameMap: true } : {}),
+                ...(plan.grab ? { grab: true } : {}), ...(plan.sameMap ? { sameMap: true } : {}), ...(plan.noMap ? { noMap: true } : {}), ...(plan.critFree ? { critFree: true } : {}),
                 // (B129: Vengeful Sting's +2 damage on a hit.)
                 ...(Number(plan.damageBonus) ? { damageBonus: Number(plan.damageBonus) } : {}),
                 // (B207, Repartee Riposte: conditions on a hit, others on a critical hit.)
@@ -383,7 +387,7 @@ export function addBuiltin(spec, plan, name) {
             // it says so.)
             if (plan.ally) {
                 // (B181: the new result kept, a critical failure on it a failure.)
-                spec.allySaveReroll = { name, within: Number(plan.within) || 60, save: plan.save ?? null, against: plan.against ?? null, uses: Number(plan.uses) || Infinity, ...(plan.self ? { self: true } : {}), ...(plan.floor ? { floor: plan.floor } : {}), ...(plan.keep === "new" ? { keep: "new" } : {}), ...(plan.free ? { free: true } : {}), ...(plan.perRound ? { perRound: true } : {}), ...(Number(plan.bonus) ? { bonus: Number(plan.bonus) } : {}), ...(plan.perAlly ? { perAlly: true } : {}), ...(plan.failureOnly ? { failureOnly: true } : {}) };
+                spec.allySaveReroll = { name, within: Number(plan.within) || 60, save: plan.save ?? null, against: plan.against ?? null, uses: Number(plan.uses) || Infinity, ...(plan.self ? { self: true } : {}), ...(plan.floor ? { floor: plan.floor } : {}), ...(plan.keep === "new" ? { keep: "new" } : {}), ...(plan.free ? { free: true } : {}), ...(plan.perRound ? { perRound: true } : {}), ...(Number(plan.bonus) ? { bonus: Number(plan.bonus) } : {}), ...(plan.perAlly ? { perAlly: true } : {}), ...(plan.failureOnly ? { failureOnly: true } : {}), ...(plan.companion ? { companion: true } : {}), ...(Number(plan.tempHp) ? { tempHp: Number(plan.tempHp) } : {}) };
                 return true;
             }
             // (B93: Halfling Luck's "must use the new result", keep "new"; a free action's.)
@@ -400,7 +404,9 @@ export function addBuiltin(spec, plan, name) {
             spec.negateCondition = { name, ...(plan.conditions?.length ? { conditions: [...plan.conditions] } : {}),
                 // (B226, Fearless Rush: the condition 1 lower, then a Stride toward the foe — every time, its reaction allowing.)
                 ...(Number(plan.reduceBy) > 0 ? { reduceBy: Number(plan.reduceBy) } : {}), ...(plan.stride ? { stride: plan.stride } : {}) };
-            spec.negateConditionUses = Number(plan.reduceBy) > 0 ? Infinity : 1;
+            spec.negateConditionUses = Number(plan.uses) > 0 ? Number(plan.uses) : Number(plan.reduceBy) > 0 || plan.uses === Infinity ? Infinity : 1;
+            // (2026-11-07, Polymorphic Escape: a flat check first, its reaction spent either way.)
+            if (Number(plan.flat) > 0) spec.negateCondition.flat = Number(plan.flat);
             return true;
         // Quickened Casting (B72): its next spell (of that rank or lower) one action fewer, once a fight.
         case "quickened-casting":
@@ -891,6 +897,12 @@ export function extraApplies(extra, target, { offGuard, packAllies, attacker = n
         // (2026-11-03: Sly Striker's "against a creature that isn't off-guard"; Brutal Critical's, on a critical hit — actions.js.)
         case "not-off-guard":
             return !offGuard;
+        // (2026-11-07, First to Strike, First to Fall: a creature that hasn't yet acted in the fight.)
+        case "unacted":
+            return target.lastTurnRound == null;
+        // (2026-11-07, Strix Vengeance: the foe that critically hit it, till the end of its next turn.)
+        case "vengeance":
+            return Boolean(attacker?.vengeanceOn) && attacker.vengeanceOn.id === target.id && attacker.vengeanceOn.untilRound >= (attacker.lastTurnRound ?? 0);
         case "critical":
             return Boolean(critical);
         // (2026-11-03: any hit — an alchemist's additive, Disorienting Opening's.)

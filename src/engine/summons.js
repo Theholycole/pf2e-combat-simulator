@@ -217,7 +217,10 @@ export function summonTurnStart(state, maker) {
         // (2026-10-22: Duplicate Foe's copy, Sustained.)
         if (c.summonSustained || (maker.summons ?? []).find((entry) => entry.name === c.summonName)?.sustained) sustaining = true;
     }
-    if (sustaining && maker.actionsLeft > 0) {
+    if (sustaining && (maker.freeSustainLeft ?? 0) > 0) {
+        maker.freeSustainLeft -= 1;
+        state.log?.push(`  ${maker.name} Sustains its summon (free)`);
+    } else if (sustaining && maker.actionsLeft > 0) {
         maker.actionsLeft -= 1;
         state.log?.push(`  ${maker.name} Sustains its summon`);
     }

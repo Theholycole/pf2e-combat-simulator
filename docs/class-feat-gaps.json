@@ -1,6 +1,6 @@
 {
  "generated": "2026-11-07",
- "rated": 1562,
+ "rated": 1580,
  "gaps": [
   {
    "id": "aFygWxgSv82WyCsl",
@@ -4434,26 +4434,6 @@
    "text": "Trigger You are the target of a melee attack and the attacker has not rolled yet. Requirements You are aware of the attacker, the attacker is an intelligent humanoid creature, and you have not attempted to harm the attacker. With a wide and"
   },
   {
-   "id": "OjvE7gaQgWiBqOhY",
-   "name": "Discerning Strike",
-   "level": 6,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 1,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "its requirement",
-   "detail": "its requirement (You have successfully identified the target with @UUID[Compendium.pf2e.actionspf2e.Item.Recall Knowledge] during this combat)",
-   "text": "Requirements You have successfully identified the target with Recall Knowledge during this combat. Identifying a creature is the first step in finding its weaknesses. Attempt a Strike against the target; if successful, you deal an additiona"
-  },
-  {
    "id": "c3PN2NvV4ailHRKm",
    "name": "Ensnaring Disarm",
    "level": 6,
@@ -6142,27 +6122,6 @@
    "reason": "a timer with no rules a fight counts",
    "detail": "a timer with no rules a fight counts",
    "text": "Requirements Your waking world is active. Sound is absorbed in your waking world, covering everything in a shroud of quiet until the start of your next turn. Creatures in your waking world become hidden to imprecise hearing or Concealed to "
-  },
-  {
-   "id": "UEqntGzFrFA7ncUO",
-   "name": "Aerial Piledriver",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "archetype",
-    "attack"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a Strike with nothing more the simulator reads",
-   "detail": "a Strike with nothing more the simulator reads",
-   "text": "Requirements You have a creature Grabbed or Restrained. Heaving both yourself and your opponent into the air, you bring them crashing to the ground. Make an unarmed melee Strike against the creature you have grabbed or restrained. This Stri"
   },
   {
    "id": "FtnFytJxa2ix1r5z",
@@ -8112,28 +8071,6 @@
    "reason": "a Strike with nothing more the simulator reads",
    "detail": "a Strike with nothing more the simulator reads",
    "text": "Your carefully prepared and placed shot brings instant death to your target. Attempt a Strike with a blowgun or sling using ammunition that you have poisoned with your simple injury poison. If the Strike is successful and you are Hidden fro"
-  },
-  {
-   "id": "7P5aKtFoPVJJPPEV",
-   "name": "Declare Anathema",
-   "level": 16,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "archetype",
-    "curse",
-    "divine"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-action",
-   "featModule": "plan",
-   "reason": "a roll whose results the simulator doesn't read",
-   "detail": "a roll whose results the simulator doesn't read",
-   "text": "Frequency once per 10 minutes You declare a creature you are aware of within 30 feet anathema, causing their friends and strangers to shy away from them. Attempt a @Check[religion|against:will] check against the target's Will DC. Critical S"
   },
   {
    "id": "VYdZmTifZRkRF7ey",
@@ -23102,26 +23039,6 @@
    "text": "Natural obstacles pose no obstacle to you. You gain the ranger's Wild Stride class feature. This allows you to ignore the effects of all non-magical difficult terrain, treat greater difficult terrain as merely difficult terrain, and gives y"
   },
   {
-   "id": "PiAc7BYoPrSGAUxX",
-   "name": "Aldori's Retort",
-   "level": 14,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You can flow through combat reactions with graceful ease. At the start of each of your turns, you gain an additional reaction that you can use only for Aldori Riposte, Saving Slash, or any dueling action."
-  },
-  {
    "id": "NCsjkjEp6kHFS07h",
    "name": "Concentrated Assault",
    "level": 14,
@@ -25735,28 +25652,6 @@
    "text": "You flow from technique to technique, renewing yourself as you embrace each style you have mastered. The first time each round that you use an action that has both the monk and stance traits, you gain 20 temporary Hit Points that last until"
   },
   {
-   "id": "GXTB1hr7fvOw7PaU",
-   "name": "Endless Return",
-   "level": 12,
-   "owner": "necromancer",
-   "classes": [
-    "necromancer"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "necromancer"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You can return your enemies as thralls without a second thought. At the start of each of your turns, you gain an additional reaction that you can use only for Inevitable Return."
-  },
-  {
    "id": "wT6No3nyea1djz1d",
    "name": "Reanimate Foe",
    "level": 18,
@@ -26616,28 +26511,6 @@
    "text": "Your snares are particularly difficult for enemies to avoid. When you set a snare, the saving throw DC for that snare is equal to its normal DC or your class DC, whichever is higher."
   },
   {
-   "id": "Cgk4By6gEomD2bJ0",
-   "name": "Improved Twin Riposte (Ranger)",
-   "level": 16,
-   "owner": "ranger",
-   "classes": [
-    "ranger"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "ranger"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "At the start of each of your turns, you gain an additional reaction that you can use only to perform a Twin Riposte. You can use Twin Riposte even if you aren't benefiting from Twin Parry (though you must be wielding two melee weapons, one "
-  },
-  {
    "id": "YKqMuuC8j35NFh92",
    "name": "Tumble Behind (Rogue)",
    "level": 1,
@@ -27032,28 +26905,6 @@
    "reason": null,
    "detail": null,
    "text": "Your tumbling puts your foes on the back foot. When you Tumble Through successfully, the foe you Tumbled Through is Off-Guard against the next attack you make before the end of your turn."
-  },
-  {
-   "id": "uotQ9yqetPoAWrfW",
-   "name": "Reflexive Riposte",
-   "level": 10,
-   "owner": "swashbuckler",
-   "classes": [
-    "swashbuckler"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "swashbuckler"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "combat-passive",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "You can riposte almost without a thought. At the start of each of your turns when you regain your actions, you gain an additional reaction that can be used only to perform an Opportune Riposte."
   },
   {
    "id": "HquaVwjOLSPzcJgB",
@@ -28113,26 +27964,6 @@
    "text": "You gain the Basic Spellcasting Benefits. Each time you gain a spell slot of a new rank from the magus archetype, add two common spells of that rank or lower to your spellbook."
   },
   {
-   "id": "Ckglzh4dXcGWPNS3",
-   "name": "Beastmaster's Trance",
-   "level": 6,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "spellcasting",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Beastmaster Trance)",
-   "text": "You can enter a trance that allows you to briefly inhabit the body of one of your animal companions and share its senses. You gain the focus spell Beastmaster Trance. Increase the number of Focus Points in your focus pool by 1."
-  },
-  {
    "id": "YOU5eCD5S4cS6Qeu",
    "name": "Cascade Bearer's Flexibility",
    "level": 6,
@@ -28715,26 +28546,6 @@
    "reason": "a timer with no rules a fight counts",
    "detail": "a timer with no rules a fight counts",
    "text": "You enhance your spell with elemental earth, causing chunks of stone to litter the ground. If the next action you use is to Cast a non-cantrip Spell that affects an area, a number of 5-foot squares in the area equal to the spell rank become"
-  },
-  {
-   "id": "tha0L3Z6608JrUwN",
-   "name": "Shadow Magic",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "spellcasting",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Dance of Darkness, Shadow Jump)",
-   "text": "You gain the ability to fuse and play with shadows by using focus spells specific to shadowdancers. You learn a shadowdancer focus spell of your choice: Dance of Darkness or Shadow Jump. If you don't already have one, you gain a focus pool "
   },
   {
    "id": "RLWbx2itF1jmW0OL",
@@ -33667,26 +33478,6 @@
    "text": "Trigger Your mount moves within reach of an unattended item of 1 Bulk or less. Requirements You're mounted. As you race past, you kick a fallen spear or other item up off the ground. You Interact to either pick the item up or bounce it off "
   },
   {
-   "id": "GTKzA1rfUtQwxvgz",
-   "name": "Spirit of the Beast",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "companion",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Spirit of the Beast)",
-   "text": "You imbue your companion with the aspect of another animal. You gain the Spirit of the Beast focus spell."
-  },
-  {
    "id": "pfBVx5xBfwKd1iVL",
    "name": "Spiritual Explorer",
    "level": 4,
@@ -33891,27 +33682,6 @@
    "reason": null,
    "detail": null,
    "text": "You've mastered the use of electrical energy to power your clockwork creations. Whenever your construct companion takes electricity damage, it gains temporary Hit Points equal to either half the electricity damage it took or your level, whi"
-  },
-  {
-   "id": "9DWxzEavOeymc6Ql",
-   "name": "Spiritual Strike",
-   "level": 6,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 2,
-   "traits": [
-    "archetype",
-    "flourish"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "companion",
-   "featModule": "plan",
-   "reason": "its requirement",
-   "detail": "its requirement (You are wielding a weapon with at least one fundamental rune and your familiar is adjacent to you or in your space.)",
-   "text": "Requirements You are wielding a weapon with at least one fundamental rune and your familiar is adjacent to you or in your space. Your spirit guide enhances your attacks with occult power. Make a Strike with a weapon that has at least one fu"
   },
   {
    "id": "tOtrtDR7ftHhPFm4",
@@ -45303,26 +45073,6 @@
    "text": "Trigger Your turn begins. You continue Juggling until the end of your next turn. Increase the maximum number of items you can juggle by one."
   },
   {
-   "id": "FbzbZc4LGUTcz9tA",
-   "name": "Gunpowder Gauntlet",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "action",
-   "actions": 1,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a roll whose results the simulator doesn't read",
-   "detail": "a roll whose results the simulator doesn't read",
-   "text": "Requirements You're wielding a loaded one-handed firearm. Your flair keeps foes' attention, as your motions with your gun draw your foes into a deadly game. As you toy with them and performatively brandish your weapon, you build their tunne"
-  },
-  {
    "id": "BDXVgZHye1O7kGeA",
    "name": "Harvest Moon",
    "level": 4,
@@ -45446,26 +45196,6 @@
    "reason": null,
    "detail": null,
    "text": "You temporarily change your weapon's shape to assist you in the field. You morph your weapon into a single simple tool, such as a shovel or crowbar, to help with a mundane task. You can't replicate entire toolkits with this ability. You can"
-  },
-  {
-   "id": "P38Tl1cM5D0EKdKV",
-   "name": "Like a Fish in Water",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Water feels like a second skin to you, and you glide through it as quickly as a fish. You gain a swim Speed of 15 feet, and you can hold your breath for twice as long. If you already have a swim Speed, it increases by 5 feet."
   },
   {
    "id": "Q6EkzXkbMuuk8f7c",
@@ -46111,26 +45841,6 @@
    "reason": null,
    "detail": null,
    "text": "Requirements Your waking world is active. Your waking world tells you about the unseen creatures it holds. You [[/act seek]] in your waking world. If you succeed or critically succeed against a creature that was undetected by you, you Point"
-  },
-  {
-   "id": "w7qyBwVzAAL1ORDd",
-   "name": "Trained Swimmer",
-   "level": 4,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Thanks to tireless practice, water has become a natural environment for you. You gain a swim Speed of 15 feet. If you already have a permanent swim Speed, swimming up or down isn't difficult terrain."
   },
   {
    "id": "xtRcWpprFBiXeCOB",
@@ -49476,26 +49186,6 @@
    "reason": null,
    "detail": null,
    "text": "You become attuned to the stone around you. When in contact with a stone surface, you gain tremorsense (imprecise) 5 feet along that surface, and you can activate your ka stone to cast One with Stone."
-  },
-  {
-   "id": "VhkHlkvAbhepZYFB",
-   "name": "Azure Fins",
-   "level": 10,
-   "owner": "archetype",
-   "classes": [],
-   "archetype": true,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "archetype"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "other",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "When submerged in water or another liquid, you form small fin-like arms along your body, granting you far greater maneuverability while swimming. You gain a swim Speed equal to your land Speed. Furthermore, while swimming on the surface of "
   },
   {
    "id": "4w73cxvqhGRiozsK",
@@ -54025,28 +53715,6 @@
    "text": "Guilt clouds the minds of those who ignore your Glimpse of Redemption. Instead of making the triggering creature enfeebled 2, you can make it Stupefied 2 for the same duration."
   },
   {
-   "id": "jQ8JntOdBFHPw5S4",
-   "name": "Light of Revelation",
-   "level": 4,
-   "owner": "champion",
-   "classes": [
-    "champion"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "champion"
-   ],
-   "rarity": "uncommon",
-   "remaster": false,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "a spell the engine doesn't cast",
-   "detail": "a spell the engine doesn't cast (Light of Revelation)",
-   "text": "You've learned to call upon light to reveal what is hidden. You gain the Light of Revelation devotion spell. Increase the number of Focus Points in your focus pool by 1."
-  },
-  {
    "id": "YAr465ZVQ4blqDzT",
    "name": "Security",
    "level": 4,
@@ -55041,28 +54709,6 @@
    "reason": null,
    "detail": null,
    "text": "You can always find a path, almost as if foliage parted before you. You ignore any difficult terrain caused by plants and fungi, such as bushes, vines, and undergrowth."
-  },
-  {
-   "id": "epBOnfEDOd4V9mQ0",
-   "name": "Natural Swimmer",
-   "level": 4,
-   "owner": "druid",
-   "classes": [
-    "druid"
-   ],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "druid"
-   ],
-   "rarity": "common",
-   "remaster": false,
-   "bucket": "other",
-   "featModule": "no plan",
-   "reason": null,
-   "detail": null,
-   "text": "Water flows around you, letting you cut through the waves as if born to it. You gain a swim Speed of 15 feet. If you already have a permanent swim Speed, swimming up or down isn't difficult terrain."
   },
   {
    "id": "EOYxsteDMSSZovfV",
@@ -58207,28 +57853,6 @@
    "reason": "it grants one of 3",
    "detail": "it grants one of 3 (Drain Realm: a plan the engine can't play (its targeting or what it does); Spread Realm: the feat module reads nothing for it; Unleash Realm: damage still naming the character's data)",
    "text": "Thanks to your continued belief in your ultimate transformation, you have learned greater control over your manifested realm. If you spend a Mythic Point when you Manifest your Realm, you can use the Drain Realm, Spread Realm, and Unleash R"
-  },
-  {
-   "id": "I1xq9TDYRHNtqzGz",
-   "name": "Sink and Swim",
-   "level": 14,
-   "owner": "other",
-   "classes": [],
-   "archetype": false,
-   "actionType": "passive",
-   "actions": null,
-   "traits": [
-    "aftermath",
-    "primal",
-    "water"
-   ],
-   "rarity": "rare",
-   "remaster": true,
-   "bucket": "other",
-   "featModule": "plan",
-   "reason": "it grants Water Transfer: a teleport",
-   "detail": "it grants Water Transfer: a teleport",
-   "text": "Your body looks like it's made of flowing water, clear and pristine, providing a natural grace to all your movements. You gain a swim Speed equal to your land Speed. If you already had a swim Speed, it's increased by 10 feet. You gain the W"
   },
   {
    "id": "kRti2i47YqG4zVp7",

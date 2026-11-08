@@ -25,7 +25,7 @@ import { checkEscalations, dangerAtRoundEnd, setUpEscalations, soundGong, startD
 import { activateHazard, disableHazard, isHazard, setUpHazards, triggererOf } from "./hazards.js";
 import { zoneTurn } from "./zones.js";
 import { activateSummons, summonTurnStart } from "./summons.js";
-import { spawnThrallField, amalgamate, spendThrall, thrallAuraTurnEnd, thrallForSpell, thrallStrikes } from "./thralls.js";
+import { spawnThrallField, thrallsAtStart, amalgamate, spendThrall, thrallAuraTurnEnd, thrallForSpell, thrallStrikes } from "./thralls.js";
 import { lastingTurnStart } from "./lasting.js";
 import { noteStatesTurnStart } from "./note-states.js";
 import { floorOf } from "./floors.js";
@@ -109,6 +109,24 @@ function outcomeCache(snapshot) {
         OUTCOME_CACHES.set(snapshot, cache);
     }
     return cache;
+}
+
+function spreadPick(state, c) {
+    const turnHash = () => {
+        let h = 2166136261;
+        for (const ch of `${state.seed}:${state.round}:${c.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+        return h;
+    };
+    // (2026-11-07, the feat ratings: the PC holding the rated feat — drawsFire, on both sides of the comparison — the one a foe goes after
+    // one turn in three, beside it or a Stride away; before, foes chased the wizard and cleric and a fighter's defensive feat never counted.)
+    const holder = state.list.find((other) => other.side === "party" && other.drawsFire && isActive(other));
+    if (holder) return turnHash() % 3 === 0 ? holder.id : null;
+    // (The PCs beside it. A Stride away too made the foes too easy — a level-1 extreme fight won 95% of the time.)
+    const engaged = state.list.filter((other) => other.side === "party" && isActive(other) && !other.familiar && other.kind !== "object" && !other.summonedBy && sameMelee(c, other));
+    if (engaged.length < 2) return null;
+    const h = turnHash();
+    if (h % 3 !== 0) return null;
+    return engaged[Math.floor(h / 3) % engaged.length].id;
 }
 
 function createState(snapshot, options, seed, withLog) {
@@ -270,6 +288,14 @@ function rollInitiative(state, snapshot) {
         const modifier = roll.value + Math.max(c.initiativeBonus ?? 0, warned.get(c.id) ?? 0) + effectBonus(c, "initiative");
         // (U11, Eye of Apprehension: Perception for initiative rolled twice, the higher kept.)
         const twice = roll.stat === "perception" && c.fortuneItems?.length && initiativeFortune(state, c);
+        // (2026-11-07, Big Debut: "You don't roll initiative. Instead, you voluntarily go last" — c.goesLast.)
+        if (c.goesLast) return { c, total: -1000, modifier };
+        // (2026-11-07, Chronoskimmer Dedication: its timestream destabilized — a DC 11 flat check, 19 or 1 plus its modifier; ties won.)
+        if (c.chronoskimmer) {
+            const high = state.rng.d20() >= 11;
+            state.log?.push(`  ${c.name} destabilizes its timestream: initiative ${high ? 19 : 1} + ${modifier}`);
+            return { c, total: (high ? 19 : 1) + modifier + 0.5, modifier };
+        }
         return { c, total: (twice ? Math.max(state.rng.d20(), state.rng.d20()) : state.rng.d20()) + modifier, modifier };
     });
     rolled.sort((a, b) => (b.total - a.total) || ((a.c.side === "foes" ? 0 : 1) - (b.c.side === "foes" ? 0 : 1)) || (b.modifier - a.modifier));
@@ -293,6 +319,42 @@ function initiativeDeeds(state) {
         // An exemplar's free Shift Immanence (C25).
         if (c.exemplar) sparkAtInitiative(state, c);
         if (c.energyShots) c.energyShotsLeft = c.energyShots;
+        // (2026-11-07, After You: panache as the fight begins.)
+        if (c.thrallsAtStart > 0) thrallsAtStart(state, c, c.thrallsAtStart);
+        // (2026-11-07, Defensive Needles: a body's own retaliation, the whole fight — effects.js model.retaliation's shape.)
+        for (const entry of c.retaliationsAtStart ?? []) c.retaliations = [...(c.retaliations ?? []).filter((held) => held.name !== entry.name), { ...structuredClone(entry), until: Infinity }];
+        // (2026-11-07, Hair Trigger: its initial deed's draw a Strike with its firearm instead — a hit off-guard till the end of its first turn.)
+        if (c.hairTrigger) {
+            const gun = (c.strikes ?? []).find((entry) => !entry.melee && strikeUsable(c, entry));
+            const foe = gun && state.list.filter((other) => other.side !== c.side && isActive(other)).sort((a, b) => (a.hp.value - b.hp.value))[0];
+            if (foe) {
+                state.log?.push(`  ${c.name} uses Hair Trigger`);
+                const result = performStrike(state, c, foe, gun, { reaction: true });
+                if (result?.degree >= SUCCESS && isActive(foe) && applyCondition(state, foe, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-end", anchor: "source-turn" }, c)) state.log?.push(`  ${foe.name} is off-guard (Hair Trigger)`);
+            }
+        }
+        // (2026-11-08, Reflexive Stance: a stance it knows, entered free as initiative is rolled — its best one: the first it has.)
+        if (c.stanceAtStart) {
+            const entry = (c.selfEffects ?? []).find((self) => self.stance && !self.afterCast && !self.whileRaging && !self.needsPanache && !self.requiresEffect);
+            if (entry) {
+                applyEffect(state, c, entry.model, c, { applyCondition, key: `self:${entry.name}` });
+                if (entry.model?.shieldUp && c.shield && !c.shield.broken) c.shield.raised = true;
+                state.log?.push(`  ${c.name} uses ${c.stanceAtStart}: ${entry.name}`);
+            }
+        }
+        // (2026-11-08, Scurry!: a Stride into cover as initiative is rolled — +2 circumstance AC till it leaves it, played as till the end of
+        // its first turn.)
+        if (c.coverAtStart) {
+            const effect = applyEffect(state, c, { name: c.coverAtStart, rounds: Infinity, modifiers: [{ on: "ac", type: "circumstance", value: 2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { key: "cover-at-start" });
+            (c.timers ??= []).push({ effect, round: state.round, turnOf: c.id, at: "end" });
+            state.log?.push(`  ${c.name} uses ${c.coverAtStart} (cover: +2 AC until the end of its first turn)`);
+        }
+        if (c.panacheAtStart) {
+            c.panache = true;
+            state.log?.push(`  ${c.name} gains panache (${c.panacheAtStart})`);
+        }
+        // (2026-11-07, All This Has Happened Before: a feat's reaction as initiative is rolled — triggers.js.)
+        if (c.featTriggers) featTriggers(state, c, "initiative");
     }
 }
 
@@ -504,13 +566,114 @@ function startTurn(state, c) {
     if (c.shield) c.shield.raised = Boolean(!c.shield.broken && (c.effects ?? []).some((effect) => effect.model?.shieldUp));
     // (2026-11-05, Quick Vengeance: after its Intercept Attack or Shield Block, one more action this turn — a Stride or Strike, the engine's
     // quickened's own limit.)
-    const vengeance = Boolean(c.vengeful) && !c.cond.quickened;
+    let vengeance = Boolean(c.vengeful) && !c.cond.quickened;
+    // (2026-11-07, Clockwork Celerity: quickened at its turn's start, an unstable action — a DC 17 flat check after each use keeps it
+    // usable.)
+    if (c.unstableQuicken && !c.cond.quickened && !vengeance && !c.unstableSpent) {
+        vengeance = true;
+        state.log?.push(`  ${c.name} is quickened (${c.unstableQuicken})`);
+        if (state.rng.d20() < 17) c.unstableSpent = true;
+    }
+    // (2026-11-07, Ringmaster's Introduction: an ally's first turn of the fight — the bard's reaction, quickened for it.)
+    if (!c.cond.quickened && !vengeance && c.lastTurnRound == null && c.side === "party") {
+        const ringmaster = state.list.find((other) => other.ringmaster && other !== c && other.side === c.side && isActive(other) && canReact(other, "Ringmaster's Introduction"));
+        if (ringmaster) {
+            spendReaction(ringmaster, "Ringmaster's Introduction");
+            vengeance = true;
+            state.log?.push(`  ${ringmaster.name} uses Ringmaster's Introduction: ${c.name} is quickened`);
+        }
+    }
+    // (2026-11-07, Meddling Futures: a free action each turn, a d4 spirit — the Warrior's (1) a Strike next with +1 status to its attack and +2 to
+    // its damage; the other spirits' actions not played (rolled and let go).)
+    if (c.meddlingFutures && c.status === ACTIVE && state.rng.die(4) === 1) {
+        applyEffect(state, c, { name: "Meddling Futures", rounds: 1, modifiers: [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "status", value: 2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { key: "meddling-futures" });
+        state.log?.push(`  ${c.name} uses Meddling Futures: the Warrior`);
+    }
+    // (2026-11-08, Secondary Detonation Array: its circle bursts — a d6 a rank, basic Reflex against its spell DC.)
+    if (c.detonationArray) {
+        const array = c.detonationArray;
+        c.detonationArray = null;
+        for (const other of array.ids.map((id) => state.byId.get(id)).filter((o) => o && isActive(o))) {
+            const natural = state.rng.d20();
+            const degree = degreeOf(natural + saveModifier(other, "reflex"), array.dc, natural);
+            let amount = 0;
+            for (let die = 0; die < array.dice; die++) amount += state.rng.die(6);
+            amount = degree === CRITICAL_SUCCESS ? 0 : degree === SUCCESS ? Math.floor(amount / 2) : degree === FAILURE ? amount : amount * 2;
+            const dealt = amount > 0 ? applyDamage(state, other, [{ type: array.type, amount, persistent: false, precision: false }], { source: c }) : 0;
+            state.log?.push(`  Secondary Detonation Array: ${other.name} takes ${dealt}`);
+        }
+    }
+    // (2026-11-07, Get Used to Disappointment: a foe that missed it on its last turn — a free Demoralize at it (bravado), once each foe.)
+    if (c.disappointment && c.status === ACTIVE && c.missedBy?.size) {
+        const foe = [...c.missedBy].map((id) => state.byId.get(id)).find((other) => other && isActive(other) && !(c.disappointed ??= new Set()).has(other.id));
+        c.missedBy.clear();
+        if (foe) {
+            c.disappointed.add(foe.id);
+            state.log?.push(`  ${c.name} uses Get Used to Disappointment`);
+            const spell = (c.spells ?? []).find((entry) => entry.kind === "basic" && entry.plan?.source?.slug === "demoralize");
+            if (spell) castPlan(state, c, spell, [foe.id]);
+        }
+    }
     if (c.vengeful) {
         c.vengeful = false;
         state.log?.push(`  ${c.name} is quickened (${c.swiftRetribution ? "Swift Retribution" : "Quick Vengeance"})`);
     }
     // A complex hazard: its routine's actions.
     let actions = isHazard(c) ? (c.hazard?.routineActions ?? 1) : 3 + (c.cond.quickened || vengeance ? 1 : 0);
+    // (2026-11-08, Recover Spell: an action of this turn spent recovering a disrupted spell.)
+    if (c.lostActions) {
+        actions = Math.max(0, actions - c.lostActions);
+        c.lostActions = 0;
+    }
+    // (2026-11-07, Blanket Defense: 3 actions — its shield raised, and allies beside it get its bonus till its next turn (played when two or
+    // more allies stand beside it with a foe at them, the turn begins).)
+    if (c.blanketDefense && c.status === ACTIVE && actions >= 3 && c.shield && !c.shield.broken) {
+        const covered = state.list.filter((other) => other !== c && other.side === c.side && isActive(other) && sameMelee(other, c) && state.list.some((foe) => foe.side !== c.side && isActive(foe) && sameMelee(foe, other)));
+        if (covered.length >= 2) {
+            actions -= 3;
+            raiseShield(state, c);
+            c.blanketRound = state.round;
+            state.log?.push(`  ${c.name} uses Blanket Defense`);
+        }
+    }
+    // (2026-11-07, Seasoned Command: 1 action, an ally beside a foe Aided — +1 to its next attack at that foe (+2 on a critical success; the
+    // hard DC taken as met, its extra reaction as the Aid) —, each ally once a fight.)
+    if (c.seasonedCommand && c.status === ACTIVE && actions >= 3) {
+        const ally = state.list.find((other) => other !== c && other.side === c.side && isActive(other) && other.kind !== "object" && !(c.seasonedAllies ??= new Set()).has(other.id) && (other.strikes ?? []).length && state.list.some((foe) => foe.side !== c.side && isActive(foe) && sameMelee(foe, other)));
+        const foe = ally && state.list.find((other) => other.side !== c.side && isActive(other) && sameMelee(other, ally));
+        if (foe) {
+            c.seasonedAllies.add(ally.id);
+            actions -= 1;
+            const bonus = state.rng.d20() >= 16 ? 2 : 1;
+            foe.offGuardTo = [...(foe.offGuardTo ?? []), { attacker: ally.id, attacks: "any", uses: 1, bonus }];
+            state.log?.push(`  ${c.name} uses Seasoned Command: +${bonus} to ${ally.name}'s next attack at ${foe.name}`);
+        }
+    }
+    // (2026-11-07, Impose Order (Psychic): 1 action, its damage dice their averages rounded up this turn — played on a turn it has a damaging
+    // slot spell left and three actions.)
+    if (c.imposeOrderPsychic && c.status === ACTIVE && actions >= 3 && (c.spells ?? []).some((entry) => !entry.kind && entry.pool && !/:focus$/.test(entry.pool) && (c.spellPools?.[entry.pool] ?? 0) > 0 && !(entry.plan?.traits ?? []).includes("cantrip") && /"damage"/.test(JSON.stringify(entry.plan?.resolution ?? {})))) {
+        actions -= 1;
+        c.orderActive = true;
+        state.log?.push(`  ${c.name} uses Impose Order: its damage dice average this turn`);
+    }
+    // (2026-11-07, Shared Focus: an ally with an empty focus pool gets a Focus Point (1 action, once a fight; its use before the wizard's next
+    // turn taken as made).)
+    if (c.sharedFocus && !c.sharedFocusUsed && c.status === ACTIVE && actions >= 2) {
+        const ally = state.list.find((other) => other !== c && other.side === c.side && isActive(other) && Object.keys(other.spellPools ?? {}).some((key) => /:focus$/.test(key) && other.spellPools[key] <= 0));
+        if (ally) {
+            const key = Object.keys(ally.spellPools).find((name) => /:focus$/.test(name) && ally.spellPools[name] <= 0);
+            ally.spellPools[key] = 1;
+            c.sharedFocusUsed = true;
+            actions -= 1;
+            state.log?.push(`  ${c.name} uses Shared Focus: ${ally.name} gains a Focus Point`);
+        }
+    }
+    // (2026-11-07, My Kingdom, My Blood: its first turn's three actions — a Stride, its fist in the ground —, the 60-foot aura for the fight.)
+    if (c.kingdomBlood && !c.kingdomActive && c.status === ACTIVE && actions >= 3) {
+        c.kingdomActive = true;
+        actions -= 3;
+        state.log?.push(`  ${c.name} uses My Kingdom, My Blood`);
+    }
     // (A summoner and its eidolon: three actions between them and Act Together's one more — two each, classes.js.)
     if (c.actionsPerTurn) actions = Math.min(actions, c.actionsPerTurn + (c.cond.quickened ? 1 : 0));
     if (c.cond.stunned > 0) {
@@ -522,6 +685,50 @@ function startTurn(state, c) {
     c.actionsLeft = Math.min(actions, isHazard(c) ? 9 : MAX_ACTIONS_PER_TURN);
     // (2026-10-22, the sky: an action to Fly — void.js.)
     hoverTurnStart(state, c);
+    c.freeSustainLeft = c.freeSustain ?? 0;
+    // (2026-11-07: a GM spreads its foes' attacks — a foe beside a PC sometimes goes after that PC, not only the one it rates best: one
+    // turn in three, one of the PCs engaged with it, at random. Drawn from its own hash of the fight's seed, the round and the foe, so the
+    // fight's dice stay as they were. Before, foes never Struck the champion — 0 of ~400 Strikes in 16 fights —, and its Shield Block
+    // feats never fired.)
+    c.spreadTarget = c.side !== "party" && !c.summonedBy ? spreadPick(state, c) : null;
+    // (2026-11-07, Even the Odds: flanked as its turn begins — two foes beside it — panache, once a fight (once per 10 minutes).)
+    if (c.evenTheOdds && !c.evenUsed && !c.panache && c.status === ACTIVE && state.list.filter((other) => other.side !== c.side && isActive(other) && sameMelee(c, other)).length >= 2) {
+        c.evenUsed = true;
+        c.panache = true;
+        state.log?.push(`  ${c.name} gains panache (Even the Odds)`);
+    }
+    // (2026-11-07, Bonekeeper's Bane: a foe starting its turn beside one — a Will save against its class or spell DC, once a fight each foe;
+    // on a failure -1 status to its attacks while beside it (played for the fight).)
+    if (c.status === ACTIVE) {
+        for (const keeper of state.list) {
+            if (!keeper.bonekeeperBane || keeper.side === c.side || !isActive(keeper) || !sameMelee(c, keeper) || (keeper.baneTried ??= new Set()).has(c.id)) continue;
+            keeper.baneTried.add(c.id);
+            const natural = state.rng.d20();
+            const failed = natural + saveModifier(c, "will") < keeper.bonekeeperBane && natural !== 20;
+            state.log?.push(`  ${c.name} Will save against Bonekeeper's Bane: ${failed ? "failure" : "success"}`);
+            if (failed) applyEffect(state, c, { name: "Bonekeeper's Bane", rounds: 10, modifiers: [{ on: "attack", type: "status", value: -1 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, keeper, { applyCondition, key: "bonekeepers-bane" });
+        }
+    }
+    if (c.foretold) {
+        const { amount, by } = c.foretold;
+        c.foretold = null;
+        const dealt = applyDamage(state, c, [{ type: "untyped", amount, persistent: false, precision: false }], { source: state.byId.get(by) ?? null });
+        state.log?.push(`  ${c.name} takes ${dealt} (Foretell Harm)`);
+    }
+    // (2026-11-07, Unrelenting Terror: the immunity its Demoralize left ends as its turn begins.)
+    if (c.immuneUntilTurn?.length) {
+        for (const { spell, id } of c.immuneUntilTurn) c.immuneTargets?.get(spell)?.delete(id);
+        c.immuneUntilTurn = [];
+    }
+    // (2026-11-07, Double Prey: its prey down, the other it hunts already its prey — no action.)
+    if (c.prey && c.preyQueue?.length && !isActive(state.byId.get(c.prey) ?? {})) {
+        const next = c.preyQueue.map((id) => state.byId.get(id)).find((foe) => foe && isActive(foe));
+        if (next) {
+            c.prey = next.id;
+            c.preyQueue = c.preyQueue.filter((id) => id !== next.id);
+            state.log?.push(`  ${c.name}'s other prey, ${next.name}, is now its prey`);
+        }
+    }
     // (B298: a minion's two actions; its summons' time, and a sustained one's action.)
     summonTurnStart(state, c);
     // (Calm, the charm spells, a condition floor: those that ran out end; a sustained one, an action.)
@@ -697,6 +904,19 @@ function staysInside(state, c) {
 }
 
 function endTurn(state, c) {
+    c.orderActive = false;
+    // (2026-11-07, Desperate Finisher: its last action done, one more press — a melee Strike at its multiple attack penalty (reaction); no
+    // reactions until its next turn. Played when a foe stands beside it and the Strike isn't hopeless — its third attack or less.)
+    if (c.desperateFinisher && c.status === ACTIVE && canAct(c) && (c.attacksThisTurn ?? 0) >= 1 && (c.attacksThisTurn ?? 0) <= 2 && canReact(c, "Desperate Finisher")) {
+        const strike = (c.strikes ?? []).find((entry) => entry.melee && strikeUsable(c, entry));
+        const foe = strike && state.list.find((other) => other.side !== c.side && isActive(other) && sameMelee(c, other));
+        if (foe) {
+            spendReaction(c, "Desperate Finisher");
+            state.log?.push(`  ${c.name} uses Desperate Finisher`);
+            performStrike(state, c, foe, strike);
+            c.reactionLocks = [...(c.reactionLocks ?? []), { by: c.id, spell: "Desperate Finisher", untilRound: state.round + 1, ownTurn: true, sustained: false }];
+        }
+    }
     c.damagers = null;
     // (2026-10-22, Sky and Underwater: its breath; in the sky, whoever can't fly falls — void.js.)
     // (2026-10-25: or air the weather makes it hold — weather.js.)
@@ -772,7 +992,9 @@ function endTurn(state, c) {
     terrainTurn(state, c, "end");
     // (A floor — Lift Nature's Caul's frightened 1 while stupefied — holds it.)
     if (c.cond.frightened > floorOf(c, "frightened")) {
-        c.cond.frightened--;
+        // (2026-11-07: Dwarven Doughtiness' and Calm and Centered's "reduce your Frightened condition by 2" — c.frightenedDecay.)
+        c.cond.frightened = Math.max(floorOf(c, "frightened"), c.cond.frightened - (c.frightenedDecay ?? 1));
+        if ((c.frightenedDecay ?? 1) > 1) state.log?.push(`  ${c.name}'s frightened drops to ${c.cond.frightened}`);
         // (Consume Fear, B76: a monster's reaction to a creature near it no longer frightened.)
         if (c.cond.frightened === 0) conditionLostAnswers(state, c, "frightened");
     }
@@ -1091,8 +1313,67 @@ function actOn(state, c, action) {
                 }
                 break;
             }
-            const drained = (spell?.vampiric || spell?.forcible || spell?.infuseVoid) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
+            const drained = (spell?.vampiric || spell?.forcible || spell?.detonating || spell?.energyAblation || spell?.splitShot || spell?.detonationArray || spell?.touchFocus || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
+            state.critSaves = null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
+            // (2026-11-08, Recover Spell: a disrupted spell's slot regained, to be cast again next turn — played as the slot given back, an
+            // action of its next turn spent on it.)
+            if (disrupted && c.recoverSpell && spell?.pool && !spell.kind && isActive(c)) {
+                c.spellPools[spell.pool] = (c.spellPools[spell.pool] ?? 0) + 1;
+                c.lostActions = (c.lostActions ?? 0) + 1;
+                state.log?.push(`  ${c.name} will Recover Spell (${spell.name})`);
+            }
+            // (2026-11-07, Second Thoughts: its single-target mental spell critically saved against — cast again at another foe, no slot
+            // (reaction; its "until the end of your next turn" taken as at once).)
+            // (2026-11-08, Foreseen Failure: once a day, a slot spell every target critically saved against — the slot's gone, but the
+            // actions come back: played as that many actions more next turn.)
+            if (c.foreseenFailure && !c.foreseenUsed && spell?.pool && !disrupted && (!spell.kind || spell.castsSpell) && action.targetIds?.length && action.targetIds.every((id) => state.critSaves?.has(id)) && isActive(c)) {
+                c.foreseenUsed = true;
+                c.lostActions = (c.lostActions ?? 0) - (Number(action.actions) || Number(spell.plan?.activation?.time) || 2);
+                state.log?.push(`  ${c.name} uses Foreseen Failure`);
+            }
+            if (c.secondThoughts && spell && !disrupted && (!spell.kind || spell.castsSpell) && (spell.plan?.traits ?? []).includes("mental") && action.targetIds?.length === 1 && state.critSaves?.has(action.targetIds[0]) && isActive(c) && canReact(c, "Second Thoughts")) {
+                const other = state.list.find((foe) => foe.side !== c.side && isActive(foe) && foe.id !== action.targetIds[0]);
+                if (other) {
+                    spendReaction(c, "Second Thoughts");
+                    state.log?.push(`  ${c.name} uses Second Thoughts: ${spell.name} at ${other.name}`);
+                    castPlan(state, c, spell, [other.id]);
+                }
+            }
+            // (2026-11-07, Accompany: an ally's slot spell — a bard's slot a rank higher spent in its stead, a Performance check against a very
+            // high DC of the ally's level; on a success the ally's slot comes back (reaction).)
+            if (spell?.pool && c.side === "party" && (!spell.kind || spell.castsSpell) && !(spell.plan?.traits ?? []).includes("cantrip") && !/:focus$/.test(spell.pool)) {
+                const rank = Number(spell.castRank) || 1;
+                for (const bard of state.list) {
+                    if (!bard.accompany || bard === c || bard.side !== c.side || !isActive(bard) || !canReact(bard, "Accompany") || (bard.band === "far" && c.band === "far")) continue;
+                    const slot = Object.keys(bard.spellPools ?? {}).filter((key) => /^[^:]+:(\d+):\d+$/.test(key) && Number(key.split(":")[1]) > rank && bard.spellPools[key] > 0).sort((a, b) => Number(a.split(":")[1]) - Number(b.split(":")[1]))[0];
+                    if (!slot) continue;
+                    spendReaction(bard, "Accompany");
+                    bard.spellPools[slot] -= 1;
+                    const natural = state.rng.d20();
+                    const made = degreeOf(natural + (bard.skills?.performance ?? (bard.level ?? 1) + 4), 14 + (c.level ?? 1) + Math.floor((c.level ?? 1) / 3) + 5, natural) >= SUCCESS;
+                    if (made) c.spellPools[spell.pool] = (c.spellPools[spell.pool] ?? 0) + 1;
+                    state.log?.push(`  ${bard.name} uses Accompany for ${c.name}${made ? ": its slot is kept" : " (fails)"}`);
+                    break;
+                }
+            }
+            // (2026-11-07, Maiden's Mending: a non-cantrip spell — temporary Hit Points of half its level, once a fight (a minute; reaction).)
+            if (c.maidensMending && !c.mended && spell && (!spell.kind || spell.castsSpell) && !(spell.plan?.traits ?? []).includes("cantrip") && isActive(c) && canReact(c, "Maiden's Mending")) {
+                spendReaction(c, "Maiden's Mending");
+                c.mended = true;
+                c.hp.temp = Math.max(c.hp.temp ?? 0, c.maidensMending);
+                state.log?.push(`  ${c.name} gains ${c.maidensMending} temporary Hit Points (Maiden's Mending)`);
+            }
+            // (2026-11-07, Align Qi: a spell with the monk trait — its level + Wisdom in Hit Points, once a fight (an hour; reaction).)
+            if (c.alignQi && !c.alignedQi && spell && (spell.plan?.traits ?? []).includes("monk") && isActive(c) && canReact(c, "Align Qi") && c.hp.value < c.hp.max) {
+                spendReaction(c, "Align Qi");
+                c.alignedQi = true;
+                const healed = Math.min(c.alignQi, c.hp.max - c.hp.value);
+                c.hp.value += healed;
+                state.log?.push(`  ${c.name} uses Align Qi: regains ${healed} HP`);
+            }
+            // (2026-11-07, Shining Runes: a spell of more than one action — concealed from its foes until its next turn starts.)
+            if (c.shiningRunes && spell && (!spell.kind || spell.castsSpell) && castActions(c, action) >= 2 && isActive(c) && !c.cond.concealed && applyCondition(state, c, "concealed", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start" }, c)) state.log?.push(`  ${c.name} is concealed (Shining Runes)`);
             // (2026-11-06, Vampiric Spell: half the most damage one creature took, as temporary Hit Points — the higher of these and its own.)
             // (2026-11-06, Forcible Energy: weakness 5 to the spell's energy on the creature it hurt most, to the end of the caster's next turn.)
             // (2026-11-06, Infuse Void: void damage of the spell's rank on each creature it damaged.)
@@ -1102,12 +1383,84 @@ function actOn(state, c, action) {
                     state.log?.push(`  ${other.name} takes ${dealt} void (Infuse Void)`);
                 }
             }
+            // (2026-11-07, Foretell Harm: once a round, the creature its non-cantrip spell hurt most takes twice the spell's rank at its next turn's start.)
+            if (drained && c.foretellHarm && (!spell.kind || spell.castsSpell) && !(spell.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) {
+                const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
+                if (hurt) {
+                    c.foretoldRound = state.round;
+                    hurt.foretold = { amount: 2 * (spell.castRank ?? 1), by: c.id };
+                    state.log?.push(`  ${c.name} foretells harm to ${hurt.name} (Foretell Harm)`);
+                }
+            }
+            // (2026-11-07, Coven Spell: an ally's damaging spell — the witch's reaction, a status bonus to its damage equal to its rank on each
+            // creature it hurt (its spellshape option not played).)
+            if (drained && (!spell.kind || spell.castsSpell)) {
+                const witch = state.list.find((other) => other.covenSpell && other !== c && other.side === c.side && isActive(other) && canReact(other, "Coven Spell") && (other.band !== "far" || c.band !== "far"));
+                const hurt = witch ? state.list.filter((other) => drained.has(other.id) && isActive(other) && drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0) > 0) : [];
+                if (hurt.length) {
+                    spendReaction(witch, "Coven Spell");
+                    state.log?.push(`  ${witch.name} uses Coven Spell`);
+                    for (const other of hurt) applyDamage(state, other, [{ type: "untyped", amount: spell.castRank ?? 1, persistent: false, precision: false }], { source: c });
+                }
+            }
             if (drained && spell.forcible) {
                 const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
                 if (hurt) {
                     applyEffect(state, hurt, { name: "Forcible Energy", rounds: 2, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [{ type: spell.forcible, value: 5 }], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `forcible:${c.id}` });
                     state.log?.push(`  ${hurt.name} gains weakness 5 to ${spell.forcible} (Forcible Energy)`);
                 }
+            }
+            // (2026-11-08, Detonating Spell: the single target it damaged — splash of the spell's rank on the other foes beside it.)
+            if (drained && spell.detonating) {
+                const hurt = state.list.find((other) => action.targetIds?.includes(other.id) && drained.has(other.id) && drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0) > 0);
+                if (hurt) for (const other of state.list.filter((o) => o !== hurt && o.side === hurt.side && isActive(o) && sameMelee(o, hurt))) {
+                    const dealt = applyDamage(state, other, [{ type: spell.detonating, amount: spell.castRank ?? 1, persistent: false, precision: false }], { source: c });
+                    state.log?.push(`  Detonating Spell: ${other.name} takes ${dealt}`);
+                }
+            }
+            // (2026-11-08, Secondary Detonation Array: the circle — the two foes the spell hurt most, at the start of its next turn.)
+            if (drained && spell.detonationArray) {
+                const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([other]) => other.id);
+                if (hurt.length) c.detonationArray = { ids: hurt, dice: spell.castRank ?? 1, type: spell.detonationArray, dc: spell.dc ?? 10 };
+            }
+            // (2026-11-08, Echoing Spell: every other cast of its copies gives the slot back; Painful Spell: its own nonlethal mental damage.)
+            if (spell?.echoing && !disrupted && spell.pool) {
+                c.echoed = !c.echoed;
+                if (!c.echoed) {
+                    c.spellPools[spell.pool] = (c.spellPools[spell.pool] ?? 0) + 1;
+                    state.log?.push(`  ${c.name} casts the echo (Echoing Spell): no slot`);
+                }
+            }
+            if (spell?.painful && !disrupted && isActive(c)) {
+                let amount = 0;
+                for (let die = 0; die < spell.painful; die++) amount += state.rng.die(4);
+                amount = Math.min(amount, Math.max(0, c.hp.value - 1));
+                c.hp.value -= amount;
+                state.log?.push(`  ${c.name} takes ${amount} mental (Painful Spell)`);
+            }
+            // (2026-11-08, Touch Focus: the target it hurt is knocked prone.)
+            if (drained && spell.touchFocus) {
+                const hurt = state.list.find((other) => action.targetIds?.includes(other.id) && drained.has(other.id) && isActive(other) && drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0) > 0);
+                if (hurt && applyCondition(state, hurt, "prone", null, null, c)) state.log?.push(`  ${hurt.name} is knocked prone (Touch Focus)`);
+            }
+            // (2026-11-08, Split Shot: the first target hit — a second foe with no higher AC takes half what it lost.)
+            if (drained && spell.splitShot) {
+                const hurt = state.list.find((other) => action.targetIds?.includes(other.id) && drained.has(other.id));
+                const lost = hurt ? drained.get(hurt.id) - Math.max(0, hurt.hp.value) - (hurt.hp.temp ?? 0) : 0;
+                const second = lost > 0 ? state.list.filter((other) => other !== hurt && other.side === hurt.side && isActive(other) && other.kind !== "object" && (other.ac ?? 99) <= (hurt.ac ?? 0)).sort((a, b) => a.hp.value - b.hp.value)[0] : null;
+                if (second) {
+                    const type = spell.plan?.resolution?.sharedDamage?.components?.[0]?.type ?? "untyped";
+                    const dealt = applyDamage(state, second, [{ type, amount: Math.floor(lost / 2), persistent: false, precision: false }], { source: c });
+                    state.log?.push(`  Split Shot: ${second.name} takes ${dealt}`);
+                }
+            }
+            // (2026-11-08, Energy Ablation: resistance of the spell's rank till the end of its next turn — to the foes' main energy type.)
+            if (spell?.energyAblation && !disrupted && isActive(c)) {
+                const counts = new Map();
+                for (const foe of state.list.filter((o) => o.side !== c.side && isActive(o))) for (const strike of foe.strikes ?? []) for (const part of strike.damage ?? []) if (["acid", "cold", "electricity", "fire", "sonic", "force", "vitality", "void"].includes(part.type)) counts.set(part.type, (counts.get(part.type) ?? 0) + 1);
+                const type = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "fire";
+                applyEffect(state, c, { name: "Energy Ablation", rounds: 2, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [{ type, value: spell.castRank ?? 1, exceptions: [] }], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `ablation:${c.id}` });
+                state.log?.push(`  ${c.name} gains resistance ${spell.castRank ?? 1} to ${type} (Energy Ablation)`);
             }
             if (drained && spell.vampiric && isActive(c)) {
                 const most = Math.max(0, ...state.list.filter((other) => drained.has(other.id)).map((other) => drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)));
@@ -1122,6 +1475,27 @@ function actOn(state, c, action) {
                     if (shape.kind === "defensive" && healed.hp.value > hpBefore) {
                         applyEffect(state, healed, { name: shape.name, rounds: 1, modifiers: [{ on: "ac", type: "status", value: 2 }, { on: "saving-throw", type: "status", value: 2 }], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `shape:${shape.name}` });
                         state.log?.push(`  ${healed.name} gains +2 AC and saves (${shape.name})`);
+                    }
+                    if ((shape.kind === "infusion" || shape.kind === "heroic") && healed.hp.value > hpBefore) {
+                        const modifiers = shape.kind === "infusion" ? [{ on: "damage", type: "untyped", value: 3 }] : [{ on: "attack", type: "status", value: 1 }, { on: "damage", type: "status", value: 1 }];
+                        applyEffect(state, healed, { name: shape.name, rounds: 1, modifiers, tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0 }, c, { applyCondition, key: `shape:${shape.name}` });
+                        state.log?.push(`  ${healed.name} gains ${shape.kind === "infusion" ? "1d6 more Strike damage" : "+1 to attacks and damage"} (${shape.name})`);
+                    }
+                    if (shape.kind === "cleansing" && (c.mythicPoints ?? 0) > 0 && healed.hp.value > hpBefore) {
+                        c.mythicPoints--;
+                        const amount = Math.min(Number(c.level) || 1, healed.hp.max - healed.hp.value);
+                        healed.hp.value += amount;
+                        state.log?.push(`  ${healed.name} regains ${amount} HP more (${shape.name})`);
+                    }
+                    if (shape.kind === "echoing") {
+                        const second = state.list.filter((other) => other !== healed && other.side === c.side && isActive(other) && other.kind !== "object" && other.hp.value < other.hp.max && (other.band === "far") === (c.band === "far")).sort((a, b) => (a.hp.value / a.hp.max) - (b.hp.value / b.hp.max))[0];
+                        if (second) {
+                            let amount = 0;
+                            for (let die = 0; die < (spell.castRank ?? 1); die++) amount += state.rng.die(8);
+                            amount = Math.min(amount, second.hp.max - second.hp.value);
+                            second.hp.value += amount;
+                            state.log?.push(`  ${second.name} regains ${amount} HP (${shape.name})`);
+                        }
                     }
                     if (shape.kind === "martyr") {
                         let amount = 0;
@@ -1138,6 +1512,11 @@ function actOn(state, c, action) {
             if (spell?.draw?.each) c.itemsAtHand?.delete(spell.item);
             // (2026-11-06, Courageous Assault: an ally the anthem reached — one in a Melee with a foe and a reaction left — makes a melee Strike
             // as its reaction.)
+            // (2026-11-08, Vigorous Anthem: the composer and each ally the anthem reached — not far apart — gain its temporary Hit Points.)
+            if (spell?.anthemTempHp && !disrupted) for (const ally of state.list.filter((other) => other.side === c.side && isActive(other) && other.kind !== "object" && (other === c || (other.band === "far") === (c.band === "far") || sameMelee(other, c)))) {
+                if ((ally.hp.temp ?? 0) < spell.anthemTempHp) ally.hp.temp = spell.anthemTempHp;
+            }
+            if (spell?.anthemTempHp && !disrupted) state.log?.push(`  Vigorous Anthem: ${spell.anthemTempHp} temporary Hit Points`);
             if (spell?.allyStrike && !disrupted) {
                 const ally = state.list.filter((other) => other !== c && other.side === c.side && isActive(other) && canAct(other) && canReact(other) && (other.strikes ?? []).some((strike) => strike.melee && strikeUsable(other, strike)) && engagedEnemies(state, other).some(isActive)).sort((a, b) => (b.strikes?.[0]?.bonus ?? 0) - (a.strikes?.[0]?.bonus ?? 0))[0];
                 const foe = ally ? engagedEnemies(state, ally).filter(isActive).sort((a, b) => a.hp.value - b.hp.value)[0] : null;
@@ -1612,6 +1991,12 @@ function actOn(state, c, action) {
         }
         case "stratagem":
             c.stratagem = { targetId: action.targetId, natural: state.rng.d20(), round: state.round, used: false };
+            // (2026-11-07, Just as Planned: once a fight (an hour), the d20 rolled twice, the higher kept — taken on its first stratagem below 11.)
+            if (c.justAsPlanned && !c.justPlannedUsed && c.stratagem.natural < 11) {
+                c.justPlannedUsed = true;
+                c.stratagem.natural = Math.max(c.stratagem.natural, state.rng.d20());
+                state.log?.push(`  ${c.name} uses Just as Planned (${c.stratagem.natural})`);
+            }
             state.log?.push(`  ${c.name} uses ${c.stratagemFeature.name} on ${state.byId.get(action.targetId)?.name} (rolls ${c.stratagem.natural})`);
             break;
         case "taunt": {
@@ -1648,6 +2033,12 @@ function actOn(state, c, action) {
             const target = state.byId.get(action.targetId);
             if (target && isActive(target)) {
                 c.prey = target.id;
+                // (2026-11-07, Double Prey and Triple Threat: one or two more creatures its prey too — the next taken, for no action, once the
+                // first is down; planner.js.)
+                if (c.extraPrey) {
+                    c.preyQueue = state.list.filter((foe) => foe.side !== c.side && foe.id !== target.id && isActive(foe)).slice(0, c.extraPrey).map((foe) => foe.id);
+                    if (c.preyQueue.length) state.log?.push(`  ${c.name} also hunts ${c.preyQueue.map((id) => state.byId.get(id).name).join(" and ")}`);
+                }
                 // (C31: Smite by its name.)
                 state.log?.push(c.huntPrey?.name ? `  ${c.name} uses ${c.huntPrey.name} on ${target.name}` : `  ${c.name} hunts ${target.name} as its prey`);
             }
@@ -1701,7 +2092,7 @@ export function performAction(state, c, action) {
 
 // A cast's own actions (Quickened Casting, B72: one fewer).
 function castActions(c, action) {
-    return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened ? 1 : 0));
+    return Math.max(1, (action.actions ?? describeSpell(c.spells[action.spellIndex].plan).actions ?? 2) - (action.quickened || action.fastChannel ? 1 : 0));
 }
 
 function actionCost(c, action) {
@@ -1786,6 +2177,23 @@ export function takeTurn(state, c) {
     if (insideTurnStart(state, c)) {
         if (!checkEnd(state)) endTurn(state, c);
         return;
+    }
+    // (2026-11-07, Escape Timeline: once a fight (a day), as its turn begins below a third of its Hit Points — out of time until its next
+    // turn, harmed by nothing (as Indestructibility), its turn ending at once.)
+    if (c.escapeTimeline && !c.escapedTimeline && c.status === ACTIVE && c.hp.value < c.hp.max / 2 && state.list.some((foe) => foe.side !== c.side && isActive(foe) && sameMelee(foe, c))) {
+        c.escapedTimeline = true;
+        c.defences = [...(c.defences ?? []), { by: c.id, spell: "Escape Timeline", kind: "indestructible", untilRound: state.round + 1, sustained: false, ownTurn: true }];
+        state.log?.push(`  ${c.name} uses Escape Timeline`);
+        if (!checkEnd(state)) endTurn(state, c);
+        return;
+    }
+    // (2026-11-07, Lingering Bomb's flame: its turn begun in it — taken as while it's still engaged — that much damage.)
+    if (c.lingeringFlame && c.status === ACTIVE) {
+        if (c.lingeringFlame.untilRound < state.round || !engagedEnemies(state, c).length) c.lingeringFlame = null;
+        else {
+            const dealt = applyDamage(state, c, [{ type: c.lingeringFlame.type, amount: c.lingeringFlame.amount }], { source: state.byId.get(c.lingeringFlame.by) ?? null });
+            state.log?.push(`  ${c.name} takes ${dealt} from the lingering flame`);
+        }
     }
     // (A body that burns at a touch — Fiery Body —: a creature in a grapple with it, held by it or holding it, once as its turn starts.)
     contactRetaliation(state, c);
@@ -1880,7 +2288,8 @@ export function takeTurn(state, c) {
 function playActions(state, c) {
     let guard = 0;
     // (2026-11-07, Kip Up: "You stand up. This movement doesn't trigger reactions." — a free action, as its turn's actions start.)
-    if (c.kipUp && c.cond.prone && canAct(c)) {
+    // (Call to Battle, Hop Up: only once it has been knocked out — kipUpRevived.)
+    if (c.kipUp && c.cond.prone && canAct(c) && (!c.kipUpRevived || c.everDown)) {
         c.cond.prone = false;
         state.log?.push(`  ${c.name} uses ${c.kipUp}: Stands (free, no reactions)`);
     }
@@ -2012,6 +2421,25 @@ function afterAction(state) {
             state.stats.reactions++;
             state.log?.push(`  ${c.name} uses ${rule.name}`);
             performStrike(state, c, target, c.strikes[index]);
+            continue;
+        }
+        if (entry.kind === "grabbed-strike") {
+            const rule = c?.reactionStrikes?.find((each) => each.triggers.includes("grabbed"));
+            if (!rule || !isActive(c) || !isActive(target) || !canReact(c, rule.name) || c.grabbedBy !== target.id) continue;
+            const named = strikeNamed(c, rule.strike);
+            const index = named >= 0 ? named : (c.strikes ?? []).findIndex((each) => each.melee);
+            if (index < 0) continue;
+            spendReaction(c, rule.name);
+            state.stats.reactions++;
+            state.log?.push(`  ${c.name} uses ${rule.name}`);
+            const attacks = c.attacksThisTurn;
+            const result = performStrike(state, c, target, c.strikes[index], { reaction: true });
+            if (rule.noMap) c.attacksThisTurn = attacks;
+            if (rule.critFree && result?.degree === 3 && c.grabbedBy === target.id) {
+                c.cond.grabbed = false;
+                c.grabbedBy = null;
+                state.log?.push(`  ${c.name} is no longer grabbed`);
+            }
             continue;
         }
         if (entry.kind !== "fast-swallow" || !c || !target || !isActive(c) || !isActive(target) || !canReact(c, c.fastSwallow.name) || target.grabbedBy !== c.id || target.swallowedBy) continue;

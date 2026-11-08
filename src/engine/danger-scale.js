@@ -46,6 +46,8 @@ export function dangerFights(party, foes, from, to, { setup = null, grid = null,
     // (A summon's reserves — a feat's innate summon spell, 2026-11-07 —: not counted; they wait off the field until summoned.)
     const partyHp = party.filter((c) => !c.sharesHpWith && !c.reserve).reduce((sum, c) => sum + c.hp.max, 0);
     const sum = { n: 0, damage: 0, downs: 0, deaths: 0, wipes: 0, rounds: 0, killed: 0, timeouts: 0, score: 0, scores: [] };
+    // (2026-11-07: the foes' own environment — under water, in the dark — when no setup is given: spell-power.js's fightSetup.)
+    if (!setup && foes?.environment) setup = { environment: foes.environment };
     for (let seed = from; seed < to; seed++) {
         // (setup: a creature's preferences' fights — preferences.js: the light, the cover, a battlefield.)
         const result = simulate({ combatants: [...party, ...foes], ...(setup ? { setup } : {}) }, grid ? { ...DANGER_OPTIONS, grid } : DANGER_OPTIONS, seed, log ? { log } : undefined);

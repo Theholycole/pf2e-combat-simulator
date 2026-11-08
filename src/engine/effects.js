@@ -291,10 +291,11 @@ function withActorFlags(item) {
 
 // (2026-10-22, Weapon Surge: a ChoiceSet of one of the creature's own weapons — "choices: { ownedItems, types: [weapon] }" — whose pick names
 // the selectors, "{item|flags.system.rulesSelections.x}-attack" and "-damage": as the creature's Strikes', "strike-attack-roll" and
-// "strike-damage"; the pick and a rule only for that weapon's id go.)
+// "strike-damage"; the pick and a rule only for that weapon's id go. 2026-11-07: "choices: { attacks: true }", a weapon or unarmed attack —
+// Psi Strikes', Apparition's Enhancement's —, the same.)
 function withWeaponPick(item) {
     const rules = item?.system?.rules ?? [];
-    const picks = rules.filter((rule) => rule?.key === "ChoiceSet" && typeof rule.flag === "string" && rule.choices && !Array.isArray(rule.choices) && rule.choices.ownedItems && [].concat(rule.choices.types ?? []).includes("weapon"));
+    const picks = rules.filter((rule) => rule?.key === "ChoiceSet" && typeof rule.flag === "string" && rule.choices && !Array.isArray(rule.choices) && ((rule.choices.ownedItems && [].concat(rule.choices.types ?? []).includes("weapon")) || rule.choices.attacks === true));
     if (!picks.length) return item;
     let text = JSON.stringify(rules.filter((rule) => !picks.includes(rule)));
     for (const pick of picks) {
