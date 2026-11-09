@@ -14,7 +14,7 @@ const { simulate } = await import("../../src/engine/fight.js");
 const { DANGER_OPTIONS } = await import("../../src/engine/danger-scale.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");
 
-export const WAVE_CAP = Number(process.env.SOLO_CAP) || 200;
+export const WAVE_CAP = Number(process.env.SOLO_CAP) || 1000;
 export const RUNS = Number(process.env.SOLO_RUNS) || 20;
 export const LEVELS = Object.freeze((process.env.SOLO_LEVELS || "1,5,10,15,20").split(",").map(Number));
 const GRID = process.env.FEAT_GRID === "none" ? null : process.env.FEAT_GRID || "open";
@@ -25,9 +25,30 @@ function foe(level, id) {
     made.strikes = (made.strikes ?? []).map((strike) => (strike.melee !== false ? { ...strike, unarmed: true } : strike));
     return made;
 }
+// (2026-11-09, Cole: "after wave 10 have each subsequent wave be slightly stronger. The enemy waves should scale infinitely" — so no class
+// with endless recovery goes on forever.) From wave 11, each wave past 10 adds 2% to the foes' Hit Points and Strike damage (compounding),
+// and every fifth one +1 to their attack, AC, saves and Perception — about an elite creature's step every 10 waves, with no end.
+export const SCALE_FROM = 10;
+export function scaled(made, wave) {
+    const k = Math.max(0, wave - SCALE_FROM);
+    if (!k) return made;
+    const grow = 1.02 ** k;
+    const plus = Math.floor(k / 5);
+    const hp = Math.round(made.hp.max * grow);
+    const avg = (part) => (part.dice ?? 0) * ((part.die ?? 0) + 1) / 2 + (part.bonus ?? 0);
+    return {
+        ...made,
+        hp: { value: hp, max: hp },
+        ac: made.ac + plus,
+        saves: Object.fromEntries(Object.entries(made.saves).map(([key, value]) => [key, value + plus])),
+        perception: made.perception + plus,
+        strikes: made.strikes.map((strike) => ({ ...strike, bonus: strike.bonus + plus, damage: strike.damage.map((part, index) => (index ? part : { ...part, bonus: (part.bonus ?? 0) + Math.round(avg(part) * (grow - 1)) })) })),
+        waveScale: { wave, hp: grow, plus }
+    };
+}
 export function waveFoes(level, wave) {
-    if (level - 4 >= -1 && wave % 2 === 0) return [foe(level - 4, "monster"), foe(level - 4, "monster-1")];
-    return [foe(level - 3, "monster")];
+    if (level - 4 >= -1 && wave % 2 === 0) return [scaled(foe(level - 4, "monster"), wave), scaled(foe(level - 4, "monster-1"), wave)];
+    return [scaled(foe(level - 3, "monster"), wave)];
 }
 
 // The PC alone: its own creature and what comes with it (an eidolon sharing its Hit Points, a companion, a familiar).
@@ -151,7 +172,7 @@ export function soloReport(rows) {
     const lines = [
         "# Classes alone against endless waves",
         "",
-        `Made by \`node tools/solo-waves.mjs <out>\` (tools/lib/solo-waves.mjs). Each class's PC fights alone (with its eidolon, companion or familiar) against wave after wave of a moderate encounter for one PC (one creature 3 levels below it, or from 4th level every other wave two creatures 4 levels below (10 XP each)). Between waves it keeps its Hit Points, spell slots and Focus Points and spends 10 minutes on one activity: Treat Wounds on itself (once an hour) or Refocus. It stops when the PC goes down, or at ${WAVE_CAP} waves. The numbers are the waves survived, the mean of ${RUNS} runs at each level.`,
+        `Made by \`node tools/solo-waves.mjs <out>\` (tools/lib/solo-waves.mjs). Each class's PC fights alone (with its eidolon, companion or familiar) against wave after wave of a moderate encounter for one PC (one creature 3 levels below it, or from 4th level every other wave two creatures 4 levels below, 10 XP each). From wave 11 each wave is a little stronger, with no end: +2% Hit Points and damage a wave, compounding, and +1 to attack, AC, saves and Perception every fifth wave. Between waves it keeps its Hit Points, spell slots and Focus Points and spends 10 minutes on one activity: Treat Wounds on itself (once an hour) or Refocus. It stops when the PC goes down, or at ${WAVE_CAP} waves. The numbers are the waves survived, the mean of ${RUNS} runs at each level.`,
         "",
         "Classes are ordered by their average place across the levels (1st = lasted longest at that level), so every level counts the same. A number in brackets is how many runs reached the cap.",
         "",

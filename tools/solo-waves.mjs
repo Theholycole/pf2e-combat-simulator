@@ -2,7 +2,7 @@
 //
 //   node tools/solo-waves.mjs <out folder>          the runs (<out>/solo.jsonl; --resume goes on with a stopped run), then the report
 //   node tools/solo-waves.mjs <out folder> report   <out>/solo-waves.md and solo-waves.json from what's run
-//   --workers=N, --only=<class,class>; SOLO_RUNS=20 runs a class and level, SOLO_LEVELS=1,5,10,15,20, SOLO_CAP=200 waves at most.
+//   --workers=N, --only=<class,class>; SOLO_RUNS=20 runs a class and level, SOLO_LEVELS=1,5,10,15,20, SOLO_CAP=1000 waves at most.
 import fs from "node:fs";
 import { isMainThread } from "node:worker_threads";
 import { defaultWorkers, runPool, workerLoop } from "./lib/pool.mjs";
