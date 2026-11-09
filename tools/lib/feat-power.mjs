@@ -3703,7 +3703,11 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     // not a fighter's trained one; a divine one on the cleric.)
     const text = String(doc.system?.description?.value ?? "");
     const grantsSpell = !classTrait && !spellshape && (/\binnate (?:\w+ )?spells?\b|as an? (?:arcane |divine |occult |primal )?innate spell|focus spell/i.test(text) || /@UUID\[Compendium\.pf2e\.spells-srd\./.test(text));
-    const caster = grantsSpell ? (/\bdivine\b/i.test(text) ? "cleric" : "wizard") : null;
+    // (A feat whose use is a Strike — Wrath of the First Ghoul's melee Strike, Hurricane Swing's crit trigger — or whose only spell is
+    // sure strike stays on the fighter: the spell rides on a martial's attack, not a caster's.)
+    const spellLinks = [...text.matchAll(/@UUID\[Compendium\.pf2e\.spells-srd\.Item\.([^\]]+)\]/g)].map((m) => m[1].toLowerCase());
+    const strikeFeat = /\b(?:make|attempt) an? (?:\w+ )?Strike\b|Trigger(?:<\/strong>)?\s*You (?:critically )?hit [^<]*\bStrike\b/i.test(text) || (spellLinks.length > 0 && spellLinks.every((name) => name === "sure strike"));
+    const caster = grantsSpell && !strikeFeat ? (/\bdivine\b/i.test(text) ? "cleric" : "wizard") : null;
     let host = party.find((c) => c.id === (hostId ?? (classTrait ? HOSTS[classTrait] : spellshape ? "wizard" : caster ?? "fighter")));
     let compiled = compileFor(host);
     // (A feat of no class: the PC best at the skill its check uses.)
