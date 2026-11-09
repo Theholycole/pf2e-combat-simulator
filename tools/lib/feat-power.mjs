@@ -4138,7 +4138,9 @@ export function stopReason(diffs, step, uses) {
 function useCounter(name, others = []) {
     const names = [name, ...others.filter((other) => other !== name)];
     const pattern = new RegExp(`(?<![\\w'])(?:${names.map((each) => each.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\w'])`);
-    return { count: 0, push(line) { if (pattern.test(typeof line === "string" ? line : line?.text ?? "")) this.count++; } };
+    // (2026-11-09: not the lines of its Effect landing on each creature — "Wizard gains Effect: Pennant of Victory" —, so a use on the
+    // whole party counts once; Pennant of Victory read 5 uses a fight for its one.)
+    return { count: 0, push(line) { const text = typeof line === "string" ? line : line?.text ?? ""; if (pattern.test(text) && !/\b(?:gains|loses) Effect: /.test(text)) this.count++; } };
 }
 
 // How often the PC uses it in a fight, from a few logged fights (the basic actions' and the combos' way).
