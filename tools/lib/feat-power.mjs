@@ -3698,7 +3698,13 @@ function partyWithFeatAlone(doc, level, { hostId = null, party: start = null } =
     };
     // (An archetype's spellshape — Intimidating Spell's — on the wizard: the party's caster of area spells.)
     const spellshape = (doc.system?.traits?.value ?? []).includes("spellshape");
-    let host = party.find((c) => c.id === (hostId ?? (classTrait ? HOSTS[classTrait] : spellshape ? "wizard" : "fighter")));
+    // (2026-11-09, Cole: "Why were spell feats being put on a fighter?" — an ancestry or archetype feat that grants a spell, innate or
+    // focus, on the party's caster: its innate spells at the caster's spell DC and attack (PF2e: your highest spellcasting proficiency),
+    // not a fighter's trained one; a divine one on the cleric.)
+    const text = String(doc.system?.description?.value ?? "");
+    const grantsSpell = !classTrait && !spellshape && (/\binnate (?:\w+ )?spells?\b|as an? (?:arcane |divine |occult |primal )?innate spell|focus spell/i.test(text) || /@UUID\[Compendium\.pf2e\.spells-srd\./.test(text));
+    const caster = grantsSpell ? (/\bdivine\b/i.test(text) ? "cleric" : "wizard") : null;
+    let host = party.find((c) => c.id === (hostId ?? (classTrait ? HOSTS[classTrait] : spellshape ? "wizard" : caster ?? "fighter")));
     let compiled = compileFor(host);
     // (A feat of no class: the PC best at the skill its check uses.)
     if (!hostId && !classTrait && planSkill(compiled.plan)) {
