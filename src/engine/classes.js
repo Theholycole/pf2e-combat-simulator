@@ -370,18 +370,27 @@ const CLASSES = {
     kineticist: {
         seat: "fighter", hp: 8, attrs: (k, lv) => ({ str: 1, dex: second(lv), con: k, int: 0, wis: minor(lv), cha: 0 }),
         armor: "light", armorSteps: [[1, T], [13, E], [19, M]],
-        fort: [[1, E], [7, M], [15, L]], ref: [[1, E]], will: [[1, T], [3, E]], perception: [[1, T], [9, E]],
+        fort: [[1, E], [7, M], [15, L]], ref: [[1, E], [11, M]], will: [[1, T], [3, E]], perception: [[1, T], [9, E]],
         classDC: [[1, T], [7, E], [15, M], [19, L]],
         build(lv, a) {
             // Elemental Blast (fire): an impulse attack (Constitution, its gate attenuator's item bonus), a die more at 5th, 9th, 13th and 17th;
             // two actions add its Constitution to the damage. Its Weapon Specialization at 13th.
             const prof = rank(lv, [[1, T], [7, E], [15, M], [19, L]]);
             const dice = 1 + steps(lv);
-            const spec = lv >= 13 ? specialization(lv, prof) : 0;
+            // (2026-11-10: no greater weapon specialization for a kineticist — it was doubled from 15th.)
+            const spec = lv >= 13 ? specialization(lv, prof, false) : 0;
             const blast = { name: "Elemental Blast", bonus: lv + prof + a.con + potency(lv), potency: potency(lv), melee: false, increment: 60, held: false, impulse: true, iwr: { group: "blast", traits: ["magical", "fire"] }, damage: [{ dice, die: 6, bonus: spec, type: "fire" }] };
-            const melee = { ...blast, name: "Elemental Blast (melee)", melee: true, increment: null };
-            const twoAction = (strike) => ({ name: `${strike.name}, two actions`, actions: 2, strides: 0, strike: strike.name.toLowerCase(), attackBonus: 0, damageBonus: a.con, damage: null, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null, traits: ["impulse", "attack"] });
-            return { strikes: [blast, melee], fields: { strikeActivities: [twoAction(blast), twoAction(melee)] } };
+            // (2026-11-10, Cole's pick "All fixes, with impulses": a melee blast adds its Strength; a single fire gate's impulse junction — a
+            // 2-action blast's fire dice a step bigger, d6 to d8, played as a point more a die —; its gate junctions at the Gate's Thresholds:
+            // the aura junction (5th: weakness to its fire impulses equal to half its level for foes in its 10-foot aura — on its melee blast,
+            // the one that's always in it), the critical blast junction (9th: 1d6 persistent fire on a critical hit, plus its attenuator's item
+            // bonus), the elemental resistance (13th: cold and fire equal to its level). Its impulse feats: tools/lib/feat-power.mjs.)
+            if (lv >= 9) blast.critExtra = [{ dice: 1, die: 6, bonus: potency(lv), type: "fire", persistent: true }];
+            const melee = { ...blast, name: "Elemental Blast (melee)", melee: true, increment: null, damage: [{ ...blast.damage[0], bonus: blast.damage[0].bonus + a.str + (lv >= 5 ? Math.floor(lv / 2) : 0) }] };
+            const twoAction = (strike) => ({ name: `${strike.name}, two actions`, actions: 2, strides: 0, strike: strike.name.toLowerCase(), attackBonus: 0, damageBonus: a.con + dice, damage: null, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null, traits: ["impulse", "attack"] });
+            // (Kinetic Quickness: Reflex master at 11th. Greater Kinetic Durability (15th): a critical failure on a Fortitude save a failure — with
+            // Kinetic Durability's success a critical success; the half damage on a failure against damage isn't played.)
+            return { strikes: [blast, melee], fields: { strikeActivities: [twoAction(blast), twoAction(melee)], ...(lv >= 13 ? { resistances: ["cold", "fire"].map((type) => ({ type, value: lv, exceptions: [] })) } : {}), ...(lv >= 15 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better", criticalFailure: "one-degree-better" } }] } : {}) } };
         }
     },
     magus: {
@@ -489,8 +498,9 @@ const CLASSES = {
     },
     summoner: {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: 0, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: k }),
-        armor: "unarmored", armorSteps: [[1, T], [11, E], [19, M]],
-        fort: [[1, E], [15, M]], ref: [[1, T], [9, E]], will: [[1, E], [15, M]], perception: [[1, T], [3, E]],
+        // (2026-11-10: Defensive Robes — expert unarmored at 13th, never master; Twin Juggernauts — Fortitude master at 11th.)
+        armor: "unarmored", armorSteps: [[1, T], [13, E]],
+        fort: [[1, E], [11, M]], ref: [[1, T], [9, E]], will: [[1, E], [15, M]], perception: [[1, T], [3, E]],
         caster: { tradition: "arcane", attr: "cha", topTwo: 2, prof: (lv) => rank(lv, [[1, T], [9, E], [17, M]]) },
         build(lv, a) {
             // The eidolon (a beast eidolon: Strength 4 and up, its unarmed steps, its own AC) as its own body beside the summoner, sharing
@@ -499,7 +509,7 @@ const CLASSES = {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const jaws = weaponStrike(lv, { name: "Jaws", die: 8, type: "piercing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true } });
             const claw = weaponStrike(lv, { name: "Claw", die: 6, type: "slashing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true } });
-            const eidolonAC = 10 + lv + rank(lv, [[1, T], [11, E], [19, M]]) + 2 + 3 + armorPotency(lv);
+            const eidolonAC = 10 + lv + rank(lv, [[1, T], [13, E]]) + 2 + 3 + armorPotency(lv);
             // (Boost Eidolon, the summoner's one action each turn: +2 status damage a weapon die, to +8 — on the eidolon's Strikes; Act Together's
             // fourth action: the eidolon's two, the summoner's one.)
             const boost = Math.min(8, 2 * striking(lv));
@@ -507,8 +517,16 @@ const CLASSES = {
             const eidolon = (summoner) => ({
                 ...structuredClone(summoner), id: "eidolon", name: "Eidolon", kind: "npc", traits: ["eidolon", "beast"], sharesHpWith: summoner.id, actionsPerTurn: 2,
                 ac: eidolonAC, strikes: [jaws, claw].map((strike) => ({ ...strike, ...(potency(lv) ? { iwr: { ...strike.iwr, traits: ["magical"] } } : {}) })), spells: (summoner.spells ?? []).filter((entry) => entry.kind === "basic"), spellPools: {},
-                skills: { athletics: lv + rank(lv, [[1, T], [5, E], [13, M]]) + str, intimidation: lv + T }, classDC: null, heroPoints: 0, reactions: { aoo: false, shieldBlock: false }, critSpec: lv >= 7
+                skills: { athletics: lv + rank(lv, [[1, T], [5, E], [13, M]]) + str, intimidation: lv + T }, classDC: null, heroPoints: 0, reactions: { aoo: false, shieldBlock: false }, critSpec: lv >= 7,
+                // (2026-11-10, Cole's pick "All fixes, with impulses": a beast eidolon's abilities — Beast's Charge (1st: Stride twice, then
+                // Strike; its straight-line +1 not played), Primal Roar (7th, Eidolon Symbiosis: Demoralize at each foe within 30 feet with one
+                // Intimidation check, as their Will save against its DC; once a fight for Demoralize's immunity), Whirlwind Maul (17th, Eidolon
+                // Transcendence: a Strike at up to four foes in reach, the same penalty for each).)
+                charges: [{ name: "Beast's Charge", actions: 2, strides: 2, strike: null, attackBonus: 0, damage: null }],
+                ...(lv >= 17 ? { multiStrikes: [{ name: "Whirlwind Maul", actions: 2, strikes: [null], each: true, sameMap: true, max: 4 }] } : {}),
+                ...(lv >= 7 ? { spells: [...(summoner.spells ?? []).filter((entry) => entry.kind === "basic"), roar], spellPools: { "eidolon:roar": 1 } } : {})
             });
+            const roar = lv >= 7 ? { name: "Primal Roar", plan: savePlan("Primal Roar", { actions: 2, traits: ["auditory", "emotion", "fear", "mental", "eidolon"], area: { type: "emanation", value: 30 }, save: "will", dc: 10 + lv + T, effects: { failure: [["frightened", 1, null]], criticalFailure: [["frightened", 2, null]] } }), castRank: Math.ceil(lv / 2), dc: 10 + lv + T, attack: null, pool: "eidolon:roar", kind: "ability", actionType: "action", rechargeGroup: "Primal Roar" } : null;
             return { strikes: [], fields: { actionsPerTurn: 1 }, companions: [eidolon] };
         }
     },
