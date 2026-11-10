@@ -54,16 +54,193 @@ export function scaled(made, wave) {
         waveScale: { wave, hp: grow, plus }
     };
 }
+// (2026-11-09, Cole: "Feel free to let casters have spells that their enemies are specifically weak to.") Every wave's creatures have one
+// weakness, the next in WEAKNESSES each wave, at the high weakness for their level (GM Core's resistances and weaknesses table) — for every
+// class, so the ranking stays a fair one. SOLO_WEAK=0 leaves the creatures without.
+export const WEAKNESSES = Object.freeze(["fire", "cold", "electricity", "acid", "sonic", "vitality", "spirit", "mental", "force"]);
+const WEAK_HIGH = [1, 3, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 19, 20, 21, 22, 23, 24, 25, 26, 27];
+const weakValue = (level) => WEAK_HIGH[Math.max(0, Math.min(WEAK_HIGH.length - 1, level + 1))];
+export const weaknessOf = (wave) => (process.env.SOLO_WEAK === "0" ? null : WEAKNESSES[(wave - 1) % WEAKNESSES.length]);
+function weakened(made, wave) {
+    const type = weaknessOf(wave);
+    if (!type) return made;
+    return { ...made, weaknesses: [...(made.weaknesses ?? []).filter((each) => each.type !== type), { type, value: weakValue(made.level ?? 0) }] };
+}
+// (2026-11-09, Cole's pick: fliers and shooters, so a caster's Fly isn't a wall.) Every third wave its creatures fly (waves 3, 9, 15 …) or
+// have a ranged Strike too (waves 6, 12, 18 …), as spell-power.js's flying and ranged foes; every class meets them. SOLO_REACH=0 leaves
+// every wave melee only.
+export const reachOf = (wave) => (process.env.SOLO_REACH === "0" || wave % 3 !== 0 ? null : (wave / 3) % 2 === 1 ? "flier" : "shooter");
+function reaching(made, wave) {
+    const kind = reachOf(wave);
+    if (!kind) return made;
+    const strikes = made.strikes ?? [];
+    if (kind === "flier") return { ...made, flies: true };
+    return strikes.length ? { ...made, strikes: [...strikes, { ...strikes[0], name: `${strikes[0].name ?? "Strike"} (ranged)`, melee: false, increment: 60, reach: undefined }] } : made;
+}
 export function waveFoes(level, wave) {
-    if (level - 4 >= -1 && wave % 2 === 0) return [scaled(foe(level - 4, "monster"), wave), scaled(foe(level - 4, "monster-1"), wave)];
-    return [scaled(foe(level - 3, "monster"), wave)];
+    const make = (lv, id) => reaching(weakened(scaled(foe(lv, id), wave), wave), wave);
+    if (level - 4 >= -1 && wave % 2 === 0) return [make(level - 4, "monster"), make(level - 4, "monster-1")];
+    return [make(level - 3, "monster")];
 }
 
-// The PC alone: its own creature and what comes with it (an eidolon sharing its Hit Points, a companion, a familiar).
+// The PC alone: its own creature and what comes with it (an eidolon sharing its Hit Points, a companion, a familiar), with its solo kit.
 export function soloOf(slug, level) {
     const party = classPartyFor(slug, level);
     const pc = party.find((c) => c.id === slug) ?? party.find((c) => c.classSlug === slug);
-    return party.filter((c) => c === pc || c.sharesHpWith === pc.id || c.companionOf === pc.id || c.familiarOf === pc.id || c.master === pc.id || (pc.companions ?? []).includes(c));
+    const own = party.filter((c) => c === pc || c.sharesHpWith === pc.id || c.companionOf === pc.id || c.familiarOf === pc.id || c.master === pc.id || (pc.companions ?? []).includes(c));
+    const kitted = soloKit(slug, pc);
+    // (A familiar with the flier ability when its master flies by the kit's Fly: on the ground beside it, it held the master in the wave's
+    // melee — space.js aloft.)
+    const flier = (kitted.spells ?? []).some((each) => each.prewave);
+    return own.map((c) => (c === pc ? kitted : flier && (c.familiar?.masterId === pc.id || c.familiarOf === pc.id) ? { ...c, flies: true } : c));
+}
+
+// A caster's solo kit (2026-11-09, Cole: "give them spells that last longer and give them weapons they can use well along side spells. Let
+// the caster be more defensive as well … Allow them to have spells with very long durations already be cast, such as Mystic Armor. Give
+// them spells that give them movement options the enemies may not have such as the Fly spell then give them ranged weapons … spells that
+// their enemies are specifically weak to"). Solo only: the class PCs the party ratings use are untouched. Its parts (KIT_PARTS), each
+// class's by CASTER_KITS (the best found by trying them, docs/solo-waves.md), SOLO_KIT=<parts> for every caster, SOLO_KIT=none for none:
+//   book     its slots refilled from SOLO_BOOK (defenses, buffs, a damage spell of each type) for its tradition, its cantrips too
+//   armor    Mystic Armor cast before the first wave (until its next preparations; a 1st-rank slot)
+//   vitality False Vitality before the first wave (8 hours; a 2nd-rank slot), where on its list
+//   weapon   a crossbow at its simple-weapon proficiency and Dexterity, with its runes (trained casters' weapon of choice to keep away)
+//   heal     Heal in its slots where on its list (divine, primal), for its rests
+//   fly      Fly in its slots from 4th rank (SOLO_FLY_SLOTS a rank, all by default), one cast just before each wave while they last
+const { spell: partySpell } = await import("./deadliness.mjs");
+const { spellNamed } = await import("./pack-spells.mjs");
+const { T, potency, striking } = await import("../../src/engine/party.js");
+const FLY_SLOTS = Number(process.env.SOLO_FLY_SLOTS ?? 9);
+export const KIT_PARTS = Object.freeze(["book", "armor", "vitality", "weapon", "heal", "fly"]);
+export const CASTERS = Object.freeze(["wizard", "sorcerer", "witch", "psychic", "oracle", "cleric", "druid", "bard", "animist", "necromancer", "summoner", "magus", "kineticist", "alchemist", "inventor"]);
+// The parts each caster keeps; a class not here gets every part (the tuning runs of 2026-11-09: each part, left out, cost most casters
+// waves — the book least, Fly most from 10th level — so every caster keeps all of them).
+export const CASTER_KITS = Object.freeze({});
+// A rank's picks in order: what's on the caster's list and castable here fills its slots, cycling.
+const SOLO_BOOK = Object.freeze({
+    1: ["Runic Weapon", "Sanctuary", "Fleet Step", "Protection", "Runic Weapon"],
+    2: ["Mirror Image", "Blur", "Runic Weapon", "Resist Energy"],
+    3: ["Haste", "Heroism", "Fireball", "Mirror Image"],
+    4: ["Fly", "Mirror Image", "Haste", "Fireball"],
+    5: ["Fly", "Cone of Cold", "Haste", "Mirror Image"],
+    6: ["Chain Lightning", "Fly", "Spirit Blast", "Haste"],
+    7: ["Sunburst", "Eclipse Burst", "Fly", "Haste"],
+    8: ["Polar Ray", "Fly", "Haste", "Chain Lightning"],
+    9: ["Polar Ray", "Fly", "Haste", "Chain Lightning"],
+    10: ["Polar Ray", "Chain Lightning", "Fly"]
+});
+// A damage spell of each type the waves can be weak to (one prepared at the rank shown, where on the list; WEAKNESSES).
+const TYPED = Object.freeze({
+    fire: [["Ignition", 0], ["Breathe Fire", 1], ["Fireball", 3]], cold: [["Frostbite", 0], ["Ray of Frost", 0], ["Chilling Spray", 1]],
+    electricity: [["Electric Arc", 0], ["Lightning Bolt", 3]], acid: [["Caustic Blast", 0], ["Acid Grip", 2]], sonic: [["Noise Blast", 2], ["Shatter", 2]],
+    vitality: [["Vitality Lash", 0], ["Heal", 1]], spirit: [["Divine Lance", 0], ["Divine Wrath", 4], ["Spirit Blast", 6]], mental: [["Daze", 0], ["Agonizing Despair", 3]],
+    force: [["Force Barrage", 1], ["Spiritual Weapon", 2]]
+});
+const onList = (name, tradition) => (spellNamed(name)?.system?.traits?.traditions ?? []).includes(tradition);
+const partsFor = (slug) => {
+    const want = process.env.SOLO_KIT;
+    if (want === "none") return new Set();
+    if (want) return new Set(want.split(","));
+    return new Set(CASTER_KITS[slug] ?? KIT_PARTS);
+};
+export function soloKit(slug, made) {
+    if (!CASTERS.includes(slug)) return made;
+    const parts = partsFor(slug);
+    if (!parts.size) return made;
+    const c = { ...made, spells: [...(made.spells ?? [])], spellPools: { ...(made.spellPools ?? {}) }, strikes: [...(made.strikes ?? [])] };
+    const lv = c.level;
+    const slotted = c.spells.filter((entry) => /:\d+:\d+$/.test(entry.pool ?? ""));
+    const model = slotted[0] ?? c.spells.find((entry) => entry.dc);
+    const tradition = model?.tradition ?? null;
+    const entry = (name, castRank, pool, extra = {}) => {
+        const found = partySpell(name, castRank);
+        return found ? { ...found, name: found.name ?? name, castRank, dc: model.dc, attack: model.attack, pool, tradition, ...extra } : null;
+    };
+    if (model && tradition) {
+        // Its slots refilled: the defenses and buffs, Heal for its rests, then a spell of each weakness type.
+        if (parts.has("book") || parts.has("heal") || parts.has("armor") || parts.has("vitality")) {
+            const byRank = new Map();
+            for (const each of slotted) {
+                const r = Number(each.pool.split(":").at(-2));
+                if (!byRank.has(r)) byRank.set(r, []);
+                byRank.get(r).push(each.pool);
+            }
+            const precast = [];
+            const take = (r) => {
+                const pools = byRank.get(r) ?? [];
+                return pools.length ? pools.shift() : null;
+            };
+            // (Before the first wave: a slot each, the spell constant for every wave.)
+            if (parts.has("armor") && onList("Mystic Armor", tradition) && byRank.get(1)?.length) {
+                const pool = take(1);
+                const r = lv >= 16 ? 8 : lv >= 12 ? 6 : lv >= 8 ? 4 : 1;
+                const made = entry("Mystic Armor", Math.min(r, Math.ceil(lv / 2)), null);
+                if (made) precast.push({ pool, spell: { ...made, name: "Mystic Armor (Constant)" } });
+            }
+            if (parts.has("vitality") && onList("False Vitality", tradition) && byRank.get(2)?.length) {
+                const pool = take(2);
+                const top = Math.min(9, Math.ceil(lv / 2));
+                const made = entry("False Vitality", top >= 8 ? 8 : top >= 6 ? 6 : top >= 4 ? 4 : 2, null);
+                if (made) precast.push({ pool, spell: { ...made, name: "False Vitality (Constant)" } });
+            }
+            const picks = [];
+            if (parts.has("heal") && onList("Heal", tradition)) {
+                const ranks = [...byRank.keys()].sort((a, b) => a - b);
+                for (const r of ranks.slice(0, 2)) if (byRank.get(r).length) picks.push([r, "Heal"]);
+            }
+            // (Fly at every rank from 4th, FLY_SLOTS of each rank's slots: a wave out of reach for each one.)
+            if (parts.has("fly") && onList("Fly", tradition)) {
+                for (const [r, pools] of byRank) if (r >= 4) for (let i = 0; i < Math.min(FLY_SLOTS, pools.length); i++) picks.push([r, "Fly"]);
+            }
+            if (parts.has("book")) {
+                const typed = Object.values(TYPED).map((list) => list.filter(([name, at]) => at > 0 && onList(name, tradition)).at(-1)).filter(Boolean);
+                for (const [name, at] of typed) {
+                    const r = [...byRank.keys()].filter((each) => each >= at && byRank.get(each).length > 1).sort((a, b) => b - a)[0];
+                    if (r) picks.push([r, name]);
+                }
+                for (const [r] of byRank) {
+                    const list = (SOLO_BOOK[r] ?? []).filter((name) => onList(name, tradition) && partySpell(name, r));
+                    for (let i = 0; i < list.length && byRank.get(r).length > picks.filter(([at]) => at === r).length; i++) picks.push([r, list[i]]);
+                }
+            }
+            // Rebuild the slot spells: the picks first, then what the class had in the slots left.
+            const kept = new Map(slotted.map((each) => [each.pool, each]));
+            const fresh = [];
+            for (const [r, name] of picks) {
+                const pool = take(r);
+                if (!pool) continue;
+                const made = entry(name, r, pool);
+                if (made) {
+                    fresh.push(made);
+                    kept.delete(pool);
+                }
+            }
+            for (const { pool, spell } of precast) {
+                kept.delete(pool);
+                delete c.spellPools[pool];
+                fresh.push(spell);
+            }
+            c.spells = [...c.spells.filter((each) => !/:\d+:\d+$/.test(each.pool ?? "")), ...kept.values(), ...fresh];
+        }
+        // Its cantrips: a damage cantrip of each weakness type on its list.
+        if (parts.has("book")) {
+            const have = new Set(c.spells.map((each) => each.name));
+            for (const list of Object.values(TYPED)) {
+                const [name] = list.find(([n, at]) => at === 0 && onList(n, tradition) && !have.has(n)) ?? [];
+                if (!name) continue;
+                const made = entry(name, Math.min(10, Math.ceil(lv / 2)), null);
+                if (made) c.spells.push(made);
+            }
+        }
+    }
+    if (parts.has("weapon") && !c.strikes.some((strike) => strike.melee === false)) {
+        const dex = c.abilities?.dex ?? 2;
+        c.strikes.push({ name: "Crossbow", bonus: lv + T + dex + potency(lv), potency: potency(lv), melee: false, agile: false, increment: 120, held: true, hands: 2, iwr: { group: "crossbow" }, damage: [{ dice: striking(lv), die: 8, bonus: 0, type: "piercing" }] });
+    }
+    // (Fly before each wave while it has a slot for it — 5 minutes, a wave's length — spent then: the planner never casts it on its own, and
+    // the wave's creatures are melee only, so aloft it's out of their reach. soloTask prewave.)
+    if (parts.has("fly")) c.spells = c.spells.map((each) => (/^Fly$/.test(each.name) && each.pool ? { ...each, prewave: true } : each));
+    c.soloKit = [...parts];
+    return c;
 }
 
 // A small seeded die for the rests (the fights roll their own).
@@ -127,16 +304,20 @@ function treatWounds(med, roll, { upgrade = false, risky = false } = {}) {
     return change;
 }
 
-// Healing spells between waves (Cole: "casters can cast between waves for healing but they still lose their spell slots"): below half its
-// Hit Points, its healing spells on itself (Focus Points first, then its lowest slots; not Harm), until it's at three quarters or out of
-// them. Cast through the engine (castPlan on a fight state of the PC alone), so the amount, the pool spent and the rank are a fight's.
+// Healing spells between waves (Cole: "casters can cast between waves for healing but they still lose their spell slots"): below three
+// quarters of its Hit Points, its healing spells on itself (Focus Points first, then its lowest slots; not Harm), until it's at nine tenths
+// or out of them. Cast through the engine (castPlan on a fight state of the PC alone), so the amount, the pool spent and the rank are a fight's.
+const HEAL_BELOW = Number(process.env.SOLO_HEAL_BELOW) || 0.75;
+const HEAL_TO = Number(process.env.SOLO_HEAL_TO) || 0.9;
 function healBetween(pc, own, roll, seed) {
-    if (own.hp >= 0.5 * pc.hp.max) return { casts: 0, divine: false };
+    // (2026-11-09: below three quarters, to nine tenths — at half, a lone PC that a wave left above it went into the next one hurt, and the
+    // healers' slots went unspent: 0.1 casts a run.)
+    if (own.hp >= HEAL_BELOW * pc.hp.max) return { casts: 0, divine: false };
     const state = createFightState({ combatants: [{ ...pc, hp: { ...pc.hp, value: own.hp, temp: 0 }, spellPools: { ...own.pools } }] }, {}, seed);
     const c = state.byId.get(pc.id);
     let casts = 0;
     let divine = false;
-    for (let guard = 0; guard < 20 && c.hp.value < 0.75 * c.hp.max; guard++) {
+    for (let guard = 0; guard < 20 && c.hp.value < HEAL_TO * c.hp.max; guard++) {
         const options = (c.spells ?? []).filter((e) => e.kind !== "basic" && !/^Harm\b/.test(e.name) && describeSpell(e.plan)?.healing && poolReady(c, e) && (!canCast || canCast(c, e) !== false));
         if (!options.length) break;
         options.sort((a, b) => (/focus/.test(b.pool ?? "") - /focus/.test(a.pool ?? "")) || (a.castRank ?? 0) - (b.castRank ?? 0));
@@ -171,8 +352,18 @@ export function soloTask({ slug, level, run }) {
     const rests = { treat: 0, refocus: 0, none: 0, healSpells: 0, battleMedicine: 0 };
     const hpLeft = [];
     for (let wave = 1; wave <= WAVE_CAP; wave++) {
+        // (Its spells cast just before the wave — the kit's Fly —, a slot each, constant for the wave.)
+        const before = [];
+        for (const each of pc.spells ?? []) {
+            const pools = state.get(pc.id).pools;
+            if (!each.prewave || before.some((done) => done.name === `${each.name} (Constant)`) || !(pools[each.pool] > 0)) continue;
+            pools[each.pool] -= 1;
+            before.push({ ...each, name: `${each.name} (Constant)`, pool: null, prewave: false });
+            rests.prewave = (rests.prewave ?? 0) + 1;
+        }
         const team = start.map((c) => ({
             ...c, hp: { ...c.hp, value: state.get(c.id).hp, temp: 0 }, spellPools: { ...state.get(c.id).pools },
+            ...(c === pc && before.length ? { spells: [...c.spells, ...before] } : {}),
             // (Battle Medicine on itself, once a day.)
             ...(c === pc && battleMedicineUsed === false ? { battleMedicine: { name: "Battle Medicine", modifier: med.modifier, tiers: med.tiers } } : c === pc ? { battleMedicine: null } : {})
         }));
@@ -252,7 +443,7 @@ export function soloReport(rows) {
     const lines = [
         "# Classes alone against endless waves",
         "",
-        `Made by \`node tools/solo-waves.mjs <out>\` (tools/lib/solo-waves.mjs). Each class's PC fights alone (with its eidolon, companion or familiar) against wave after wave of a moderate encounter for one PC (one creature 3 levels below it, or from 4th level every other wave two creatures 4 levels below, 10 XP each). From wave 11 each wave is a little stronger, with no end: +2% Hit Points and damage a wave, compounding, and +1 to attack, AC, saves and Perception every fifth wave. Between waves it keeps its Hit Points, spell slots and Focus Points; below half its Hit Points it casts its healing spells on itself (the slots stay spent), then spends 10 minutes on one activity: Treat Wounds on itself or Refocus. Every PC has Medicine at its level (trained, expert at 3rd, master at 7th, legendary at 15th) and uses Battle Medicine on itself once a day in the fights; Continual Recovery from 2nd (Treat Wounds every rest, else once an hour); from 4th (1st for a rogue or investigator) Mortal Healing, or Risky Surgery for a divine healer (cleric, oracle, champion) or at 1st. It stops when the PC goes down, or at ${WAVE_CAP} waves. The numbers are the waves survived, the mean of ${RUNS} runs at each level.`,
+        `Made by \`node tools/solo-waves.mjs <out>\` (tools/lib/solo-waves.mjs). Each class's PC fights alone (with its eidolon, companion or familiar) against wave after wave of a moderate encounter for one PC (one creature 3 levels below it, or from 4th level every other wave two creatures 4 levels below, 10 XP each). From wave 11 each wave is a little stronger, with no end: +2% Hit Points and damage a wave, compounding, and +1 to attack, AC, saves and Perception every fifth wave. Between waves it keeps its Hit Points, spell slots and Focus Points; below three quarters of its Hit Points it casts its healing spells on itself up to nine tenths (the slots stay spent), then spends 10 minutes on one activity: Treat Wounds on itself or Refocus. Every PC has Medicine at its level (trained, expert at 3rd, master at 7th, legendary at 15th) and uses Battle Medicine on itself once a day in the fights; Continual Recovery from 2nd (Treat Wounds every rest, else once an hour); from 4th (1st for a rogue or investigator) Mortal Healing, or Risky Surgery for a divine healer (cleric, oracle, champion) or at 1st. Each wave's creatures have one weakness, in turn fire, cold, electricity, acid, sonic, vitality, spirit, mental and force, at the high value for their level. The casters (and the kineticist, alchemist and inventor) carry a solo kit: Mystic Armor and False Vitality cast before the first wave, a crossbow, their slots refilled with defenses (Mirror Image, Blur, Haste, Heroism, Sanctuary), Runic Weapon, Heal for divine and primal casters, a spell of each weakness type, and from 4th rank Fly, cast just before a wave while the slots last (the creatures can't reach a flier). It stops when the PC goes down, or at ${WAVE_CAP} waves. The numbers are the waves survived, the mean of ${RUNS} runs at each level.`,
         "",
         "Classes are ordered by their average place across the levels (1st = lasted longest at that level), so every level counts the same. A number in brackets is how many runs reached the cap.",
         "",
