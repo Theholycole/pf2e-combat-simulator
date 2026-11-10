@@ -77,18 +77,42 @@ function weaponStrike(level, { name, die, type, toHit, damageAttr = 0, prof, ite
 function runesmithRunes(lv, dc) {
     const dice = 1 + Math.floor((lv - 1) / 2);
     const traits = ["magical", "concentrate", "manipulate"];
-    const rune = (name, actions, range, components, effects = {}) => {
-        const plan = savePlan(name, { actions, traits, range, target: "1 creature", save: "fortitude", dc, damage: components[0].formula, effects });
-        plan.traits = plan.activation.traits = [...traits, "runesmith", ...components.map((part) => part.type)];
+    const rune = (name, actions, range, components, effects = {}, { save = "fortitude", area = null, extraTraits = [], pool = null, basic = true, immune = false } = {}) => {
+        const plan = savePlan(name, { actions, traits, range, area, target: "1 creature", save, dc, damage: components[0]?.formula ?? null, effects, basic });
+        if (area && range) plan.targeting.range = range;
+        // (Its target immune to it after — for the fight.)
+        if (immune) plan.trigger = { ...plan.trigger, immunity: true };
+        plan.traits = plan.activation.traits = [...traits, "runesmith", ...extraTraits, ...components.map((part) => part.type)];
         plan.source.type = "action";
-        plan.resolution.sharedDamage.components = components.map((part, index) => ({ id: String(index), formula: part.formula, type: part.type, category: null }));
-        for (const outcome of Object.values(plan.resolution.outcomes)) if (outcome.damage.sourceComponentIds?.length) outcome.damage.sourceComponentIds = components.map((_, index) => String(index));
-        return { name, plan, castRank: Math.ceil(lv / 2), dc, attack: null, pool: null, kind: "ability", actionType: "action", rechargeGroup: name, runesmithRune: true };
+        if (components.length) {
+            plan.resolution.sharedDamage.components = components.map((part, index) => ({ id: String(index), formula: part.formula, type: part.type, category: null }));
+            for (const outcome of Object.values(plan.resolution.outcomes)) if (outcome.damage.sourceComponentIds?.length) outcome.damage.sourceComponentIds = components.map((_, index) => String(index));
+        }
+        return { name, plan, castRank: Math.ceil(lv / 2), dc, attack: null, pool, kind: "ability", actionType: "action", rechargeGroup: name, runesmithRune: true };
     };
+    const round1 = { mode: "fixed", value: 1, unit: "rounds" };
     const fire = { formula: `${dice}d8[fire]`, type: "fire" };
     const thunder = { formula: `${dice}d8[electricity]`, type: "electricity" };
     const dazzled = { criticalFailure: [["dazzled", null, { mode: "fixed", value: 1, unit: "rounds" }]] };
+    // (2026-11-10, Cole: "get them working" — more of its repertoire, from the rune list he gave (Impossible Magic pp. 55-61): thullax, rune
+    // of corrosion (1d6 acid a die more every 2 levels, 1 persistent acid more every 2 on a critical failure); from 9th trolistri, rune of
+    // forlorn sorrow, traced on itself (each enemy in a 15-foot emanation: Will, slowed 1 for a round, 2 on a critical failure; immune for
+    // an hour after); from 17th ochyghol, the Poisoned Star (8d6 fire in a 40-foot burst about the bearer, basic Reflex;
+    // its 3d10 at the centre and doom not played) and rovan, seal of the Dead Vault (incapacitation, Fortitude: slowed 1 on a success, 2 on
+    // a failure, restrained, blinded and slowed 2 on a critical failure). Diacritics cost a Trace more on a traced rune and come to less
+    // than a second rune for the same action, so they're left out; the etched holtrik and kojastri are in its build.)
+    const acid = { formula: `${1 + Math.floor((lv - 1) / 2)}d6[acid]`, type: "acid" };
+    const thullax = rune("Thullax, Rune of Corrosion (Trace and Invoke)", 2, "touch", [acid]);
+    const persistent = 1 + Math.floor((lv - 1) / 2);
+    thullax.plan.resolution.outcomes.criticalFailure.damage = { mode: "mixed", shared: { multiplier: 2, sourceComponentIds: ["0"] }, formulas: [{ formula: `${persistent}[persistent,acid]` }], rollScope: "outcome" };
+    const later = [];
+    if (lv >= 9) later.push(rune("Trolistri, Rune of Forlorn Sorrow (Trace on itself and Invoke)", 2, null, [], { failure: [["slowed", 1, round1]], criticalFailure: [["slowed", 2, round1]] }, { save: "will", area: { type: "emanation", value: 15, foes: true }, extraTraits: ["emotion", "mental"], basic: false, immune: true }));
+    if (lv >= 17) {
+        later.push(rune("Ochyghol, the Poisoned Star (Trace from afar and Invoke)", 3, "30 feet", [{ formula: "8d6[fire]", type: "fire" }], {}, { save: "reflex", area: { type: "burst", value: 40 } }));
+        later.push(rune("Rovan, Seal of the Dead Vault (Trace and Invoke)", 2, "touch", [], { success: [["slowed", 1, round1]], failure: [["slowed", 2, round1]], criticalFailure: [["restrained", null, null], ["blinded", null, null], ["slowed", 2, null]] }, { extraTraits: ["incapacitation", "earth"], basic: false, immune: true }));
+    }
     return [
+        thullax, ...later,
         rune("Atryl, Rune of Fire (Trace and Invoke)", 2, "touch", [fire], dazzled),
         rune("Ranshu, Rune of Thunder (Trace and Invoke)", 2, "touch", [thunder]),
         rune("Ranshu, Rune of Thunder (Trace from afar and Invoke)", 3, "30 feet", [thunder]),
@@ -432,7 +456,7 @@ const CLASSES = {
     necromancer: {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 0 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
-        fort: [[1, E], [11, M]], ref: [[1, T], [5, E]], will: [[1, E]], perception: [[1, T], [7, E]],
+        fort: [[1, E], [11, M], [17, L]], ref: [[1, T], [5, E]], will: [[1, E]], perception: [[1, T], [7, E]],
         caster: { tradition: "occult", attr: "int", slots: 3 }, focus: { names: ["Necrotic Bomb", "Bone Spear"], attr: "int", points: 2 },
         build(lv, a) {
             // (2026-11-02, the user: "the spell module handles Necromancer thralls". Its thrall rules, scripts/thrall-tokens.js: a thrall is a
@@ -444,7 +468,9 @@ const CLASSES = {
             const dice = 1 + Math.max(0, Math.floor((lv - 1) / 4));
             const thrall = { name: "Thrall", bonus: lv + spellProf(lv) + a.int, melee: false, increment: 30, held: false, thrall: true, proxy: true, versatile: ["bludgeoning", "piercing"], iwr: { group: "brawling", traits: ["unarmed"] }, damage: [{ dice, die: 6, bonus: 0, type: "slashing" }] };
             const staff = { name: "Staff", bonus: lv + T + a.str, melee: true, agile: false, iwr: { group: "club" }, damage: [{ dice: 1, die: 4, bonus: a.str, type: "bludgeoning" }] };
-            return { strikes: [thrall, staff], fields: { critSpec: false, thrallMaker: { proliferation: 1 } } };
+            // (2026-11-10: the puppeteer's Consume Thrall (fight.js), Inevitable Return (3rd, thralls.js), Undying Resilience (17th: legendary
+            // Fortitude, a critical failure a failure; its half damage on a failure not played).)
+            return { strikes: [thrall, staff], fields: { critSpec: false, thrallMaker: { proliferation: 1 }, consumeThrall: "necromancer:focus", ...(lv >= 3 ? { inevitableReturn: true } : {}), ...(lv >= 17 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better", criticalFailure: "one-degree-better" } }] } : {}) } };
         }
     },
     oracle: {
@@ -493,7 +519,11 @@ const CLASSES = {
             // damage die.
             hammer.damage.push({ dice: 0, die: 0, bonus: striking(lv), type: "bludgeoning", splash: true });
             const hardness = lv >= 13 ? 10 : lv >= 7 ? 8 : 5;
-            return { strikes: [hammer], spells: runesmithRunes(lv, 10 + lv + rank(lv, [[1, T], [7, E], [15, M], [19, L]]) + a.int), fields: { shield: { ac: 2, hardness, hp: hardness * 4, bt: hardness * 2, broken: false, raised: false }, reactions: { aoo: false, shieldBlock: true },
+            // (2026-11-10: etched too — holtrik, rune of dwarven ramparts, on its shield: +1 status bonus to AC while raised (taken into the
+            // shield's bonus); from 9th, when it etches three, kojastri, rune of insulation, on its armor: fire resistance 4, 1 more every 2
+            // levels (its 2 damage to creatures that touch it not played).)
+            return { strikes: [hammer], spells: runesmithRunes(lv, 10 + lv + rank(lv, [[1, T], [7, E], [15, M], [19, L]]) + a.int), fields: { shield: { ac: 3, hardness, hp: hardness * 4, bt: hardness * 2, broken: false, raised: false }, reactions: { aoo: false, shieldBlock: true },
+                ...(lv >= 9 ? { resistances: [{ type: "fire", value: 4 + Math.floor((lv - 9) / 2), exceptions: [] }] } : {}),
                 ...(lv >= 11 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better" } }] } : {}) } };
         }
     },
@@ -586,7 +616,7 @@ const SAVE_UPGRADES = {
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
-    necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes other than atryl, ranshu and marssyl (diacritics, shield and support runes, higher-level runes)", summoner: "evolution feats on the eidolon",
+    summoner: "evolution feats on the eidolon",
     bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "familiar abilities other than its patron's and Familiar Focus/Lifelink", oracle: "the curse", druid: "Untamed Form",
     barbarian: "Rage's -1 AC", alchemist: "mutagens, poisons and the research fields other than bomber", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });

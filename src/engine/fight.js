@@ -677,6 +677,15 @@ function startTurn(state, c) {
             state.log?.push(`  ${c.name} uses Shared Focus: ${ally.name} gains a Focus Point`);
         }
     }
+    // (2026-11-10, Consume Thrall, a puppeteer necromancer's action: once a day, out of Focus Points with a thrall within 30 feet — the thrall
+    // destroyed, a Focus Point for a grave spell. Taken as its turn begins while it has a thrall for the grave spell to come.)
+    if (c.consumeThrall && !c.consumeThrallUsed && c.status === ACTIVE && actions >= 3 && (c.spellPools?.[c.consumeThrall] ?? 1) === 0 && (c.thralls ?? 0) >= 2) {
+        c.consumeThrallUsed = true;
+        actions -= 1;
+        spendThrall(state, c);
+        c.spellPools[c.consumeThrall] = 1;
+        state.log?.push(`  ${c.name} uses Consume Thrall: a Focus Point`);
+    }
     // (2026-11-07, My Kingdom, My Blood: its first turn's three actions — a Stride, its fist in the ground —, the 60-foot aura for the fight.)
     if (c.kingdomBlood && !c.kingdomActive && c.status === ACTIVE && actions >= 3) {
         c.kingdomActive = true;
