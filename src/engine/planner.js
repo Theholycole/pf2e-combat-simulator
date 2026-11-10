@@ -634,8 +634,11 @@ class PlanContext {
         if (amount <= 0) return 0;
         const chance = strike.splashKind === "bomb" ? Math.min(0.95, hitChance + 0.35) : hitChance;
         let gain = 0;
-        for (const other of this.state.list) {
-            if (other === target || other.status !== "active" || other.meleeId !== target.meleeId) continue;
+        // (2026-11-10: Directional Bombs' splash on foes only; the bomber's, on the primary target only when it would catch its own side —
+        // as actions.js splashAround plays them.)
+        const around = this.state.list.filter((other) => other !== target && other.status === "active" && other.meleeId === target.meleeId && !(this.c.splashFoesOnly && other.side === this.c.side));
+        if (this.c.splashPrimaryOnly && around.some((other) => other.side === this.c.side)) return 0;
+        for (const other of around) {
             const value = targetValue(this.state, other, this.c);
             gain += (other.side === this.c.side ? -1 : 1) * value * Math.min(1, amount / remainingHp(other));
         }
@@ -1112,8 +1115,14 @@ export function spellstrikeCaught(state, c, spell, target) {
 function emptyNow(c, node, index, strike) {
     const fired = node.casts.lastIndexOf(`fired${index}`);
     const loaded = node.casts.lastIndexOf(`loaded${index}`);
-    if (fired === -1 && loaded === -1) return !!c.unloaded?.has(strike.name);
-    return fired > loaded;
+    const empty = fired === -1 && loaded === -1 ? !!c.unloaded?.has(strike.name) : fired > loaded;
+    // (2026-11-10, an alchemist's bombs: Abundant Vials' quick vial — its first a turn made by its extra action —, then Double Brew's two
+    // items from one Quick Alchemy — every second bomb this turn already made.)
+    if (!empty || !strike.ammo || !(c.doubleBrew || c.abundantVials)) return empty;
+    const thrown = (c.bombsThisTurn ?? 0) + node.casts.filter((cast) => /^fired\d+$/.test(cast) && c.strikes[Number(cast.slice(5))]?.ammo).length;
+    const free = c.abundantVials ? 1 : 0;
+    if (free && thrown === 0 && strike.quickVial) return false;
+    return !(c.doubleBrew && (thrown - free) > 0 && (thrown - free) % 2 === 1);
 }
 
 function expand(ctx, node, actionsLeft) {
@@ -1268,6 +1277,9 @@ function expandStrikes(env) {
     if (!restrained) {
         for (const [index, strike] of (c.strikes ?? []).entries()) {
             if (!strike.reload || strike.reload > remaining || !emptyNow(c, node, index, strike) || !strikeUsable(c, strike)) continue;
+            // (2026-11-10: a quick vial is gone by the next turn; another bomb only when none is ready — one in hand for the next turn, not
+            // a vial spent on each.)
+            if (strike.quickVial || (strike.ammo && (c.strikes ?? []).some((other, at) => other !== strike && other.ammo && !other.quickVial && !emptyNow(c, node, at, other)))) continue;
             let best = 0;
             for (const target of ctx.enemies) {
                 if (target.status !== "active") continue;
@@ -2033,6 +2045,9 @@ function expandClassActions(env) {
         if (entry.whileRaging && !isRaging(c)) continue;
         if (entry.requiresEffect && !stanceHeld(c, `stance:${entry.requiresEffect}`)) continue;
         if (entry.pool && (c.spellPools?.[entry.pool] ?? 0) <= 0) continue;
+        // (2026-11-10, one mutagen at a time: none while another lasts.)
+        // (A mutagenist from 13th: two at once.)
+        if (entry.mutagen && c.selfEffects.filter((other, at) => other.mutagen && (node.casts.includes(`self${at}`) || (c.effects ?? []).some((effect) => effect.key === `self:${other.name}`))).length >= (c.mutagensAtOnce ?? 1)) continue;
         // (2026-11-01, Starlight Armor's resistance 10 to each physical type: counted, out of a fight's context, as 0.02 a point a round for each
         // type — three times over, and whether or not anything is hitting it —, so the fighter spent its first round on it at range while the
         // boss hit the rogue. Now as a spell's on its target: the Hit Points it keeps off the foes' Strikes, its share of them —

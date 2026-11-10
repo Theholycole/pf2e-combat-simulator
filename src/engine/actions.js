@@ -1640,7 +1640,9 @@ function splashAround(state, attacker, target, splash, { includeTarget }) {
         return;
     }
     // (2026-11-05, Directional Bombs: its bombs' splash a cone away from it — on its foes only, attacker.splashFoesOnly.)
-    const around = state.list.filter((other) => isActive(other) && other.meleeId === target.meleeId && (includeTarget || other !== target) && !(attacker.splashFoesOnly && other.side === attacker.side));
+    let around = state.list.filter((other) => isActive(other) && other.meleeId === target.meleeId && (includeTarget || other !== target) && !(attacker.splashFoesOnly && other.side === attacker.side));
+    // (2026-11-10, the bomber's field benefit: its splash on the primary target only, when it would catch itself or an ally.)
+    if (attacker.splashPrimaryOnly && around.some((other) => other.side === attacker.side)) around = around.filter((other) => other === target);
     for (const other of around) {
         const dealt = applyDamage(state, other, splash.map((instance) => ({ ...instance })), { source: attacker });
         if (dealt > 0) log(state, `  ${other.name} takes ${dealt} splash (${Math.max(0, other.hp.value)}/${other.hp.max})`);
