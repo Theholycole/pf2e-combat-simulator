@@ -6,8 +6,7 @@
 //   classParty(slug, level): the standard party with that class's PC in the seat of the PC who fights most like it (a martial for the
 //   fighter, a skirmisher for the rogue, an arcane or occult caster for the wizard, a divine or primal one for the cleric), so a class's
 //   feats are rated on their own class.
-// What isn't played yet is listed in CLASS_GAPS (the animist's apparitions and the
-// runesmith's runes aren't played, only their spells and weapons; the necromancer's thralls are a count, by the spell module's thrall rules).
+// What isn't played yet is listed in CLASS_GAPS.
 import { savePlan } from "./deviant.js";
 import { E, L, M, T, armorPotency, key, pc, potency, preparedSpells, primarySkill, rank, SPELLBOOKS, specialization, spellProf, standardParty, striking } from "./party.js";
 import { animalCompanion, familiarFor } from "./companions.js";
@@ -429,7 +428,7 @@ const CLASSES = {
             const twoAction = (strike) => ({ name: `${strike.name}, two actions`, actions: 2, strides: 0, strike: strike.name.toLowerCase(), attackBonus: 0, damageBonus: a.con + dice, damage: null, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null, traits: ["impulse", "attack"] });
             // (Kinetic Quickness: Reflex master at 11th. Greater Kinetic Durability (15th): a critical failure on a Fortitude save a failure — with
             // Kinetic Durability's success a critical success; the half damage on a failure against damage isn't played.)
-            return { strikes: [blast, melee], fields: { strikeActivities: [twoAction(blast), twoAction(melee)], ...(lv >= 13 ? { resistances: ["cold", "fire"].map((type) => ({ type, value: lv, exceptions: [] })) } : {}), ...(lv >= 15 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better", criticalFailure: "one-degree-better" } }] } : {}) } };
+            return { strikes: [blast, melee], fields: { kineticAura: true, strikeActivities: [twoAction(blast), twoAction(melee)], ...(lv >= 13 ? { resistances: ["cold", "fire"].map((type) => ({ type, value: lv, exceptions: [] })) } : {}), ...(lv >= 15 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better", criticalFailure: "one-degree-better" } }] } : {}) } };
         }
     },
     magus: {
@@ -638,10 +637,13 @@ const SAVE_UPGRADES = {
 };
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
+// (2026-11-10, Cole: "get them working": the class features once listed here are played now — the animist's apparitions, the necromancer's
+// thralls, Consume Thrall and Inevitable Return, the runesmith's runes, the bard's compositions, the sorcerer's blood magic, the psychic's
+// Unleash Psyche and amps, the witch's familiar, the oracle's curse, the kineticist's aura, Rage's -1 AC, the alchemist's research fields,
+// the magus's Arcane Cascade. Left: feats a player picks (an eidolon's evolution feats, a 1st-level class feat) are rated as feats, and the
+// druid is a storm druid — Untamed Form is the untamed order's.)
 export const CLASS_GAPS = Object.freeze({
-    summoner: "evolution feats on the eidolon",
-    druid: "Untamed Form",
-    barbarian: "Rage's -1 AC", alchemist: "mutagens, poisons and the research fields other than bomber", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
+    summoner: "its evolution feats (rated as feats)"
 });
 // The standard party's seat each class sits in (the PC it replaces in classParty).
 export const seatOf = (slug) => (["fighter", "rogue", "wizard", "cleric"].includes(slug) ? slug : CLASSES[slug]?.seat ?? null);

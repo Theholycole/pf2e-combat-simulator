@@ -3353,6 +3353,10 @@ export function castPlan(state, caster, spell, targetIds, actions, options = {})
     // (2026-11-10, Lingering Composition, a maestro bard's focus spell: before a 1-round composition cantrip, a Performance check against
     // the standard DC of the highest-level creature it reaches (the fight's highest level, as the foes') — 3 rounds, 4 on a critical
     // success, the Focus Point back on a failure. Spent whenever the bard has a point and none of its compositions is up.)
+    // (2026-11-10, Cole: "get them working" — a kineticist's kinetic aura: an overflow impulse deactivates it, and no impulse is used again
+    // this turn; the next turn begins with Channel Elements, whose action brings a 1-action Elemental Blast with it (no action lost: not
+    // played as one).)
+    if (caster.kineticAura && (spell.plan?.traits ?? []).includes("overflow")) (caster.usedThisTurn ??= new Set()).add("aura-down");
     // (2026-11-10, Unleash Psyche's "you Cast a Spell on your previous turn".)
     if (isSpellCast(spell)) caster.castRound = state.round;
     const outerLinger = state.lingering;
@@ -4559,6 +4563,7 @@ export function canCast(c, spell) {
     // (A witch's hexes: one a turn.)
     if (c.usedThisTurn?.has("hex") && isHex(spell)) return false;
     if (spell.oncePerTurn && c.usedThisTurn?.has(`once:${spell.name}`)) return false;
+    if (c.kineticAura && c.usedThisTurn?.has("aura-down") && (spell.plan?.traits ?? []).includes("impulse")) return false;
     // (2026-11-06, Overdrive Ally's "You are currently in overdrive": a feat's spell only under a buff of its caster's — entry.whileBuff.)
     if (spell.whileBuff && !(c.activeBuffs ?? []).some((buff) => buff.name === spell.whileBuff)) return false;
     // (S59, Sure Strike: "can't cast it again for 10 minutes" — once a fight.)

@@ -1429,7 +1429,9 @@ function expandSpells(env) {
                     const out = Math.min(1, Math.min(1, (before + expected) / hp) + breaks);
                     // (2026-11-08: harm to its own side counted twice — a party drops an area on its allies only when the foes caught are worth
                     // it many times over; before, Breathe Fire, Mega Bomb and Quaking Stomp's Earthquake caught the whole party for one foe.)
-                    gain += sign * (ally ? 2 : 1) * value * (out - Math.min(1, before / hp) + worth * ROUND_TO_KILL);
+                    // (2026-11-10: harm to itself four times — a kineticist's Solar Detonation took it to half its Hit Points with two foes
+                    // beside it, and a creature that drops itself loses everything it would do after.)
+                    gain += sign * (ally ? (target === c ? 4 : 2) : 1) * value * (out - Math.min(1, before / hp) + worth * ROUND_TO_KILL);
                     if (heal > 0 && target.hp.max > 0) {
                         // Topping up a barely hurt ally is worth little; saving one near 0 HP, a lot.
                         const urgency = target.status !== "active" ? 3 : 2.5 * (1 - hpFraction(target)) ** 1.5;
