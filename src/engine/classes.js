@@ -505,7 +505,7 @@ const CLASSES = {
         build(lv, a) {
             // The eidolon (a beast eidolon: Strength 4 and up, its unarmed steps, its own AC) as its own body beside the summoner, sharing
             // its Hit Points (fight.js), two actions each (three between them and Act Together's one more); Boost Eidolon among its cantrips.
-            const str = key(lv);
+            const str = key(lv) + (lv >= 17 ? 1 : 0); // (Eidolon Transcendence: +1 to its Strength at 17th.)
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const jaws = weaponStrike(lv, { name: "Jaws", die: 8, type: "piercing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true } });
             const claw = weaponStrike(lv, { name: "Claw", die: 6, type: "slashing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true } });
@@ -515,7 +515,7 @@ const CLASSES = {
             const boost = Math.min(8, 2 * striking(lv));
             for (const strike of [jaws, claw]) strike.damage = [...strike.damage, { dice: 0, die: 0, bonus: boost, type: strike.damage[0].type, source: "Boost Eidolon" }];
             const eidolon = (summoner) => ({
-                ...structuredClone(summoner), id: "eidolon", name: "Eidolon", kind: "npc", traits: ["eidolon", "beast"], sharesHpWith: summoner.id, actionsPerTurn: 2,
+                ...structuredClone(summoner), id: "eidolon", name: "Eidolon", kind: "npc", traits: ["eidolon", "beast"], sharesHpWith: summoner.id, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
                 ac: eidolonAC, strikes: [jaws, claw].map((strike) => ({ ...strike, ...(potency(lv) ? { iwr: { ...strike.iwr, traits: ["magical"] } } : {}) })), spells: (summoner.spells ?? []).filter((entry) => entry.kind === "basic"), spellPools: {},
                 skills: { athletics: lv + rank(lv, [[1, T], [5, E], [13, M]]) + str, intimidation: lv + T }, classDC: null, heroPoints: 0, reactions: { aoo: false, shieldBlock: false }, critSpec: lv >= 7,
                 // (2026-11-10, Cole's pick "All fixes, with impulses": a beast eidolon's abilities — Beast's Charge (1st: Stride twice, then
@@ -526,8 +526,8 @@ const CLASSES = {
                 ...(lv >= 17 ? { multiStrikes: [{ name: "Whirlwind Maul", actions: 2, strikes: [null], each: true, sameMap: true, max: 4 }] } : {}),
                 ...(lv >= 7 ? { spells: [...(summoner.spells ?? []).filter((entry) => entry.kind === "basic"), roar], spellPools: { "eidolon:roar": 1 } } : {})
             });
-            const roar = lv >= 7 ? { name: "Primal Roar", plan: savePlan("Primal Roar", { actions: 2, traits: ["auditory", "emotion", "fear", "mental", "eidolon"], area: { type: "emanation", value: 30 }, save: "will", dc: 10 + lv + T, effects: { failure: [["frightened", 1, null]], criticalFailure: [["frightened", 2, null]] } }), castRank: Math.ceil(lv / 2), dc: 10 + lv + T, attack: null, pool: "eidolon:roar", kind: "ability", actionType: "action", rechargeGroup: "Primal Roar" } : null;
-            return { strikes: [], fields: { actionsPerTurn: 1 }, companions: [eidolon] };
+            const roar = lv >= 7 ? { name: "Primal Roar", plan: savePlan("Primal Roar", { actions: 2, traits: ["auditory", "emotion", "fear", "mental", "eidolon"], area: { type: "emanation", value: 30, foes: true }, save: "will", dc: 10 + lv + T, effects: { failure: [["frightened", 1, null]], criticalFailure: [["frightened", 2, null]] } }), castRank: Math.ceil(lv / 2), dc: 10 + lv + T, attack: null, pool: "eidolon:roar", kind: "ability", actionType: "action", rechargeGroup: "Primal Roar" } : null;
+            return { strikes: [], fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: boost }, companions: [eidolon] };
         }
     },
     swashbuckler: {

@@ -1126,7 +1126,17 @@ function emptyNow(c, node, index, strike) {
 }
 
 function expand(ctx, node, actionsLeft) {
-    const children = expandAll(ctx, node, actionsLeft);
+    // (2026-11-10, Cole: "get them working" — a summoner's Act Together: its share of the three actions is one (Boost Eidolon's, played as
+    // its eidolon's damage) and one more, or a 2-action activity — a slot spell — for both, its eidolon's Boost lost till its next turn.)
+    if (ctx.c.actTogether && node.used >= 1) return [];
+    let children = expandAll(ctx, node, actionsLeft);
+    if (ctx.c.actTogether) {
+        children = children.filter((next) => next.used - node.used <= 2);
+        const eidolon = ctx.state.list.find((other) => other.sharesHpWith === ctx.c.id && isActive(other));
+        const boost = eidolon ? ctx.c.boostEidolon ?? 0 : 0;
+        const loss = boost ? Math.max(0, ...ctx.enemies.map((foe) => targetValue(ctx.state, foe, eidolon) * Math.min(1, (1.2 * boost) / Math.max(1, remainingHp(foe))))) : 0;
+        for (const next of children) if (next.used - node.used === 2) next.value -= loss;
+    }
     // (Incorporeal, starting its turn inside the floor — space.js: its first action a move, out where it is or on to where it goes.)
     if (ctx.c.emerging && node.used === 0) {
         const moves = children.filter((next) => next.first?.type === "stride" || next.first?.type === "step");

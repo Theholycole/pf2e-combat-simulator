@@ -546,6 +546,10 @@ function startTurn(state, c) {
     c.weakGrip?.clear();
     // Flourishes (Flurry of Blows): once a turn. A finisher ends Strikes for the turn.
     c.usedThisTurn = new Set();
+    if (c.actTogether) {
+        c.actTogetherDone = false;
+        eidolonBoost(state, c, true);
+    }
     // (2026-11-10, Quick Alchemy: a quick vial lasts to the end of the turn it's made, so none is ready at a turn's start.)
     // (And an item made with Quick Alchemy only until the start of its next turn: a bomb in hand with no stock of it left was made, so it's
     // inert now.)
@@ -2299,6 +2303,19 @@ export function takeTurn(state, c) {
     endTurn(state, c);
 }
 
+// (2026-11-10) A summoner's Boost Eidolon on its eidolon's Strikes, or not (a turn it spent both its actions on one activity).
+function eidolonBoost(state, c, on) {
+    const eidolon = state.list.find((other) => other.sharesHpWith === c.id);
+    if (!eidolon) return;
+    for (const strike of eidolon.strikes ?? []) {
+        strike.boostPart ??= (strike.damage ?? []).find((part) => part.source === "Boost Eidolon") ?? null;
+        if (!strike.boostPart) continue;
+        const has = strike.damage.includes(strike.boostPart);
+        if (on && !has) strike.damage = [...strike.damage, strike.boostPart];
+        if (!on && has) strike.damage = strike.damage.filter((part) => part !== strike.boostPart);
+    }
+}
+
 // Its turn's actions, as the planner picks them; false when the fight ended in them.
 function playActions(state, c) {
     let guard = 0;
@@ -2311,7 +2328,14 @@ function playActions(state, c) {
     while (c.actionsLeft > 0 && canAct(c) && !c.cond.fleeing && guard++ < 8) {
         const action = chooseAction(state, c);
         if (!action) break;
-        c.actionsLeft -= actionCost(c, action);
+        const cost = actionCost(c, action);
+        c.actionsLeft -= cost;
+        // (2026-11-10, Act Together: one action of the summoner's own, or a 2-action activity — its eidolon's Boost lost till its next turn.)
+        if (c.actTogether && !c.actTogetherDone) {
+            c.actTogetherDone = true;
+            if (cost <= 1) c.actionsLeft = 0;
+            else eidolonBoost(state, c, false);
+        }
         act(state, c, action);
         afterAction(state);
         c.actionCount = (c.actionCount ?? 0) + 1;
